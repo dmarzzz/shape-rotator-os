@@ -32,8 +32,9 @@ key activities:
 - **james barnes' first salon session** (tuesday afternoon, week 1) — cohort-wide intro + brainstorming
 - **carter shows up week 1** — peer-consulting / founder-journey conversation
 - **each project sits down with andrew + tina** to define its own success criteria (`success_dimensions`, `weekly_goals`, `monthly_milestones`, `graduation_target`)
-- **personal API onboarding** — every individual fills in their own (comm style, contribute interests, weekly intention, availability)
-- **shape-rotator journey** (cohort-internal sharing ritual) starts — first one over dinner
+- **personal API onboarding** — every individual fills in their own (comm style, contribute interests, weekly intention, availability). this is treated as a **coordination primitive**, not paperwork — it's how the cohort matches contribution to need without overhead.
+- **personal journey workbook** — assisted-diary companion to the personal API, co-created in week 1. defines focus, growth trajectory, and what graduation success looks like for *you* specifically. first page is pre-filled to make the journaling habit cheap to start.
+- **shape-rotator journey** (cohort-internal sharing ritual) starts **daily** in weeks 1-2, dropping to weekly from week 3 on. first one over dinner.
 
 week 2 is the most *program-intensive* week of the whole program. by then the cohort is fully assembled, the rituals are set, and projects know what they're optimizing for. expect 20% of the project planning to shift between end-of-week-1 and end-of-week-2 — that's the design.
 
@@ -65,7 +66,8 @@ after midterm, it becomes very clear which projects will graduate as-is, which w
 
 - **monday — intention setting.** each project + each individual writes their `weekly_goals` / `weekly_intention` in their record. *most people are bad at setting good targets at first; that's something to improve, not be embarrassed about.*
 - **friday — retro.** did you hit your targets? if you blew past them, you set bad targets — calibrate. if you missed by a lot and learned why, that counts.
-- **once a week — shape-rotator journey** (small-group sharing ritual). often over dinner. a slot to share what's actually going on, the key bottleneck, what you need help with. peer consulting, not formal review.
+- **once a week — shape-rotator journey** (small-group sharing ritual). often over dinner. a slot to share what's actually going on, the key bottleneck, what you need help with. peer consulting, not formal review. *runs daily in weeks 1-2 to build the ritual, then drops to weekly.*
+- **once a week — PMF deep-dive** (~1 evening/week). canonical session: what product-market fit actually means for each project, who's seeing real organic pull vs. wishful interpretation of friendly feedback. the program treats "PMF literacy" as something most technically strong builders need to improve, not assume.
 - **once a week — appreciation circle** (cohort-wide). flashbots-style. spoken appreciations for specific things people did. surprisingly emotional for first-timers.
 
 ## sources & inspirations
