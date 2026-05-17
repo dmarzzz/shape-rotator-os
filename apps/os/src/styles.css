@@ -1,4 +1,5 @@
 @import "vendor/shape-ui/tokens.css";
+@import "vendor/shape-ui/cohort-card.css";
 
 /* ─── self-hosted type ─────────────────────────────────────────────────────
  * Geist Sans + Geist Mono variable woff2, both OFL (see assets/fonts/OFL.txt).
@@ -6024,55 +6025,10 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 18px;
 }
-.alch-card {
-  background: linear-gradient(180deg, rgba(241,236,231,0.025), rgba(241,236,231,0.005));
-  border: 1px solid var(--alchemy-rule);
-  border-radius: 6px;
-  padding: 18px 18px 16px;
-  display: flex; flex-direction: column; gap: 14px;
-  position: relative;
-  transition: border-color 240ms var(--ease), background 240ms var(--ease), transform 240ms var(--ease);
-}
-.alch-card:hover {
-  border-color: var(--alchemy-rule-warm);
-  background: linear-gradient(180deg, rgba(143,34,14,0.05), rgba(241,236,231,0.01));
-  transform: translateY(-2px);
-  cursor: pointer;
-}
-.alch-card.is-clickable:active { transform: translateY(0); }
-.alch-card-tag {
-  display: flex; gap: 8px; align-items: center;
-  font-family: var(--font-mono); font-size: 9.5px;
-  letter-spacing: 0.20em; text-transform: uppercase;
-  color: var(--alchemy-ink-mute);
-}
-.alch-card-tag .ct-id { color: var(--alchemy-oxide-bright); }
-.alch-card-tag .ct-sep { opacity: 0.3; }
-.alch-card-shape {
-  height: 120px;
-  display: grid; place-items: center;
-  position: relative;
-}
-.alch-card-shape svg {
-  width: 100%; height: 100%;
-  animation: alchTilt 11s ease-in-out infinite, alchBreathe 9.5s ease-in-out infinite;
-  transform-origin: center;
-}
-/* WebGL shape canvas (replaces the SVG above for the shapes grid +
-   detail page hero + legend). Each <canvas> has its own GL2 context
-   running the shared SDF shader from packages/shape-ui/shape-canvas.js.
-   Square aspect; the inner shader handles its own breathing animation. */
-.alch-card-shape canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  /* Slight rounded mask so the shape doesn't sit in a hard rectangle
-     against the parchment / dark backgrounds. */
-  border-radius: 6px;
-}
-.alch-card-shape svg .as-fill { fill: var(--alchemy-oxide); }
-.alch-card-shape svg .as-stroke { stroke: var(--alchemy-oxide-bright); fill: none; stroke-width: 1; }
-.alch-card-shape svg .as-mute { stroke: rgba(241,236,231,0.18); fill: none; stroke-width: 0.6; }
+/* Cohort-card base rules moved to packages/shape-ui/src/cohort-card.css
+   (layer 1). The @keyframes alchTilt / alchBreathe stay here because
+   they're consumed both by the shape grid canvas + by the SVG shape
+   marks in the constellation/legend renders. */
 @keyframes alchTilt {
   0%   { transform: rotate(-2.5deg) translate(0%, 0%); }
   50%  { transform: rotate(3deg)    translate(0.6%, -0.8%); }
@@ -6082,28 +6038,6 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   0%, 100% { filter: drop-shadow(0 0 0 rgba(143,34,14,0)); }
   50%      { filter: drop-shadow(0 6px 20px rgba(143,34,14,0.30)); }
 }
-.alch-card-name {
-  font-family: var(--font-sans); font-size: 18px;
-  letter-spacing: -0.014em; font-weight: 500;
-  color: var(--alchemy-paper-warm);
-}
-.alch-card-rule { height: 1px; background: var(--alchemy-rule-warm); width: 28px; }
-.alch-card-meta { display: flex; flex-direction: column; gap: 5px; }
-.alch-card-meta-row {
-  display: grid; grid-template-columns: 64px 1fr; gap: 10px;
-  font-family: var(--font-mono); font-size: 10.5px;
-  letter-spacing: 0.06em;
-}
-.alch-card-meta-row .cm-k {
-  color: var(--alchemy-ink-mute); text-transform: uppercase; letter-spacing: 0.16em; font-size: 9.5px; padding-top: 1px;
-}
-.alch-card-meta-row .cm-v { color: var(--alchemy-paper-warm); }
-.alch-card-meta-row .cm-v a {
-  color: var(--alchemy-paper-warm); text-decoration: none;
-  border-bottom: 1px solid var(--alchemy-rule-warm);
-  transition: color 160ms var(--ease), border-color 160ms var(--ease);
-}
-.alch-card-meta-row .cm-v a:hover { color: var(--alchemy-oxide-bright); border-color: var(--alchemy-oxide-bright); }
 
 /* ─── pulse (activity over time) ─────────────────────────────────────── */
 .alch-pulse {
@@ -6220,17 +6154,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-legend .acl-swatch-ndai      { background: #E6B97A; }
 .alch-constellation-legend .acl-swatch-regulated { background: #6FBD8C; }
 
-/* Mentor-card variant: quieter outline, no oxide tint on hover. */
-.alch-card-mentor {
-  background: linear-gradient(180deg, rgba(241,236,231,0.015), rgba(241,236,231,0.002));
-  border-style: dashed;
-}
-.alch-card-mentor:hover {
-  border-color: rgba(241,236,231,0.32);
-  background: linear-gradient(180deg, rgba(241,236,231,0.04), rgba(241,236,231,0.005));
-}
-.alch-card-mentor .alch-card-shape svg .as-fill { fill: var(--alchemy-paper-warm); opacity: 0.6; }
-.alch-card-mentor .alch-card-shape svg .as-stroke { stroke: var(--alchemy-paper-warm); opacity: 0.7; }
+/* Mentor-card variant moved to packages/shape-ui/src/cohort-card.css. */
 
 /* ─── legend (shape vocabulary) ──────────────────────────────────────── */
 .alch-legend-intro {
@@ -6501,15 +6425,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .alch-shapes-chip[aria-selected="true"] .ascn { opacity: 1; }
 
-/* In-card kind marker — sits in the tag row alongside SHAPE-XX */
-.ct-kind {
-  font-family: var(--font-mono);
-  letter-spacing: 0.1em;
-  padding: 0 4px;
-  border-radius: 2px;
-}
-.ct-kind-team    { color: var(--alchemy-ink-mute); }
-.ct-kind-project { color: var(--alchemy-oxide-bright); }
+/* In-card kind marker moved to packages/shape-ui/src/cohort-card.css. */
 
 /* ─── alchemy detail page (full-canvas team / project profile) ──── */
 .alch-detail-bar {
@@ -6672,28 +6588,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   outline-offset: 2px;
 }
 
-/* Member chips inside team/project cards (data-person buttons). */
-.alch-card-members-row .cm-v {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px;
-}
-.alch-card-member {
-  appearance: none; background: transparent;
-  border: 0; padding: 0; margin: 0;
-  font: inherit; color: var(--alchemy-paper-warm, #f5f3ee);
-  border-bottom: 1px dotted var(--alchemy-rule, rgba(245,243,238,0.18));
-  cursor: pointer;
-  transition: color 140ms ease, border-color 140ms ease;
-}
-.alch-card-member:hover {
-  color: var(--alchemy-oxide-bright, #d05332);
-  border-bottom-color: var(--alchemy-oxide-bright, #d05332);
-}
-.alch-card-member:focus-visible {
-  outline: 1px solid var(--alchemy-oxide-bright, #d05332);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-.acm-sep { color: var(--alchemy-ink-mute, #7a7368); opacity: 0.55; margin: 0 2px; }
+/* Member chips inside team/project cards moved to
+   packages/shape-ui/src/cohort-card.css (.alch-card-members-row,
+   .alch-card-member, .acm-sep). */
 .alch-detail-clusters {
   display: flex; flex-wrap: wrap; gap: 6px;
 }
@@ -6707,17 +6604,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   border-radius: 999px;
 }
 
-/* Card → repo link. The team's canonical repo is the feed-tracking
-   signal, so it gets a touch more weight than github/x links. */
-.alch-card-repo-link {
-  color: var(--alchemy-paper-warm);
-  text-decoration: none;
-  border-bottom: 1px solid var(--alchemy-rule-warm);
-}
-.alch-card-repo-link:hover {
-  color: var(--alchemy-oxide-bright);
-  border-color: var(--alchemy-oxide-bright);
-}
+/* Card → repo link moved to packages/shape-ui/src/cohort-card.css. */
 
 /* Profile → mode tabs (add / edit). Visually heavier than the kind
    sub-tabs since it's the primary axis of the editor. */
@@ -7365,11 +7252,14 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-shapes-chip .ascn { opacity: 0.5; }
 
 /* ── shape cards — gallery slabs ─────────────────────────────────── */
+/* Card-specific rules moved to packages/shape-ui/src/cohort-card.css
+   (layer 2). The .alch-legend-card half + the .alch-detail-shape canvas
+   half of the combined selectors stay here (legend = shape vocabulary;
+   detail-shape = detail page hero, not a card). */
 .alch-specimens {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 32px;
 }
-.alchemy-canvas .alch-card,
 .alchemy-canvas .alch-legend-card {
   background: var(--ed-bg-1);
   color: var(--ed-ink-2);
@@ -7379,53 +7269,7 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   box-shadow: none;
   transition: border-color 280ms ease, background 280ms ease;
 }
-.alchemy-canvas .alch-card:hover {
-  border-color: var(--ed-rule-3);
-  background: var(--ed-bg-2);
-  transform: none;
-  box-shadow: none;
-}
-.alch-card-tag {
-  font-family: var(--ed-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--ed-ink-3);
-  margin-bottom: 18px;
-}
-.alch-card-tag .ct-id { color: var(--ed-ink-1); }
-.alch-card-tag .ct-sep { color: var(--ed-ink-4); }
-.alch-card-shape { height: 200px; margin-bottom: 22px; }
-.alch-card-shape canvas, .alch-detail-shape canvas { border-radius: 0; }
-.alch-card-name {
-  font-family: var(--ed-display);
-  font-size: 26px;
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  color: var(--ed-ink-1);
-  margin: 0 0 18px;
-  line-height: 1.1;
-}
-.alch-card-rule { background: var(--ed-rule); margin: 0 0 14px; }
-.alch-card-meta { font-family: var(--ed-mono); font-size: 11px; line-height: 1.55; }
-.alch-card-meta-row { padding: 4px 0; }
-.alch-card-meta-row .cm-k {
-  color: var(--ed-ink-4);
-  letter-spacing: 0.20em;
-  text-transform: uppercase;
-  font-size: 9.5px;
-}
-.alch-card-meta-row .cm-v { color: var(--ed-ink-2); }
-.alch-card-meta-row .cm-v a {
-  color: var(--ed-ink-1);
-  text-decoration: none;
-  border-bottom: 1px solid var(--ed-rule-2);
-}
-.alch-card-meta-row .cm-v a:hover { border-bottom-color: var(--ed-ink-1); }
-.ct-kind-team    { color: var(--ed-ink-3); }
-.ct-kind-project { color: var(--ed-ink-1); }
-.alch-card-repo-link { color: var(--ed-ink-1); border-bottom-color: var(--ed-rule-2); }
-.alch-card-repo-link:hover { border-bottom-color: var(--ed-ink-1); }
+.alch-detail-shape canvas { border-radius: 0; }
 
 /* ── detail page ─────────────────────────────────────────────────── */
 .alch-detail-bar { border-bottom: 1px solid var(--ed-rule); padding-bottom: 20px; margin-bottom: 40px; }
@@ -7740,11 +7584,13 @@ html, body { background: var(--ed-bg-0); }
 .alch-shapes-chip .ascn { opacity: 0.5; margin-left: 4px; }
 
 /* ── shape cards — Foundation gallery slabs ──────────────────────── */
+/* Card-specific rules moved to packages/shape-ui/src/cohort-card.css
+   (layer 3). The .alch-legend-card half of the combined selector stays
+   here — it's the shape-vocabulary legend, not a cohort card. */
 .alch-specimens {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 20px;
 }
-.alchemy-canvas .alch-card,
 .alchemy-canvas .alch-legend-card {
   background: var(--ed-bg-1);
   border: none;
@@ -7754,55 +7600,6 @@ html, body { background: var(--ed-bg-0); }
   box-shadow: none;
   transition: background 220ms ease-out;
 }
-.alchemy-canvas .alch-card:hover {
-  background: var(--ed-bg-2);
-  border-top-color: var(--ed-rule-3);
-  border-color: transparent;
-  box-shadow: none;
-  transform: none;
-}
-.alch-card-tag {
-  font-family: var(--ed-mono);
-  font-size: 9px;
-  letter-spacing: 0.20em;
-  text-transform: lowercase;               /* lowercase eyebrows */
-  color: var(--ed-ink-1);
-  opacity: var(--ed-op-quiet);
-  margin-bottom: 14px;
-}
-.alch-card-tag .ct-id { opacity: var(--ed-op-loud); }
-.alch-card-tag .ct-sep { opacity: 0.4; }
-.alch-card-shape { height: 168px; margin-bottom: 16px; }
-.alch-card-name {
-  font-family: var(--ed-display);
-  font-size: 22px;
-  font-weight: 400;
-  letter-spacing: -0.025em;                /* tighter editorial display */
-  font-feature-settings: "liga", "dlig", "swsh";
-  color: var(--ed-ink-1);
-  margin: 0 0 14px;
-  line-height: 1.1;
-  text-transform: none;
-}
-.alch-card-rule { display: none; }          /* drop the divider — whitespace does it */
-.alch-card-meta { font-family: var(--ed-mono); font-size: 11px; line-height: 1.55; }
-.alch-card-meta-row { padding: 3px 0; display: grid; grid-template-columns: 64px 1fr; gap: 12px; }
-.alch-card-meta-row .cm-k {
-  color: var(--ed-ink-1); opacity: var(--ed-op-faint);
-  letter-spacing: 0.16em;
-  text-transform: lowercase;
-  font-size: 9.5px;
-}
-.alch-card-meta-row .cm-v { color: var(--ed-ink-1); opacity: 0.85; }
-.alch-card-meta-row .cm-v a {
-  color: var(--ed-ink-1); opacity: var(--ed-op-loud);
-  text-decoration: none;
-  border-bottom: 1px solid var(--ed-rule-2);
-  transition: border-bottom-color 200ms ease-out;
-}
-.alch-card-meta-row .cm-v a:hover { border-bottom-color: var(--ed-ink-1); }
-.ct-kind-team    { color: var(--ed-ink-1); opacity: var(--ed-op-faint); }
-.ct-kind-project { color: var(--ed-ink-1); opacity: var(--ed-op-loud); font-style: italic; font-family: var(--ed-display); }
 
 /* ── detail page hero — bigger Iowan italic + tighter spec ───────── */
 .alch-detail-name {
@@ -7974,14 +7771,7 @@ html, body { background: var(--ed-bg-0); }
   text-transform: lowercase;
 }
 
-/* Person-card kind chip uses the same italic-display voice as
-   "project" for consistency — both are non-default classifications. */
-.ct-kind-person {
-  color: var(--ed-ink-1);
-  opacity: var(--ed-op-loud);
-  font-style: italic;
-  font-family: var(--ed-display);
-}
+/* Person-card kind chip moved to packages/shape-ui/src/cohort-card.css. */
 
 /* ── cohort calendar page ─────────────────────────────────────────── */
 .cal-page-head {
@@ -8202,24 +7992,12 @@ html, body {
 }
 
 /* ── shape grid cards — vertical gradient surface for warmth ──────── */
-.alchemy-canvas .alch-card,
+/* `.alch-card` half moved to packages/shape-ui/src/cohort-card.css (layer 4).
+   `.alch-legend-card` kept here — it's the shape-vocabulary legend, not a
+   cohort card, and is field-guide-only. */
 .alchemy-canvas .alch-legend-card {
   background: linear-gradient(180deg, #15120e 0%, #100e0b 100%);
   border-top: 1px solid rgba(245,243,238,0.10);
-}
-.alchemy-canvas .alch-card:hover {
-  background: linear-gradient(180deg, #1c1814 0%, #161311 100%);
-  border-top-color: rgba(245,243,238,0.28);
-}
-
-/* ── card meta inside the grid — lift the values, soften the keys ── */
-.alch-card-meta-row .cm-k {
-  color: var(--ed-ink-1);
-  opacity: 0.42;
-}
-.alch-card-meta-row .cm-v {
-  color: var(--ed-ink-1);
-  opacity: 0.88;
 }
 
 /* ── tab bar — slight gradient + warmer underline on active ────────── */
