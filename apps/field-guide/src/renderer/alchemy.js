@@ -1328,89 +1328,82 @@ function renderOnboarding() {
   const openPersonEditorGeneric = { kind: "go-profile", mode: "edit", recordKind: "person", recordId: null, label: "open profile · pick your record" };
   const openTeamEditorGeneric   = { kind: "go-profile", mode: "edit", recordKind: "team",   recordId: null, label: "open profile · pick your team" };
 
-  // `key` is stable across renames + reorders; numbers (n) are display-only.
-  // Step "confirm-your-project" was removed by request — the auto-detect
-  // for project assignment lives on the person record's `team` field, which
-  // step 02 (personal API) already pulls into the edit view.
+  // Onboarding v0.3 — 5-step membrane between "you opened the app" and
+  // "you're a fully-wired cohort member."
+  //
+  //   1. local agent           auto-checked: you're reading this in the
+  //                            field-guide app, so the agent is on this
+  //                            machine. Routed to the field-kit for the
+  //                            CLI tools that go alongside.
+  //   2. verify/edit profile   the canonical record. uses the new EDIT
+  //                            flow (alchemy.js: submitEditAsPR) that
+  //                            actually carries your in-app edits over
+  //                            to github.
+  //   3. join the matrix room  cohort chat. operator hasn't supplied
+  //                            the homeserver URL yet; the modal lives
+  //                            in showMatrixInstructions().
+  //   4. bot on matrix         your local agent talks in the room on
+  //                            your behalf. /matrix-bot-setup skill in
+  //                            the field-kit walks you through it.
+  //   5. interview + quiz      external; runs outside the app. links
+  //                            from the operator pending.
+  //
+  // `key` is stable across renames + reorders so localStorage overrides
+  // survive. Display numbers (n) come from array order at render-time.
   const stepDefs = [
     {
-      key: "claim-person-record",
-      title: "claim your person record",
+      key: "local-agent",
+      title: "set up your local agent",
+      ask: `you're reading this <em>inside</em> the field-guide app, which means your local agent is already running on this machine. the field-kit gives it CLI tools — research swarm, voice TUI, content pipeline, and the skills that drive the rest of onboarding.`,
+      autoComplete: true,  // they're in the app, so by definition this is true
+      missingState: "complete",
+      action: { kind: "external", url: "https://github.com/dmarzzz/shape-rotator-field-kit", label: "open the field-kit" },
+    },
+    {
+      key: "verify-profile",
+      title: "verify your profile",
       ask: me
-        ? `you're already on the map as <strong>${escHtml(me.name || me.record_id)}</strong>.`
-        : done["claim-person-record"]
-          ? `you marked this done locally. if your record uses a different github handle than the one in your profile, the auto-detect can't find it — that's fine, the override stands.`
-          : "no person record matches you yet. add one so you appear on the cohort map + calendar.",
-      autoComplete: !!me,
+        ? `you're on the map as <strong>${escHtml(me.name || me.record_id)}</strong>. open the profile editor to check the details + fill out your personal API (<code>comm_style</code>, <code>contribute_interests</code>, <code>availability_pref</code>, <code>weekly_intention</code>). submit opens a github PR.`
+        : "no person record matches you yet. add one so you appear on the cohort map + calendar. submit opens a github PR.",
+      // "complete" = you exist AND at least one personal-API field is filled.
+      autoComplete: !!me && (
+        has(me, "comm_style") || has(me, "contribute_interests") ||
+        has(me, "availability_pref") || has(me, "weekly_intention")
+      ),
       missingState: "missing",
       action: me
-        ? { kind: "go-profile", mode: "edit", recordKind: "person", recordId: me.record_id, label: "edit my record" }
-        : { kind: "go-profile", mode: "add",  recordKind: "person",                          label: "add my record" },
+        ? { kind: "go-profile", mode: "edit", recordKind: "person", recordId: me.record_id, label: "verify + edit my profile" }
+        : { kind: "go-profile", mode: "add",  recordKind: "person",                          label: "add my profile" },
     },
     {
-      key: "personal-api",
-      title: "fill in your personal API",
-      ask: me
-        ? `tell the cohort how to collaborate with you well — comm style, what you'd happily pair on, your weekly rhythm. fields: <code>comm_style</code>, <code>contribute_interests</code>, <code>availability_pref</code>.`
-        : step1Effective
-          ? `pick your record in the profile editor — these go on it: <code>comm_style</code>, <code>contribute_interests</code>, <code>availability_pref</code>.`
-          : "(complete step 01 first.)",
-      autoComplete: !!me && (has(me, "comm_style") || has(me, "contribute_interests") || has(me, "availability_pref")),
-      missingState: !step1Effective ? "blocked" : "missing",
-      action: me
-        ? { kind: "go-profile", mode: "edit", recordKind: "person", recordId: me.record_id, label: "edit my personal API" }
-        : (step1Effective ? openPersonEditorGeneric : null),
-    },
-    {
-      key: "week-1-intention",
-      title: "set your week-1 intention",
-      ask: me
-        ? `one concrete thing you want to ship or learn this week. lives on your person record as <code>weekly_intention</code> — refresh it every monday.`
-        : step1Effective
-          ? `one concrete thing you want to ship or learn this week. lives on your person record as <code>weekly_intention</code> — pick your record to set it.`
-          : "(complete step 01 first.)",
-      autoComplete: !!me && has(me, "weekly_intention"),
-      missingState: !step1Effective ? "blocked" : "missing",
-      // Inline single-field form. Renders a textarea + submit when we have
-      // an auto-detected `me`. Submit builds a one-line YAML patch and
-      // opens github's web editor on the user's person record (web editor
-      // doesn't accept pre-filled content for existing files; the patch
-      // is shown + made copy-paste-ready alongside).
-      inline: me ? {
-        recordKind: "person",
-        recordId: me.record_id,
-        fieldKey: "weekly_intention",
-        existing: String(me.weekly_intention || ""),
-        placeholder: "ship the prototype to 3 cohort members",
-        submitLabel: "submit → open PR",
-      } : null,
-      action: me
-        ? null  // inline form replaces the route-to-profile button when auto-detected
-        : (step1Effective ? openPersonEditorGeneric : null),
-    },
-    {
-      key: "project-success-criteria",
-      title: "set your project's success criteria",
-      ask: myTeam
-        ? `each project defines its own. fields on <strong>${escHtml(myTeam.name || myTeam.record_id)}</strong>: <code>success_dimensions</code>, <code>weekly_goals</code>, <code>monthly_milestones</code>, <code>graduation_target</code>. this is the office-hours-week-1 conversation.`
-        : step5HasTeamContext
-          ? `pick your team in the profile editor and set: <code>success_dimensions</code>, <code>weekly_goals</code>, <code>monthly_milestones</code>, <code>graduation_target</code>. this is the office-hours-week-1 conversation.`
-          : "(complete step 01 first.)",
-      autoComplete: !!myTeam && (has(myTeam, "weekly_goals") || has(myTeam, "graduation_target")),
-      missingState: !step5HasTeamContext ? "blocked" : "missing",
-      action: myTeam
-        ? { kind: "go-profile", mode: "edit", recordKind: (myTeam.kind === "project" ? "project" : "team"), recordId: myTeam.record_id, label: "edit project goals" }
-        : (step5HasTeamContext ? openTeamEditorGeneric : null),
-    },
-    {
-      key: "read-program-handbook",
-      title: "read the program handbook",
-      ask: "the rules, success vectors, and weekly rhythm are spelled out under <strong>program</strong>. read it once; reference it when something's ambiguous.",
+      key: "join-matrix",
+      title: "join the matrix server",
+      ask: `the cohort chats in matrix. you'll create an account on the homeserver and join the cohort room. <em>operator hasn't published the homeserver URL yet — the modal will show instructions once it's wired.</em>`,
       autoComplete: false,
       missingState: "info",
-      action: { kind: "go-program", label: "open program handbook" },
+      action: { kind: "matrix-instructions", label: "show matrix instructions" },
+    },
+    {
+      key: "agent-on-matrix",
+      title: "have your agent join matrix",
+      ask: `register your local agent as a bot in the cohort room so it can post + read on your behalf. the field-kit has a skill — <code>/matrix-bot-setup</code> — that walks through it. <em>also waiting on the homeserver URL.</em>`,
+      autoComplete: false,
+      missingState: "info",
+      action: { kind: "bot-matrix-instructions", label: "show bot setup" },
+    },
+    {
+      key: "interview-quiz",
+      title: "do the cohort interview + quiz",
+      ask: `a short interview + a quiz so the cohort knows what each of you brings + what you're after. opens in your browser. <em>operator will share the links here once they're up.</em>`,
+      autoComplete: false,
+      missingState: "info",
+      action: { kind: "interview-quiz-links", label: "open interview + quiz" },
     },
   ];
+  // Suppress lint on now-unused vars from the old flow — keep them
+  // around so future refactors can hook back into the project-success
+  // / week-1-intention shapes.
+  void step5HasTeamContext; void openTeamEditorGeneric; void openPersonEditorGeneric;
 
   const steps = stepDefs.map((s, i) => {
     const overridden = !!done[s.key];
@@ -1488,9 +1481,110 @@ function renderOnboarding() {
       </p>
     </header>
     <ol class="alch-onb-steps">${stepHtml}</ol>
-    <p class="alch-callout"><strong>onboarding · v0.2</strong><br/>
-    auto-detected completion reads from the merged cohort surface — so it stays correct across machines. the <strong>mark done</strong> toggle is a per-machine override stored in <code>localStorage</code>, useful when the auto-detect can't see a record you already have. revisit weekly to refresh your intention + goals.</p>
+    <p class="alch-callout"><strong>onboarding · v0.3</strong><br/>
+    five steps to fully wire yourself into the cohort. step 01 auto-completes because you're already in the app. step 02 opens a github PR with your edits pre-filled. steps 03–05 surface external links + copy-paste once the operator finishes wiring matrix + the interview platform — the buttons render their current state (pending vs ready) without breaking the flow.</p>
   `;
+}
+
+// ─── onboarding action modals ───────────────────────────────────────
+// Step 03/04/05 actions don't route inside the app — they show a small
+// modal with instructions or external links. The content is intentionally
+// stub-shaped (TODO placeholders for the operator) so the flow renders
+// today and the values can be dropped in without touching the renderer.
+
+let _onbModalEl = null;
+function showOnboardingModal({ title, body }) {
+  if (_onbModalEl) closeOnboardingModal();
+  const overlay = document.createElement("div");
+  overlay.className = "alch-onb-modal-backdrop";
+  overlay.innerHTML = `
+    <div class="alch-onb-modal" role="dialog" aria-labelledby="onb-modal-title">
+      <header class="alch-onb-modal-head">
+        <h2 id="onb-modal-title" class="alch-onb-modal-title">${escHtml(title)}</h2>
+        <button class="alch-onb-modal-close" type="button" aria-label="close">×</button>
+      </header>
+      <div class="alch-onb-modal-body">${body}</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  _onbModalEl = overlay;
+  const close = () => closeOnboardingModal();
+  overlay.querySelector(".alch-onb-modal-close")?.addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", _onbModalKeydown);
+  // Wire copy buttons inside the modal body.
+  for (const btn of overlay.querySelectorAll("[data-onb-copy]")) {
+    btn.addEventListener("click", async () => {
+      const text = btn.getAttribute("data-onb-copy") || "";
+      try {
+        await navigator.clipboard.writeText(text);
+        const prev = btn.textContent;
+        btn.textContent = "copied";
+        setTimeout(() => { btn.textContent = prev; }, 1400);
+      } catch {}
+    });
+  }
+  // External links open in the user's browser, not in this Electron window.
+  wireExternalLinks(overlay);
+}
+function closeOnboardingModal() {
+  if (_onbModalEl) { _onbModalEl.remove(); _onbModalEl = null; }
+  document.removeEventListener("keydown", _onbModalKeydown);
+}
+function _onbModalKeydown(e) { if (e.key === "Escape") closeOnboardingModal(); }
+
+function showMatrixInstructions() {
+  // TODO(operator): drop the homeserver URL + room ID + registration
+  // policy in once decided. Until then we render the placeholder with a
+  // clear "not yet" so participants know it's pending, not broken.
+  showOnboardingModal({
+    title: "join the cohort matrix server",
+    body: `
+      <p class="alch-onb-modal-line">the cohort talks on matrix. you'll do this once, from your browser.</p>
+      <ol class="alch-onb-modal-steps">
+        <li>create an account on the homeserver: <code>TODO_MATRIX_HOMESERVER</code> <span class="alch-onb-modal-aux">(operator will publish the URL)</span></li>
+        <li>verify your email if prompted.</li>
+        <li>join the cohort room: <code>TODO_MATRIX_ROOM</code></li>
+        <li>say hi.</li>
+      </ol>
+      <p class="alch-onb-modal-aux">recommended clients: <a href="https://element.io/download" data-external>element</a> (desktop) or <a href="https://app.element.io" data-external>element web</a>. anything matrix-compatible works.</p>
+    `,
+  });
+}
+
+function showBotMatrixInstructions() {
+  // TODO(operator): once the homeserver is settled, fill in the bot
+  // registration token / open-registration policy, and update the
+  // /matrix-bot-setup skill in shape-rotator-field-kit to match.
+  showOnboardingModal({
+    title: "have your agent join matrix",
+    body: `
+      <p class="alch-onb-modal-line">register your local agent as a bot in the cohort room so it can post research summaries, ship updates, etc. on your behalf.</p>
+      <p class="alch-onb-modal-line"><strong>option A — claude code skill</strong> (recommended):</p>
+      <pre class="alch-onb-modal-pre">/matrix-bot-setup</pre>
+      <p class="alch-onb-modal-aux">if the slash command isn't recognized, install the skill first: <code>rotate install-skills</code> (after cloning <a href="https://github.com/dmarzzz/shape-rotator-field-kit" data-external>shape-rotator-field-kit</a>).</p>
+      <p class="alch-onb-modal-line"><strong>option B — manual</strong>:</p>
+      <pre class="alch-onb-modal-pre">TODO_BOT_SETUP_SCRIPT</pre>
+      <button class="alch-feed-btn" type="button" data-onb-copy="TODO_BOT_SETUP_SCRIPT">copy</button>
+      <p class="alch-onb-modal-aux">operator will publish the script once the homeserver registration + bot policy are settled.</p>
+    `,
+  });
+}
+
+function showInterviewQuizLinks() {
+  // TODO(operator): drop interview + quiz URLs in. Until then show a
+  // "not yet" rather than dead buttons.
+  showOnboardingModal({
+    title: "interview + quiz",
+    body: `
+      <p class="alch-onb-modal-line">two short asks so the cohort has a baseline picture of what each of you brings:</p>
+      <ul class="alch-onb-modal-steps">
+        <li><strong>interview</strong> — 15 minutes, open-ended. <a href="#" data-external>TODO_INTERVIEW_URL</a></li>
+        <li><strong>quiz</strong> — 10 minutes, multiple choice. <a href="#" data-external>TODO_QUIZ_URL</a></li>
+      </ul>
+      <p class="alch-onb-modal-aux">both open in your browser. operator will publish the URLs once the forms are up.</p>
+    `,
+  });
 }
 
 // Celebrate finishing an onboarding step. Pure-DOM particle burst — no
@@ -1696,6 +1790,12 @@ function wireOnboarding() {
         render();
       } else if (a.kind === "external" && a.url) {
         try { window.api?.openExternal?.(a.url); } catch {}
+      } else if (a.kind === "matrix-instructions") {
+        showMatrixInstructions();
+      } else if (a.kind === "bot-matrix-instructions") {
+        showBotMatrixInstructions();
+      } else if (a.kind === "interview-quiz-links") {
+        showInterviewQuizLinks();
       }
     });
   }

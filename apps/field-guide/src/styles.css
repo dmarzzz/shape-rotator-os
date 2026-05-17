@@ -9983,3 +9983,99 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 }
 .fp-btn-skip { margin-left: auto; opacity: 0.55; }
 .fp-btn-skip:hover { opacity: 1; }
+
+/* onboarding step-action modal — shared shell for matrix / bot /
+ * interview-quiz instructions. Reuses the fork-prompt visual language
+ * so the cohort sees one consistent modal aesthetic. */
+.alch-onb-modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(11, 10, 8, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px 18px;
+  z-index: 1000;
+}
+.alch-onb-modal {
+  max-width: 620px; width: 100%;
+  max-height: 80vh; overflow-y: auto;
+  background: linear-gradient(180deg, #18150f 0%, #110f0c 100%);
+  border: 1px solid rgba(245,243,238,0.14);
+  border-left: 3px solid var(--sr-red);
+  padding: 24px 28px 24px;
+}
+.alch-onb-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(245,243,238,0.10);
+}
+.alch-onb-modal-title {
+  font-family: var(--sr-font-sans);
+  font-style: italic;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  color: var(--ed-ink-1, #f5f3ee);
+  margin: 0;
+}
+.alch-onb-modal-close {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--ed-ink-1, #f5f3ee);
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+  opacity: 0.55;
+}
+.alch-onb-modal-close:hover { opacity: 1; }
+.alch-onb-modal-body {
+  font-family: var(--sr-font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ed-ink-1, #f5f3ee);
+}
+.alch-onb-modal-line {
+  margin: 0 0 12px 0;
+}
+.alch-onb-modal-line:last-child { margin-bottom: 0; }
+.alch-onb-modal-aux {
+  font-family: var(--sr-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  margin: 12px 0 0;
+}
+.alch-onb-modal-steps {
+  margin: 0 0 16px 0;
+  padding-left: 24px;
+}
+.alch-onb-modal-steps li {
+  margin-bottom: 8px;
+}
+.alch-onb-modal-body code {
+  font-family: var(--sr-font-mono);
+  font-size: 12px;
+  background: rgba(245,243,238,0.06);
+  padding: 1px 6px;
+  border-radius: 2px;
+}
+.alch-onb-modal-pre {
+  font-family: var(--sr-font-mono);
+  font-size: 12px;
+  background: rgba(245,243,238,0.04);
+  border: 1px solid rgba(245,243,238,0.10);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.alch-onb-modal-body a[data-external] {
+  color: var(--sr-red);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.alch-onb-modal-body a[data-external]:hover { opacity: 0.85; }
