@@ -250,9 +250,15 @@ function renderUpdatePanel(st) {
       actions = `<button type="button" class="fg-up-btn" data-act="close">dismiss</button>`;
       break;
     case "available":
-      body = `<div class="fg-up-line">a newer build is available.</div>`;
+      // We used to wire a `download` action that drove electron-updater's
+      // in-app download + quitAndInstall flow. On macOS that path silently
+      // fails for unsigned builds — quitAndInstall can't swap the .app
+      // bundle without a valid code signature, so the restart button did
+      // nothing. Route to the GitHub release page instead: the user grabs
+      // the .dmg manually and drags it to /Applications.
+      body = `<div class="fg-up-line">a newer build is available. download + replace the app manually (we're unsigned, so in-app install isn't reliable).</div>`;
       actions = `
-        <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="download">download</button>
+        <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="open-release">open download page</button>
         <button type="button" class="fg-up-btn" data-act="close">later</button>`;
       break;
     case "downloading": {
@@ -295,11 +301,10 @@ function renderUpdatePanel(st) {
     b.addEventListener("click", (ev) => {
       ev.stopPropagation();
       const act = b.getAttribute("data-act");
-      if (act === "close")    return closeUpdatePanel();
-      if (act === "check")    return runUpdateCheck(chip);
-      if (act === "download") return runUpdateDownload(chip);
-      if (act === "defer")    return closeUpdatePanel();
-      if (act === "restart")  return runUpdateRestart();
+      if (act === "close")        return closeUpdatePanel();
+      if (act === "check")        return runUpdateCheck(chip);
+      if (act === "open-release") return runOpenReleasePage();
+      if (act === "defer")        return closeUpdatePanel();
     });
   });
 }
@@ -354,6 +359,15 @@ async function runUpdateRestart() {
   setUpdateState({ ..._updatePanelState, phase: "restarting" });
   try { await window.api.applyUpdateAndRestart?.(); }
   catch (e) { setUpdateState({ ..._updatePanelState, phase: "error", detail: e?.message || String(e) }); }
+}
+
+// Open the GitHub releases page in the user's default browser so they
+// can grab the latest .dmg manually. Used in place of the in-app
+// download/install flow which doesn't work for unsigned macOS builds.
+function runOpenReleasePage() {
+  const url = "https://github.com/dmarzzz/shape-rotator-field-guide/releases/latest";
+  try { window.api?.openExternal?.(url); } catch {}
+  closeUpdatePanel();
 }
 
 function escapeHtml(s) {
