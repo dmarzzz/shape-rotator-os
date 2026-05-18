@@ -83,11 +83,15 @@ jobs:
 
       # ── macOS signing prep (gated) ──────────────────────────────
       # Only runs when ALL five signing secrets are present. Decodes
-      # the .p12 cert to a temp file and stamps a `MACOS_SIGN=1`
-      # environment marker the build step reads to flip Hardened
-      # Runtime + notarize on. Without the secrets, the build runs
-      # unsigned (electron-builder uses CSC_IDENTITY_AUTO_DISCOVERY=
-      # false to skip the auto-discovery + sign step entirely).
+      # the .p12 cert to a temp file and EXPORTS the CSC_/APPLE_ env
+      # vars to $GITHUB_ENV so the build step inherits them. When
+      # secrets are missing, we don't write anything — the vars stay
+      # unset, and the build step exports CSC_IDENTITY_AUTO_DISCOVERY=
+      # false so electron-builder produces an unsigned bundle.
+      #
+      # Critical: we must NOT pass empty-string env vars to electron-
+      # builder. An empty CSC_LINK makes it treat "" as a file path and
+      # fail with "not a file". Either set real values or leave unset.
       - name: prepare macOS signing
         id: mac-sign-prep
         if: matrix.platform == 'mac'
@@ -103,32 +107,46 @@ jobs:
           else
             CERT_PATH="$RUNNER_TEMP/apple-dev-id.p12"
             echo -n "${{ secrets.APPLE_DEV_ID_P12_BASE64 }}" | base64 --decode > "$CERT_PATH"
-            echo "cert_path=$CERT_PATH" >> "$GITHUB_OUTPUT"
             echo "macos_sign=1" >> "$GITHUB_OUTPUT"
+            # Export to subsequent steps via GITHUB_ENV (only effective
+            # when signing is wanted; otherwise we leave them unset).
+            {
+              echo "CSC_LINK=$CERT_PATH"
+              echo "CSC_KEY_PASSWORD=${{ secrets.APPLE_DEV_ID_P12_PASSWORD }}"
+              echo "APPLE_ID=${{ secrets.APPLE_ID }}"
+              echo "APPLE_APP_SPECIFIC_PASSWORD=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}"
+              echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}"
+            } >> "$GITHUB_ENV"
             echo "::notice::macOS build will be SIGNED + NOTARIZED"
           fi
 
       - name: build (${{ matrix.platform }})
-        run: npm run dist:${{ matrix.platform }} --workspace @shape-rotator/field-guide -- ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && '--config.mac.notarize=true --config.extraMetadata.signed=true' || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.platform }}" = "mac" ] && [ "${{ steps.mac-sign-prep.outputs.macos_sign }}" = "1" ]; then
+            echo "→ macOS build: SIGNED + NOTARIZED"
+            npm run dist:mac --workspace @shape-rotator/field-guide -- \
+              --config.mac.notarize=true \
+              --config.extraMetadata.signed=true
+          elif [ "${{ matrix.platform }}" = "mac" ]; then
+            echo "→ macOS build: UNSIGNED"
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            npm run dist:mac --workspace @shape-rotator/field-guide
+          else
+            npm run dist:${{ matrix.platform }} --workspace @shape-rotator/field-guide
+          fi
         env:
           # electron-builder uses GH_TOKEN to upload artifacts to the
-          # release matching the pushed tag. GITHUB_TOKEN has write
-          # permission to releases via the `permissions:` block above.
+          # release matching the pushed tag.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Skip publish when the workflow was triggered manually with
-          # pack-only=true. Tag-triggered builds always publish.
+          # Skip publish when triggered manually with pack-only=true.
+          # Tag-triggered builds always publish.
           EB_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.pack-only && 'never' || 'onTagOrDraft' }}
-          # macOS code signing (only effective when the prep step set
-          # macos_sign=1; CSC_LINK is a file path, electron-builder
-          # auto-imports into a temp keychain). The Apple ID + app-
-          # specific password + team ID drive notarytool; the team ID
-          # also disambiguates if the cert is on multiple teams.
-          CSC_LINK: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && steps.mac-sign-prep.outputs.cert_path || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && secrets.APPLE_DEV_ID_P12_PASSWORD || '' }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && 'true' || 'false' }}
-          APPLE_ID: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && secrets.APPLE_ID || '' }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && secrets.APPLE_TEAM_ID || '' }}
+          # CSC_LINK / CSC_KEY_PASSWORD / APPLE_* come in via
+          # $GITHUB_ENV from the prep step when signing is enabled.
+          # They are NOT set here so they stay unset on the unsigned
+          # path (electron-builder distinguishes "unset" from "empty").
 
       - name: upload artifacts (workflow_dispatch only)
         if: github.event_name == 'workflow_dispatch'
