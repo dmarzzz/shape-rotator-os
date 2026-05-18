@@ -1,24 +1,35 @@
 name: field-guide-release
 
-# Builds the Shape Rotator Field Guide installers (DMG / NSIS exe / AppImage +
+# Builds the Shape Rotator OS installers (DMG / NSIS exe / AppImage +
 # deb) and publishes them to a GitHub Release. Triggered by pushing a
 # v-prefixed tag, e.g. `git tag v0.1.0 && git push --tags`. The version in
 # the tag must match `apps/field-guide/package.json:version` (electron-builder
 # reads from package.json, not the tag, but the tag is what triggers us).
 #
 # What ends up on the release:
-#   ShapeRotatorFieldGuide-<v>-mac-arm64.dmg + .zip
-#   ShapeRotatorFieldGuide-<v>-mac-x64.dmg + .zip
-#   ShapeRotatorFieldGuide-<v>-win-x64.exe + .zip
-#   ShapeRotatorFieldGuide-<v>-win-arm64.exe + .zip
-#   ShapeRotatorFieldGuide-<v>-linux-x64.AppImage + .deb
-#   ShapeRotatorFieldGuide-<v>-linux-arm64.AppImage + .deb
+#   ShapeRotatorOS-<v>-mac-arm64.dmg + .zip
+#   ShapeRotatorOS-<v>-mac-x64.dmg + .zip
+#   ShapeRotatorOS-<v>-win-x64.exe + .zip
+#   ShapeRotatorOS-<v>-win-arm64.exe + .zip
+#   ShapeRotatorOS-<v>-linux-x86_64.AppImage + .deb
+#   ShapeRotatorOS-<v>-linux-arm64.AppImage + .deb
 #   latest-mac.yml / latest.yml / latest-linux.yml  (electron-updater feed)
 #
-# Code signing is intentionally OFF (no Apple Developer cert, no Windows
-# signing cert). Mac users will need to right-click → Open the first time
-# to bypass Gatekeeper; Windows users will see a SmartScreen warning. Add
-# certs later — see electron-builder docs.
+# macOS signing + notarization (optional, gated on secrets):
+#   If APPLE_DEV_ID_P12_BASE64 + APPLE_DEV_ID_P12_PASSWORD + APPLE_ID +
+#   APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID are all set in repo
+#   secrets, the mac job imports the cert into a temporary keychain,
+#   signs with Hardened Runtime + entitlements, and notarizes via
+#   notarytool. The resulting .dmg is stamped with `signed=true` in the
+#   bundled package.json so the renderer flips canAutoUpdate for mac
+#   (seamless one-click update flow).
+#
+#   Without those secrets the workflow falls back to unsigned builds.
+#   Mac users have to xattr -cr the bundle once after install; auto-
+#   update falls back to "download + open dmg" via the v0.1.11 path.
+#
+# Windows + Linux are unsigned regardless — they don't need signing for
+# self-update to work (NSIS / AppImage swap binaries without verification).
 #
 # IMPORTANT: scripts/build-bundles.js regenerates apps/field-guide/src/
 # cohort-surface.json from cohort-data/ before each dist step, so the
@@ -70,8 +81,35 @@ jobs:
       - name: regenerate cohort-surface.json from cohort-data/
         run: npm run build:cohort
 
+      # ── macOS signing prep (gated) ──────────────────────────────
+      # Only runs when ALL five signing secrets are present. Decodes
+      # the .p12 cert to a temp file and stamps a `MACOS_SIGN=1`
+      # environment marker the build step reads to flip Hardened
+      # Runtime + notarize on. Without the secrets, the build runs
+      # unsigned (electron-builder uses CSC_IDENTITY_AUTO_DISCOVERY=
+      # false to skip the auto-discovery + sign step entirely).
+      - name: prepare macOS signing
+        id: mac-sign-prep
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.APPLE_DEV_ID_P12_BASE64 }}" ] \
+             || [ -z "${{ secrets.APPLE_DEV_ID_P12_PASSWORD }}" ] \
+             || [ -z "${{ secrets.APPLE_ID }}" ] \
+             || [ -z "${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}" ] \
+             || [ -z "${{ secrets.APPLE_TEAM_ID }}" ]; then
+            echo "macos_sign=0" >> "$GITHUB_OUTPUT"
+            echo "::notice::macOS build will be UNSIGNED (one or more APPLE_* secrets missing)"
+          else
+            CERT_PATH="$RUNNER_TEMP/apple-dev-id.p12"
+            echo -n "${{ secrets.APPLE_DEV_ID_P12_BASE64 }}" | base64 --decode > "$CERT_PATH"
+            echo "cert_path=$CERT_PATH" >> "$GITHUB_OUTPUT"
+            echo "macos_sign=1" >> "$GITHUB_OUTPUT"
+            echo "::notice::macOS build will be SIGNED + NOTARIZED"
+          fi
+
       - name: build (${{ matrix.platform }})
-        run: npm run dist:${{ matrix.platform }} --workspace @shape-rotator/field-guide
+        run: npm run dist:${{ matrix.platform }} --workspace @shape-rotator/field-guide -- ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && '--config.mac.notarize=true --config.extraMetadata.signed=true' || '' }}
         env:
           # electron-builder uses GH_TOKEN to upload artifacts to the
           # release matching the pushed tag. GITHUB_TOKEN has write
@@ -80,6 +118,17 @@ jobs:
           # Skip publish when the workflow was triggered manually with
           # pack-only=true. Tag-triggered builds always publish.
           EB_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.pack-only && 'never' || 'onTagOrDraft' }}
+          # macOS code signing (only effective when the prep step set
+          # macos_sign=1; CSC_LINK is a file path, electron-builder
+          # auto-imports into a temp keychain). The Apple ID + app-
+          # specific password + team ID drive notarytool; the team ID
+          # also disambiguates if the cert is on multiple teams.
+          CSC_LINK: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && steps.mac-sign-prep.outputs.cert_path || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && secrets.APPLE_DEV_ID_P12_PASSWORD || '' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && 'true' || 'false' }}
+          APPLE_ID: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'mac' && steps.mac-sign-prep.outputs.macos_sign == '1' && secrets.APPLE_TEAM_ID || '' }}
 
       - name: upload artifacts (workflow_dispatch only)
         if: github.event_name == 'workflow_dispatch'

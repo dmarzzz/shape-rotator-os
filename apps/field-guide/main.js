@@ -244,21 +244,40 @@ ipcMain.handle("fg:apply-update-and-restart", async () => {
   }
 });
 
-ipcMain.handle("fg:get-app-info", () => ({
-  version: app.getVersion(),
-  isPackaged: app.isPackaged,
-  platform: process.platform,
-  arch: process.arch,
+// Read a build-time flag from the bundled package.json. CI stamps
+// `signed=true` via electron-builder's --config.extraMetadata.signed
+// flag when the macOS build went through the full sign + notarize
+// path. Unsigned mac builds (and every Windows/Linux build) leave it
+// undefined, so the renderer keeps using the manual-download flow.
+let _pkgSigned = false;
+try { _pkgSigned = !!require("./package.json").signed; } catch {}
+
+ipcMain.handle("fg:get-app-info", () => {
+  const platform = process.platform;
+  const isAppImage = !!process.env.APPIMAGE;
   // Whether electron-updater's quitAndInstall path is viable here:
-  //   Windows  — NSIS installer, no signing required for self-update
-  //   AppImage — single-binary, replaceable without root
-  //   macOS    — needs a code-signed app (we're unsigned), so no
-  //   deb      — system install, would need sudo, so no
-  // Linux discriminator is process.env.APPIMAGE: it's only set when
-  // the app is currently running from inside an AppImage runtime.
-  canAutoUpdate: process.platform === "win32" || (process.platform === "linux" && !!process.env.APPIMAGE),
-  isAppImage: !!process.env.APPIMAGE,
-}));
+  //   Windows         — NSIS, no signing required
+  //   Linux AppImage  — single-binary, replaceable without root
+  //   macOS (signed)  — Hardened Runtime + notarytool stamp lets us
+  //                     pass macOS's signature verification on swap.
+  //                     `_pkgSigned` is true only when CI signed +
+  //                     notarized this build.
+  //   macOS (unsigned)— Gatekeeper refuses the .app swap → manual path
+  //   Linux .deb      — system install, would need sudo → manual path
+  const canAutoUpdate =
+    platform === "win32" ||
+    (platform === "linux" && isAppImage) ||
+    (platform === "darwin" && _pkgSigned);
+  return {
+    version: app.getVersion(),
+    isPackaged: app.isPackaged,
+    platform,
+    arch: process.arch,
+    canAutoUpdate,
+    isAppImage,
+    signed: _pkgSigned,
+  };
+});
 
 // ─── manual-install download path ───────────────────────────────────
 // macOS won't let an unsigned app rewrite itself, so electron-updater's
