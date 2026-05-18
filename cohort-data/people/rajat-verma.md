@@ -13,6 +13,7 @@ links:
   github: null
   x: null
   website: null
+dietary_restrictions:
 ---
 
 ## bio

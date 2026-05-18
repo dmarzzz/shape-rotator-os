@@ -3118,6 +3118,13 @@ function renderPersonDetail(person) {
         </section>
       ` : ""}
 
+      ${person.dietary_restrictions ? `
+        <section class="alch-detail-section">
+          <h3 class="alch-detail-h">dietary</h3>
+          <div class="alch-detail-row"><span class="adr-v">${escHtml(person.dietary_restrictions)}</span></div>
+        </section>
+      ` : ""}
+
       <section class="alch-detail-section">
         <h3 class="alch-detail-h">links</h3>
         ${linksRow}
@@ -3974,6 +3981,7 @@ const PERSON_EDITABLE_FIELDS = [
   { key: "contribute_interests",label: "contribute interests",type: "textarea", placeholder: "what you'd happily pair on for other people's projects" },
   { key: "availability_pref",   label: "availability rhythm", type: "textarea", placeholder: "heads-down hours, no-meet days, time zone notes" },
   { key: "weekly_intention",    label: "this week's intention", type: "textarea", placeholder: "one concrete thing you want to ship or learn this week" },
+  { key: "dietary_restrictions",label: "dietary",             type: "text",     placeholder: "vegetarian / vegan / allergies / none — for cohort-meal planning" },
 ];
 
 function getNested(obj, path) {
@@ -4507,6 +4515,7 @@ comm_style: ${yamlScalar(draft.comm_style)}
 contribute_interests: ${yamlScalar(draft.contribute_interests)}
 availability_pref: ${yamlScalar(draft.availability_pref)}
 weekly_intention: ${yamlScalar(draft.weekly_intention)}
+dietary_restrictions: ${yamlScalar(draft.dietary_restrictions)}
 ---
 ${bodyContent}`;
 }

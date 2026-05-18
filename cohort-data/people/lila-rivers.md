@@ -15,6 +15,7 @@ links:
   x: lilariv_
   website: null
   linkedin: null
+dietary_restrictions:
 ---
 
 ## about
