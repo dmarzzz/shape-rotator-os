@@ -11,11 +11,15 @@ email: null
 dates_start: 2026-05-17
 dates_end: 2026-07-18
 links:
-  github: null
-  x: null
+  github: prakhar728
+  x: "@prakharojha4"
   website: null
-  linkedin: null
-dietary_restrictions:
+  linkedin: prakhar-ojha
+comm_style: Sync
+contribute_interests: "Mostly backend and brainstorming if possible :)"
+availability_pref: "Flexible / async"
+weekly_intention: "Ship one backend feature"
+dietary_restrictions: vegetarian
 ---
 
 ## about
