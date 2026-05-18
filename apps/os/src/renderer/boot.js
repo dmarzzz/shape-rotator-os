@@ -162,12 +162,19 @@ function openUpdatePanel(chip) {
   document.body.appendChild(panel);
   _updatePanelEl = panel;
 
-  // anchor: right-align to the chip, top under it. We position via fixed
-  // coords (not absolute relative to .tab-bar) so the panel doesn't get
-  // clipped by tab-bar's overflow rules.
+  // anchor: pop upward from the chip's left edge. The chip lives at
+  // fixed bottom-left of the window (since v0.1.16); the panel sits
+  // immediately above it. We use fixed coords so the chip's position
+  // is the only thing that matters — works regardless of which tab
+  // is active or what's mounted in the main grid area.
   const rect = chip.getBoundingClientRect();
-  panel.style.top = `${Math.round(rect.bottom + 6)}px`;
-  panel.style.right = `${Math.round(window.innerWidth - rect.right)}px`;
+  const gap = 8;
+  panel.style.left = `${Math.round(rect.left)}px`;
+  panel.style.bottom = `${Math.round(window.innerHeight - rect.top + gap)}px`;
+  // Explicitly null out any stale top/right from earlier builds so
+  // CSS doesn't anchor the panel both ways.
+  panel.style.top = "auto";
+  panel.style.right = "auto";
 
   // seed state from whatever the chip last knew. If we've never checked
   // (or the previous check said "available"), start in the right phase
