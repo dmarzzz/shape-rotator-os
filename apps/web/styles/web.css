@@ -1,4 +1,5 @@
 @import url("../shape-ui/tokens.css");
+@import url("../shape-ui/src/cohort-card.css");
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -29,10 +30,27 @@ a:focus-visible, summary:focus-visible, .install-cta:focus-visible {
   padding-inline: var(--space-6);
 }
 
+/* layout--wide: data pages (cohort/calendar/availability) need room to breathe */
+body.layout--wide .site-header,
+body.layout--wide .page,
+body.layout--wide .site-footer {
+  max-width: 1200px;
+}
+
+/* keep the shape-canvas body-level overlay visible on the web. Defensive
+ * override: shape-canvas.js tags its <canvas> overlay with both
+ * `.alch-shape-overlay` AND `.alchemy-only` because the Electron app
+ * hides `.alchemy-only` on non-alchemy tabs. On the website there is no
+ * tab system, so we force the overlay visible even if cohort-card.css
+ * (a parallel agent's file) ever inherits that hide rule. */
+body .alch-shape-overlay { display: block !important; }
+
 .site-header { padding-block: var(--space-5); border-bottom: 1px solid var(--hairline); }
 .site-nav { display: grid; grid-template-columns: auto 1fr auto; align-items: baseline; gap: var(--space-6); }
-.site-nav-mark { font-family: var(--font-mono); font-size: var(--t-11); font-weight: 500; text-transform: uppercase; letter-spacing: var(--track-caps-loose); color: var(--ink-1); }
+.site-nav-mark { font-family: var(--font-mono); font-size: var(--t-11); font-weight: 500; text-transform: uppercase; letter-spacing: var(--track-caps-loose); color: var(--ink-1); display: inline-flex; align-items: center; gap: var(--space-2); }
 .site-nav-mark-sub { color: var(--ink-3); margin-inline-start: var(--space-2); }
+.site-nav-mark-glyph { width: 14px; height: 14px; color: var(--ink-2); flex: 0 0 14px; }
+.site-nav-mark-glyph svg { width: 100%; height: 100%; display: block; }
 .site-nav-links { margin: 0; padding: 0; display: flex; gap: var(--space-4); font-family: var(--font-mono); font-size: var(--t-11); letter-spacing: var(--track-caps); text-transform: uppercase; }
 .site-nav-links li { list-style: none; }
 .site-nav-links li + li::before { content: "·"; color: var(--ink-4); margin-inline-end: var(--space-4); margin-inline-start: calc(var(--space-4) * -1); }
@@ -78,14 +96,88 @@ a:focus-visible, summary:focus-visible, .install-cta:focus-visible {
 .page-mount { min-height: 200px; }
 .page-empty { font-family: var(--font-mono); font-size: var(--t-12); color: var(--ink-4); }
 
+/* subtle inline metadata strip — counts, ranges, etc. — sits under the title */
+.page-meta { margin: calc(var(--space-6) * -1) 0 var(--space-6); font-family: var(--font-mono); font-size: var(--t-11); font-feature-settings: var(--num-feat); color: var(--ink-4); letter-spacing: var(--track-caps); text-transform: uppercase; }
+
+.cohort-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-4); }
+
+/* calendar wrapper — provides the sized box that cohort-calendar.js can
+ * paint into. The canvas itself sets its intrinsic width from the day
+ * count; the wrapper allows horizontal scroll for very long ranges. */
+.calendar-wrap { width: 100%; min-height: 480px; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--water); }
+.calendar-wrap .shape-cohort-calendar { display: block; }
+
+/* availability — sticky header on top so cohorts large enough to scroll
+ * keep their column labels visible. The availability.css inside shape-ui
+ * already sticks the header to top:0; the scroll container here is what
+ * supplies the scroll context + a soft cap on height. */
+.availability-wrap { width: 100%; max-height: 70vh; overflow: auto; border: 1px solid var(--hairline); border-radius: var(--r-md); padding: var(--space-3); background: var(--water); }
+
+.profile-picker { display: grid; gap: var(--space-3); margin-bottom: var(--space-5); padding-bottom: var(--space-5); border-bottom: 1px solid var(--hairline); }
+.profile-picker-row { display: grid; grid-template-columns: 100px 1fr; align-items: center; gap: var(--space-3); font-family: var(--font-mono); font-size: var(--t-11); text-transform: uppercase; letter-spacing: var(--track-caps); color: var(--ink-3); }
+.profile-picker-row select { font-family: var(--font-mono); font-size: var(--t-12); background: transparent; color: var(--ink-1); border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 6px var(--space-2); transition: border-color var(--dur-base) var(--ease); }
+.profile-picker-row select:hover { border-color: var(--ink-3); }
+.profile-picker-row select:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; border-color: var(--accent); }
+
+/* profile-form — shape-ui renders .shape-profile-form-wrap > form.shape-profile-form
+ * containing .shape-pf-row > .shape-pf-label + .shape-pf-input + .shape-profile-submit. */
+.shape-profile-form-wrap { display: block; }
+.shape-profile-form { display: grid; gap: var(--space-3); }
+.shape-pf-row { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: var(--space-3); }
+.shape-pf-label { font-family: var(--font-mono); font-size: var(--t-11); font-weight: 500; text-transform: uppercase; letter-spacing: var(--track-caps); color: var(--ink-3); }
+.shape-pf-input {
+  font-family: var(--font-mono);
+  font-size: var(--t-12);
+  font-feature-settings: var(--num-feat);
+  color: var(--ink-1);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: 8px var(--space-3);
+  width: 100%;
+  transition: border-color var(--dur-base) var(--ease), color var(--dur-base) var(--ease);
+}
+.shape-pf-input::placeholder { color: var(--ink-4); }
+.shape-pf-input:hover { border-color: var(--ink-3); }
+.shape-pf-input:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; border-color: var(--accent); }
+.shape-profile-submit { display: grid; gap: var(--space-3); margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--hairline); }
+.shape-profile-submit-btn {
+  justify-self: start;
+  display: inline-grid;
+  grid-template-columns: auto;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--ink-4);
+  border-radius: var(--r-md);
+  color: var(--ink-1);
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: var(--t-13);
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--dur-base) var(--ease), color var(--dur-base) var(--ease);
+}
+.shape-profile-submit-btn:hover { border-color: var(--ink-2); }
+.shape-profile-submit-btn:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.shape-profile-hint { margin: 0; font-family: var(--font-mono); font-size: var(--t-11); color: var(--ink-3); line-height: var(--lh-snug); }
+.shape-profile-hint code { font-family: var(--font-mono); color: var(--ink-2); }
+
+@media (max-width: 720px) {
+  /* wide layout collapses to full-width with side padding */
+  body.layout--wide .site-header,
+  body.layout--wide .page,
+  body.layout--wide .site-footer { max-width: 100%; padding-inline: var(--space-4); }
+  .cohort-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .site-nav-links { flex-wrap: wrap; }
+  .shape-pf-row { grid-template-columns: 1fr; gap: var(--space-2); }
+}
+
 @media (max-width: 540px) {
   .site-header, .page, .site-footer { padding-inline: var(--space-4); }
   .site-nav { grid-template-columns: auto auto; row-gap: var(--space-3); }
   .site-nav-links { grid-column: 1 / -1; }
   .site-nav-version { grid-column: 2; justify-self: end; }
   .hero-title { font-size: var(--t-24); }
+  .cohort-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-3); }
 }
-
-.cohort-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); }
-
-.hero-aside { margin: calc(var(--space-7) * -1 + var(--space-3)) 0 var(--space-7); font-size: var(--t-12); line-height: var(--lh-snug); color: var(--ink-3); max-width: 52ch; }

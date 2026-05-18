@@ -1,0 +1,333 @@
+/* Cohort card — the "specimen" record card used in the alchemy view
+ * and the sibling web app. Lives in shape-ui so both surfaces render
+ * the same. Consumer apps must have tokens.css applied to :root.
+ * Markup is produced by cohort-card.js (renderTeamCard / renderPersonCard). */
+
+/* ─── card-local tokens ─────────────────────────────────────────────────
+ * Card rendering depends on two scoped palettes that don't live in the
+ * canonical tokens.css: the warm "alchemy" red/oxide pass (used as the
+ * BASE), and the three layered "editorial cook" passes (--ed-*) that
+ * refine the look on top. These are defined here so the card file is
+ * self-contained on the web surface, which has no other source for them.
+ * Wrapped in :root so any consumer page picks them up; the field-guide
+ * already declares them earlier in styles.css, and source-order means
+ * those win where they were already winning. */
+:root {
+  --alchemy-oxide:        #8F220E;
+  --alchemy-oxide-bright: #B43A19;
+  --alchemy-paper-warm:   #F1ECE7;
+  --alchemy-charcoal:     #1D191A;
+  --alchemy-charcoal-2:   #2C2728;
+  --alchemy-rule:         rgba(241, 236, 231, 0.10);
+  --alchemy-rule-warm:    rgba(143, 34, 14, 0.45);
+  --alchemy-ink-mute:     rgba(241, 236, 231, 0.55);
+  /* editorial cook v1 base — overridden by v2/v3 below */
+  --ed-bg-0:        #0d0c0a;
+  --ed-bg-1:        #131210;
+  --ed-bg-2:        #1a1816;
+  --ed-ink-1:       #f5f3ee;
+  --ed-ink-2:       #b8b4ab;
+  --ed-ink-3:       #6e695e;
+  --ed-ink-4:       #3a3833;
+  --ed-rule:        rgba(245, 243, 238, 0.06);
+  --ed-rule-2:      rgba(245, 243, 238, 0.10);
+  --ed-rule-3:      rgba(245, 243, 238, 0.22);
+  --ed-op-faint:    0.35;
+  --ed-op-quiet:    0.55;
+  --ed-op-loud:     1.00;
+  --ed-display:     "Iowan Old Style", "Hoefler Text", "Editorial New", "EB Garamond", Georgia, serif;
+  --ed-mono:        "Geist Mono", "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* ─── layer 1 — base card (warm alchemy) ──────────────────────────────── */
+.alch-card {
+  --alch-i: 0;
+  background: linear-gradient(180deg, rgba(241,236,231,0.025), rgba(241,236,231,0.005));
+  border: 1px solid var(--alchemy-rule);
+  border-radius: 6px;
+  padding: 18px 18px 16px;
+  display: flex; flex-direction: column; gap: 14px;
+  position: relative;
+  transition: border-color 240ms var(--ease), background 240ms var(--ease), transform 240ms var(--ease);
+}
+.alch-card:hover {
+  border-color: var(--alchemy-rule-warm);
+  background: linear-gradient(180deg, rgba(143,34,14,0.05), rgba(241,236,231,0.01));
+  transform: translateY(-2px);
+  cursor: pointer;
+}
+.alch-card.is-clickable:active { transform: translateY(0); }
+.alch-card-tag {
+  display: flex; gap: 8px; align-items: center;
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: 0.20em; text-transform: uppercase;
+  color: var(--alchemy-ink-mute);
+}
+.alch-card-tag .ct-id { color: var(--alchemy-oxide-bright); }
+.alch-card-tag .ct-sep { opacity: 0.3; }
+.alch-card-shape {
+  height: 120px;
+  display: grid; place-items: center;
+  position: relative;
+}
+.alch-card-shape svg {
+  width: 100%; height: 100%;
+  animation: alchTilt 11s ease-in-out infinite, alchBreathe 9.5s ease-in-out infinite;
+  transform-origin: center;
+}
+/* WebGL shape canvas (replaces the SVG above for the shapes grid +
+   detail page hero + legend). Each <canvas> has its own GL2 context
+   running the shared SDF shader from packages/shape-ui/shape-canvas.js.
+   Square aspect; the inner shader handles its own breathing animation. */
+.alch-card-shape canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Slight rounded mask so the shape doesn't sit in a hard rectangle
+     against the parchment / dark backgrounds. */
+  border-radius: 6px;
+}
+.alch-card-shape svg .as-fill { fill: var(--alchemy-oxide); }
+.alch-card-shape svg .as-stroke { stroke: var(--alchemy-oxide-bright); fill: none; stroke-width: 1; }
+.alch-card-shape svg .as-mute { stroke: rgba(241,236,231,0.18); fill: none; stroke-width: 0.6; }
+@keyframes alchTilt {
+  0%   { transform: rotate(-2.5deg) translate(0%, 0%); }
+  50%  { transform: rotate(3deg)    translate(0.6%, -0.8%); }
+  100% { transform: rotate(-2.5deg) translate(0%, 0%); }
+}
+@keyframes alchBreathe {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(143,34,14,0)); }
+  50%      { filter: drop-shadow(0 6px 20px rgba(143,34,14,0.30)); }
+}
+.alch-card-name {
+  font-family: var(--font-sans); font-size: 18px;
+  letter-spacing: -0.014em; font-weight: 500;
+  color: var(--alchemy-paper-warm);
+}
+.alch-card-rule { height: 1px; background: var(--alchemy-rule-warm); width: 28px; }
+.alch-card-meta { display: flex; flex-direction: column; gap: 5px; }
+.alch-card-meta-row {
+  display: grid; grid-template-columns: 64px 1fr; gap: 10px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.06em;
+}
+.alch-card-meta-row .cm-k {
+  color: var(--alchemy-ink-mute); text-transform: uppercase; letter-spacing: 0.16em; font-size: 9.5px; padding-top: 1px;
+}
+.alch-card-meta-row .cm-v { color: var(--alchemy-paper-warm); }
+.alch-card-meta-row .cm-v a {
+  color: var(--alchemy-paper-warm); text-decoration: none;
+  border-bottom: 1px solid var(--alchemy-rule-warm);
+  transition: color 160ms var(--ease), border-color 160ms var(--ease);
+}
+.alch-card-meta-row .cm-v a:hover { color: var(--alchemy-oxide-bright); border-color: var(--alchemy-oxide-bright); }
+
+/* Mentor-card variant: quieter outline, no oxide tint on hover. */
+.alch-card-mentor {
+  background: linear-gradient(180deg, rgba(241,236,231,0.015), rgba(241,236,231,0.002));
+  border-style: dashed;
+}
+.alch-card-mentor:hover {
+  border-color: rgba(241,236,231,0.32);
+  background: linear-gradient(180deg, rgba(241,236,231,0.04), rgba(241,236,231,0.005));
+}
+.alch-card-mentor .alch-card-shape svg .as-fill { fill: var(--alchemy-paper-warm); opacity: 0.6; }
+.alch-card-mentor .alch-card-shape svg .as-stroke { stroke: var(--alchemy-paper-warm); opacity: 0.7; }
+
+/* In-card kind marker — sits in the tag row alongside SHAPE-XX */
+.ct-kind {
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  padding: 0 4px;
+  border-radius: 2px;
+}
+.ct-kind-team    { color: var(--alchemy-ink-mute); }
+.ct-kind-project { color: var(--alchemy-oxide-bright); }
+
+/* Member chips inside team/project cards (data-person buttons). */
+.alch-card-members-row .cm-v {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px;
+}
+.alch-card-member {
+  appearance: none; background: transparent;
+  border: 0; padding: 0; margin: 0;
+  font: inherit; color: var(--alchemy-paper-warm, #f5f3ee);
+  border-bottom: 1px dotted var(--alchemy-rule, rgba(245,243,238,0.18));
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.alch-card-member:hover {
+  color: var(--alchemy-oxide-bright, #d05332);
+  border-bottom-color: var(--alchemy-oxide-bright, #d05332);
+}
+.alch-card-member:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright, #d05332);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.acm-sep { color: var(--alchemy-ink-mute, #7a7368); opacity: 0.55; margin: 0 2px; }
+
+/* Card → repo link. The team's canonical repo is the feed-tracking
+   signal, so it gets a touch more weight than github/x links. */
+.alch-card-repo-link {
+  color: var(--alchemy-paper-warm);
+  text-decoration: none;
+  border-bottom: 1px solid var(--alchemy-rule-warm);
+}
+.alch-card-repo-link:hover {
+  color: var(--alchemy-oxide-bright);
+  border-color: var(--alchemy-oxide-bright);
+}
+
+/* ─── layer 2 — editorial cook v1 (gallery slabs) ─────────────────────
+ * Selectors lose the original `.alchemy-canvas` parent scope so the rules
+ * apply on the web surface (which has no .alchemy-canvas wrapper) too.
+ * Field-guide cards still live inside .alchemy-canvas; the rules match
+ * the same nodes there. */
+.alch-card {
+  background: var(--ed-bg-1);
+  color: var(--ed-ink-2);
+  border: 1px solid var(--ed-rule);
+  border-radius: 4px;
+  padding: 28px 28px 24px;
+  box-shadow: none;
+  transition: border-color 280ms ease, background 280ms ease;
+}
+.alch-card:hover {
+  border-color: var(--ed-rule-3);
+  background: var(--ed-bg-2);
+  transform: none;
+  box-shadow: none;
+}
+.alch-card-tag {
+  font-family: var(--ed-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ed-ink-3);
+  margin-bottom: 18px;
+}
+.alch-card-tag .ct-id { color: var(--ed-ink-1); }
+.alch-card-tag .ct-sep { color: var(--ed-ink-4); }
+.alch-card-shape { height: 200px; margin-bottom: 22px; }
+.alch-card-shape canvas { border-radius: 0; }
+.alch-card-name {
+  font-family: var(--ed-display);
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--ed-ink-1);
+  margin: 0 0 18px;
+  line-height: 1.1;
+}
+.alch-card-rule { background: var(--ed-rule); margin: 0 0 14px; }
+.alch-card-meta { font-family: var(--ed-mono); font-size: 11px; line-height: 1.55; }
+.alch-card-meta-row { padding: 4px 0; }
+.alch-card-meta-row .cm-k {
+  color: var(--ed-ink-4);
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  font-size: 9.5px;
+}
+.alch-card-meta-row .cm-v { color: var(--ed-ink-2); }
+.alch-card-meta-row .cm-v a {
+  color: var(--ed-ink-1);
+  text-decoration: none;
+  border-bottom: 1px solid var(--ed-rule-2);
+}
+.alch-card-meta-row .cm-v a:hover { border-bottom-color: var(--ed-ink-1); }
+.ct-kind-team    { color: var(--ed-ink-3); }
+.ct-kind-project { color: var(--ed-ink-1); }
+.alch-card-repo-link { color: var(--ed-ink-1); border-bottom-color: var(--ed-rule-2); }
+.alch-card-repo-link:hover { border-bottom-color: var(--ed-ink-1); }
+
+/* ─── layer 3 — editorial cook v2 (Foundation gallery slabs) ──────────
+ * Hard corners, hairline-only top border, lowercase eyebrows, tighter
+ * Iowan italic display. Source-order overrides v1. */
+.alch-card {
+  background: var(--ed-bg-1);
+  border: none;
+  border-top: 1px solid var(--ed-rule);
+  border-radius: 0;
+  padding: 22px 22px 20px;
+  box-shadow: none;
+  transition: background 220ms ease-out;
+}
+.alch-card:hover {
+  background: var(--ed-bg-2);
+  border-top-color: var(--ed-rule-3);
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+.alch-card-tag {
+  font-family: var(--ed-mono);
+  font-size: 9px;
+  letter-spacing: 0.20em;
+  text-transform: lowercase;
+  color: var(--ed-ink-1);
+  opacity: var(--ed-op-quiet);
+  margin-bottom: 14px;
+}
+.alch-card-tag .ct-id { opacity: var(--ed-op-loud); }
+.alch-card-tag .ct-sep { opacity: 0.4; }
+.alch-card-shape { height: 168px; margin-bottom: 16px; }
+.alch-card-name {
+  font-family: var(--ed-display);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  font-feature-settings: "liga", "dlig", "swsh";
+  color: var(--ed-ink-1);
+  margin: 0 0 14px;
+  line-height: 1.1;
+  text-transform: none;
+}
+.alch-card-rule { display: none; }
+.alch-card-meta { font-family: var(--ed-mono); font-size: 11px; line-height: 1.55; }
+.alch-card-meta-row { padding: 3px 0; display: grid; grid-template-columns: 64px 1fr; gap: 12px; }
+.alch-card-meta-row .cm-k {
+  color: var(--ed-ink-1); opacity: var(--ed-op-faint);
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+  font-size: 9.5px;
+}
+.alch-card-meta-row .cm-v { color: var(--ed-ink-1); opacity: 0.85; }
+.alch-card-meta-row .cm-v a {
+  color: var(--ed-ink-1); opacity: var(--ed-op-loud);
+  text-decoration: none;
+  border-bottom: 1px solid var(--ed-rule-2);
+  transition: border-bottom-color 200ms ease-out;
+}
+.alch-card-meta-row .cm-v a:hover { border-bottom-color: var(--ed-ink-1); }
+.ct-kind-team    { color: var(--ed-ink-1); opacity: var(--ed-op-faint); }
+.ct-kind-project { color: var(--ed-ink-1); opacity: var(--ed-op-loud); font-style: italic; font-family: var(--ed-display); }
+
+/* Person-card kind chip uses the same italic-display voice as
+   "project" for consistency — both are non-default classifications. */
+.ct-kind-person {
+  color: var(--ed-ink-1);
+  opacity: var(--ed-op-loud);
+  font-style: italic;
+  font-family: var(--ed-display);
+}
+
+/* ─── layer 4 — editorial cook v3 (warm gradient depth) ───────────────
+ * Vertical gradient card surface, hairline top in slightly warmer ink,
+ * meta values lifted, keys softened. Source-order final word. */
+.alch-card {
+  background: linear-gradient(180deg, #15120e 0%, #100e0b 100%);
+  border-top: 1px solid rgba(245,243,238,0.10);
+}
+.alch-card:hover {
+  background: linear-gradient(180deg, #1c1814 0%, #161311 100%);
+  border-top-color: rgba(245,243,238,0.28);
+}
+.alch-card-meta-row .cm-k {
+  color: var(--ed-ink-1);
+  opacity: 0.42;
+}
+.alch-card-meta-row .cm-v {
+  color: var(--ed-ink-1);
+  opacity: 0.88;
+}
