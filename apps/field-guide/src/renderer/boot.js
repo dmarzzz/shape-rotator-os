@@ -250,25 +250,67 @@ function renderUpdatePanel(st) {
       actions = `<button type="button" class="fg-up-btn" data-act="close">dismiss</button>`;
       break;
     case "available":
-      // We used to wire a `download` action that drove electron-updater's
-      // in-app download + quitAndInstall flow. On macOS that path silently
-      // fails for unsigned builds — quitAndInstall can't swap the .app
-      // bundle without a valid code signature, so the restart button did
-      // nothing. Route to the GitHub release page instead: the user grabs
-      // the .dmg manually and drags it to /Applications.
-      body = `<div class="fg-up-line">a newer build is available. download + replace the app manually (we're unsigned, so in-app install isn't reliable).</div>`;
+      // electron-updater's in-app quitAndInstall flow fails silently on
+      // unsigned macOS apps (Gatekeeper refuses the .app swap). Instead
+      // of pretending to install, we stream the platform's release
+      // asset to ~/Downloads/ and hand the user off to the OS's normal
+      // install affordance — `shell.openPath` mounts a dmg, launches a
+      // .exe installer, or reveals a .deb. Renderer-side this means:
+      // "available" → click → "downloading" → "downloaded-manual"
+      // (with platform-specific copy).
+      body = `<div class="fg-up-line">a newer build is available. we'll download it for you and open the installer.</div>`;
       actions = `
-        <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="open-release">open download page</button>
+        <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="download">download + open installer</button>
         <button type="button" class="fg-up-btn" data-act="close">later</button>`;
       break;
     case "downloading": {
       const pct = Math.round(st.percent || 0);
       body = `
-        <div class="fg-up-line">downloading update…</div>
+        <div class="fg-up-line">downloading v${escapeHtml(st.latest || "?")}…</div>
         <div class="fg-up-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
           <div class="fg-up-bar-fill" style="width:${pct}%"></div>
         </div>
         <div class="fg-up-pct">${pct}%</div>`;
+      break;
+    }
+    case "downloaded-manual": {
+      // Platform-specific instructions for the part we can't automate.
+      const plat = (navigator.platform || "").toLowerCase();
+      const isMac = plat.includes("mac");
+      const isWin = plat.includes("win");
+      const filename = st.path ? st.path.split(/[\\/]/).pop() : "the installer";
+      let steps = "";
+      if (isMac) {
+        steps = `
+          <ol class="fg-up-steps">
+            <li>the dmg should already be open in a Finder window.</li>
+            <li>drag <strong>Shape Rotator OS</strong> to <code>/Applications</code>, replacing the existing copy.</li>
+            <li>quit this app (you'll relaunch the new one).</li>
+            <li>in Terminal, run <code>xattr -cr "/Applications/Shape Rotator OS.app"</code> to clear macOS quarantine.</li>
+            <li>open the new app from /Applications.</li>
+          </ol>
+          <div class="fg-up-aux">the xattr step is needed because we're unsigned. one-time per upgrade.</div>`;
+      } else if (isWin) {
+        steps = `
+          <ol class="fg-up-steps">
+            <li>the NSIS installer should already be running.</li>
+            <li>click through it — UAC may prompt to authorize.</li>
+            <li>relaunch from the start menu when it's done.</li>
+          </ol>`;
+      } else {
+        steps = `
+          <ol class="fg-up-steps">
+            <li>your file manager just opened on <code>${escapeHtml(filename)}</code>.</li>
+            <li>install it with:
+              <pre class="fg-up-pre">sudo dpkg -i ~/Downloads/${escapeHtml(filename)}</pre>
+            </li>
+            <li>relaunch with <code>shape-rotator-os</code>.</li>
+          </ol>`;
+      }
+      body = `<div class="fg-up-line">downloaded · ready to install.</div>${steps}`;
+      actions = `
+        <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="reopen-installer">reopen installer</button>
+        <button type="button" class="fg-up-btn" data-act="close">close</button>`;
       break;
     }
     case "downloaded":
@@ -301,10 +343,12 @@ function renderUpdatePanel(st) {
     b.addEventListener("click", (ev) => {
       ev.stopPropagation();
       const act = b.getAttribute("data-act");
-      if (act === "close")        return closeUpdatePanel();
-      if (act === "check")        return runUpdateCheck(chip);
-      if (act === "open-release") return runOpenReleasePage();
-      if (act === "defer")        return closeUpdatePanel();
+      if (act === "close")              return closeUpdatePanel();
+      if (act === "check")              return runUpdateCheck(chip);
+      if (act === "download")           return runDownloadAndReveal();
+      if (act === "reopen-installer")   return runReopenInstaller();
+      if (act === "open-release")       return runOpenReleasePage(); // legacy fallback
+      if (act === "defer")              return closeUpdatePanel();
     });
   });
 }
@@ -362,12 +406,62 @@ async function runUpdateRestart() {
 }
 
 // Open the GitHub releases page in the user's default browser so they
-// can grab the latest .dmg manually. Used in place of the in-app
-// download/install flow which doesn't work for unsigned macOS builds.
+// can grab the latest .dmg manually. Legacy fallback — kept for if the
+// auto-download path errors out and we need to drop the user on the
+// canonical page.
 function runOpenReleasePage() {
   const url = "https://github.com/dmarzzz/shape-rotator-field-guide/releases/latest";
   try { window.api?.openExternal?.(url); } catch {}
   closeUpdatePanel();
+}
+
+// Download the latest release for the user's platform straight into
+// ~/Downloads/ and hand them off to the OS's normal install affordance:
+//   macOS    — shell.openPath(.dmg) mounts the dmg in Finder; user
+//              drags + xattr -cr
+//   Windows  — shell.openPath(.exe) launches the NSIS installer; UAC
+//   Linux    — showItemInFolder(.deb); user runs `sudo dpkg -i`
+//
+// We mirror electron-updater's progress event protocol on
+// "fg:update-progress" so the existing downloading/% bar UI lights up
+// without a separate render path.
+async function runDownloadAndReveal() {
+  const baseState = _updatePanelState || {};
+  setUpdateState({ ...baseState, phase: "downloading", percent: 0 });
+  // Mirror progress events into local state. The handler is wired by
+  // openUpdatePanel(), so we only need to make sure we're in downloading
+  // phase when events arrive (handler short-circuits otherwise).
+  try {
+    const res = await window.api.downloadAndRevealUpdate?.();
+    if (!res?.ok) {
+      setUpdateState({ ..._updatePanelState, phase: "error", detail: res?.detail || res?.reason || "download failed." });
+      return;
+    }
+    setUpdateState({
+      ..._updatePanelState,
+      phase: "downloaded-manual",
+      path: res.path,
+      latest: res.version || _updatePanelState.latest,
+    });
+  } catch (e) {
+    setUpdateState({ ..._updatePanelState, phase: "error", detail: e?.message || String(e) });
+  }
+}
+
+// User clicked "reopen installer" from the downloaded-manual phase.
+// The file is already on disk — just re-trigger the open/reveal step.
+// We piggy-back on downloadAndRevealUpdate() which will short-circuit
+// the network call if the file is already present at the same path
+// (TODO: add that short-circuit; current build re-downloads). For now,
+// just call openExternal on the file:// URL.
+async function runReopenInstaller() {
+  const path = _updatePanelState?.path;
+  if (!path) return;
+  try {
+    // file:// URLs route through shell.openExternal which on mac opens
+    // a dmg, on windows runs an exe, on linux reveals in Files.
+    await window.api?.openExternal?.(`file://${encodeURI(path)}`);
+  } catch {}
 }
 
 function escapeHtml(s) {

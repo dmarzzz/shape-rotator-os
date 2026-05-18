@@ -9,6 +9,12 @@ contextBridge.exposeInMainWorld("api", {
   checkAppUpdate:        ()       => ipcRenderer.invoke("fg:check-update"),
   applyAppUpdate:        ()       => ipcRenderer.invoke("fg:apply-update"),
   applyUpdateAndRestart: ()       => ipcRenderer.invoke("fg:apply-update-and-restart"),
+  // Manual-install path for unsigned mac builds: streams the platform's
+  // release asset to ~/Downloads/ and opens it (mac: shell.openPath →
+  // dmg mounts; linux/windows: reveals in Finder/Explorer). Returns
+  // { ok, path, version } so the renderer can show "downloaded · drag
+  // to /Applications" with the file path the user just got.
+  downloadAndRevealUpdate: () => ipcRenderer.invoke("fg:download-and-reveal-update"),
   getAppInfo:            ()       => ipcRenderer.invoke("fg:get-app-info"),
   // Streams electron-updater's `download-progress` events (forwarded from
   // main.js → "fg:update-progress") into the renderer so the inline update

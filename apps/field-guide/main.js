@@ -249,6 +249,139 @@ ipcMain.handle("fg:get-app-info", () => ({
   isPackaged: app.isPackaged,
 }));
 
+// ─── manual-install download path ───────────────────────────────────
+// macOS won't let an unsigned app rewrite itself, so electron-updater's
+// quitAndInstall silently fails. Instead of pretending: stream the
+// platform's release asset to ~/Downloads/, then `shell.openPath` it —
+// on mac that mounts the dmg and pops the standard Finder install
+// window. The renderer streams "fg:update-progress" events the same
+// way electron-updater would, so the existing progress UI lights up.
+//
+// Returns { ok, path, version } on success, or { ok: false, reason }
+// otherwise. No-op in dev (no point downloading; the user has the source).
+function pickPlatformAsset(assets, version) {
+  // assets: [{ name, browser_download_url }] from the GitHub API.
+  const proc = process;
+  let want = null;
+  if (proc.platform === "darwin") {
+    want = proc.arch === "arm64"
+      ? `ShapeRotatorOS-${version}-mac-arm64.dmg`
+      : `ShapeRotatorOS-${version}-mac-x64.dmg`;
+  } else if (proc.platform === "linux") {
+    want = proc.arch === "arm64"
+      ? `ShapeRotatorOS-${version}-linux-arm64.deb`
+      : `ShapeRotatorOS-${version}-linux-amd64.deb`;
+  } else if (proc.platform === "win32") {
+    want = proc.arch === "arm64"
+      ? `ShapeRotatorOS-${version}-win-arm64.exe`
+      : `ShapeRotatorOS-${version}-win-x64.exe`;
+  }
+  if (!want) return null;
+  return assets.find(a => a.name === want) || null;
+}
+
+ipcMain.handle("fg:download-and-reveal-update", async () => {
+  if (!app.isPackaged) return { ok: false, reason: "dev_mode", detail: "no asset to download in dev." };
+  const https = require("node:https");
+  const fsp = require("node:fs/promises");
+
+  // 1) resolve the latest release.
+  const release = await new Promise((resolve, reject) => {
+    const req = https.get(
+      "https://api.github.com/repos/dmarzzz/shape-rotator-field-guide/releases/latest",
+      { headers: { "User-Agent": "shape-rotator-os", Accept: "application/vnd.github+json" } },
+      (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          return reject(new Error(`github releases API returned ${res.statusCode}`));
+        }
+        let body = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => { body += chunk; });
+        res.on("end", () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+      }
+    );
+    req.on("error", reject);
+    req.setTimeout(15000, () => req.destroy(new Error("github releases API timed out")));
+  });
+
+  const version = String(release.tag_name || "").replace(/^v/, "");
+  if (!version) return { ok: false, reason: "no_version", detail: "couldn't read tag_name from latest release." };
+  const asset = pickPlatformAsset(release.assets || [], version);
+  if (!asset) return { ok: false, reason: "no_asset", detail: `no platform asset matched ${process.platform}/${process.arch}` };
+
+  // 2) stream the asset to ~/Downloads/<name>.
+  const downloads = app.getPath("downloads");
+  await fsp.mkdir(downloads, { recursive: true });
+  const dest = path.join(downloads, asset.name);
+  const partial = `${dest}.part`;
+
+  await new Promise((resolve, reject) => {
+    const write = fs.createWriteStream(partial);
+    const win = BrowserWindow.getAllWindows()[0];
+    const followingGet = (url, depth) => {
+      if (depth > 5) return reject(new Error("too many redirects"));
+      https.get(url, { headers: { "User-Agent": "shape-rotator-os" } }, (res) => {
+        if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
+          res.resume();
+          return followingGet(res.headers.location, depth + 1);
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          return reject(new Error(`download returned HTTP ${res.statusCode}`));
+        }
+        const total = parseInt(res.headers["content-length"] || "0", 10) || 0;
+        let got = 0;
+        let lastEmit = 0;
+        res.on("data", (chunk) => {
+          got += chunk.length;
+          // Emit at most ~20 progress events/sec to avoid flooding IPC.
+          const now = Date.now();
+          if (now - lastEmit > 50 || got === total) {
+            lastEmit = now;
+            const percent = total ? (got / total) * 100 : 0;
+            try {
+              if (win && !win.isDestroyed()) {
+                win.webContents.send("fg:update-progress", { percent, transferred: got, total });
+              }
+            } catch {}
+          }
+        });
+        res.pipe(write);
+        write.on("finish", () => resolve());
+        write.on("error", reject);
+        res.on("error", reject);
+      }).on("error", reject);
+    };
+    followingGet(asset.browser_download_url, 0);
+  });
+
+  await fsp.rename(partial, dest);
+
+  // 3) reveal / open. Platform-specific because the right next step
+  // differs:
+  //   macOS  — openPath(.dmg) mounts the dmg and pops the standard
+  //            "drag .app to /Applications" Finder window. User drags
+  //            + runs xattr -cr (see renderer copy).
+  //   Windows — openPath(.exe) launches the NSIS installer. UAC
+  //            prompts; installer walks through; done.
+  //   Linux  — showItemInFolder(.deb). We can't sudo dpkg from inside
+  //            the app, so the user runs it themselves. The renderer
+  //            shows the shell snippet.
+  try {
+    if (process.platform === "darwin" || process.platform === "win32") {
+      await shell.openPath(dest);
+    } else {
+      shell.showItemInFolder(dest);
+    }
+  } catch (e) {
+    // The file is downloaded successfully even if open fails — surface
+    // the path so the renderer can show "your installer is at <path>".
+    return { ok: true, path: dest, version, openFailed: e.message };
+  }
+  return { ok: true, path: dest, version };
+});
+
 // ─── calendar export — PNG / PDF ────────────────────────────────────
 // Renderer hands us a base64 data URL (the canvas snapshot). We pop a
 // native save dialog so the user can pick where the file lands. PNG
