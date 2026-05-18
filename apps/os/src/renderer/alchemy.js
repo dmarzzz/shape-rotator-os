@@ -1328,76 +1328,72 @@ function renderOnboarding() {
   const openPersonEditorGeneric = { kind: "go-profile", mode: "edit", recordKind: "person", recordId: null, label: "open profile · pick your record" };
   const openTeamEditorGeneric   = { kind: "go-profile", mode: "edit", recordKind: "team",   recordId: null, label: "open profile · pick your team" };
 
-  // Onboarding v0.3 — 5-step membrane between "you opened the app" and
-  // "you're a fully-wired cohort member."
+  // Onboarding v0.4 — drop-in revamp. Older flow had matrix x2 +
+  // interview/quiz placeholders; the operator is going to land those
+  // separately, so this version hardens the *bootstrap* path that
+  // actually works today: agent → field-kit → voxterm → profile.
   //
-  //   1. local agent           auto-checked: you're reading this in the
-  //                            Shape Rotator OS, so the agent is on this
-  //                            machine. Routed to the field-kit for the
-  //                            CLI tools that go alongside.
-  //   2. verify/edit profile   the canonical record. uses the new EDIT
-  //                            flow (alchemy.js: submitEditAsPR) that
-  //                            actually carries your in-app edits over
-  //                            to github.
-  //   3. join the matrix room  cohort chat. operator hasn't supplied
-  //                            the homeserver URL yet; the modal lives
-  //                            in showMatrixInstructions().
-  //   4. bot on matrix         your local agent talks in the room on
-  //                            your behalf. /matrix-bot-setup skill in
-  //                            the field-kit walks you through it.
-  //   5. interview + quiz      external; runs outside the app. links
-  //                            from the operator pending.
+  //   1. local agent     auto-checked: they're reading this in the
+  //                      Shape Rotator OS, so the agent is on this
+  //                      machine. Secondary link to the field-kit
+  //                      repo for the CLI tooling that goes alongside.
+  //   2. field-kit       clone + install. Primary action opens the
+  //                      repo in the browser; the README has the
+  //                      one-line setup. This is what unlocks the
+  //                      `rotate <subcommand>` family + skills.
+  //   3. voxterm         local-first voice TUI. After field-kit is
+  //                      installed, `rotate vox` works — but voxterm
+  //                      also has its own installer + docs, so the
+  //                      action links straight to the repo.
+  //   4. profile         the canonical record. Two paths: (a) primary
+  //                      button = use the in-app editor (existing
+  //                      EDIT/ADD PR flow); (b) secondary link to
+  //                      the /shape-rotator-profile skill in the
+  //                      field-kit, so the agent can drive it.
   //
-  // `key` is stable across renames + reorders so localStorage overrides
-  // survive. Display numbers (n) come from array order at render-time.
+  // More steps (matrix, interview, quiz) will be appended once the
+  // operator publishes them. `key` is stable across renames so any
+  // localStorage overrides survive.
   const stepDefs = [
     {
       key: "local-agent",
       title: "set up your local agent",
-      ask: `you're reading this <em>inside</em> Shape Rotator OS, which means your local agent is already running on this machine. the field-kit gives it CLI tools — research swarm, voice TUI, content pipeline, and the skills that drive the rest of onboarding.`,
+      ask: `you're reading this <em>inside</em> Shape Rotator OS, which means your local agent is already running on this machine. ✓`,
       autoComplete: true,  // they're in the app, so by definition this is true
       missingState: "complete",
-      action: { kind: "external", url: "https://github.com/dmarzzz/shape-rotator-field-kit", label: "open the field-kit" },
+      action: null,
     },
     {
-      key: "verify-profile",
-      title: "verify your profile",
+      key: "field-kit",
+      title: "install the field-kit",
+      ask: `the field-kit gives your local agent CLI tools — research swarm, voice TUI, content pipeline, and the skills that drive the rest of onboarding. clone the repo, run <code>bash setup.sh</code>, then <code>./kit install-global</code> so <code>rotate</code> is on your PATH.`,
+      autoComplete: false,
+      missingState: "info",
+      action: { kind: "external", url: "https://github.com/dmarzzz/shape-rotator-field-kit", label: "open shape-rotator-field-kit" },
+    },
+    {
+      key: "voxterm",
+      title: "download voxterm",
+      ask: `local-first voice transcription TUI. captures mic audio, transcribes in real time with speaker diarization, writes a markdown transcript locally. no cloud. after the field-kit is installed, <code>rotate vox</code> launches it — or grab it directly from the repo.`,
+      autoComplete: false,
+      missingState: "info",
+      action: { kind: "external", url: "https://github.com/dmarzzz/VoxTerm", label: "open VoxTerm" },
+    },
+    {
+      key: "set-up-profile",
+      title: "set up your profile",
       ask: me
-        ? `you're on the map as <strong>${escHtml(me.name || me.record_id)}</strong>. open the profile editor to check the details + fill out your personal API (<code>comm_style</code>, <code>contribute_interests</code>, <code>availability_pref</code>, <code>weekly_intention</code>). submit opens a github PR.`
-        : "no person record matches you yet. add one so you appear on the cohort map + calendar. submit opens a github PR.",
-      // "complete" = you exist AND at least one personal-API field is filled.
+        ? `you're on the map as <strong>${escHtml(me.name || me.record_id)}</strong>. fill out the personal-API fields (<code>comm_style</code>, <code>contribute_interests</code>, <code>availability_pref</code>, <code>weekly_intention</code>). use the in-app editor below, or ask your local agent — there's a skill in the field-kit that walks through it.`
+        : `add a person record so you appear on the cohort map + calendar. use the in-app editor below, or ask your local agent — there's a skill in the field-kit that walks through it.`,
       autoComplete: !!me && (
         has(me, "comm_style") || has(me, "contribute_interests") ||
         has(me, "availability_pref") || has(me, "weekly_intention")
       ),
       missingState: "missing",
       action: me
-        ? { kind: "go-profile", mode: "edit", recordKind: "person", recordId: me.record_id, label: "verify + edit my profile" }
+        ? { kind: "go-profile", mode: "edit", recordKind: "person", recordId: me.record_id, label: "open the in-app profile editor" }
         : { kind: "go-profile", mode: "add",  recordKind: "person",                          label: "add my profile" },
-    },
-    {
-      key: "join-matrix",
-      title: "join the matrix server",
-      ask: `the cohort chats in matrix. you'll create an account on the homeserver and join the cohort room. <em>operator hasn't published the homeserver URL yet — the modal will show instructions once it's wired.</em>`,
-      autoComplete: false,
-      missingState: "info",
-      action: { kind: "matrix-instructions", label: "show matrix instructions" },
-    },
-    {
-      key: "agent-on-matrix",
-      title: "have your agent join matrix",
-      ask: `register your local agent as a bot in the cohort room so it can post + read on your behalf. the field-kit has a skill — <code>/matrix-bot-setup</code> — that walks through it. <em>also waiting on the homeserver URL.</em>`,
-      autoComplete: false,
-      missingState: "info",
-      action: { kind: "bot-matrix-instructions", label: "show bot setup" },
-    },
-    {
-      key: "interview-quiz",
-      title: "do the cohort interview + quiz",
-      ask: `a short interview + a quiz so the cohort knows what each of you brings + what you're after. opens in your browser. <em>operator will share the links here once they're up.</em>`,
-      autoComplete: false,
-      missingState: "info",
-      action: { kind: "interview-quiz-links", label: "open interview + quiz" },
+      secondaryAction: { kind: "external", url: "https://github.com/dmarzzz/shape-rotator-field-kit/blob/main/skills/shape-rotator-profile/SKILL.md", label: "or: ask your agent (skill →)" },
     },
   ];
   // Suppress lint on now-unused vars from the old flow — keep them
@@ -1442,6 +1438,15 @@ function renderOnboarding() {
            ${escHtml(s.action.label)}
          </button>`
       : "";
+    // Optional secondary action — renders as a smaller, quieter link
+    // next to the primary button. Used by step 04 today to surface
+    // the agent-driven path next to the in-app editor button.
+    const secondary = s.secondaryAction
+      ? `<button class="alch-onb-secondary" type="button"
+                 data-onb-action="${escAttr(JSON.stringify(s.secondaryAction))}">
+           ${escHtml(s.secondaryAction.label)}
+         </button>`
+      : "";
     // Per-step "mark done" toggle. Reflects + writes the localStorage map.
     // When auto-detect already says complete we still show the toggle so the
     // user can manually uncheck (and re-pin the step's state if they want).
@@ -1458,6 +1463,7 @@ function renderOnboarding() {
           ${inlineHtml}
           <div class="alch-onb-step-actions">
             ${action}
+            ${secondary}
             <button class="${toggleCls}" type="button"
                     data-onb-toggle="${escAttr(s.key)}"
                     aria-pressed="${s.overridden}"
@@ -1471,18 +1477,19 @@ function renderOnboarding() {
     `;
   }).join("");
 
+  const stepCountLabel = `${stepDefs.length} step${stepDefs.length === 1 ? "" : "s"}`;
   state.canvas.innerHTML = `
     <header class="alch-onb-head">
       <h2 class="alch-onb-title">onboarding</h2>
       <p class="alch-onb-sub">
         ${me
-          ? `you're <strong>${escHtml(me.name || me.record_id)}</strong>. five steps · take ~30 minutes total · everything below opens a github PR.`
-          : `five steps · take ~30 minutes total · everything below opens a github PR. start with step 01 so the rest can find you.`}
+          ? `you're <strong>${escHtml(me.name || me.record_id)}</strong>. ${stepCountLabel} to get fully wired — the bootstrap path. more steps land here as the operator publishes them.`
+          : `${stepCountLabel} to get fully wired — the bootstrap path. more steps land here as the operator publishes them.`}
       </p>
     </header>
     <ol class="alch-onb-steps">${stepHtml}</ol>
-    <p class="alch-callout"><strong>onboarding · v0.3</strong><br/>
-    five steps to fully wire yourself into the cohort. step 01 auto-completes because you're already in the app. step 02 opens a github PR with your edits pre-filled. steps 03–05 surface external links + copy-paste once the operator finishes wiring matrix + the interview platform — the buttons render their current state (pending vs ready) without breaking the flow.</p>
+    <p class="alch-callout"><strong>onboarding · v0.4</strong><br/>
+    step 01 auto-completes (you're in the app). step 02 sets up the field-kit so your local agent gets CLI superpowers. step 03 installs voxterm. step 04 puts your profile on the cohort map — either through the in-app editor or by asking your local agent (the skill lives in the field-kit). matrix + interview links land here once the operator publishes them.</p>
   `;
 }
 
