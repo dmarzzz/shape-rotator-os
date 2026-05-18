@@ -85,6 +85,9 @@
       "entitlements": "build-resources/entitlements.mac.plist",
       "entitlementsInherit": "build-resources/entitlements.mac.plist",
       "notarize": false,
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "Shape Rotator OS finds and syncs with other cohort members' devices on your local network — peer search, atlas, and profile sync all use this."
+      },
       "extraResources": [
         {
           "from": "build-resources/swf-node/",

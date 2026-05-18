@@ -21,13 +21,20 @@
 //   getStatus()                — returns the current state string
 //
 // CLI notes (from dmarzzz/searxng-wth-frnds/docs/CONFIG.md)
-//   - swf-node has NO port/data-dir CLI flags; everything is env vars:
-//       SWF_BIND, SWF_PORT, SWF_FULL, SWF_CONFIG_DIR, SWF_KNOWLEDGE_DIR,
-//       SWF_STATE_DIR
+//   - swf-node configures everything via env vars (CLI flags exist as
+//     aliases — see _serve() in src/swf/peer_server.py — but we pass
+//     env vars for clarity):
+//       SWF_BIND, SWF_PORT, SWF_NO_MDNS, SWF_FULL,
+//       SWF_CONFIG_DIR, SWF_KNOWLEDGE_DIR, SWF_STATE_DIR
 //   - We launch with SWF_FULL=1 so the renderer's /graph, /events,
 //     /metrics/* + /admin/* routes are live (main.js's env:get handler
 //     already points at http://127.0.0.1:7777 for this aggregator
 //     surface).
+//   - We bind on 0.0.0.0 (all interfaces) so LAN cohort peers can
+//     reach this node inbound. mDNS is left ON (default) so each
+//     node advertises itself and discovers peers via Bonjour/Avahi.
+//     This is the whole point of bundling swf-node: cohort LAN peer
+//     discovery. A loopback-only mode would defeat that.
 //   - All three data-dirs are pinned under app.getPath("userData")/
 //     swf-node-data/ so an uninstall wipes them with the rest of
 //     userData and so we don't collide with a user's own ~/.config/swf
@@ -135,10 +142,16 @@ function spawnChild() {
 
   const env = {
     ...process.env,
-    SWF_BIND: "127.0.0.1",
+    // Bind on all interfaces so cohort LAN peers can reach this node
+    // inbound. The renderer still hits http://127.0.0.1:<PORT> for
+    // local aggregator surface; binding to 0.0.0.0 keeps that working
+    // *and* makes the daemon reachable from the LAN.
+    SWF_BIND: "0.0.0.0",
     SWF_PORT: String(PORT),
     SWF_FULL: "1",                            // aggregator mode → /graph, /events, /metrics/*
-    SWF_NO_MDNS: process.env.SWF_NO_MDNS || "", // user can flip this; default off (mDNS on)
+    // Leave mDNS ON (default). swf-node auto-enables advertising on
+    // non-loopback binds; we don't pass SWF_NO_MDNS at all so the
+    // cohort discovery path is live out of the box.
     SWF_CONFIG_DIR: path.join(_dataDir, "config"),
     SWF_KNOWLEDGE_DIR: path.join(_dataDir, "world_knowledge"),
     SWF_STATE_DIR: path.join(_dataDir, "state"),
