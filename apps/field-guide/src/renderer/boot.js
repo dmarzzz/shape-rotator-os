@@ -118,6 +118,11 @@ async function wireAppUpdateChip() {
       ? `v${info.version} · click for updates`
       : `v${info.version} · dev mode (auto-update disabled)`;
     chip.dataset.current = info.version;
+    // Cache the capability flag so the update panel can branch
+    // between seamless (Windows / AppImage) and manual-download
+    // (macOS / .deb) without re-asking main on every render.
+    if (info.canAutoUpdate) chip.dataset.canAutoUpdate = "1";
+    else delete chip.dataset.canAutoUpdate;
   } else {
     chip.textContent = "v?";
   }
@@ -249,20 +254,34 @@ function renderUpdatePanel(st) {
       body = `<div class="fg-up-line">${escapeHtml(st.detail || "auto-update disabled in dev.")}</div>`;
       actions = `<button type="button" class="fg-up-btn" data-act="close">dismiss</button>`;
       break;
-    case "available":
-      // electron-updater's in-app quitAndInstall flow fails silently on
-      // unsigned macOS apps (Gatekeeper refuses the .app swap). Instead
-      // of pretending to install, we stream the platform's release
-      // asset to ~/Downloads/ and hand the user off to the OS's normal
-      // install affordance — `shell.openPath` mounts a dmg, launches a
-      // .exe installer, or reveals a .deb. Renderer-side this means:
-      // "available" → click → "downloading" → "downloaded-manual"
-      // (with platform-specific copy).
-      body = `<div class="fg-up-line">a newer build is available. we'll download it for you and open the installer.</div>`;
-      actions = `
-        <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="download">download + open installer</button>
-        <button type="button" class="fg-up-btn" data-act="close">later</button>`;
+    case "available": {
+      // Two install paths depending on what the OS+packaging supports:
+      //
+      //   seamless  — Windows NSIS + Linux AppImage. electron-updater
+      //               downloads in-place, then quitAndInstall does the
+      //               swap. One click → app restarts on the new version.
+      //
+      //   manual    — macOS dmg + Linux .deb. We download to
+      //               ~/Downloads/ and hand the user off to the OS's
+      //               normal install affordance (Finder mounts the dmg,
+      //               or the file manager reveals the .deb).
+      //
+      // The chip's data-can-auto-update flag is set at boot time from
+      // fg:get-app-info → process.platform / process.env.APPIMAGE.
+      const seamless = chip?.dataset?.canAutoUpdate === "1";
+      if (seamless) {
+        body = `<div class="fg-up-line">a newer build is available. one click → app restarts on the new version.</div>`;
+        actions = `
+          <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="download-seamless">download + install</button>
+          <button type="button" class="fg-up-btn" data-act="close">later</button>`;
+      } else {
+        body = `<div class="fg-up-line">a newer build is available. we'll download it for you and open the installer.</div>`;
+        actions = `
+          <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="download">download + open installer</button>
+          <button type="button" class="fg-up-btn" data-act="close">later</button>`;
+      }
       break;
+    }
     case "downloading": {
       const pct = Math.round(st.percent || 0);
       body = `
@@ -345,7 +364,9 @@ function renderUpdatePanel(st) {
       const act = b.getAttribute("data-act");
       if (act === "close")              return closeUpdatePanel();
       if (act === "check")              return runUpdateCheck(chip);
+      if (act === "download-seamless")  return runUpdateDownload(chip);
       if (act === "download")           return runDownloadAndReveal();
+      if (act === "restart")            return runUpdateRestart();
       if (act === "reopen-installer")   return runReopenInstaller();
       if (act === "open-release")       return runOpenReleasePage(); // legacy fallback
       if (act === "defer")              return closeUpdatePanel();

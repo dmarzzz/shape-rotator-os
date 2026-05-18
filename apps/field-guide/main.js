@@ -247,6 +247,17 @@ ipcMain.handle("fg:apply-update-and-restart", async () => {
 ipcMain.handle("fg:get-app-info", () => ({
   version: app.getVersion(),
   isPackaged: app.isPackaged,
+  platform: process.platform,
+  arch: process.arch,
+  // Whether electron-updater's quitAndInstall path is viable here:
+  //   Windows  — NSIS installer, no signing required for self-update
+  //   AppImage — single-binary, replaceable without root
+  //   macOS    — needs a code-signed app (we're unsigned), so no
+  //   deb      — system install, would need sudo, so no
+  // Linux discriminator is process.env.APPIMAGE: it's only set when
+  // the app is currently running from inside an AppImage runtime.
+  canAutoUpdate: process.platform === "win32" || (process.platform === "linux" && !!process.env.APPIMAGE),
+  isAppImage: !!process.env.APPIMAGE,
 }));
 
 // ─── manual-install download path ───────────────────────────────────
