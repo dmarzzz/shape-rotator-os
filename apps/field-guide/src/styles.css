@@ -4501,6 +4501,40 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   letter-spacing: 0.04em;
   text-align: right;
 }
+.fg-update-panel .fg-up-steps {
+  margin: 6px 0 0 0;
+  padding-left: 18px;
+  font-size: var(--t-11);
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+.fg-update-panel .fg-up-steps li { margin-bottom: 4px; }
+.fg-update-panel .fg-up-steps code,
+.fg-update-panel .fg-up-aux code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: rgba(245,243,238,0.06);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+.fg-update-panel .fg-up-pre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: rgba(245,243,238,0.04);
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  padding: 6px 8px;
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--ink-1);
+}
+.fg-update-panel .fg-up-aux {
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  font-style: italic;
+}
 
 .fg-update-panel .fg-up-actions {
   display: flex;
