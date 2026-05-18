@@ -7,14 +7,15 @@ team: bitrouter
 role: null
 geo: NYC
 domain: ai
-email: null
+email: sl9639@nyu.edu
 dates_start: 2026-05-18
 dates_end: 2026-07-18
 links:
-  github: null
-  x: null
+  github: SPIKESPIGEL404
+  x: kelrouter
   website: null
-  linkedin: null
+  linkedin: kelsen-liu-668b72258
+  telegram: kelsenLu
 dietary_restrictions:
 ---
 
