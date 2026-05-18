@@ -50,17 +50,3 @@ npm run os
 
 You'll need swf-node running on `127.0.0.1:7777` (default) for atlas / network / search; alchemy works offline against the bundled cohort fixture.
 
-## edit your record
-
-Open the app → profile tab → pick `EDIT` (existing record) or `ADD` (new). Submit opens a GitHub PR against this repo — once merged, run `npm run publish:cohort` to push the new surface bundles to your swf-node.
-
-The depth fields (status, blockers, decision logs) live only in alchemist worktrees and are encrypted into `cohort.depth` bundles before reaching the wire — they never appear in this repo.
-
-## profile data model
-
-Every record in `cohort-data/` has two layers per [`docs/SHAPE-ROTATOR-OS-SPEC.md` §3.3](https://github.com/dmarzzz/searxng-wth-frnds):
-
-- **surface** — the public fields whitelisted in `schema.yml`. Visible to all cohort participants. What's in this repo.
-- **depth** — alchemist-only fields (intake notes, blockers, decisions). Lives in the alchemist worktree, encrypted into `cohort.depth` bundles.
-
-Adding a new public field: add it to the markdown frontmatter + add the key to `schema.yml`. Anything not in the whitelist stays steward-only.

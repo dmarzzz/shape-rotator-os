@@ -594,6 +594,7 @@ async function boot() {
   });
   wireMetricsTab();
   wireTabs();
+  wireAppsGrid();
   wireAtlasOfflinePanel();
 
   setStatus("composing graph…");
@@ -4850,14 +4851,19 @@ function showTimelineAutoToast() {
 // _archive/experimental/.
 const TAB_LS_KEY = "srwk:active_tab";
 const NET_SUB_LS_KEY = "srwk:network_sub";
-const TOP_TABS = new Set(["alchemy", "atlas", "network"]);
+const TOP_TABS = new Set(["alchemy", "apps", "network"]);
 const NET_SUBS = new Set(["network", "metrics"]);
+const APPS_LS_KEY = "srwk:apps_view";
+const APPS_VIEWS = new Set(["atlas"]);  // grid is the absence of one of these
 // Legacy values older builds wrote to localStorage. Quietly migrate.
 function migrateLegacyTab(t) {
-  if (t === "graph" || t === "cartography" || t === "cosmos" || t === "experimental") return "atlas";
-  if (t === "search") return "atlas";  // search is now a panel inside atlas
+  // Top-level atlas tab was folded into the apps grid (2026-05-18). Land
+  // the user back on apps→atlas so the muscle memory works.
+  if (t === "atlas" || t === "search" || t === "graph" || t === "cartography" || t === "cosmos" || t === "experimental") {
+    try { localStorage.setItem(APPS_LS_KEY, "atlas"); } catch {}
+    return "apps";
+  }
   // Metrics moved into the network tab as a sub-view (2026-05-09).
-  // Land the user back in the right place + remember the sub-tab.
   if (t === "metrics") {
     try { localStorage.setItem(NET_SUB_LS_KEY, "metrics"); } catch {}
     return "network";
@@ -4887,6 +4893,12 @@ function wireTabs() {
     const sub = localStorage.getItem(NET_SUB_LS_KEY);
     if (sub && NET_SUBS.has(sub)) document.body.dataset.netSub = sub;
   } catch {}
+  // Restore the apps sub-view (atlas or grid) so reload lands the user
+  // back where they were inside the apps tab.
+  try {
+    const av = localStorage.getItem(APPS_LS_KEY);
+    if (av && APPS_VIEWS.has(av)) document.body.dataset.appsView = av;
+  } catch {}
   applyActiveTab(initial);
   bar.addEventListener("click", (e) => {
     const btn = e.target.closest(".tab-btn");
@@ -4914,6 +4926,31 @@ function wireTabs() {
     magnetize(btn, { strength: 4, dampen: 0.35 });
   }
   mountTabIndicator();
+}
+
+// Apps tab landing — wires the grid's app cards (data-app-key) and the
+// "← apps" back-bar that ships inside each app sub-view. Set/clear
+// body[data-apps-view] so the visibility CSS does the rest.
+function wireAppsGrid() {
+  document.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-app-key]");
+    if (card) {
+      const key = card.dataset.appKey;
+      if (!APPS_VIEWS.has(key)) return;
+      document.body.dataset.appsView = key;
+      try { localStorage.setItem(APPS_LS_KEY, key); } catch {}
+      // Re-apply so the active tab's mount logic runs (Atlas.mount etc).
+      applyActiveTab("apps");
+      return;
+    }
+    const back = e.target.closest("[data-apps-back]");
+    if (back) {
+      delete document.body.dataset.appsView;
+      try { localStorage.removeItem(APPS_LS_KEY); } catch {}
+      applyActiveTab("apps");
+      return;
+    }
+  });
 }
 
 // Flip the network sub-view + repaint sub-tab aria-selected state +
@@ -5208,12 +5245,15 @@ function applyActiveTab(tab) {
     // Leaving the network tab — make sure metrics polling is off.
     if (typeof onMetricsTabDeactivated === "function") onMetricsTabDeactivated();
   }
-  // Whenever we leave atlas, close the inline search panel.
-  if (tab !== "atlas") closeAtlasSearch();
-  // Atlas tab — the wall map. Pure Canvas2D, no force sim. Lazy mount,
-  // pause when inactive. The module owns its own rAF loop and wash
-  // offscreen-canvas; we just toggle setActive.
-  if (tab === "atlas") {
+  // Whenever we leave the apps tab (or leave the atlas sub-view inside
+  // it), close the inline search panel.
+  const inAtlasSubview = (tab === "apps" && document.body.dataset.appsView === "atlas");
+  if (!inAtlasSubview) closeAtlasSearch();
+
+  // Apps tab — landing is the grid; user picks an app (Atlas today) which
+  // sets body[data-apps-view] and reveals the inner view. Atlas mount /
+  // pause logic mirrors what used to live under its own top tab.
+  if (tab === "apps" && inAtlasSubview) {
     requestAnimationFrame(() => {
       const stage = document.getElementById("atlas-stage");
       if (!stage) return;

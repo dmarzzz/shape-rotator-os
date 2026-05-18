@@ -54,8 +54,8 @@
   --font-sans: "Geist", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: "Geist Mono", "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
   /* type scale — 11/12/13/15/18/24/32 with line-heights tuned per role. */
-  --t-11: 11px; --t-12: 12px; --t-13: 13px; --t-15: 15px;
-  --t-18: 18px; --t-24: 24px; --t-32: 32px;
+  --t-11: 12px; --t-12: 13px; --t-13: 15px; --t-15: 16px;
+  --t-18: 20px; --t-24: 26px; --t-32: 36px;
   --lh-tight: 1.2;
   --lh-snug:  1.35;
   --lh-relax: 1.5;

@@ -27,9 +27,9 @@
         <span class="tab-glyph" aria-hidden="true">⚗</span>
         <span class="tab-label">operating system</span>
       </button>
-      <button class="tab-btn" role="tab" data-tab="atlas" aria-selected="false" type="button" title="the wall map. countries, towns, caravans. ⌘/ to search.">
-        <span class="tab-glyph" aria-hidden="true">◐</span>
-        <span class="tab-label">atlas</span>
+      <button class="tab-btn" role="tab" data-tab="apps" aria-selected="false" type="button" title="apps — small tools you can open. atlas is the first.">
+        <span class="tab-glyph" aria-hidden="true">▦</span>
+        <span class="tab-label">apps</span>
       </button>
       <button class="tab-btn" role="tab" data-tab="network" aria-selected="false" type="button" title="peers, traffic, dc-net rounds, receipts. metrics is a sub-tab inside.">
         <span class="tab-glyph" aria-hidden="true">⌬</span>
@@ -42,7 +42,7 @@
         <span class="ast-label">search</span>
         <span class="ast-kbd" aria-hidden="true">⌘/</span>
       </button>
-      <button id="fg-version-chip" class="fg-version-chip tab-bar-foot" type="button" title="check for app updates">v—</button>
+      <button id="fg-version-chip" class="fg-version-chip" type="button" title="check for app updates">v—</button>
     </nav>
 
     <aside id="sidebar" class="graph-only">
@@ -154,7 +154,64 @@
       <div id="cosmos-hover" class="cosmos-hover" hidden></div>
     </section>
 
+    <!-- Apps tab: a grid of small tools. Clicking a card swaps the
+         visible view to that app via body[data-apps-view="<key>"]. -->
+    <section id="apps-grid" class="apps-grid apps-only" aria-label="apps">
+      <header class="apps-grid-head">
+        <h1 class="apps-grid-title">apps</h1>
+        <p class="apps-grid-sub">small tools running locally on your machine. tap one to open.</p>
+      </header>
+      <ul class="apps-grid-list" role="list">
+        <li>
+          <button class="app-card" type="button" data-app-key="atlas" aria-label="open atlas">
+            <span class="app-card-preview" aria-hidden="true">
+              <svg viewBox="0 0 200 130" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+                <defs>
+                  <radialGradient id="appcard-atlas-glow" cx="50%" cy="50%" r="70%">
+                    <stop offset="0%" stop-color="rgba(143,234,242,0.18)"/>
+                    <stop offset="100%" stop-color="rgba(143,234,242,0)"/>
+                  </radialGradient>
+                </defs>
+                <rect width="200" height="130" fill="#02010a"/>
+                <rect width="200" height="130" fill="url(#appcard-atlas-glow)"/>
+                <!-- four loose clusters of dots, like a wall map territory. -->
+                <g fill="#EBEEFA" opacity="0.85">
+                  <circle cx="42" cy="38" r="1.6"/><circle cx="48" cy="44" r="1.4"/>
+                  <circle cx="55" cy="40" r="1.8"/><circle cx="50" cy="50" r="1.2"/>
+                  <circle cx="38" cy="48" r="1.4"/><circle cx="60" cy="48" r="1.5"/>
+                  <circle cx="46" cy="56" r="1.3"/>
+                  <circle cx="135" cy="34" r="1.7"/><circle cx="142" cy="40" r="1.4"/>
+                  <circle cx="150" cy="32" r="1.5"/><circle cx="148" cy="46" r="1.3"/>
+                  <circle cx="155" cy="42" r="1.6"/><circle cx="140" cy="50" r="1.2"/>
+                  <circle cx="62" cy="90" r="1.5"/><circle cx="70" cy="96" r="1.4"/>
+                  <circle cx="78" cy="88" r="1.7"/><circle cx="68" cy="100" r="1.3"/>
+                  <circle cx="80" cy="100" r="1.4"/><circle cx="58" cy="98" r="1.2"/>
+                  <circle cx="148" cy="88" r="1.4"/><circle cx="156" cy="92" r="1.6"/>
+                  <circle cx="162" cy="86" r="1.3"/><circle cx="158" cy="100" r="1.5"/>
+                  <circle cx="150" cy="100" r="1.2"/>
+                </g>
+                <g fill="#8DEAF2" opacity="0.55">
+                  <circle cx="50" cy="46" r="2.2"/>
+                  <circle cx="146" cy="40" r="2.0"/>
+                  <circle cx="70" cy="94" r="2.2"/>
+                  <circle cx="155" cy="92" r="2.0"/>
+                </g>
+              </svg>
+            </span>
+            <span class="app-card-label">Atlas</span>
+            <span class="app-card-meta">wall-map of indexed pages</span>
+          </button>
+        </li>
+      </ul>
+    </section>
+
     <section id="atlas-view" class="atlas-view atlas-only">
+      <div class="atlas-back-bar">
+        <button class="atlas-back-btn" type="button" data-apps-back aria-label="back to apps">
+          <span class="atlas-back-glyph" aria-hidden="true">←</span>
+          <span class="atlas-back-label">apps</span>
+        </button>
+      </div>
       <div id="atlas-stage" class="atlas-stage"></div>
       <div id="atlas-offline" class="atlas-offline" hidden role="status" aria-live="polite">
         <div class="ao-card">
@@ -165,7 +222,7 @@
             The Shape Rotator OS is read-only — your indexed pages live in swf-node's local DB,
             and we talk to it over <code id="ao-server-url">http://127.0.0.1:7777</code>.
             Right now nothing's answering there, so atlas / network / metrics have nothing
-            to show. Alchemy still works — it has its own data path.
+            to show. The operating system tab still works — it has its own data path.
           </p>
           <div class="ao-actions">
             <button id="ao-copy-prompt" class="ao-btn ao-btn-primary" type="button"
@@ -186,7 +243,7 @@
       </div>
     </section>
 
-    <section id="alchemy-view" class="alchemy-view alchemy-only" aria-label="alchemy">
+    <section id="alchemy-view" class="alchemy-view alchemy-only" aria-label="operating system">
       <div class="alchemy-grain" aria-hidden="true"></div>
       <header class="alchemy-header">
         <div class="alchemy-header-mark">
@@ -195,7 +252,7 @@
         </div>
       </header>
       <div class="alchemy-stage">
-        <nav class="alchemy-rail" role="tablist" aria-label="alchemy experiments">
+        <nav class="alchemy-rail" role="tablist" aria-label="operating system tools">
           <button class="alchemy-rail-btn" data-alch-mode="shapes" type="button" aria-selected="true">
             <span class="ar-num">01</span>
             <span class="ar-label">cohort</span>

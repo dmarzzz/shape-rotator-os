@@ -155,15 +155,24 @@ body:not([data-active-tab="network"]) .metrics-only { display: none !important; 
 body:not([data-active-tab="network"]) .network-tab-only { display: none !important; }
 body[data-active-tab="network"][data-net-sub="metrics"] .net-only { display: none !important; }
 body[data-active-tab="network"]:not([data-net-sub="metrics"]) .metrics-only { display: none !important; }
-/* atlas-only elements are hidden on every tab except atlas */
-body:not([data-active-tab="atlas"]) .atlas-only { display: none !important; }
+/* Apps tab visibility model:
+ *   "apps" tab landing is the app-grid (#apps-grid). Click a card →
+ *   data-apps-view is set to that app's key ("atlas") and the matching
+ *   view becomes visible while the grid hides. Back button clears
+ *   data-apps-view so the grid shows again.
+ * .atlas-only marks elements that should only render inside the Atlas
+ * sub-view (the search overlay toggle, the atlas-stage, etc.). */
+body:not([data-active-tab="apps"]) .apps-only { display: none !important; }
+body[data-active-tab="apps"][data-apps-view="atlas"] .apps-grid { display: none !important; }
+body[data-active-tab="apps"]:not([data-apps-view="atlas"]) .atlas-only { display: none !important; }
+body:not([data-active-tab="apps"]) .atlas-only { display: none !important; }
 /* alchemy-only elements only on the alchemy tab. */
 body:not([data-active-tab="alchemy"]) .alchemy-only { display: none !important; }
-/* search lives as an overlay inside atlas (formerly its own tab). The
- * .search-only section is shown when atlas is active AND
- * data-atlas-search is "open". On other tabs, fully hidden. */
-body:not([data-active-tab="atlas"]) .search-only,
-body[data-active-tab="atlas"]:not([data-atlas-search="open"]) .search-only { display: none !important; }
+/* search lives as an overlay inside the Atlas app (formerly its own
+ * tab). Shown when on apps→atlas AND data-atlas-search="open". */
+body:not([data-active-tab="apps"]) .search-only,
+body[data-active-tab="apps"]:not([data-apps-view="atlas"]) .search-only,
+body[data-active-tab="apps"][data-apps-view="atlas"]:not([data-atlas-search="open"]) .search-only { display: none !important; }
 /* legacy: cart-only, cosmos-only, exp-only — all archived 2026-05-09 */
 .cart-only, .cosmos-only, .exp-only { display: none !important; }
 /* The 3D scene must keep rendering even when a non-graph tab is visible to
@@ -4358,17 +4367,40 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   padding-right: 8px;
   user-select: none;
 }
-/* clickable version chip — same line as .tab-bar-foot but interactive,
-   hosts the electron-updater click flow. Has the [data-update] attr
-   stamped to "available" when checkAppUpdate finds a newer version. */
+/* Clickable version chip — moved out of the tab bar and pinned to
+ * the bottom-left of the window. Was getting lost in the right edge
+ * of the tab bar at low contrast; the floating chip reads as a
+ * proper status bookmark + leaves room for the identity pill to be
+ * the far-right element. */
 .fg-version-chip {
-  background: transparent; border: none;
+  position: fixed;
+  bottom: 10px;
+  left: 12px;
+  z-index: 50;
+  background: rgba(2, 1, 10, 0.78);
+  border: 1px solid var(--hairline, rgba(220, 232, 255, 0.10));
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--ink-1, rgba(235, 238, 250, 0.94));
   cursor: pointer;
-  transition: color 200ms var(--ease, ease);
+  user-select: none;
+  -webkit-app-region: no-drag;
+  white-space: nowrap;
+  font-feature-settings: var(--num-feat);
+  transition: color 200ms var(--ease, ease), border-color 200ms var(--ease, ease), background 200ms var(--ease, ease);
 }
-.fg-version-chip:hover { color: rgba(220, 232, 255, 0.92); }
+.fg-version-chip:hover {
+  border-color: rgba(220, 232, 255, 0.30);
+  background: rgba(2, 1, 10, 0.95);
+}
 .fg-version-chip[data-update="available"] {
   color: var(--neon-cyan);
+  border-color: rgba(90, 240, 255, 0.36);
   text-shadow: 0 0 8px rgba(90, 240, 255, 0.40);
 }
 .fg-version-chip[data-update="available"]::after {
@@ -7249,14 +7281,13 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 }
 .identity-pill .ip-glyph { display: none; }
 
-/* ── version chip ────────────────────────────────────────────────── */
-.fg-version-chip {
-  color: var(--ed-ink-4);
-  font-size: 10px;
-  letter-spacing: 0.22em;
-}
-.fg-version-chip:hover { color: var(--ed-ink-2); }
-.fg-version-chip[data-update="available"] { color: var(--ed-ink-1); text-shadow: none; }
+/* ── version chip — editorial-pass overrides ─────────────────────
+ * The chip lives at fixed bottom-left now (see canonical rule above);
+ * here we just tighten the colours to the editorial palette without
+ * fighting the canonical positioning.  */
+.fg-version-chip { color: var(--ed-ink-1, #f5f3ee); }
+.fg-version-chip:hover { color: var(--ed-ink-1, #f5f3ee); }
+.fg-version-chip[data-update="available"] { color: var(--sr-red, #8f220e); text-shadow: none; border-color: var(--sr-red, #8f220e); }
 
 /* ── alchemy host ─────────────────────────────────────────────────── */
 .alchemy-view, #alchemy-view {
@@ -7265,23 +7296,27 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 }
 .alchemy-canvas { color: var(--ed-ink-2); padding: 56px 64px 64px; }
 
-/* ── alchemy left rail — minimal ────────────────────────────────── */
+/* ── alchemy left rail — minimal ──────────────────────────────────
+ * Width bumped 200→260 so "constellation" (the widest label) renders
+ * without truncation. Letter-spacing eased to 0.14em so labels read
+ * a little less ALL-CAPS-SHOUTY. */
 .alchemy-rail {
   background: var(--ed-bg-0);
   border-right: 1px solid var(--ed-rule);
-  width: 200px;
+  width: 260px;
   padding: 64px 0 0 32px;
 }
 .alchemy-rail-btn {
   color: var(--ed-ink-3);
   font-family: var(--ed-mono);
-  font-size: 11px;
-  letter-spacing: 0.22em;
+  font-size: var(--t-12);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   padding: 8px 0;
   background: none;
   border: none;
   text-align: left;
+  white-space: nowrap;
 }
 .alchemy-rail-btn:hover { color: var(--ed-ink-1); }
 .alchemy-rail-btn[aria-selected="true"] { color: var(--ed-ink-1); background: transparent; }
@@ -10113,3 +10148,131 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   text-decoration-thickness: 1px;
 }
 .alch-onb-modal-body a[data-external]:hover { opacity: 0.85; }
+
+/* ─── apps tab — grid landing + atlas back-bar ──────────────────────── */
+/* The apps grid is the default landing for the "apps" top-tab. Cards
+ * route to their app via data-apps-view. Atlas is the only entry for
+ * now; future apps slot into the same grid without changing routing. */
+.apps-grid {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  padding: 56px 64px;
+  overflow-y: auto;
+  height: 100%;
+  box-sizing: border-box;
+}
+.apps-grid-head {
+  margin: 0 0 40px 0;
+  max-width: 88ch;
+}
+.apps-grid-title {
+  font-family: var(--sr-font-sans);
+  font-style: italic;
+  font-size: 38px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--ed-ink-1, #f5f3ee);
+  margin: 0 0 10px 0;
+  text-transform: lowercase;
+}
+.apps-grid-sub {
+  font-family: var(--sr-font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ed-ink-2, rgba(245,243,238,0.78));
+  margin: 0;
+}
+.apps-grid-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 280px));
+  gap: 24px;
+}
+.app-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(245,243,238,0.025);
+  border: 1px solid rgba(245,243,238,0.10);
+  border-left: 3px solid var(--sr-red);
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 200ms ease, border-color 200ms ease, background 200ms ease;
+  font: inherit;
+  color: inherit;
+}
+.app-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(245,243,238,0.25);
+  background: rgba(245,243,238,0.045);
+}
+.app-card-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 200 / 130;
+  background: #02010a;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.app-card-preview svg { display: block; width: 100%; height: 100%; }
+.app-card-label {
+  display: block;
+  font-family: var(--sr-font-sans);
+  font-style: italic;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  color: var(--ed-ink-1, #f5f3ee);
+  margin: 4px 0 0;
+  text-transform: lowercase;
+}
+.app-card-meta {
+  display: block;
+  font-family: var(--sr-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: var(--ed-ink-3, rgba(220,232,255,0.46));
+}
+
+/* Back-to-apps bar at the top of the Atlas sub-view. */
+.atlas-back-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline, rgba(220,232,255,0.08));
+  background: rgba(2,1,10,0.85);
+  position: relative;
+  z-index: 5;
+}
+.atlas-back-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-family: var(--sr-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+  color: var(--ed-ink-2, rgba(245,243,238,0.78));
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+.atlas-back-btn:hover { color: var(--ed-ink-1, #f5f3ee); }
+.atlas-back-glyph { font-size: 14px; line-height: 1; }
+
+/* Atlas-view is now the inner of the apps tab — it needs to fill the
+ * stage minus the back-bar. The existing #atlas-view rule sets it as
+ * a grid cell; we keep that but make the stage flex to fill. */
+#atlas-view {
+  display: flex;
+  flex-direction: column;
+}
+#atlas-view .atlas-stage { flex: 1; min-height: 0; }
