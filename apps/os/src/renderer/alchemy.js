@@ -2028,13 +2028,24 @@ function asksWithStatus() {
   const todayMs = Date.now();
   return all.map(a => {
     const posted = isoToDate(a.posted_at);
-    const ageDays = posted ? Math.floor((todayMs - posted.getTime()) / 86400000) : 999;
-    const expired = ageDays >= ASK_EXPIRY_DAYS;
+    // When posted_at is missing or unparseable, treat the ask as
+    // "undated" (age=null) rather than "ancient" (age=999). The
+    // previous default flagged every undated ask as expired —
+    // visible as cohort posts faded out in the "fading" section
+    // because their posted_at was empty in the seed data.
+    const ageDays = posted
+      ? Math.floor((todayMs - posted.getTime()) / 86400000)
+      : null;
+    const expired = ageDays != null && ageDays >= ASK_EXPIRY_DAYS;
     return { ...a, _ageDays: ageDays, _expired: expired };
   }).sort((a, b) => {
     // Open + recent first; expired drift to the bottom.
     if (a._expired !== b._expired) return a._expired ? 1 : -1;
-    return (a._ageDays || 0) - (b._ageDays || 0);
+    // Undated asks (ageDays === null) sort to the top of their group
+    // since we can't position them by age — treat as fresh.
+    const aAge = a._ageDays == null ? 0 : a._ageDays;
+    const bAge = b._ageDays == null ? 0 : b._ageDays;
+    return aAge - bAge;
   });
 }
 
@@ -2083,7 +2094,8 @@ function renderAsks() {
     const dm = dmLinkForPerson(author);
     const chips = (a.skill_areas || []).map(s => `<span class="alch-asks-chip">${escHtml(s)}</span>`).join("");
     const isMine = (a.author === myAuthorId) || (author && String(author.links?.github || "").toLowerCase() === myHandle);
-    const ageLabel = a._ageDays === 0 ? "today"
+    const ageLabel = a._ageDays == null ? "—"
+                   : a._ageDays === 0 ? "today"
                    : a._ageDays === 1 ? "1 day ago"
                    : `${a._ageDays} days ago`;
     const statusBadge = a.status === "claimed" ? `<span class="alch-asks-status alch-asks-status-claimed">claimed</span>`
@@ -4020,7 +4032,11 @@ function pickFirstTargetIfMissing(p) {
 function loadEditTarget() {
   const p = state.profile;
   const cohort = state.cohort;
-  if (!cohort) { p.editDraft = null; p.editBaseline = null; return; }
+  // If the cohort is briefly null (during a refresh / first-paint
+  // window), leave whatever draft already exists alone. Previously
+  // we wiped editDraft and editBaseline here, which let a single
+  // cohort refresh blow away the user's in-progress edits.
+  if (!cohort) return;
 
   // Sticky draft: only (re)seed when the edit context actually changed.
   // Same mode + same kind + same target → preserve whatever the user has
@@ -4312,15 +4328,12 @@ function wireProfileForm() {
 
   // Edit form: live-update editDraft on input. NO re-render so focus
   // stays in the input the user is typing into. Persists the draft to
-  // localStorage on a 350ms debounce so an app relaunch (or accidental
-  // close) doesn't wipe in-progress text.
+  // localStorage SYNCHRONOUSLY on every keystroke — the previous 350ms
+  // debounce was losing in-progress edits when the user tab-switched
+  // before the timer fired. localStorage.setItem on a small JSON blob
+  // is ~sub-millisecond on modern machines; no need to debounce.
   const editForm = document.getElementById("alch-pf-edit-form");
   if (editForm) {
-    let saveTimer = null;
-    const scheduleSave = () => {
-      if (saveTimer) clearTimeout(saveTimer);
-      saveTimer = setTimeout(() => { saveProfile(); saveTimer = null; }, 350);
-    };
     const onChange = (e) => {
       const target = e.target;
       if (!target?.name || !state.profile.editDraft) return;
@@ -4330,7 +4343,7 @@ function wireProfileForm() {
       if (target.type === "number") coerced = value === "" ? null : Number(value);
       else if (value === "") coerced = null;
       setNested(state.profile.editDraft, target.name, coerced);
-      scheduleSave();
+      saveProfile();
       // Refresh the ADD path preview so the user can see exactly where
       // their record will land before they hit submit. Folder mirrors
       // renderSubmitBlock: people → people/, team+project → teams/.
