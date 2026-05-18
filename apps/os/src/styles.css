@@ -5954,11 +5954,12 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alchemy-stage {
   flex: 1;
   display: grid;
-  /* Rail column 280px (was 220) — gives "constellation" room to read
-   * in full at the v0.1.16+ type scale. The actual .alchemy-rail
-   * element's `width` is irrelevant because grid clamps it; this is
-   * the only setting that matters. */
-  grid-template-columns: 280px 1fr;
+  /* Rail column 320px (was 220 → 280 → 320). Each bump was needed:
+   * 220 clipped "constellation" + "program info". 280 helped the
+   * column itself but a later rail rule (width: 220) kept the rail
+   * narrower inside it. 320 gives the rail full breathing room +
+   * a small buffer for future longer labels. */
+  grid-template-columns: 320px 1fr;
   min-height: 0;
   position: relative; z-index: 1;
 }
@@ -7687,7 +7688,11 @@ html, body { background: var(--ed-bg-0); }
  * ═══════════════════════════════════════════════════════════════════ */
 
 .alchemy-rail {
-  width: 220px;                                 /* slightly wider — display type needs room */
+  /* 280 → fits "constellation" + "program info" at the v0.1.16+ type
+   * scale. The earlier 220 was undercutting the grid column the rail
+   * lives in (also 280). Smoke test verified button scrollWidth was
+   * 195 vs allotted 171 — this widens the rail to match the column. */
+  width: 280px;
   padding: 56px 0 0;
   background: var(--ed-bg-0);
   border-right: 1px solid var(--ed-rule);
