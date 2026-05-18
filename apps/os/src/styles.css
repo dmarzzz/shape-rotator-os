@@ -167,6 +167,14 @@ body:not([data-active-tab="apps"]) .apps-only { display: none !important; }
 body[data-active-tab="apps"][data-apps-view="atlas"] .apps-grid { display: none !important; }
 body[data-active-tab="apps"]:not([data-apps-view="atlas"]) .atlas-only { display: none !important; }
 body:not([data-active-tab="apps"]) .atlas-only { display: none !important; }
+/* Defense in depth — id-specific rule with !important so no later
+ * descendant rule on #atlas-view (the grid-area absolute placement)
+ * can leak the atlas canvas through the apps-grid landing. */
+body[data-active-tab="apps"]:not([data-apps-view="atlas"]) #atlas-view,
+body:not([data-active-tab="apps"]) #atlas-view {
+  display: none !important;
+  visibility: hidden !important;
+}
 /* alchemy-only elements only on the alchemy tab. */
 body:not([data-active-tab="alchemy"]) .alchemy-only { display: none !important; }
 /* search lives as an overlay inside the Atlas app (formerly its own
@@ -9989,56 +9997,53 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 280px));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 132px));
+  gap: 28px 20px;
 }
+/* App "card" — really just an icon + label, dock-style. No preview,
+ * no metadata copy; the visual weight matches a launcher icon, not a
+ * marketing tile. Card border surfaces on hover. */
 .app-card {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-  padding: 16px;
-  background: rgba(245,243,238,0.025);
-  border: 1px solid rgba(245,243,238,0.10);
-  border-left: 3px solid var(--sr-red);
-  border-radius: 4px;
-  text-align: left;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  text-align: center;
   cursor: pointer;
-  transition: transform 200ms ease, border-color 200ms ease, background 200ms ease;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
   font: inherit;
   color: inherit;
+  width: 100%;
 }
 .app-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(245,243,238,0.25);
-  background: rgba(245,243,238,0.045);
+  border-color: rgba(245,243,238,0.18);
+  background: rgba(245,243,238,0.03);
 }
-.app-card-preview {
-  display: block;
-  width: 100%;
-  aspect-ratio: 200 / 130;
+.app-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
   background: #02010a;
-  border-radius: 3px;
+  border: 1px solid rgba(245,243,238,0.10);
+  border-radius: 14px;
   overflow: hidden;
 }
-.app-card-preview svg { display: block; width: 100%; height: 100%; }
+.app-card-icon svg { display: block; width: 100%; height: 100%; }
 .app-card-label {
   display: block;
   font-family: var(--sr-font-sans);
-  font-style: italic;
-  font-size: 22px;
-  letter-spacing: -0.01em;
+  font-size: 13px;
+  letter-spacing: 0;
   color: var(--ed-ink-1, #f5f3ee);
-  margin: 4px 0 0;
+  margin: 0;
   text-transform: lowercase;
-}
-.app-card-meta {
-  display: block;
-  font-family: var(--sr-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: lowercase;
-  color: var(--ed-ink-3, rgba(220,232,255,0.46));
 }
 
 /* Back-to-apps bar at the top of the Atlas sub-view. */
@@ -10078,3 +10083,41 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   flex-direction: column;
 }
 #atlas-view .atlas-stage { flex: 1; min-height: 0; }
+
+/* ─── onboarding · bonus rows ─────────────────────────────────────────
+ * Separator between core steps and BONUS steps. The bonus rows are
+ * the same step shape but slightly dimmed so the eye reads them as
+ * "later / optional" without making them feel ignored. */
+.alch-onb-bonus-sep {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 18px 0 6px;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+.alch-onb-bonus-line {
+  flex: 1;
+  height: 1px;
+  background: var(--hairline, rgba(220, 232, 255, 0.10));
+}
+.alch-onb-bonus-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ed-ink-3, rgba(220, 232, 255, 0.46));
+  white-space: nowrap;
+}
+.alch-onb-step-bonus {
+  opacity: 0.78;
+}
+.alch-onb-step-bonus:hover { opacity: 1; }
+.alch-onb-step-bonus .alch-onb-step-num {
+  /* "B1"/"B2" are 2 chars like "01" — keep the column aligned. The
+   * default num color is already low; bonus rows tint slightly red so
+   * "B" reads as "bonus" without a separate badge. */
+  color: var(--sr-red, #8f220e);
+  opacity: 0.85;
+}
