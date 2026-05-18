@@ -6,7 +6,6 @@ name: Andrew Miller
 team: teleport-router
 secondary_teams:
   - feedling
-  - contexto
 role: steward
 geo: NYC
 domain: crypto
@@ -32,8 +31,7 @@ dietary_restrictions:
 
 Shape Rotator cohort steward — runs the matrix homeserver and onboarding
 flow. Day job is TEE / dstack / attestation infra. Part of the Teleport
-crew working on Router and Feedling, and contributing on the
-agent-runtime side of Contexto.
+crew working on Router and Feedling.
 
 DM `@socrates1024:matrix.org` for cohort infra issues, code requests, or
 anything matrix/dstack/TEE-adjacent.
