@@ -1,22 +1,40 @@
 // cohort-source.js — the SOLE entry point for cohort data into the
 // Shape Rotator OS. Per docs/SHAPE-ROTATOR-OS-SPEC.md §4.5.
 //
-// Phase 4 (current): reads the built cohort.surface JSON straight
-// from GitHub `main` so cohort edits propagate as soon as a PR
-// merges — no daemon, no republish step. Falls back to the bundled
-// cohort-surface.json fixture if GitHub is unreachable so the app
-// stays usable offline (with whatever cohort state was bundled at
-// build time).
+// Phase 5 (current): reads cohort-data/*.md DIRECTLY from GitHub `main`
+// and builds the surface object in-browser. Mirrors what
+// scripts/build-bundles.js does in Node — same parse, same whitelist,
+// same shape. The advantage: a PR that adds a cohort-data/asks/foo.md
+// (or any record) propagates on the next refresh tick without anyone
+// running `npm run build:cohort`. The bundled cohort-surface.json file
+// stays around as a pure offline fallback.
+//
+// Phase 4 (retired): used to fetch the baked apps/os/src/cohort-
+// surface.json from main, which required a build step on every merge.
 //
 // A lightweight polling refresh keeps long-running sessions fresh:
 // every REFRESH_MS we re-fetch and, if anything changed, notify
 // subscribers so the views can re-render.
 
-const GH_REPO   = "dmarzzz/shape-rotator-os";
-const GH_BRANCH = "main";
-const GH_PATH   = "apps/os/src/cohort-surface.json";
-const GH_URL    = `https://raw.githubusercontent.com/${GH_REPO}/${GH_BRANCH}/${GH_PATH}`;
-const REFRESH_MS = 5 * 60 * 1000;
+import yaml from "js-yaml";
+
+const GH_REPO     = "dmarzzz/shape-rotator-os";
+const GH_BRANCH   = "main";
+const GH_RAW_BASE = `https://raw.githubusercontent.com/${GH_REPO}/${GH_BRANCH}`;
+const GH_TREE_API = `https://api.github.com/repos/${GH_REPO}/git/trees/${GH_BRANCH}?recursive=1`;
+const REFRESH_MS  = 5 * 60 * 1000;
+
+// Cohort-data directory → record_type → output list key. Mirrors
+// scripts/build-bundles.js so the in-browser build matches the bundled
+// fixture's shape exactly. Program pages are special-cased below.
+const RECORD_DIRS = [
+  { prefix: "cohort-data/teams/",    record_type: "team",    list_key: "teams" },
+  { prefix: "cohort-data/people/",   record_type: "person",  list_key: "people" },
+  { prefix: "cohort-data/clusters/", record_type: "cluster", list_key: "clusters" },
+  { prefix: "cohort-data/events/",   record_type: "event",   list_key: "events" },
+  { prefix: "cohort-data/asks/",     record_type: "ask",     list_key: "asks" },
+];
+const PROGRAM_PREFIX = "cohort-data/program/";
 
 let _cache = null;            // grouped by record_type
 let _refreshTimer = null;
@@ -38,13 +56,100 @@ function normalize(data) {
   };
 }
 
+// In-browser equivalent of scripts/build-bundles.js: enumerate the
+// cohort-data/ tree, fetch each markdown record, parse its frontmatter,
+// apply the schema whitelist, return the surface object.
 async function loadFromGithub() {
-  // ?ts= bypasses both the HTTP cache and any CDN/Electron caching so
-  // we always see the latest commit on `main`.
-  const url = `${GH_URL}?ts=${Date.now()}`;
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`github cohort fetch failed: HTTP ${r.status}`);
-  return normalize(await r.json());
+  const treeRes = await fetch(`${GH_TREE_API}&ts=${Date.now()}`, { cache: "no-store" });
+  if (!treeRes.ok) throw new Error(`github tree fetch failed: HTTP ${treeRes.status}`);
+  const tree = await treeRes.json();
+  if (tree.truncated) {
+    console.warn("[cohort-source] tree response truncated — cohort-data may have grown past the API page size");
+  }
+  const paths = (tree.tree || []).map(e => e.path);
+
+  const schemaText = await fetchRaw("cohort-data/schema.yml");
+  const schema = yaml.load(schemaText);
+  if (!schema || schema.schema_version !== 1) {
+    throw new Error("unsupported schema_version in cohort-data/schema.yml");
+  }
+
+  const out = { schema_version: 1 };
+
+  await Promise.all(RECORD_DIRS.map(async (spec) => {
+    const files = paths.filter(p => p.startsWith(spec.prefix) && p.endsWith(".md"));
+    const whitelist = schema[spec.list_key]?.surface_fields || [];
+    const records = await Promise.all(files.map(p => loadRecord(p, spec.record_type, whitelist)));
+    out[spec.list_key] = records.filter(Boolean);
+  }));
+
+  // Program pages get the markdown body included alongside frontmatter
+  // so the renderer can display the long-form copy offline.
+  const progFiles = paths.filter(p => p.startsWith(PROGRAM_PREFIX) && p.endsWith(".md"));
+  const progWhitelist = schema.program?.surface_fields || [];
+  const progRecords = await Promise.all(progFiles.map(p => loadProgramRecord(p, progWhitelist)));
+  out.program = progRecords.filter(Boolean).sort((a, b) => {
+    const ao = Number.isFinite(a.order) ? a.order : 1e9;
+    const bo = Number.isFinite(b.order) ? b.order : 1e9;
+    if (ao !== bo) return ao - bo;
+    return String(a.record_id).localeCompare(String(b.record_id));
+  });
+
+  out.cohort_vocab = schema.cohort_vocab || {};
+  return normalize(out);
+}
+
+// `?ts=` busts both the HTTP cache and any CDN/Electron caching so we
+// always see the latest commit on `main`.
+async function fetchRaw(repoPath) {
+  const r = await fetch(`${GH_RAW_BASE}/${repoPath}?ts=${Date.now()}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`raw fetch ${repoPath}: HTTP ${r.status}`);
+  return r.text();
+}
+
+function parseMarkdown(text) {
+  const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text);
+  if (!m) return { frontmatter: null, body: text };
+  try { return { frontmatter: yaml.load(m[1]), body: m[2] }; }
+  catch { return { frontmatter: null, body: text }; }
+}
+
+function pickSurface(obj, whitelist) {
+  const out = {};
+  for (const k of whitelist) {
+    if (Object.prototype.hasOwnProperty.call(obj || {}, k)) out[k] = obj[k];
+  }
+  return out;
+}
+
+async function loadRecord(repoPath, expectedType, whitelist) {
+  try {
+    const text = await fetchRaw(repoPath);
+    const { frontmatter } = parseMarkdown(text);
+    if (!frontmatter) return null;
+    if (frontmatter.record_type !== expectedType) return null;
+    if (!frontmatter.record_id) return null;
+    return pickSurface(frontmatter, whitelist);
+  } catch (e) {
+    console.warn(`[cohort-source] skip ${repoPath}:`, e?.message || e);
+    return null;
+  }
+}
+
+async function loadProgramRecord(repoPath, whitelist) {
+  try {
+    const text = await fetchRaw(repoPath);
+    const { frontmatter, body } = parseMarkdown(text);
+    if (!frontmatter) return null;
+    if (frontmatter.record_type !== "program_page") return null;
+    if (!frontmatter.record_id) return null;
+    const s = pickSurface(frontmatter, whitelist);
+    s.body_md = (body || "").trim();
+    return s;
+  } catch (e) {
+    console.warn(`[cohort-source] skip program ${repoPath}:`, e?.message || e);
+    return null;
+  }
 }
 
 async function loadFromFixture() {
