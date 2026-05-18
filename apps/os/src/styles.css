@@ -8664,6 +8664,30 @@ html, body {
 .alch-onb-step[data-state="missing"] .alch-onb-step-mark { border-color: #c44025; }
 .alch-onb-action { margin-top: 0; }
 .alch-onb-step-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+/* Secondary action — a quieter text-link sibling to the primary
+ * action button. Used today on the profile step to surface the
+ * "ask your agent" path next to the in-app editor button. */
+.alch-onb-secondary {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 4px 0;
+  font-family: var(--ed-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--ed-ink-2, rgba(245,243,238,0.78));
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgba(245,243,238,0.30);
+  transition: color 200ms ease, text-decoration-color 200ms ease;
+}
+.alch-onb-secondary:hover {
+  color: var(--ed-ink-1, #f5f3ee);
+  text-decoration-color: var(--sr-red, #8f220e);
+}
 .alch-onb-done {
   appearance: none;
   background: transparent;
