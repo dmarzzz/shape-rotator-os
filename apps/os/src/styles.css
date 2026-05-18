@@ -5954,7 +5954,11 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alchemy-stage {
   flex: 1;
   display: grid;
-  grid-template-columns: 220px 1fr;
+  /* Rail column 280px (was 220) — gives "constellation" room to read
+   * in full at the v0.1.16+ type scale. The actual .alchemy-rail
+   * element's `width` is irrelevant because grid clamps it; this is
+   * the only setting that matters. */
+  grid-template-columns: 280px 1fr;
   min-height: 0;
   position: relative; z-index: 1;
 }
@@ -7515,7 +7519,11 @@ html, body { background: var(--ed-bg-0); }
 .alchemy-rail {
   background: var(--ed-bg-0);
   border-right: 1px solid var(--ed-rule);
-  width: 192px;
+  /* 280 (was 192) so "constellation" — the widest label — fits in
+   * full with the type-scale bump from v0.1.16. The earlier widening
+   * to 260 in the editorial-pass block was beaten by this rule
+   * because this one comes later in the file. */
+  width: 280px;
   padding: 56px 0 0;
 }
 .alchemy-rail-btn {
@@ -7528,11 +7536,12 @@ html, body { background: var(--ed-bg-0); }
   color: var(--ed-ink-1);
   opacity: var(--ed-op-quiet);
   text-transform: lowercase;              /* lowercase, per Editorial New / Foundation */
-  letter-spacing: 0.16em;
+  letter-spacing: 0.10em;                 /* eased from 0.16 to fit the bumped type scale */
   font-family: var(--ed-mono);
-  font-size: 10.5px;
+  font-size: var(--t-12);
   font-weight: 400;
   text-align: left;
+  white-space: nowrap;
   transition: opacity 120ms ease-out, border-left-color 200ms ease-out;
 }
 .alchemy-rail-btn:hover { opacity: var(--ed-op-loud); }
