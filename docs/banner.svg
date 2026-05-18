@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" width="1280" height="360" role="img" aria-label="shape rotator os">
+  <rect width="1280" height="360" rx="40" ry="40" fill="#02010a"/>
+  <g transform="translate(30 30) scale(12.5)" fill="none" stroke="#EBEEFA"
+     stroke-width="1.0" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M4 4 L20 4 L20 20 L4 20 Z"/>
+    <path d="M4 12 L12 4 L20 12 L12 20 Z" opacity="0.5"/>
+  </g>
+  <text x="320" y="207"
+        font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="84"
+        font-weight="500"
+        fill="#EBEEFA"
+        letter-spacing="-1.4">shape rotator os</text>
+</svg>
