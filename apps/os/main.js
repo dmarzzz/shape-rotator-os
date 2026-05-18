@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+const swfNode = require("./swf-node");
 
 // One-time userData migration. Electron resolves `app.getPath("userData")`
 // from `productName` (or, if unset, the package name). Every time we
@@ -161,6 +162,24 @@ ipcMain.handle("env:get", async () => ({
 ipcMain.handle("shell:openExternal", async (_e, url) => {
   if (typeof url === "string" && /^https?:\/\//i.test(url)) shell.openExternal(url);
 });
+
+// ─── bundled swf-node supervisor ─────────────────────────────────────
+// Spawn + supervise the swf-node binary that ships in
+// Contents/Resources/swf-node/. Until this landed, the renderer was
+// pointed at http://127.0.0.1:7777 and assumed the user was running
+// the daemon externally. Now the OS app owns it.
+//
+// State broadcast goes to every BrowserWindow so the renderer (once it
+// adds a status indicator) sees idle → starting → running, plus
+// crashed/unsupported terminal states.
+function broadcastSwfNodeStatus(state) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    try { win.webContents.send("fg:swf-node-status-changed", state); } catch {}
+  }
+}
+
+ipcMain.handle("fg:swf-node-status", async () => swfNode.getStatus());
 
 // ─── electron-updater (release-driven app binary updates) ────────────
 // Reads the `latest-{mac,win,linux}.yml` feed published by
@@ -488,8 +507,31 @@ app.whenReady().then(() => {
   }
   createWindow();
   initAutoUpdater();
+  // Spin the bundled swf-node up after the first window exists so its
+  // state-change broadcasts have a webContents target. On win32 + when
+  // the binary is missing, start() short-circuits to "unsupported"
+  // and the renderer keeps the legacy "swf-node not running" UX.
+  swfNode.start(app, broadcastSwfNodeStatus);
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+// Gracefully stop the bundled swf-node on quit. We use before-quit
+// (fires once per quit, before windows are closed) and await stop()
+// so SIGTERM + grace window + SIGKILL all complete before the
+// process exits. Without `event.preventDefault()` electron quits
+// immediately and the child becomes our zombie.
+let _quittingSwfNode = false;
+app.on("before-quit", (event) => {
+  if (_quittingSwfNode) return;
+  const status = swfNode.getStatus();
+  if (status === "idle" || status === "unsupported" || status === "crashed") return;
+  event.preventDefault();
+  _quittingSwfNode = true;
+  swfNode.stop().finally(() => {
+    app.quit();
+  });
+});
+
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
