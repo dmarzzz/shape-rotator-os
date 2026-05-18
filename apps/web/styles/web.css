@@ -88,6 +88,4 @@ a:focus-visible, summary:focus-visible, .install-cta:focus-visible {
 
 .cohort-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); }
 
-.profile-picker { display: grid; gap: var(--space-3); margin-bottom: var(--space-5); padding-bottom: var(--space-5); border-bottom: 1px solid var(--hairline); }
-.profile-picker-row { display: grid; grid-template-columns: 100px 1fr; align-items: center; gap: var(--space-3); font-family: var(--font-mono); font-size: var(--t-11); text-transform: uppercase; letter-spacing: var(--track-caps); color: var(--ink-3); }
-.profile-picker-row select { font-family: var(--font-mono); font-size: var(--t-12); background: transparent; color: var(--ink-1); border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 6px var(--space-2); }
+.hero-aside { margin: calc(var(--space-7) * -1 + var(--space-3)) 0 var(--space-7); font-size: var(--t-12); line-height: var(--lh-snug); color: var(--ink-3); max-width: 52ch; }
