@@ -36,6 +36,7 @@ people:
     - contribute_interests  # what you'd happily pair on for other people's projects
     - weekly_intention      # your concrete intention for this week (refreshed Monday)
     - availability_pref     # your weekly rhythm — heads-down hours, no-meet days, etc.
+    - dietary_restrictions  # food planning — vegetarian / vegan / allergies / "none". Free-text, surfaced on person detail when set.
     # Cohort-graph fields — populated from CRM intake or self-asserted.
     # See `program/rules.md` for the anti-patterns we deliberately don't build.
     - now                   # one-line "what I'm working on right now" — Sivers/now-page pattern; refresh weekly

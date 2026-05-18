@@ -12,6 +12,7 @@ links:
   x: "quasimatt"
   website: "https://quasimatt.com"
   linkedin: "mattvanommeren"
+dietary_restrictions:
 ---
 
 ## bio

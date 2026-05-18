@@ -15,6 +15,7 @@ links:
   x: null
   website: qendresa.dev
   linkedin: null
+dietary_restrictions:
 ---
 
 ## about

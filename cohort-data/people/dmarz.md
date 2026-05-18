@@ -17,6 +17,7 @@ links:
   x: DistributedMarz
   website: dmarz.xyz
   linkedin: null
+dietary_restrictions:
 ---
 
 ## about

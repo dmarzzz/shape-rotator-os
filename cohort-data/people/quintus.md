@@ -22,6 +22,7 @@ links:
   x: 0xQuintus
   website: null
   linkedin: null
+dietary_restrictions:
 ---
 
 ## about

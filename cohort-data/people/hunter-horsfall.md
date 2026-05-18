@@ -15,6 +15,7 @@ links:
   x: QuantaNode
   website: tinycloud.xyz
   linkedin: hunterhorsfall
+dietary_restrictions:
 ---
 
 ## about
