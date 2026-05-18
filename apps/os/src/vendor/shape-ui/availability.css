@@ -1,6 +1,6 @@
 /* Cohort availability matrix — rows = people, cols = days (or weeks once
  * the range exceeds the auto-collapse threshold). Lives in shape-ui so
- * the field-guide (Electron) and the sibling web app render it the same.
+ * Shape Rotator OS (Electron) and the sibling web app render it the same.
  * Consumer apps must already have tokens.css applied to :root. */
 
 .avail {

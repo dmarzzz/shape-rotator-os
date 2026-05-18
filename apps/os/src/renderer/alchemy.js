@@ -53,7 +53,7 @@ const FEED_REFRESH_MS = 12 * 60 * 1000;
 // each team's record so participants can edit it directly. Hardcoded
 // for now — if this repo is ever renamed or the cohort-data dir moves
 // to a separate repo (D4 from the spec walkthrough), update this.
-const COHORT_DATA_REPO = "https://github.com/dmarzzz/shape-rotator-field-guide";
+const COHORT_DATA_REPO = "https://github.com/dmarzzz/shape-rotator-os";
 const COHORT_DATA_BRANCH = "main";
 function teamRecordEditUrl(record_id) {
   return `${COHORT_DATA_REPO}/edit/${COHORT_DATA_BRANCH}/cohort-data/teams/${record_id}.md`;
@@ -589,11 +589,11 @@ function showForkPrompt({ forkUrl, canonicalUrl, handle, retryHint }) {
     <div class="fork-prompt" role="dialog" aria-labelledby="fp-title">
       <header class="fp-head">
         <h2 id="fp-title" class="fp-title">create your fork — one click</h2>
-        <p class="fp-sub">cohort members don't have direct write access to <code>${escHtml("dmarzzz/shape-rotator-field-guide")}</code>. you'll submit your edits as PRs from your own fork. this is a <strong>one-time setup</strong> — every future edit goes straight to your fork after this.</p>
+        <p class="fp-sub">cohort members don't have direct write access to <code>${escHtml("dmarzzz/shape-rotator-os")}</code>. you'll submit your edits as PRs from your own fork. this is a <strong>one-time setup</strong> — every future edit goes straight to your fork after this.</p>
       </header>
       <section class="fp-body">
         <p class="fp-line">you'll be sent to github to click <strong>"create fork"</strong>. takes about 3 seconds. when it's done, come back to this app and click submit again — every subsequent edit lands directly in your fork.</p>
-        <p class="fp-line fp-aux">target fork: <code>${escHtml(handle)}/shape-rotator-field-guide</code></p>
+        <p class="fp-line fp-aux">target fork: <code>${escHtml(handle)}/shape-rotator-os</code></p>
       </section>
       <footer class="fp-foot">
         <button class="fp-btn fp-btn-primary" id="fp-create" type="button">open github · create fork</button>
@@ -1332,7 +1332,7 @@ function renderOnboarding() {
   // "you're a fully-wired cohort member."
   //
   //   1. local agent           auto-checked: you're reading this in the
-  //                            field-guide app, so the agent is on this
+  //                            Shape Rotator OS, so the agent is on this
   //                            machine. Routed to the field-kit for the
   //                            CLI tools that go alongside.
   //   2. verify/edit profile   the canonical record. uses the new EDIT
@@ -1354,7 +1354,7 @@ function renderOnboarding() {
     {
       key: "local-agent",
       title: "set up your local agent",
-      ask: `you're reading this <em>inside</em> the field-guide app, which means your local agent is already running on this machine. the field-kit gives it CLI tools — research swarm, voice TUI, content pipeline, and the skills that drive the rest of onboarding.`,
+      ask: `you're reading this <em>inside</em> Shape Rotator OS, which means your local agent is already running on this machine. the field-kit gives it CLI tools — research swarm, voice TUI, content pipeline, and the skills that drive the rest of onboarding.`,
       autoComplete: true,  // they're in the app, so by definition this is true
       missingState: "complete",
       action: { kind: "external", url: "https://github.com/dmarzzz/shape-rotator-field-kit", label: "open the field-kit" },
@@ -4456,7 +4456,7 @@ ${bodyContent}`;
 // preserving the user's prose. Returns `null` on any failure — the
 // caller falls back to the default placeholder body.
 async function fetchExistingBody(path) {
-  const url = `https://raw.githubusercontent.com/dmarzzz/shape-rotator-field-guide/main/${path}?ts=${Date.now()}`;
+  const url = `https://raw.githubusercontent.com/dmarzzz/shape-rotator-os/main/${path}?ts=${Date.now()}`;
   try {
     const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) return null;

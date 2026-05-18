@@ -229,7 +229,7 @@ async function showOnboardingModal(cohortHint) {
         <p class="im-sub">
           ${claimed
             ? `you're currently claimed as <strong>${escHtml(currentResolved?.label || currentId.display_name)}</strong> <span class="im-current-kind">(${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)})</span>. pick a different record to switch, or use the actions below.`
-            : "tell shape rotator your record so the field-guide can show your team and route the editor straight to you. stored locally on this device only — no PR, no broadcast."}
+            : "tell shape rotator your record so Shape Rotator OS can show your team and route the editor straight to you. stored locally on this device only — no PR, no broadcast."}
         </p>
         ${claimed ? `
           <div class="im-current-actions">

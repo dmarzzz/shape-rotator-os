@@ -90,7 +90,7 @@ clusters:
     - description
 
 # Program-handbook pages. Unlike teams/people/clusters these aren't records of
-# entities — they're long-form markdown that the field-guide renders as tabs on
+# entities — they're long-form markdown that Shape Rotator OS renders as tabs on
 # the "program" view. The build script includes the FULL body of each file
 # (frontmatter fields + the markdown after the frontmatter block) so the app
 # can render them offline-first from the bundled surface JSON.

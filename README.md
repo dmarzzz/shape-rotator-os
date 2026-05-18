@@ -1,4 +1,6 @@
-# shape rotator field guide
+[![latest release](https://img.shields.io/github/v/release/dmarzzz/shape-rotator-os)](https://github.com/dmarzzz/shape-rotator-os/releases/latest)
+
+# shape rotator os
 
 Local-first Electron app for the Shape Rotator cohort. Four tabs:
 
@@ -8,11 +10,22 @@ Local-first Electron app for the Shape Rotator cohort. Four tabs:
 
 The app is a viewer over [`swf-node`](https://github.com/dmarzzz/searxng-wth-frnds), the LAN-first peer search daemon. Without swf-node running, atlas + network + search are disabled but alchemy still works (cohort data ships in `cohort-data/`).
 
+## install
+
+Grab the latest build from [releases/latest](https://github.com/dmarzzz/shape-rotator-os/releases/latest).
+
+- **macOS** — download the `.dmg` matching your chip (`mac-arm64` for Apple Silicon, `mac-x64` for Intel). Until the app is code-signed, after dragging to /Applications run `xattr -cr "/Applications/Shape Rotator OS.app"` once to clear macOS quarantine.
+- **Windows** — download the `.exe` (`win-x64` or `win-arm64`). First launch may show a SmartScreen warning: click "More info" → "Run anyway".
+- **Linux** — download the `.AppImage` (`chmod +x <file>` then run, no install) or the `.deb` (`sudo dpkg -i <file>`). Pick the arch that matches your box (`x86_64`/`amd64` or `arm64`).
+
+Updates are click-to-install — click the version chip in the top-right of the app. Windows + Linux AppImage get the seamless one-click flow; macOS + Linux .deb get the v0.1.11 "download + open installer" flow until signing is wired.
+
 ## what's in here
 
 ```
 apps/
-  field-guide/        ← the Electron app (main + renderer)
+  os/                 ← the Electron app (main + renderer)
+  web/                ← sibling marketing site
 
 packages/
   shape-ui/           ← shared SHAPES vocabulary + SVG generator
@@ -23,16 +36,16 @@ cohort-data/          ← markdown source of truth for the cohort
   clusters/<slug>.md  ← synergy clusters across teams
 
 scripts/
-  build-bundles.js    ← cohort-data/ → apps/field-guide/src/cohort-surface.json
+  build-bundles.js    ← cohort-data/ → apps/os/src/cohort-surface.json
   publish-bundles.js  ← sign + POST cohort.surface bundles to swf-node
   keys-gen.js         ← generate an Ed25519 alchemist signing key
 ```
 
-## run it
+## run from source
 
 ```bash
 npm install
-npm run field-guide
+npm run os
 ```
 
 You'll need swf-node running on `127.0.0.1:7777` (default) for atlas / network / search; alchemy works offline against the bundled cohort fixture.

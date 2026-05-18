@@ -1,5 +1,5 @@
 /* Shared design tokens — single source of truth for the shape-rotator design system.
- * Edits here propagate to both the field-guide Electron app and the sibling web app.
+ * Edits here propagate to both Shape Rotator OS Electron app and the sibling web app.
  * Do NOT add scoped/subsystem overrides here (e.g. --ed-*, --alchemy-*, --tab-bar-h). */
 :root {
   --abyss: #02010a;

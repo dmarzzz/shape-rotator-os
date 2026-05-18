@@ -1,5 +1,5 @@
 // cohort-source.js — the SOLE entry point for cohort data into the
-// field-guide app. Per docs/SHAPE-ROTATOR-OS-SPEC.md §4.5.
+// Shape Rotator OS. Per docs/SHAPE-ROTATOR-OS-SPEC.md §4.5.
 //
 // Phase 4 (current): reads the built cohort.surface JSON straight
 // from GitHub `main` so cohort edits propagate as soon as a PR
@@ -12,9 +12,9 @@
 // every REFRESH_MS we re-fetch and, if anything changed, notify
 // subscribers so the views can re-render.
 
-const GH_REPO   = "dmarzzz/shape-rotator-field-guide";
+const GH_REPO   = "dmarzzz/shape-rotator-os";
 const GH_BRANCH = "main";
-const GH_PATH   = "apps/field-guide/src/cohort-surface.json";
+const GH_PATH   = "apps/os/src/cohort-surface.json";
 const GH_URL    = `https://raw.githubusercontent.com/${GH_REPO}/${GH_BRANCH}/${GH_PATH}`;
 const REFRESH_MS = 5 * 60 * 1000;
 
@@ -74,7 +74,7 @@ function signatureOf(grouped) {
 
 // Dev preview override. Setting `localStorage.setItem("srfg:cohort_source", "local")`
 // in DevTools then reloading forces the app to read the bundled fixture
-// (apps/field-guide/src/cohort-surface.json) instead of GitHub main.
+// (apps/os/src/cohort-surface.json) instead of GitHub main.
 // Use this to preview a cohort-data PR locally before it merges. Clear with
 // `localStorage.removeItem("srfg:cohort_source")` + reload to return to main.
 function devPreferLocal() {

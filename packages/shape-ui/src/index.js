@@ -1,5 +1,5 @@
 // @shape-rotator/shape-ui
-// The shared shape vocabulary used by both apps. Both the field-guide
+// The shared shape vocabulary used by both apps. Both Shape Rotator OS
 // (cohort participant) and the alchemist app render team specimens with
 // the same six shapes — keeping them aligned matters more than DRY-ing
 // every component, so this is the one piece extracted into a shared
@@ -118,14 +118,14 @@ export {
 export { mountShape, mountShapesIn, hashColors } from "./shape-canvas.js";
 
 // Cohort availability — pure computation + a token-driven DOM renderer.
-// Used by both the field-guide and the sibling web app.
+// Used by both Shape Rotator OS and the sibling web app.
 export {
   computeAvailability,
   renderAvailabilityMatrix,
   availabilityStylesPath,
 } from "./availability.js";
 
-// Shared cohort surface — extracted from the field-guide alchemy view
+// Shared cohort surface — extracted from Shape Rotator OS alchemy view
 // so the sibling web app can render the same cards, calendar, and
 // edit/PR launcher without reimplementing.
 export { escHtml, escAttr } from "./escape.js";

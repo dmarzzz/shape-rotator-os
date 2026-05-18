@@ -1,5 +1,5 @@
 // pr-url.js — builders for GitHub web-editor URLs that target a
-// cohort-data record file. Both the field-guide Electron renderer and
+// cohort-data record file. Both Shape Rotator OS Electron renderer and
 // the sibling web app need to drop users into the same edit-and-PR flow,
 // so the convention lives here.
 //
@@ -33,7 +33,7 @@ function folderFor(recordType) {
 export function buildEditPRUrl({
   recordType,
   recordId,
-  repo = "dmarzzz/shape-rotator-field-guide",
+  repo = "dmarzzz/shape-rotator-os",
   branch = "main",
 }) {
   const folder = folderFor(recordType);

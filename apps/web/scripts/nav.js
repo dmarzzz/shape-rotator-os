@@ -1,6 +1,6 @@
 // Marks current nav link via aria-current and paints the version chip.
 // Currently a small module — kept separate so cohort/calendar/availability/profile pages can re-use.
-const REPO = "dmarzzz/shape-rotator-field-guide";
+const REPO = "dmarzzz/shape-rotator-os";
 const RELEASE_CACHE_KEY = "fg-latest-release";
 const RELEASE_CACHE_TTL_MS = 60 * 60 * 1000;
 

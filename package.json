@@ -1,21 +1,21 @@
 {
-  "name": "shape-rotator-field-guide",
+  "name": "shape-rotator-os",
   "version": "0.1.0",
   "private": true,
-  "description": "Cohort field-guide Electron app for the Shape Rotator program. Atlas of indexed pages, alchemy view of the cohort (teams + projects + people), local-first peer search via swf-node, and a profile editor that submits PRs against this repo.",
+  "description": "Shape Rotator OS — Electron app for the cohort. Atlas of indexed pages, alchemy view of the cohort (teams + projects + people), local-first peer search via swf-node, and a profile editor that submits PRs against this repo.",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "field-guide": "npm --workspace @shape-rotator/field-guide start",
-    "field-guide:dev": "npm --workspace @shape-rotator/field-guide run dev",
+    "os": "npm --workspace @shape-rotator/os start",
+    "os:dev": "npm --workspace @shape-rotator/os run dev",
     "build:cohort": "node scripts/build-bundles.js",
     "check:cohort": "node scripts/build-bundles.js --check",
     "publish:cohort": "node scripts/publish-bundles.js",
     "publish:cohort:dry": "node scripts/publish-bundles.js --dry-run",
     "keys:gen": "node scripts/keys-gen.js",
-    "vendor:web": "rm -rf apps/web/shape-ui && cp -R packages/shape-ui apps/web/shape-ui && cp apps/field-guide/src/cohort-surface.json apps/web/cohort-surface.json",
+    "vendor:web": "rm -rf apps/web/shape-ui && cp -R packages/shape-ui apps/web/shape-ui && cp apps/os/src/cohort-surface.json apps/web/cohort-surface.json",
     "deploy:web": "npm run vendor:web && cd apps/web && vercel deploy --prod --yes"
   },
   "devDependencies": {

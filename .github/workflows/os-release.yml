@@ -1,9 +1,9 @@
-name: field-guide-release
+name: os-release
 
 # Builds the Shape Rotator OS installers (DMG / NSIS exe / AppImage +
 # deb) and publishes them to a GitHub Release. Triggered by pushing a
 # v-prefixed tag, e.g. `git tag v0.1.0 && git push --tags`. The version in
-# the tag must match `apps/field-guide/package.json:version` (electron-builder
+# the tag must match `apps/os/package.json:version` (electron-builder
 # reads from package.json, not the tag, but the tag is what triggers us).
 #
 # What ends up on the release:
@@ -31,7 +31,7 @@ name: field-guide-release
 # Windows + Linux are unsigned regardless — they don't need signing for
 # self-update to work (NSIS / AppImage swap binaries without verification).
 #
-# IMPORTANT: scripts/build-bundles.js regenerates apps/field-guide/src/
+# IMPORTANT: scripts/build-bundles.js regenerates apps/os/src/
 # cohort-surface.json from cohort-data/ before each dist step, so the
 # packaged app always ships with the cohort surface as of the release tag.
 
@@ -126,15 +126,15 @@ jobs:
           set -euo pipefail
           if [ "${{ matrix.platform }}" = "mac" ] && [ "${{ steps.mac-sign-prep.outputs.macos_sign }}" = "1" ]; then
             echo "→ macOS build: SIGNED + NOTARIZED"
-            npm run dist:mac --workspace @shape-rotator/field-guide -- \
+            npm run dist:mac --workspace @shape-rotator/os -- \
               --config.mac.notarize=true \
               --config.extraMetadata.signed=true
           elif [ "${{ matrix.platform }}" = "mac" ]; then
             echo "→ macOS build: UNSIGNED"
             export CSC_IDENTITY_AUTO_DISCOVERY=false
-            npm run dist:mac --workspace @shape-rotator/field-guide
+            npm run dist:mac --workspace @shape-rotator/os
           else
-            npm run dist:${{ matrix.platform }} --workspace @shape-rotator/field-guide
+            npm run dist:${{ matrix.platform }} --workspace @shape-rotator/os
           fi
         env:
           # electron-builder uses GH_TOKEN to upload artifacts to the
@@ -152,12 +152,12 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: field-guide-${{ matrix.platform }}
+          name: Shape Rotator OS-${{ matrix.platform }}
           path: |
-            apps/field-guide/dist/*.dmg
-            apps/field-guide/dist/*.exe
-            apps/field-guide/dist/*.AppImage
-            apps/field-guide/dist/*.deb
-            apps/field-guide/dist/*.zip
+            apps/os/dist/*.dmg
+            apps/os/dist/*.exe
+            apps/os/dist/*.AppImage
+            apps/os/dist/*.deb
+            apps/os/dist/*.zip
           if-no-files-found: ignore
           retention-days: 14

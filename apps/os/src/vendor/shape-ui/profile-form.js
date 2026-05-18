@@ -15,7 +15,7 @@ import { escHtml, escAttr } from "./escape.js";
 import { buildEditPRUrl } from "./pr-url.js";
 
 // Per-record-type fields shown in the form. Keep the schema close to
-// the field-guide's surface model so the produced edits land cleanly.
+// Shape Rotator OS's surface model so the produced edits land cleanly.
 const PERSON_FIELDS = [
   { key: "name",            label: "name",           type: "text" },
   { key: "role",            label: "role",           type: "text" },

@@ -1,7 +1,7 @@
 // @shape-rotator/shape-ui — cohort availability
 //
 // Pure computation + a small DOM renderer for the cohort availability
-// matrix. Lives in shape-ui so the field-guide (Electron) and the
+// matrix. Lives in shape-ui so Shape Rotator OS (Electron) and the
 // sibling web app stay pixel-aligned without one importing from the
 // other. No chart libs, no framework — plain DOM/CSS and design tokens.
 //

@@ -1,7 +1,7 @@
 // gh-fork.js — fork-aware PR URL routing.
 //
 // Most cohort members don't have push access to dmarzzz/shape-rotator-
-// field-guide. GitHub's `/edit/main/<path>?quick_pull=1` URL is *supposed*
+// Shape Rotator OS. GitHub's `/edit/main/<path>?quick_pull=1` URL is *supposed*
 // to auto-fork the repo for non-collaborators on click, but that redirect
 // is unreliable (silently fails in some browser/account combinations,
 // leaves users stuck staring at the canonical repo's editor with no
@@ -12,7 +12,7 @@
 //   1. The app already knows the user's github handle from their claimed
 //      person record (`links.github`).
 //   2. Before opening any /edit/ or /new/ URL, we check whether their
-//      fork (`<handle>/shape-rotator-field-guide`) exists, via an
+//      fork (`<handle>/shape-rotator-os`) exists, via an
 //      UNAUTHENTICATED GET to api.github.com/repos/<handle>/<repo>.
 //        - 200 → fork exists; open /edit/ or /new/ on the fork directly.
 //        - 404 → fork doesn't exist; surface a "create your fork (one
@@ -24,7 +24,7 @@
 // No OAuth, no token storage, no in-app sign-in.
 
 const CANONICAL_OWNER = "dmarzzz";
-const CANONICAL_REPO  = "shape-rotator-field-guide";
+const CANONICAL_REPO  = "shape-rotator-os";
 const FORK_CACHE_KEY  = "srfg:gh_fork_cache_v1";
 const FORK_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 

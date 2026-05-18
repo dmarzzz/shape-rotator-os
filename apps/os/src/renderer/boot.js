@@ -431,7 +431,7 @@ async function runUpdateRestart() {
 // auto-download path errors out and we need to drop the user on the
 // canonical page.
 function runOpenReleasePage() {
-  const url = "https://github.com/dmarzzz/shape-rotator-field-guide/releases/latest";
+  const url = "https://github.com/dmarzzz/shape-rotator-os/releases/latest";
   try { window.api?.openExternal?.(url); } catch {}
   closeUpdatePanel();
 }
@@ -1898,9 +1898,9 @@ function hideAtlasOffline() {
 function buildOfflineAgentPrompt() {
   const url = srwk.serverUrl;
   return [
-    `Hey — I got this message from inside the Shape Rotator OS field-guide:`,
+    `Hey — I got this message from inside the Shape Rotator OS Shape Rotator OS:`,
     ``,
-    `> The swf-node daemon isn't reachable at ${url}. The field-guide is read-only —`,
+    `> The swf-node daemon isn't reachable at ${url}. The Shape Rotator OS is read-only —`,
     `> all my indexed pages live in swf-node's local SQLite. Without the daemon`,
     `> running, the atlas / network / metrics tabs can't show anything.`,
     ``,
@@ -1916,8 +1916,8 @@ function buildOfflineAgentPrompt() {
     `   (check the repo's README for the exact install command — pipx, pip, or source).`,
     `4. Verify it's up:              \`curl -s ${url}/graph?lens=contributor | head\``,
     ``,
-    `Field-guide source + bug reports: github.com/dmarzzz/shape-rotator-field-guide.`,
-    `Once the daemon responds, the field-guide auto-recovers within ~5s — no reload`,
+    `Field-guide source + bug reports: github.com/dmarzzz/shape-rotator-os.`,
+    `Once the daemon responds, Shape Rotator OS auto-recovers within ~5s — no reload`,
     `needed.`,
   ].join("\n");
 }

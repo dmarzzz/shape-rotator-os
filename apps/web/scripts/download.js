@@ -1,6 +1,6 @@
 import { fetchLatestRelease } from "./nav.js";
 
-const REPO = "dmarzzz/shape-rotator-field-guide";
+const REPO = "dmarzzz/shape-rotator-os";
 const ASSET_FOR = {
   "mac-arm64":   (v) => `ShapeRotatorFieldGuide-${v}-mac-arm64.dmg`,
   "mac-x64":     (v) => `ShapeRotatorFieldGuide-${v}-mac-x64.dmg`,

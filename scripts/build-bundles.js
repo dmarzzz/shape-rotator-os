@@ -5,7 +5,7 @@
  * Phase 1 implementation per docs/SHAPE-ROTATOR-OS-SPEC.md §4.4 §6:
  * reads cohort-data/{teams,people,clusters}/*.md, applies the surface-
  * fields whitelist from cohort-data/schema.yml, writes
- * apps/field-guide/src/cohort-surface.json. The depth side (encrypted
+ * apps/os/src/cohort-surface.json. The depth side (encrypted
  * raw markdown bytes per §3.1) lands once swf-node bundle handling is
  * in place.
  *
@@ -23,7 +23,7 @@ const yaml = require("js-yaml");
 
 const REPO_ROOT  = path.resolve(__dirname, "..");
 const COHORT_DIR = path.join(REPO_ROOT, "cohort-data");
-const OUT_PATH   = path.join(REPO_ROOT, "apps", "field-guide", "src", "cohort-surface.json");
+const OUT_PATH   = path.join(REPO_ROOT, "apps", "os", "src", "cohort-surface.json");
 
 function readSchema() {
   const p = path.join(COHORT_DIR, "schema.yml");

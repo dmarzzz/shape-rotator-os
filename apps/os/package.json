@@ -1,12 +1,12 @@
 {
-  "name": "@shape-rotator/field-guide",
+  "name": "@shape-rotator/os",
   "productName": "Shape Rotator OS",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "private": true,
   "main": "main.js",
   "type": "commonjs",
-  "description": "Cohort field-guide Electron app — atlas, alchemy, network/metrics over swf-node, and a profile editor that submits PRs against the cohort-data repo.",
-  "homepage": "https://github.com/dmarzzz/shape-rotator-field-guide",
+  "description": "Shape Rotator OS — Electron app for the cohort: profile editor (PR-based), calendar, constellation, atlas, network/metrics over swf-node.",
+  "homepage": "https://github.com/dmarzzz/shape-rotator-os",
   "author": {
     "name": "Shape Rotator",
     "email": "noreply@shape-rotator.local"
@@ -32,7 +32,7 @@
     "electron-builder": "^26.8.1"
   },
   "build": {
-    "appId": "com.shape-rotator.field-guide",
+    "appId": "com.shape-rotator.os",
     "productName": "Shape Rotator OS",
     "artifactName": "ShapeRotatorOS-${version}-${os}-${arch}.${ext}",
     "electronVersion": "33.4.11",
@@ -56,7 +56,7 @@
       {
         "provider": "github",
         "owner": "dmarzzz",
-        "repo": "shape-rotator-field-guide",
+        "repo": "shape-rotator-os",
         "releaseType": "release"
       }
     ],

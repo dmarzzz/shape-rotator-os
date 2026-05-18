@@ -605,7 +605,7 @@ function hsl(h, s, l, a) {
 //
 // range defaults to the cohort's earliest dates_start → latest dates_end
 // across people; if those are missing, falls back to the program-window
-// defaults the field-guide ships with.
+// defaults Shape Rotator OS ships with.
 export function renderCohortCalendar({ container, cohort, range }) {
   if (!container) return null;
   const r = resolveRange(cohort, range);

@@ -5,7 +5,7 @@ const fs = require("node:fs");
 // One-time userData migration. Electron resolves `app.getPath("userData")`
 // from `productName` (or, if unset, the package name). Every time we
 // rename the app — `srwk-wall` → `srwk-visualizer` → `Shape Rotator` →
-// `Shape Rotator Field Guide` — the userData path changes and a fresh
+// `Shape Rotator OS` — the userData path changes and a fresh
 // launch finds no saved state. This walks the historical names and
 // copies any prior contents into the current dir.
 //
@@ -164,7 +164,7 @@ ipcMain.handle("shell:openExternal", async (_e, url) => {
 
 // ─── electron-updater (release-driven app binary updates) ────────────
 // Reads the `latest-{mac,win,linux}.yml` feed published by
-// .github/workflows/field-guide-release.yml on each tag push. No-op in
+// .github/workflows/os-release.yml on each tag push. No-op in
 // dev — `npm run dev` users still update via git pull / npm install.
 function initAutoUpdater() {
   if (!app.isPackaged) return;
@@ -178,7 +178,7 @@ function initAutoUpdater() {
     autoUpdater.on("download-progress", (p) => {
       process.stderr.write(`[viz:log] downloading update: ${Math.round(p.percent || 0)}%\n`);
       // Forward to the renderer so the inline update panel can render a
-      // live % bar. The field-guide only ever has one window, so first-of
+      // live % bar. The Shape Rotator OS only ever has one window, so first-of
       // is fine; guard for "no window yet" (the updater can technically
       // fire before the renderer is created if a check is triggered early).
       try {
@@ -318,7 +318,7 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
   // 1) resolve the latest release.
   const release = await new Promise((resolve, reject) => {
     const req = https.get(
-      "https://api.github.com/repos/dmarzzz/shape-rotator-field-guide/releases/latest",
+      "https://api.github.com/repos/dmarzzz/shape-rotator-os/releases/latest",
       { headers: { "User-Agent": "shape-rotator-os", Accept: "application/vnd.github+json" } },
       (res) => {
         if (res.statusCode !== 200) {
@@ -480,7 +480,7 @@ ipcMain.handle("fg:export-calendar", async (_e, opts = {}) => {
 
 app.whenReady().then(() => {
   // Dev-mode dock icon. Packaged builds get their icon from electron-builder
-  // (build-resources/icon.icns); in `npm run field-guide` we'd otherwise see
+  // (build-resources/icon.icns); in `npm run os` we'd otherwise see
   // the generic Electron dock icon. Set it explicitly here.
   if (process.platform === "darwin" && !app.isPackaged && app.dock) {
     try { app.dock.setIcon(path.join(__dirname, "build-resources", "icon.png")); }

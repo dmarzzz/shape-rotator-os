@@ -1,12 +1,12 @@
-// link-deps.js — Run as a postinstall step inside apps/field-guide so the
+// link-deps.js — Run as a postinstall step inside apps/os so the
 // renderer's importmap (which uses `../node_modules/<pkg>` paths) resolves
 // in dev mode the same way it does in a packaged build.
 //
 // Why this is needed: npm workspaces hoist shared deps to the repo root
-// `/node_modules/`, so `apps/field-guide/node_modules/` ends up empty for
+// `/node_modules/`, so `apps/os/node_modules/` ends up empty for
 // any package that's also used by another workspace. The renderer's
 // `<script type="importmap">` and the static `<script src="../node_modules/...">`
-// tag both expect those packages at `apps/field-guide/node_modules/<pkg>`,
+// tag both expect those packages at `apps/os/node_modules/<pkg>`,
 // which works inside the packaged .app bundle (electron-builder writes a
 // per-app layout) but breaks in a workspace-installed dev tree.
 //
@@ -22,7 +22,7 @@ const PKGS = ["three", "@cosmos.gl", "3d-force-graph"];
 
 const APP_DIR = path.resolve(__dirname, "..");
 const APP_NM  = path.join(APP_DIR, "node_modules");
-// Walk up from apps/field-guide/node_modules until we find the workspace
+// Walk up from apps/os/node_modules until we find the workspace
 // root that holds the hoisted node_modules. Usually two levels up.
 function findRootNodeModules(startDir) {
   let dir = startDir;
