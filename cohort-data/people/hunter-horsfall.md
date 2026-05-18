@@ -15,7 +15,18 @@ links:
   x: QuantaNode
   website: tinycloud.xyz
   linkedin: hunterhorsfall
-dietary_restrictions:
+comm_style: |
+  Fastest path is usually DM or GitHub issue depending on context. Async is best for most things; happy to jump on a call when it will unblock something faster.
+contribute_interests: |
+  I like building across software and the physical world. My background includes furniture design, spatial design, woodworking, epoxy, power tools, and LED installation art.
+
+  Right now I am building an agentic personal feed and an agentic fundraising engine. I would be excited to pair on agent workflows, fundraising automation, applied AI interfaces, and projects that connect digital systems with physical experiences.
+
+  I also love music and coffee: I used to own a music venue where I hosted and ran sound for 300+ shows, and previously owned a coffee shop in Colorado.
+availability_pref: |
+  Currently open. Prefer async by default, with calls for high-context collaboration or anything that benefits from rapid back-and-forth.
+weekly_intention: "Improve my personal feed and build a better system prompt for filtering information."
+dietary_restrictions: none
 ---
 
 ## about
