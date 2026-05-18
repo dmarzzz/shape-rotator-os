@@ -1366,18 +1366,10 @@ function renderOnboarding() {
     {
       key: "field-kit",
       title: "install the field-kit",
-      ask: `the field-kit gives your local agent CLI tools — research swarm, voice TUI, content pipeline, and the skills that drive the rest of onboarding. clone the repo, run <code>bash setup.sh</code>, then <code>./kit install-global</code> so <code>rotate</code> is on your PATH.`,
+      ask: `the field-kit gives your local agent CLI tools — research swarm, content pipeline, the cohort skills <strong>and voxterm</strong> (the local-first voice transcription TUI) all in one bundle. clone the repo, run <code>bash setup.sh</code>, then <code>./kit install-global</code> so <code>rotate</code> is on your PATH. after that, <code>rotate vox</code> launches voxterm.`,
       autoComplete: false,
       missingState: "info",
       action: { kind: "external", url: "https://github.com/dmarzzz/shape-rotator-field-kit", label: "open shape-rotator-field-kit" },
-    },
-    {
-      key: "voxterm",
-      title: "download voxterm",
-      ask: `local-first voice transcription TUI. captures mic audio, transcribes in real time with speaker diarization, writes a markdown transcript locally. no cloud. after the field-kit is installed, <code>rotate vox</code> launches it — or grab it directly from the repo.`,
-      autoComplete: false,
-      missingState: "info",
-      action: { kind: "external", url: "https://github.com/dmarzzz/VoxTerm", label: "open VoxTerm" },
     },
     {
       key: "set-up-profile",
@@ -1489,7 +1481,7 @@ function renderOnboarding() {
     </header>
     <ol class="alch-onb-steps">${stepHtml}</ol>
     <p class="alch-callout"><strong>onboarding · v0.4</strong><br/>
-    step 01 auto-completes (you're in the app). step 02 sets up the field-kit so your local agent gets CLI superpowers. step 03 installs voxterm. step 04 puts your profile on the cohort map — either through the in-app editor or by asking your local agent (the skill lives in the field-kit). matrix + interview links land here once the operator publishes them.</p>
+    step 01 auto-completes (you're in the app). step 02 sets up the field-kit so your local agent gets CLI superpowers — including voxterm. step 03 puts your profile on the cohort map — either through the in-app editor or by asking your local agent (the skill lives in the field-kit). matrix + interview links land here once the operator publishes them.</p>
   `;
 }
 
