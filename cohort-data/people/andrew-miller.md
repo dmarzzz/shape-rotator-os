@@ -8,7 +8,7 @@ secondary_teams:
   - feedling
   - contexto
 role: steward
-geo: Champaign IL / NYC
+geo: NYC
 domain: crypto
 email: socrates1024@gmail.com
 dates_start: 2026-05-18
@@ -31,9 +31,9 @@ dietary_restrictions:
 ## about
 
 Shape Rotator cohort steward — runs the matrix homeserver and onboarding
-flow. Day job is TEE / dstack / attestation infra. Inside the cohort:
-leading Teleport Router and Feedling alongside the rest of the Teleport
-crew, and contributing on the agent-runtime side of Contexto.
+flow. Day job is TEE / dstack / attestation infra. Part of the Teleport
+crew working on Router and Feedling, and contributing on the
+agent-runtime side of Contexto.
 
 DM `@socrates1024:matrix.org` for cohort infra issues, code requests, or
 anything matrix/dstack/TEE-adjacent.

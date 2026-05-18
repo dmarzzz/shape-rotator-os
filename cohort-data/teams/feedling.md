@@ -5,8 +5,8 @@ schema_version: 1
 kind: project
 
 name: Feedling
-focus: agentic feed reader · TikTok delegation campaigns
-members_count: 6
+focus: information-diet interventions for short-form video · TEE-delegated watch history
+members_count: 5
 geo: null
 domain: ai
 shape: null
