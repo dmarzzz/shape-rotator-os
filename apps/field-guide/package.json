@@ -1,7 +1,7 @@
 {
   "name": "@shape-rotator/field-guide",
   "productName": "Shape Rotator OS",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "private": true,
   "main": "main.js",
   "type": "commonjs",
@@ -79,9 +79,11 @@
         }
       ],
       "darkModeSupport": true,
-      "hardenedRuntime": false,
+      "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "identity": null
+      "entitlements": "build-resources/entitlements.mac.plist",
+      "entitlementsInherit": "build-resources/entitlements.mac.plist",
+      "notarize": false
     },
     "dmg": {
       "title": "${productName} ${version}",
