@@ -111,3 +111,15 @@ That picks the right asset for your platform, downloads it, copies to
 /Applications (mac) or runs `dpkg -i` (linux), and clears macOS
 quarantine automatically. Windows users still grab the installer from
 the release page.
+
+---
+
+## peer search + atlas (mac + linux only for now)
+
+macOS and Linux installs auto-bundle swf-node as a managed subprocess,
+so peer search, atlas, network view, and metrics all work out of the
+box on first launch. Windows installs run in degraded mode: the cohort
+viewer and profile editing still work, but the swf-node-backed
+features (search, atlas, peer presence) are disabled until upstream
+swf-node ships a Windows runtime. Tracked at
+[dmarzzz/shape-rotator-os#84](https://github.com/dmarzzz/shape-rotator-os/issues/84).
