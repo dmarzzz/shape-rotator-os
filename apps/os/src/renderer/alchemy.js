@@ -29,6 +29,7 @@ import {
 } from "@shape-rotator/shape-ui";
 import { getCohortSurface, subscribeToCohortChanges } from "./cohort-source.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
+import { enrichPeople } from "./gh-user.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const PROFILE_LS_KEY  = "srwk:profile_v1";
@@ -199,6 +200,23 @@ window.__srwkOpenProfile = function openProfileExternal(opts = {}) {
 
 async function loadCohort() {
   state.cohort = await getCohortSurface();
+  // Enrich person records from GitHub: name / geo / website / x are
+  // filled in (when empty) from api.github.com/users/<handle>. Cached
+  // 24h in localStorage so this is one API call per person per day
+  // per device. Triggers a re-render whenever a record gets new data
+  // so the first-render placeholders update as fetches complete.
+  if (state.cohort?.people) {
+    enrichPeople(state.cohort.people, {
+      onUpdate: () => {
+        // Debounce: gather a few enrichments before re-rendering so a
+        // cold-cache cohort doesn't trigger 50 paints in a row.
+        clearTimeout(state._ghEnrichRenderTimer);
+        state._ghEnrichRenderTimer = setTimeout(() => {
+          if (state.mounted && state.active) render();
+        }, 350);
+      },
+    });
+  }
 }
 
 function syncRailSelection() {
