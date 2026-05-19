@@ -381,6 +381,12 @@ export function renderWeekView({
         <span aria-hidden="true">·</span>
         <span>cohort may 18 → jul 26 2026</span>
       </div>
+
+      <div class="cal-kbd-hints" aria-hidden="true">
+        <span class="ckh-pair"><kbd class="ckh-key">←</kbd><kbd class="ckh-key">→</kbd><span class="ckh-label">prev / next week</span></span>
+        <span class="ckh-sep" aria-hidden="true">·</span>
+        <span class="ckh-pair"><kbd class="ckh-key">t</kbd><span class="ckh-label">jump to this week</span></span>
+      </div>
     </section>
 
     ${presenceSection}

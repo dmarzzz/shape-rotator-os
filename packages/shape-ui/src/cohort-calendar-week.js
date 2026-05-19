@@ -51,6 +51,13 @@ function todayUtcMs() {
   const d = new Date();
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
+
+// Fraction of the day elapsed (local time), clamped to [0, 1].
+// Used to position the "now" line within today's day cell.
+function nowFraction() {
+  const d = new Date();
+  return Math.min(1, Math.max(0, (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400));
+}
 function fmtShortDate(d) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
 }
@@ -380,6 +387,12 @@ export function renderWeekView({
         <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>phala /cadence/calendar.json</a></span>
         <span aria-hidden="true">·</span>
         <span>cohort may 18 → jul 26 2026</span>
+      </div>
+
+      <div class="cal-kbd-hints" aria-hidden="true">
+        <span class="ckh-pair"><kbd class="ckh-key">←</kbd><kbd class="ckh-key">→</kbd><span class="ckh-label">prev / next week</span></span>
+        <span class="ckh-sep" aria-hidden="true">·</span>
+        <span class="ckh-pair"><kbd class="ckh-key">t</kbd><span class="ckh-label">jump to this week</span></span>
       </div>
     </section>
 
