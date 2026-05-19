@@ -78,6 +78,29 @@ jobs:
       - name: install (workspaces)
         run: npm ci
 
+      # Pull the bundled swf-node binary from the latest upstream release
+      # (dmarzzz/searxng-wth-frnds). On mac + linux this lands at
+      # apps/os/build-resources/swf-node/swf-node so electron-builder's
+      # `extraResources` step copies it into Contents/Resources/swf-node/
+      # in the produced bundle. Skipped on Windows — swf-node has no
+      # win32 PyInstaller artifacts (Track A defers Windows).
+      #
+      # The script falls back to a stub binary if no matching upstream
+      # asset exists yet (Track A hasn't tagged a release with the
+      # naming convention). That keeps the build green and lets the
+      # spawn-supervision wiring on the Electron side ship + iterate
+      # ahead of the first real upstream release.
+      - name: fetch bundled swf-node binary
+        if: matrix.platform != 'win'
+        shell: bash
+        env:
+          # SWF_NODE_VERSION (set per-tag-build by the user) pins the
+          # downloaded artifact to a specific upstream release. Leave
+          # unset to follow `latest`.
+          SWF_NODE_VERSION: ${{ vars.SWF_NODE_VERSION }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/fetch-swf-node.sh
+
       - name: regenerate cohort-surface.json from cohort-data/
         run: npm run build:cohort
 
