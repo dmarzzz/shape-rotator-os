@@ -14,8 +14,12 @@ links:
   x: null
   website: null
   linkedin: https://www.linkedin.com/in/kristelalliksaar/
-comm_style: DM!
-contribute_interests: I love to set my head around who is the user, what user wants, how they get what they want, how we present them what they get
+comm_style: |
+  DM & async is the fastest way, but sync might be the most effective.
+contribute_interests: |
+  I love wrapping my head around who the user is, what they want, and how we get it to them.
+  On paper I'm an architect, but right now the world needs more building in digital space — so that's where I pour my creativity.
+  Currently sharpening my business and strategy skills.
 availability_pref: just ask
 weekly_intention: TeeSQL TAM
 dietary_restrictions: none
