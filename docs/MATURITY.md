@@ -114,3 +114,7 @@ This entry is the explicit drift escalation flagged by the 08:25 tick. No furthe
 - (in flight) docs(install): cohort-onboarding section — peer discovery, LAN-trust, Network tab expectations, sync-vs-PR fallback
 
 **Next tick should**: if v0.1.33 dmg is fully landed + user confirms the peer_unreachable spam + CSS overlap are gone, score nudges to 7.5. Next bottleneck is likely either (a) Atlas tab still shows blank for users with no indexed pages — needs a friendlier empty state, (b) mac-x64 GH Actions queue still stuck — Intel-mac cohort members get stub binaries, (c) the actual cross-machine sync test the user is supposed to verify but hasn't yet.
+
+## 2026-05-19 17:25 EDT
+
+7/10, held. 3 open PRs (sros #93/#94/#98). #98 "skip splash on warm boot" is high-leverage but trapped behind oldest-first in the PR-triage loop. Recommend user fast-merges it.
