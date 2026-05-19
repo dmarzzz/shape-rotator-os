@@ -16,6 +16,7 @@ links:
   x: albicodes
   website: albiona.dev
   linkedin: AlbionaHoti
+dietary_restrictions:
 ---
 
 ## about

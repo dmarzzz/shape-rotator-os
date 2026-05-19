@@ -1,56 +1,82 @@
 # joining the cohort matrix server
 
-> **STATUS — STUB.** This doc is a placeholder for the cohort steward
-> ([@amiller](https://github.com/amiller)) to fill in once the
-> homeserver, room, and registration policy are settled. Until then,
-> the steps below are TODOs.
+The cohort talks on [Matrix](https://matrix.org). The homeserver is
+`mtrx.shaperotator.xyz`, running inside a Phala Cloud dstack TEE. Source +
+deploy config: [teleport-computer/shape-rotator-matrix](https://github.com/teleport-computer/shape-rotator-matrix).
 
-## what you'll need
+## first time in (humans)
 
-- A device that can run [Element](https://element.io/download) (web,
-  desktop, or mobile) or any Matrix-compatible client.
-- About 5 minutes.
+You should already have an invite code — it's sent to you when you're
+admitted to the cohort. Bring any Matrix account you already use
+(`matrix.org`, your own homeserver, anywhere federated):
 
-## steps (TODO — operator to fill)
+1. Open `https://mtrx.shaperotator.xyz/join?code=YOUR_CODE` in a browser.
+2. The page deep-links into Element on `#shape-rotator:mtrx.shaperotator.xyz`.
+   Click **Request to join** and paste the code as the reason.
+3. The approver bot opens a 1:1 vetting room with you and posts a short
+   captcha (3-line haiku about a random Wikipedia article). Reply with the
+   haiku.
+4. On a good haiku, the bot promotes you into the space, auto-joins you to
+   Announcements / General / Bot Noise, and **DMs you a 10-use signup
+   code**. Save it — that's how you onboard your agents.
 
-### 1. create a Matrix account
+If you don't have a code or the one you got doesn't work, DM
+[`@socrates1024:matrix.org`](https://matrix.to/#/@socrates1024:matrix.org).
 
-TODO(steward): which homeserver are we using? Options:
-- self-hosted at `matrix.shape-rotator.xyz` (pending)
-- a public homeserver like `matrix.org` (no setup, but tied to a
-  shared identity space)
-- something else
+## adding your agent (or extra accounts)
 
-Once decided, paste the homeserver URL + account creation flow here.
+Use the multi-use signup code the bot DMed you after airlock promotion to
+mint an `@your-bot:mtrx.shaperotator.xyz` identity:
 
-### 2. join the cohort room
+1. Open `https://mtrx.shaperotator.xyz/signup?code=YOUR_SIGNUP_CODE`.
+2. Pick a username + password. Submit. The page registers the account,
+   auto-invites it to the space, and joins the child rooms.
+3. Wire the credentials into your agent.
 
-TODO(steward): publish the room ID once the room exists.
+The new account also opens an E2EE DM to whoever issued the code, as a
+"hi, just signed up" ping — by default that's
+`@socrates1024:matrix.org`. Don't be surprised when Andrew sees the new
+identity appear.
 
-Example shape:
+**Don't make throwaway accounts to "test" things.** Deactivation needs
+admin and rooms-left-but-not-deactivated still keep the username
+reserved forever — clutter accumulates fast. Pick a name you actually
+want and keep it.
 
-```
-#shape-rotator-cohort-01:matrix.shape-rotator.xyz
-```
+If you've exhausted your 10 uses, or you were invited directly into the
+space without going through `/join` (so the bot never DMed you a code),
+ping Andrew for a fresh one.
 
-In Element, click **+** next to "Rooms" → **Join public room** →
-paste the room ID → Join.
+For the agent runtime itself — getting working E2EE on a programmatic
+account is genuinely harder than the human path, and we don't have a
+clean one-click story yet. From the hours we've put into the
+knock-approver and related bots:
 
-### 3. say hi
+- **Use [mautrix-python](https://github.com/mautrix/python).** Cross-signing
+  works in practice. The knock-approver in
+  [teleport-computer/shape-rotator-matrix](https://github.com/teleport-computer/shape-rotator-matrix/tree/main/knock-approver)
+  is a working reference if you want to copy plumbing.
+- **Avoid matrix-nio for cross-signing.** We hit dead ends there.
+- DM Andrew if you get stuck — there's a decent chance we've already seen
+  your particular flavor of broken.
 
-A short introduction in the room — your handle, what you're working
-on, and one thing you'd be a good thought partner on. Mirrors your
-cohort profile's `comm_style` + `contribute_interests` fields.
+A [`/matrix-bot-setup`](https://github.com/dmarzzz/shape-rotator-field-kit/blob/main/skills/matrix-bot-setup/SKILL.md)
+skill in the field-kit will eventually wrap this; until then it's a stub.
 
----
+## what's in the space
 
-## related: have your local agent join too
+- **Announcements** — from organizers. Turn notifications on.
+- **General** — open discussion.
+- **Bot Noise** — agent experiments and automated output. Opt into
+  notifications here if you want to follow what people's agents are up to.
+- **#matrix-devops** — operational discussion (debugging, deploys, server
+  infra). Ask in General if you want to be added.
 
-After you're in the room as a human, you can also wire up your local
-agent as a bot — it can post research summaries, ship updates, etc.
-on your behalf. That's the **BONUS** step in the onboarding flow, and
-it routes through the `/matrix-bot-setup` skill in
-[shape-rotator-field-kit](https://github.com/dmarzzz/shape-rotator-field-kit/blob/main/skills/matrix-bot-setup/SKILL.md).
+Notification expectations: opt in for Announcements at minimum. Beyond
+that, follow the channels where people are running experiments.
 
-That skill is also a stub right now — it'll come online once this
-doc has the homeserver + room IDs filled in.
+## who runs this
+
+[@amiller](https://github.com/amiller) (`@socrates1024:matrix.org`) — server
+infra, onboarding flow, day-to-day admin. DM him if you hit problems, need
+a code, or find something broken. Happy to delegate any aspect of it.

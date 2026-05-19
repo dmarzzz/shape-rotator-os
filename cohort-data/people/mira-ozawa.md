@@ -16,6 +16,7 @@ links:
   x: null
   website: null
   linkedin: mira-ozawa
+dietary_restrictions:
 ---
 
 ## about

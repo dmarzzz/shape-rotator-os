@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:11434 http://localhost:11434 https://raw.githubusercontent.com https://api.github.com" />
+  <title>ask cohort · hermes</title>
+  <style>
+    :root {
+      --bg: #03020c;
+      --fg: #e9e6ff;
+      --dim: #807a9a;
+      --line: #1c1a2e;
+      --accent: #7e6cff;
+      --bad: #ff6b8a;
+      --ok: #6bff9d;
+    }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; height: 100%; }
+    body { display: flex; flex-direction: column; }
+    header {
+      padding: 14px 18px 10px;
+      border-bottom: 1px solid var(--line);
+      display: flex; align-items: baseline; gap: 14px;
+      -webkit-app-region: drag;
+    }
+    header h1 { margin: 0; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg); font-weight: 500; }
+    header .chips { margin-left: auto; display: flex; gap: 8px; -webkit-app-region: no-drag; }
+    .chip {
+      font-size: 11px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px;
+      color: var(--dim); background: transparent;
+    }
+    .chip.ok { color: var(--ok); border-color: rgba(107, 255, 157, 0.3); }
+    .chip.bad { color: var(--bad); border-color: rgba(255, 107, 138, 0.3); }
+    main { flex: 1; display: flex; flex-direction: column; padding: 16px 18px; gap: 12px; overflow: hidden; min-height: 0; }
+    .panel { border: 1px solid var(--line); padding: 12px 14px; border-radius: 6px; }
+    .panel h2 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--dim); font-weight: 500; }
+    .panel p { margin: 0; color: var(--fg); }
+    .panel code { background: rgba(126, 108, 255, 0.1); padding: 2px 6px; border-radius: 3px; color: var(--accent); }
+    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    select, button, textarea {
+      font: inherit; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px;
+    }
+    select:focus, button:focus, textarea:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
+    button { cursor: pointer; transition: border-color 120ms; }
+    button:hover { border-color: var(--accent); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    button.primary:hover { background: #6b58ff; }
+    .ask-area { display: flex; flex-direction: column; gap: 8px; }
+    .ask-area textarea { min-height: 70px; resize: vertical; font-family: inherit; }
+    .ask-row { display: flex; gap: 10px; align-items: center; }
+    .ask-row .hint { color: var(--dim); font-size: 11px; margin-left: auto; }
+    .response-wrap {
+      flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px;
+      white-space: pre-wrap; word-wrap: break-word;
+    }
+    .response-wrap.empty { color: var(--dim); }
+    .install-cta { display: flex; flex-direction: column; gap: 6px; }
+    .install-cta ol { margin: 4px 0 0 18px; padding: 0; color: var(--fg); }
+    .install-cta li { margin: 4px 0; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .footer { padding: 8px 18px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11px; display: flex; gap: 12px; }
+    .footer strong { color: var(--fg); font-weight: 500; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ask cohort · hermes</h1>
+    <div class="chips">
+      <span id="ollama-chip" class="chip">ollama: checking…</span>
+      <span id="model-chip" class="chip">model: —</span>
+      <span id="data-chip" class="chip">cohort: —</span>
+    </div>
+  </header>
+
+  <main>
+    <div id="setup-panel" class="panel install-cta" hidden>
+      <h2>setup</h2>
+      <div id="setup-body"></div>
+    </div>
+
+    <div id="ask-panel" class="ask-area" hidden>
+      <div class="controls">
+        <label for="model-select" style="color: var(--dim); font-size: 11px;">model</label>
+        <select id="model-select"></select>
+        <button id="detect-again" type="button">re-detect</button>
+      </div>
+      <textarea id="question" placeholder="ask anything about the cohort — &quot;who has worked on TEE attestation?&quot;, &quot;find me someone to pair on rust&quot;, &quot;what's andrew miller's focus this week?&quot;"></textarea>
+      <div class="ask-row">
+        <button id="ask" class="primary" type="button">ask</button>
+        <button id="stop" type="button" hidden>stop</button>
+        <span class="hint">cmd+enter to send</span>
+      </div>
+    </div>
+
+    <div id="response" class="response-wrap empty">responses appear here.</div>
+  </main>
+
+  <div class="footer">
+    <span><strong>local-only</strong> · prompts + responses never leave your machine</span>
+    <span id="footer-stats"></span>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

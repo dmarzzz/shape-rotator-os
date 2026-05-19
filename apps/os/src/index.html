@@ -38,6 +38,10 @@
         <span class="tab-glyph" aria-hidden="true">⌬</span>
         <span class="tab-label">network</span>
       </button>
+      <button class="tab-btn" role="tab" data-tab="links" aria-selected="false" type="button" title="important external links — handouts, repos, web os">
+        <span class="tab-glyph" aria-hidden="true">↗</span>
+        <span class="tab-label">links</span>
+      </button>
       <span id="tab-indicator" class="tab-indicator" aria-hidden="true"></span>
       <button id="atlas-search-toggle" class="atlas-search-toggle atlas-only" type="button"
               title="search the network (⌘/)" aria-label="open search">
@@ -290,6 +294,57 @@
       </div>
     </section>
 
+    <!-- ─── links view (important external endpoints) ─── -->
+    <section id="links-view" class="links-view links-only" aria-label="important links">
+      <header class="links-head">
+        <p class="links-eyebrow">↗ external</p>
+        <h1 class="links-title">important links</h1>
+        <p class="links-sub">handouts, repos, and the web mirror of this app — share with anyone outside the cohort.</p>
+      </header>
+      <ul class="links-grid" role="list">
+        <li>
+          <a class="link-card" href="https://github.com/dmarzzz/shape-rotator-field-kit" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">CLI tools</span>
+            <span class="link-card-title">Field-kit</span>
+            <span class="link-card-desc">Research swarm, content pipeline, voxterm, cohort skills. The CLI side of your local agent.</span>
+            <span class="link-card-url">github.com/dmarzzz/shape-rotator-field-kit</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://onboard.shaperotator.xyz" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">handout</span>
+            <span class="link-card-title">Onboarding Guide</span>
+            <span class="link-card-desc">Printable one-pager — six steps to get wired into the cohort, plus the 10-week arc.</span>
+            <span class="link-card-url">onboard.shaperotator.xyz</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://school.shaperotator.xyz" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">handout</span>
+            <span class="link-card-title">The School Site Guide</span>
+            <span class="link-card-desc">Printable map of 29 Nassau Avenue — wifi, floor plan, house rules, emergency contacts.</span>
+            <span class="link-card-url">school.shaperotator.xyz</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://shape-rotator-os.vercel.app" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">web mirror</span>
+            <span class="link-card-title">Shape Rotator OS · Web</span>
+            <span class="link-card-desc">Browser version of this app. Share with anyone you want to show the cohort surface without the desktop install.</span>
+            <span class="link-card-url">shape-rotator-os.vercel.app</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://github.com/dmarzzz/shape-rotator-os" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">source</span>
+            <span class="link-card-title">GitHub Repository</span>
+            <span class="link-card-desc">Issues, PRs, releases. Everything you see in this app is built from <code>main</code>.</span>
+            <span class="link-card-url">github.com/dmarzzz/shape-rotator-os</span>
+          </a>
+        </li>
+      </ul>
+    </section>
+
     <!-- experimental view archived 2026-05-09 — see _archive/experimental/. -->
 
     <nav id="network-subtabs" class="network-subtabs network-tab-only" role="tablist" aria-label="network sub-view">
@@ -347,43 +402,48 @@
             </button>
             <div id="traffic-filter-bar" class="traffic-filter-bar" role="tablist" aria-label="traffic filter">
               <button class="traffic-chip selected" data-filter="all" type="button">all</button>
-              <button class="traffic-chip" data-filter="slice" type="button">slice</button>
+              <button class="traffic-chip" data-filter="sync" type="button">sync</button>
               <button class="traffic-chip" data-filter="mdns" type="button">mdns</button>
+              <button class="traffic-chip" data-filter="health" type="button">health</button>
               <button class="traffic-chip" data-filter="ingest" type="button">ingest</button>
-              <button class="traffic-chip" data-filter="dcnet" type="button">dcnet</button>
-              <button class="traffic-chip" data-filter="tickets" type="button">tickets</button>
-              <button class="traffic-chip" data-filter="receipts" type="button">receipts</button>
-              <button class="traffic-chip" data-filter="router" type="button">router</button>
+              <button class="traffic-chip" data-filter="search" type="button">search</button>
               <button class="traffic-chip" data-filter="error" type="button">error</button>
             </div>
             <div id="traffic-panel-list" class="events-panel-list traffic-panel-list" role="log" aria-live="polite"></div>
           </section>
 
+          <!-- "router-panel" ID retained to avoid touching the dozens of
+               wiring call sites; visible title + body content are repurposed
+               as the unified node sync-status line driven by /node/log. -->
           <section id="router-panel" class="events-panel router-panel net-router" data-collapsed="false">
-            <button id="router-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle router flow inspector">
-              <span class="events-panel-title">router</span>
+            <button id="router-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle sync status">
+              <span class="events-panel-title">sync</span>
               <span class="events-panel-sep">·</span>
-              <span id="router-panel-count" class="events-panel-count router-stub-tag">v0.3</span>
+              <span id="router-panel-count" class="events-panel-count">v1</span>
               <span class="events-panel-chev" aria-hidden="true">▾</span>
             </button>
             <div id="router-panel-body" class="router-panel-body"></div>
           </section>
         </section>
 
-        <section class="net-col net-col-right" aria-label="tickets and receipts">
+        <section class="net-col net-col-right" aria-label="search and records">
+          <!-- "tickets-panel" ID retained; body is now the live search-events
+               summary (web_search_completed). -->
           <section id="tickets-panel" class="events-panel tickets-panel net-tickets" data-collapsed="false">
-            <button id="tickets-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle ticket epoch panel">
-              <span class="events-panel-title">tickets</span>
+            <button id="tickets-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle search activity">
+              <span class="events-panel-title">search</span>
               <span class="events-panel-sep">·</span>
-              <span id="tickets-panel-epoch" class="events-panel-count tickets-epoch-tag">—</span>
+              <span id="tickets-panel-epoch" class="events-panel-count">0</span>
               <span class="events-panel-chev" aria-hidden="true">▾</span>
             </button>
             <div id="tickets-panel-body" class="tickets-panel-body"></div>
           </section>
 
+          <!-- "receipts-panel" ID retained; body shows the local /sync/manifest
+               record count + the newest record's wall-clock age. -->
           <section id="receipts-panel" class="events-panel receipts-panel net-receipts" data-collapsed="false">
-            <button id="receipts-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle anonymous receipts panel">
-              <span class="events-panel-title">receipts</span>
+            <button id="receipts-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle local records summary">
+              <span class="events-panel-title">records</span>
               <span class="events-panel-sep">·</span>
               <span id="receipts-panel-count" class="events-panel-count">0</span>
               <span class="events-panel-chev" aria-hidden="true">▾</span>

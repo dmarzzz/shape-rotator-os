@@ -16,6 +16,7 @@ links:
   x: null
   website: tuvalugpt.tv
   linkedin: null
+dietary_restrictions:
 ---
 
 ## about

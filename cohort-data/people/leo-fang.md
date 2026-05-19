@@ -16,6 +16,7 @@ links:
   x: null
   website: daedalus-research.com
   linkedin: null
+dietary_restrictions:
 ---
 
 ## about
