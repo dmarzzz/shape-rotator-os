@@ -1113,6 +1113,92 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   color: var(--light-3); text-align: center;
 }
 
+/* peers-panel section heads — same typographic vocabulary as
+ * .peers-panel-title (mono, 9.5px, wide letter-spacing, uppercase, light-3)
+ * but inline-divider styled so the three sections (local node /
+ * discovered / sync activity) read as distinct shelves inside the
+ * same panel without introducing a new visual idiom. */
+.peers-section-head {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.20em; text-transform: uppercase; color: var(--light-4);
+  padding: 10px 10px 4px;
+  border-top: 1px solid rgba(180, 200, 255, 0.06);
+  margin-top: 4px;
+}
+.peers-self .peers-section-head {
+  /* first section in the panel — no top rule, sits flush under header */
+  padding-top: 6px;
+  border-top: 0;
+  margin-top: 0;
+}
+
+/* Local-node row — same grid as .peer-row so the dot column lines up
+ * with the discovered-peer rows below. Visually distinguished by a
+ * faint cyan inset (matches the .peer-row.selected idiom) so the
+ * operator's own node reads as the anchor row. */
+.peers-self-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(90, 240, 255, 0.04);
+  box-shadow: inset 2px 0 0 var(--neon-cyan);
+}
+.peers-self-row .p-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 10px 1px rgba(255, 255, 255, 0.4);
+}
+.peers-self-row .p-mid { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.peers-self-row .p-nick {
+  font-size: 12px; color: var(--light-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.peers-self-row .p-pubkey {
+  font-family: var(--font-mono); font-size: 10px; color: var(--light-3);
+  letter-spacing: 0.02em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.peers-self-row .p-meta {
+  font-family: var(--font-mono); font-size: 9.5px; color: var(--light-3);
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  letter-spacing: 0.04em;
+}
+.peers-self-row .p-self-addr { color: var(--light-2); }
+.peers-self-row .p-self-trust { color: var(--neon-cyan); }
+.peers-self-note {
+  padding: 6px 10px 2px;
+  font-family: var(--font-mono); font-size: 9.5px;
+  color: var(--light-4); letter-spacing: 0.02em;
+}
+
+/* Sync activity footer — three small key/value cells laid out as a
+ * single tabular row. Matches the .peer-row .p-meta typographic scale. */
+.peers-sync-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 4px 10px 8px;
+}
+.peers-sync-cell {
+  display: flex; flex-direction: column; gap: 2px;
+  font-family: var(--font-mono); letter-spacing: 0.04em;
+}
+.peers-sync-k {
+  font-size: 9px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--light-4);
+}
+.peers-sync-v {
+  font-size: 11px; color: var(--light-1);
+}
+.peers-sync-empty {
+  padding: 6px 10px 10px;
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--light-4); letter-spacing: 0.02em;
+}
+
 #graph {
   position: relative; overflow: hidden;
   background: radial-gradient(ellipse 110% 70% at 50% -10%, #0a0820 0%, #03020c 60%, #01000a 100%);

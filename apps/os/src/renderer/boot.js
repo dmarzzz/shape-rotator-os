@@ -52,6 +52,8 @@ const Graph2 = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode()
 const Cosmos = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode() {} };
 import * as Atlas from "./atlas.js";
 import * as Alchemy from "./alchemy.js";
+import { getManifest } from "./sync-client.js";
+import { subscribeToCohortChanges } from "./cohort-source.js";
 
 // Shorthand: animate a numeric DOM cell to `n`. We wrap tickNumber so the
 // dozens of "el.textContent = …" call sites flip to the animated path
@@ -1946,6 +1948,9 @@ function wirePeersPanel() {
     btn.setAttribute("aria-expanded", "true");
     panel.hidden = false;
     renderPeersPanel();
+    // Refresh /sync/manifest opportunistically when the panel opens so
+    // the activity footer reflects current state, not a 10s-stale cache.
+    refreshManifestCache().then((changed) => { if (changed) renderPeersPanel(); });
   };
   const hide = () => {
     btn.setAttribute("aria-expanded", "false");
@@ -1956,23 +1961,80 @@ function wirePeersPanel() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !panel.hidden) hide();
   });
-  // Fetch our own pubkey once so we can mark "you" in the list. The
-  // .well-known endpoint is unauthenticated and lives on the same origin.
-  fetch(`${srwk.serverUrl}/.well-known/indrex`)
-    .then((r) => r.ok ? r.json() : null)
-    .then((d) => {
-      if (d?.pubkey) srwk.selfPubkey = d.pubkey;
-      renderPeersPanel();
-      // Live graph layout depends on selfPubkey; refresh it now so the
-      // self node is correctly excluded from the perimeter once known.
-      if (typeof recomputeLayout === "function") {
-        try { recomputeLayout(); } catch {}
-      }
-    })
-    .catch(() => {});
-  // Refresh every 10s so live/stale tags stay accurate even when the
-  // panel is open and idle.
-  setInterval(() => { if (!panel.hidden) renderPeersPanel(); }, 10000);
+  // Fetch our own well-known once and cache for the session. We need
+  // `pubkey` to mark "you" in the list and `name` / `fingerprint` to
+  // populate the local-node header. The endpoint is unauthenticated and
+  // lives on the same origin.
+  refreshWellKnownCache().then(() => {
+    renderPeersPanel();
+    // Live graph layout depends on selfPubkey; refresh it now so the
+    // self node is correctly excluded from the perimeter once known.
+    if (typeof recomputeLayout === "function") {
+      try { recomputeLayout(); } catch {}
+    }
+  });
+  // Prime the manifest cache so the sync-activity footer has data on
+  // first open. Best-effort — failure is fine; we render "unreachable".
+  refreshManifestCache();
+  // Refresh every 10s so live/stale tags + sync activity stay accurate
+  // even when the panel is open and idle.
+  setInterval(() => {
+    if (panel.hidden) return;
+    refreshManifestCache().finally(() => renderPeersPanel());
+  }, 10000);
+  // Re-render when the cohort layer reports a change (covers manifest
+  // refreshes that happen via cohort-source's own poll loop).
+  try {
+    subscribeToCohortChanges(() => { if (!panel.hidden) renderPeersPanel(); });
+  } catch {}
+}
+
+// Cache the /.well-known/indrex response for the session. Cheap to
+// fetch but stable across the lifetime of one swf-node instance.
+async function refreshWellKnownCache() {
+  try {
+    const r = await fetch(`${srwk.serverUrl}/.well-known/indrex`, { cache: "no-store" });
+    if (!r.ok) {
+      srwk._wellKnown = null;
+      srwk._wellKnownReachable = false;
+      return null;
+    }
+    const d = await r.json();
+    srwk._wellKnown = d || null;
+    srwk._wellKnownReachable = true;
+    if (d?.pubkey) srwk.selfPubkey = d.pubkey;
+    return d;
+  } catch {
+    srwk._wellKnown = null;
+    srwk._wellKnownReachable = false;
+    return null;
+  }
+}
+
+// Cache the latest /sync/manifest result + fetch timestamp so the
+// sync-activity section in the peers panel can render record count,
+// newest wall_ts, and "last fetch Xs ago" without re-querying on
+// every renderPeersPanel() call. Returns true when the manifest_hash
+// changed (so the caller can decide whether to re-render).
+async function refreshManifestCache() {
+  const before = srwk._manifest?.manifest?.manifest_hash || null;
+  const res = await getManifest();
+  if (res.ok) {
+    srwk._manifest = {
+      manifest: res.manifest,
+      fetchedAt: Date.now(),
+      reachable: true,
+    };
+  } else {
+    srwk._manifest = {
+      manifest: null,
+      fetchedAt: Date.now(),
+      reachable: false,
+      reason: res.reason || "unreachable",
+    };
+  }
+  const after = srwk._manifest.manifest?.manifest_hash || null;
+  return before !== after;
 }
 
 function renderPeersPanel() {
@@ -1993,35 +2055,194 @@ function renderPeersPanel() {
   const list = document.getElementById("peers-panel-list");
   if (!list) return;
   list.innerHTML = "";
-  const peers = [...srwk.peers.values()];
+
+  // ─── local-node section (top) ────────────────────────────────────────
+  // Sits above the peer list as a distinct row that shows the operator
+  // their own identity: short fingerprint, mDNS instance name, the LAN
+  // bind the renderer reaches the daemon at, and trust_level. This is
+  // the "who am I on the wire" affordance — small but important.
+  list.appendChild(buildLocalNodeSection());
+
+  // ─── discovered peers section ────────────────────────────────────────
+  const peersHead = document.createElement("div");
+  peersHead.className = "peers-section-head";
+  peersHead.textContent = "discovered";
+  list.appendChild(peersHead);
+
+  const peers = [...srwk.peers.values()].filter((p) => p && p.pubkey && p.pubkey !== srwk.selfPubkey);
   if (peers.length === 0) {
     const empty = document.createElement("div");
     empty.className = "peers-empty";
     empty.textContent = "no peers yet — the network is quiet.";
     list.appendChild(empty);
-    return;
+  } else {
+    // Derive page count from the live node set so it tracks materialize()
+    // additions, not just the last /graph snapshot's stale value.
+    const liveCounts = new Map();
+    for (const n of srwk.nodes) {
+      const pk = n.primary_contributor;
+      if (!pk) continue;
+      liveCounts.set(pk, (liveCounts.get(pk) || 0) + 1);
+    }
+    // Sort by live page count desc, then by nickname. Self was filtered
+    // out above (it lives in the local-node section now).
+    peers.sort((a, b) => {
+      const ap = liveCounts.get(a.pubkey) ?? a.page_count ?? 0;
+      const bp = liveCounts.get(b.pubkey) ?? b.page_count ?? 0;
+      if (ap !== bp) return bp - ap;
+      return (a.nickname || "").localeCompare(b.nickname || "");
+    });
+    const now = performance.now();
+    for (const p of peers) {
+      list.appendChild(buildPeerRow(p, now, liveCounts));
+    }
   }
-  // Derive page count from the live node set so it tracks materialize()
-  // additions, not just the last /graph snapshot's stale value.
-  const liveCounts = new Map();
-  for (const n of srwk.nodes) {
-    const pk = n.primary_contributor;
-    if (!pk) continue;
-    liveCounts.set(pk, (liveCounts.get(pk) || 0) + 1);
+
+  // ─── sync activity section (bottom) ──────────────────────────────────
+  list.appendChild(buildSyncActivitySection());
+}
+
+// Render the operator's own node as a distinct row at the top of the
+// panel. Information shown:
+//   • short fingerprint (8 hex chars from /.well-known/indrex)
+//   • mDNS instance name (well-known `name`)
+//   • LAN bind URL (srwk.serverUrl)
+//   • trust_level label (sourced from the self entry in srwk.peers if
+//     present, else "self")
+// If well-known isn't reachable yet we render a placeholder so the
+// row is never empty (avoids a layout pop when the fetch resolves).
+function buildLocalNodeSection() {
+  const wrap = document.createElement("div");
+  wrap.className = "peers-self";
+
+  const head = document.createElement("div");
+  head.className = "peers-section-head";
+  head.textContent = "local node";
+  wrap.appendChild(head);
+
+  const row = document.createElement("div");
+  row.className = "peers-self-row";
+
+  const wk = srwk._wellKnown;
+  const selfPeer = srwk.selfPubkey ? srwk.peers.get(srwk.selfPubkey) : null;
+  const color = selfPeer?.signature_color || (srwk.selfPubkey ? stableHue(srwk.selfPubkey) : "rgba(220,232,255,0.42)");
+
+  const dot = document.createElement("span");
+  dot.className = "p-dot";
+  dot.style.background = color;
+  dot.style.boxShadow = `0 0 10px 1px ${color}`;
+
+  const mid = document.createElement("div");
+  mid.className = "p-mid";
+
+  const nameLine = document.createElement("span");
+  nameLine.className = "p-nick is-self";
+  nameLine.textContent = wk?.name || selfPeer?.nickname || "this node";
+
+  const idLine = document.createElement("span");
+  idLine.className = "p-pubkey";
+  const fp = wk?.fingerprint
+    ? wk.fingerprint.slice(0, 8)
+    : (srwk.selfPubkey ? srwk.selfPubkey.slice(0, 8) : "—");
+  idLine.textContent = `fp ${fp}`;
+  idLine.title = wk?.fingerprint || srwk.selfPubkey || "";
+
+  mid.append(nameLine, idLine);
+
+  const meta = document.createElement("div");
+  meta.className = "p-meta";
+  const addr = document.createElement("span");
+  addr.className = "p-self-addr";
+  addr.textContent = formatLanBind(srwk.serverUrl);
+  addr.title = srwk.serverUrl || "";
+  const trust = document.createElement("span");
+  trust.className = "p-self-trust";
+  trust.textContent = (selfPeer?.trust_level || "self").toLowerCase();
+  meta.append(addr, trust);
+
+  row.append(dot, mid, meta);
+  wrap.appendChild(row);
+
+  // Surface reachability of the well-known endpoint inline. If the
+  // bundled daemon is down we show a small note so the user knows the
+  // panel is reading stale state — and what the fallback path is.
+  if (srwk._wellKnownReachable === false) {
+    const note = document.createElement("div");
+    note.className = "peers-self-note";
+    note.textContent = "swf-node unreachable — edits fall back to the github-PR path.";
+    wrap.appendChild(note);
   }
-  // Sort: self first, then by live page count desc, then by nickname.
-  peers.sort((a, b) => {
-    const aSelf = a.pubkey === srwk.selfPubkey ? 1 : 0;
-    const bSelf = b.pubkey === srwk.selfPubkey ? 1 : 0;
-    if (aSelf !== bSelf) return bSelf - aSelf;
-    const ap = liveCounts.get(a.pubkey) ?? a.page_count ?? 0;
-    const bp = liveCounts.get(b.pubkey) ?? b.page_count ?? 0;
-    if (ap !== bp) return bp - ap;
-    return (a.nickname || "").localeCompare(b.nickname || "");
-  });
-  const now = performance.now();
-  for (const p of peers) {
-    list.appendChild(buildPeerRow(p, now, liveCounts));
+  return wrap;
+}
+
+// Render the small sync-activity footer: total records held locally,
+// the newest record's wall_ts (relative), and a "last fetch Xs ago"
+// proxy for the sync-loop tick (the renderer doesn't sit inside that
+// loop, but the fetch-age is a faithful stand-in).
+function buildSyncActivitySection() {
+  const wrap = document.createElement("div");
+  wrap.className = "peers-sync";
+
+  const head = document.createElement("div");
+  head.className = "peers-section-head";
+  head.textContent = "sync activity";
+  wrap.appendChild(head);
+
+  const m = srwk._manifest;
+  if (!m || m.reachable === false) {
+    const row = document.createElement("div");
+    row.className = "peers-sync-empty";
+    row.textContent = m && m.reason ? `manifest ${m.reason}` : "manifest unreachable";
+    wrap.appendChild(row);
+    return wrap;
+  }
+  const records = m.manifest?.records || {};
+  const ids = Object.keys(records);
+  let newestTs = 0;
+  for (const id of ids) {
+    const ts = records[id]?.latest_wall_ts_ms;
+    if (typeof ts === "number" && ts > newestTs) newestTs = ts;
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "peers-sync-grid";
+
+  grid.appendChild(buildSyncCell("records", String(ids.length)));
+  const nowMs = Date.now();
+  grid.appendChild(buildSyncCell(
+    "latest",
+    newestTs > 0 ? formatPeerLastSeen((nowMs - newestTs) / 1000) : "—",
+  ));
+  grid.appendChild(buildSyncCell(
+    "last fetch",
+    m.fetchedAt ? formatPeerLastSeen((nowMs - m.fetchedAt) / 1000) : "—",
+  ));
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function buildSyncCell(label, value) {
+  const cell = document.createElement("div");
+  cell.className = "peers-sync-cell";
+  const k = document.createElement("span");
+  k.className = "peers-sync-k";
+  k.textContent = label;
+  const v = document.createElement("span");
+  v.className = "peers-sync-v";
+  v.textContent = value;
+  cell.append(k, v);
+  return cell;
+}
+
+// Render `http://127.0.0.1:7777` as `127.0.0.1:7777` — the protocol
+// is noise in this surface and the host:port is the load-bearing bit.
+function formatLanBind(url) {
+  if (!url || typeof url !== "string") return "—";
+  try {
+    const u = new URL(url);
+    return `${u.hostname}${u.port ? `:${u.port}` : ""}`;
+  } catch {
+    return url.replace(/^https?:\/\//i, "");
   }
 }
 
