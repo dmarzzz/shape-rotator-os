@@ -278,6 +278,40 @@ export async function putLocalRecord({ record_id, record_type, content, prev_has
 }
 
 /**
+ * GET /sync/log?since_seq=<int>&limit=<int>.
+ *
+ * Returns the local swf-node's incremental sync-event log (one event
+ * per sync-loop side effect: ticks, manifest_fetched, pulled,
+ * applied_local, peer_unreachable, peer_reachable). Response shape per
+ * swf-node Phase 2 spec extension (swf.sync.log.v1):
+ *
+ *   {
+ *     schema: "swf.sync.log.v1",
+ *     node_pubkey: "<own pubkey>",
+ *     tail_seq: <int>,
+ *     events: [ { seq, kind, ts_ms, ... }, ... ]
+ *   }
+ *
+ * Caller polls with `since_seq=<last_seen>` to receive only events with
+ * `seq > since_seq`. On success returns `{ ok: true, log }`. On 404 the
+ * endpoint is unavailable (older swf-node) — returns `{ ok: false,
+ * reason: "not_found" }` so the renderer can disable the feature
+ * cleanly without crashing. Other failure modes mirror getManifest().
+ */
+export async function getSyncLog({ sinceSeq = 0, limit = 100 } = {}) {
+  const params = new URLSearchParams();
+  params.set("since_seq", String(sinceSeq));
+  params.set("limit", String(limit));
+  const url = `${_baseUrl}/sync/log?${params.toString()}`;
+  const res = await timedFetch(url, { method: "GET", cache: "no-store" });
+  if (!res.ok) return { ok: false, reason: res.reason, status: res.status, error: res.error };
+  if (!res.body || typeof res.body !== "object" || !Array.isArray(res.body.events)) {
+    return { ok: false, reason: "malformed", status: res.status };
+  }
+  return { ok: true, log: res.body };
+}
+
+/**
  * GET /health.
  *
  * Used by the fork-warning poll (spec §9.9). Returns the parsed body
