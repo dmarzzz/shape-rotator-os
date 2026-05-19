@@ -400,43 +400,48 @@
             </button>
             <div id="traffic-filter-bar" class="traffic-filter-bar" role="tablist" aria-label="traffic filter">
               <button class="traffic-chip selected" data-filter="all" type="button">all</button>
-              <button class="traffic-chip" data-filter="slice" type="button">slice</button>
+              <button class="traffic-chip" data-filter="sync" type="button">sync</button>
               <button class="traffic-chip" data-filter="mdns" type="button">mdns</button>
+              <button class="traffic-chip" data-filter="health" type="button">health</button>
               <button class="traffic-chip" data-filter="ingest" type="button">ingest</button>
-              <button class="traffic-chip" data-filter="dcnet" type="button">dcnet</button>
-              <button class="traffic-chip" data-filter="tickets" type="button">tickets</button>
-              <button class="traffic-chip" data-filter="receipts" type="button">receipts</button>
-              <button class="traffic-chip" data-filter="router" type="button">router</button>
+              <button class="traffic-chip" data-filter="search" type="button">search</button>
               <button class="traffic-chip" data-filter="error" type="button">error</button>
             </div>
             <div id="traffic-panel-list" class="events-panel-list traffic-panel-list" role="log" aria-live="polite"></div>
           </section>
 
+          <!-- "router-panel" ID retained to avoid touching the dozens of
+               wiring call sites; visible title + body content are repurposed
+               as the unified node sync-status line driven by /node/log. -->
           <section id="router-panel" class="events-panel router-panel net-router" data-collapsed="false">
-            <button id="router-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle router flow inspector">
-              <span class="events-panel-title">router</span>
+            <button id="router-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle sync status">
+              <span class="events-panel-title">sync</span>
               <span class="events-panel-sep">·</span>
-              <span id="router-panel-count" class="events-panel-count router-stub-tag">v0.3</span>
+              <span id="router-panel-count" class="events-panel-count">v1</span>
               <span class="events-panel-chev" aria-hidden="true">▾</span>
             </button>
             <div id="router-panel-body" class="router-panel-body"></div>
           </section>
         </section>
 
-        <section class="net-col net-col-right" aria-label="tickets and receipts">
+        <section class="net-col net-col-right" aria-label="search and records">
+          <!-- "tickets-panel" ID retained; body is now the live search-events
+               summary (web_search_completed). -->
           <section id="tickets-panel" class="events-panel tickets-panel net-tickets" data-collapsed="false">
-            <button id="tickets-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle ticket epoch panel">
-              <span class="events-panel-title">tickets</span>
+            <button id="tickets-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle search activity">
+              <span class="events-panel-title">search</span>
               <span class="events-panel-sep">·</span>
-              <span id="tickets-panel-epoch" class="events-panel-count tickets-epoch-tag">—</span>
+              <span id="tickets-panel-epoch" class="events-panel-count">0</span>
               <span class="events-panel-chev" aria-hidden="true">▾</span>
             </button>
             <div id="tickets-panel-body" class="tickets-panel-body"></div>
           </section>
 
+          <!-- "receipts-panel" ID retained; body shows the local /sync/manifest
+               record count + the newest record's wall-clock age. -->
           <section id="receipts-panel" class="events-panel receipts-panel net-receipts" data-collapsed="false">
-            <button id="receipts-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle anonymous receipts panel">
-              <span class="events-panel-title">receipts</span>
+            <button id="receipts-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle local records summary">
+              <span class="events-panel-title">records</span>
               <span class="events-panel-sep">·</span>
               <span id="receipts-panel-count" class="events-panel-count">0</span>
               <span class="events-panel-chev" aria-hidden="true">▾</span>

@@ -312,6 +312,44 @@ export async function getSyncLog({ sinceSeq = 0, limit = 100 } = {}) {
 }
 
 /**
+ * GET /node/log?since_seq=<int>&limit=<int>&category=<csv>.
+ *
+ * Generalization of /sync/log shipped in swf-node v0.12.0 — unifies the
+ * sync event ring with mDNS discovery, peer health probes, ingest, and
+ * search events under a single `category` taxonomy. Response shape per
+ * swf.node.log.v1:
+ *
+ *   {
+ *     schema: "swf.node.log.v1",
+ *     node_pubkey: "<own pubkey>",
+ *     tail_seq: <int>,
+ *     events: [ { seq, kind, category, ts_ms, ... }, ... ]
+ *   }
+ *
+ * Categories: sync · health · mdns · ingest · search · error.
+ *
+ * On 404 the endpoint isn't yet shipped (older swf-node) — caller falls
+ * back to getSyncLog and tags every event as category="sync". Other
+ * failure modes mirror getSyncLog().
+ */
+export async function getNodeLog({ sinceSeq = 0, limit = 100, category } = {}) {
+  const params = new URLSearchParams();
+  params.set("since_seq", String(sinceSeq));
+  params.set("limit", String(limit));
+  if (category) {
+    if (Array.isArray(category)) params.set("category", category.join(","));
+    else params.set("category", String(category));
+  }
+  const url = `${_baseUrl}/node/log?${params.toString()}`;
+  const res = await timedFetch(url, { method: "GET", cache: "no-store" });
+  if (!res.ok) return { ok: false, reason: res.reason, status: res.status, error: res.error };
+  if (!res.body || typeof res.body !== "object" || !Array.isArray(res.body.events)) {
+    return { ok: false, reason: "malformed", status: res.status };
+  }
+  return { ok: true, log: res.body };
+}
+
+/**
  * GET /health.
  *
  * Used by the fork-warning poll (spec §9.9). Returns the parsed body
