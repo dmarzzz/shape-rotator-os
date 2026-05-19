@@ -299,6 +299,14 @@
   letter-spacing: -0.01em;
   margin-left: 6px;
 }
+.cdh-rel {
+  font-family: var(--ed-display); font-style: italic;
+  font-size: 12px; line-height: 1;
+  color: var(--ed-ink-3);
+  letter-spacing: -0.01em;
+  margin-left: 6px;
+  white-space: nowrap;
+}
 
 /* anchor (kickoff/demo/graduation etc.) — pinned to top of its day.
  * Designed to read as a margin note, not a slab: thin oxide rule on the

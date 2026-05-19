@@ -152,11 +152,14 @@ export function parseWeekRow(row, weekIdx, eventsByDayMs = new Map()) {
     const dayMs = weekStartMs + i * 86400000;
     const anchors = eventsByDayMs.get(dayMs) || [];
     const blocks = raw ? raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean) : [];
+    const dayOffset = Math.round((dayMs - todayMs) / 86400000);
+    const relLabel = dayOffset === -1 ? "yesterday" : dayOffset === 1 ? "tomorrow" : null;
     return {
       name,
       date: fmtShortDate(new Date(dayMs)),
       dayMs,
       isToday: dayMs === todayMs,
+      relLabel,
       isEmpty: blocks.length === 0 && anchors.length === 0,
       blocks,
       anchors,
@@ -280,6 +283,7 @@ export function renderWeekView({
           <span class="cdh-name">${d.name}</span>
           <span class="cdh-date">${escHtml(d.date)}</span>
           ${d.isToday ? `<span class="cdh-today">today</span>` : ""}
+          ${d.relLabel ? `<span class="cdh-rel">${escHtml(d.relLabel)}</span>` : ""}
         </header>
         ${anchorRows}
         ${d.isEmpty
