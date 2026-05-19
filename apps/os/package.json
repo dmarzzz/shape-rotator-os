@@ -1,7 +1,7 @@
 {
   "name": "@shape-rotator/os",
   "productName": "Shape Rotator OS",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "private": true,
   "main": "main.js",
   "type": "commonjs",
@@ -93,6 +93,10 @@
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
           "filter": ["**/*"]
+        },
+        {
+          "from": "build-resources/cohort-keys.json",
+          "to": "cohort-keys.json"
         }
       ]
     },
@@ -166,6 +170,10 @@
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
           "filter": ["**/*"]
+        },
+        {
+          "from": "build-resources/cohort-keys.json",
+          "to": "cohort-keys.json"
         }
       ]
     }
