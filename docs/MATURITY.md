@@ -47,3 +47,24 @@ Hourly autonomous self-assessment + improvement loop. Each entry is appended; th
 **Loop drift warning**: this is the third maturity tick blocked by the same queue. The loop is producing log-only entries with zero forward motion. The hourly cron will keep firing for 7 days; if no human triage happens, we'll have ~168 maturity entries that all say "held". Recommend either (a) triage #76 and #93 manually, or (b) raise the threshold guardrail from >2 to a value that lets dependabot-style trios drain alongside larger held PRs.
 
 **Next tick should**: re-check. If still 5 PRs open, write a CRITICAL entry surfacing the loop-drift to the user.
+
+## 2026-05-19 09:25 EDT — CRITICAL: LOOP-DRIFT
+
+**Score**: 6/10 (unchanged — fourth consecutive maturity-tick hold)
+
+**Picked**: nothing — queue full, holding for review
+
+**Why**: 5 PRs open, threshold >2. Same configuration as the prior four ticks.
+
+**Shipped**:
+- nothing this tick
+
+**Critical signal to user**: this loop has now held for FOUR consecutive ticks (06:30, 07:25, 08:25, 09:25 EDT) with zero forward progress. The cron is firing on schedule but the guardrail is filtering 100% of attempts. Three options:
+
+1. **Human triage**: merge or close SROS #76 (nikolaixyz profile update) and #93 (Hermes Ollama PoC). Once the queue drops below 3 total, the next tick will resume shipping.
+2. **Adjust guardrail**: raise the maturity-tick threshold from >2 to >5 so dependabot stacks don't block all forward motion. (Requires editing the cron prompt; out of this loop's scope.)
+3. **Cancel the cron**: if the loop is no longer useful, run `CronDelete` on jobs 457ab077 (maturity) and 36ad8775 (PR triage). Both jobs will otherwise auto-expire in ~7 days.
+
+This entry is the explicit drift escalation flagged by the 08:25 tick. No further drift entries until human action.
+
+**Next tick should**: if queue is unchanged, log the hold tersely without re-escalating (no point in repeating this critical entry every hour).
