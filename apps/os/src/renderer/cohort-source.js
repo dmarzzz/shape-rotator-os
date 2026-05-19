@@ -12,17 +12,29 @@
 // Phase 4 (retired): used to fetch the baked apps/os/src/cohort-
 // surface.json from main, which required a build step on every merge.
 //
+// Phase 2 sync (new): when the bundled swf-node is reachable, we layer
+// its /sync/manifest records on top of the cohort-data/*.md baseline.
+// Sync records WIN (they're the live LWW view; cohort-data/*.md is the
+// seed). Refresh tick switches from 5 minutes (github-only) to 30 seconds
+// when sync is live so a profile edit on a peer machine shows up within
+// one sync cycle instead of within five minutes.
+//
 // A lightweight polling refresh keeps long-running sessions fresh:
 // every REFRESH_MS we re-fetch and, if anything changed, notify
 // subscribers so the views can re-render.
 
 import yaml from "js-yaml";
+import { getManifest, getRecord } from "./sync-client.js";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
 const GH_BRANCH   = "main";
 const GH_RAW_BASE = `https://raw.githubusercontent.com/${GH_REPO}/${GH_BRANCH}`;
 const GH_TREE_API = `https://api.github.com/repos/${GH_REPO}/git/trees/${GH_BRANCH}?recursive=1`;
 const REFRESH_MS  = 5 * 60 * 1000;
+// When swf-node is reachable, refresh faster — the spec §4.6 default
+// sync poll interval is 30s, so matching it keeps the renderer's view
+// at most one tick behind the daemon's view.
+const SYNC_REFRESH_MS = 30 * 1000;
 
 // Cohort-data directory → record_type → output list key. Mirrors
 // scripts/build-bundles.js so the in-browser build matches the bundled
@@ -159,6 +171,77 @@ async function loadFromFixture() {
   return normalize(await r.json());
 }
 
+// ─── swf-node overlay ────────────────────────────────────────────────
+//
+// When the local swf-node is reachable, fetch its /sync/manifest and
+// pull each record's newest envelope. The envelope's `content` is the
+// LWW view of that record's surface fields; we merge it OVER the
+// cohort-data/*.md baseline (sync wins) keyed by record_id.
+//
+// Phase 2 ships one envelope kind: `person`. As future kinds (team,
+// project, etc.) come online they slot in here on their list_key.
+// `kind: "person"` from the manifest lands in `out.people`; on an
+// unknown kind we just skip the envelope and log once.
+const SYNC_KIND_TO_LIST_KEY = {
+  person: "people",
+  // place: "events",  team: "teams",  cluster: "clusters" — TBD Phase 3+
+};
+
+async function loadSyncOverlay() {
+  const m = await getManifest();
+  if (!m.ok) return null;
+  const records = m.manifest?.records || {};
+  const ids = Object.keys(records);
+  if (ids.length === 0) return { kind: "empty", byList: {} };
+  // Pull the newest envelope for each record. Sequential rather than
+  // Promise.all so we don't slam a freshly-booted swf-node with 50
+  // simultaneous requests — the daemon is single-threaded SQLite.
+  const byList = {};
+  for (const recordId of ids) {
+    const meta = records[recordId];
+    const listKey = SYNC_KIND_TO_LIST_KEY[meta?.kind];
+    if (!listKey) continue;     // unknown kind → ignore (spec §4.4 step would warn)
+    const r = await getRecord(recordId);
+    if (!r.ok || !r.envelopes?.length) continue;
+    const env = r.envelopes[0];
+    const content = env?.content;
+    if (!content || typeof content !== "object") continue;
+    // Ensure record_id + record_type stamps survive merge so downstream
+    // code (cards, identity matching) keeps working. The envelope's
+    // record_id is canonical; the content might not echo it.
+    const merged = {
+      ...content,
+      record_id: recordId,
+      record_type: content.record_type || meta.kind,
+    };
+    (byList[listKey] = byList[listKey] || []).push(merged);
+  }
+  return { kind: "ok", byList };
+}
+
+// Merge sync records onto a baseline-grouped surface object. Records
+// matched by record_id are REPLACED by the sync version; un-matched sync
+// records are appended (so a cohort member who joined post-cohort-data
+// shows up immediately). Records present in baseline but not in sync
+// are left untouched — sync is additive over the cohort-data/*.md seed.
+function mergeSyncOverBaseline(baseline, overlay) {
+  if (!overlay || !overlay.byList) return baseline;
+  const out = { ...baseline };
+  for (const [listKey, syncRecs] of Object.entries(overlay.byList)) {
+    const base = Array.isArray(out[listKey]) ? out[listKey] : [];
+    const byId = new Map();
+    for (const r of base) {
+      if (r && r.record_id) byId.set(r.record_id, r);
+    }
+    for (const r of syncRecs) {
+      if (!r.record_id) continue;
+      byId.set(r.record_id, r);   // sync wins
+    }
+    out[listKey] = Array.from(byId.values());
+  }
+  return out;
+}
+
 // Cheap change signature: counts + sorted record_ids per bucket. Used
 // by the refresh loop to skip re-render when GitHub returned identical
 // data (the usual case between merges).
@@ -191,6 +274,12 @@ function devPreferLocal() {
  * GitHub `main` first; falls back to the bundled fixture on any
  * error so the app stays usable offline. Honors the localStorage
  * `srfg:cohort_source` dev override.
+ *
+ * Phase 2 sync: when the bundled swf-node is reachable, its
+ * /sync/manifest records are merged OVER the github/fixture baseline.
+ * The merged result is what callers see. The `_source` field reads
+ * `github+sync`, `fixture+sync`, or just the underlying source when
+ * sync is unreachable.
  */
 export async function getCohortSurface() {
   if (_cache) return _cache;
@@ -200,6 +289,10 @@ export async function getCohortSurface() {
       _cache._source = "fixture-forced";
       _cache._sig = signatureOf(_cache);
       console.log("[cohort-source] DEV override active — reading bundled fixture. Clear with localStorage.removeItem('srfg:cohort_source') + reload.");
+      // Still try the sync overlay even when pinning the local fixture —
+      // the cohort-data/*.md seed plus the local user's last edit gives
+      // the most truthful preview of "what the cohort would see."
+      _cache = await applySyncOverlayCached(_cache);
       scheduleRefresh();
       return _cache;
     } catch (e) {
@@ -216,29 +309,74 @@ export async function getCohortSurface() {
     _cache._source = "fixture";
     _cache._sig = signatureOf(_cache);
   }
+  _cache = await applySyncOverlayCached(_cache);
   scheduleRefresh();
   return _cache;
 }
 
+// Apply the swf-node overlay to a baseline cache. Stamps `_source` so
+// the UI can show "live · syncing" vs "baseline only." If sync is
+// unreachable, returns the baseline untouched (the github PR fallback
+// keeps the app usable).
+async function applySyncOverlayCached(baseline) {
+  let overlay = null;
+  try { overlay = await loadSyncOverlay(); }
+  catch (e) { overlay = null; }
+  if (!overlay) {
+    baseline._syncAvailable = false;
+    return baseline;
+  }
+  const merged = mergeSyncOverBaseline(baseline, overlay);
+  merged._source = `${baseline._source || "baseline"}+sync`;
+  merged._sig = signatureOf(merged);
+  merged._syncAvailable = true;
+  return merged;
+}
+
+// External helper for components that need to know "is the live sync
+// view active?" — the alchemy profile editor reads this to decide
+// whether to route a submit through swf-node or fall back to github PR.
+export function isSyncAvailable() {
+  return !!_cache?._syncAvailable;
+}
+
 function scheduleRefresh() {
   if (_refreshTimer) return;
-  _refreshTimer = setInterval(async () => {
-    // Dev override pins the fixture — skip the github fetch entirely so
-    // a 5-min refresh doesn't silently overwrite what we built locally.
-    if (devPreferLocal()) return;
-    try {
-      const fresh = await loadFromGithub();
-      const sig = signatureOf(fresh);
-      if (sig === _cache?._sig) return;  // unchanged
-      _cache = { ...fresh, _source: "github", _sig: sig };
-      for (const cb of _subscribers) {
-        try { cb({ type: "refresh" }); } catch {}
-      }
-    } catch {
-      // Transient network blip — keep the existing cache, try again
-      // on the next tick. No-op rather than logging on every miss.
+  // Use the faster cadence when sync is live so a peer's profile edit
+  // shows up within one sync tick instead of waiting on the github poll.
+  // The fallback is still gh-only when swf-node is unreachable.
+  const interval = _cache?._syncAvailable ? SYNC_REFRESH_MS : REFRESH_MS;
+  _refreshTimer = setInterval(refreshTick, interval);
+}
+
+async function refreshTick() {
+  // Dev override pins the fixture — skip the github fetch entirely so
+  // a 5-min refresh doesn't silently overwrite what we built locally.
+  // Still run the sync overlay so live edits surface in the pinned
+  // fixture preview.
+  let baseline = _cache;
+  if (!devPreferLocal()) {
+    try { baseline = await loadFromGithub(); baseline._source = "github"; }
+    catch {
+      // Transient network blip — keep using the existing baseline so the
+      // overlay still applies to it.
+      baseline = _cache;
     }
-  }, REFRESH_MS);
+  }
+  const merged = await applySyncOverlayCached(baseline);
+  const sig = signatureOf(merged);
+  if (sig === _cache?._sig && merged._syncAvailable === _cache?._syncAvailable) return;
+  _cache = { ...merged, _sig: sig };
+  // If sync availability flipped, restart the timer at the right cadence
+  // so we converge faster (or stop hammering swf-node when it goes away).
+  if ((!!_cache._syncAvailable) !== (!!_cache._previousSyncAvailable)) {
+    _cache._previousSyncAvailable = !!_cache._syncAvailable;
+    if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
+    scheduleRefresh();
+  }
+  for (const cb of _subscribers) {
+    try { cb({ type: "refresh" }); } catch {}
+  }
 }
 
 /**

@@ -39,4 +39,10 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("fg:swf-node-status-changed", handler);
     return () => ipcRenderer.removeListener("fg:swf-node-status-changed", handler);
   },
+  // Agent bearer for swf-node's agent-gated routes (POST /sync/local_record
+  // primarily). Generated + persisted by apps/os/swf-node.js on first
+  // launch; main reads it from there. Returns null in dev mode without
+  // a bundled binary / on Windows / when SWF_NODE_DISABLE=1 — the
+  // renderer's sync-client falls back to the github PR path then.
+  getSwfAgentToken: () => ipcRenderer.invoke("fg:swf-agent-token"),
 });
