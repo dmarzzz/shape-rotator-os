@@ -10739,6 +10739,48 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 }
 .events-row.kind-web_search_started .e-meta { color: #C798FF; text-shadow: 0 0 6px rgba(199, 152, 255, 0.45); }
 
+/* /node/log v0.12.0 event kinds always populate both .e-meta + .e-tail. The
+ * legacy grid layout (line ~5162) places both on row 2 in overlapping
+ * columns, which made e.g. peer_unreachable rows render as garbled
+ * "SYSTEM UNREACHATCH_failed" stacks. For these kinds, stack the tail
+ * onto its own row beneath the meta so both read cleanly. */
+.events-row.kind-manifest_fetched .e-tail,
+.events-row.kind-pulled .e-tail,
+.events-row.kind-applied_local .e-tail,
+.events-row.kind-tick .e-tail,
+.events-row.kind-peer_unreachable .e-tail,
+.events-row.kind-peer_reachable .e-tail,
+.events-row.kind-mdns_peer_appeared .e-tail,
+.events-row.kind-mdns_peer_disappeared .e-tail,
+.events-row.kind-scraper_pulled .e-tail,
+.events-row.kind-scraper_error .e-tail,
+.events-row.kind-bundle_pulled .e-tail,
+.events-row.kind-web_search_completed .e-tail,
+.events-row.kind-web_search_started .e-tail {
+  grid-column: 2;
+  grid-row: 3;
+  margin-left: 0;
+  padding-top: 1px;
+}
+/* And keep e-meta from spanning both columns when there's a tail to make
+ * room for. The legacy `grid-column: 1 / span 2` was a fallback for events
+ * with no tail at all. */
+.events-row.kind-manifest_fetched .e-meta,
+.events-row.kind-pulled .e-meta,
+.events-row.kind-applied_local .e-meta,
+.events-row.kind-tick .e-meta,
+.events-row.kind-peer_unreachable .e-meta,
+.events-row.kind-peer_reachable .e-meta,
+.events-row.kind-mdns_peer_appeared .e-meta,
+.events-row.kind-mdns_peer_disappeared .e-meta,
+.events-row.kind-scraper_pulled .e-meta,
+.events-row.kind-scraper_error .e-meta,
+.events-row.kind-bundle_pulled .e-meta,
+.events-row.kind-web_search_completed .e-meta,
+.events-row.kind-web_search_started .e-meta {
+  grid-column: 2;
+}
+
 /* Status tag — extends the existing .npc-live-tag color modifiers with
  * stale + down states. Stale = no heartbeat for 60-180s (peer is
  * reachable but its sync-tick is quiet). Down = peer_unreachable. */

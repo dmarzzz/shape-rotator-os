@@ -3339,6 +3339,11 @@ function formatValue(v) {
 // `mdns_*` events have neither. Always returns a string (possibly empty).
 function pickPeerPubkey(p) {
   if (!p) return "";
+  // /node/log v0.12.0 events carry the pubkey on `peer_pubkey`. Check
+  // it first so peer_unreachable / manifest_fetched / mdns_* events
+  // resolve to a real peer (otherwise pickPeerNickname falls through
+  // to the literal string "system" and the e-meta renders garbage).
+  if (typeof p.peer_pubkey === "string" && p.peer_pubkey) return p.peer_pubkey;
   if (typeof p.contributor === "string" && p.contributor) return p.contributor;
   if (p.peer && typeof p.peer === "object" && typeof p.peer.pubkey === "string") return p.peer.pubkey;
   if (typeof p.peer === "string") return p.peer;
