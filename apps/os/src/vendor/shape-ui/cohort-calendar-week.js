@@ -51,6 +51,13 @@ function todayUtcMs() {
   const d = new Date();
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
+
+// Fraction of the day elapsed (local time), clamped to [0, 1].
+// Used to position the "now" line within today's day cell.
+function nowFraction() {
+  const d = new Date();
+  return Math.min(1, Math.max(0, (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400));
+}
 function fmtShortDate(d) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
 }
@@ -261,6 +268,11 @@ export function renderWeekView({
       </button>`;
   }).join("");
 
+  // ── now-line position ────────────────────────────────────────────────
+  // Rendered once at HTML-string time; attachWeekViewBehavior ticks it live.
+  const nowPct = nowFraction();
+  const nowLineHtml = `<div class="cal-now-line" aria-hidden="true" style="top:${(nowPct * 100).toFixed(2)}%"></div>`;
+
   // ── day cells ───────────────────────────────────────────────────────
   const dayCells = week.days.map(d => {
     const anchorRows = d.anchors.map(a => `
@@ -281,6 +293,7 @@ export function renderWeekView({
           <span class="cdh-date">${escHtml(d.date)}</span>
           ${d.isToday ? `<span class="cdh-today">today</span>` : ""}
         </header>
+        ${d.isToday ? nowLineHtml : ""}
         ${anchorRows}
         ${d.isEmpty
           ? `<div class="cal-day-empty" aria-label="nothing scheduled">—</div>`
@@ -423,6 +436,26 @@ export function attachWeekViewBehavior(root, { onWeekChange, scrollToToday = tru
     });
   }
 
+  // ── now-line live tick ────────────────────────────────────────────────
+  // Updates the "cal-now-line" top position every minute so it stays
+  // accurate without requiring a full re-render.
+  let nowTimer = null;
+  function tickNowLine() {
+    const line = root.querySelector(".cal-now-line");
+    if (!line) return;
+    const d = new Date();
+    const frac = Math.min(1, Math.max(0, (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400));
+    line.style.top = (frac * 100).toFixed(2) + "%";
+  }
+  // Align the first tick to the next whole minute so subsequent ticks stay
+  // on-the-minute rather than drifting. This is a best-effort alignment
+  // (exact only if the JS event loop is not blocked at tick time).
+  const msUntilNextMinute = 60000 - (Date.now() % 60000);
+  nowTimer = setTimeout(() => {
+    tickNowLine();
+    nowTimer = setInterval(tickNowLine, 60000);
+  }, msUntilNextMinute);
+
   // ── swipe-to-navigate weeks (mobile only) ────────────────────────────
   let touchStartX = 0;
   let touchStartY = 0;
@@ -453,6 +486,7 @@ export function attachWeekViewBehavior(root, { onWeekChange, scrollToToday = tru
   return function teardown() {
     root.removeEventListener("touchstart", onTouchStart);
     root.removeEventListener("touchend",   onTouchEnd);
+    if (nowTimer != null) { clearTimeout(nowTimer); clearInterval(nowTimer); nowTimer = null; }
   };
 }
 
