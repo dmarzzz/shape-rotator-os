@@ -1,6 +1,7 @@
-const { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, screen, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+const swfNode = require("./swf-node");
 
 // One-time userData migration. Electron resolves `app.getPath("userData")`
 // from `productName` (or, if unset, the package name). Every time we
@@ -146,6 +147,76 @@ function createWindow() {
   return win;
 }
 
+// ─── hermes PoC window ────────────────────────────────────────────────
+// A standalone window for the Hermes (local LLM) cohort assistant. The
+// renderer hits a local Ollama daemon directly — main is only here to
+// own window lifecycle. Code lives in src/hermes/.
+let hermesWin = null;
+function createHermesWindow() {
+  if (hermesWin && !hermesWin.isDestroyed()) {
+    hermesWin.focus();
+    return hermesWin;
+  }
+  hermesWin = new BrowserWindow({
+    width: 760, height: 680, minWidth: 560, minHeight: 480,
+    titleBarStyle: "hiddenInset",
+    backgroundColor: "#03020c",
+    title: "ask cohort · hermes",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      sandbox: false,
+      nodeIntegration: false,
+    },
+  });
+  hermesWin.loadFile(path.join(__dirname, "src", "hermes", "index.html"));
+  if (process.env.SRWK_DEVTOOLS) hermesWin.webContents.openDevTools({ mode: "detach" });
+  hermesWin.on("closed", () => { hermesWin = null; });
+  hermesWin.webContents.on("console-message", (_e, lvl, msg) => {
+    process.stderr.write(`[hermes:${["log","warn","error"][lvl]||"log"}] ${msg}\n`);
+  });
+  return hermesWin;
+}
+
+// Application menu — preserves Electron's stock per-platform roles
+// and inserts an "Ask Cohort (Hermes)…" item under a Tools menu.
+// Without this template Electron uses its default menu, which gives
+// us no surface to attach the Hermes entry to.
+function buildAppMenu() {
+  const isMac = process.platform === "darwin";
+  const template = [
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: "about" },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" },
+      ],
+    }] : []),
+    { role: "fileMenu" },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    {
+      label: "Tools",
+      submenu: [
+        {
+          label: "Ask Cohort (Hermes)…",
+          accelerator: isMac ? "Cmd+Shift+H" : "Ctrl+Shift+H",
+          click: () => createHermesWindow(),
+        },
+      ],
+    },
+    { role: "windowMenu" },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 ipcMain.handle("prefs:load", async () => readJSON(PREFS_FILE, {}));
 ipcMain.handle("prefs:save", async (_e, d) => { writeJSON(PREFS_FILE, d); return true; });
 ipcMain.handle("env:get", async () => ({
@@ -160,6 +231,51 @@ ipcMain.handle("env:get", async () => ({
 }));
 ipcMain.handle("shell:openExternal", async (_e, url) => {
   if (typeof url === "string" && /^https?:\/\//i.test(url)) shell.openExternal(url);
+});
+
+// ─── bundled swf-node supervisor ─────────────────────────────────────
+// Spawn + supervise the swf-node binary that ships in
+// Contents/Resources/swf-node/. Until this landed, the renderer was
+// pointed at http://127.0.0.1:7777 and assumed the user was running
+// the daemon externally. Now the OS app owns it.
+//
+// State broadcast goes to every BrowserWindow so the renderer (once it
+// adds a status indicator) sees idle → starting → running, plus
+// crashed/unsupported terminal states.
+function broadcastSwfNodeStatus(state) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    try { win.webContents.send("fg:swf-node-status-changed", state); } catch {}
+  }
+}
+
+ipcMain.handle("fg:swf-node-status", async () => swfNode.getStatus());
+
+// Renderer asks for the agent bearer token here so sync-client.js can
+// authenticate against POST /sync/local_record. swf-node.js generates +
+// persists the token on first launch (apps/os/swf-node.js). Returns
+// null when no token is available — the renderer falls back to the
+// github PR path in that case (dev with an external swf-node, Windows
+// builds, swf-node disabled / crashed).
+ipcMain.handle("fg:swf-agent-token", async () => swfNode.getAgentToken() || null);
+
+// Dev-only sync-client smoke test. Triggers the renderer's
+// window.__srfgSyncClientSelfTest() helper (apps/os/src/renderer/sync-client.js
+// installs it on load). Bound here so a user can also run it from
+// outside the renderer's devtools — e.g. via a hidden hotkey wired in
+// the main process. Returns whatever the renderer's selftest resolved
+// with, or { ok: false, reason: "no_window" } when no BrowserWindow
+// exists yet.
+ipcMain.handle("fg:sync-client-selftest", async () => {
+  const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+  if (!win) return { ok: false, reason: "no_window" };
+  try {
+    return await win.webContents.executeJavaScript(
+      "window.__srfgSyncClientSelfTest && window.__srfgSyncClientSelfTest()"
+    );
+  } catch (e) {
+    return { ok: false, reason: "exec_failed", error: e?.message || String(e) };
+  }
 });
 
 // ─── electron-updater (release-driven app binary updates) ────────────
@@ -487,9 +603,33 @@ app.whenReady().then(() => {
     catch (e) { process.stderr.write(`[viz:warn] dock icon set failed: ${e && e.message}\n`); }
   }
   createWindow();
+  buildAppMenu();
   initAutoUpdater();
+  // Spin the bundled swf-node up after the first window exists so its
+  // state-change broadcasts have a webContents target. On win32 + when
+  // the binary is missing, start() short-circuits to "unsupported"
+  // and the renderer keeps the legacy "swf-node not running" UX.
+  swfNode.start(app, broadcastSwfNodeStatus);
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+// Gracefully stop the bundled swf-node on quit. We use before-quit
+// (fires once per quit, before windows are closed) and await stop()
+// so SIGTERM + grace window + SIGKILL all complete before the
+// process exits. Without `event.preventDefault()` electron quits
+// immediately and the child becomes our zombie.
+let _quittingSwfNode = false;
+app.on("before-quit", (event) => {
+  if (_quittingSwfNode) return;
+  const status = swfNode.getStatus();
+  if (status === "idle" || status === "unsupported" || status === "crashed") return;
+  event.preventDefault();
+  _quittingSwfNode = true;
+  swfNode.stop().finally(() => {
+    app.quit();
+  });
+});
+
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });

@@ -16,6 +16,7 @@ links:
   x: null
   website: null
   linkedin: null
+dietary_restrictions:
 ---
 
 ## about

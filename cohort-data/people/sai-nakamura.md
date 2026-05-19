@@ -16,6 +16,7 @@ links:
   x: sainak
   website: sainak.dev
   linkedin: null
+dietary_restrictions:
 ---
 
 ## about

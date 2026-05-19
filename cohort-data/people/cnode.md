@@ -16,6 +16,7 @@ links:
   x: https://x.com/colludingnode
   website: https://cnode.phd
   linkedin: null
+dietary_restrictions:
 ---
 
 ## about

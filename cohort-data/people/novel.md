@@ -16,6 +16,7 @@ comm_style: null
 contribute_interests: null
 availability_pref: null
 weekly_intention: null
+dietary_restrictions:
 ---
 
 ## about
