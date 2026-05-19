@@ -262,6 +262,16 @@
   padding-top: 11px;   /* compensate for the extra 1px of top border */
   box-shadow: inset 2px 0 0 0 rgba(180, 58, 25, 0.55);
 }
+/* Past days recede visually so today and upcoming days draw the eye.
+ * Mirrors the weight reduction Apple Calendar and Google Calendar apply to
+ * elapsed days in the weekly grid. The opacity floor (0.48) is chosen to
+ * keep event text legible on the dark background while clearly signalling
+ * "this has already happened". is-today cannot be is-past (dayMs < todayMs
+ * excludes the === case), so the two states never collide. */
+.cal-day.is-past {
+  opacity: 0.48;
+}
+
 .cal-day.is-empty .cal-day-empty {
   margin: auto;
   color: var(--ed-ink-4);

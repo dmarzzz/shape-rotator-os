@@ -146,7 +146,7 @@ function renderEventBlock(blockText) {
 }
 
 // Parse one week's row from the Phala tab structure. Returns:
-//   { dateRange, theme, weekStartMs, days: [{ name, date, isToday, isEmpty, blocks[], anchors[] }] }
+//   { dateRange, theme, weekStartMs, days: [{ name, date, isToday, isPast, isEmpty, blocks[], anchors[] }] }
 export function parseWeekRow(row, weekIdx, eventsByDayMs = new Map()) {
   const meta = (row && row[1] != null ? String(row[1]) : "").split("\n");
   const dateRange = (meta[0] || "").trim().toLowerCase();
@@ -166,6 +166,7 @@ export function parseWeekRow(row, weekIdx, eventsByDayMs = new Map()) {
       date: fmtShortDate(new Date(dayMs)),
       dayMs,
       isToday: dayMs === todayMs,
+      isPast:  dayMs < todayMs,
       relLabel,
       isEmpty: blocks.length === 0 && anchors.length === 0,
       blocks,
@@ -287,7 +288,7 @@ export function renderWeekView({
     const blockRows = d.blocks.map(b => `
       <div class="cal-event">${renderEventBlock(b)}</div>`).join("");
     return `
-      <article class="cal-day ${d.isToday ? "is-today" : ""} ${d.isEmpty ? "is-empty" : ""}"
+      <article class="cal-day ${d.isToday ? "is-today" : ""} ${d.isPast ? "is-past" : ""} ${d.isEmpty ? "is-empty" : ""}"
                data-phase="${escAttr(phase)}"
                role="listitem"
                aria-current="${d.isToday ? "date" : "false"}">
