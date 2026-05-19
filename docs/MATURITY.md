@@ -101,3 +101,16 @@ This entry is the explicit drift escalation flagged by the 08:25 tick. No furthe
 - nothing this tick directly. Two large PRs (#97 + #17) were shipped via parallel agents earlier this hour in a chat-driven push and are awaiting human review.
 
 **Next tick should**: assume swf-node #17 (touches sync wire protocol + new endpoint) needs human approval before the PR-triage tick can merge it. Once merged + tagged as v0.12.0 + binaries built, SROS #97 becomes eligible (currently degrades to /sync/log fallback, but the full experience needs #17 shipped first).
+
+## 2026-05-19 16:25 EDT
+
+**Score**: 7/10 (early beta — queue cleared, Network tab now shows live unified node events post-v0.1.32, peer_unreachable spam fixed in v0.12.1, CSS overlap fixed in v0.1.33. Three real peers on user's LAN being discovered + tracked. The visible-activity story is real now.)
+
+**Picked**: cohort-onboarding section in docs/INSTALL.md — explains mDNS discovery, LAN-trust, Network tab live events, and the two edit paths (sync vs GitHub PR fallback).
+
+**Why**: INSTALL.md had zero mention of Phase 2 sync after 12h of shipping it. A cohort member installing on day 1 (the literal mission target) had no story for "what should I see on the Network tab" or "how does my profile edit reach my neighbors". This is pure spec-↔-code drift cleanup, in service of the "cohort member installs without you helping them" optimization target.
+
+**Shipped**:
+- (in flight) docs(install): cohort-onboarding section — peer discovery, LAN-trust, Network tab expectations, sync-vs-PR fallback
+
+**Next tick should**: if v0.1.33 dmg is fully landed + user confirms the peer_unreachable spam + CSS overlap are gone, score nudges to 7.5. Next bottleneck is likely either (a) Atlas tab still shows blank for users with no indexed pages — needs a friendlier empty state, (b) mac-x64 GH Actions queue still stuck — Intel-mac cohort members get stub binaries, (c) the actual cross-machine sync test the user is supposed to verify but hasn't yet.

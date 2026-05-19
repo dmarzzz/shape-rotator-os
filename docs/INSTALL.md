@@ -123,3 +123,52 @@ viewer and profile editing still work, but the swf-node-backed
 features (search, atlas, peer presence) are disabled until upstream
 swf-node ships a Windows runtime. Tracked at
 [dmarzzz/shape-rotator-os#84](https://github.com/dmarzzz/shape-rotator-os/issues/84).
+
+---
+
+## what to expect on first launch
+
+On macOS/Linux the bundled daemon takes ~10–15 seconds to extract itself
+on the very first open (PyInstaller cold-start). After that, normal
+launches are sub-second.
+
+Once the daemon is up, the app:
+
+1. **Announces itself on your LAN via mDNS.** The cohort runs on the
+   same WiFi network during the program; other cohort members' apps
+   discover yours automatically — no signup, no central server.
+2. **Bootstraps a local cohort-keys file** under
+   `~/Library/Application Support/Shape Rotator OS/swf-node-data/`
+   (mac) or the equivalent on Linux. The trust model defaults to
+   "trust anyone on this LAN" — appropriate for an in-person cohort.
+   Profiles edited in the app sign locally and propagate to your
+   neighbors within ~30 seconds.
+3. **Falls back to GitHub** for the initial cohort surface (people,
+   teams, asks, the program calendar). The bundled local fixture is
+   used if GitHub is unreachable.
+4. **Surfaces live network activity** in the **Network** tab — peer
+   discovery, manifest fetches, record propagation, search activity.
+   The TRAFFIC panel is the unified message stream; PEERS lists your
+   discovered neighbors with live/stale/down status; SYNC shows the
+   total record + peer-reachable count at a glance.
+
+You don't need to set up anything else. Open the app, open the
+**Network** tab, watch the TRAFFIC list pulse every 30s as the sync
+loop ticks. When another cohort member joins on the same WiFi, you'll
+see an `mdns_peer_appeared` row land in real time.
+
+### the two edit paths
+
+Profile edits can travel two ways:
+
+- **Live sync (default when swf-node is healthy):** edits POST to the
+  local daemon's `/sync/local_record` endpoint, get signed with your
+  device key, and propagate to LAN neighbors within one sync tick. No
+  GitHub round-trip.
+- **GitHub PR fallback:** if the daemon is down or you're on a network
+  with no cohort members, the editor falls back to opening a PR
+  against `cohort-data/people/<your-handle>.md`. Once merged, all apps
+  pick up the change on their next refresh.
+
+In normal use you won't notice which path is active — the editor
+chooses for you.
