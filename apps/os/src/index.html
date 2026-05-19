@@ -36,6 +36,10 @@
         <span class="tab-glyph" aria-hidden="true">⌬</span>
         <span class="tab-label">network</span>
       </button>
+      <button class="tab-btn" role="tab" data-tab="links" aria-selected="false" type="button" title="important external links — handouts, repos, web os">
+        <span class="tab-glyph" aria-hidden="true">↗</span>
+        <span class="tab-label">links</span>
+      </button>
       <span id="tab-indicator" class="tab-indicator" aria-hidden="true"></span>
       <button id="atlas-search-toggle" class="atlas-search-toggle atlas-only" type="button"
               title="search the network (⌘/)" aria-label="open search">
@@ -286,6 +290,57 @@
         </nav>
         <main id="alchemy-canvas" class="alchemy-canvas" aria-live="polite"></main>
       </div>
+    </section>
+
+    <!-- ─── links view (important external endpoints) ─── -->
+    <section id="links-view" class="links-view links-only" aria-label="important links">
+      <header class="links-head">
+        <p class="links-eyebrow">↗ external</p>
+        <h1 class="links-title">important links</h1>
+        <p class="links-sub">handouts, repos, and the web mirror of this app — share with anyone outside the cohort.</p>
+      </header>
+      <ul class="links-grid" role="list">
+        <li>
+          <a class="link-card" href="https://github.com/dmarzzz/shape-rotator-field-kit" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">CLI tools</span>
+            <span class="link-card-title">Field-kit</span>
+            <span class="link-card-desc">Research swarm, content pipeline, voxterm, cohort skills. The CLI side of your local agent.</span>
+            <span class="link-card-url">github.com/dmarzzz/shape-rotator-field-kit</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://onboard.shaperotator.xyz" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">handout</span>
+            <span class="link-card-title">Onboarding Guide</span>
+            <span class="link-card-desc">Printable one-pager — six steps to get wired into the cohort, plus the 10-week arc.</span>
+            <span class="link-card-url">onboard.shaperotator.xyz</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://school.shaperotator.xyz" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">handout</span>
+            <span class="link-card-title">The School Site Guide</span>
+            <span class="link-card-desc">Printable map of 29 Nassau Avenue — wifi, floor plan, house rules, emergency contacts.</span>
+            <span class="link-card-url">school.shaperotator.xyz</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://shape-rotator-os.vercel.app" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">web mirror</span>
+            <span class="link-card-title">Shape Rotator OS · Web</span>
+            <span class="link-card-desc">Browser version of this app. Share with anyone you want to show the cohort surface without the desktop install.</span>
+            <span class="link-card-url">shape-rotator-os.vercel.app</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://github.com/dmarzzz/shape-rotator-os" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">source</span>
+            <span class="link-card-title">GitHub Repository</span>
+            <span class="link-card-desc">Issues, PRs, releases. Everything you see in this app is built from <code>main</code>.</span>
+            <span class="link-card-url">github.com/dmarzzz/shape-rotator-os</span>
+          </a>
+        </li>
+      </ul>
     </section>
 
     <!-- experimental view archived 2026-05-09 — see _archive/experimental/. -->

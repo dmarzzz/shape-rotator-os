@@ -5416,7 +5416,7 @@ function showTimelineAutoToast() {
 // _archive/experimental/.
 const TAB_LS_KEY = "srwk:active_tab";
 const NET_SUB_LS_KEY = "srwk:network_sub";
-const TOP_TABS = new Set(["alchemy", "apps", "network"]);
+const TOP_TABS = new Set(["alchemy", "apps", "network", "links"]);
 const NET_SUBS = new Set(["network", "metrics"]);
 const APPS_LS_KEY = "srwk:apps_view";
 const APPS_VIEWS = new Set(["atlas"]);  // grid is the absence of one of these

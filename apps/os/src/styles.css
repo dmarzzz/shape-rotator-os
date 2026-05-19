@@ -177,6 +177,9 @@ body:not([data-active-tab="apps"]) #atlas-view {
 }
 /* alchemy-only elements only on the alchemy tab. */
 body:not([data-active-tab="alchemy"]) .alchemy-only { display: none !important; }
+
+/* links-only elements only on the links tab. */
+body:not([data-active-tab="links"]) .links-only { display: none !important; }
 /* search lives as an overlay inside the Atlas app (formerly its own
  * tab). Shown when on apps→atlas AND data-atlas-search="open". */
 body:not([data-active-tab="apps"]) .search-only,
@@ -10285,6 +10288,113 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   margin: 0;
   text-transform: lowercase;
 }
+
+/* ─── links view ───────────────────────────────────────────────────
+ * Static page of external URLs (handouts, repos, web mirror). Lives
+ * inside the top-level "links" tab. No JS — pure HTML/CSS rendered
+ * by the visibility rule above. */
+.links-view {
+  display: flex;
+  flex-direction: column;
+  padding: 56px 64px 48px;
+  overflow-y: auto;
+  height: 100%;
+  box-sizing: border-box;
+}
+.links-head { margin: 0 0 40px 0; max-width: 88ch; }
+.links-eyebrow {
+  font-family: var(--sr-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ed-ink-2, rgba(245,243,238,0.78));
+  margin: 0 0 12px 0;
+}
+.links-title {
+  font-family: var(--sr-font-sans);
+  font-style: italic;
+  font-size: 38px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--ed-ink-1, #f5f3ee);
+  margin: 0 0 10px 0;
+  text-transform: lowercase;
+}
+.links-sub {
+  font-family: var(--sr-font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ed-ink-2, rgba(245,243,238,0.78));
+  margin: 0;
+}
+.links-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  max-width: 1200px;
+}
+.link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 20px 16px;
+  background: rgba(245,243,238,0.025);
+  border: 1px solid rgba(245,243,238,0.10);
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  height: 100%;
+  box-sizing: border-box;
+}
+.link-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(245,243,238,0.30);
+  background: rgba(245,243,238,0.05);
+}
+.link-card-eyebrow {
+  font-family: var(--sr-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ed-ink-2, rgba(245,243,238,0.78));
+}
+.link-card-title {
+  font-family: var(--sr-font-sans);
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  color: var(--ed-ink-1, #f5f3ee);
+  margin: 6px 0 2px;
+  line-height: 1.15;
+}
+.link-card-desc {
+  font-family: var(--sr-font-sans);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ed-ink-2, rgba(245,243,238,0.78));
+  margin: 4px 0 10px;
+}
+.link-card-desc code {
+  font-family: var(--sr-font-mono);
+  font-size: 11.5px;
+  background: rgba(245,243,238,0.06);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.link-card-url {
+  font-family: var(--sr-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ed-ink-3, rgba(245,243,238,0.55));
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(245,243,238,0.10);
+  word-break: break-all;
+}
+.link-card:hover .link-card-url { color: var(--ed-ink-1, #f5f3ee); }
 
 /* Back-to-apps bar at the top of the Atlas sub-view. */
 .atlas-back-bar {
