@@ -181,6 +181,33 @@ function broadcastSwfNodeStatus(state) {
 
 ipcMain.handle("fg:swf-node-status", async () => swfNode.getStatus());
 
+// Renderer asks for the agent bearer token here so sync-client.js can
+// authenticate against POST /sync/local_record. swf-node.js generates +
+// persists the token on first launch (apps/os/swf-node.js). Returns
+// null when no token is available — the renderer falls back to the
+// github PR path in that case (dev with an external swf-node, Windows
+// builds, swf-node disabled / crashed).
+ipcMain.handle("fg:swf-agent-token", async () => swfNode.getAgentToken() || null);
+
+// Dev-only sync-client smoke test. Triggers the renderer's
+// window.__srfgSyncClientSelfTest() helper (apps/os/src/renderer/sync-client.js
+// installs it on load). Bound here so a user can also run it from
+// outside the renderer's devtools — e.g. via a hidden hotkey wired in
+// the main process. Returns whatever the renderer's selftest resolved
+// with, or { ok: false, reason: "no_window" } when no BrowserWindow
+// exists yet.
+ipcMain.handle("fg:sync-client-selftest", async () => {
+  const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+  if (!win) return { ok: false, reason: "no_window" };
+  try {
+    return await win.webContents.executeJavaScript(
+      "window.__srfgSyncClientSelfTest && window.__srfgSyncClientSelfTest()"
+    );
+  } catch (e) {
+    return { ok: false, reason: "exec_failed", error: e?.message || String(e) };
+  }
+});
+
 // ─── electron-updater (release-driven app binary updates) ────────────
 // Reads the `latest-{mac,win,linux}.yml` feed published by
 // .github/workflows/os-release.yml on each tag push. No-op in

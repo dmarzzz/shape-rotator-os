@@ -43,6 +43,7 @@
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
+const crypto = require("node:crypto");
 
 const LOG_MAX_BYTES = 5 * 1024 * 1024;   // ~5MB before rotation
 const RESTART_LIMIT = 3;                  // unexpected exits before we give up
@@ -61,6 +62,8 @@ let _restartCount = 0;
 let _expectQuit = false;
 let _quitResolve = null;
 let _broadcaster = null;       // (state) => void
+let _agentToken = null;        // generated once per launch, persisted to disk under _dataDir/agent_token
+let _agentTokenPath = null;
 
 function setState(next) {
   if (_state === next) return;
@@ -136,6 +139,51 @@ function resolveBinary(app) {
   return { ok: true, path: devPath };
 }
 
+// Resolve (or generate-and-persist) the agent bearer token used by the
+// renderer to call swf-node's agent-gated routes (POST /sync/local_record
+// today; potentially /web_search and friends later). Since we bind on
+// 0.0.0.0 (LAN-reachable), swf-node requires SWF_AGENT_TOKEN to be set
+// — without one it refuses to start. We generate a strong random token
+// on first launch + persist it under the swf-node data dir so:
+//   - swf-node and the Electron renderer agree on the same value across
+//     restarts of either side.
+//   - a `cat ~/.../swf-node-data/agent_token` lets a human invoke the
+//     local routes from a terminal if they need to.
+// Phase 2 A's spec (§7.4 / §9.5) doesn't pin a canonical token-file
+// location; we put it next to the other swf-node data so swf-node
+// could in theory read it directly at SWF_STATE_DIR/../agent_token if
+// it ever wanted to discover it without an env var.
+function resolveAgentToken() {
+  if (_agentToken) return _agentToken;
+  // Honor an explicit env override (developer running their own daemon
+  // with a known token).
+  if (process.env.SWF_AGENT_TOKEN && process.env.SWF_AGENT_TOKEN.length >= 16) {
+    _agentToken = process.env.SWF_AGENT_TOKEN;
+    return _agentToken;
+  }
+  _agentTokenPath = path.join(_dataDir, "agent_token");
+  try {
+    const onDisk = fs.readFileSync(_agentTokenPath, "utf8").trim();
+    if (onDisk && onDisk.length >= 16) {
+      _agentToken = onDisk;
+      return _agentToken;
+    }
+  } catch {
+    // missing or unreadable — fall through to generation
+  }
+  // 32 random bytes → ~43 char base64url string. Plenty of entropy for
+  // a loopback bearer that an attacker would have to read off the disk
+  // to use.
+  _agentToken = crypto.randomBytes(32).toString("base64url");
+  try {
+    fs.mkdirSync(path.dirname(_agentTokenPath), { recursive: true });
+    fs.writeFileSync(_agentTokenPath, _agentToken + "\n", { mode: 0o600 });
+  } catch (e) {
+    process.stderr.write(`[swf-node] failed to persist agent token to ${_agentTokenPath}: ${e.message}\n`);
+  }
+  return _agentToken;
+}
+
 function spawnChild() {
   setState("starting");
   _expectQuit = false;
@@ -155,6 +203,10 @@ function spawnChild() {
     SWF_CONFIG_DIR: path.join(_dataDir, "config"),
     SWF_KNOWLEDGE_DIR: path.join(_dataDir, "world_knowledge"),
     SWF_STATE_DIR: path.join(_dataDir, "state"),
+    // Non-loopback bind ⇒ swf-node demands a bearer token for agent
+    // routes (incl. POST /sync/local_record per spec §7.4). Generate
+    // once + persist; renderer reads via fg:swf-agent-token IPC.
+    SWF_AGENT_TOKEN: resolveAgentToken(),
   };
 
   // Make sure the data dirs exist before the child tries to write into
@@ -333,4 +385,12 @@ function getStatus() {
   return _state;
 }
 
-module.exports = { start, stop, getStatus };
+// Renderer-facing accessor for the agent bearer (via IPC `fg:swf-agent-token`).
+// Returns null when swf-node hasn't been started yet (e.g. dev mode with an
+// external daemon and SWF_AGENT_TOKEN unset) — sync-client.js treats that
+// the same as "swf-node unavailable" and falls back to the github PR path.
+function getAgentToken() {
+  return _agentToken;
+}
+
+module.exports = { start, stop, getStatus, getAgentToken };

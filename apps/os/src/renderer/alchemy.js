@@ -27,9 +27,11 @@ import {
   teamCardHtml, personCardHtml,
   buildCalendarRows, drawCalendar,
 } from "@shape-rotator/shape-ui";
-import { getCohortSurface, subscribeToCohortChanges } from "./cohort-source.js";
+import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
 import { enrichPeople } from "./gh-user.js";
+import { putLocalRecord, getRecord, getHealth, getManifest } from "./sync-client.js";
+import { toast } from "./ux.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const PROFILE_LS_KEY  = "srwk:profile_v1";
@@ -636,6 +638,199 @@ function showForkPrompt({ forkUrl, canonicalUrl, handle, retryHint }) {
   overlay.querySelector("#fp-cancel")?.addEventListener("click", close);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
 }
+
+// ─── history modal (Phase 2 sync) ───────────────────────────────────
+//
+// Lists prior versions of the current record (newest-first per spec
+// §7.2) via /sync/record/<id>?full=true. Each row shows wall_ts_ms +
+// a one-line summary of which top-level fields differ from the
+// previous-newer envelope. "Restore" pre-fills the editor with that
+// version's content + a fresh local timestamp; the user then clicks
+// submit to land a new envelope with the restored content (spec §7.3
+// — "restore" is implemented entirely at the UI layer).
+let _historyModalEl = null;
+async function openHistoryModal({ recordId, recordKind }) {
+  if (_historyModalEl) return;
+  const overlay = document.createElement("div");
+  overlay.className = "history-modal-backdrop";
+  overlay.innerHTML = `
+    <div class="history-modal" role="dialog" aria-labelledby="hm-title">
+      <header class="hm-head">
+        <h2 id="hm-title" class="hm-title">version history</h2>
+        <p class="hm-sub">prior envelopes for <code>${escHtml(recordId)}</code> — newest first. "restore" pre-fills the editor with that version's content; click submit to land a new envelope.</p>
+      </header>
+      <section class="hm-body" id="hm-body">
+        <p class="hm-empty">loading…</p>
+      </section>
+      <footer class="hm-foot">
+        <button class="hm-btn hm-skip" type="button" id="hm-close">close</button>
+      </footer>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  _historyModalEl = overlay;
+  const close = () => { overlay.remove(); _historyModalEl = null; };
+  overlay.querySelector("#hm-close")?.addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+
+  const body = overlay.querySelector("#hm-body");
+  const res = await getRecord(recordId, { full: true });
+  if (!res.ok) {
+    const reason = res.reason || "unknown";
+    const subline = reason === "not_found"
+      ? "no envelopes recorded yet for this record on this swf-node. once you submit an edit through the in-app editor, the chain starts."
+      : (reason === "timeout" || reason === "network")
+        ? `swf-node didn't respond (${escHtml(reason)}). history is only available when the local daemon is running.`
+        : `couldn't load history (${escHtml(reason)}).`;
+    body.innerHTML = `<p class="hm-empty">${subline}</p>`;
+    return;
+  }
+  const envelopes = res.envelopes || [];
+  if (envelopes.length === 0) {
+    body.innerHTML = `<p class="hm-empty">no history yet for this record. submit an edit to start the chain.</p>`;
+    return;
+  }
+  // Render newest-first. Diff each row against the next-newer envelope
+  // (i.e. the user-visible "what changed when this version landed").
+  const rows = envelopes.map((env, i) => {
+    const next = envelopes[i + 1];   // older — what this row replaced
+    const changed = summarizeContentDiff(next?.content, env.content);
+    const ts = env.wall_ts_ms ? new Date(env.wall_ts_ms).toLocaleString() : "unknown time";
+    const isLatest = i === 0;
+    const isRoot = !next;
+    return `
+      <div class="hm-row" data-history-idx="${i}">
+        <div class="hm-row-head">
+          <span class="hm-row-ts">${escHtml(ts)}</span>
+          ${isLatest ? `<span class="hm-row-tag">latest</span>` : ""}
+          ${isRoot   ? `<span class="hm-row-tag hm-row-tag-root">root · v0</span>` : ""}
+        </div>
+        <div class="hm-row-diff">${changed}</div>
+        <div class="hm-row-actions">
+          <button class="hm-btn hm-restore" type="button" data-history-idx="${i}" ${isLatest ? "disabled" : ""}>
+            ${isLatest ? "this version is live" : "restore"}
+          </button>
+        </div>
+      </div>
+    `;
+  }).join("");
+  body.innerHTML = rows;
+
+  // Restore handler: copy that version's `content` into the editor's
+  // draft. The editor stays in EDIT mode pointed at the same record;
+  // a fresh submit click then writes a new envelope (spec §7.3).
+  for (const btn of body.querySelectorAll(".hm-restore")) {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.historyIdx);
+      const env = envelopes[idx];
+      if (!env || !env.content) return;
+      const p = state.profile;
+      // Preserve identity-level fields the editor expects on the draft.
+      const next = {
+        ...env.content,
+        record_id: recordId,
+        record_type: recordKind || env.kind || "person",
+        schema_version: 1,
+      };
+      p.editDraft = next;
+      // loadEditTarget() seeds editDraft from cohort whenever its
+      // context key changes — i.e. whenever the user picks a different
+      // record OR the cohort refreshes with a new editTargetId. We
+      // already match the current context (same mode + kind + target),
+      // so setting the context key to the canonical value keeps the
+      // restored draft sticky until the user navigates away.
+      p._editContextKey = `${p.editMode}|${p.editKind}|${p.editTargetId || ""}`;
+      // editBaseline stays pinned to the LIVE cohort record so the
+      // submit-time diff shows the restore as a real change (otherwise
+      // an immediate submit would be a no-op).
+      saveProfile();
+      close();
+      toast({ kind: "info", title: "restored", message: "click save to land this version as a new envelope" });
+      renderProfile();
+      wireProfileForm();
+    });
+  }
+}
+
+// One-line diff summary for the history row. Lists keys that changed
+// between two `content` snapshots, e.g. "name, comm_style, links.github."
+// Returns "first version" when there's no prior to diff against.
+function summarizeContentDiff(prev, curr) {
+  if (!prev) return `<span class="hm-diff-root">first version of this record</span>`;
+  const keys = new Set([...Object.keys(prev || {}), ...Object.keys(curr || {})]);
+  const changed = [];
+  for (const k of keys) {
+    const a = prev?.[k];
+    const b = curr?.[k];
+    if (k === "links" && a && b && typeof a === "object" && typeof b === "object") {
+      const subKeys = new Set([...Object.keys(a), ...Object.keys(b)]);
+      for (const sk of subKeys) {
+        if (a[sk] !== b[sk]) changed.push(`links.${sk}`);
+      }
+      continue;
+    }
+    // Cheap structural compare — JSON.stringify is fine for our small
+    // content objects.
+    if (JSON.stringify(a) !== JSON.stringify(b)) changed.push(k);
+  }
+  if (changed.length === 0) return `<span class="hm-diff-none">no field-level changes detected</span>`;
+  return `<span class="hm-diff-keys">changed: ${changed.map(k => `<code>${escHtml(k)}</code>`).join(", ")}</span>`;
+}
+
+// ─── fork warning banner (spec §9.9) ───────────────────────────────
+//
+// Polls /health every 30s. If swf-node reports any record_id matching
+// the user's claimed identity in its `forked_records` list, surface a
+// banner in the profile editor. The spec §9.9 quarantines forked
+// records (no replication; "latest view" refuses to apply either side)
+// until the author writes a new envelope to resolve.
+let _forkPollTimer = null;
+let _forkPollSubscribers = new Set();
+let _forkedSelf = false;
+let _forkBannerSub = null;
+
+function startForkPolling() {
+  if (_forkPollTimer) return;
+  const tick = async () => {
+    try {
+      // Pull the current identity lazily (don't import it at module load
+      // to avoid a cycle with identity.js → cohort-source.js → here).
+      const ident = await import("./identity.js").then(m => m.getIdentity());
+      if (!ident || ident.kind !== "person") {
+        _forkedSelf = false;
+        notifyForkChange();
+        return;
+      }
+      const h = await getHealth();
+      if (!h.ok) return;            // network blip; don't toggle state
+      // Spec leaves the exact key flexible — both /health and
+      // /sync/manifest may expose `forked_records`. Try both shapes.
+      const forked = h.body?.forked_records
+        || h.body?.sync?.forked_records
+        || [];
+      const ids = forked.map(f => typeof f === "string" ? f : f?.record_id).filter(Boolean);
+      const next = ids.includes(ident.record_id);
+      if (next !== _forkedSelf) {
+        _forkedSelf = next;
+        notifyForkChange();
+      }
+    } catch { /* swallow */ }
+  };
+  // First poll runs ~5s after start so a freshly-mounted profile editor
+  // doesn't race the daemon's first health response.
+  setTimeout(tick, 5000);
+  _forkPollTimer = setInterval(tick, 30 * 1000);
+}
+function notifyForkChange() {
+  for (const cb of _forkPollSubscribers) {
+    try { cb(_forkedSelf); } catch {}
+  }
+}
+function subscribeToForkChange(cb) {
+  _forkPollSubscribers.add(cb);
+  return () => _forkPollSubscribers.delete(cb);
+}
+function isProfileForked() { return _forkedSelf; }
 
 // ─── shape card → drawer ─────────────────────────────────────────────
 function wireShapeCardClicks() {
@@ -1395,9 +1590,14 @@ function renderOnboarding() {
     {
       key: "set-up-profile",
       title: "fill in your profile with the agent skill",
+      // Phase 2: profile edits flow through the bundled swf-node first
+      // (gossiped to LAN peers within one ~30s sync tick). GitHub PR is
+      // the fallback when swf-node isn't running — Windows builds,
+      // first launches before the daemon boots, anyone who explicitly
+      // SWF_NODE_DISABLE=1's the supervisor.
       ask: me
-        ? `you're on the map as <strong>${escHtml(me.name || me.record_id)}</strong>. ask your local agent to update your profile — the <code>/shape-rotator-profile</code> skill in the field-kit walks through the schema and opens the PR. or use the in-app editor as a fallback.`
-        : `add a person record so you appear on the cohort map + calendar. ask your local agent — the <code>/shape-rotator-profile</code> skill in the field-kit walks through the schema and opens the PR. or use the in-app editor as a fallback.`,
+        ? `you're on the map as <strong>${escHtml(me.name || me.record_id)}</strong>. swf-node syncs your profile to other cohort members on your LAN. GitHub PR is the fallback when swf-node isn't running. ask your local agent (the <code>/shape-rotator-profile</code> skill walks through the schema) or use the in-app editor below.`
+        : `add a person record so you appear on the cohort map + calendar. swf-node syncs your profile to other cohort members on your LAN. GitHub PR is the fallback when swf-node isn't running. ask your local agent (the <code>/shape-rotator-profile</code> skill walks through the schema) or use the in-app editor below.`,
       autoComplete: !!me && (
         has(me, "comm_style") || has(me, "contribute_interests") ||
         has(me, "availability_pref") || has(me, "weekly_intention")
@@ -4134,20 +4334,43 @@ function loadEditTarget() {
 
 function renderProfile() {
   loadEditTarget();
+  // Start the fork-warning poll the first time the user lands on
+  // profile. Idempotent + bounded (one 30s timer for the app lifetime).
+  startForkPolling();
+  // Re-render the profile (banner included) when fork status flips.
+  // _forkBannerSub is a module-level guard so we only subscribe once.
+  if (!_forkBannerSub) {
+    _forkBannerSub = subscribeToForkChange(() => {
+      if (state.mode === "profile") {
+        renderProfile();
+        wireProfileForm();
+      }
+    });
+  }
   const p = state.profile;
   const teams = state.cohort?.teams || [];
   const people = state.cohort?.people || [];
 
   const editorBody = renderEditorBody(p, teams, people);
+  // Fork warning per spec §9.9 — surfaced as a banner above the editor
+  // when swf-node sees the user's record_id in /health.forked_records.
+  const forkBannerHtml = isProfileForked() ? `
+    <div class="alch-profile-fork-banner" role="alert">
+      <span class="alch-fork-tag">!</span>
+      <span class="alch-fork-msg">your profile has diverged across devices — write a new edit below to resolve.</span>
+      <a class="alch-fork-link" href="https://github.com/dmarzzz/shape-rotator-os/blob/main/docs/MATRIX.md" data-external>more</a>
+    </div>
+  ` : "";
 
   state.canvas.innerHTML = `
     <header class="alch-profile-head">
       <h2 class="alch-profile-title">profile</h2>
       <p class="alch-profile-sub">
-        add or edit a team / project / person record. submitting opens a PR on github
-        — for new files content is pre-filled, for existing files we hand you a diff to apply in the editor.
+        add or edit a team / project / person record. when swf-node is running, edits land locally and gossip to LAN peers; github PR is the fallback.
       </p>
     </header>
+
+    ${forkBannerHtml}
 
     <section class="alch-profile-section">
       <h3 class="alch-profile-h">${p.editMode === "add" ? "add a record" : "edit a record"}</h3>
@@ -4255,16 +4478,37 @@ function renderSubmitBlock(p) {
   // team and project both live under cohort-data/teams/.
   const folder = (p.editKind === "person") ? "people" : "teams";
   const targetPath = `cohort-data/${folder}/${slug}.md`;
-  const action = isAdd ? "create new file (PR)" : "open github editor (PR)";
+  // Phase 2 sync: when swf-node is reachable, prefer the local-write
+  // path. The button label shifts to match. We don't await
+  // isSyncAvailable() here — cohort-source flips the flag synchronously
+  // after the first load — and submitEditAsPR re-probes on click so the
+  // routing is correct even if the daemon went down between render
+  // and click.
+  const syncOn = isSyncAvailable();
+  const action = isAdd
+    ? (syncOn ? "save profile (local · syncing)" : "create new file (PR)")
+    : (syncOn ? "save profile (local · syncing)" : "open github editor (PR)");
   const hint = isAdd
-    ? `opens github's web editor pre-filled with the new record. click <strong>commit new file</strong> → github walks you into PR creation.`
-    : `opens github's web editor on the existing file plus a <strong>changes</strong> panel showing exactly which lines to edit. github web editor doesn't accept pre-filled content for existing files.`;
+    ? (syncOn
+        ? `posts to your local swf-node — your record gossips to LAN peers on the next sync tick (~30s). github PR is the fallback when swf-node is down.`
+        : `opens github's web editor pre-filled with the new record. click <strong>commit new file</strong> → github walks you into PR creation.`)
+    : (syncOn
+        ? `posts the edit to your local swf-node as a freshly-signed envelope. LAN peers pick it up on the next sync tick. github PR is the fallback when swf-node is down.`
+        : `opens github's web editor on the existing file plus a <strong>changes</strong> panel showing exactly which lines to edit. github web editor doesn't accept pre-filled content for existing files.`);
+  // History link — only in EDIT mode (ADD has no chain to inspect yet).
+  // Reads /sync/record/<id>?full=true via sync-client. When swf-node is
+  // unreachable the modal renders "history unavailable" and links to
+  // the github file history.
+  const historyHtml = (!isAdd && slug)
+    ? `<button id="alch-history-link" class="alch-history-link" type="button" data-record-id="${escAttr(slug)}" data-record-kind="${escAttr(p.editKind)}">history</button>`
+    : "";
   return `
     <div class="alch-profile-submit">
       <button id="alch-submit-pr" class="alch-feed-btn alch-submit-pr-btn" type="button">
         <span aria-hidden="true">↑</span>
         <span class="alch-submit-pr-label">${escHtml(action)}</span>
       </button>
+      ${historyHtml}
       <p class="alch-submit-pr-hint">
         will publish to <code id="alch-submit-pr-target">${escHtml(targetPath)}</code>.
         ${hint}
@@ -4379,6 +4623,18 @@ function wireProfileForm() {
   // Submit
   const prBtn = document.getElementById("alch-submit-pr");
   if (prBtn) prBtn.addEventListener("click", submitEditAsPR);
+
+  // History — Phase 2 modal listing prior versions of the record. Pulls
+  // the full chain via /sync/record/<id>?full=true. Each row exposes a
+  // "restore" button that pre-fills the editor with that version's
+  // content (the user then clicks submit normally → fresh envelope with
+  // restored content).
+  const histBtn = document.getElementById("alch-history-link");
+  if (histBtn) histBtn.addEventListener("click", () => {
+    const recordId = histBtn.dataset.recordId;
+    const recordKind = histBtn.dataset.recordKind;
+    if (recordId) openHistoryModal({ recordId, recordKind });
+  });
 
   wireExternalLinks(state.canvas);
 }
@@ -4624,11 +4880,126 @@ function formatYamlValue(v, indent = 2) {
   return yamlScalar(v, indent);
 }
 
+// Try the swf-node /sync/local_record path first. Returns:
+//   { routed: "sync", envelope }  — local-write succeeded, peers will pick it up
+//   { routed: "fallback", reason } — swf-node unreachable / no token / explicit
+//                                    fallback signal; caller continues to gh PR
+// On a hard sync error (e.g. 409 author conflict, 413 too large) we still
+// route to fallback rather than blocking the user — the github PR path
+// is always a viable escape hatch in the cohort program's trust model.
+async function trySyncWriteForCurrentEdit() {
+  const p = state.profile;
+  const isAdd = p.editMode === "add";
+  const slug = isAdd ? draftSlug(p) : p.editTargetId;
+  if (!slug) return { routed: "fallback", reason: "no_slug" };
+
+  // Phase 2 ships envelope kind=person. Team / project edits keep using
+  // the github PR path until Phase 3 adds those kinds.
+  if (p.editKind !== "person") return { routed: "fallback", reason: "kind_unsupported" };
+
+  // Skip the network probe entirely if cohort-source already knows sync
+  // is unreachable — saves a 5s timeout on every submit when swf-node is
+  // down.
+  if (!isSyncAvailable()) return { routed: "fallback", reason: "sync_unavailable" };
+
+  // Determine prev_hash from the manifest if we can — defensive against
+  // a concurrent edit from another device. Optional per sync-client.js;
+  // the daemon will compute it from its chain when omitted.
+  let prevHash = null;
+  try {
+    const m = await getManifest();
+    if (m.ok) {
+      const meta = m.manifest?.records?.[slug];
+      if (meta?.latest_content_hash) prevHash = meta.latest_content_hash;
+    }
+  } catch { /* not fatal — fall through with prev_hash null */ }
+
+  // Strip the meta fields that envelopes don't carry — record_id is
+  // pinned by the envelope itself, schema_version is a cohort-data
+  // markdown concern, record_type is the envelope's `kind`.
+  const draft = p.editDraft || {};
+  const content = { ...draft };
+  delete content.record_id;
+  delete content.record_type;
+  delete content.schema_version;
+
+  const res = await putLocalRecord({
+    record_id: slug,
+    record_type: "person",
+    content,
+    prev_hash: prevHash,
+  });
+  if (!res.ok) return { routed: "fallback", reason: res.reason || "post_failed", body: res.body };
+  return { routed: "sync", envelope: res.envelope, recordId: slug };
+}
+
+// Stamp the freshly-signed envelope into the in-memory cohort surface
+// so the canvas re-renders immediately (no waiting on the 30s tick).
+function applyEnvelopeToCohort(envelope, recordId, kind) {
+  if (!envelope || !envelope.content) return;
+  const cohort = state.cohort;
+  if (!cohort) return;
+  const listKey = kind === "person" ? "people" : null;
+  if (!listKey) return;
+  const arr = Array.isArray(cohort[listKey]) ? cohort[listKey] : [];
+  const idx = arr.findIndex(r => r.record_id === recordId);
+  const merged = { ...envelope.content, record_id: recordId, record_type: kind };
+  if (idx >= 0) arr[idx] = merged;
+  else arr.push(merged);
+  cohort[listKey] = arr;
+}
+
 async function submitEditAsPR() {
   const result = document.getElementById("alch-submit-pr-result");
   if (!result) return;
   const p = state.profile;
 
+  // ─── Phase 2 sync write — try first, fall back to github PR. ─────
+  // We attempt this for both ADD and EDIT, person-only. Team/project
+  // edits and unsupported kinds skip straight to the github PR path
+  // below (trySyncWriteForCurrentEdit reports `kind_unsupported`).
+  if (p.editKind === "person") {
+    result.hidden = false;
+    result.dataset.kind = "loading";
+    result.innerHTML = `<div class="aspr-line"><span class="aspr-tag">saving</span> <span>posting to local swf-node…</span></div>`;
+    const synced = await trySyncWriteForCurrentEdit();
+    if (synced.routed === "sync") {
+      const recordId = synced.recordId;
+      applyEnvelopeToCohort(synced.envelope, recordId, "person");
+      // Snap the editor's baseline to the new content so a follow-up
+      // EDIT diffs from the just-saved state.
+      if (p.editMode === "edit") {
+        p.editBaseline = JSON.parse(JSON.stringify(p.editDraft));
+      }
+      toast({
+        kind: "success",
+        title: "profile saved locally",
+        message: "syncing to peers on the next tick (~30s)",
+      });
+      result.hidden = false;
+      result.dataset.kind = "success";
+      result.innerHTML = `
+        <div class="aspr-line"><span class="aspr-tag">saved · local</span> <span>your edit is on this swf-node. LAN peers will pull it on the next ~30s tick.</span></div>
+        <div class="aspr-line aspr-aux">record: <code>${escHtml(recordId)}</code></div>
+      `;
+      // Re-render so the canvas + form pick up the new latest state.
+      renderProfile();
+      wireProfileForm();
+      return;
+    }
+    // Fall through to the github PR path. Surface a one-line banner so
+    // the user knows we tried sync and bailed.
+    if (synced.reason !== "kind_unsupported" && synced.reason !== "sync_unavailable") {
+      console.warn("[sync] local_record failed, falling back to github PR:", synced.reason, synced.body);
+    }
+    if (synced.reason !== "kind_unsupported") {
+      result.hidden = false;
+      result.dataset.kind = "fallback";
+      result.innerHTML = `<div class="aspr-line"><span class="aspr-tag aspr-tag-warn">swf-node unavailable</span> <span>using github PR instead — your edits are preserved.</span></div>`;
+    }
+  }
+
+  // ─── github PR fallback (pre-sync behavior, unchanged below) ─────
   // ADD mode → github /new/ URL with prefilled content.
   if (p.editMode === "add") {
     const slug = draftSlug(p);
