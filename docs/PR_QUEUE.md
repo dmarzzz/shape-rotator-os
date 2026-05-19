@@ -90,3 +90,18 @@ Hourly autonomous PR triage. Merges small safe diffs, holds large/protocol/secur
 **Releases cut**: none in this tick. Two big releases shipped earlier this hour outside the loop: swf-node v0.12.0 (/node/log endpoint + node-wide event ring) and SROS v0.1.32 (Network tab subscribed to /node/log).
 
 **Next tick should**: if user closes/merges #93 + #94, queue is empty and the loop can resume normal cadence. Otherwise hold continues.
+
+## 2026-05-19 16:49 EDT
+
+**Open PRs**: 3 across both repos (sros: 3, swf-node: 0)
+
+**Queue (oldest first)**:
+- sros #93 (dmarzzz, +480 LOC, Hermes PoC) — still HELD per user "broken, don't merge"
+- sros #94 (dmarzzz, +3981/-400, cohort membership taxonomy) — still HELD, 13× size guardrail
+- sros #98 (dmarzzz, NEW) — "fix(boot): skip splash on warm boot; show small 'syncing cohort' chip instead". Looks like exactly the UX fix the optimization target asks for. Not triaged this tick because rules say oldest-first and the slot is consumed by #93 + #94.
+
+**This tick**: no merges. Per max-2-oldest-first rule, both slots went to held PRs that haven't changed since prior ticks. #98 deferred to next tick (or to user fast-merge).
+
+**Releases cut**: none this tick. Earlier in the hour: swf-node v0.12.1, SROS v0.1.33 — both visual/health-event fixes.
+
+**Next tick should**: if user merges #98 themselves or closes #93/#94 to free a slot, the loop can pick up #98. The change is small, isolated to boot path, and serves a confirmed user pain point (the splash blocking).
