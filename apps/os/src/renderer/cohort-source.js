@@ -30,6 +30,7 @@ const GH_REPO     = "dmarzzz/shape-rotator-os";
 const GH_BRANCH   = "main";
 const GH_RAW_BASE = `https://raw.githubusercontent.com/${GH_REPO}/${GH_BRANCH}`;
 const GH_TREE_API = `https://api.github.com/repos/${GH_REPO}/git/trees/${GH_BRANCH}?recursive=1`;
+const GH_COMMITS_API = `https://api.github.com/repos/${GH_REPO}/commits`;
 const REFRESH_MS  = 5 * 60 * 1000;
 // When swf-node is reachable, refresh faster — the spec §4.6 default
 // sync poll interval is 30s, so matching it keeps the renderer's view
@@ -71,6 +72,10 @@ function normalize(data) {
 // In-browser equivalent of scripts/build-bundles.js: enumerate the
 // cohort-data/ tree, fetch each markdown record, parse its frontmatter,
 // apply the schema whitelist, return the surface object.
+//
+// Also stamps a non-enumerable-but-exported `_baselineShas` map onto the
+// returned shape: { listKey: { record_id: { path, sha } } }. This is the
+// raw input to the GitHub-commit-ts tiebreaker in mergeSyncOverBaseline.
 async function loadFromGithub() {
   const treeRes = await fetch(`${GH_TREE_API}&ts=${Date.now()}`, { cache: "no-store" });
   if (!treeRes.ok) throw new Error(`github tree fetch failed: HTTP ${treeRes.status}`);
@@ -78,7 +83,16 @@ async function loadFromGithub() {
   if (tree.truncated) {
     console.warn("[cohort-source] tree response truncated — cohort-data may have grown past the API page size");
   }
-  const paths = (tree.tree || []).map(e => e.path);
+  // path → blob sha (per file in the tree). We carry this through merge
+  // so the GH-commit-ts cache can key on (path, blob_sha) and skip the
+  // commits-API fetch whenever a file's blob hasn't changed.
+  const shaByPath = new Map();
+  for (const e of (tree.tree || [])) {
+    if (e && e.type === "blob" && typeof e.path === "string" && typeof e.sha === "string") {
+      shaByPath.set(e.path, e.sha);
+    }
+  }
+  const paths = Array.from(shaByPath.keys());
 
   const schemaText = await fetchRaw("cohort-data/schema.yml");
   const schema = yaml.load(schemaText);
@@ -87,12 +101,29 @@ async function loadFromGithub() {
   }
 
   const out = { schema_version: 1 };
+  // listKey → record_id → { path, sha } for downstream GH-commit-ts merge.
+  const baselineShas = {};
 
   await Promise.all(RECORD_DIRS.map(async (spec) => {
     const files = paths.filter(p => p.startsWith(spec.prefix) && p.endsWith(".md"));
     const whitelist = schema[spec.list_key]?.surface_fields || [];
     const records = await Promise.all(files.map(p => loadRecord(p, spec.record_type, whitelist)));
-    out[spec.list_key] = records.filter(Boolean);
+    const filtered = records.filter(Boolean);
+    out[spec.list_key] = filtered;
+    // Build the record_id → { path, sha } map. Keyed off filtered records
+    // so we only carry shas for entries that actually made it through the
+    // schema-whitelist step (i.e. the same records the merge step sees).
+    const idMap = {};
+    for (let i = 0; i < records.length; i++) {
+      const rec = records[i];
+      if (!rec) continue;
+      const path = files[i];
+      const sha = shaByPath.get(path);
+      if (path && sha && rec.record_id) {
+        idMap[rec.record_id] = { path, sha };
+      }
+    }
+    baselineShas[spec.list_key] = idMap;
   }));
 
   // Program pages get the markdown body included alongside frontmatter
@@ -108,7 +139,11 @@ async function loadFromGithub() {
   });
 
   out.cohort_vocab = schema.cohort_vocab || {};
-  return normalize(out);
+  const normalized = normalize(out);
+  // Attach the sha map. Not part of the schema-shaped surface so callers
+  // that iterate `normalized` lists stay unaffected.
+  normalized._baselineShas = baselineShas;
+  return normalized;
 }
 
 // `?ts=` busts both the HTTP cache and any CDN/Electron caching so we
@@ -171,6 +206,101 @@ async function loadFromFixture() {
   return normalize(await r.json());
 }
 
+// ─── GitHub commit-ts cache (tiebreaker support) ─────────────────────
+//
+// Mirrors gh-user.js: aggressive localStorage cache keyed by
+// (path, blob_sha) → { ok, ts_ms, fetched_at }. The blob SHA comes from
+// the tree fetch in loadFromGithub() — when it changes, someone
+// committed and we re-fetch the commit timestamp. When it doesn't
+// change, we re-use the cached value indefinitely (subject to a 24h
+// positive TTL backstop in case cache state drifts).
+//
+// Negative cache (404 / rate-limited): 1h. Long enough to not hammer
+// the API for a missing path; short enough that the next refresh tick
+// after a rate-limit window re-attempts.
+//
+// FAIL OPEN: on any error or cache miss without a network resolution,
+// callers treat the absence of a ts as "no comparison possible" → sync
+// wins. This preserves current behavior when GH API is unreachable.
+const GH_COMMIT_TS_CACHE_KEY = "srfg:gh_commit_ts_cache_v1";
+const GH_COMMIT_TS_TTL_MS     = 24 * 60 * 60 * 1000;  // 24h positive
+const GH_COMMIT_TS_NEG_TTL_MS = 60 * 60 * 1000;       // 1h negative
+const GH_COMMIT_TS_FETCH_JITTER_MS = 250;             // mirror gh-user.js politeness budget
+
+function _loadCommitTsCache() {
+  try {
+    const raw = localStorage.getItem(GH_COMMIT_TS_CACHE_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === "object") ? obj : {};
+  } catch { return {}; }
+}
+function _saveCommitTsCache(map) {
+  try { localStorage.setItem(GH_COMMIT_TS_CACHE_KEY, JSON.stringify(map || {})); } catch {}
+}
+function _commitTsCacheKey(path, sha) { return `${path}|${sha}`; }
+
+function _readCommitTsCached(path, sha) {
+  if (!path || !sha) return undefined;
+  const cache = _loadCommitTsCache();
+  const entry = cache[_commitTsCacheKey(path, sha)];
+  if (!entry) return undefined;
+  const ttl = entry.ok ? GH_COMMIT_TS_TTL_MS : GH_COMMIT_TS_NEG_TTL_MS;
+  if (Date.now() - (entry.fetched_at || 0) > ttl) return undefined;
+  return entry;
+}
+function _writeCommitTsCached(path, sha, entry) {
+  if (!path || !sha) return;
+  const cache = _loadCommitTsCache();
+  cache[_commitTsCacheKey(path, sha)] = { ...entry, fetched_at: Date.now() };
+  _saveCommitTsCache(cache);
+}
+
+// One-shot warn-on-404 latch so we don't spam the console if a record
+// somehow lives in the tree but the commits API returns nothing.
+const _warnedMissingCommit = new Set();
+
+/**
+ * Returns the GitHub commit timestamp (ms-epoch) for the most-recent
+ * commit that touched `path` on main. Cached aggressively by
+ * (path, blob_sha) — when the blob's SHA hasn't changed there's been
+ * no commit that touched it, so the cached ts is still valid.
+ *
+ * Returns null on any failure (404, rate-limit, network, malformed
+ * response). Callers MUST fail open: a null result means "no comparison
+ * possible" → keep the existing sync-wins behavior.
+ */
+async function fetchGhCommitTsMs(path, blobSha) {
+  if (!path || !blobSha) return null;
+  const cached = _readCommitTsCached(path, blobSha);
+  if (cached !== undefined) return cached.ok ? (cached.ts_ms || null) : null;
+  try {
+    const url = `${GH_COMMITS_API}?path=${encodeURIComponent(path)}&per_page=1&sha=${GH_BRANCH}`;
+    const r = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+    if (r.status === 200) {
+      const arr = await r.json();
+      const iso = Array.isArray(arr) && arr[0]?.commit?.committer?.date;
+      const ts = iso ? Date.parse(iso) : NaN;
+      if (Number.isFinite(ts)) {
+        _writeCommitTsCached(path, blobSha, { ok: true, ts_ms: ts });
+        return ts;
+      }
+      // Empty list / malformed → negative-cache so we don't retry hard.
+      if (!_warnedMissingCommit.has(path)) {
+        _warnedMissingCommit.add(path);
+        console.warn(`[cohort-source] no commit info for ${path} (empty/malformed response) — sync wins by default`);
+      }
+      _writeCommitTsCached(path, blobSha, { ok: false, status: r.status });
+      return null;
+    }
+    _writeCommitTsCached(path, blobSha, { ok: false, status: r.status });
+    return null;
+  } catch (e) {
+    _writeCommitTsCached(path, blobSha, { ok: false, status: 0, error: e?.message || String(e) });
+    return null;
+  }
+}
+
 // ─── swf-node overlay ────────────────────────────────────────────────
 //
 // When the local swf-node is reachable, fetch its /sync/manifest and
@@ -192,11 +322,15 @@ async function loadSyncOverlay() {
   if (!m.ok) return null;
   const records = m.manifest?.records || {};
   const ids = Object.keys(records);
-  if (ids.length === 0) return { kind: "empty", byList: {} };
+  if (ids.length === 0) return { kind: "empty", byList: {}, tsByList: {} };
   // Pull the newest envelope for each record. Sequential rather than
   // Promise.all so we don't slam a freshly-booted swf-node with 50
   // simultaneous requests — the daemon is single-threaded SQLite.
   const byList = {};
+  // listKey → record_id → wall_ts_ms (the envelope's LWW timestamp; we
+  // fall back to the manifest's latest_wall_ts_ms if the envelope
+  // doesn't echo it). Used by the GitHub-commit-ts tiebreaker.
+  const tsByList = {};
   for (const recordId of ids) {
     const meta = records[recordId];
     const listKey = SYNC_KIND_TO_LIST_KEY[meta?.kind];
@@ -215,8 +349,14 @@ async function loadSyncOverlay() {
       record_type: content.record_type || meta.kind,
     };
     (byList[listKey] = byList[listKey] || []).push(merged);
+    const envTs = Number.isFinite(env?.wall_ts_ms) ? env.wall_ts_ms
+                : Number.isFinite(meta?.latest_wall_ts_ms) ? meta.latest_wall_ts_ms
+                : null;
+    if (envTs !== null) {
+      (tsByList[listKey] = tsByList[listKey] || {})[recordId] = envTs;
+    }
   }
-  return { kind: "ok", byList };
+  return { kind: "ok", byList, tsByList };
 }
 
 // Merge sync records onto a baseline-grouped surface object. Records
@@ -224,18 +364,70 @@ async function loadSyncOverlay() {
 // records are appended (so a cohort member who joined post-cohort-data
 // shows up immediately). Records present in baseline but not in sync
 // are left untouched — sync is additive over the cohort-data/*.md seed.
-function mergeSyncOverBaseline(baseline, overlay) {
+//
+// Tiebreaker (Phase 5+): for each record where BOTH baseline (GitHub)
+// and sync (swf-node) have a copy, compare timestamps:
+//
+//   - GH commit ts (when the cohort-data/*.md file was last committed
+//     on main) > sync envelope wall_ts_ms → baseline wins (GH edit was
+//     newer than whatever the sync overlay knows about).
+//   - Otherwise → sync wins (preserves the original Phase 2 behavior).
+//
+// Failure modes (fetchGhCommitTsMs returns null) FAIL OPEN: sync wins.
+// We never let a flaky GH-API call swallow a sync-authored edit; the
+// worst that happens is the rare "GH edit beats older sync overlay"
+// case stays unresolved until the next refresh tick.
+async function mergeSyncOverBaseline(baseline, overlay) {
   if (!overlay || !overlay.byList) return baseline;
   const out = { ...baseline };
+  const baselineShas = baseline?._baselineShas || {};
+  const tsByList = overlay.tsByList || {};
   for (const [listKey, syncRecs] of Object.entries(overlay.byList)) {
     const base = Array.isArray(out[listKey]) ? out[listKey] : [];
     const byId = new Map();
     for (const r of base) {
       if (r && r.record_id) byId.set(r.record_id, r);
     }
+    const idShas = baselineShas[listKey] || {};
+    const idTs   = tsByList[listKey] || {};
+    // Sequential with 250ms jitter between actual network calls so a
+    // cold cache + 50 cohort members doesn't burst the GH commits API
+    // (mirrors gh-user.js's pacing). Cache hits short-circuit the wait.
+    let firstNetCall = true;
     for (const r of syncRecs) {
       if (!r.record_id) continue;
-      byId.set(r.record_id, r);   // sync wins
+      const baseRec = byId.get(r.record_id);
+      if (!baseRec) {
+        // No baseline record — record was created via sync (new cohort
+        // member who joined via the app). Sync wins, no comparison.
+        byId.set(r.record_id, r);
+        continue;
+      }
+      const shaInfo = idShas[r.record_id];
+      const syncTs  = idTs[r.record_id];
+      // No GH path/sha or no sync ts → fall back to current behavior
+      // (sync wins). This keeps GH-API flakes from breaking the merge.
+      if (!shaInfo || !Number.isFinite(syncTs)) {
+        byId.set(r.record_id, r);
+        continue;
+      }
+      // Only pay the 250ms tax when we'd actually hit the network — a
+      // cached result is effectively synchronous.
+      const cachedHit = _readCommitTsCached(shaInfo.path, shaInfo.sha);
+      if (cachedHit === undefined) {
+        if (!firstNetCall) {
+          await new Promise(res => setTimeout(res, GH_COMMIT_TS_FETCH_JITTER_MS));
+        }
+        firstNetCall = false;
+      }
+      const ghTs = await fetchGhCommitTsMs(shaInfo.path, shaInfo.sha);
+      if (Number.isFinite(ghTs) && ghTs > syncTs) {
+        // GH commit is newer than the sync envelope — baseline wins.
+        // Leave byId as-is (baseRec already there).
+        continue;
+      }
+      // GH ts older or missing → sync wins (default).
+      byId.set(r.record_id, r);
     }
     out[listKey] = Array.from(byId.values());
   }
@@ -257,7 +449,18 @@ function signatureOf(grouped) {
   // Events are updated by date/title edits — include both in the signature
   // so a date-shift on an existing record_id trips the refresh.
   const eventSig = (arr) => arr.map(r => `${r.record_id}:${r.date || ""}:${r.range_start || ""}:${r.range_end || ""}:${r.title || ""}`).sort().join("|");
-  return `${grouped.teams.length}:${sig(grouped.teams)}#${grouped.people.length}:${sig(grouped.people)}#${grouped.clusters.length}:${sig(grouped.clusters)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}`;
+  // People + teams can flip between sync and GH baseline content via the
+  // GitHub-commit-ts tiebreaker (Phase 5+) without the record_id set
+  // changing. Mix a coarse content fingerprint (name + a couple of
+  // free-text fields + length-ish proxies) into the signature so a
+  // tiebreaker-driven content swap correctly fires the refresh notifier.
+  const personSig = (arr) => arr.map(r =>
+    `${r.record_id}:${r.name || ""}:${(r.now || "").length}:${r.role || ""}:${r.team || ""}`
+  ).sort().join("|");
+  const teamSig = (arr) => arr.map(r =>
+    `${r.record_id}:${r.name || ""}:${(r.now || "").length}:${(r.weekly_goals || "").length}`
+  ).sort().join("|");
+  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${sig(grouped.clusters)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}`;
 }
 
 // Dev preview override. Setting `localStorage.setItem("srfg:cohort_source", "local")`
@@ -326,8 +529,11 @@ async function applySyncOverlayCached(baseline) {
     baseline._syncAvailable = false;
     return baseline;
   }
-  const merged = mergeSyncOverBaseline(baseline, overlay);
+  const merged = await mergeSyncOverBaseline(baseline, overlay);
   merged._source = `${baseline._source || "baseline"}+sync`;
+  // Carry the baseline sha map forward so refresh ticks can re-merge
+  // without losing the GH-commit-ts tiebreaker inputs.
+  if (baseline._baselineShas) merged._baselineShas = baseline._baselineShas;
   merged._sig = signatureOf(merged);
   merged._syncAvailable = true;
   return merged;
