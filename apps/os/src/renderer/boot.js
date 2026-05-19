@@ -52,7 +52,7 @@ const Graph2 = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode()
 const Cosmos = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode() {} };
 import * as Atlas from "./atlas.js";
 import * as Alchemy from "./alchemy.js";
-import { getManifest } from "./sync-client.js";
+import { getManifest, getSyncLog } from "./sync-client.js";
 import { subscribeToCohortChanges } from "./cohort-source.js";
 
 // Shorthand: animate a numeric DOM cell to `n`. We wrap tickNumber so the
@@ -1987,6 +1987,128 @@ function wirePeersPanel() {
   try {
     subscribeToCohortChanges(() => { if (!panel.hidden) renderPeersPanel(); });
   } catch {}
+  // Kick off the /sync/log poll. Cheap (a single GET against loopback,
+  // 100-event cap), runs every 3s for the lifetime of the renderer so
+  // the sync-confidence indicator stays current even when the panel
+  // is closed. Stops automatically if the endpoint 404s (older
+  // swf-node bundles ship without it).
+  startSyncLogPoll();
+}
+
+// ─── sync-log poll ───────────────────────────────────────────────────────
+// Live event feed from the local swf-node's /sync/log endpoint. Drives:
+//   • the sync-confidence header (green/amber/red dot + "Xs ago")
+//   • per-peer heartbeat pulses (manifest_fetched → ring around swatch)
+//   • per-peer staleness fade (no manifest_fetched in 90s → 50% opacity)
+//   • the activity-log section at the bottom of the panel
+// All state lives at module scope so renderPeersPanel can read it without
+// threading a state object through every helper. The poll is a 3s
+// setInterval — cheap, single GET against loopback, capped to 100 events
+// per response.
+
+let _lastSyncLogSeq = 0;
+let _activityLog = [];                          // newest-first, capped at 50
+const ACTIVITY_LOG_MAX = 50;
+const _peerLastSeenByPubkey = new Map();        // pubkey → ts_ms of last manifest_fetched
+let _lastTickTsMs = 0;
+let _syncLogUnavailable = false;
+let _syncLogTimer = null;
+
+function startSyncLogPoll() {
+  if (_syncLogTimer) return;
+  // Fire one immediate poll so the panel has data on first open without
+  // a 3s gap; then keep the interval going.
+  pollSyncLog();
+  _syncLogTimer = setInterval(pollSyncLog, 3000);
+}
+
+async function pollSyncLog() {
+  if (_syncLogUnavailable) return;
+  try {
+    const res = await getSyncLog({ sinceSeq: _lastSyncLogSeq, limit: 100 });
+    if (!res.ok) {
+      // 404 = older swf-node without /sync/log. Mark feature unavailable
+      // and stop polling — the sync-confidence header will fall back to
+      // inferring activity from /sync/manifest's fetch timestamp.
+      if (res.status === 404 || res.reason === "not_found") {
+        _syncLogUnavailable = true;
+        if (_syncLogTimer) { clearInterval(_syncLogTimer); _syncLogTimer = null; }
+        const panel = document.getElementById("peers-panel");
+        if (panel && !panel.hidden) renderPeersPanel();
+      }
+      // Other failure modes (timeout, network, server_error): just skip
+      // this tick. The next interval retries; the sync-confidence dot
+      // will drift from green → amber → red as ticks go stale, which
+      // is exactly the signal we want.
+      return;
+    }
+    const log = res.log || {};
+    if (typeof log.tail_seq === "number") _lastSyncLogSeq = log.tail_seq;
+    const events = Array.isArray(log.events) ? log.events : [];
+    for (const evt of events) {
+      _activityLog.unshift(evt);
+      if (evt.kind === "manifest_fetched" && evt.peer_pubkey) {
+        _peerLastSeenByPubkey.set(evt.peer_pubkey, evt.ts_ms);
+        firePulse(evt.peer_pubkey);
+      }
+      if (evt.kind === "peer_reachable" && evt.peer_pubkey) {
+        // Treat reachable as a heartbeat too — clears the stale fade
+        // next render even without a manifest_fetched event yet.
+        _peerLastSeenByPubkey.set(evt.peer_pubkey, evt.ts_ms);
+      }
+      if (evt.kind === "tick") {
+        _lastTickTsMs = evt.ts_ms;
+        if ((evt.pulled || 0) + (evt.applied || 0) > 0) {
+          firePulse("self");
+        }
+      }
+    }
+    if (_activityLog.length > ACTIVITY_LOG_MAX) {
+      _activityLog.length = ACTIVITY_LOG_MAX;
+    }
+    // Only repaint when something changed or when the panel is open
+    // (the sync-confidence dot's "Xs ago" should re-tick every 3s for
+    // user-perceived liveness).
+    const panel = document.getElementById("peers-panel");
+    if (panel && !panel.hidden) renderPeersPanel();
+  } catch {
+    // Network blip — the next tick will retry. We don't escalate
+    // because the UI degrades gracefully (dot drifts amber → red).
+  }
+}
+
+// Add the .pulsing class to the matching peer row (or the local-node
+// row when target === "self") for 1.5s. The CSS keyframe drives a
+// subtle ring scale 1.0→2.0, opacity 0.6→0 on a pseudo-element around
+// the .p-dot swatch. Multiple rapid events for the same target just
+// reset the timer so the pulse stays visible.
+const _pulseTimers = new Map();   // pubkey | "self" → timeout id
+function firePulse(target) {
+  const panel = document.getElementById("peers-panel");
+  if (!panel) return;
+  let row = null;
+  if (target === "self") {
+    row = panel.querySelector(".peers-self-row");
+  } else {
+    row = panel.querySelector(`.peer-row[data-pubkey="${cssEscape(target)}"]`);
+  }
+  if (!row) return;
+  row.classList.add("pulsing");
+  const prev = _pulseTimers.get(target);
+  if (prev) clearTimeout(prev);
+  const t = setTimeout(() => {
+    row.classList.remove("pulsing");
+    _pulseTimers.delete(target);
+  }, 1500);
+  _pulseTimers.set(target, t);
+}
+
+// Lightweight CSS.escape shim. Pubkeys are hex (already safe), but
+// belt-and-braces this in case a future kind emits a key with a colon
+// or hyphen the selector parser dislikes.
+function cssEscape(s) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(s);
+  return String(s).replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
 }
 
 // Cache the /.well-known/indrex response for the session. Cheap to
@@ -2056,7 +2178,14 @@ function renderPeersPanel() {
   if (!list) return;
   list.innerHTML = "";
 
-  // ─── local-node section (top) ────────────────────────────────────────
+  // ─── sync confidence header (very top) ───────────────────────────────
+  // A single quiet line above local-node: green/amber/red dot + age of
+  // the most recent sync activity. Driven by the /sync/log poll when
+  // the endpoint exists; falls back to /sync/manifest's fetchedAt
+  // timestamp on older swf-node bundles.
+  list.appendChild(buildSyncConfidenceHeader());
+
+  // ─── local-node section ──────────────────────────────────────────────
   // Sits above the peer list as a distinct row that shows the operator
   // their own identity: short fingerprint, mDNS instance name, the LAN
   // bind the renderer reaches the daemon at, and trust_level. This is
@@ -2098,8 +2227,16 @@ function renderPeersPanel() {
     }
   }
 
-  // ─── sync activity section (bottom) ──────────────────────────────────
+  // ─── sync activity section ───────────────────────────────────────────
   list.appendChild(buildSyncActivitySection());
+
+  // ─── activity log (bottom) ───────────────────────────────────────────
+  // Scrollable feed of individual sync events from /sync/log. Hidden
+  // entirely if the endpoint is unavailable on the bundled swf-node
+  // (older bundles); the sync-confidence header above still renders.
+  if (!_syncLogUnavailable) {
+    list.appendChild(buildActivityLogSection());
+  }
 }
 
 // Render the operator's own node as a distinct row at the top of the
@@ -2234,6 +2371,195 @@ function buildSyncCell(label, value) {
   return cell;
 }
 
+// ─── sync confidence header ────────────────────────────────────────────
+// A single quiet line above the local-node section. Three states:
+//
+//   • green  · "in sync · 12s ago"        — last tick < 60s
+//   • amber  · "drifting · 1m 30s ago"    — last tick 60s–180s
+//   • red    · "no peers reached"         — no tick or > 180s
+//
+// When /sync/log is unavailable (older swf-node), we fall back to the
+// /sync/manifest fetchedAt timestamp — manifest cache age is a faithful
+// proxy for "the daemon was alive that recently".
+function buildSyncConfidenceHeader() {
+  const wrap = document.createElement("div");
+  wrap.className = "peers-sync-confidence";
+
+  const dot = document.createElement("span");
+  dot.className = "psc-dot";
+  const label = document.createElement("span");
+  label.className = "psc-label";
+  const age = document.createElement("span");
+  age.className = "psc-age";
+
+  let lastActivityMs = 0;
+  if (!_syncLogUnavailable) {
+    lastActivityMs = _lastTickTsMs;
+    // Latest manifest_fetched or peer_reachable in the rolling window
+    // also counts as activity (a tick fires every 30s but the daemon
+    // can be quiet between ticks if nothing changed).
+    for (const ts of _peerLastSeenByPubkey.values()) {
+      if (ts > lastActivityMs) lastActivityMs = ts;
+    }
+  } else {
+    // Fallback path — manifest cache age.
+    const m = srwk._manifest;
+    if (m && m.reachable !== false && m.fetchedAt) {
+      lastActivityMs = m.fetchedAt;
+    }
+  }
+
+  const now = Date.now();
+  const ageSec = lastActivityMs > 0 ? (now - lastActivityMs) / 1000 : Infinity;
+
+  let state, text;
+  if (!isFinite(ageSec)) {
+    state = "down";
+    text = "no peers reached";
+  } else if (ageSec < 60) {
+    state = "live";
+    text = "in sync";
+  } else if (ageSec < 180) {
+    state = "drift";
+    text = "drifting";
+  } else {
+    state = "down";
+    text = "no peers reached";
+  }
+
+  wrap.dataset.state = state;
+  label.textContent = text;
+  age.textContent = isFinite(ageSec) ? `· ${formatPeerLastSeen(ageSec)}` : "";
+
+  wrap.append(dot, label, age);
+  return wrap;
+}
+
+// ─── activity log ──────────────────────────────────────────────────────
+// Scrollable feed of /sync/log events. Newest at top, capped viewport
+// of ~5 rows visible at once (scroll for more). Pure information
+// density — relative time, glyph, concise text — no emoji, no color
+// noise beyond the existing ink ramp.
+function buildActivityLogSection() {
+  const wrap = document.createElement("div");
+  wrap.className = "peers-activity";
+
+  const head = document.createElement("div");
+  head.className = "peers-section-head";
+  head.textContent = "activity log";
+  wrap.appendChild(head);
+
+  if (_activityLog.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "peers-activity-empty";
+    empty.textContent = "no activity yet — sync ticks every 30s";
+    wrap.appendChild(empty);
+    return wrap;
+  }
+
+  const list = document.createElement("div");
+  list.className = "peers-activity-list";
+  const nowMs = Date.now();
+  for (const evt of _activityLog) {
+    list.appendChild(buildActivityRow(evt, nowMs));
+  }
+  wrap.appendChild(list);
+  return wrap;
+}
+
+function buildActivityRow(evt, nowMs) {
+  const row = document.createElement("div");
+  row.className = "peers-activity-row";
+  row.dataset.kind = evt.kind || "";
+
+  const ts = document.createElement("span");
+  ts.className = "pa-ts";
+  const ageSec = (nowMs - (evt.ts_ms || nowMs)) / 1000;
+  ts.textContent = formatActivityAge(ageSec);
+
+  const glyph = document.createElement("span");
+  glyph.className = "pa-glyph";
+  glyph.textContent = activityGlyph(evt.kind);
+
+  const text = document.createElement("span");
+  text.className = "pa-text";
+  text.textContent = activityText(evt);
+
+  row.append(ts, glyph, text);
+  return row;
+}
+
+// Compact relative-time formatter for the activity log — 5ch slot so
+// the rows align as a monospace ledger.
+function formatActivityAge(secsAgo) {
+  if (!isFinite(secsAgo) || secsAgo < 0) return "  —  ";
+  if (secsAgo < 1) return " now ";
+  if (secsAgo < 60) return `${Math.round(secsAgo)}s`.padStart(4, " ") + " ";
+  if (secsAgo < 3600) return `${Math.round(secsAgo / 60)}m`.padStart(4, " ") + " ";
+  if (secsAgo < 86400) return `${Math.round(secsAgo / 3600)}h`.padStart(4, " ") + " ";
+  return `${Math.round(secsAgo / 86400)}d`.padStart(4, " ") + " ";
+}
+
+// Glyph vocabulary — simple Unicode shapes from the existing design
+// palette. No emoji. Each glyph is one column wide; the .pa-glyph
+// span pads to 2ch so the text column lines up.
+function activityGlyph(kind) {
+  switch (kind) {
+    case "pulled":           return "◐";
+    case "manifest_fetched": return "●";
+    case "tick":             return "◌";
+    case "applied_local":    return "▶";
+    case "peer_unreachable": return "✕";
+    case "peer_reachable":   return "●";
+    default:                 return "·";
+  }
+}
+
+// Concise per-row text. Peer names + record ids get truncated to 16
+// chars + ellipsis. Falls back to a short pubkey prefix when no name
+// is supplied.
+function activityText(evt) {
+  const peer = evt.peer_name
+    ? truncId(evt.peer_name)
+    : (evt.peer_pubkey ? evt.peer_pubkey.slice(0, 8) : "peer");
+  const rid = evt.record_id ? truncId(evt.record_id) : "";
+  switch (evt.kind) {
+    case "pulled":
+      return rid ? `pulled  ${rid} from ${peer}` : `pulled from ${peer}`;
+    case "manifest_fetched": {
+      const n = typeof evt.record_count === "number" ? evt.record_count : null;
+      return n !== null
+        ? `manifest from ${peer} (${n} record${n === 1 ? "" : "s"})`
+        : `manifest from ${peer}`;
+    }
+    case "tick": {
+      const v = evt.visited || 0;
+      const p = evt.pulled || 0;
+      const a = evt.applied || 0;
+      const parts = [`visited ${v}`];
+      if (p) parts.push(`${p} pulled`);
+      else parts.push(`0 pulled`);
+      if (a) parts.push(`${a} applied`);
+      return `tick · ${parts.join(" · ")}`;
+    }
+    case "applied_local":
+      return rid ? `applied_local · ${rid}` : `applied_local`;
+    case "peer_unreachable": {
+      const r = evt.reason ? ` (${evt.reason})` : "";
+      return `${peer} unreachable${r}`;
+    }
+    case "peer_reachable":
+      return `${peer} back`;
+    default:
+      return evt.kind || "event";
+  }
+}
+
+function truncId(s) {
+  if (typeof s !== "string") return "";
+  return s.length > 16 ? `${s.slice(0, 16)}…` : s;
+}
+
 // Render `http://127.0.0.1:7777` as `127.0.0.1:7777` — the protocol
 // is noise in this surface and the host:port is the load-bearing bit.
 function formatLanBind(url) {
@@ -2250,6 +2576,17 @@ function buildPeerRow(p, now, liveCounts) {
   const row = document.createElement("div");
   row.className = "peer-row";
   row.dataset.pubkey = p.pubkey || "";
+  // Stale if /sync/log is live AND we haven't seen a manifest_fetched
+  // for this peer in 90s. The .stale class fades the swatch to 50%
+  // opacity per design — a visual nudge, not a hard "disconnected"
+  // signal (the daemon side decides reachability). When /sync/log
+  // isn't available we don't mark stale (no signal to base it on).
+  if (!_syncLogUnavailable && p.pubkey) {
+    const lastSeen = _peerLastSeenByPubkey.get(p.pubkey);
+    if (!lastSeen || (Date.now() - lastSeen) > 90000) {
+      row.classList.add("stale");
+    }
+  }
   row.tabIndex = 0;
   row.addEventListener("click", (e) => {
     // Don't fly when the user clicked the copy button — that's a
