@@ -5,6 +5,7 @@ schema_version: 1
 name: Quintus
 team: trustless-tee
 role: lead
+role_class: visiting-scholar
 geo: null
 domain: tee
 email: null

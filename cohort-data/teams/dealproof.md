@@ -3,6 +3,7 @@ record_id: dealproof
 record_type: team
 schema_version: 1
 kind: team
+membership: visiting
 
 name: DealProof
 focus: TEE · PQ · dual-agent contracts

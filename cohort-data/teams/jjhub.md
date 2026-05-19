@@ -3,6 +3,7 @@ record_id: jjhub
 record_type: team
 schema_version: 1
 kind: team
+membership: cohort
 
 name: JJHub
 focus: agentic coding platform

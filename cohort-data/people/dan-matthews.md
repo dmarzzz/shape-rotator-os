@@ -5,6 +5,7 @@ schema_version: 1
 name: Dan Matthews
 team: teesql
 role: lead
+role_class: cohort-member
 geo: NYC
 domain: tee
 dates_start: 2026-05-18

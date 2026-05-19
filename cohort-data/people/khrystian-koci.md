@@ -5,6 +5,7 @@ schema_version: 1
 name: Khrystian Koci
 team: null
 role: null
+role_class: visiting-scholar
 geo: UK (GMT+1)
 domain: crypto
 email: null

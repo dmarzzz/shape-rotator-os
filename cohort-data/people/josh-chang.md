@@ -5,6 +5,7 @@ schema_version: 1
 name: Josh Chang
 team: crossroads
 role: cofounder
+role_class: visiting-scholar
 geo: NYC (Cornell Tech)
 domain: crypto
 email: null

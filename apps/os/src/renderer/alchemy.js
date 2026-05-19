@@ -26,6 +26,9 @@ import {
   buildEditPRUrl,
   teamCardHtml, personCardHtml,
   buildCalendarRows, drawCalendar,
+  renderWeekView as renderCalendarWeekView,
+  loadCalendar as loadCalendarData,
+  currentWeekIdx as calendarCurrentWeekIdx,
 } from "@shape-rotator/shape-ui";
 import { getCohortSurface, subscribeToCohortChanges } from "./cohort-source.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
@@ -70,6 +73,11 @@ const state = {
   rail: null,
   mode: "shapes",  // default rail landing — feed used to be first, now lives at the bottom
   shapesKindFilter: "works",  // "works" (teams + projects) | "people"
+  shapesMembershipFilter: "cohort",  // works: "cohort" | "visiting" | "all";
+                                     // people: "cohort-member" | "visiting-scholar" | "coordinator" | "all".
+                                     // We default to "cohort" / "cohort-member" so the formally-invited
+                                     // cohort is the first thing visitors see — important per the
+                                     // coordinator's note about not implying a 1-in-30 invite rate.
   detailRecordId: null,     // when set, the alchemy canvas renders the full detail page for this team/project
   detailReturnMode: null,   // remembered so the back button knows where to land
   shapeControllers: [],     // active shader-canvas controllers — destroyed before each re-render so GL contexts don't leak
@@ -79,7 +87,13 @@ const state = {
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
   constellationMode: "clusters",  // "clusters" (shared cluster membership) | "dependencies" (team-asserted dependency edges)
-  calendarSub: "this-week",       // calendar sub-view: "this-week" | "schedule" | "availability"
+  calendar: {                     // calendar tab state — see renderCalendar()
+    sub: "week",                  // "week" (broadsheet grid) | "presence" (availability gantt)
+    weekIdx: null,                // 0..9; resolved on first render via calendarCurrentWeekIdx()
+    data: null,                   // raw Phala JSON — live response or bundled snapshot
+    source: null,                 // "live" | "bundled" | null (no data yet)
+    loading: false,               // true while the async live fetch is in flight
+  },
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
   isFetching: false,
@@ -321,6 +335,24 @@ function renderLegend() {
 }
 
 // ─── shapes (the cohort, as shapes) ──────────────────────────────────
+
+// Membership taxonomy — kept here (not in shape-ui) because the chip set is a
+// view concern, not a card concern. Two parallel chip rows: one for the
+// teams sub-tab (membership on team records), one for the individuals sub-tab
+// (role_class on person records). Both default the leftmost chip — cohort /
+// cohort-member — so the formally-invited cohort lands first.
+const TEAM_MEMBERSHIP_CHIPS = [
+  { id: "cohort",   label: "cohort teams",  match: (t) => (t.membership || "visiting") === "cohort" },
+  { id: "visiting", label: "visiting",      match: (t) => (t.membership || "visiting") !== "cohort" },
+  { id: "all",      label: "all",           match: () => true },
+];
+const PERSON_ROLE_CHIPS = [
+  { id: "cohort-member",    label: "cohort members",    match: (p) => (p.role_class || "visiting-scholar") === "cohort-member" },
+  { id: "visiting-scholar", label: "visiting scholars", match: (p) => (p.role_class || "visiting-scholar") === "visiting-scholar" },
+  { id: "coordinator",      label: "coordinators",      match: (p) => (p.role_class || "visiting-scholar") === "coordinator" },
+  { id: "all",              label: "all",               match: () => true },
+];
+
 function renderShapes() {
   const allTeams  = state.cohort.teams  || [];
   const allPeople = state.cohort.people || [];
@@ -331,9 +363,34 @@ function renderShapes() {
   const raw = state.shapesKindFilter;
   const filter = (raw === "people" || raw === "person") ? "people" : "works";
   state.shapesKindFilter = filter;
-  const records = (filter === "people")
+
+  // Pick the chip set for the active sub-tab. The active membership filter
+  // is stored as a single string on state and reinterpreted per sub-tab via
+  // a default fallback — switching sub-tabs resets to that tab's leftmost
+  // (cohort) chip so the user always lands on the official cohort first.
+  const chipSet = filter === "people" ? PERSON_ROLE_CHIPS : TEAM_MEMBERSHIP_CHIPS;
+  const defaultMembership = chipSet[0].id;
+  if (!chipSet.some(c => c.id === state.shapesMembershipFilter)) {
+    state.shapesMembershipFilter = defaultMembership;
+  }
+  const activeChip = chipSet.find(c => c.id === state.shapesMembershipFilter) || chipSet[0];
+
+  const sourceRecords = (filter === "people")
     ? allPeople.map(p => ({ ...p, _kind: "person" }))
     : allTeams.map(t => ({ ...t, _kind: teamKind(t) }));
+  const records = sourceRecords.filter(r => activeChip.match(r));
+
+  // Counts per chip — surfaced inline so people can see at a glance how
+  // many records are in each bucket (helpful context for the cohort-vs-
+  // visiting distinction).
+  const counts = new Map();
+  for (const chip of chipSet) {
+    counts.set(chip.id, sourceRecords.filter(r => chip.match(r)).length);
+  }
+  const membershipChips = chipSet.map(chip => `
+    <button class="alch-shapes-chip alch-shapes-chip-membership" data-membership-filter="${escAttr(chip.id)}" type="button" aria-selected="${chip.id === activeChip.id}">${escHtml(chip.label)} <span class="ascn">${counts.get(chip.id) || 0}</span></button>
+  `).join("");
+
   const chips = `
     <div class="alch-shapes-toolbar">
       <nav class="alch-shapes-filter" role="tablist" aria-label="filter by kind">
@@ -342,27 +399,45 @@ function renderShapes() {
       </nav>
       <button id="dossier-export-png" class="cal-action" type="button">export dossier (png)</button>
     </div>
+    <nav class="alch-shapes-filter alch-shapes-filter-membership" role="tablist" aria-label="filter by membership">
+      ${membershipChips}
+    </nav>
   `;
   const cardCtx = { people: state.cohort?.people || [] };
   const cards = records.map((r, idx) => {
     if (r._kind === "person") return personCardHtml(r, idx);
     return teamCardHtml(r, idx, cardCtx);
   }).join("");
+  const emptyMsg = filter === "people"
+    ? `no ${escHtml(activeChip.label)} yet.`
+    : `no ${escHtml(activeChip.label)} yet.`;
   const grid = records.length
     ? `<div class="alch-specimens">${cards}</div>`
-    : `<p class="alch-pf-pick">no ${escHtml(filter)} records yet — switch to the <strong>profile</strong> tab and use <strong>add</strong> to create one.</p>`;
+    : `<p class="alch-pf-pick">${emptyMsg}</p>`;
   state.canvas.innerHTML = `
     ${chips}
     ${grid}
     <p class="alch-callout"><strong>shapes · v0.1</strong><br/>
-    Each card is a team, project or individual in its current shape (week ${WEEK_NOW}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion.</p>
+    Each card is a team, project or individual in its current shape (week ${WEEK_NOW}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them).</p>
   `;
-  // Wire the kind filter chips.
+  // Wire the kind filter chips. Switching sub-tabs resets the membership
+  // chip to the new tab's default (cohort / cohort-member).
   for (const btn of state.canvas.querySelectorAll(".alch-shapes-chip[data-shapes-filter]")) {
     btn.addEventListener("click", () => {
       const next = btn.dataset.shapesFilter;
       if (next === state.shapesKindFilter) return;
       state.shapesKindFilter = next;
+      const nextChipSet = next === "people" ? PERSON_ROLE_CHIPS : TEAM_MEMBERSHIP_CHIPS;
+      state.shapesMembershipFilter = nextChipSet[0].id;
+      renderShapes();
+    });
+  }
+  // Wire the membership chips.
+  for (const btn of state.canvas.querySelectorAll(".alch-shapes-chip[data-membership-filter]")) {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.membershipFilter;
+      if (next === state.shapesMembershipFilter) return;
+      state.shapesMembershipFilter = next;
       renderShapes();
     });
   }
@@ -786,283 +861,52 @@ function fmtShortDate(d) {
 // (drawShapeGlyph) uses them too.
 
 // ─── calendar — sub-tabbed live view ─────────────────────────────────
-// Three sub-views, switchable via state.calendarSub:
-//   this-week    what's happening this ISO week + side rhythm card
-//   schedule     full chronological event list + add-event PR launcher
-//   availability the existing presence Gantt (everyone's window + absences)
+// Two sub-views, switchable via state.calendar.sub:
+//   week      broadsheet weekly grid (live Phala schedule, bundled fallback)
+//   presence  the existing availability Gantt (everyone's window + absences)
 //
-// Events come from cohort-data/events/*.md (loaded into state.cohort.events
-// by the build script). Edits flow through the standard PR loop — same
-// shape as profile / asks / program-page edits.
+// Two sub-views: the broadsheet "week" grid (live Phala schedule, bundled
+// fallback) and "presence" (the existing availability gantt). Anchor events
+// from cohort-data/events/*.md fold into the week cells they fall on — no
+// separate "key dates" tab.
 function renderCalendar() {
-  const sub = (state.calendarSub === "schedule" || state.calendarSub === "availability") ? state.calendarSub : "this-week";
+  const cal = state.calendar;
+  if (cal.weekIdx == null) cal.weekIdx = calendarCurrentWeekIdx();
 
-  state.canvas.innerHTML = `
-    <header class="cal-page-head">
-      <div class="cal-page-title">cohort calendar</div>
-      <div class="cal-page-sub">live · edits open a PR · cohort-data/events/</div>
-    </header>
+  // Seed the data on first entry: prefer the bundled snapshot so the first
+  // paint is instant, then kick off the live fetch in the background and
+  // re-render when it resolves.
+  if (cal.data == null && !cal.loading) {
+    const bundled = state.cohort?.calendar || null;
+    if (bundled) {
+      cal.data = bundled;
+      cal.source = "bundled";
+    }
+    cal.loading = true;
+    loadCalendarData({ bundled }).then(res => {
+      cal.data = res.data || cal.data;
+      cal.source = res.source || cal.source;
+      cal.loading = false;
+      if (state.mode === "calendar") render();
+    }).catch(() => { cal.loading = false; });
+  }
 
-    <nav class="cal-subtabs" role="tablist" aria-label="calendar view">
-      <button class="cal-subtab" data-cal-sub="this-week"    aria-selected="${sub === "this-week"}"    type="button">
-        <span class="cs-num">①</span><span class="cs-label">this week</span>
-        <span class="cs-hint">events · rhythm</span>
-      </button>
-      <button class="cal-subtab" data-cal-sub="schedule"     aria-selected="${sub === "schedule"}"     type="button">
-        <span class="cs-num">②</span><span class="cs-label">key dates</span>
-        <span class="cs-hint">milestones · anchor points</span>
-      </button>
-      <button class="cal-subtab" data-cal-sub="availability" aria-selected="${sub === "availability"}" type="button">
-        <span class="cs-num">③</span><span class="cs-label">availability</span>
-        <span class="cs-hint">who's here, when</span>
-      </button>
-    </nav>
+  const sub = cal.sub === "presence" ? "presence" : "week";
+  const presenceHtml = sub === "presence" ? renderCalAvailability() : "";
 
-    <div class="cal-subview" data-cal-active="${sub}">
-      ${sub === "this-week"    ? renderCalThisWeek()    : ""}
-      ${sub === "schedule"     ? renderCalSchedule()    : ""}
-      ${sub === "availability" ? renderCalAvailability() : ""}
-    </div>
-  `;
-
-  if (sub === "availability") mountAvailabilityCanvas();
-}
-
-// ── helpers ──────────────────────────────────────────────────────────
-
-function getAllEvents() {
-  const events = (state.cohort?.events || []).slice();
-  // Normalize: every event has a single sortable startMs / endMs.
-  const norm = events.map(e => {
-    const startIso = e.range_start || e.date;
-    const endIso   = e.range_end   || e.date;
-    return {
-      ...e,
-      _startIso: startIso,
-      _endIso:   endIso,
-      _startMs:  isoToDate(startIso)?.getTime() ?? 0,
-      _endMs:    isoToDate(endIso)?.getTime() ?? 0,
-      _isRange:  !!(e.range_start || e.range_end),
-    };
-  }).filter(e => e._startMs > 0);
-  // Sort by start asc.
-  norm.sort((a, b) => a._startMs - b._startMs);
-  return norm;
-}
-
-// Monday-of-this-week (UTC) for the "this week" filter. Treats Sunday
-// as part of the prior week (ISO convention) so the cohort week aligns
-// with the weekly_intention / weekly_goals refresh cadence (Monday).
-function isoWeekStartMs(now = new Date()) {
-  // Today at UTC-midnight.
-  const t = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  // getUTCDay: Sun=0, Mon=1, ..., Sat=6. Days back to Mon:
-  const dow = new Date(t).getUTCDay();
-  const back = dow === 0 ? 6 : dow - 1;
-  return t - back * 86400000;
-}
-
-function eventStateFor(e, nowMs = Date.now()) {
-  if (nowMs > e._endMs)        return "past";
-  if (nowMs >= e._startMs)     return "now";
-  return "future";
-}
-
-function fmtEventWhen(e) {
-  if (e._isRange) return `${fmtKeyDate(e._startIso)} → ${fmtKeyDate(e._endIso)}`;
-  return fmtKeyDate(e._startIso);
-}
-
-// Build the GitHub /new/ URL with a prefilled template for adding an event.
-// Filename slug is date-prefixed-title so the directory stays chronologically
-// sortable in the file browser (mirroring our existing files).
-// Returns the path + template for an "add new event" launch. The
-// fork-aware launcher (launchPRFlow) consumes these to build the URL
-// targeting the right owner (user's fork when known).
-function buildAddEventSpec() {
-  const today = new Date();
-  const iso = today.toISOString().slice(0, 10);
-  const slug = `${iso}-new-event`;
-  const template = `---
-record_id: ${slug}
-record_type: event
-schema_version: 1
-
-date: ${iso}
-kind: anchor
-title: ""
-subtitle: ""
-links: {}
----
-
-## about
-
-(public surface — fill in this body if there's prose to attach)
-`;
-  return { path: `cohort-data/events/${slug}.md`, value: template };
-}
-function buildEditEventSpec(recordId) {
-  return { path: `cohort-data/events/${recordId}.md` };
-}
-
-// ── card markup ──────────────────────────────────────────────────────
-
-function renderEventCard(e, opts = {}) {
-  const today = Date.now();
-  const st = eventStateFor(e, today);
-  const linkBits = [];
-  const L = e.links || {};
-  if (L.website) linkBits.push(`<a class="cal-event-link" data-external href="${escAttr(L.website)}">website</a>`);
-  if (L.deck)    linkBits.push(`<a class="cal-event-link" data-external href="${escAttr(L.deck)}">deck</a>`);
-  if (L.signup)  linkBits.push(`<a class="cal-event-link" data-external href="${escAttr(L.signup)}">signup</a>`);
-  if (L.recap)   linkBits.push(`<a class="cal-event-link" data-external href="${escAttr(L.recap)}">recap</a>`);
-  return `
-    <article class="cal-event" data-kind="${escAttr(e.kind || "anchor")}" data-state="${st}">
-      <div class="cal-event-when">${escHtml(fmtEventWhen(e))}</div>
-      <div class="cal-event-body">
-        <div class="cal-event-title">${escHtml(e.title || "—")}</div>
-        ${e.subtitle ? `<div class="cal-event-sub">${escHtml(e.subtitle)}</div>` : ""}
-        ${linkBits.length ? `<div class="cal-event-links">${linkBits.join('<span class="acm-sep">·</span>')}</div>` : ""}
-      </div>
-      <div class="cal-event-actions">
-        <a class="cal-event-edit" data-cal-record="${escAttr(e.record_id)}" href="#" title="edit on github">✎</a>
-      </div>
-    </article>
-  `;
-}
-
-// ── this-week view ───────────────────────────────────────────────────
-
-function renderCalThisWeek() {
-  const all = getAllEvents();
-  const weekStart = isoWeekStartMs();
-  const weekEnd = weekStart + 7 * 86400000 - 1;
-  const todayMs = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
-
-  const thisWeek = all.filter(e => e._endMs >= weekStart && e._startMs <= weekEnd);
-  const today = thisWeek.filter(e => e._startMs <= todayMs && e._endMs >= todayMs);
-  const restOfWeek = thisWeek.filter(e => !today.includes(e));
-  // Up next: first 3 future events beyond this week.
-  const upNext = all.filter(e => e._startMs > weekEnd).slice(0, 3);
-
-  // ISO week label — "week of mon may 18"
-  const weekStartIso = new Date(weekStart).toISOString().slice(0, 10);
-  const weekLabel = fmtKeyDate(weekStartIso);
-  // "Today is <day>" — date the app actually thinks it is, from the
-  // system clock. Surfaced prominently so the user can confirm at a
-  // glance that the today/up-next sections are computed against the
-  // real current date and not some hardcoded stub.
-  const nowDate = new Date();
-  const todayHumanLong = nowDate.toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", year: "numeric",
+  state.canvas.innerHTML = renderCalendarWeekView({
+    data: cal.data,
+    weekIdx: cal.weekIdx,
+    sub,
+    source: cal.source,
+    events: state.cohort?.events || [],
+    presenceHtml,
   });
-  const todayHumanShort = nowDate.toLocaleDateString("en-US", {
-    weekday: "short", month: "short", day: "numeric",
-  }).toLowerCase();
 
-  const todayHtml = today.length
-    ? `<section class="cal-tw-today">
-         <header class="cal-tw-h">
-           <span class="cal-tw-h-glyph">●</span>
-           <span class="cal-tw-h-label">today</span>
-         </header>
-         ${today.map(e => renderEventCard(e)).join("")}
-       </section>`
-    : `<section class="cal-tw-today cal-tw-today-empty">
-         <header class="cal-tw-h">
-           <span class="cal-tw-h-glyph">○</span>
-           <span class="cal-tw-h-label">today</span>
-         </header>
-         <p class="cal-tw-empty-msg">no scheduled events today — heads-down mode unless a team-level meeting is on your calendar.</p>
-       </section>`;
-
-  const weekHtml = restOfWeek.length
-    ? `<section class="cal-tw-week">
-         <header class="cal-tw-h">
-           <span class="cal-tw-h-label">rest of this week</span>
-           <span class="cal-tw-h-count">${restOfWeek.length}</span>
-         </header>
-         <div class="cal-tw-list">${restOfWeek.map(e => renderEventCard(e)).join("")}</div>
-       </section>`
-    : "";
-
-  const upNextHtml = upNext.length
-    ? `<section class="cal-tw-next">
-         <header class="cal-tw-h">
-           <span class="cal-tw-h-label">up next</span>
-           <span class="cal-tw-h-count">${upNext.length}</span>
-         </header>
-         <div class="cal-tw-list">${upNext.map(e => renderEventCard(e)).join("")}</div>
-         <p class="cal-tw-foot"><button class="alch-link-btn" data-cal-jump="schedule">→ see all key dates</button></p>
-       </section>`
-    : "";
-
-  return `
-    <div class="cal-tw-wrap">
-      <div class="cal-tw-main">
-        <div class="cal-tw-dateline">
-          <span class="cal-tw-dateline-stamp">today</span>
-          <span class="cal-tw-dateline-day">${escHtml(todayHumanLong)}</span>
-        </div>
-        <div class="cal-tw-weeklabel">week of ${escHtml(weekLabel)} → +6 days</div>
-        ${todayHtml}
-        ${weekHtml}
-        ${upNextHtml}
-      </div>
-      <aside class="cal-tw-side">
-        ${renderRhythmCardInline()}
-        <div class="cal-tw-side-jump">
-          <button class="alch-feed-btn" data-cal-jump="availability" type="button">
-            <span aria-hidden="true">⌬</span><span>see everyone's availability</span>
-          </button>
-        </div>
-      </aside>
-    </div>
-  `;
+  if (sub === "presence") mountAvailabilityCanvas();
 }
 
-// ── full-schedule view ───────────────────────────────────────────────
-
-function renderCalSchedule() {
-  const all = getAllEvents();
-  const today = Date.now();
-  const past   = all.filter(e => eventStateFor(e, today) === "past");
-  const now    = all.filter(e => eventStateFor(e, today) === "now");
-  const future = all.filter(e => eventStateFor(e, today) === "future");
-
-  const sectionsFlat = [
-    now.length    ? { title: "happening now", count: now.length,    list: now }    : null,
-    future.length ? { title: "future",        count: future.length, list: future } : null,
-    past.length   ? { title: "past",          count: past.length,   list: past }   : null,
-  ].filter(Boolean);
-
-  const sectionsHtml = sectionsFlat.map(s => `
-    <section class="cal-sched-section">
-      <header class="cal-sched-h">
-        <span class="cal-sched-h-label">${escHtml(s.title)}</span>
-        <span class="cal-sched-h-count">${s.count}</span>
-      </header>
-      <div class="cal-sched-list">${s.list.map(e => renderEventCard(e)).join("")}</div>
-    </section>
-  `).join("");
-
-  return `
-    <div class="cal-sched-wrap">
-      <header class="cal-sched-pagehead">
-        <div>
-          <h3 class="cal-section-title">key dates</h3>
-          <span class="cal-section-sub">${all.length} milestone${all.length === 1 ? "" : "s"} · click ✎ on any card to edit</span>
-        </div>
-        <button class="alch-feed-btn cal-sched-add" type="button">
-          <span aria-hidden="true">+</span><span>add a key date</span>
-        </button>
-      </header>
-      ${sectionsHtml || `<p class="alch-callout">no events yet. click <strong>add an event</strong> to open a PR with a prefilled template.</p>`}
-    </div>
-  `;
-}
-
-// ── availability view (the existing presence Gantt) ──────────────────
+// ── presence view (the existing availability Gantt) ─────────────────
 
 function renderCalAvailability() {
   const start = isoToDate(CAL_PROGRAM_START);
@@ -1152,41 +996,60 @@ function hsl(h, s, l, a) {
   return `rgba(${r},${g},${b},${a == null ? 1 : a})`;
 }
 
-// Wire interactions for the active calendar sub-view. Mode-tab clicks,
-// add-event launcher, per-card edit links, jumps to other sub-views,
-// jumps to program / profile, and the gantt export buttons.
+// Wire interactions for the active calendar view: sub-tab switch, week nav
+// (prev/today/next + the 10-week scrubber dots), stale-banner retry, the
+// "edit my availability" jump in the presence view, and gantt export.
 function wireCalendar() {
-  // Sub-tab switch
+  const cal = state.calendar;
+
+  // week / presence sub-tab switch
   for (const btn of state.canvas.querySelectorAll(".cal-subtab[data-cal-sub]")) {
     btn.addEventListener("click", () => {
       const next = btn.dataset.calSub;
-      if (!next || next === state.calendarSub) return;
-      state.calendarSub = next;
+      if (!next || next === cal.sub) return;
+      cal.sub = next;
       render();
     });
   }
-  // Inline "jump to sub-view" links (this-week page → schedule / availability)
-  for (const a of state.canvas.querySelectorAll("[data-cal-jump]")) {
-    a.addEventListener("click", () => {
-      state.calendarSub = a.dataset.calJump;
+
+  // week navigation (prev / today / next)
+  for (const btn of state.canvas.querySelectorAll("[data-cal-nav]")) {
+    btn.addEventListener("click", () => {
+      const dir = btn.dataset.calNav;
+      if (dir === "prev"  && cal.weekIdx > 0)  cal.weekIdx -= 1;
+      else if (dir === "next"  && cal.weekIdx < 9) cal.weekIdx += 1;
+      else if (dir === "today") cal.weekIdx = calendarCurrentWeekIdx();
+      else return;
       render();
     });
   }
-  // Add-event launcher (schedule view)
-  const addBtn = state.canvas.querySelector(".cal-sched-add");
-  if (addBtn) addBtn.addEventListener("click", async () => {
-    const { path, value } = buildAddEventSpec();
-    await launchPRFlow({ kind: "new", path, value });
-  });
-  // Per-card edit launcher
-  for (const a of state.canvas.querySelectorAll(".cal-event-edit[data-cal-record]")) {
-    a.addEventListener("click", async (e) => {
-      e.preventDefault();
-      const { path } = buildEditEventSpec(a.dataset.calRecord);
-      await launchPRFlow({ kind: "edit", path });
+
+  // 10-week scrubber dots
+  for (const dot of state.canvas.querySelectorAll(".cal-scrub-dot[data-week]")) {
+    dot.addEventListener("click", () => {
+      const i = Number(dot.dataset.week);
+      if (Number.isFinite(i) && i !== cal.weekIdx) {
+        cal.weekIdx = i;
+        render();
+      }
     });
   }
-  // Availability view's "edit my availability" → profile editor (person).
+
+  // stale-banner retry — force a fresh live fetch
+  for (const btn of state.canvas.querySelectorAll("[data-cal-retry]")) {
+    btn.addEventListener("click", () => {
+      cal.loading = true;
+      const bundled = state.cohort?.calendar || null;
+      loadCalendarData({ bundled }).then(res => {
+        cal.data = res.data || cal.data;
+        cal.source = res.source || cal.source;
+        cal.loading = false;
+        if (state.mode === "calendar") render();
+      }).catch(() => { cal.loading = false; });
+    });
+  }
+
+  // presence view's "edit my availability" → profile editor.
   const editAvail = state.canvas.querySelector(".cal-avail-edit[data-cal-go-profile]");
   if (editAvail) editAvail.addEventListener("click", () => {
     state.mode = "profile";
@@ -1194,63 +1057,15 @@ function wireCalendar() {
     syncRailSelection();
     render();
   });
-  // Inline jumps from the rhythm card → program handbook page.
-  for (const a of state.canvas.querySelectorAll(".alch-link-btn[data-go='program']")) {
-    a.addEventListener("click", () => {
-      state.mode = "program";
-      state.programPage = a.dataset.programPage || null;
-      try { localStorage.setItem(ALCHEMY_LS_KEY, "program"); } catch {}
-      syncRailSelection();
-      render();
-    });
-  }
-  // Gantt export (availability view only)
+
+  // Gantt export (presence view only)
   const pngBtn = document.getElementById("cal-export-png");
   if (pngBtn) pngBtn.addEventListener("click", () => exportCalendar("png"));
   const pdfBtn = document.getElementById("cal-export-pdf");
   if (pdfBtn) pdfBtn.addEventListener("click", () => exportCalendar("pdf"));
-  // External links inside event cards (website / deck / signup / recap).
+
+  // External links inside the calendar view (recurring + footer links).
   wireExternalLinks(state.canvas);
-}
-
-// Format a YYYY-MM-DD as "wed jun 11" lowercase, UTC-safe.
-function fmtKeyDate(iso) {
-  const d = isoToDate(iso);
-  if (!d) return "";
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
-}
-
-// The default-week rhythm. Source of truth for the prose form is
-// cohort-data/program/schedule.md; this block is the at-a-glance grid we
-// surface on the calendar's "this week" view. When the cohort wants to
-// shift the rhythm permanently, edit the program page + bump this block.
-const PROGRAM_WEEKLY_RHYTHM = [
-  { slot: "morning",        weekdays: "every weekday",   note: "heads-down · no required programming until lunch" },
-  { slot: "5–7pm",          weekdays: "mon · tue · thu", note: "cohort sessions (workshops · talks · whiteboarding)" },
-  { slot: "wednesday",      weekdays: "all day",         note: "no required meetings — protected focus day" },
-  { slot: "9–10pm",         weekdays: "rotating",        note: "salon / roast / improv night — opt-in" },
-  { slot: "office hours",   weekdays: "weekly",          note: "1hr per project · 30min per individual · on-demand slots" },
-  { slot: "weekend",        weekdays: "sat + sun",       note: "off by default — anything programmatic is opt-in" },
-];
-
-function renderRhythmCardInline() {
-  const rows = PROGRAM_WEEKLY_RHYTHM.map(r => `
-    <li class="cal-rhythm-row">
-      <span class="cal-rhythm-slot">${escHtml(r.slot)}</span>
-      <span class="cal-rhythm-when">${escHtml(r.weekdays)}</span>
-      <span class="cal-rhythm-note">${escHtml(r.note)}</span>
-    </li>
-  `).join("");
-  return `
-    <section class="cal-section cal-section-rhythm cal-tw-rhythm">
-      <header class="cal-section-head">
-        <h3 class="cal-section-title">weekly rhythm</h3>
-        <span class="cal-section-sub">the default week, when the program is in flight</span>
-      </header>
-      <ul class="cal-rhythm">${rows}</ul>
-      <p class="cal-section-foot">prose + nuance lives in <button class="alch-link-btn" data-go="program" data-program-page="schedule">program → schedule</button>.</p>
-    </section>
-  `;
 }
 
 // ─── onboarding ─────────────────────────────────────────────────────

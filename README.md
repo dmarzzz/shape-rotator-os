@@ -6,7 +6,9 @@
 
 # shape rotator os
 
-Local-first desktop app for the Shape Rotator cohort. Browse teams, projects, people, the program calendar, and pair-requests — all sourced live from the markdown in this repo. Edit your own profile via a PR; the app picks up changes within minutes of merge.
+Local-first desktop app for the [Shape Rotator](https://shaperotator.xyz) cohort. Browse teams, projects, people, the program calendar, and pair-requests — all sourced live from the markdown in this repo. Edit your own profile via a PR; the app picks up changes within minutes of merge.
+
+The cohort itself lives at **[shaperotator.xyz](https://shaperotator.xyz)**; this repo is the data + the desktop client.
 
 ## download
 

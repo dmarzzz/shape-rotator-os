@@ -5,6 +5,7 @@ schema_version: 1
 name: Prakhar Ojha
 team: conclave
 role: lead
+role_class: cohort-member
 geo: NYC
 domain: ai
 email: null

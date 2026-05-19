@@ -5,6 +5,7 @@ schema_version: 1
 name: Kelsen Liu
 team: bitrouter
 role: null
+role_class: visiting-scholar
 geo: NYC
 domain: ai
 email: null

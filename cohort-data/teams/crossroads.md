@@ -3,6 +3,7 @@ record_id: crossroads
 record_type: team
 schema_version: 1
 kind: team
+membership: visiting
 
 name: Crossroads
 focus: Liquefaction-built wallet

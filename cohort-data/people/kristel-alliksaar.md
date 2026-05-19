@@ -5,6 +5,7 @@ schema_version: 1
 name: Kristel Alliksaar
 team: teesql
 role: engineer
+role_class: cohort-member
 geo: Estonia
 domain: tee
 dates_start: 2026-05-18

@@ -3,6 +3,7 @@ record_id: abra
 record_type: team
 schema_version: 1
 kind: team
+membership: visiting
 
 name: Abra
 focus: formal verification · dstack TEE Postgres

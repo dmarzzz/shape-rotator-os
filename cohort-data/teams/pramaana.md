@@ -3,6 +3,7 @@ record_id: pramaana
 record_type: team
 schema_version: 1
 kind: team
+membership: cohort
 
 # surface fields (visible to all participants)
 name: Pramaana

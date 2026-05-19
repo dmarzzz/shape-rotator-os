@@ -5,6 +5,7 @@ schema_version: 1
 name: Will Cory
 team: jjhub
 role: null
+role_class: cohort-member
 geo: SF (PST)
 domain: ai
 email: null

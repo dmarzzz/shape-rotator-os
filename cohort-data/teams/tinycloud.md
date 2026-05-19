@@ -3,6 +3,7 @@ record_id: tinycloud
 record_type: team
 schema_version: 1
 kind: team
+membership: cohort
 
 name: Tinycloud
 focus: user-owned cloud, dstack TEEs

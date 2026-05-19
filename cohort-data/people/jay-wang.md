@@ -5,6 +5,7 @@ schema_version: 1
 name: Jay Wang
 team: daedalus
 role: null
+role_class: visiting-scholar
 geo: null
 domain: crypto
 email: null

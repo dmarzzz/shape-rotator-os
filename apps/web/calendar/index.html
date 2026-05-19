@@ -9,6 +9,8 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="stylesheet" href="../styles/web.css" />
+  <link rel="stylesheet" href="../shape-ui/src/cohort-card.css" />
+  <link rel="stylesheet" href="../shape-ui/src/cohort-calendar-week.css" />
   <!-- TODO: wire cohort-surface.json copy into the deploy step instead of vendoring -->
   <script type="importmap">
   { "imports": { "@shape-rotator/shape-ui": "../shape-ui/src/index.js" }}
@@ -27,9 +29,7 @@
     </nav>
   </header>
 
-  <main class="page">
-    <p class="page-eyebrow">cohort</p>
-    <h1 class="page-title">calendar</h1>
+  <main class="page page--calendar">
     <div id="mount" class="page-mount"></div>
   </main>
 

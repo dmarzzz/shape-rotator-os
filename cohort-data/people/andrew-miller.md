@@ -5,6 +5,7 @@ schema_version: 1
 name: Andrew Miller
 team: null
 role: null
+role_class: coordinator
 geo: null
 domain: null
 email: null

@@ -5,6 +5,7 @@ schema_version: 1
 name: "Matt Van Ommeren (quasimatt)"
 team: null
 role: ""
+role_class: visiting-scholar
 geo: "NYC"
 domain: app-ux
 links:

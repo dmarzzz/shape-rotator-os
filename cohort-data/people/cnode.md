@@ -5,6 +5,7 @@ schema_version: 1
 name: cnode
 team: dcnet
 role: null
+role_class: visiting-scholar
 geo: nyc
 domain: crypto
 email: null

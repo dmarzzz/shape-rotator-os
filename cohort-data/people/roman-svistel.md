@@ -5,6 +5,7 @@ schema_version: 1
 name: Roman Svistel
 team: tinycloud
 role: cofounder
+role_class: cohort-member
 geo: Lisbon
 domain: tee
 email: null

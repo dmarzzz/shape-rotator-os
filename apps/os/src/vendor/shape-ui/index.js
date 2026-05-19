@@ -142,4 +142,16 @@ export {
   drawCalendar,
   renderCohortCalendar,
 } from "./cohort-calendar.js";
+export {
+  CALENDAR_URL,
+  PROGRAM_START_MS,
+  PROGRAM_END_MS,
+  currentWeekIdx,
+  phaseFor,
+  parseWeekRow,
+  parseRecurring,
+  buildEventsByDay,
+  renderWeekView,
+  loadCalendar,
+} from "./cohort-calendar-week.js";
 export { renderProfileForm } from "./profile-form.js";

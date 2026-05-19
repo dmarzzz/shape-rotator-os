@@ -5,6 +5,7 @@ schema_version: 1
 name: Patrick Messal
 team: tinycloud
 role: null
+role_class: cohort-member
 geo: null
 domain: tee
 email: null

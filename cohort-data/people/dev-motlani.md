@@ -5,6 +5,7 @@ schema_version: 1
 name: Dev Motlani
 team: null
 role: null
+role_class: visiting-scholar
 geo: Bangalore / LA
 domain: crypto
 email: null

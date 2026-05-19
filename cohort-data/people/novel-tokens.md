@@ -5,6 +5,7 @@ schema_version: 1
 name: novel tokens
 team: null
 role: null
+role_class: visiting-scholar
 geo: null
 domain: null
 email: null

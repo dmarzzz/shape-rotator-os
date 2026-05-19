@@ -3,6 +3,7 @@ record_id: etherea
 record_type: team
 schema_version: 1
 kind: team
+membership: cohort
 
 name: Etherea
 focus: generative live-stage system

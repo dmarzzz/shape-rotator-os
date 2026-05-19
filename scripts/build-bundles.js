@@ -133,6 +133,19 @@ function build() {
   const events   = loadDir(path.join(COHORT_DIR, "events"),   "event",   schema.events?.surface_fields   || []);
   const asks     = loadDir(path.join(COHORT_DIR, "asks"),     "ask",     schema.asks?.surface_fields     || []);
 
+  // Calendar snapshot. cohort-data/calendar.json is the bot-managed mirror
+  // of the live Phala upstream (see scripts/sync-calendar.js + the
+  // calendar-sync workflow). Bundled into the surface so the app has an
+  // offline fallback — at runtime the renderer tries the live URL first and
+  // only uses this snapshot when offline/upstream-down, surfacing a
+  // "may be stale" banner.
+  const calPath = path.join(COHORT_DIR, "calendar.json");
+  let calendar = null;
+  if (fs.existsSync(calPath)) {
+    try { calendar = JSON.parse(fs.readFileSync(calPath, "utf8")); }
+    catch (e) { console.warn(`[build-bundles] calendar.json present but unreadable: ${e.message}`); }
+  }
+
   // Cohort-wide controlled vocab + UI configuration the renderer needs at
   // boot. Shipped alongside records so the atlas / constellation / asks UIs
   // have a stable filter set even when offline.
@@ -148,6 +161,7 @@ function build() {
     program,
     events,
     asks,
+    calendar,
     cohort_vocab,
   };
   return out;
@@ -187,7 +201,8 @@ function main() {
 
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
   fs.writeFileSync(OUT_PATH, json);
-  console.log(`[build-bundles] wrote ${OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks)`);
+  const calTabs = built.calendar?.tabs ? Object.keys(built.calendar.tabs).length : 0;
+  console.log(`[build-bundles] wrote ${OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
 }
 
 main();

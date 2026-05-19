@@ -1,17 +1,123 @@
-import { renderCohortCalendar } from "@shape-rotator/shape-ui";
+import {
+  renderWeekView,
+  loadCalendar,
+  currentWeekIdx,
+  renderCohortCalendar,
+} from "@shape-rotator/shape-ui";
+
+// Web cohort calendar — mirrors the Electron renderCalendar() flow:
+// seed with the bundled snapshot from cohort-surface.json so first paint is
+// instant, then kick off a live Phala fetch in the background and re-render
+// when it resolves. If the fetch fails, the bundled snapshot stays and the
+// renderer surfaces the "may be stale" banner.
+
+const state = {
+  cohort: null,
+  data: null,        // raw Phala JSON (live or bundled)
+  source: null,      // "live" | "bundled" | null
+  weekIdx: 0,
+  sub: "week",       // "week" | "presence"
+};
+
+const mount = document.getElementById("mount");
+
+function rerender() {
+  if (!mount) return;
+  const presenceHtml = state.sub === "presence"
+    ? `<div class="cal-presence-canvas-wrap calendar-wrap"></div>`
+    : "";
+
+  mount.innerHTML = renderWeekView({
+    data: state.data,
+    weekIdx: state.weekIdx,
+    sub: state.sub,
+    source: state.source,
+    events: state.cohort?.events || [],
+    presenceHtml,
+  });
+
+  if (state.sub === "presence") {
+    const wrap = mount.querySelector(".cal-presence-canvas-wrap");
+    if (wrap && state.cohort) {
+      try { renderCohortCalendar({ container: wrap, cohort: state.cohort }); }
+      catch (e) { wrap.innerHTML = `<p class="cal-presence-empty">presence render failed: ${e.message}</p>`; }
+    }
+  }
+}
+
+function wire() {
+  if (!mount) return;
+  mount.addEventListener("click", (e) => {
+    const sub = e.target.closest?.("[data-cal-sub]");
+    if (sub) {
+      const next = sub.dataset.calSub;
+      if (next && next !== state.sub) { state.sub = next; rerender(); }
+      return;
+    }
+    const nav = e.target.closest?.("[data-cal-nav]");
+    if (nav) {
+      const dir = nav.dataset.calNav;
+      if (dir === "prev"  && state.weekIdx > 0)  state.weekIdx -= 1;
+      else if (dir === "next"  && state.weekIdx < 9) state.weekIdx += 1;
+      else if (dir === "today") state.weekIdx = currentWeekIdx();
+      else return;
+      rerender();
+      return;
+    }
+    const dot = e.target.closest?.(".cal-scrub-dot[data-week]");
+    if (dot) {
+      const i = Number(dot.dataset.week);
+      if (Number.isFinite(i) && i !== state.weekIdx) { state.weekIdx = i; rerender(); }
+      return;
+    }
+    const retry = e.target.closest?.("[data-cal-retry]");
+    if (retry) {
+      runLiveFetch(); // re-attempt; renderer flips badge when it resolves
+      return;
+    }
+  });
+
+  // ← / → / t keyboard nav on the week sub-view.
+  document.addEventListener("keydown", (e) => {
+    if (state.sub !== "week") return;
+    if (e.target.closest?.("input,textarea,select,[contenteditable]")) return;
+    if (e.key === "ArrowLeft"  && state.weekIdx > 0)  { state.weekIdx -= 1; rerender(); }
+    else if (e.key === "ArrowRight" && state.weekIdx < 9) { state.weekIdx += 1; rerender(); }
+    else if (e.key === "t" || e.key === "T") { state.weekIdx = currentWeekIdx(); rerender(); }
+  });
+}
+
+async function runLiveFetch() {
+  const bundled = state.cohort?.calendar || null;
+  const res = await loadCalendar({ bundled });
+  if (res.data) {
+    state.data = res.data;
+    state.source = res.source;
+    rerender();
+  }
+}
 
 (async function init() {
+  if (!mount) return;
   const r = await fetch("/cohort-surface.json").catch(() => null);
-  const cohort = r && r.ok ? await r.json() : null;
-  const mount = document.getElementById("mount");
-  if (!cohort) { mount.innerHTML = '<p class="page-empty">cohort data unavailable</p>'; return; }
-  // Wrap in a sized scroll container — cohort-calendar.js paints a
-  // canvas whose intrinsic width = LEFT_W + numDays * DAY_W, which
-  // will overflow a narrow viewport. The wrapper provides horizontal
-  // scroll + the visual frame.
-  const wrap = document.createElement("div");
-  wrap.className = "calendar-wrap";
-  mount.appendChild(wrap);
-  try { renderCohortCalendar({ container: wrap, cohort }); }
-  catch (e) { mount.innerHTML = `<p class="page-empty">calendar render failed: ${e.message}</p>`; }
+  state.cohort = r && r.ok ? await r.json() : null;
+  if (!state.cohort) {
+    mount.innerHTML = '<p class="page-empty">cohort data unavailable</p>';
+    return;
+  }
+
+  // First paint: bundled snapshot for instant render.
+  const bundled = state.cohort.calendar || null;
+  if (bundled) {
+    state.data = bundled;
+    state.source = "bundled";
+  }
+  state.weekIdx = currentWeekIdx();
+  state.sub = "week";
+
+  rerender();
+  wire();
+
+  // Then try the live Phala fetch in the background.
+  runLiveFetch();
 })();

@@ -5,6 +5,7 @@ schema_version: 1
 name: Lila Rivers
 team: pramaana
 role: lattice cryptography
+role_class: cohort-member
 geo: NYC (Columbia)
 domain: crypto
 email: null

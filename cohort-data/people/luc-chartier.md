@@ -5,6 +5,7 @@ schema_version: 1
 name: Luc Chartier
 team: tvee-rl
 role: lead
+role_class: visiting-scholar
 geo: PT (distributed)
 domain: tee
 email: null

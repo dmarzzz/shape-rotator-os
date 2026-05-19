@@ -5,6 +5,7 @@ schema_version: 1
 name: Andrew Forman
 team: abra
 role: lead
+role_class: visiting-scholar
 geo: NYC
 domain: tee
 email: null

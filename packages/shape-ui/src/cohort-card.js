@@ -49,9 +49,22 @@ export function teamCardHtml(t, idx, ctx = {}) {
   if (gh) links.push(`<div class="alch-card-meta-row"><span class="cm-k">github</span><span class="cm-v"><a href="https://github.com/${escHtml(gh)}" data-external>${escHtml(gh)}</a></span></div>`);
   if (x)  links.push(`<div class="alch-card-meta-row"><span class="cm-k">x</span><span class="cm-v"><a href="https://x.com/${escHtml(x)}" data-external>@${escHtml(x)}</a></span></div>`);
   if (!gh && !x && !repo) links.push(`<div class="alch-card-meta-row"><span class="cm-k">links</span><span class="cm-v" style="opacity:0.55">— not yet submitted</span></div>`);
-  const cardCls = (t.is_mentor ? "alch-card alch-card-mentor" : "alch-card") + " is-clickable";
+  const membership = t.membership || "visiting";
+  const cardCls = [
+    "alch-card",
+    t.is_mentor ? "alch-card-mentor" : "",
+    `alch-card-membership-${membership}`,
+    "is-clickable",
+  ].filter(Boolean).join(" ");
   const m = Number(t.members_count) || 0;
   const kind = teamKind(t);
+  // Short, lowercase label shown in the tag row so the cohort/visiting bucket
+  // is legible without relying on the (subtle) card tint alone.
+  const MEMBERSHIP_LABELS = {
+    cohort: "cohort",
+    visiting: "visiting",
+  };
+  const membershipLabel = MEMBERSHIP_LABELS[membership] || membership;
   // People whose primary `team` or `secondary_teams` includes this record.
   const allPeople = Array.isArray(ctx.people) ? ctx.people : [];
   const teamPeople = allPeople.filter(p =>
@@ -71,6 +84,8 @@ export function teamCardHtml(t, idx, ctx = {}) {
         <span class="ct-id">SHAPE-${displayId(idx)}</span>
         <span class="ct-sep">·</span>
         <span class="ct-kind ct-kind-${escHtml(kind)}">${escHtml(kind)}</span>
+        <span class="ct-sep">·</span>
+        <span class="ct-membership ct-membership-${escAttr(membership)}">${escHtml(membershipLabel)}</span>
         <span class="ct-sep">·</span>
         <span>${escHtml(s ? s.name : domainLabel(t.domain))}</span>
         <span class="ct-sep">·</span>
@@ -106,12 +121,21 @@ export function personCardHtml(p, idx) {
   if (w)  links.push(`<div class="alch-card-meta-row"><span class="cm-k">site</span><span class="cm-v"><a href="${escHtml(w.startsWith("http") ? w : `https://${w}`)}" data-external>${escHtml(w.replace(/^https?:\/\//, ""))}</a></span></div>`);
   if (li) links.push(`<div class="alch-card-meta-row"><span class="cm-k">linkedin</span><span class="cm-v"><a href="https://linkedin.com/in/${escHtml(li)}" data-external>${escHtml(li)}</a></span></div>`);
   if (!gh && !x && !w && !li) links.push(`<div class="alch-card-meta-row"><span class="cm-k">links</span><span class="cm-v" style="opacity:0.55">— not yet submitted</span></div>`);
+  const roleClass = p.role_class || "visiting-scholar";
+  const ROLE_LABELS = {
+    "cohort-member": "cohort member",
+    "visiting-scholar": "visiting scholar",
+    "coordinator": "coordinator",
+  };
+  const roleLabel = ROLE_LABELS[roleClass] || roleClass;
   return `
-    <article class="alch-card is-clickable alch-card-person" data-record-id="${escHtml(p.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(p.name)} — open profile">
+    <article class="alch-card is-clickable alch-card-person alch-card-role-${escAttr(roleClass)}" data-record-id="${escHtml(p.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(p.name)} — open profile">
       <div class="alch-card-tag">
         <span class="ct-id">PERSON-${displayId(idx)}</span>
         <span class="ct-sep">·</span>
         <span class="ct-kind ct-kind-person">individual</span>
+        <span class="ct-sep">·</span>
+        <span class="ct-role-class ct-role-class-${escAttr(roleClass)}">${escHtml(roleLabel)}</span>
         <span class="ct-sep">·</span>
         <span>${escHtml(domainLabel(p.domain))}</span>
       </div>

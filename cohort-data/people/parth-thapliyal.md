@@ -5,6 +5,7 @@ schema_version: 1
 name: Parth Thapliyal
 team: conclave
 role: cofounder
+role_class: cohort-member
 geo: NY State (Stony Brook)
 domain: ai
 email: null

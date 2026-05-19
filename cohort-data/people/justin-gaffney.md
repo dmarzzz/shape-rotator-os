@@ -5,6 +5,7 @@ schema_version: 1
 name: Justin Gaffney
 team: prova
 role: lead
+role_class: cohort-member
 geo: null
 domain: null
 email: null

@@ -3,6 +3,7 @@ record_id: trustless-tee
 record_type: team
 schema_version: 1
 kind: project
+membership: visiting
 
 # surface fields (visible to all participants)
 name: Trustless TEE
