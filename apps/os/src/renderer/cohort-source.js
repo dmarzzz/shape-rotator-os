@@ -51,7 +51,49 @@ const PROGRAM_PREFIX = "cohort-data/program/";
 
 let _cache = null;            // grouped by record_type
 let _refreshTimer = null;
+let _bgRefreshInFlight = null; // promise of any active background refresh
 const _subscribers = new Set();
+
+// Persisted snapshot of the last-resolved cohort surface. Hydrating from
+// this on getCohortSurface() first call means alchemy mount renders
+// IMMEDIATELY with last-seen data — no GitHub fetch, no manifest poll,
+// no GH-commit-ts API calls block boot. The background refresh that
+// fires right after will replace the snapshot when it lands and
+// notify subscribers so views repaint with fresh data.
+const SURFACE_LS_KEY = "srfg:cohort_surface_v1";
+// Surface snapshots can grow to ~200KB (50 people × ~3KB each plus other
+// kinds). localStorage is bounded at ~5MB per origin so this fits, but
+// we still guard against quota errors on write — a write failure just
+// means the next boot re-fetches, which is the pre-cache behavior.
+function _readSurfaceLs() {
+  try {
+    const raw = localStorage.getItem(SURFACE_LS_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (!v || typeof v !== "object") return null;
+    return normalize(v);
+  } catch { return null; }
+}
+function _writeSurfaceLs(surface) {
+  if (!surface) return;
+  // Strip non-essential carry-throughs that aren't useful on the next
+  // boot's first paint (_sig is rebuilt from content; _baselineShas
+  // would be stale anyway once the next tree fetch lands).
+  try {
+    const payload = {
+      teams: surface.teams || [],
+      people: surface.people || [],
+      clusters: surface.clusters || [],
+      program: surface.program || [],
+      events: surface.events || [],
+      asks: surface.asks || [],
+      cohort_vocab: surface.cohort_vocab || {},
+    };
+    localStorage.setItem(SURFACE_LS_KEY, JSON.stringify(payload));
+  } catch {
+    // QuotaExceededError or similar — fall through; next boot just re-fetches.
+  }
+}
 
 function emptyShape() {
   return { teams: [], people: [], clusters: [], program: [], events: [], asks: [], cohort_vocab: {} };
@@ -485,36 +527,104 @@ function devPreferLocal() {
  * sync is unreachable.
  */
 export async function getCohortSurface() {
+  // Return any in-memory cache immediately. Repeat callers within a
+  // session never re-pay for the resolve.
   if (_cache) return _cache;
-  if (devPreferLocal()) {
-    try {
-      _cache = await loadFromFixture();
-      _cache._source = "fixture-forced";
-      _cache._sig = signatureOf(_cache);
-      console.log("[cohort-source] DEV override active — reading bundled fixture. Clear with localStorage.removeItem('srfg:cohort_source') + reload.");
-      // Still try the sync overlay even when pinning the local fixture —
-      // the cohort-data/*.md seed plus the local user's last edit gives
-      // the most truthful preview of "what the cohort would see."
-      _cache = await applySyncOverlayCached(_cache);
-      scheduleRefresh();
-      return _cache;
-    } catch (e) {
-      console.warn("[cohort-source] forced fixture unreadable; falling through to github:", e?.message || e);
-    }
+
+  // Hydrate from localStorage if we have a snapshot from a prior session.
+  // This is the fast path — boot returns control to alchemy.mount within
+  // a millisecond instead of waiting on GitHub. Background refresh below
+  // replaces the snapshot when fresh data arrives and notifies subscribers.
+  const lsSnapshot = _readSurfaceLs();
+  if (lsSnapshot && !devPreferLocal()) {
+    _cache = lsSnapshot;
+    _cache._source = "ls-cache";
+    _cache._sig = signatureOf(_cache);
+    _cache._syncAvailable = false; // updated when the background refresh resolves
+    _startBackgroundRefresh();
+    scheduleRefresh();
+    return _cache;
   }
+
+  // No snapshot yet (first launch, or LS evicted). Fall back to the
+  // synchronous fixture as the initial paint, then start the background
+  // refresh. The bundled fixture is small + bundled-in, so reading it
+  // synchronously is acceptable; it's better than handing back an empty
+  // shape that flashes nothing before the network resolves.
   try {
-    _cache = await loadFromGithub();
-    _cache._source = "github";
-    _cache._sig = signatureOf(_cache);
-  } catch (e) {
-    console.warn("[cohort-source] github unreachable; falling back to fixture:", e?.message || e);
     _cache = await loadFromFixture();
-    _cache._source = "fixture";
+    _cache._source = "fixture-bootstrap";
     _cache._sig = signatureOf(_cache);
+    _cache._syncAvailable = false;
+  } catch (e) {
+    // Last-resort empty shape if even the bundled fixture isn't readable —
+    // alchemy will render placeholders instead of crashing.
+    console.warn("[cohort-source] bundled fixture unavailable on first boot:", e?.message || e);
+    _cache = normalize(emptyShape());
+    _cache._source = "empty-bootstrap";
+    _cache._sig = signatureOf(_cache);
+    _cache._syncAvailable = false;
   }
-  _cache = await applySyncOverlayCached(_cache);
+  _startBackgroundRefresh();
   scheduleRefresh();
   return _cache;
+}
+
+// Background refresh runs the full resolve path (GitHub tree + raw fetches,
+// sync manifest, GH-commit-ts tiebreaker) without blocking any caller.
+// When it lands it overwrites _cache, persists to localStorage, and fires
+// subscribers so views re-render. Re-entrant: if a refresh is already in
+// flight, callers re-use the same promise instead of stacking redundant
+// network work.
+function _startBackgroundRefresh() {
+  if (_bgRefreshInFlight) return _bgRefreshInFlight;
+  _bgRefreshInFlight = (async () => {
+    try {
+      let baseline;
+      if (devPreferLocal()) {
+        try {
+          baseline = await loadFromFixture();
+          baseline._source = "fixture-forced";
+          console.log("[cohort-source] DEV override active — reading bundled fixture. Clear with localStorage.removeItem('srfg:cohort_source') + reload.");
+        } catch (e) {
+          console.warn("[cohort-source] forced fixture unreadable; falling through to github:", e?.message || e);
+          baseline = null;
+        }
+      }
+      if (!baseline) {
+        try {
+          baseline = await loadFromGithub();
+          baseline._source = "github";
+        } catch (e) {
+          console.warn("[cohort-source] github unreachable; keeping current cache:", e?.message || e);
+          // Don't replace cache with anything worse than what's already
+          // there. If we have an LS snapshot, leave it. If not, fall
+          // through with the fixture so the user has SOMETHING.
+          if (!_cache || _cache._source === "empty-bootstrap") {
+            try {
+              baseline = await loadFromFixture();
+              baseline._source = "fixture";
+            } catch { baseline = null; }
+          }
+          if (!baseline) return; // nothing to do
+        }
+      }
+      const merged = await applySyncOverlayCached(baseline);
+      merged._sig = signatureOf(merged);
+      // Did anything actually change? If not, no subscriber notify.
+      const prevSig = _cache?._sig;
+      _cache = merged;
+      _writeSurfaceLs(_cache);
+      if (prevSig !== merged._sig) {
+        for (const cb of _subscribers) {
+          try { cb({ type: "refresh" }); } catch {}
+        }
+      }
+    } finally {
+      _bgRefreshInFlight = null;
+    }
+  })();
+  return _bgRefreshInFlight;
 }
 
 // Apply the swf-node overlay to a baseline cache. Stamps `_source` so
@@ -556,32 +666,17 @@ function scheduleRefresh() {
 }
 
 async function refreshTick() {
-  // Dev override pins the fixture — skip the github fetch entirely so
-  // a 5-min refresh doesn't silently overwrite what we built locally.
-  // Still run the sync overlay so live edits surface in the pinned
-  // fixture preview.
-  let baseline = _cache;
-  if (!devPreferLocal()) {
-    try { baseline = await loadFromGithub(); baseline._source = "github"; }
-    catch {
-      // Transient network blip — keep using the existing baseline so the
-      // overlay still applies to it.
-      baseline = _cache;
-    }
-  }
-  const merged = await applySyncOverlayCached(baseline);
-  const sig = signatureOf(merged);
-  if (sig === _cache?._sig && merged._syncAvailable === _cache?._syncAvailable) return;
-  _cache = { ...merged, _sig: sig };
-  // If sync availability flipped, restart the timer at the right cadence
-  // so we converge faster (or stop hammering swf-node when it goes away).
-  if ((!!_cache._syncAvailable) !== (!!_cache._previousSyncAvailable)) {
-    _cache._previousSyncAvailable = !!_cache._syncAvailable;
+  // Polled refresh delegates to the same background path used on first
+  // boot, so we don't have two slightly-different resolve paths to keep
+  // in sync. The LS write + subscriber notify happens inside
+  // _startBackgroundRefresh; we only handle sync-availability cadence
+  // switching here.
+  const prevSyncAvail = !!_cache?._syncAvailable;
+  await _startBackgroundRefresh();
+  const nextSyncAvail = !!_cache?._syncAvailable;
+  if (prevSyncAvail !== nextSyncAvail) {
     if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
     scheduleRefresh();
-  }
-  for (const cb of _subscribers) {
-    try { cb({ type: "refresh" }); } catch {}
   }
 }
 
@@ -599,6 +694,8 @@ export function subscribeToCohortChanges(cb) {
 // Internal — for tests / dev tools to force-refresh the cache.
 export function _resetCohortSource() {
   _cache = null;
+  _bgRefreshInFlight = null;
   _subscribers.clear();
   if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
+  try { localStorage.removeItem(SURFACE_LS_KEY); } catch {}
 }
