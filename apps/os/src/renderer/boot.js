@@ -52,7 +52,7 @@ const Graph2 = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode()
 const Cosmos = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode() {} };
 import * as Atlas from "./atlas.js";
 import * as Alchemy from "./alchemy.js";
-import { getManifest, getSyncLog } from "./sync-client.js";
+import { getManifest, getSyncLog, getNodeLog } from "./sync-client.js";
 import { subscribeToCohortChanges } from "./cohort-source.js";
 
 // Shorthand: animate a numeric DOM cell to `n`. We wrap tickNumber so the
@@ -638,6 +638,15 @@ async function boot() {
   wireTicketsPanel();
   wireReceiptsPanel();
   wireRouterPanel();
+  // The legacy wireTicketsPanel/wireReceiptsPanel/wireRouterPanel calls
+  // above seed their bodies with spec-v0.3 empty-state copy ("no epoch
+  // yet" etc.). Immediately overwrite those with the unified Network-tab
+  // copy so the first paint reads as Phase-2 sync, not abandoned spec
+  // v0.3. The body IDs are intentionally retained; only the content is
+  // repurposed (see comments in index.html and renderNetRouterStatus).
+  try { renderNetRouterStatus(); } catch {}
+  try { renderNetSearchPanel(); } catch {}
+  try { renderNetRecordsPanel(); } catch {}
   wireAnonBadge();
   wireTimeline();
   wireLiveGraph();
@@ -1975,17 +1984,41 @@ function wirePeersPanel() {
   });
   // Prime the manifest cache so the sync-activity footer has data on
   // first open. Best-effort — failure is fine; we render "unreachable".
-  refreshManifestCache();
+  refreshManifestCache().finally(() => {
+    // Network-tab panels (records count + peer record-counts) read
+    // srwk._manifest directly — repaint once the first manifest lands.
+    try { renderNetRouterStatus(); } catch {}
+    try { renderNetRecordsPanel(); } catch {}
+    if (document.body.dataset.activeTab === "network") {
+      try { renderNetPeersList(); } catch {}
+    }
+  });
   // Refresh every 10s so live/stale tags + sync activity stay accurate
-  // even when the panel is open and idle.
+  // even when the panel is open and idle. Also covers the network-tab
+  // panels — cheap to repaint, and the manifest counts the user sees
+  // there should be no more than 10s stale.
   setInterval(() => {
-    if (panel.hidden) return;
-    refreshManifestCache().finally(() => renderPeersPanel());
+    if (!panel.hidden) {
+      refreshManifestCache().finally(() => renderPeersPanel());
+    } else if (document.body.dataset.activeTab === "network") {
+      refreshManifestCache().finally(() => {
+        try { renderNetRouterStatus(); } catch {}
+        try { renderNetRecordsPanel(); } catch {}
+        try { renderNetPeersList(); } catch {}
+      });
+    }
   }, 10000);
   // Re-render when the cohort layer reports a change (covers manifest
   // refreshes that happen via cohort-source's own poll loop).
   try {
-    subscribeToCohortChanges(() => { if (!panel.hidden) renderPeersPanel(); });
+    subscribeToCohortChanges(() => {
+      if (!panel.hidden) renderPeersPanel();
+      if (document.body.dataset.activeTab === "network") {
+        try { renderNetRouterStatus(); } catch {}
+        try { renderNetRecordsPanel(); } catch {}
+        try { renderNetPeersList(); } catch {}
+      }
+    });
   } catch {}
   // Kick off the /sync/log poll. Cheap (a single GET against loopback,
   // 100-event cap), runs every 3s for the lifetime of the renderer so
@@ -2009,72 +2042,145 @@ function wirePeersPanel() {
 let _lastSyncLogSeq = 0;
 let _activityLog = [];                          // newest-first, capped at 50
 const ACTIVITY_LOG_MAX = 50;
-const _peerLastSeenByPubkey = new Map();        // pubkey → ts_ms of last manifest_fetched
+const _peerLastSeenByPubkey = new Map();        // pubkey → ts_ms of last sync-flavored heartbeat
 let _lastTickTsMs = 0;
-let _syncLogUnavailable = false;
+let _lastNodeLogActivityMs = 0;                 // wall-clock of latest non-tick event
+let _syncLogUnavailable = false;                // /sync/log fallback path 404'd too
 let _syncLogTimer = null;
+// /node/log lives in swf-node v0.12.0+. When the endpoint 404s we fall back
+// to /sync/log and tag every event as category="sync"; the SEARCH / HEALTH /
+// MDNS / INGEST chips simply stay empty in that mode.
+let _nodeLogAvailable = null;                   // null = not yet probed; true/false = known
+// Per-peer reachability tracking, populated from peer_unreachable /
+// peer_reachable events. Used by the LIVE NETWORK viz + peer cards.
+const _peerReachable = new Map();               // pubkey → boolean (true = reachable)
+// Bag of recent search-completed events for the SEARCH panel.
+const _recentSearches = [];                     // newest-first, capped at 12
+const RECENT_SEARCH_MAX = 12;
 
 function startSyncLogPoll() {
   if (_syncLogTimer) return;
   // Fire one immediate poll so the panel has data on first open without
   // a 3s gap; then keep the interval going.
-  pollSyncLog();
-  _syncLogTimer = setInterval(pollSyncLog, 3000);
+  pollNodeLog();
+  _syncLogTimer = setInterval(pollNodeLog, 3000);
 }
 
-async function pollSyncLog() {
+// Unified poller: tries /node/log first (v0.12.0+), falls back to
+// /sync/log on 404 and tags every event as category="sync". The
+// fallback path keeps the slide-out peers-panel's sync-confidence
+// header working against pre-0.12 daemons.
+async function pollNodeLog() {
   if (_syncLogUnavailable) return;
   try {
-    const res = await getSyncLog({ sinceSeq: _lastSyncLogSeq, limit: 100 });
-    if (!res.ok) {
-      // 404 = older swf-node without /sync/log. Mark feature unavailable
-      // and stop polling — the sync-confidence header will fall back to
-      // inferring activity from /sync/manifest's fetch timestamp.
-      if (res.status === 404 || res.reason === "not_found") {
-        _syncLogUnavailable = true;
-        if (_syncLogTimer) { clearInterval(_syncLogTimer); _syncLogTimer = null; }
-        const panel = document.getElementById("peers-panel");
-        if (panel && !panel.hidden) renderPeersPanel();
+    let log = null;
+    let usedFallback = false;
+    if (_nodeLogAvailable !== false) {
+      const res = await getNodeLog({ sinceSeq: _lastSyncLogSeq, limit: 100 });
+      if (res.ok) {
+        _nodeLogAvailable = true;
+        log = res.log || {};
+      } else if (res.status === 404 || res.reason === "not_found") {
+        // Older swf-node: latch and try /sync/log on this tick.
+        _nodeLogAvailable = false;
+      } else {
+        // transient — skip this tick
+        return;
       }
-      // Other failure modes (timeout, network, server_error): just skip
-      // this tick. The next interval retries; the sync-confidence dot
-      // will drift from green → amber → red as ticks go stale, which
-      // is exactly the signal we want.
-      return;
     }
-    const log = res.log || {};
+    if (!log) {
+      usedFallback = true;
+      const res = await getSyncLog({ sinceSeq: _lastSyncLogSeq, limit: 100 });
+      if (!res.ok) {
+        if (res.status === 404 || res.reason === "not_found") {
+          _syncLogUnavailable = true;
+          if (_syncLogTimer) { clearInterval(_syncLogTimer); _syncLogTimer = null; }
+          const panel = document.getElementById("peers-panel");
+          if (panel && !panel.hidden) renderPeersPanel();
+        }
+        return;
+      }
+      log = res.log || {};
+    }
     if (typeof log.tail_seq === "number") _lastSyncLogSeq = log.tail_seq;
     const events = Array.isArray(log.events) ? log.events : [];
     for (const evt of events) {
-      _activityLog.unshift(evt);
-      if (evt.kind === "manifest_fetched" && evt.peer_pubkey) {
-        _peerLastSeenByPubkey.set(evt.peer_pubkey, evt.ts_ms);
-        firePulse(evt.peer_pubkey);
-      }
-      if (evt.kind === "peer_reachable" && evt.peer_pubkey) {
-        // Treat reachable as a heartbeat too — clears the stale fade
-        // next render even without a manifest_fetched event yet.
-        _peerLastSeenByPubkey.set(evt.peer_pubkey, evt.ts_ms);
-      }
-      if (evt.kind === "tick") {
-        _lastTickTsMs = evt.ts_ms;
-        if ((evt.pulled || 0) + (evt.applied || 0) > 0) {
-          firePulse("self");
-        }
-      }
+      // Stamp legacy /sync/log payloads with category="sync" so downstream
+      // filtering treats them as part of the sync stream.
+      if (usedFallback && !evt.category) evt.category = "sync";
+      processNodeLogEvent(evt);
     }
     if (_activityLog.length > ACTIVITY_LOG_MAX) {
       _activityLog.length = ACTIVITY_LOG_MAX;
     }
-    // Only repaint when something changed or when the panel is open
-    // (the sync-confidence dot's "Xs ago" should re-tick every 3s for
-    // user-perceived liveness).
+    if (events.length > 0) {
+      // Anything network-tab-bound: refresh the cards + router status.
+      if (document.body.dataset.activeTab === "network") {
+        try { renderNetPeersList(); } catch {}
+      }
+      try { renderNetSearchPanel(); } catch {}
+      try { renderNetRecordsPanel(); } catch {}
+    }
+    // The SYNC status line carries a "last activity Xs ago" stamp that
+    // wants to tick up every 3s regardless of whether new events
+    // arrived. Cheap; just rewrites a single line of text.
+    try { renderNetRouterStatus(); } catch {}
     const panel = document.getElementById("peers-panel");
     if (panel && !panel.hidden) renderPeersPanel();
   } catch {
     // Network blip — the next tick will retry. We don't escalate
     // because the UI degrades gracefully (dot drifts amber → red).
   }
+}
+
+// Backwards-compatible alias. Older call sites may still reference
+// pollSyncLog by name; route them through the unified poller.
+const pollSyncLog = pollNodeLog;
+
+// Apply one /node/log event to the shared state, fire the appropriate
+// pulses, and push it into the Network-tab TRAFFIC feed.
+function processNodeLogEvent(evt) {
+  _activityLog.unshift(evt);
+  const cat = evt.category || "sync";
+  // Track per-peer heartbeats for sync/mdns/health.
+  if (evt.peer_pubkey && (cat === "sync" || cat === "mdns" || cat === "health")) {
+    _peerLastSeenByPubkey.set(evt.peer_pubkey, evt.ts_ms);
+    if (evt.kind !== "peer_unreachable" && evt.kind !== "mdns_peer_disappeared") {
+      firePulse(evt.peer_pubkey);
+    }
+  }
+  // Health: maintain a reachability map.
+  if (evt.kind === "peer_unreachable" && evt.peer_pubkey) {
+    _peerReachable.set(evt.peer_pubkey, false);
+  } else if (evt.kind === "peer_reachable" && evt.peer_pubkey) {
+    _peerReachable.set(evt.peer_pubkey, true);
+  } else if (evt.kind === "mdns_peer_disappeared" && evt.peer_pubkey) {
+    _peerReachable.set(evt.peer_pubkey, false);
+  } else if (evt.kind === "mdns_peer_appeared" && evt.peer_pubkey) {
+    _peerReachable.set(evt.peer_pubkey, true);
+  }
+  if (evt.kind === "tick") {
+    _lastTickTsMs = evt.ts_ms;
+    if ((evt.pulled || 0) + (evt.applied || 0) > 0) {
+      firePulse("self");
+    }
+  } else if (evt.ts_ms && evt.ts_ms > _lastNodeLogActivityMs) {
+    _lastNodeLogActivityMs = evt.ts_ms;
+  }
+  // Search: remember a small ring for the SEARCH panel.
+  if (evt.kind === "web_search_completed") {
+    _recentSearches.unshift(evt);
+    if (_recentSearches.length > RECENT_SEARCH_MAX) _recentSearches.length = RECENT_SEARCH_MAX;
+  }
+  // Push into the unified Network-tab TRAFFIC feed. buildTrafficRow uses
+  // {kind, payload, ts} shape; node-log events are flat (no `payload`
+  // nesting) — pass the whole event as payload so the per-kind renderers
+  // can pull the fields they need.
+  try {
+    appendTrafficEvent({ kind: evt.kind, payload: evt, ts: evt.ts_ms, _category: cat });
+  } catch {}
+  // Live network viz reacts to a subset of kinds.
+  try { livegraphPushFromNodeLog(evt); } catch (e) { /* swallow; cosmetic */ }
 }
 
 // Add the .pulsing class to the matching peer row (or the local-node
@@ -2558,6 +2664,24 @@ function activityText(evt) {
 function truncId(s) {
   if (typeof s !== "string") return "";
   return s.length > 16 ? `${s.slice(0, 16)}…` : s;
+}
+
+// Network-tab traffic-row truncation. Spec asks for 18 chars on names +
+// a similar trim on record_ids; keep them separate so the contract is
+// explicit at every call site.
+function truncPeerName(s) {
+  if (typeof s !== "string" || !s) return "—";
+  return s.length > 18 ? `${s.slice(0, 18)}…` : s;
+}
+function truncRecordId(s) {
+  if (typeof s !== "string" || !s) return "—";
+  return s.length > 18 ? `${s.slice(0, 18)}…` : s;
+}
+function formatBytesShort(n) {
+  if (typeof n !== "number" || !isFinite(n) || n < 0) return "—";
+  if (n < 1024) return `${n}b`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}kb`;
+  return `${(n / (1024 * 1024)).toFixed(2)}mb`;
 }
 
 // Render `http://127.0.0.1:7777` as `127.0.0.1:7777` — the protocol
@@ -3267,47 +3391,91 @@ const trafficState = {
   filter: "all",
 };
 
-// Map kind → filter category. Used by the chips and to give every row a
-// graceful fallback dot color.
+// Map kind → filter category. v0.12.0+ node-log events carry an explicit
+// `category` field; the table below is the fallback for SSE events that
+// don't and for filter-chip semantics (chip "all"/"sync"/"mdns"/... maps
+// straight to this category column). Order in the index.html chip bar:
+//   ALL · SYNC · MDNS · HEALTH · INGEST · SEARCH · ERROR
 const TRAFFIC_KIND_GROUP = {
-  slice_scraped: "slice",
-  slice_scrape_error: "slice",
-  slice_skipped_self: "slice",
-  slice_replay_dropped: "slice",
-  slice_size_rejected: "slice",
+  // sync — Phase 2 record sync over /sync/*.
+  manifest_fetched: "sync",
+  pulled: "sync",
+  applied_local: "sync",
+  tick: "sync",
+  // mdns — peer discovery.
+  mdns_peer_appeared: "mdns",
+  mdns_peer_disappeared: "mdns",
   mdns_discovered: "mdns",
   mdns_evicted: "mdns",
   zeroconf_revived: "mdns",
+  // health — reachability probes.
+  peer_unreachable: "health",
+  peer_reachable: "health",
+  // ingest — non-sync record / page ingest.
+  scraper_pulled: "ingest",
+  bundle_pulled: "ingest",
   contribution_merged: "ingest",
-  // DC-net protocol family (SPEC v0.3 §17, §27)
-  dcnet_round_started: "dcnet",
-  dcnet_round_complete: "dcnet",
-  anonymity_set_changed: "dcnet",
-  // Ticket family (SPEC v0.3 §27, QUERY_TICKET_V1 / RECEIPT_TICKET_V1)
-  ticket_issued: "tickets",
-  ticket_redeemed: "tickets",
-  epoch_rotated: "tickets",
-  // Anonymous receipts (SPEC v0.3 §27.29)
-  receipt_submitted: "receipts",
-  // Router (SPEC v0.3 §11 SearchResponse)
-  web_search_completed: "router",
+  slice_scraped: "ingest",
+  // error — anything that should always show on the ERROR chip.
+  scraper_error: "error",
+  slice_scrape_error: "error",
+  slice_size_rejected: "error",
+  // search — local + remote query traffic.
+  web_search_started: "search",
+  web_search_completed: "search",
+  // vestigial (SPEC v0.3 DC-net family) — keep so the rows still render
+  // if a future daemon emits them, but they don't get a dedicated chip
+  // anymore. Bucketed under sync so they at least surface somewhere.
+  dcnet_round_started: "sync",
+  dcnet_round_complete: "sync",
+  anonymity_set_changed: "sync",
+  ticket_issued: "sync",
+  ticket_redeemed: "sync",
+  receipt_submitted: "sync",
+  epoch_rotated: "sync",
+  slice_skipped_self: "ingest",
+  slice_replay_dropped: "ingest",
 };
 function trafficGroupFor(kind) { return TRAFFIC_KIND_GROUP[kind] || "ingest"; }
 function trafficIsError(kind) {
-  return kind === "slice_scrape_error" || kind === "slice_size_rejected";
+  return kind === "scraper_error"
+      || kind === "slice_scrape_error"
+      || kind === "slice_size_rejected";
 }
 
-// Color for the leading dot per kind. These are tuned to match the CSS
-// .e-meta tints so the row reads as a single hue at a glance.
+// Color for the leading dot per kind. Reuses the existing palette tokens
+// (--neon-cyan + the hex stops already in this file) so we don't expand
+// the swatch vocabulary.
 const TRAFFIC_DOT = {
-  slice_scraped: null, // peer color
-  slice_scrape_error: "#FF7BD0",
-  slice_skipped_self: "rgba(220,232,255,0.42)",
-  slice_replay_dropped: "#FFD16A",
-  slice_size_rejected: "#FF7BD0",
+  // sync — neon cyan family
+  manifest_fetched: "#5AF0FF",
+  pulled: "#5AF0FF",
+  applied_local: "#7CFFAA",
+  tick: "rgba(220,232,255,0.42)",
+  // mdns — green
+  mdns_peer_appeared: "#7CFFAA",
+  mdns_peer_disappeared: "#FFA960",
   mdns_discovered: "#7CFFAA",
   mdns_evicted: "#FFA960",
   zeroconf_revived: "#C798FF",
+  // health
+  peer_unreachable: "#FF7BD0",
+  peer_reachable: "#7CFFAA",
+  // ingest
+  scraper_pulled: null, // peer color
+  bundle_pulled: null,  // peer color
+  contribution_merged: null,
+  slice_scraped: null,
+  // search
+  web_search_started: "#C798FF",
+  web_search_completed: "#FF4FE6",
+  // error
+  scraper_error: "#FF7BD0",
+  slice_scrape_error: "#FF7BD0",
+  slice_size_rejected: "#FF7BD0",
+  // vestigial
+  slice_skipped_self: "rgba(220,232,255,0.42)",
+  slice_replay_dropped: "#FFD16A",
   dcnet_round_started: "#C798FF",
   dcnet_round_complete: "#C798FF",
   anonymity_set_changed: "#5AF0FF",
@@ -3315,7 +3483,6 @@ const TRAFFIC_DOT = {
   ticket_redeemed: "#FFD16A",
   receipt_submitted: "#7CFFAA",
   epoch_rotated: "#FF4FE6",
-  web_search_completed: "#FF4FE6",
 };
 
 function wireTrafficPanel() {
@@ -3366,10 +3533,14 @@ function applyTrafficFilter() {
   for (const row of list.children) {
     if (!row.dataset || !row.dataset.eventKind) continue;
     const kind = row.dataset.eventKind;
+    // Prefer the explicit category from /node/log payloads when present;
+    // fall back to the kind→group lookup for SSE events that don't ship a
+    // category field.
+    const cat = row.dataset.eventCategory || trafficGroupFor(kind);
     let show = false;
     if (f === "all") show = true;
-    else if (f === "error") show = trafficIsError(kind);
-    else show = trafficGroupFor(kind) === f;
+    else if (f === "error") show = trafficIsError(kind) || cat === "error";
+    else show = cat === f;
     row.style.display = show ? "" : "none";
   }
 }
@@ -3539,11 +3710,93 @@ function buildTrafficRow(evt) {
       `<span class="e-meta">epoch ▶ ${escHtml(String(p.new_epoch_id || "?"))}</span> · ` +
       `<span class="e-tail">q=${escHtml(String(p.query_quota ?? 0))} r=${escHtml(String(p.receipt_quota ?? 0))}</span>`;
   } else if (evt.kind === "web_search_completed") {
-    const dp = p.delivery_path || "—";
-    const att = Array.isArray(p.attempts) ? p.attempts.length : 0;
+    // /node/log shape: {hit_count, duration_ms, query_hash}. SSE shape:
+    // {delivery_path, attempts[]}. Render whichever fields are present so
+    // both wires read meaningfully.
+    if (p.hit_count != null || p.duration_ms != null) {
+      const hits = p.hit_count ?? 0;
+      const took = p.duration_ms ?? 0;
+      const qh = p.query_hash ? `${String(p.query_hash).slice(0, 10)}…` : "";
+      summaryHtml =
+        `<span class="e-meta">${hits} hit${hits === 1 ? "" : "s"}</span> · ` +
+        `<span class="e-tail">${took}ms${qh ? ` · ${escHtml(qh)}` : ""}</span>`;
+    } else {
+      const dp = p.delivery_path || "—";
+      const att = Array.isArray(p.attempts) ? p.attempts.length : 0;
+      summaryHtml =
+        `<span class="e-meta">${escHtml(dp)}</span> · ` +
+        `<span class="e-tail">${escHtml(String(att))} attempt${att === 1 ? "" : "s"}</span>`;
+    }
+  // ─── /node/log v0.12.0 event kinds ──────────────────────────────────
+  } else if (evt.kind === "manifest_fetched") {
+    const n = p.record_count != null ? String(p.record_count) : "?";
+    const peerName = truncPeerName(p.peer_name || nick);
     summaryHtml =
-      `<span class="e-meta">${escHtml(dp)}</span> · ` +
-      `<span class="e-tail">${escHtml(String(att))} attempt${att === 1 ? "" : "s"}</span>`;
+      `<span class="e-meta">manifest from ${escHtml(peerName)}</span> · ` +
+      `<span class="e-tail">${escHtml(n)} record${n === "1" ? "" : "s"}</span>`;
+  } else if (evt.kind === "pulled") {
+    const peerName = truncPeerName(p.peer_name || nick);
+    const rid = truncRecordId(p.record_id || "");
+    summaryHtml =
+      `<span class="e-meta">pulled ${escHtml(rid)}</span> · ` +
+      `<span class="e-tail">from ${escHtml(peerName)}</span>`;
+  } else if (evt.kind === "applied_local") {
+    const rid = truncRecordId(p.record_id || "");
+    summaryHtml =
+      `<span class="e-meta">applied_local</span> · ` +
+      `<span class="e-tail">${escHtml(rid)}</span>`;
+  } else if (evt.kind === "tick") {
+    const v = p.visited || 0;
+    const pl = p.pulled || 0;
+    const ap = p.applied || 0;
+    const took = p.duration_ms != null ? `${p.duration_ms}ms` : "";
+    summaryHtml =
+      `<span class="e-meta">sync tick</span> · ` +
+      `<span class="e-tail">visited ${v} · ${pl} pulled · ${ap} applied${took ? ` · ${escHtml(took)}` : ""}</span>`;
+  } else if (evt.kind === "peer_unreachable") {
+    const peerName = truncPeerName(p.peer_name || nick);
+    const reason = p.reason ? String(p.reason).slice(0, 24) : "—";
+    summaryHtml =
+      `<span class="e-meta">${escHtml(peerName)} unreachable</span> · ` +
+      `<span class="e-tail">${escHtml(reason)}</span>`;
+  } else if (evt.kind === "peer_reachable") {
+    const peerName = truncPeerName(p.peer_name || nick);
+    summaryHtml =
+      `<span class="e-meta">${escHtml(peerName)} back</span>`;
+  } else if (evt.kind === "mdns_peer_appeared") {
+    const peerName = truncPeerName(p.peer_name || nick);
+    const url = String(p.peer_url || "").replace(/^https?:\/\//, "").slice(0, 36);
+    summaryHtml =
+      `<span class="e-meta">${escHtml(peerName)} discovered</span> · ` +
+      `<span class="e-tail">${escHtml(url)}</span>`;
+  } else if (evt.kind === "mdns_peer_disappeared") {
+    const peerName = truncPeerName(p.peer_name || nick);
+    summaryHtml =
+      `<span class="e-meta">${escHtml(peerName)} left</span>`;
+  } else if (evt.kind === "scraper_pulled") {
+    const count = p.count != null ? p.count : "?";
+    const kindPulled = p.kind_pulled || "records";
+    const peerName = truncPeerName(p.peer_name || nick);
+    summaryHtml =
+      `<span class="e-meta">scraper · ${escHtml(String(count))} ${escHtml(kindPulled)}</span> · ` +
+      `<span class="e-tail">from ${escHtml(peerName)}</span>`;
+  } else if (evt.kind === "bundle_pulled") {
+    const count = p.bundle_count != null ? p.bundle_count : "?";
+    const bytes = p.bytes != null ? formatBytesShort(p.bytes) : "—";
+    const peerName = truncPeerName(p.peer_name || nick);
+    summaryHtml =
+      `<span class="e-meta">bundle · ${escHtml(String(count))}</span> · ` +
+      `<span class="e-tail">from ${escHtml(peerName)} · ${escHtml(bytes)}</span>`;
+  } else if (evt.kind === "scraper_error") {
+    const peerName = truncPeerName(p.peer_name || nick);
+    const err = String(p.error || "error").slice(0, 36);
+    summaryHtml =
+      `<span class="e-meta">scraper error</span> · ` +
+      `<span class="e-tail">${escHtml(peerName)} · ${escHtml(err)}</span>`;
+  } else if (evt.kind === "web_search_started") {
+    const qh = p.query_hash ? `${String(p.query_hash).slice(0, 10)}…` : "";
+    summaryHtml =
+      `<span class="e-meta">search started</span>${qh ? ` · <span class="e-tail">${escHtml(qh)}</span>` : ""}`;
   } else {
     summaryHtml =
       `<span class="e-meta">${escHtml(evt.kind)}</span>`;
@@ -3553,6 +3806,11 @@ function buildTrafficRow(evt) {
   row.append(dot, body);
   if (bar) row.append(bar);
   row.dataset.eventKind = evt.kind;
+  // /node/log emits an explicit category; SSE events fall back to the
+  // kind→group lookup table. applyTrafficFilter reads this attribute.
+  const explicitCategory = evt._category
+    || (evt.payload && typeof evt.payload === "object" ? evt.payload.category : null);
+  if (explicitCategory) row.dataset.eventCategory = explicitCategory;
   row.tabIndex = 0;
   row.addEventListener("click", () => selectTrafficRow(row, evt));
   row.addEventListener("keydown", (e) => {
@@ -4093,6 +4351,17 @@ function wireTicketsPanel() {
 }
 
 function renderTicketsPanel() {
+  // v0.1.32: the #tickets-panel slot has been repurposed as the SEARCH
+  // summary surface (web_search_completed events). The legacy spec-v0.3
+  // ticket-bookkeeping path stays wired so a future dev daemon emitting
+  // DC-net events doesn't crash, but its visible output is suppressed —
+  // renderNetSearchPanel owns the body now. Comment retained as the
+  // record of why this function is a near-no-op.
+  if (typeof renderNetSearchPanel === "function") {
+    try { renderNetSearchPanel(); } catch {}
+  }
+  return;
+  // eslint-disable-next-line no-unreachable
   const body = document.getElementById("tickets-panel-body");
   const epochTag = document.getElementById("tickets-panel-epoch");
   if (!body) return;
@@ -4216,6 +4485,16 @@ function wireReceiptsPanel() {
 }
 
 function renderReceiptsPanel() {
+  // v0.1.32: #receipts-panel is now the RECORDS summary surface, driven
+  // by /sync/manifest. Legacy receipt-bookkeeping path stays present
+  // (and accumulates receiptsState for any future dev-injected event)
+  // but its visible output is suppressed — renderNetRecordsPanel owns
+  // the body.
+  if (typeof renderNetRecordsPanel === "function") {
+    try { renderNetRecordsPanel(); } catch {}
+  }
+  return;
+  // eslint-disable-next-line no-unreachable
   const body = document.getElementById("receipts-panel-body");
   const counter = document.getElementById("receipts-panel-count");
   if (!body) return;
@@ -4333,6 +4612,14 @@ function wireRouterPanel() {
 }
 
 function renderRouterPanel() {
+  // v0.1.32: #router-panel is now the SYNC summary line, driven by
+  // /node/log + /sync/manifest. renderNetRouterStatus owns the body;
+  // the legacy router-flow inspector path is suppressed.
+  if (typeof renderNetRouterStatus === "function") {
+    try { renderNetRouterStatus(); } catch {}
+  }
+  return;
+  // eslint-disable-next-line no-unreachable
   const body = document.getElementById("router-panel-body");
   const counter = document.getElementById("router-panel-count");
   if (!body) return;
@@ -4698,6 +4985,9 @@ const livegraphState = {
   layout: new Map(),                  // pubkey → {x,y,ang} (logical coords)
   selfPing: 0,                        // performance.now() of last self ping
   peerPings: new Map(),               // pubkey → performance.now() (mdns_discovered)
+  // Per-peer reachability from /node/log health events. true / false /
+  // undefined. drawLiveGraph fades unreachable dots to 40% alpha.
+  peerReachable: new Map(),
   mode: "live",
   rafId: 0,
   visible: false,                     // canvas in active tab
@@ -4705,6 +4995,56 @@ const livegraphState = {
   replayTokens: [],                   // [{atMs, fn}] — pending replay enqueues
   replayStartedAt: 0,
 };
+
+// /node/log → live network viz. Subset of kinds drive subtle pulses:
+//   manifest_fetched → bright self/peer ping (peer's dot enlarges briefly)
+//   pulled           → thin line peer→self with the peer's color
+//   peer_unreachable → fade the peer's dot to 40% opacity
+//   peer_reachable   → restore opacity
+function livegraphPushFromNodeLog(evt) {
+  if (!evt || !evt.kind) return;
+  const pubkey = evt.peer_pubkey;
+  switch (evt.kind) {
+    case "manifest_fetched":
+      if (pubkey) {
+        livegraphState.peerPings.set(pubkey, performance.now());
+        livegraphState.selfPing = performance.now();
+      }
+      break;
+    case "pulled":
+      if (pubkey) {
+        const color = srwk.peers.get(pubkey)?.signature_color || stableHue(pubkey);
+        livegraphState.pulses.push({
+          fromKey: pubkey,
+          toKey: "__self__",
+          color,
+          start: performance.now(),
+          duration: 1000,
+          kind: "pulled",
+        });
+        if (livegraphState.pulses.length > LIVEGRAPH_MAX_PULSES) {
+          livegraphState.pulses.splice(0, livegraphState.pulses.length - LIVEGRAPH_MAX_PULSES);
+        }
+        livegraphState.selfPing = performance.now();
+      }
+      break;
+    case "peer_unreachable":
+    case "mdns_peer_disappeared":
+      if (pubkey) livegraphState.peerReachable.set(pubkey, false);
+      break;
+    case "peer_reachable":
+    case "mdns_peer_appeared":
+      if (pubkey) {
+        livegraphState.peerReachable.set(pubkey, true);
+        livegraphState.peerPings.set(pubkey, performance.now());
+      }
+      recomputeLayout();
+      break;
+    default:
+      // ignore everything else; the SSE path covers slice/dcnet kinds.
+      break;
+  }
+}
 
 function wireLiveGraph() {
   const canvas = document.getElementById("livegraph-canvas");
@@ -4977,6 +5317,7 @@ function drawLiveGraph(now) {
     const isSelf = key === "__self__";
     let baseR = isSelf ? 9 : 6;
     let color;
+    let alpha = 1.0;
     if (isSelf) {
       color = "#FFFFFF";
       // Briefly brighten self when an "in" pulse just arrived
@@ -4990,6 +5331,8 @@ function drawLiveGraph(now) {
         const f = 1 - (now - pingTs) / 800;
         baseR += 3 * f;
       }
+      // Health: peer_unreachable / mdns_peer_disappeared dim the dot.
+      if (livegraphState.peerReachable.get(key) === false) alpha = 0.4;
     }
     // Hover halo
     if (livegraphState.hoveredKey === key) baseR += 1.5;
@@ -5001,6 +5344,7 @@ function drawLiveGraph(now) {
       ctx.lineWidth = 1.2;
       ctx.stroke();
     }
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
     ctx.shadowColor = color;
     ctx.shadowBlur = isSelf ? 14 : 10;
@@ -5008,6 +5352,7 @@ function drawLiveGraph(now) {
     ctx.arc(pos.x, pos.y, baseR, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1.0;
   }
 
   // Counter (non-canvas) — gentle update; the only DOM write per frame
@@ -5801,6 +6146,12 @@ function applyActiveTab(tab) {
   if (tab === "network") {
     renderNetPeersList();
     renderNetAnonHeader();
+    // Unified Network-tab panels (driven by /node/log + /sync/manifest).
+    // Safe to call before the first poll lands — they all render their
+    // own empty states.
+    try { renderNetRouterStatus(); } catch {}
+    try { renderNetSearchPanel(); } catch {}
+    try { renderNetRecordsPanel(); } catch {}
     // Default sub-tab when entering network is "network" — but if the
     // user previously switched to metrics, restore that. setNetworkSub
     // also handles activating / deactivating the metrics polling.
@@ -6584,15 +6935,9 @@ function renderNetPeersList() {
 }
 
 function buildNetPeerCard(p, now, liveCounts) {
-  // Block-style are.na unit. The card itself is the typesetting:
-  //   ┌────────────────────────────────────┐
-  //   │ ▌  little-fern              · live │  ← swatch + display title + live tag
-  //   │    pk-9eaa…3f01                    │  ← smallcaps caption
-  //   │                                    │
-  //   │ 32 pages              10s ago      │  ← tabular foot + margin note
-  //   └────────────────────────────────────┘
-  // The signature_color appears as a thin left-edge frame, not a glowing
-  // dot. Hover lifts 2px without scaling. Click pins.
+  // Block-style are.na unit. Updated for Phase 2 sync: counts records (from
+  // /sync/manifest, when available) and derives the live/stale/idle tag
+  // from /node/log heartbeats rather than the legacy SSE liveSeen ring.
   const card = document.createElement("article");
   card.className = "net-peer-card";
   card.dataset.pubkey = p.pubkey || "";
@@ -6611,8 +6956,6 @@ function buildNetPeerCard(p, now, liveCounts) {
     }
   });
   const color = p.signature_color || stableHue(p.pubkey);
-  // Left signature frame — a 3px stripe in the peer's color, the way
-  // are.na blocks use a thin border to hint at category.
   card.style.setProperty("--peer-color", color);
 
   const head = document.createElement("header");
@@ -6623,11 +6966,35 @@ function buildNetPeerCard(p, now, liveCounts) {
   nick.textContent = p.nickname || `peer-${(p.pubkey || "").slice(0, 8)}`;
   head.appendChild(nick);
 
-  const liveTs = srwk.liveSeen.get(p.pubkey);
-  const isLive = liveTs && now - liveTs < LIVE_WINDOW_MS;
+  // Status: LIVE (sync activity in <60s) / STALE (60-180s) / IDLE (older).
+  // Self always reads LIVE since we are the source. Reachability from
+  // health events tags an unreachable peer DOWN.
+  const syncTs = _peerLastSeenByPubkey.get(p.pubkey);
+  const sseLiveTs = srwk.liveSeen.get(p.pubkey);
+  const lastMs = Math.max(syncTs || 0, sseLiveTs || 0);
+  const ageMs = lastMs ? (Date.now() - lastMs) : Infinity;
+  const reachable = _peerReachable.get(p.pubkey);
+  const isSelf = p.pubkey === srwk.selfPubkey;
+  let statusClass, statusText;
+  if (isSelf) {
+    statusClass = "is-live";
+    statusText = "live";
+  } else if (reachable === false) {
+    statusClass = "is-down";
+    statusText = "down";
+  } else if (ageMs < 60_000) {
+    statusClass = "is-live";
+    statusText = "live";
+  } else if (ageMs < 180_000) {
+    statusClass = "is-stale";
+    statusText = "stale";
+  } else {
+    statusClass = "is-idle";
+    statusText = "idle";
+  }
   const liveTag = document.createElement("span");
-  liveTag.className = `npc-live-tag ${isLive ? "is-live" : "is-idle"}`;
-  liveTag.textContent = isLive ? "live" : "idle";
+  liveTag.className = `npc-live-tag ${statusClass}`;
+  liveTag.textContent = statusText;
   head.appendChild(liveTag);
 
   const pkRow = document.createElement("div");
@@ -6638,22 +7005,36 @@ function buildNetPeerCard(p, now, liveCounts) {
 
   const foot = document.createElement("footer");
   foot.className = "npc-foot";
-  const livePc = liveCounts ? liveCounts.get(p.pubkey) : undefined;
+  // Phase 2: /sync/manifest is authoritative — count records by author_pubkey.
+  // If the manifest hasn't been seen yet (e.g. cohort-source still
+  // bootstrapping), fall back to the legacy page_count.
+  const manifestRecords = srwk._manifest?.manifest?.records;
+  let unitLabel = "pages";
+  let count;
+  if (manifestRecords && typeof manifestRecords === "object") {
+    let n = 0;
+    for (const r of Object.values(manifestRecords)) {
+      if (r && r.author_pubkey === p.pubkey) n += 1;
+    }
+    count = n;
+    unitLabel = "records";
+  } else {
+    const livePc = liveCounts ? liveCounts.get(p.pubkey) : undefined;
+    count = livePc ?? p.page_count ?? 0;
+  }
   const pages = document.createElement("span");
   pages.className = "npc-pages";
-  const pageCount = livePc ?? p.page_count ?? 0;
-  pages.innerHTML = `<span class="npc-num">${pageCount}</span> <span class="npc-unit">pages</span>`;
+  pages.innerHTML = `<span class="npc-num">${count}</span> <span class="npc-unit">${unitLabel}</span>`;
 
-  // The margin-note: last-seen, right-aligned in a tight column. Calmer
-  // than the glowing "live" dot we used to render.
+  // The margin-note: last-seen, right-aligned in a tight column. Uses the
+  // newer sync timestamp when available; falls back to the SSE one for
+  // pre-Phase-2 peers.
   const last = document.createElement("span");
   last.className = "npc-last";
-  if (liveTs) {
-    const dt = (Date.now() / 1000) - (liveTs / 1000);
-    last.textContent = formatPeerLastSeen(dt);
+  if (lastMs) {
+    last.textContent = formatPeerLastSeen((Date.now() - lastMs) / 1000);
   } else if (p.last_seen) {
-    const dt = (Date.now() / 1000) - p.last_seen;
-    last.textContent = formatPeerLastSeen(dt);
+    last.textContent = formatPeerLastSeen((Date.now() / 1000) - p.last_seen);
   } else {
     last.textContent = "—";
   }
@@ -6661,6 +7042,119 @@ function buildNetPeerCard(p, now, liveCounts) {
 
   card.append(head, pkRow, foot);
   return card;
+}
+
+// ─── network-tab unified panels ───────────────────────────────────────────
+// Three panels in the right column + the center-bottom router slot are
+// driven by /node/log + /sync/manifest. They replace the spec-v0.3
+// router/tickets/receipts stubs that never lit up against Phase 2 sync.
+//
+// Panel IDs in index.html keep their legacy names (router-panel,
+// tickets-panel, receipts-panel) to avoid touching every wireTicketsPanel
+// / renderTicketsPanel / etc. call site; what they DISPLAY is repurposed.
+//
+// Render cadence: once on tab open + after every pollNodeLog tick that
+// brings in new events. Cheap (DOM writes only when content changes).
+
+// "SYNC · v1 · 3 peers reachable · 7 records · last activity 4s ago"
+function renderNetRouterStatus() {
+  const body = document.getElementById("router-panel-body");
+  const counter = document.getElementById("router-panel-count");
+  if (!body) return;
+  // Peers reachable: count of known peers where _peerReachable !== false.
+  // Treat "no reading yet" as reachable (peers we've never failed to
+  // reach are assumed up; the first failed probe will flip them).
+  let reachable = 0;
+  for (const [pubkey] of srwk.peers) {
+    if (pubkey === srwk.selfPubkey) continue;
+    if (_peerReachable.get(pubkey) !== false) reachable += 1;
+  }
+  // Records: count of unique record_ids in /sync/manifest.
+  const recs = srwk._manifest?.manifest?.records;
+  const recordCount = recs && typeof recs === "object" ? Object.keys(recs).length : 0;
+  // Last activity: pick whichever is newer (tick or event).
+  const lastMs = Math.max(_lastTickTsMs || 0, _lastNodeLogActivityMs || 0);
+  const ageStr = lastMs > 0
+    ? formatPeerLastSeen((Date.now() - lastMs) / 1000)
+    : "—";
+  const downgraded = _nodeLogAvailable === false;
+  if (counter) counter.textContent = downgraded ? "legacy" : "v1";
+  body.innerHTML =
+    `<div class="net-router-status">` +
+      `<span class="nrs-key">SYNC</span>` +
+      `<span class="nrs-sep">·</span>` +
+      `<span class="nrs-val">${reachable} peer${reachable === 1 ? "" : "s"} reachable</span>` +
+      `<span class="nrs-sep">·</span>` +
+      `<span class="nrs-val">${recordCount} record${recordCount === 1 ? "" : "s"}</span>` +
+      `<span class="nrs-sep">·</span>` +
+      `<span class="nrs-val">last activity ${escHtml(ageStr)}</span>` +
+    `</div>` +
+    (downgraded
+      ? `<div class="net-router-note">running against older daemon — only sync events visible</div>`
+      : "");
+}
+
+// "SEARCH" — last few web_search_completed rows (query-hash · hits · ms).
+function renderNetSearchPanel() {
+  const body = document.getElementById("tickets-panel-body");
+  const counter = document.getElementById("tickets-panel-epoch");
+  if (!body) return;
+  if (counter) counter.textContent = String(_recentSearches.length);
+  if (_recentSearches.length === 0) {
+    body.innerHTML = `<div class="tk-empty">no search activity yet.</div>`;
+    return;
+  }
+  const rows = _recentSearches.slice(0, 5).map(evt => {
+    const ts = formatEventTs(evt.ts_ms || Date.now());
+    const qh = evt.query_hash ? `${String(evt.query_hash).slice(0, 10)}…` : "—";
+    const hits = evt.hit_count != null ? evt.hit_count : "?";
+    const took = evt.duration_ms != null ? `${evt.duration_ms}ms` : "—";
+    return `<div class="net-search-row">` +
+      `<span class="nsr-ts">${escHtml(ts)}</span>` +
+      `<span class="nsr-qh"><code>${escHtml(qh)}</code></span>` +
+      `<span class="nsr-hits">${escHtml(String(hits))} hit${hits === 1 ? "" : "s"}</span>` +
+      `<span class="nsr-took">${escHtml(took)}</span>` +
+    `</div>`;
+  }).join("");
+  body.innerHTML = rows;
+}
+
+// "RECORDS" — record count + latest author wall-clock age.
+function renderNetRecordsPanel() {
+  const body = document.getElementById("receipts-panel-body");
+  const counter = document.getElementById("receipts-panel-count");
+  if (!body) return;
+  const recs = srwk._manifest?.manifest?.records;
+  if (!recs || typeof recs !== "object" || Object.keys(recs).length === 0) {
+    if (counter) counter.textContent = "0";
+    body.innerHTML = `<div class="tk-empty">no records yet — waiting for the first sync.</div>`;
+    return;
+  }
+  const ids = Object.keys(recs);
+  if (counter) counter.textContent = String(ids.length);
+  // Find newest by latest_wall_ts_ms.
+  let newest = null;
+  let newestTs = 0;
+  for (const id of ids) {
+    const r = recs[id];
+    if (!r) continue;
+    const t = r.latest_wall_ts_ms || 0;
+    if (t > newestTs) { newestTs = t; newest = { id, r }; }
+  }
+  let latestLine = "";
+  if (newest) {
+    const ageStr = newestTs > 0
+      ? formatPeerLastSeen((Date.now() - newestTs) / 1000)
+      : "—";
+    // Resolve author → nickname when we know that peer; otherwise short pk.
+    const author = newest.r?.author_pubkey || "";
+    const peer = author ? srwk.peers.get(author) : null;
+    const who = peer?.nickname || (author ? `${author.slice(0, 10)}…` : "—");
+    latestLine = `<div class="net-records-latest">latest: ${escHtml(who)} · ${escHtml(ageStr)}</div>`;
+  }
+  body.innerHTML =
+    `<div class="net-records-count">${ids.length} record${ids.length === 1 ? "" : "s"} local</div>` +
+    latestLine;
 }
 
 // ─── network-tab anonymity header ─────────────────────────────────────────

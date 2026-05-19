@@ -10576,3 +10576,117 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   border-left: 2px solid rgba(245,243,238,0.30);
 }
 
+/* ─── Network-tab unified-log additions (v0.1.32) ───────────────────────
+ * Filter chip + panel-body tweaks for the /node/log refactor. Reuses the
+ * existing palette tokens (--neon-cyan, --light-1..4, plus the magenta/
+ * green/amber hex stops already used by the traffic-row .e-meta tints).
+ * No new color tokens introduced. */
+
+/* New filter chip tints — match TRAFFIC_DOT colors so the chip ring
+ * reads as the same hue as the dot column it filters to. */
+.traffic-chip[data-filter="sync"].selected {
+  color: var(--neon-cyan); text-shadow: 0 0 8px rgba(90, 240, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(90, 240, 255, 0.45);
+  background: rgba(90, 240, 255, 0.06);
+}
+.traffic-chip[data-filter="health"].selected {
+  color: #FF7BD0; text-shadow: 0 0 8px rgba(255, 123, 208, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 123, 208, 0.45);
+  background: rgba(255, 123, 208, 0.06);
+}
+.traffic-chip[data-filter="search"].selected {
+  color: var(--neon-magenta); text-shadow: 0 0 8px rgba(255, 79, 230, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 79, 230, 0.45);
+  background: rgba(255, 79, 230, 0.06);
+}
+
+/* Per-kind .e-meta tints — keep the row legible without inventing new
+ * colors. tick rows are de-emphasized so the constant 30s heartbeat
+ * doesn't drown out the signal kinds. */
+.events-row.kind-manifest_fetched .e-meta,
+.events-row.kind-pulled .e-meta {
+  color: var(--neon-cyan); text-shadow: 0 0 6px rgba(90, 240, 255, 0.45);
+}
+.events-row.kind-applied_local .e-meta,
+.events-row.kind-peer_reachable .e-meta,
+.events-row.kind-mdns_peer_appeared .e-meta {
+  color: #7CFFAA; text-shadow: 0 0 6px rgba(124, 255, 170, 0.45);
+}
+.events-row.kind-peer_unreachable .e-meta,
+.events-row.kind-mdns_peer_disappeared .e-meta,
+.events-row.kind-scraper_error .e-meta {
+  color: #FF7BD0; text-shadow: 0 0 6px rgba(255, 123, 208, 0.45);
+}
+.events-row.kind-tick .e-meta {
+  color: var(--light-3); text-shadow: none; font-size: 9.5px;
+}
+.events-row.kind-tick .e-tail { font-size: 9.5px; opacity: 0.78; }
+.events-row.kind-tick { opacity: 0.62; }
+.events-row.kind-tick.aged { opacity: 0.42; }
+.events-row.kind-scraper_pulled .e-meta,
+.events-row.kind-bundle_pulled .e-meta {
+  color: var(--light-1);
+}
+.events-row.kind-web_search_started .e-meta { color: #C798FF; text-shadow: 0 0 6px rgba(199, 152, 255, 0.45); }
+
+/* Status tag — extends the existing .npc-live-tag color modifiers with
+ * stale + down states. Stale = no heartbeat for 60-180s (peer is
+ * reachable but its sync-tick is quiet). Down = peer_unreachable. */
+.net-peer-card .npc-live-tag.is-stale { color: #FFD16A; }
+.net-peer-card .npc-live-tag.is-down  { color: #FF7BD0; }
+
+/* SYNC status line in the repurposed "router" slot. Single row of mono
+ * text, deliberately quiet — this is a debug surface, not a chrome bar. */
+.net-router-status {
+  display: flex; flex-wrap: wrap;
+  gap: 6px; align-items: baseline;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--light-2);
+  padding: 4px 0 2px;
+}
+.net-router-status .nrs-key {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 6px rgba(90, 240, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+}
+.net-router-status .nrs-sep { color: var(--light-4); }
+.net-router-status .nrs-val { color: var(--light-2); }
+.net-router-note {
+  margin-top: 6px;
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--light-4); letter-spacing: 0.02em;
+}
+
+/* SEARCH panel rows — newest at top, ledger-aligned mono. */
+.net-search-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto auto;
+  gap: 8px;
+  padding: 4px 6px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--light-2);
+}
+.net-search-row .nsr-ts { color: var(--light-3); }
+.net-search-row .nsr-qh code {
+  color: var(--neon-magenta);
+  text-shadow: 0 0 6px rgba(255, 79, 230, 0.30);
+  font-size: 10.5px;
+}
+.net-search-row .nsr-hits { color: var(--light-1); text-align: right; }
+.net-search-row .nsr-took { color: var(--light-3); text-align: right; min-width: 48px; }
+
+/* RECORDS panel — single-screen summary line + latest-author footnote. */
+.net-records-count {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--light-1);
+  letter-spacing: 0.04em;
+}
+.net-records-latest {
+  margin-top: 4px;
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--light-3);
+  letter-spacing: 0.04em;
+}
+
