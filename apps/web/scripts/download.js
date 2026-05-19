@@ -1,13 +1,17 @@
 import { fetchLatestRelease } from "./nav.js";
 
 const REPO = "dmarzzz/shape-rotator-os";
+// Asset names follow electron-builder's productName/output template. The
+// project rename to "Shape Rotator OS" (commit 229b990) changed the prefix
+// from "ShapeRotatorFieldGuide-" to "ShapeRotatorOS-"; keep this aligned
+// with apps/os/package.json:build.artifactName.
 const ASSET_FOR = {
-  "mac-arm64":   (v) => `ShapeRotatorFieldGuide-${v}-mac-arm64.dmg`,
-  "mac-x64":     (v) => `ShapeRotatorFieldGuide-${v}-mac-x64.dmg`,
-  "win-x64":     (v) => `ShapeRotatorFieldGuide-${v}-win-x64.exe`,
-  "win-arm64":   (v) => `ShapeRotatorFieldGuide-${v}-win-arm64.exe`,
-  "linux-x64":   (v) => `ShapeRotatorFieldGuide-${v}-linux-x86_64.AppImage`,
-  "linux-arm64": (v) => `ShapeRotatorFieldGuide-${v}-linux-arm64.AppImage`,
+  "mac-arm64":   (v) => `ShapeRotatorOS-${v}-mac-arm64.dmg`,
+  "mac-x64":     (v) => `ShapeRotatorOS-${v}-mac-x64.dmg`,
+  "win-x64":     (v) => `ShapeRotatorOS-${v}-win-x64.exe`,
+  "win-arm64":   (v) => `ShapeRotatorOS-${v}-win-arm64.exe`,
+  "linux-x64":   (v) => `ShapeRotatorOS-${v}-linux-x86_64.AppImage`,
+  "linux-arm64": (v) => `ShapeRotatorOS-${v}-linux-arm64.AppImage`,
 };
 const LABEL_FOR = {
   "mac-arm64": "macos · arm64", "mac-x64": "macos · x64",
