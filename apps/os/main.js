@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, screen, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const swfNode = require("./swf-node");
@@ -145,6 +145,76 @@ function createWindow() {
     process.stderr.write(`[viz:${["log","warn","error"][lvl]||"log"}] ${msg}\n`);
   });
   return win;
+}
+
+// ─── hermes PoC window ────────────────────────────────────────────────
+// A standalone window for the Hermes (local LLM) cohort assistant. The
+// renderer hits a local Ollama daemon directly — main is only here to
+// own window lifecycle. Code lives in src/hermes/.
+let hermesWin = null;
+function createHermesWindow() {
+  if (hermesWin && !hermesWin.isDestroyed()) {
+    hermesWin.focus();
+    return hermesWin;
+  }
+  hermesWin = new BrowserWindow({
+    width: 760, height: 680, minWidth: 560, minHeight: 480,
+    titleBarStyle: "hiddenInset",
+    backgroundColor: "#03020c",
+    title: "ask cohort · hermes",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      sandbox: false,
+      nodeIntegration: false,
+    },
+  });
+  hermesWin.loadFile(path.join(__dirname, "src", "hermes", "index.html"));
+  if (process.env.SRWK_DEVTOOLS) hermesWin.webContents.openDevTools({ mode: "detach" });
+  hermesWin.on("closed", () => { hermesWin = null; });
+  hermesWin.webContents.on("console-message", (_e, lvl, msg) => {
+    process.stderr.write(`[hermes:${["log","warn","error"][lvl]||"log"}] ${msg}\n`);
+  });
+  return hermesWin;
+}
+
+// Application menu — preserves Electron's stock per-platform roles
+// and inserts an "Ask Cohort (Hermes)…" item under a Tools menu.
+// Without this template Electron uses its default menu, which gives
+// us no surface to attach the Hermes entry to.
+function buildAppMenu() {
+  const isMac = process.platform === "darwin";
+  const template = [
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: "about" },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" },
+      ],
+    }] : []),
+    { role: "fileMenu" },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    {
+      label: "Tools",
+      submenu: [
+        {
+          label: "Ask Cohort (Hermes)…",
+          accelerator: isMac ? "Cmd+Shift+H" : "Ctrl+Shift+H",
+          click: () => createHermesWindow(),
+        },
+      ],
+    },
+    { role: "windowMenu" },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 ipcMain.handle("prefs:load", async () => readJSON(PREFS_FILE, {}));
@@ -533,6 +603,7 @@ app.whenReady().then(() => {
     catch (e) { process.stderr.write(`[viz:warn] dock icon set failed: ${e && e.message}\n`); }
   }
   createWindow();
+  buildAppMenu();
   initAutoUpdater();
   // Spin the bundled swf-node up after the first window exists so its
   // state-change broadcasts have a webContents target. On win32 + when
