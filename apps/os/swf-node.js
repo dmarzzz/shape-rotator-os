@@ -64,6 +64,7 @@ let _quitResolve = null;
 let _broadcaster = null;       // (state) => void
 let _agentToken = null;        // generated once per launch, persisted to disk under _dataDir/agent_token
 let _agentTokenPath = null;
+let _cohortKeysPath = null;    // userData/swf-node-data/cohort-keys.json (after bootstrap)
 
 function setState(next) {
   if (_state === next) return;
@@ -153,6 +154,40 @@ function resolveBinary(app) {
 // location; we put it next to the other swf-node data so swf-node
 // could in theory read it directly at SWF_STATE_DIR/../agent_token if
 // it ever wanted to discover it without an env var.
+// Bootstrap cohort-keys.json under userData/swf-node-data/ on first
+// launch. swf-node uses the file to authorize per-handle writes (spec
+// §8.2) — without it, /sync/local_record returns 503 no_cohort_keys.
+// We ship an initial empty file at build-resources/cohort-keys.json,
+// copy it into userData on first launch, and pin SWF_COHORT_KEYS_FILE
+// at that path. With SWF_TRUST_LAN_PEERS=1 set, the file can stay empty
+// and sync still works LAN-wide; the file exists primarily so the
+// `_candidate_paths()` chain in swf-node finds a parseable JSON shape
+// (vs. the empty/missing path that triggers `no_cohort_keys`).
+//
+// If the bundled seed file is missing (dev mode), we still write a
+// minimal `{"version":1,"members":[]}` so the daemon starts cleanly.
+function ensureCohortKeys(app) {
+  _cohortKeysPath = path.join(_dataDir, "cohort-keys.json");
+  if (fs.existsSync(_cohortKeysPath)) return;
+
+  let seed = null;
+  if (app.isPackaged) {
+    const bundled = path.join(process.resourcesPath, "cohort-keys.json");
+    try { seed = fs.readFileSync(bundled, "utf8"); }
+    catch { /* bundled seed missing — fall through to default */ }
+  }
+  if (!seed) {
+    seed = JSON.stringify({ version: 1, members: [] }, null, 2) + "\n";
+  }
+  try {
+    fs.mkdirSync(path.dirname(_cohortKeysPath), { recursive: true });
+    fs.writeFileSync(_cohortKeysPath, seed, { mode: 0o644 });
+    process.stderr.write(`[swf-node] seeded cohort-keys at ${_cohortKeysPath}\n`);
+  } catch (e) {
+    process.stderr.write(`[swf-node] couldn't seed cohort-keys: ${e.message}\n`);
+  }
+}
+
 function resolveAgentToken() {
   if (_agentToken) return _agentToken;
   // Honor an explicit env override (developer running their own daemon
@@ -203,6 +238,16 @@ function spawnChild() {
     SWF_CONFIG_DIR: path.join(_dataDir, "config"),
     SWF_KNOWLEDGE_DIR: path.join(_dataDir, "world_knowledge"),
     SWF_STATE_DIR: path.join(_dataDir, "state"),
+    // Pin the cohort-keys file location to userData/swf-node-data/
+    // (bootstrapped from the bundled empty seed by ensureCohortKeys).
+    SWF_COHORT_KEYS_FILE: _cohortKeysPath,
+    // LAN-trust mode (swf-node v0.11.0+): the cohort lives on a single
+    // WiFi LAN today, so any signed envelope from any mDNS-discovered
+    // peer is acceptable. This bypasses cohort-keys gating + single-
+    // writer-pinning so a fresh install on a second laptop can sync
+    // with the first laptop without manual key exchange. See
+    // searxng-wth-frnds docs/SYNC.md §11.
+    SWF_TRUST_LAN_PEERS: "1",
     // Non-loopback bind ⇒ swf-node demands a bearer token for agent
     // routes (incl. POST /sync/local_record per spec §7.4). Generate
     // once + persist; renderer reads via fg:swf-agent-token IPC.
@@ -346,6 +391,7 @@ function start(app, broadcaster) {
   _logPath = path.join(app.getPath("userData"), "swf-node.log");
 
   try { fs.mkdirSync(_dataDir, { recursive: true }); } catch {}
+  ensureCohortKeys(app);
   openLogStream();
 
   _restartCount = 0;
