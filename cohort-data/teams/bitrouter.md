@@ -3,6 +3,7 @@ record_id: bitrouter
 record_type: team
 schema_version: 1
 kind: team
+membership: visiting
 
 name: Bitrouter
 focus: P2P LLM router

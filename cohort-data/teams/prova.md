@@ -3,6 +3,7 @@ record_id: prova
 record_type: team
 schema_version: 1
 kind: team
+membership: cohort
 
 name: Prova
 focus: healthcare AI agents · EHR pilot

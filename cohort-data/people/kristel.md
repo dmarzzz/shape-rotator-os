@@ -5,6 +5,7 @@ schema_version: 1
 name: Kristel
 team: teesql
 role: null
+role_class: cohort-member
 geo: null
 domain: null
 email: null

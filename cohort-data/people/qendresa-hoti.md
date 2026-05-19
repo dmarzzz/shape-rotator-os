@@ -5,6 +5,7 @@ schema_version: 1
 name: Qendresa Hoti
 team: null
 role: null
+role_class: visiting-scholar
 geo: NYC (from mid-April)
 domain: ai
 email: null

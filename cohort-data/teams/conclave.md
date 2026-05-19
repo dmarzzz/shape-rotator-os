@@ -3,6 +3,7 @@ record_id: conclave
 record_type: team
 schema_version: 1
 kind: team
+membership: cohort
 
 name: Conclave
 focus: NDAI framework · skills runtime

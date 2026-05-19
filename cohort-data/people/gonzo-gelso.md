@@ -5,6 +5,7 @@ schema_version: 1
 name: Gonzo Gelso
 team: etherea
 role: null
+role_class: cohort-member
 geo: null
 domain: null
 email: null

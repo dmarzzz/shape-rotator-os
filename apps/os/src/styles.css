@@ -1,5 +1,8 @@
 @import "vendor/shape-ui/tokens.css";
 @import "vendor/shape-ui/cohort-card.css";
+/* cohort-calendar-week.css is loaded via a <link> tag in index.html so it
+ * wins the cascade against the legacy .cal-* rules deeper in this file
+ * (which will be pruned in a follow-up cleanup pass). */
 
 /* ─── self-hosted type ─────────────────────────────────────────────────────
  * Geist Sans + Geist Mono variable woff2, both OFL (see assets/fonts/OFL.txt).
@@ -8075,6 +8078,26 @@ html, body { background: var(--ed-bg-0); }
 .alch-shapes-toolbar .alch-shapes-filter { margin-bottom: 0; }
 .alch-shapes-toolbar #dossier-export-png {
   margin-left: auto;
+}
+
+/* Second filter row — membership / role_class. Sits below the kind toolbar
+ * so the visual hierarchy reads as: pick the entity type (teams vs people),
+ * then narrow to a membership bucket. The cohort chip carries the same
+ * warm oxide treatment used on cohort cards so the connection is obvious. */
+.alch-shapes-filter-membership {
+  margin-top: -16px;
+  margin-bottom: 32px;
+}
+.alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"],
+.alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"] {
+  color: #d05332;
+  border-color: rgba(208, 83, 50, 0.55);
+  background: rgba(180, 58, 25, 0.08);
+}
+.alch-shapes-chip-membership[data-membership-filter="cohort"]:hover,
+.alch-shapes-chip-membership[data-membership-filter="cohort-member"]:hover {
+  color: #d05332;
+  border-color: rgba(208, 83, 50, 0.55);
 }
 
 .cal-scroll {

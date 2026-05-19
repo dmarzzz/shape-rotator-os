@@ -7,6 +7,7 @@ team: searxng-wth-frnds
 secondary_teams:
   - dcnet
 role: lead
+role_class: coordinator
 geo: NYC
 domain: bd-gtm
 email: dmarz@flashbots.net

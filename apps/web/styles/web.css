@@ -101,11 +101,57 @@ body .alch-shape-overlay { display: block !important; }
 
 .cohort-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-4); }
 
+/* Cohort filter chips — kind row + membership row. Matches the Electron
+ * shapes view styling: borderless lowercase mono chips, single warm accent
+ * for the cohort/cohort-member chip so it reads as the default landing
+ * filter. Membership row sits tight under the kind row. */
+.cohort-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 var(--space-4); }
+.cohort-filter-membership { margin-top: calc(var(--space-3) * -1); margin-bottom: var(--space-6); }
+.cohort-chip {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm, 4px);
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  letter-spacing: var(--track-caps, 0.16em);
+  text-transform: lowercase;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease), background var(--dur-base) var(--ease);
+}
+.cohort-chip:hover { color: var(--ink-1); border-color: var(--ink-3); }
+.cohort-chip[aria-selected="true"] {
+  color: var(--ink-1);
+  border-color: var(--ink-2);
+  background: rgba(245, 243, 238, 0.04);
+}
+.cohort-chip-count { opacity: 0.55; margin-left: 4px; }
+.cohort-chip-membership[data-membership="cohort"][aria-selected="true"],
+.cohort-chip-membership[data-membership="cohort-member"][aria-selected="true"] {
+  color: #d05332;
+  border-color: rgba(208, 83, 50, 0.55);
+  background: rgba(180, 58, 25, 0.08);
+}
+.cohort-chip-membership[data-membership="cohort"]:hover,
+.cohort-chip-membership[data-membership="cohort-member"]:hover {
+  color: #d05332;
+  border-color: rgba(208, 83, 50, 0.55);
+}
+
 /* calendar wrapper — provides the sized box that cohort-calendar.js can
  * paint into. The canvas itself sets its intrinsic width from the day
  * count; the wrapper allows horizontal scroll for very long ranges. */
 .calendar-wrap { width: 100%; min-height: 480px; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--water); }
 .calendar-wrap .shape-cohort-calendar { display: block; }
+
+/* The new calendar page brings its own page-padding via the
+ * cohort-calendar-week.css `--cal-page-px` token, so zero the .page
+ * padding to avoid double-inset. The page-mount stretches edge-to-edge. */
+.page--calendar { padding-inline: 0; padding-block: 0; }
+body.layout--wide .page--calendar { max-width: none; }
+.page--calendar .page-mount { min-height: 480px; }
 
 /* availability — sticky header on top so cohorts large enough to scroll
  * keep their column labels visible. The availability.css inside shape-ui

@@ -5,6 +5,7 @@ schema_version: 1
 name: James Barnes
 team: etherea
 role: lead
+role_class: cohort-member
 geo: NYC (the Convent)
 domain: ai
 email: null

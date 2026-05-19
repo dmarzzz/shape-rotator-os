@@ -3,6 +3,7 @@ record_id: contexto
 record_type: team
 schema_version: 1
 kind: team
+membership: visiting
 
 name: Contexto
 focus: agent context engine

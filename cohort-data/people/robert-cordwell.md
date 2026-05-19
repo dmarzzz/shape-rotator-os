@@ -5,6 +5,7 @@ schema_version: 1
 name: Robert Cordwell
 team: wikigen
 role: engineer
+role_class: visiting-scholar
 geo: Bay / TX
 domain: crypto
 dates_start: 2026-05-18

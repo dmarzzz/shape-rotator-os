@@ -5,6 +5,7 @@ schema_version: 1
 name: Natalia Kokoromyti
 team: tvee-rl
 role: cofounder
+role_class: visiting-scholar
 geo: null
 domain: ai
 email: null

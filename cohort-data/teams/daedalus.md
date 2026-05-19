@@ -3,6 +3,7 @@ record_id: daedalus
 record_type: team
 schema_version: 1
 kind: team
+membership: visiting
 
 # surface fields
 name: Daedalus
@@ -21,7 +22,7 @@ links:
   deck: null
 paper_basis:
   - PROF — Protected Order Flow in a Profit-Seeking World (arXiv 2510.15205)
-traction: closing seed round · Cornell Tech / ex-Aptos / Jane Street
+traction: Cornell Tech / ex-Aptos / Jane Street
 hackathon_note: null
 now: building the orderbook ingestion + backtest evaluation pipeline
 success_dimensions:

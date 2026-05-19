@@ -5,6 +5,7 @@ schema_version: 1
 name: Rajat
 team: pramaana
 role: cofounder
+role_class: cohort-member
 geo: null
 domain: crypto
 email: null

@@ -5,6 +5,7 @@ schema_version: 1
 name: Hunter Horsfall
 team: tinycloud
 role: Co-Founder
+role_class: cohort-member
 geo: "NYC (from mid-May)"
 domain: tee
 email: Hunter@tinycloud.xyz

@@ -5,6 +5,7 @@ schema_version: 1
 name: Chloe Wang
 team: crossroads
 role: lead
+role_class: visiting-scholar
 geo: null
 domain: null
 email: null

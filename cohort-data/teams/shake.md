@@ -3,6 +3,7 @@ record_id: shake
 record_type: team
 schema_version: 1
 kind: project
+membership: visiting
 name: "Shake"
 focus: "Shake is a social network app that connects people when they shake their phones together."
 members_count: 1

@@ -5,6 +5,7 @@ schema_version: 1
 name: "novel"
 team: null
 role: ""
+role_class: visiting-scholar
 geo: ""
 domain: design
 dates_start: 2026-05-18T00:00:00.000Z

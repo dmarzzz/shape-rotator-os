@@ -5,6 +5,7 @@ schema_version: 1
 name: Freya Zhang
 team: daedalus
 role: cofounder
+role_class: visiting-scholar
 geo: distributed (NYC / SF / Asia)
 domain: crypto
 email: null

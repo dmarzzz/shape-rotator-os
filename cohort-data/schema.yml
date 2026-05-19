@@ -16,6 +16,13 @@ people:
     - name
     - team
     - role
+    - role_class      # "cohort-member" | "visiting-scholar" | "coordinator".
+                     # Drives the cohort-tab filter + card accent. cohort-member =
+                     # anyone whose primary or secondary team is in the formally-
+                     # invited cohort (membership: cohort). visiting-scholar = an
+                     # individual or contributor on a non-cohort project. coordinator =
+                     # program staff (dmarz, andrew-miller, …). Default if unset:
+                     # visiting-scholar.
     - geo
     - domain
     - email          # public contact — surfaced to all cohort participants
@@ -51,6 +58,13 @@ teams:
     - record_id
     - record_type
     - kind              # "team" (default) | "project" — UI discriminator only; both share the team-shaped frontmatter
+    - membership        # "cohort" | "visiting".
+                       # cohort = formally invited cohort team eligible for the program
+                       # prize pool. visiting = everything else — projects whose
+                       # contributors are in the cohort as individuals but the team
+                       # itself was not invited as a cohort project.
+                       # Default if unset: visiting. Drives the cohort-tab filter +
+                       # card accent.
     - name
     - focus
     # `lead` retired 2026-05 — team identity is the full contributor list
@@ -139,6 +153,29 @@ asks:
     - skill_areas      # optional list[controlled vocab] — for filtering
     - status           # open | claimed | done — defaults to "open"
     - claimed_by       # optional person record_id
+
+# Cohort calendar snapshot. Unlike the rest of the data model, this is NOT
+# per-record markdown — it's a single mirror file at cohort-data/calendar.json
+# that the calendar-sync GitHub Action rewrites every 30 minutes from the
+# public Phala upstream. Build script bundles it whole into the surface JSON
+# (see scripts/build-bundles.js). At runtime the app tries the live Phala URL
+# first and only uses the bundled snapshot as an offline fallback (with a
+# "may be stale" banner).
+#
+# Shape:
+#   {
+#     "last_refresh": "<ISO datetime>",
+#     "tabs": {
+#       "May 18 Start": [ /* 14 rows: header + meta + 10 week rows + recurring */ ],
+#       "Weekly Themes": [ /* … */ ]
+#     }
+#   }
+# Each week row: [weekNum, "dates\n\ntheme", Mon, Tue, Wed, Thu, Fri, Sat,
+# Sun, onsite, feedbackGoals, notes]. Day cells are free text with embedded
+# times; renderer parses + bolds.
+calendar:
+  source: cohort-data/calendar.json
+  managed_by: .github/workflows/calendar-sync.yml
 
 # Controlled vocab. The folksonomy/skill_areas split:
 #   - `skills` (per-record, freeform): user-authored tags. Long-tail discovery.

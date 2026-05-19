@@ -3,6 +3,7 @@ record_id: tvee-rl
 record_type: team
 schema_version: 1
 kind: team
+membership: visiting
 
 # surface fields
 name: TvEE RL

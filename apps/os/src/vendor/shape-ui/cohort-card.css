@@ -331,3 +331,77 @@
   color: var(--ed-ink-1);
   opacity: 0.88;
 }
+
+/* ─── layer 5 — membership accents ────────────────────────────────────
+ * Visual lineage of formal invite status. The warm oxide top-border on
+ * cohort cards (and the matching role accent on cohort-member portraits)
+ * is the load-bearing signal: a glance tells you which projects were
+ * invited as part of the formal cohort vs. brought in as visiting scholars.
+ *
+ * Why this exists: the coordinator explicitly didn't want the project
+ * dashboard to imply teams were competing 1-in-30 for prize money when
+ * the formal cohort was 1-in-7. The accent answers that at-a-glance.
+ *
+ * Source-order final word — wins over the v3 hairline above. */
+
+/* Cohort: warm oxide hairline + a quiet warm wash. The card already pops
+ * via its hover state; the at-rest cue should be confident but understated. */
+.alch-card-membership-cohort {
+  border-top: 1px solid rgba(180, 58, 25, 0.55);
+  background: linear-gradient(180deg, #1a130e 0%, #120e0b 100%);
+}
+.alch-card-membership-cohort:hover {
+  border-top-color: rgba(180, 58, 25, 0.85);
+  background: linear-gradient(180deg, #21170f 0%, #19120d 100%);
+}
+
+/* Visiting: untreated. Inherits the editorial cook v3 look so visiting
+ * teams remain first-class — they just don't carry the formal-cohort cue. */
+
+/* People mirror the same lineage. Coordinators get their own quiet accent
+ * (cool ink hairline) so program staff are visually separable from
+ * participants without competing with the cohort warm. */
+.alch-card-role-cohort-member {
+  border-top: 1px solid rgba(180, 58, 25, 0.55);
+  background: linear-gradient(180deg, #1a130e 0%, #120e0b 100%);
+}
+.alch-card-role-cohort-member:hover {
+  border-top-color: rgba(180, 58, 25, 0.85);
+  background: linear-gradient(180deg, #21170f 0%, #19120d 100%);
+}
+.alch-card-role-coordinator {
+  border-top: 1px solid rgba(180, 200, 220, 0.30);
+}
+.alch-card-role-coordinator:hover {
+  border-top-color: rgba(180, 200, 220, 0.55);
+}
+
+/* Tag-row pills for membership / role_class — share styling with
+ * ct-kind-* so the eyebrow row reads as one consistent system. */
+.ct-membership, .ct-role-class {
+  font-family: var(--ed-mono);
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+}
+.ct-membership-cohort,
+.ct-role-class-cohort-member {
+  color: #d05332;
+  opacity: var(--ed-op-loud);
+  font-style: italic;
+  font-family: var(--ed-display);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.ct-membership-visiting,
+.ct-role-class-visiting-scholar {
+  color: var(--ed-ink-1);
+  opacity: var(--ed-op-faint);
+}
+.ct-role-class-coordinator {
+  color: rgba(180, 200, 220, 0.85);
+  opacity: var(--ed-op-loud);
+  font-style: italic;
+  font-family: var(--ed-display);
+  letter-spacing: 0;
+  text-transform: none;
+}

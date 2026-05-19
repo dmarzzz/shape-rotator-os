@@ -5,6 +5,7 @@ schema_version: 1
 name: Archer Yang
 team: bitrouter
 role: cofounder
+role_class: visiting-scholar
 geo: Hong Kong
 domain: ai
 email: null

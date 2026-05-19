@@ -3,6 +3,7 @@ record_id: searxng-wth-frnds
 record_type: team
 schema_version: 1
 kind: project
+membership: visiting
 
 # surface fields (visible to all participants)
 name: searxng-wth-frnds

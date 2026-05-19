@@ -5,6 +5,7 @@ schema_version: 1
 name: Sai Nakamura
 team: jjhub
 role: agent runtime
+role_class: cohort-member
 geo: PST
 domain: ai
 email: null
