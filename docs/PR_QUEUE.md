@@ -78,3 +78,15 @@ Hourly autonomous PR triage. Merges small safe diffs, holds large/protocol/secur
 ## 2026-05-19 14:49 EDT
 
 5 PRs, held (tick 10). No change.
+
+## 2026-05-19 15:49 EDT
+
+**Open PRs**: 2 across both repos (sros: 2, swf-node: 0)
+
+**This tick**: queue dropped to 2 (under threshold of >3) — first chance to evaluate individual PRs in a while:
+- sros #93 (dmarzzz, +480/-1, Hermes Ollama PoC) — HELD. User explicitly flagged: "dont merge the hermes PR its broken". Also exceeds size guardrail (>300 LOC).
+- sros #94 (dmarzzz, +3981/-400 across 98 files, "cohort membership taxonomy + broadsheet calendar overhaul") — HELD. Diff is 13× the size guardrail. Even though authored by dmarzzz, too large to auto-merge safely; needs human review.
+
+**Releases cut**: none in this tick. Two big releases shipped earlier this hour outside the loop: swf-node v0.12.0 (/node/log endpoint + node-wide event ring) and SROS v0.1.32 (Network tab subscribed to /node/log).
+
+**Next tick should**: if user closes/merges #93 + #94, queue is empty and the loop can resume normal cadence. Otherwise hold continues.
