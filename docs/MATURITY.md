@@ -122,3 +122,16 @@ This entry is the explicit drift escalation flagged by the 08:25 tick. No furthe
 ## 2026-05-19 18:25 EDT
 
 7/10, held. Queue back up to 5 (#93/#94/#98/#99/#100). Three of the new arrivals (#98/#99/#100) are exactly the small UX-polish PRs that would each nudge the score; all stuck behind #93 (broken-flagged) + #94 (size-flagged).
+
+## 2026-05-19 19:25 EDT
+
+**Score**: 7.5/10 (queue fully drained this hour via user-authorized chat-driven merges. #93 Hermes PoC, #94 cohort taxonomy + calendar overhaul, #98 warm-boot splash-skip all merged. #99/#100/#101 closed by user. SROS v0.1.34 tagged.)
+
+**Picked**: `docs/SYNC.md` §12 peer_unreachable spec audit — aligns the table + footnote with the v0.12.1 transitions-only semantics that shipped earlier this hour.
+
+**Why**: spec-vs-code drift on a wire-protocol observability event. The table was promising "emit per failed fetch" but the code now emits only on state change. Drift here makes the activity log harder to reason about for future contributors.
+
+**Shipped**:
+- swf-node `0ad701a` — `docs(sync): update §12 peer_unreachable semantics to match v0.12.1`
+
+**Next tick should**: verify v0.1.34 dmg lands + Hermes window opens without Ollama running (the user previously flagged this as broken — needs to either render an empty/error state or open without crashing). If broken, fix the Hermes empty state. If fine, next biggest drift candidate is `docs/SYNC.md` §13 description vs. actual /node/log payload shapes — quick audit.
