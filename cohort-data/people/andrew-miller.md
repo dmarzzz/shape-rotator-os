@@ -7,6 +7,7 @@ team: teleport-router
 secondary_teams:
   - feedling
 role: steward
+role_class: coordinator
 geo: NYC
 domain: crypto
 email: socrates1024@gmail.com

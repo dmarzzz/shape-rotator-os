@@ -272,6 +272,39 @@
   letter-spacing: -0.04em;
 }
 
+/* ── now line ────────────────────────────────────────────────────────── */
+/* Thin oxide hairline at the current time of day inside today's cell.
+ * Rendered at mount time from JS (top = % of day elapsed); the behavior
+ * attachment ticks it live every minute. Absolute-positioned against the
+ * day cell (which is already position:relative). The small disc terminus
+ * (::before) anchors the left edge without adding visual weight.
+ * Hidden on prefers-reduced-motion so it doesn't distract users who opt
+ * out of animated or frequently-updated UI elements. */
+.cal-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--alchemy-oxide-bright, #B43A19);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 1;
+}
+.cal-now-line::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--alchemy-oxide-bright, #B43A19);
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-now-line { display: none; }
+}
+
 .cal-day-h {
   display: flex; align-items: baseline; gap: 8px;
   padding-bottom: 8px;
@@ -298,6 +331,14 @@
   color: var(--alchemy-oxide-bright, #B43A19);
   letter-spacing: -0.01em;
   margin-left: 6px;
+}
+.cdh-rel {
+  font-family: var(--ed-display); font-style: italic;
+  font-size: 12px; line-height: 1;
+  color: var(--ed-ink-3);
+  letter-spacing: -0.01em;
+  margin-left: 6px;
+  white-space: nowrap;
 }
 
 /* anchor (kickoff/demo/graduation etc.) — pinned to top of its day.
@@ -430,6 +471,52 @@
   color: var(--alchemy-oxide-bright, #B43A19);
 }
 
+/* ── keyboard hint bar ───────────────────────────────────────────────── */
+/* Appears below the page-foot on desktop; hidden on mobile where swipe
+ * is the primary navigation gesture and keyboard shortcuts don't apply. */
+.cal-kbd-hints {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-family: var(--ed-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  color: var(--ed-ink-1);
+  opacity: 0.32;
+  user-select: none;
+}
+.cal-kbd-hints:hover { opacity: 0.55; transition: opacity 200ms ease-out; }
+.ckh-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ckh-key {
+  font: inherit;
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--ed-rule-3);
+  border-radius: 3px;
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--ed-ink-2);
+  background: transparent;
+}
+.ckh-label {
+  color: var(--ed-ink-3);
+  letter-spacing: 0.14em;
+}
+.ckh-sep {
+  color: var(--ed-ink-4);
+  opacity: 0.6;
+}
+
 /* ── narrow / mobile ─────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
   :root { --cal-page-px: 28px; }
@@ -535,4 +622,7 @@
   .cal-recur { margin-top: 24px; }
   .cal-recur-list { grid-template-columns: 1fr; }
   .cal-page-foot { font-size: 9.5px; gap: 8px; }
+
+  /* Keyboard hints are not useful on touch devices — hide entirely. */
+  .cal-kbd-hints { display: none; }
 }

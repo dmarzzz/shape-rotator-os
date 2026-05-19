@@ -5,6 +5,7 @@ schema_version: 1
 name: "LSDan"
 team: teesql
 role: "Tech, Architecture, TEE Stuff"
+role_class: cohort-member
 geo: "NYC, nomadic"
 domain: tee
 dates_start: 2026-05-18T00:00:00.000Z

@@ -5,6 +5,7 @@ schema_version: 1
 name: Vishesh
 team: null
 role: lead
+role_class: visiting-scholar
 geo: NYC/FL
 domain: ai
 email: null

@@ -5,6 +5,7 @@ schema_version: 1
 name: "Fredster"
 team: null
 role: "ai psychotherapist"
+role_class: visiting-scholar
 geo: "SWE"
 domain: app-ux
 links:

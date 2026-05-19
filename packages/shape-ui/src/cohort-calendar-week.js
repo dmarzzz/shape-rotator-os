@@ -51,6 +51,13 @@ function todayUtcMs() {
   const d = new Date();
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
+
+// Fraction of the day elapsed (local time), clamped to [0, 1].
+// Used to position the "now" line within today's day cell.
+function nowFraction() {
+  const d = new Date();
+  return Math.min(1, Math.max(0, (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400));
+}
 function fmtShortDate(d) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
 }
@@ -152,11 +159,14 @@ export function parseWeekRow(row, weekIdx, eventsByDayMs = new Map()) {
     const dayMs = weekStartMs + i * 86400000;
     const anchors = eventsByDayMs.get(dayMs) || [];
     const blocks = raw ? raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean) : [];
+    const dayOffset = Math.round((dayMs - todayMs) / 86400000);
+    const relLabel = dayOffset === -1 ? "yesterday" : dayOffset === 1 ? "tomorrow" : null;
     return {
       name,
       date: fmtShortDate(new Date(dayMs)),
       dayMs,
       isToday: dayMs === todayMs,
+      relLabel,
       isEmpty: blocks.length === 0 && anchors.length === 0,
       blocks,
       anchors,
@@ -261,6 +271,11 @@ export function renderWeekView({
       </button>`;
   }).join("");
 
+  // ── now-line position ────────────────────────────────────────────────
+  // Rendered once at HTML-string time; attachWeekViewBehavior ticks it live.
+  const nowPct = nowFraction();
+  const nowLineHtml = `<div class="cal-now-line" aria-hidden="true" style="top:${(nowPct * 100).toFixed(2)}%"></div>`;
+
   // ── day cells ───────────────────────────────────────────────────────
   const dayCells = week.days.map(d => {
     const anchorRows = d.anchors.map(a => `
@@ -280,7 +295,9 @@ export function renderWeekView({
           <span class="cdh-name">${d.name}</span>
           <span class="cdh-date">${escHtml(d.date)}</span>
           ${d.isToday ? `<span class="cdh-today">today</span>` : ""}
+          ${d.relLabel ? `<span class="cdh-rel">${escHtml(d.relLabel)}</span>` : ""}
         </header>
+        ${d.isToday ? nowLineHtml : ""}
         ${anchorRows}
         ${d.isEmpty
           ? `<div class="cal-day-empty" aria-label="nothing scheduled">—</div>`
@@ -381,6 +398,12 @@ export function renderWeekView({
         <span aria-hidden="true">·</span>
         <span>cohort may 18 → jul 26 2026</span>
       </div>
+
+      <div class="cal-kbd-hints" aria-hidden="true">
+        <span class="ckh-pair"><kbd class="ckh-key">←</kbd><kbd class="ckh-key">→</kbd><span class="ckh-label">prev / next week</span></span>
+        <span class="ckh-sep" aria-hidden="true">·</span>
+        <span class="ckh-pair"><kbd class="ckh-key">t</kbd><span class="ckh-label">jump to this week</span></span>
+      </div>
     </section>
 
     ${presenceSection}
@@ -417,6 +440,26 @@ export function attachWeekViewBehavior(root, { onWeekChange, scrollToToday = tru
     });
   }
 
+  // ── now-line live tick ────────────────────────────────────────────────
+  // Updates the "cal-now-line" top position every minute so it stays
+  // accurate without requiring a full re-render.
+  let nowTimer = null;
+  function tickNowLine() {
+    const line = root.querySelector(".cal-now-line");
+    if (!line) return;
+    const d = new Date();
+    const frac = Math.min(1, Math.max(0, (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400));
+    line.style.top = (frac * 100).toFixed(2) + "%";
+  }
+  // Align the first tick to the next whole minute so subsequent ticks stay
+  // on-the-minute rather than drifting. This is a best-effort alignment
+  // (exact only if the JS event loop is not blocked at tick time).
+  const msUntilNextMinute = 60000 - (Date.now() % 60000);
+  nowTimer = setTimeout(() => {
+    tickNowLine();
+    nowTimer = setInterval(tickNowLine, 60000);
+  }, msUntilNextMinute);
+
   // ── swipe-to-navigate weeks (mobile only) ────────────────────────────
   let touchStartX = 0;
   let touchStartY = 0;
@@ -447,6 +490,7 @@ export function attachWeekViewBehavior(root, { onWeekChange, scrollToToday = tru
   return function teardown() {
     root.removeEventListener("touchstart", onTouchStart);
     root.removeEventListener("touchend",   onTouchEnd);
+    if (nowTimer != null) { clearTimeout(nowTimer); clearInterval(nowTimer); nowTimer = null; }
   };
 }
 

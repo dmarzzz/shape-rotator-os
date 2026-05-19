@@ -5,6 +5,7 @@ schema_version: 1
 name: "Patrick Messall"
 team: tinycloud
 role: "Head of Strategy"
+role_class: cohort-member
 geo: "Nomad / NYC"
 domain: tee
 email: "pmessall@gmail.com"

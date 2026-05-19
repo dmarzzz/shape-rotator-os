@@ -5,6 +5,7 @@ schema_version: 1
 name: "Will Cory"
 team: jjhub
 role: ""
+role_class: cohort-member
 geo: "SF (PST)"
 domain: ai
 dates_start: 2026-05-18T00:00:00.000Z

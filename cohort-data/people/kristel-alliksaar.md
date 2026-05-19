@@ -5,6 +5,7 @@ schema_version: 1
 name: Kristel Alliksaar
 team: teesql
 role: product research/strategy, marketing
+role_class: cohort-member
 geo: Estonia
 domain: bd-gtm
 dates_start: 2026-05-18
