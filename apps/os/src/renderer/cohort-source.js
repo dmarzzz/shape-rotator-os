@@ -53,6 +53,26 @@ let _cache = null;            // grouped by record_type
 let _refreshTimer = null;
 let _bgRefreshInFlight = null; // promise of any active background refresh
 const _subscribers = new Set();
+// Separate channel for sync lifecycle. Subscribers receive
+// "syncing" when a background refresh starts and "idle" when it ends —
+// independent of whether data actually changed. The UI uses this to
+// paint the small Notion-style "syncing cohort" chip at the bottom.
+const _syncSubscribers = new Set();
+let _syncState = "idle";
+function _emitSyncState(next) {
+  if (next === _syncState) return;
+  _syncState = next;
+  for (const cb of _syncSubscribers) {
+    try { cb(next); } catch {}
+  }
+}
+export function subscribeToSyncState(cb) {
+  _syncSubscribers.add(cb);
+  // Replay current state so the subscriber paints correctly on mount.
+  try { cb(_syncState); } catch {}
+  return () => _syncSubscribers.delete(cb);
+}
+export function getSyncState() { return _syncState; }
 
 // Persisted snapshot of the last-resolved cohort surface. Hydrating from
 // this on getCohortSurface() first call means alchemy mount renders
@@ -578,6 +598,7 @@ export async function getCohortSurface() {
 // network work.
 function _startBackgroundRefresh() {
   if (_bgRefreshInFlight) return _bgRefreshInFlight;
+  _emitSyncState("syncing");
   _bgRefreshInFlight = (async () => {
     try {
       let baseline;
@@ -622,6 +643,7 @@ function _startBackgroundRefresh() {
       }
     } finally {
       _bgRefreshInFlight = null;
+      _emitSyncState("idle");
     }
   })();
   return _bgRefreshInFlight;

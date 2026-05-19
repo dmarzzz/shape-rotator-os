@@ -53,7 +53,47 @@ const Cosmos = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode()
 import * as Atlas from "./atlas.js";
 import * as Alchemy from "./alchemy.js";
 import { getManifest, getSyncLog, getNodeLog } from "./sync-client.js";
-import { subscribeToCohortChanges } from "./cohort-source.js";
+import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.js";
+
+// Small Notion-style sync chip pinned to the bottom-left. Subscribes
+// to cohort-source's sync lifecycle and fades in while a background
+// refresh is in flight, fades out a beat after it resolves. Replaces
+// the launch splash for warm boots (when there's already a hot LS
+// snapshot, the splash would just be artificial latency).
+function mountSyncChip() {
+  if (document.getElementById("srfg-sync-chip")) return;
+  const chip = document.createElement("div");
+  chip.id = "srfg-sync-chip";
+  chip.className = "srfg-sync-chip";
+  chip.setAttribute("aria-live", "polite");
+  chip.innerHTML = `
+    <span class="srfg-sync-spinner" aria-hidden="true"></span>
+    <span class="srfg-sync-label">syncing cohort</span>
+  `;
+  document.body.appendChild(chip);
+
+  // Debounce show: avoid flashing the chip for syncs that resolve in
+  // <250ms (LS-hit + fresh-enough cache → fast refresh).
+  // Linger on idle: keep visible for 600ms after resolution so the
+  // user can see that "yes, that's done" rather than blinking out.
+  let showTimer = null;
+  let hideTimer = null;
+  subscribeToSyncState((state) => {
+    if (state === "syncing") {
+      clearTimeout(hideTimer); hideTimer = null;
+      if (chip.dataset.state === "visible") return;
+      showTimer = setTimeout(() => {
+        chip.dataset.state = "visible";
+      }, 250);
+    } else {
+      clearTimeout(showTimer); showTimer = null;
+      if (chip.dataset.state !== "visible") return;
+      hideTimer = setTimeout(() => {
+        chip.dataset.state = "hidden";
+      }, 600);
+    }
+  });
+}
 
 // Shorthand: animate a numeric DOM cell to `n`. We wrap tickNumber so the
 // dozens of "el.textContent = …" call sites flip to the animated path
@@ -525,14 +565,17 @@ async function boot() {
   // four scattered dots and the SHAPE ROTATOR wordmark resolves. Lives
   // in signature.js. Skippable on Esc / Enter / pointerdown / Space.
   //
-  // We use the progressive variant: the overlay stays up until the first
-  // tab finishes mounting (alchemy.notifyDataChanged), with a status line
-  // + progress bar reflecting what we're doing. A global handle on
-  // window.__srfgLaunch lets distant code paths (alchemy mount) advance
-  // the bar without threading it through every function. An 8s hard
-  // timeout exists as a safety net so a slow / stuck scrape can never
-  // hold the UI hostage.
-  const launch = mountLaunchOverlay({ progressive: true });
+  // Warm boot: an onboarded user with a hot localStorage snapshot has
+  // everything ready synchronously — no point holding them behind the
+  // splash for the 360ms+380ms-fade floor. We pass { instant: true }
+  // which returns a no-op handle, and the bottom "syncing cohort"
+  // chip (mounted below) communicates background refresh state
+  // instead. First launch (or LS evicted) still gets the full splash.
+  let _onboarded = false, _hasSnapshot = false;
+  try { _onboarded = localStorage.getItem("srwk:onboarded") === "1"; } catch {}
+  try { _hasSnapshot = !!localStorage.getItem("srfg:cohort_surface_v1"); } catch {}
+  const warmBoot = _onboarded && _hasSnapshot;
+  const launch = mountLaunchOverlay({ progressive: true, instant: warmBoot });
   launch.setStatus("warming the cache", 0.08);
   window.__srfgLaunch = launch;
   setTimeout(() => {
@@ -561,6 +604,7 @@ async function boot() {
   // toast / status update lands in the right surface
   mountConnectionIndicator({ serverUrl: srwk.serverUrl });
   setConnectionState({ state: "connecting", serverUrl: srwk.serverUrl });
+  mountSyncChip();
   wireGlobalKeyboard();
   registerVisualizerShortcutsAndCommands();
 

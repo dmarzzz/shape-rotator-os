@@ -112,6 +112,14 @@ function swapPaletteGlyph() {
 // Falls back to the legacy auto-timeout when called without args, so
 // any pre-existing call site keeps working unchanged.
 export function mountLaunchOverlay(opts = {}) {
+  // Warm-boot opt: caller has already determined that we have cohort
+  // data hot in localStorage and the user is onboarded — no point
+  // showing a splash that would just be artificial latency. Returns a
+  // no-op handle so callers don't need to special-case the absence of
+  // the overlay everywhere they currently call .setStatus / .ready.
+  if (opts.instant) {
+    return { setStatus() {}, ready() {}, skip() {} };
+  }
   const progressive = !!opts.progressive;
   const onboarded = localStorage.getItem(ONBOARDED_KEY) === "1";
   const reduced = reducedMotion();
