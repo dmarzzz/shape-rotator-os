@@ -29,6 +29,7 @@ import {
   renderWeekView as renderCalendarWeekView,
   loadCalendar as loadCalendarData,
   currentWeekIdx as calendarCurrentWeekIdx,
+  attachWeekViewBehavior as attachCalendarMobileBehavior,
 } from "@shape-rotator/shape-ui";
 import { getCohortSurface, subscribeToCohortChanges } from "./cohort-source.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
@@ -92,6 +93,8 @@ const state = {
     weekIdx: null,                // 0..9; resolved on first render via calendarCurrentWeekIdx()
     data: null,                   // raw Phala JSON — live response or bundled snapshot
     source: null,                 // "live" | "bundled" | null (no data yet)
+    initialMount: true,           // first render-of-week-view? drives mobile scroll-to-today
+    detachMobile: null,           // teardown returned by attachCalendarMobileBehavior
     loading: false,               // true while the async live fetch is in flight
   },
   events: [],          // normalized feed items, latest-first
@@ -894,6 +897,10 @@ function renderCalendar() {
   const sub = cal.sub === "presence" ? "presence" : "week";
   const presenceHtml = sub === "presence" ? renderCalAvailability() : "";
 
+  // Tear down previous mobile-behavior listeners before swapping markup, or
+  // touchstart/touchend handlers will stack up across renders.
+  if (cal.detachMobile) { cal.detachMobile(); cal.detachMobile = null; }
+
   state.canvas.innerHTML = renderCalendarWeekView({
     data: cal.data,
     weekIdx: cal.weekIdx,
@@ -903,7 +910,23 @@ function renderCalendar() {
     presenceHtml,
   });
 
-  if (sub === "presence") mountAvailabilityCanvas();
+  if (sub === "presence") {
+    mountAvailabilityCanvas();
+  } else {
+    // Wire mobile behavior on the week view: swipe-to-navigate + auto-scroll
+    // to today on the very first mount (not on every internal re-render —
+    // we don't want week-nav clicks to jump back to today).
+    cal.detachMobile = attachCalendarMobileBehavior(state.canvas, {
+      scrollToToday: cal.initialMount,
+      onWeekChange: (delta) => {
+        const next = cal.weekIdx + delta;
+        if (next < 0 || next > 9) return;
+        cal.weekIdx = next;
+        render();
+      },
+    });
+    cal.initialMount = false;
+  }
 }
 
 // ── presence view (the existing availability Gantt) ─────────────────

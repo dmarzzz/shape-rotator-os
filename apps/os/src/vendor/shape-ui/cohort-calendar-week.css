@@ -316,8 +316,22 @@
 }
 .cal-day-anchor + .cal-day-anchor { margin-top: 2px; }
 .cal-day-anchor .cda-glyph { display: none; }
-.cal-day-anchor .cda-title { font-family: var(--ed-display); font-style: italic; font-size: 12.5px; letter-spacing: -0.01em; color: var(--alchemy-oxide-bright, #B43A19); }
-.cal-day-anchor .cda-sub { opacity: 0.55; font-size: 9.5px; }
+.cal-day-anchor .cda-title {
+  font-family: var(--ed-display); font-style: italic;
+  font-size: 12.5px; line-height: 1.2; letter-spacing: -0.01em;
+  color: var(--alchemy-oxide-bright, #B43A19);
+  min-width: 0;            /* lets the title shrink + wrap inside the flex row */
+  word-wrap: break-word; overflow-wrap: anywhere;
+}
+/* Subtitle always breaks to its own line so long upstream context strings
+ * ("novel's multimodal 1:½ interview · rolling W1") never get truncated
+ * on narrow mobile columns. */
+.cal-day-anchor .cda-sub {
+  flex-basis: 100%;
+  min-width: 0;
+  word-wrap: break-word; overflow-wrap: anywhere;
+  opacity: 0.55; font-size: 9.5px; line-height: 1.4;
+}
 
 /* events from the live cell */
 .cal-event {
@@ -426,15 +440,99 @@
   .cal-dateline-row { padding-right: 0; }
 }
 @media (max-width: 760px) {
-  :root { --cal-page-px: 20px; }
-  .cal-page-head { padding-top: 22px; }
+  :root { --cal-page-px: 18px; }
+  .cal-page-head { padding-top: 18px; padding-bottom: 4px; }
   .cal-page-title { font-size: 26px; }
+  .cal-page-title-row { gap: 6px; }
+  .cal-page-sync { font-size: 9.5px; }
+
+  /* Sub-tab row sits tight under the page head on mobile. */
+  .cal-subtabs { padding-top: 10px; margin-bottom: 14px; gap: 18px; }
+  .cal-subtab .cs-label { font-size: 18px; }
+  .cal-subtab .cs-hint { display: none; }   /* the label alone is enough at this width */
+
+  /* Scrubber: smaller dots, tighter labels, hairline-less crowded. */
+  .cal-scrub { padding: 12px 0 22px; margin-bottom: 16px; }
+  .cal-scrub-track { top: 22px; }
+  .cal-scrub-dot { width: 20px; height: 20px; font-size: 9.5px; }
+  .cal-scrub-phases { font-size: 8px; bottom: -2px; }
+
+  /* Dateline shrinks; bigger tap targets on the nav buttons. */
+  .cal-dateline { padding: 14px 0 14px; margin-bottom: 14px; }
+  .cal-dateline-row { font-size: 9.5px; }
   .cal-dateline-display { font-size: 32px; }
-  .cal-scrub-phases { font-size: 8px; }
-  .cal-scrub-dot { width: 18px; height: 18px; font-size: 8.5px; }
-  .cal-grid { grid-template-columns: 1fr; }
-  .cal-day { min-height: 0; }
-  .cal-day.is-empty { min-height: 72px; }
-  .cal-day.is-empty .cal-day-empty { font-size: 22px; }
+  .cal-dateline-range { font-size: 10.5px; }
+  .cal-dateline-nav .cdn-btn { padding: 10px 16px; font-size: 11px; }
+
+  /* Sticky dateline keeps the week tag + nav visible as you scroll the day stack. */
+  .cal-dateline {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background:
+      linear-gradient(180deg, var(--ed-bg-0) 0%, var(--ed-bg-0) calc(100% - 8px),
+                      rgba(13,12,10,0) 100%);
+    padding-bottom: 18px;   /* the gradient bleed gives a subtle shadow into the day cards */
+  }
+
+  /* Day grid → single column. Card padding tightens for mobile thumb width. */
+  .cal-grid { grid-template-columns: 1fr; gap: 1px; }
+  .cal-day { min-height: 0; padding: 14px 14px 16px; gap: 9px; }
+
+  /* Today on mobile reads as a slab: stronger top border, brighter wash,
+   * a fuller-width oxide left band. The visual difference from other days
+   * is what people scrolling are scanning for. */
+  .cal-day.is-today {
+    border-top-width: 3px;
+    padding-top: 13px;
+    box-shadow: inset 3px 0 0 0 var(--alchemy-oxide-bright, #B43A19);
+    background:
+      linear-gradient(90deg, rgba(180,58,25,0.10) 0, rgba(180,58,25,0) 70%),
+      linear-gradient(180deg, #1c140f 0%, #110d0b 100%);
+  }
+  .cal-day.is-today .cdh-name { font-size: 11px; letter-spacing: 0.28em; }
+  .cal-day.is-today .cdh-today { font-size: 14px; }
+
+  /* Empty days collapse to a single-line summary so the page doesn't
+   * waste vertical real estate on "nothing scheduled" slabs. */
+  .cal-day.is-empty {
+    min-height: 0;
+    padding: 10px 14px;
+    flex-direction: row;
+    align-items: baseline;
+  }
+  .cal-day.is-empty .cal-day-h {
+    border-bottom: 0; padding-bottom: 0;
+    flex: 1; gap: 8px;
+  }
+  .cal-day.is-empty .cal-day-empty {
+    margin: 0 0 0 auto;
+    font-size: 10px;
+    font-family: var(--ed-mono);
+    font-style: normal;
+    letter-spacing: 0.16em;
+    text-transform: lowercase;
+    color: var(--ed-ink-4);
+    line-height: 1;
+  }
+  .cal-day.is-empty .cal-day-empty::before {
+    content: "nothing scheduled";
+  }
+  .cal-day.is-empty .cal-day-empty {
+    /* The em-dash glyph is replaced by the text above. Hide the raw char. */
+    font-size: 0;
+  }
+  .cal-day.is-empty .cal-day-empty::before { font-size: 10px; }
+
+  /* Anchor + event text sizes nudge up a hair so phone reading is comfortable. */
+  .cal-day-anchor { padding: 3px 0 3px 10px; font-size: 10.5px; }
+  .cal-day-anchor .cda-title { font-size: 13px; }
+  .cal-day-anchor .cda-sub { font-size: 10px; }
+  .cal-event { font-size: 11px; line-height: 1.55; }
+  .cal-event-title { font-size: 13px; }
+
+  /* Recurring + footer compress to one column. */
+  .cal-recur { margin-top: 24px; }
   .cal-recur-list { grid-template-columns: 1fr; }
+  .cal-page-foot { font-size: 9.5px; gap: 8px; }
 }

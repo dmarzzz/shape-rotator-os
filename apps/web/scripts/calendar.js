@@ -2,6 +2,7 @@ import {
   renderWeekView,
   loadCalendar,
   currentWeekIdx,
+  attachWeekViewBehavior,
   renderCohortCalendar,
 } from "@shape-rotator/shape-ui";
 
@@ -17,12 +18,18 @@ const state = {
   source: null,      // "live" | "bundled" | null
   weekIdx: 0,
   sub: "week",       // "week" | "presence"
+  initialMount: true, // first render-of-week-view? drives mobile scroll-to-today
 };
 
 const mount = document.getElementById("mount");
+let detachBehavior = null;   // teardown returned by attachWeekViewBehavior
 
 function rerender() {
   if (!mount) return;
+  // Tear down any previous mobile behavior listeners before re-rendering,
+  // otherwise touch handlers stack up across renders.
+  if (detachBehavior) { detachBehavior(); detachBehavior = null; }
+
   const presenceHtml = state.sub === "presence"
     ? `<div class="cal-presence-canvas-wrap calendar-wrap"></div>`
     : "";
@@ -42,6 +49,20 @@ function rerender() {
       try { renderCohortCalendar({ container: wrap, cohort: state.cohort }); }
       catch (e) { wrap.innerHTML = `<p class="cal-presence-empty">presence render failed: ${e.message}</p>`; }
     }
+  } else {
+    // Wire mobile behavior on the week view: swipe-to-navigate + auto-scroll
+    // to today on the very first mount (not on every internal re-render —
+    // we don't want week-nav clicks to jump the user back to today).
+    detachBehavior = attachWeekViewBehavior(mount, {
+      scrollToToday: state.initialMount,
+      onWeekChange: (delta) => {
+        const next = state.weekIdx + delta;
+        if (next < 0 || next > 9) return;
+        state.weekIdx = next;
+        rerender();
+      },
+    });
+    state.initialMount = false;
   }
 }
 

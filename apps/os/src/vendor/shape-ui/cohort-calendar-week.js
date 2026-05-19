@@ -387,6 +387,69 @@ export function renderWeekView({
   `;
 }
 
+// Mobile behavior helper — attaches week-swipe gestures + auto-scrolls the
+// today card into view on first render of the week view. Returns a teardown
+// fn the consumer can call before re-render to remove listeners (otherwise
+// listeners stack up across renders).
+//
+// Args:
+//   root            — the container the renderWeekView markup was mounted in
+//   onWeekChange    — (delta: -1 | +1) => void; consumer flips state + rerenders
+//   scrollToToday   — bool; if true (default), scrolls today into view on mount
+//   isMobile        — optional () => bool; defaults to matchMedia <= 760px
+export function attachWeekViewBehavior(root, { onWeekChange, scrollToToday = true, isMobile } = {}) {
+  if (!root) return () => {};
+  const mobile = typeof isMobile === "function"
+    ? isMobile
+    : () => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
+
+  // ── auto-scroll to today on mobile ───────────────────────────────────
+  // Only on initial mount of the week view. Lets the sticky dateline stay
+  // at the top, then scrolls so the today card sits just under it.
+  if (scrollToToday && mobile()) {
+    requestAnimationFrame(() => {
+      const today = root.querySelector(".cal-day.is-today");
+      const dateline = root.querySelector(".cal-dateline");
+      if (!today) return;
+      const datelineH = dateline ? dateline.getBoundingClientRect().height : 0;
+      const y = today.getBoundingClientRect().top + (window.pageYOffset || 0) - datelineH - 8;
+      window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
+    });
+  }
+
+  // ── swipe-to-navigate weeks (mobile only) ────────────────────────────
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchActive = false;
+  function onTouchStart(e) {
+    if (!mobile()) return;
+    if (e.touches.length !== 1) return;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchActive = true;
+  }
+  function onTouchEnd(e) {
+    if (!touchActive) return;
+    touchActive = false;
+    if (!mobile()) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    // Horizontal intent: must be > 60px horizontal AND mostly horizontal
+    // (|dx| > 2 * |dy|) so we don't hijack vertical scrolls.
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    if (typeof onWeekChange !== "function") return;
+    onWeekChange(dx > 0 ? -1 : +1);
+  }
+  root.addEventListener("touchstart", onTouchStart, { passive: true });
+  root.addEventListener("touchend",   onTouchEnd,   { passive: true });
+
+  return function teardown() {
+    root.removeEventListener("touchstart", onTouchStart);
+    root.removeEventListener("touchend",   onTouchEnd);
+  };
+}
+
 // Convenience: try the live URL first, fall back to the supplied bundle.
 // Returns { data, source, bundledStamp }.
 export async function loadCalendar({ bundled = null, fetchOpts = {} } = {}) {
