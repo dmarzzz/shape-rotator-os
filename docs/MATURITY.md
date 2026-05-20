@@ -136,6 +136,19 @@ This entry is the explicit drift escalation flagged by the 08:25 tick. No furthe
 
 **Next tick should**: once v0.12.2 binaries land, the next SROS release will bundle the corrected daemon. Otherwise the next highest-leverage candidate is probably auditing whether the renderer's `web_search_completed` row consumes the right field names too (similar potential drift), or looking at first-launch onboarding modal polish.
 
+## 2026-05-19 21:25 EDT
+
+**Score**: 7.5/10 (audit on web_search_completed + bundle_pulled + mdns_peer_appeared shows no drift — only scraper_pulled had the issue. Picked the next-highest-leverage move from prior tick's checklist instead.)
+
+**Picked**: SROS v0.1.36 — onboarding modal subscribes to cohort changes so dropdowns repopulate when fresh data lands.
+
+**Why**: on cold first launch the LS cache / fixture is sparse before the GH tree fetch resolves; users opening the app fresh saw half-empty dropdowns, dismissed, never claimed. ~20 LOC, single file, isolated bug fix.
+
+**Shipped**:
+- SROS `e848c77` + tag `v0.1.36` — `fix(onboarding): repopulate dropdowns when cohort refreshes`
+
+**Next tick should**: dmg build for v0.1.36 lands ~5min. Otherwise the loop's worth chasing: the v0.12.0/v0.12.1/v0.12.2 swf-node release-binaries CI runs are STILL queued for ~5h+ on macos-13 (mac-x64). Investigation of GH Actions queue OR matrix fallback to a cross-compile path would be the next big-leverage move.
+
 ## 2026-05-19 19:25 EDT
 
 **Score**: 7.5/10 (queue fully drained this hour via user-authorized chat-driven merges. #93 Hermes PoC, #94 cohort taxonomy + calendar overhaul, #98 warm-boot splash-skip all merged. #99/#100/#101 closed by user. SROS v0.1.34 tagged.)
