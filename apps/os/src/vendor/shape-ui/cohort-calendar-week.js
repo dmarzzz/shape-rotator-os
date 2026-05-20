@@ -31,6 +31,7 @@
 //   parseWeekRow(row, weekIdx, eventsByDayMs) — { theme, dateRange, days, ... }
 //   parseRecurring(rows)              — [{ when, what }]
 //   renderWeekView({ data, weekIdx, sub, source, events }) — HTML string
+//   renderSkeletonWeek()              — HTML string; ghost of the week layout shown while data loads
 
 import { escHtml, escAttr } from "./escape.js";
 
@@ -504,6 +505,45 @@ export function attachWeekViewBehavior(root, { onWeekChange, scrollToToday = tru
     root.removeEventListener("touchend",   onTouchEnd);
     if (nowTimer != null) { clearTimeout(nowTimer); clearInterval(nowTimer); nowTimer = null; }
   };
+}
+
+// Ghost skeleton of the week view — rendered instantly before data arrives so
+// the page never shows a blank mount. Uses the real CSS layout classes (so
+// proportions match the actual calendar) with .csk-bar rects in place of
+// text content. A soft pulse animation communicates "loading" without being
+// distracting; prefers-reduced-motion falls back to static opacity.
+export function renderSkeletonWeek() {
+  const dots = Array.from({ length: WEEK_COUNT }, () =>
+    `<div class="cal-scrub-dot" aria-hidden="true"></div>`).join("");
+  const dayCols = Array.from({ length: 7 }, () => `
+    <article class="cal-day" role="listitem" aria-hidden="true">
+      <div class="csk-bar" style="width:58%;height:9px;margin-bottom:11px"></div>
+      <div class="csk-bar" style="width:92%;height:8px;margin-bottom:7px"></div>
+      <div class="csk-bar" style="width:75%;height:8px;margin-bottom:7px"></div>
+      <div class="csk-bar" style="width:85%;height:8px"></div>
+    </article>`).join("");
+  return `
+    <div class="cal-skeleton" role="status" aria-label="loading calendar" aria-busy="true">
+      <header class="cal-page-head">
+        <div class="cal-page-title-row">
+          <div class="csk-bar" style="width:192px;height:28px"></div>
+          <div class="csk-bar" style="width:128px;height:9px"></div>
+        </div>
+      </header>
+      <nav class="cal-subtabs" aria-hidden="true">
+        <div class="csk-bar" style="width:48px;height:20px"></div>
+        <div class="csk-bar" style="width:64px;height:20px"></div>
+      </nav>
+      <div class="cal-week">
+        <div class="cal-scrub">${dots}</div>
+        <div class="cal-dateline">
+          <div class="csk-bar" style="width:86px;height:9px;margin-bottom:12px"></div>
+          <div class="csk-bar" style="width:248px;height:46px;margin-bottom:9px"></div>
+          <div class="csk-bar" style="width:132px;height:9px"></div>
+        </div>
+        <div class="cal-grid" role="list">${dayCols}</div>
+      </div>
+    </div>`;
 }
 
 // Convenience: try the live URL first, fall back to the supplied bundle.
