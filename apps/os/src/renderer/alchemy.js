@@ -74,6 +74,16 @@ const WEEK_NOW = 1; // TODO: bump weekly, or derive from a cohort start date.
 // being visible — no point burning quota when nobody's looking.
 const FEED_REFRESH_MS = 24 * 60 * 60 * 1000;
 
+// Feed kill-switch — disabled per user request 2026-05-20. The feed tab
+// hits api.github.com /events ~35×/refresh and is the last remaining
+// rate-limit offender after v0.1.39's cohort-sync fix. While off:
+//   - the rail button is `hidden` in src/index.html
+//   - any stored `mode === "feed"` is migrated to "shapes" on mount
+//   - refreshFeed() short-circuits, so no background poll, no timer fire
+// To bring it back: flip FEED_DISABLED to false and remove the `hidden`
+// attribute on the rail button (index.html around line 300).
+const FEED_DISABLED = true;
+
 // Where the cohort-data markdown lives. Profile tab surfaces a link to
 // each team's record so participants can edit it directly. Hardcoded
 // for now — if this repo is ever renamed or the cohort-data dir moves
@@ -146,6 +156,13 @@ export function mount(container) {
     // grid instead of a dead tab. Restore symmetry when the feed comes
     // back as a teleport-router surface.
     if (saved === "feed")      { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
+    // Defensive: if state.mode somehow came in as "feed" from a non-
+    // localStorage path while FEED_DISABLED is true, reroute to shapes
+    // so we don't try to render a tab that no longer has a rail button.
+    if (FEED_DISABLED && state.mode === "feed") {
+      state.mode = "shapes";
+      try { localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); } catch {}
+    }
     // One-time membrane intro: on this preview branch, first launch lands
     // every user on the membrane mode regardless of prior preference so the
     // redesign is the first thing they see. Subsequent rail clicks persist
@@ -172,21 +189,19 @@ export function mount(container) {
     state.container.dataset.alchModeCurrent = state.mode;
     syncMembraneMenuChrome();
   }
-  // feed-off (2026-05): the feed surface is unwired pending the teleport-
-  // router integration that will replace GH-fork scraping with a single
-  // routed activity stream. Until then we don't fire the periodic refresh
-  // OR the deferred mount fetch — they were the only callers of refreshFeed
-  // in normal use, and keeping them firing means hitting GH on every launch
-  // for a UI no one can navigate to. The interval + mount lines are kept
-  // (commented) so the resurrection diff is trivial.
-  //
-  //   if (!state.refreshTimer) {
-  //     state.refreshTimer = setInterval(() => {
-  //       if (state.mode !== "feed") return;
-  //       refreshFeed({ source: "interval" });
-  //     }, FEED_REFRESH_MS);
-  //     setTimeout(() => refreshFeed({ source: "mount" }), 1500);
-  //   }
+  // Background feed refresh — interval gated on the feed tab being open
+  // so we don't burn the 60 req/hr unauth GH budget on a user who hasn't
+  // looked at the feed today. Skipped entirely while FEED_DISABLED — no
+  // timer, no mount kick, nothing hitting api.github.com from this code
+  // path. Flip FEED_DISABLED to false (top of file) to revive.
+  if (!FEED_DISABLED && !state.refreshTimer) {
+    state.refreshTimer = setInterval(() => {
+      if (state.mode !== "feed") return;
+      refreshFeed({ source: "interval" });
+    }, FEED_REFRESH_MS);
+    // First fetch on mount, deferred a beat so we don't compete with cohort load.
+    setTimeout(() => refreshFeed({ source: "mount" }), 1500);
+  }
 
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.addEventListener("click", () => {
@@ -4707,6 +4722,10 @@ function saveEventsCache() {
 const GH_REPO_RE = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/;
 
 async function refreshFeed({ source = "auto", force = false } = {}) {
+  // Kill-switch — see FEED_DISABLED at top of file. Short-circuits every
+  // caller (mount kick, interval, mode-enter, the in-header refresh
+  // button) so the github /events feed makes zero requests while off.
+  if (FEED_DISABLED) return;
   if (state.isFetching) return;
   const fresh = Date.now() - state.fetchedAt < FEED_REFRESH_MS;
   if (fresh && !force && state.events.length > 0) {
