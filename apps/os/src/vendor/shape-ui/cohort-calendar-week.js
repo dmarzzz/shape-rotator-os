@@ -444,6 +444,9 @@ export function attachWeekViewBehavior(root, { onWeekChange, scrollToToday = tru
   // ── now-line live tick ────────────────────────────────────────────────
   // Updates the "cal-now-line" top position every minute so it stays
   // accurate without requiring a full re-render.
+  // Skipped entirely when prefers-reduced-motion is active: the CSS already
+  // hides the element, and setting up a background interval that updates a
+  // hidden node contradicts the user's motion preference.
   let nowTimer = null;
   function tickNowLine() {
     const line = root.querySelector(".cal-now-line");
@@ -452,14 +455,18 @@ export function attachWeekViewBehavior(root, { onWeekChange, scrollToToday = tru
     const frac = Math.min(1, Math.max(0, (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400));
     line.style.top = (frac * 100).toFixed(2) + "%";
   }
-  // Align the first tick to the next whole minute so subsequent ticks stay
-  // on-the-minute rather than drifting. This is a best-effort alignment
-  // (exact only if the JS event loop is not blocked at tick time).
-  const msUntilNextMinute = 60000 - (Date.now() % 60000);
-  nowTimer = setTimeout(() => {
-    tickNowLine();
-    nowTimer = setInterval(tickNowLine, 60000);
-  }, msUntilNextMinute);
+  const reduceMotion = typeof window !== "undefined"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduceMotion) {
+    // Align the first tick to the next whole minute so subsequent ticks stay
+    // on-the-minute rather than drifting. This is a best-effort alignment
+    // (exact only if the JS event loop is not blocked at tick time).
+    const msUntilNextMinute = 60000 - (Date.now() % 60000);
+    nowTimer = setTimeout(() => {
+      tickNowLine();
+      nowTimer = setInterval(tickNowLine, 60000);
+    }, msUntilNextMinute);
+  }
 
   // ── swipe-to-navigate weeks (mobile only) ────────────────────────────
   let touchStartX = 0;
