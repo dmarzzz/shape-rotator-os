@@ -162,6 +162,19 @@ This entry is the explicit drift escalation flagged by the 08:25 tick. No furthe
 
 **Next tick should**: the real fix for mac-x64 is either (a) explicit cancel via a scheduled workflow that runs `gh run cancel` on legs queued >30min, (b) drop mac-x64 from auto-tag matrix and trigger only via workflow_dispatch, or (c) cross-compile from macos-14 arm64. None of these are 1-tick changes. Consider for a future planning tick.
 
+## 2026-05-19 23:25 EDT
+
+**Score**: 8/10 (first time pushing past 7.5 — empty-state coverage is now reasonable across all main panels. Atlas was the last big gap.)
+
+**Picked**: SROS v0.1.37 — Atlas tab "indrex empty" panel for the fresh-install case (daemon up, no pages indexed yet).
+
+**Why**: a cohort member on day 1 of the program sees the daemon up but no pages yet (their first search would index one). Before this, Atlas was a black 3D void with the "composing graph…" status stuck — feels broken. Now it shows a friendly "no pages yet" panel that auto-clears once the reconcile poll spots a first node. 3 files, ~40 LOC, well within guardrails.
+
+**Shipped**:
+- SROS `b972035` + tag `v0.1.37` — `feat(atlas): friendly empty state when indrex has 0 indexed pages`
+
+**Next tick should**: install + verify the panel renders on a fresh /graph response with 0 nodes. Otherwise the next-highest-leverage candidate is probably the Network tab having a similar empty case (no peers discovered yet — though we usually do see self), or a similar panel for the Constellation tab if it has a parallel "no data" black-scene problem.
+
 ## 2026-05-19 19:25 EDT
 
 **Score**: 7.5/10 (queue fully drained this hour via user-authorized chat-driven merges. #93 Hermes PoC, #94 cohort taxonomy + calendar overhaul, #98 warm-boot splash-skip all merged. #99/#100/#101 closed by user. SROS v0.1.34 tagged.)
