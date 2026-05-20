@@ -656,3 +656,17 @@
   /* Keyboard hints are not useful on touch devices — hide entirely. */
   .cal-kbd-hints { display: none; }
 }
+
+/* ── reduced motion ──────────────────────────────────────────────────── */
+/* Suppress the remaining UI transitions for users who opt out of motion.
+ * The now-line is already hidden in its own block above; the JS behavior
+ * attachment also skips the minute-timer when this query matches so the
+ * hidden element is not updated on a background interval. */
+@media (prefers-reduced-motion: reduce) {
+  .cal-subtab,
+  .cal-scrub-dot,
+  .cal-dateline-nav .cdn-btn,
+  .cal-kbd-hints {
+    transition: none;
+  }
+}
