@@ -6,14 +6,21 @@
 // running it externally — this module makes the app spawn its own.
 //
 // State machine
-//   idle         — not started yet
-//   starting     — spawn() called, no exit signal yet
-//   running      — child is alive (first stdout/stderr line OR
-//                  300ms grace window passed without an exit)
-//   crashed      — exited unexpectedly 3 times in a row
-//   unsupported  — binary missing on disk (e.g. win32-arm64 host, where
-//                  upstream pyrage has no arm64-windows wheel yet) OR
-//                  explicitly disabled via SWF_NODE_DISABLE=1
+//   idle                — not started yet
+//   starting            — spawn() called, no exit signal yet
+//   running             — child is alive (first stdout/stderr line OR
+//                         300ms grace window passed without an exit)
+//   crashed             — exited unexpectedly 3 times in a row
+//   external_squatter   — a foreign swf-node is already on :7777 (e.g. a
+//                         pipx install from before the bundling work);
+//                         we skip spawn rather than race-and-fail.
+//                         Detected by `/.well-known/indrex` probe at
+//                         start() time. getExternalDaemonInfo() returns
+//                         what we saw so the renderer can warn the user.
+//   unsupported         — binary missing on disk (e.g. win32-arm64 host,
+//                         where upstream pyrage has no arm64-windows
+//                         wheel yet) OR explicitly disabled via
+//                         SWF_NODE_DISABLE=1
 //
 // Lifecycle
 //   start(BrowserWindow|null)  — call on app.whenReady
@@ -42,6 +49,7 @@
 //     install on the same machine.
 
 const { spawn } = require("node:child_process");
+const http = require("node:http");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -52,6 +60,14 @@ const RESTART_LIMIT = 3;                  // unexpected exits before we give up
 const RESTART_BACKOFF_MS = 2000;
 const SIGTERM_GRACE_MS = 3000;            // wait this long before SIGKILL on quit
 const PORT = 7777;                        // the renderer's hardcoded default
+const PROBE_TIMEOUT_MS = 1500;            // /.well-known/indrex probe budget
+// PyInstaller --onefile bundles don't embed setuptools_scm — the bundled
+// swf-node reports this literal as its `version` over the wire. A
+// `/.well-known/indrex` response from :7777 reporting anything OTHER
+// than this sentinel means we're staring at a foreign daemon (e.g.
+// a pipx-installed swf-node squatting on the port from the pre-
+// bundling era), and our spawn would race-and-fail against it.
+const BUNDLED_VERSION_SENTINEL = "0.0.0+unknown";
 
 let _proc = null;
 let _state = "idle";
@@ -67,6 +83,11 @@ let _broadcaster = null;       // (state) => void
 let _agentToken = null;        // generated once per launch, persisted to disk under _dataDir/agent_token
 let _agentTokenPath = null;
 let _cohortKeysPath = null;    // userData/swf-node-data/cohort-keys.json (after bootstrap)
+// When the pre-spawn probe finds someone else on :7777 (typically an
+// older pipx-installed swf-node from before bundling existed), we stash
+// what they reported so the renderer can surface a remediation banner.
+// Null when no external daemon was detected at start() time.
+let _externalDaemon = null;    // { version, indrex } | null
 
 function setState(next) {
   if (_state === next) return;
@@ -121,6 +142,38 @@ function appendLog(stream, chunk) {
       openLogStream();
     }
   } catch {}
+}
+
+// GET http://127.0.0.1:PORT/.well-known/indrex with a hard timeout.
+// Returns the parsed JSON body on a 200, or null on anything else
+// (no listener, non-200, parse error, timeout). Never throws.
+function probeIndrex(timeoutMs) {
+  return new Promise((resolve) => {
+    const req = http.get({
+      hostname: "127.0.0.1",
+      port: PORT,
+      path: "/.well-known/indrex",
+      timeout: timeoutMs,
+    }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return resolve(null);
+      }
+      let buf = "";
+      res.setEncoding("utf8");
+      res.on("data", (c) => {
+        buf += c;
+        // Indrex docs are small (a few hundred bytes). Anything bigger
+        // is either not us or a bug — bail rather than buffer forever.
+        if (buf.length > 8192) { req.destroy(); resolve(null); }
+      });
+      res.on("end", () => {
+        try { resolve(JSON.parse(buf)); } catch { resolve(null); }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  });
 }
 
 // Filename of the bundled binary inside Resources/swf-node/. Windows
@@ -429,7 +482,48 @@ function start(app, broadcaster) {
   openLogStream();
 
   _restartCount = 0;
-  spawnChild();
+  // Probe BEFORE spawn. If a foreign daemon (e.g. a pipx-installed
+  // swf-node left over from the pre-bundling era) is already on :7777,
+  // our spawn would just race-and-fail three times into "crashed" and
+  // the renderer would silently end up talking to the old daemon — the
+  // exact failure mode dmarzzz/shape-rotator-os#84-followup describes.
+  // The probe is async; spawnChild() runs inside on miss, so start()
+  // stays fire-and-forget for callers (main.js doesn't await).
+  probeAndStart();
+}
+
+// Pre-spawn external-daemon detection. Either spawns our child or
+// latches into the `external_squatter` terminal state with a clear
+// remediation message. Caller (start) doesn't await.
+async function probeAndStart() {
+  const existing = await probeIndrex(PROBE_TIMEOUT_MS);
+  if (!existing) {
+    // Nothing on :7777 — the common case. Proceed with normal spawn.
+    spawnChild();
+    return;
+  }
+  const ver = (existing && existing.version) || "(unknown)";
+  _externalDaemon = { version: ver, indrex: existing };
+
+  // Anything other than the PyInstaller sentinel means we're staring
+  // at a different binary. Almost always a stale `pipx install swf-node`
+  // from the pre-bundling era still bound to :7777 at SROS launch.
+  const stderrLines = [
+    `[swf-node] external swf-node detected on :${PORT} (version="${ver}")`,
+    `[swf-node]   the bundled binary reports "${BUNDLED_VERSION_SENTINEL}"; this is something else.`,
+    `[swf-node]   skipping spawn — would race-and-fail. The renderer will see the old daemon's responses;`,
+    `[swf-node]   new sync endpoints (/sync/manifest, /sync/log, /node/log) will 404 on it.`,
+    `[swf-node]   fix: \`pkill -f swf-node\` (also \`pipx uninstall swf-node\` if applicable), then relaunch SROS.`,
+  ];
+  for (const line of stderrLines) process.stderr.write(line + "\n");
+  appendLog("squatter",
+    `external swf-node on :${PORT} version="${ver}" — skipping spawn.\n` +
+    `  remediation: pkill -f swf-node (and pipx uninstall swf-node if applicable), then relaunch SROS.\n`,
+  );
+  // Treat both cases — foreign version AND same sentinel (second SROS
+  // instance) — as "external_squatter". The renderer can read the
+  // detected version via getExternalDaemonInfo() to decide what to show.
+  setState("external_squatter");
 }
 
 /**
@@ -499,4 +593,12 @@ function getAgentToken() {
   return _agentToken;
 }
 
-module.exports = { start, restart, stop, getStatus, getAgentToken };
+// When start() found a foreign daemon on :7777 at launch, this returns
+// `{ version, indrex }` so the renderer can show a targeted remediation
+// banner. Returns null when our own spawn is the daemon on :7777 (the
+// normal case) or before start() has run.
+function getExternalDaemonInfo() {
+  return _externalDaemon;
+}
+
+module.exports = { start, restart, stop, getStatus, getAgentToken, getExternalDaemonInfo };

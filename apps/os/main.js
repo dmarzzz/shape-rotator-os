@@ -306,6 +306,13 @@ ipcMain.handle("fg:swf-node-restart", async () => {
   return { ok: started, status: swfNode.getStatus() };
 });
 
+// When the supervisor latched into `external_squatter` at start() time,
+// expose what /.well-known/indrex reported on :7777. The renderer reads
+// this to render a remediation banner: "an older swf-node vX.Y.Z is
+// running on this machine — pkill -f swf-node and relaunch". Returns
+// null in the normal case (we spawned our own child).
+ipcMain.handle("fg:swf-node-external-info", async () => swfNode.getExternalDaemonInfo() || null);
+
 // Renderer asks for the agent bearer token here so sync-client.js can
 // authenticate against POST /sync/local_record. swf-node.js generates +
 // persists the token on first launch (apps/os/swf-node.js). Returns

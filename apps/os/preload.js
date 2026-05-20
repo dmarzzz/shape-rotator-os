@@ -43,6 +43,10 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("fg:swf-node-status-changed", handler);
     return () => ipcRenderer.removeListener("fg:swf-node-status-changed", handler);
   },
+  // When status === "external_squatter", returns `{ version, indrex }`
+  // describing the foreign daemon that grabbed :7777 before us. Null
+  // otherwise. Use to render a remediation banner.
+  getSwfNodeExternalInfo: () => ipcRenderer.invoke("fg:swf-node-external-info"),
   // Agent bearer for swf-node's agent-gated routes (POST /sync/local_record
   // primarily). Generated + persisted by apps/os/swf-node.js on first
   // launch; main reads it from there. Returns null in dev mode without
