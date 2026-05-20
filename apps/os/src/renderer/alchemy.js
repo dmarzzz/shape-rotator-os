@@ -45,7 +45,13 @@ const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
 // atlas tab (the swf-node wall-map). Renderer (renderAtlas / wireAtlas) is
 // kept in place so the view can be promoted to a top tab later under a
 // different name if desired — just unreachable from the alchemy rail today.
-const ALCHEMY_MODES   = ["feed", "shapes", "pulse", "constellation", "calendar", "profile", "onboarding", "program", "asks"];
+// "feed" is intentionally absent from the rail and mode list as of 2026-05.
+// The renderer (renderFeed) and fetcher (refreshFeed) are still in the file
+// because we plan to bring the feed back as a teleport-router-fed surface
+// once that integration lands; rather than rip out the code and re-write it
+// from git history, the surfaces are simply unwired. See the "feed off"
+// section below this constant for the disabled hooks.
+const ALCHEMY_MODES   = ["shapes", "pulse", "constellation", "calendar", "profile", "onboarding", "program", "asks"];
 
 const WEEKS_TOTAL = 10;
 const WEEK_NOW = 1; // TODO: bump weekly, or derive from a cohort start date.
@@ -96,8 +102,9 @@ const state = {
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
   constellationMode: "clusters",  // "clusters" (shared cluster membership) | "dependencies" (team-asserted dependency edges)
   calendar: {                     // calendar tab state — see renderCalendar()
-    sub: "week",                  // "week" (broadsheet grid) | "presence" (availability gantt)
+    sub: "day",                   // "day" (typeset today agenda) | "week" (broadsheet grid) | "presence" (availability gantt)
     weekIdx: null,                // 0..9; resolved on first render via calendarCurrentWeekIdx()
+    dayIdx: null,                 // 0..6 (mon..sun) within visible week; null = pick today if in week, else mon
     data: null,                   // raw Phala JSON — live response or bundled snapshot
     source: null,                 // "live" | "bundled" | null (no data yet)
     initialMount: true,           // first render-of-week-view? drives mobile scroll-to-today
@@ -123,7 +130,11 @@ export function mount(container) {
     if (saved && ALCHEMY_MODES.includes(saved)) state.mode = saved;
     // Migrations:
     if (saved === "specimens") { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
-    if (saved === "legend")    { state.mode = "feed";   localStorage.setItem(ALCHEMY_LS_KEY, "feed"); }
+    if (saved === "legend")    { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
+    // feed-off: any user whose saved mode is "feed" lands on the cohort
+    // grid instead of a dead tab. Restore symmetry when the feed comes
+    // back as a teleport-router surface.
+    if (saved === "feed")      { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
   } catch {}
   // Detail page state — if a record was open at last reload, restore it
   // so the user lands back where they were instead of on the grid.
@@ -137,19 +148,21 @@ export function mount(container) {
   } catch {}
   loadProfile();
   loadEventsCache();
-  // Background feed refresh — interval gated on the feed tab being open
-  // so we don't burn the 60 req/hr unauth GH budget on a user who hasn't
-  // looked at the feed today. Mount-enter (line below) + tab-enter
-  // (further down) + the explicit refresh button in the feed header give
-  // the user plenty of "make it fresh" surface area on demand.
-  if (!state.refreshTimer) {
-    state.refreshTimer = setInterval(() => {
-      if (state.mode !== "feed") return;
-      refreshFeed({ source: "interval" });
-    }, FEED_REFRESH_MS);
-    // First fetch on mount, deferred a beat so we don't compete with cohort load.
-    setTimeout(() => refreshFeed({ source: "mount" }), 1500);
-  }
+  // feed-off (2026-05): the feed surface is unwired pending the teleport-
+  // router integration that will replace GH-fork scraping with a single
+  // routed activity stream. Until then we don't fire the periodic refresh
+  // OR the deferred mount fetch — they were the only callers of refreshFeed
+  // in normal use, and keeping them firing means hitting GH on every launch
+  // for a UI no one can navigate to. The interval + mount lines are kept
+  // (commented) so the resurrection diff is trivial.
+  //
+  //   if (!state.refreshTimer) {
+  //     state.refreshTimer = setInterval(() => {
+  //       if (state.mode !== "feed") return;
+  //       refreshFeed({ source: "interval" });
+  //     }, FEED_REFRESH_MS);
+  //     setTimeout(() => refreshFeed({ source: "mount" }), 1500);
+  //   }
 
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.addEventListener("click", () => {
@@ -1117,7 +1130,13 @@ function renderCalendar() {
     }).catch(() => { cal.loading = false; });
   }
 
-  const sub = cal.sub === "presence" ? "presence" : "week";
+  // Default sub is "day" — the calendar tab opens to a typeset agenda for
+  // today rather than the broadsheet week grid, since that's the question
+  // people most often have ("what's on right now?"). Week + presence are
+  // one click away from any tab.
+  const sub = cal.sub === "presence" ? "presence"
+            : cal.sub === "week"     ? "week"
+            : "day";
   const presenceHtml = sub === "presence" ? renderCalAvailability() : "";
 
   // Tear down previous mobile-behavior listeners before swapping markup, or
@@ -1127,6 +1146,7 @@ function renderCalendar() {
   state.canvas.innerHTML = renderCalendarWeekView({
     data: cal.data,
     weekIdx: cal.weekIdx,
+    dayIdx:  cal.dayIdx == null ? null : cal.dayIdx,
     sub,
     source: cal.source,
     events: state.cohort?.events || [],
@@ -1248,7 +1268,7 @@ function hsl(h, s, l, a) {
 function wireCalendar() {
   const cal = state.calendar;
 
-  // week / presence sub-tab switch
+  // day / week / presence sub-tab switch
   for (const btn of state.canvas.querySelectorAll(".cal-subtab[data-cal-sub]")) {
     btn.addEventListener("click", () => {
       const next = btn.dataset.calSub;
@@ -1258,7 +1278,20 @@ function wireCalendar() {
     });
   }
 
-  // week navigation (prev / today / next)
+  // day-view day pills — pick which day of the visible week to view
+  for (const pill of state.canvas.querySelectorAll(".cal-day-pill[data-cal-day-pick]")) {
+    pill.addEventListener("click", () => {
+      const i = Number(pill.dataset.calDayPick);
+      if (!Number.isFinite(i) || i < 0 || i > 6) return;
+      cal.dayIdx = i;
+      render();
+    });
+  }
+
+  // week navigation (prev / today / next). Changing the visible week
+  // resets the day-view selection so day view follows the user's
+  // attention rather than stranding them on, say, "wednesday of last week"
+  // when they jump forward.
   for (const btn of state.canvas.querySelectorAll("[data-cal-nav]")) {
     btn.addEventListener("click", () => {
       const dir = btn.dataset.calNav;
@@ -1266,16 +1299,18 @@ function wireCalendar() {
       else if (dir === "next"  && cal.weekIdx < 9) cal.weekIdx += 1;
       else if (dir === "today") cal.weekIdx = calendarCurrentWeekIdx();
       else return;
+      cal.dayIdx = null;
       render();
     });
   }
 
-  // 10-week scrubber dots
+  // 10-week scrubber dots — same dayIdx reset semantics as week nav.
   for (const dot of state.canvas.querySelectorAll(".cal-scrub-dot[data-week]")) {
     dot.addEventListener("click", () => {
       const i = Number(dot.dataset.week);
       if (Number.isFinite(i) && i !== cal.weekIdx) {
         cal.weekIdx = i;
+        cal.dayIdx = null;
         render();
       }
     });
