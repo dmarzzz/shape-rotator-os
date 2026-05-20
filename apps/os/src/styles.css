@@ -4,36 +4,18 @@
  * wins the cascade against the legacy .cal-* rules deeper in this file
  * (which will be pruned in a follow-up cleanup pass). */
 
-/* ─── self-hosted type ─────────────────────────────────────────────────────
- * Geist Sans + Geist Mono variable woff2, both OFL (see assets/fonts/OFL.txt).
- * Single variable axis for each — one file covers weights 100-900, so we
- * pay ~70KB once instead of per-weight. Variable axis lets us pick exact
- * weights (we use 300/400/500/600) without subsetting noise.
- *
- * font-display: block — the visualizer is a single-page Electron app launched
- * fresh each time; better to wait the ~80ms for the proper letterforms
- * than to flash system-ui first and then re-layout the wordmark.
+/* ─── type ─────────────────────────────────────────────────────────────────
+ * Space Grotesk + JetBrains Mono, matching shaperotator.xyz. Loaded via
+ * Google Fonts in index.html (preconnect + display=swap). CSP already
+ * permits fonts.googleapis.com + fonts.gstatic.com; the brief system-ui
+ * flash on first-launch-while-offline is acceptable for an Electron app
+ * because the wordmark layout doesn't shift (Space Grotesk and system-ui
+ * have near-identical advance widths at our display sizes).
  * ─────────────────────────────────────────────────────────────────────── */
-@font-face {
-  font-family: "Geist";
-  src: url("./assets/fonts/Geist-Variable.woff2") format("woff2-variations"),
-       url("./assets/fonts/Geist-Variable.woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: block;
-}
-@font-face {
-  font-family: "Geist Mono";
-  src: url("./assets/fonts/GeistMono-Variable.woff2") format("woff2-variations"),
-       url("./assets/fonts/GeistMono-Variable.woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: block;
-}
 
 /* Canonical design tokens moved to packages/shape-ui/tokens.css (imported at top). */
 
-/* numeric utility — tabular figures + Geist's stylistic alternates. */
+/* numeric utility — tabular figures + JetBrains Mono's locked digit width. */
 .num, .tnum,
 .events-panel-count, .footer-meta, .ms-value, .ms-sub,
 [data-stat], [data-stat-sub],
@@ -71,10 +53,8 @@ html, body {
   font-size: var(--t-13);
   font-weight: 400;
   line-height: var(--lh-snug);
-  /* enable Geist's stylistic alternates by default for UI text — calmer
-   * a/g/l/I/1, plus quirky cv11 swap that aligns the comma. We override
-   * .num utilities to also enable tnum + zero. */
-  font-feature-settings: "ss01" 1, "cv11" 1;
+  /* Space Grotesk has no stylistic alternate axes worth toggling at body
+   * weight; numeric utilities below still get tnum + zero via --num-feat. */
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -7388,7 +7368,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   --ed-rule-2:      rgba(245, 243, 238, 0.14);
   --ed-rule-3:      rgba(245, 243, 238, 0.28);
   --ed-display:     "Iowan Old Style", "Hoefler Text", "Editorial New", "EB Garamond", Georgia, serif;
-  --ed-mono:        "Geist Mono", "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
+  --ed-mono:        "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace;
 }
 
 html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
@@ -9794,7 +9774,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
      italic variant carries the "specimen card" tone without dragging
      Iowan/Hoefler along. JetBrains Mono for labels + code. */
   --sr-font-sans:  "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --sr-font-mono:  "JetBrains Mono", ui-monospace, "SFMono-Regular", "Geist Mono", monospace;
+  --sr-font-mono:  "JetBrains Mono", "Berkeley Mono", ui-monospace, "SFMono-Regular", monospace;
 }
 
 /* Map the legacy --ed-* / --font-* / --alchemy-* vars to the canonical

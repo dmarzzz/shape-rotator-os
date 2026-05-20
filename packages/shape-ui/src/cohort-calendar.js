@@ -218,7 +218,7 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
   }
 
   // ── Day-of-week single-letter strip (M T W T F S S) above numbers ─
-  ctx.font = `500 8.5px "Geist Mono", ui-monospace, monospace`;
+  ctx.font = `500 8.5px "JetBrains Mono", ui-monospace, monospace`;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "center";
   const dowLetters = ["S", "M", "T", "W", "T", "F", "S"];
@@ -235,7 +235,7 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
   ctx.globalAlpha = 1;
 
   // ── Day-number strip + verticals ───────────────────────────────────
-  ctx.font = `500 12.5px "Geist Mono", "Berkeley Mono", ui-monospace, monospace`;
+  ctx.font = `500 12.5px "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace`;
   ctx.textBaseline = "alphabetic";
   for (let i = 0; i < numDays; i++) {
     const d = new Date(start);
@@ -289,7 +289,7 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
       const tcol = personColors(r.team.record_id || r.team.name || "_");
       ctx.fillStyle = hsl(tcol.hue, 0.70, 0.55, 1);
       ctx.fillRect(6, y + 10, 4, CAL_TEAM_H - 20);
-      ctx.font = `500 11px "Geist Mono", "Berkeley Mono", ui-monospace, monospace`;
+      ctx.font = `500 11px "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace`;
       ctx.fillStyle = CAL_INK_1;
       ctx.globalAlpha = 0.95;
       ctx.textAlign = "left";
@@ -301,7 +301,7 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
         lx += ctx.measureText(ch).width + track;
       }
       if (r.team.kind === "project") {
-        ctx.font = `italic 9.5px "Geist Mono", ui-monospace, monospace`;
+        ctx.font = `italic 9.5px "JetBrains Mono", ui-monospace, monospace`;
         ctx.globalAlpha = 0.55;
         ctx.fillText("· project", lx + 6, y + CAL_TEAM_H / 2 + 1);
       }
@@ -353,7 +353,7 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
     roundRect(ctx, puckX, puckY, puckW, puckH, 8);
     ctx.fill();
     ctx.fillStyle = "#0a0908";
-    ctx.font = `600 9px "Geist Mono", "Berkeley Mono", ui-monospace, monospace`;
+    ctx.font = `600 9px "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
     ctx.fillText("TODAY", puckX + puckW / 2, puckY + puckH / 2 + 0.5);
@@ -369,7 +369,7 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
     roundRect(ctx, puckX, puckY, puckW, puckH, 8);
     ctx.fill();
     ctx.fillStyle = "#0a0908";
-    ctx.font = `600 9px "Geist Mono", "Berkeley Mono", ui-monospace, monospace`;
+    ctx.font = `600 9px "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
     ctx.fillText(label, puckX + puckW / 2, puckY + puckH / 2 + 0.5);
@@ -378,7 +378,7 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
 
   // ── Footer: program span + legend ──────────────────────────────────
   const footerY = CAL_HEADER_H + gridH + 18;
-  ctx.font = `400 10px "Geist Mono", ui-monospace, monospace`;
+  ctx.font = `400 10px "JetBrains Mono", ui-monospace, monospace`;
   ctx.fillStyle = CAL_INK_3;
   ctx.globalAlpha = 0.7;
   ctx.textBaseline = "alphabetic";
@@ -593,7 +593,7 @@ function drawHeadcountStrip(ctx, rows, start, numDays, gridX) {
     ctx.lineTo(x1, top);
   }
   ctx.stroke();
-  ctx.font = `500 9px "Geist Mono", "Berkeley Mono", ui-monospace, monospace`;
+  ctx.font = `500 9px "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace`;
   ctx.fillStyle = "rgba(245, 243, 238, 0.55)";
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
