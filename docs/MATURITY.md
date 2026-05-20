@@ -149,6 +149,19 @@ This entry is the explicit drift escalation flagged by the 08:25 tick. No furthe
 
 **Next tick should**: dmg build for v0.1.36 lands ~5min. Otherwise the loop's worth chasing: the v0.12.0/v0.12.1/v0.12.2 swf-node release-binaries CI runs are STILL queued for ~5h+ on macos-13 (mac-x64). Investigation of GH Actions queue OR matrix fallback to a cross-compile path would be the next big-leverage move.
 
+## 2026-05-19 22:25 EDT
+
+**Score**: 7.5/10 (steady — calendar polish stack continues to stack via #103/#104/#105 on `review/calendar-ux-stack`, v0.1.36 onboarding fix shipped, swf-node v0.12.2 queue-stuck on mac-x64 like everything else.)
+
+**Picked**: swf-node CI hygiene — 35-min per-leg timeout in release-binaries so mac-x64 doesn't anchor the workflow status indefinitely.
+
+**Why**: cleanest concrete move from the prior tick's checklist. Doesn't fully fix the chronic macos-13 free-tier queue but caps the running portion so workflow status converges. Single-file CI change.
+
+**Shipped**:
+- swf-node `b326bfa` — `ci(release): bound mac-x64 wall time so the workflow can complete`
+
+**Next tick should**: the real fix for mac-x64 is either (a) explicit cancel via a scheduled workflow that runs `gh run cancel` on legs queued >30min, (b) drop mac-x64 from auto-tag matrix and trigger only via workflow_dispatch, or (c) cross-compile from macos-14 arm64. None of these are 1-tick changes. Consider for a future planning tick.
+
 ## 2026-05-19 19:25 EDT
 
 **Score**: 7.5/10 (queue fully drained this hour via user-authorized chat-driven merges. #93 Hermes PoC, #94 cohort taxonomy + calendar overhaul, #98 warm-boot splash-skip all merged. #99/#100/#101 closed by user. SROS v0.1.34 tagged.)
