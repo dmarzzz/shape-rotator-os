@@ -152,6 +152,7 @@ export {
   parseRecurring,
   buildEventsByDay,
   renderWeekView,
+  renderSkeletonWeek,
   loadCalendar,
   attachWeekViewBehavior,
 } from "./cohort-calendar-week.js";

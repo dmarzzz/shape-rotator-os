@@ -536,3 +536,36 @@
   .cal-recur-list { grid-template-columns: 1fr; }
   .cal-page-foot { font-size: 9.5px; gap: 8px; }
 }
+
+/* ── loading skeleton ────────────────────────────────────────────────── */
+/* Ghost of the week layout rendered before data arrives. Uses the real CSS
+ * structural classes so proportions match the live calendar — only the text
+ * content is replaced by .csk-bar rects. A soft opacity pulse communicates
+ * "loading" without being distracting; prefers-reduced-motion disables the
+ * animation and shows a static muted ghost instead. */
+.csk-bar {
+  background: var(--ed-bg-2);
+  border-radius: 2px;
+  display: block;
+}
+.cal-skeleton {
+  animation: csk-pulse 1.8s ease-in-out infinite;
+}
+@keyframes csk-pulse {
+  0%, 100% { opacity: 0.48; }
+  50%       { opacity: 0.82; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-skeleton { animation: none; opacity: 0.55; }
+}
+/* Suppress interactive affordances inside the skeleton — it's display only. */
+.cal-skeleton .cal-scrub-phases,
+.cal-skeleton .cal-scrub-track,
+.cal-skeleton .cal-dateline-nav { display: none; }
+.cal-skeleton .cal-scrub-dot {
+  background: var(--ed-bg-2);
+  border-color: transparent;
+  opacity: 0.5;
+  cursor: default;
+}
+.cal-skeleton .cal-week { pointer-events: none; }

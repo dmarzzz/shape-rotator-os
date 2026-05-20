@@ -1,5 +1,6 @@
 import {
   renderWeekView,
+  renderSkeletonWeek,
   loadCalendar,
   currentWeekIdx,
   attachWeekViewBehavior,
@@ -120,6 +121,7 @@ async function runLiveFetch() {
 
 (async function init() {
   if (!mount) return;
+  mount.innerHTML = renderSkeletonWeek();
   const r = await fetch("/cohort-surface.json").catch(() => null);
   state.cohort = r && r.ok ? await r.json() : null;
   if (!state.cohort) {
