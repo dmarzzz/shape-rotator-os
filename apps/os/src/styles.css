@@ -486,7 +486,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   max-width: 520px;
   background: rgba(8, 6, 24, 0.88);
   border: 1px solid rgba(241, 236, 231, 0.18);
-  border-left: 2px solid var(--neon-cyan, #5AF0FF);
+  border-left: 2px solid var(--neon-cyan, var(--status-local));
   border-radius: 8px;
   padding: 28px 30px 22px;
   display: flex; flex-direction: column; gap: 14px;
@@ -495,7 +495,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 }
 .ao-glyph {
   font-size: 32px;
-  color: var(--neon-cyan, #5AF0FF);
+  color: var(--neon-cyan, var(--status-local));
   opacity: 0.7;
   line-height: 1;
   animation: aoSpin 18s linear infinite;
@@ -548,13 +548,13 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   transition: color 200ms var(--ease), border-color 200ms var(--ease), background 200ms var(--ease), box-shadow 200ms var(--ease);
 }
 .ao-btn:hover {
-  color: var(--neon-cyan, #5AF0FF);
+  color: var(--neon-cyan, var(--status-local));
   border-color: rgba(90, 240, 255, 0.35);
   background: rgba(90, 240, 255, 0.06);
   box-shadow: 0 0 16px rgba(90, 240, 255, 0.20);
 }
 .ao-btn-primary {
-  color: var(--neon-cyan, #5AF0FF);
+  color: var(--neon-cyan, var(--status-local));
   border-color: rgba(90, 240, 255, 0.35);
   background: rgba(90, 240, 255, 0.06);
 }
@@ -579,7 +579,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 .ao-foot-tag {
   font-family: var(--font-mono);
   font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
-  color: var(--neon-cyan, #5AF0FF);
+  color: var(--neon-cyan, var(--status-local));
   opacity: 0.7;
 }
 .ao-foot span:last-child {
@@ -2617,10 +2617,10 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   border: 1px solid rgba(241, 236, 231, 0.18);
 }
 .search-meta-delivery[data-dp="LOCAL_CACHE"]                   { color: #7CFFAA; border-color: rgba(124, 255, 170, 0.45); background: rgba(124, 255, 170, 0.10); }
-.search-meta-delivery[data-dp="LOCAL_INDREX"]                  { color: #5AF0FF; border-color: rgba(90, 240, 255, 0.45);  background: rgba(90, 240, 255, 0.10); }
+.search-meta-delivery[data-dp="LOCAL_INDREX"]                  { color: var(--status-local); border-color: rgba(90, 240, 255, 0.45);  background: rgba(90, 240, 255, 0.10); }
 .search-meta-delivery[data-dp="LAN_FRIEND_DCNET"]              { color: #C798FF; border-color: rgba(199, 152, 255, 0.45); background: rgba(199, 152, 255, 0.12); }
 .search-meta-delivery[data-dp="LAN_FRIEND_DIRECT_PLACEHOLDER"] { color: #FFD16A; border-color: rgba(255, 209, 106, 0.45); background: rgba(255, 209, 106, 0.10); }
-.search-meta-delivery[data-dp="SELF_PUBLIC_EGRESS"]            { color: #FF4FE6; border-color: rgba(255, 79, 230, 0.50);  background: rgba(255, 79, 230, 0.12); }
+.search-meta-delivery[data-dp="SELF_PUBLIC_EGRESS"]            { color: var(--status-public-egress); border-color: rgba(255, 79, 230, 0.50);  background: rgba(255, 79, 230, 0.12); }
 .search-meta-delivery[data-dp="MIXED"]                         { color: #FFA960; border-color: rgba(255, 169, 96, 0.45);  background: rgba(255, 169, 96, 0.10); }
 .search-meta-delivery[data-dp="NO_RESULT"]                     { color: var(--light-3); }
 .search-status {
@@ -2743,10 +2743,10 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   color: var(--light-1);
 }
 .search-result-origin[data-op="LOCAL_CACHE"]                   { color: #7CFFAA; border-color: rgba(124, 255, 170, 0.40); background: rgba(124, 255, 170, 0.08); }
-.search-result-origin[data-op="LOCAL_INDREX"]                  { color: #5AF0FF; border-color: rgba(90, 240, 255, 0.40);  background: rgba(90, 240, 255, 0.08); }
+.search-result-origin[data-op="LOCAL_INDREX"]                  { color: var(--status-local); border-color: rgba(90, 240, 255, 0.40);  background: rgba(90, 240, 255, 0.08); }
 .search-result-origin[data-op="LAN_FRIEND_DCNET"]              { color: #C798FF; border-color: rgba(199, 152, 255, 0.40); background: rgba(199, 152, 255, 0.10); }
 .search-result-origin[data-op="LAN_FRIEND_DIRECT_PLACEHOLDER"] { color: #FFD16A; border-color: rgba(255, 209, 106, 0.40); background: rgba(255, 209, 106, 0.08); }
-.search-result-origin[data-op="SELF_PUBLIC_EGRESS"]            { color: #FF4FE6; border-color: rgba(255, 79, 230, 0.45);  background: rgba(255, 79, 230, 0.10); }
+.search-result-origin[data-op="SELF_PUBLIC_EGRESS"]            { color: var(--status-public-egress); border-color: rgba(255, 79, 230, 0.45);  background: rgba(255, 79, 230, 0.10); }
 .search-result-score {
   font-family: var(--font-mono);
   font-size: 10px;
