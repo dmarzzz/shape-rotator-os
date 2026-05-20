@@ -1398,7 +1398,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
 *::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
 *::-webkit-scrollbar-thumb { background: transparent; border-radius: 8px; }
-*:hover::-webkit-scrollbar-thumb { background: rgba(241, 236, 231, 0.18); }
+*:hover::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
 
 /* ─── traffic panel ───────────────────────────────────────────────────── */
 .traffic-filter-bar {
@@ -3989,7 +3989,7 @@ html[data-density="compact"] .footer-meta { padding: 8px 18px 10px; }
 .ux-cmd-list::-webkit-scrollbar-thumb,
 #metrics-view::-webkit-scrollbar-thumb,
 .net-peers-list::-webkit-scrollbar-thumb {
-  background: rgba(241, 236, 231, 0.10);
+  background: var(--scrollbar-track);
   border-radius: 4px;
 }
 .events-panel-list::-webkit-scrollbar-thumb:hover,
@@ -3997,7 +3997,7 @@ html[data-density="compact"] .footer-meta { padding: 8px 18px 10px; }
 .ux-cmd-list::-webkit-scrollbar-thumb:hover,
 #metrics-view::-webkit-scrollbar-thumb:hover,
 .net-peers-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(241, 236, 231, 0.20);
+  background: var(--scrollbar-thumb);
 }
 
 /* small icon class so we have a consistent stroke-width + line-style */
@@ -7372,7 +7372,11 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 
 html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
-::selection { background: var(--ed-ink-1); color: var(--ed-bg-0); }
+/* selection — subtle oxide-red wash with paper text. Uses --accent-soft
+ * (red at 22% α over charcoal) so multi-row selection in dense tables
+ * (cohort, calendar, peers) reads as selection rather than as an error
+ * state — full red would strobe across contiguous rows. */
+::selection { background: var(--accent-soft); color: var(--paper-1); }
 
 /* ── tab bar — Foundation-style minimal ──────────────────────────── */
 #tab-bar.tab-bar {

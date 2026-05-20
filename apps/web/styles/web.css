@@ -23,6 +23,18 @@ a:focus-visible, summary:focus-visible, .install-cta:focus-visible {
   outline-offset: 2px;
 }
 
+/* selection — subtle oxide-red wash with paper text. Matches shaperotator.xyz.
+ * --accent-soft is red at 22% α so multi-row selection in the cohort grid
+ * reads as selection rather than an error state. */
+::selection { background: var(--accent-soft); color: var(--paper-1); }
+
+/* scrollbars — wired to the warm-paper tokens. The default Webkit chrome
+ * leans cool; explicit thumb keeps the brand inside the scroll gutter too. */
+* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--scrollbar-track); border-radius: var(--r-sm); }
+*:hover::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
+
 .site-header, .page, .site-footer {
   width: 100%;
   max-width: 680px;
