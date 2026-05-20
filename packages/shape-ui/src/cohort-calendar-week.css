@@ -105,14 +105,15 @@
 }
 
 /* ── masthead — tabs + scrubber + dateline, one composed block ──────── */
-/* Previously these were three orphaned rows separated by big gaps. The
- * masthead wraps them in a single block bounded by hairlines so the top
- * of the page reads as one editorial heading, not as three siblings of
- * accidentally similar size. Two-row composition:
- *   row 1 (.cal-masthead-rail)  tabs left  · 10-dot week rail right
- *   row 2 (.cal-dateline)       meta + nav · big ordinal · date range */
+/* Two tight rows bounded by hairlines:
+ *   row 1 (.cal-masthead-rail)  [subtabs] [scrubber] [week nav]
+ *   row 2 (.cal-dateline)       [w-tag · m-tag · theme]      [date range]
+ * The "week N of ten" display heading is no longer in the masthead — it
+ * moved into the week-view body where it acts as that view's primary
+ * page-title. In day view, the day's own "WEDNESDAY 20" header takes
+ * over that role, so the masthead can stay light and navigational. */
 .cal-masthead {
-  margin: 16px 0 22px;
+  margin: 16px 0 24px;
   border-top: 1px solid var(--ed-rule-2);
   border-bottom: 1px solid var(--ed-rule-2);
 }
@@ -121,13 +122,15 @@
   border-top-color: rgba(180, 58, 25, 0.50);
 }
 .cal-masthead-rail {
-  display: flex; align-items: flex-end; justify-content: space-between;
-  gap: 32px;
-  padding: 12px 0 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 28px;
+  padding: 14px 0 14px;
   border-bottom: 1px solid var(--ed-rule);
+  flex-wrap: wrap;
+  row-gap: 14px;
 }
 
-/* ── subtabs (week / presence) — now living inside the rail ──────────── */
+/* ── subtabs (day / week / presence) — now living inside the rail ───── */
 .cal-subtabs {
   display: flex; gap: 22px;
   flex: 0 0 auto;
@@ -137,11 +140,12 @@
   margin: 0;
   border-bottom: 0;
   padding: 0;
+  align-items: center;
 }
 .cal-subtab {
   appearance: none; background: transparent; border: 0;
-  padding: 6px 0 8px;
-  display: flex; align-items: baseline; gap: 10px;
+  padding: 4px 0 6px;
+  display: inline-block;
   cursor: pointer;
   color: var(--ed-ink-1); opacity: 0.55;
   border-bottom: 1px solid transparent;
@@ -153,13 +157,8 @@
   border-bottom-color: var(--alchemy-oxide-bright, #B43A19);
 }
 .cal-subtab .cs-label {
-  font-family: var(--ed-display); font-size: 24px; font-style: italic;
+  font-family: var(--ed-display); font-size: 22px; font-style: italic;
   letter-spacing: -0.015em;
-  line-height: 1;
-}
-.cal-subtab .cs-hint {
-  font-family: var(--ed-mono); font-size: 9.5px; letter-spacing: 0.20em;
-  text-transform: lowercase; color: var(--ed-ink-1); opacity: 0.35;
   line-height: 1;
 }
 .cal-presence-empty {
@@ -167,100 +166,72 @@
   color: var(--ed-ink-3); padding: 28px 0;
 }
 
-/* ── 10-week scrubber — compact step rail in the masthead's right slot ─ */
-/* Was a full-width grid that read as "a thin line" because nothing else
- * shared its row. Now it sits inline next to the tabs, sized to its own
- * content, with the phase labels (m1 · 1–4 etc.) stacked underneath in
- * the same column block — so the dots and what they MEAN are spatially
- * tied to each other. */
+/* ── 10-week scrubber — compact step rail in the masthead, mid-row ──── */
+/* Drops the inline phase labels (m1/m2/m3) that previously sat below the
+ * dots — the dateline-tag below the rail already spells out which phase
+ * the active week falls in, so the row stays a clean step indicator.
+ * Dots are bigger and more opaque than v1 so all ten are visibly
+ * countable at a glance. */
 .cal-scrub {
   position: relative;
-  display: grid;
-  grid-template-rows: auto auto;
-  grid-template-columns: repeat(10, 22px);
-  column-gap: 4px;
-  row-gap: 8px;
+  display: flex;
   align-items: center;
-  flex: 0 0 auto;
+  gap: 6px;
+  flex: 0 1 auto;
+  padding: 2px 4px;
 }
 .cal-scrub-track {
-  grid-row: 1; grid-column: 1 / -1;
+  position: absolute;
+  left: 12px; right: 12px;
+  top: 50%;
   height: 1px;
-  background: var(--ed-rule);
-  align-self: center;
-  margin: 0 11px;
+  background: var(--ed-rule-2);
   z-index: 0;
 }
 .cal-scrub-dot {
   appearance: none; background: var(--ed-bg-0); border: 1px solid var(--ed-rule-3);
-  width: 22px; height: 22px;
+  width: 24px; height: 24px;
   border-radius: 999px;
   padding: 0; margin: 0;
-  font-family: var(--ed-mono); font-size: 9.5px;
-  color: var(--ed-ink-1); opacity: 0.55;
+  font-family: var(--ed-mono); font-size: 10px;
+  font-weight: 500;
+  color: var(--ed-ink-2); opacity: 0.85;
   cursor: pointer; position: relative; z-index: 1;
   display: grid; place-items: center;
-  grid-row: 1;
-  transition: opacity 160ms ease-out, border-color 160ms ease-out, background 160ms ease-out;
+  transition: opacity 160ms ease-out, border-color 160ms ease-out, background 160ms ease-out, color 160ms ease-out;
 }
-.cal-scrub-dot:hover { opacity: 1; border-color: var(--ed-ink-1); }
+.cal-scrub-dot:hover {
+  opacity: 1; border-color: var(--ed-ink-2); color: var(--ed-ink-1);
+}
 .cal-scrub-dot[aria-selected="true"] {
   opacity: 1;
-  background: var(--alchemy-oxide, #8F220E);
+  background: var(--alchemy-oxide-bright, #B43A19);
   border-color: var(--alchemy-oxide-bright, #B43A19);
-  color: var(--ed-ink-1);
+  color: #0a0908;
+  font-weight: 600;
 }
-.cal-scrub-dot[data-phase="m1"] { border-color: rgba(180, 58, 25, 0.32); }
-.cal-scrub-dot[data-phase="m2"] { border-color: var(--ed-rule-3); }
-.cal-scrub-dot[data-phase="m3"] { border-color: rgba(180, 58, 25, 0.55); }
-.cal-scrub-dot[aria-selected="true"][data-phase="m2"] {
-  background: var(--ed-bg-2);
-  border-color: var(--ed-ink-2);
-  color: var(--ed-ink-1);
-}
-.cal-scrub-phases {
-  grid-row: 2; grid-column: 1 / -1;
-  display: grid;
-  /* m1 spans dots 1–4, m2 spans 5–9, m3 is dot 10 — match the
-   * underlying scrubber so the labels actually correspond to columns. */
-  grid-template-columns: repeat(4, 22px) repeat(5, 22px) 22px;
-  column-gap: 4px;
-  font-family: var(--ed-mono); font-size: 9px;
-  letter-spacing: 0.14em; text-transform: lowercase;
-  color: var(--ed-ink-1); opacity: 0.55;
-  pointer-events: none;
-  line-height: 1;
-}
-.cal-scrub-phases .csp {
-  white-space: nowrap;
-  border-top: 1px solid var(--ed-rule);
-  padding-top: 6px;
-}
-.cal-scrub-phases .csp.m1 { grid-column: 1 / span 4; color: var(--alchemy-oxide-bright, #B43A19); opacity: 0.7; border-top-color: rgba(180,58,25,0.35); }
-.cal-scrub-phases .csp.m2 { grid-column: 5 / span 5; color: var(--ed-ink-2); }
-.cal-scrub-phases .csp.m3 { grid-column: 10 / span 1; color: var(--alchemy-oxide-bright, #B43A19); opacity: 0.7; border-top-color: rgba(180,58,25,0.35); text-align: right; }
+.cal-scrub-dot[data-phase="m1"]:not([aria-selected="true"]) { border-color: rgba(180, 58, 25, 0.38); }
+.cal-scrub-dot[data-phase="m3"]:not([aria-selected="true"]) { border-color: rgba(180, 58, 25, 0.55); }
 
-/* ── dateline — bottom half of the masthead ─────────────────────────── */
-/* Two-row grid:
- *   row 1: meta (left)          ·   nav (right)
- *   row 2: ordinal display (left) ·  date range (right, baseline-aligned)
- * Display + range share a baseline so the masthead resolves into a single
- * line of "main argument" instead of three orphaned text blocks. */
+/* ── dateline — bottom row of the masthead ──────────────────────────── */
+/* Single-row composition: program-week meta on the left, date range on
+ * the right, both on the same baseline. The big "week N of ten" display
+ * that used to live here has been demoted out of the masthead — see the
+ * week-view's own .cal-week-heading instead. */
 .cal-dateline {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: baseline;
-  column-gap: 24px;
-  row-gap: 10px;
-  padding: 14px 0 18px;
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 24px;
+  padding: 12px 0 14px;
+  flex-wrap: wrap;
+  row-gap: 6px;
 }
 .cal-dateline-meta {
   display: flex; align-items: baseline; gap: 10px;
-  font-family: var(--ed-mono); font-size: 10px;
+  font-family: var(--ed-mono); font-size: 10.5px;
   letter-spacing: 0.18em; text-transform: lowercase;
-  color: var(--ed-ink-1); opacity: 0.55;
-  grid-column: 1; grid-row: 1;
+  color: var(--ed-ink-1); opacity: 0.7;
   min-width: 0;       /* allow theme text to truncate cleanly */
+  flex: 1 1 0;
 }
 .cal-dateline-meta .cal-dateline-theme {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -268,58 +239,100 @@
 }
 .cal-dateline-tag {
   color: var(--alchemy-oxide-bright, #B43A19);
-  opacity: 1; font-weight: 400;
+  opacity: 1; font-weight: 500;
   white-space: nowrap;
 }
-.cal-dateline-tag[data-phase="m2"] { color: var(--ed-ink-1); opacity: 0.55; }
+.cal-dateline-tag[data-phase="m2"] { color: var(--ed-ink-1); opacity: 0.7; }
 .cal-dateline-sep { color: var(--ed-ink-4); }
-.cal-dateline-theme { color: var(--ed-ink-2); opacity: 0.85; }
-.cal-dateline-display {
-  grid-column: 1; grid-row: 2;
+.cal-dateline-theme { color: var(--ed-ink-2); opacity: 0.95; }
+.cal-dateline-range {
+  font-family: var(--ed-mono); font-size: 11px;
+  letter-spacing: 0.18em; text-transform: lowercase;
+  color: var(--ed-ink-2); opacity: 0.85;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+/* ── week navigation pill — now living in the masthead rail ─────────── */
+/* Lifted contrast from v1 — the "this week" label was rendering as
+ * oxide-on-near-black which became unreadable at 10px. Cream text with
+ * an oxide dot prefix preserves the today-emphasis without sacrificing
+ * legibility; arrows get a slightly heavier weight to feel like real
+ * affordances rather than punctuation. */
+.cal-dateline-nav {
+  display: flex; gap: 0;
+  border: 1px solid var(--ed-rule-3);
+  border-radius: 999px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: rgba(245, 243, 238, 0.02);
+}
+.cal-dateline-nav .cdn-btn {
+  appearance: none; background: transparent; border: 0;
+  padding: 7px 14px;
+  font-family: var(--ed-mono); font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em; text-transform: lowercase;
+  color: var(--ed-ink-1);
+  cursor: pointer;
+  border-right: 1px solid var(--ed-rule-3);
+  transition: background 140ms ease-out, color 140ms ease-out;
+  line-height: 1;
+}
+.cal-dateline-nav .cdn-btn:last-child { border-right: 0; }
+.cal-dateline-nav .cdn-arrow {
+  padding: 7px 12px;
+  font-size: 13px;
+  letter-spacing: 0;
+  color: var(--ed-ink-2);
+}
+.cal-dateline-nav .cdn-btn:hover:not(:disabled) {
+  background: var(--ed-bg-2);
+  color: var(--ed-ink-1);
+}
+.cal-dateline-nav .cdn-btn:disabled { opacity: 0.25; cursor: default; }
+.cal-dateline-nav .cdn-today {
+  color: var(--ed-ink-1);
+  /* oxide dot prefix marks the "today" action without taking the whole
+   * label into low-contrast oxide-on-dark territory */
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.cal-dateline-nav .cdn-today::before {
+  content: ""; display: inline-block;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--alchemy-oxide-bright, #B43A19);
+}
+
+/* ── week-view heading — the "week N of ten" display that used to live
+ * in the masthead, demoted to live INSIDE the week section as its own
+ * page-title since the masthead got crowded. Day view doesn't need this
+ * (the day pills + big WEEKDAY header serve as its own page title). */
+.cal-week-heading {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 24px;
+  margin: 4px 0 18px;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.cwh-display {
+  margin: 0;
   font-family: var(--ed-display);
-  font-size: 52px;
+  font-weight: 400;
+  font-size: 48px;
   line-height: 0.96;
   letter-spacing: -0.025em;
   color: var(--ed-ink-1);
-  margin: 0;
 }
-.cal-dateline-display em {
+.cwh-display em {
   font-style: italic;
   font-feature-settings: "liga", "dlig", "swsh";
 }
-.cal-dateline-range {
-  grid-column: 2; grid-row: 2;
+.cwh-range {
   font-family: var(--ed-mono); font-size: 12px;
   letter-spacing: 0.18em; text-transform: lowercase;
   color: var(--ed-ink-2); opacity: 0.85;
   white-space: nowrap;
-  justify-self: end; align-self: end;
-  padding-bottom: 6px;
 }
-.cal-dateline-nav {
-  grid-column: 2; grid-row: 1;
-  display: flex; gap: 0;
-  border: 1px solid var(--ed-rule-2);
-  border-radius: 999px;
-  overflow: hidden;
-  justify-self: end;
-}
-.cal-dateline-nav .cdn-btn {
-  appearance: none; background: transparent; border: 0;
-  padding: 6px 14px;
-  font-family: var(--ed-mono); font-size: 10px;
-  letter-spacing: 0.18em; text-transform: lowercase;
-  color: var(--ed-ink-1); opacity: 0.55;
-  cursor: pointer;
-  border-right: 1px solid var(--ed-rule-2);
-  transition: opacity 140ms ease-out, background 140ms ease-out, color 140ms ease-out;
-}
-.cal-dateline-nav .cdn-btn:last-child { border-right: 0; }
-.cal-dateline-nav .cdn-btn:hover:not(:disabled) {
-  opacity: 1; background: var(--ed-bg-2);
-}
-.cal-dateline-nav .cdn-btn:disabled { opacity: 0.18; cursor: default; }
-.cal-dateline-nav .cdn-today { color: var(--alchemy-oxide-bright, #B43A19); }
 
 /* ── 7-day grid ──────────────────────────────────────────────────────── */
 /* Horizontal-scroll week. Each day column gets a fixed min-width that's
@@ -1020,14 +1033,10 @@
 /* ── narrow / mobile ─────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
   :root { --cal-page-px: 28px; --cal-day-col-w: 200px; }
-  .cal-dateline-display { font-size: 40px; }
-  /* Rail wraps to two rows when the tabs + scrubber can't fit side-by-side.
-   * Tabs stay on row 1 left-aligned, scrubber wraps to row 2 and uses the
-   * full rail width so its dots aren't squeezed. */
-  .cal-masthead-rail { flex-wrap: wrap; row-gap: 16px; }
-  .cal-scrub { width: 100%; grid-template-columns: repeat(10, minmax(0, 1fr)); }
-  .cal-scrub-dot { justify-self: center; }
-  .cal-scrub-phases { grid-template-columns: repeat(4, 1fr) repeat(5, 1fr) 1fr; }
+  .cwh-display { font-size: 40px; }
+  /* Rail already wraps via flex-wrap on the base rule. At this width the
+   * scrubber claims its own row between tabs (left) and nav (right). */
+  .cal-scrub { order: 3; flex-basis: 100%; justify-content: flex-start; }
   .cal-day { min-height: 180px; }
 }
 @media (max-width: 760px) {
@@ -1037,48 +1046,34 @@
   .cal-page-title-row { gap: 6px; }
   .cal-page-sync { font-size: 9.5px; }
 
-  /* Masthead collapses: tabs on top, scrubber on its own row, dateline
-   * below as a stacked sequence — no fancy two-column dateline grid at
-   * this width. The hairlines stay so the masthead still reads as a
-   * composed block. */
+  /* Masthead at phone width: tabs on row 1 (with nav on the same row,
+   * left/right), scrubber on row 2 full-width, dateline as a stacked
+   * pair below. Hairlines stay so it still reads as one block. */
   .cal-masthead { margin: 10px 0 14px; }
-  .cal-masthead-rail { padding: 10px 0 12px; gap: 14px; }
-  .cal-subtabs { gap: 18px; }
+  .cal-masthead-rail { padding: 10px 0 12px; gap: 12px; }
+  .cal-subtabs { gap: 16px; }
   .cal-subtab { padding: 4px 0 6px; }
   .cal-subtab .cs-label { font-size: 18px; }
-  .cal-subtab .cs-hint { display: none; }
 
-  /* Scrubber: smaller dots, tighter labels. */
-  .cal-scrub {
-    grid-template-columns: repeat(10, minmax(0, 1fr));
-    column-gap: 2px;
-  }
-  .cal-scrub-dot { width: 20px; height: 20px; font-size: 9.5px; justify-self: center; }
-  .cal-scrub-phases { font-size: 8px; }
-  .cal-scrub-phases .csp { padding-top: 4px; }
+  .cal-scrub { gap: 4px; padding: 0; }
+  .cal-scrub-dot { width: 22px; height: 22px; font-size: 9.5px; }
 
-  /* Dateline goes back to single-column stack at this width. */
+  .cal-dateline-nav { border-radius: 999px; }
+  .cal-dateline-nav .cdn-btn { padding: 8px 12px; font-size: 10.5px; }
+  .cal-dateline-nav .cdn-arrow { padding: 8px 10px; font-size: 13px; }
+
+  /* Dateline: stack meta + range on phone. */
   .cal-dateline {
-    grid-template-columns: 1fr;
-    padding: 12px 0 14px;
-    row-gap: 8px;
+    flex-direction: column; align-items: flex-start;
+    padding: 10px 0 14px;
+    row-gap: 6px;
   }
-  .cal-dateline-meta { grid-column: 1; grid-row: auto; font-size: 9.5px; flex-wrap: wrap; }
-  .cal-dateline-nav { grid-column: 1; grid-row: auto; justify-self: stretch; align-self: stretch; border-radius: 4px; }
-  .cal-dateline-nav .cdn-btn { padding: 10px 16px; font-size: 11px; flex: 1; }
-  .cal-dateline-display { grid-column: 1; grid-row: auto; font-size: 32px; }
-  .cal-dateline-range { grid-column: 1; grid-row: auto; justify-self: start; padding-bottom: 0; font-size: 10.5px; }
+  .cal-dateline-meta { font-size: 9.5px; flex-wrap: wrap; }
+  .cal-dateline-range { font-size: 10.5px; }
 
-  /* Sticky dateline keeps the week tag + nav visible as you scroll the day stack. */
-  .cal-dateline {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    background:
-      linear-gradient(180deg, var(--ed-bg-0) 0%, var(--ed-bg-0) calc(100% - 8px),
-                      rgba(13,12,10,0) 100%);
-    padding-bottom: 18px;
-  }
+  /* Week-view heading goes lighter to leave more room for the grid. */
+  .cwh-display { font-size: 28px; }
+  .cwh-range { font-size: 11px; }
 
   /* Day grid → single column on phones. The scroller becomes irrelevant
    * since the grid no longer overflows; min-width drops so the scroll bar
@@ -1181,7 +1176,6 @@
   .cal-skeleton { animation: none; opacity: 0.55; }
 }
 /* Suppress interactive affordances inside the skeleton — it's display only. */
-.cal-skeleton .cal-scrub-phases,
 .cal-skeleton .cal-scrub-track,
 .cal-skeleton .cal-dateline-nav { display: none; }
 .cal-skeleton .cal-scrub-dot {

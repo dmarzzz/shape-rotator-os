@@ -634,26 +634,24 @@ export function renderWeekView({
           <nav class="cal-subtabs" role="tablist" aria-label="calendar view">
             <button class="cal-subtab" data-cal-sub="day" aria-selected="${sub === "day"}" type="button">
               <span class="cs-label">day</span>
-              <span class="cs-hint">what's on now</span>
             </button>
             <button class="cal-subtab" data-cal-sub="week" aria-selected="${sub === "week"}" type="button">
               <span class="cs-label">week</span>
-              <span class="cs-hint">live schedule</span>
             </button>
             <button class="cal-subtab" data-cal-sub="presence" aria-selected="${sub === "presence"}" type="button">
               <span class="cs-label">presence</span>
-              <span class="cs-hint">who's here, when</span>
             </button>
           </nav>
 
           <div class="cal-scrub" role="tablist" aria-label="program week">
             <div class="cal-scrub-track" aria-hidden="true"></div>
             ${scrubDots}
-            <div class="cal-scrub-phases" aria-hidden="true">
-              <span class="csp m1">m1 · 1–4</span>
-              <span class="csp m2">m2 · 5–9</span>
-              <span class="csp m3">m3 · 10</span>
-            </div>
+          </div>
+
+          <div class="cal-dateline-nav" role="group" aria-label="week navigation">
+            <button class="cdn-btn cdn-arrow" data-cal-nav="prev"  aria-label="previous week" ${safeWeekIdx === 0 ? "disabled" : ""} type="button">←</button>
+            <button class="cdn-btn cdn-today" data-cal-nav="today" type="button">this week</button>
+            <button class="cdn-btn cdn-arrow" data-cal-nav="next"  aria-label="next week" ${safeWeekIdx === WEEK_COUNT - 1 ? "disabled" : ""} type="button">→</button>
           </div>
         </div>
 
@@ -662,16 +660,6 @@ export function renderWeekView({
             <span class="cal-dateline-tag" data-phase="${escAttr(phase)}">w${safeWeekIdx + 1} · ${phase}</span>
             <span class="cal-dateline-sep" aria-hidden="true">·</span>
             <span class="cal-dateline-theme">${escHtml(week.theme || "no theme yet")}</span>
-          </div>
-
-          <div class="cal-dateline-nav" role="group" aria-label="week navigation">
-            <button class="cdn-btn" data-cal-nav="prev"  aria-label="previous week" ${safeWeekIdx === 0 ? "disabled" : ""} type="button">←</button>
-            <button class="cdn-btn cdn-today" data-cal-nav="today" type="button">this week</button>
-            <button class="cdn-btn" data-cal-nav="next"  aria-label="next week" ${safeWeekIdx === WEEK_COUNT - 1 ? "disabled" : ""} type="button">→</button>
-          </div>
-
-          <div class="cal-dateline-display">
-            <em class="cal-dateline-ordinal">week ${ordinal(safeWeekIdx + 1)} of ten</em>
           </div>
           <div class="cal-dateline-range">${escHtml(week.dateRange || "—")}</div>
         </div>
@@ -682,6 +670,10 @@ export function renderWeekView({
 
       ${sub === "week" ? `
         <section class="cal-week" data-cal-view="week" data-phase="${escAttr(phase)}">
+          <header class="cal-week-heading">
+            <h2 class="cwh-display"><em>week ${ordinal(safeWeekIdx + 1)} of ten</em></h2>
+            <span class="cwh-range">${escHtml(week.dateRange || "—")}</span>
+          </header>
           <div class="cal-grid-scroller">
             <div class="cal-grid" role="list" ${todayColAttr}>
               ${dayCells}
