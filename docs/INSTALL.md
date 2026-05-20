@@ -116,15 +116,15 @@ the release page.
 
 ## peer search + atlas
 
-macOS, Linux, and **Windows (x64)** installs auto-bundle swf-node as a
+macOS, Linux, and **Windows** installs auto-bundle swf-node as a
 managed subprocess, so peer search, atlas, network view, and metrics
 all work out of the box on first launch.
 
-**Windows arm64** falls back to viewer-only mode — upstream swf-node
-hasn't published a Windows arm64 binary yet (no `pyrage` Windows arm64
-wheel exists). The cohort viewer, profile editing via PRs, and the
-calendar all work; the swf-node-backed features (search, atlas, peer
-presence, metrics) light up the day upstream ships the arm64 asset.
+Both the x64 and arm64 Windows installers ship the x64 `swf-node.exe`
+— Windows 11 on arm64 runs it transparently under x64 emulation
+(upstream hasn't published a native Windows arm64 binary yet because
+the `pyrage` dependency has no Windows arm64 wheel). Performance on
+arm64 hosts is slightly lower than native; functionality is identical.
 
 ### First launch on Windows
 

@@ -382,10 +382,12 @@ function start(app, broadcaster) {
       return;
     }
     if (resolved.reason === "missing") {
-      // win32-arm64 lands here when the installer was built without the
-      // bundled x64 .exe — pyrage has no Windows-arm64 wheel upstream,
-      // so the fetch step installs no asset for that arch. Treat the
-      // same as any other missing-binary case: degrade to viewer-only.
+      // In normal release builds, both x64 and arm64 Windows installers
+      // ship the same x64 .exe (Windows-on-ARM emulates it), so this
+      // path is reserved for installs where the fetch step couldn't
+      // resolve an upstream asset at all (no tagged swf-node release,
+      // network error in CI, etc.). Degrade to viewer-only and let the
+      // renderer treat swf-node-backed surfaces as down.
       process.stderr.write(`[swf-node] binary missing at ${resolved.path} — skipping spawn\n`);
       setState("unsupported");
       return;
