@@ -123,6 +123,19 @@ This entry is the explicit drift escalation flagged by the 08:25 tick. No furthe
 
 7/10, held. Queue back up to 5 (#93/#94/#98/#99/#100). Three of the new arrivals (#98/#99/#100) are exactly the small UX-polish PRs that would each nudge the score; all stuck behind #93 (broken-flagged) + #94 (size-flagged).
 
+## 2026-05-19 20:25 EDT
+
+**Score**: 7.5/10 (steady — calendar fix shipped v0.1.35 earlier this hour, queue drained, v0.1.34's Hermes window verified to have proper "ollama not running" empty state.)
+
+**Picked**: swf-node v0.12.2 — fix `scraper_pulled` payload field collision (`kind` was reserved, silently dropped; renderer reads `kind_pulled`).
+
+**Why**: small spec/code drift bug that made every scraper_pulled row in the Network tab read "scraper · N records" instead of "scraper · N pages". Single-line code fix + spec table update.
+
+**Shipped**:
+- swf-node `0ee1bac` + tag `v0.12.2` — `fix(events): scraper_pulled emits kind_pulled (was silently dropped)`
+
+**Next tick should**: once v0.12.2 binaries land, the next SROS release will bundle the corrected daemon. Otherwise the next highest-leverage candidate is probably auditing whether the renderer's `web_search_completed` row consumes the right field names too (similar potential drift), or looking at first-launch onboarding modal polish.
+
 ## 2026-05-19 19:25 EDT
 
 **Score**: 7.5/10 (queue fully drained this hour via user-authorized chat-driven merges. #93 Hermes PoC, #94 cohort taxonomy + calendar overhaul, #98 warm-boot splash-skip all merged. #99/#100/#101 closed by user. SROS v0.1.34 tagged.)
