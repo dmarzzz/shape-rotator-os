@@ -251,3 +251,50 @@ body.layout--wide .page--calendar { max-width: none; }
 .link-card-desc code { font-family: var(--font-mono); font-size: 0.92em; background: rgba(255,255,255,0.04); padding: 0 4px; border-radius: var(--r-sm); }
 .link-card-url { font-family: var(--font-mono); font-size: var(--t-11); color: var(--ink-3); margin-top: auto; padding-top: var(--space-3); border-top: 1px dashed var(--hairline); word-break: break-all; }
 .link-card:hover .link-card-url { color: var(--ink-1); }
+
+/* ─── cohort detail (clicking a card opens this in-place) ─────────────
+ * Mirrors the OS app's alch-detail-* vocabulary at a fraction of the
+ * CSS surface. State-driven swap via URL hash: location.hash=#<id> →
+ * grid hides, .cohort-detail unhides, content fills. Same .cohort-grid
+ * card primitive renders members as sub-cards under the team hero so
+ * the visual language stays consistent. */
+.cohort-detail { display: block; }
+.cohort-detail[hidden] { display: none; }
+.cd-bar { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--hairline); margin-bottom: var(--space-6); font-family: var(--font-mono); font-size: var(--t-11); letter-spacing: var(--track-caps); text-transform: uppercase; }
+.cd-back { color: var(--ink-2); transition: color var(--dur-base) var(--ease); }
+.cd-back:hover { color: var(--ink-1); }
+.cd-tag { display: inline-flex; align-items: baseline; gap: var(--space-2); color: var(--ink-3); }
+.cd-tag .cd-kind { color: var(--ink-2); }
+.cd-edit { color: var(--ink-3); text-transform: none; letter-spacing: 0; transition: color var(--dur-base) var(--ease); }
+.cd-edit:hover { color: var(--ink-1); }
+.cd-sep { color: var(--ink-4); }
+.cd-hero { display: grid; grid-template-columns: 220px 1fr; gap: var(--space-6); margin-bottom: var(--space-7); align-items: center; }
+.cd-shape { width: 220px; height: 220px; border-radius: var(--r-lg); overflow: hidden; background: var(--canvas-bg, var(--abyss)); }
+.cd-shape canvas { display: block; width: 100%; height: 100%; }
+.cd-name { margin: 0 0 var(--space-2); font-family: var(--font-sans); font-size: var(--t-32); font-weight: 500; line-height: var(--lh-tight); letter-spacing: var(--track-tight); color: var(--ink-1); text-transform: lowercase; }
+.cd-focus { margin: 0 0 var(--space-4); font-size: var(--t-15); color: var(--ink-2); line-height: var(--lh-snug); }
+.cd-meta { display: flex; flex-wrap: wrap; gap: var(--space-3); font-family: var(--font-mono); font-size: var(--t-11); color: var(--ink-3); letter-spacing: var(--track-caps); text-transform: uppercase; }
+.cd-meta .cd-k { color: var(--ink-4); margin-right: 6px; }
+.cd-team-link { color: var(--ink-2); transition: color var(--dur-base) var(--ease); }
+.cd-team-link:hover { color: var(--ink-1); }
+.cd-grid { display: grid; gap: var(--space-6); grid-template-columns: 1fr; }
+.cd-section { padding-top: var(--space-5); border-top: 1px solid var(--hairline); }
+.cd-h { margin: 0 0 var(--space-4); font-family: var(--font-mono); font-size: var(--t-11); font-weight: 500; text-transform: uppercase; letter-spacing: var(--track-caps-loose); color: var(--ink-3); }
+.cd-h-aux { color: var(--ink-4); margin-left: var(--space-1); }
+.cd-bio { margin: 0; font-size: var(--t-13); color: var(--ink-2); line-height: var(--lh-relax); max-width: 64ch; }
+.cd-links { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-3); }
+.cd-links li { list-style: none; }
+.cd-links a { display: grid; grid-template-columns: 90px 1fr; align-items: baseline; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--hairline); border-radius: var(--r-sm); font-family: var(--font-mono); font-size: var(--t-12); color: var(--ink-1); transition: border-color var(--dur-base) var(--ease); }
+.cd-links a:hover { border-color: var(--ink-3); }
+.cd-link-k { color: var(--ink-3); text-transform: uppercase; letter-spacing: var(--track-caps); font-size: var(--t-11); }
+.cd-link-v { word-break: break-all; }
+.cd-people { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); }
+.cd-people > li { list-style: none; }
+.cd-clusters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.cd-cluster { padding: 4px var(--space-2); border: 1px solid var(--hairline); border-radius: var(--r-sm); font-family: var(--font-mono); font-size: var(--t-11); color: var(--ink-3); letter-spacing: var(--track-caps); text-transform: lowercase; }
+
+@media (max-width: 720px) {
+  .cd-hero { grid-template-columns: 1fr; }
+  .cd-shape { width: 100%; max-width: 280px; height: 280px; justify-self: start; }
+  .cd-bar { flex-wrap: wrap; row-gap: var(--space-2); }
+}
