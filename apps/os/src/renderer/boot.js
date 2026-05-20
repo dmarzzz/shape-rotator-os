@@ -673,6 +673,16 @@ async function boot() {
   if (srwk.nodes && srwk.nodes.length > 0) {
     setStatus("");
     hideAtlasOffline();
+    hideAtlasEmpty();
+  } else if (srwk.graph && (!srwk.nodes || srwk.nodes.length === 0)) {
+    // Daemon reachable (we have a graph response) but the indrex has
+    // zero indexed pages. Fresh-install case. Show a friendly empty
+    // panel instead of leaving the black 3D scene + "composing graph…"
+    // status stuck. Panel auto-clears once a single node lands via
+    // the reconcile poll.
+    setStatus("");
+    hideAtlasOffline();
+    showAtlasEmpty();
   }
   try { buildSim(); } catch (e) { console.warn("[boot] buildSim failed:", e); }
   try { subscribeEvents(); } catch (e) { console.warn("[boot] subscribeEvents failed:", e); }
@@ -1887,10 +1897,13 @@ async function reconcileGraph() {
       try { Graph2.notifyDataChanged(); } catch {}
       try { Cosmos.notifyDataChanged(); } catch {}
       // Recovered from cold-start failure: clear the "offline" status.
+      // Same path also clears the "indrex empty" panel if a first page
+      // just landed (fresh install pulling its first page from a peer).
       if (srwk.nodes.length > 0) {
         setStatus("");
         setConnectionState({ state: "connected", serverUrl: srwk.serverUrl });
         hideAtlasOffline();
+        hideAtlasEmpty();
       }
     }
   } catch (e) {
@@ -1956,6 +1969,17 @@ function showAtlasOffline() {
 }
 function hideAtlasOffline() {
   const panel = document.getElementById("atlas-offline");
+  if (panel) panel.hidden = true;
+}
+// Fresh-install case: daemon reachable but no indexed pages yet. The
+// reconcile poll calls hideAtlasEmpty as soon as it sees any node show
+// up in the graph; until then we show the friendly empty card.
+function showAtlasEmpty() {
+  const panel = document.getElementById("atlas-empty");
+  if (panel) panel.hidden = false;
+}
+function hideAtlasEmpty() {
+  const panel = document.getElementById("atlas-empty");
   if (panel) panel.hidden = true;
 }
 function buildOfflineAgentPrompt() {
