@@ -217,7 +217,7 @@ export function buildEventsByDay(events = []) {
 
 // ── markup ───────────────────────────────────────────────────────────
 
-// renderWeekView({ data, weekIdx, sub, source, events, presenceHtml })
+// renderWeekView({ data, weekIdx, sub, source, events, presenceHtml, surface })
 //
 //   data         — the raw Phala JSON (live or bundled)
 //   weekIdx      — 0..9
@@ -228,6 +228,11 @@ export function buildEventsByDay(events = []) {
 //   presenceHtml — caller-supplied HTML for the presence sub-tab (null = link
 //                  out / no content). Lets each surface plug in its own
 //                  presence renderer without this module knowing about it.
+//   surface      — "electron" (default) | "web". Tweaks copy that differs by
+//                  consumer — currently just the stale banner: Electron says
+//                  "offline, try again now"; web says "dates may be partially
+//                  out of sync, download the app for the latest" with a link
+//                  back to the landing page's install CTA.
 export function renderWeekView({
   data,
   weekIdx = 0,
@@ -236,6 +241,7 @@ export function renderWeekView({
   bundledStamp = null,
   events = [],
   presenceHtml = "",
+  surface = "electron",
 } = {}) {
   const tab = data?.tabs?.[PRIMARY_TAB] || [];
   const rows = tab;
@@ -316,11 +322,17 @@ export function renderWeekView({
     : `<p class="cal-recur-empty">no recurring rituals yet.</p>`;
 
   // ── stale banner ───────────────────────────────────────────────────
+  // Two flavors of copy: the Electron app already IS the install, so its
+  // banner offers a retry; the web encourages users to grab the desktop app
+  // for a more reliable always-up-to-date experience.
   const stampHint = bundledStamp || fmtSyncStamp(data?.last_refresh) || "an earlier sync";
+  const staleMsg = surface === "web"
+    ? `dates may be partially out of sync · <a class="cs-install-link" href="/" data-cal-install>download the app for the latest</a>`
+    : `offline · showing bundled snapshot from ${escHtml(stampHint)} · connect to the internet to refresh, or <button class="cs-retry" type="button" data-cal-retry="1">try again now</button>`;
   const staleBanner = isStale
     ? `<div class="cal-stale" role="status">
          <span class="cs-glyph" aria-hidden="true">░</span>
-         <span class="cs-msg">offline · showing bundled snapshot from ${escHtml(stampHint)} · connect to the internet to refresh, or <button class="cs-retry" type="button" data-cal-retry="1">try again now</button></span>
+         <span class="cs-msg">${staleMsg}</span>
        </div>`
     : "";
 

@@ -41,6 +41,7 @@ function rerender() {
     source: state.source,
     events: state.cohort?.events || [],
     presenceHtml,
+    surface: "web",
   });
 
   if (state.sub === "presence") {

@@ -75,6 +75,16 @@
   border-bottom-color: var(--alchemy-oxide-bright, #B43A19);
   color: var(--alchemy-oxide-bright, #B43A19);
 }
+.cal-stale .cs-install-link {
+  color: var(--ed-ink-1);
+  text-decoration: none;
+  border-bottom: 1px solid var(--ed-rule-3);
+  padding-bottom: 1px;
+}
+.cal-stale .cs-install-link:hover {
+  border-bottom-color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #B43A19);
+}
 
 /* ── subtabs (week / presence) ───────────────────────────────────────── */
 .cal-subtabs {
