@@ -175,6 +175,19 @@ This entry is the explicit drift escalation flagged by the 08:25 tick. No furthe
 
 **Next tick should**: install + verify the panel renders on a fresh /graph response with 0 nodes. Otherwise the next-highest-leverage candidate is probably the Network tab having a similar empty case (no peers discovered yet — though we usually do see self), or a similar panel for the Constellation tab if it has a parallel "no data" black-scene problem.
 
+## 2026-05-20 00:25 EDT
+
+**Score**: 8/10 (steady, no work this tick)
+
+**Picked**: nothing — no high-value 1-tick improvement identified
+
+**Why**: Constellation tab renders from cohort-data/teams which always has content (no empty case to fix). Audited peer_reachable / peer_unreachable / pulled / applied_local payload consumption against renderer — daemon doesn't emit `peer_name` on health events, but the renderer falls back to nick-from-srwk.peers which works for any indrex-known peer. Not a hard bug, just a marginal robustness improvement that's not 1-tick. Real next-level moves (multi-pubkey-per-handle, cross-machine sync verification, mac-x64 CI fix) all require multiple ticks of focused work.
+
+**Shipped**:
+- nothing this tick
+
+**Next tick should**: hold or pick: (a) emit peer_name in sync_loop's peer_reachable/peer_unreachable events for nicer rendering of just-appeared/just-disappeared peers, (b) write a CHANGELOG.md aggregating the 30+ patches shipped today so a cohort onboarding link can point at "what changed", or (c) audit one more spec section for drift.
+
 ## 2026-05-19 19:25 EDT
 
 **Score**: 7.5/10 (queue fully drained this hour via user-authorized chat-driven merges. #93 Hermes PoC, #94 cohort taxonomy + calendar overhaul, #98 warm-boot splash-skip all merged. #99/#100/#101 closed by user. SROS v0.1.34 tagged.)
