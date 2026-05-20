@@ -3,7 +3,7 @@ record_id: daedalus
 record_type: team
 schema_version: 1
 kind: team
-membership: visiting
+membership: cohort
 
 # surface fields
 name: Daedalus

@@ -25,7 +25,13 @@ const CAL_PAD_R      = 40;
 const CAL_PAD_B      = 40;
 const CAL_FOOTER_H   = 64;        // bottom — date span + legend
 const CAL_BG         = "#0b0a08";
-const CAL_BG_LANE    = "#15120e";
+// Lane background: lifted a notch (was #15120e) so the present/absent
+// delta has somewhere to land. Bars on a near-black field read as one
+// solid mass; on a slightly-warm field they pop.
+const CAL_BG_LANE    = "#1f1c17";
+// Absence base: pulled darker than the lane so stripes ride on a solid
+// hole, not on the same value as everywhere else.
+const CAL_ABS_BASE   = "#0e0c0a";
 const CAL_RULE       = "rgba(245, 243, 238, 0.07)";
 const CAL_RULE_WEEK  = "rgba(245, 243, 238, 0.14)";
 const CAL_INK_1      = "#f5f3ee";
@@ -379,28 +385,43 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
   ctx.textAlign = "left";
   ctx.fillText(`shape rotator · summer 2026 · ${fmtShortDate(start)} – ${fmtShortDate(end)}`, 20, footerY);
 
-  // Legend
+  // Legend — swatches mirror the in-grid rendering so the key actually
+  // describes what the eye sees in the bars.
   const legX = 20;
   const legY = footerY + 22;
-  ctx.fillStyle = CAL_INK_2;
-  ctx.globalAlpha = 0.75;
+  // present swatch — mirrors the saturated body fill used in person rows
+  // (s=0.78, l=0.62) so the legend matches what the eye sees in the grid.
+  ctx.globalAlpha = 1;
+  const presentGrad = ctx.createLinearGradient(legX, legY - 6, legX, legY + 2);
+  presentGrad.addColorStop(0, hsl(0.06, 0.78, 0.68, 1));
+  presentGrad.addColorStop(1, hsl(0.10, 0.78, 0.54, 1));
+  ctx.fillStyle = presentGrad;
   ctx.fillRect(legX, legY - 6, 30, 8);
-  ctx.fillStyle = CAL_INK_2;
+  ctx.fillStyle = "rgba(255,255,255,0.30)";
+  ctx.fillRect(legX, legY - 6, 30, 1);
+  ctx.fillStyle = CAL_INK_1;
+  ctx.globalAlpha = 0.85;
   ctx.fillText("present", legX + 36, legY);
+  // absent swatch — solid dark base + bright stripes, matching bars
   const absX = legX + 90;
-  ctx.save();
-  ctx.fillStyle = CAL_INK_4;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = CAL_ABS_BASE;
   ctx.fillRect(absX, legY - 6, 30, 8);
-  ctx.strokeStyle = CAL_INK_2;
-  ctx.lineWidth = 0.8;
+  ctx.save();
   ctx.beginPath();
-  for (let i = 0; i < 30; i += 4) {
+  ctx.rect(absX, legY - 6, 30, 8);
+  ctx.clip();
+  ctx.strokeStyle = "rgba(245, 243, 238, 0.55)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let i = -8; i < 38; i += 5) {
     ctx.moveTo(absX + i, legY + 2);
     ctx.lineTo(absX + i + 8, legY - 6);
   }
   ctx.stroke();
   ctx.restore();
-  ctx.fillStyle = CAL_INK_2;
+  ctx.fillStyle = CAL_INK_1;
+  ctx.globalAlpha = 0.85;
   ctx.fillText("absent", absX + 36, legY);
   const todX = absX + 90;
   ctx.strokeStyle = CAL_OXIDE;
@@ -438,18 +459,38 @@ function drawPersonRow(ctx, person, colors, gridX, rowY, gridW, numDays, start, 
   const winX = gridX + winStartIdx * CAL_DAY_W;
   const winW = (winEndIdx - winStartIdx + 1) * CAL_DAY_W;
 
-  const grad = ctx.createLinearGradient(winX, rowY, winX + winW, rowY);
-  grad.addColorStop(0, hsl(colors.hue, 0.68, 0.52, 0.85));
-  grad.addColorStop(1, hsl(colors.hue2, 0.72, 0.56, 0.85));
+  // Bar body — vivid per-person hue with a vertical gradient from hue1
+  // (top, brighter) to hue2 (bottom, slightly darker). The previous pass
+  // anchored every bar at s=0.55, l=0.62 and reserved per-person hue for
+  // a 1px hairline — at that fidelity the row of bars read as a single
+  // gray slab no matter who was who. Saturation is now strong enough
+  // (0.78) that every person's hash-derived hue reads as a real color
+  // against the warm-dark lane, and the gradient gives the bar enough
+  // body so it doesn't feel like a flat sticker.
+  const barTop = rowY + 5;
+  const barBot = rowY + CAL_ROW_H - 5;
+  const barH   = barBot - barTop;
+  const bodyS = 0.78;
+  const bodyL = 0.62;
+  const grad = ctx.createLinearGradient(winX, barTop, winX, barBot);
+  grad.addColorStop(0,    hsl(colors.hue,  bodyS, bodyL + 0.06, 1));
+  grad.addColorStop(0.55, hsl(colors.hue,  bodyS, bodyL,        1));
+  grad.addColorStop(1,    hsl(colors.hue2, bodyS, bodyL - 0.08, 1));
   ctx.fillStyle = grad;
-  ctx.fillRect(winX, rowY + 6, winW, CAL_ROW_H - 12);
+  ctx.fillRect(winX, barTop, winW, barH);
 
-  ctx.fillStyle = "rgba(255,255,255,0.10)";
-  ctx.fillRect(winX, rowY + 6, winW, 1);
-  ctx.fillStyle = "rgba(0,0,0,0.18)";
-  ctx.fillRect(winX, rowY + CAL_ROW_H - 7, winW, 1);
+  // Edge accents — brighter top hairline lifts the bar visually; a
+  // shadow on the bottom grounds it. Both keep their hue-neutral
+  // alphas so the body's color dominates.
+  ctx.fillStyle = "rgba(255,255,255,0.30)";
+  ctx.fillRect(winX, barTop, winW, 1);
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fillRect(winX, barBot - 1, winW, 1);
 
-  // Absences
+  // Absences — striped overlay. The base block dips BELOW the lane so the
+  // hole reads as a hole; the stripes are bright enough (0.42 vs the old
+  // 0.18) that the diagonal pattern is recognizable at the canvas's
+  // native resolution. Stripe spacing tightened to 5px for denser texture.
   const absences = Array.isArray(person.absences) ? person.absences : [];
   for (const ab of absences) {
     const aS = isoToDate(ab.start);
@@ -460,32 +501,33 @@ function drawPersonRow(ctx, person, colors, gridX, rowY, gridW, numDays, start, 
     if (aEndIdx < aStartIdx) continue;
     const aX = gridX + aStartIdx * CAL_DAY_W;
     const aW = (aEndIdx - aStartIdx + 1) * CAL_DAY_W;
-    ctx.fillStyle = CAL_BG_LANE;
-    ctx.fillRect(aX, rowY + 6, aW, CAL_ROW_H - 12);
+    // Solid darker block under the stripes so absence is unambiguously
+    // distinct from "no data" / lane background.
+    ctx.fillStyle = CAL_ABS_BASE;
+    ctx.fillRect(aX, barTop, aW, barH);
     ctx.save();
     ctx.beginPath();
-    ctx.rect(aX, rowY + 6, aW, CAL_ROW_H - 12);
+    ctx.rect(aX, barTop, aW, barH);
     ctx.clip();
-    ctx.strokeStyle = `rgba(245, 243, 238, 0.18)`;
-    ctx.lineWidth = 0.8;
-    const stripeSpacing = 6;
-    const rowTop = rowY + 6;
-    const rowBot = rowY + CAL_ROW_H - 6;
-    const h = rowBot - rowTop;
+    ctx.strokeStyle = `rgba(245, 243, 238, 0.42)`;
+    ctx.lineWidth = 1.2;
+    const stripeSpacing = 5;
     ctx.beginPath();
-    for (let sx = aX - h; sx < aX + aW + h; sx += stripeSpacing) {
-      ctx.moveTo(sx, rowBot);
-      ctx.lineTo(sx + h, rowTop);
+    for (let sx = aX - barH; sx < aX + aW + barH; sx += stripeSpacing) {
+      ctx.moveTo(sx, barBot);
+      ctx.lineTo(sx + barH, barTop);
     }
     ctx.stroke();
     ctx.restore();
-    ctx.strokeStyle = `rgba(245, 243, 238, 0.18)`;
-    ctx.lineWidth = 0.8;
+    // Edge ticks framing the absence so the start/end boundary reads
+    // crisply even when stripes don't quite land on the edge.
+    ctx.strokeStyle = `rgba(245, 243, 238, 0.55)`;
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(aX + 0.5, rowY + 6);
-    ctx.lineTo(aX + 0.5, rowY + CAL_ROW_H - 6);
-    ctx.moveTo(aX + aW - 0.5, rowY + 6);
-    ctx.lineTo(aX + aW - 0.5, rowY + CAL_ROW_H - 6);
+    ctx.moveTo(aX + 0.5, barTop);
+    ctx.lineTo(aX + 0.5, barBot);
+    ctx.moveTo(aX + aW - 0.5, barTop);
+    ctx.lineTo(aX + aW - 0.5, barBot);
     ctx.stroke();
   }
 }

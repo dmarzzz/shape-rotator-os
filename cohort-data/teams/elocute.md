@@ -3,7 +3,7 @@ record_id: elocute
 record_type: team
 schema_version: 1
 kind: team
-membership: visiting
+membership: cohort
 
 name: Elocute
 focus: AI speaking practice · solo reps with scored feedback

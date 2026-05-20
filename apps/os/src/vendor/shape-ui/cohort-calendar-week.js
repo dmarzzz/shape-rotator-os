@@ -30,8 +30,20 @@
 //   phaseFor(week1Based)              — "m1" | "m2" | "m3"
 //   parseWeekRow(row, weekIdx, eventsByDayMs) — { theme, dateRange, days, ... }
 //   parseRecurring(rows)              — [{ when, what }]
-//   renderWeekView({ data, weekIdx, sub, source, events }) — HTML string
+//   renderWeekView({ data, weekIdx, dayIdx, sub, source, events }) — HTML string
 //   renderSkeletonWeek()              — HTML string; ghost of the week layout shown while data loads
+//
+// Three sub-views via `sub`:
+//   "day"       — full-width typeset agenda of one day. Default when the
+//                 calendar tab first mounts. Past events dim; the next event
+//                 carries an "up next" cue; an event in progress carries
+//                 "happening now". Day pills above let users peek at other
+//                 days within the same week without leaving day view.
+//   "week"      — 7-column broadsheet grid with horizontal scroll. Each day
+//                 column has a min-width so event titles always read; today
+//                 auto-scrolls into view on mount.
+//   "presence"  — caller-supplied (the availability gantt lives in the
+//                 consuming app, not in this shared module).
 
 import { escHtml, escAttr } from "./escape.js";
 
@@ -46,6 +58,10 @@ export const PROGRAM_START_MS = COHORT_START_MS;
 export const PROGRAM_END_MS   = COHORT_END_MS;
 
 const DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const DAY_NAMES_FULL = {
+  mon: "monday", tue: "tuesday", wed: "wednesday", thu: "thursday",
+  fri: "friday", sat: "saturday", sun: "sunday",
+};
 
 // ── time helpers ─────────────────────────────────────────────────────
 function todayUtcMs() {
@@ -113,17 +129,54 @@ function boldTimes(htmlSafe) {
   return htmlSafe.replace(/(\d{1,2}:\d{2}(?:\s*[-–—:]\s*\d{1,2}:\d{2})?)/g, '<strong>$1</strong>');
 }
 
+// Split a title line that leads with a time range into { time, rest }.
+// e.g. "12:00-14:00 onsite kickoff" → { time: "12:00–14:00", rest: "onsite kickoff" }
+//      "19:00 founder & sorting hat" → { time: "19:00",       rest: "founder & sorting hat" }
+//      "team check-in"               → { time: "",            rest: "team check-in" }
+// The upstream data is inconsistent about separators (`-`, `–`, `—`, even
+// `:`), and sometimes uses "12:00:14:00" as a range. Normalize all those
+// to an en-dash for display while keeping the original string available
+// to boldTimes for the title fallback.
+function splitLeadingTime(line) {
+  const range = line.match(/^(\d{1,2}:\d{2})\s*[-–—:]\s*(\d{1,2}:\d{2})\s*(.*)$/);
+  if (range) {
+    return { time: `${range[1]}–${range[2]}`, rest: range[3].trim() };
+  }
+  const single = line.match(/^(\d{1,2}:\d{2})\s+(.*)$/);
+  if (single) return { time: single[1], rest: single[2].trim() };
+  const bareTime = line.match(/^(\d{1,2}:\d{2})\s*$/);
+  if (bareTime) return { time: bareTime[1], rest: "" };
+  return { time: "", rest: line.trim() };
+}
+
 // Turn one event block (separated by blank lines in the cell) into
-// structured HTML: title line + a nested bullet tree (one level deep;
-// deeper indentation collapses into the first sublevel).
+// structured HTML. The title row uses a two-column grid: a tight mono
+// time column (~52px, tabular-nums) and a flexible italic title that can
+// wrap to two lines without truncation. Stacking time-over-title in
+// narrow day cards (the previous layout) was clipping titles after two
+// characters; pulling time off the title line frees the whole card
+// width for the words that actually identify the event.
 function renderEventBlock(blockText) {
   const lines = blockText.split("\n").map(l => l.replace(/\s+$/, ""));
   if (!lines.length) return "";
-  const titleHtml = boldTimes(escHtml(lines[0].trim()));
-  const rest = lines.slice(1);
+  const firstRaw = lines[0].trim();
+  let { time, rest } = splitLeadingTime(firstRaw);
+  // Edge case: the first line is JUST a bare time (e.g. "19:00"). Don't
+  // render an empty title cell next to a lonely time stamp — promote the
+  // time to the title slot and drop the time column for this row.
+  let titleText = rest;
+  if (time && !rest) {
+    titleText = time;
+    time = "";
+  } else if (!time && !rest) {
+    titleText = firstRaw;
+  }
+  const titleHtml = titleText ? escHtml(titleText) : "";
+  const timeHtml  = time ? `<span class="cev-time">${escHtml(time)}</span>` : `<span class="cev-time cev-time--empty" aria-hidden="true"></span>`;
+  const tail = lines.slice(1);
   const bullets = [];
   const extras  = [];
-  for (const raw of rest) {
+  for (const raw of tail) {
     if (!raw.trim()) continue;
     const top  = raw.match(/^\s{1,3}-\s+(.+)$/);
     const deep = raw.match(/^\s{4,}-\s+(.+)$/);
@@ -143,7 +196,7 @@ function renderEventBlock(blockText) {
         return `<li>${b.text}${sub}</li>`;
       }).join("")}</ul>`
     : "";
-  return `<span class="cal-event-title">${titleHtml}</span>${extras.join("")}${bulletsHtml}`;
+  return `<div class="cal-event-row">${timeHtml}<span class="cal-event-title">${titleHtml}</span></div>${extras.join("")}${bulletsHtml}`;
 }
 
 // Parse one week's row from the Phala tab structure. Returns:
@@ -216,9 +269,204 @@ export function buildEventsByDay(events = []) {
   return m;
 }
 
+// ── day-view helpers ─────────────────────────────────────────────────
+
+// Pull the leading time-range off a block and return it as minutes-since-
+// midnight bounds. Used by the day view to compute past / current / up-next
+// state per event. Single times (no end) get a notional 30-min duration so
+// "current" doesn't collapse to a single minute. Returns null if no time.
+function parseBlockTiming(blockText) {
+  const firstLine = (blockText || "").split("\n")[0].trim();
+  const range = firstLine.match(/^(\d{1,2}):(\d{2})\s*[-–—:]\s*(\d{1,2}):(\d{2})/);
+  if (range) {
+    return { startMin: +range[1] * 60 + +range[2], endMin: +range[3] * 60 + +range[4] };
+  }
+  const single = firstLine.match(/^(\d{1,2}):(\d{2})/);
+  if (single) {
+    const m = +single[1] * 60 + +single[2];
+    return { startMin: m, endMin: m + 30 };
+  }
+  return null;
+}
+
+function currentMinutesOfDay() {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+// Render one day as a full-width typeset agenda. Returns a section element
+// containing day-of-week pills (peek at any day in this week) and an agenda
+// list of events with mono time gutter + italic display titles.
+//
+//   days     — the 7-element array from parseWeekRow(...).days
+//   dayIdx   — 0..6 of which day to render
+//   theme    — string; the week's theme, surfaced in the day header meta
+//   weekNum  — 1..10; surfaced in the day header meta (e.g. "w1 · m1")
+//   phase    — "m1" | "m2" | "m3"; tints the meta
+function renderDayView({ days, dayIdx, theme, weekNum, phase }) {
+  const safeIdx = Math.max(0, Math.min(6, dayIdx | 0));
+  const day = days[safeIdx];
+  if (!day) return "";
+
+  const showingToday = !!day.isToday;
+  const nowMin = showingToday ? currentMinutesOfDay() : null;
+
+  // ── day pills — let the user jump between any day of this week without
+  // ── leaving day view. The active pill tints; today carries an oxide rule.
+  const pills = days.map((d, i) => {
+    const isSel = i === safeIdx;
+    const count = (d.blocks?.length || 0) + (d.anchors?.length || 0);
+    const countLabel = count === 0 ? "open" : count === 1 ? "1 event" : `${count} events`;
+    const dayNum = d.date.replace(/^[a-z]+\s+/, "");
+    // Split the rel label out so narrow viewports can hide it (the day
+    // name + date + event count are still enough to identify the pill).
+    const relSuffix = d.isToday
+      ? `<span class="cdp-rel">today</span>`
+      : d.relLabel ? `<span class="cdp-rel">${escHtml(d.relLabel)}</span>` : "";
+    return `
+      <button class="cal-day-pill ${d.isToday ? "is-today" : ""} ${d.isEmpty ? "is-empty" : ""}"
+              data-cal-day-pick="${i}"
+              aria-selected="${isSel}"
+              type="button">
+        <span class="cdp-name">${d.name}${relSuffix ? '<span class="cdp-rel-sep">·</span>' : ""}${relSuffix}</span>
+        <span class="cdp-date">${escHtml(dayNum)}</span>
+        <span class="cdp-count">${countLabel}</span>
+      </button>`;
+  }).join("");
+
+  // ── Merge anchors + blocks into one timeline. Anchors without time pin
+  // ── at the top as the day's narrative spine; timed blocks sort by start.
+  const items = [];
+  for (const a of (day.anchors || [])) {
+    items.push({ kind: "anchor", title: a.title, subtitle: a.subtitle, startMin: -1, endMin: -1 });
+  }
+  for (const block of (day.blocks || [])) {
+    const t = parseBlockTiming(block);
+    items.push({
+      kind: "event",
+      raw: block,
+      startMin: t ? t.startMin : 1e9,
+      endMin:   t ? t.endMin   : 1e9,
+    });
+  }
+  items.sort((a, b) => a.startMin - b.startMin);
+
+  // ── "up next" pointer: first future event when viewing today.
+  let upNextIdx = -1;
+  if (showingToday && nowMin != null) {
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.kind !== "event") continue;
+      if (it.startMin < 1e9 && it.startMin > nowMin) { upNextIdx = i; break; }
+    }
+  }
+
+  const weekday = DAY_NAMES_FULL[day.name] || day.name;
+  const dayNum  = day.date.replace(/^[a-z]+\s+/, "");
+
+  // ── agenda rows
+  const rowHtml = items.map((it, i) => {
+    if (it.kind === "anchor") {
+      const sub = it.subtitle ? `<div class="cda-row-meta">${escHtml(it.subtitle)}</div>` : "";
+      return `
+        <article class="cda-row cda-row-anchor">
+          <div class="cda-row-time"><span class="cda-row-time-dot" aria-hidden="true">◆</span></div>
+          <div class="cda-row-body">
+            <h3 class="cda-row-title">${escHtml(it.title)}</h3>
+            ${sub}
+          </div>
+        </article>`;
+    }
+    // Event block: parse like the week renderer, but with full-width
+    // typography — the day card is the entire column width, so the title
+    // can be 26–32px italic without competing for space with anything.
+    const lines = it.raw.split("\n").map(l => l.replace(/\s+$/, ""));
+    const firstRaw = lines[0].trim();
+    let { time, rest } = splitLeadingTime(firstRaw);
+    let title = rest;
+    if (!title && time) { title = time; time = ""; }
+    if (!title) title = firstRaw;
+
+    const tail = lines.slice(1);
+    const bullets = [];
+    const extras  = [];
+    for (const raw of tail) {
+      if (!raw.trim()) continue;
+      const top  = raw.match(/^\s{1,3}-\s+(.+)$/);
+      const deep = raw.match(/^\s{4,}-\s+(.+)$/);
+      if (deep && bullets.length) {
+        bullets[bullets.length - 1].sub.push(boldTimes(escHtml(deep[1].trim())));
+      } else if (top) {
+        bullets.push({ text: boldTimes(escHtml(top[1].trim())), sub: [] });
+      } else {
+        extras.push(`<div class="cda-row-meta">${boldTimes(escHtml(raw.trim()))}</div>`);
+      }
+    }
+    const bulletsHtml = bullets.length
+      ? `<ul class="cda-bullets">${bullets.map(b => {
+          const sub = b.sub.length
+            ? `<ul class="cda-bullets cda-bullets-sub">${b.sub.map(s => `<li>${s}</li>`).join("")}</ul>`
+            : "";
+          return `<li>${b.text}${sub}</li>`;
+        }).join("")}</ul>`
+      : "";
+
+    let state = "future";
+    if (showingToday && nowMin != null && it.startMin < 1e9) {
+      if (it.endMin < nowMin) state = "past";
+      else if (it.startMin <= nowMin && it.endMin >= nowMin) state = "current";
+      else if (i === upNextIdx) state = "upnext";
+    }
+
+    return `
+      <article class="cda-row" data-state="${state}">
+        <div class="cda-row-time">${time ? escHtml(time) : `<span class="cda-row-time-dim">—</span>`}</div>
+        <div class="cda-row-body">
+          <h3 class="cda-row-title">${escHtml(title)}</h3>
+          ${extras.join("")}
+          ${bulletsHtml}
+        </div>
+      </article>`;
+  }).join("");
+
+  const body = items.length
+    ? `<div class="cal-day-agenda">${rowHtml}</div>`
+    : `<div class="cal-day-empty">
+         <em class="cde-line">${showingToday ? "today is open" : "no scheduled events"}</em>
+         <span class="cde-sub">nothing on the cohort calendar · use the day pills above to peek at other days</span>
+       </div>`;
+
+  const metaTag = weekNum
+    ? `<span class="cdc-h-tag" data-phase="${escAttr(phase || "m1")}">w${weekNum} · ${escAttr(phase || "m1")}</span>`
+    : "";
+
+  return `
+    <section class="cal-day-view" data-cal-view="day" data-phase="${escAttr(phase || "m1")}">
+      <nav class="cal-day-pills" role="tablist" aria-label="day of week">
+        ${pills}
+      </nav>
+
+      <header class="cal-day-canvas-h">
+        <div class="cdc-h-left">
+          <h2 class="cdc-h-date">
+            <em class="cdc-h-weekday">${escHtml(weekday)}</em>
+            <span class="cdc-h-num">${escHtml(dayNum)}</span>
+          </h2>
+        </div>
+        <div class="cdc-h-meta">
+          ${day.isToday ? `<span class="cdc-h-today">today</span>` : ""}
+          ${metaTag}
+          ${theme ? `<span class="cdc-h-theme">${escHtml(theme)}</span>` : ""}
+        </div>
+      </header>
+
+      ${body}
+    </section>`;
+}
+
 // ── markup ───────────────────────────────────────────────────────────
 
-// renderWeekView({ data, weekIdx, sub, source, events, presenceHtml, surface })
+// renderWeekView({ data, weekIdx, dayIdx, sub, source, events, presenceHtml, surface })
 //
 //   data         — the raw Phala JSON (live or bundled)
 //   weekIdx      — 0..9
@@ -237,7 +485,8 @@ export function buildEventsByDay(events = []) {
 export function renderWeekView({
   data,
   weekIdx = 0,
-  sub = "week",
+  dayIdx  = null,
+  sub = "day",
   source = null,
   bundledStamp = null,
   events = [],
@@ -338,10 +587,36 @@ export function renderWeekView({
     : "";
 
   // ── presence sub-tab body ─────────────────────────────────────────
-  const presenceSection = `
-    <section class="cal-presence" data-cal-view="presence" ${sub === "presence" ? "" : "hidden"}>
-      ${presenceHtml || `<p class="cal-presence-empty">presence view not available on this surface.</p>`}
-    </section>`;
+  // Note: the canvas wrapper below renders sub-views conditionally, so each
+  // sub-view's markup only mounts when it's the active tab. The masthead
+  // (tabs + scrubber + dateline) lives ABOVE the sub-views so it's visible
+  // from every tab — switching between day / week / presence is one click,
+  // not a hunt for hidden chrome.
+  const presenceBody = `${presenceHtml || `<p class="cal-presence-empty">presence view not available on this surface.</p>`}`;
+
+  // ── today's column index (0 = mon … 6 = sun, or null if today isn't in
+  // this week). Used by .cal-grid both to mark today and for the week view's
+  // auto-scroll-to-today behavior. We no longer widen today's column via
+  // grid-template tricks — the week view now scrolls horizontally with a
+  // uniform per-day min-width, so titles render legibly in every column.
+  const todayColIdx = week.days.findIndex(d => d.isToday);
+  const todayColAttr = todayColIdx >= 0 ? `data-today-col="${todayColIdx}"` : "";
+
+  // ── day view: which day is selected? Default to today if today is in
+  // this week; otherwise pin to Monday of the visible week.
+  const safeDayIdx = (() => {
+    if (Number.isInteger(dayIdx) && dayIdx >= 0 && dayIdx <= 6) return dayIdx;
+    return todayColIdx >= 0 ? todayColIdx : 0;
+  })();
+  const dayViewHtml = sub === "day"
+    ? renderDayView({
+        days:    week.days,
+        dayIdx:  safeDayIdx,
+        theme:   week.theme,
+        weekNum: safeWeekIdx + 1,
+        phase,
+      })
+    : "";
 
   return `
     <header class="cal-page-head">
@@ -356,70 +631,86 @@ export function renderWeekView({
 
     ${staleBanner}
 
-    <nav class="cal-subtabs" role="tablist" aria-label="calendar view">
-      <button class="cal-subtab" data-cal-sub="week"     aria-selected="${sub === "week"}"     type="button">
-        <span class="cs-label">week</span>
-        <span class="cs-hint">live schedule</span>
-      </button>
-      <button class="cal-subtab" data-cal-sub="presence" aria-selected="${sub === "presence"}" type="button">
-        <span class="cs-label">presence</span>
-        <span class="cs-hint">who's here, when</span>
-      </button>
-    </nav>
+    <div class="cal-canvas" data-sub="${escAttr(sub)}" data-phase="${escAttr(phase)}">
 
-    <section class="cal-week" data-cal-view="week" data-phase="${escAttr(phase)}" ${sub === "week" ? "" : "hidden"}>
+      <header class="cal-masthead" data-phase="${escAttr(phase)}">
 
-      <div class="cal-scrub" role="tablist" aria-label="program week">
-        <div class="cal-scrub-track" aria-hidden="true"></div>
-        ${scrubDots}
-        <div class="cal-scrub-phases" aria-hidden="true">
-          <span class="csp m1">m1 · weeks 1–4</span>
-          <span class="csp m2">m2 · weeks 5–9</span>
-          <span class="csp m3">m3 · week 10</span>
+        <div class="cal-masthead-rail">
+          <nav class="cal-subtabs" role="tablist" aria-label="calendar view">
+            <button class="cal-subtab" data-cal-sub="day" aria-selected="${sub === "day"}" type="button">
+              <span class="cs-label">day</span>
+            </button>
+            <button class="cal-subtab" data-cal-sub="week" aria-selected="${sub === "week"}" type="button">
+              <span class="cs-label">week</span>
+            </button>
+            <button class="cal-subtab" data-cal-sub="presence" aria-selected="${sub === "presence"}" type="button">
+              <span class="cs-label">presence</span>
+            </button>
+          </nav>
+
+          <div class="cal-scrub" role="tablist" aria-label="program week">
+            <div class="cal-scrub-track" aria-hidden="true"></div>
+            ${scrubDots}
+          </div>
+
+          <div class="cal-dateline-nav" role="group" aria-label="week navigation">
+            <button class="cdn-btn cdn-arrow" data-cal-nav="prev"  aria-label="previous week" ${safeWeekIdx === 0 ? "disabled" : ""} type="button">←</button>
+            <button class="cdn-btn cdn-today" data-cal-nav="today" type="button">this week</button>
+            <button class="cdn-btn cdn-arrow" data-cal-nav="next"  aria-label="next week" ${safeWeekIdx === WEEK_COUNT - 1 ? "disabled" : ""} type="button">→</button>
+          </div>
         </div>
-      </div>
 
-      <div class="cal-dateline" data-phase="${escAttr(phase)}">
-        <div class="cal-dateline-row">
-          <span class="cal-dateline-tag" data-phase="${escAttr(phase)}">w${safeWeekIdx + 1} · ${phase}</span>
-          <span class="cal-dateline-sep" aria-hidden="true">·</span>
-          <span class="cal-dateline-theme">${escHtml(week.theme || "no theme yet")}</span>
+        <div class="cal-dateline" data-phase="${escAttr(phase)}">
+          <div class="cal-dateline-meta">
+            <span class="cal-dateline-tag" data-phase="${escAttr(phase)}">w${safeWeekIdx + 1} · ${phase}</span>
+            <span class="cal-dateline-sep" aria-hidden="true">·</span>
+            <span class="cal-dateline-theme">${escHtml(week.theme || "no theme yet")}</span>
+          </div>
+          <div class="cal-dateline-range">${escHtml(week.dateRange || "—")}</div>
         </div>
-        <div class="cal-dateline-display">
-          <em class="cal-dateline-ordinal">week ${ordinal(safeWeekIdx + 1)} of ten</em>
-        </div>
-        <div class="cal-dateline-range">${escHtml(week.dateRange || "—")}</div>
 
-        <div class="cal-dateline-nav" role="group" aria-label="week navigation">
-          <button class="cdn-btn" data-cal-nav="prev"  aria-label="previous week" ${safeWeekIdx === 0 ? "disabled" : ""} type="button">←</button>
-          <button class="cdn-btn cdn-today" data-cal-nav="today" type="button">this week</button>
-          <button class="cdn-btn" data-cal-nav="next"  aria-label="next week" ${safeWeekIdx === WEEK_COUNT - 1 ? "disabled" : ""} type="button">→</button>
-        </div>
-      </div>
+      </header>
 
-      <div class="cal-grid" role="list">
-        ${dayCells}
-      </div>
+      ${sub === "day" ? dayViewHtml : ""}
 
-      <footer class="cal-recur">
-        <h2 class="cal-recur-h">recurring</h2>
-        ${recurringHtml}
-      </footer>
+      ${sub === "week" ? `
+        <section class="cal-week" data-cal-view="week" data-phase="${escAttr(phase)}">
+          <header class="cal-week-heading">
+            <h2 class="cwh-display"><em>week ${ordinal(safeWeekIdx + 1)} of ten</em></h2>
+            <span class="cwh-range">${escHtml(week.dateRange || "—")}</span>
+          </header>
+          <div class="cal-grid-scroller">
+            <div class="cal-grid" role="list" ${todayColAttr}>
+              ${dayCells}
+            </div>
+          </div>
 
-      <div class="cal-page-foot">
-        <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>phala /cadence/calendar.json</a></span>
-        <span aria-hidden="true">·</span>
-        <span>cohort may 18 → jul 26 2026</span>
-      </div>
+          <footer class="cal-recur">
+            <h2 class="cal-recur-h">recurring</h2>
+            ${recurringHtml}
+          </footer>
 
-      <div class="cal-kbd-hints" aria-hidden="true">
-        <span class="ckh-pair"><kbd class="ckh-key">←</kbd><kbd class="ckh-key">→</kbd><span class="ckh-label">prev / next week</span></span>
-        <span class="ckh-sep" aria-hidden="true">·</span>
-        <span class="ckh-pair"><kbd class="ckh-key">t</kbd><span class="ckh-label">jump to this week</span></span>
-      </div>
-    </section>
+          <div class="cal-page-foot">
+            <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>phala /cadence/calendar.json</a></span>
+            <span aria-hidden="true">·</span>
+            <span>cohort may 18 → jul 26 2026</span>
+          </div>
 
-    ${presenceSection}
+          <div class="cal-kbd-hints" aria-hidden="true">
+            <span class="ckh-pair"><kbd class="ckh-key">←</kbd><kbd class="ckh-key">→</kbd><span class="ckh-label">prev / next week</span></span>
+            <span class="ckh-sep" aria-hidden="true">·</span>
+            <span class="ckh-pair"><kbd class="ckh-key">t</kbd><span class="ckh-label">jump to this week</span></span>
+          </div>
+        </section>
+      ` : ""}
+
+      ${sub === "presence" ? `
+        <section class="cal-presence" data-cal-view="presence">
+          ${presenceBody}
+        </section>
+      ` : ""}
+
+    </div>
   `;
 }
 
@@ -530,16 +821,20 @@ export function renderSkeletonWeek() {
           <div class="csk-bar" style="width:128px;height:9px"></div>
         </div>
       </header>
-      <nav class="cal-subtabs" aria-hidden="true">
-        <div class="csk-bar" style="width:48px;height:20px"></div>
-        <div class="csk-bar" style="width:64px;height:20px"></div>
-      </nav>
       <div class="cal-week">
-        <div class="cal-scrub">${dots}</div>
-        <div class="cal-dateline">
-          <div class="csk-bar" style="width:86px;height:9px;margin-bottom:12px"></div>
-          <div class="csk-bar" style="width:248px;height:46px;margin-bottom:9px"></div>
-          <div class="csk-bar" style="width:132px;height:9px"></div>
+        <div class="cal-masthead">
+          <div class="cal-masthead-rail">
+            <nav class="cal-subtabs" aria-hidden="true">
+              <div class="csk-bar" style="width:48px;height:20px"></div>
+              <div class="csk-bar" style="width:64px;height:20px"></div>
+            </nav>
+            <div class="cal-scrub">${dots}</div>
+          </div>
+          <div class="cal-dateline">
+            <div class="csk-bar" style="width:86px;height:9px;margin-bottom:12px"></div>
+            <div class="csk-bar" style="width:248px;height:46px;margin-bottom:9px"></div>
+            <div class="csk-bar" style="width:132px;height:9px"></div>
+          </div>
         </div>
         <div class="cal-grid" role="list">${dayCols}</div>
       </div>

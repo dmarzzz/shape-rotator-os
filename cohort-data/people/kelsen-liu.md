@@ -5,7 +5,7 @@ schema_version: 1
 name: Kelsen Liu
 team: bitrouter
 role: null
-role_class: visiting-scholar
+role_class: cohort-member
 geo: NYC
 domain: ai
 email: sl9639@nyu.edu
