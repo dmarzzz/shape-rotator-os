@@ -671,7 +671,12 @@
   font-family: var(--ed-mono); font-size: 9.5px;
   letter-spacing: 0.24em; text-transform: lowercase;
   color: var(--ed-ink-1);
+  display: inline-flex; align-items: baseline; gap: 5px;
+  white-space: nowrap;
 }
+.cal-day-pill .cdp-rel-sep { color: var(--ed-ink-4); }
+.cal-day-pill .cdp-rel { color: var(--ed-ink-2); opacity: 0.85; }
+.cal-day-pill.is-today .cdp-rel { color: var(--alchemy-oxide-bright, #B43A19); opacity: 1; }
 .cal-day-pill .cdp-date {
   font-family: var(--ed-display); font-style: italic;
   font-size: 22px;
@@ -912,8 +917,13 @@
     border-bottom: 1px solid var(--ed-rule);
   }
   .cal-day-pill .cdp-date { font-size: 18px; }
-  .cal-day-pill .cdp-name { font-size: 9px; }
+  .cal-day-pill .cdp-name { font-size: 9px; letter-spacing: 0.2em; }
   .cal-day-pill .cdp-count { font-size: 8.5px; }
+  /* hide the rel suffix on phones so "thu · tomorrow" doesn't overflow
+   * its 1/4-width pill. The "today" pill keeps its emphasis via
+   * .is-today's warm wash + oxide rule so users still find it. */
+  .cal-day-pill .cdp-rel,
+  .cal-day-pill .cdp-rel-sep { display: none; }
 
   .cal-day-canvas-h {
     flex-direction: column; align-items: flex-start; gap: 12px;
@@ -1055,12 +1065,21 @@
   .cal-subtab { padding: 4px 0 6px; }
   .cal-subtab .cs-label { font-size: 18px; }
 
-  .cal-scrub { gap: 4px; padding: 0; }
+  /* Rail at phone: tabs row by themselves, scrubber gets its own row,
+   * nav pill gets its own row (stretched to full width so the user has
+   * a real touch target). flex-wrap on .cal-masthead-rail already lets
+   * them break — we just push the pill to its own row by setting
+   * flex-basis to 100% so neighbors can't share the row. */
+  .cal-scrub { gap: 4px; padding: 0; flex-basis: 100%; justify-content: flex-start; }
   .cal-scrub-dot { width: 22px; height: 22px; font-size: 9.5px; }
 
-  .cal-dateline-nav { border-radius: 999px; }
-  .cal-dateline-nav .cdn-btn { padding: 8px 12px; font-size: 10.5px; }
-  .cal-dateline-nav .cdn-arrow { padding: 8px 10px; font-size: 13px; }
+  .cal-masthead-rail .cal-dateline-nav {
+    flex-basis: 100%;
+    border-radius: 999px;
+    justify-content: space-between;
+  }
+  .cal-dateline-nav .cdn-btn { padding: 9px 14px; font-size: 11px; flex: 1; text-align: center; }
+  .cal-dateline-nav .cdn-arrow { padding: 9px 12px; font-size: 14px; flex: 0 0 auto; }
 
   /* Dateline: stack meta + range on phone. */
   .cal-dateline {

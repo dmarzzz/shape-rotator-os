@@ -318,12 +318,17 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase }) {
     const count = (d.blocks?.length || 0) + (d.anchors?.length || 0);
     const countLabel = count === 0 ? "open" : count === 1 ? "1 event" : `${count} events`;
     const dayNum = d.date.replace(/^[a-z]+\s+/, "");
+    // Split the rel label out so narrow viewports can hide it (the day
+    // name + date + event count are still enough to identify the pill).
+    const relSuffix = d.isToday
+      ? `<span class="cdp-rel">today</span>`
+      : d.relLabel ? `<span class="cdp-rel">${escHtml(d.relLabel)}</span>` : "";
     return `
       <button class="cal-day-pill ${d.isToday ? "is-today" : ""} ${d.isEmpty ? "is-empty" : ""}"
               data-cal-day-pick="${i}"
               aria-selected="${isSel}"
               type="button">
-        <span class="cdp-name">${d.name}${d.isToday ? " · today" : d.relLabel ? ` · ${escHtml(d.relLabel)}` : ""}</span>
+        <span class="cdp-name">${d.name}${relSuffix ? '<span class="cdp-rel-sep">·</span>' : ""}${relSuffix}</span>
         <span class="cdp-date">${escHtml(dayNum)}</span>
         <span class="cdp-count">${countLabel}</span>
       </button>`;

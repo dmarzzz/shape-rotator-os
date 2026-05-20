@@ -389,14 +389,15 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
   // describes what the eye sees in the bars.
   const legX = 20;
   const legY = footerY + 22;
-  // present swatch — same warm body fill as bars
+  // present swatch — mirrors the saturated body fill used in person rows
+  // (s=0.78, l=0.62) so the legend matches what the eye sees in the grid.
   ctx.globalAlpha = 1;
   const presentGrad = ctx.createLinearGradient(legX, legY - 6, legX, legY + 2);
-  presentGrad.addColorStop(0, hsl(0.06, 0.55, 0.66, 1));
-  presentGrad.addColorStop(1, hsl(0.10, 0.55, 0.58, 1));
+  presentGrad.addColorStop(0, hsl(0.06, 0.78, 0.68, 1));
+  presentGrad.addColorStop(1, hsl(0.10, 0.78, 0.54, 1));
   ctx.fillStyle = presentGrad;
   ctx.fillRect(legX, legY - 6, 30, 8);
-  ctx.fillStyle = "rgba(255,255,255,0.22)";
+  ctx.fillStyle = "rgba(255,255,255,0.30)";
   ctx.fillRect(legX, legY - 6, 30, 1);
   ctx.fillStyle = CAL_INK_1;
   ctx.globalAlpha = 0.85;
@@ -458,28 +459,32 @@ function drawPersonRow(ctx, person, colors, gridX, rowY, gridW, numDays, start, 
   const winX = gridX + winStartIdx * CAL_DAY_W;
   const winW = (winEndIdx - winStartIdx + 1) * CAL_DAY_W;
 
-  // Bar body — a luminous warm fill that holds its own against the lane.
-  // The old per-person hash-derived gradient was painting in brown/oxide
-  // ranges that vanished against the dark lane; here we anchor the body
-  // saturation/lightness so every bar reads at a glance, and reserve the
-  // per-person hue only for the top hairline so identity is still
-  // encoded but not at the cost of legibility.
+  // Bar body — vivid per-person hue with a vertical gradient from hue1
+  // (top, brighter) to hue2 (bottom, slightly darker). The previous pass
+  // anchored every bar at s=0.55, l=0.62 and reserved per-person hue for
+  // a 1px hairline — at that fidelity the row of bars read as a single
+  // gray slab no matter who was who. Saturation is now strong enough
+  // (0.78) that every person's hash-derived hue reads as a real color
+  // against the warm-dark lane, and the gradient gives the bar enough
+  // body so it doesn't feel like a flat sticker.
   const barTop = rowY + 5;
   const barBot = rowY + CAL_ROW_H - 5;
   const barH   = barBot - barTop;
+  const bodyS = 0.78;
   const bodyL = 0.62;
-  const bodyS = 0.55;
   const grad = ctx.createLinearGradient(winX, barTop, winX, barBot);
-  grad.addColorStop(0, hsl(colors.hue,  bodyS, bodyL + 0.04, 0.96));
-  grad.addColorStop(1, hsl(colors.hue2, bodyS, bodyL - 0.04, 0.96));
+  grad.addColorStop(0,    hsl(colors.hue,  bodyS, bodyL + 0.06, 1));
+  grad.addColorStop(0.55, hsl(colors.hue,  bodyS, bodyL,        1));
+  grad.addColorStop(1,    hsl(colors.hue2, bodyS, bodyL - 0.08, 1));
   ctx.fillStyle = grad;
   ctx.fillRect(winX, barTop, winW, barH);
 
-  // Top + bottom edge accents — top brightens for readability, bottom
-  // shadow grounds the bar so it doesn't float.
-  ctx.fillStyle = "rgba(255,255,255,0.22)";
+  // Edge accents — brighter top hairline lifts the bar visually; a
+  // shadow on the bottom grounds it. Both keep their hue-neutral
+  // alphas so the body's color dominates.
+  ctx.fillStyle = "rgba(255,255,255,0.30)";
   ctx.fillRect(winX, barTop, winW, 1);
-  ctx.fillStyle = "rgba(0,0,0,0.28)";
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
   ctx.fillRect(winX, barBot - 1, winW, 1);
 
   // Absences — striped overlay. The base block dips BELOW the lane so the
