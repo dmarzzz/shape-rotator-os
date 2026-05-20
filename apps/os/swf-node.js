@@ -11,8 +11,9 @@
 //   running      — child is alive (first stdout/stderr line OR
 //                  300ms grace window passed without an exit)
 //   crashed      — exited unexpectedly 3 times in a row
-//   unsupported  — win32 OR binary is missing on disk OR explicitly
-//                  disabled via SWF_NODE_DISABLE=1
+//   unsupported  — binary missing on disk (e.g. win32-arm64 host, where
+//                  upstream pyrage has no arm64-windows wheel yet) OR
+//                  explicitly disabled via SWF_NODE_DISABLE=1
 //
 // Lifecycle
 //   start(BrowserWindow|null)  — call on app.whenReady
@@ -121,11 +122,17 @@ function appendLog(stream, chunk) {
   } catch {}
 }
 
-function resolveBinary(app) {
-  if (process.platform === "win32") return { ok: false, reason: "win32" };
+// Filename of the bundled binary inside Resources/swf-node/. Windows
+// is the only platform with a file extension on the upstream release
+// asset (swf-node-<v>-windows-x64.exe); mac + linux ship the binary
+// extension-less. The fetch script (scripts/fetch-swf-node.sh) writes
+// the file under this exact name into build-resources/swf-node/, and
+// electron-builder's extraResources copies it through verbatim.
+const BIN_NAME = process.platform === "win32" ? "swf-node.exe" : "swf-node";
 
+function resolveBinary(app) {
   if (app.isPackaged) {
-    const p = path.join(process.resourcesPath, "swf-node", "swf-node");
+    const p = path.join(process.resourcesPath, "swf-node", BIN_NAME);
     if (!fs.existsSync(p)) return { ok: false, reason: "missing", path: p };
     return { ok: true, path: p };
   }
@@ -369,17 +376,16 @@ function start(app, broadcaster) {
 
   const resolved = resolveBinary(app);
   if (!resolved.ok) {
-    if (resolved.reason === "win32") {
-      process.stderr.write("[swf-node] win32 — swf-node bundle is unsupported on this platform; renderer will see http://127.0.0.1:7777 as down\n");
-      setState("unsupported");
-      return;
-    }
     if (resolved.reason === "dev_no_env") {
       process.stderr.write("[swf-node] dev mode and SWF_NODE_BIN unset — assuming an external swf-node is running on :7777\n");
       setState("unsupported");
       return;
     }
     if (resolved.reason === "missing") {
+      // win32-arm64 lands here when the installer was built without the
+      // bundled x64 .exe — pyrage has no Windows-arm64 wheel upstream,
+      // so the fetch step installs no asset for that arch. Treat the
+      // same as any other missing-binary case: degrade to viewer-only.
       process.stderr.write(`[swf-node] binary missing at ${resolved.path} — skipping spawn\n`);
       setState("unsupported");
       return;

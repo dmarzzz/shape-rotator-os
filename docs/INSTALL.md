@@ -114,15 +114,30 @@ the release page.
 
 ---
 
-## peer search + atlas (mac + linux only for now)
+## peer search + atlas
 
-macOS and Linux installs auto-bundle swf-node as a managed subprocess,
-so peer search, atlas, network view, and metrics all work out of the
-box on first launch. Windows installs run in degraded mode: the cohort
-viewer and profile editing still work, but the swf-node-backed
-features (search, atlas, peer presence) are disabled until upstream
-swf-node ships a Windows runtime. Tracked at
-[dmarzzz/shape-rotator-os#84](https://github.com/dmarzzz/shape-rotator-os/issues/84).
+macOS, Linux, and **Windows (x64)** installs auto-bundle swf-node as a
+managed subprocess, so peer search, atlas, network view, and metrics
+all work out of the box on first launch.
+
+**Windows arm64** falls back to viewer-only mode — upstream swf-node
+hasn't published a Windows arm64 binary yet (no `pyrage` Windows arm64
+wheel exists). The cohort viewer, profile editing via PRs, and the
+calendar all work; the swf-node-backed features (search, atlas, peer
+presence, metrics) light up the day upstream ships the arm64 asset.
+
+### First launch on Windows
+
+The first time swf-node binds for LAN peer discovery, **Windows
+Defender Firewall** intercepts the listen and pops the "Allow Shape
+Rotator OS to communicate on these networks" prompt. Pick **Private**
+(the home/work LAN profile). Allowing only **Public** keeps the daemon
+firewall-blocked on every normal LAN and the network/atlas tabs stay
+empty.
+
+If you decline by accident, open `wf.msc`, delete the swf-node inbound
+rule that blocks Private, and relaunch the app — the prompt comes back
+on next bind.
 
 ---
 

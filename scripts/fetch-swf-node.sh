@@ -13,20 +13,29 @@
 #   swf-node-<version>-mac-x64
 #   swf-node-<version>-linux-x64
 #   swf-node-<version>-linux-arm64
+#   swf-node-<version>-windows-x64.exe   ← v0.13.0+, only asset with extension
 #
 # Released at:
-#   https://github.com/dmarzzz/searxng-wth-frnds/releases/download/v<version>/swf-node-<version>-<platform>-<arch>
+#   https://github.com/dmarzzz/searxng-wth-frnds/releases/download/v<version>/swf-node-<version>-<platform>-<arch>[.exe]
 #
 # Version selection:
 #   - Honors `SWF_NODE_VERSION` env var (without the leading "v") if set.
 #   - Otherwise resolves the latest release tag via the GitHub API.
 #
-# Skips on:
-#   - Windows runners (the OS bundle doesn't ship swf-node on win32).
+# Falls back to a stub on:
+#   - Windows arm64 (upstream pyrage doesn't publish a Windows arm64
+#     wheel; only win_amd64 exists). The arm64 win installer ships the
+#     stub; arm64-Windows hosts can still run the cohort viewer.
 #   - Targets where upstream has no matching asset yet — leaves a stub
 #     binary in place so electron-builder still has something to pack
 #     and the spawn logic can be exercised end-to-end. Stub prints a
 #     warning + sleeps so supervision sees it as "running".
+#
+# Windows file-name handling:
+#   On Windows the upstream asset has a `.exe` extension and so does
+#   the destination file (`build-resources/swf-node/swf-node.exe`).
+#   The Electron supervisor (apps/os/swf-node.js) picks the same
+#   filename via process.platform === "win32" → "swf-node.exe".
 #
 # Idempotent: re-running with the same version is a no-op if the
 # binary already exists. Pass `--force` to redownload.
@@ -37,6 +46,7 @@ REPO="dmarzzz/searxng-wth-frnds"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEST_DIR="$REPO_ROOT/apps/os/build-resources/swf-node"
+# DEST_BIN gets `.exe` appended once we detect a Windows runner below.
 DEST_BIN="$DEST_DIR/swf-node"
 
 FORCE=0
@@ -55,8 +65,7 @@ case "$(uname -s)" in
   Darwin)  PLATFORM="mac" ;;
   Linux)   PLATFORM="linux" ;;
   MINGW*|MSYS*|CYGWIN*)
-    echo "[fetch-swf-node] windows runner detected — swf-node is unsupported on win32; skipping"
-    exit 0
+    PLATFORM="windows"
     ;;
   *)
     echo "[fetch-swf-node] unknown uname -s='$(uname -s)' — skipping"
@@ -78,6 +87,29 @@ esac
 # documenting the seam in case Track A needs it).
 PLATFORM="${SWF_NODE_PLATFORM:-$PLATFORM}"
 ARCH="${SWF_NODE_ARCH:-$ARCH}"
+
+# Windows asset is the only one with a file extension upstream
+# (swf-node-<v>-windows-x64.exe). Mirror that locally so the supervisor
+# in apps/os/swf-node.js finds it under the expected name.
+ASSET_EXT=""
+if [ "$PLATFORM" = "windows" ]; then
+  ASSET_EXT=".exe"
+  DEST_BIN="$DEST_BIN.exe"
+fi
+
+# Upstream pyrage publishes no Windows arm64 wheel today, so the
+# PyInstaller release matrix doesn't ship a windows-arm64 asset. Don't
+# install a stub on this combination — the bash-script stub heredoc
+# below can't execute as a `.exe` on Windows anyway. Just create the
+# (empty) dest dir so electron-builder's extraResources step succeeds,
+# and exit 0. The Electron supervisor (apps/os/swf-node.js) sees the
+# missing .exe and flips to "unsupported", which is exactly the right
+# behavior on arm64-Windows.
+if [ "$PLATFORM" = "windows" ] && [ "$ARCH" = "arm64" ]; then
+  echo "[fetch-swf-node] windows-arm64 has no upstream asset (no pyrage Windows arm64 wheel) — installer will degrade to viewer-only on this arch"
+  mkdir -p "$DEST_DIR"
+  exit 0
+fi
 
 # ── version resolution ─────────────────────────────────────────────
 VERSION="${SWF_NODE_VERSION:-}"
@@ -142,7 +174,7 @@ if [ -z "$VERSION" ]; then
   exit 0
 fi
 
-ASSET="swf-node-${VERSION}-${PLATFORM}-${ARCH}"
+ASSET="swf-node-${VERSION}-${PLATFORM}-${ARCH}${ASSET_EXT}"
 URL="https://github.com/$REPO/releases/download/v${VERSION}/${ASSET}"
 
 if [ "$FORCE" -ne 1 ] && [ -f "$DEST_BIN" ] && [ -f "$DEST_DIR/.version" ] && [ "$(cat "$DEST_DIR/.version" 2>/dev/null)" = "$VERSION-$PLATFORM-$ARCH" ]; then
