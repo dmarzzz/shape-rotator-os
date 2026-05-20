@@ -1149,7 +1149,12 @@ function renderCalendar() {
     dayIdx:  cal.dayIdx == null ? null : cal.dayIdx,
     sub,
     source: cal.source,
-    events: state.cohort?.events || [],
+    // Phala calendar.json is the single source of truth for the schedule.
+    // The cohort-data/events/*.md anchors duplicate entries already in the
+    // calendar cell text (e.g. daily-tea.md + "14:00–14:30 tea on roof"
+    // cells → tea showing twice on every weekday). Drop the anchor overlay
+    // for now; restore once dedupe + a recurrence model are in place.
+    events: [],
     presenceHtml,
   });
 

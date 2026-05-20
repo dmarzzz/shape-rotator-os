@@ -40,7 +40,13 @@ function rerender() {
     weekIdx: state.weekIdx,
     sub: state.sub,
     source: state.source,
-    events: state.cohort?.events || [],
+    // Phala calendar.json is the single source of truth for the schedule.
+    // The cohort-data/events/*.md anchors duplicate entries already present
+    // in the calendar.json cell text (e.g. daily-tea.md + "14:00–14:30 tea
+    // on roof" cells → tea showing twice on every weekday). Drop the
+    // anchor overlay for now; restore once dedupe + a recurrence model
+    // for the markdown events is in place.
+    events: [],
     presenceHtml,
     surface: "web",
   });
