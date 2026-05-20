@@ -7,7 +7,7 @@
 // their record from the profile editor, and (c) skip the onboarding
 // modal on subsequent launches.
 
-import { getCohortSurface, subscribeToCohortChanges } from "./cohort-source.js";
+import { getCohortSurface, subscribeToCohortChanges, refreshCohortFromGithub } from "./cohort-source.js";
 
 const IDENTITY_LS_KEY = "srwk:identity_v1";
 
@@ -274,6 +274,10 @@ async function showOnboardingModal(cohortHint) {
       </section>
 
       <footer class="im-foot">
+        <button class="im-resync" id="im-resync" type="button"
+                title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
+          <span class="im-resync-label">resync from github</span>
+        </button>
         <button class="im-skip" id="im-skip" type="button">${claimed ? "close" : "i'll do this later"}</button>
       </footer>
     </div>
@@ -378,6 +382,35 @@ async function showOnboardingModal(cohortHint) {
   }
 
   overlay.querySelector("#im-skip")?.addEventListener("click", close);
+
+  // Manual github resync. Background refresh is throttled to once per
+  // hour (the cohort 60 req/hr unauth GH budget is the constraint on a
+  // LAN where multiple cohort members share an IP — see cohort-source.js).
+  // This button bypasses the throttle so a user can pull fresh data
+  // immediately after a PR merges.
+  const resyncBtn = overlay.querySelector("#im-resync");
+  resyncBtn?.addEventListener("click", async () => {
+    if (resyncBtn.dataset.busy === "1") return;
+    resyncBtn.dataset.busy = "1";
+    const labelEl = resyncBtn.querySelector(".im-resync-label");
+    const originalLabel = labelEl?.textContent || "resync from github";
+    if (labelEl) labelEl.textContent = "resyncing…";
+    try {
+      await refreshCohortFromGithub();
+      if (labelEl) labelEl.textContent = "synced";
+      _refreshSelects(); // dropdowns in this modal reflect the newest cohort
+    } catch (e) {
+      if (labelEl) labelEl.textContent = "resync failed";
+      console.warn("[identity] manual cohort resync failed:", e?.message || e);
+    } finally {
+      // Settle back to the original label so a second click reads correctly.
+      setTimeout(() => {
+        if (labelEl) labelEl.textContent = originalLabel;
+        resyncBtn.dataset.busy = "0";
+      }, 1500);
+    }
+  });
+
   // Click outside the card → close (treat as skip).
   overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
 }

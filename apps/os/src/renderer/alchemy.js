@@ -50,11 +50,15 @@ const ALCHEMY_MODES   = ["feed", "shapes", "pulse", "constellation", "calendar",
 const WEEKS_TOTAL = 10;
 const WEEK_NOW = 1; // TODO: bump weekly, or derive from a cohort start date.
 
-// GitHub event refresh cadence. 60 req/hr unauth limit; we fetch one
-// request per tracked repo per refresh cycle. 14 teams × 1 repo each
-// → 14 reqs every 10 min = 84/hr ⇒ stay within budget at 12 min idle
-// with a single repo per team.
-const FEED_REFRESH_MS = 12 * 60 * 1000;
+// GitHub event refresh cadence. Each refresh hits api.github.com once
+// per tracked repo + once per cohort github handle — ~35 requests on a
+// typical cohort, well above the 60 req/hr unauth budget if we run it
+// often. Activity feeds aren't time-sensitive (vs. cohort sync, which
+// has its own live P2P channel via swf-node), so we tick once a day in
+// the background and rely on the "refresh" button in the feed header for
+// on-demand pulls. The interval is additionally gated on the feed tab
+// being visible — no point burning quota when nobody's looking.
+const FEED_REFRESH_MS = 24 * 60 * 60 * 1000;
 
 // Where the cohort-data markdown lives. Profile tab surfaces a link to
 // each team's record so participants can edit it directly. Hardcoded
@@ -133,10 +137,16 @@ export function mount(container) {
   } catch {}
   loadProfile();
   loadEventsCache();
-  // Background feed refresh — runs regardless of which mode is visible
-  // so the feed is always warm when the user lands on it.
+  // Background feed refresh — interval gated on the feed tab being open
+  // so we don't burn the 60 req/hr unauth GH budget on a user who hasn't
+  // looked at the feed today. Mount-enter (line below) + tab-enter
+  // (further down) + the explicit refresh button in the feed header give
+  // the user plenty of "make it fresh" surface area on demand.
   if (!state.refreshTimer) {
-    state.refreshTimer = setInterval(() => refreshFeed({ source: "interval" }), FEED_REFRESH_MS);
+    state.refreshTimer = setInterval(() => {
+      if (state.mode !== "feed") return;
+      refreshFeed({ source: "interval" });
+    }, FEED_REFRESH_MS);
     // First fetch on mount, deferred a beat so we don't compete with cohort load.
     setTimeout(() => refreshFeed({ source: "mount" }), 1500);
   }

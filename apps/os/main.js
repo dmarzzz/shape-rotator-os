@@ -405,25 +405,33 @@ ipcMain.handle("fg:get-app-info", () => {
 //
 // Returns { ok, path, version } on success, or { ok: false, reason }
 // otherwise. No-op in dev (no point downloading; the user has the source).
-function pickPlatformAsset(assets, version) {
-  // assets: [{ name, browser_download_url }] from the GitHub API.
+//
+// IMPORTANT: this path must not hit api.github.com. The unauthenticated
+// REST API is rate-limited to 60 req/hr per IP, and a cohort sharing a
+// LAN can saturate the bucket from elsewhere (cohort-source, etc.). We
+// learn the latest version from electron-updater (which fetches
+// latest-{platform}.yml via the github.com → objects.githubusercontent.com
+// redirect — no API quota) and construct the asset download URL from the
+// known release-naming convention. The download URL itself is also a
+// github.com redirect, so the whole flow stays off the API entirely.
+function platformAssetName(version) {
   const proc = process;
-  let want = null;
   if (proc.platform === "darwin") {
-    want = proc.arch === "arm64"
+    return proc.arch === "arm64"
       ? `ShapeRotatorOS-${version}-mac-arm64.dmg`
       : `ShapeRotatorOS-${version}-mac-x64.dmg`;
-  } else if (proc.platform === "linux") {
-    want = proc.arch === "arm64"
+  }
+  if (proc.platform === "linux") {
+    return proc.arch === "arm64"
       ? `ShapeRotatorOS-${version}-linux-arm64.deb`
       : `ShapeRotatorOS-${version}-linux-amd64.deb`;
-  } else if (proc.platform === "win32") {
-    want = proc.arch === "arm64"
+  }
+  if (proc.platform === "win32") {
+    return proc.arch === "arm64"
       ? `ShapeRotatorOS-${version}-win-arm64.exe`
       : `ShapeRotatorOS-${version}-win-x64.exe`;
   }
-  if (!want) return null;
-  return assets.find(a => a.name === want) || null;
+  return null;
 }
 
 ipcMain.handle("fg:download-and-reveal-update", async () => {
@@ -431,35 +439,31 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
   const https = require("node:https");
   const fsp = require("node:fs/promises");
 
-  // 1) resolve the latest release.
-  const release = await new Promise((resolve, reject) => {
-    const req = https.get(
-      "https://api.github.com/repos/dmarzzz/shape-rotator-os/releases/latest",
-      { headers: { "User-Agent": "shape-rotator-os", Accept: "application/vnd.github+json" } },
-      (res) => {
-        if (res.statusCode !== 200) {
-          res.resume();
-          return reject(new Error(`github releases API returned ${res.statusCode}`));
-        }
-        let body = "";
-        res.setEncoding("utf8");
-        res.on("data", (chunk) => { body += chunk; });
-        res.on("end", () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
-      }
-    );
-    req.on("error", reject);
-    req.setTimeout(15000, () => req.destroy(new Error("github releases API timed out")));
-  });
+  // 1) resolve the latest version via electron-updater (no API quota).
+  //    autoUpdater.checkForUpdates() reads latest-{mac,win,linux}.yml
+  //    from the github.com /releases/latest/download/ redirect, which
+  //    in turn points at objects.githubusercontent.com. None of that
+  //    counts against the api.github.com 60/hr budget.
+  let version;
+  try {
+    const { autoUpdater } = require("electron-updater");
+    const result = await autoUpdater.checkForUpdates();
+    version = String(result?.updateInfo?.version || "").replace(/^v/, "");
+  } catch (e) {
+    return { ok: false, reason: "check_failed", detail: `couldn't resolve latest version: ${e.message}` };
+  }
+  if (!version) return { ok: false, reason: "no_version", detail: "couldn't read latest version from update feed." };
 
-  const version = String(release.tag_name || "").replace(/^v/, "");
-  if (!version) return { ok: false, reason: "no_version", detail: "couldn't read tag_name from latest release." };
-  const asset = pickPlatformAsset(release.assets || [], version);
-  if (!asset) return { ok: false, reason: "no_asset", detail: `no platform asset matched ${process.platform}/${process.arch}` };
+  const assetName = platformAssetName(version);
+  if (!assetName) return { ok: false, reason: "no_asset", detail: `no platform asset for ${process.platform}/${process.arch}` };
+  // github.com/.../releases/download/ is a redirect to objects.githubusercontent.com.
+  // Not rate-limited. The followingGet loop below already handles 30x chains.
+  const downloadUrl = `https://github.com/dmarzzz/shape-rotator-os/releases/download/v${version}/${assetName}`;
 
   // 2) stream the asset to ~/Downloads/<name>.
   const downloads = app.getPath("downloads");
   await fsp.mkdir(downloads, { recursive: true });
-  const dest = path.join(downloads, asset.name);
+  const dest = path.join(downloads, assetName);
   const partial = `${dest}.part`;
 
   await new Promise((resolve, reject) => {
@@ -499,7 +503,7 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
         res.on("error", reject);
       }).on("error", reject);
     };
-    followingGet(asset.browser_download_url, 0);
+    followingGet(downloadUrl, 0);
   });
 
   await fsp.rename(partial, dest);

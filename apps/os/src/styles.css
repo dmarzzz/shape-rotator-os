@@ -419,7 +419,7 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
 .im-foot {
   margin-top: 22px; padding-top: 18px;
   border-top: 1px solid rgba(180, 200, 255, 0.10);
-  display: flex; justify-content: flex-end;
+  display: flex; justify-content: space-between; align-items: center;
 }
 .im-skip {
   background: transparent; border: none;
@@ -430,6 +430,19 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
   padding: 4px 6px;
 }
 .im-skip:hover { color: rgba(220, 232, 255, 0.75); }
+.im-resync {
+  background: transparent;
+  border: 1px solid rgba(180, 200, 255, 0.16);
+  color: rgba(220, 232, 255, 0.70);
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 999px;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.im-resync:hover { color: rgba(220, 232, 255, 0.95); border-color: rgba(180, 200, 255, 0.32); }
+.im-resync[data-busy="1"] { cursor: progress; opacity: 0.7; }
 
 /* Lives inside #tab-bar (a flex row with tabs left, version right).
    Absolute-center within the bar so it doesn't shift when the tab
@@ -7718,6 +7731,14 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .im-foot { border-top: 1px solid var(--ed-rule); }
 .im-skip { color: var(--ed-ink-4); }
 .im-skip:hover { color: var(--ed-ink-2); }
+.im-resync {
+  color: var(--ed-ink-2);
+  border: 1px solid var(--ed-rule-2);
+  font-family: var(--ed-mono);
+  letter-spacing: 0.22em;
+  border-radius: 0;
+}
+.im-resync:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); }
 
 /* ── search empty state CTA ──────────────────────────────────────── */
 .search-empty-cta {

@@ -31,11 +31,22 @@ const GH_BRANCH   = "main";
 const GH_RAW_BASE = `https://raw.githubusercontent.com/${GH_REPO}/${GH_BRANCH}`;
 const GH_TREE_API = `https://api.github.com/repos/${GH_REPO}/git/trees/${GH_BRANCH}?recursive=1`;
 const GH_COMMITS_API = `https://api.github.com/repos/${GH_REPO}/commits`;
-const REFRESH_MS  = 5 * 60 * 1000;
-// When swf-node is reachable, refresh faster — the spec §4.6 default
-// sync poll interval is 30s, so matching it keeps the renderer's view
-// at most one tick behind the daemon's view.
+// Renderer tick cadence for the swf-node sync overlay. swf-node is on
+// localhost and carries the live signal — keep this at 30s so a peer's
+// edit shows up within one tick.
 const SYNC_REFRESH_MS = 30 * 1000;
+// Renderer tick cadence when swf-node is unreachable — we fall back to
+// the GH baseline alone, so this is also how often we re-pull from GH.
+// In this mode there's no live channel, so we still want to look at
+// github periodically (just not in the 5-min hot loop we used to run).
+const REFRESH_MS  = 60 * 60 * 1000;
+// Minimum gap between two api.github.com tree/raw fetches. P2P sync
+// carries fresh records between peers in seconds; GitHub only needs to
+// be re-pulled rarely (new cohort members, schema bumps, calendar bundle
+// changes). The unauthenticated GH API budget is 60 req/hr per IP, so
+// at one tree fetch + ~50 commit lookups per refresh, more than one
+// per hour from a single LAN saturates the bucket fast.
+const GH_BASELINE_MIN_GAP_MS = 60 * 60 * 1000;
 
 // Cohort-data directory → record_type → output list key. Mirrors
 // scripts/build-bundles.js so the in-browser build matches the bundled
@@ -49,7 +60,13 @@ const RECORD_DIRS = [
 ];
 const PROGRAM_PREFIX = "cohort-data/program/";
 
-let _cache = null;            // grouped by record_type
+let _cache = null;            // grouped by record_type (baseline merged with sync overlay)
+// The GH-only baseline result, kept separately so sync-overlay refresh
+// ticks can re-merge without paying for a new tree+raw fetch every time.
+// Refreshed at most once per GH_BASELINE_MIN_GAP_MS, or immediately on
+// refreshCohortFromGithub().
+let _baseline = null;
+let _baselineFetchedAt = 0;
 let _refreshTimer = null;
 let _bgRefreshInFlight = null; // promise of any active background refresh
 const _subscribers = new Set();
@@ -618,46 +635,60 @@ export async function getCohortSurface() {
   return _cache;
 }
 
-// Background refresh runs the full resolve path (GitHub tree + raw fetches,
-// sync manifest, GH-commit-ts tiebreaker) without blocking any caller.
-// When it lands it overwrites _cache, persists to localStorage, and fires
-// subscribers so views re-render. Re-entrant: if a refresh is already in
-// flight, callers re-use the same promise instead of stacking redundant
-// network work.
-function _startBackgroundRefresh() {
+// Background refresh runs the resolve path without blocking any caller.
+// Two distinct workloads stacked behind one entry point:
+//
+//   1. swf-node /sync/* poll — every tick. Pure localhost, free.
+//   2. GitHub tree + raw + commit-ts fetches — at most once per
+//      GH_BASELINE_MIN_GAP_MS (default 1h). Gated to protect the
+//      60 req/hr unauthenticated GH API budget on shared-IP LANs.
+//      forceGithub=true (from refreshCohortFromGithub()) bypasses
+//      the gate so a user-initiated resync always pulls.
+//
+// When the refresh lands it overwrites _cache, persists to localStorage,
+// and fires subscribers so views re-render. Re-entrant: a concurrent call
+// re-uses the same promise instead of stacking redundant network work.
+function _startBackgroundRefresh({ forceGithub = false } = {}) {
   if (_bgRefreshInFlight) return _bgRefreshInFlight;
   _emitSyncState("syncing");
   _bgRefreshInFlight = (async () => {
     try {
-      let baseline;
+      const now = Date.now();
+      const baselineStale = !_baseline || (now - _baselineFetchedAt) >= GH_BASELINE_MIN_GAP_MS;
+      const shouldFetchGh = forceGithub || baselineStale;
+
+      let baseline = _baseline;
       if (devPreferLocal()) {
         try {
           baseline = await loadFromFixture();
           baseline._source = "fixture-forced";
+          _baseline = baseline;
+          _baselineFetchedAt = now;
           console.log("[cohort-source] DEV override active — reading bundled fixture. Clear with localStorage.removeItem('srfg:cohort_source') + reload.");
         } catch (e) {
           console.warn("[cohort-source] forced fixture unreadable; falling through to github:", e?.message || e);
           baseline = null;
         }
-      }
-      if (!baseline) {
+      } else if (shouldFetchGh) {
         try {
           baseline = await loadFromGithub();
           baseline._source = "github";
+          _baseline = baseline;
+          _baselineFetchedAt = now;
         } catch (e) {
-          console.warn("[cohort-source] github unreachable; keeping current cache:", e?.message || e);
-          // Don't replace cache with anything worse than what's already
-          // there. If we have an LS snapshot, leave it. If not, fall
-          // through with the fixture so the user has SOMETHING.
-          if (!_cache || _cache._source === "empty-bootstrap") {
+          console.warn("[cohort-source] github unreachable; reusing prior baseline:", e?.message || e);
+          // Keep the prior baseline if we have one; otherwise fall through
+          // to the bundled fixture so first-launch isn't blank.
+          if (!baseline && (!_cache || _cache._source === "empty-bootstrap")) {
             try {
               baseline = await loadFromFixture();
               baseline._source = "fixture";
             } catch { baseline = null; }
           }
-          if (!baseline) return; // nothing to do
         }
       }
+      if (!baseline) return; // nothing to merge against
+
       const merged = await applySyncOverlayCached(baseline);
       merged._sig = signatureOf(merged);
       // Did anything actually change? If not, no subscriber notify.
@@ -675,6 +706,19 @@ function _startBackgroundRefresh() {
     }
   })();
   return _bgRefreshInFlight;
+}
+
+/**
+ * Force an immediate GitHub baseline re-pull, bypassing the
+ * GH_BASELINE_MIN_GAP_MS throttle. Wired to the "resync from GitHub"
+ * action in the identity modal so a user can pull fresh cohort-data
+ * after a PR merges without waiting for the next hourly tick.
+ *
+ * Returns the same promise as the underlying background refresh;
+ * resolves when the merge + LS persist completes.
+ */
+export function refreshCohortFromGithub() {
+  return _startBackgroundRefresh({ forceGithub: true });
 }
 
 // Apply the swf-node overlay to a baseline cache. Stamps `_source` so
@@ -744,6 +788,8 @@ export function subscribeToCohortChanges(cb) {
 // Internal — for tests / dev tools to force-refresh the cache.
 export function _resetCohortSource() {
   _cache = null;
+  _baseline = null;
+  _baselineFetchedAt = 0;
   _bgRefreshInFlight = null;
   _subscribers.clear();
   if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
