@@ -5,7 +5,7 @@ schema_version: 1
 name: sevenfloor
 team: teleport-router
 role: lead
-role_class: visiting-scholar
+role_class: cohort-member
 geo: null
 domain: crypto
 email: null

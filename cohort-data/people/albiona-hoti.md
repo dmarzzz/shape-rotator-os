@@ -5,7 +5,7 @@ schema_version: 1
 name: Albiona Hoti
 team: elocute
 role: lead
-role_class: visiting-scholar
+role_class: cohort-member
 geo: NYC
 domain: ai
 email: hello@albiona.dev

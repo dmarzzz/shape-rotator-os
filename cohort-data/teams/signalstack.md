@@ -3,7 +3,7 @@ record_id: signalstack
 record_type: team
 schema_version: 1
 kind: team
-membership: visiting
+membership: cohort
 
 name: SignalStack
 focus: TEE + LLM into Signal

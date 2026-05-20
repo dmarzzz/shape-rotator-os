@@ -5,7 +5,7 @@ schema_version: 1
 name: Mira Ozawa
 team: contexto
 role: ml infrastructure
-role_class: visiting-scholar
+role_class: cohort-member
 geo: NYC
 domain: ai
 email: null

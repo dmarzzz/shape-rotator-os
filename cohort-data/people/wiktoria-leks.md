@@ -5,7 +5,7 @@ schema_version: 1
 name: Wiktoria Leks
 team: wikigen
 role: null
-role_class: visiting-scholar
+role_class: cohort-member
 geo: Ohio (PT)
 domain: crypto
 email: null
