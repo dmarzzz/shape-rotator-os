@@ -281,7 +281,33 @@ async function showOnboardingModal(cohortHint) {
   document.body.appendChild(overlay);
   _modalEl = overlay;
 
+  // Re-populate the person/team/project dropdowns when the cohort
+  // surface refreshes. On a cold first-launch the LS cache or fixture
+  // can be sparse (or missing the user entirely) before the GitHub
+  // tree fetch lands; without this subscription, the modal opens with
+  // a half-empty dropdown, the user shrugs and dismisses, and never
+  // claims. The subscription gives the dropdown a chance to fill in.
+  const _refreshSelects = async () => {
+    try {
+      const fresh = await getCohortSurface();
+      const freshTeams    = fresh?.teams    || [];
+      const freshProjects = freshTeams.filter(t => (t.kind || "team") === "project");
+      const freshTeamsOnly = freshTeams.filter(t => (t.kind || "team") === "team");
+      const freshPeople   = fresh?.people   || [];
+      const personSel  = overlay.querySelector("#im-person");
+      const teamSel    = overlay.querySelector("#im-team");
+      const projectSel = overlay.querySelector("#im-project");
+      if (personSel) personSel.innerHTML = `<option value="">— pick yourself —</option>${optHtml(freshPeople, "person")}`;
+      if (teamSel)   teamSel.innerHTML   = `<option value="">— pick a team —</option>${optHtml(freshTeamsOnly, "team")}`;
+      if (projectSel && freshProjects.length) {
+        projectSel.innerHTML = `<option value="">— pick a project —</option>${optHtml(freshProjects, "project")}`;
+      }
+    } catch {}
+  };
+  const _unsubscribe = subscribeToCohortChanges(() => { _refreshSelects(); });
+
   const close = () => {
+    try { _unsubscribe(); } catch {}
     overlay.remove();
     _modalEl = null;
   };
