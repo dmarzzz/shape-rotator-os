@@ -1098,6 +1098,16 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 .peer-row .p-pages { color: var(--light-2); }
 .peer-row .p-live { color: var(--neon-cyan); text-shadow: 0 0 6px rgba(90, 240, 255, 0.45); }
 .peer-row .p-stale { color: var(--light-4); }
+/* version chip — small mono line in the meta column. Used on peer rows
+ * (swf-node version only — from mDNS TXT) and the local-node row (both
+ * swf-node + electron, since both are local lookups). */
+.peer-row .p-version,
+.peers-self-row .p-version {
+  color: var(--light-4);
+  letter-spacing: 0.04em;
+  font-size: 9.5px;
+  text-transform: lowercase;
+}
 .peer-row .p-copy {
   background: transparent; border: 0; color: var(--light-3);
   font-family: var(--font-mono); font-size: 9.5px;

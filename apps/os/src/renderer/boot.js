@@ -52,7 +52,7 @@ const Graph2 = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode()
 const Cosmos = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode() {} };
 import * as Atlas from "./atlas.js";
 import * as Alchemy from "./alchemy.js";
-import { getManifest, getSyncLog, getNodeLog } from "./sync-client.js";
+import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
 import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.js";
 
 // Small Notion-style sync chip pinned to the bottom-left. Subscribes
@@ -2111,6 +2111,43 @@ let _lastSyncLogSeq = 0;
 let _activityLog = [];                          // newest-first, capped at 50
 const ACTIVITY_LOG_MAX = 50;
 const _peerLastSeenByPubkey = new Map();        // pubkey → ts_ms of last sync-flavored heartbeat
+const _peerVersionByPubkey  = new Map();        // pubkey → swf-node version string (from mDNS TXT)
+// Local versions — swf-node from GET /health, electron from window.api.getAppInfo().
+// Populated lazily by ensureSelfVersions() the first time the peers panel
+// renders; renderPeersPanel() is re-fired once they resolve so the section
+// repaints with concrete numbers instead of "—".
+let _selfSwfVersion = null;
+let _selfElectronVersion = null;
+let _selfVersionsFetchedAt = 0;
+async function ensureSelfVersions() {
+  // Cache for 60s so we don't re-hit /health on every peers-panel open.
+  if (_selfVersionsFetchedAt && Date.now() - _selfVersionsFetchedAt < 60000) return;
+  _selfVersionsFetchedAt = Date.now();
+  let changed = false;
+  try {
+    const h = await getHealth();
+    const v = h.ok ? (h.body?.version || null) : null;
+    if (v && v !== _selfSwfVersion) { _selfSwfVersion = v; changed = true; }
+  } catch {}
+  try {
+    const info = await (window.api?.getAppInfo?.() ?? null);
+    const v = info?.version || null;
+    if (v && v !== _selfElectronVersion) { _selfElectronVersion = v; changed = true; }
+  } catch {}
+  if (changed && typeof renderPeersPanel === "function") {
+    try { renderPeersPanel(); } catch {}
+  }
+}
+// Pull `v=...` out of a swf-node mDNS TXT-record summary string like:
+//   "node=mac-foo port=7777 proto=searxng-wth-frnds/v0.3 v=0.0.0+unknown"
+// Returns the bare version string or null. Defensive: TXT records aren't
+// part of swf-node's stable contract, so a missing/unparseable v= just
+// resolves to null and the renderer shows "—".
+function parsePeerVersionFromTxt(txt) {
+  if (!txt || typeof txt !== "string") return null;
+  const m = txt.match(/(?:^|\s)v=([^\s]+)/);
+  return m ? m[1] : null;
+}
 let _lastTickTsMs = 0;
 let _lastNodeLogActivityMs = 0;                 // wall-clock of latest non-tick event
 let _syncLogUnavailable = false;                // /sync/log fallback path 404'd too
@@ -2226,6 +2263,10 @@ function processNodeLogEvent(evt) {
     _peerReachable.set(evt.peer_pubkey, false);
   } else if (evt.kind === "mdns_peer_appeared" && evt.peer_pubkey) {
     _peerReachable.set(evt.peer_pubkey, true);
+    // mDNS TXT records carry the peer's swf-node version as `v=X.Y.Z`.
+    // Cache for the peers panel + the diagnostics dump.
+    const v = parsePeerVersionFromTxt(evt.txt_record_summary);
+    if (v) _peerVersionByPubkey.set(evt.peer_pubkey, v);
   }
   if (evt.kind === "tick") {
     _lastTickTsMs = evt.ts_ms;
@@ -2423,6 +2464,11 @@ function renderPeersPanel() {
 // If well-known isn't reachable yet we render a placeholder so the
 // row is never empty (avoids a layout pop when the fetch resolves).
 function buildLocalNodeSection() {
+  // Fire the local-version probe lazily on first render. Cached at module
+  // scope for 60s; re-fires renderPeersPanel() once values land so the
+  // chip below repaints from "—" to concrete versions.
+  ensureSelfVersions();
+
   const wrap = document.createElement("div");
   wrap.className = "peers-self";
 
@@ -2469,7 +2515,17 @@ function buildLocalNodeSection() {
   const trust = document.createElement("span");
   trust.className = "p-self-trust";
   trust.textContent = (selfPeer?.trust_level || "self").toLowerCase();
-  meta.append(addr, trust);
+  // Local version chip — swf-node (from /health) + electron (from
+  // window.api.getAppInfo()). Both are local lookups, so unlike the
+  // peer rows we can show both. Hyphen until ensureSelfVersions
+  // resolves; renderPeersPanel re-fires when it does.
+  const ver = document.createElement("span");
+  ver.className = "p-version";
+  const swf = _selfSwfVersion || "—";
+  const ele = _selfElectronVersion || "—";
+  ver.textContent = `swf ${swf} · el ${ele}`;
+  ver.title = `swf-node ${swf} (this node, from /health) · electron app ${ele} (from main process)`;
+  meta.append(addr, trust, ver);
 
   row.append(dot, mid, meta);
   wrap.appendChild(row);
@@ -2842,7 +2898,19 @@ function buildPeerRow(p, now, liveCounts) {
     live.className = "p-stale";
     live.textContent = "idle";
   }
-  meta.append(pages, live);
+  // swf-node version from the peer's mDNS TXT record (cached by
+  // processNodeLogEvent on each mdns_peer_appeared). The Electron-app
+  // version isn't advertised on the wire — peers would need to opt in
+  // by passing it to swf-node so it could be included in the TXT — so
+  // we surface only swf-node here for now.
+  const peerVer = _peerVersionByPubkey.get(p.pubkey);
+  const ver = document.createElement("span");
+  ver.className = "p-version";
+  ver.textContent = peerVer ? `swf ${peerVer}` : "swf —";
+  ver.title = peerVer
+    ? `swf-node ${peerVer} (from mDNS TXT). electron version isn't on the wire yet.`
+    : "peer's swf-node version not seen yet — waiting on an mDNS announcement";
+  meta.append(pages, live, ver);
   row.append(dot, mid, meta);
   return row;
 }
