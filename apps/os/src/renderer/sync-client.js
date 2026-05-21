@@ -235,6 +235,19 @@ export async function putLocalRecord({ record_id, record_type, content, prev_has
   };
   if (prev_hash !== undefined) body.prev_hash = prev_hash;
 
+  // Wire-level log — landed in DevTools console (SRWK_DEVTOOLS=1) and
+  // surfaced via the renderer's "copy diagnostics" button on failure.
+  // eslint-disable-next-line no-console
+  console.info("[profile-sync] POST /sync/local_record →", {
+    url,
+    record_id,
+    record_type,
+    prev_hash: prev_hash ?? null,
+    content_keys: Object.keys(content || {}),
+    body_size: JSON.stringify(body).length,
+    token_len: token.length,
+  });
+
   const res = await timedFetch(url, {
     method: "POST",
     headers: {
@@ -242,6 +255,13 @@ export async function putLocalRecord({ record_id, record_type, content, prev_has
       "Authorization": `Bearer ${token}`,
     },
     body: JSON.stringify(body),
+  });
+  // eslint-disable-next-line no-console
+  console.info("[profile-sync] POST /sync/local_record ← response", {
+    ok: res.ok,
+    status: res.status,
+    reason: res.reason,
+    body: res.body,
   });
   if (!res.ok) {
     // On 401 force-refresh the token cache once — the daemon may have

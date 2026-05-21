@@ -7141,12 +7141,55 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   border-color: var(--alchemy-rule);
   background: rgba(241,236,231,0.04);
 }
+/* Two-button row — local sync (primary, warm oxide) sits left of the
+ * github PR button (secondary, paper outline). Wraps under a narrow
+ * viewport so the hint stays readable. The history-link button trails
+ * after both. */
+.alch-profile-submit-row {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.alch-submit-pr-primary { /* default oxide treatment from .alch-submit-pr-btn already applies */ }
+.alch-submit-pr-secondary {
+  background: transparent;
+  color: var(--alchemy-paper-warm);
+  border: 1px solid var(--alchemy-rule);
+}
+.alch-submit-pr-secondary:hover:not(:disabled) {
+  border-color: var(--alchemy-paper-warm);
+  background: rgba(241,236,231,0.04);
+}
+.alch-submit-pr-mute {
+  font-size: 10.5px;
+  opacity: 0.55;
+  margin-left: 4px;
+  letter-spacing: 0.04em;
+}
 .alch-submit-pr-hint {
   font-family: var(--font-mono);
   font-size: 10.5px; line-height: 1.55;
   letter-spacing: 0.04em;
   color: var(--alchemy-ink-mute);
   margin: 0;
+}
+.alch-submit-pr-hint strong {
+  color: var(--alchemy-paper-warm);
+  font-weight: 500;
+}
+/* Diagnostic <pre> in the failure result panel — copyable, tight,
+ * doesn't break the result-panel's vertical rhythm. */
+.aspr-debug {
+  font-family: var(--font-mono);
+  font-size: 10.5px; line-height: 1.5;
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  background: rgba(241,236,231,0.05);
+  border: 1px solid var(--alchemy-rule);
+  border-radius: 3px;
+  white-space: pre-wrap; word-break: break-word;
+  color: var(--alchemy-paper-warm);
+  max-height: 200px; overflow: auto;
 }
 .alch-submit-pr-hint code {
   font-family: var(--font-mono); font-size: 10.5px;

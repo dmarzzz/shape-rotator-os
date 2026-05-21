@@ -4154,7 +4154,7 @@ function loadEditTarget() {
   p._editContextKey = contextKey;
 
   // ADD mode: seed a blank draft for the chosen kind. No baseline (null
-  // signals "creating", which submitEditAsPR uses to pick /new/ URL).
+  // signals "creating", which runGithubPRFlow uses to pick /new/ URL).
   if (p.editMode === "add") {
     if (p.editKind === "person") {
       p.editDraft = {
@@ -4366,23 +4366,14 @@ function renderSubmitBlock(p) {
   // team and project both live under cohort-data/teams/.
   const folder = (p.editKind === "person") ? "people" : "teams";
   const targetPath = `cohort-data/${folder}/${slug}.md`;
-  // Phase 2 sync: when swf-node is reachable, prefer the local-write
-  // path. The button label shifts to match. We don't await
-  // isSyncAvailable() here — cohort-source flips the flag synchronously
-  // after the first load — and submitEditAsPR re-probes on click so the
-  // routing is correct even if the daemon went down between render
-  // and click.
+  // Two explicit buttons — no surprise fallback. The local-sync path used
+  // to silently fall through to github when swf-node returned an error;
+  // users couldn't tell which path actually fired. Now: pick the path
+  // explicitly. The sync button disables when swf-node isn't reachable.
   const syncOn = isSyncAvailable();
-  const action = isAdd
-    ? (syncOn ? "save profile (local · syncing)" : "create new file (PR)")
-    : (syncOn ? "save profile (local · syncing)" : "open github editor (PR)");
-  const hint = isAdd
-    ? (syncOn
-        ? `posts to your local swf-node — your record gossips to LAN peers on the next sync tick (~30s). github PR is the fallback when swf-node is down.`
-        : `opens github's web editor pre-filled with the new record. click <strong>commit new file</strong> → github walks you into PR creation.`)
-    : (syncOn
-        ? `posts the edit to your local swf-node as a freshly-signed envelope. LAN peers pick it up on the next sync tick. github PR is the fallback when swf-node is down.`
-        : `opens github's web editor on the existing file plus a <strong>changes</strong> panel showing exactly which lines to edit. github web editor doesn't accept pre-filled content for existing files.`);
+  const syncLabel = isAdd ? "create · local sync" : "save · local sync";
+  const ghLabel   = isAdd ? "create · open github PR" : "save · open github PR";
+  const syncDisabledNote = syncOn ? "" : ` <span class="alch-submit-pr-mute">(swf-node down)</span>`;
   // History link — only in EDIT mode (ADD has no chain to inspect yet).
   // Reads /sync/record/<id>?full=true via sync-client. When swf-node is
   // unreachable the modal renders "history unavailable" and links to
@@ -4392,14 +4383,28 @@ function renderSubmitBlock(p) {
     : "";
   return `
     <div class="alch-profile-submit">
-      <button id="alch-submit-pr" class="alch-feed-btn alch-submit-pr-btn" type="button">
-        <span aria-hidden="true">↑</span>
-        <span class="alch-submit-pr-label">${escHtml(action)}</span>
-      </button>
-      ${historyHtml}
+      <div class="alch-profile-submit-row">
+        <button id="alch-submit-sync"
+                class="alch-feed-btn alch-submit-pr-btn alch-submit-pr-primary"
+                type="button"
+                ${syncOn ? "" : "disabled aria-disabled=\"true\""}
+                title="${syncOn ? "post to local swf-node — gossips to LAN peers in ~30s" : "swf-node is not reachable on 127.0.0.1:7777"}">
+          <span aria-hidden="true">↑</span>
+          <span class="alch-submit-pr-label">${escHtml(syncLabel)}</span>${syncDisabledNote}
+        </button>
+        <button id="alch-submit-pr"
+                class="alch-feed-btn alch-submit-pr-btn alch-submit-pr-secondary"
+                type="button"
+                title="open github's web editor — durable, requires fork + merge">
+          <span aria-hidden="true">⎘</span>
+          <span class="alch-submit-pr-label">${escHtml(ghLabel)}</span>
+        </button>
+        ${historyHtml}
+      </div>
       <p class="alch-submit-pr-hint">
         will publish to <code id="alch-submit-pr-target">${escHtml(targetPath)}</code>.
-        ${hint}
+        <strong>local sync</strong> writes to your swf-node — instant on this machine, gossips to LAN peers on the next ~30s tick.
+        <strong>github PR</strong> opens the web editor pre-filled with your edits — durable, requires a fork + reviewer merge.
       </p>
     </div>
   `;
@@ -4509,8 +4514,10 @@ function wireProfileForm() {
   }
 
   // Submit
+  const syncBtn = document.getElementById("alch-submit-sync");
+  if (syncBtn) syncBtn.addEventListener("click", submitEditAsLocalSync);
   const prBtn = document.getElementById("alch-submit-pr");
-  if (prBtn) prBtn.addEventListener("click", submitEditAsPR);
+  if (prBtn) prBtn.addEventListener("click", submitEditAsGithubPR);
 
   // History — Phase 2 modal listing prior versions of the record. Pulls
   // the full chain via /sync/record/<id>?full=true. Each row exposes a
@@ -4837,58 +4844,147 @@ function applyEnvelopeToCohort(envelope, recordId, kind) {
   cohort[listKey] = arr;
 }
 
-async function submitEditAsPR() {
+// ─── profile-sync diagnostic logger ────────────────────────────────────
+// Verbose by design — profile sync is where users most often need a quick
+// wire-level read. Lands in DevTools (SRWK_DEVTOOLS=1) and is dumped into
+// the "copy diagnostics" payload from the error result panel.
+const _profileSyncLog = [];
+function psLog(level, ...args) {
+  const ts = new Date().toISOString();
+  _profileSyncLog.push({ ts, level, args });
+  if (_profileSyncLog.length > 200) _profileSyncLog.splice(0, _profileSyncLog.length - 200);
+  // eslint-disable-next-line no-console
+  (console[level] || console.log)("[profile-sync]", ...args);
+}
+
+// Translate a trySyncWriteForCurrentEdit failure into something a human
+// can read. Headline gets the in-app line; body gets the daemon's actual
+// response payload (if any) for the diagnostics dump.
+function describeSyncFailure(synced) {
+  const r = synced.reason || "unknown";
+  let headline;
+  switch (r) {
+    case "no_token":         headline = "no agent token — swf-node hasn't shared its auth token with the renderer yet"; break;
+    case "no_cohort_keys":   headline = "swf-node has no cohort signing keys bootstrapped (POST /sync/local_record → 503)"; break;
+    case "sync_unavailable": headline = "swf-node not reachable on 127.0.0.1:7777"; break;
+    case "unauthorized":     headline = "swf-node rejected the agent token (401) even after a refresh"; break;
+    case "no_slug":          headline = "no record_id could be determined from the draft (no github username, no name)"; break;
+    case "kind_unsupported": headline = `local sync is person-only in Phase 2 — this draft is a ${state.profile?.editKind || "?"}`; break;
+    case "bad_request":      headline = `client-side validation: ${synced.error || "unknown"}`; break;
+    case "post_failed":
+    default:                 headline = `POST /sync/local_record returned status ${synced.status ?? "?"} (reason: ${r})`;
+  }
+  let body = "";
+  if (synced.body && typeof synced.body === "object")  body = JSON.stringify(synced.body, null, 2);
+  else if (synced.body)                                body = String(synced.body);
+  return { headline, body };
+}
+
+async function submitEditAsLocalSync() {
   const result = document.getElementById("alch-submit-pr-result");
   if (!result) return;
   const p = state.profile;
 
-  // ─── Phase 2 sync write — try first, fall back to github PR. ─────
-  // We attempt this for both ADD and EDIT, person-only. Team/project
-  // edits and unsupported kinds skip straight to the github PR path
-  // below (trySyncWriteForCurrentEdit reports `kind_unsupported`).
-  if (p.editKind === "person") {
+  psLog("info", "submitEditAsLocalSync click", {
+    editMode: p.editMode,
+    editKind: p.editKind,
+    editTargetId: p.editTargetId,
+    draftSlug: draftSlug(p),
+    syncAvailable: isSyncAvailable(),
+    draftKeys: Object.keys(p.editDraft || {}),
+  });
+
+  if (p.editKind !== "person") {
     result.hidden = false;
-    result.dataset.kind = "loading";
-    result.innerHTML = `<div class="aspr-line"><span class="aspr-tag">saving</span> <span>posting to local swf-node…</span></div>`;
-    const synced = await trySyncWriteForCurrentEdit();
-    if (synced.routed === "sync") {
-      const recordId = synced.recordId;
-      applyEnvelopeToCohort(synced.envelope, recordId, "person");
-      // Snap the editor's baseline to the new content so a follow-up
-      // EDIT diffs from the just-saved state.
-      if (p.editMode === "edit") {
-        p.editBaseline = JSON.parse(JSON.stringify(p.editDraft));
-      }
-      toast({
-        kind: "success",
-        title: "profile saved locally",
-        message: "syncing to peers on the next tick (~30s)",
-      });
-      result.hidden = false;
-      result.dataset.kind = "success";
-      result.innerHTML = `
-        <div class="aspr-line"><span class="aspr-tag">saved · local</span> <span>your edit is on this swf-node. LAN peers will pull it on the next ~30s tick.</span></div>
-        <div class="aspr-line aspr-aux">record: <code>${escHtml(recordId)}</code></div>
-      `;
-      // Re-render so the canvas + form pick up the new latest state.
-      renderProfile();
-      wireProfileForm();
-      return;
-    }
-    // Fall through to the github PR path. Surface a one-line banner so
-    // the user knows we tried sync and bailed.
-    if (synced.reason !== "kind_unsupported" && synced.reason !== "sync_unavailable") {
-      console.warn("[sync] local_record failed, falling back to github PR:", synced.reason, synced.body);
-    }
-    if (synced.reason !== "kind_unsupported") {
-      result.hidden = false;
-      result.dataset.kind = "fallback";
-      result.innerHTML = `<div class="aspr-line"><span class="aspr-tag aspr-tag-warn">swf-node unavailable</span> <span>using github PR instead — your edits are preserved.</span></div>`;
-    }
+    result.dataset.kind = "error";
+    result.innerHTML = `<div class="aspr-line"><span class="aspr-tag aspr-tag-warn">unsupported</span> <span>local sync is person-only in Phase 2 (this draft is a ${escHtml(p.editKind)}). use <strong>save · open github PR</strong>.</span></div>`;
+    return;
   }
 
-  // ─── github PR fallback (pre-sync behavior, unchanged below) ─────
-  // ADD mode → github /new/ URL with prefilled content.
+  result.hidden = false;
+  result.dataset.kind = "loading";
+  result.innerHTML = `<div class="aspr-line"><span class="aspr-tag">saving</span> <span>posting to local swf-node…</span></div>`;
+
+  const synced = await trySyncWriteForCurrentEdit();
+  psLog("info", "trySyncWriteForCurrentEdit returned", synced);
+
+  if (synced.routed === "sync") {
+    const recordId = synced.recordId;
+    applyEnvelopeToCohort(synced.envelope, recordId, "person");
+    // Snap the editor's baseline to the new content so a follow-up EDIT
+    // diffs from the just-saved state.
+    if (p.editMode === "edit") {
+      p.editBaseline = JSON.parse(JSON.stringify(p.editDraft));
+    }
+    toast({ kind: "success", title: "profile saved locally", message: "syncing to peers on the next tick (~30s)" });
+    result.dataset.kind = "success";
+    result.innerHTML = `
+      <div class="aspr-line"><span class="aspr-tag">saved · local</span> <span>your edit is on this swf-node. LAN peers will pull it on the next ~30s tick.</span></div>
+      <div class="aspr-line aspr-aux">record: <code>${escHtml(recordId)}</code> · envelope_hash: <code>${escHtml(synced.envelope?.content_hash || "—")}</code></div>
+    `;
+    renderProfile();
+    wireProfileForm();
+    return;
+  }
+
+  // Failure. Do NOT fall back — the github button is sitting right next to
+  // this one for the user to decide. Surface the daemon's actual reason +
+  // any response body in a copyable diagnostic.
+  const detail = describeSyncFailure(synced);
+  psLog("warn", "sync failed — surfacing to user (no auto-fallback)", { reason: synced.reason, status: synced.status, body: synced.body });
+  result.dataset.kind = "error";
+  result.innerHTML = `
+    <div class="aspr-line"><span class="aspr-tag aspr-tag-warn">local sync failed</span> <span>${escHtml(detail.headline)}</span></div>
+    ${detail.body ? `<div class="aspr-line aspr-aux"><pre class="aspr-debug">${escHtml(detail.body)}</pre></div>` : ""}
+    <div class="aspr-line aspr-aux">
+      <button type="button" class="alch-feed-btn aspr-copy-log">copy diagnostics</button>
+      <span class="aspr-aux">or click <strong>save · open github PR</strong> for the durable path.</span>
+    </div>
+  `;
+  const copyBtn = result.querySelector(".aspr-copy-log");
+  if (copyBtn) copyBtn.addEventListener("click", async () => {
+    const payload = {
+      timestamp: new Date().toISOString(),
+      sync_available: isSyncAvailable(),
+      edit: {
+        mode: p.editMode,
+        kind: p.editKind,
+        target_id: p.editTargetId,
+        draft_keys: Object.keys(p.editDraft || {}),
+      },
+      result: synced,
+      log_tail: _profileSyncLog.slice(-40),
+    };
+    const blob = JSON.stringify(payload, null, 2);
+    try {
+      await navigator.clipboard.writeText(blob);
+      toast({ kind: "info", title: "diagnostics copied", message: `${blob.length} bytes — paste anywhere to debug` });
+    } catch (e) {
+      psLog("warn", "clipboard write failed", String(e));
+      toast({ kind: "warn", title: "copy failed", message: "see DevTools console for the dump" });
+      console.log("[profile-sync] diagnostics dump:\n" + blob);
+    }
+  });
+}
+
+async function submitEditAsGithubPR() {
+  const result = document.getElementById("alch-submit-pr-result");
+  if (!result) return;
+  psLog("info", "submitEditAsGithubPR click", {
+    editMode: state.profile.editMode,
+    editKind: state.profile.editKind,
+    editTargetId: state.profile.editTargetId,
+  });
+  await runGithubPRFlow(result);
+}
+
+// ─── github PR launcher — extracted from the old submitEditAsPR ───────
+// ADD → github /new/ URL with prefilled content. EDIT → rebuild full
+// markdown (mutated frontmatter + preserved body fetched from raw) and
+// route through /new/?value= so github forces "create new branch +
+// propose changes". Pure UI flow — no swf-node side effects.
+async function runGithubPRFlow(result) {
+  const p = state.profile;
   if (p.editMode === "add") {
     const slug = draftSlug(p);
     if (!slug) {
