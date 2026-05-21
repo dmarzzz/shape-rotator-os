@@ -245,7 +245,7 @@ export async function putLocalRecord({ record_id, record_type, content, prev_has
     prev_hash: prev_hash ?? null,
     content_keys: Object.keys(content || {}),
     body_size: JSON.stringify(body).length,
-    token_len: token.length,
+    has_token: true,
   });
 
   const res = await timedFetch(url, {

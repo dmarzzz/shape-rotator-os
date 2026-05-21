@@ -34,7 +34,7 @@ import {
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
 import { enrichPeople } from "./gh-user.js";
-import { putLocalRecord, getRecord, getHealth, getManifest } from "./sync-client.js";
+import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
@@ -4369,11 +4369,21 @@ function renderSubmitBlock(p) {
   // Two explicit buttons — no surprise fallback. The local-sync path used
   // to silently fall through to github when swf-node returned an error;
   // users couldn't tell which path actually fired. Now: pick the path
-  // explicitly. The sync button disables when swf-node isn't reachable.
+  // explicitly. The sync button disables when swf-node isn't reachable
+  // OR when the draft kind isn't supported by Phase 2 sync (person only).
   const syncOn = isSyncAvailable();
+  const isPerson = p.editKind === "person";
+  const syncEnabled = syncOn && isPerson;
   const syncLabel = isAdd ? "create · local sync" : "save · local sync";
   const ghLabel   = isAdd ? "create · open github PR" : "save · open github PR";
-  const syncDisabledNote = syncOn ? "" : ` <span class="alch-submit-pr-mute">(swf-node down)</span>`;
+  const syncDisabledNote =
+    !syncOn   ? ` <span class="alch-submit-pr-mute">(swf-node down)</span>`
+    : !isPerson ? ` <span class="alch-submit-pr-mute">(person only · Phase 3 adds ${escHtml(p.editKind)})</span>`
+    : "";
+  const syncTitle =
+    !syncOn   ? "swf-node is not reachable on 127.0.0.1:7777"
+    : !isPerson ? `local sync is person-only in Phase 2 — this draft is a ${p.editKind}; use github PR`
+    : "post to local swf-node — gossips to LAN peers in ~30s";
   // History link — only in EDIT mode (ADD has no chain to inspect yet).
   // Reads /sync/record/<id>?full=true via sync-client. When swf-node is
   // unreachable the modal renders "history unavailable" and links to
@@ -4387,8 +4397,8 @@ function renderSubmitBlock(p) {
         <button id="alch-submit-sync"
                 class="alch-feed-btn alch-submit-pr-btn alch-submit-pr-primary"
                 type="button"
-                ${syncOn ? "" : "disabled aria-disabled=\"true\""}
-                title="${syncOn ? "post to local swf-node — gossips to LAN peers in ~30s" : "swf-node is not reachable on 127.0.0.1:7777"}">
+                ${syncEnabled ? "" : "disabled aria-disabled=\"true\""}
+                title="${escAttr(syncTitle)}">
           <span aria-hidden="true">↑</span>
           <span class="alch-submit-pr-label">${escHtml(syncLabel)}</span>${syncDisabledNote}
         </button>
@@ -4864,20 +4874,75 @@ function describeSyncFailure(synced) {
   const r = synced.reason || "unknown";
   let headline;
   switch (r) {
-    case "no_token":         headline = "no agent token — swf-node hasn't shared its auth token with the renderer yet"; break;
-    case "no_cohort_keys":   headline = "swf-node has no cohort signing keys bootstrapped (POST /sync/local_record → 503)"; break;
-    case "sync_unavailable": headline = "swf-node not reachable on 127.0.0.1:7777"; break;
-    case "unauthorized":     headline = "swf-node rejected the agent token (401) even after a refresh"; break;
-    case "no_slug":          headline = "no record_id could be determined from the draft (no github username, no name)"; break;
-    case "kind_unsupported": headline = `local sync is person-only in Phase 2 — this draft is a ${state.profile?.editKind || "?"}`; break;
-    case "bad_request":      headline = `client-side validation: ${synced.error || "unknown"}`; break;
+    case "no_token":           headline = "no agent token — swf-node hasn't shared its auth token with the renderer yet"; break;
+    case "no_cohort_keys":     headline = "swf-node has no cohort signing keys bootstrapped (POST /sync/local_record → 503)"; break;
+    case "sync_unavailable":   headline = "swf-node not reachable on 127.0.0.1:7777"; break;
+    case "unauthorized":       headline = "swf-node rejected the agent token (401) even after a refresh"; break;
+    case "no_slug":            headline = "no record_id could be determined from the draft (no github username, no name)"; break;
+    case "kind_unsupported":   headline = `local sync is person-only in Phase 2 — this draft is a ${state.profile?.editKind || "?"}`; break;
+    case "bad_request":        headline = `client-side validation: ${synced.error || "unknown"}`; break;
+    case "conflict":           headline = "swf-node rejected the write as a chain conflict (409) — another device may have written first; reload + retry"; break;
+    case "envelope_too_large": headline = "swf-node rejected the envelope as too large (413) — trim the draft and retry"; break;
+    case "not_found":          headline = "swf-node returned 404 — the local_record route may be missing on this swf-node version"; break;
+    case "server_error":       headline = `swf-node returned a 5xx (${synced.status ?? "?"}) — daemon-side error; check swf-node logs`; break;
+    case "http_error":         headline = `swf-node returned HTTP ${synced.status ?? "?"} — see daemon response body`; break;
+    case "malformed":          headline = "swf-node returned 200 but the response shape wasn't recognized (expected { envelope: … })"; break;
+    case "timeout":            headline = "POST /sync/local_record timed out — swf-node didn't respond within the request budget"; break;
+    case "network":            headline = `network error talking to swf-node — ${synced.error || "fetch failed"}`; break;
     case "post_failed":
-    default:                 headline = `POST /sync/local_record returned status ${synced.status ?? "?"} (reason: ${r})`;
+    default:                   headline = `POST /sync/local_record returned status ${synced.status ?? "?"} (reason: ${r})`;
   }
   let body = "";
   if (synced.body && typeof synced.body === "object")  body = JSON.stringify(synced.body, null, 2);
   else if (synced.body)                                body = String(synced.body);
   return { headline, body };
+}
+
+// ─── propagation watch ────────────────────────────────────────────────
+// After a successful local-sync the user had no signal that the LAN
+// actually picked up the change. Capture /node/log's max seq right
+// before the POST; at +30s and +60s, re-query for events since save
+// and surface a one-line status (peer manifest fetches, pulls, applied,
+// reachable). Not a strict proof of propagation — swf-node's view of
+// peers is partial — but enough to distinguish "wire is alive" from
+// "wire is dead".
+async function captureCurrentLogSeq() {
+  try {
+    const r = await getNodeLog({ sinceSeq: 0, limit: 1 });
+    if (!r.ok || !r.log || !Array.isArray(r.log.events)) return null;
+    const evs = r.log.events;
+    if (!evs.length) return null;
+    const last = evs[evs.length - 1];
+    return last && typeof last.seq === "number" ? last.seq : null;
+  } catch { return null; }
+}
+
+const PEER_KINDS = new Set([
+  "manifest_fetched", "pulled", "applied_local",
+  "peer_reachable", "peer_unreachable",
+]);
+
+async function pollPropagation(statusEl, sinceSeq, label) {
+  if (!statusEl) return;
+  try {
+    const r = await getNodeLog({ sinceSeq: sinceSeq ?? 0, limit: 200 });
+    if (!r.ok || !r.log || !Array.isArray(r.log.events)) {
+      statusEl.innerHTML = `propagation watch (<strong>${escHtml(label)}</strong>): /node/log unavailable`;
+      return;
+    }
+    const evs = r.log.events;
+    const total = evs.length;
+    const peerEvs = evs.filter(e => PEER_KINDS.has(e.kind));
+    const fetched = peerEvs.filter(e => e.kind === "manifest_fetched").length;
+    const pulled  = peerEvs.filter(e => e.kind === "pulled").length;
+    const applied = peerEvs.filter(e => e.kind === "applied_local").length;
+    const reach   = peerEvs.filter(e => e.kind === "peer_reachable").length;
+    statusEl.innerHTML = `propagation <strong>${escHtml(label)}</strong>: ${total} wire event${total === 1 ? "" : "s"} since save · ${fetched} peer manifest fetch${fetched === 1 ? "" : "es"} · ${pulled} pull${pulled === 1 ? "" : "s"} · ${applied} applied · ${reach} peer-reachable`;
+    psLog("info", "propagation poll", { label, sinceSeq, total, fetched, pulled, applied, reach });
+  } catch (e) {
+    statusEl.innerHTML = `propagation watch (<strong>${escHtml(label)}</strong>): error reading /node/log`;
+    psLog("warn", "propagation poll failed", String(e));
+  }
 }
 
 async function submitEditAsLocalSync() {
@@ -4905,6 +4970,12 @@ async function submitEditAsLocalSync() {
   result.dataset.kind = "loading";
   result.innerHTML = `<div class="aspr-line"><span class="aspr-tag">saving</span> <span>posting to local swf-node…</span></div>`;
 
+  // Capture the /node/log frontier BEFORE the POST so the post-save
+  // propagation watch can count events that fired since the save (rather
+  // than the entire log buffer).
+  const preSaveSeq = await captureCurrentLogSeq();
+  psLog("info", "captured pre-save log seq", { seq: preSaveSeq });
+
   const synced = await trySyncWriteForCurrentEdit();
   psLog("info", "trySyncWriteForCurrentEdit returned", synced);
 
@@ -4921,7 +4992,13 @@ async function submitEditAsLocalSync() {
     result.innerHTML = `
       <div class="aspr-line"><span class="aspr-tag">saved · local</span> <span>your edit is on this swf-node. LAN peers will pull it on the next ~30s tick.</span></div>
       <div class="aspr-line aspr-aux">record: <code>${escHtml(recordId)}</code> · envelope_hash: <code>${escHtml(synced.envelope?.content_hash || "—")}</code></div>
+      <div class="aspr-line aspr-aux" id="aspr-prop-status">propagation watch: starting (+30s, +60s polls)…</div>
     `;
+    // Schedule propagation watches. Best-effort signal: counts peer-side
+    // sync events that fire in the window after save.
+    const statusEl = result.querySelector("#aspr-prop-status");
+    setTimeout(() => { pollPropagation(statusEl, preSaveSeq, "+30s"); }, 30000);
+    setTimeout(() => { pollPropagation(statusEl, preSaveSeq, "+60s"); }, 60000);
     renderProfile();
     wireProfileForm();
     return;
@@ -4943,8 +5020,31 @@ async function submitEditAsLocalSync() {
   `;
   const copyBtn = result.querySelector(".aspr-copy-log");
   if (copyBtn) copyBtn.addEventListener("click", async () => {
+    // Gather a self-contained snapshot for triage: app version, daemon
+    // reachability, the failed call's full inputs/outputs, and the last
+    // 50 /node/log events so reviewers can see what the wire was doing
+    // around the failure. Best-effort — each lookup may itself fail and
+    // we surface that as null, never blocking the dump.
+    let appInfo = null;
+    try { appInfo = await (window.api?.getAppInfo?.() ?? null); } catch (e) { appInfo = { error: String(e) }; }
+    let recentLog = null;
+    try {
+      const r = await getNodeLog({ sinceSeq: 0, limit: 50 });
+      recentLog = r.ok ? { count: r.log?.events?.length ?? 0, events: r.log?.events ?? [] } : { error: r.reason || "log_unavailable" };
+    } catch (e) { recentLog = { error: String(e) }; }
+    let manifestSummary = null;
+    try {
+      const m = await getManifest();
+      if (m.ok) {
+        const recs = Object.keys(m.manifest?.records || {});
+        manifestSummary = { record_count: recs.length, record_ids: recs.slice(0, 20) };
+      } else {
+        manifestSummary = { error: m.reason || "manifest_unavailable" };
+      }
+    } catch (e) { manifestSummary = { error: String(e) }; }
     const payload = {
       timestamp: new Date().toISOString(),
+      app: appInfo,
       sync_available: isSyncAvailable(),
       edit: {
         mode: p.editMode,
@@ -4953,6 +5053,8 @@ async function submitEditAsLocalSync() {
         draft_keys: Object.keys(p.editDraft || {}),
       },
       result: synced,
+      manifest_summary: manifestSummary,
+      recent_node_log: recentLog,
       log_tail: _profileSyncLog.slice(-40),
     };
     const blob = JSON.stringify(payload, null, 2);
