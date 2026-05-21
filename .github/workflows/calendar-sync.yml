@@ -1,37 +1,52 @@
 name: calendar-sync
 
-# Mirrors the live cohort schedule (served at the public Phala URL hard-coded
-# in scripts/sync-calendar.js) into cohort-data/calendar.json. Runs every 30
-# minutes; on drift, opens a PR against main with the updated snapshot.
+# Mirrors the live cohort schedule (served at the public Phala URL
+# hard-coded in scripts/sync-calendar.js) into both cohort-data/calendar.json
+# (the audit copy) AND apps/os/src/cohort-surface.json (the bundled snapshot
+# the Electron app + web mirror read at boot for offline / pre-fetch first
+# paint). Runs every 2 hours; on drift, commits directly to main so the
+# Vercel build picks up the refreshed bundle without waiting on review.
 #
-# Why a PR and not a direct push:
-#   - A merged PR gives a human-readable audit trail of schedule changes
-#   - Maintainers can sanity-check large or unexpected diffs before they hit
-#     the bundled surface
+# Why direct push (no PR):
+#   The Phala endpoint is the canonical source of truth for the schedule —
+#   we don't gate it behind a human reviewer. A PR-based loop was the prior
+#   model; it stalled because every refresh required a merge, leaving the
+#   bundled snapshot up to a week stale on the web mirror.
+#
+# Why every 2 hours (not the old 30 min):
+#   The schedule is human-edited, not high-frequency. 2h is fresh enough
+#   that a same-day edit ships well within the working day, and slow
+#   enough that we don't burn Vercel build credits on no-op rebuilds
+#   (a no-op deploy still costs a build minute even though the artifact
+#   is identical; sync-calendar.js writes byte-identical files on no-op
+#   so the drift check below short-circuits there).
+#
+# Why direct push doesn't loop:
+#   The commit message ends with `[skip ci]` which causes any other
+#   workflow with a `push:` trigger to ignore the commit (Vercel does not
+#   honor [skip ci] by default — which is what we want; Vercel still
+#   deploys).
 #
 # Auth model:
-#   The Phala endpoint is publicly readable. The Google service account key
-#   that backs Phala stays inside Phala (or, if we ever move that piece in-
-#   repo, lives only as a GitHub Secret consumed by Phala-side code). This
-#   workflow needs no secrets beyond the default GITHUB_TOKEN.
+#   The Phala endpoint is publicly readable. This workflow needs no
+#   secrets beyond the default GITHUB_TOKEN.
 
 on:
   schedule:
-    # every 30 minutes; GitHub may delay scheduled runs under load
-    - cron: "*/30 * * * *"
+    # every 2 hours, on the hour. GitHub may delay scheduled runs under load.
+    - cron: "0 */2 * * *"
   workflow_dispatch:        # manual run from the Actions tab
   push:
     paths:
       - "scripts/sync-calendar.js"
+      - "scripts/build-bundles.js"
       - ".github/workflows/calendar-sync.yml"
 
 permissions:
   contents: write
-  pull-requests: write
 
-# If a previous sync run is still mid-flight, let it finish — never run two
-# in parallel against the same branch (would race on the cohort-data/calendar
-# branch).
+# Serialize: never run two syncs in parallel against main. New runs queue
+# behind in-flight ones rather than cancelling, so we don't lose a fetch.
 concurrency:
   group: calendar-sync
   cancel-in-progress: false
@@ -41,43 +56,50 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Need a token that can push to main. The default GITHUB_TOKEN
+          # works because `permissions: contents: write` is granted above.
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
+      - name: install deps for build:cohort
+        # build-bundles.js needs js-yaml (frontmatter parser). npm ci is
+        # cheap on a clean GH runner; lockfile pins it.
+        run: npm ci --ignore-scripts
+
       - name: fetch upstream → cohort-data/calendar.json
         run: node scripts/sync-calendar.js
+
+      - name: rebuild apps/os/src/cohort-surface.json
+        # cohort-surface.json is the bundled snapshot the web mirror reads
+        # at /cohort-surface.json (vendor:web copies it at Vercel build).
+        # build-bundles.js reads cohort-data/calendar.json + the markdown
+        # records under cohort-data/ and rewrites the surface.
+        run: npm run build:cohort
 
       - name: detect drift
         id: drift
         run: |
-          if [[ -z "$(git status --porcelain cohort-data/calendar.json)" ]]; then
+          changed=$(git status --porcelain cohort-data/calendar.json apps/os/src/cohort-surface.json)
+          if [[ -z "$changed" ]]; then
             echo "drift=false" >> "$GITHUB_OUTPUT"
             echo "no schedule change — exiting"
           else
             echo "drift=true" >> "$GITHUB_OUTPUT"
-            git --no-pager diff --stat cohort-data/calendar.json
+            git --no-pager diff --stat cohort-data/calendar.json apps/os/src/cohort-surface.json
           fi
 
-      - name: open / update PR
+      - name: commit + push to main
         if: steps.drift.outputs.drift == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: bot/calendar-sync
-          delete-branch: true
-          base: main
-          add-paths: cohort-data/calendar.json
-          commit-message: |
-            chore(calendar): sync cohort-data/calendar.json from Phala
-          title: "chore(calendar): sync schedule from Phala"
-          body: |
-            Automated calendar sync — pulled the latest schedule from the Phala-hosted upstream and rewrote `cohort-data/calendar.json`.
-
-            Triggered by the `calendar-sync` workflow. Diff above is the actual schedule change (the `last_refresh` field alone never opens a PR).
-
-            Merge to ship the update into the next bundled cohort surface.
-          labels: |
-            calendar
-            automated
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cohort-data/calendar.json apps/os/src/cohort-surface.json
+          git commit -m "chore(calendar): sync schedule from Phala [skip ci]" \
+                     -m "Automated 2-hourly refresh. cohort-data/calendar.json mirrors the Phala upstream; apps/os/src/cohort-surface.json is regenerated by scripts/build-bundles.js so the bundled snapshot the web mirror serves matches. Triggered by .github/workflows/calendar-sync.yml."
+          # Push to main directly. If branch protection rejects, the run
+          # fails loudly — better than silently dropping a sync.
+          git push origin HEAD:main
