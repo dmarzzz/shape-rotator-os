@@ -1,28 +1,33 @@
 /* Shared design tokens — single source of truth for the shape-rotator design system.
  * Edits here propagate to both Shape Rotator OS Electron app and the sibling web app.
- * Do NOT add scoped/subsystem overrides here (e.g. --ed-*, --alchemy-*, --tab-bar-h). */
+ * Do NOT add scoped/subsystem overrides here (e.g. --ed-*, --alchemy-*, --tab-bar-h).
+ *
+ * Palette aligned with shaperotator.xyz: oxide red on warm charcoal with paper-cream
+ * ink. Fonts: Space Grotesk (sans) + JetBrains Mono (mono), matching the marketing
+ * site exactly. Brand motion tokens (breathe/drift) live here too but apply ONLY to
+ * the hero anchor + focus-ring fade + active-tab underline — do not retrofit existing
+ * UI motion. */
 :root {
-  --abyss: #02010a;
-  --water: #06051a;
-  --glass: rgba(10, 8, 28, 0.62);
-  /* ─ ink ramp (round 3) ────────────────────────────────────────────────
-   * Editorial discipline. Four levels of ink + one accent, used the way
-   * Stripe Press / are.na / World use a limited palette: title, body,
-   * caption, hairline — and one accent reserved for affordances.
-   * --ink-1 is the brightest text — but never pure white. Chrome-grey
-   * 235/238/250 at .94 is what designers reach for instead of #fff —
-   * it sits on dark glass without shouting.
-   * --ink-2 is the working body weight; most rendered text is here.
-   * --ink-3 is the caption / metadata level. Smallcaps live here.
-   * --ink-4 is the marginalia level. Visible, but quiet.
-   * --hairline is for borders + 1px insets — barely there.
-   * The legacy --light-1..4 + --ink-50/300/500/700/900 aliases continue
-   * to resolve correctly; new code should reach for --ink-1..4 directly. */
-  --ink-1:    rgba(235, 238, 250, 0.94);   /* title / emphasis */
-  --ink-2:    rgba(225, 232, 248, 0.74);   /* body */
-  --ink-3:    rgba(220, 232, 255, 0.46);   /* caption / smallcaps label */
-  --ink-4:    rgba(220, 232, 255, 0.24);   /* marginalia / placeholder */
-  --hairline: rgba(220, 232, 255, 0.08);
+  /* page substrate — warm charcoal, matches xyz sr-ink / sr-ink-soft. */
+  --abyss: #231F20;
+  --water: #2C2728;
+  --glass: rgba(44, 39, 40, 0.62);
+  /* ─ ink ramp ───────────────────────────────────────────────────────────
+   * Warm paper rgb on charcoal. Alphas rebalanced from the cool-blue
+   * predecessor: warm charcoal absorbs more than the previous near-black
+   * abyss, so the bottom of the ramp needs more weight to remain legible.
+   *   --ink-1 .94  title / emphasis
+   *   --ink-2 .74  body
+   *   --ink-3 .52  caption / smallcaps (was .46 — bumped for borders on --water)
+   *   --ink-4 .32  marginalia (was .24 — bumped for warm-on-charcoal contrast)
+   *   --hairline .14 1px borders + insets (was .08 — same reason)
+   * The legacy --light-1..4 + --ink-50/300/500/700/900 aliases continue to
+   * resolve correctly; new code should reach for --ink-1..4 directly. */
+  --ink-1:    rgba(241, 236, 231, 0.94);
+  --ink-2:    rgba(241, 236, 231, 0.74);
+  --ink-3:    rgba(241, 236, 231, 0.52);
+  --ink-4:    rgba(241, 236, 231, 0.32);
+  --hairline: rgba(241, 236, 231, 0.14);
   /* legacy aliases — keep existing rules valid */
   --ink-50:  var(--ink-1);
   --ink-300: var(--ink-2);
@@ -33,43 +38,61 @@
   --light-2: var(--ink-2);
   --light-3: var(--ink-3);
   --light-4: var(--ink-4);
-  --aura: rgba(160, 200, 255, 0.30);
-  --aura-strong: rgba(180, 220, 255, 0.50);
-  --neon-magenta: #FF4FE6;
-  /* The accent. One color, used with discipline — focus rings, the active
-   * tab underline, the pinned peer ring, the anomaly dot, the live
-   * status. We softened it from #5AF0FF to #8DEAF2 — still legible on
-   * the dark glass, but no longer the loudest thing on the page. */
-  --accent:        #8DEAF2;
-  --accent-soft:   rgba(141, 234, 242, 0.16);
-  --accent-glow:   rgba(141, 234, 242, 0.42);
-  --neon-cyan: var(--accent);  /* legacy alias */
-  --neon-amber: #FFB454;
+  --aura: rgba(241, 236, 231, 0.30);
+  --aura-strong: rgba(241, 236, 231, 0.50);
+  /* ─ brand palette (xyz-aligned) ────────────────────────────────────────
+   * Oxide red is the one accent. Paper + charcoal are substrate; red is
+   * everything that needs to vibrate. */
+  --red-1:      #8F220E;   /* xyz --color-sr-red — primary brand */
+  --red-2:      #B43A19;   /* xyz --color-sr-red-light — hover / focus */
+  --paper-1:    #F7F1EC;   /* xyz --color-sr-cream — selection text, hi-emp */
+  --paper-2:    #F1ECE7;   /* xyz --color-sr-paper — body paper */
+  --paper-3:    #C8BFB9;   /* xyz --color-sr-paper-muted */
+  --charcoal-1: #211D1F;   /* xyz --color-sr-charcoal */
+  /* The accent — single brand color. Used with discipline for focus rings,
+   * the active tab underline, the pinned peer ring, the today marker,
+   * the live status. */
+  --accent:        var(--red-1);
+  --accent-soft:   rgba(143, 34, 14, 0.22);
+  --accent-glow:   rgba(143, 34, 14, 0.42);
+  --neon-cyan:    var(--accent);            /* legacy alias */
+  --neon-magenta: #FF4FE6;                  /* legacy alias — keep magenta literal */
+  --neon-amber:   #FFB454;
   /* semantic state colors — used for toasts, status dots, anomaly callouts */
   --c-success: #6EE7B7;
   --c-warn:    #FFB454;
   --c-error:   #FF6B7A;
-  --c-info:    var(--accent);
-  /* type — Geist Sans (UI) + Geist Mono (numerics, code, ALL CAPS labels). */
-  --font-sans: "Geist", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-mono: "Geist Mono", "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
-  /* type scale — bumped one notch up from the 11/12/13/15/18/24/32 we
-   * shipped through v0.1.15. Cohort feedback was that everything read
-   * a little tight; this nudges base body from 13→15 and the smaller
-   * mono labels from 11→12 / 12→13. Line-heights are unchanged. */
+  --c-info:    var(--status-local);
+  /* ─ status palette (semantic, distinct from brand accent) ──────────────
+   * Network delivery-path indicators (LOCAL_INDREX / SELF_PUBLIC_EGRESS /
+   * etc.). These were hardcoded as #5AF0FF cyan and #FF4FE6 magenta —
+   * tokenized here so they can be retuned without sed across the codebase
+   * and remain visually distinct from --accent. */
+  --status-local:         #5AF0FF;
+  --status-public-egress: #FF4FE6;
+  /* canvas backdrop — for any <canvas> that needs to share substrate */
+  --canvas-bg: #231F20;
+  /* scrollbar */
+  --scrollbar-thumb: rgba(241, 236, 231, 0.18);
+  --scrollbar-track: rgba(241, 236, 231, 0.05);
+  /* ─ type — Space Grotesk + JetBrains Mono, matching shaperotator.xyz.
+   * Loaded via Google Fonts in each app's index.html. */
+  --font-sans:    "Space Grotesk", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace;
+  --font-display: var(--font-sans);
+  /* type scale — 11/12/13/15/18/24/32 with line-heights tuned per role. */
   --t-11: 12px; --t-12: 13px; --t-13: 15px; --t-15: 16px;
   --t-18: 20px; --t-24: 26px; --t-32: 36px;
   --lh-tight: 1.2;
   --lh-snug:  1.35;
   --lh-relax: 1.5;
   /* tracking */
-  --track-caps:  0.06em;   /* eyebrow, less aggressive than 0.18 */
+  --track-caps:  0.06em;
   --track-caps-loose: 0.18em;
   --track-tight: -0.012em;
-  /* numerics — every numeric display gets these. tnum + zero locks digit
-   * width so animated counters don't shimmy; ss01 swaps the disambiguated
-   * single-storey "a" + clearer "I/l/1" forms. cv11 clears the comma. */
-  --num-feat: "tnum" 1, "zero" 1, "ss01" 1, "cv11" 1;
+  /* numerics — JetBrains Mono supports tnum + zero; the Geist-specific
+   * ss01/cv11 axes are no-ops on this family, so drop them. */
+  --num-feat: "tnum" 1, "zero" 1;
   --sidebar-w: 340px;
   /* spacing — 4px grid */
   --space-1: 4px;
@@ -80,16 +103,23 @@
   --space-6: 24px;
   --space-7: 28px;
   --space-8: 32px;
-  /* motion tokens — ease-out covers state changes (Linear/Vercel/Sonner).
-   * --ease-snap is reserved for entrances (palette open, toast in).
-   * durations capped at 380ms after testing — 420 felt mushy on tab switch. */
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);          /* legacy alias for --ease-out */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --ease-snap: cubic-bezier(0.32, 0.72, 0, 1);
+  /* ─ motion ────────────────────────────────────────────────────────────
+   * UI motion tokens (dur-fast/base/slow + ease-out) cover existing
+   * transitions (tab switch, hover, palette). Brand motion (breathe /
+   * drift) is reserved for the hero anchor + focus-ring fade + active
+   * tab underline so the surfaces share xyz's slow oscillator vocabulary
+   * without overhauling existing UI motion. */
+  --ease:         cubic-bezier(0.16, 1, 0.3, 1);   /* legacy alias for --ease-out */
+  --ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out:  cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-snap:    cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-breathe: cubic-bezier(0.4, 0, 0.2, 1);
   --dur-fast: 120ms;
   --dur-base: 220ms;
   --dur-slow: 380ms;
+  --motion-micro:   180ms;
+  --motion-breathe: 12s;
+  --motion-drift:   16s;
   /* radii */
   --r-sm: 4px;
   --r-md: 8px;

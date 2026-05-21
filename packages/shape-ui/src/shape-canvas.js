@@ -83,7 +83,7 @@ const vec3 K_MUSTARD = vec3(1.00, 0.82, 0.12);
 const vec3 K_BURNT   = vec3(1.00, 0.55, 0.15);
 const vec3 K_GREEN   = vec3(0.28, 0.85, 0.55);
 const vec3 K_INK     = vec3(0.04, 0.04, 0.05);
-const vec3 K_PAPER   = vec3(0.040, 0.040, 0.045);  /* near-black canvas */
+const vec3 K_PAPER   = vec3(0.137, 0.121, 0.125);  /* warm charcoal canvas (matches --abyss #231F20) */
 vec3 kandinsky(float t) {
   float h = fract(t);
   if (h < 0.166) return K_CRIMSON;

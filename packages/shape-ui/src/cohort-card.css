@@ -36,7 +36,7 @@
   --ed-op-quiet:    0.55;
   --ed-op-loud:     1.00;
   --ed-display:     "Iowan Old Style", "Hoefler Text", "Editorial New", "EB Garamond", Georgia, serif;
-  --ed-mono:        "Geist Mono", "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
+  --ed-mono:        "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace;
 }
 
 /* ─── layer 1 — base card (warm alchemy) ──────────────────────────────── */
