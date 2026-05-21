@@ -13,6 +13,13 @@ domain: crypto
 email: socrates1024@gmail.com
 dates_start: 2026-05-18
 dates_end: 2026-07-18
+absences:
+  - start: 2026-05-30
+    end: 2026-06-07
+    note: IC3 camp — back Monday June 8
+  - start: 2026-07-14
+    end: 2026-07-19
+    note: talks in Europe
 links:
   github: amiller
   x: socrates1024
