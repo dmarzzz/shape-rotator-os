@@ -4,7 +4,7 @@ import {
   loadCalendar,
   currentWeekIdx,
   attachWeekViewBehavior,
-  renderCohortCalendar,
+  renderAvailabilityMatrix,
 } from "@shape-rotator/shape-ui";
 
 // Web cohort calendar — mirrors the Electron renderCalendar() flow:
@@ -32,7 +32,7 @@ function rerender() {
   if (detachBehavior) { detachBehavior(); detachBehavior = null; }
 
   const presenceHtml = state.sub === "presence"
-    ? `<div class="cal-presence-canvas-wrap calendar-wrap"></div>`
+    ? `<div class="availability-wrap"></div>`
     : "";
 
   mount.innerHTML = renderWeekView({
@@ -52,10 +52,12 @@ function rerender() {
   });
 
   if (state.sub === "presence") {
-    const wrap = mount.querySelector(".cal-presence-canvas-wrap");
-    if (wrap && state.cohort) {
-      try { renderCohortCalendar({ container: wrap, cohort: state.cohort }); }
+    const wrap = mount.querySelector(".availability-wrap");
+    if (wrap && state.cohort?.people?.length) {
+      try { renderAvailabilityMatrix({ people: state.cohort.people, container: wrap }); }
       catch (e) { wrap.innerHTML = `<p class="cal-presence-empty">presence render failed: ${e.message}</p>`; }
+    } else if (wrap) {
+      wrap.innerHTML = `<p class="cal-presence-empty">cohort data unavailable</p>`;
     }
   } else {
     // Wire mobile behavior on the week view: swipe-to-navigate + auto-scroll

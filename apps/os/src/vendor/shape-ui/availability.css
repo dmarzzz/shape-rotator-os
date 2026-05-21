@@ -5,13 +5,16 @@
 
 .avail {
   display: grid;
-  grid-template-columns: minmax(140px, 220px) 1fr;
+  grid-template-columns: minmax(140px, 220px) max-content;
   column-gap: var(--space-3);
   row-gap: 0;
   font-family: var(--font-mono);
   font-size: var(--t-11);
   font-feature-settings: var(--num-feat);
   color: var(--ink-2);
+  /* Sized off the scroll ancestor (.availability-wrap) — its overflow:auto
+   * supplies both axes, so the cells column can extend past the viewport
+   * and trigger horizontal scroll while the sticky name column stays put. */
 }
 
 .avail-header {
@@ -22,16 +25,23 @@
 .avail-header-cols {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
   padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--hairline);
   background: var(--water);
 }
 
+/* The top-left corner sits on both sticky axes — needs the higher
+ * z-index so it doesn't tuck under either sticky neighbor. */
+.avail-header-spacer {
+  left: 0;
+  z-index: 3;
+}
+
 .avail-header-cols {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-columns: minmax(14px, 18px);
   align-items: end;
   color: var(--ink-3);
   letter-spacing: var(--track-caps);
@@ -59,6 +69,9 @@
 }
 
 .avail-name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
   padding: var(--space-1) var(--space-2);
   color: var(--ink-2);
   font-family: var(--font-sans);
@@ -68,6 +81,8 @@
   text-overflow: ellipsis;
   cursor: pointer;
   border-bottom: 1px solid var(--hairline);
+  /* Opaque background so cells don't bleed through when scrolled. */
+  background: var(--water);
   transition: color var(--dur-fast) var(--ease-out);
 }
 
@@ -80,13 +95,13 @@
 .avail-cells {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-columns: minmax(14px, 18px);
   align-items: stretch;
   border-bottom: 1px solid var(--hairline);
 }
 
 .avail-cell {
-  height: 14px;
+  height: 18px;
   border-right: 1px solid transparent;
   background: transparent;
 }
