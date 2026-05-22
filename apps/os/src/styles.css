@@ -11006,3 +11006,70 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   letter-spacing: 0.04em;
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════
+ * Light-mode palette — sweeping override (issue follow-up to #130).
+ *
+ * v0.2.3 shipped a toggle that only flipped the alchemy palette vars.
+ * Body, top tab bar, left rail, and sidebar use a separate "editorial"
+ * palette (--ed-bg-* / --ed-ink-* / --ed-rule-*) declared in the block
+ * at the top of this file — those stayed dark, so flipping the toggle
+ * only re-tinted the central content area and most users read the
+ * result as "nothing happened". This block extends the override to the
+ * editorial palette + a few global tokens so the whole window visibly
+ * flips. Source-order placement (end of file) gives it the final word
+ * even if another :root block is appended later.
+ *
+ * Light values are off-white paper with warm dark ink — same vocabulary
+ * as the alchemy oxide/paper duality, just inverted. Oxide stays as
+ * the brand accent in both modes. */
+:root[data-theme="light"] {
+  /* alchemy palette (originally added for #130) */
+  --alchemy-paper-warm:   #1B1411;
+  --alchemy-charcoal:     #F5F0EA;
+  --alchemy-charcoal-2:   #EAE3DA;
+  --alchemy-rule:         rgba(27, 20, 17, 0.14);
+  --alchemy-rule-warm:    rgba(143, 34, 14, 0.55);
+  --alchemy-ink-mute:     rgba(27, 20, 17, 0.55);
+
+  /* editorial palette — body bg, tab bar, sidebar, alchemy rail */
+  --ed-bg-0:        #F5F0EA;
+  --ed-bg-well:     #EFEAE2;
+  --ed-bg-1:        #FAF6F0;
+  --ed-bg-2:        #FFFFFF;
+  --ed-ink-1:       #1B1411;
+  --ed-ink-2:       #3B3631;
+  --ed-ink-3:       #6E695E;
+  --ed-ink-4:       #A39E94;
+  --ed-rule:        rgba(27, 20, 17, 0.08);
+  --ed-rule-2:      rgba(27, 20, 17, 0.16);
+  --ed-rule-3:      rgba(27, 20, 17, 0.30);
+
+  /* legacy aliases — used by titlebar / footer-meta / search inputs */
+  --light-1:        #1B1411;
+  --light-2:        #3B3631;
+  --light-3:        #6E695E;
+  --paper-1:        #1B1411;
+  --hairline:       rgba(27, 20, 17, 0.12);
+}
+
+/* Body + tab-bar respect both palettes. The :root override above flips
+ * the vars; these rules just re-anchor the most-visible surfaces in
+ * case any later rule clobbered the background shorthand. */
+html[data-theme="light"], html[data-theme="light"] body {
+  background: var(--ed-bg-0);
+  color: var(--ed-ink-2);
+}
+html[data-theme="light"] #tab-bar.tab-bar {
+  background: var(--ed-bg-0);
+  border-bottom: 1px solid var(--ed-rule);
+}
+html[data-theme="light"] .alchemy-rail {
+  background: var(--ed-bg-0);
+  border-right: 1px solid var(--ed-rule);
+}
+
+/* Smooth transition so the flip is satisfying instead of jarring. */
+html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
+  transition: background-color 220ms ease, color 220ms ease;
+}

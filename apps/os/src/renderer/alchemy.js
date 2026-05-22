@@ -4477,7 +4477,8 @@ function wireProfileForm() {
   const themeBtn = state.canvas.querySelector("#alch-theme-toggle");
   if (themeBtn) {
     themeBtn.addEventListener("click", () => {
-      toggleTheme();
+      const next = toggleTheme();
+      toast(`switched to ${next} mode`);
       renderProfile();
       wireProfileForm();
     });
