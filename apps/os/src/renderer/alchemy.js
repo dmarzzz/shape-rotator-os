@@ -22,7 +22,7 @@ import {
   // Extracted into shape-ui so the sibling web app can render the same
   // cohort surface. The Electron renderer keeps the same call sites —
   // only the implementations moved.
-  escHtml, escAttr,
+  escHtml, escAttr, normalizeLinkHref,
   buildEditPRUrl,
   teamCardHtml, personCardHtml,
   buildCalendarRows, drawCalendar,
@@ -36,6 +36,7 @@ import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
 import { enrichPeople } from "./gh-user.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
+import { getTheme, toggleTheme } from "./theme.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const PROFILE_LS_KEY  = "srwk:profile_v1";
@@ -3278,6 +3279,7 @@ function renderDetailLinks(L) {
   const LINK_LABELS = {
     website: "website", demo: "demo", deck: "deck", repo: "repo",
     article: "article", slides: "slides", alt: "alt site",
+    linkedin: "linkedin",
   };
   const rows = [];
   if (L.repo && GH_REPO_RE.test(String(L.repo))) {
@@ -3285,12 +3287,12 @@ function renderDetailLinks(L) {
   }
   if (L.github) {
     const gh = String(L.github);
-    const url = gh.startsWith("http") ? gh : `https://github.com/${gh}`;
-    rows.push(`<div class="alch-detail-row"><span class="adr-k">github</span><span class="adr-v"><a href="${escHtml(url)}" data-external>${escHtml(gh)}</a></span></div>`);
+    const url = normalizeLinkHref("github", gh);
+    rows.push(`<div class="alch-detail-row"><span class="adr-k">github</span><span class="adr-v"><a href="${escAttr(url)}" data-external>${escHtml(gh)}</a></span></div>`);
   }
   if (L.x) {
     const handle = String(L.x).replace(/^@/, "");
-    rows.push(`<div class="alch-detail-row"><span class="adr-k">x</span><span class="adr-v"><a href="https://x.com/${escHtml(handle)}" data-external>@${escHtml(handle)}</a></span></div>`);
+    rows.push(`<div class="alch-detail-row"><span class="adr-k">x</span><span class="adr-v"><a href="${escAttr(normalizeLinkHref("x", handle))}" data-external>@${escHtml(handle)}</a></span></div>`);
   }
   for (const k of Object.keys(L)) {
     if (k === "github" || k === "x" || k === "repo") continue;
@@ -3298,7 +3300,12 @@ function renderDetailLinks(L) {
     if (!v) continue;
     const label = LINK_LABELS[k] || k;
     const display = (typeof v === "string") ? v.replace(/^https?:\/\//, "") : String(v);
-    rows.push(`<div class="alch-detail-row"><span class="adr-k">${escHtml(label)}</span><span class="adr-v"><a href="${escHtml(v)}" data-external>${escHtml(display)}</a></span></div>`);
+    const href = normalizeLinkHref(k, v);
+    if (href) {
+      rows.push(`<div class="alch-detail-row"><span class="adr-k">${escHtml(label)}</span><span class="adr-v"><a href="${escAttr(href)}" data-external>${escHtml(display)}</a></span></div>`);
+    } else {
+      rows.push(`<div class="alch-detail-row"><span class="adr-k">${escHtml(label)}</span><span class="adr-v">${escHtml(display)}</span></div>`);
+    }
   }
   if (rows.length === 0) rows.push(`<div class="alch-detail-row"><span class="adr-k">links</span><span class="adr-v" style="opacity:0.55">— not yet submitted</span></div>`);
   return rows.join("");
@@ -4250,9 +4257,24 @@ function renderProfile() {
     </div>
   ` : "";
 
+  const themeNow = getTheme();
+  const themeNext = themeNow === "light" ? "dark" : "light";
   state.canvas.innerHTML = `
     <header class="alch-profile-head">
-      <h2 class="alch-profile-title">profile</h2>
+      <div class="alch-profile-head-row">
+        <h2 class="alch-profile-title">profile</h2>
+        <button
+          id="alch-theme-toggle"
+          class="alch-theme-toggle"
+          type="button"
+          data-theme-now="${themeNow}"
+          title="switch to ${themeNext} mode"
+          aria-label="switch to ${themeNext} mode"
+        >
+          <span class="alch-theme-toggle-icon" aria-hidden="true">${themeNow === "light" ? "☾" : "☀"}</span>
+          <span class="alch-theme-toggle-label">${themeNext} mode</span>
+        </button>
+      </div>
       <p class="alch-profile-sub">
         add or edit a team / project / person record. when swf-node is running, edits land locally and gossip to LAN peers; github PR is the fallback.
       </p>
@@ -4451,6 +4473,16 @@ function wireExternalLinks(root) {
 }
 
 function wireProfileForm() {
+  // Light/dark toggle (lives in the profile header).
+  const themeBtn = state.canvas.querySelector("#alch-theme-toggle");
+  if (themeBtn) {
+    themeBtn.addEventListener("click", () => {
+      toggleTheme();
+      renderProfile();
+      wireProfileForm();
+    });
+  }
+
   // Mode tabs (add / edit)
   for (const btn of state.canvas.querySelectorAll(".alch-pf-modetab[data-edit-mode]")) {
     btn.addEventListener("click", () => {

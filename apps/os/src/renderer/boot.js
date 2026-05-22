@@ -10,6 +10,11 @@
 import * as THREE from "three";
 import { UnrealBloomPass } from "../vendor/three-extras/postprocessing/UnrealBloomPass.js";
 
+import { applyStoredTheme } from "./theme.js";
+// Apply the persisted light/dark choice at module load — before any
+// alchemy surface paints — so launches never flash the wrong palette.
+applyStoredTheme();
+
 import { LENSES, LENS_LIST } from "./lenses.js";
 import { SHAPES, SHAPE_LIST, easeOutQuart } from "./shapes.js";
 import { applyAllDimensions, applyDimensions } from "./dimensions.js";
