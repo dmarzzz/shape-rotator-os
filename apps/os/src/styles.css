@@ -232,7 +232,7 @@ body[data-active-tab="experimental"][data-experimental-mode="cosmos"]      #grap
 .net-subtab {
   pointer-events: auto;
   -webkit-app-region: no-drag;
-  background: rgba(8, 6, 24, 0.72);
+  background: rgba(var(--overlay-rgb), 0.72);
   color: rgba(var(--ink-rgb), 0.55);
   border: 1px solid rgba(var(--ink-rgb), 0.16);
   border-radius: 4px 4px 0 0;
@@ -249,7 +249,7 @@ body[data-active-tab="experimental"][data-experimental-mode="cosmos"]      #grap
   color: var(--neon-cyan);
   border-color: rgba(90, 240, 255, 0.36);
   border-bottom-color: transparent;
-  background: rgba(8, 6, 24, 0.92);
+  background: rgba(var(--overlay-rgb), 0.92);
 }
 /* Push the existing headers down so the sub-tabs don't cover them. */
 body[data-active-tab="network"] #network-view  { padding-top: 50px; }
@@ -316,7 +316,7 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
    route into the editor to make a new one. Click outside to dismiss. */
 .identity-modal-backdrop {
   position: fixed; inset: 0;
-  background: rgba(2, 2, 6, 0.78);
+  background: rgba(var(--overlay-rgb), 0.78);
   backdrop-filter: blur(10px) saturate(1.2);
   -webkit-backdrop-filter: blur(10px) saturate(1.2);
   z-index: 99;
@@ -326,7 +326,7 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
 }
 @keyframes imFade { from { opacity: 0 } to { opacity: 1 } }
 .identity-modal {
-  background: rgba(8, 6, 24, 0.96);
+  background: rgba(var(--overlay-rgb), 0.96);
   border: 1px solid rgba(var(--ink-rgb), 0.20);
   border-radius: 8px;
   padding: 28px 30px;
@@ -484,7 +484,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 }
 .ao-card {
   max-width: 520px;
-  background: rgba(8, 6, 24, 0.88);
+  background: rgba(var(--overlay-rgb), 0.88);
   border: 1px solid rgba(var(--ink-rgb), 0.18);
   border-left: 2px solid var(--neon-cyan, var(--status-local));
   border-radius: 8px;
@@ -737,7 +737,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 .events-panel {
   display: flex; flex-direction: column;
   margin: 0 14px 10px;
-  background: rgba(8, 6, 22, 0.55);
+  background: rgba(var(--overlay-rgb), 0.55);
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
   border-radius: 8px;
@@ -1019,7 +1019,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   right: 14px;
   bottom: 56px;
   max-height: 50vh;
-  background: rgba(8, 6, 22, 0.92);
+  background: rgba(var(--overlay-rgb), 0.92);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   border-radius: 8px;
@@ -1364,7 +1364,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   position: absolute; top: 22px; right: 22px; z-index: 5;
   display: inline-flex; align-items: center; gap: 12px;
   padding: 10px 14px;
-  background: rgba(8, 6, 22, 0.78);
+  background: rgba(var(--overlay-rgb), 0.78);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border-radius: 8px;
@@ -1392,7 +1392,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 
 .scene-tooltip {
   pointer-events: none;
-  background: rgba(8, 6, 22, 0.82) !important;
+  background: rgba(var(--overlay-rgb), 0.82) !important;
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   color: var(--light-1) !important;
   font-family: var(--font-sans) !important; font-size: 11px !important;
@@ -1548,9 +1548,9 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   height: 80px; z-index: 4;
   pointer-events: none;
   background: linear-gradient(to top,
-    rgba(2, 1, 10, 0.78) 0%,
-    rgba(2, 1, 10, 0.55) 70%,
-    rgba(2, 1, 10, 0.0) 100%);
+    rgba(var(--overlay-rgb), 0.78) 0%,
+    rgba(var(--overlay-rgb), 0.55) 70%,
+    rgba(var(--overlay-rgb), 0.0) 100%);
   border-top: 1px solid rgba(var(--ink-rgb), 0.08);
   backdrop-filter: blur(10px) saturate(1.2);
   -webkit-backdrop-filter: blur(10px) saturate(1.2);
@@ -1622,7 +1622,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 .timeline-tooltip {
   position: absolute; bottom: 86px;
   pointer-events: none;
-  background: rgba(8, 6, 22, 0.92);
+  background: rgba(var(--overlay-rgb), 0.92);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   color: var(--light-1);
   font-family: var(--font-mono); font-size: 10.5px;
@@ -1641,7 +1641,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 .timeline-toggle {
   position: absolute; top: 16px; right: 16px;
   width: 26px; height: 26px;
-  background: rgba(8, 6, 22, 0.62);
+  background: rgba(var(--overlay-rgb), 0.62);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border: 0;
   border-radius: 6px;
@@ -1653,12 +1653,12 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   transition: color 180ms var(--ease), background 180ms var(--ease),
               box-shadow 180ms var(--ease);
 }
-.timeline-toggle:hover { color: var(--light-1); background: rgba(20, 16, 40, 0.78); }
+.timeline-toggle:hover { color: var(--light-1); background: rgba(var(--overlay-rgb), 0.78); }
 .timeline-toast {
   position: absolute; top: 14px; right: 52px;
   z-index: 6;
   padding: 7px 12px;
-  background: rgba(8, 6, 22, 0.88);
+  background: rgba(var(--overlay-rgb), 0.88);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   border-radius: 6px;
   box-shadow: inset 0 0 0 1px rgba(90, 240, 255, 0.32),
@@ -1677,7 +1677,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   width: 0; height: 0;
   border-top: 5px solid transparent;
   border-bottom: 5px solid transparent;
-  border-left: 6px solid rgba(8, 6, 22, 0.88);
+  border-left: 6px solid rgba(var(--overlay-rgb), 0.88);
   filter: drop-shadow(1px 0 0 rgba(90, 240, 255, 0.32));
 }
 .timeline-toast .tt-dot {
@@ -1727,7 +1727,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   position: absolute; top: 16px; right: 52px;
   display: inline-flex; align-items: center; gap: 6px;
   padding: 5px 11px;
-  background: rgba(8, 6, 22, 0.62);
+  background: rgba(var(--overlay-rgb), 0.62);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border: 0; border-radius: 14px;
   font-family: var(--font-mono); font-size: 10.5px;
@@ -1739,7 +1739,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   transition: color 200ms var(--ease), background 200ms var(--ease),
               box-shadow 200ms var(--ease), text-shadow 200ms var(--ease);
 }
-.anon-badge:hover { background: rgba(20, 16, 40, 0.78); }
+.anon-badge:hover { background: rgba(var(--overlay-rgb), 0.78); }
 .anon-badge .ab-label { text-transform: uppercase; letter-spacing: 0.10em; color: var(--light-4); }
 .anon-badge .ab-sep { color: var(--light-4); }
 .anon-badge .ab-value { color: var(--light-2); }
@@ -2065,8 +2065,8 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   padding: 14px 24px 12px;
   border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
   background: linear-gradient(to bottom,
-    rgba(8, 6, 22, 0.55),
-    rgba(8, 6, 22, 0.0));
+    rgba(var(--overlay-rgb), 0.55),
+    rgba(var(--overlay-rgb), 0.0));
 }
 .net-header-mark {
   display: flex; align-items: baseline; gap: 10px;
@@ -2082,7 +2082,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 .net-anon-header {
   display: inline-flex; align-items: center; gap: 12px;
   padding: 8px 16px;
-  background: rgba(8, 6, 22, 0.62);
+  background: rgba(var(--overlay-rgb), 0.62);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   border-radius: 18px;
   font-family: var(--font-mono); font-size: 12px;
@@ -2129,7 +2129,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 }
 .net-col {
   display: flex; flex-direction: column;
-  background: rgba(8, 6, 22, 0.55);
+  background: rgba(var(--overlay-rgb), 0.55);
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
   border-radius: 10px;
@@ -2177,7 +2177,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 
 /* ─── live network graph panel ────────────────────────────────────────── */
 .livegraph-panel {
-  background: rgba(8, 6, 22, 0.55);
+  background: rgba(var(--overlay-rgb), 0.55);
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
   border-radius: 10px;
@@ -2352,7 +2352,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 /* ─── detail host (network tab) ───────────────────────────────────────── */
 .net-col-detail {
   display: flex; flex-direction: column;
-  background: rgba(8, 6, 22, 0.55);
+  background: rgba(var(--overlay-rgb), 0.55);
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
   border-radius: 10px;
@@ -2464,7 +2464,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   position: relative;
   display: flex; align-items: center;
   gap: 10px;
-  background: rgba(8, 6, 24, 0.6);
+  background: rgba(var(--overlay-rgb), 0.6);
   border: 1px solid rgba(var(--ink-rgb), 0.14);
   border-radius: 14px;
   padding: 10px 14px;
@@ -2597,7 +2597,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   display: flex; flex-wrap: wrap; align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: rgba(8, 6, 24, 0.4);
+  background: rgba(var(--overlay-rgb), 0.4);
   border: 1px solid rgba(var(--ink-rgb), 0.08);
   border-radius: 10px;
   font-family: var(--font-mono);
@@ -2639,7 +2639,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.04em;
-  background: rgba(8, 6, 24, 0.5);
+  background: rgba(var(--overlay-rgb), 0.5);
   border: 1px solid rgba(var(--ink-rgb), 0.10);
   color: var(--light-2);
 }
@@ -2846,7 +2846,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 .metrics-stat {
   display: flex; flex-direction: column; gap: 4px;
   padding: 14px 16px;
-  background: rgba(8, 6, 22, 0.55);
+  background: rgba(var(--overlay-rgb), 0.55);
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
   border-radius: 10px;
@@ -2887,7 +2887,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   gap: 14px;
 }
 .metrics-chart {
-  background: rgba(8, 6, 22, 0.55);
+  background: rgba(var(--overlay-rgb), 0.55);
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
   border-radius: 10px;
@@ -2983,7 +2983,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(8, 6, 22, 0.55);
+  background: rgba(var(--overlay-rgb), 0.55);
   border: 0;
   border-radius: 6px;
   color: var(--light-3);
@@ -3025,12 +3025,12 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 }
 .mc-cross-dot-1 {
   fill: var(--neon-cyan);
-  stroke: rgba(8, 6, 22, 1);
+  stroke: rgba(var(--overlay-rgb), 1);
   stroke-width: 1.2;
 }
 .mc-cross-dot-2 {
   fill: rgba(255, 220, 120, 1);
-  stroke: rgba(8, 6, 22, 1);
+  stroke: rgba(var(--overlay-rgb), 1);
   stroke-width: 1;
 }
 
@@ -3181,7 +3181,7 @@ button:focus:not(:focus-visible) { outline: none; }
   gap: var(--space-2);
   width: min(360px, calc(100vw - var(--space-8)));
   padding: 10px var(--space-3);
-  background: rgba(10, 8, 24, 0.86);
+  background: rgba(var(--overlay-rgb), 0.86);
   backdrop-filter: blur(18px) saturate(1.4);
   -webkit-backdrop-filter: blur(18px) saturate(1.4);
   border-radius: var(--r-md);
@@ -3241,7 +3241,7 @@ button:focus:not(:focus-visible) { outline: none; }
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(2, 1, 8, 0.55);
+  background: rgba(var(--overlay-rgb), 0.55);
   backdrop-filter: blur(6px) saturate(1.1);
   -webkit-backdrop-filter: blur(6px) saturate(1.1);
   display: flex;
@@ -3254,7 +3254,7 @@ button:focus:not(:focus-visible) { outline: none; }
 .ux-modal-backdrop.entered { opacity: 1; }
 .ux-modal-backdrop.leaving { opacity: 0; }
 .ux-modal {
-  background: rgba(8, 6, 22, 0.92);
+  background: rgba(var(--overlay-rgb), 0.92);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   border-radius: 12px;
@@ -4446,7 +4446,7 @@ html[data-reduce-motion="1"] .sig-launch-sub { animation: none; opacity: 1; tran
 
 .metrics-stat {
   padding: 22px 24px 20px;
-  background: rgba(8, 6, 22, 0.62);
+  background: rgba(var(--overlay-rgb), 0.62);
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
   border-radius: 0;          /* the parent owns the corner */
@@ -4511,7 +4511,7 @@ html[data-reduce-motion="1"] .sig-launch-sub { animation: none; opacity: 1; tran
   gap: 16px;
 }
 .metrics-chart {
-  background: rgba(8, 6, 22, 0.55);
+  background: rgba(var(--overlay-rgb), 0.55);
   box-shadow: inset 0 0 0 1px var(--hairline);
 }
 .metrics-chart .mc-head {
@@ -4558,7 +4558,7 @@ html[data-reduce-motion="1"] .sig-launch-sub { animation: none; opacity: 1; tran
   gap: 18px;
 }
 .net-col {
-  background: rgba(8, 6, 22, 0.50);
+  background: rgba(var(--overlay-rgb), 0.50);
   box-shadow: inset 0 0 0 1px var(--hairline);
 }
 .net-col-head {
@@ -4671,7 +4671,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   bottom: 10px;
   left: 12px;
   z-index: 50;
-  background: rgba(2, 1, 10, 0.78);
+  background: rgba(var(--overlay-rgb), 0.78);
   border: 1px solid var(--hairline, rgba(var(--ink-rgb), 0.10));
   border-radius: 999px;
   padding: 6px 14px;
@@ -4690,7 +4690,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
 }
 .fg-version-chip:hover {
   border-color: rgba(var(--ink-rgb), 0.30);
-  background: rgba(2, 1, 10, 0.95);
+  background: rgba(var(--overlay-rgb), 0.95);
 }
 .fg-version-chip[data-update="available"] {
   color: var(--neon-cyan);
@@ -4719,7 +4719,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   z-index: 60;
   min-width: 260px;
   max-width: 320px;
-  background: rgba(8, 6, 22, 0.94);
+  background: rgba(var(--overlay-rgb), 0.94);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   box-shadow:
@@ -4937,7 +4937,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   flex-direction: column;
   gap: 10px;
   padding: 14px 16px 12px;
-  background: rgba(8, 6, 22, 0.42);
+  background: rgba(var(--overlay-rgb), 0.42);
   border-radius: 0;
   box-shadow: inset 0 0 0 1px var(--hairline);
   cursor: pointer;
@@ -4958,13 +4958,13 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
 }
 .net-peer-card:hover {
   transform: translateY(-2px);
-  background: rgba(8, 6, 22, 0.56);
+  background: rgba(var(--overlay-rgb), 0.56);
   box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.16),
               0 6px 18px rgba(0, 0, 0, 0.32);
 }
 .net-peer-card:hover::before { opacity: 1; width: 3px; }
 .net-peer-card.selected {
-  background: rgba(8, 6, 22, 0.62);
+  background: rgba(var(--overlay-rgb), 0.62);
   box-shadow: inset 0 0 0 1px rgba(141, 234, 242, 0.45),
               0 0 24px rgba(141, 234, 242, 0.10);
 }
@@ -5406,7 +5406,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   min-width: 220px;
   max-width: 320px;
   padding: 10px 12px 8px;
-  background: rgba(8, 6, 22, 0.84);
+  background: rgba(var(--overlay-rgb), 0.84);
   backdrop-filter: blur(8px) saturate(1.2);
   -webkit-backdrop-filter: blur(8px) saturate(1.2);
   border: 1px solid rgba(141, 234, 242, 0.18);
@@ -5504,7 +5504,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   display: flex;
   gap: 2px;
   padding: 3px;
-  background: rgba(8, 6, 22, 0.62);
+  background: rgba(var(--overlay-rgb), 0.62);
   border: 1px solid rgba(141, 234, 242, 0.14);
   border-radius: 4px;
   font-family: var(--font-mono);
@@ -5535,7 +5535,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   min-width: 220px;
   max-width: 320px;
   padding: 10px 12px 8px;
-  background: rgba(8, 6, 22, 0.84);
+  background: rgba(var(--overlay-rgb), 0.84);
   backdrop-filter: blur(8px) saturate(1.2);
   -webkit-backdrop-filter: blur(8px) saturate(1.2);
   border: 1px solid rgba(141, 234, 242, 0.18);
@@ -6220,6 +6220,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   /* Flipping --ink-rgb here re-tones every alpha-based hairline,
    * faint surface, and muted text in the file (366 call sites). */
   --ink-rgb:              27, 20, 17;   /* dark warm brown — light-mode ink */
+  --overlay-rgb:          245, 240, 234; /* paper for modal/popover bgs */
 
   --alchemy-paper-warm:   #1B1411;  /* now the ink color */
   --alchemy-charcoal:     #F5F0EA;  /* now the surface paper */
@@ -7908,6 +7909,11 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
    * this one triple in `[data-theme="light"]` re-inverts every
    * alpha-based ink-on-surface relationship throughout the app. */
   --ink-rgb:        245, 243, 238;   /* warm cream — dark mode default */
+  /* `--overlay-rgb` is the matching triple for translucent overlay
+   * backgrounds (modals, popovers, toolbars, badges) that hardcoded
+   * `rgba(8, 6, 22, α)` and near variants. ~49 sites. Flipping it in
+   * light mode keeps dialogs readable instead of dark-on-dark text. */
+  --overlay-rgb:    8, 6, 22;
   --ed-bg-0:        #0d0c0a;        /* warm-shifted near-black */
   --ed-bg-well:     #050505;        /* recessed wells, search inputs */
   --ed-bg-1:        #131210;        /* cards at rest */
@@ -10621,7 +10627,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   align-items: center;
   padding: 10px 14px;
   border-bottom: 1px solid var(--hairline, rgba(var(--ink-rgb), 0.08));
-  background: rgba(2,1,10,0.85);
+  background: rgba(var(--overlay-rgb), 0.85);
   position: relative;
   z-index: 5;
 }
@@ -11084,6 +11090,10 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
    * Flipping this one value swings the ~366 ink-on-surface hairlines
    * from "light on dark" to "dark on light." */
   --ink-rgb:        27, 20, 17;
+  /* Matching overlay triple — flips modals/popovers/toolbars from
+   * near-black to paper so text on them stays readable when --ink-rgb
+   * is also dark. */
+  --overlay-rgb:    245, 240, 234;
 
   /* alchemy palette */
   --alchemy-paper-warm:   #1B1411;
@@ -11152,8 +11162,18 @@ html[data-theme="light"] #network-view {
   );
 }
 
-/* Tab bar + alchemy rail re-anchored to the paper palette so any
- * later `background:` shorthand on these surfaces is overridden. */
+/* Override every literal-hex radial-gradient page surface in light mode.
+ *
+ * Several rules later in this file (notably the page-level wash at
+ * `html, body` around line 8329 and `.alchemy-view, #alchemy-view,
+ * #network-view, #metrics-view` around line 8335) hardcode dark hex
+ * gradients that completely ignore `--alchemy-charcoal` / `--ed-bg-0`.
+ * They win by source order, so just flipping the underlying vars in
+ * `[data-theme="light"]` does nothing for these surfaces.
+ *
+ * The rules below match those exact selectors with higher specificity
+ * (html[data-theme=...] prefix) so the alchemy / network / metrics
+ * canvases actually become paper. */
 html[data-theme="light"] #tab-bar.tab-bar {
   background: var(--ed-bg-0);
   border-bottom: 1px solid var(--ed-rule);
@@ -11161,6 +11181,39 @@ html[data-theme="light"] #tab-bar.tab-bar {
 html[data-theme="light"] .alchemy-rail {
   background: var(--ed-bg-0);
   border-right: 1px solid var(--ed-rule);
+}
+html[data-theme="light"] .alchemy-view,
+html[data-theme="light"] #alchemy-view,
+html[data-theme="light"] #network-view,
+html[data-theme="light"] #metrics-view {
+  background: radial-gradient(
+    ellipse 130% 90% at 50% -5%,
+    #FFFFFF 0%,
+    #F8F4EE 60%,
+    #ECE5DA 100%
+  );
+  color: var(--ed-ink-2);
+}
+
+/* Six hardcoded dark linear-gradient panels (modals, tab bar, legend
+ * card, onboarding, history, fork prompt) live later in this file and
+ * win source order. Re-skin them as paper gradients in light mode. */
+html[data-theme="light"] .alchemy-canvas .alch-legend-card,
+html[data-theme="light"] .identity-modal,
+html[data-theme="light"] .fork-prompt,
+html[data-theme="light"] .alch-onb-modal,
+html[data-theme="light"] .history-modal {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F4EFE6 100%);
+  color: var(--ed-ink-2);
+  border-color: rgba(var(--ink-rgb), 0.16);
+}
+/* The identity modal backdrop and the second tab-bar gradient both
+ * hardcode near-black; flip them to a translucent paper wash. */
+html[data-theme="light"] .identity-modal-backdrop {
+  background: rgba(var(--overlay-rgb), 0.65);
+}
+html[data-theme="light"] #tab-bar.tab-bar {
+  background: linear-gradient(180deg, #FFFFFF 0%, var(--ed-bg-0) 100%);
 }
 
 /* Smooth transition so the flip is satisfying instead of jarring. */
