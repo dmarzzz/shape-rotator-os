@@ -1,7 +1,7 @@
 {
   "name": "@shape-rotator/os",
   "productName": "Shape Rotator OS",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "main": "main.js",
   "type": "commonjs",
@@ -19,7 +19,12 @@
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
     "dist:all": "electron-builder -mwl",
-    "pack": "electron-builder --dir"
+    "pack": "electron-builder --dir",
+    "e2e:preflight": "node e2e/preflight.mjs",
+    "e2e:run": "playwright test --config e2e/playwright.config.js",
+    "e2e:report:gen": "node e2e/generate-report.mjs",
+    "e2e": "npm run e2e:preflight && npm run e2e:run; r=$?; npm run e2e:report:gen; exit $r",
+    "e2e:show": "playwright show-report e2e/artifacts/html-report"
   },
   "dependencies": {
     "@cosmos.gl/graph": "^2.6.4",
@@ -28,6 +33,7 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "electron": "^33.0.0",
     "electron-builder": "^26.8.1"
   },
@@ -92,7 +98,9 @@
         {
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "build-resources/cohort-keys.json",
@@ -143,7 +151,9 @@
         {
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "build-resources/cohort-keys.json",
@@ -180,7 +190,9 @@
         {
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "build-resources/cohort-keys.json",
