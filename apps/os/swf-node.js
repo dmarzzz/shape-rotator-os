@@ -259,6 +259,16 @@ function spawnChild() {
     // routes (incl. POST /sync/local_record per spec §7.4). Generate
     // once + persist; renderer reads via fg:swf-agent-token IPC.
     SWF_AGENT_TOKEN: resolveAgentToken(),
+    // SearXNG endpoint for SELF_PUBLIC_EGRESS (spec §22). swf-node's
+    // public_egress.py falls back to http://127.0.0.1:8888 internally,
+    // but a Finder-launched .app gets a near-empty process.env so we
+    // can't rely on the operator's shell to have set the variable.
+    // Set it explicitly here with a loopback default; operators who
+    // host SearXNG elsewhere can override via SWF_SEARXNG_URL (or its
+    // doctor-facing alias SEARXNG_URL) in the launch environment.
+    SWF_SEARXNG_URL: process.env.SWF_SEARXNG_URL
+      || process.env.SEARXNG_URL
+      || "http://127.0.0.1:8888",
   };
 
   // Make sure the data dirs exist before the child tries to write into
