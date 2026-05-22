@@ -1,5 +1,12 @@
 // cohort-calendar.js — shared canvas renderer for the cohort calendar.
 //
+// Program window comes from cohort-calendar-week.js so both surfaces
+// agree on the same May 18 → Jul 26 ten-week span. Used as a lower
+// bound when deriving the chart range from cohort.people windows —
+// the canvas always extends through the program end even if the latest
+// person record's dates_end is earlier (see #126).
+import { PROGRAM_START_MS, PROGRAM_END_MS } from "./cohort-calendar-week.js";
+//
 // Gantt-style canvas: rows = people grouped by team, columns = days from
 // program start → end. Each row shows the person's overall window as a
 // filled bar in their hash-derived hue; absences render as a striped
@@ -42,9 +49,10 @@ const CAL_OXIDE      = "#8F220E";  // today marker (xyz sr-red)
 
 // Reasonable defaults for the program; the wrapper API accepts an
 // override range, and the surface data may eventually carry its own
-// programStart/end which can be fed in directly.
-const CAL_PROGRAM_START = "2026-05-18";
-const CAL_PROGRAM_END   = "2026-07-18";
+// programStart/end which can be fed in directly. Sourced from
+// cohort-calendar-week.js so the broadsheet and the gantt agree.
+const CAL_PROGRAM_START_D = new Date(PROGRAM_START_MS);
+const CAL_PROGRAM_END_D   = new Date(PROGRAM_END_MS);
 
 // ── Date helpers (UTC-anchored to avoid TZ drift) ─────────────────────
 function isoToDate(s) {
@@ -679,11 +687,13 @@ export function renderCohortCalendar({ container, cohort, range }) {
 function resolveRange(cohort, range) {
   // Explicit range wins.
   if (range && (range.start || range.end)) {
-    const s = range.start instanceof Date ? range.start : isoToDate(range.start) || isoToDate(CAL_PROGRAM_START);
-    const e = range.end   instanceof Date ? range.end   : isoToDate(range.end)   || isoToDate(CAL_PROGRAM_END);
+    const s = range.start instanceof Date ? range.start : isoToDate(range.start) || CAL_PROGRAM_START_D;
+    const e = range.end   instanceof Date ? range.end   : isoToDate(range.end)   || CAL_PROGRAM_END_D;
     return { start: s, end: e };
   }
-  // Derive from cohort.people windows.
+  // Derive from cohort.people windows, but clamp to the program span so
+  // the chart always covers the full cohort — even if every person's
+  // dates_end falls before the program end (which was the #126 bug).
   const people = (cohort && cohort.people) || [];
   let minStart = null;
   let maxEnd   = null;
@@ -693,8 +703,7 @@ function resolveRange(cohort, range) {
     if (s && (!minStart || s < minStart)) minStart = s;
     if (e && (!maxEnd   || e > maxEnd))   maxEnd   = e;
   }
-  return {
-    start: minStart || isoToDate(CAL_PROGRAM_START),
-    end:   maxEnd   || isoToDate(CAL_PROGRAM_END),
-  };
+  const start = (minStart && minStart < CAL_PROGRAM_START_D) ? minStart : CAL_PROGRAM_START_D;
+  const end   = (maxEnd   && maxEnd   > CAL_PROGRAM_END_D)   ? maxEnd   : CAL_PROGRAM_END_D;
+  return { start, end };
 }
