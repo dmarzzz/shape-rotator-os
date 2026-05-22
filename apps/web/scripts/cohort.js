@@ -1,4 +1,4 @@
-import { renderCohortCard, mountShapesIn, escHtml, escAttr, buildEditPRUrl } from "@shape-rotator/shape-ui";
+import { renderCohortCard, mountShapesIn, escHtml, escAttr, normalizeLinkHref, buildEditPRUrl } from "@shape-rotator/shape-ui";
 
 // Membership taxonomy — mirrored from apps/os/src/renderer/alchemy.js so the
 // web surface filters the same way the Electron app does. The cohort chip is
@@ -115,13 +115,17 @@ function parseDetailHash() {
   function renderDetailLinks(links = {}) {
     const entries = Object.entries(links).filter(([, v]) => v && String(v).trim());
     if (!entries.length) return "";
-    return `
-      <ul class="cd-links">
-        ${entries.map(([k, v]) => `
-          <li><a href="${escAttr(v)}" target="_blank" rel="noopener noreferrer"><span class="cd-link-k">${escHtml(k)}</span><span class="cd-link-v">${escHtml(String(v).replace(/^https?:\/\//, ""))}</span></a></li>
-        `).join("")}
-      </ul>
-    `;
+    const rows = [];
+    for (const [k, v] of entries) {
+      const href = normalizeLinkHref(k, v);
+      const display = String(v).replace(/^https?:\/\//, "");
+      if (href) {
+        rows.push(`<li><a href="${escAttr(href)}" target="_blank" rel="noopener noreferrer"><span class="cd-link-k">${escHtml(k)}</span><span class="cd-link-v">${escHtml(display)}</span></a></li>`);
+      } else {
+        rows.push(`<li><span class="cd-link-k">${escHtml(k)}</span><span class="cd-link-v">${escHtml(display)}</span></li>`);
+      }
+    }
+    return `<ul class="cd-links">${rows.join("")}</ul>`;
   }
 
   function teamKind(t) {

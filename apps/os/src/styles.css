@@ -6190,6 +6190,18 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   --alchemy-rule-warm:    rgba(143, 34, 14, 0.45);
   --alchemy-ink-mute:     rgba(241, 236, 231, 0.55);
 }
+/* Light-mode alchemy palette — toggled from the profile header (#130).
+   Keeps the oxide accent as the brand color; swaps paper/charcoal so the
+   "ink on paper" reading flips. Scoped via [data-theme="light"] on
+   <html> so the dark surfaces outside alchemy are unaffected for now. */
+:root[data-theme="light"] {
+  --alchemy-paper-warm:   #1B1411;  /* now the ink color */
+  --alchemy-charcoal:     #F5F0EA;  /* now the surface paper */
+  --alchemy-charcoal-2:   #EAE3DA;
+  --alchemy-rule:         rgba(27, 20, 17, 0.14);
+  --alchemy-rule-warm:    rgba(143, 34, 14, 0.55);
+  --alchemy-ink-mute:     rgba(27, 20, 17, 0.55);
+}
 .alchemy-view, #alchemy-view {
   grid-area: sidebar / sidebar / main / main;
   position: relative;
@@ -6647,11 +6659,32 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 
 /* ─── profile ────────────────────────────────────────────────────────── */
 .alch-profile-head { margin-bottom: 22px; padding-bottom: 14px; border-bottom: 1px solid var(--alchemy-rule); max-width: 70ch; }
+.alch-profile-head-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  margin-bottom: 6px;
+}
 .alch-profile-title {
   font-family: var(--font-sans); font-size: 28px; line-height: 1;
   letter-spacing: -0.014em; font-weight: 500;
   color: var(--alchemy-paper-warm); margin: 0 0 6px;
 }
+.alch-profile-head-row .alch-profile-title { margin: 0; }
+.alch-theme-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--alchemy-ink-mute);
+  background: transparent;
+  border: 1px solid var(--alchemy-rule);
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: color 160ms var(--ease), border-color 160ms var(--ease);
+}
+.alch-theme-toggle:hover {
+  color: var(--alchemy-paper-warm);
+  border-color: var(--alchemy-paper-warm);
+}
+.alch-theme-toggle-icon { font-size: 13px; letter-spacing: 0; }
 .alch-profile-sub {
   font-family: var(--font-mono);
   font-size: 11px; letter-spacing: 0.04em;
