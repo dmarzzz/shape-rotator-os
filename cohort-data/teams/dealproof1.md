@@ -23,7 +23,7 @@ graduation_target: "DealProof v2 live: ephemeral key generation inside TEE at bo
 monthly_milestones: |
   June: ephemeral keys at TEE boot, reproducible Docker build, MRENCLAVE on-chain, co-signing API spec
   July: co-signing frontend live, agent-agnostic framing documented, SDK draft, first external pilot conversation
-weekly_goals: "Arrive NYC Monday, introduce DealProof to cohort in person, connect with Justin (ProvaTrust) on attestation layer complementarity, connect with dmarz on dstack/TEE pairing, explore Conclave collaboration (NDAI overlap), claim Shape Router profile"
+weekly_goals: "Arrive NYC Monday, connect with Justin (ProvaTrust) on attestation layer complementarity, connect with dmarz on dstack/TEE pairing, explore Conclave collaboration (NDAI overlap), claim Shape Router profile"
 skill_areas:
   - tee
   - dstack
