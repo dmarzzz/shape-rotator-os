@@ -656,8 +656,17 @@ async function boot() {
   wireAtlasOfflinePanel();
 
   setStatus("composing graph…");
+  // Track whether the initial /graph fetch actually worked. We can't
+  // use `srwk.graph` truthiness as the discriminator because the catch
+  // block below sets it to an empty placeholder so downstream callers
+  // (buildSim, Atlas.notifyDataChanged, ...) don't NPE on undefined.
+  // Conflating "placeholder due to error" with "real empty response"
+  // was the bug behind the "INDREX EMPTY · no pages yet" card showing
+  // up when the actual state was "swf-node unreachable".
+  let daemonReachableAtBoot = false;
   try {
     await loadGraph();
+    daemonReachableAtBoot = true;
   } catch (e) {
     // swf-node not running, network problem, etc. Don't kill the UI —
     // surface the state and continue. startConnectionProbe + the SSE
@@ -675,20 +684,22 @@ async function boot() {
   }
   // Clear the "composing graph…" only on success; if the catch fired
   // above, that status message is the one we want to keep visible.
-  if (srwk.nodes && srwk.nodes.length > 0) {
+  if (daemonReachableAtBoot && srwk.nodes && srwk.nodes.length > 0) {
     setStatus("");
     hideAtlasOffline();
     hideAtlasEmpty();
-  } else if (srwk.graph && (!srwk.nodes || srwk.nodes.length === 0)) {
-    // Daemon reachable (we have a graph response) but the indrex has
-    // zero indexed pages. Fresh-install case. Show a friendly empty
+  } else if (daemonReachableAtBoot && srwk.graph && (!srwk.nodes || srwk.nodes.length === 0)) {
+    // Daemon reachable (we got a real /graph response) but the indrex
+    // has zero indexed pages. Fresh-install case. Show a friendly empty
     // panel instead of leaving the black 3D scene + "composing graph…"
-    // status stuck. Panel auto-clears once a single node lands via
-    // the reconcile poll.
+    // status stuck. Panel auto-clears once a single node lands via the
+    // reconcile poll. Critically gated on `daemonReachableAtBoot` so
+    // an offline boot does NOT trip this branch.
     setStatus("");
     hideAtlasOffline();
     showAtlasEmpty();
   }
+  // else: catch fired (offline); offline panel stays shown, empty stays hidden.
   try { buildSim(); } catch (e) { console.warn("[boot] buildSim failed:", e); }
   try { subscribeEvents(); } catch (e) { console.warn("[boot] subscribeEvents failed:", e); }
   wirePeersPanel();
@@ -1820,6 +1831,13 @@ function addPageToGraph(node) {
     Atlas.pulseNode(node.id);
     Atlas.notifyDataChanged();
   } catch {}
+  // Defensive: the empty / offline cards are owned by boot's first-load
+  // logic but every path that grows node count needs to clear them
+  // (SSE arrival, peer pull, materialize, reconcile). Otherwise a fresh
+  // install that first sees data via SSE rather than the initial /graph
+  // leaves the "no pages yet" card stuck behind real data.
+  try { hideAtlasOffline(); } catch {}
+  try { hideAtlasEmpty(); } catch {}
 }
 
 // ─── periodic /graph reconcile ────────────────────────────────────────────
