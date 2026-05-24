@@ -8015,3 +8015,609 @@ boot().catch((e) => {
   console.error("[boot]", e);
   setStatus("boot failed: " + e.message, true);
 });
+
+// ─── NETWORK · GLANCE VIEW renderers (v0.2.12) ───────────────────────
+//
+// The new default view of the network tab — cohort at a glance.
+// Reads from the same `srwk` state as the existing tab, so SSE updates
+// are picked up automatically. Existing tab is preserved as `Debug` mode.
+//
+// Mode toggle persists in localStorage. Periodic refresh on a 5s timer
+// (independent of the existing 10s peer-list refresh) so glance stays
+// live without re-architecting the existing render call sites.
+
+(function setupGlanceView() {
+  const LS_KEY = "sros.net-view-mode";
+
+  // Search-event ring buffer for the rhythm sparkline. We attach our own
+  // listener to the SSE EventSource (srwk.eventSource) on first refresh
+  // — no mutation of the existing appendEvent pipeline, no risk of
+  // breaking the existing renderer.
+  const searchHistory = []; // {ts: epoch_ms}
+  const SEARCH_HISTORY_MAX = 500;
+  let _searchListenerAttached = false;
+
+  function recordSearch(tsMs) {
+    searchHistory.push({ ts: tsMs });
+    if (searchHistory.length > SEARCH_HISTORY_MAX) searchHistory.shift();
+  }
+
+  function maybeAttachSearchListener() {
+    if (_searchListenerAttached) return;
+    const es = (typeof srwk !== "undefined") && srwk && srwk.eventSource;
+    if (!es || !es.addEventListener) return;
+    const handler = () => recordSearch(Date.now());
+    try {
+      es.addEventListener("web_search_completed", handler);
+      es.addEventListener("web_search_started", handler);
+      _searchListenerAttached = true;
+    } catch {}
+  }
+
+  // ─── helpers ─────────────────────────────────────────────────────
+
+  function peerStateFor(p, nowMs) {
+    // LIVE: SSE activity in last 60s OR successful_pulls advanced very recently.
+    // RECENT: any activity in last 6h.
+    // OFFLINE: nothing in 6h+.
+    const lastSeen = srwk.liveSeen && srwk.liveSeen.get(p.pubkey);
+    const ageMs = lastSeen != null ? (performance.now() - lastSeen) : Infinity;
+    if (ageMs < 60_000) return "live";
+    if (ageMs < 6 * 3600_000) return "recent";
+    // Fall back to peer's last_seen_at wall-clock if set
+    if (p.last_seen_at) {
+      try {
+        const wallAge = Date.now() - Date.parse(p.last_seen_at);
+        if (wallAge < 60_000) return "live";
+        if (wallAge < 6 * 3600_000) return "recent";
+      } catch {}
+    }
+    return "offline";
+  }
+
+  const GLANCE_HUES = [
+    "var(--gpeer-sage)", "var(--gpeer-ochre)", "var(--gpeer-azure)",
+    "var(--gpeer-plum)", "var(--gpeer-teal)",  "var(--gpeer-amber)",
+    "var(--gpeer-violet)", "var(--gpeer-moss)", "var(--gpeer-rose)",
+  ];
+  function peerHue(pubkey, idx) {
+    if (pubkey === srwk.selfPubkey) return "var(--gpeer-self)";
+    // Deterministic — based on pubkey hash so colors are stable across reloads
+    if (!pubkey) return GLANCE_HUES[idx % GLANCE_HUES.length];
+    let h = 0;
+    for (let i = 0; i < pubkey.length; i++) h = (h * 31 + pubkey.charCodeAt(i)) | 0;
+    return GLANCE_HUES[Math.abs(h) % GLANCE_HUES.length];
+  }
+
+  function fmtRelative(deltaMs) {
+    if (deltaMs == null || !isFinite(deltaMs)) return "—";
+    const s = Math.floor(deltaMs / 1000);
+    if (s < 5)        return "just now";
+    if (s < 60)       return `${s}s`;
+    const m = Math.floor(s / 60);
+    if (m < 60)       return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24)       return `${h}h`;
+    const d = Math.floor(h / 24);
+    return `${d}d`;
+  }
+
+  function lastSeenMs(p) {
+    const sse = srwk.liveSeen && srwk.liveSeen.get(p.pubkey);
+    if (sse != null) return performance.now() - sse;
+    if (p.last_seen_at) {
+      try { return Date.now() - Date.parse(p.last_seen_at); } catch {}
+    }
+    return null;
+  }
+
+  function pageCountFor(pubkey) {
+    if (!srwk.nodes) return 0;
+    let n = 0;
+    for (const node of srwk.nodes) {
+      if (node.primary_contributor === pubkey) n++;
+    }
+    return n;
+  }
+
+  // ─── sub-renderers ───────────────────────────────────────────────
+
+  function renderGlanceHero() {
+    const peers = [...(srwk.peers ? srwk.peers.values() : [])];
+    const now = performance.now();
+    const live = peers.filter(p => peerStateFor(p, now) === "live").length;
+    const total = peers.length;
+
+    const stateEl = document.getElementById("glance-state-line");
+    if (stateEl) stateEl.textContent = `${live} live · ${total} reachable`;
+
+    const prefixEl = document.getElementById("glance-headline-prefix");
+    const emphEl = document.getElementById("glance-headline-emphasis");
+    if (prefixEl && emphEl) {
+      if (live <= 1) {
+        prefixEl.textContent = "You're the only one";
+        emphEl.textContent = "here right now.";
+      } else if (live === 2) {
+        prefixEl.textContent = "Two of us are";
+        emphEl.textContent = "here right now.";
+      } else {
+        const names = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+        const word = live <= 10 ? names[live] : String(live);
+        prefixEl.textContent = `${word} of us are`;
+        emphEl.textContent = "here right now.";
+      }
+    }
+  }
+
+  function renderGlanceNumbers() {
+    const peers = [...(srwk.peers ? srwk.peers.values() : [])];
+    const now = performance.now();
+    const live = peers.filter(p => peerStateFor(p, now) === "live").length;
+    const recent = peers.filter(p => peerStateFor(p, now) === "recent").length;
+    const total = peers.length;
+
+    let shared = 0, pulled = 0;
+    if (srwk.nodes) {
+      for (const n of srwk.nodes) {
+        if (!n.primary_contributor) continue;
+        if (n.primary_contributor === srwk.selfPubkey) shared++;
+        else pulled++;
+      }
+    }
+
+    const c = document.getElementById("glance-num-cohort"); if (c) c.textContent = String(total);
+    const csub = document.getElementById("glance-cohort-sub");
+    if (csub) csub.textContent = `peers known · ${live} live now · ${live + recent} active today`;
+
+    const s = document.getElementById("glance-num-shared"); if (s) s.textContent = String(shared);
+    const p = document.getElementById("glance-num-pulled"); if (p) p.textContent = String(pulled);
+
+    // Queries today: count search events in last 24h from our ring buffer
+    const dayAgo = Date.now() - 24 * 3600_000;
+    const todayQueries = searchHistory.filter(e => e.ts > dayAgo).length;
+    const totalHits = todayQueries; // TODO v0.2.13: also surface hit_count from events
+    const q = document.getElementById("glance-num-queries"); if (q) q.textContent = String(todayQueries);
+    const qf = document.getElementById("glance-num-queries-frac");
+    if (qf) qf.textContent = totalHits > 0 ? ` · ${totalHits} hits` : "";
+  }
+
+  function renderGlanceRing() {
+    const peersList = [...(srwk.peers ? srwk.peers.values() : [])];
+    // Exclude self from the ring — self sits at center
+    const peers = peersList.filter(p => p.pubkey !== srwk.selfPubkey);
+
+    const raysG = document.getElementById("glance-rays");
+    const peersG = document.getElementById("glance-peers");
+    if (!raysG || !peersG) return;
+    raysG.innerHTML = "";
+    peersG.innerHTML = "";
+
+    const total = Math.max(1, peers.length);
+    const now = performance.now();
+
+    // Position peers around the ring deterministically (by pubkey hash)
+    const positions = peers.map((p, i) => {
+      let h = 0;
+      const k = p.pubkey || String(i);
+      for (let j = 0; j < k.length; j++) h = (h * 31 + k.charCodeAt(j)) | 0;
+      const a = (Math.abs(h) % 1000) / 1000 * Math.PI * 2 - Math.PI / 2;
+      return { p, a, x: Math.cos(a) * 95, y: Math.sin(a) * 95, idx: i };
+    });
+
+    // First pass: rays
+    for (const { p, x, y, idx } of positions) {
+      const state = peerStateFor(p, now);
+      const color = state === "offline" ? null : peerHue(p.pubkey, idx);
+      const r = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      r.setAttribute("class", "ray " + state);
+      r.setAttribute("x1", 0); r.setAttribute("y1", 0);
+      r.setAttribute("x2", x * 0.92); r.setAttribute("y2", y * 0.92);
+      if (color) r.setAttribute("stroke", color);
+      r.setAttribute("opacity", state === "live" ? 0.55 : state === "recent" ? 0.28 : 0.18);
+      raysG.appendChild(r);
+    }
+
+    // Chord lines between live peers — "we're all connected right now"
+    const live = positions.filter(({ p }) => peerStateFor(p, now) === "live");
+    for (let i = 0; i < live.length; i++) {
+      for (let j = i + 1; j < live.length; j++) {
+        const a = live[i], b = live[j];
+        const chord = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        const mx = (a.x + b.x) * 0.3, my = (a.y + b.y) * 0.3;
+        chord.setAttribute("d", `M ${a.x * 0.9} ${a.y * 0.9} Q ${mx} ${my} ${b.x * 0.9} ${b.y * 0.9}`);
+        chord.setAttribute("fill", "none");
+        chord.setAttribute("stroke", "var(--goxide-soft)");
+        chord.setAttribute("stroke-width", "0.6");
+        chord.setAttribute("opacity", "0.35");
+        raysG.appendChild(chord);
+      }
+    }
+
+    // Second pass: halo + dot for each peer
+    let liveN = 0, recentN = 0, offN = 0;
+    for (const { p, x, y, idx } of positions) {
+      const state = peerStateFor(p, now);
+      const color = state === "offline" ? null : peerHue(p.pubkey, idx);
+      if (state === "live" && color) {
+        liveN++;
+        const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        halo.setAttribute("class", "peer-halo");
+        halo.setAttribute("cx", x); halo.setAttribute("cy", y);
+        halo.setAttribute("r", 7);
+        halo.setAttribute("fill", color);
+        halo.setAttribute("opacity", "0.25");
+        peersG.appendChild(halo);
+      } else if (state === "recent") recentN++;
+      else offN++;
+
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("class", "peer-dot " + state);
+      c.setAttribute("cx", x); c.setAttribute("cy", y);
+      c.setAttribute("r", state === "live" ? 4 : state === "recent" ? 3 : 2.4);
+      if (color) c.setAttribute("fill", color);
+      peersG.appendChild(c);
+    }
+
+    const legL = document.getElementById("glance-legend-live");
+    const legR = document.getElementById("glance-legend-recent");
+    const legO = document.getElementById("glance-legend-offline");
+    if (legL) legL.textContent = String(liveN);
+    if (legR) legR.textContent = String(recentN);
+    if (legO) legO.textContent = String(offN);
+
+    // self host label
+    const hostEl = document.getElementById("glance-self-host");
+    if (hostEl) {
+      const selfPeer = srwk.peers && srwk.peers.get(srwk.selfPubkey);
+      const host = (selfPeer && selfPeer.nickname) || "self";
+      hostEl.textContent = host;
+    }
+  }
+
+  function renderGlancePeerList() {
+    const list = document.getElementById("glance-peer-list");
+    if (!list) return;
+    const peers = [...(srwk.peers ? srwk.peers.values() : [])];
+    const now = performance.now();
+
+    // Sort: self first, then live, then recent, then by last-seen-age
+    peers.sort((a, b) => {
+      if (a.pubkey === srwk.selfPubkey) return -1;
+      if (b.pubkey === srwk.selfPubkey) return 1;
+      const order = { live: 0, recent: 1, offline: 2 };
+      const sa = order[peerStateFor(a, now)] ?? 3;
+      const sb = order[peerStateFor(b, now)] ?? 3;
+      if (sa !== sb) return sa - sb;
+      const la = lastSeenMs(a) ?? Infinity;
+      const lb = lastSeenMs(b) ?? Infinity;
+      return la - lb;
+    });
+
+    list.innerHTML = "";
+    const liveOrRecent = peers.filter(p => peerStateFor(p, now) !== "offline");
+    const visible = liveOrRecent.slice(0, 6); // show top 6 by default
+    for (let idx = 0; idx < visible.length; idx++) {
+      const p = visible[idx];
+      const state = peerStateFor(p, now);
+      const isSelf = p.pubkey === srwk.selfPubkey;
+      const color = peerHue(p.pubkey, idx);
+
+      const card = document.createElement("div");
+      card.className = "glance-peer-card";
+      card.style.color = color;
+
+      const dot = document.createElement("span");
+      dot.className = "glance-peer-pdot " + state;
+      dot.style.background = state === "offline" ? "transparent" : color;
+      card.appendChild(dot);
+
+      const name = document.createElement("span");
+      name.className = "glance-peer-name" + (isSelf ? " is-self" : "");
+      name.textContent = isSelf ? "you" : (p.nickname || `peer-${(p.pubkey || "").slice(0, 8)}`);
+      card.appendChild(name);
+
+      const pages = document.createElement("span");
+      pages.className = "glance-peer-pages";
+      pages.textContent = `${pageCountFor(p.pubkey) || 0}p`;
+      card.appendChild(pages);
+
+      const when = document.createElement("span");
+      when.className = "glance-peer-when";
+      when.textContent = isSelf ? "live" : fmtRelative(lastSeenMs(p));
+      card.appendChild(when);
+
+      const what = document.createElement("span");
+      what.className = "glance-peer-what";
+      what.textContent = isSelf
+        ? "indexing locally · sharing to the cohort"
+        : (state === "live" ? "live · responding to pulls"
+           : state === "recent" ? "connected · last contact " + fmtRelative(lastSeenMs(p))
+           : "offline");
+      card.appendChild(what);
+
+      list.appendChild(card);
+    }
+
+    // counts for header + show-more
+    const liveCount = peers.filter(p => peerStateFor(p, now) === "live").length;
+    const recentCount = peers.filter(p => peerStateFor(p, now) === "recent").length;
+    const offCount = peers.filter(p => peerStateFor(p, now) === "offline").length;
+    const numEl = document.getElementById("glance-peer-strip-num");
+    if (numEl) numEl.textContent = `${liveCount} / ${peers.length}`;
+    const moreN = document.getElementById("glance-show-more-n");
+    const moreI = document.getElementById("glance-show-more-i");
+    if (moreN) moreN.textContent = String(recentCount);
+    if (moreI) moreI.textContent = String(offCount);
+  }
+
+  function renderGlanceTopics() {
+    // v0.2.12 stub: group pages by URL host, surface top 10 buckets.
+    // TODO v0.2.13: replace with daemon-side topic classification.
+    const flow = document.getElementById("glance-topics-flow");
+    const meta = document.getElementById("glance-topics-meta");
+    if (!flow) return;
+
+    const byHost = new Map();
+    if (srwk.nodes) {
+      for (const n of srwk.nodes) {
+        const host = (n.host || "").replace(/^www\./, "");
+        if (!host) continue;
+        if (!byHost.has(host)) byHost.set(host, { count: 0, contrib: n.primary_contributor });
+        byHost.get(host).count++;
+      }
+    }
+    const buckets = [...byHost.entries()]
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 12);
+
+    flow.innerHTML = "";
+    const totalPages = srwk.nodes ? srwk.nodes.length : 0;
+    if (meta) meta.textContent = `across ${totalPages} pages · last 7d`;
+
+    if (buckets.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "glance-topic size-1";
+      empty.textContent = "no pages yet — index a few searches to populate this";
+      flow.appendChild(empty);
+      return;
+    }
+
+    for (const [host, data] of buckets) {
+      const t = document.createElement("span");
+      // size by relative count (1-4 scale)
+      const maxN = buckets[0][1].count;
+      const ratio = data.count / maxN;
+      const size = ratio > 0.66 ? 4 : ratio > 0.4 ? 3 : ratio > 0.2 ? 2 : 1;
+      t.className = `glance-topic size-${size}`;
+      const peerObj = srwk.peers && srwk.peers.get(data.contrib);
+      if (peerObj) {
+        const idx = [...srwk.peers.keys()].indexOf(data.contrib);
+        t.style.borderColor = peerHue(data.contrib, idx);
+        t.style.color = peerHue(data.contrib, idx);
+      }
+      t.innerHTML = `${host} <span class="ct">${data.count}</span>`;
+      flow.appendChild(t);
+    }
+  }
+
+  function renderGlanceReach() {
+    // v0.2.12 stub: surface peer cursors from /sync/manifest as a proxy
+    // for "how stale each peer's view of my bundle is."
+    // TODO v0.2.13: real daemon-side access-log for "who pulled what when".
+    const wrap = document.getElementById("glance-reach");
+    const meta = document.getElementById("glance-reach-meta");
+    if (!wrap) return;
+
+    const peers = [...(srwk.peers ? srwk.peers.values() : [])]
+      .filter(p => p.pubkey !== srwk.selfPubkey);
+    const now = performance.now();
+    const visible = peers
+      .filter(p => peerStateFor(p, now) !== "offline")
+      .slice(0, 5);
+
+    wrap.innerHTML = "";
+    if (meta) meta.textContent = `latest bundle · ${visible.length} peers visible`;
+
+    if (visible.length === 0) {
+      const empty = document.createElement("div");
+      empty.style.color = "var(--gpaper-faint)";
+      empty.style.fontSize = "12px";
+      empty.textContent = "no peers reachable right now — waiting for cohort to come online.";
+      wrap.appendChild(empty);
+      return;
+    }
+
+    for (let i = 0; i < visible.length; i++) {
+      const p = visible[i];
+      const color = peerHue(p.pubkey, i);
+      const ageMs = lastSeenMs(p);
+      // Reach approximation: live = 100%, recent decays by age
+      const pct = ageMs == null ? 0
+        : ageMs < 60_000 ? 100
+        : ageMs < 600_000 ? 80
+        : ageMs < 3600_000 ? 60
+        : 30;
+
+      const bar = document.createElement("div");
+      bar.className = "glance-reach-bar";
+      bar.style.color = color;
+      bar.innerHTML = `
+        <div class="nm"><span class="sw" style="background: ${color}"></span>${p.nickname || `peer-${(p.pubkey || "").slice(0,8)}`}</div>
+        <div class="track"><div class="fill" style="width: ${pct}%"></div></div>
+        <div class="pct">${pct}%</div>
+      `;
+      wrap.appendChild(bar);
+    }
+  }
+
+  function renderGlanceRhythm() {
+    const rh = document.getElementById("glance-rhythm");
+    const summary = document.getElementById("glance-rhythm-summary");
+    if (!rh) return;
+
+    // 24 buckets, one per hour. Counted from searchHistory ring buffer.
+    const now = Date.now();
+    const data = new Array(24).fill(0);
+    for (const e of searchHistory) {
+      const ageMs = now - e.ts;
+      if (ageMs < 0 || ageMs >= 24 * 3600_000) continue;
+      const bucket = 23 - Math.floor(ageMs / 3600_000);
+      if (bucket >= 0 && bucket < 24) data[bucket]++;
+    }
+    const peak = Math.max(1, ...data);
+    const nowHour = 23;
+    const peakHour = data.indexOf(peak);
+
+    rh.innerHTML = "";
+    data.forEach((v, i) => {
+      const bar = document.createElement("div");
+      bar.className = "glance-rhythm-bar" + (i === nowHour ? " now" : i === peakHour && v > 0 ? " peak" : "");
+      bar.style.height = (Math.max(2, (v / peak) * 100)) + "%";
+      bar.title = `${24 - i}h ago — ${v} ${v === 1 ? "query" : "queries"}`;
+      rh.appendChild(bar);
+    });
+
+    if (summary) {
+      const totalToday = data.reduce((a, b) => a + b, 0);
+      if (totalToday === 0) {
+        summary.textContent = "Quiet day so far — no queries yet.";
+      } else {
+        const peakAgo = 24 - peakHour;
+        summary.innerHTML = `${totalToday} ${totalToday === 1 ? "query" : "queries"} today · peak ${peakAgo}h ago (<strong style="color: var(--gpaper)">${peak}</strong> ${peak === 1 ? "query" : "queries"} that hour).`;
+      }
+    }
+  }
+
+  function renderGlanceTicker() {
+    const line = document.getElementById("glance-ticker-line");
+    const when = document.getElementById("glance-ticker-when");
+    if (!line) return;
+
+    // Find the most recent contribution_merged event in the renderer's
+    // appendEvent ring. We don't have direct access to it as a global,
+    // so peek at srwk.recentEvents if present, otherwise fall back to a
+    // calm static line.
+    const ring = (srwk && srwk.recentEvents) || [];
+    let mostRecent = null;
+    for (let i = ring.length - 1; i >= 0; i--) {
+      if (ring[i].kind === "contribution_merged" || ring[i].kind === "page_added") {
+        mostRecent = ring[i];
+        break;
+      }
+    }
+    if (mostRecent) {
+      const p = mostRecent.payload || {};
+      const page = (p.pages && p.pages[0]) || p;
+      const contrib = p.contributor || p.source_pubkey;
+      const isSelf = contrib === srwk.selfPubkey;
+      const peerObj = contrib && srwk.peers ? srwk.peers.get(contrib) : null;
+      const who = isSelf ? "you" : (peerObj && peerObj.nickname) || "a peer";
+      const title = page.title || page.url || "a new page";
+      line.innerHTML = `${who} ${isSelf ? "indexed" : "shared"} <em>${escapeHtmlSafe(title.slice(0, 80))}</em>${title.length > 80 ? "…" : ""}`;
+      if (when) when.textContent = fmtRelative(Date.now() - (mostRecent.ts || Date.now()));
+    } else {
+      line.textContent = "awaiting cohort activity…";
+      if (when) when.textContent = "—";
+    }
+  }
+
+  function escapeHtmlSafe(s) {
+    if (s == null) return "";
+    return String(s).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  function renderGlanceHealth() {
+    const d = document.getElementById("glance-health-daemon");
+    if (d) d.textContent = "v0.13.4 · :7777";
+
+    const cursor = (srwk._manifest && srwk._manifest.cursor != null)
+      ? `@${srwk._manifest.cursor}` : "@—";
+    const cEl = document.getElementById("glance-health-cursor");
+    if (cEl) cEl.textContent = cursor;
+
+    // Find most recent contribution_merged from self
+    const ring = (srwk && srwk.recentEvents) || [];
+    let lastPub = null;
+    for (let i = ring.length - 1; i >= 0; i--) {
+      if (ring[i].kind === "contribution_merged" &&
+          ring[i].payload && ring[i].payload.contributor === srwk.selfPubkey) {
+        lastPub = ring[i];
+        break;
+      }
+    }
+    const pubEl = document.getElementById("glance-health-publish");
+    if (pubEl) pubEl.textContent = lastPub ? fmtRelative(Date.now() - lastPub.ts) : "—";
+
+    // latency p50 — use existing connection probe rtt if available
+    const latEl = document.getElementById("glance-health-lat");
+    if (latEl && srwk._lastRttMs != null) {
+      latEl.textContent = `${Math.round(srwk._lastRttMs)}ms`;
+    }
+
+    // errors 1h — count peer_unreachable / scraper_error events
+    const errEl = document.getElementById("glance-health-err");
+    if (errEl) {
+      const hourAgo = Date.now() - 3600_000;
+      const errs = ring.filter(e => e.ts > hourAgo &&
+        (e.kind === "peer_unreachable" || e.kind === "scraper_error")).length;
+      errEl.textContent = errs > 0 ? `${errs} · check log` : "0";
+    }
+  }
+
+  function renderGlanceAll() {
+    if (document.body.dataset.netViewMode !== "glance") return;
+    if (document.body.dataset.activeTab !== "network") return;
+    maybeAttachSearchListener();
+    try { renderGlanceHero(); } catch (e) { console.warn("[glance hero]", e); }
+    try { renderGlanceNumbers(); } catch (e) { console.warn("[glance numbers]", e); }
+    try { renderGlanceRing(); } catch (e) { console.warn("[glance ring]", e); }
+    try { renderGlancePeerList(); } catch (e) { console.warn("[glance peers]", e); }
+    try { renderGlanceTopics(); } catch (e) { console.warn("[glance topics]", e); }
+    try { renderGlanceReach(); } catch (e) { console.warn("[glance reach]", e); }
+    try { renderGlanceRhythm(); } catch (e) { console.warn("[glance rhythm]", e); }
+    try { renderGlanceTicker(); } catch (e) { console.warn("[glance ticker]", e); }
+    try { renderGlanceHealth(); } catch (e) { console.warn("[glance health]", e); }
+  }
+
+  // ─── mode toggle init ────────────────────────────────────────────
+
+  function initModeToggle() {
+    const stored = (() => {
+      try { return localStorage.getItem(LS_KEY); } catch { return null; }
+    })();
+    const mode = stored === "debug" ? "debug" : "glance";
+    document.body.dataset.netViewMode = mode;
+
+    const btns = document.querySelectorAll(".net-mode-btn");
+    btns.forEach(b => {
+      const isOn = b.dataset.mode === mode;
+      b.classList.toggle("is-active", isOn);
+      b.setAttribute("aria-pressed", isOn ? "true" : "false");
+      b.addEventListener("click", () => {
+        const newMode = b.dataset.mode;
+        document.body.dataset.netViewMode = newMode;
+        try { localStorage.setItem(LS_KEY, newMode); } catch {}
+        btns.forEach(bb => {
+          const on = bb.dataset.mode === newMode;
+          bb.classList.toggle("is-active", on);
+          bb.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        if (newMode === "glance") renderGlanceAll();
+      });
+    });
+  }
+
+  // Wait for DOM, then init + start periodic refresh.
+  function bootstrap() {
+    initModeToggle();
+    renderGlanceAll();
+    setInterval(renderGlanceAll, 5000);
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootstrap, { once: true });
+  } else {
+    bootstrap();
+  }
+})();
