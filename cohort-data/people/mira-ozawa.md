@@ -3,7 +3,7 @@ record_id: mira-ozawa
 record_type: person
 schema_version: 1
 name: Mira Ozawa
-team: contexto
+team: null
 role: ml infrastructure
 role_class: cohort-member
 geo: NYC

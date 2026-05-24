@@ -7,7 +7,7 @@ membership: cohort
 
 name: Contexto
 focus: agent context engine
-members_count: 3
+members_count: 2
 geo: ET
 domain: ai
 shape: prism
