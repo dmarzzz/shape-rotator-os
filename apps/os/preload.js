@@ -45,4 +45,24 @@ contextBridge.exposeInMainWorld("api", {
   // a bundled binary / on Windows / when SWF_NODE_DISABLE=1 — the
   // renderer's sync-client falls back to the github PR path then.
   getSwfAgentToken: () => ipcRenderer.invoke("fg:swf-agent-token"),
+
+  // ─── swarm mode (research-swarm subprocess) ─────────────────────────
+  // Lifecycle: getSwarmConfig → swarmConfigSet (first run) → swarmStart
+  // → consume swarmOutput stream → swarmStop (cancel) or wait for
+  // fg:swarm:status-changed { state: "idle", exitCode } final event.
+  swarmStatus:     ()    => ipcRenderer.invoke("fg:swarm:status"),
+  swarmStart:      (o)   => ipcRenderer.invoke("fg:swarm:start", o || {}),
+  swarmStop:       ()    => ipcRenderer.invoke("fg:swarm:stop"),
+  getSwarmConfig:  ()    => ipcRenderer.invoke("fg:swarm:config:get"),
+  setSwarmConfig:  (o)   => ipcRenderer.invoke("fg:swarm:config:set", o || {}),
+  onSwarmOutput: (cb) => {
+    const h = (_e, p) => { try { cb(p); } catch {} };
+    ipcRenderer.on("fg:swarm:output", h);
+    return () => ipcRenderer.removeListener("fg:swarm:output", h);
+  },
+  onSwarmStatus: (cb) => {
+    const h = (_e, p) => { try { cb(p); } catch {} };
+    ipcRenderer.on("fg:swarm:status-changed", h);
+    return () => ipcRenderer.removeListener("fg:swarm:status-changed", h);
+  },
 });

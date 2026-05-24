@@ -6522,32 +6522,12 @@ function wireSearchTab() {
     searchState.confirmEgress = !!confirm.checked;
     persistSearchPrefs();
   });
-  const askBtn = document.getElementById("search-ask-agent");
-  if (askBtn) {
-    const onAsk = async () => {
-      const q = (input.value || "").trim();
-      const prompt = buildAskAgentPrompt(q);
-      let ok = false;
-      try { await navigator.clipboard.writeText(prompt); ok = true; }
-      catch { try { window.api?.clipboardWrite?.(prompt); ok = true; } catch {} }
-      if (ok) {
-        const prev = askBtn.textContent;
-        askBtn.dataset.state = "copied";
-        askBtn.textContent = "copied — paste to your agent";
-        setTimeout(() => {
-          delete askBtn.dataset.state;
-          askBtn.textContent = prev;
-        }, 1600);
-      }
-    };
-    askBtn.addEventListener("click", onAsk);
-    document.addEventListener("keydown", (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "a" || e.key === "A")) {
-        const sv = document.getElementById("search-view");
-        if (sv && !sv.hidden) { e.preventDefault(); onAsk(); }
-      }
-    });
-  }
+  // ASK MY AGENT button — legacy "copy prompt to clipboard" behavior is
+  // superseded by the swarm panel (see `setupSwarmPanel` at end of file,
+  // which attaches its own click handler that opens an actual agent run).
+  // The prompt helper is exposed on window so the swarm panel can still
+  // reuse the framing if we ever want a "copy prompt" fallback inside it.
+  try { window.__buildAskAgentPrompt = buildAskAgentPrompt; } catch {}
   if (searchState.lastResponse) {
     input.value = searchState.lastQuery;
     renderSearchMeta(searchState.lastResponse);
@@ -8716,6 +8696,293 @@ boot().catch((e) => {
       if (document.body.dataset.activeTab !== "atlas" && !panel.hidden) close();
     });
     obs.observe(document.body, { attributes: true, attributeFilter: ["data-active-tab"] });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
+})();
+
+// ─── Swarm panel wiring (v0.2.13) ────────────────────────────────────
+// Opens on ASK MY AGENT click (overrides the legacy copy-prompt
+// behaviour). Renders a streaming trace of the research-agent
+// subprocess. Settings sub-modal handles Anthropic API key (encrypted
+// via main-process safeStorage) + Ollama base URL config. All IPC
+// shape is in apps/os/preload.js (window.api.swarm*).
+
+(function setupSwarmPanel() {
+  function $(id) { return document.getElementById(id); }
+
+  function init() {
+    const panel        = $("swarm-panel");
+    const askBtn       = $("search-ask-agent");
+    if (!panel || !askBtn) return;
+
+    const form         = $("swarm-form");
+    const queryEl      = $("swarm-query");
+    const modelEl      = $("swarm-model");
+    const parallelEl   = $("swarm-parallel");
+    const startBtn     = $("swarm-start-btn");
+    const stopBtn      = $("swarm-stop-btn");
+    const statusDot    = $("swarm-status-dot");
+    const statusLine   = $("swarm-status-line");
+    const traceEl      = $("swarm-trace");
+    const traceEmpty   = $("swarm-trace-empty");
+    const preMsg       = $("swarm-pre-message");
+    const settingsBtn  = $("swarm-settings-btn");
+    const settingsEl   = $("swarm-settings");
+    const settingsClose= $("swarm-settings-close");
+    const keyInput     = $("swarm-anthropic-key");
+    const baseInput    = $("swarm-ollama-base");
+    const saveBtn      = $("swarm-settings-save");
+    const settingsStat = $("swarm-settings-status");
+
+    let _currentRequestId = null;
+    let _outputDispose = null;
+    let _statusDispose = null;
+
+    function open() {
+      panel.hidden = false;
+      panel.setAttribute("aria-hidden", "false");
+      // pre-fill query from the search box if it has content
+      try {
+        const searchInput = document.getElementById("search-input");
+        if (searchInput && searchInput.value && !queryEl.value) {
+          queryEl.value = searchInput.value;
+        }
+      } catch {}
+      setTimeout(() => queryEl.focus(), 60);
+      window.addEventListener("keydown", onKey, true);
+      // Pull saved config + agent install state. If research-agent isn't
+      // on disk, surface that immediately so the start button doesn't
+      // just silently fail.
+      refreshAgentReadiness();
+    }
+    function close() {
+      panel.hidden = true;
+      panel.setAttribute("aria-hidden", "true");
+      window.removeEventListener("keydown", onKey, true);
+      // closing while running keeps the subprocess alive in the background
+      // — open the panel again and you'll pick up the stream. Hit stop to
+      // actually cancel.
+    }
+    function onKey(e) {
+      if (e.key === "Escape") {
+        if (!settingsEl.hidden) { closeSettings(); return; }
+        close();
+      }
+    }
+
+    function openSettings() {
+      settingsEl.hidden = false;
+      settingsEl.setAttribute("aria-hidden", "false");
+      settingsStat.textContent = "";
+      settingsStat.className = "swarm-settings-status";
+      // refresh values from main
+      window.api.getSwarmConfig().then((cfg) => {
+        keyInput.value = "";
+        keyInput.placeholder = cfg.hasApiKey
+          ? "sk-ant-… (saved · type new key to replace)"
+          : "sk-ant-…  (stored encrypted in your keychain)";
+        baseInput.value = cfg.lmApiBase || "";
+        if (!cfg.safeStorageAvailable) {
+          settingsStat.textContent = "warning · safeStorage not available; key would be stored plaintext";
+          settingsStat.className = "swarm-settings-status is-error";
+        }
+      }).catch(() => {});
+      setTimeout(() => keyInput.focus(), 60);
+    }
+    function closeSettings() {
+      settingsEl.hidden = true;
+      settingsEl.setAttribute("aria-hidden", "true");
+    }
+
+    async function refreshAgentReadiness() {
+      try {
+        const cfg = await window.api.getSwarmConfig();
+        // Pre-select the saved model
+        if (cfg.lmModel) {
+          const opt = [...modelEl.options].find(o => o.value === cfg.lmModel);
+          if (opt) modelEl.value = cfg.lmModel;
+        }
+        if (!cfg.agent.binFound) {
+          startBtn.disabled = true;
+          setPreMsg(`research-agent binary not found. Install at ~/research-swarm (git clone dmarzzz/research-swarm; uv sync) or set RESEARCH_AGENT_BIN. The swarm needs the Python CLI to run.`, "error");
+          return;
+        }
+        startBtn.disabled = false;
+        // If anthropic selected but no key, surface that
+        if (modelEl.value.startsWith("anthropic/") && !cfg.hasApiKey) {
+          setPreMsg("Anthropic model selected but no API key configured. Click the ⚙ icon to add one.", "info");
+        } else {
+          setPreMsg("");
+        }
+      } catch (e) {
+        setPreMsg(`config check failed: ${e.message}`, "error");
+      }
+    }
+
+    function setStatus(state, line) {
+      statusDot.dataset.state = state;
+      statusLine.textContent = line;
+    }
+    function setPreMsg(msg, kind) {
+      preMsg.textContent = msg || "";
+      preMsg.className = "swarm-pre-message" + (kind ? ` is-${kind}` : "");
+    }
+    function clearTrace() {
+      traceEl.innerHTML = "";
+      const e = document.createElement("div");
+      e.className = "swarm-trace-empty";
+      e.id = "swarm-trace-empty";
+      e.textContent = "starting swarm…";
+      traceEl.appendChild(e);
+    }
+    function appendTraceLine(stream, text) {
+      // remove the empty placeholder on first real line
+      const empty = traceEl.querySelector("#swarm-trace-empty");
+      if (empty) empty.remove();
+      const line = document.createElement("span");
+      line.className = "swarm-trace-line" + (stream === "stderr" ? " is-stderr" : "");
+      line.textContent = text;
+      traceEl.appendChild(line);
+      traceEl.appendChild(document.createTextNode("\n"));
+      // auto-scroll to bottom unless user has scrolled up
+      const nearBottom = (traceEl.scrollHeight - traceEl.scrollTop - traceEl.clientHeight) < 80;
+      if (nearBottom) traceEl.scrollTop = traceEl.scrollHeight;
+    }
+    function appendDivider() {
+      const div = document.createElement("div");
+      div.className = "swarm-trace-line is-divider";
+      traceEl.appendChild(div);
+    }
+
+    async function startRun(e) {
+      if (e) e.preventDefault();
+      const q = (queryEl.value || "").trim();
+      if (!q) { setPreMsg("type a question first.", "info"); return; }
+      setPreMsg("");
+
+      // Tear down any previous stream listeners
+      if (_outputDispose) { _outputDispose(); _outputDispose = null; }
+      if (_statusDispose) { _statusDispose(); _statusDispose = null; }
+      clearTrace();
+      setStatus("running", "spawning…");
+      startBtn.hidden = true;
+      stopBtn.hidden = false;
+
+      const requestId = `req_${Math.random().toString(36).slice(2, 10)}_${Date.now()}`;
+      _currentRequestId = requestId;
+
+      // Persist the model selection so next launch defaults to it
+      try { await window.api.setSwarmConfig({ lmModel: modelEl.value }); } catch {}
+
+      // Subscribe to output BEFORE start (avoid missing the first lines)
+      _outputDispose = window.api.onSwarmOutput((p) => {
+        if (p.requestId !== _currentRequestId) return;
+        appendTraceLine(p.stream, p.line);
+      });
+      _statusDispose = window.api.onSwarmStatus((s) => {
+        if (s.state === "running") {
+          setStatus("running", `running · ${s.requestId.slice(0, 16)}`);
+        } else if (s.state === "idle") {
+          // Final exit
+          if (s.exitCode === 0) {
+            setStatus("done", `done · ${Math.round((s.durationMs || 0) / 1000)}s`);
+          } else if (s.signal === "SIGTERM" || s.signal === "SIGKILL") {
+            setStatus("idle", `cancelled · ${s.signal}`);
+          } else {
+            setStatus("error", `exited code=${s.exitCode}`);
+          }
+          startBtn.hidden = false;
+          stopBtn.hidden = true;
+          appendDivider();
+        }
+      });
+
+      try {
+        const res = await window.api.swarmStart({
+          requestId,
+          query: q,
+          lmModel: modelEl.value,
+          parallel: !!parallelEl.checked,
+          workers: 3,
+        });
+        if (!res || !res.ok) {
+          setStatus("error", `failed · ${res?.reason || "unknown"}`);
+          setPreMsg(`start failed: ${res?.detail || res?.reason || "unknown"}`, "error");
+          startBtn.hidden = false;
+          stopBtn.hidden = true;
+        }
+      } catch (err) {
+        setStatus("error", `failed · ${err.message}`);
+        setPreMsg(`start threw: ${err.message}`, "error");
+        startBtn.hidden = false;
+        stopBtn.hidden = true;
+      }
+    }
+
+    async function stopRun() {
+      try { await window.api.swarmStop(); } catch (e) { /* ignore */ }
+    }
+
+    // ── Wire events ────────────────────────────────────────────────
+    askBtn.removeEventListener("click", askBtn.__legacyHandler || (() => {}));
+    askBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      open();
+    });
+
+    // close (backdrop + X buttons)
+    panel.querySelectorAll("[data-swarm-close]").forEach(el => {
+      el.addEventListener("click", close);
+    });
+
+    form.addEventListener("submit", startRun);
+    stopBtn.addEventListener("click", stopRun);
+
+    settingsBtn.addEventListener("click", openSettings);
+    settingsClose.addEventListener("click", closeSettings);
+    saveBtn.addEventListener("click", async () => {
+      const opts = { lmApiBase: baseInput.value.trim() };
+      const keyVal = keyInput.value.trim();
+      if (keyVal) opts.lmApiKey = keyVal; // only persist if changed
+      try {
+        const res = await window.api.setSwarmConfig(opts);
+        if (res && res.ok) {
+          settingsStat.textContent = "saved.";
+          settingsStat.className = "swarm-settings-status is-saved";
+          keyInput.value = "";
+          setTimeout(closeSettings, 700);
+          refreshAgentReadiness();
+        } else {
+          settingsStat.textContent = "save failed";
+          settingsStat.className = "swarm-settings-status is-error";
+        }
+      } catch (e) {
+        settingsStat.textContent = `save failed: ${e.message}`;
+        settingsStat.className = "swarm-settings-status is-error";
+      }
+    });
+
+    modelEl.addEventListener("change", () => {
+      // re-check anthropic-key-required prompt
+      refreshAgentReadiness();
+    });
+
+    // Re-bind ⌘/Ctrl+Shift+A to ALSO open the panel (legacy did clipboard)
+    document.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "a" || e.key === "A")) {
+        const sv = document.getElementById("search-view");
+        if (sv && !sv.hidden) {
+          e.preventDefault();
+          open();
+        }
+      }
+    });
   }
 
   if (document.readyState === "loading") {

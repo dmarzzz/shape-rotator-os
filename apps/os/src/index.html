@@ -202,6 +202,113 @@
       </ul>
     </section>
 
+    <!-- ─── Swarm panel · overlay opened by ASK MY AGENT (search-view) ──
+         Fixed-position overlay on top of whatever tab is active. Hidden
+         by default; renderer/boot.js's wireSwarmPanel toggles `hidden`
+         and animates open/close. Two surfaces: the runner (query input +
+         live trace) and the settings modal (API key + Ollama URL), which
+         sits on top of the runner when its cog is clicked. -->
+    <section id="swarm-panel" class="swarm-panel" hidden aria-hidden="true"
+             role="dialog" aria-modal="true" aria-label="agent swarm">
+      <div class="swarm-panel-backdrop" data-swarm-close></div>
+      <div class="swarm-panel-card" role="document">
+        <header class="swarm-head">
+          <div class="swarm-mark">
+            <span class="swarm-mark-glyph">◇</span>
+            <span class="swarm-mark-text">SHAPE ROTATOR · agent swarm</span>
+          </div>
+          <div class="swarm-head-status">
+            <span class="swarm-status-dot" id="swarm-status-dot" data-state="idle"></span>
+            <span id="swarm-status-line">idle</span>
+          </div>
+          <div class="swarm-head-actions">
+            <button id="swarm-settings-btn" class="swarm-icon-btn" type="button" title="configure LLM" aria-label="open swarm settings">
+              <span aria-hidden="true">⚙</span>
+            </button>
+            <button class="swarm-icon-btn" type="button" data-swarm-close title="close (Esc)" aria-label="close swarm">
+              <span aria-hidden="true">✕</span>
+            </button>
+          </div>
+        </header>
+
+        <form id="swarm-form" class="swarm-form" autocomplete="off" spellcheck="false">
+          <div class="swarm-input-row">
+            <input id="swarm-query" class="swarm-query" type="text"
+                   placeholder="ask the swarm — multi-step research with cohort + web grounding"
+                   autocomplete="off" />
+            <select id="swarm-model" class="swarm-model" aria-label="LLM model">
+              <option value="anthropic/claude-sonnet-4-6">Anthropic · sonnet 4.6</option>
+              <option value="anthropic/claude-opus-4-7">Anthropic · opus 4.7</option>
+              <option value="anthropic/claude-haiku-4-5-20251001">Anthropic · haiku 4.5</option>
+              <option value="ollama/qwen3:35b">Ollama · qwen3:35b (local)</option>
+              <option value="ollama/llama3.2:8b">Ollama · llama3.2:8b (local)</option>
+              <option value="ollama/qwen2.5:7b">Ollama · qwen2.5:7b (local)</option>
+            </select>
+            <label class="swarm-parallel-toggle">
+              <input id="swarm-parallel" type="checkbox" />
+              <span>parallel</span>
+            </label>
+            <button id="swarm-start-btn" class="swarm-start-btn" type="submit">start</button>
+            <button id="swarm-stop-btn" class="swarm-stop-btn" type="button" hidden>stop</button>
+          </div>
+          <div class="swarm-pre-message" id="swarm-pre-message"></div>
+        </form>
+
+        <div class="swarm-trace" id="swarm-trace" role="log" aria-live="polite" aria-label="agent trace">
+          <div class="swarm-trace-empty" id="swarm-trace-empty">
+            Type a question and press start. The swarm will search your
+            local index → cohort peers → public web in order, read pages
+            it finds, and write you a grounded answer with citations.
+            Live trace appears here as the agent thinks.
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings sub-modal (sits on top of the runner card when open) -->
+      <div id="swarm-settings" class="swarm-settings" hidden aria-hidden="true">
+        <div class="swarm-settings-card" role="document">
+          <header class="swarm-settings-head">
+            <div class="swarm-mark">
+              <span class="swarm-mark-glyph">◇</span>
+              <span class="swarm-mark-text">swarm settings</span>
+            </div>
+            <button class="swarm-icon-btn" type="button" id="swarm-settings-close" aria-label="close settings">
+              <span aria-hidden="true">✕</span>
+            </button>
+          </header>
+
+          <div class="swarm-settings-section">
+            <div class="swarm-settings-label">Anthropic API key</div>
+            <input id="swarm-anthropic-key" type="password" class="swarm-settings-input"
+                   placeholder="sk-ant-…  (stored encrypted in your keychain)"
+                   autocomplete="off" spellcheck="false" />
+            <div class="swarm-settings-hint">
+              The key is encrypted via Electron's <code>safeStorage</code>
+              (macOS Keychain · Linux libsecret · Windows DPAPI). It never
+              leaves your machine in plaintext.
+            </div>
+          </div>
+
+          <div class="swarm-settings-section">
+            <div class="swarm-settings-label">Local model (Ollama / OpenAI-compatible)</div>
+            <input id="swarm-ollama-base" type="text" class="swarm-settings-input"
+                   placeholder="http://localhost:11434  (or any OpenAI-compatible endpoint)"
+                   autocomplete="off" spellcheck="false" />
+            <div class="swarm-settings-hint">
+              Used when you pick an <code>ollama/*</code> model. The base URL
+              passes through as <code>LM_API_BASE</code>; the local server
+              must already be running.
+            </div>
+          </div>
+
+          <div class="swarm-settings-status" id="swarm-settings-status"></div>
+          <div class="swarm-settings-actions">
+            <button id="swarm-settings-save" class="swarm-start-btn" type="button">save</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="atlas-view" class="atlas-view atlas-only">
       <div class="atlas-back-bar">
         <button class="atlas-back-btn" type="button" data-apps-back aria-label="back to apps">
