@@ -8611,14 +8611,30 @@ boot().catch((e) => {
     const stored = (() => {
       try { return localStorage.getItem(LS_KEY); } catch { return null; }
     })();
-    // Default to "debug" (the existing 3-column tab with the live peer
-    // ring as the centerpiece). The earlier "glance" composition got
-    // pushed back on — too much hero copy, peer activity demoted to the
-    // corner, headline went "you're the only one here" because self
-    // wasn't being counted as live. Keep glance code in place for later
-    // iteration but ship debug as the default so the network tab still
-    // has the peer-diagram-in-the-middle that makes the cohort feel alive.
-    const mode = stored === "glance" ? "glance" : "debug";
+    // Force "debug" (the existing 3-column tab with the live peer ring
+    // as the centerpiece). The "glance" composition got pushed back on
+    // — too much hero copy, peer activity demoted to the corner,
+    // headline went "you're the only one here" because self wasn't
+    // being counted as live. Keep glance code in place for later
+    // iteration but ship debug as the only visible mode so the network
+    // tab still has the peer-diagram-in-the-middle that makes the
+    // cohort feel alive.
+    //
+    // We ignore `stored` here because: (a) the toggle UI is hidden in
+    // this build so users can't change it; (b) anyone who clicked the
+    // toggle in a prior session has "glance" saved in localStorage and
+    // would otherwise be stuck on the broken view. Anyone debugging
+    // glance can still flip it via `window.__forceGlance()` (defined
+    // below) or by editing localStorage manually before reload.
+    const mode = "debug";
+    if (stored && stored !== mode) {
+      try { localStorage.setItem(LS_KEY, mode); } catch {}
+    }
+    window.__forceGlance = function () {
+      try { localStorage.setItem(LS_KEY, "glance"); } catch {}
+      document.body.dataset.netViewMode = "glance";
+      if (typeof renderGlanceAll === "function") renderGlanceAll();
+    };
     document.body.dataset.netViewMode = mode;
 
     const btns = document.querySelectorAll(".net-mode-btn");
