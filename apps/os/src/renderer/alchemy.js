@@ -37,6 +37,7 @@ import { enrichPeople } from "./gh-user.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
+import { getIdentity } from "./identity.js";
 // Membrane mode — 2026-05 redesign. Pressurized-membrane object that replaces
 // the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
 // "membrane" so the legacy modes stay reachable while we evaluate.
@@ -386,8 +387,29 @@ function computeMembraneData() {
   const events = Array.isArray(c.events) ? c.events : [];
   const asks = Array.isArray(c.asks) ? c.asks : [];
 
-  const profile = state.profile?.user || null;
-  const myHandle = profile?.gh_handle || profile?.handle || null;
+  // Pull the user's claimed identity from identity.js (the source of truth
+  // — same module the top-right pill reads). Then resolve it to the full
+  // cohort record so we have name, team, bio, github link, role, etc.
+  const identity = getIdentity();
+  const editorUser = state.profile?.user || null;
+  let myRecord = null;
+  if (identity?.record_id) {
+    if (identity.kind === 'team') {
+      myRecord = teams.find((t) => t.record_id === identity.record_id) || null;
+    } else {
+      myRecord = people.find((p) => p.record_id === identity.record_id) || null;
+    }
+  }
+  // Fallback for handle-based matching when the editor user is set but no
+  // formal claim has been made yet.
+  const editorHandle = editorUser?.gh_handle || editorUser?.handle || null;
+  if (!myRecord && editorHandle) {
+    const lc = editorHandle.toLowerCase();
+    myRecord = people.find((p) =>
+      (p.links?.github || p.gh_handle || p.handle || '').toLowerCase() === lc);
+  }
+  const myHandle = (myRecord?.links?.github || myRecord?.gh_handle
+                 || editorHandle || identity?.record_id || null);
 
   const myAsks = myHandle
     ? asks.filter((a) => (a?.owner || '').toLowerCase() === myHandle.toLowerCase()).length
@@ -413,10 +435,102 @@ function computeMembraneData() {
   // participates in. Fallback: total cohort-level edges.
   const allEdges = teams.reduce((n, t) => n + (Array.isArray(t.dependencies) ? t.dependencies.length : 0), 0);
 
+  // Connections — mirror the constellation view's edges into a flat list
+  // the self panel can render. Includes teammates (same team), members
+  // of teams my team depends on, and people in shared synergy clusters.
+  const connections = [];
+  const teamById = new Map(teams.map((t) => [t.record_id, t]));
+  if (myRecord) {
+    const myTeamId = myRecord.team || (myRecord.kind === 'team' ? myRecord.record_id : null);
+    const myTeam = myTeamId ? teamById.get(myTeamId) : null;
+    const seen = new Set();
+    const add = (person, edgeType, team) => {
+      if (!person || person.record_id === myRecord.record_id) return;
+      if (seen.has(person.record_id)) return;
+      seen.add(person.record_id);
+      connections.push({
+        kind: 'person',
+        record_id: person.record_id,
+        name: person.display_name || person.name || person.handle || person.record_id,
+        team: team?.name || person.team || '',
+        role: person.role || person.title || '',
+        edgeType,
+      });
+    };
+    if (myTeam) {
+      // Teammates
+      for (const p of people) {
+        if (p.team === myTeam.record_id) add(p, 'teammate', myTeam);
+      }
+      // Dependency-team members
+      const depIds = Array.isArray(myTeam.dependencies) ? myTeam.dependencies : [];
+      for (const depId of depIds) {
+        const depTeam = teamById.get(depId);
+        if (!depTeam) continue;
+        for (const p of people) {
+          if (p.team === depId) add(p, 'depends on', depTeam);
+        }
+      }
+      // Reverse-dependency: teams that depend on mine
+      for (const t of teams) {
+        if (!Array.isArray(t.dependencies)) continue;
+        if (!t.dependencies.includes(myTeam.record_id)) continue;
+        for (const p of people) {
+          if (p.team === t.record_id) add(p, 'depended by', t);
+        }
+      }
+    }
+    // Cluster overlap — people in same synergy cluster as my team
+    const clusters = Array.isArray(c.clusters) ? c.clusters : [];
+    for (const cl of clusters) {
+      const teamIds = Array.isArray(cl.teams) ? cl.teams
+                    : Array.isArray(cl.members) ? cl.members : [];
+      if (!myTeam || !teamIds.includes(myTeam.record_id)) continue;
+      for (const tid of teamIds) {
+        if (tid === myTeam.record_id) continue;
+        const team = teamById.get(tid);
+        for (const p of people) {
+          if (p.team === tid) add(p, `cluster: ${cl.label || cl.name || cl.record_id}`, team);
+        }
+      }
+    }
+  }
+
+  // Shape the profile object the panel will render. Prefer the full
+  // cohort record (rich fields), fall back to the identity claim (just
+  // name + kind + record_id), fall back to editor-state user.
+  const ghHandle = myRecord?.links?.github || myRecord?.gh_handle || myRecord?.handle || editorHandle || '';
+  const avatarUrl = ghHandle
+    ? `https://github.com/${encodeURIComponent(ghHandle)}.png?size=256`
+    : null;
+
+  const profileForPanel = myRecord ? {
+    record_id: myRecord.record_id,
+    name: myRecord.name,
+    team: myRecord.team || (myRecord.kind === 'team' ? myRecord.record_id : ''),
+    role: myRecord.role || myRecord.title || '',
+    role_class: myRecord.role_class,
+    handle: ghHandle,
+    bio: myRecord.bio || myRecord.description || myRecord.about || '',
+    kind: myRecord.kind || (teams.find((t) => t.record_id === myRecord.record_id) ? 'team' : 'person'),
+    links: myRecord.links || {},
+    avatarUrl,
+  } : (identity ? {
+    record_id: identity.record_id,
+    name: identity.display_name,
+    kind: identity.kind,
+    handle: '',
+    team: '',
+    role: '',
+    bio: '',
+    avatarUrl: null,
+  } : editorUser);
+
   return {
     self: {
-      edgeCount: String(allEdges),
-      profile: profile,
+      edgeCount: String(connections.length || allEdges),
+      profile: profileForPanel,
+      connections,
     },
     cohort: {
       peerCount: String(people.length),
@@ -444,6 +558,23 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode) {
   if (!ALCHEMY_MODES.includes(mode)) return;
   state.mode = mode;
   try { localStorage.setItem(ALCHEMY_LS_KEY, mode); } catch {}
+  syncRailSelection();
+  render();
+};
+
+// Jump straight to a specific record's detail page in the legacy view.
+// Used by the self panel's "connections" list — clicking a peer opens
+// their profile in the cohort surface (shapes mode with detail page).
+window.__srwkAlchemyShowRecord = function showRecordFromMembrane(recordId, returnMode = 'shapes') {
+  if (!recordId) return;
+  if (!ALCHEMY_MODES.includes(returnMode)) returnMode = 'shapes';
+  state.mode = returnMode;
+  state.detailRecordId = String(recordId);
+  state.detailReturnMode = returnMode;
+  try {
+    localStorage.setItem(ALCHEMY_LS_KEY, returnMode);
+    localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: String(recordId), returnMode }));
+  } catch {}
   syncRailSelection();
   render();
 };
