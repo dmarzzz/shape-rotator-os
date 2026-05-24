@@ -1,7 +1,8 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, safeStorage, screen, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const swfNode = require("./swf-node");
+const swarm = require("./swarm-node");
 
 // One-time userData migration. Electron resolves `app.getPath("userData")`
 // from `productName` (or, if unset, the package name). Every time we
@@ -258,6 +259,119 @@ ipcMain.handle("fg:swf-node-status", async () => swfNode.getStatus());
 // github PR path in that case (dev with an external swf-node, Windows
 // builds, swf-node disabled / crashed).
 ipcMain.handle("fg:swf-agent-token", async () => swfNode.getAgentToken() || null);
+
+// ─── swarm-mode IPC ──────────────────────────────────────────────────
+//
+// `research-swarm` subprocess supervision. Config (LLM model, API key,
+// Ollama URL) is stored under userData; the Anthropic key is encrypted
+// via Electron's `safeStorage` (Keychain on macOS, libsecret on Linux,
+// DPAPI on Windows) so it never lives in plaintext on disk.
+//
+// Renderer surface:
+//   fg:swarm:status        → current run state ({state, requestId, ...})
+//   fg:swarm:start (q,...) → spawn agent; emits fg:swarm:output stream
+//   fg:swarm:stop          → SIGTERM the running child
+//   fg:swarm:config:get    → returns {lmModel, lmApiBase, hasApiKey, agent}
+//   fg:swarm:config:set    → persists model + base + (optionally) api key
+//
+// Streamed events to renderer:
+//   fg:swarm:output        { requestId, stream: stdout|stderr, line }
+//   fg:swarm:status        { state: running|idle, ... }
+
+const SWARM_CONFIG_FILE = path.join(app.getPath("userData"), "swarm-config.json");
+const SWARM_KEY_FILE    = path.join(app.getPath("userData"), "swarm-api-key.enc");
+
+function readSwarmConfig() {
+  try { return JSON.parse(fs.readFileSync(SWARM_CONFIG_FILE, "utf8")); }
+  catch { return {}; }
+}
+function writeSwarmConfig(obj) {
+  try { fs.writeFileSync(SWARM_CONFIG_FILE, JSON.stringify(obj, null, 2)); return true; }
+  catch (e) { process.stderr.write(`[swarm] config write failed: ${e.message}\n`); return false; }
+}
+function readSwarmApiKey() {
+  try {
+    if (!fs.existsSync(SWARM_KEY_FILE)) return null;
+    if (!safeStorage.isEncryptionAvailable()) {
+      // fallback path — should rarely hit in practice (mac Keychain is always there)
+      return fs.readFileSync(SWARM_KEY_FILE, "utf8");
+    }
+    const buf = fs.readFileSync(SWARM_KEY_FILE);
+    return safeStorage.decryptString(buf);
+  } catch (e) {
+    process.stderr.write(`[swarm] api key decrypt failed: ${e.message}\n`);
+    return null;
+  }
+}
+function writeSwarmApiKey(plain) {
+  try {
+    if (!plain) { try { fs.unlinkSync(SWARM_KEY_FILE); } catch {} return true; }
+    if (safeStorage.isEncryptionAvailable()) {
+      const buf = safeStorage.encryptString(String(plain));
+      fs.writeFileSync(SWARM_KEY_FILE, buf, { mode: 0o600 });
+    } else {
+      // mac dev mode without Keychain access shouldn't really happen
+      fs.writeFileSync(SWARM_KEY_FILE, String(plain), { mode: 0o600 });
+    }
+    return true;
+  } catch (e) { process.stderr.write(`[swarm] api key write failed: ${e.message}\n`); return false; }
+}
+
+ipcMain.handle("fg:swarm:status", async () => swarm.getStatus());
+
+ipcMain.handle("fg:swarm:start", async (_e, opts) => {
+  const cfg = readSwarmConfig();
+  const o = opts || {};
+  // model can be overridden per-call; defaults to the saved config.
+  const lmModel   = o.lmModel   || cfg.lmModel   || "anthropic/claude-sonnet-4-6";
+  const lmApiBase = o.lmApiBase || cfg.lmApiBase || "";
+  let   lmApiKey  = o.lmApiKey;
+  if (!lmApiKey && lmModel.startsWith("anthropic/")) lmApiKey = readSwarmApiKey();
+  return swarm.start({
+    requestId: o.requestId || `req_${Math.random().toString(36).slice(2, 10)}`,
+    query:     o.query,
+    lmModel, lmApiKey, lmApiBase,
+    parallel:  !!o.parallel,
+    workers:   o.workers,
+  });
+});
+
+ipcMain.handle("fg:swarm:stop",   async () => swarm.stop());
+
+ipcMain.handle("fg:swarm:config:get", async () => {
+  const cfg = readSwarmConfig();
+  const agent = swarm.getAgentInfo();
+  return {
+    lmModel:   cfg.lmModel   || "anthropic/claude-sonnet-4-6",
+    lmApiBase: cfg.lmApiBase || "",
+    hasApiKey: !!readSwarmApiKey(),
+    agent,
+    safeStorageAvailable: safeStorage.isEncryptionAvailable(),
+  };
+});
+
+ipcMain.handle("fg:swarm:config:set", async (_e, opts) => {
+  const o = opts || {};
+  const cfg = readSwarmConfig();
+  if (typeof o.lmModel   === "string") cfg.lmModel   = o.lmModel.trim();
+  if (typeof o.lmApiBase === "string") cfg.lmApiBase = o.lmApiBase.trim();
+  writeSwarmConfig(cfg);
+  // apiKey is optional; if present, encrypt+persist. If explicitly "" (empty), clear.
+  if (Object.prototype.hasOwnProperty.call(o, "lmApiKey")) {
+    writeSwarmApiKey(o.lmApiKey);
+  }
+  return { ok: true };
+});
+
+// Bridge swarm-node's local emitters to renderer IPC. The single
+// BrowserWindow we own gets every event.
+function broadcastSwarm(channel, payload) {
+  for (const w of BrowserWindow.getAllWindows()) {
+    try { w.webContents.send(channel, payload); } catch {}
+  }
+}
+swarm.onStatus((s) => broadcastSwarm("fg:swarm:status-changed", s));
+swarm.onOutput((o) => broadcastSwarm("fg:swarm:output", o));
 
 // Dev-only sync-client smoke test. Triggers the renderer's
 // window.__srfgSyncClientSelfTest() helper (apps/os/src/renderer/sync-client.js
