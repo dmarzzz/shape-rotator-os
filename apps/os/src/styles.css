@@ -11258,8 +11258,16 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   --gok:           #6FA37A;
 }
 
-/* mode toggle in subtab strip */
+/* mode toggle in subtab strip · HIDDEN in this build (v0.2.12+):
+   The glance composition got pushed back on in user testing — too
+   dead/empty without a centerpiece peer diagram. We ship debug-only
+   (the existing 3-column tab with the live network ring center stage).
+   The glance code stays in the tree for future iteration; flip the
+   localStorage key `sros.net-view-mode = "glance"` to see it. */
 .net-view-mode {
+  display: none !important;
+}
+.net-view-mode--enabled {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
@@ -11292,12 +11300,14 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   color: var(--gpaper);
 }
 
-/* mode-driven visibility on the two sibling sections */
+/* mode-driven visibility on the two sibling sections.
+   Default: hide glance, show debug. Glance only appears when the user
+   explicitly opts in by setting localStorage key sros.net-view-mode
+   = "glance" (the toggle UI is hidden in this build — see .net-view-mode
+   above). No flash-of-glance-content before JS attaches the body attr. */
+#network-glance-view { display: none; }
+body[data-net-view-mode="glance"] #network-glance-view { display: block; }
 body[data-net-view-mode="glance"] #network-view { display: none !important; }
-body[data-net-view-mode="debug"]  #network-glance-view { display: none !important; }
-/* default to glance if attribute isn't set yet */
-body:not([data-net-view-mode="debug"]) #network-view { display: none !important; }
-body:not([data-net-view-mode="debug"]) #network-glance-view { display: block; }
 
 /* ─── glance section container ─── */
 .glance-view {

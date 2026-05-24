@@ -8075,6 +8075,12 @@ boot().catch((e) => {
   // ─── helpers ─────────────────────────────────────────────────────
 
   function peerStateFor(p, nowMs) {
+    // Self is always live by definition — the local node, talking to
+    // itself, doesn't send itself SSE events, so liveSeen has no entry.
+    // Without this guard the headline read "you're the only one here"
+    // even when you were actively driving searches, and the live count
+    // showed 0 in a tab whose whole job is to display "who's online".
+    if (p.pubkey && p.pubkey === srwk.selfPubkey) return "live";
     // LIVE: SSE activity in last 60s OR successful_pulls advanced very recently.
     // RECENT: any activity in last 6h.
     // OFFLINE: nothing in 6h+.
@@ -8605,7 +8611,14 @@ boot().catch((e) => {
     const stored = (() => {
       try { return localStorage.getItem(LS_KEY); } catch { return null; }
     })();
-    const mode = stored === "debug" ? "debug" : "glance";
+    // Default to "debug" (the existing 3-column tab with the live peer
+    // ring as the centerpiece). The earlier "glance" composition got
+    // pushed back on — too much hero copy, peer activity demoted to the
+    // corner, headline went "you're the only one here" because self
+    // wasn't being counted as live. Keep glance code in place for later
+    // iteration but ship debug as the default so the network tab still
+    // has the peer-diagram-in-the-middle that makes the cohort feel alive.
+    const mode = stored === "glance" ? "glance" : "debug";
     document.body.dataset.netViewMode = mode;
 
     const btns = document.querySelectorAll(".net-mode-btn");
