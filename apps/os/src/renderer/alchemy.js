@@ -37,6 +37,10 @@ import { enrichPeople } from "./gh-user.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
+// Membrane mode — 2026-05 redesign. Pressurized-membrane object that replaces
+// the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
+// "membrane" so the legacy modes stay reachable while we evaluate.
+import { mountMembrane } from "./membrane/index.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const PROFILE_LS_KEY  = "srwk:profile_v1";
@@ -52,7 +56,8 @@ const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
 // once that integration lands; rather than rip out the code and re-write it
 // from git history, the surfaces are simply unwired. See the "feed off"
 // section below this constant for the disabled hooks.
-const ALCHEMY_MODES   = ["shapes", "pulse", "constellation", "calendar", "profile", "onboarding", "program", "asks"];
+const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "calendar", "profile", "onboarding", "program", "asks"];
+const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 
 const WEEKS_TOTAL = 10;
 const WEEK_NOW = 1; // TODO: bump weekly, or derive from a cohort start date.
@@ -86,7 +91,8 @@ const state = {
   container: null,
   canvas: null,
   rail: null,
-  mode: "shapes",  // default rail landing — feed used to be first, now lives at the bottom
+  mode: "membrane",  // default rail landing — membrane is the 2026-05 redesign
+  membraneController: null,  // active membrane scene controller (mounted lazily on first membrane render)
   shapesKindFilter: "works",  // "works" (teams + projects) | "people"
   shapesMembershipFilter: "cohort",  // works: "cohort" | "visiting" | "all";
                                      // people: "cohort-member" | "visiting-scholar" | "coordinator" | "all".
@@ -136,6 +142,15 @@ export function mount(container) {
     // grid instead of a dead tab. Restore symmetry when the feed comes
     // back as a teleport-router surface.
     if (saved === "feed")      { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
+    // One-time membrane intro: on this preview branch, first launch lands
+    // every user on the membrane mode regardless of prior preference so the
+    // redesign is the first thing they see. Subsequent rail clicks persist
+    // normally — once they pick another mode, that sticks.
+    const membraneSeen = localStorage.getItem(MEMBRANE_INTRO_LS_KEY);
+    if (!membraneSeen) {
+      state.mode = "membrane";
+      localStorage.setItem(MEMBRANE_INTRO_LS_KEY, "1");
+    }
   } catch {}
   // Detail page state — if a record was open at last reload, restore it
   // so the user lands back where they were instead of on the grid.
@@ -271,6 +286,11 @@ function syncRailSelection() {
 
 function render() {
   if (!state.canvas || !state.cohort) return;
+  // Reflect current mode on the alchemy-view container so scoped CSS
+  // (membrane.css especially) can target the right surface.
+  if (state.container) {
+    state.container.dataset.alchModeCurrent = state.mode;
+  }
   // Cross-fade: leave → swap → enter. Total ~440ms.
   const canvas = state.canvas;
   canvas.classList.remove("is-entering");
@@ -280,6 +300,12 @@ function render() {
   // ~16. Leaving them alive across renders would silently exhaust the
   // budget after a few mode switches.
   destroyAllShapes();
+  // Tear down the membrane scene when leaving membrane mode — same WebGL
+  // budget concern, plus the RAF loop should stop.
+  if (state.mode !== "membrane" && state.membraneController) {
+    try { state.membraneController.destroy(); } catch {}
+    state.membraneController = null;
+  }
   setTimeout(() => {
     canvas.classList.add("is-entering");
     canvas.classList.remove("is-leaving");
@@ -287,7 +313,8 @@ function render() {
     // closed by the back button (which clears state.detailRecordId).
     if (state.detailRecordId) {
       renderDetail(state.detailRecordId);
-    } else if (state.mode === "feed") renderFeed();
+    } else if (state.mode === "membrane") renderMembrane();
+    else if (state.mode === "feed") renderFeed();
     else if (state.mode === "shapes") renderShapes();
     else if (state.mode === "pulse") renderPulse();
     else if (state.mode === "constellation") renderConstellation();
@@ -333,6 +360,93 @@ function mountAllShapes() {
   if (!state.canvas) return;
   state.shapeControllers = mountShapesIn(state.canvas);
 }
+
+// ─── membrane ───────────────────────────────────────────────────────────
+// 2026-05 redesign. The membrane controller owns its own canvas + WebGL +
+// RAF loop + audio scaffold; render() teardown is handled by the
+// `state.membraneController.destroy()` call that fires when switching out
+// of membrane mode (see the render() prelude above).
+function renderMembrane() {
+  if (!state.canvas) return;
+  if (state.membraneController) {
+    state.membraneController.setData(computeMembraneData());
+    return;
+  }
+  state.membraneController = mountMembrane(state.canvas);
+  state.membraneController.setData(computeMembraneData());
+}
+
+// Cross-blob data feed. Read the cohort surface and shape it into per-blob
+// stat dictionaries that the panels can render. Re-runs on every cohort
+// refresh via subscribeToCohortChanges → render() chain.
+function computeMembraneData() {
+  const c = state.cohort || {};
+  const teams = Array.isArray(c.teams) ? c.teams : [];
+  const people = Array.isArray(c.people) ? c.people : [];
+  const events = Array.isArray(c.events) ? c.events : [];
+  const asks = Array.isArray(c.asks) ? c.asks : [];
+
+  const profile = state.profile?.user || null;
+  const myHandle = profile?.gh_handle || profile?.handle || null;
+
+  const myAsks = myHandle
+    ? asks.filter((a) => (a?.owner || '').toLowerCase() === myHandle.toLowerCase()).length
+    : 0;
+  const openAsks = asks.filter((a) => (a?.status || 'open') === 'open').length;
+
+  const now = Date.now();
+  const weekFromNow = now + 7 * 24 * 60 * 60 * 1000;
+  const upcoming = events
+    .map((e) => {
+      const t = Date.parse(e?.starts_at || e?.start || e?.date || '');
+      return Number.isFinite(t) ? { t, e } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.t - b.t);
+  const eventsThisWeek = upcoming.filter((u) => u.t >= now && u.t <= weekFromNow).length;
+  const nextEventEntry = upcoming.find((u) => u.t >= now);
+  const nextEvent = nextEventEntry?.e;
+  const nextEventLabel = nextEvent ? (nextEvent.title || nextEvent.name || 'untitled') : '—';
+  const nextEventInMs = nextEventEntry ? nextEventEntry.t - now : null;
+
+  // Edge count: count unique team↔team dependencies the current user's team
+  // participates in. Fallback: total cohort-level edges.
+  const allEdges = teams.reduce((n, t) => n + (Array.isArray(t.dependencies) ? t.dependencies.length : 0), 0);
+
+  return {
+    self: {
+      edgeCount: String(allEdges),
+      profile: profile,
+    },
+    cohort: {
+      peerCount: String(people.length),
+      onlineCount: c._syncAvailable ? 'live' : 'idle',
+    },
+    events: {
+      eventsThisWeek: String(eventsThisWeek),
+      nextEventLabel: nextEventLabel.length > 28 ? nextEventLabel.slice(0, 26) + '…' : nextEventLabel,
+      nextEventInMs,
+      eventsList: events,
+    },
+    asks: {
+      openAskCount: String(openAsks),
+      myAskCount: String(myAsks),
+      asksList: asks,
+      myHandle: myHandle || '',
+    },
+  };
+}
+
+// Bridge from membrane panels → alchemy rail navigation. Lets the panel
+// "open network →" / "open calendar →" buttons jump into the legacy mode.
+// Public hook used by membrane/index.js.
+window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode) {
+  if (!ALCHEMY_MODES.includes(mode)) return;
+  state.mode = mode;
+  try { localStorage.setItem(ALCHEMY_LS_KEY, mode); } catch {}
+  syncRailSelection();
+  render();
+};
 
 // Display id "SHAPE-NN" from the team's index in the array.
 function displayId(idx) {

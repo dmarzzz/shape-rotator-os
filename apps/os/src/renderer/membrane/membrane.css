@@ -1,0 +1,661 @@
+/* Membrane mode — scoped palette + layout.
+   Palette tokens are defined on BOTH the .membrane-host (the alchemy-canvas
+   div once mounted) AND the alchemy-view container while membrane mode is
+   active, so cascading rules that target the outer view can resolve them. */
+
+.membrane-host,
+.alchemy-view[data-alch-mode-current="membrane"] {
+  /* Vanta cosmic — true black with a sparse star field. The blobs read as
+     small warm celestial bodies against deep space. Reading surfaces are
+     translucent panels with ember neon trim — Vision Pro × Tron Legacy. */
+  --membrane-void: #000000;
+  --membrane-void-warm: #060509;
+  --membrane-void-deep: #000000;
+  --membrane-mist: #f1ece7;
+  --membrane-mist-mid: #b8b3ad;
+  --membrane-mist-dim: #6f6a64;
+  --membrane-ember: #ff7a3d;          /* brighter neon ember */
+  --membrane-ember-deep: #c75a2a;
+  --membrane-ember-soft: rgba(255, 122, 61, 0.55);
+  --membrane-star: rgba(255, 255, 255, 0.85);
+  --membrane-slate: #3a4a5e;
+  /* Card is translucent so atmosphere reads through — not a black slab. */
+  --membrane-card-bg: rgba(22, 20, 25, 0.52);
+  --membrane-card-top: rgba(36, 30, 36, 0.62);
+  --membrane-rule: rgba(241, 236, 231, 0.08);
+}
+
+.membrane-host {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  color: var(--membrane-mist);
+  overflow: hidden;
+  font-family: 'Inter Display', 'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', system-ui, sans-serif;
+  font-feature-settings: 'ss01' on, 'cv11' on;
+  letter-spacing: 0.005em;
+}
+
+/* Atmosphere = distant stars + a single soft warm presence around the
+   throne. Stars are the cosmic field; throne-presence is the lit anchor.
+   Inactive blobs fade into this field — see blob.js setActive(). */
+.membrane-atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* Distant star field — JS-populated via box-shadow on a 1x1 element.
+   Two layers: bright/sparse foreground + dim/dense background. */
+.ma-stars,
+.ma-stars-fine {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  top: 0;
+  left: 0;
+  background: transparent;
+  border-radius: 50%;
+}
+
+/* Throne presence — barely-there warm radial glow that anchors the
+   active blob in the void. The only atmosphere besides the stars. */
+.ma-throne-presence {
+  position: absolute;
+  width: 70vmin;
+  height: 70vmin;
+  right: -8vmin;
+  bottom: -8vmin;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 140, 80, 0.10) 0%,
+    rgba(255, 120, 60, 0.05) 22%,
+    rgba(200, 90, 40, 0.02) 45%,
+    transparent 70%
+  );
+  filter: blur(60px);
+  mix-blend-mode: screen;
+}
+
+/* Orbital ring text — tiny mono caps tracing an arc around the throne
+   blob. Positioned via CSS vars set in JS based on throne slot's
+   screen-space center. Slowly rotates (~80s/revolution) for "alive". */
+.throne-orbital {
+  position: absolute;
+  right: calc(var(--throne-right, 200px) - var(--orbital-radius, 200px));
+  bottom: calc(var(--throne-bottom, 150px) - var(--orbital-radius, 200px));
+  width: calc(var(--orbital-radius, 200px) * 2);
+  height: calc(var(--orbital-radius, 200px) * 2);
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  transition: opacity 600ms cubic-bezier(0.65, 0, 0.05, 1);
+  animation: orbital-spin 80s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+.throne-orbital.is-visible {
+  opacity: 0.85;
+}
+
+@keyframes orbital-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.throne-orbital text {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  fill: rgba(241, 236, 231, 0.72);
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.18));
+}
+
+.membrane-host * {
+  box-sizing: border-box;
+}
+
+.membrane-stage {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.membrane-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: transparent;
+  z-index: 1;
+}
+
+/* Left-side panel — sits over the canvas in the negative space.
+   Calm typography, no chrome borders, no glassmorphism. */
+/* Reading gutter — softer now, since the panel itself does the heavy
+   contrast lifting via its translucent card chrome. */
+.membrane-stage::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 65%;
+  height: 100%;
+  background: linear-gradient(90deg,
+    rgba(0, 0, 0, 0.45) 0%,
+    rgba(0, 0, 0, 0.30) 50%,
+    rgba(0, 0, 0, 0.00) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.membrane-panel {
+  position: absolute;
+  top: 6%;
+  left: 5%;
+  bottom: 4%;
+  right: 38%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  z-index: 3;
+  pointer-events: auto;
+  /* Luxury neon-piped surface. Translucent body + ember bezel + outer bloom.
+     Vision Pro × Tron Legacy. Three stacked shadows: inset top highlight,
+     ember stroke, outer ember bloom. Plus a soft drop. */
+  background:
+    linear-gradient(180deg, var(--membrane-card-top) 0%, var(--membrane-card-bg) 28%, var(--membrane-card-bg) 100%);
+  border: 1px solid rgba(255, 122, 61, 0.32);
+  border-radius: 16px;
+  overflow: hidden;
+  backdrop-filter: blur(6px) saturate(1.1);
+  -webkit-backdrop-filter: blur(6px) saturate(1.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 60px rgba(255, 122, 61, 0.045),
+    0 0 0 1px rgba(255, 122, 61, 0.08),
+    0 0 24px rgba(255, 122, 61, 0.18),
+    0 0 80px -10px rgba(255, 122, 61, 0.10),
+    0 28px 70px -22px rgba(0, 0, 0, 0.75);
+}
+
+/* Corner brackets — small L-shaped marks that say "this was designed."
+   Subtle but tactile, matches the ember neon. Top-left and bottom-right
+   for asymmetry (less corporate than 4-corner symmetry). */
+.membrane-panel::before,
+.membrane-panel::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  z-index: 4;
+}
+.membrane-panel::before {
+  top: 10px;
+  left: 10px;
+  border-top: 1.5px solid rgba(255, 122, 61, 0.55);
+  border-left: 1.5px solid rgba(255, 122, 61, 0.55);
+  border-top-left-radius: 6px;
+  box-shadow: 0 0 8px rgba(255, 122, 61, 0.28);
+}
+.membrane-panel::after {
+  bottom: 10px;
+  right: 10px;
+  border-bottom: 1.5px solid rgba(255, 122, 61, 0.55);
+  border-right: 1.5px solid rgba(255, 122, 61, 0.55);
+  border-bottom-right-radius: 6px;
+  box-shadow: 0 0 8px rgba(255, 122, 61, 0.28);
+}
+
+.membrane-panel-content {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding: 40px 44px 28px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(241, 236, 231, 0.10) transparent;
+}
+
+.membrane-panel-content::-webkit-scrollbar {
+  width: 6px;
+}
+.membrane-panel-content::-webkit-scrollbar-thumb {
+  background: rgba(241, 236, 231, 0.10);
+  border-radius: 3px;
+}
+
+.membrane-panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+.membrane-panel-eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--membrane-mist-mid);
+}
+
+.membrane-panel-title {
+  font-size: clamp(40px, 4.6vw, 64px);
+  font-weight: 500;
+  line-height: 1.0;
+  margin: 0;
+  color: var(--membrane-mist);
+  letter-spacing: -0.02em;
+}
+
+.membrane-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.membrane-panel-note {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--membrane-mist-mid);
+  max-width: 44ch;
+}
+
+.membrane-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.membrane-panel-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--membrane-rule);
+}
+
+.mpl-key {
+  color: var(--membrane-mist-mid);
+  text-transform: uppercase;
+}
+
+.mpl-val {
+  color: var(--membrane-mist);
+  font-weight: 500;
+}
+
+/* Per-blob rim accent on the title — picked up via data-active-blob */
+.membrane-panel[data-active-blob="self"] .membrane-panel-title,
+.membrane-panel[data-active-blob="asks"] .membrane-panel-title {
+  color: var(--membrane-mist);
+}
+.membrane-panel[data-active-blob="self"] .mpl-val,
+.membrane-panel[data-active-blob="asks"] .mpl-val {
+  color: var(--membrane-mist);
+}
+
+/* ─── Inline per-blob content blocks ─── */
+
+.membrane-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+}
+
+.membrane-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--membrane-rule);
+  margin-bottom: 4px;
+}
+
+.membrane-section-title {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--membrane-mist-mid);
+  margin: 0;
+}
+
+.membrane-section-count {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--membrane-ember);
+  letter-spacing: 0.14em;
+  font-weight: 500;
+}
+
+/* TODAY section gets visual prominence — bigger, ember-tinted title,
+   slight inset glow so it reads as the moment-of-now. */
+.membrane-section-today .membrane-section-title {
+  color: var(--membrane-ember);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+}
+.membrane-section-today .membrane-section-count {
+  font-size: 12px;
+}
+.membrane-section-today {
+  padding: 14px 18px 18px;
+  margin: -4px -18px 4px;
+  border-radius: 8px;
+  background: rgba(255, 122, 61, 0.025);
+  border: 1px solid rgba(255, 122, 61, 0.10);
+}
+.membrane-section-today .membrane-event-title {
+  font-weight: 500;
+}
+
+/* Event row — calendar inline */
+.membrane-event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.membrane-event-row {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 18px;
+  align-items: baseline;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--membrane-rule);
+}
+
+.membrane-event-row:hover {
+  background: rgba(241, 236, 231, 0.02);
+}
+
+.membrane-event-date {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--membrane-mist-mid);
+}
+
+.membrane-event-title {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--membrane-mist);
+  line-height: 1.4;
+}
+
+.membrane-event-meta {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--membrane-mist-mid);
+  text-align: right;
+  white-space: nowrap;
+  letter-spacing: 0.08em;
+}
+
+.membrane-event-now .membrane-event-date {
+  color: var(--membrane-ember);
+}
+
+/* Ask row */
+.membrane-ask-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.membrane-ask-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--membrane-rule);
+}
+
+.membrane-ask-title {
+  font-size: 15px;
+  color: var(--membrane-mist);
+  line-height: 1.4;
+}
+
+.membrane-ask-meta {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--membrane-mist-mid);
+  letter-spacing: 0.10em;
+}
+
+.membrane-ask-meta .ask-status-mine {
+  color: var(--membrane-ember);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.membrane-empty {
+  font-size: 14px;
+  color: var(--membrane-mist-mid);
+  font-style: italic;
+  padding: 18px 0;
+}
+
+.membrane-panel-actions {
+  list-style: none;
+  margin: 14px 0 0 0;
+  padding: 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid var(--membrane-rule);
+}
+
+.mpa-btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--membrane-mist);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  padding: 10px 0;
+  text-align: left;
+  cursor: pointer;
+  transition: color 240ms cubic-bezier(0.65, 0, 0.05, 1),
+              transform 240ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.mpa-btn:hover {
+  color: var(--membrane-ember);
+  transform: translateX(4px);
+}
+
+.membrane-panel-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 44px 24px;
+  border-top: 1px solid rgba(255, 122, 61, 0.14);
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.0) 0%, rgba(0, 0, 0, 0.35) 100%);
+  /* faint inner-top ember rule echoing the bezel */
+  box-shadow: inset 0 1px 0 rgba(255, 122, 61, 0.08);
+}
+
+.membrane-blob-dots {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.membrane-blob-dot {
+  appearance: none;
+  background: transparent;
+  border: none;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--membrane-mist-dim);
+  padding: 4px 0;
+  cursor: pointer;
+  position: relative;
+  transition: color 240ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.membrane-blob-dot::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(200, 203, 214, 0.18);
+  margin-right: 7px;
+  vertical-align: middle;
+  transition: background 240ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.membrane-blob-dot:hover {
+  color: var(--membrane-mist);
+}
+
+.membrane-blob-dot[aria-pressed="true"] {
+  color: var(--membrane-mist);
+}
+
+.membrane-blob-dot[aria-pressed="true"]::before {
+  background: var(--membrane-ember);
+}
+
+.membrane-sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid rgba(255, 122, 61, 0.18);
+  color: var(--membrane-mist-mid);
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 240ms cubic-bezier(0.65, 0, 0.05, 1),
+              border-color 240ms cubic-bezier(0.65, 0, 0.05, 1),
+              box-shadow 240ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.membrane-sound-toggle:hover {
+  color: var(--membrane-mist);
+  border-color: rgba(255, 122, 61, 0.35);
+  box-shadow: 0 0 16px rgba(255, 122, 61, 0.15);
+}
+
+.membrane-sound-toggle[aria-pressed="true"] {
+  color: var(--membrane-ember);
+  border-color: rgba(255, 122, 61, 0.55);
+  box-shadow: 0 0 18px rgba(255, 122, 61, 0.30);
+}
+
+.mst-glyph {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.mst-state {
+  opacity: 0.65;
+}
+
+/* When membrane mode is active, hide the alchemy header + grain + decorative
+   chrome so the void breathes. The rail stays visible (it's the way back to
+   the 7 legacy modes during the M1/M2 dev preview); style it quieter via
+   data-alch-mode-current="membrane" if needed. */
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-header {
+  display: none;
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-grain {
+  display: none;
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-stage {
+  background: var(--membrane-void);
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-canvas {
+  background: var(--membrane-void);
+}
+/* Quiet the rail in membrane mode — it's a way out, not the main nav. */
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail {
+  background: transparent;
+  border-right: 1px solid rgba(200, 203, 214, 0.06);
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail-btn {
+  color: rgba(200, 203, 214, 0.45);
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail-btn[aria-selected="true"] {
+  color: var(--membrane-mist);
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail-btn .ar-num {
+  color: rgba(200, 203, 214, 0.3);
+}
+
+/* Small floating mode pill — lets the user toggle back to legacy view
+   without committing to the membrane forever. */
+.membrane-mode-pill {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(10, 14, 20, 0.6);
+  border: 1px solid rgba(200, 203, 214, 0.1);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--membrane-mist-dim);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: color 240ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.membrane-mode-pill:hover {
+  color: var(--membrane-mist);
+}
+
+.membrane-mode-pill .mmp-glyph {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--membrane-ember);
+  display: inline-block;
+}

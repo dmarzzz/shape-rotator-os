@@ -12,6 +12,9 @@
     <link rel="stylesheet" href="styles.css" />
     <!-- Loaded after styles.css so it wins the cascade vs. legacy .cal-* rules. -->
     <link rel="stylesheet" href="vendor/shape-ui/cohort-calendar-week.css" />
+    <!-- Membrane mode (2026-05 redesign). Scoped via .membrane-host so it
+         doesn't leak into legacy alchemy modes. -->
+    <link rel="stylesheet" href="renderer/membrane/membrane.css" />
     <script type="importmap">
       {
         "imports": {
@@ -260,7 +263,12 @@
       </header>
       <div class="alchemy-stage">
         <nav class="alchemy-rail" role="tablist" aria-label="operating system tools">
-          <button class="alchemy-rail-btn" data-alch-mode="shapes" type="button" aria-selected="true">
+          <button class="alchemy-rail-btn" data-alch-mode="membrane" type="button" aria-selected="true" title="the membrane — 4-blob constellation">
+            <span class="ar-num">◐</span>
+            <span class="ar-label">membrane</span>
+            <span class="ar-hint">self · cohort · events · asks</span>
+          </button>
+          <button class="alchemy-rail-btn" data-alch-mode="shapes" type="button" aria-selected="false">
             <span class="ar-num">01</span>
             <span class="ar-label">cohort</span>
             <span class="ar-hint">every team + project</span>
