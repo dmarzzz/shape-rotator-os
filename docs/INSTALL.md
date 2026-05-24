@@ -155,7 +155,7 @@ Once the daemon is up, the app:
 2. **Bootstraps a local cohort-keys file** under
    `~/Library/Application Support/Shape Rotator OS/swf-node-data/`
    (mac) or the equivalent on Linux. The trust model defaults to
-   "trust anyone on this LAN" — appropriate for an in-person cohort.
+   "trust anyone on this LAN" (see the trust-model note below).
    Profiles edited in the app sign locally and propagate to your
    neighbors within ~30 seconds.
 3. **Falls back to GitHub** for the initial cohort surface (people,
@@ -187,3 +187,28 @@ Profile edits can travel two ways:
 
 In normal use you won't notice which path is active — the editor
 chooses for you.
+
+### trust model — important
+
+Shape Rotator OS ships with `SWF_TRUST_LAN_PEERS=1` set on the bundled
+swf-node daemon. That flag is documented in the swf-node spec (SYNC.md
+§11) as **not for production cohorts**. We use it anyway because the
+cohort meets on a closed venue WiFi during the program and the v1
+cohort-keys format can't yet express multi-device-per-handle.
+
+What this means in practice:
+
+- **Anyone with L2 reach on the same WiFi** can forge a signed
+  envelope claiming to be any cohort member. Signature verification
+  still runs, but there is no allowlist to consult — so any keypair
+  presented by any mDNS-discovered peer is accepted.
+- This is fine for a closed venue LAN with only cohort members on it.
+  It is **not fine** for open coffee-shop WiFi, the hotel network at
+  most conferences, or any access point you don't control.
+
+**Path to tighten:** at the first in-person meet of the cohort, we
+plan to collect each member's device pubkey (visible at
+`http://127.0.0.1:7777/health` while their app is running), sign a
+proper cohort-keys roster bundle, and ship a release with
+`SWF_TRUST_LAN_PEERS` removed. Until then: treat the venue WiFi as
+the perimeter, not the daemon.

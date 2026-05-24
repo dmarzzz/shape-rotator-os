@@ -248,12 +248,15 @@ function spawnChild() {
     // Pin the cohort-keys file location to userData/swf-node-data/
     // (bootstrapped from the bundled empty seed by ensureCohortKeys).
     SWF_COHORT_KEYS_FILE: _cohortKeysPath,
-    // LAN-trust mode (swf-node v0.11.0+): the cohort lives on a single
-    // WiFi LAN today, so any signed envelope from any mDNS-discovered
-    // peer is acceptable. This bypasses cohort-keys gating + single-
-    // writer-pinning so a fresh install on a second laptop can sync
-    // with the first laptop without manual key exchange. See
-    // searxng-wth-frnds docs/SYNC.md §11.
+    // LAN-trust mode (swf-node v0.11.0+). Bypasses cohort-keys author
+    // whitelist + single-writer-pin + fork detection; sig verify and
+    // replay dedup remain. Spec §11 labels this "Not for production
+    // cohorts" — we run it anyway because (a) v1 cohort-keys can't
+    // express multi-device-per-handle and (b) the cohort meets on a
+    // closed venue WiFi. ASSUMPTION: no untrusted devices on that LAN.
+    // PLAN to drop the flag: collect every member's device pubkey at
+    // the first in-person meet, sign + publish a roster bundle, then
+    // unset this. See searxng-wth-frnds docs/SYNC.md §11.
     SWF_TRUST_LAN_PEERS: "1",
     // Non-loopback bind ⇒ swf-node demands a bearer token for agent
     // routes (incl. POST /sync/local_record per spec §7.4). Generate
