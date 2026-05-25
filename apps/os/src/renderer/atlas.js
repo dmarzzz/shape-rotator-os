@@ -125,8 +125,13 @@ const state = {
   // base world-to-canvas mapping. cur is the rendered state, target is what
   // we're easing toward (~120ms ease-out). tx/ty are CSS pixels in canvas
   // space; scale is multiplicative over the base "fit world to canvas" factor.
-  viewport: { tx: 0, ty: 0, scale: 1 },
-  viewportTarget: { tx: 0, ty: 0, scale: 1 },
+  // `labelBoost` is text-only zoom past the map's VIEW_MAX_SCALE. When
+  // the camera hits max scale, additional wheel-up flows into labelBoost
+  // instead of the map transform — so towns/coastlines stay frozen but
+  // page-title labels grow until they're readable. Resets to 1 when the
+  // user zooms back below max.
+  viewport: { tx: 0, ty: 0, scale: 1, labelBoost: 1 },
+  viewportTarget: { tx: 0, ty: 0, scale: 1, labelBoost: 1 },
   viewportDirty: false,
   worldRadius: 1100,      // logical world bounds; the camera frames this
   // Visible frame: the rectangle (in canvas device-pixels) where the
@@ -181,6 +186,10 @@ const state = {
 // PR B: viewport tuning constants.
 const VIEW_MIN_SCALE = 0.5;
 const VIEW_MAX_SCALE = 16;
+// Past VIEW_MAX_SCALE the wheel diverts into labelBoost (text-only zoom)
+// up to this multiplier. With LABEL_BOOST_MAX=3, page titles can hit 3×
+// their normal close-zoom size even though the map itself stops scaling.
+const LABEL_BOOST_MAX = 3;
 // Damping τ for the ease-out toward viewportTarget. Lower = snappier.
 // 70ms means a wheel tick visibly resolves in ~150ms (roughly 2τ),
 // well under the user's "feels instant" threshold.
@@ -574,16 +583,16 @@ export function mount(container) {
       stopTimelapse();
     } else if (e.key === "+" || e.key === "=") {
       // Sprint 2026-05-02: keyboard zoom for screenshot harnesses.
-      // `+`/`=` zooms in 2×, `-`/`_` zooms out 2×, both around the
-      // canvas centre. Animates via the existing tween.
+      // `+`/`=` zooms in 1.5×, `-`/`_` zooms out 1.5×, both around the
+      // canvas centre. Animates via the existing tween. Past
+      // VIEW_MAX_SCALE the extra zoom diverts into labelBoost so
+      // ⌘/+ keeps making text bigger after the map stops scaling.
       e.preventDefault();
-      const next = clamp(state.viewportTarget.scale * 1.5, VIEW_MIN_SCALE, VIEW_MAX_SCALE);
-      state.viewportTarget.scale = next;
+      _applyZoomFactor(1.5);
       markInteraction();
     } else if (e.key === "-" || e.key === "_") {
       e.preventDefault();
-      const next = clamp(state.viewportTarget.scale / 1.5, VIEW_MIN_SCALE, VIEW_MAX_SCALE);
-      state.viewportTarget.scale = next;
+      _applyZoomFactor(1 / 1.5);
       markInteraction();
     }
   };
@@ -2532,7 +2541,13 @@ function drawPlaceNames(ctx) {
   const closeAlpha = smoothstep(z, ZOOM_CLOSE_BAND[0], ZOOM_CLOSE_BAND[1]);
   if (closeAlpha > 0.02) {
     ctx.globalAlpha = closeAlpha;
-    ctx.font = `italic 14.5px "Iowan Old Style", "Hoefler Text", Georgia, "Times New Roman", serif`;
+    // Past VIEW_MAX_SCALE the user's wheel input flows into labelBoost
+    // (see onWheel comment) so page titles can grow past their normal
+    // 14.5px close-zoom size when the map is already at max. boost=1
+    // for all normal zoom levels; boost=3 at LABEL_BOOST_MAX.
+    const boost = state.viewport.labelBoost || 1;
+    const titlePx = 14.5 * boost;
+    ctx.font = `italic ${titlePx}px "Iowan Old Style", "Hoefler Text", Georgia, "Times New Roman", serif`;
     // Build a town list sorted by (degree desc, pageCount-of-region desc)
     // so prominent towns get to label first.
     const towns = [];
@@ -2555,10 +2570,14 @@ function drawPlaceNames(ctx) {
       const txt = truncTitle(t.title || t.host || t.id || "untitled", 40);
       if (!txt) continue;
       const w = ctx.measureText(txt).width;
-      // Position: 8px to the right of the dot, vertically centred.
-      const ox = x + 8;
+      // Position: 8px-scaled to the right of the dot, vertically centred.
+      // Connector + halo + AABB all scale with `boost` so big text doesn't
+      // collide with neighbours or float weirdly far from its dot.
+      const offsetX = 8 * boost;
+      const halfH = 7 * boost;
+      const ox = x + offsetX;
       const oy = y;
-      const aabb = { x: ox - 2, y: oy - 7, w: w + 4, h: 14 };
+      const aabb = { x: ox - 2, y: oy - halfH, w: w + 4, h: 2 * halfH };
       if (collides(aabb, placed)) continue;
       // 1px hairline connector from dot edge to text baseline-left.
       ctx.strokeStyle = "rgba(60, 50, 36, 0.35)";
@@ -2567,11 +2586,13 @@ function drawPlaceNames(ctx) {
       ctx.moveTo(x + 4, y);
       ctx.lineTo(ox - 2, oy);
       ctx.stroke();
-      // text — paper-color halo, then ink.
+      // text — paper-color halo, then ink. Halo width scales with boost
+      // so the text stays readable against the wash background even at
+      // 3× label size.
       ctx.textAlign = "left";
       ctx.lineJoin = "round";
       ctx.miterLimit = 2;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3 * boost;
       ctx.strokeStyle = `rgba(242, 235, 220, ${0.92 * closeAlpha})`;
       ctx.strokeText(txt, ox, oy);
       ctx.fillStyle = INK_2;
@@ -3809,6 +3830,22 @@ function onPointerLeave() {
   state.canvas.style.cursor = "";
 }
 
+// Apply a multiplicative zoom factor to the current target, with the
+// same "divert overshoot into labelBoost" semantics as the wheel
+// handler. Used by the keyboard +/- shortcuts. Centered-on-frame, so
+// no cursor-pan-correction needed.
+function _applyZoomFactor(factor) {
+  const curEff = state.viewportTarget.scale * state.viewportTarget.labelBoost;
+  const wantEff = curEff * factor;
+  if (wantEff <= VIEW_MAX_SCALE) {
+    state.viewportTarget.scale = clamp(wantEff, VIEW_MIN_SCALE, VIEW_MAX_SCALE);
+    state.viewportTarget.labelBoost = 1;
+  } else {
+    state.viewportTarget.scale = VIEW_MAX_SCALE;
+    state.viewportTarget.labelBoost = clamp(wantEff / VIEW_MAX_SCALE, 1, LABEL_BOOST_MAX);
+  }
+}
+
 function onWheel(ev) {
   if (!state.mounted) return;
   ev.preventDefault();
@@ -3824,9 +3861,23 @@ function onWheel(ev) {
   // scale was already deep.
   const delta = ev.deltaY * (ev.deltaMode === 1 ? 18 : 1);
   const factor = Math.exp(-delta * 0.0015);
-  let newScale = state.viewportTarget.scale * factor;
-  newScale = clamp(newScale, VIEW_MIN_SCALE, VIEW_MAX_SCALE);
-  if (newScale === state.viewportTarget.scale) return;
+  // Treat scale * labelBoost as one continuous "effective zoom". As long
+  // as effective <= VIEW_MAX_SCALE we scale the map normally and keep
+  // labelBoost at 1. Past VIEW_MAX_SCALE we clamp the map and divert the
+  // overshoot into labelBoost — town labels grow but the map stays put.
+  // Zooming back out drains labelBoost first, then resumes scaling the map.
+  const curEff = state.viewportTarget.scale * state.viewportTarget.labelBoost;
+  const wantEff = curEff * factor;
+  let newScale, newBoost;
+  if (wantEff <= VIEW_MAX_SCALE) {
+    newScale = clamp(wantEff, VIEW_MIN_SCALE, VIEW_MAX_SCALE);
+    newBoost = 1;
+  } else {
+    newScale = VIEW_MAX_SCALE;
+    newBoost = clamp(wantEff / VIEW_MAX_SCALE, 1, LABEL_BOOST_MAX);
+  }
+  if (newScale === state.viewportTarget.scale && newBoost === state.viewportTarget.labelBoost) return;
+  state.viewportTarget.labelBoost = newBoost;
 
   // To zoom toward the cursor, we want the world point under the cursor
   // to remain under the cursor. Solve the new tx/ty so that
@@ -3958,6 +4009,7 @@ function advanceViewport(now, dtIn) {
     state.viewport.tx = state.viewportTarget.tx;
     state.viewport.ty = state.viewportTarget.ty;
     state.viewport.scale = state.viewportTarget.scale;
+    state.viewport.labelBoost = state.viewportTarget.labelBoost || 1;
     return;
   }
   // Frame-rate-independent exponential damping: alpha = 1 - exp(-dt/tau).
@@ -3974,6 +4026,9 @@ function advanceViewport(now, dtIn) {
   state.viewport.tx += (state.viewportTarget.tx - state.viewport.tx) * alpha;
   state.viewport.ty += (state.viewportTarget.ty - state.viewport.ty) * alpha;
   state.viewport.scale += (state.viewportTarget.scale - state.viewport.scale) * alpha;
+  // Damp labelBoost the same way so text growth eases in/out smoothly
+  // rather than snapping when the user crosses the VIEW_MAX_SCALE threshold.
+  state.viewport.labelBoost += ((state.viewportTarget.labelBoost || 1) - (state.viewport.labelBoost || 1)) * alpha;
 }
 
 function lerp(a, b, t) { return a + (b - a) * t; }

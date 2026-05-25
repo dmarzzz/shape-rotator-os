@@ -44,6 +44,7 @@
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
+const os = require("node:os");
 const crypto = require("node:crypto");
 
 const LOG_MAX_BYTES = 5 * 1024 * 1024;   // ~5MB before rotation
@@ -230,8 +231,30 @@ function spawnChild() {
   setState("starting");
   _expectQuit = false;
 
+  // PyInstaller onefile bootloader extracts the bundled runtime to
+  // `$TMPDIR/_MEI<hash>`. When the parent process is Electron (not a
+  // login shell), stale `_MEI*` siblings in the system temp folder
+  // confuse the bootloader's extraction path — community_full/schema.sql
+  // and other --collect-data files end up missing from the new _MEI,
+  // and the daemon crashes at `_start_full_subsystems`. Giving each
+  // spawn its own private TMPDIR sidesteps the issue entirely: the
+  // bootloader sees a clean parent dir and extracts cleanly every time.
+  // Verified end-to-end against v0.13.0/0.13.1/0.13.2/0.13.3 mac-arm64
+  // binaries — all of which crashed reliably under shared $TMPDIR and
+  // booted cleanly under a private one.
+  let _swfTmpDir;
+  try {
+    _swfTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "swf-node-tmp-"));
+  } catch (e) {
+    // mkdtemp fail is non-fatal — fall through to system TMPDIR and
+    // hope for the best. Log so operators can see the degraded path.
+    process.stderr.write(`[swf-node] mkdtempSync failed (${e.message}); using system TMPDIR\n`);
+  }
+
   const env = {
     ...process.env,
+    // Per-spawn TMPDIR (see comment above). Skip when mkdtemp failed.
+    ...(_swfTmpDir ? { TMPDIR: _swfTmpDir } : {}),
     // Bind on all interfaces so cohort LAN peers can reach this node
     // inbound. The renderer still hits http://127.0.0.1:<PORT> for
     // local aggregator surface; binding to 0.0.0.0 keeps that working
