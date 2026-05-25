@@ -6,7 +6,6 @@ import {
   createStructureLineGeometry,
 } from './geometry.js';
 import { makePressureUniforms, enhancePressureMaterial } from './pressureMaterial.js';
-import { fbm3 } from './noise.js';
 
 // Per-blob identity. Each blob has a home slot, a tonic note for the M4
 // sound system, and a color signature. Material treatment is shared with
@@ -258,117 +257,6 @@ export function createBlob(THREEref, id) {
     }
   }
 
-  // CPU vertex-ripple state. Throne blob has this enabled so its surface
-  // organically deforms every frame. Also handles tap impulses — clicks
-  // on the surface radiate a damped wave outward from impact point.
-  let rippling = false;
-  let originalPositions = null;
-  let vertexDirections = null;
-  // Active tap impulses. Each: { dir: [dx,dy,dz] unit vector pointing at
-  // impact, startTime, lifetime, strength }
-  const tapImpulses = [];
-  const TAP_LIFETIME = 1.6;          // seconds — full decay window
-  const TAP_DEFAULT_STRENGTH = 0.085; // peak displacement at impact point
-
-  function ensureRippleData() {
-    if (originalPositions) return;
-    const pos = mesh.geometry.attributes.position;
-    originalPositions = new Float32Array(pos.array);
-    vertexDirections = new Float32Array(pos.count * 3);
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-      const len = Math.sqrt(x * x + y * y + z * z) || 1;
-      vertexDirections[i * 3]     = x / len;
-      vertexDirections[i * 3 + 1] = y / len;
-      vertexDirections[i * 3 + 2] = z / len;
-    }
-  }
-
-  function triggerTapImpulse(worldPoint, strength = TAP_DEFAULT_STRENGTH) {
-    // Convert world point → blob-local direction (normalized). Site uses
-    // angular distance from this direction for the radial falloff.
-    ensureRippleData();
-    const local = group.worldToLocal(worldPoint.clone());
-    const len = Math.sqrt(local.x * local.x + local.y * local.y + local.z * local.z) || 1;
-    tapImpulses.push({
-      dx: local.x / len,
-      dy: local.y / len,
-      dz: local.z / len,
-      startTime: performance.now() / 1000,
-      strength,
-    });
-  }
-
-  function rippleVertices(time) {
-    if (!originalPositions) return;
-    const pos = mesh.geometry.attributes.position;
-    const arr = pos.array;
-    const drift = uniforms.uContourDrift.value;
-    const ampScale = 0.7 + drift * 0.35;
-    const count = pos.count;
-
-    // Cull expired tap impulses + precompute per-impulse decay/osc.
-    const liveImpulses = [];
-    for (const imp of tapImpulses) {
-      const age = time - imp.startTime;
-      if (age >= TAP_LIFETIME) continue;
-      const lifeRatio = age / TAP_LIFETIME;
-      const decay = (1 - lifeRatio) * (1 - lifeRatio);
-      const osc = Math.sin(age * 22) * Math.exp(-age * 3);
-      liveImpulses.push({ imp, decayOsc: decay * osc });
-    }
-    tapImpulses.length = 0;
-    for (const x of liveImpulses) tapImpulses.push(x.imp);
-
-    const MAX_ANG = 0.75 * Math.PI;
-
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      const ox = originalPositions[i3];
-      const oy = originalPositions[i3 + 1];
-      const oz = originalPositions[i3 + 2];
-      const dx = vertexDirections[i3];
-      const dy = vertexDirections[i3 + 1];
-      const dz = vertexDirections[i3 + 2];
-
-      // Continuous breathing (noise + sin terms). Bumped amplitude so it
-      // reads more clearly than the previous 3% version.
-      const n = fbm3(
-        dx * 2.0 + time * 0.18,
-        dy * 2.0 - time * 0.13,
-        dz * 2.0 + time * 0.21,
-        2,
-      ) - 0.5;
-      let ripple = n * 0.060
-        + Math.sin(time * 0.42 + dy * 3.5) * 0.014
-        + Math.sin(time * 0.57 + dx * 2.8 + dz * 1.7) * 0.011;
-
-      // Tap impulses — radial damped oscillation from each impact point.
-      for (const { imp, decayOsc } of liveImpulses) {
-        const cosAng = dx * imp.dx + dy * imp.dy + dz * imp.dz;
-        const cc = cosAng > 1 ? 1 : (cosAng < -1 ? -1 : cosAng);
-        const angDist = Math.acos(cc);
-        if (angDist >= MAX_ANG) continue;
-        const f = 1 - angDist / MAX_ANG;
-        const falloff = f * f;
-        ripple += imp.strength * decayOsc * falloff;
-      }
-
-      const amp = ripple * ampScale;
-      arr[i3]     = ox + dx * amp;
-      arr[i3 + 1] = oy + dy * amp;
-      arr[i3 + 2] = oz + dz * amp;
-    }
-    pos.needsUpdate = true;
-  }
-
-  function resetVertices() {
-    if (!originalPositions) return;
-    const pos = mesh.geometry.attributes.position;
-    pos.array.set(originalPositions);
-    pos.needsUpdate = true;
-  }
-
   return {
     id,
     profile,
@@ -380,7 +268,6 @@ export function createBlob(THREEref, id) {
     tick(time) {
       uniforms.uTime.value = time;
       modulate(time);
-      if (rippling) rippleVertices(time);
       // Ease the additive halo toward its target opacity instead of
       // letting setActive() step it. The halo is an additive backface
       // shell that the UnrealBloom pass amplifies; a 0.04→0.22 instant
@@ -393,18 +280,6 @@ export function createBlob(THREEref, id) {
     },
     setData(d) {
       data = { ...data, ...(d || {}) };
-    },
-    enableRipple(on) {
-      if (on === rippling) return;
-      rippling = !!on;
-      if (rippling) ensureRippleData();
-      else {
-        tapImpulses.length = 0;
-        resetVertices();
-      }
-    },
-    triggerTap(worldPoint, strength) {
-      triggerTapImpulse(worldPoint, strength);
     },
     setRimColor(hex) {
       uniforms.uRimColor.value.set(hex);

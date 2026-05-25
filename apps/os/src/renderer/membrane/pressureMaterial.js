@@ -42,7 +42,6 @@ varying vec3 vPressureWorldNormal;
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-// CPU-side vertex updates handle surface ripples (see blob.js enableRipple).
 // Vertex shader only computes world-space position + normal for the fresnel
 // + contour passes below.
 vec4 pressureWorldPosition = modelMatrix * vec4(transformed, 1.0);

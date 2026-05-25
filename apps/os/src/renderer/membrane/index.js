@@ -172,29 +172,48 @@ function renderEventsInline(data) {
   const tomorrowMs = todayStartMs + 24 * 60 * 60 * 1000;
   const weekEndMs = todayStartMs + 7 * 24 * 60 * 60 * 1000;
 
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  // Events come in two shapes: point events (`date`/`starts_at`/`start`) and
+  // spans (`range_start`/`range_end`, e.g. "daily tea" runs the whole
+  // program). Parsing only the point fields silently dropped every span
+  // (Date.parse(undefined) → NaN), so ongoing/today events vanished. Parse
+  // both into a [startMs, endMs] window; `range_end` is a calendar day, so
+  // extend it to that day's end.
   const parsed = events
     .map((e) => {
-      const t = Date.parse(e?.starts_at || e?.start || e?.date || '');
-      return Number.isFinite(t) ? { t, e } : null;
+      const startMs = Date.parse(e?.starts_at || e?.start || e?.date || e?.range_start || '');
+      if (!Number.isFinite(startMs)) return null;
+      const endRaw = Date.parse(e?.range_end || '');
+      const endMs = Number.isFinite(endRaw) ? endRaw + (DAY_MS - 1) : startMs;
+      return { startMs, endMs, t: startMs, e };
     })
-    .filter(Boolean)
-    .sort((a, b) => a.t - b.t);
+    .filter(Boolean);
 
-  // Drop events from earlier than an hour ago (already happened).
-  const live = parsed.filter((u) => u.t >= now - 60 * 60 * 1000);
+  // Drop events whose window ended more than an hour ago.
+  const live = parsed.filter((u) => u.endMs >= now - 60 * 60 * 1000);
 
-  const today    = live.filter((u) => u.t < tomorrowMs);
-  const thisWeek = live.filter((u) => u.t >= tomorrowMs && u.t < weekEndMs);
-  const upcoming = live.filter((u) => u.t >= weekEndMs);
+  // Today = any event whose window overlaps the calendar day (covers
+  // multi-day spans like daily tea). Remaining events bucket by start.
+  const overlapsToday = (u) => u.startMs < tomorrowMs && u.endMs >= todayStartMs;
+  const today    = live.filter(overlapsToday).sort((a, b) => a.startMs - b.startMs);
+  const rest     = live.filter((u) => !overlapsToday(u));
+  const thisWeek = rest.filter((u) => u.startMs >= todayStartMs && u.startMs < weekEndMs).sort((a, b) => a.startMs - b.startMs);
+  const upcoming = rest.filter((u) => u.startMs >= weekEndMs).sort((a, b) => a.startMs - b.startMs);
 
   function row(u, fmt) {
     const title = u.e.title || u.e.name || 'untitled';
     const loc = u.e.location || u.e.room || '';
-    const isHappening = u.t <= now + 60 * 60 * 1000 && u.t >= now - 60 * 60 * 1000;
-    const meta = loc || (isHappening ? 'happening' : fmtRel(u.t - now));
+    const isHappening = u.startMs <= now + 60 * 60 * 1000 && u.endMs >= now - 60 * 60 * 1000;
+    const overlapsToday = u.startMs < tomorrowMs && u.endMs >= todayStartMs;
+    // All-day / multi-day spans have no meaningful single clock time. When
+    // such a span overlaps today, label it "today" and lean on the subtitle;
+    // otherwise (point events, or any future row) show the real start date.
+    const isAllDayOrSpan = (u.endMs - u.startMs) > 12 * 60 * 60 * 1000 || u.startMs < todayStartMs;
+    const dateLabel = (overlapsToday && isAllDayOrSpan) ? 'today' : fmt(u.startMs);
+    const meta = loc || u.e.subtitle || (isHappening ? 'happening' : overlapsToday ? 'ongoing' : fmtRel(u.startMs - now));
     return `
       <li class="membrane-event-row${isHappening ? ' membrane-event-now' : ''}">
-        <span class="membrane-event-date">${escHtml(fmt(u.t))}</span>
+        <span class="membrane-event-date">${escHtml(dateLabel)}</span>
         <span class="membrane-event-title">${escHtml(title)}</span>
         <span class="membrane-event-meta">${escHtml(meta)}</span>
       </li>`;

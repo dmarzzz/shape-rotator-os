@@ -120,7 +120,6 @@ export function createMembraneScene(canvas, opts = {}) {
     blob.rotationPhase = (idx * Math.PI * 0.6) + Math.random() * 0.4;
     blob.spinRate = 0.06 + Math.random() * 0.03;
     blob.setActive(slotName === 'throne');
-    blob.enableRipple(slotName === 'throne');
     scene.add(blob.group);
     blobBySlot[slotName] = id;
     slotByBlob[id] = slotName;
@@ -166,12 +165,10 @@ export function createMembraneScene(canvas, opts = {}) {
       tweenBlobToSlot(currentThroneId, vacatedSlot);
       blobBySlot[vacatedSlot] = currentThroneId;
       blobs[currentThroneId].setActive(false);
-      blobs[currentThroneId].enableRipple(false);
     }
     tweenBlobToSlot(id, 'throne');
     blobBySlot['throne'] = id;
     blobs[id].setActive(true);
-    blobs[id].enableRipple(true);
   }
 
   const raycaster = new THREE.Raycaster();
@@ -192,23 +189,13 @@ export function createMembraneScene(canvas, opts = {}) {
     const hit = pickBlobAt(ev.clientX, ev.clientY);
     if (!hit?.id) return;
     if (hit.id === blobBySlot['throne']) {
-      // Click on throne → ripple from exact impact point. No wiggle —
-      // the ripple IS the feedback.
-      blobs[hit.id].triggerTap(hit.point);
+      // Click on the throne → a quick scale-bounce for feedback.
+      wiggleThrone();
       return;
     }
-    // Click on satellite → swap. Queue a welcome impulse on the new
-    // throne so the swap-in lands with tactile feedback (fires ~1s later
-    // once the tween is mostly complete and ripple is active).
+    // Click on satellite → swap it into the throne.
     setActiveBlob(hit.id);
     if (opts.onActiveChange) opts.onActiveChange(hit.id);
-    setTimeout(() => {
-      // Trigger an impulse at the top of the blob (slight visual punch
-      // since we don't have an organic impact point for swaps).
-      const welcomePoint = blobs[hit.id].group.position.clone();
-      welcomePoint.y += 0.4 * SLOT_OFFSETS.throne.scale;
-      blobs[hit.id].triggerTap(welcomePoint, 0.06);
-    }, 700);
   }
 
   let hoveredId = null;
