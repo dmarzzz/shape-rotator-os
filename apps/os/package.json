@@ -20,7 +20,8 @@
     "dist:linux": "electron-builder --linux",
     "dist:all": "electron-builder -mwl",
     "pack": "electron-builder --dir",
-    "check:packaging": "node scripts/check-packaging-files.js"
+    "check:packaging": "node scripts/check-packaging-files.js",
+    "smoke": "electron . --smoke-test"
   },
   "dependencies": {
     "@cosmos.gl/graph": "^2.6.4",

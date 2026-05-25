@@ -5,6 +5,51 @@ const swfNode = require("./swf-node");
 const swarm = require("./swarm-node");
 const easelNdi = require("./easel-ndi");
 
+// Headless launch self-test. `--smoke-test` (or SROS_SMOKE_TEST=1) boots
+// the renderer in a hidden window, waits for boot.js to signal ready, and
+// exits 0/1. CI runs this against the *packaged* binary (see
+// scripts/after-pack-verify.cjs) to catch runtime boot failures — e.g. a
+// renderer module that throws at import time — which static asar analysis
+// can't see and which dev mode (runs from source) can't reproduce.
+const SMOKE_TEST = process.argv.includes("--smoke-test") || process.env.SROS_SMOKE_TEST === "1";
+
+function runSmokeTest() {
+  const TIMEOUT_MS = Number(process.env.SROS_SMOKE_TIMEOUT_MS) || 45000;
+  const log = (m) => process.stdout.write(`[smoke] ${m}\n`);
+  let settled = false;
+  const finish = (code, why) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    log(code === 0 ? `PASS: ${why}` : `FAIL: ${why}`);
+    app.exit(code);
+  };
+  const timer = setTimeout(
+    () => finish(1, `renderer did not signal ready within ${TIMEOUT_MS}ms`),
+    TIMEOUT_MS
+  );
+
+  log(`booting renderer headless (timeout ${TIMEOUT_MS}ms)…`);
+  const win = new BrowserWindow({
+    width: 1280, height: 800, show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true, sandbox: false, nodeIntegration: false,
+    },
+  });
+  win.webContents.on("console-message", (_e, lvl, msg) => {
+    if (lvl >= 2) log(`renderer error: ${msg}`); // surface boot exceptions
+  });
+  win.webContents.on("did-fail-load", (_e, ec, desc, url) =>
+    finish(1, `did-fail-load ${ec} ${desc} ${url}`));
+  win.webContents.on("render-process-gone", (_e, d) =>
+    finish(1, `render-process-gone: ${d && d.reason}`));
+  win.webContents.on("preload-error", (_e, p, err) =>
+    finish(1, `preload-error ${p}: ${err && err.message}`));
+  ipcMain.once("smoke:ready", () => finish(0, "renderer signalled ready"));
+  win.loadFile(path.join(__dirname, "src", "index.html"));
+}
+
 // One-time userData migration. Electron resolves `app.getPath("userData")`
 // from `productName` (or, if unset, the package name). Every time we
 // rename the app — `srwk-wall` → `srwk-visualizer` → `Shape Rotator` →
@@ -911,6 +956,11 @@ ipcMain.handle("fg:export-calendar", async (_e, opts = {}) => {
 });
 
 app.whenReady().then(() => {
+  // Headless self-test path: boot the renderer, assert ready, exit. Skips
+  // the dock icon, menu, swf-node spawn, and auto-updater — none of that
+  // matters for "does the renderer load without throwing".
+  if (SMOKE_TEST) { runSmokeTest(); return; }
+
   // Dev-mode dock icon. Packaged builds get their icon from electron-builder
   // (build-resources/icon.icns); in `npm run os` we'd otherwise see
   // the generic Electron dock icon. Set it explicitly here.
