@@ -66,10 +66,15 @@ export const BLOB_PROFILES = {
   asks: {
     label: 'asks',
     sub: 'open pairings',
-    rimColor: '#FFD2B0',
-    contourColor: '#FF7F4A',
-    baseColor: '#d4451a',       // bright candy ember
-    emissiveColor: '#8a1f08',
+    // Was a second oxide-red (#d4451a/#8a1f08) — indistinguishable from
+    // self. Moved to warm amber/gold so the 4 blobs read as 4 distinct
+    // hues: self=oxide-red, cohort=lapis-blue, events=jade-green,
+    // asks=amber-gold. Keeps the "hot / energetic / bubbling" feel the
+    // candy-ember intended without colliding with self.
+    rimColor: '#FFE9B8',
+    contourColor: '#FFC24A',
+    baseColor: '#d49a1a',       // warm amber
+    emissiveColor: '#7a5408',   // gold ember
     rimStrength: 0.30,
     contourStrength: 0.12,
     contourFrequency: 11.5,
@@ -208,6 +213,9 @@ export function createBlob(THREEref, id) {
   const halo = new THREE.Mesh(fleshGeo, haloMaterial);
   halo.scale.setScalar(1.06);
   halo.renderOrder = 4;
+  // Ramp target for the additive halo (see setActive + tick). Seeded to
+  // the material's initial opacity so an inactive blob doesn't ease on boot.
+  let haloTargetOpacity = haloMaterial.opacity;
 
   const group = new THREE.Group();
   group.add(core);
@@ -373,6 +381,15 @@ export function createBlob(THREEref, id) {
       uniforms.uTime.value = time;
       modulate(time);
       if (rippling) rippleVertices(time);
+      // Ease the additive halo toward its target opacity instead of
+      // letting setActive() step it. The halo is an additive backface
+      // shell that the UnrealBloom pass amplifies; a 0.04→0.22 instant
+      // jump during a scale-up swap blew out to a full-screen white
+      // flash. ~12%/frame critically-damped lerp resolves in ~250ms,
+      // under the bloom threshold the whole way.
+      if (Math.abs(haloMaterial.opacity - haloTargetOpacity) > 0.001) {
+        haloMaterial.opacity += (haloTargetOpacity - haloMaterial.opacity) * 0.12;
+      }
     },
     setData(d) {
       data = { ...data, ...(d || {}) };
@@ -402,7 +419,11 @@ export function createBlob(THREEref, id) {
     setActive(isActive) {
       // Active blob = full jewel presence. Halo glows (will bloom in post).
       // Wireframe + structure stay minimal so flesh dominates.
-      haloMaterial.opacity      = isActive ? 0.22  : 0.04;
+      // NOTE: the halo opacity is RAMPED (not stepped) — see tick(). A
+      // hard jump on the additive shell mid-swap blew out to full-screen
+      // white through the bloom pass. The non-additive materials below
+      // can step instantly; they don't feed the bloom blowout.
+      haloTargetOpacity         = isActive ? 0.22  : 0.04;
       wireMaterial.opacity      = isActive ? 0.04  : 0.01;
       structureMaterial.opacity = isActive ? 0.10  : 0.025;
       dustMaterial.opacity      = isActive ? 0.42  : 0.08;
@@ -410,7 +431,9 @@ export function createBlob(THREEref, id) {
       material.opacity          = isActive ? 0.97  : 0.65;
     },
     setHovered(isHovered) {
-      const isActive = haloMaterial.opacity > 0.15;
+      // Use the ramp TARGET, not the live opacity — during a swap the
+      // live value is mid-ease and would misclassify the active blob.
+      const isActive = haloTargetOpacity > 0.15;
       if (isActive) return;
       const lift = isHovered ? 1 : 0;
       haloMaterial.opacity      = 0.04 + 0.14 * lift;
