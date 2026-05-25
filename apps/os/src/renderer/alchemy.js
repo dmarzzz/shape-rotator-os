@@ -417,19 +417,30 @@ function computeMembraneData() {
   const openAsks = asks.filter((a) => (a?.status || 'open') === 'open').length;
 
   const now = Date.now();
-  const weekFromNow = now + 7 * 24 * 60 * 60 * 1000;
-  const upcoming = events
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const weekFromNow = now + 7 * DAY_MS;
+  // Range-aware parse — match renderEventsInline(): point events use
+  // date/starts_at, spans use range_start/range_end (extended to day end).
+  // Without this, every span event (daily tea, office hours…) was dropped.
+  const spans = events
     .map((e) => {
-      const t = Date.parse(e?.starts_at || e?.start || e?.date || '');
-      return Number.isFinite(t) ? { t, e } : null;
+      const startMs = Date.parse(e?.starts_at || e?.start || e?.date || e?.range_start || '');
+      if (!Number.isFinite(startMs)) return null;
+      const endRaw = Date.parse(e?.range_end || '');
+      const endMs = Number.isFinite(endRaw) ? endRaw + (DAY_MS - 1) : startMs;
+      return { startMs, endMs, e };
     })
     .filter(Boolean)
-    .sort((a, b) => a.t - b.t);
-  const eventsThisWeek = upcoming.filter((u) => u.t >= now && u.t <= weekFromNow).length;
-  const nextEventEntry = upcoming.find((u) => u.t >= now);
+    .sort((a, b) => a.startMs - b.startMs);
+  // This week = events still live (not ended) that start within 7 days —
+  // includes anything ongoing right now.
+  const eventsThisWeek = spans.filter((u) => u.endMs >= now && u.startMs <= weekFromNow).length;
+  const happeningNow = spans.find((u) => u.startMs <= now && u.endMs >= now);
+  const nextStart = spans.find((u) => u.startMs >= now);
+  const nextEventEntry = happeningNow || nextStart;
   const nextEvent = nextEventEntry?.e;
   const nextEventLabel = nextEvent ? (nextEvent.title || nextEvent.name || 'untitled') : '—';
-  const nextEventInMs = nextEventEntry ? nextEventEntry.t - now : null;
+  const nextEventInMs = happeningNow ? 0 : (nextStart ? nextStart.startMs - now : null);
 
   // Edge count: count unique team↔team dependencies the current user's team
   // participates in. Fallback: total cohort-level edges.
