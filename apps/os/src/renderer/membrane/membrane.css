@@ -48,18 +48,10 @@
   overflow: hidden;
 }
 
-/* Distant star field — JS-populated via box-shadow on a 1x1 element.
-   Two layers: bright/sparse foreground + dim/dense background. */
-.ma-stars,
-.ma-stars-fine {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  top: 0;
-  left: 0;
-  background: transparent;
-  border-radius: 50%;
-}
+/* Stars are now a 3D point cloud rendered by Three.js (starfield.js).
+   The old CSS-based stars are gone — full-screen box-shadow approach was
+   broken (each shadow rendered as a screen-sized box). The 3D approach
+   gives real perspective + seamless wrap-around as stars stream past. */
 
 /* Throne presence — barely-there warm radial glow that anchors the
    active blob in the void. The only atmosphere besides the stars. */
@@ -239,6 +231,22 @@
   flex-direction: column;
   gap: 10px;
   padding-bottom: 8px;
+}
+
+/* When the head has an accessory (e.g. the self panel's avatar), lay it
+   out as a row: text on the left, accessory pinned top-right. */
+.membrane-panel-head--with-accessory {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+.membrane-panel-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
 }
 
 .membrane-panel-eyebrow {
@@ -461,6 +469,151 @@
   color: var(--membrane-mist-mid);
   font-style: italic;
   padding: 18px 0;
+}
+
+/* Identity bio — sits below the identity hero. Italic, slightly muted,
+   max-width capped so long bios stay readable. */
+.membrane-bio-line {
+  margin: 18px 0 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--membrane-mist-mid);
+  font-style: italic;
+  max-width: 52ch;
+}
+
+/* Identity hero — big avatar on left, name/handle/team stack on right.
+   The avatar is the visual anchor of the self panel. */
+.membrane-section-identity {
+  padding-top: 4px;
+}
+
+.membrane-identity-hero {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 4px 0 18px;
+  border-bottom: 1px solid var(--membrane-rule);
+}
+
+.membrane-avatar {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  min-width: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 200, 140, 0.30), transparent 65%),
+    linear-gradient(155deg, #2a2026 0%, #1a1418 100%);
+  border: 1px solid rgba(255, 122, 61, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(255, 122, 61, 0.08),
+    0 0 22px rgba(255, 122, 61, 0.18),
+    0 12px 28px -8px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Smaller variant for the panel-head accessory slot — pinned top-right
+   beside the title, sized so it sits on the same baseline weight. */
+.membrane-avatar--head {
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+  margin-top: 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(255, 122, 61, 0.08),
+    0 0 16px rgba(255, 122, 61, 0.18),
+    0 8px 18px -6px rgba(0, 0, 0, 0.6);
+}
+.membrane-avatar--head .membrane-avatar-initials {
+  font-size: 22px;
+}
+
+.membrane-avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  z-index: 1;
+}
+
+.membrane-avatar-initials {
+  font-family: 'Inter Display', 'Inter', sans-serif;
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--membrane-mist);
+  letter-spacing: -0.02em;
+  opacity: 0.85;
+}
+
+/* When the img loads successfully, the initials sit behind it as a
+   fallback only — img covers them. When the img fails / removes itself,
+   the parent loses data-has-img and the initials become visible. */
+.membrane-avatar[data-has-img] .membrane-avatar-initials {
+  opacity: 0;
+}
+
+.membrane-identity-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.membrane-identity-name {
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 500;
+  color: var(--membrane-mist);
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.membrane-identity-handle {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--membrane-ember);
+}
+
+.membrane-identity-team {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  color: var(--membrane-mist-mid);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Connection row — clickable peer entry in the self panel's connections
+   section. Hairline border, ember on hover/focus, slight slide right. */
+.membrane-connection-row {
+  cursor: pointer;
+  outline: none;
+  transition: background 200ms cubic-bezier(0.65, 0, 0.05, 1),
+              transform 200ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+.membrane-connection-row:hover,
+.membrane-connection-row:focus-visible {
+  background: rgba(255, 122, 61, 0.05);
+  transform: translateX(3px);
+}
+.membrane-connection-row:hover .membrane-event-title,
+.membrane-connection-row:focus-visible .membrane-event-title {
+  color: var(--membrane-ember);
+}
+.membrane-connection-row .membrane-event-date {
+  /* Mono edge-type label — keep it tight and dim so the name dominates */
+  color: var(--membrane-mist-dim);
+  font-size: 10px;
+  letter-spacing: 0.14em;
 }
 
 .membrane-panel-actions {

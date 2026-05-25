@@ -44,8 +44,15 @@ const ORBITAL_LABELS = {
 const PANEL_TEMPLATES = {
   self: {
     eyebrow: 'your shape',
-    title: 'self',
-    copy: 'this is your blob. it breathes with your activity. the contour bands drift with your work cadence; the rim warms when you are seen.',
+    // Title is the user's real name (falls back through the chain).
+    title: (data) => {
+      const p = data?.profile || {};
+      return p.name || p.display_name || p.handle || p.gh_handle || 'unclaimed';
+    },
+    // No copy for self — the user's name + avatar are the identity.
+    copy: '',
+    // Avatar pinned to the top-right of the card, same row as the title.
+    headAccessory: (data) => renderAvatar(data?.profile || {}),
     stats: [
       { key: 'tonic', val: 'D2 — 73.42 hz' },
       { key: 'edges', val: '—', dataKey: 'edgeCount' },
@@ -256,32 +263,75 @@ function renderAsksInline(data) {
 
 function renderSelfInline(data) {
   const profile = data?.profile || {};
-  const name = profile.display_name || profile.name || profile.handle || 'unclaimed';
-  const team = profile.team || profile.record_id || '';
-  const edges = data?.edgeCount || '0';
-  return `
+  const connections = Array.isArray(data?.connections) ? data.connections : [];
+
+  const team = profile.team || (profile.kind === 'team' ? profile.record_id : '') || '';
+  const role = profile.role || profile.title || '';
+  const handle = profile.handle || profile.gh_handle || '';
+  const bio = profile.bio || profile.description || profile.about || '';
+  const truncatedBio = bio.length > 300 ? bio.slice(0, 280).trim() + '…' : bio;
+
+  // Identity meta strip — handle / team / role. Avatar + name already
+  // live in the panel head; this is the "rest" of the identity stack.
+  const metaRows = [];
+  if (handle) {
+    metaRows.push(`
+      <li class="membrane-event-row">
+        <span class="membrane-event-date">handle</span>
+        <span class="membrane-event-title">@${escHtml(handle)}</span>
+        <span class="membrane-event-meta">${escHtml(role)}</span>
+      </li>`);
+  }
+  if (team) {
+    metaRows.push(`
+      <li class="membrane-event-row">
+        <span class="membrane-event-date">team</span>
+        <span class="membrane-event-title">${escHtml(team)}</span>
+        <span class="membrane-event-meta"></span>
+      </li>`);
+  }
+
+  const identityBlock = (metaRows.length > 0 || truncatedBio) ? `
+    <section class="membrane-section">
+      ${metaRows.length > 0 ? `<ul class="membrane-event-list" role="list">${metaRows.join('')}</ul>` : ''}
+      ${truncatedBio ? `<p class="membrane-bio-line">${escHtml(truncatedBio)}</p>` : ''}
+    </section>` : '';
+
+  if (connections.length === 0) {
+    return identityBlock + `
+      <section class="membrane-section">
+        <header class="membrane-section-head">
+          <h3 class="membrane-section-title">connections</h3>
+          <span class="membrane-section-count">0</span>
+        </header>
+        <p class="membrane-empty">no edges yet — once you join a team and declare dependencies, your constellation lights up.</p>
+      </section>`;
+  }
+
+  // Group connections by edgeType so similar relationships cluster.
+  const ordered = [...connections].sort((a, b) => {
+    const order = { 'teammate': 0, 'depends on': 1, 'depended by': 2 };
+    return (order[a.edgeType] ?? 9) - (order[b.edgeType] ?? 9);
+  });
+
+  const connectionRows = ordered.slice(0, 24).map((c) => `
+    <li class="membrane-event-row membrane-connection-row"
+        data-jump-profile="${escHtml(c.record_id)}"
+        data-jump-kind="${escHtml(c.kind)}"
+        tabindex="0" role="button"
+        aria-label="open ${escHtml(c.name)} in cohort view">
+      <span class="membrane-event-date">${escHtml(c.edgeType)}</span>
+      <span class="membrane-event-title">${escHtml(c.name)}</span>
+      <span class="membrane-event-meta">${escHtml(c.team || c.role || '')}</span>
+    </li>`).join('');
+
+  return identityBlock + `
     <section class="membrane-section">
       <header class="membrane-section-head">
-        <h3 class="membrane-section-title">identity</h3>
+        <h3 class="membrane-section-title">connections</h3>
+        <span class="membrane-section-count">${connections.length}</span>
       </header>
-      <ul class="membrane-event-list" role="list">
-        <li class="membrane-event-row">
-          <span class="membrane-event-date">name</span>
-          <span class="membrane-event-title">${escHtml(name)}</span>
-          <span class="membrane-event-meta"></span>
-        </li>
-        ${team ? `
-        <li class="membrane-event-row">
-          <span class="membrane-event-date">team</span>
-          <span class="membrane-event-title">${escHtml(team)}</span>
-          <span class="membrane-event-meta"></span>
-        </li>` : ''}
-        <li class="membrane-event-row">
-          <span class="membrane-event-date">edges</span>
-          <span class="membrane-event-title">${escHtml(edges)} active</span>
-          <span class="membrane-event-meta"></span>
-        </li>
-      </ul>
+      <ul class="membrane-event-list" role="list">${connectionRows}</ul>
     </section>`;
 }
 
@@ -302,16 +352,45 @@ function renderActionList(template) {
 
 function renderPanelInner(template, data = {}) {
   const inlineHtml = template.inline ? template.inline(data) : '';
+  const title = typeof template.title === 'function' ? template.title(data) : template.title;
+  const accessory = template.headAccessory ? template.headAccessory(data) : '';
   return `
-    <header class="membrane-panel-head">
-      <span class="membrane-panel-eyebrow">${template.eyebrow}</span>
-      <h2 class="membrane-panel-title">${template.title}</h2>
+    <header class="membrane-panel-head${accessory ? ' membrane-panel-head--with-accessory' : ''}">
+      <div class="membrane-panel-head-text">
+        <span class="membrane-panel-eyebrow">${template.eyebrow}</span>
+        <h2 class="membrane-panel-title">${escHtml(title)}</h2>
+      </div>
+      ${accessory}
     </header>
-    <p class="membrane-panel-note">${template.copy}</p>
+    ${template.copy ? `<p class="membrane-panel-note">${template.copy}</p>` : ''}
     <ul class="membrane-panel-list" role="list">${renderStatList(template, data)}</ul>
     ${inlineHtml}
     <ul class="membrane-panel-actions" role="list">${renderActionList(template)}</ul>
   `;
+}
+
+// Avatar renderer — shared between the panel head and any other surface
+// that wants the user's face. Falls back to initials when no GitHub link
+// or the image fails (img onerror flips the parent data attribute).
+function renderAvatar(profile) {
+  const name = profile.name || profile.display_name || profile.handle || profile.gh_handle || '?';
+  const avatarUrl = profile.avatarUrl || null;
+  const initials = (name || '?')
+    .split(/[\s_-]+/).map((s) => s[0] || '').filter(Boolean).slice(0, 2).join('').toUpperCase();
+  if (avatarUrl) {
+    return `
+      <div class="membrane-avatar membrane-avatar--head" data-has-img="true">
+        <img class="membrane-avatar-img"
+             src="${escHtml(avatarUrl)}"
+             alt="${escHtml(name)} avatar"
+             onerror="this.parentElement.removeAttribute('data-has-img'); this.remove();" />
+        <span class="membrane-avatar-initials" aria-hidden="true">${escHtml(initials)}</span>
+      </div>`;
+  }
+  return `
+    <div class="membrane-avatar membrane-avatar--head">
+      <span class="membrane-avatar-initials" aria-hidden="true">${escHtml(initials)}</span>
+    </div>`;
 }
 
 export function mountMembrane(container, opts = {}) {
@@ -321,8 +400,6 @@ export function mountMembrane(container, opts = {}) {
   container.innerHTML = `
     <div class="membrane-stage">
       <div class="membrane-atmosphere" aria-hidden="true">
-        <div class="ma-stars-fine"></div>
-        <div class="ma-stars"></div>
         <div class="ma-throne-presence"></div>
       </div>
       <canvas class="membrane-canvas"></canvas>
@@ -360,8 +437,6 @@ export function mountMembrane(container, opts = {}) {
   const soundToggle = container.querySelector('[data-membrane-sound]');
   const soundState = soundToggle.querySelector('.mst-state');
   const dots = container.querySelectorAll('.membrane-blob-dot');
-  const starsMain = container.querySelector('.ma-stars');
-  const starsFine = container.querySelector('.ma-stars-fine');
   const orbital = container.querySelector('.throne-orbital');
   const orbitalText = container.querySelector('[data-orbital-text]');
 
@@ -393,39 +468,11 @@ export function mountMembrane(container, opts = {}) {
     orbital.classList.add('is-visible');
   }
 
-  function generateStars() {
-    const w = container.clientWidth || window.innerWidth;
-    const h = container.clientHeight || window.innerHeight;
-    const main = [];
-    const mainCount = Math.round((w * h) / 14000);
-    for (let i = 0; i < mainCount; i++) {
-      const x = Math.floor(Math.random() * w);
-      const y = Math.floor(Math.random() * h);
-      const op = (0.35 + Math.random() * 0.55).toFixed(2);
-      const isBright = Math.random() < 0.12;
-      const spread = isBright ? 0.6 : 0;
-      const blur = isBright ? 1 : 0;
-      main.push(`${x}px ${y}px ${blur}px ${spread}px rgba(255,255,255,${op})`);
-    }
-    starsMain.style.boxShadow = main.join(',');
-
-    const fine = [];
-    const fineCount = Math.round((w * h) / 4500);
-    for (let i = 0; i < fineCount; i++) {
-      const x = Math.floor(Math.random() * w);
-      const y = Math.floor(Math.random() * h);
-      const op = (0.10 + Math.random() * 0.25).toFixed(2);
-      fine.push(`${x}px ${y}px 0 0 rgba(255,255,255,${op})`);
-    }
-    starsFine.style.boxShadow = fine.join(',');
-  }
-  generateStars();
+  // Stars now live in the 3D scene (starfield.js mounted in scene.js).
+  // No more CSS box-shadow approach.
   updateOrbitalGeometry();
-  const starResize = new ResizeObserver(() => {
-    generateStars();
-    updateOrbitalGeometry();
-  });
-  starResize.observe(container);
+  const orbitalResize = new ResizeObserver(() => updateOrbitalGeometry());
+  orbitalResize.observe(container);
 
   let dataStore = {};
 
@@ -442,6 +489,21 @@ export function mountMembrane(container, opts = {}) {
         if (typeof window.__srwkAlchemyJump === 'function') {
           window.__srwkAlchemyJump(mode);
         }
+      });
+    });
+    // Connection rows: click jumps to that peer's detail page in the
+    // legacy cohort (shapes) view.
+    panelContent.querySelectorAll('[data-jump-profile]').forEach((row) => {
+      const fire = () => {
+        const id = row.dataset.jumpProfile;
+        if (!id) return;
+        if (typeof window.__srwkAlchemyShowRecord === 'function') {
+          window.__srwkAlchemyShowRecord(id, 'shapes');
+        }
+      };
+      row.addEventListener('click', fire);
+      row.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); fire(); }
       });
     });
     dots.forEach((d) => {
@@ -508,7 +570,7 @@ export function mountMembrane(container, opts = {}) {
     destroy() {
       scene.destroy();
       sound.destroy();
-      starResize.disconnect();
+      orbitalResize.disconnect();
       container.classList.remove('membrane-host');
       container.innerHTML = '';
     },
