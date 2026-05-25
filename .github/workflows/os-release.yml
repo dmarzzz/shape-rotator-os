@@ -126,6 +126,15 @@ jobs:
       - name: regenerate cohort-surface.json from cohort-data/
         run: npm run build:cohort
 
+      # Fast fail-early gate: bundle the renderer's full import graph with
+      # esbuild's real resolver before the ~10-min electron-builder run.
+      # Catches a renderer module importing a bare package that isn't
+      # installed / a module that won't resolve — the gap the afterPack
+      # asar check (relative-only) deliberately skips. Runs on every
+      # platform; cheap and platform-agnostic.
+      - name: bundle-check renderer (esbuild resolver gate)
+        run: npm run bundle:check --workspace @shape-rotator/os
+
       # ── macOS signing prep (gated) ──────────────────────────────
       # Only runs when ALL five signing secrets are present. Decodes
       # the .p12 cert to a temp file and EXPORTS the CSC_/APPLE_ env
