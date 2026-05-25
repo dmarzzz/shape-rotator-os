@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeVertices } from '../../vendor/three-jsm/utils/BufferGeometryUtils.js';
 import { fbm3 } from './noise.js';
 
 // Sculpt a unit-sphere direction into something organic. Pure displacement

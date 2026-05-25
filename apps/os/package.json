@@ -1,7 +1,7 @@
 {
   "name": "@shape-rotator/os",
   "productName": "Shape Rotator OS",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "private": true,
   "main": "main.js",
   "type": "commonjs",
@@ -44,8 +44,7 @@
       "swarm-node.js",
       "swf-node.js",
       "src/**/*",
-      "package.json",
-      "node_modules/three/examples/jsm/**/*"
+      "package.json"
     ],
     "extraMetadata": {
       "main": "main.js"
