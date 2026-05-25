@@ -50,6 +50,7 @@
     "extraMetadata": {
       "main": "main.js"
     },
+    "afterPack": "scripts/after-pack-verify.cjs",
     "directories": {
       "output": "dist",
       "buildResources": "build-resources"
