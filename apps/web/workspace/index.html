@@ -1,0 +1,840 @@
+<html lang="en" vid="0"><head vid="1">
+    <meta charset="UTF-8" vid="2">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" vid="3">
+    <title vid="4">Shape Rotator // Centaur Workspace</title>
+
+
+
+    <style vid="5">
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+
+        :root {
+            --bg: #FFFFFF;
+            --fg: #050505;
+            --fg-muted: #888888;
+            --line: 1px solid var(--fg);
+            --font-mono: 'JetBrains Mono', monospace;
+            --grid-pad: 0.75rem;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        html, body {
+            width: 100vw;
+            height: 100dvh;
+            background-color: var(--bg);
+            color: var(--fg);
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 400;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: -0.03em;
+        }
+
+
+        #workspace {
+            display: grid;
+            grid-template-rows: 40px minmax(0, 1fr) 25vh 18vh;
+            height: 100%;
+            width: 100%;
+            border: var(--line);
+        }
+
+
+        .panel {
+            position: relative;
+            border-bottom: var(--line);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel:last-child {
+            border-bottom: none;
+        }
+
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 var(--grid-pad);
+            border-bottom: var(--line);
+            font-weight: 700;
+            background: var(--bg);
+            z-index: 10;
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .blink {
+            width: 6px;
+            height: 6px;
+            background: var(--fg);
+            animation: pulse 1s infinite steps(2);
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0; } }
+
+
+        #engine-room {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: var(--bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        #engine-room::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: url('workspace.jpg');
+            background-size: cover;
+            background-position: center;
+            filter: grayscale(1) contrast(1.4) brightness(1.05) sepia(0.35) hue-rotate(-10deg);
+            z-index: 0;
+            animation: filter-breathe 12s ease-in-out infinite;
+        }
+        @keyframes filter-breathe {
+            0%, 100% { filter: grayscale(1) contrast(1.4) brightness(1.05) sepia(0.35) hue-rotate(-10deg); }
+            50%      { filter: grayscale(0.85) contrast(1.55) brightness(1.1) sepia(0.5) hue-rotate(-15deg); }
+        }
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        .engine-overlay {
+            position: absolute;
+            top: var(--grid-pad);
+            left: var(--grid-pad);
+            right: var(--grid-pad);
+            bottom: var(--grid-pad);
+            z-index: 2;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .crosshair {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-left: 1px solid var(--fg-muted);
+            border-top: 1px solid var(--fg-muted);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .crosshair::after {
+            content: '';
+            position: absolute;
+            right: -20px;
+            bottom: -20px;
+            width: 20px;
+            height: 20px;
+            border-right: 1px solid var(--fg-muted);
+            border-bottom: 1px solid var(--fg-muted);
+        }
+
+
+        #agent-grind {
+            border-bottom: var(--line);
+            padding: var(--grid-pad);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            background: var(--bg);
+        }
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            color: var(--fg-muted);
+            margin-bottom: 8px;
+            font-size: 9px;
+            border-bottom: 1px dotted var(--fg-muted);
+            padding-bottom: 4px;
+        }
+        .log-stream {
+            overflow-y: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            position: relative;
+        }
+        .log-line {
+            display: grid;
+            grid-template-columns: 50px 40px 1fr;
+            gap: 8px;
+            line-height: 1.2;
+            opacity: 0;
+            animation: fadeInLog 0.2s forwards;
+        }
+        .log-time { color: var(--fg-muted); }
+        .log-agent { font-weight: 700; }
+        .log-action { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .op-link {
+            color: inherit;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            text-decoration-thickness: 1px;
+            cursor: pointer;
+        }
+        .op-link:hover {
+            background: var(--fg);
+            color: var(--bg);
+            text-decoration: none;
+        }
+
+        #attendee-roster {
+            position: fixed;
+            top: 48px;
+            right: 12px;
+            width: 220px;
+            max-height: calc(100dvh - 110px);
+            overflow-y: auto;
+            z-index: 80;
+            border: var(--line);
+            background: var(--bg);
+            padding: 8px 10px;
+            font-size: 9px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+        #attendee-roster.live {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #attendee-roster .roster-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 700;
+            border-bottom: 1px dotted var(--fg-muted);
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+        }
+        #attendee-roster .roster-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            padding: 2px 0;
+            line-height: 1.3;
+        }
+        #attendee-roster .roster-row + .roster-row {
+            border-top: 1px dotted rgba(0,0,0,0.06);
+        }
+        #attendee-roster .roster-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--fg);
+        }
+        #attendee-roster .roster-handle {
+            color: var(--fg-muted);
+            text-decoration: none;
+        }
+        #attendee-roster .roster-handle:hover {
+            color: var(--fg);
+            text-decoration: underline;
+        }
+        #attendee-roster .roster-empty {
+            color: var(--fg-muted);
+            font-style: italic;
+        }
+
+        @keyframes fadeInLog { to { opacity: 1; } }
+
+
+        #operator-deck {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            background: var(--bg);
+        }
+        .ctrl-btn {
+            border-right: var(--line);
+            border-bottom: var(--line);
+            background: none;
+            color: var(--fg);
+            font-family: var(--font-mono);
+            font-size: 11px;
+            text-transform: uppercase;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: var(--grid-pad);
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.1s;
+        }
+        .ctrl-btn:nth-child(even) { border-right: none; }
+        .ctrl-btn:nth-child(3), .ctrl-btn:nth-child(4) { border-bottom: none; }
+
+        .ctrl-btn:active {
+            background: var(--fg);
+            color: var(--bg);
+        }
+        .btn-label { font-weight: 700; }
+        .btn-val { color: var(--fg-muted); font-size: 9px; align-self: flex-end; }
+
+        .ctrl-btn:active .btn-val { color: var(--bg); }
+
+        .override-btn {
+            background: var(--fg);
+            color: var(--bg);
+        }
+        .override-btn .btn-val {
+            color: #888;
+        }
+        .override-btn:active {
+            background: #333;
+        }
+
+
+        .meta { color: var(--fg-muted); font-size: 9px; }
+        .flex-between { display: flex; justify-content: space-between; width: 100%; }
+
+
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.02) 50%, rgba(0,0,0,0.02));
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+
+        #entry-gate {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            color: var(--fg);
+            text-transform: uppercase;
+            letter-spacing: -0.03em;
+            transition: opacity 0.6s ease-out;
+        }
+        #entry-gate.dismissed {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .gate-title {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .gate-meta {
+            font-size: 10px;
+            color: var(--fg-muted);
+        }
+        .gate-btn {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: -0.03em;
+            background: var(--fg);
+            color: var(--bg);
+            border: none;
+            padding: 14px 28px;
+            cursor: pointer;
+        }
+        .gate-btn:hover { background: #333; }
+
+        #audio-container {
+            position: fixed;
+            right: 12px;
+            bottom: 12px;
+            width: 300px;
+            height: 80px;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 90;
+            transition: opacity 0.4s ease;
+        }
+        #audio-container.live {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #spotify-embed,
+        #spotify-embed iframe {
+            display: block;
+            width: 100%;
+            height: 80px;
+            border: 0;
+        }
+
+        #audio-toggle {
+            position: fixed;
+            bottom: 100px;
+            right: 12px;
+            z-index: 90;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: -0.03em;
+            background: var(--fg);
+            color: var(--bg);
+            border: none;
+            padding: 8px 14px;
+            cursor: pointer;
+            transition: opacity 0.4s ease, background 0.1s;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #audio-toggle.live {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #audio-toggle:hover { background: #333; }
+        #audio-toggle:active { background: var(--bg); color: var(--fg); border: var(--line); padding: 7px 13px; }
+    </style>
+</head>
+<body vid="6">
+
+    <div class="scanlines" vid="7"></div>
+
+
+    <div id="entry-gate">
+        <div class="gate-title">[SHAPE_ROTATOR]</div>
+        <div class="gate-meta">ROOM: ENGINE_01 // COHORT: LVRG_MAX</div>
+        <button class="gate-btn" id="gate-btn">[ ENTER ]</button>
+        <div class="gate-meta">PRESS TO ENTER // CLICK PLAYER FOR AUDIO</div>
+    </div>
+
+
+    <div id="audio-container"><div id="spotify-embed"></div></div>
+    <button id="audio-toggle" aria-label="Hide audio player">[ HIDE AUDIO ]</button>
+
+    <aside id="attendee-roster">
+        <div class="roster-header">
+            <span>// COHORT_ROSTER</span>
+            <span class="roster-count">--</span>
+        </div>
+        <div id="roster-body">
+            <div class="roster-empty">loading from OS…</div>
+        </div>
+    </aside>
+
+    <div id="workspace" vid="8">
+
+
+        <header vid="9">
+            <div vid="10">[SHAPE_ROTATOR]</div>
+            <div class="status-indicator" vid="11">
+                <span class="meta" vid="12">ROOM: ENGINE_01</span>
+                <div class="blink" vid="13"></div>
+            </div>
+        </header>
+
+
+        <section class="panel" id="engine-room" vid="14">
+            <div id="canvas-container" vid="15"></div>
+            <div class="engine-overlay" vid="16">
+                <div class="flex-between meta" vid="17">
+                    <span vid="18">COHORT // LVRG_MAX</span>
+                    <span id="gate-timer" vid="19">T-GATE: 04:12:09</span>
+                </div>
+                <div class="crosshair" vid="20"></div>
+                <div class="flex-between meta" style="align-items: flex-end;" vid="21">
+                    <span vid="22">GEN: PARAMETRIC<br vid="23">SWEEP: ACTIVE</span>
+                    <span style="text-align: right;" vid="24">VAR_THETA: 0.84<br vid="25">ITER: <span id="iter-count" vid="26">0000</span></span>
+                </div>
+            </div>
+        </section>
+
+
+        <section class="panel" id="agent-grind" vid="27">
+            <div class="log-header" vid="28">
+                <span vid="29">// AGENT WORKSPACE</span>
+                <span vid="30">CONTEXT . CODE . PROOF</span>
+            </div>
+            <div class="log-stream" id="log-container" vid="31">
+
+            </div>
+        </section>
+
+
+        <section class="panel" id="operator-deck" vid="32">
+            <button class="ctrl-btn" vid="33">
+                <span class="btn-label" vid="34">TASTE</span>
+                <span class="btn-val" vid="35">ALIGN_0.9</span>
+            </button>
+            <button class="ctrl-btn" vid="36">
+                <span class="btn-label" vid="37">TRUST</span>
+                <span class="btn-val" vid="38">VERIFY_ON</span>
+            </button>
+            <button class="ctrl-btn" vid="39">
+                <span class="btn-label" vid="40">TIMING</span>
+                <span class="btn-val" vid="41">GATE_HOLD</span>
+            </button>
+            <button class="ctrl-btn override-btn" vid="42">
+                <span class="btn-label" vid="43">OVERRIDE</span>
+                <span class="btn-val" vid="44">RESET_METHOD</span>
+            </button>
+        </section>
+
+    </div>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" vid="45"></script>
+    <script vid="46">
+
+
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+
+        const aspect = container.clientWidth / container.clientHeight;
+        const frustumSize = 10;
+        const camera = new THREE.OrthographicCamera(
+            frustumSize * aspect / - 2,
+            frustumSize * aspect / 2,
+            frustumSize / 2,
+            frustumSize / - 2,
+            0.1, 1000
+        );
+        camera.position.z = 10;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setClearColor(0x000000, 0);
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const group = new THREE.Group();
+        scene.add(group);
+
+        const material = new THREE.LineBasicMaterial({
+            color: 0x050505,
+            transparent: true,
+            opacity: 0.65,
+            linewidth: 1
+        });
+
+        const numLines = 80;
+        const segments = 120;
+
+
+        for (let i = 0; i < numLines; i++) {
+            const points = [];
+            const offset = (i / numLines) * Math.PI * 2;
+
+            for (let j = 0; j <= segments; j++) {
+                const t = (j / segments) * Math.PI * 2;
+
+
+
+                const r1 = 3;
+                const r2 = 1.5 * Math.sin(offset);
+
+                const x = (r1 + r2 * Math.cos(t)) * Math.cos(t + offset);
+                const y = (r1 + r2 * Math.cos(t)) * Math.sin(t + offset);
+                const z = r2 * Math.sin(t);
+
+
+                const pinch = Math.sin(t / 2);
+
+                points.push(new THREE.Vector3(x * pinch, y * pinch + (Math.sin(offset)*1.5), z));
+            }
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const line = new THREE.Line(geometry, material);
+
+
+            line.rotation.x = Math.PI / 4;
+            line.rotation.y = -Math.PI / 6;
+
+            group.add(line);
+        }
+
+
+        group.scale.set(1.2, 1.2, 1.2);
+
+
+        let time = 0;
+        const iterCountEl = document.getElementById('iter-count');
+
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.002;
+
+
+            group.rotation.z = time * 0.5;
+            group.rotation.x = Math.sin(time * 0.2) * 0.1;
+
+
+            if(Math.floor(time * 100) % 10 === 0) {
+                 iterCountEl.innerText = String(Math.floor(time * 1000)).padStart(4, '0');
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+
+        window.addEventListener('resize', () => {
+            const aspect = container.clientWidth / container.clientHeight;
+            camera.left = -frustumSize * aspect / 2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = -frustumSize / 2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+
+        const logContainer = document.getElementById('log-container');
+
+        const OS_REPO = 'dmarzzz/shape-rotator-os';
+        const cohort = {
+            people:    ['boot.fallback'],
+            events:    ['boot.fallback'],
+            teams:     ['boot.fallback'],
+            commits:   [{ sha: '0000000', msg: 'awaiting sync', name: 'SYS', handle: null }],
+            attendees: []
+        };
+        window.cohort = cohort;
+
+        const escapeHTML = (s) => String(s).replace(/[&<>"']/g, (c) => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+        ));
+        const safeHandle = (h) => /^[A-Za-z0-9-]+$/.test(h) ? h : null;
+        const linkifyHandle = (handle) => {
+            const h = safeHandle(handle);
+            return h
+                ? `<a class="op-link" href="https://github.com/${h}" target="_blank" rel="noopener">@${h}</a>`
+                : '';
+        };
+
+        const stripYamlScalar = (s) => {
+            if (s == null) return null;
+            let v = String(s).trim();
+            if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+                v = v.slice(1, -1);
+            }
+            return v === '' || v === 'null' ? null : v;
+        };
+
+        function parsePersonMarkdown(md, slug) {
+            const fmMatch = md.match(/^---\s*\n([\s\S]*?)\n---/);
+            if (!fmMatch) return null;
+            const fm = fmMatch[1];
+            const nameRaw = (fm.match(/^name:\s*(.+?)\s*$/m) || [])[1];
+            const teamRaw = (fm.match(/^team:\s*(.+?)\s*$/m) || [])[1];
+            const linksMatch = fm.match(/^links:\s*\n((?:[ \t]+\S[^\n]*\n?)+)/m);
+            let githubRaw = null;
+            if (linksMatch) {
+                const g = linksMatch[1].match(/^[ \t]+github:\s*(.+?)\s*$/m);
+                if (g) githubRaw = g[1];
+            }
+            return {
+                slug,
+                name: stripYamlScalar(nameRaw) || slug,
+                team: stripYamlScalar(teamRaw),
+                handle: stripYamlScalar(githubRaw)
+            };
+        }
+
+        function renderRoster() {
+            const body = document.getElementById('roster-body');
+            const countEl = document.querySelector('#attendee-roster .roster-count');
+            if (!cohort.attendees.length) {
+                body.innerHTML = '<div class="roster-empty">no attendees parsed</div>';
+                countEl.textContent = '--';
+                return;
+            }
+            countEl.textContent = String(cohort.attendees.length);
+            body.innerHTML = cohort.attendees
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((a) => {
+                    const handlePart = a.handle
+                        ? `<a class="roster-handle" href="https://github.com/${safeHandle(a.handle) || ''}" target="_blank" rel="noopener">@${escapeHTML(a.handle)}</a>`
+                        : '<span class="roster-handle">—</span>';
+                    return `<div class="roster-row"><span class="roster-name">${escapeHTML(a.name)}</span>${handlePart}</div>`;
+                })
+                .join('');
+        }
+
+        async function loadCohortData() {
+            const dir = (p) => fetch(`https://api.github.com/repos/${OS_REPO}/contents/${p}`).then(r => r.ok ? r.json() : []);
+            try {
+                const [people, events, teams, commitsResp] = await Promise.all([
+                    dir('cohort-data/people'),
+                    dir('cohort-data/events'),
+                    dir('cohort-data/teams'),
+                    fetch(`https://api.github.com/repos/${OS_REPO}/commits?per_page=30`).then(r => r.ok ? r.json() : [])
+                ]);
+
+                const slugs = (list) => (Array.isArray(list) ? list : [])
+                    .filter(f => f && f.name && f.name.endsWith('.md'))
+                    .map(f => f.name.replace(/\.md$/, ''));
+
+                if (slugs(events).length) cohort.events = slugs(events);
+                if (slugs(teams).length)  cohort.teams  = slugs(teams);
+
+                const personSlugs = slugs(people);
+                if (personSlugs.length) {
+                    cohort.people = personSlugs;
+                    const rawBase = `https://raw.githubusercontent.com/${OS_REPO}/main/cohort-data/people`;
+                    const rawMd = await Promise.all(personSlugs.map(slug =>
+                        fetch(`${rawBase}/${encodeURIComponent(slug)}.md`).then(r => r.ok ? r.text() : '').catch(() => '')
+                    ));
+                    const parsed = rawMd
+                        .map((md, i) => md ? parsePersonMarkdown(md, personSlugs[i]) : null)
+                        .filter(Boolean);
+                    cohort.attendees = parsed;
+                    renderRoster();
+                }
+
+                if (Array.isArray(commitsResp) && commitsResp.length) {
+                    cohort.commits = commitsResp.map(c => ({
+                        sha:    (c.sha || '0000000').slice(0, 7),
+                        msg:    ((c.commit && c.commit.message) || '').split('\n')[0].slice(0, 44),
+                        name:   ((c.commit && c.commit.author && c.commit.author.name) || 'SYS').replace(/\s*\[bot\]\s*$/i, ''),
+                        handle: (c.author && c.author.login) || null
+                    }));
+                }
+            } catch (e) {
+                console.warn('[cohort fetch failed]', e);
+            }
+        }
+
+        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+        const operatorPool = () => {
+            const withHandles = cohort.attendees.filter(a => a.handle);
+            return withHandles.length ? withHandles : cohort.attendees;
+        };
+
+        const operatorLine = () => {
+            const pool = operatorPool();
+            if (!pool.length) return { agent: 'GATE', action: 'AWAIT_OPERATOR_GATE: SYS' };
+            const op = pick(pool);
+            const handleHTML = op.handle ? ' ' + linkifyHandle(op.handle) : '';
+            return { agent: 'GATE', action: `AWAIT_OPERATOR_GATE: ${escapeHTML(op.name)}${handleHTML}` };
+        };
+
+        const lineGenerators = [
+            operatorLine,
+            operatorLine,
+            () => ({ agent: 'COHORT',  action: `PRESENT.${escapeHTML(pick(cohort.people))}` }),
+            () => ({ agent: 'EVENT',   action: `SCHED.${escapeHTML(pick(cohort.events))}` }),
+            () => ({ agent: 'TEAM',    action: `HEARTBEAT.${escapeHTML(pick(cohort.teams))}` }),
+            () => ({ agent: 'TEAM',    action: `PUSH.${escapeHTML(pick(cohort.teams))} → ${escapeHTML(pick(cohort.people))}` }),
+            () => {
+                const c = pick(cohort.commits);
+                const who = c.handle ? linkifyHandle(c.handle) : escapeHTML(c.name);
+                return { agent: (c.handle || c.name || 'GHA').slice(0, 6), action: `${escapeHTML(c.msg)} [${c.sha}] ${who}` };
+            },
+            () => ({ agent: 'ROOM',    action: `engine_01 ack ${escapeHTML(pick(cohort.people))}` })
+        ];
+
+        function addLogLine() {
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+            const { agent, action } = lineGenerators[Math.floor(Math.random() * lineGenerators.length)]();
+
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            line.innerHTML = `
+                <span class="log-time">${timeStr}</span>
+                <span class="log-agent">${agent}</span>
+                <span class="log-action">${action}</span>
+            `;
+
+            logContainer.appendChild(line);
+            if (logContainer.children.length > 6) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+
+        loadCohortData().then(() => {
+            for (let i = 0; i < 6; i++) addLogLine();
+        });
+        setInterval(addLogLine, 900);
+
+
+        let gateTime = 4 * 3600 + 12 * 60 + 9;
+        const gateTimerEl = document.getElementById('gate-timer');
+
+        setInterval(() => {
+            gateTime--;
+            if(gateTime < 0) gateTime = 0;
+            const h = String(Math.floor(gateTime / 3600)).padStart(2, '0');
+            const m = String(Math.floor((gateTime % 3600) / 60)).padStart(2, '0');
+            const s = String(gateTime % 60).padStart(2, '0');
+            gateTimerEl.innerText = `T-GATE: ${h}:${m}:${s}`;
+        }, 1000);
+
+
+
+        const audioContainer = document.getElementById('audio-container');
+        const audioToggle = document.getElementById('audio-toggle');
+
+        window.onSpotifyIframeApiReady = (IFrameAPI) => {
+            const element = document.getElementById('spotify-embed');
+            const options = {
+                width: '100%',
+                height: 80,
+                uri: 'spotify:track:0JpzXVdRKzqmP4RRwfHQio'
+            };
+            IFrameAPI.createController(element, options, () => {});
+        };
+
+        const gate = document.getElementById('entry-gate');
+
+        function dismissGate() {
+            gate.classList.add('dismissed');
+            audioContainer.classList.add('live');
+            audioToggle.classList.add('live');
+            document.getElementById('attendee-roster').classList.add('live');
+            setTimeout(() => { gate.remove(); }, 700);
+        }
+
+        gate.addEventListener('click', dismissGate);
+        document.addEventListener('keydown', () => {
+            if (gate.isConnected) dismissGate();
+        }, { once: true });
+
+        audioToggle.addEventListener('click', () => {
+            const showing = audioContainer.classList.toggle('live');
+            if (showing) {
+                audioToggle.textContent = '[ HIDE AUDIO ]';
+                audioToggle.setAttribute('aria-label', 'Hide audio player');
+            } else {
+                audioToggle.textContent = '[ SHOW AUDIO ]';
+                audioToggle.setAttribute('aria-label', 'Show audio player');
+            }
+        });
+
+    </script>
+
+    <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
+
+</body></html>
