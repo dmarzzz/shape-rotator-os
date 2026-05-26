@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shape Rotator // Workspace Journal</title>
+  <meta name="description" content="Shape Rotator workspace journal: markdown-style AI, LLM, agent, spatial computing, and founder field notes from Day 1 project intros.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+
+    :root {
+      --bg: #ffffff;
+      --fg: #050505;
+      --fg-muted: #858585;
+      --line: 1px solid var(--fg);
+      --soft-line: 1px dotted rgba(5, 5, 5, 0.24);
+      --paper: #f7f7f4;
+      --font-mono: 'JetBrains Mono', monospace;
+      --grid-pad: 0.75rem;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    html,
+    body {
+      width: 100vw;
+      height: 100dvh;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      line-height: 1.35;
+      letter-spacing: -0.03em;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    a:hover {
+      background: var(--fg);
+      color: var(--bg);
+    }
+
+    .scanlines {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      pointer-events: none;
+      background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.025) 50%, rgba(0,0,0,0.025));
+      background-size: 100% 4px;
+    }
+
+    .journal-os {
+      display: grid;
+      grid-template-rows: 40px minmax(0, 1fr);
+      width: 100%;
+      height: 100%;
+      border: var(--line);
+    }
+
+    .journal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--grid-pad);
+      padding: 0 var(--grid-pad);
+      border-bottom: var(--line);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .head-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      white-space: nowrap;
+    }
+
+    .head-link {
+      border-left: 1px dotted var(--fg-muted);
+      padding-left: 12px;
+      font-weight: 400;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--fg-muted);
+    }
+
+    .blink {
+      width: 6px;
+      height: 6px;
+      background: var(--fg);
+      animation: pulse 1s infinite steps(2);
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .journal-grid {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 270px minmax(0, 1fr) 260px;
+      border-bottom: var(--line);
+    }
+
+    .panel {
+      min-width: 0;
+      min-height: 0;
+      border-right: var(--line);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .panel:last-child {
+      border-right: 0;
+    }
+
+    .panel-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: var(--grid-pad);
+      border-bottom: var(--line);
+      color: var(--fg-muted);
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .source-list,
+    .index-list,
+    .md-scroll {
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .source-list,
+    .index-list {
+      display: grid;
+      align-content: start;
+      gap: 0;
+      background: var(--paper);
+    }
+
+    .source-row,
+    .index-row {
+      display: grid;
+      gap: 5px;
+      padding: 10px var(--grid-pad);
+      border-bottom: var(--soft-line);
+    }
+
+    .source-row time,
+    .index-row span {
+      color: var(--fg-muted);
+      font-size: 9px;
+      font-feature-settings: "tnum" 1;
+      text-transform: uppercase;
+    }
+
+    .source-row strong,
+    .index-row strong {
+      font-size: 10px;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .source-row p,
+    .index-row p {
+      color: var(--fg-muted);
+      font-size: 10px;
+      line-height: 1.3;
+    }
+
+    .md-scroll {
+      padding: 0;
+      background:
+        linear-gradient(90deg, rgba(0,0,0,0.035) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(0,0,0,0.028) 1px, transparent 1px),
+        var(--bg);
+      background-size: 28px 28px;
+    }
+
+    .md-file {
+      max-width: 940px;
+      margin: 0 auto;
+      padding: 18px clamp(16px, 4vw, 46px) 34px;
+      border-left: var(--line);
+      border-right: var(--line);
+      background: rgba(255, 255, 255, 0.88);
+    }
+
+    .md-path {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: var(--soft-line);
+      color: var(--fg-muted);
+      font-size: 9px;
+      text-transform: uppercase;
+    }
+
+    .md-block {
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: var(--line);
+    }
+
+    .md-block:last-child {
+      margin-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .frontmatter {
+      margin: 0 0 16px;
+      padding: 12px;
+      border: var(--line);
+      background: var(--paper);
+      color: var(--fg);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      text-transform: none;
+    }
+
+    .md-block h1,
+    .md-block h2 {
+      margin: 0 0 10px;
+      font-size: clamp(18px, 2.1vw, 30px);
+      line-height: 1.05;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      text-transform: uppercase;
+    }
+
+    .md-block h1::before {
+      content: "# ";
+      color: var(--fg-muted);
+    }
+
+    .md-block h2::before {
+      content: "## ";
+      color: var(--fg-muted);
+    }
+
+    .md-block p {
+      max-width: 82ch;
+      margin: 0 0 10px;
+      font-size: 12px;
+      line-height: 1.55;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    .md-block ul {
+      display: grid;
+      gap: 6px;
+      max-width: 82ch;
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .md-block li {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr);
+      gap: 8px;
+      font-size: 11px;
+      line-height: 1.45;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    .md-block li::before {
+      content: "-";
+      color: var(--fg-muted);
+    }
+
+    .pull {
+      margin: 14px 0 0;
+      padding: 10px 12px;
+      border-left: 3px solid var(--fg);
+      background: var(--paper);
+      font-size: 11px;
+      line-height: 1.45;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    .tag-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .tag-line span {
+      padding: 4px 7px;
+      border: 1px solid var(--fg);
+      font-size: 9px;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 980px) {
+      html,
+      body {
+        height: auto;
+        min-height: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+
+      .journal-os {
+        min-height: 100dvh;
+        height: auto;
+      }
+
+      .journal-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        border-right: 0;
+        border-bottom: var(--line);
+      }
+
+      .source-list,
+      .index-list {
+        max-height: 260px;
+      }
+
+      .md-file {
+        border-left: 0;
+        border-right: 0;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .journal-header {
+        align-items: flex-start;
+        height: auto;
+        min-height: 44px;
+        padding-block: 8px;
+        flex-direction: column;
+      }
+
+      .head-left {
+        flex-wrap: wrap;
+      }
+
+      .md-file {
+        padding-inline: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="scanlines"></div>
+
+  <main class="journal-os">
+    <header class="journal-header">
+      <div class="head-left">
+        <a href="/">[SHAPE_ROTATOR]</a>
+        <a class="head-link" href="/workspace">[ WORKSPACE ]</a>
+        <span class="head-link">[ JOURNAL.MD ]</span>
+      </div>
+      <div class="status">
+        <span>SOURCE: DAY_1_PROJECT_INTROS</span>
+        <span class="blink"></span>
+      </div>
+    </header>
+
+    <section class="journal-grid" aria-label="workspace journal markdown reader">
+      <aside class="panel">
+        <div class="panel-title">
+          <span>// SOURCE MARKS</span>
+          <span>MAY 19</span>
+        </div>
+        <div class="source-list">
+          <div class="source-row"><time>00:15:45</time><strong>Prediction-market hedge demo</strong><p>Portfolio -> risk factors -> event candidates -> operator weights.</p></div>
+          <div class="source-row"><time>01:14:21</time><strong>Feedling black-box loop</strong><p>Screen capture as input, notifications as output, action as feedback.</p></div>
+          <div class="source-row"><time>01:31:49</time><strong>Privacy substrate</strong><p>Encrypted context, approved deployments, remote attestation.</p></div>
+          <div class="source-row"><time>02:11:46</time><strong>Ethereia attention field</strong><p>Speech visualization changes how people listen in the room.</p></div>
+          <div class="source-row"><time>02:38:16</time><strong>Q / Easel / shader stack</strong><p>Timeline, projection mapping, compositing, and tool control.</p></div>
+          <div class="source-row"><time>04:20:02</time><strong>Carter founder journey</strong><p>Art recommendation algorithms meet market reality.</p></div>
+          <div class="source-row"><time>04:40:12</time><strong>Founder warning</strong><p>Do not build an exciting solution that is still chasing a problem.</p></div>
+        </div>
+      </aside>
+
+      <article class="panel">
+        <div class="panel-title">
+          <span>// WORKSPACE/JOURNAL/DAY-1.MD</span>
+          <span>PUBLIC_CANON</span>
+        </div>
+        <div class="md-scroll">
+          <div class="md-file">
+            <div class="md-path">
+              <span>cohort-data</span>
+              <span>/</span>
+              <span>workspace</span>
+              <span>/</span>
+              <span>journal</span>
+              <span>/</span>
+              <span>day-1-project-intros.md</span>
+            </div>
+
+            <section class="md-block">
+              <pre class="frontmatter">---
+record_id: day-1-project-intros
+record_type: journal
+schema_version: 1
+date: 2026-05-19
+source: Day 1 Project Intros Notes May 19 2026.txt
+surface: workspace/journal
+topics:
+  - ai agents
+  - llm interfaces
+  - prediction markets
+  - private context
+  - spatial computing
+  - founder lessons
+---</pre>
+              <h1>The transcript is the workspace</h1>
+              <p>Day 1 did not read like a clean conference agenda. It read like the operating system of the cohort booting in public: teams showing unfinished tools, mentors asking where the market is, and the room repeatedly returning to taste, trust, timing, and override.</p>
+              <p>The journal should keep that quality. It is not a polished blog. It is the public markdown layer over the raw room.</p>
+            </section>
+
+            <section class="md-block">
+              <pre class="frontmatter">---
+record_id: ai-risk-engine-events
+kind: article
+source_time: 00:15:45-01:00:31
+---</pre>
+              <h2>Prediction markets become an AI hedging surface</h2>
+              <p>The first project turned a portfolio into a graph of event exposure. The agent scanned positions, inferred risks like supply chain, regulation, politics, and geopolitics, then proposed prediction-market events as hedges.</p>
+              <ul>
+                <li><span>The useful interface was not "ask AI about markets." It was a control panel where the operator could inspect risk factors, remove events, change weights, and route execution.</span></li>
+                <li><span>The product question is whether prediction markets are faster or richer signal than public markets for risks traditional assets do not price cleanly.</span></li>
+                <li><span>The AI/LLM angle is event selection plus explanation, not autonomous trading alone.</span></li>
+              </ul>
+              <div class="tag-line"><span>LLM reasoning</span><span>portfolio hedging</span><span>RFQ</span><span>event markets</span></div>
+            </section>
+
+            <section class="md-block">
+              <pre class="frontmatter">---
+record_id: feedling-notification-loop
+kind: article
+source_time: 01:14:21-01:37:11
+---</pre>
+              <h2>Notifications are the output layer of the agent</h2>
+              <p>Feedling described a person as a black box. Screen history is the input. Notifications are the output. The metric is what the person does downstream after the nudge.</p>
+              <p>This is a sharper framing than a generic assistant. It makes the system accountable to behavior, not chat satisfaction.</p>
+              <div class="pull">The hard missing event is the notification that should have happened but did not. That is the implicit failure mode the product has to learn to see.</div>
+              <div class="tag-line"><span>personal ai</span><span>screen memory</span><span>agent feedback</span><span>attention</span></div>
+            </section>
+
+            <section class="md-block">
+              <pre class="frontmatter">---
+record_id: private-context-is-substrate
+kind: article
+source_time: 01:31:49-01:33:12
+---</pre>
+              <h2>Private context is not a settings page</h2>
+              <p>The more useful the agent becomes, the more sensitive the context it wants. That means privacy is not a feature label. It is the substrate: local capture, encrypted memory, shared private data, approved deployments, and attestation when code changes.</p>
+              <ul>
+                <li><span>If the model watches screens, users need a legible policy for what leaves the device.</span></li>
+                <li><span>If remote compute touches private data, users need proof about the code that is running.</span></li>
+                <li><span>If teammates search each other's synthesized skills, the permission model becomes the product.</span></li>
+              </ul>
+              <div class="tag-line"><span>TEE</span><span>attestation</span><span>encrypted memory</span><span>private agents</span></div>
+            </section>
+
+            <section class="md-block">
+              <pre class="frontmatter">---
+record_id: spatial-imagination-room
+kind: article
+source_time: 02:11:46-02:58:10
+---</pre>
+              <h2>The room can answer back</h2>
+              <p>Ethereia, Q, Easel, and shader tools made the room feel like an interface. Speech became visuals. Recording became visible. Conversation became something the group could inspect, steer, and feel together.</p>
+              <p>The important claim is not that visuals are entertaining. It is that spatial AI can change attention and presence when the system responds to the room without taking everyone out of it.</p>
+              <ul>
+                <li><span>Q is the timing layer: when to pass, interrupt, reset, update, or hold a scene.</span></li>
+                <li><span>Easel is the composition layer: stack media, shaders, projection maps, and timelines.</span></li>
+                <li><span>The operator still needs knobs, because room energy changes faster than a static prompt.</span></li>
+              </ul>
+              <div class="tag-line"><span>spatial computing</span><span>conversation visualizer</span><span>generative stage</span><span>LLM tool calling</span></div>
+            </section>
+
+            <section class="md-block">
+              <pre class="frontmatter">---
+record_id: founder-lesson-artsy
+kind: article
+source_time: 04:20:02-04:41:31
+---</pre>
+              <h2>Do not confuse an elegant technical problem with a market</h2>
+              <p>Carter's Artsy story is useful because it does not flatten the founder journey into either heroics or cynicism. The original art recommendation idea had taste and technical depth, but the company still had to fight through supply, trust, pricing, entrenched behavior, and the simple question of who pays.</p>
+              <div class="pull">For this cohort, the warning is direct: building a beautiful solution is not the same as finding a painful problem.</div>
+              <div class="tag-line"><span>founder lessons</span><span>customer pain</span><span>market pull</span><span>mission</span></div>
+            </section>
+          </div>
+        </div>
+      </article>
+
+      <aside class="panel">
+        <div class="panel-title">
+          <span>// INDEX</span>
+          <span>MECHANISMS</span>
+        </div>
+        <div class="index-list">
+          <div class="index-row"><span>01 / taste</span><strong>Interface opinion</strong><p>Does the AI output have a shape, or is it just model text?</p></div>
+          <div class="index-row"><span>02 / trust</span><strong>Proof boundary</strong><p>What private context is needed, and who can inspect the policy?</p></div>
+          <div class="index-row"><span>03 / timing</span><strong>Right moment</strong><p>When should the agent interrupt, wait, route, or update?</p></div>
+          <div class="index-row"><span>04 / override</span><strong>Human knobs</strong><p>Where can the operator change the system before it acts?</p></div>
+          <div class="index-row"><span>seo / ai</span><strong>LLM crawl surface</strong><p>Public notes for AI agents, LLM interfaces, spatial computing, and founder operating systems.</p></div>
+        </div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

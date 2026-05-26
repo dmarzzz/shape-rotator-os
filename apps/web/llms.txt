@@ -1,0 +1,26 @@
+# Shape Rotator OS
+
+> Public web surface for the Shape Rotator cohort and workspace.
+
+Important pages:
+
+- [Workspace](https://os-web.shaperotator.xyz/workspace): immersive Shape Rotator control-room surface.
+- [Workspace journal](https://os-web.shaperotator.xyz/workspace/journal): public field notes and AI/LLM mechanism essays.
+- [Cohort](https://os-web.shaperotator.xyz/cohort): public cohort viewer.
+- [Calendar](https://os-web.shaperotator.xyz/calendar): public program calendar.
+- [Links](https://os-web.shaperotator.xyz/links): important project links.
+
+Journal themes:
+
+- LLM agents
+- AI workflow memory
+- human-in-the-loop AI
+- Model Context Protocol
+- AI trust and verification
+- trusted execution environments
+- agentic workspaces
+- creative AI tools
+
+Source context:
+
+The workspace journal is designed as the public canon for selected notes from source streams such as the Shape Rotator Router profile at `https://shaperotator.teleport.computer/profile?handle=whimsy`, plus manual artifacts, GitHub work, and local creative experiments.
