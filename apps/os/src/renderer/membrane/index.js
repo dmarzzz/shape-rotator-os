@@ -2,40 +2,21 @@ import { createMembraneScene, SLOT_OFFSETS } from './scene.js';
 import { createSoundDirector } from './sound.js';
 import { BLOB_IDS, BLOB_PROFILES } from './blob.js';
 
-// Orbital ring label per blob — tells you what's INSIDE each blob, not its
-// internal metadata. Repeated twice on the path so the text wraps around
-// the full circumference. Functions take live data and return the string.
 function up(s) { return String(s ?? '').toUpperCase(); }
 
+// Orbital ring NAME per blob — the big word that orbits the focused orb.
+// self resolves to the claimed handle/name (e.g. "dmarz"), or "self" when
+// unclaimed; the others are their fixed names. setOrbitalForBlob() repeats
+// the name around the ring so it reads as the orb's identity orbiting it.
 const ORBITAL_LABELS = {
   self: (d) => {
-    const name = d.profile?.display_name || d.profile?.handle || d.profile?.record_id || 'unclaimed';
-    const team = d.profile?.team || d.profile?.record_id;
-    const edges = d.edgeCount ?? 0;
-    const parts = [up(name)];
-    if (team && team !== name) parts.push('TEAM ' + up(team));
-    parts.push(`${edges} EDGES`);
-    parts.push('YOUR SHAPE');
-    return parts.join(' · ') + ' · ';
+    const p = d.profile || {};
+    return p.display_name || p.name || p.handle || p.gh_handle
+        || (p.links && p.links.github) || p.record_id || 'self';
   },
-  cohort: (d) => {
-    const peers = d.peerCount ?? 0;
-    const live = up(d.onlineCount || 'idle');
-    return `${peers} PEERS · ${live} · YOUR CONSTELLATION · `;
-  },
-  events: (d) => {
-    const next = d.nextEventLabel && d.nextEventLabel !== '—'
-      ? up(d.nextEventLabel) : 'NO UPCOMING';
-    const week = d.eventsThisWeek ?? 0;
-    return `NEXT · ${next} · ${week} THIS WEEK · `;
-  },
-  asks: (d) => {
-    const open = (d.asksList || []).filter(a => (a?.status || 'open') === 'open');
-    const top = open.slice(0, 2).map(a => up(a.title || a.text || a.ask || 'untitled'));
-    const titles = top.length > 0 ? top.join(' · ') : 'NONE OPEN';
-    const count = d.openAskCount ?? open.length;
-    return `${titles} · ${count} OPEN · `;
-  },
+  cohort: () => 'cohort',
+  events: () => 'events',
+  asks:   () => 'asks',
 };
 
 // Per-blob panel content. `inline` renderer is called with (data) and
@@ -54,7 +35,6 @@ const PANEL_TEMPLATES = {
     // Avatar pinned to the top-right of the card, same row as the title.
     headAccessory: (data) => renderAvatar(data?.profile || {}),
     stats: [
-      { key: 'tonic', val: 'D2 — 73.42 hz' },
       { key: 'edges', val: '—', dataKey: 'edgeCount' },
     ],
     inline: (data) => renderSelfInline(data),
@@ -66,25 +46,22 @@ const PANEL_TEMPLATES = {
   cohort: {
     eyebrow: 'the constellation',
     title: 'cohort',
-    copy: 'every peer in your circle perturbs this membrane. the surface is the network — swells are presence, the rim warms as more peers come online.',
+    copy: 'every peer perturbs this membrane. pick a lens to read the network.',
     stats: [
-      { key: 'tonic',  val: 'G2 — 97.99 hz' },
       { key: 'peers',  val: '—', dataKey: 'peerCount' },
       { key: 'online', val: '—', dataKey: 'onlineCount' },
     ],
-    // Cohort stays jump-only per user spec — peer browsing lives in legacy.
-    inline: null,
-    actions: [
-      { label: 'open network →',       mode: 'constellation' },
-      { label: 'every team + project', mode: 'shapes' },
-    ],
+    // Each constellation lens + the full roster gets a real card you can
+    // click — replaces the old hair-thin "open network →" links that were
+    // lost in blank space. Wired in renderPanelFor via [data-const]/[data-shapes].
+    inline: (data) => renderCohortViews(data),
+    actions: [],
   },
   events: {
     eyebrow: 'who is here when',
     title: 'events',
     copy: 'time is the pressure here. a bright contour ring drifts toward now. past sessions recede as scars; upcoming as ridges building under the skin.',
     stats: [
-      { key: 'tonic',     val: 'A2 — 110.00 hz' },
       { key: 'this week', val: '—', dataKey: 'eventsThisWeek' },
     ],
     inline: (data) => renderEventsInline(data),
@@ -98,7 +75,6 @@ const PANEL_TEMPLATES = {
     title: 'asks',
     copy: 'each open ask is a bubbling point of pressure on the surface. fresh asks rise sharp; expiring asks sink back into the membrane.',
     stats: [
-      { key: 'tonic', val: 'F#2 — 92.50 hz' },
       { key: 'open',  val: '—', dataKey: 'openAskCount' },
       { key: 'mine',  val: '—', dataKey: 'myAskCount' },
     ],
@@ -150,95 +126,35 @@ function fmtFullDate(t) {
 }
 
 function renderEventsInline(data) {
-  const events = Array.isArray(data?.eventsList) ? data.eventsList : [];
-  const now = Date.now();
-  if (events.length === 0) {
+  // Today-only. computeMembraneData (alchemy.js) builds `eventsToday` by
+  // merging today's timed lines from the Phala calendar GRID (e.g. "19:00
+  // muse dinner") with cohort.events spans overlapping today (e.g. daily
+  // tea). We intentionally drop the this-week / upcoming sections — the
+  // panel answers "what's on right now?" and the full schedule lives in
+  // the calendar tab.
+  const today = Array.isArray(data?.eventsToday) ? data.eventsToday : [];
+
+  const rows = today.map((it) => {
+    const dateLabel = it.time || (it.ongoing ? 'today' : '·');
+    const meta = it.sub || (it.ongoing ? 'ongoing' : '');
     return `
-      <section class="membrane-section">
-        <header class="membrane-section-head">
-          <h3 class="membrane-section-title">today</h3>
-          <span class="membrane-section-count">0</span>
-        </header>
-        <p class="membrane-empty">no events on the calendar yet.</p>
-      </section>`;
-  }
-
-  // Day windows for grouping. "Today" = anything on the calendar date today
-  // OR scheduled within the next ~12h (covers late-night events that read
-  // as "tonight"). "This week" = remaining 6 days. "Upcoming" = beyond.
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayStartMs = todayStart.getTime();
-  const tomorrowMs = todayStartMs + 24 * 60 * 60 * 1000;
-  const weekEndMs = todayStartMs + 7 * 24 * 60 * 60 * 1000;
-
-  const DAY_MS = 24 * 60 * 60 * 1000;
-  // Events come in two shapes: point events (`date`/`starts_at`/`start`) and
-  // spans (`range_start`/`range_end`, e.g. "daily tea" runs the whole
-  // program). Parsing only the point fields silently dropped every span
-  // (Date.parse(undefined) → NaN), so ongoing/today events vanished. Parse
-  // both into a [startMs, endMs] window; `range_end` is a calendar day, so
-  // extend it to that day's end.
-  const parsed = events
-    .map((e) => {
-      const startMs = Date.parse(e?.starts_at || e?.start || e?.date || e?.range_start || '');
-      if (!Number.isFinite(startMs)) return null;
-      const endRaw = Date.parse(e?.range_end || '');
-      const endMs = Number.isFinite(endRaw) ? endRaw + (DAY_MS - 1) : startMs;
-      return { startMs, endMs, t: startMs, e };
-    })
-    .filter(Boolean);
-
-  // Drop events whose window ended more than an hour ago.
-  const live = parsed.filter((u) => u.endMs >= now - 60 * 60 * 1000);
-
-  // Today = any event whose window overlaps the calendar day (covers
-  // multi-day spans like daily tea). Remaining events bucket by start.
-  const overlapsToday = (u) => u.startMs < tomorrowMs && u.endMs >= todayStartMs;
-  const today    = live.filter(overlapsToday).sort((a, b) => a.startMs - b.startMs);
-  const rest     = live.filter((u) => !overlapsToday(u));
-  const thisWeek = rest.filter((u) => u.startMs >= todayStartMs && u.startMs < weekEndMs).sort((a, b) => a.startMs - b.startMs);
-  const upcoming = rest.filter((u) => u.startMs >= weekEndMs).sort((a, b) => a.startMs - b.startMs);
-
-  function row(u, fmt) {
-    const title = u.e.title || u.e.name || 'untitled';
-    const loc = u.e.location || u.e.room || '';
-    const isHappening = u.startMs <= now + 60 * 60 * 1000 && u.endMs >= now - 60 * 60 * 1000;
-    const overlapsToday = u.startMs < tomorrowMs && u.endMs >= todayStartMs;
-    // All-day / multi-day spans have no meaningful single clock time. When
-    // such a span overlaps today, label it "today" and lean on the subtitle;
-    // otherwise (point events, or any future row) show the real start date.
-    const isAllDayOrSpan = (u.endMs - u.startMs) > 12 * 60 * 60 * 1000 || u.startMs < todayStartMs;
-    const dateLabel = (overlapsToday && isAllDayOrSpan) ? 'today' : fmt(u.startMs);
-    const meta = loc || u.e.subtitle || (isHappening ? 'happening' : overlapsToday ? 'ongoing' : fmtRel(u.startMs - now));
-    return `
-      <li class="membrane-event-row${isHappening ? ' membrane-event-now' : ''}">
+      <li class="membrane-event-row">
         <span class="membrane-event-date">${escHtml(dateLabel)}</span>
-        <span class="membrane-event-title">${escHtml(title)}</span>
+        <span class="membrane-event-title">${escHtml(it.title || 'untitled')}</span>
         <span class="membrane-event-meta">${escHtml(meta)}</span>
       </li>`;
-  }
+  }).join('');
 
-  function section(title, rows, fmt, mod = '') {
-    return `
-      <section class="membrane-section${mod}">
-        <header class="membrane-section-head">
-          <h3 class="membrane-section-title">${title}</h3>
-          <span class="membrane-section-count">${rows.length}</span>
-        </header>
-        ${rows.length === 0
-          ? `<p class="membrane-empty">${title === 'today' ? 'nothing scheduled today.' : 'none.'}</p>`
-          : `<ul class="membrane-event-list" role="list">${rows.map((u) => row(u, fmt)).join('')}</ul>`}
-      </section>`;
-  }
-
-  // Always render TODAY (even if empty — emphasizes its importance). Only
-  // render this-week and upcoming if they have content.
-  const todayBlock = section('today', today, fmtTimeOnly, ' membrane-section-today');
-  const weekBlock = thisWeek.length > 0 ? section('this week', thisWeek, fmtDayTime) : '';
-  const upcomingBlock = upcoming.length > 0 ? section('upcoming', upcoming.slice(0, 16), fmtFullDate) : '';
-
-  return todayBlock + weekBlock + upcomingBlock;
+  return `
+    <section class="membrane-section membrane-section-today">
+      <header class="membrane-section-head">
+        <h3 class="membrane-section-title">today</h3>
+        <span class="membrane-section-count">${today.length}</span>
+      </header>
+      ${today.length === 0
+        ? `<p class="membrane-empty">nothing scheduled today.</p>`
+        : `<ul class="membrane-event-list" role="list">${rows}</ul>`}
+    </section>`;
 }
 
 function renderAsksInline(data) {
@@ -278,6 +194,144 @@ function renderAsksInline(data) {
       </header>
       <ul class="membrane-ask-list" role="list">${rows}</ul>
     </section>`;
+}
+
+// Tiny stable string hash for deterministic sigils (local; no crypto).
+function sealHash(str) {
+  let h = 2166136261 >>> 0;
+  const s = String(str || 'shape');
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+// A deterministic geometric SIGIL drawn from the seed — your "shape" as a
+// mark (cypherpunk: key→glyph; new-age: a personal seal). Monochrome; the
+// oxide stroke + a tiny hand-touched rotation come from CSS. Drawn inside a
+// vesica frame by renderSeal().
+function renderSigilSVG(seed) {
+  let h = sealHash(seed);
+  const rnd = () => { h = (Math.imul(h, 1664525) + 1013904223) >>> 0; return h / 4294967296; };
+  const cx = 50, cy = 64, R = 21;
+  const n = 5 + Math.floor(rnd() * 4); // 5–8 nodes
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    pts.push([cx + Math.cos(a) * R, cy + Math.sin(a) * R]);
+  }
+  const order = [...Array(n).keys()];
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  let d = '';
+  order.forEach((idx, i) => { const [x, y] = pts[idx]; d += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)} `; });
+  d += 'Z';
+  const dots = pts.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.7"/>`).join('');
+  return `<svg class="seal-sigil" viewBox="0 0 100 128" aria-hidden="true"><path class="seal-sigil-line" d="${d}"/><g class="seal-sigil-dots">${dots}</g></svg>`;
+}
+
+// The seal: a vesica-piscis mandorla framing the identity mark. When the
+// user is claimed + has an avatar, the avatar IS the charged seal (a face);
+// otherwise their deterministic sigil sits inside, awaiting the strike.
+function renderSeal(profile, seed) {
+  const avatar = profile.avatarUrl || null;
+  const inner = avatar
+    ? `<img class="seal-face" style="clip-path:url(#seal-vesica-clip)" src="${escHtml(avatar)}" alt="" referrerpolicy="no-referrer"
+         onerror="this.remove();this.parentElement.classList.add('no-face')" />`
+    : '';
+  return `
+    <div class="seal ${avatar ? 'has-face' : 'no-face'}">
+      <svg class="seal-vesica" viewBox="0 0 100 128" aria-hidden="true">
+        <defs><clipPath id="seal-vesica-clip" clipPathUnits="objectBoundingBox">
+          <path d="M.5 .04 C.2 .28 .2 .72 .5 .96 C.8 .72 .8 .28 .5 .04 Z"/>
+        </clipPath></defs>
+        <path class="seal-vesica-path" d="M50 6 C20 36 20 92 50 122 C80 92 80 36 50 6 Z"/>
+      </svg>
+      ${renderSigilSVG(seed)}
+      ${inner}
+    </div>`;
+}
+
+// Self profile as a SEAL — your shape as a sigil in a vesica, charged by
+// your tonic. Claiming is a rite: strike your seal, cross the threshold.
+// Blends shape-rotator geometry + alchemy + cypherpunk sovereignty +
+// milady-intimate copy. (Container keeps .crewid for fill/foil/scan +
+// the data-crewid-claim wiring.)
+function renderSelfCard(data, tpl) {
+  const profile = data?.profile || {};
+  const connections = Array.isArray(data?.connections) ? data.connections : [];
+  const name = profile.name || profile.display_name || profile.handle || profile.gh_handle || profile.record_id || 'unclaimed';
+  const claimed = !!(profile.record_id || profile.handle || profile.name || profile.gh_handle);
+  const handle = profile.handle || profile.gh_handle || (profile.links && profile.links.github) || '';
+  const role = profile.role || profile.title || (profile.is_mentor ? 'mentor' : '');
+  const circle = profile.team || (profile.kind === 'team' ? profile.record_id : '') || '—';
+  const edges = data?.edgeCount ?? 0;
+  const seed = profile.record_id || handle || name;
+
+  const readout = (k, v) => `<div class="crewid-row"><span class="crewid-k">${escHtml(k)}</span><span class="crewid-v">${escHtml(String(v))}</span></div>`;
+
+  const commsRows = connections.slice(0, 24).map((c) => `
+    <li class="crewid-comm" data-jump-profile="${escHtml(c.record_id)}" data-jump-kind="${escHtml(c.kind)}" tabindex="0" role="button" aria-label="open ${escHtml(c.name)}">
+      <span class="crewid-comm-rel">${escHtml(c.edgeType || 'link')}</span>
+      <span class="crewid-comm-name">${escHtml(c.name)}</span>
+      <span class="crewid-comm-meta">${escHtml(c.team || c.role || '')}</span>
+    </li>`).join('');
+
+  // Unclaimed → nothing to edit; the primary move is the rite. Claimed →
+  // full action set.
+  const actions = (tpl?.actions || [])
+    .filter((a) => claimed || a.mode !== 'profile')
+    .map((a) => `<button type="button" class="crewid-action" data-jump-mode="${a.mode}">${a.label}</button>`).join('');
+  const claimCta = claimed ? '' : `
+    <button type="button" class="crewid-claim seal-strike" data-crewid-claim="1">
+      <span class="cc-glyph" aria-hidden="true">◇</span>
+      <span class="cc-text">
+        <span class="cc-title">strike your seal</span>
+        <span class="cc-sub">identify · cross the threshold →</span>
+      </span>
+    </button>`;
+
+  // One intimate line under the name — sincere, not winking.
+  const tagline = claimed
+    ? (role ? `${escHtml(role.toLowerCase())} · here` : 'here, and seen')
+    : 'a shape not yet struck';
+
+  return `
+    <article class="crewid seal-card ${claimed ? 'is-claimed' : 'is-unclaimed'}">
+      <div class="crewid-foil" aria-hidden="true"></div>
+      <div class="crewid-scan" aria-hidden="true"></div>
+
+      <div class="crewid-band">
+        <span class="crewid-issuer">⬡ shape rotator · alchemy</span>
+        <span class="crewid-doc">${claimed ? 'sealed' : 'unsealed'}</span>
+      </div>
+
+      <div class="seal-hero">
+        ${renderSeal(profile, seed)}
+        <span class="crewid-eyebrow">your shape</span>
+        <h2 class="crewid-name">${escHtml(name)}</h2>
+        <span class="seal-tagline">${escHtml(tagline)}</span>
+        ${claimed && handle ? `<span class="seal-handle">@${escHtml(handle)}</span>` : ''}
+      </div>
+
+      ${claimCta}
+
+      <div class="crewid-readouts seal-readouts">
+        ${readout('edges', edges)}
+        ${readout('circle', circle)}
+      </div>
+
+      <div class="crewid-comms">
+        <div class="crewid-comms-head">
+          <span class="crewid-comms-title">constellation</span>
+          <span class="crewid-comms-count">${connections.length}</span>
+        </div>
+        ${connections.length === 0
+          ? `<div class="crewid-empty"><span class="ce-status">∅</span><span class="ce-msg">no edges yet — once you join a circle, your shape finds its others.</span></div>`
+          : `<ul class="crewid-comm-list" role="list">${commsRows}</ul>`}
+      </div>
+
+      <div class="seal-sovereign" aria-hidden="false">stored on this device · nothing leaves</div>
+
+      <div class="crewid-actions">${actions}</div>
+    </article>`;
 }
 
 function renderSelfInline(data) {
@@ -354,6 +408,50 @@ function renderSelfInline(data) {
     </section>`;
 }
 
+// Cohort panel = a set of lenses onto the network. Each is a real card
+// (glyph + name + one-line read) that jumps into the constellation in that
+// sub-view, plus one card for the full roster. The mini line-glyphs echo
+// each lens's actual shape (overlapping circles = clusters, a small DAG =
+// dependencies, a rising scatter = journey, a dot-grid = the roster).
+const COHORT_VIEWS = [
+  {
+    nav: 'const', mode: 'clusters',
+    title: 'clusters', desc: 'teams grouped by shared synergy',
+    glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="9" cy="9.5" r="4.6"/><circle cx="15" cy="9.5" r="4.6"/><circle cx="12" cy="15" r="4.6"/></svg>',
+  },
+  {
+    nav: 'const', mode: 'dependencies',
+    title: 'dependencies', desc: 'who relies on whom',
+    glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6.5 11.5 17M18 6.5 12.5 17"/><circle cx="5" cy="5" r="2.1"/><circle cx="19" cy="5" r="2.1"/><circle cx="12" cy="19" r="2.1"/></svg>',
+  },
+  {
+    nav: 'const', mode: 'journey',
+    title: 'journey', desc: 'every team’s PMF arc',
+    glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M4 20h16"/><path d="M4 20Q9 7 20 4.5"/><circle cx="9" cy="13.4" r="1.1" fill="currentColor" stroke="none"/><circle cx="13.5" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="18" cy="5.6" r="1.1" fill="currentColor" stroke="none"/></svg>',
+  },
+  {
+    nav: 'shapes',
+    title: 'the full cohort', desc: 'every team + project, up close',
+    glyph: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="6" cy="6" r="1.5"/><circle cx="12" cy="6" r="1.5"/><circle cx="18" cy="6" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/><circle cx="6" cy="18" r="1.5"/><circle cx="12" cy="18" r="1.5"/><circle cx="18" cy="18" r="1.5"/></svg>',
+  },
+];
+
+function renderCohortViews() {
+  const cards = COHORT_VIEWS.map((v) => {
+    const attr = v.nav === 'shapes' ? 'data-shapes="1"' : `data-const="${v.mode}"`;
+    return `
+      <button type="button" class="cohort-view-card" ${attr}>
+        <span class="cvc-glyph" aria-hidden="true">${v.glyph}</span>
+        <span class="cvc-text">
+          <span class="cvc-title">${v.title}</span>
+          <span class="cvc-desc">${v.desc}</span>
+        </span>
+        <span class="cvc-arrow" aria-hidden="true">→</span>
+      </button>`;
+  }).join('');
+  return `<div class="cohort-view-grid">${cards}</div>`;
+}
+
 // ─── panel scaffolding ───────────────────────────────────────────────────
 
 function renderStatList(template, data = {}) {
@@ -424,12 +522,20 @@ export function mountMembrane(container, opts = {}) {
       <canvas class="membrane-canvas"></canvas>
       <svg class="throne-orbital" aria-hidden="true" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
         <defs>
-          <path id="throne-orbital-path" d="M 200 200 m -180 0 a 180 180 0 1 1 360 0 a 180 180 0 1 1 -360 0" />
+          <!-- Horizontal ellipse so the name orbits left↔right around the orb's
+               middle (not top↔bottom). The word scrolls along it via the
+               startOffset animation added in setOrbitalForBlob(). -->
+          <path id="throne-orbital-path" d="M 8,200 a 192,76 0 1,1 384,0 a 192,76 0 1,1 -384,0" />
         </defs>
         <text>
           <textPath href="#throne-orbital-path" startOffset="0%" data-orbital-text></textPath>
         </text>
       </svg>
+      <div class="membrane-sat-labels" aria-hidden="true">
+        <span class="membrane-sat-label" data-slot="home_a"></span>
+        <span class="membrane-sat-label" data-slot="home_b"></span>
+        <span class="membrane-sat-label" data-slot="home_c"></span>
+      </div>
       <aside class="membrane-panel" data-active-blob="self">
         <div class="membrane-panel-content"></div>
         <footer class="membrane-panel-foot">
@@ -458,40 +564,83 @@ export function mountMembrane(container, opts = {}) {
   const dots = container.querySelectorAll('.membrane-blob-dot');
   const orbital = container.querySelector('.throne-orbital');
   const orbitalText = container.querySelector('[data-orbital-text]');
+  const satLabelEls = {};
+  container.querySelectorAll('.membrane-sat-label').forEach((el) => { satLabelEls[el.dataset.slot] = el; });
+
+  // Resolve a blob's short display name (self → claimed handle or "self").
+  function blobName(id) {
+    const tpl = ORBITAL_LABELS[id];
+    return String((tpl ? tpl(dataStore[id] || {}) : id) || id).trim();
+  }
+
+  // px-per-world at z=0 (fov 38°, cameraZ 4.8). Same math the scene uses to
+  // place blobs — one source of truth so overlays track the 3D orbs exactly.
+  function pxPerWorld(rect) {
+    const halfHeightWorld = Math.tan((38 * Math.PI / 180) / 2) * 4.8;
+    return rect.height / (2 * halfHeightWorld);
+  }
 
   // Throne lives in screen space anchored to the bottom-right corner. The
-  // orbital SVG follows the same anchor — these px values come from
-  // SLOT_OFFSETS (world units) × pxPerWorld (canvas-height-derived). Same
-  // math the scene uses; one source of truth.
+  // orbital SVG follows the same anchor.
   function updateOrbitalGeometry() {
     const rect = container.getBoundingClientRect();
-    // halfHeight world units at z=0 with fov 38°, cameraZ 4.8 → tan(19°)*4.8
-    const halfHeightWorld = Math.tan((38 * Math.PI / 180) / 2) * 4.8;
-    const pxPerWorld = rect.height / (2 * halfHeightWorld);
-    const throneRightPx  = SLOT_OFFSETS.throne.right  * pxPerWorld;
-    const throneBottomPx = SLOT_OFFSETS.throne.bottom * pxPerWorld;
-    const throneRadiusPx = SLOT_OFFSETS.throne.scale  * pxPerWorld;
+    const ppw = pxPerWorld(rect);
+    const throneRightPx  = SLOT_OFFSETS.throne.right  * ppw;
+    const throneBottomPx = SLOT_OFFSETS.throne.bottom * ppw;
+    const throneRadiusPx = SLOT_OFFSETS.throne.scale  * ppw;
     const orbitalRadiusPx = throneRadiusPx * 1.55;
     orbital.style.setProperty('--throne-right',  `${throneRightPx}px`);
     orbital.style.setProperty('--throne-bottom', `${throneBottomPx}px`);
     orbital.style.setProperty('--orbital-radius', `${orbitalRadiusPx}px`);
+    updateSatelliteLabels(rect, ppw);
+  }
+
+  // Background orbs get a static name label pinned just under each so you
+  // know what you're clicking. Text = the blob currently in that home slot
+  // (slots are fixed screen positions; the blob in each changes on swap).
+  function updateSatelliteLabels(rect = container.getBoundingClientRect(), ppw = pxPerWorld(rect)) {
+    for (const slotName of ['home_a', 'home_b', 'home_c']) {
+      const el = satLabelEls[slotName];
+      const off = SLOT_OFFSETS[slotName];
+      if (!el || !off) continue;
+      const id = BLOB_IDS.find((b) => scene.slotFor && scene.slotFor(b) === slotName);
+      if (!id) { el.style.opacity = '0'; continue; }
+      const cx = rect.width - off.right * ppw;
+      const cy = rect.height - off.bottom * ppw;
+      const r = off.scale * ppw;
+      el.textContent = blobName(id);
+      el.style.left = `${cx}px`;
+      el.style.top = `${cy + r + 7}px`;
+      el.style.opacity = '1';
+    }
   }
 
   function setOrbitalForBlob(id) {
     const tpl = ORBITAL_LABELS[id];
     if (!tpl) return;
-    const data = dataStore[id] || {};
-    const label = tpl(data);
-    // Repeat twice so the text wraps around the full circumference.
-    orbitalText.textContent = label + label;
+    const name = blobName(id);
+    // Repeat the name around the ellipse with a separator so the big word
+    // fills the ring; reps scale to the name length.
+    const unit = `${name}  ·  `;
+    const reps = Math.max(4, Math.ceil(40 / unit.length));
+    orbitalText.textContent = unit.repeat(reps);
+    // (Re)attach the scroll animation — setting textContent wipes children.
+    // Scrolling startOffset negative drags the word leftward around the
+    // horizontal ellipse → it orbits left↔right across the orb's front.
+    const NS = 'http://www.w3.org/2000/svg';
+    const anim = document.createElementNS(NS, 'animate');
+    anim.setAttribute('attributeName', 'startOffset');
+    anim.setAttribute('from', '0%');
+    anim.setAttribute('to', '-100%');
+    anim.setAttribute('dur', '52s');
+    anim.setAttribute('repeatCount', 'indefinite');
+    orbitalText.appendChild(anim);
     orbital.classList.add('is-visible');
   }
 
-  // Stars now live in the 3D scene (starfield.js mounted in scene.js).
-  // No more CSS box-shadow approach.
-  updateOrbitalGeometry();
-  const orbitalResize = new ResizeObserver(() => updateOrbitalGeometry());
-  orbitalResize.observe(container);
+  // Orbital geometry init + ResizeObserver are set up AFTER `scene` exists
+  // (updateSatelliteLabels reads scene.slotFor) — see below the scene mount.
+  let orbitalResize = null;
 
   let dataStore = {};
 
@@ -499,6 +648,9 @@ export function mountMembrane(container, opts = {}) {
     const tpl = PANEL_TEMPLATES[id];
     if (!tpl) return;
     panel.dataset.activeBlob = id;
+    // Reverted the bespoke self "seal/credential" card — every blob now
+    // uses the original generic panel scaffolding (header + stats + inline
+    // + actions). Cleaner; the fold/field + claim modal stay.
     panelContent.innerHTML = renderPanelInner(tpl, dataStore[id] || {});
     panelContent.scrollTop = 0;
     panelContent.querySelectorAll('[data-jump-mode]').forEach((btn) => {
@@ -507,6 +659,22 @@ export function mountMembrane(container, opts = {}) {
         if (!mode) return;
         if (typeof window.__srwkAlchemyJump === 'function') {
           window.__srwkAlchemyJump(mode);
+        }
+      });
+    });
+    // Cohort view cards: a constellation lens (clusters/dependencies/journey)
+    // or the full roster. Jump into the legacy surface on that view.
+    panelContent.querySelectorAll('[data-const]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (typeof window.__srwkAlchemyJump === 'function') {
+          window.__srwkAlchemyJump('constellation', { constellationMode: btn.dataset.const });
+        }
+      });
+    });
+    panelContent.querySelectorAll('[data-shapes]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (typeof window.__srwkAlchemyJump === 'function') {
+          window.__srwkAlchemyJump('shapes');
         }
       });
     });
@@ -530,18 +698,60 @@ export function mountMembrane(container, opts = {}) {
     });
     // Orbital ring text — fade out → swap → fade in.
     orbital.classList.remove('is-visible');
-    setTimeout(() => setOrbitalForBlob(id), 320);
+    setTimeout(() => { setOrbitalForBlob(id); updateSatelliteLabels(); }, 320);
   }
 
   const sound = createSoundDirector();
+
+  // ── fold state ───────────────────────────────────────────────────────
+  // Two homes, gated on whether you've claimed your shape:
+  //   • UNCLAIMED → the panel is home (the "wall with a window" — the claim
+  //     surface). Never auto-fold; an unclaimed user stranded in an empty
+  //     field has no way to claim.
+  //   • CLAIMED → the field is home. On first data load we fold the wall
+  //     away once so a returning member lands among the orbs. Tapping an orb
+  //     summons its panel back; tapping the void folds away again.
+  // The claimed signal comes from self.claimed (a FORMAL identity claim only)
+  // so the github editor user is never mistaken for claimed.
+  let folded = false;
+  let didAutoField = false;
+  function setFolded(f) {
+    folded = !!f;
+    container.classList.toggle('membrane-folded', folded);
+  }
+  function maybeAutoEnterField() {
+    if (didAutoField) return;
+    if (!dataStore.self || dataStore.self.claimed !== true) return;
+    didAutoField = true;
+    setFolded(true);
+  }
+  // Explicit "enter the field" control in the panel footer.
+  const foldBtn = document.createElement('button');
+  foldBtn.className = 'membrane-enter-field';
+  foldBtn.type = 'button';
+  foldBtn.setAttribute('aria-label', 'enter the field — fold the panel away');
+  foldBtn.innerHTML = '<span aria-hidden="true">⊹</span><span class="mef-label">enter the field</span>';
+  foldBtn.addEventListener('click', () => setFolded(true));
+  const panelFoot = panel.querySelector('.membrane-panel-foot');
+  (panelFoot || panel).appendChild(foldBtn);
 
   const scene = createMembraneScene(canvas, {
     onActiveChange(id) {
       sound.setTonic(id);
       renderPanelFor(id);
     },
+    // From the field, tapping an orb summons its panel back.
+    onOrbOpen() { if (folded) setFolded(false); },
+    // Tapping empty space (the void) folds the panel away again.
+    onEmptyClick() { setFolded(true); },
   });
   console.log('[membrane] scene mounted; blobs:', Object.keys(scene.blobs).join(','));
+
+  // Now that `scene` exists (updateSatelliteLabels reads scene.slotFor),
+  // do the initial geometry pass + keep it synced on resize.
+  updateOrbitalGeometry();
+  orbitalResize = new ResizeObserver(() => updateOrbitalGeometry());
+  orbitalResize.observe(container);
 
   sound.setTonic('self');
   renderPanelFor('self');
@@ -560,6 +770,7 @@ export function mountMembrane(container, opts = {}) {
       scene.setActiveBlob(id);
       sound.setTonic(id);
       renderPanelFor(id);
+      if (folded) setFolded(false); // summon the panel out of the field
     });
   });
 
@@ -572,6 +783,7 @@ export function mountMembrane(container, opts = {}) {
     getActiveBlob: () => scene.getActiveBlobId(),
     setData(perBlobData) {
       dataStore = { ...dataStore, ...perBlobData };
+      maybeAutoEnterField();
       for (const id of BLOB_IDS) {
         if (perBlobData?.[id] && scene.blobs[id]?.setData) {
           scene.blobs[id].setData(perBlobData[id]);
@@ -583,13 +795,14 @@ export function mountMembrane(container, opts = {}) {
         // Refresh the orbital text in place when underlying data changes
         // (no fade — data refresh shouldn't feel like a swap).
         setOrbitalForBlob(active);
+        updateSatelliteLabels();
       }
     },
     sound,
     destroy() {
       scene.destroy();
       sound.destroy();
-      orbitalResize.disconnect();
+      orbitalResize?.disconnect();
       container.classList.remove('membrane-host');
       container.innerHTML = '';
     },

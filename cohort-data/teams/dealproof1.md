@@ -43,6 +43,18 @@ offering:
   - "dealproof as AI-to-AI contract layer for cohort teams"
 now: "open-sourcing the dual-attestation primitive as a standalone cohort module"
 prior_shipping: "DealProof — dual-agent attestation + on-chain escrow (56 passing tests),confidential-agent-market hackathon repo,Quantum-classical contributor (guppylang) · Quantinuum,QuantumBrush 2.0 with Moth Quantum (presented AIPS + SXSW)"
+journey:
+  stage: 4
+  evidence_quality: 2
+  market_upside: 4
+  primary_bottleneck: Technical Risk
+  company_type: Protocol
+  confidence: Low
+  icp: agent builders who need verifiable AI-to-AI contracts with on-chain escrow
+  problem: there's no trustworthy primitive for two autonomous agents to transact with attestable terms
+  solution: dual-agent attestation layer (Intel DCAP) with on-chain escrow and a standalone open-source library
+  evidence_notes: working DCAP prototype with 56 passing tests; Bradford Quantum Hackathon 2025 winner; validated in demos but no external integrators yet
+  next_milestone: get one cohort team to integrate the dual-attestation contract layer in production
 ---
 
 ## about

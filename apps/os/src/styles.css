@@ -325,104 +325,142 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
   animation: imFade 220ms var(--ease, ease-out);
 }
 @keyframes imFade { from { opacity: 0 } to { opacity: 1 } }
-.identity-modal {
-  background: rgba(var(--overlay-rgb), 0.96);
-  border: 1px solid rgba(var(--ink-rgb), 0.20);
-  border-radius: 8px;
-  padding: 28px 30px;
-  max-width: 520px; width: 100%;
-  max-height: 85vh; overflow: auto;
-  color: rgba(var(--ink-rgb), 0.92);
+/* Crew-enrollment terminal — themed like the crew credential (ember on
+   deep void, mono, framed with corner ticks + a one-shot scan reveal). */
+.identity-modal.enroll {
+  position: relative;
+  background:
+    radial-gradient(120% 80% at 6% -10%, rgba(255,122,61,0.07), transparent 56%),
+    linear-gradient(180deg, rgba(28,22,26,0.97), rgba(14,12,16,0.98));
+  border: 1px solid rgba(255,122,61,0.34);
+  border-radius: 12px;
+  padding: 26px 30px 22px;
+  max-width: 560px; width: 100%;
+  max-height: 86vh; overflow: auto;
+  color: rgba(245,240,233,0.92);
   font-family: var(--font-mono);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.04),
+    inset 0 0 70px rgba(255,122,61,0.04),
+    0 0 30px rgba(255,122,61,0.12),
+    0 28px 80px rgba(0,0,0,0.7);
+  isolation: isolate;
 }
-.im-head { margin-bottom: 22px; }
-.im-title {
-  margin: 0 0 8px 0;
-  font-size: 18px; font-weight: 500;
-  letter-spacing: -0.005em;
-  color: rgba(var(--ink-rgb), 0.95);
+.identity-modal.enroll::before, .identity-modal.enroll::after {
+  content: ""; position: absolute; width: 13px; height: 13px; z-index: 2;
+  border: 1px solid rgba(255,122,61,0.5);
 }
-.im-sub {
-  margin: 0;
-  font-size: 11.5px; line-height: 1.55;
-  color: rgba(var(--ink-rgb), 0.62);
+.identity-modal.enroll::before { top: 9px; left: 9px; border-right: 0; border-bottom: 0; }
+.identity-modal.enroll::after { bottom: 9px; right: 9px; border-left: 0; border-top: 0; }
+.enroll-scan {
+  position: absolute; left: 0; right: 0; top: 0; height: 36%; z-index: 5;
+  pointer-events: none; opacity: 0; border-radius: 12px 12px 0 0;
+  background: linear-gradient(180deg, transparent, rgba(255,122,61,0.14), transparent);
+  animation: enroll-sweep 820ms cubic-bezier(0.65,0,0.05,1) 1;
 }
-.im-section + .im-section {
-  margin-top: 22px;
-  padding-top: 22px;
-  border-top: 1px solid rgba(var(--ink-rgb), 0.10);
+@keyframes enroll-sweep {
+  0% { opacity: 0; transform: translateY(-100%); }
+  22% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(300%); }
 }
-.im-h {
-  margin: 0 0 12px 0;
-  font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
-  color: rgba(var(--ink-rgb), 0.55);
-  font-weight: normal;
+.enroll-band {
+  position: relative; z-index: 2;
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 12px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,122,61,0.18);
+  font-size: 8px; letter-spacing: 0.24em; text-transform: uppercase;
 }
-.im-row {
-  display: grid; grid-template-columns: 130px 1fr; gap: 12px;
-  align-items: center;
-  margin-bottom: 8px;
+.enroll-issuer { color: #ff7a3d; }
+.enroll-doc { color: rgba(245,240,233,0.42); }
+
+/* All .im-* rules scoped under .enroll so they outrank the later
+   editorial/theme .im-* layers (single-class) in this stylesheet. */
+.enroll .im-head { position: relative; z-index: 2; margin-bottom: 22px; }
+.enroll .im-title {
+  margin: 0 0 9px 0;
+  font-family: 'Inter Display','Inter',sans-serif; font-style: italic; font-weight: 500;
+  font-size: 26px; letter-spacing: -0.01em; color: rgba(245,240,233,0.97);
 }
-.im-row > span {
-  font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
-  color: rgba(var(--ink-rgb), 0.55);
+.enroll .im-sub {
+  margin: 0; font-size: 11.5px; line-height: 1.6;
+  color: rgba(245,240,233,0.6);
 }
-.im-row select {
-  background: rgba(0, 0, 0, 0.34);
-  color: rgba(var(--ink-rgb), 0.92);
-  border: 1px solid rgba(var(--ink-rgb), 0.20);
-  border-radius: 3px;
-  padding: 7px 10px;
-  font-family: var(--font-mono); font-size: 12px;
-  outline: none;
+.enroll .im-sub strong { color: #ff7a3d; font-weight: 600; }
+.enroll .im-current-kind { color: rgba(245,240,233,0.4); }
+.enroll .im-current-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+.enroll .im-section { position: relative; z-index: 2; }
+.enroll .im-section + .im-section {
+  margin-top: 20px; padding-top: 20px;
+  border-top: 1px solid rgba(245,240,233,0.08);
 }
-.im-row select:focus { border-color: rgba(90, 240, 255, 0.40); }
-.im-create-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.im-btn {
+.enroll .im-h {
+  margin: 0 0 13px 0; display: flex; align-items: baseline; gap: 9px;
+  font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: rgba(245,240,233,0.6); font-weight: normal;
+}
+.enroll .im-h-no {
+  font-size: 9px; letter-spacing: 0.1em; color: #ff7a3d;
+  border: 1px solid rgba(255,122,61,0.4); border-radius: 3px; padding: 1px 5px;
+}
+.enroll .im-row {
+  display: grid; grid-template-columns: 96px 1fr; gap: 12px;
+  align-items: center; margin-bottom: 9px;
+}
+.enroll .im-row > span {
+  font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: rgba(245,240,233,0.5);
+}
+.enroll .im-row select {
+  background: rgba(0,0,0,0.4);
+  color: rgba(245,240,233,0.94);
+  border: 1px solid rgba(245,240,233,0.16);
+  border-radius: 5px; padding: 9px 11px;
+  font-family: var(--font-mono); font-size: 12px; outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.enroll .im-row select:hover { border-color: rgba(255,122,61,0.4); }
+.enroll .im-row select:focus { border-color: #ff7a3d; box-shadow: 0 0 0 3px rgba(255,122,61,0.14); }
+.enroll .im-create-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.enroll .im-btn {
   -webkit-app-region: no-drag;
-  background: rgba(var(--ink-rgb), 0.04);
-  color: rgba(var(--ink-rgb), 0.85);
-  border: 1px solid rgba(var(--ink-rgb), 0.18);
-  border-radius: 999px;
-  padding: 7px 14px;
+  background: rgba(245,240,233,0.04);
+  color: rgba(245,240,233,0.85);
+  border: 1px solid rgba(245,240,233,0.18);
+  border-radius: 6px; padding: 8px 14px;
   font-family: var(--font-mono);
-  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  font-size: 10.5px; letter-spacing: 0.14em; text-transform: lowercase;
   cursor: pointer;
-  transition: color 200ms var(--ease), background 200ms var(--ease), border-color 200ms var(--ease);
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
 }
-.im-btn:hover {
-  color: var(--neon-cyan);
-  background: rgba(90, 240, 255, 0.08);
-  border-color: rgba(90, 240, 255, 0.36);
+.enroll .im-btn:hover {
+  color: #ff7a3d; background: rgba(255,122,61,0.1); border-color: rgba(255,122,61,0.5);
 }
-.im-foot {
-  margin-top: 22px; padding-top: 18px;
-  border-top: 1px solid rgba(var(--ink-rgb), 0.10);
+.enroll .im-current-edit { border-color: rgba(255,122,61,0.4); color: #ff9a6a; }
+.enroll .im-foot {
+  position: relative; z-index: 2;
+  margin-top: 22px; padding-top: 16px;
+  border-top: 1px solid rgba(245,240,233,0.08);
   display: flex; justify-content: space-between; align-items: center;
 }
-.im-skip {
+.enroll .im-skip {
   background: transparent; border: none;
-  color: rgba(var(--ink-rgb), 0.45);
+  color: rgba(245,240,233,0.45);
   font-family: var(--font-mono); font-size: 10.5px;
-  letter-spacing: 0.16em; text-transform: uppercase;
-  cursor: pointer;
-  padding: 4px 6px;
+  letter-spacing: 0.14em; text-transform: lowercase; cursor: pointer; padding: 4px 6px;
+  transition: color 160ms ease;
 }
-.im-skip:hover { color: rgba(var(--ink-rgb), 0.75); }
-.im-resync {
+.enroll .im-skip:hover { color: rgba(245,240,233,0.85); }
+.enroll .im-resync {
   background: transparent;
-  border: 1px solid rgba(var(--ink-rgb), 0.16);
-  color: rgba(var(--ink-rgb), 0.70);
-  font-family: var(--font-mono); font-size: 10.5px;
-  letter-spacing: 0.16em; text-transform: uppercase;
-  cursor: pointer;
-  padding: 6px 10px;
-  border-radius: 999px;
-  transition: color 120ms ease, border-color 120ms ease;
+  border: 1px solid rgba(245,240,233,0.16);
+  color: rgba(245,240,233,0.7);
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: 0.14em; text-transform: lowercase; cursor: pointer;
+  padding: 7px 12px; border-radius: 999px;
+  transition: color 160ms ease, border-color 160ms ease;
 }
-.im-resync:hover { color: rgba(var(--ink-rgb), 0.95); border-color: rgba(var(--ink-rgb), 0.32); }
-.im-resync[data-busy="1"] { cursor: progress; opacity: 0.7; }
+.enroll .im-resync:hover { color: #ff7a3d; border-color: rgba(255,122,61,0.45); }
+.enroll .im-resync[data-busy="1"] { cursor: progress; opacity: 0.7; }
 
 /* Lives inside #tab-bar (a flex row with tabs left, version right).
    Absolute-center within the bar so it doesn't shift when the tab
@@ -6511,6 +6549,332 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-legend .acl-swatch-crypto-id { background: var(--const-edge-crypto); }
 .alch-constellation-legend .acl-swatch-ndai      { background: var(--const-edge-ndai); }
 .alch-constellation-legend .acl-swatch-regulated { background: var(--const-edge-regulated); }
+
+/* ─── journey (PMF spectrum scatterplot) ─────────────────────────────── */
+/* Reuses the constellation stage chrome; the scatter-specific bits (grid,
+   axes, dots, tooltip) live here. Matches the dark oxide-on-warm aesthetic. */
+.alch-journey-stage svg { width: 100%; height: 100%; display: block; }
+.alch-journey-stage svg .ac-jgrid {
+  stroke: rgba(var(--ink-rgb), 0.08); stroke-width: 0.6;
+}
+.alch-journey-stage svg .ac-jaxis-x,
+.alch-journey-stage svg .ac-jaxis-y {
+  fill: var(--alchemy-ink-mute);
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.06em; text-transform: lowercase;
+}
+.alch-journey-stage svg .ac-jaxis-num { fill: var(--alchemy-paper-warm); font-weight: 600; }
+/* Divider setting the off-track "side project" column apart from idea→scale-fit. */
+.alch-journey-stage svg .ac-jdivider {
+  stroke: rgba(var(--ink-rgb), 0.28); stroke-width: 1; stroke-dasharray: 3 4;
+}
+.alch-journey-stage svg .ac-jaxis-x-side { fill: var(--alchemy-ink-mute); font-style: italic; opacity: 0.8; }
+.alch-journey-stage svg .ac-jaxis-title {
+  fill: var(--alchemy-ink-mute);
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+}
+.alch-journey-stage svg .ac-jnode { cursor: pointer; }
+.alch-journey-stage svg .ac-jnode .ac-jdot {
+  stroke: rgba(var(--ink-rgb), 0.30); stroke-width: 0.8;
+  transition: transform 200ms var(--ease), filter 240ms var(--ease), stroke-width 200ms var(--ease);
+  transform-origin: center; transform-box: fill-box;
+}
+/* Projects render hollow (ring) to distinguish them from teams (filled). */
+.alch-journey-stage svg .ac-jnode.is-project .ac-jdot { fill-opacity: 0.18; stroke-width: 1.4; }
+.alch-journey-stage svg .ac-jnode:hover .ac-jdot {
+  transform: scale(1.25); stroke-width: 1.4;
+  filter: drop-shadow(0 0 8px rgba(143,34,14,0.55));
+}
+.alch-journey-stage svg .ac-jnode-label {
+  fill: var(--alchemy-paper-warm); opacity: 0;
+  font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase;
+  pointer-events: none;
+  transition: opacity 180ms var(--ease);
+}
+.alch-journey-stage svg .ac-jnode:hover .ac-jnode-label { opacity: 1; }
+/* 10-color bottleneck palette — index mirrors JOURNEY_BOTTLENECK_COLORS. */
+.ac-jdot-b0 { fill: #c44025; }  /* ICP Clarity */
+.ac-jdot-b1 { fill: #d98a3d; }  /* Pain Intensity */
+.ac-jdot-b2 { fill: #c9a35e; }  /* Solution Quality */
+.ac-jdot-b3 { fill: #7fa05a; }  /* Technical Risk */
+.ac-jdot-b4 { fill: #4fa3a0; }  /* GTM */
+.ac-jdot-b5 { fill: #4f7fa3; }  /* Retention */
+.ac-jdot-b6 { fill: #7a6fb0; }  /* Business Model */
+.ac-jdot-b7 { fill: #a35e8f; }  /* Fundraising */
+.ac-jdot-b8 { fill: #9a6b5a; }  /* Regulatory */
+.ac-jdot-b9 { fill: #8a8f99; }  /* Team */
+/* Legend swatches reuse the same palette as filled dots. */
+.alch-constellation-legend .acl-jswatch {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  vertical-align: middle; margin-right: 6px;
+}
+/* Per-stage count strip across the top of the plot. */
+.alch-journey-stage svg .ac-jcount {
+  fill: var(--alchemy-ink-mute); font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600; opacity: 0.7;
+}
+/* Filter bar */
+.alch-journey-filters {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  margin: 2px 0 12px;
+}
+.alch-journey-filters .ajf-label,
+.alch-journey-filters .ajf-count {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.alch-journey-filters .ajf-count { margin-left: auto; }
+.ajf-toggle {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+  text-transform: uppercase; cursor: pointer;
+  padding: 4px 11px; border-radius: 999px;
+  color: var(--alchemy-ink-mute);
+  background: transparent; border: 1px solid rgba(var(--ink-rgb), 0.16);
+  transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
+}
+.ajf-toggle.is-on {
+  color: var(--alchemy-paper-warm);
+  border-color: rgba(196,64,37,0.55);
+  background: rgba(196,64,37,0.12);
+}
+.ajf-toggle:not(.is-on) { opacity: 0.55; text-decoration: line-through; }
+/* Clickable bottleneck legend */
+.alch-constellation-legend .acl-jbtn {
+  cursor: pointer; background: transparent; border: 1px solid transparent;
+  border-radius: 999px; padding: 3px 9px 3px 6px;
+  font: inherit; color: inherit; transition: opacity 160ms var(--ease), border-color 160ms var(--ease);
+}
+.alch-constellation-legend .acl-jbtn.is-active { border-color: rgba(var(--ink-rgb), 0.4); }
+.alch-constellation-legend .acl-jbtn.is-dim { opacity: 0.32; }
+.alch-constellation-legend .acl-jbtn:hover { opacity: 1; }
+/* Tooltip — anchored to the stage, positioned in JS on mousemove. */
+.alch-journey-tip {
+  position: absolute; top: 0; left: 0; z-index: 5;
+  max-width: 240px; pointer-events: none;
+  padding: 10px 12px;
+  background: rgba(20, 14, 11, 0.94);
+  border: 1px solid var(--alchemy-rule-warm);
+  border-radius: 5px;
+  box-shadow: 0 6px 22px rgba(0,0,0,0.45);
+  font-family: var(--font-mono); font-size: 10px; line-height: 1.5;
+  color: var(--alchemy-paper-warm);
+}
+.alch-journey-tip .ajt-name {
+  font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--alchemy-oxide-bright); margin-bottom: 6px;
+}
+.alch-journey-tip .ajt-row { display: flex; gap: 8px; }
+.alch-journey-tip .ajt-k {
+  flex: 0 0 64px; color: var(--alchemy-ink-mute);
+  letter-spacing: 0.14em; text-transform: uppercase; font-size: 8.5px;
+  padding-top: 1px;
+}
+.alch-journey-tip .ajt-v { flex: 1 1 auto; }
+
+/* ─── PMF journey card (profile detail + drawer) ─────────────────────── */
+.jcard { display: flex; flex-direction: column; gap: 14px; }
+.jcard-head { display: flex; align-items: baseline; gap: 10px; }
+.jcard-stage-name {
+  font-family: var(--font-sans); font-size: 20px; font-weight: 500;
+  letter-spacing: -0.01em; color: var(--alchemy-paper-warm); text-transform: lowercase;
+}
+.jcard.is-side .jcard-stage-name { font-style: italic; color: var(--alchemy-ink-mute); }
+.jcard-stage-meta {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+/* Spectrum track: an off-track diamond, then 8 climbing segments. */
+.jcard-track { display: flex; align-items: flex-end; gap: 3px; height: 30px; }
+.jcard-seg {
+  position: relative; flex: 1 1 0; height: 12px; border-radius: 2px;
+  background: rgba(var(--ink-rgb), 0.10);
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
+  display: flex; align-items: center; justify-content: center;
+  transition: height 240ms var(--ease), background 240ms var(--ease);
+}
+.jcard-seg i {
+  font-style: normal; font-family: var(--font-mono); font-size: 7px;
+  color: var(--alchemy-ink-mute); opacity: 0.5;
+}
+.jcard-seg.is-on {
+  background: linear-gradient(180deg, rgba(196,64,37,0.55), rgba(143,34,14,0.30));
+  border-color: rgba(196,64,37,0.45);
+}
+.jcard-seg.is-on i { opacity: 0; }
+.jcard-seg.is-cur {
+  height: 26px;
+  background: linear-gradient(180deg, var(--alchemy-oxide-bright), rgba(196,64,37,0.6));
+  border-color: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 12px rgba(196,64,37,0.55);
+}
+.jcard-seg-side {
+  flex: 0 0 18px; height: 18px; border-radius: 50%; margin-right: 7px;
+  border-style: dashed; color: var(--alchemy-ink-mute); font-size: 9px;
+}
+.jcard-seg-side.is-cur {
+  height: 18px; background: rgba(var(--ink-rgb), 0.06);
+  border-color: var(--alchemy-ink-mute); box-shadow: none; color: var(--alchemy-paper-warm);
+}
+/* Dot meters */
+.jcard-meters { display: flex; flex-direction: column; gap: 7px; }
+.jcard-meter { display: flex; align-items: center; gap: 10px; }
+.jcm-k {
+  flex: 0 0 58px; font-family: var(--font-mono); font-size: 8.5px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.jcm-dots { display: inline-flex; gap: 4px; }
+.jcm-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.12); border: 1px solid rgba(var(--ink-rgb), 0.12);
+}
+.jcm-dot.is-on { background: var(--alchemy-oxide-bright); border-color: var(--alchemy-oxide-bright); }
+.jcm-lbl {
+  font-family: var(--font-mono); font-size: 9.5px; color: var(--alchemy-paper-warm);
+  letter-spacing: 0.02em; text-transform: lowercase;
+}
+/* Chips */
+.jcard-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.jcard-chip {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+  text-transform: uppercase; padding: 4px 9px; border-radius: 999px;
+  color: var(--alchemy-paper-warm);
+  border: 1px solid rgba(var(--ink-rgb), 0.18); background: rgba(var(--ink-rgb), 0.05);
+}
+.jcard-chip-bottleneck {
+  color: var(--jc, var(--alchemy-oxide-bright));
+  border-color: color-mix(in srgb, var(--jc, #c44025) 55%, transparent);
+  background: color-mix(in srgb, var(--jc, #c44025) 14%, transparent);
+}
+.jcard-conf-high { color: #7fa05a; border-color: rgba(127,160,90,0.5); }
+.jcard-conf-medium { color: #c9a35e; border-color: rgba(201,163,94,0.5); }
+.jcard-conf-low { color: var(--alchemy-ink-mute); }
+/* Free-text notes */
+.jcard-notes { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; border-top: 1px solid var(--alchemy-rule); }
+.jcard-note { display: flex; gap: 10px; font-family: var(--font-mono); font-size: 10px; line-height: 1.5; }
+.jcard-note-k {
+  flex: 0 0 64px; color: var(--alchemy-ink-mute); letter-spacing: 0.14em;
+  text-transform: uppercase; font-size: 8.5px; padding-top: 1px;
+}
+.jcard-note-v { flex: 1 1 auto; color: var(--alchemy-paper-warm); }
+
+/* ─── COHORT PLATE (gamified profile dossier) ────────────────────────── */
+.cohort-plate {
+  position: relative;
+  margin-top: 6px;
+  padding: 22px 26px 26px;
+  border-radius: 8px;
+  background:
+    radial-gradient(120% 80% at 8% -10%, rgba(196,64,37,0.06), transparent 60%),
+    rgba(var(--ink-rgb), 0.025);
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Tier frame material — escalates with PMF stage; single oxide accent,
+   never multi-hue. Encoded as border weight + inset rule + foil edge. */
+.cohort-plate[data-tier="prospect"] { border-style: dashed; border-color: rgba(var(--ink-rgb), 0.18); }
+.cohort-plate[data-tier="signal"]   { border-color: rgba(var(--ink-rgb), 0.20); }
+.cohort-plate[data-tier="traction"] { border-color: rgba(196,64,37,0.30); box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.08); }
+.cohort-plate[data-tier="fit"]      { border-color: rgba(196,64,37,0.45); box-shadow: inset 0 0 0 1px rgba(196,64,37,0.16), 0 0 24px rgba(196,64,37,0.06); }
+.cohort-plate[data-tier="scale"]    { border-color: rgba(196,64,37,0.65); box-shadow: inset 0 0 0 1px rgba(196,64,37,0.28), 0 0 36px rgba(196,64,37,0.12); }
+
+/* Cursor-tracked foil glint — barely-there oxide diagonal sheen that
+   tracks the pointer; flat on rest (premium because it's restrained). */
+.plate-foil {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  opacity: 0; transition: opacity 320ms var(--ease);
+  background:
+    radial-gradient(220px 180px at var(--mx,50%) var(--my,0%), rgba(255,210,180,0.10), transparent 60%),
+    linear-gradient(115deg, transparent 42%, rgba(196,64,37,0.10) 50%, transparent 58%);
+  mix-blend-mode: screen;
+}
+.cohort-plate.is-foil .plate-foil { opacity: 1; }
+
+/* One-shot reveal: a single oxide scanline sweep on open, then gone. */
+.plate-scan {
+  position: absolute; left: 0; right: 0; top: 0; height: 40%; z-index: 4;
+  pointer-events: none; opacity: 0;
+  background: linear-gradient(180deg, transparent, rgba(196,64,37,0.18), transparent);
+}
+.cohort-plate.is-revealing .plate-scan { animation: plate-scan-sweep 900ms var(--ease) 1; }
+@keyframes plate-scan-sweep {
+  0% { opacity: 0; transform: translateY(-100%); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(260%); }
+}
+
+/* Header band */
+.plate-band {
+  position: relative; z-index: 2;
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding-bottom: 9px; border-bottom: 1px solid var(--alchemy-rule);
+}
+.plate-band .pb-desig {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--alchemy-paper-warm);
+}
+.plate-band .pb-meta {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.plate-band .pb-tier {
+  margin-left: auto; font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 999px;
+  color: var(--alchemy-oxide-bright);
+  border: 1px solid rgba(196,64,37,0.4); background: rgba(196,64,37,0.10);
+}
+.plate-band .pb-tier[data-tier="prospect"] { color: var(--alchemy-ink-mute); border-color: rgba(var(--ink-rgb),0.2); background: transparent; }
+.plate-band .pb-tier[data-tier="scale"] { box-shadow: 0 0 14px rgba(196,64,37,0.4); }
+.plate-class {
+  position: relative; z-index: 2; margin: 8px 0 4px;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.plate-class .pc-sep { color: rgba(196,64,37,0.55); margin: 0 2px; }
+
+.plate-hero { position: relative; z-index: 2; }
+/* Grade stamp — faint rotated tier mark, settles in on reveal. */
+.plate-grade-stamp {
+  position: absolute; top: 6px; right: 6px; z-index: 1;
+  font-family: var(--font-mono); font-size: 34px; font-weight: 800;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  color: transparent; -webkit-text-stroke: 1px rgba(196,64,37,0.20);
+  transform: rotate(-9deg); pointer-events: none; user-select: none;
+}
+.cohort-plate.is-revealing .plate-grade-stamp { animation: plate-stamp-in 760ms var(--ease) 1; }
+@keyframes plate-stamp-in {
+  0% { opacity: 0; transform: rotate(-9deg) scale(1.5); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: rotate(-9deg) scale(1); }
+}
+.cohort-plate[data-tier="scale"] .plate-grade-stamp { -webkit-text-stroke-color: rgba(196,64,37,0.34); }
+.cohort-plate[data-tier="prospect"] .plate-grade-stamp { -webkit-text-stroke-color: rgba(var(--ink-rgb),0.14); }
+
+/* Grid sits above foil */
+.cohort-plate .alch-detail-grid { position: relative; z-index: 2; }
+
+/* Trophies — rarity chips (rarity by fill/weight, not color). */
+.plate-trophies { display: flex; flex-direction: column; gap: 8px; }
+.plate-trophy { display: flex; align-items: flex-start; gap: 9px; }
+.plate-trophy .ptr-mark { font-size: 13px; line-height: 1.2; }
+.plate-trophy .ptr-body { display: flex; flex-direction: column; gap: 1px; }
+.plate-trophy .ptr-grade {
+  font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.plate-trophy .ptr-name { font-family: var(--font-mono); font-size: 10.5px; color: var(--alchemy-paper-warm); line-height: 1.4; }
+.plate-trophy.trophy-rare .ptr-mark { color: var(--alchemy-oxide-bright); filter: drop-shadow(0 0 6px rgba(196,64,37,0.5)); }
+.plate-trophy.trophy-rare .ptr-grade { color: var(--alchemy-oxide-bright); }
+.plate-trophy.trophy-notable .ptr-mark { color: var(--alchemy-paper-warm); opacity: 0.7; }
+
+/* Guild — synergy clusters as a roster strip. */
+.plate-guild { display: flex; flex-wrap: wrap; gap: 7px; }
+.plate-guild .guild-tag {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+  text-transform: uppercase; padding: 4px 10px; border-radius: 4px;
+  color: var(--alchemy-paper-warm);
+  border: 1px solid rgba(var(--ink-rgb), 0.16); background: rgba(var(--ink-rgb), 0.04);
+}
 
 /* Mentor-card variant moved to packages/shape-ui/src/cohort-card.css. */
 

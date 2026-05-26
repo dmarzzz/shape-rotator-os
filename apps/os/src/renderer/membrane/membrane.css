@@ -85,26 +85,52 @@
   z-index: 4;
   opacity: 0;
   transition: opacity 600ms cubic-bezier(0.65, 0, 0.05, 1);
-  animation: orbital-spin 80s linear infinite;
-  transform-origin: 50% 50%;
 }
 
 .throne-orbital.is-visible {
-  opacity: 0.85;
-}
-
-@keyframes orbital-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  opacity: 0.92;
 }
 
 .throne-orbital text {
   font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 10px;
-  letter-spacing: 0.34em;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  fill: rgba(241, 236, 231, 0.72);
-  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.18));
+  fill: rgba(245, 240, 233, 0.95);
+  /* Dark outline drawn UNDER the fill so the word stays legible when it
+     orbits across the bright wet-glass highlight on the orb. */
+  paint-order: stroke;
+  stroke: rgba(6, 5, 14, 0.92);
+  stroke-width: 4.5px;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.55));
+}
+
+/* Background-orb name labels — pinned under each satellite orb (positioned
+   in JS via updateSatelliteLabels). Dark halo keeps them readable over the
+   orb's bright highlight. */
+.membrane-sat-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.membrane-sat-label {
+  position: absolute;
+  transform: translate(-50%, 0);
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(247, 242, 236, 0.96);
+  -webkit-text-stroke: 0.4px rgba(6, 5, 14, 0.7);
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.95);
+  opacity: 0;
+  transition: opacity 420ms ease;
 }
 
 .membrane-host * {
@@ -647,6 +673,118 @@
   transform: translateX(4px);
 }
 
+/* ── cohort lens cards ──────────────────────────────────────────────────
+   The cohort panel's body: one real, clickable tile per constellation lens
+   + the full roster. Fills the space the old hair-thin links left blank. */
+.cohort-view-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.cohort-view-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+  text-align: left;
+  min-height: 124px;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--membrane-rule);
+  border-radius: 14px;
+  background:
+    linear-gradient(158deg, rgba(255, 255, 255, 0.038), rgba(255, 255, 255, 0.008));
+  color: var(--membrane-mist);
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+  transition: border-color 280ms cubic-bezier(0.65, 0, 0.05, 1),
+              transform 280ms cubic-bezier(0.65, 0, 0.05, 1),
+              background 280ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.cohort-view-card::after {
+  /* a faint ember wash that blooms from the glyph corner on hover */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 16% 0%, rgba(255, 122, 61, 0.16), transparent 62%);
+  opacity: 0;
+  transition: opacity 280ms cubic-bezier(0.65, 0, 0.05, 1);
+  pointer-events: none;
+}
+
+.cohort-view-card:hover,
+.cohort-view-card:focus-visible {
+  border-color: var(--membrane-ember-soft);
+  transform: translateY(-3px);
+  outline: none;
+}
+
+.cohort-view-card:hover::after,
+.cohort-view-card:focus-visible::after {
+  opacity: 1;
+}
+
+.cvc-glyph {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  color: var(--membrane-ember);
+  opacity: 0.82;
+  transition: opacity 280ms ease, transform 280ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.cohort-view-card:hover .cvc-glyph {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.cvc-glyph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cvc-text {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cvc-title {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  color: var(--membrane-mist);
+}
+
+.cvc-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--membrane-mist-dim);
+}
+
+.cvc-arrow {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 13px;
+  color: var(--membrane-ember);
+  opacity: 0;
+  transform: translateX(-3px);
+  transition: opacity 280ms ease, transform 280ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.cohort-view-card:hover .cvc-arrow,
+.cohort-view-card:focus-visible .cvc-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
 .membrane-panel-foot {
   display: flex;
   flex-direction: column;
@@ -812,3 +950,294 @@
   background: var(--membrane-ember);
   display: inline-block;
 }
+
+/* ─── CREW CREDENTIAL — self profile as a space-mission ID card ──────── */
+/* The credential IS the panel content — NOT a card inside the card. The
+   membrane panel's ember border + corner brackets are the frame; this just
+   lays the credential out and fills the full height. */
+.crewid {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  isolation: isolate;
+}
+
+.crewid-foil {
+  position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  opacity: 0; transition: opacity 320ms cubic-bezier(0.65,0,0.05,1);
+  background:
+    radial-gradient(240px 200px at var(--mx,50%) var(--my,0%), rgba(255,210,180,0.12), transparent 60%),
+    linear-gradient(115deg, transparent 43%, rgba(255,122,61,0.12) 50%, transparent 57%);
+  mix-blend-mode: screen;
+}
+.crewid.is-foil .crewid-foil { opacity: 1; }
+.crewid-scan {
+  position: absolute; left: 0; right: 0; top: 0; height: 38%; z-index: 5;
+  pointer-events: none; opacity: 0;
+  background: linear-gradient(180deg, transparent, rgba(255,122,61,0.16), transparent);
+  animation: crewid-sweep 760ms cubic-bezier(0.65,0,0.05,1) 1;
+}
+@keyframes crewid-sweep {
+  0% { opacity: 0; transform: translateY(-100%); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(280%); }
+}
+
+.crewid-band {
+  position: relative; z-index: 2;
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 9px; border-bottom: 1px solid var(--membrane-rule);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.22em; text-transform: uppercase;
+}
+.crewid-issuer { color: var(--membrane-ember); }
+.crewid-doc { color: var(--membrane-mist-dim); }
+
+.crewid-hero { position: relative; z-index: 2; display: flex; gap: 16px; align-items: center; }
+.crewid-patch { flex: 0 0 auto; position: relative; }
+.crewid-patch .membrane-avatar {
+  width: 60px; height: 60px;
+  box-shadow: 0 0 0 1px rgba(255,122,61,0.5), 0 0 18px rgba(255,122,61,0.22);
+}
+.crewid-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.crewid-eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+.crewid-name {
+  margin: 0; font-family: 'Inter Display','Inter',sans-serif; font-style: italic;
+  font-weight: 500; font-size: 34px; line-height: 1; color: var(--membrane-mist);
+  letter-spacing: -0.01em;
+}
+.crewid-callsign { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.crewid-call, .crewid-clearance {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--membrane-mist-mid);
+}
+.crewid-clearance { color: var(--membrane-ember); }
+
+.crewid-readouts {
+  position: relative; z-index: 2;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 7px 22px;
+  padding: 12px 0; border-top: 1px solid var(--membrane-rule); border-bottom: 1px solid var(--membrane-rule);
+}
+.crewid-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.crewid-k {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+.crewid-v {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px; color: var(--membrane-mist); text-align: right;
+}
+
+/* Comms section grows to fill the panel's vertical space, pushing the
+   registry strip + actions to the bottom of the credential. */
+.crewid-comms { position: relative; z-index: 2; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.crewid-comms-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.crewid-comms-title {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--membrane-mist-mid);
+}
+.crewid-comms-count {
+  font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; color: var(--membrane-ember);
+}
+/* Empty state — a centred mission-status block that gives the void a
+   purposeful "awaiting uplink" presence instead of dead space. */
+.crewid-empty {
+  flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; text-align: center; margin: 0; padding: 24px 0;
+  position: relative;
+}
+.crewid-empty::before {
+  content: ""; width: 88px; height: 88px; border-radius: 50%;
+  border: 1px solid rgba(255,122,61,0.22);
+  box-shadow: 0 0 0 8px rgba(255,122,61,0.04), inset 0 0 22px rgba(255,122,61,0.06);
+  animation: crewid-pulse 3.6s ease-in-out infinite;
+}
+@keyframes crewid-pulse {
+  0%, 100% { transform: scale(0.96); opacity: 0.7; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+.crewid-empty .ce-status {
+  font-family: 'JetBrains Mono', monospace; font-size: 8.5px; letter-spacing: 0.26em;
+  text-transform: uppercase; color: var(--membrane-ember);
+}
+.crewid-empty .ce-msg {
+  font-family: 'Inter', sans-serif; font-size: 12px; line-height: 1.6; font-style: italic;
+  color: var(--membrane-mist-dim); max-width: 34ch;
+}
+.crewid-comm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.crewid-comm {
+  display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; align-items: baseline;
+  padding: 6px 8px; border-radius: 5px; cursor: pointer;
+  transition: background 160ms ease;
+}
+.crewid-comm:hover { background: rgba(255,122,61,0.08); }
+.crewid-comm-rel { font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--membrane-mist-dim); }
+.crewid-comm-name { font-family: 'Inter', sans-serif; font-size: 12px; color: var(--membrane-mist); }
+.crewid-comm-meta { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--membrane-mist-dim); text-align: right; }
+
+/* registry strip — a faux barcode + reg number, ID-card flavour */
+.crewid-registry { position: relative; z-index: 2; display: flex; align-items: center; gap: 12px; }
+.crewid-barcode {
+  flex: 1 1 auto; height: 22px; border-radius: 2px; opacity: 0.55;
+  background-image: repeating-linear-gradient(90deg,
+    var(--membrane-mist-mid) 0 1px, transparent 1px 3px,
+    var(--membrane-mist-mid) 3px 5px, transparent 5px 6px,
+    var(--membrane-mist-mid) 6px 7px, transparent 7px 11px);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.crewid-reg-no {
+  flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 8px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+
+.crewid-actions { position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; }
+.crewid-action {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px; letter-spacing: 0.08em; text-transform: lowercase; cursor: pointer;
+  padding: 7px 13px; border-radius: 6px;
+  color: var(--membrane-mist); background: rgba(241,236,231,0.04);
+  border: 1px solid rgba(255,122,61,0.3);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.crewid-action:hover { background: rgba(255,122,61,0.12); border-color: var(--membrane-ember); }
+
+/* In-card claim CTA — the prominent "identify yourself" move for an
+   unclaimed credential, so you claim from the big display itself. */
+.crewid-claim {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; gap: 14px;
+  width: 100%; text-align: left; cursor: pointer;
+  padding: 14px 16px; border-radius: 10px;
+  color: var(--membrane-mist);
+  border: 1px solid rgba(255,122,61,0.5);
+  background: linear-gradient(180deg, rgba(255,122,61,0.16), rgba(255,122,61,0.07));
+  box-shadow: 0 0 22px rgba(255,122,61,0.16), inset 0 0 0 1px rgba(255,122,61,0.12);
+  transition: background 200ms ease, box-shadow 200ms ease, transform 160ms ease;
+  animation: crewid-claim-pulse 3s ease-in-out infinite;
+}
+.crewid-claim:hover {
+  background: linear-gradient(180deg, rgba(255,122,61,0.26), rgba(255,122,61,0.12));
+  box-shadow: 0 0 32px rgba(255,122,61,0.3), inset 0 0 0 1px rgba(255,122,61,0.22);
+  transform: translateY(-1px);
+}
+@keyframes crewid-claim-pulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(255,122,61,0.12), inset 0 0 0 1px rgba(255,122,61,0.1); }
+  50% { box-shadow: 0 0 30px rgba(255,122,61,0.26), inset 0 0 0 1px rgba(255,122,61,0.18); }
+}
+.crewid-claim .cc-glyph {
+  font-size: 22px; color: #ff7a3d; line-height: 1;
+  filter: drop-shadow(0 0 8px rgba(255,122,61,0.5));
+}
+.crewid-claim .cc-text { display: flex; flex-direction: column; gap: 3px; }
+.crewid-claim .cc-title {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--membrane-mist);
+}
+.crewid-claim .cc-sub {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px; letter-spacing: 0.14em; text-transform: lowercase; color: rgba(255,154,106,0.9);
+}
+
+/* ─── THE SEAL — self profile reframed (shape-as-sigil in a vesica) ───── */
+.seal-hero {
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  text-align: center; padding-top: 4px;
+}
+.seal { position: relative; width: 96px; height: 122px; margin-bottom: 6px; }
+.seal svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.seal-vesica-path {
+  fill: rgba(255,122,61,0.04);
+  stroke: rgba(255,122,61,0.5); stroke-width: 1;
+  filter: drop-shadow(0 0 10px rgba(255,122,61,0.18));
+}
+.seal-sigil-line {
+  fill: none; stroke: var(--membrane-mist); stroke-width: 1.1;
+  stroke-linejoin: round; stroke-linecap: round;
+  /* construct-itself rite on mount */
+  stroke-dasharray: 240; stroke-dashoffset: 240;
+  animation: seal-draw 1100ms cubic-bezier(0.65,0,0.05,1) 120ms forwards;
+}
+.seal-sigil-dots circle { fill: var(--membrane-ember); opacity: 0; animation: seal-dot 500ms ease 900ms forwards; }
+@keyframes seal-draw { to { stroke-dashoffset: 0; } }
+@keyframes seal-dot { to { opacity: 0.9; } }
+/* slight hand-touched tilt so it reads drawn, not CAD */
+.seal-sigil { transform: rotate(-2.5deg); transform-origin: center; }
+.seal.has-face .seal-sigil { display: none; }
+.seal-face {
+  position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px);
+  object-fit: cover; opacity: 0.96;
+}
+.seal.no-face .seal-face { display: none; }
+
+.seal-hero .crewid-eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+.seal-hero .crewid-name {
+  margin: 2px 0 0; font-family: 'Inter Display','Inter',sans-serif; font-style: italic;
+  font-weight: 500; font-size: 32px; line-height: 1; letter-spacing: -0.01em; color: var(--membrane-mist);
+}
+.seal-tagline {
+  font-family: 'Inter','sans-serif'; font-style: italic; font-size: 12px;
+  color: var(--membrane-mist-dim); letter-spacing: 0.01em;
+}
+.seal-handle {
+  font-family: 'JetBrains Mono', monospace; font-size: 9.5px; letter-spacing: 0.14em; color: rgba(255,154,106,0.85);
+}
+
+/* readouts centered as a quiet row under the seal */
+.seal-readouts { grid-template-columns: 1fr 1fr 1fr; gap: 6px 18px; }
+.seal-readouts .crewid-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+.seal-readouts .crewid-v { text-align: left; }
+
+.seal-sovereign {
+  position: relative; z-index: 2; text-align: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--membrane-mist-dim); opacity: 0.7;
+}
+
+/* the strike CTA reuses .crewid-claim; just center its text block */
+.seal-strike { justify-content: center; text-align: center; }
+.seal-strike .cc-text { align-items: center; }
+.seal-strike .cc-glyph { animation: seal-glyph-spin 14s linear infinite; }
+@keyframes seal-glyph-spin { to { transform: rotate(360deg); } }
+
+/* ─── THE FIELD — folded full-bleed world ────────────────────────────── */
+/* The panel folds away like a wall of the ship receding; the orbs become
+   the full-bleed world. Click an orb to summon a panel back as an overlay;
+   click empty space (or ↩) to fold it away again. */
+.membrane-panel {
+  transition: transform 760ms cubic-bezier(0.7, 0, 0.2, 1), opacity 480ms ease;
+  transform-origin: left center;
+}
+.membrane-folded .membrane-panel {
+  transform: perspective(1500px) translateX(-14%) rotateY(-34deg) scale(0.95);
+  opacity: 0;
+  pointer-events: none;
+}
+.membrane-stage::before { transition: opacity 620ms ease; }
+.membrane-folded .membrane-stage::before { opacity: 0; }  /* drop the reading gutter → full bleed */
+
+/* "enter the field" — explicit fold control in the panel footer. Folds
+   the panel away so the orbs become the full-bleed world. Hidden with the
+   panel once folded; you return by tapping an orb. Never auto-folds. */
+.membrane-enter-field {
+  display: inline-flex; align-items: center; gap: 7px;
+  -webkit-app-region: no-drag; cursor: pointer;
+  padding: 6px 12px; border-radius: 999px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9px;
+  letter-spacing: 0.16em; text-transform: lowercase;
+  color: var(--membrane-mist-mid);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 122, 61, 0.3);
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.membrane-enter-field:hover { color: var(--membrane-ember); border-color: var(--membrane-ember); background: rgba(255,122,61,0.08); }

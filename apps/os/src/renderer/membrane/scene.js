@@ -188,15 +188,19 @@ export function createMembraneScene(canvas, opts = {}) {
 
   function handlePointerDown(ev) {
     const hit = pickBlobAt(ev.clientX, ev.clientY);
-    if (!hit?.id) return;
+    if (!hit?.id) { if (opts.onEmptyClick) opts.onEmptyClick(); return; }
     if (hit.id === blobBySlot['throne']) {
-      // Click on the throne → a quick scale-bounce for feedback.
+      // Click on the throne → a quick scale-bounce for feedback…
       wiggleThrone();
+      // …and open its panel (so the full-bleed "folded" world can summon
+      // the credential/overlay by tapping the orb you're already on).
+      if (opts.onOrbOpen) opts.onOrbOpen(hit.id);
       return;
     }
-    // Click on satellite → swap it into the throne.
+    // Click on satellite → swap it into the throne + open its panel.
     setActiveBlob(hit.id);
     if (opts.onActiveChange) opts.onActiveChange(hit.id);
+    if (opts.onOrbOpen) opts.onOrbOpen(hit.id);
   }
 
   let hoveredId = null;
@@ -294,6 +298,16 @@ export function createMembraneScene(canvas, opts = {}) {
     }
   }
 
+  // Barely-there camera sway. A slow Lissajous on x/y plus a gentle dolly on
+  // z makes the parallax between star strata felt even when the user is idle
+  // — the depth cue that motion alone provides. Amplitudes are a few
+  // hundredths of a world unit so it never reads as movement, only as life.
+  // Periods are mutually irrational-ish so the path never visibly repeats.
+  const SWAY = {
+    ax: 0.045, ay: 0.030, az: 0.025,   // amplitudes (world units)
+    fx: 0.037, fy: 0.053, fz: 0.021,   // frequencies (Hz-ish)
+  };
+
   function tick() {
     if (!running) return;
     const nowMs = performance.now();
@@ -305,6 +319,15 @@ export function createMembraneScene(canvas, opts = {}) {
     for (const id of BLOB_IDS) {
       blobs[id].tick(time);
     }
+
+    // Idle camera sway around the base position. Re-look at origin so the
+    // blobs stay anchored while the starfield parallax shifts behind them.
+    const sx = Math.sin(time * SWAY.fx * Math.PI * 2) * SWAY.ax;
+    const sy = Math.cos(time * SWAY.fy * Math.PI * 2) * SWAY.ay;
+    const sz = Math.sin(time * SWAY.fz * Math.PI * 2) * SWAY.az;
+    camera.position.set(sx, sy, cameraZ + sz);
+    camera.lookAt(0, 0, 0);
+
     // Stars flow toward camera — forward drift through space.
     starField.tick(dt);
     composer.render();

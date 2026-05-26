@@ -29,6 +29,7 @@ import {
   renderWeekView as renderCalendarWeekView,
   loadCalendar as loadCalendarData,
   currentWeekIdx as calendarCurrentWeekIdx,
+  parseWeekRow as calendarParseWeekRow,
   attachWeekViewBehavior as attachCalendarMobileBehavior,
 } from "@shape-rotator/shape-ui";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
@@ -377,6 +378,49 @@ function renderMembrane() {
   state.membraneController.setData(computeMembraneData());
 }
 
+// Today's timed events from the Phala calendar GRID (cohort.calendar.tabs).
+// The daily schedule (sessions, dinners) lives in the grid cells, not in
+// cohort.events — so the membrane events panel needs to parse today's cell
+// to surface things like "19:00 muse dinner". Reuses the calendar module's
+// week-row parser; only lines that lead with a clock time count as events.
+function todayGridEvents(cal) {
+  try {
+    if (!cal || !cal.tabs) return [];
+    const tabName = cal.tabs["May 18 Start"] ? "May 18 Start" : Object.keys(cal.tabs)[0];
+    const rows = cal.tabs[tabName] || [];
+    const wk = calendarCurrentWeekIdx();
+    const weekRow = rows[2 + wk] || [];
+    const week = calendarParseWeekRow(weekRow, wk);
+    // Match the LOCAL calendar date, not parseWeekRow's UTC `isToday`. The
+    // grid cell dates are UTC-midnight; comparing on Y/M/D keeps "today"
+    // pinned to the day the user is actually in (otherwise, after ~8pm
+    // US-eastern, UTC rolls to tomorrow and the panel shows tomorrow's cell).
+    const now = new Date();
+    const localKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    const today = (week.days || []).find((d) => {
+      const dd = new Date(d.dayMs);
+      return `${dd.getUTCFullYear()}-${dd.getUTCMonth()}-${dd.getUTCDate()}` === localKey;
+    });
+    if (!today) return [];
+    const out = [];
+    for (const block of (today.blocks || [])) {
+      const first = String(block).split("\n")[0].trim();
+      let time = "", rest = "";
+      const range = first.match(/^(\d{1,2}:\d{2})\s*[-–—:]\s*(\d{1,2}:\d{2})(.*)$/);
+      if (range) { time = `${range[1]}–${range[2]}`; rest = range[3]; }
+      else {
+        const single = first.match(/^(\d{1,2}:\d{2})(.*)$/);
+        if (!single) continue;           // no leading time → not a scheduled event
+        time = single[1]; rest = single[2];
+      }
+      rest = rest.replace(/^[\s.·:–—-]+/, "").trim();
+      if (!rest) continue;
+      out.push({ time, title: rest, sub: "" });
+    }
+    return out;
+  } catch { return []; }
+}
+
 // Cross-blob data feed. Read the cohort surface and shape it into per-blob
 // stat dictionaries that the panels can render. Re-runs on every cohort
 // refresh via subscribeToCohortChanges → render() chain.
@@ -441,6 +485,35 @@ function computeMembraneData() {
   const nextEvent = nextEventEntry?.e;
   const nextEventLabel = nextEvent ? (nextEvent.title || nextEvent.name || 'untitled') : '—';
   const nextEventInMs = happeningNow ? 0 : (nextStart ? nextStart.startMs - now : null);
+
+  // TODAY's agenda for the events panel. Merges two sources:
+  //   - timed lines from today's Phala calendar GRID cell (e.g. "19:00 muse
+  //     dinner") — the daily schedule lives in cohort.calendar.tabs, NOT in
+  //     cohort.events, so the panel used to miss them entirely.
+  //   - cohort.events spans that overlap today (e.g. "daily tea").
+  // Deduped by title; all-day/ongoing items first, then by clock time.
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayStartMs = todayStart.getTime();
+  const tomorrowMs = todayStartMs + DAY_MS;
+  const gridItems = todayGridEvents(c.calendar);
+  const spanItems = spans
+    .filter((u) => u.startMs < tomorrowMs && u.endMs >= todayStartMs)
+    .map((u) => ({
+      time: '',
+      title: u.e.title || u.e.name || 'untitled',
+      sub: u.e.subtitle || '',
+      ongoing: (u.endMs - u.startMs) > 12 * 60 * 60 * 1000,
+    }));
+  const seenToday = new Set();
+  const eventsToday = [];
+  for (const it of [...spanItems, ...gridItems]) {
+    const k = (it.title || '').toLowerCase().trim();
+    if (!k || seenToday.has(k)) continue;
+    seenToday.add(k);
+    eventsToday.push(it);
+  }
+  eventsToday.sort((a, b) =>
+    (a.time ? 1 : 0) - (b.time ? 1 : 0) || String(a.time).localeCompare(String(b.time)));
 
   // Edge count: count unique team↔team dependencies the current user's team
   // participates in. Fallback: total cohort-level edges.
@@ -540,6 +613,11 @@ function computeMembraneData() {
   return {
     self: {
       edgeCount: String(connections.length || allEdges),
+      // Reliable claim signal — ONLY a formal identity claim counts, never
+      // the editor-handle fallback (that mis-flagged the github editor user
+      // as "claimed" and stranded them in an empty field). The membrane uses
+      // this to auto-enter the field for returning claimed users.
+      claimed: !!(identity && identity.record_id),
       profile: profileForPanel,
       connections,
     },
@@ -552,6 +630,7 @@ function computeMembraneData() {
       nextEventLabel: nextEventLabel.length > 28 ? nextEventLabel.slice(0, 26) + '…' : nextEventLabel,
       nextEventInMs,
       eventsList: events,
+      eventsToday,
     },
     asks: {
       openAskCount: String(openAsks),
@@ -565,9 +644,14 @@ function computeMembraneData() {
 // Bridge from membrane panels → alchemy rail navigation. Lets the panel
 // "open network →" / "open calendar →" buttons jump into the legacy mode.
 // Public hook used by membrane/index.js.
-window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode) {
+window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   if (!ALCHEMY_MODES.includes(mode)) return;
   state.mode = mode;
+  // Optional: land on a specific constellation sub-view (clusters /
+  // dependencies / journey). Used by the cohort panel's view cards.
+  if (mode === "constellation" && opts && opts.constellationMode) {
+    state.constellationMode = opts.constellationMode;
+  }
   try { localStorage.setItem(ALCHEMY_LS_KEY, mode); } catch {}
   syncRailSelection();
   render();
@@ -806,11 +890,319 @@ function hashStr(s) {
   return h;
 }
 
+// ─── journey (PMF spectrum) ──────────────────────────────────────────
+// PMF fields live INSIDE each team/project record under one optional
+// `journey` object. Everything below is defaulted-at-read: a record with
+// no `journey` (or a missing field) renders at the origin (stage 1,
+// evidence 1) without crashing. Old records render fine; older app
+// versions reading newer data never break (the object is additive).
+const JOURNEY_STAGE_LABELS = [
+  "side project", // stage 0 — off the main PMF maturity track
+  "idea",
+  "problem discovery",
+  "problem-solution fit",
+  "mvp / product validation",
+  "early traction",
+  "emerging pmf",
+  "strong pmf",
+  "scale fit",
+];
+const JOURNEY_EVIDENCE_LABELS = [
+  null, // 1-indexed
+  "vibes / thesis",
+  "interviews",
+  "pilots / lois / design partners",
+  "usage / revenue / retention",
+  "repeatable pull",
+];
+const JOURNEY_BOTTLENECKS = [
+  "ICP Clarity", "Pain Intensity", "Solution Quality", "Technical Risk",
+  "GTM", "Retention", "Business Model", "Fundraising", "Regulatory", "Team",
+];
+const JOURNEY_COMPANY_TYPES = ["B2B", "Consumer", "Infra", "Marketplace", "Protocol", "AI", "Other"];
+const JOURNEY_CONFIDENCE = ["Low", "Medium", "High"];
+// 10-color palette keyed by primary_bottleneck (CSS classes ac-jdot-b0..b9).
+// Lives in styles.css; this array keeps the index↔bottleneck mapping in one place.
+const JOURNEY_BOTTLENECK_COLORS = [
+  "#c44025", // ICP Clarity     — oxide red
+  "#d98a3d", // Pain Intensity  — amber
+  "#c9a35e", // Solution Quality— brass
+  "#7fa05a", // Technical Risk  — olive
+  "#4fa3a0", // GTM             — teal
+  "#4f7fa3", // Retention       — steel blue
+  "#7a6fb0", // Business Model  — muted violet
+  "#a35e8f", // Fundraising     — plum
+  "#9a6b5a", // Regulatory      — clay
+  "#8a8f99", // Team            — slate
+];
+const JOURNEY_DEFAULTS = {
+  stage: 1, evidence_quality: 1, market_upside: 3,
+  primary_bottleneck: "ICP Clarity", confidence: "Low",
+};
+// Journey select fields whose value is an integer (not a string label).
+const NUMERIC_JOURNEY_KEYS = new Set([
+  "journey.stage", "journey.evidence_quality", "journey.market_upside",
+]);
+
+// Read a record's journey object with defaults applied. NEVER assumes the
+// key exists; clamps the scaled fields so out-of-range data can't break the
+// plot. Returns a fully-populated object the renderer/tooltip can trust.
+function journeyFor(rec) {
+  const j = (rec && typeof rec.journey === "object" && rec.journey) || {};
+  const clampInt = (v, lo, hi, dflt) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : dflt;
+  };
+  const pickFrom = (v, list, dflt) => (list.includes(v) ? v : dflt);
+  return {
+    stage: clampInt(j.stage, 0, 8, JOURNEY_DEFAULTS.stage),
+    evidence_quality: clampInt(j.evidence_quality, 1, 5, JOURNEY_DEFAULTS.evidence_quality),
+    market_upside: clampInt(j.market_upside, 1, 5, JOURNEY_DEFAULTS.market_upside),
+    primary_bottleneck: pickFrom(j.primary_bottleneck, JOURNEY_BOTTLENECKS, JOURNEY_DEFAULTS.primary_bottleneck),
+    company_type: pickFrom(j.company_type, JOURNEY_COMPANY_TYPES, null),
+    confidence: pickFrom(j.confidence, JOURNEY_CONFIDENCE, JOURNEY_DEFAULTS.confidence),
+    icp: typeof j.icp === "string" ? j.icp : "",
+    problem: typeof j.problem === "string" ? j.problem : "",
+    solution: typeof j.solution === "string" ? j.solution : "",
+    evidence_notes: typeof j.evidence_notes === "string" ? j.evidence_notes : "",
+    next_milestone: typeof j.next_milestone === "string" ? j.next_milestone : "",
+  };
+}
+
+// Stable signed jitter in [-1,1] from (record_id, salt) so the many
+// Stage-1/Evidence-1 dots don't stack. The TRUE integer values still drive
+// the tooltip + detail drawer — only the pixel position is nudged.
+function journeyJitter(recordId, salt) {
+  let t = (hashStr(String(recordId) + ":" + salt) >>> 0);
+  t += 0x6D2B79F5;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((((t ^ (t >>> 14)) >>> 0) % 10000) / 10000) * 2 - 1;
+}
+
+// Market-upside labels (index = upside 1..5).
+const JOURNEY_UPSIDE_LABELS = ["", "niche", "modest", "solid", "large", "category-defining"];
+
+// Rarity tier derived from PMF stage — drives the Cohort Plate frame
+// material (escalates hairline → double-rule → foil edge; single accent,
+// never multi-hue). Stage 0 (side project) is off-track = "prospect".
+function tierForStage(stage) {
+  if (stage <= 0) return { key: "prospect", name: "side quest" };
+  if (stage <= 2) return { key: "signal", name: "signal" };
+  if (stage <= 4) return { key: "traction", name: "traction" };
+  if (stage <= 6) return { key: "fit", name: "fit" };
+  return { key: "scale", name: "scale" };
+}
+
+// Human label for a stage value (0 = the off-track "side project").
+function journeyStageLabel(stage) {
+  if (stage === 0) return JOURNEY_STAGE_LABELS[0];
+  return `${stage} · ${JOURNEY_STAGE_LABELS[stage] || "—"}`;
+}
+
+// Read-only PMF/journey CARD for the record detail page + drawer. The data
+// IS the visual: a stage spectrum track with a glowing marker, dot-meters
+// for evidence + upside, and a colored bottleneck chip. Always shown for
+// teams/projects (defaults via journeyFor); editable via profile → edit.
+function journeyDetailSection(rec) {
+  const j = journeyFor(rec);
+  const isSide = j.stage === 0;
+
+  // Stage spectrum: an off-track "side" tick, then 8 segments idea→scale-fit.
+  // Filled up to the current stage; current segment marked.
+  const segs = [];
+  segs.push(`<span class="jcard-seg jcard-seg-side ${isSide ? "is-cur is-on" : ""}" title="side project">◇</span>`);
+  for (let s = 1; s <= 8; s++) {
+    const on = !isSide && s <= j.stage ? "is-on" : "";
+    const cur = !isSide && s === j.stage ? "is-cur" : "";
+    segs.push(`<span class="jcard-seg ${on} ${cur}" title="${escHtml(`${s} · ${JOURNEY_STAGE_LABELS[s]}`)}"><i>${s}</i></span>`);
+  }
+
+  // 1..max dot meters.
+  const meter = (val, max) => {
+    let d = "";
+    for (let i = 1; i <= max; i++) d += `<span class="jcm-dot ${i <= val ? "is-on" : ""}"></span>`;
+    return `<span class="jcm-dots">${d}</span>`;
+  };
+
+  const bIdx = Math.max(0, JOURNEY_BOTTLENECKS.indexOf(j.primary_bottleneck));
+  const bColor = JOURNEY_BOTTLENECK_COLORS[bIdx] || JOURNEY_BOTTLENECK_COLORS[0];
+
+  const textRow = (k, v) => v ? `<div class="jcard-note"><span class="jcard-note-k">${escHtml(k)}</span><span class="jcard-note-v">${escHtml(v)}</span></div>` : "";
+
+  return `
+    <div class="jcard ${isSide ? "is-side" : ""}">
+      <div class="jcard-head">
+        <span class="jcard-stage-name">${escHtml(JOURNEY_STAGE_LABELS[j.stage] || "—")}</span>
+        <span class="jcard-stage-meta">${isSide ? "off-track" : `stage ${j.stage} / 8`}</span>
+      </div>
+      <div class="jcard-track">${segs.join("")}</div>
+      <div class="jcard-meters">
+        <div class="jcard-meter">
+          <span class="jcm-k">evidence</span>${meter(j.evidence_quality, 5)}
+          <span class="jcm-lbl">${escHtml(JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "")}</span>
+        </div>
+        <div class="jcard-meter">
+          <span class="jcm-k">upside</span>${meter(j.market_upside, 5)}
+          <span class="jcm-lbl">${escHtml(JOURNEY_UPSIDE_LABELS[j.market_upside] || "")}</span>
+        </div>
+      </div>
+      <div class="jcard-chips">
+        <span class="jcard-chip jcard-chip-bottleneck" style="--jc:${bColor}">${escHtml(j.primary_bottleneck)}</span>
+        ${j.company_type ? `<span class="jcard-chip">${escHtml(j.company_type)}</span>` : ""}
+      </div>
+      ${(j.icp || j.problem || j.solution || j.evidence_notes || j.next_milestone) ? `
+        <div class="jcard-notes">
+          ${textRow("icp", j.icp)}
+          ${textRow("problem", j.problem)}
+          ${textRow("solution", j.solution)}
+          ${textRow("evidence", j.evidence_notes)}
+          ${textRow("next milestone", j.next_milestone)}
+        </div>` : ""}
+    </div>`;
+}
+
+function renderJourney() {
+  const all = state.cohort.teams || [];
+  // Filters (persist for the session). side = include the off-track stage-0
+  // "side project" column; bottleneck = isolate one bottleneck.
+  const jf = state.journeyFilters || (state.journeyFilters = { teams: true, projects: true, side: true, bottleneck: null });
+  const teams = all.filter((t) => {
+    const j = journeyFor(t);
+    const isProject = teamKind(t) === "project";
+    if (isProject && !jf.projects) return false;
+    if (!isProject && !jf.teams) return false;
+    if (j.stage === 0 && !jf.side) return false;
+    if (jf.bottleneck && j.primary_bottleneck !== jf.bottleneck) return false;
+    return true;
+  });
+  // Stage distribution over the filtered set (drives the per-column counts).
+  const stageCounts = new Array(9).fill(0);
+  for (const t of teams) stageCounts[journeyFor(t).stage]++;
+  const W = 980, H = 540;
+  // Plot area inset: leave room for axis labels (left = evidence, bottom = stage).
+  const PAD_L = 96, PAD_R = 28, PAD_T = 28, PAD_B = 88;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+  // X = stage. Column 0 is "side project" — OFF the main maturity track,
+  // set apart by a divider — then stages 1..8 (idea → scale fit). 9 columns.
+  // Y = evidence_quality (1..5, higher = up).
+  const STAGE_COUNT = JOURNEY_STAGE_LABELS.length; // 9 (0..8)
+  const colW = plotW / STAGE_COUNT;
+  const rowH = plotH / 5;
+  const xForStage = (stage) => PAD_L + (stage + 0.5) * colW;
+  const yForEvidence = (ev) => PAD_T + plotH - (ev - 0.5) * rowH;
+
+  // ── grid + axis labels ──
+  const gridLines = [];
+  for (let i = 0; i <= STAGE_COUNT; i++) {
+    const x = PAD_L + i * colW;
+    gridLines.push(`<line class="ac-jgrid" x1="${x.toFixed(1)}" y1="${PAD_T}" x2="${x.toFixed(1)}" y2="${(PAD_T + plotH).toFixed(1)}"/>`);
+  }
+  for (let i = 0; i <= 5; i++) {
+    const y = PAD_T + i * rowH;
+    gridLines.push(`<line class="ac-jgrid" x1="${PAD_L}" y1="${y.toFixed(1)}" x2="${(PAD_L + plotW).toFixed(1)}" y2="${y.toFixed(1)}"/>`);
+  }
+  // Divider between the off-track side-project column (0) and idea (1).
+  const dividerX = PAD_L + colW;
+  gridLines.push(`<line class="ac-jdivider" x1="${dividerX.toFixed(1)}" y1="${(PAD_T - 6).toFixed(1)}" x2="${dividerX.toFixed(1)}" y2="${(PAD_T + plotH + 6).toFixed(1)}"/>`);
+  const xLabels = JOURNEY_STAGE_LABELS.map((lbl, stage) => {
+    const x = xForStage(stage);
+    // Stage 0 (side project) is off-track — render the label only, no number.
+    const num = stage === 0 ? "" : `<tspan class="ac-jaxis-num">${stage}</tspan> `;
+    const cls = stage === 0 ? "ac-jaxis-x ac-jaxis-x-side" : "ac-jaxis-x";
+    return `<text class="${cls}" x="${x.toFixed(1)}" y="${(PAD_T + plotH + 18).toFixed(1)}" text-anchor="middle">${num}${escHtml(lbl)}</text>`;
+  }).join("");
+  const yLabels = JOURNEY_EVIDENCE_LABELS.slice(1).map((lbl, i) => {
+    const ev = i + 1;
+    const y = yForEvidence(ev);
+    return `<text class="ac-jaxis-y" x="${(PAD_L - 10).toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="end"><tspan class="ac-jaxis-num">${ev}</tspan> ${escHtml(lbl)}</text>`;
+  }).join("");
+  const axisTitleX = `<text class="ac-jaxis-title" x="${(PAD_L + plotW / 2).toFixed(1)}" y="${(H - 16).toFixed(1)}" text-anchor="middle">stage →</text>`;
+  const axisTitleY = `<text class="ac-jaxis-title" transform="translate(18,${(PAD_T + plotH / 2).toFixed(1)}) rotate(-90)" text-anchor="middle">evidence quality →</text>`;
+  // Per-stage count strip across the top — a quick distribution read.
+  const countLabels = stageCounts.map((c, stage) =>
+    c > 0 ? `<text class="ac-jcount" x="${xForStage(stage).toFixed(1)}" y="${(PAD_T - 7).toFixed(1)}" text-anchor="middle">${c}</text>` : ""
+  ).join("");
+
+  // ── dots: one per team AND project. Radius ← market_upside; fill ←
+  // primary_bottleneck. Deterministic jitter spreads same-cell dots. ──
+  const dots = teams.map((t) => {
+    const j = journeyFor(t);
+    const jx = journeyJitter(t.record_id, "x") * (colW * 0.32);
+    const jy = journeyJitter(t.record_id, "y") * (rowH * 0.32);
+    const cx = xForStage(j.stage) + jx;
+    const cy = yForEvidence(j.evidence_quality) + jy;
+    const r = 4 + j.market_upside * 1.8; // upside 1..5 → r 5.8..13
+    const colorIdx = Math.max(0, JOURNEY_BOTTLENECKS.indexOf(j.primary_bottleneck));
+    const isProject = teamKind(t) === "project";
+    return `<g class="ac-jnode${isProject ? " is-project" : ""}" data-record-id="${escHtml(t.record_id)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
+        <circle class="ac-jdot ac-jdot-b${colorIdx}" r="${r.toFixed(1)}"/>
+        <text class="ac-jnode-label" y="${(-r - 5).toFixed(1)}" text-anchor="middle">${escHtml(t.name)}</text>
+      </g>`;
+  }).join("");
+
+  // ── bottleneck legend (10 colors) — clickable to isolate a bottleneck ──
+  const legend = JOURNEY_BOTTLENECKS.map((b, i) =>
+    `<button type="button" class="acl-item acl-jbtn ${jf.bottleneck === b ? "is-active" : ""} ${jf.bottleneck && jf.bottleneck !== b ? "is-dim" : ""}" data-jbottleneck="${escAttr(b)}"><span class="acl-jswatch ac-jdot-b${i}"></span>${escHtml(b)}</button>`
+  ).join("");
+
+  // ── filter bar — toggle teams / projects / side projects ──
+  const fbtn = (key, label) => `<button type="button" class="ajf-toggle ${jf[key] ? "is-on" : ""}" data-jfilter="${key}">${label}</button>`;
+  const filterBar = `
+    <div class="alch-journey-filters">
+      <span class="ajf-label">show</span>
+      ${fbtn("teams", "teams")}
+      ${fbtn("projects", "projects")}
+      ${fbtn("side", "side projects")}
+      <span class="ajf-count">${teams.length} shown</span>
+    </div>`;
+
+  state.canvas.innerHTML = `
+    <div class="alch-constellation">
+      <nav class="alch-const-modes" role="tablist" aria-label="constellation view">
+        <button class="alch-const-mode-btn" data-const-mode="clusters" aria-selected="false" type="button">
+          <span class="acm-glyph" aria-hidden="true">◑</span><span class="acm-label">clusters</span>
+          <span class="acm-hint">shared cluster membership</span>
+        </button>
+        <button class="alch-const-mode-btn" data-const-mode="dependencies" aria-selected="false" type="button">
+          <span class="acm-glyph" aria-hidden="true">↬</span><span class="acm-label">dependencies</span>
+          <span class="acm-hint">team-asserted edges</span>
+        </button>
+        <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="true" type="button">
+          <span class="acm-glyph" aria-hidden="true">⌁</span><span class="acm-label">journey</span>
+          <span class="acm-hint">pmf maturity spectrum</span>
+        </button>
+      </nav>
+      ${filterBar}
+      <div class="alch-constellation-stage alch-journey-stage">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+          ${gridLines.join("")}
+          ${xLabels}
+          ${yLabels}
+          ${axisTitleX}
+          ${axisTitleY}
+          ${countLabels}
+          ${dots}
+        </svg>
+        <div class="alch-journey-tip" hidden></div>
+      </div>
+      <div class="alch-constellation-legend">${legend}</div>
+      <p class="alch-callout"><strong>journey · v0.1</strong><br/>
+      Every cohort team and project placed on a startup-maturity spectrum — <strong>stage</strong> (idea → scale fit) across, <strong>evidence quality</strong> (vibes → repeatable pull) up. Dot size is market upside; dot color is the primary bottleneck. Initial placement defaults every company to <em>idea / vibes</em> — update each as evidence is collected, via <strong>profile → edit → team / project</strong>.</p>
+    </div>
+  `;
+}
+
 // ─── constellation ───────────────────────────────────────────────────
 function renderConstellation() {
   const teams = state.cohort.teams;
   const clusters = state.cohort.clusters;
   const mode = state.constellationMode || "clusters";
+
+  // Journey sub-tab renders a PMF scatterplot instead of the circular
+  // graph. Early branch keeps clusters/dependencies code untouched below.
+  if (mode === "journey") { renderJourney(); return; }
 
   const W = 980, H = 540, CX = W / 2, CY = H / 2, R = 215;
   const byRecordId = new Map(teams.map(t => [t.record_id, t]));
@@ -903,6 +1295,10 @@ function renderConstellation() {
         <button class="alch-const-mode-btn" data-const-mode="dependencies" aria-selected="${mode === "dependencies"}" type="button">
           <span class="acm-glyph" aria-hidden="true">↬</span><span class="acm-label">dependencies</span>
           <span class="acm-hint">team-asserted edges</span>
+        </button>
+        <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="${mode === "journey"}" type="button">
+          <span class="acm-glyph" aria-hidden="true">⌁</span><span class="acm-label">journey</span>
+          <span class="acm-hint">pmf maturity spectrum</span>
         </button>
       </nav>
       <div class="alch-constellation-stage">
@@ -1248,6 +1644,16 @@ function wireConstellationHover() {
       g.addEventListener("mouseleave", () => setConstellationHover(stage, rid, false));
       g.addEventListener("click", () => openDrawer(rid));
     }
+    // Journey scatterplot nodes: hover → tooltip, click → drawer.
+    const tip = stage.querySelector(".alch-journey-tip");
+    const byId = new Map((state.cohort?.teams || []).map(t => [t.record_id, t]));
+    for (const node of stage.querySelectorAll(".ac-jnode")) {
+      const rid = node.dataset.recordId;
+      node.addEventListener("mouseenter", () => showJourneyTip(stage, tip, byId.get(rid)));
+      node.addEventListener("mousemove", (e) => positionJourneyTip(stage, tip, e));
+      node.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
+      node.addEventListener("click", () => openDrawer(rid));
+    }
   }
   // Mode-toggle nav: switches the edge source between cluster-membership
   // and team-asserted dependencies. State persists for the session.
@@ -1266,6 +1672,23 @@ function wireConstellationHover() {
       state.programPage = b.dataset.programPage || null;
       try { localStorage.setItem(ALCHEMY_LS_KEY, "program"); } catch {}
       syncRailSelection();
+      render();
+    });
+  }
+  // Journey filters: toggle teams / projects / side projects.
+  const jf = state.journeyFilters;
+  for (const btn of state.canvas.querySelectorAll(".ajf-toggle[data-jfilter]")) {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.jfilter;
+      if (jf && key in jf) { jf[key] = !jf[key]; render(); }
+    });
+  }
+  // Journey legend: click a bottleneck to isolate it; click again to clear.
+  for (const btn of state.canvas.querySelectorAll(".acl-jbtn[data-jbottleneck]")) {
+    btn.addEventListener("click", () => {
+      if (!jf) return;
+      const b = btn.dataset.jbottleneck;
+      jf.bottleneck = jf.bottleneck === b ? null : b;
       render();
     });
   }
@@ -1294,6 +1717,39 @@ function setConstellationHover(stage, recordId, on) {
     if (related.has(rid) && rid !== recordId) g.classList.add("is-related");
     else g.classList.remove("is-related");
   });
+}
+
+// Journey tooltip: name + stage/evidence labels + bottleneck + next
+// milestone. Reads journey with defaults applied so it never crashes on a
+// record that has no `journey` object.
+function showJourneyTip(stage, tip, rec) {
+  if (!tip || !rec) return;
+  const j = journeyFor(rec);
+  const stageLbl = JOURNEY_STAGE_LABELS[j.stage] || "—";
+  const evLbl = JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "—";
+  const milestone = j.next_milestone
+    ? `<div class="ajt-row"><span class="ajt-k">next</span><span class="ajt-v">${escHtml(j.next_milestone)}</span></div>`
+    : "";
+  tip.innerHTML = `
+    <div class="ajt-name">${escHtml(rec.name || rec.record_id)}</div>
+    <div class="ajt-row"><span class="ajt-k">stage</span><span class="ajt-v">${j.stage} · ${escHtml(stageLbl)}</span></div>
+    <div class="ajt-row"><span class="ajt-k">evidence</span><span class="ajt-v">${j.evidence_quality} · ${escHtml(evLbl)}</span></div>
+    <div class="ajt-row"><span class="ajt-k">bottleneck</span><span class="ajt-v">${escHtml(j.primary_bottleneck)}</span></div>
+    ${milestone}
+  `;
+  tip.hidden = false;
+}
+function positionJourneyTip(stage, tip, e) {
+  if (!tip || tip.hidden) return;
+  const r = stage.getBoundingClientRect();
+  let x = e.clientX - r.left + 14;
+  let y = e.clientY - r.top + 14;
+  // Keep the tip inside the stage on the right/bottom edges.
+  const tw = tip.offsetWidth || 200, th = tip.offsetHeight || 80;
+  if (x + tw > r.width) x = e.clientX - r.left - tw - 14;
+  if (y + th > r.height) y = e.clientY - r.top - th - 14;
+  tip.style.left = `${Math.max(4, x)}px`;
+  tip.style.top = `${Math.max(4, y)}px`;
 }
 
 // ─── calendar (cohort presence over time) ─────────────────────────────
@@ -3334,6 +3790,19 @@ function renderTeamDetail(team) {
   const linksRow = renderDetailLinks(team.links || {});
   const editUrl = buildEditPRUrl({ recordType: "team", recordId });
 
+  // ── Cohort Plate framing ──
+  const j = journeyFor(team);
+  const tier = tierForStage(j.stage);
+  const allTeams = state.cohort.teams || [];
+  const idx = allTeams.findIndex(t => t.record_id === recordId) + 1;
+  const idxStr = `${String(Math.max(1, idx)).padStart(3, "0")}/${String(allTeams.length).padStart(3, "0")}`;
+  // taxonomy "class line" — domain as class, shape as order.
+  const klass = (domainLabel(team.domain) || "—").toLowerCase();
+  const order = (s ? s.name : (team.shape || "—")).toLowerCase();
+  // cohort phase (m1/m2/m3) from the current program week.
+  let phase = "";
+  try { const w = calendarCurrentWeekIdx() + 1; phase = w <= 4 ? "m1" : w <= 9 ? "m2" : "m3"; } catch {}
+
   state.canvas.innerHTML = `
     <header class="alch-detail-bar">
       <button class="alch-detail-back" type="button" id="alch-detail-back" aria-label="back to grid">
@@ -3349,74 +3818,109 @@ function renderTeamDetail(team) {
       <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
     </header>
 
-    <section class="alch-detail-hero">
-      <div class="alch-detail-shape">${s ? `<canvas data-shape-fam="${s.fam}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</div>
-      <div class="alch-detail-hero-text">
-        <h2 class="alch-detail-name">${escHtml(team.name)}</h2>
-        <p class="alch-detail-focus">${escHtml(team.focus || "—")}</p>
-        <div class="alch-detail-meta">
-          <span><span class="adm-k">shape</span> ${escHtml(s ? s.name : "—")}</span>
-          <span class="ct-sep">·</span>
-          <span><span class="adm-k">domain</span> ${escHtml(domainLabel(team.domain))}</span>
-          <span class="ct-sep">·</span>
-          <span><span class="adm-k">${kind === "project" ? "contributors" : "team"}</span> ${m} ${m === 1 ? "person" : "people"}</span>
-          <span class="ct-sep">·</span>
-          <span><span class="adm-k">geo</span> ${escHtml(team.geo || "—")}</span>
-        </div>
+    <article class="cohort-plate is-revealing" data-tier="${escAttr(tier.key)}" data-kind="${escAttr(kind)}" id="cohort-plate">
+      <div class="plate-foil" aria-hidden="true"></div>
+      <div class="plate-scan" aria-hidden="true"></div>
+
+      <div class="plate-band">
+        <span class="pb-desig">${escHtml(team.name)}</span>
+        <span class="pb-meta">designation · ${escHtml(kind)} · idx ${escHtml(idxStr)}${phase ? ` · cohort ${escHtml(phase)}` : ""}</span>
+        <span class="pb-tier" data-tier="${escAttr(tier.key)}">tier · ${escHtml(tier.name)}</span>
       </div>
-    </section>
+      <div class="plate-class">class: ${escHtml(klass)} <span class="pc-sep">//</span> order: ${escHtml(order)}${team.is_mentor ? ` <span class="pc-sep">//</span> mentor` : ""}</div>
 
-    <div class="alch-detail-grid">
-      <section class="alch-detail-section">
-        <h3 class="alch-detail-h">about</h3>
-        <div class="alch-detail-row"><span class="adr-k">contributors</span><span class="adr-v">${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</span></div>
-        ${team.traction ? `<div class="alch-detail-row"><span class="adr-k">traction</span><span class="adr-v">${escHtml(team.traction)}</span></div>` : ""}
-      </section>
-
-      ${(team.paper_basis || team.hackathon_note) ? `
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">credentials</h3>
-          ${team.paper_basis  ? `<div class="alch-detail-row"><span class="adr-k">paper</span><span class="adr-v">${escHtml(team.paper_basis)}</span></div>`  : ""}
-          ${team.hackathon_note ? `<div class="alch-detail-row"><span class="adr-k">hackathon</span><span class="adr-v"><span style="color:var(--alchemy-oxide-bright)">★</span> ${escHtml(team.hackathon_note)}</span></div>` : ""}
-        </section>
-      ` : ""}
-
-      <section class="alch-detail-section">
-        <h3 class="alch-detail-h">links</h3>
-        ${linksRow}
-      </section>
-
-      ${teamPeople.length ? `
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">${kind === "project" ? "contributors" : "members"} <span class="alch-profile-h-aux">— ${teamPeople.length}</span></h3>
-          <ul class="alch-detail-people">
-            ${teamPeople.map(p => `
-              <li class="alch-detail-person is-clickable" data-person="${escHtml(p.record_id)}" tabindex="0" role="button" aria-label="open ${escHtml(p.name || p.record_id)}">
-                <span class="adp-name">${escHtml(p.name || p.record_id)}</span>
-                ${p.role ? `<span class="adp-role">${escHtml(p.role)}</span>` : ""}
-              </li>
-            `).join("")}
-          </ul>
-        </section>
-      ` : ""}
-
-      ${memberClusters.length ? `
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">synergy clusters</h3>
-          <div class="alch-detail-clusters">
-            ${memberClusters.map(cl => `
-              <span class="alch-detail-cluster">${escHtml(cl.label)}</span>
-            `).join("")}
+      <section class="alch-detail-hero plate-hero">
+        <div class="alch-detail-shape">${s ? `<canvas data-shape-fam="${s.fam}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</div>
+        <div class="alch-detail-hero-text">
+          <h2 class="alch-detail-name">${escHtml(team.name)}</h2>
+          <p class="alch-detail-focus">${escHtml(team.focus || "—")}</p>
+          <div class="alch-detail-meta">
+            <span><span class="adm-k">domain</span> ${escHtml(domainLabel(team.domain))}</span>
+            <span class="ct-sep">·</span>
+            <span><span class="adm-k">${kind === "project" ? "contributors" : "team"}</span> ${m} ${m === 1 ? "person" : "people"}</span>
+            <span class="ct-sep">·</span>
+            <span><span class="adm-k">geo</span> ${escHtml(team.geo || "—")}</span>
           </div>
+        </div>
+        <div class="plate-grade-stamp" data-tier="${escAttr(tier.key)}" aria-hidden="true">${escHtml(tier.name)}</div>
+      </section>
+
+      <div class="alch-detail-grid">
+        <section class="alch-detail-section">
+          <h3 class="alch-detail-h">about</h3>
+          <div class="alch-detail-row"><span class="adr-k">contributors</span><span class="adr-v">${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</span></div>
+          ${team.traction ? `<div class="alch-detail-row"><span class="adr-k">traction</span><span class="adr-v">${escHtml(team.traction)}</span></div>` : ""}
         </section>
-      ` : ""}
-    </div>
+
+        <section class="alch-detail-section">
+          <h3 class="alch-detail-h">pmf · journey</h3>
+          ${journeyDetailSection(team)}
+        </section>
+
+        ${(team.paper_basis || team.hackathon_note) ? `
+          <section class="alch-detail-section">
+            <h3 class="alch-detail-h">trophies</h3>
+            <div class="plate-trophies">
+              ${team.hackathon_note ? `<span class="plate-trophy trophy-rare"><span class="ptr-mark">★</span><span class="ptr-body"><span class="ptr-grade">rare</span><span class="ptr-name">${escHtml(team.hackathon_note)}</span></span></span>` : ""}
+              ${team.paper_basis ? `<span class="plate-trophy trophy-notable"><span class="ptr-mark">◆</span><span class="ptr-body"><span class="ptr-grade">notable</span><span class="ptr-name">${escHtml(team.paper_basis)}</span></span></span>` : ""}
+            </div>
+          </section>
+        ` : ""}
+
+        <section class="alch-detail-section">
+          <h3 class="alch-detail-h">links</h3>
+          ${linksRow}
+        </section>
+
+        ${teamPeople.length ? `
+          <section class="alch-detail-section">
+            <h3 class="alch-detail-h">${kind === "project" ? "contributors" : "members"} <span class="alch-profile-h-aux">— ${teamPeople.length}</span></h3>
+            <ul class="alch-detail-people">
+              ${teamPeople.map(p => `
+                <li class="alch-detail-person is-clickable" data-person="${escHtml(p.record_id)}" tabindex="0" role="button" aria-label="open ${escHtml(p.name || p.record_id)}">
+                  <span class="adp-name">${escHtml(p.name || p.record_id)}</span>
+                  ${p.role ? `<span class="adp-role">${escHtml(p.role)}</span>` : ""}
+                </li>
+              `).join("")}
+            </ul>
+          </section>
+        ` : ""}
+
+        ${memberClusters.length ? `
+          <section class="alch-detail-section">
+            <h3 class="alch-detail-h">guild <span class="alch-profile-h-aux">— synergy clusters</span></h3>
+            <div class="plate-guild">
+              ${memberClusters.map(cl => `<span class="guild-tag">${escHtml(cl.label)}</span>`).join("")}
+            </div>
+          </section>
+        ` : ""}
+      </div>
+    </article>
   `;
 
   // Wire interactions.
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
+  wirePlateFoil(state.canvas.querySelector(".cohort-plate"));
+}
+
+// Cursor-tracked foil glint: update --mx/--my (0..100%) as the pointer
+// moves over the plate; CSS positions a faint oxide sheen there. Settles
+// flat on leave. The one-shot reveal (scan sweep + grade stamp) is pure
+// CSS, triggered by the .is-revealing class on mount.
+function wirePlateFoil(plate) {
+  if (!plate) return;
+  plate.addEventListener("pointermove", (e) => {
+    const r = plate.getBoundingClientRect();
+    plate.style.setProperty("--mx", `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
+    plate.style.setProperty("--my", `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+    plate.classList.add("is-foil");
+  });
+  plate.addEventListener("pointerleave", () => plate.classList.remove("is-foil"));
+  // Drop the reveal class once the animation has played so it doesn't
+  // re-run on incidental reflows.
+  setTimeout(() => plate.classList.remove("is-revealing"), 1400);
 }
 
 function renderPersonDetail(person) {
@@ -3636,6 +4140,10 @@ function openDrawer(recordId) {
       <div class="alch-drawer-row"><span class="dr-k">team</span><span class="dr-v">${m} ${m === 1 ? "person" : "people"}</span></div>
       <div class="alch-drawer-row"><span class="dr-k">geo</span><span class="dr-v">${escHtml(team.geo || "—")}</span></div>
       ${team.traction ? `<div class="alch-drawer-row"><span class="dr-k">traction</span><span class="dr-v">${escHtml(team.traction)}</span></div>` : ""}
+    </section>
+    <section class="alch-drawer-section">
+      <h4>pmf · journey</h4>
+      ${journeyDetailSection(team)}
     </section>
     ${team.paper_basis || team.hackathon_note ? `
       <section class="alch-drawer-section">
@@ -4343,6 +4851,20 @@ function teamFieldsFor(kind) {
     { key: "graduation_target",  label: "graduation target",  type: "textarea", placeholder: "what 'graduating well' looks like for this project" },
     { key: "monthly_milestones", label: "monthly milestones", type: "textarea", placeholder: "rough month-by-month checkpoints (one per line)" },
     { key: "weekly_goals",       label: "this week's goals",  type: "textarea", placeholder: "concrete goal(s) for this week — refresh on monday" },
+    // ── PMF journey — placed on the constellation › journey spectrum.
+    // stage / evidence STORE the integer but SHOW "1 · idea" via {value,label}.
+    // All optional + defaulted-at-read; an unset journey plots at idea/vibes.
+    { key: "journey.stage",            label: "pmf · stage",            type: "select", options: JOURNEY_STAGE_LABELS.map((l, i) => ({ value: i, label: i === 0 ? l : `${i} · ${l}` })) },
+    { key: "journey.evidence_quality", label: "pmf · evidence quality", type: "select", options: JOURNEY_EVIDENCE_LABELS.slice(1).map((l, i) => ({ value: i + 1, label: `${i + 1} · ${l}` })) },
+    { key: "journey.market_upside",    label: "pmf · market upside",    type: "select", options: [1, 2, 3, 4, 5].map(n => ({ value: n, label: `${n} · ${["", "niche", "modest", "solid", "large", "category-defining"][n]}` })) },
+    { key: "journey.primary_bottleneck", label: "pmf · primary bottleneck", type: "select", options: JOURNEY_BOTTLENECKS },
+    { key: "journey.company_type",     label: "pmf · company type",     type: "select", options: JOURNEY_COMPANY_TYPES },
+    { key: "journey.confidence",       label: "pmf · confidence",       type: "select", options: JOURNEY_CONFIDENCE },
+    { key: "journey.icp",              label: "pmf · ICP",              type: "text",     placeholder: "who is this for — the ideal customer profile" },
+    { key: "journey.problem",          label: "pmf · problem",          type: "textarea", placeholder: "the pain you're solving, in their words" },
+    { key: "journey.solution",         label: "pmf · solution",         type: "textarea", placeholder: "what you ship to solve it" },
+    { key: "journey.evidence_notes",   label: "pmf · evidence notes",   type: "textarea", placeholder: "what proof you have so far (interviews, pilots, usage…)" },
+    { key: "journey.next_milestone",   label: "pmf · next milestone",   type: "text",     placeholder: "the next thing that would move you up the spectrum" },
   ];
 }
 
@@ -4618,8 +5140,16 @@ function renderEditorForm(fields, draft, ctx) {
     const display = value == null ? "" : String(value);
     let input;
     if (f.type === "select") {
+      // Options may be plain strings (value === label) OR {value,label}
+      // objects (store the value, show the label). Selected when the
+      // stringified option value matches the stringified current value.
       const opts = ['<option value="">—</option>']
-        .concat(f.options.map(o => `<option value="${escHtml(o)}" ${o === value ? "selected" : ""}>${escHtml(o)}</option>`))
+        .concat(f.options.map(o => {
+          const ov = (o && typeof o === "object") ? o.value : o;
+          const ol = (o && typeof o === "object") ? o.label : o;
+          const sel = String(ov) === String(value) ? "selected" : "";
+          return `<option value="${escAttr(String(ov))}" ${sel}>${escHtml(String(ol))}</option>`;
+        }))
         .join("");
       input = `<select name="${escAttr(f.key)}">${opts}</select>`;
     } else if (f.type === "team-select") {
@@ -4796,6 +5326,12 @@ function wireProfileForm() {
       let coerced = value;
       if (target.type === "number") coerced = value === "" ? null : Number(value);
       else if (value === "") coerced = null;
+      // Integer-valued journey selects store the number, not the string,
+      // so the data model stays clean (stage/evidence/market_upside are
+      // 1..N integers). Other selects keep their string value.
+      else if (NUMERIC_JOURNEY_KEYS.has(target.name) && /^-?\d+$/.test(value)) {
+        coerced = Number(value);
+      }
       setNested(state.profile.editDraft, target.name, coerced);
       saveProfile();
       // Refresh the ADD path preview so the user can see exactly where
