@@ -6550,6 +6550,41 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-legend .acl-swatch-ndai      { background: var(--const-edge-ndai); }
 .alch-constellation-legend .acl-swatch-regulated { background: var(--const-edge-regulated); }
 
+/* ─── cohort map · cluster wells + domain nodes (ported from dossier Map) ─
+   Domain colors are warm oxide-family TONES, not a categorical rainbow — a
+   tonal read that stays inside the brand palette. */
+.alch-constellation-stage svg .ac-well ellipse {
+  fill: rgba(var(--ink-rgb), 0.022);
+  stroke: rgba(var(--ink-rgb), 0.13);
+  stroke-width: 0.8; stroke-dasharray: 3 5;
+}
+.alch-constellation-stage svg .ac-well-label {
+  fill: var(--alchemy-ink-mute); opacity: 0.65;
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.22em; text-transform: uppercase;
+}
+.alch-constellation-stage svg #ac-arrow path { fill: rgba(193,168,114,0.7); }
+.alch-constellation-stage svg .ac-node-domain-tee    .ac-node-shape { fill: #A84A34; stroke: #C86A50; }
+.alch-constellation-stage svg .ac-node-domain-crypto .ac-node-shape { fill: #8E3A21; stroke: #B45433; }
+.alch-constellation-stage svg .ac-node-domain-ai     .ac-node-shape { fill: #C86A50; stroke: #E0916F; }
+.alch-constellation-stage svg .ac-node-domain-app-ux .ac-node-shape { fill: #D9926A; stroke: #EBB088; }
+.alch-constellation-stage svg .ac-node-domain-other  .ac-node-shape { fill: #8a7d75; stroke: #b3a59b; }
+/* mentor stays hollow regardless of domain (higher specificity wins) */
+.alch-constellation-stage svg .ac-node-group .ac-node-shape.ac-node-mentor {
+  fill: transparent; stroke: var(--alchemy-paper-warm); stroke-width: 1; opacity: 0.85;
+}
+.alch-constellation-legend .acl-dot {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  vertical-align: middle; margin-right: 6px;
+}
+.alch-constellation-legend .acl-dot-tee    { background: #A84A34; }
+.alch-constellation-legend .acl-dot-crypto { background: #8E3A21; }
+.alch-constellation-legend .acl-dot-ai     { background: #C86A50; }
+.alch-constellation-legend .acl-dot-app-ux { background: #D9926A; }
+.alch-constellation-legend .acl-size {
+  display: inline-block; width: 13px; height: 13px; border-radius: 50%;
+  border: 1px solid rgba(var(--ink-rgb), 0.4); vertical-align: middle; margin-right: 6px;
+}
+
 /* ─── journey (PMF spectrum scatterplot) ─────────────────────────────── */
 /* Reuses the constellation stage chrome; the scatter-specific bits (grid,
    axes, dots, tooltip) live here. Matches the dark oxide-on-warm aesthetic. */

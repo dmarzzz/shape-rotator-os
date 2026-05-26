@@ -1195,95 +1195,180 @@ function renderJourney() {
 }
 
 // ─── constellation ───────────────────────────────────────────────────
+// ─── cohort map · cluster-well constellation ─────────────────────────
+// Ported (watered-down, PUBLIC-data-only) from the cohort dossier's Map
+// view. Teams sit inside their primary cluster's "well"; node size = how
+// many teams declare a dependency on them (keystones grow); domain → a
+// warm tonal color. Detail-on-click reuses the existing record drawer.
+// Nothing here reads coordinator judgement or any private dossier input —
+// every field used is self-asserted in the cohort surface.
+const CONST_DOMAIN_LABEL = {
+  tee: "trusted compute", ai: "agent infra", crypto: "crypto · identity",
+  "app-ux": "app · ux", "bd-gtm": "app · ux", other: "other",
+};
+const CONST_DOMAIN_KEYS = ["tee", "ai", "crypto", "app-ux"];
+function constDomainClass(d) {
+  const k = String(d || "other").toLowerCase();
+  if (k === "bd-gtm") return "app-ux";
+  return CONST_DOMAIN_KEYS.includes(k) ? k : "other";
+}
+
+// Dependency in-degree: how many OTHER teams name this team in their
+// self-asserted dependencies[]. Drives node size (keystones grow).
+function constellationIndegree(teams) {
+  const have = new Set(teams.map(t => t.record_id));
+  const ind = new Map(teams.map(t => [t.record_id, 0]));
+  for (const t of teams) {
+    for (const dep of (Array.isArray(t.dependencies) ? t.dependencies : [])) {
+      if (dep !== t.record_id && have.has(dep)) ind.set(dep, ind.get(dep) + 1);
+    }
+  }
+  return ind;
+}
+
+// Assign each team a primary cluster (first cluster that lists it), build
+// the cluster "wells", and compute in-degree.
+function constellationModel(teams, clusters) {
+  const byRecordId = new Map(teams.map(t => [t.record_id, t]));
+  const primary = new Map();
+  const wellsDef = [];
+  for (const cl of (clusters || [])) {
+    const members = (cl.teams || []).filter(rid => byRecordId.has(rid) && !primary.has(rid));
+    if (!members.length) continue;
+    members.forEach(rid => primary.set(rid, cl.record_id));
+    wellsDef.push({ id: cl.record_id || cl.name, label: cl.label || cl.name || "cluster", members });
+  }
+  const orphans = teams.filter(t => !primary.has(t.record_id)).map(t => t.record_id);
+  if (orphans.length) wellsDef.push({ id: "_other", label: "other", members: orphans });
+  return { byRecordId, wellsDef, indegree: constellationIndegree(teams) };
+}
+
+// Lay wells out on an adaptive grid (favoring more columns on the wide
+// canvas) so they never overlap regardless of cluster count, then place
+// each well's teams: keystone (highest in-degree) at the centre, the rest
+// on a ring inside the well.
+function placeConstellation(model, W, H) {
+  const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const N = Math.max(1, model.wellsDef.length);
+  const cols = Math.max(1, Math.min(N, Math.round(Math.sqrt(N * (W / H)))));
+  const rows = Math.ceil(N / cols);
+  const cellW = W / cols, cellH = H / rows;
+  const wells = [];
+  const pos = new Map();
+  model.wellsDef.forEach((w, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    // centre a partial last row
+    const rowCount = (row === rows - 1) ? (N - row * cols) : cols;
+    const rowPad = (cols - rowCount) * cellW / 2;
+    const cx = rowPad + col * cellW + cellW / 2;
+    const cy = row * cellH + cellH / 2;
+    const rx = cellW * 0.42, ry = cellH * 0.40;
+    wells.push({ id: w.id, label: w.label, cx, cy, rx, ry });
+    const ordered = w.members.slice().sort((a, b) => (model.indegree.get(b) || 0) - (model.indegree.get(a) || 0));
+    const ringN = Math.max(1, ordered.length - 1);
+    ordered.forEach((rid, k) => {
+      const team = model.byRecordId.get(rid);
+      const deg = model.indegree.get(rid) || 0;
+      const r = 6 + Math.min(deg, 8) * 1.5;
+      let x = cx, y = cy + (ordered.length > 1 ? -ry * 0.1 : 0);
+      if (k > 0) {
+        const a = -Math.PI / 2 + ((k - 1) / ringN) * Math.PI * 2;
+        const spread = ringN > 5 && (k % 2 === 0) ? 0.92 : 0.66;
+        x = cl(cx + Math.cos(a) * rx * spread, r + 4, W - r - 4);
+        y = cl(cy + Math.sin(a) * ry * spread, r + 12, H - r - 12);
+      }
+      pos.set(rid, { team, x, y, r, deg });
+    });
+  });
+  return { wells, pos };
+}
+
+// Watered-down "read" surfaced on hover — public self-asserted fields only
+// (name · domain · how many depend on it · the team's own focus/now).
+function constFrameLine(team, deg) {
+  const dom = CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other";
+  const depWord = deg === 1 ? "team depends on this" : "teams depend on this";
+  const frame = team.focus || team.now || "";
+  return `<strong>${escHtml(team.name || team.record_id)}</strong> · ${escHtml(dom)} · ${deg} ${depWord}`
+    + (frame ? `<br/>${escHtml(frame)}` : "");
+}
+
 function renderConstellation() {
   const teams = state.cohort.teams;
   const clusters = state.cohort.clusters;
   const mode = state.constellationMode || "clusters";
 
-  // Journey sub-tab renders a PMF scatterplot instead of the circular
-  // graph. Early branch keeps clusters/dependencies code untouched below.
+  // Journey sub-tab renders a PMF scatterplot instead of the map.
   if (mode === "journey") { renderJourney(); return; }
 
-  const W = 980, H = 540, CX = W / 2, CY = H / 2, R = 215;
-  const byRecordId = new Map(teams.map(t => [t.record_id, t]));
-  const positions = teams.map((t, i) => {
-    const a = (i / teams.length) * Math.PI * 2 - Math.PI / 2;
-    return { t, x: CX + Math.cos(a) * R, y: CY + Math.sin(a) * R };
-  });
-  const posByRecordId = new Map(positions.map(p => [p.t.record_id, p]));
+  const W = 980, H = 540;
+  const model = constellationModel(teams, clusters);
+  const { wells, pos } = placeConstellation(model, W, H);
 
-  // Build edges based on the selected mode.
-  // - "clusters":     every pair of teams that share a cluster gets one edge per cluster (existing behavior).
-  // - "dependencies": directed edges from each team to its `dependencies[]` records. Asserted by the team itself.
-  const edges = [];
-  if (mode === "clusters") {
-    for (const cl of clusters) {
-      const present = (cl.teams || []).filter(rid => byRecordId.has(rid));
-      for (let i = 0; i < present.length; i++) {
-        for (let j = i + 1; j < present.length; j++) {
-          const a = posByRecordId.get(present[i]);
-          const b = posByRecordId.get(present[j]);
-          if (a && b) edges.push({ a, b, cluster: cl });
-        }
-      }
-    }
-  } else if (mode === "dependencies") {
-    // Each team's self-asserted dependency list. Deduped by unordered pair
-    // so a mutual "we depend on each other" only draws one edge.
-    const seen = new Set();
-    for (const t of teams) {
-      const deps = Array.isArray(t.dependencies) ? t.dependencies : [];
-      for (const depId of deps) {
-        if (!byRecordId.has(depId)) continue;
-        const k = [t.record_id, depId].sort().join("→");
-        if (seen.has(k)) continue;
-        seen.add(k);
-        const a = posByRecordId.get(t.record_id);
-        const b = posByRecordId.get(depId);
-        if (a && b) edges.push({ a, b, cluster: null, kind: "dependency" });
-      }
-    }
-  }
-
-  // Multi-line dedupe: cluster mode can have multiple edges between the
-  // same pair (one per shared cluster); dependencies mode is already
-  // deduped above (each pair appears once) so the offset becomes a no-op.
-  const dup = new Map();
-  for (const e of edges) {
-    const k = [e.a.t.record_id, e.b.t.record_id].sort().join("→");
-    e._dupKey = k;
-    e._dupIdx = (dup.get(k) || 0);
-    dup.set(k, e._dupIdx + 1);
-  }
-  const dupTotal = new Map(dup);
-
-  const edgeMarkup = edges.map(e => {
-    const total = dupTotal.get(e._dupKey) || 1;
-    const offset = (e._dupIdx - (total - 1) / 2) * 4;
-    const dx = e.b.x - e.a.x, dy = e.b.y - e.a.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const px = -dy / len * offset, py = dx / len * offset;
-    const cls = mode === "dependencies"
-      ? "ac-edge ac-edge-dependency"
-      : `ac-edge ac-edge-${e.cluster.record_id || e.cluster.name || "x"}`;
-    return `<line class="${cls}" data-a="${escHtml(e.a.t.record_id)}" data-b="${escHtml(e.b.t.record_id)}"
-      x1="${(e.a.x + px).toFixed(1)}" y1="${(e.a.y + py).toFixed(1)}"
-      x2="${(e.b.x + px).toFixed(1)}" y2="${(e.b.y + py).toFixed(1)}"/>`;
-  }).join("");
-
-  const nodeMarkup = positions.map(({ t, x, y }) => `
-    <g class="ac-node-group" data-record-id="${escHtml(t.record_id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
-      <circle class="ac-node-shape ${t.is_mentor ? "ac-node-mentor" : ""}" r="9"/>
-      <text class="ac-node-label" y="26" text-anchor="middle">${escHtml(t.name)}</text>
+  // Cluster well backdrops (soft dashed ellipse + label) behind everything.
+  const wellMarkup = wells.map(w => `
+    <g class="ac-well" data-well="${escHtml(w.id)}">
+      <ellipse cx="${w.cx.toFixed(1)}" cy="${w.cy.toFixed(1)}" rx="${w.rx.toFixed(1)}" ry="${w.ry.toFixed(1)}"/>
+      <text class="ac-well-label" x="${w.cx.toFixed(1)}" y="${(w.cy - w.ry + 15).toFixed(1)}" text-anchor="middle">${escHtml(w.label)}</text>
     </g>`).join("");
 
-  const legend = mode === "clusters"
-    ? clusters.map(cl => `<span class="acl-item"><span class="acl-swatch acl-swatch-${escHtml(cl.record_id)}"></span>${escHtml(cl.label)}</span>`).join("")
-    : `<span class="acl-item"><span class="acl-swatch acl-swatch-dependency"></span>declared dependency · self-asserted by the team</span>`;
+  // Edges:
+  // - "clusters":     undirected line between teams sharing a cluster.
+  // - "dependencies": directed arrow from a team to each team it depends on.
+  const edges = [];
+  if (mode === "clusters") {
+    for (const c of clusters) {
+      const present = (c.teams || []).filter(rid => pos.has(rid));
+      for (let i = 0; i < present.length; i++)
+        for (let j = i + 1; j < present.length; j++)
+          edges.push({ from: present[i], to: present[j], cluster: c, directed: false });
+    }
+  } else { // dependencies
+    const seen = new Set();
+    for (const t of teams) {
+      for (const dep of (Array.isArray(t.dependencies) ? t.dependencies : [])) {
+        if (!pos.has(dep) || dep === t.record_id) continue;
+        const k = t.record_id + ">" + dep;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        edges.push({ from: t.record_id, to: dep, cluster: null, directed: true });
+      }
+    }
+  }
+
+  const edgeMarkup = edges.map(e => {
+    const a = pos.get(e.from), b = pos.get(e.to);
+    if (!a || !b) return "";
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const ux = dx / dist, uy = dy / dist;
+    const sx = a.x + ux * (a.r + 2), sy = a.y + uy * (a.r + 2);
+    const ex = b.x - ux * (b.r + (e.directed ? 7 : 3)), ey = b.y - uy * (b.r + (e.directed ? 7 : 3));
+    const bend = 12 + Math.min(48, dist * 0.12);
+    const qx = (sx + ex) / 2 - uy * bend, qy = (sy + ey) / 2 + ux * bend;
+    const cls = e.directed
+      ? "ac-edge ac-edge-dependency"
+      : `ac-edge ac-edge-${(e.cluster && (e.cluster.record_id || e.cluster.name)) || "x"}`;
+    const marker = e.directed ? ` marker-end="url(#ac-arrow)"` : "";
+    return `<path class="${cls}" data-a="${escHtml(e.from)}" data-b="${escHtml(e.to)}"`
+      + ` d="M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${qx.toFixed(1)} ${qy.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}"${marker}/>`;
+  }).join("");
+
+  // Draw small→large so keystones sit on top of the pile.
+  const nodeMarkup = [...pos.values()].sort((p, q) => p.r - q.r).map(({ team, x, y, r }) => `
+    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}" data-record-id="${escHtml(team.record_id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+      <circle class="ac-node-shape ${team.is_mentor ? "ac-node-mentor" : ""}" r="${r.toFixed(1)}"/>
+      <text class="ac-node-label" y="${(r + 13).toFixed(1)}" text-anchor="middle">${escHtml(team.name)}</text>
+    </g>`).join("");
+
+  const legend =
+    CONST_DOMAIN_KEYS.map(k => `<span class="acl-item"><span class="acl-dot acl-dot-${k}"></span>${escHtml(CONST_DOMAIN_LABEL[k])}</span>`).join("")
+    + `<span class="acl-item"><span class="acl-size"></span>larger = more teams depend on it</span>`
+    + (mode === "dependencies" ? `<span class="acl-item"><span class="acl-swatch acl-swatch-dependency"></span>declared dependency →</span>` : "");
 
   const calloutBody = mode === "clusters"
-    ? `Edges are the synergy clusters from the cohort surface data — every pair of teams that share a cluster gets one line per cluster (so Conclave, which sits in three, fans out). Mentor cards are rendered hollow.`
-    : `Edges are <code>dependencies[]</code> declared by each team — "we depend on this team's output" or "we'd unblock with them." Self-asserted, asymmetric source data, deduped per pair. Mentor cards are rendered hollow. See <button class="alch-link-btn" data-go="program" data-program-page="rules">program · rules</button> for why we don't infer connections automatically.`;
+    ? `Teams grouped into their <strong>cohort cluster</strong> wells; lines join teams that share a cluster. Color = domain, size = how many teams declare a dependency on them. Hover a node for its frame; click to open the full card. Mentor teams render hollow.`
+    : `Arrows point from a team to the teams it <code>depends on</code> — self-asserted in the cohort surface. The biggest nodes are the cohort's keystones (most depended-upon). Hover for a frame; click for the card. See <button class="alch-link-btn" data-go="program" data-program-page="rules">program · rules</button> for why connections aren't inferred.`;
 
   state.canvas.innerHTML = `
     <div class="alch-constellation">
@@ -1303,12 +1388,18 @@ function renderConstellation() {
       </nav>
       <div class="alch-constellation-stage">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
-          ${edgeMarkup}
-          ${nodeMarkup}
+          <defs>
+            <marker id="ac-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z"/>
+            </marker>
+          </defs>
+          <g class="ac-wells">${wellMarkup}</g>
+          <g class="ac-edges">${edgeMarkup}</g>
+          <g class="ac-nodes">${nodeMarkup}</g>
         </svg>
       </div>
       <div class="alch-constellation-legend">${legend}</div>
-      <p class="alch-callout"><strong>constellation · v0.2</strong><br/>${calloutBody}</p>
+      <p class="alch-callout"><strong>cohort map · v0.3</strong><br/>${calloutBody}</p>
     </div>
   `;
 }
@@ -1638,10 +1729,23 @@ function wireConstellationHover() {
   const stage = state.canvas.querySelector(".alch-constellation-stage");
   if (stage) {
     const groups = stage.querySelectorAll(".ac-node-group");
+    // Hovering a node also swaps the callout for that team's watered-down
+    // frame (public fields only); leaving restores the default copy.
+    const calloutEl = state.canvas.querySelector(".alch-callout");
+    const calloutDefault = calloutEl ? calloutEl.innerHTML : "";
+    const teamById = new Map((state.cohort?.teams || []).map(t => [t.record_id, t]));
+    const indeg = constellationIndegree(state.cohort?.teams || []);
     for (const g of groups) {
       const rid = g.dataset.recordId;
-      g.addEventListener("mouseenter", () => setConstellationHover(stage, rid, true));
-      g.addEventListener("mouseleave", () => setConstellationHover(stage, rid, false));
+      g.addEventListener("mouseenter", () => {
+        setConstellationHover(stage, rid, true);
+        const t = teamById.get(rid);
+        if (calloutEl && t) calloutEl.innerHTML = constFrameLine(t, indeg.get(rid) || 0);
+      });
+      g.addEventListener("mouseleave", () => {
+        setConstellationHover(stage, rid, false);
+        if (calloutEl) calloutEl.innerHTML = calloutDefault;
+      });
       g.addEventListener("click", () => openDrawer(rid));
     }
     // Journey scatterplot nodes: hover → tooltip, click → drawer.
