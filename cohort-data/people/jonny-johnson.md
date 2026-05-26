@@ -15,6 +15,17 @@ links:
   x: null
   website: null
 dietary_restrictions:
+go_to_them_for:
+  - AI/VR research perspectives
+  - personal-data futures
+  - concept expansion
+  - prototype critique
+recurring_themes:
+  - personal agency through data
+  - broad research imagination
+  - curation systems
+  - need for product narrowing
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## bio

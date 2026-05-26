@@ -21,6 +21,17 @@ links:
   website: albiona.dev
   linkedin: AlbionaHoti
 dietary_restrictions:
+go_to_them_for:
+  - speech-practice tools
+  - tight feedback loops
+  - friendly solo-rep interfaces
+  - turning self-improvement into software
+recurring_themes:
+  - practice as product
+  - clear feedback
+  - solo learning loops
+  - accessible tooling
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

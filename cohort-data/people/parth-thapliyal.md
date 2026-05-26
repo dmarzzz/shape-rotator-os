@@ -17,6 +17,18 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - NDAI frameworks
+  - skills runtime design
+  - agent coordination protocols
+  - developer abstractions
+recurring_themes:
+  - agent agreements
+  - runtime structure
+  - coordination primitives
+  - framework-to-tool translation
+working_style: Under-observed
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

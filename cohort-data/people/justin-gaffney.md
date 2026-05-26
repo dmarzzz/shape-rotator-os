@@ -17,6 +17,18 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - healthcare AI pilots
+  - EHR workflow questions
+  - clinical agent productization
+  - practical deployment constraints
+recurring_themes:
+  - workflow trust
+  - pilot discipline
+  - healthcare integration
+  - useful agents over flashy agents
+working_style: Inferred only — his own voice is absent from the evidence
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

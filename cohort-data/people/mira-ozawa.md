@@ -17,6 +17,17 @@ links:
   website: null
   linkedin: mira-ozawa
 dietary_restrictions:
+go_to_them_for:
+  - agent context systems
+  - memory and retrieval workflows
+  - developer-facing AI infrastructure
+  - framework critique
+recurring_themes:
+  - context as infrastructure
+  - agent memory
+  - framework design
+  - making invisible state legible
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

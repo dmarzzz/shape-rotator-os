@@ -21,6 +21,17 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - formal verification
+  - TEE-backed compliance
+  - proof-carrying software
+  - enterprise assurance
+recurring_themes:
+  - verification over trust
+  - compliance as infrastructure
+  - specific technical primitives
+  - consulting-to-product translation
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

@@ -17,6 +17,18 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - anonymous credential UX
+  - post-quantum identity framing
+  - privacy-preserving verification
+  - research-to-user translation
+recurring_themes:
+  - realness without exposure
+  - identity sovereignty
+  - cryptographic enrollment
+  - usability pressure
+working_style: Unknown — no independent behavioral evidence yet
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

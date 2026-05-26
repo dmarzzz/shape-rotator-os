@@ -17,6 +17,18 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - decentralized storage architecture
+  - Tinycloud implementation
+  - capability-based access
+  - TEE/cloud trust boundaries
+recurring_themes:
+  - sovereign cloud
+  - storage primitives
+  - systems implementation
+  - trust by architecture
+working_style: Visible only through release credits — a steady engineering contributor to the sovereign-data node SDK (Rust + TypeScript)
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

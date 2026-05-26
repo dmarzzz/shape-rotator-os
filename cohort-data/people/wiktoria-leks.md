@@ -17,6 +17,18 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - personal-data agency vision
+  - AI curation concepts
+  - pilot narrative
+  - founder vision critique
+recurring_themes:
+  - data as autonomy
+  - broad product imagination
+  - need for pilot discipline
+  - brand/product mismatch risk
+working_style: BD-first, network-led — she opens doors in bioscience and frames the venture around data-provider relationships
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

@@ -21,6 +21,17 @@ contribute_interests: "Mostly backend and brainstorming if possible :)"
 availability_pref: "Flexible / async"
 weekly_intention: "Ship one backend feature"
 dietary_restrictions: vegetarian
+go_to_them_for:
+  - agent framework architecture
+  - NDAI interpretation
+  - skills/runtime abstractions
+  - coordination protocol design
+recurring_themes:
+  - programmable coordination
+  - agent agreements
+  - runtime semantics
+  - framework clarity
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

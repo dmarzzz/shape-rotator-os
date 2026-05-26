@@ -17,6 +17,15 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - wallet infrastructure review
+  - crypto routing questions
+  - implementation details after direct evidence
+recurring_themes:
+  - wallet mechanics
+  - sparse-source profile
+  - project-context inference
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

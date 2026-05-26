@@ -17,6 +17,17 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - generative live systems
+  - performance tooling
+  - creative technical demos
+  - stage-like product experiences
+recurring_themes:
+  - live generation
+  - ritual and performance
+  - creative infrastructure
+  - shipping through experience
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

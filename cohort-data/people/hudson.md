@@ -17,6 +17,17 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - private AI messaging
+  - Signal-adjacent workflows
+  - TEE/LLM integration
+  - encrypted coordination
+recurring_themes:
+  - privacy-preserving agents
+  - communication as interface
+  - trusted execution
+  - careful integration
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

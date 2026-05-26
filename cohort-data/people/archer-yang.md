@@ -17,6 +17,18 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - P2P model routing
+  - agent payment rails
+  - runtime state for agents
+  - crypto-network infrastructure
+recurring_themes:
+  - agent-native networks
+  - permissionless routing
+  - infrastructure before interface
+  - technical completeness seeking GTM
+working_style: "Inferred only from the commit trace: steady daily cadence, primary authorship of the hard payment-rails work"
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

@@ -17,6 +17,8 @@ links:
   website: tuvalugpt.tv
   linkedin: null
 dietary_restrictions:
+working_style: "Inferred from the team record: high-volume building plus hands-on modern-ML work (VLM/RL, Tinker/Qwen ecosystem)"
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

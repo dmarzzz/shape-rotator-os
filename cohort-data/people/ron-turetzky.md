@@ -17,6 +17,18 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - private agent messaging
+  - TEE/LLM integration
+  - Signal-style workflows
+  - security-boundary questions
+recurring_themes:
+  - trusted communication
+  - privacy constraints
+  - agent usefulness inside chat
+  - sparse-source review needed
+working_style: Unobserved directly
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

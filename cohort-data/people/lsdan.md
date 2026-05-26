@@ -20,6 +20,17 @@ contribute_interests: "Happy to work on anything TEE related, SQL/DB related, wh
 availability_pref: "Never available Sundays."
 weekly_intention: "I want a functioning production ready cluster online this week."
 dietary_restrictions: "low salt, low fat, heart healthy"
+go_to_them_for:
+  - TEE database architecture
+  - Postgres deployment
+  - attestation boundaries
+  - developer trust models
+recurring_themes:
+  - trusted data systems
+  - database pragmatism
+  - TEE developer experience
+  - local proof over claims
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

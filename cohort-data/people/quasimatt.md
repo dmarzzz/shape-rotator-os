@@ -14,6 +14,8 @@ links:
   website: "https://quasimatt.com"
   linkedin: "mattvanommeren"
 dietary_restrictions:
+working_style: By his own account, a consumer-app builder focused on a fun, relationship-tracking iOS product
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## bio

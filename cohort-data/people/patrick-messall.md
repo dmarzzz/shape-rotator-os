@@ -20,6 +20,17 @@ comm_style: |
 weekly_intention: "personal - agent setup; team - vision map"
 now: "onboarding"
 dietary_restrictions:
+go_to_them_for:
+  - Tinycloud architecture
+  - decentralized storage
+  - authorization capabilities
+  - TEE-backed personal cloud
+recurring_themes:
+  - user-owned infrastructure
+  - deep systems implementation
+  - capability control
+  - sovereign storage
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
