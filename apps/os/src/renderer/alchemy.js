@@ -973,6 +973,17 @@ function journeyJitter(recordId, salt) {
 // Market-upside labels (index = upside 1..5).
 const JOURNEY_UPSIDE_LABELS = ["", "niche", "modest", "solid", "large", "category-defining"];
 
+// Rarity tier derived from PMF stage — drives the Cohort Plate frame
+// material (escalates hairline → double-rule → foil edge; single accent,
+// never multi-hue). Stage 0 (side project) is off-track = "prospect".
+function tierForStage(stage) {
+  if (stage <= 0) return { key: "prospect", name: "side quest" };
+  if (stage <= 2) return { key: "signal", name: "signal" };
+  if (stage <= 4) return { key: "traction", name: "traction" };
+  if (stage <= 6) return { key: "fit", name: "fit" };
+  return { key: "scale", name: "scale" };
+}
+
 // Human label for a stage value (0 = the off-track "side project").
 function journeyStageLabel(stage) {
   if (stage === 0) return JOURNEY_STAGE_LABELS[0];
@@ -3770,6 +3781,19 @@ function renderTeamDetail(team) {
   const linksRow = renderDetailLinks(team.links || {});
   const editUrl = buildEditPRUrl({ recordType: "team", recordId });
 
+  // ── Cohort Plate framing ──
+  const j = journeyFor(team);
+  const tier = tierForStage(j.stage);
+  const allTeams = state.cohort.teams || [];
+  const idx = allTeams.findIndex(t => t.record_id === recordId) + 1;
+  const idxStr = `${String(Math.max(1, idx)).padStart(3, "0")}/${String(allTeams.length).padStart(3, "0")}`;
+  // taxonomy "class line" — domain as class, shape as order.
+  const klass = (domainLabel(team.domain) || "—").toLowerCase();
+  const order = (s ? s.name : (team.shape || "—")).toLowerCase();
+  // cohort phase (m1/m2/m3) from the current program week.
+  let phase = "";
+  try { const w = calendarCurrentWeekIdx() + 1; phase = w <= 4 ? "m1" : w <= 9 ? "m2" : "m3"; } catch {}
+
   state.canvas.innerHTML = `
     <header class="alch-detail-bar">
       <button class="alch-detail-back" type="button" id="alch-detail-back" aria-label="back to grid">
@@ -3785,79 +3809,109 @@ function renderTeamDetail(team) {
       <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
     </header>
 
-    <section class="alch-detail-hero">
-      <div class="alch-detail-shape">${s ? `<canvas data-shape-fam="${s.fam}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</div>
-      <div class="alch-detail-hero-text">
-        <h2 class="alch-detail-name">${escHtml(team.name)}</h2>
-        <p class="alch-detail-focus">${escHtml(team.focus || "—")}</p>
-        <div class="alch-detail-meta">
-          <span><span class="adm-k">shape</span> ${escHtml(s ? s.name : "—")}</span>
-          <span class="ct-sep">·</span>
-          <span><span class="adm-k">domain</span> ${escHtml(domainLabel(team.domain))}</span>
-          <span class="ct-sep">·</span>
-          <span><span class="adm-k">${kind === "project" ? "contributors" : "team"}</span> ${m} ${m === 1 ? "person" : "people"}</span>
-          <span class="ct-sep">·</span>
-          <span><span class="adm-k">geo</span> ${escHtml(team.geo || "—")}</span>
-        </div>
+    <article class="cohort-plate is-revealing" data-tier="${escAttr(tier.key)}" data-kind="${escAttr(kind)}" id="cohort-plate">
+      <div class="plate-foil" aria-hidden="true"></div>
+      <div class="plate-scan" aria-hidden="true"></div>
+
+      <div class="plate-band">
+        <span class="pb-desig">${escHtml(team.name)}</span>
+        <span class="pb-meta">designation · ${escHtml(kind)} · idx ${escHtml(idxStr)}${phase ? ` · cohort ${escHtml(phase)}` : ""}</span>
+        <span class="pb-tier" data-tier="${escAttr(tier.key)}">tier · ${escHtml(tier.name)}</span>
       </div>
-    </section>
+      <div class="plate-class">class: ${escHtml(klass)} <span class="pc-sep">//</span> order: ${escHtml(order)}${team.is_mentor ? ` <span class="pc-sep">//</span> mentor` : ""}</div>
 
-    <div class="alch-detail-grid">
-      <section class="alch-detail-section">
-        <h3 class="alch-detail-h">about</h3>
-        <div class="alch-detail-row"><span class="adr-k">contributors</span><span class="adr-v">${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</span></div>
-        ${team.traction ? `<div class="alch-detail-row"><span class="adr-k">traction</span><span class="adr-v">${escHtml(team.traction)}</span></div>` : ""}
-      </section>
-
-      <section class="alch-detail-section">
-        <h3 class="alch-detail-h">pmf · journey</h3>
-        ${journeyDetailSection(team)}
-      </section>
-
-      ${(team.paper_basis || team.hackathon_note) ? `
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">credentials</h3>
-          ${team.paper_basis  ? `<div class="alch-detail-row"><span class="adr-k">paper</span><span class="adr-v">${escHtml(team.paper_basis)}</span></div>`  : ""}
-          ${team.hackathon_note ? `<div class="alch-detail-row"><span class="adr-k">hackathon</span><span class="adr-v"><span style="color:var(--alchemy-oxide-bright)">★</span> ${escHtml(team.hackathon_note)}</span></div>` : ""}
-        </section>
-      ` : ""}
-
-      <section class="alch-detail-section">
-        <h3 class="alch-detail-h">links</h3>
-        ${linksRow}
-      </section>
-
-      ${teamPeople.length ? `
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">${kind === "project" ? "contributors" : "members"} <span class="alch-profile-h-aux">— ${teamPeople.length}</span></h3>
-          <ul class="alch-detail-people">
-            ${teamPeople.map(p => `
-              <li class="alch-detail-person is-clickable" data-person="${escHtml(p.record_id)}" tabindex="0" role="button" aria-label="open ${escHtml(p.name || p.record_id)}">
-                <span class="adp-name">${escHtml(p.name || p.record_id)}</span>
-                ${p.role ? `<span class="adp-role">${escHtml(p.role)}</span>` : ""}
-              </li>
-            `).join("")}
-          </ul>
-        </section>
-      ` : ""}
-
-      ${memberClusters.length ? `
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">synergy clusters</h3>
-          <div class="alch-detail-clusters">
-            ${memberClusters.map(cl => `
-              <span class="alch-detail-cluster">${escHtml(cl.label)}</span>
-            `).join("")}
+      <section class="alch-detail-hero plate-hero">
+        <div class="alch-detail-shape">${s ? `<canvas data-shape-fam="${s.fam}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</div>
+        <div class="alch-detail-hero-text">
+          <h2 class="alch-detail-name">${escHtml(team.name)}</h2>
+          <p class="alch-detail-focus">${escHtml(team.focus || "—")}</p>
+          <div class="alch-detail-meta">
+            <span><span class="adm-k">domain</span> ${escHtml(domainLabel(team.domain))}</span>
+            <span class="ct-sep">·</span>
+            <span><span class="adm-k">${kind === "project" ? "contributors" : "team"}</span> ${m} ${m === 1 ? "person" : "people"}</span>
+            <span class="ct-sep">·</span>
+            <span><span class="adm-k">geo</span> ${escHtml(team.geo || "—")}</span>
           </div>
+        </div>
+        <div class="plate-grade-stamp" data-tier="${escAttr(tier.key)}" aria-hidden="true">${escHtml(tier.name)}</div>
+      </section>
+
+      <div class="alch-detail-grid">
+        <section class="alch-detail-section">
+          <h3 class="alch-detail-h">about</h3>
+          <div class="alch-detail-row"><span class="adr-k">contributors</span><span class="adr-v">${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</span></div>
+          ${team.traction ? `<div class="alch-detail-row"><span class="adr-k">traction</span><span class="adr-v">${escHtml(team.traction)}</span></div>` : ""}
         </section>
-      ` : ""}
-    </div>
+
+        <section class="alch-detail-section">
+          <h3 class="alch-detail-h">pmf · journey</h3>
+          ${journeyDetailSection(team)}
+        </section>
+
+        ${(team.paper_basis || team.hackathon_note) ? `
+          <section class="alch-detail-section">
+            <h3 class="alch-detail-h">trophies</h3>
+            <div class="plate-trophies">
+              ${team.hackathon_note ? `<span class="plate-trophy trophy-rare"><span class="ptr-mark">★</span><span class="ptr-body"><span class="ptr-grade">rare</span><span class="ptr-name">${escHtml(team.hackathon_note)}</span></span></span>` : ""}
+              ${team.paper_basis ? `<span class="plate-trophy trophy-notable"><span class="ptr-mark">◆</span><span class="ptr-body"><span class="ptr-grade">notable</span><span class="ptr-name">${escHtml(team.paper_basis)}</span></span></span>` : ""}
+            </div>
+          </section>
+        ` : ""}
+
+        <section class="alch-detail-section">
+          <h3 class="alch-detail-h">links</h3>
+          ${linksRow}
+        </section>
+
+        ${teamPeople.length ? `
+          <section class="alch-detail-section">
+            <h3 class="alch-detail-h">${kind === "project" ? "contributors" : "members"} <span class="alch-profile-h-aux">— ${teamPeople.length}</span></h3>
+            <ul class="alch-detail-people">
+              ${teamPeople.map(p => `
+                <li class="alch-detail-person is-clickable" data-person="${escHtml(p.record_id)}" tabindex="0" role="button" aria-label="open ${escHtml(p.name || p.record_id)}">
+                  <span class="adp-name">${escHtml(p.name || p.record_id)}</span>
+                  ${p.role ? `<span class="adp-role">${escHtml(p.role)}</span>` : ""}
+                </li>
+              `).join("")}
+            </ul>
+          </section>
+        ` : ""}
+
+        ${memberClusters.length ? `
+          <section class="alch-detail-section">
+            <h3 class="alch-detail-h">guild <span class="alch-profile-h-aux">— synergy clusters</span></h3>
+            <div class="plate-guild">
+              ${memberClusters.map(cl => `<span class="guild-tag">${escHtml(cl.label)}</span>`).join("")}
+            </div>
+          </section>
+        ` : ""}
+      </div>
+    </article>
   `;
 
   // Wire interactions.
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
+  wirePlateFoil(state.canvas.querySelector(".cohort-plate"));
+}
+
+// Cursor-tracked foil glint: update --mx/--my (0..100%) as the pointer
+// moves over the plate; CSS positions a faint oxide sheen there. Settles
+// flat on leave. The one-shot reveal (scan sweep + grade stamp) is pure
+// CSS, triggered by the .is-revealing class on mount.
+function wirePlateFoil(plate) {
+  if (!plate) return;
+  plate.addEventListener("pointermove", (e) => {
+    const r = plate.getBoundingClientRect();
+    plate.style.setProperty("--mx", `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
+    plate.style.setProperty("--my", `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+    plate.classList.add("is-foil");
+  });
+  plate.addEventListener("pointerleave", () => plate.classList.remove("is-foil"));
+  // Drop the reveal class once the animation has played so it doesn't
+  // re-run on incidental reflows.
+  setTimeout(() => plate.classList.remove("is-revealing"), 1400);
 }
 
 function renderPersonDetail(person) {

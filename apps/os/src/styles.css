@@ -6718,6 +6718,126 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .jcard-note-v { flex: 1 1 auto; color: var(--alchemy-paper-warm); }
 
+/* ─── COHORT PLATE (gamified profile dossier) ────────────────────────── */
+.cohort-plate {
+  position: relative;
+  margin-top: 6px;
+  padding: 22px 26px 26px;
+  border-radius: 8px;
+  background:
+    radial-gradient(120% 80% at 8% -10%, rgba(196,64,37,0.06), transparent 60%),
+    rgba(var(--ink-rgb), 0.025);
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Tier frame material — escalates with PMF stage; single oxide accent,
+   never multi-hue. Encoded as border weight + inset rule + foil edge. */
+.cohort-plate[data-tier="prospect"] { border-style: dashed; border-color: rgba(var(--ink-rgb), 0.18); }
+.cohort-plate[data-tier="signal"]   { border-color: rgba(var(--ink-rgb), 0.20); }
+.cohort-plate[data-tier="traction"] { border-color: rgba(196,64,37,0.30); box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.08); }
+.cohort-plate[data-tier="fit"]      { border-color: rgba(196,64,37,0.45); box-shadow: inset 0 0 0 1px rgba(196,64,37,0.16), 0 0 24px rgba(196,64,37,0.06); }
+.cohort-plate[data-tier="scale"]    { border-color: rgba(196,64,37,0.65); box-shadow: inset 0 0 0 1px rgba(196,64,37,0.28), 0 0 36px rgba(196,64,37,0.12); }
+
+/* Cursor-tracked foil glint — barely-there oxide diagonal sheen that
+   tracks the pointer; flat on rest (premium because it's restrained). */
+.plate-foil {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  opacity: 0; transition: opacity 320ms var(--ease);
+  background:
+    radial-gradient(220px 180px at var(--mx,50%) var(--my,0%), rgba(255,210,180,0.10), transparent 60%),
+    linear-gradient(115deg, transparent 42%, rgba(196,64,37,0.10) 50%, transparent 58%);
+  mix-blend-mode: screen;
+}
+.cohort-plate.is-foil .plate-foil { opacity: 1; }
+
+/* One-shot reveal: a single oxide scanline sweep on open, then gone. */
+.plate-scan {
+  position: absolute; left: 0; right: 0; top: 0; height: 40%; z-index: 4;
+  pointer-events: none; opacity: 0;
+  background: linear-gradient(180deg, transparent, rgba(196,64,37,0.18), transparent);
+}
+.cohort-plate.is-revealing .plate-scan { animation: plate-scan-sweep 900ms var(--ease) 1; }
+@keyframes plate-scan-sweep {
+  0% { opacity: 0; transform: translateY(-100%); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(260%); }
+}
+
+/* Header band */
+.plate-band {
+  position: relative; z-index: 2;
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding-bottom: 9px; border-bottom: 1px solid var(--alchemy-rule);
+}
+.plate-band .pb-desig {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--alchemy-paper-warm);
+}
+.plate-band .pb-meta {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.plate-band .pb-tier {
+  margin-left: auto; font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 999px;
+  color: var(--alchemy-oxide-bright);
+  border: 1px solid rgba(196,64,37,0.4); background: rgba(196,64,37,0.10);
+}
+.plate-band .pb-tier[data-tier="prospect"] { color: var(--alchemy-ink-mute); border-color: rgba(var(--ink-rgb),0.2); background: transparent; }
+.plate-band .pb-tier[data-tier="scale"] { box-shadow: 0 0 14px rgba(196,64,37,0.4); }
+.plate-class {
+  position: relative; z-index: 2; margin: 8px 0 4px;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.plate-class .pc-sep { color: rgba(196,64,37,0.55); margin: 0 2px; }
+
+.plate-hero { position: relative; z-index: 2; }
+/* Grade stamp — faint rotated tier mark, settles in on reveal. */
+.plate-grade-stamp {
+  position: absolute; top: 6px; right: 6px; z-index: 1;
+  font-family: var(--font-mono); font-size: 34px; font-weight: 800;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  color: transparent; -webkit-text-stroke: 1px rgba(196,64,37,0.20);
+  transform: rotate(-9deg); pointer-events: none; user-select: none;
+}
+.cohort-plate.is-revealing .plate-grade-stamp { animation: plate-stamp-in 760ms var(--ease) 1; }
+@keyframes plate-stamp-in {
+  0% { opacity: 0; transform: rotate(-9deg) scale(1.5); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: rotate(-9deg) scale(1); }
+}
+.cohort-plate[data-tier="scale"] .plate-grade-stamp { -webkit-text-stroke-color: rgba(196,64,37,0.34); }
+.cohort-plate[data-tier="prospect"] .plate-grade-stamp { -webkit-text-stroke-color: rgba(var(--ink-rgb),0.14); }
+
+/* Grid sits above foil */
+.cohort-plate .alch-detail-grid { position: relative; z-index: 2; }
+
+/* Trophies — rarity chips (rarity by fill/weight, not color). */
+.plate-trophies { display: flex; flex-direction: column; gap: 8px; }
+.plate-trophy { display: flex; align-items: flex-start; gap: 9px; }
+.plate-trophy .ptr-mark { font-size: 13px; line-height: 1.2; }
+.plate-trophy .ptr-body { display: flex; flex-direction: column; gap: 1px; }
+.plate-trophy .ptr-grade {
+  font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.plate-trophy .ptr-name { font-family: var(--font-mono); font-size: 10.5px; color: var(--alchemy-paper-warm); line-height: 1.4; }
+.plate-trophy.trophy-rare .ptr-mark { color: var(--alchemy-oxide-bright); filter: drop-shadow(0 0 6px rgba(196,64,37,0.5)); }
+.plate-trophy.trophy-rare .ptr-grade { color: var(--alchemy-oxide-bright); }
+.plate-trophy.trophy-notable .ptr-mark { color: var(--alchemy-paper-warm); opacity: 0.7; }
+
+/* Guild — synergy clusters as a roster strip. */
+.plate-guild { display: flex; flex-wrap: wrap; gap: 7px; }
+.plate-guild .guild-tag {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+  text-transform: uppercase; padding: 4px 10px; border-radius: 4px;
+  color: var(--alchemy-paper-warm);
+  border: 1px solid rgba(var(--ink-rgb), 0.16); background: rgba(var(--ink-rgb), 0.04);
+}
+
 /* Mentor-card variant moved to packages/shape-ui/src/cohort-card.css. */
 
 /* ─── legend (shape vocabulary) ──────────────────────────────────────── */
