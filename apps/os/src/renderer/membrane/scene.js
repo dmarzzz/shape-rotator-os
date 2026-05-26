@@ -188,15 +188,19 @@ export function createMembraneScene(canvas, opts = {}) {
 
   function handlePointerDown(ev) {
     const hit = pickBlobAt(ev.clientX, ev.clientY);
-    if (!hit?.id) return;
+    if (!hit?.id) { if (opts.onEmptyClick) opts.onEmptyClick(); return; }
     if (hit.id === blobBySlot['throne']) {
-      // Click on the throne → a quick scale-bounce for feedback.
+      // Click on the throne → a quick scale-bounce for feedback…
       wiggleThrone();
+      // …and open its panel (so the full-bleed "folded" world can summon
+      // the credential/overlay by tapping the orb you're already on).
+      if (opts.onOrbOpen) opts.onOrbOpen(hit.id);
       return;
     }
-    // Click on satellite → swap it into the throne.
+    // Click on satellite → swap it into the throne + open its panel.
     setActiveBlob(hit.id);
     if (opts.onActiveChange) opts.onActiveChange(hit.id);
+    if (opts.onOrbOpen) opts.onOrbOpen(hit.id);
   }
 
   let hoveredId = null;
