@@ -58,7 +58,7 @@ const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
 // once that integration lands; rather than rip out the code and re-write it
 // from git history, the surfaces are simply unwired. See the "feed off"
 // section below this constant for the disabled hooks.
-const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "calendar", "profile", "onboarding", "program", "asks"];
+const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "collab", "calendar", "profile", "onboarding", "program", "asks"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 
 const WEEKS_TOTAL = 10;
@@ -320,6 +320,7 @@ function render() {
     else if (state.mode === "shapes") renderShapes();
     else if (state.mode === "pulse") renderPulse();
     else if (state.mode === "constellation") renderConstellation();
+    else if (state.mode === "collab") renderCollab();
     else if (state.mode === "calendar") renderCalendar();
     else if (state.mode === "profile") renderProfile();
     else if (state.mode === "onboarding") renderOnboarding();
@@ -338,6 +339,7 @@ function render() {
       // Kick a feed refresh on entry; the timer keeps it warm in background.
       if (state.mode === "feed") refreshFeed({ source: "mode-enter" });
       if (state.mode === "constellation") wireConstellationHover();
+      if (state.mode === "collab") wireCollab();
       if (state.mode === "calendar") wireCalendar();
       if (state.mode === "onboarding") wireOnboarding();
       if (state.mode === "program") wireProgram();
@@ -2987,6 +2989,217 @@ function dmLinkForPerson(p) {
   if (L.website)  return { label: "website",  url: L.website };
   if (p.email)    return { label: "email",    url: `mailto:${p.email}` };
   return null;
+}
+
+// ─── cohort collaboration board (ported from the dossier Connections) ─
+// Standing seek↔offer matchmaking across teams, fed ENTIRELY from public
+// self-asserted cohort-surface fields (dependencies / seeking / offering /
+// skill_areas / pair_with). The dossier's private 'strength' + OSINT
+// 'shared_papers' scores are NOT used — affinity is recomputed from shared
+// skill_areas (+ self-declared pair_with), and intros from public
+// seeking↔offering term overlap, shown as chips so every match is legible.
+const COLLAB_STOP = new Set(("a an and the to of for with in on at or be is are am was were we our us you your yours i me my mine they them their it its this that these those as by from into about over under more most less few many much can could should would will may might want wants wanted need needs needed looking look able build building built make making made get gets help helps using use used via across other others team teams project projects cohort people person folks who whom what when where why how do does done also like just very real new use").split(/\s+/));
+function collabTokens(val) {
+  const out = new Set();
+  const arr = Array.isArray(val) ? val : [val];
+  for (const s of arr) String(s == null ? "" : s).toLowerCase().split(/[^a-z0-9+]+/).forEach(w => {
+    if (w.length >= 3 && !COLLAB_STOP.has(w)) out.add(w);
+  });
+  return out;
+}
+const collabInter = (a, b) => { const o = []; for (const x of a) if (b.has(x)) o.push(x); return o; };
+const collabAffKey = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
+
+// Build the matchmaking model from public fields only. Reuses the map's
+// constellationModel for cluster grouping + in-degree so the two surfaces
+// agree on cluster membership and keystones.
+function collabModel(teams, clusters) {
+  const base = constellationModel(teams, clusters);
+  const ordered = [];
+  for (const w of base.wellsDef) {
+    const mem = w.members.slice().sort((a, b) => (base.indegree.get(b) || 0) - (base.indegree.get(a) || 0));
+    for (const rid of mem) {
+      const team = base.byRecordId.get(rid);
+      if (team) ordered.push({ rid, team, clusterId: w.id, clusterLabel: w.label });
+    }
+  }
+  const seekSet = new Map(), offerSet = new Map(), skillSet = new Map();
+  for (const { rid, team } of ordered) {
+    const skills = new Set((team.skill_areas || []).map(s => String(s).toLowerCase()));
+    skillSet.set(rid, skills);
+    seekSet.set(rid, collabTokens(team.seeking));
+    const off = collabTokens(team.offering);
+    for (const s of skills) off.add(s); // what a team HAS is part of what it can offer
+    offerSet.set(rid, off);
+  }
+  // directed dependency edges
+  const deps = new Set();
+  for (const { rid, team } of ordered)
+    for (const d of (team.dependencies || [])) if (base.byRecordId.has(d) && d !== rid) deps.add(rid + ">" + d);
+  // seek (row) → offer (col) matches, directed
+  const seekOffer = [];
+  const soByPair = new Map();
+  for (const A of ordered) for (const B of ordered) {
+    if (A.rid === B.rid) continue;
+    const shared = collabInter(seekSet.get(A.rid), offerSet.get(B.rid));
+    if (!shared.length) continue;
+    const rec = { seeker: A.rid, offerer: B.rid, seekerName: A.team.name, offererName: B.team.name,
+      seeking: (A.team.seeking || [])[0] || "", offering: (B.team.offering || [])[0] || "",
+      shared, score: shared.length };
+    seekOffer.push(rec);
+    soByPair.set(A.rid + ">" + B.rid, rec);
+  }
+  // affinity (undirected): shared skill_areas (+ self-declared pair_with)
+  const aff = new Map();
+  for (let i = 0; i < ordered.length; i++) for (let j = i + 1; j < ordered.length; j++) {
+    const A = ordered[i], B = ordered[j];
+    const shared = collabInter(skillSet.get(A.rid), skillSet.get(B.rid));
+    const endorsed = (Array.isArray(A.team.pair_with) && A.team.pair_with.includes(B.rid))
+      || (Array.isArray(B.team.pair_with) && B.team.pair_with.includes(A.rid));
+    if (!shared.length && !endorsed) continue;
+    aff.set(collabAffKey(A.rid, B.rid), { a: A.rid, b: B.rid, aName: A.team.name, bName: B.team.name, shared, endorsed });
+  }
+  // convergence: skill_areas shared by ≥3 teams
+  const conv = new Map();
+  for (const { team } of ordered) for (const s of (team.skill_areas || [])) {
+    const k = String(s).toLowerCase();
+    (conv.get(k) || conv.set(k, []).get(k)).push(team.name);
+  }
+  const convergence = [...conv.entries()].filter(([, t]) => t.length >= 3)
+    .map(([skill, names]) => ({ skill, teams: names, count: names.length }))
+    .sort((a, b) => b.count - a.count || a.skill.localeCompare(b.skill));
+  return { ordered, deps, seekOffer, soByPair, aff, convergence, indegree: base.indegree };
+}
+
+function collabCell(R, C, ri, ci, m) {
+  if (R.rid === C.rid) return `<div class="cb-cell cb-diag" data-row="${ri}" data-col="${ci}" aria-hidden="true"></div>`;
+  const dep = m.deps.has(R.rid + ">" + C.rid);
+  const so = m.soByPair.get(R.rid + ">" + C.rid);
+  const af = m.aff.get(collabAffKey(R.rid, C.rid));
+  let cls = "cb-cell", mark = "", title = "", has = false;
+  if (af) { cls += " has-aff"; has = true; mark = "·"; title = `${R.team.name} ↔ ${C.team.name} — shares ${af.shared.join(", ") || "interests"}${af.endorsed ? " · endorsed pairing" : ""}`; }
+  if (so) { cls += " has-so s" + Math.min(4, so.score); has = true; mark = "◆"; title = `${R.team.name} seeks → ${C.team.name} offers — ${so.shared.join(", ")}`; }
+  if (dep) { cls += " has-dep"; has = true; mark = "▲"; title = `${R.team.name} depends on ${C.team.name}`; }
+  if (!has) return `<div class="cb-cell" data-row="${ri}" data-col="${ci}"></div>`;
+  return `<button type="button" class="${cls}" data-row="${ri}" data-col="${ci}" data-collab-open="${escAttr(C.rid)}" title="${escAttr(title)}"><span class="cb-mark">${mark}</span></button>`;
+}
+
+function renderCollab() {
+  const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
+  const clusters = state.cohort?.clusters || [];
+  if (!teams.length) {
+    state.canvas.innerHTML = `<header class="alch-cb-head"><h2 class="alch-cb-title">collaboration board</h2></header><p class="alch-callout">no team data yet.</p>`;
+    return;
+  }
+  const m = collabModel(teams, clusters);
+  const ordered = m.ordered;
+  const N = ordered.length;
+  const colN = `--cb-cols:${N}`;
+
+  // header row (offerers across the top)
+  let headCells = `<div class="cb-corner" aria-hidden="true">seeks ↓ · offers →</div>`;
+  ordered.forEach((o, ci) => {
+    const deg = m.indegree.get(o.rid) || 0;
+    headCells += `<button type="button" class="cb-colhead${deg >= 5 ? " is-key" : ""}" data-col="${ci}" data-collab-open="${escAttr(o.rid)}" title="${escAttr(o.team.name + " — " + deg + " teams depend on it")}"><span>${escHtml(o.team.name)}</span></button>`;
+  });
+  let rows = `<div class="cb-row cb-headrow" style="${colN}">${headCells}</div>`;
+  ordered.forEach((R, ri) => {
+    let line = `<button type="button" class="cb-rowhead" data-row="${ri}" data-collab-open="${escAttr(R.rid)}" title="${escAttr(R.team.name + " · " + R.clusterLabel)}"><span class="cb-rowhead-name">${escHtml(R.team.name)}</span><span class="cb-rowhead-grp">${escHtml(R.clusterLabel)}</span></button>`;
+    ordered.forEach((C, ci) => { line += collabCell(R, C, ri, ci, m); });
+    rows += `<div class="cb-row" style="${colN}">${line}</div>`;
+  });
+  const matrix = `
+    <section class="alch-cb-section">
+      <div class="alch-cb-sechead"><h3>adjacency matrix</h3>
+        <div class="cb-legend">
+          <span><i class="cb-sw dep"></i>depends on</span>
+          <span><i class="cb-sw so"></i>seeks → offers</span>
+          <span><i class="cb-sw aff"></i>shared skill area</span>
+          <span><i class="cb-sw key"></i>keystone column</span>
+        </div>
+      </div>
+      <div class="cb-scroll" tabindex="0"><div class="cb-grid">${rows}</div></div>
+      <p class="cb-hint">rows = the team that needs · columns = the team that provides · hover a cell for the basis · click to open the provider</p>
+    </section>`;
+
+  // intros to make — strongest seek↔offer per unordered pair
+  const introByPair = new Map();
+  for (const s of m.seekOffer) {
+    const k = collabAffKey(s.seeker, s.offerer);
+    if (!introByPair.has(k) || s.score > introByPair.get(k).score) introByPair.set(k, s);
+  }
+  const intros = [...introByPair.values()].sort((a, b) => b.score - a.score).slice(0, 12);
+  const introCards = intros.map(s => {
+    const chips = s.shared.slice(0, 5).map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("");
+    return `<article class="cb-intro" data-collab-open="${escAttr(s.offerer)}">
+      <div class="cb-intro-flow">
+        <div class="cb-intro-side"><span class="cb-intro-role">needs</span><span class="cb-intro-team">${escHtml(s.seekerName)}</span>${s.seeking ? `<span class="cb-intro-text">${escHtml(s.seeking)}</span>` : ""}</div>
+        <div class="cb-intro-arrow" aria-hidden="true">→</div>
+        <div class="cb-intro-side"><span class="cb-intro-role">provides</span><span class="cb-intro-team">${escHtml(s.offererName)}</span>${s.offering ? `<span class="cb-intro-text">${escHtml(s.offering)}</span>` : ""}</div>
+      </div>${chips ? `<div class="cb-intro-chips">${chips}</div>` : ""}
+    </article>`;
+  }).join("");
+  const introSection = `
+    <section class="alch-cb-section">
+      <div class="alch-cb-sechead"><h3>intros to make</h3><span class="cb-sub">strongest seek ↔ offer overlaps — the conversations to schedule</span></div>
+      <div class="cb-intro-grid">${introCards || '<p class="cb-empty">no overlaps found.</p>'}</div>
+    </section>`;
+
+  // convergence — skill areas shared by 3+ teams
+  const maxConv = m.convergence.reduce((mx, c) => Math.max(mx, c.count), 1);
+  const convRows = m.convergence.map(c => {
+    const pct = Math.round((c.count / maxConv) * 100);
+    const weight = c.count >= 8 ? " heavy" : c.count >= 5 ? " mid" : "";
+    return `<article class="cb-cv${weight}">
+      <div class="cb-cv-head"><span class="cb-cv-skill">${escHtml(c.skill)}</span><span class="cb-cv-count">${c.count} teams</span></div>
+      <div class="cb-cv-bar"><i style="width:${pct}%"></i></div>
+      <div class="cb-cv-teams">${c.teams.map(t => `<span class="cb-cv-team">${escHtml(t)}</span>`).join("")}</div>
+    </article>`;
+  }).join("");
+  const convSection = `
+    <section class="alch-cb-section">
+      <div class="alch-cb-sechead"><h3>convergence</h3><span class="cb-sub">skill areas shared by 3+ teams — where the cohort concentrates</span></div>
+      <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
+    </section>`;
+
+  state.canvas.innerHTML = `
+    <div class="alch-collab">
+      <header class="alch-cb-head">
+        <h2 class="alch-cb-title">collaboration board</h2>
+        <p class="alch-cb-sub">who depends on whom, who can unblock whom, where the cohort over-concentrates — all from teams' own declared dependencies, seeking, offering &amp; skill areas.</p>
+        <div class="alch-cb-stats">
+          <span><strong>${m.deps.size}</strong> dependencies</span>
+          <span><strong>${m.seekOffer.length}</strong> seek ↔ offer overlaps</span>
+          <span><strong>${m.aff.size}</strong> shared affinities</span>
+          <span><strong>${m.convergence.length}</strong> convergence areas</span>
+        </div>
+      </header>
+      ${matrix}
+      ${introSection}
+      ${convSection}
+      <p class="alch-callout"><strong>collaboration board · v0.1</strong><br/>Self-asserted only — affinities are shared <code>skill_areas</code>, intros are <code>seeking</code>↔<code>offering</code> term overlaps. No inferred or private scoring.</p>
+    </div>`;
+}
+
+function wireCollab() {
+  for (const el of state.canvas.querySelectorAll("[data-collab-open]")) {
+    el.addEventListener("click", () => { const rid = el.getAttribute("data-collab-open"); if (rid) openDrawer(rid); });
+  }
+  const grid = state.canvas.querySelector(".cb-grid");
+  if (!grid) return;
+  const clearHL = () => grid.querySelectorAll(".is-hl-row, .is-hl-col").forEach(e => e.classList.remove("is-hl-row", "is-hl-col"));
+  const setHL = (r, c) => {
+    clearHL();
+    if (r != null) grid.querySelectorAll(`[data-row="${r}"]`).forEach(e => e.classList.add("is-hl-row"));
+    if (c != null) grid.querySelectorAll(`[data-col="${c}"]`).forEach(e => e.classList.add("is-hl-col"));
+  };
+  grid.addEventListener("mouseover", (e) => {
+    const t = e.target.closest("[data-row], [data-col]");
+    if (!t) return;
+    const r = t.getAttribute("data-row"), c = t.getAttribute("data-col");
+    setHL(r != null ? +r : null, c != null ? +c : null);
+  });
+  grid.addEventListener("mouseleave", clearHL);
 }
 
 function renderAsks() {
