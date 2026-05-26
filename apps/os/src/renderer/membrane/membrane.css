@@ -840,29 +840,18 @@
 }
 
 /* ─── CREW CREDENTIAL — self profile as a space-mission ID card ──────── */
+/* The credential IS the panel content — NOT a card inside the card. The
+   membrane panel's ember border + corner brackets are the frame; this just
+   lays the credential out and fills the full height. */
 .crewid {
   position: relative;
+  flex: 1 1 auto;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 22px 22px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 122, 61, 0.28);
-  background:
-    radial-gradient(130% 90% at 6% -12%, rgba(255, 122, 61, 0.08), transparent 58%),
-    linear-gradient(180deg, var(--membrane-card-top), var(--membrane-card-bg));
-  box-shadow: inset 0 0 0 1px rgba(241, 236, 231, 0.04), 0 0 30px rgba(255, 122, 61, 0.06);
-  overflow: hidden;
+  gap: 18px;
   isolation: isolate;
 }
-.crewid.is-unclaimed { border-color: rgba(241, 236, 231, 0.14); }
-/* corner registration ticks */
-.crewid::before, .crewid::after {
-  content: ""; position: absolute; width: 12px; height: 12px; z-index: 2;
-  border: 1px solid rgba(255, 122, 61, 0.45);
-}
-.crewid::before { top: 8px; left: 8px; border-right: 0; border-bottom: 0; }
-.crewid::after { bottom: 8px; right: 8px; border-left: 0; border-top: 0; }
 
 .crewid-foil {
   position: absolute; inset: 0; z-index: 4; pointer-events: none;
@@ -933,7 +922,9 @@
   font-size: 11px; color: var(--membrane-mist); text-align: right;
 }
 
-.crewid-comms { position: relative; z-index: 2; }
+/* Comms section grows to fill the panel's vertical space, pushing the
+   registry strip + actions to the bottom of the credential. */
+.crewid-comms { position: relative; z-index: 2; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
 .crewid-comms-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
 .crewid-comms-title {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -942,9 +933,30 @@
 .crewid-comms-count {
   font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; color: var(--membrane-ember);
 }
+/* Empty state — a centred mission-status block that gives the void a
+   purposeful "awaiting uplink" presence instead of dead space. */
 .crewid-empty {
-  font-family: 'Inter','sans-serif'; font-size: 11.5px; line-height: 1.55; font-style: italic;
-  color: var(--membrane-mist-dim); margin: 0;
+  flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; text-align: center; margin: 0; padding: 24px 0;
+  position: relative;
+}
+.crewid-empty::before {
+  content: ""; width: 88px; height: 88px; border-radius: 50%;
+  border: 1px solid rgba(255,122,61,0.22);
+  box-shadow: 0 0 0 8px rgba(255,122,61,0.04), inset 0 0 22px rgba(255,122,61,0.06);
+  animation: crewid-pulse 3.6s ease-in-out infinite;
+}
+@keyframes crewid-pulse {
+  0%, 100% { transform: scale(0.96); opacity: 0.7; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+.crewid-empty .ce-status {
+  font-family: 'JetBrains Mono', monospace; font-size: 8.5px; letter-spacing: 0.26em;
+  text-transform: uppercase; color: var(--membrane-ember);
+}
+.crewid-empty .ce-msg {
+  font-family: 'Inter', sans-serif; font-size: 12px; line-height: 1.6; font-style: italic;
+  color: var(--membrane-mist-dim); max-width: 34ch;
 }
 .crewid-comm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .crewid-comm {

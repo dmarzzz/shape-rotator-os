@@ -270,7 +270,7 @@ function renderSelfCard(data, tpl) {
           <span class="crewid-comms-count">${connections.length}</span>
         </div>
         ${connections.length === 0
-          ? `<p class="crewid-empty">no links established — join a vessel and declare dependencies to light your constellation.</p>`
+          ? `<div class="crewid-empty"><span class="ce-status">awaiting uplink</span><span class="ce-msg">no links established — join a vessel and declare dependencies to light your constellation.</span></div>`
           : `<ul class="crewid-comm-list" role="list">${commsRows}</ul>`}
       </div>
 

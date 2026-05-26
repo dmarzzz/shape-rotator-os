@@ -1040,7 +1040,6 @@ function journeyDetailSection(rec) {
       <div class="jcard-chips">
         <span class="jcard-chip jcard-chip-bottleneck" style="--jc:${bColor}">${escHtml(j.primary_bottleneck)}</span>
         ${j.company_type ? `<span class="jcard-chip">${escHtml(j.company_type)}</span>` : ""}
-        <span class="jcard-chip jcard-chip-conf jcard-conf-${escAttr((j.confidence || "").toLowerCase())}">${escHtml(j.confidence)} confidence</span>
       </div>
       ${(j.icp || j.problem || j.solution || j.evidence_notes || j.next_milestone) ? `
         <div class="jcard-notes">
