@@ -639,9 +639,14 @@ function computeMembraneData() {
 // Bridge from membrane panels → alchemy rail navigation. Lets the panel
 // "open network →" / "open calendar →" buttons jump into the legacy mode.
 // Public hook used by membrane/index.js.
-window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode) {
+window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   if (!ALCHEMY_MODES.includes(mode)) return;
   state.mode = mode;
+  // Optional: land on a specific constellation sub-view (clusters /
+  // dependencies / journey). Used by the cohort panel's view cards.
+  if (mode === "constellation" && opts && opts.constellationMode) {
+    state.constellationMode = opts.constellationMode;
+  }
   try { localStorage.setItem(ALCHEMY_LS_KEY, mode); } catch {}
   syncRailSelection();
   render();

@@ -35,7 +35,6 @@ const PANEL_TEMPLATES = {
     // Avatar pinned to the top-right of the card, same row as the title.
     headAccessory: (data) => renderAvatar(data?.profile || {}),
     stats: [
-      { key: 'tonic', val: 'D2 — 73.42 hz' },
       { key: 'edges', val: '—', dataKey: 'edgeCount' },
     ],
     inline: (data) => renderSelfInline(data),
@@ -49,7 +48,6 @@ const PANEL_TEMPLATES = {
     title: 'cohort',
     copy: 'every peer in your circle perturbs this membrane. the surface is the network — swells are presence, the rim warms as more peers come online.',
     stats: [
-      { key: 'tonic',  val: 'G2 — 97.99 hz' },
       { key: 'peers',  val: '—', dataKey: 'peerCount' },
       { key: 'online', val: '—', dataKey: 'onlineCount' },
     ],
@@ -65,7 +63,6 @@ const PANEL_TEMPLATES = {
     title: 'events',
     copy: 'time is the pressure here. a bright contour ring drifts toward now. past sessions recede as scars; upcoming as ridges building under the skin.',
     stats: [
-      { key: 'tonic',     val: 'A2 — 110.00 hz' },
       { key: 'this week', val: '—', dataKey: 'eventsThisWeek' },
     ],
     inline: (data) => renderEventsInline(data),
@@ -79,7 +76,6 @@ const PANEL_TEMPLATES = {
     title: 'asks',
     copy: 'each open ask is a bubbling point of pressure on the surface. fresh asks rise sharp; expiring asks sink back into the membrane.',
     stats: [
-      { key: 'tonic', val: 'F#2 — 92.50 hz' },
       { key: 'open',  val: '—', dataKey: 'openAskCount' },
       { key: 'mine',  val: '—', dataKey: 'myAskCount' },
     ],
@@ -201,26 +197,74 @@ function renderAsksInline(data) {
     </section>`;
 }
 
-// Self profile as an intergalactic-mission CREW CREDENTIAL. Mission patch
-// (avatar), designation, call sign, clearance, vessel, frequency, crew
-// bonds, stardate — plus a comms-links manifest and a registry strip.
-// Reuses the panel's action buttons (data-jump-mode) so wiring is intact.
+// Tiny stable string hash for deterministic sigils (local; no crypto).
+function sealHash(str) {
+  let h = 2166136261 >>> 0;
+  const s = String(str || 'shape');
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+// A deterministic geometric SIGIL drawn from the seed — your "shape" as a
+// mark (cypherpunk: key→glyph; new-age: a personal seal). Monochrome; the
+// oxide stroke + a tiny hand-touched rotation come from CSS. Drawn inside a
+// vesica frame by renderSeal().
+function renderSigilSVG(seed) {
+  let h = sealHash(seed);
+  const rnd = () => { h = (Math.imul(h, 1664525) + 1013904223) >>> 0; return h / 4294967296; };
+  const cx = 50, cy = 64, R = 21;
+  const n = 5 + Math.floor(rnd() * 4); // 5–8 nodes
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    pts.push([cx + Math.cos(a) * R, cy + Math.sin(a) * R]);
+  }
+  const order = [...Array(n).keys()];
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  let d = '';
+  order.forEach((idx, i) => { const [x, y] = pts[idx]; d += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)} `; });
+  d += 'Z';
+  const dots = pts.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.7"/>`).join('');
+  return `<svg class="seal-sigil" viewBox="0 0 100 128" aria-hidden="true"><path class="seal-sigil-line" d="${d}"/><g class="seal-sigil-dots">${dots}</g></svg>`;
+}
+
+// The seal: a vesica-piscis mandorla framing the identity mark. When the
+// user is claimed + has an avatar, the avatar IS the charged seal (a face);
+// otherwise their deterministic sigil sits inside, awaiting the strike.
+function renderSeal(profile, seed) {
+  const avatar = profile.avatarUrl || null;
+  const inner = avatar
+    ? `<img class="seal-face" style="clip-path:url(#seal-vesica-clip)" src="${escHtml(avatar)}" alt="" referrerpolicy="no-referrer"
+         onerror="this.remove();this.parentElement.classList.add('no-face')" />`
+    : '';
+  return `
+    <div class="seal ${avatar ? 'has-face' : 'no-face'}">
+      <svg class="seal-vesica" viewBox="0 0 100 128" aria-hidden="true">
+        <defs><clipPath id="seal-vesica-clip" clipPathUnits="objectBoundingBox">
+          <path d="M.5 .04 C.2 .28 .2 .72 .5 .96 C.8 .72 .8 .28 .5 .04 Z"/>
+        </clipPath></defs>
+        <path class="seal-vesica-path" d="M50 6 C20 36 20 92 50 122 C80 92 80 36 50 6 Z"/>
+      </svg>
+      ${renderSigilSVG(seed)}
+      ${inner}
+    </div>`;
+}
+
+// Self profile as a SEAL — your shape as a sigil in a vesica, charged by
+// your tonic. Claiming is a rite: strike your seal, cross the threshold.
+// Blends shape-rotator geometry + alchemy + cypherpunk sovereignty +
+// milady-intimate copy. (Container keeps .crewid for fill/foil/scan +
+// the data-crewid-claim wiring.)
 function renderSelfCard(data, tpl) {
   const profile = data?.profile || {};
   const connections = Array.isArray(data?.connections) ? data.connections : [];
   const name = profile.name || profile.display_name || profile.handle || profile.gh_handle || profile.record_id || 'unclaimed';
   const claimed = !!(profile.record_id || profile.handle || profile.name || profile.gh_handle);
   const handle = profile.handle || profile.gh_handle || (profile.links && profile.links.github) || '';
-  const clearance = profile.role || profile.title || (profile.is_mentor ? 'mentor' : 'crew');
-  const vessel = profile.team || (profile.kind === 'team' ? profile.record_id : '') || '—';
+  const role = profile.role || profile.title || (profile.is_mentor ? 'mentor' : '');
+  const circle = profile.team || (profile.kind === 'team' ? profile.record_id : '') || '—';
   const edges = data?.edgeCount ?? 0;
-  const geo = profile.geo || '';
-  // Stardate = year.day-of-year (mission-log flavour from the real date).
-  const now = new Date();
-  const doy = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
-  const stardate = `${now.getFullYear()}.${String(doy).padStart(3, '0')}`;
-  // A short registry id derived from the handle/name (stable, ID-card flavour).
-  const reg = (handle || name || 'xxxx').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4).padEnd(4, 'X');
+  const seed = profile.record_id || handle || name;
 
   const readout = (k, v) => `<div class="crewid-row"><span class="crewid-k">${escHtml(k)}</span><span class="crewid-v">${escHtml(String(v))}</span></div>`;
 
@@ -231,68 +275,61 @@ function renderSelfCard(data, tpl) {
       <span class="crewid-comm-meta">${escHtml(c.team || c.role || '')}</span>
     </li>`).join('');
 
-  // When unclaimed there's nothing to "edit" yet — drop that action; the
-  // primary move is to claim. When claimed, keep the full action set.
+  // Unclaimed → nothing to edit; the primary move is the rite. Claimed →
+  // full action set.
   const actions = (tpl?.actions || [])
     .filter((a) => claimed || a.mode !== 'profile')
     .map((a) => `<button type="button" class="crewid-action" data-jump-mode="${a.mode}">${a.label}</button>`).join('');
-  // Prominent in-card claim CTA so the user claims right here, not via the
-  // tiny top-right pill.
   const claimCta = claimed ? '' : `
-    <button type="button" class="crewid-claim" data-crewid-claim="1">
-      <span class="cc-glyph" aria-hidden="true">⬡</span>
+    <button type="button" class="crewid-claim seal-strike" data-crewid-claim="1">
+      <span class="cc-glyph" aria-hidden="true">◇</span>
       <span class="cc-text">
-        <span class="cc-title">claim your credential</span>
-        <span class="cc-sub">identify yourself to the cohort →</span>
+        <span class="cc-title">strike your seal</span>
+        <span class="cc-sub">identify · cross the threshold →</span>
       </span>
     </button>`;
 
+  // One intimate line under the name — sincere, not winking.
+  const tagline = claimed
+    ? (role ? `${escHtml(role.toLowerCase())} · here` : 'here, and seen')
+    : 'a shape not yet struck';
+
   return `
-    <article class="crewid ${claimed ? 'is-claimed' : 'is-unclaimed'}">
+    <article class="crewid seal-card ${claimed ? 'is-claimed' : 'is-unclaimed'}">
       <div class="crewid-foil" aria-hidden="true"></div>
       <div class="crewid-scan" aria-hidden="true"></div>
 
       <div class="crewid-band">
-        <span class="crewid-issuer">⬡ shape rotator os</span>
-        <span class="crewid-doc">${claimed ? 'crew credential' : 'credential · unissued'}</span>
+        <span class="crewid-issuer">⬡ shape rotator · alchemy</span>
+        <span class="crewid-doc">${claimed ? 'sealed' : 'unsealed'}</span>
       </div>
 
-      <div class="crewid-hero">
-        <div class="crewid-patch">${renderAvatar(profile)}</div>
-        <div class="crewid-id">
-          <span class="crewid-eyebrow">designation</span>
-          <h2 class="crewid-name">${escHtml(name)}</h2>
-          <div class="crewid-callsign">
-            <span class="crewid-call">call sign · ${handle ? '@' + escHtml(handle) : '—'}</span>
-            <span class="crewid-clearance">clearance · ${escHtml(clearance)}</span>
-          </div>
-        </div>
+      <div class="seal-hero">
+        ${renderSeal(profile, seed)}
+        <span class="crewid-eyebrow">your shape</span>
+        <h2 class="crewid-name">${escHtml(name)}</h2>
+        <span class="seal-tagline">${escHtml(tagline)}</span>
+        ${claimed && handle ? `<span class="seal-handle">@${escHtml(handle)}</span>` : ''}
       </div>
 
       ${claimCta}
 
-      <div class="crewid-readouts">
-        ${readout('vessel', vessel)}
-        ${readout('frequency', 'D2 · 73.42 hz')}
-        ${readout('crew bonds', `${edges} edges`)}
-        ${readout('stardate', stardate)}
-        ${geo ? readout('sector', geo) : ''}
+      <div class="crewid-readouts seal-readouts">
+        ${readout('edges', edges)}
+        ${readout('circle', circle)}
       </div>
 
       <div class="crewid-comms">
         <div class="crewid-comms-head">
-          <span class="crewid-comms-title">comms links</span>
+          <span class="crewid-comms-title">constellation</span>
           <span class="crewid-comms-count">${connections.length}</span>
         </div>
         ${connections.length === 0
-          ? `<div class="crewid-empty"><span class="ce-status">awaiting uplink</span><span class="ce-msg">no links established — join a vessel and declare dependencies to light your constellation.</span></div>`
+          ? `<div class="crewid-empty"><span class="ce-status">∅</span><span class="ce-msg">no edges yet — once you join a circle, your shape finds its others.</span></div>`
           : `<ul class="crewid-comm-list" role="list">${commsRows}</ul>`}
       </div>
 
-      <div class="crewid-registry" aria-hidden="true">
-        <span class="crewid-barcode"></span>
-        <span class="crewid-reg-no">reg ${escHtml(reg)}-${escHtml(stardate.replace('.', ''))}</span>
-      </div>
+      <div class="seal-sovereign" aria-hidden="false">stored on this device · nothing leaves</div>
 
       <div class="crewid-actions">${actions}</div>
     </article>`;

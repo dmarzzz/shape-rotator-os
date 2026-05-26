@@ -224,45 +224,45 @@ async function showOnboardingModal(cohortHint) {
     <div class="identity-modal enroll" role="dialog" aria-labelledby="im-title">
       <div class="enroll-scan" aria-hidden="true"></div>
       <div class="enroll-band">
-        <span class="enroll-issuer">⬡ shape rotator os</span>
-        <span class="enroll-doc">${claimed ? "credential · reassign" : "crew enrollment"}</span>
+        <span class="enroll-issuer">⬡ shape rotator · alchemy</span>
+        <span class="enroll-doc">${claimed ? "re-seal" : "the threshold"}</span>
       </div>
 
       <header class="im-head">
         <h2 id="im-title" class="im-title">
-          ${claimed ? "switch credential" : "identify yourself"}
+          ${claimed ? "re-seal" : "identify yourself"}
         </h2>
         <p class="im-sub">
           ${claimed
-            ? `credential issued to <strong>${escHtml(currentResolved?.label || currentId.display_name)}</strong> <span class="im-current-kind">(${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)})</span>. select another record to reassign, or use the controls below.`
-            : "register your designation to receive your crew credential. stored locally on this device — never broadcast, no PR."}
+            ? `sealed as <strong>${escHtml(currentResolved?.label || currentId.display_name)}</strong> <span class="im-current-kind">(${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)})</span>. choose another shape to re-seal, or use the controls below.`
+            : "strike your seal to cross into the cohort. your shape, your record — stored on this device, never broadcast."}
         </p>
         ${claimed ? `
           <div class="im-current-actions">
             <button class="im-btn im-current-edit"    type="button" data-im-action="edit">edit my record →</button>
-            <button class="im-btn im-current-unclaim" type="button" data-im-action="unclaim">revoke credential</button>
+            <button class="im-btn im-current-unclaim" type="button" data-im-action="unclaim">break the seal</button>
           </div>
         ` : ""}
       </header>
 
       <section class="im-section">
-        <h3 class="im-h"><span class="im-h-no">01</span> ${claimed ? "reassign to another record" : "locate your record"}</h3>
+        <h3 class="im-h"><span class="im-h-no">01</span> ${claimed ? "re-seal as another shape" : "find your shape"}</h3>
         <label class="im-row"><span>person</span>
           <select id="im-person">
-            <option value="">— select crew member —</option>
+            <option value="">— you —</option>
             ${optHtml(people, "person")}
           </select>
         </label>
         <label class="im-row"><span>team</span>
           <select id="im-team">
-            <option value="">— select vessel —</option>
+            <option value="">— your team —</option>
             ${optHtml(teamsOnly, "team")}
           </select>
         </label>
         ${projects.length ? `
           <label class="im-row"><span>project</span>
             <select id="im-project">
-              <option value="">— select mission —</option>
+              <option value="">— your project —</option>
               ${optHtml(projects, "project")}
             </select>
           </label>
@@ -270,8 +270,8 @@ async function showOnboardingModal(cohortHint) {
       </section>
 
       <section class="im-section">
-        <h3 class="im-h"><span class="im-h-no">02</span> ${claimed ? "or register a new record" : "no record on file"}</h3>
-        <p class="im-sub" style="margin:0 0 12px 0">opens the editor with a blank manifest — submit a PR to enlist.</p>
+        <h3 class="im-h"><span class="im-h-no">02</span> ${claimed ? "or strike a new shape" : "not on the rolls yet"}</h3>
+        <p class="im-sub" style="margin:0 0 12px 0">opens the editor with a blank shape — submit a PR to join.</p>
         <div class="im-create-row">
           <button class="im-btn im-create" data-create="person"  type="button">+ new person</button>
           <button class="im-btn im-create" data-create="team"    type="button">+ new team</button>
@@ -282,9 +282,9 @@ async function showOnboardingModal(cohortHint) {
       <footer class="im-foot">
         <button class="im-resync" id="im-resync" type="button"
                 title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
-          <span class="im-resync-label">re-sync registry</span>
+          <span class="im-resync-label">re-sync the rolls</span>
         </button>
-        <button class="im-skip" id="im-skip" type="button">${claimed ? "close" : "stand by →"}</button>
+        <button class="im-skip" id="im-skip" type="button">${claimed ? "close" : "not yet →"}</button>
       </footer>
     </div>
   `;

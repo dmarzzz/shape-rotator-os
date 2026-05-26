@@ -1032,3 +1032,68 @@
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 9px; letter-spacing: 0.14em; text-transform: lowercase; color: rgba(255,154,106,0.9);
 }
+
+/* ─── THE SEAL — self profile reframed (shape-as-sigil in a vesica) ───── */
+.seal-hero {
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  text-align: center; padding-top: 4px;
+}
+.seal { position: relative; width: 96px; height: 122px; margin-bottom: 6px; }
+.seal svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.seal-vesica-path {
+  fill: rgba(255,122,61,0.04);
+  stroke: rgba(255,122,61,0.5); stroke-width: 1;
+  filter: drop-shadow(0 0 10px rgba(255,122,61,0.18));
+}
+.seal-sigil-line {
+  fill: none; stroke: var(--membrane-mist); stroke-width: 1.1;
+  stroke-linejoin: round; stroke-linecap: round;
+  /* construct-itself rite on mount */
+  stroke-dasharray: 240; stroke-dashoffset: 240;
+  animation: seal-draw 1100ms cubic-bezier(0.65,0,0.05,1) 120ms forwards;
+}
+.seal-sigil-dots circle { fill: var(--membrane-ember); opacity: 0; animation: seal-dot 500ms ease 900ms forwards; }
+@keyframes seal-draw { to { stroke-dashoffset: 0; } }
+@keyframes seal-dot { to { opacity: 0.9; } }
+/* slight hand-touched tilt so it reads drawn, not CAD */
+.seal-sigil { transform: rotate(-2.5deg); transform-origin: center; }
+.seal.has-face .seal-sigil { display: none; }
+.seal-face {
+  position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px);
+  object-fit: cover; opacity: 0.96;
+}
+.seal.no-face .seal-face { display: none; }
+
+.seal-hero .crewid-eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+.seal-hero .crewid-name {
+  margin: 2px 0 0; font-family: 'Inter Display','Inter',sans-serif; font-style: italic;
+  font-weight: 500; font-size: 32px; line-height: 1; letter-spacing: -0.01em; color: var(--membrane-mist);
+}
+.seal-tagline {
+  font-family: 'Inter','sans-serif'; font-style: italic; font-size: 12px;
+  color: var(--membrane-mist-dim); letter-spacing: 0.01em;
+}
+.seal-handle {
+  font-family: 'JetBrains Mono', monospace; font-size: 9.5px; letter-spacing: 0.14em; color: rgba(255,154,106,0.85);
+}
+
+/* readouts centered as a quiet row under the seal */
+.seal-readouts { grid-template-columns: 1fr 1fr 1fr; gap: 6px 18px; }
+.seal-readouts .crewid-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+.seal-readouts .crewid-v { text-align: left; }
+
+.seal-sovereign {
+  position: relative; z-index: 2; text-align: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--membrane-mist-dim); opacity: 0.7;
+}
+
+/* the strike CTA reuses .crewid-claim; just center its text block */
+.seal-strike { justify-content: center; text-align: center; }
+.seal-strike .cc-text { align-items: center; }
+.seal-strike .cc-glyph { animation: seal-glyph-spin 14s linear infinite; }
+@keyframes seal-glyph-spin { to { transform: rotate(360deg); } }
