@@ -100,11 +100,12 @@
 
 .throne-orbital text {
   font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 10px;
-  letter-spacing: 0.34em;
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  fill: rgba(241, 236, 231, 0.72);
-  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.18));
+  fill: rgba(241, 236, 231, 0.82);
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.22));
 }
 
 .membrane-host * {

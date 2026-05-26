@@ -29,6 +29,7 @@ import {
   renderWeekView as renderCalendarWeekView,
   loadCalendar as loadCalendarData,
   currentWeekIdx as calendarCurrentWeekIdx,
+  parseWeekRow as calendarParseWeekRow,
   attachWeekViewBehavior as attachCalendarMobileBehavior,
 } from "@shape-rotator/shape-ui";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
@@ -377,6 +378,49 @@ function renderMembrane() {
   state.membraneController.setData(computeMembraneData());
 }
 
+// Today's timed events from the Phala calendar GRID (cohort.calendar.tabs).
+// The daily schedule (sessions, dinners) lives in the grid cells, not in
+// cohort.events — so the membrane events panel needs to parse today's cell
+// to surface things like "19:00 muse dinner". Reuses the calendar module's
+// week-row parser; only lines that lead with a clock time count as events.
+function todayGridEvents(cal) {
+  try {
+    if (!cal || !cal.tabs) return [];
+    const tabName = cal.tabs["May 18 Start"] ? "May 18 Start" : Object.keys(cal.tabs)[0];
+    const rows = cal.tabs[tabName] || [];
+    const wk = calendarCurrentWeekIdx();
+    const weekRow = rows[2 + wk] || [];
+    const week = calendarParseWeekRow(weekRow, wk);
+    // Match the LOCAL calendar date, not parseWeekRow's UTC `isToday`. The
+    // grid cell dates are UTC-midnight; comparing on Y/M/D keeps "today"
+    // pinned to the day the user is actually in (otherwise, after ~8pm
+    // US-eastern, UTC rolls to tomorrow and the panel shows tomorrow's cell).
+    const now = new Date();
+    const localKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    const today = (week.days || []).find((d) => {
+      const dd = new Date(d.dayMs);
+      return `${dd.getUTCFullYear()}-${dd.getUTCMonth()}-${dd.getUTCDate()}` === localKey;
+    });
+    if (!today) return [];
+    const out = [];
+    for (const block of (today.blocks || [])) {
+      const first = String(block).split("\n")[0].trim();
+      let time = "", rest = "";
+      const range = first.match(/^(\d{1,2}:\d{2})\s*[-–—:]\s*(\d{1,2}:\d{2})(.*)$/);
+      if (range) { time = `${range[1]}–${range[2]}`; rest = range[3]; }
+      else {
+        const single = first.match(/^(\d{1,2}:\d{2})(.*)$/);
+        if (!single) continue;           // no leading time → not a scheduled event
+        time = single[1]; rest = single[2];
+      }
+      rest = rest.replace(/^[\s.·:–—-]+/, "").trim();
+      if (!rest) continue;
+      out.push({ time, title: rest, sub: "" });
+    }
+    return out;
+  } catch { return []; }
+}
+
 // Cross-blob data feed. Read the cohort surface and shape it into per-blob
 // stat dictionaries that the panels can render. Re-runs on every cohort
 // refresh via subscribeToCohortChanges → render() chain.
@@ -441,6 +485,35 @@ function computeMembraneData() {
   const nextEvent = nextEventEntry?.e;
   const nextEventLabel = nextEvent ? (nextEvent.title || nextEvent.name || 'untitled') : '—';
   const nextEventInMs = happeningNow ? 0 : (nextStart ? nextStart.startMs - now : null);
+
+  // TODAY's agenda for the events panel. Merges two sources:
+  //   - timed lines from today's Phala calendar GRID cell (e.g. "19:00 muse
+  //     dinner") — the daily schedule lives in cohort.calendar.tabs, NOT in
+  //     cohort.events, so the panel used to miss them entirely.
+  //   - cohort.events spans that overlap today (e.g. "daily tea").
+  // Deduped by title; all-day/ongoing items first, then by clock time.
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayStartMs = todayStart.getTime();
+  const tomorrowMs = todayStartMs + DAY_MS;
+  const gridItems = todayGridEvents(c.calendar);
+  const spanItems = spans
+    .filter((u) => u.startMs < tomorrowMs && u.endMs >= todayStartMs)
+    .map((u) => ({
+      time: '',
+      title: u.e.title || u.e.name || 'untitled',
+      sub: u.e.subtitle || '',
+      ongoing: (u.endMs - u.startMs) > 12 * 60 * 60 * 1000,
+    }));
+  const seenToday = new Set();
+  const eventsToday = [];
+  for (const it of [...spanItems, ...gridItems]) {
+    const k = (it.title || '').toLowerCase().trim();
+    if (!k || seenToday.has(k)) continue;
+    seenToday.add(k);
+    eventsToday.push(it);
+  }
+  eventsToday.sort((a, b) =>
+    (a.time ? 1 : 0) - (b.time ? 1 : 0) || String(a.time).localeCompare(String(b.time)));
 
   // Edge count: count unique team↔team dependencies the current user's team
   // participates in. Fallback: total cohort-level edges.
@@ -552,6 +625,7 @@ function computeMembraneData() {
       nextEventLabel: nextEventLabel.length > 28 ? nextEventLabel.slice(0, 26) + '…' : nextEventLabel,
       nextEventInMs,
       eventsList: events,
+      eventsToday,
     },
     asks: {
       openAskCount: String(openAsks),

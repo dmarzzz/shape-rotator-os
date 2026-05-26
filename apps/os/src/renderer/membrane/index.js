@@ -2,40 +2,21 @@ import { createMembraneScene, SLOT_OFFSETS } from './scene.js';
 import { createSoundDirector } from './sound.js';
 import { BLOB_IDS, BLOB_PROFILES } from './blob.js';
 
-// Orbital ring label per blob — tells you what's INSIDE each blob, not its
-// internal metadata. Repeated twice on the path so the text wraps around
-// the full circumference. Functions take live data and return the string.
 function up(s) { return String(s ?? '').toUpperCase(); }
 
+// Orbital ring NAME per blob — the big word that orbits the focused orb.
+// self resolves to the claimed handle/name (e.g. "dmarz"), or "self" when
+// unclaimed; the others are their fixed names. setOrbitalForBlob() repeats
+// the name around the ring so it reads as the orb's identity orbiting it.
 const ORBITAL_LABELS = {
   self: (d) => {
-    const name = d.profile?.display_name || d.profile?.handle || d.profile?.record_id || 'unclaimed';
-    const team = d.profile?.team || d.profile?.record_id;
-    const edges = d.edgeCount ?? 0;
-    const parts = [up(name)];
-    if (team && team !== name) parts.push('TEAM ' + up(team));
-    parts.push(`${edges} EDGES`);
-    parts.push('YOUR SHAPE');
-    return parts.join(' · ') + ' · ';
+    const p = d.profile || {};
+    return p.display_name || p.name || p.handle || p.gh_handle
+        || (p.links && p.links.github) || p.record_id || 'self';
   },
-  cohort: (d) => {
-    const peers = d.peerCount ?? 0;
-    const live = up(d.onlineCount || 'idle');
-    return `${peers} PEERS · ${live} · YOUR CONSTELLATION · `;
-  },
-  events: (d) => {
-    const next = d.nextEventLabel && d.nextEventLabel !== '—'
-      ? up(d.nextEventLabel) : 'NO UPCOMING';
-    const week = d.eventsThisWeek ?? 0;
-    return `NEXT · ${next} · ${week} THIS WEEK · `;
-  },
-  asks: (d) => {
-    const open = (d.asksList || []).filter(a => (a?.status || 'open') === 'open');
-    const top = open.slice(0, 2).map(a => up(a.title || a.text || a.ask || 'untitled'));
-    const titles = top.length > 0 ? top.join(' · ') : 'NONE OPEN';
-    const count = d.openAskCount ?? open.length;
-    return `${titles} · ${count} OPEN · `;
-  },
+  cohort: () => 'cohort',
+  events: () => 'events',
+  asks:   () => 'asks',
 };
 
 // Per-blob panel content. `inline` renderer is called with (data) and
@@ -150,95 +131,35 @@ function fmtFullDate(t) {
 }
 
 function renderEventsInline(data) {
-  const events = Array.isArray(data?.eventsList) ? data.eventsList : [];
-  const now = Date.now();
-  if (events.length === 0) {
+  // Today-only. computeMembraneData (alchemy.js) builds `eventsToday` by
+  // merging today's timed lines from the Phala calendar GRID (e.g. "19:00
+  // muse dinner") with cohort.events spans overlapping today (e.g. daily
+  // tea). We intentionally drop the this-week / upcoming sections — the
+  // panel answers "what's on right now?" and the full schedule lives in
+  // the calendar tab.
+  const today = Array.isArray(data?.eventsToday) ? data.eventsToday : [];
+
+  const rows = today.map((it) => {
+    const dateLabel = it.time || (it.ongoing ? 'today' : '·');
+    const meta = it.sub || (it.ongoing ? 'ongoing' : '');
     return `
-      <section class="membrane-section">
-        <header class="membrane-section-head">
-          <h3 class="membrane-section-title">today</h3>
-          <span class="membrane-section-count">0</span>
-        </header>
-        <p class="membrane-empty">no events on the calendar yet.</p>
-      </section>`;
-  }
-
-  // Day windows for grouping. "Today" = anything on the calendar date today
-  // OR scheduled within the next ~12h (covers late-night events that read
-  // as "tonight"). "This week" = remaining 6 days. "Upcoming" = beyond.
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayStartMs = todayStart.getTime();
-  const tomorrowMs = todayStartMs + 24 * 60 * 60 * 1000;
-  const weekEndMs = todayStartMs + 7 * 24 * 60 * 60 * 1000;
-
-  const DAY_MS = 24 * 60 * 60 * 1000;
-  // Events come in two shapes: point events (`date`/`starts_at`/`start`) and
-  // spans (`range_start`/`range_end`, e.g. "daily tea" runs the whole
-  // program). Parsing only the point fields silently dropped every span
-  // (Date.parse(undefined) → NaN), so ongoing/today events vanished. Parse
-  // both into a [startMs, endMs] window; `range_end` is a calendar day, so
-  // extend it to that day's end.
-  const parsed = events
-    .map((e) => {
-      const startMs = Date.parse(e?.starts_at || e?.start || e?.date || e?.range_start || '');
-      if (!Number.isFinite(startMs)) return null;
-      const endRaw = Date.parse(e?.range_end || '');
-      const endMs = Number.isFinite(endRaw) ? endRaw + (DAY_MS - 1) : startMs;
-      return { startMs, endMs, t: startMs, e };
-    })
-    .filter(Boolean);
-
-  // Drop events whose window ended more than an hour ago.
-  const live = parsed.filter((u) => u.endMs >= now - 60 * 60 * 1000);
-
-  // Today = any event whose window overlaps the calendar day (covers
-  // multi-day spans like daily tea). Remaining events bucket by start.
-  const overlapsToday = (u) => u.startMs < tomorrowMs && u.endMs >= todayStartMs;
-  const today    = live.filter(overlapsToday).sort((a, b) => a.startMs - b.startMs);
-  const rest     = live.filter((u) => !overlapsToday(u));
-  const thisWeek = rest.filter((u) => u.startMs >= todayStartMs && u.startMs < weekEndMs).sort((a, b) => a.startMs - b.startMs);
-  const upcoming = rest.filter((u) => u.startMs >= weekEndMs).sort((a, b) => a.startMs - b.startMs);
-
-  function row(u, fmt) {
-    const title = u.e.title || u.e.name || 'untitled';
-    const loc = u.e.location || u.e.room || '';
-    const isHappening = u.startMs <= now + 60 * 60 * 1000 && u.endMs >= now - 60 * 60 * 1000;
-    const overlapsToday = u.startMs < tomorrowMs && u.endMs >= todayStartMs;
-    // All-day / multi-day spans have no meaningful single clock time. When
-    // such a span overlaps today, label it "today" and lean on the subtitle;
-    // otherwise (point events, or any future row) show the real start date.
-    const isAllDayOrSpan = (u.endMs - u.startMs) > 12 * 60 * 60 * 1000 || u.startMs < todayStartMs;
-    const dateLabel = (overlapsToday && isAllDayOrSpan) ? 'today' : fmt(u.startMs);
-    const meta = loc || u.e.subtitle || (isHappening ? 'happening' : overlapsToday ? 'ongoing' : fmtRel(u.startMs - now));
-    return `
-      <li class="membrane-event-row${isHappening ? ' membrane-event-now' : ''}">
+      <li class="membrane-event-row">
         <span class="membrane-event-date">${escHtml(dateLabel)}</span>
-        <span class="membrane-event-title">${escHtml(title)}</span>
+        <span class="membrane-event-title">${escHtml(it.title || 'untitled')}</span>
         <span class="membrane-event-meta">${escHtml(meta)}</span>
       </li>`;
-  }
+  }).join('');
 
-  function section(title, rows, fmt, mod = '') {
-    return `
-      <section class="membrane-section${mod}">
-        <header class="membrane-section-head">
-          <h3 class="membrane-section-title">${title}</h3>
-          <span class="membrane-section-count">${rows.length}</span>
-        </header>
-        ${rows.length === 0
-          ? `<p class="membrane-empty">${title === 'today' ? 'nothing scheduled today.' : 'none.'}</p>`
-          : `<ul class="membrane-event-list" role="list">${rows.map((u) => row(u, fmt)).join('')}</ul>`}
-      </section>`;
-  }
-
-  // Always render TODAY (even if empty — emphasizes its importance). Only
-  // render this-week and upcoming if they have content.
-  const todayBlock = section('today', today, fmtTimeOnly, ' membrane-section-today');
-  const weekBlock = thisWeek.length > 0 ? section('this week', thisWeek, fmtDayTime) : '';
-  const upcomingBlock = upcoming.length > 0 ? section('upcoming', upcoming.slice(0, 16), fmtFullDate) : '';
-
-  return todayBlock + weekBlock + upcomingBlock;
+  return `
+    <section class="membrane-section membrane-section-today">
+      <header class="membrane-section-head">
+        <h3 class="membrane-section-title">today</h3>
+        <span class="membrane-section-count">${today.length}</span>
+      </header>
+      ${today.length === 0
+        ? `<p class="membrane-empty">nothing scheduled today.</p>`
+        : `<ul class="membrane-event-list" role="list">${rows}</ul>`}
+    </section>`;
 }
 
 function renderAsksInline(data) {
@@ -481,9 +402,13 @@ export function mountMembrane(container, opts = {}) {
     const tpl = ORBITAL_LABELS[id];
     if (!tpl) return;
     const data = dataStore[id] || {};
-    const label = tpl(data);
-    // Repeat twice so the text wraps around the full circumference.
-    orbitalText.textContent = label + label;
+    const name = String(tpl(data) || id).trim();
+    // Repeat the name around the ring with a separator so the big word
+    // visibly orbits the orb. Reps scale to the name length so short names
+    // ("asks") still fill the circumference without one giant gap.
+    const unit = `${name}  ·  `;
+    const reps = Math.max(3, Math.ceil(26 / unit.length));
+    orbitalText.textContent = unit.repeat(reps);
     orbital.classList.add('is-visible');
   }
 
