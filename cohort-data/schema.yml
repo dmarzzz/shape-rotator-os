@@ -94,6 +94,22 @@ teams:
     - dependencies          # list[string] — other team record_ids this project depends on, unblocks, or pairs naturally with. Seeds the connection graph.
     - seeking               # list[string] — what the team wants help with from the cohort.
     - offering              # list[string] — what the team would happily share/help others with.
+    # PMF journey — one optional nested object placing this team/project on the
+    # startup-maturity spectrum (constellation › journey tab). All fields optional;
+    # defaulted-at-read in the app, so omitting `journey` (or any sub-field) plots
+    # the record at stage 1 / evidence 1 (idea / vibes) without breaking. Additive —
+    # never backwards-incompatible. Shape:
+    #   journey:
+    #     stage: 1..8                 # 1 Idea … 8 Scale Fit
+    #     evidence_quality: 1..5      # 1 Vibes/Thesis … 5 Repeatable Pull
+    #     market_upside: 1..5         # drives dot radius on the plot
+    #     primary_bottleneck: ICP Clarity | Pain Intensity | Solution Quality |
+    #                         Technical Risk | GTM | Retention | Business Model |
+    #                         Fundraising | Regulatory | Team   (drives dot color)
+    #     company_type: B2B | Consumer | Infra | Marketplace | Protocol | AI | Other
+    #     confidence: Low | Medium | High
+    #     icp, problem, solution, evidence_notes, next_milestone   # free text
+    - journey
 
 clusters:
   surface_fields:
