@@ -6569,6 +6569,45 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   display: inline-block; width: 10px; height: 10px; border-radius: 50%;
   vertical-align: middle; margin-right: 6px;
 }
+/* Per-stage count strip across the top of the plot. */
+.alch-journey-stage svg .ac-jcount {
+  fill: var(--alchemy-ink-mute); font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600; opacity: 0.7;
+}
+/* Filter bar */
+.alch-journey-filters {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  margin: 2px 0 12px;
+}
+.alch-journey-filters .ajf-label,
+.alch-journey-filters .ajf-count {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.alch-journey-filters .ajf-count { margin-left: auto; }
+.ajf-toggle {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+  text-transform: uppercase; cursor: pointer;
+  padding: 4px 11px; border-radius: 999px;
+  color: var(--alchemy-ink-mute);
+  background: transparent; border: 1px solid rgba(var(--ink-rgb), 0.16);
+  transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
+}
+.ajf-toggle.is-on {
+  color: var(--alchemy-paper-warm);
+  border-color: rgba(196,64,37,0.55);
+  background: rgba(196,64,37,0.12);
+}
+.ajf-toggle:not(.is-on) { opacity: 0.55; text-decoration: line-through; }
+/* Clickable bottleneck legend */
+.alch-constellation-legend .acl-jbtn {
+  cursor: pointer; background: transparent; border: 1px solid transparent;
+  border-radius: 999px; padding: 3px 9px 3px 6px;
+  font: inherit; color: inherit; transition: opacity 160ms var(--ease), border-color 160ms var(--ease);
+}
+.alch-constellation-legend .acl-jbtn.is-active { border-color: rgba(var(--ink-rgb), 0.4); }
+.alch-constellation-legend .acl-jbtn.is-dim { opacity: 0.32; }
+.alch-constellation-legend .acl-jbtn:hover { opacity: 1; }
 /* Tooltip — anchored to the stage, positioned in JS on mousemove. */
 .alch-journey-tip {
   position: absolute; top: 0; left: 0; z-index: 5;
@@ -6592,6 +6631,92 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   padding-top: 1px;
 }
 .alch-journey-tip .ajt-v { flex: 1 1 auto; }
+
+/* ─── PMF journey card (profile detail + drawer) ─────────────────────── */
+.jcard { display: flex; flex-direction: column; gap: 14px; }
+.jcard-head { display: flex; align-items: baseline; gap: 10px; }
+.jcard-stage-name {
+  font-family: var(--font-sans); font-size: 20px; font-weight: 500;
+  letter-spacing: -0.01em; color: var(--alchemy-paper-warm); text-transform: lowercase;
+}
+.jcard.is-side .jcard-stage-name { font-style: italic; color: var(--alchemy-ink-mute); }
+.jcard-stage-meta {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+/* Spectrum track: an off-track diamond, then 8 climbing segments. */
+.jcard-track { display: flex; align-items: flex-end; gap: 3px; height: 30px; }
+.jcard-seg {
+  position: relative; flex: 1 1 0; height: 12px; border-radius: 2px;
+  background: rgba(var(--ink-rgb), 0.10);
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
+  display: flex; align-items: center; justify-content: center;
+  transition: height 240ms var(--ease), background 240ms var(--ease);
+}
+.jcard-seg i {
+  font-style: normal; font-family: var(--font-mono); font-size: 7px;
+  color: var(--alchemy-ink-mute); opacity: 0.5;
+}
+.jcard-seg.is-on {
+  background: linear-gradient(180deg, rgba(196,64,37,0.55), rgba(143,34,14,0.30));
+  border-color: rgba(196,64,37,0.45);
+}
+.jcard-seg.is-on i { opacity: 0; }
+.jcard-seg.is-cur {
+  height: 26px;
+  background: linear-gradient(180deg, var(--alchemy-oxide-bright), rgba(196,64,37,0.6));
+  border-color: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 12px rgba(196,64,37,0.55);
+}
+.jcard-seg-side {
+  flex: 0 0 18px; height: 18px; border-radius: 50%; margin-right: 7px;
+  border-style: dashed; color: var(--alchemy-ink-mute); font-size: 9px;
+}
+.jcard-seg-side.is-cur {
+  height: 18px; background: rgba(var(--ink-rgb), 0.06);
+  border-color: var(--alchemy-ink-mute); box-shadow: none; color: var(--alchemy-paper-warm);
+}
+/* Dot meters */
+.jcard-meters { display: flex; flex-direction: column; gap: 7px; }
+.jcard-meter { display: flex; align-items: center; gap: 10px; }
+.jcm-k {
+  flex: 0 0 58px; font-family: var(--font-mono); font-size: 8.5px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.jcm-dots { display: inline-flex; gap: 4px; }
+.jcm-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.12); border: 1px solid rgba(var(--ink-rgb), 0.12);
+}
+.jcm-dot.is-on { background: var(--alchemy-oxide-bright); border-color: var(--alchemy-oxide-bright); }
+.jcm-lbl {
+  font-family: var(--font-mono); font-size: 9.5px; color: var(--alchemy-paper-warm);
+  letter-spacing: 0.02em; text-transform: lowercase;
+}
+/* Chips */
+.jcard-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.jcard-chip {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+  text-transform: uppercase; padding: 4px 9px; border-radius: 999px;
+  color: var(--alchemy-paper-warm);
+  border: 1px solid rgba(var(--ink-rgb), 0.18); background: rgba(var(--ink-rgb), 0.05);
+}
+.jcard-chip-bottleneck {
+  color: var(--jc, var(--alchemy-oxide-bright));
+  border-color: color-mix(in srgb, var(--jc, #c44025) 55%, transparent);
+  background: color-mix(in srgb, var(--jc, #c44025) 14%, transparent);
+}
+.jcard-conf-high { color: #7fa05a; border-color: rgba(127,160,90,0.5); }
+.jcard-conf-medium { color: #c9a35e; border-color: rgba(201,163,94,0.5); }
+.jcard-conf-low { color: var(--alchemy-ink-mute); }
+/* Free-text notes */
+.jcard-notes { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; border-top: 1px solid var(--alchemy-rule); }
+.jcard-note { display: flex; gap: 10px; font-family: var(--font-mono); font-size: 10px; line-height: 1.5; }
+.jcard-note-k {
+  flex: 0 0 64px; color: var(--alchemy-ink-mute); letter-spacing: 0.14em;
+  text-transform: uppercase; font-size: 8.5px; padding-top: 1px;
+}
+.jcard-note-v { flex: 1 1 auto; color: var(--alchemy-paper-warm); }
 
 /* Mentor-card variant moved to packages/shape-ui/src/cohort-card.css. */
 

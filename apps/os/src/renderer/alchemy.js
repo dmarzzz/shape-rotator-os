@@ -979,31 +979,86 @@ function journeyStageLabel(stage) {
   return `${stage} · ${JOURNEY_STAGE_LABELS[stage] || "—"}`;
 }
 
-// Read-only PMF/journey block for the record detail page + drawer. Always
-// shown for teams/projects (defaults applied via journeyFor), so the stage
-// placement is visible — and editable via profile → edit.
-function journeyDetailSection(rec, rowClass = "alch-detail-row", kClass = "adr-k", vClass = "adr-v") {
+// Read-only PMF/journey CARD for the record detail page + drawer. The data
+// IS the visual: a stage spectrum track with a glowing marker, dot-meters
+// for evidence + upside, and a colored bottleneck chip. Always shown for
+// teams/projects (defaults via journeyFor); editable via profile → edit.
+function journeyDetailSection(rec) {
   const j = journeyFor(rec);
-  const row = (k, v) => v === "" || v == null ? "" :
-    `<div class="${rowClass}"><span class="${kClass}">${escHtml(k)}</span><span class="${vClass}">${escHtml(String(v))}</span></div>`;
-  const rows = [
-    row("stage", journeyStageLabel(j.stage)),
-    row("evidence", `${j.evidence_quality} · ${JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "—"}`),
-    row("market upside", `${j.market_upside}${JOURNEY_UPSIDE_LABELS[j.market_upside] ? " · " + JOURNEY_UPSIDE_LABELS[j.market_upside] : ""}`),
-    row("bottleneck", j.primary_bottleneck),
-    row("type", j.company_type),
-    row("confidence", j.confidence),
-    row("icp", j.icp),
-    row("problem", j.problem),
-    row("solution", j.solution),
-    row("evidence notes", j.evidence_notes),
-    row("next milestone", j.next_milestone),
-  ].join("");
-  return rows;
+  const isSide = j.stage === 0;
+
+  // Stage spectrum: an off-track "side" tick, then 8 segments idea→scale-fit.
+  // Filled up to the current stage; current segment marked.
+  const segs = [];
+  segs.push(`<span class="jcard-seg jcard-seg-side ${isSide ? "is-cur is-on" : ""}" title="side project">◇</span>`);
+  for (let s = 1; s <= 8; s++) {
+    const on = !isSide && s <= j.stage ? "is-on" : "";
+    const cur = !isSide && s === j.stage ? "is-cur" : "";
+    segs.push(`<span class="jcard-seg ${on} ${cur}" title="${escHtml(`${s} · ${JOURNEY_STAGE_LABELS[s]}`)}"><i>${s}</i></span>`);
+  }
+
+  // 1..max dot meters.
+  const meter = (val, max) => {
+    let d = "";
+    for (let i = 1; i <= max; i++) d += `<span class="jcm-dot ${i <= val ? "is-on" : ""}"></span>`;
+    return `<span class="jcm-dots">${d}</span>`;
+  };
+
+  const bIdx = Math.max(0, JOURNEY_BOTTLENECKS.indexOf(j.primary_bottleneck));
+  const bColor = JOURNEY_BOTTLENECK_COLORS[bIdx] || JOURNEY_BOTTLENECK_COLORS[0];
+
+  const textRow = (k, v) => v ? `<div class="jcard-note"><span class="jcard-note-k">${escHtml(k)}</span><span class="jcard-note-v">${escHtml(v)}</span></div>` : "";
+
+  return `
+    <div class="jcard ${isSide ? "is-side" : ""}">
+      <div class="jcard-head">
+        <span class="jcard-stage-name">${escHtml(JOURNEY_STAGE_LABELS[j.stage] || "—")}</span>
+        <span class="jcard-stage-meta">${isSide ? "off-track" : `stage ${j.stage} / 8`}</span>
+      </div>
+      <div class="jcard-track">${segs.join("")}</div>
+      <div class="jcard-meters">
+        <div class="jcard-meter">
+          <span class="jcm-k">evidence</span>${meter(j.evidence_quality, 5)}
+          <span class="jcm-lbl">${escHtml(JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "")}</span>
+        </div>
+        <div class="jcard-meter">
+          <span class="jcm-k">upside</span>${meter(j.market_upside, 5)}
+          <span class="jcm-lbl">${escHtml(JOURNEY_UPSIDE_LABELS[j.market_upside] || "")}</span>
+        </div>
+      </div>
+      <div class="jcard-chips">
+        <span class="jcard-chip jcard-chip-bottleneck" style="--jc:${bColor}">${escHtml(j.primary_bottleneck)}</span>
+        ${j.company_type ? `<span class="jcard-chip">${escHtml(j.company_type)}</span>` : ""}
+        <span class="jcard-chip jcard-chip-conf jcard-conf-${escAttr((j.confidence || "").toLowerCase())}">${escHtml(j.confidence)} confidence</span>
+      </div>
+      ${(j.icp || j.problem || j.solution || j.evidence_notes || j.next_milestone) ? `
+        <div class="jcard-notes">
+          ${textRow("icp", j.icp)}
+          ${textRow("problem", j.problem)}
+          ${textRow("solution", j.solution)}
+          ${textRow("evidence", j.evidence_notes)}
+          ${textRow("next milestone", j.next_milestone)}
+        </div>` : ""}
+    </div>`;
 }
 
 function renderJourney() {
-  const teams = state.cohort.teams || [];
+  const all = state.cohort.teams || [];
+  // Filters (persist for the session). side = include the off-track stage-0
+  // "side project" column; bottleneck = isolate one bottleneck.
+  const jf = state.journeyFilters || (state.journeyFilters = { teams: true, projects: true, side: true, bottleneck: null });
+  const teams = all.filter((t) => {
+    const j = journeyFor(t);
+    const isProject = teamKind(t) === "project";
+    if (isProject && !jf.projects) return false;
+    if (!isProject && !jf.teams) return false;
+    if (j.stage === 0 && !jf.side) return false;
+    if (jf.bottleneck && j.primary_bottleneck !== jf.bottleneck) return false;
+    return true;
+  });
+  // Stage distribution over the filtered set (drives the per-column counts).
+  const stageCounts = new Array(9).fill(0);
+  for (const t of teams) stageCounts[journeyFor(t).stage]++;
   const W = 980, H = 540;
   // Plot area inset: leave room for axis labels (left = evidence, bottom = stage).
   const PAD_L = 96, PAD_R = 28, PAD_T = 28, PAD_B = 88;
@@ -1045,6 +1100,10 @@ function renderJourney() {
   }).join("");
   const axisTitleX = `<text class="ac-jaxis-title" x="${(PAD_L + plotW / 2).toFixed(1)}" y="${(H - 16).toFixed(1)}" text-anchor="middle">stage →</text>`;
   const axisTitleY = `<text class="ac-jaxis-title" transform="translate(18,${(PAD_T + plotH / 2).toFixed(1)}) rotate(-90)" text-anchor="middle">evidence quality →</text>`;
+  // Per-stage count strip across the top — a quick distribution read.
+  const countLabels = stageCounts.map((c, stage) =>
+    c > 0 ? `<text class="ac-jcount" x="${xForStage(stage).toFixed(1)}" y="${(PAD_T - 7).toFixed(1)}" text-anchor="middle">${c}</text>` : ""
+  ).join("");
 
   // ── dots: one per team AND project. Radius ← market_upside; fill ←
   // primary_bottleneck. Deterministic jitter spreads same-cell dots. ──
@@ -1063,10 +1122,21 @@ function renderJourney() {
       </g>`;
   }).join("");
 
-  // ── bottleneck legend (10 colors) ──
+  // ── bottleneck legend (10 colors) — clickable to isolate a bottleneck ──
   const legend = JOURNEY_BOTTLENECKS.map((b, i) =>
-    `<span class="acl-item"><span class="acl-jswatch ac-jdot-b${i}"></span>${escHtml(b)}</span>`
+    `<button type="button" class="acl-item acl-jbtn ${jf.bottleneck === b ? "is-active" : ""} ${jf.bottleneck && jf.bottleneck !== b ? "is-dim" : ""}" data-jbottleneck="${escAttr(b)}"><span class="acl-jswatch ac-jdot-b${i}"></span>${escHtml(b)}</button>`
   ).join("");
+
+  // ── filter bar — toggle teams / projects / side projects ──
+  const fbtn = (key, label) => `<button type="button" class="ajf-toggle ${jf[key] ? "is-on" : ""}" data-jfilter="${key}">${label}</button>`;
+  const filterBar = `
+    <div class="alch-journey-filters">
+      <span class="ajf-label">show</span>
+      ${fbtn("teams", "teams")}
+      ${fbtn("projects", "projects")}
+      ${fbtn("side", "side projects")}
+      <span class="ajf-count">${teams.length} shown</span>
+    </div>`;
 
   state.canvas.innerHTML = `
     <div class="alch-constellation">
@@ -1084,6 +1154,7 @@ function renderJourney() {
           <span class="acm-hint">pmf maturity spectrum</span>
         </button>
       </nav>
+      ${filterBar}
       <div class="alch-constellation-stage alch-journey-stage">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
           ${gridLines.join("")}
@@ -1091,6 +1162,7 @@ function renderJourney() {
           ${yLabels}
           ${axisTitleX}
           ${axisTitleY}
+          ${countLabels}
           ${dots}
         </svg>
         <div class="alch-journey-tip" hidden></div>
@@ -1580,6 +1652,23 @@ function wireConstellationHover() {
       state.programPage = b.dataset.programPage || null;
       try { localStorage.setItem(ALCHEMY_LS_KEY, "program"); } catch {}
       syncRailSelection();
+      render();
+    });
+  }
+  // Journey filters: toggle teams / projects / side projects.
+  const jf = state.journeyFilters;
+  for (const btn of state.canvas.querySelectorAll(".ajf-toggle[data-jfilter]")) {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.jfilter;
+      if (jf && key in jf) { jf[key] = !jf[key]; render(); }
+    });
+  }
+  // Journey legend: click a bottleneck to isolate it; click again to clear.
+  for (const btn of state.canvas.querySelectorAll(".acl-jbtn[data-jbottleneck]")) {
+    btn.addEventListener("click", () => {
+      if (!jf) return;
+      const b = btn.dataset.jbottleneck;
+      jf.bottleneck = jf.bottleneck === b ? null : b;
       render();
     });
   }
@@ -3991,7 +4080,7 @@ function openDrawer(recordId) {
     </section>
     <section class="alch-drawer-section">
       <h4>pmf · journey</h4>
-      ${journeyDetailSection(team, "alch-drawer-row", "dr-k", "dr-v")}
+      ${journeyDetailSection(team)}
     </section>
     ${team.paper_basis || team.hackathon_note ? `
       <section class="alch-drawer-section">
