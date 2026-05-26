@@ -5,6 +5,7 @@ import { RenderPass } from '../../vendor/three-jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../../vendor/three-jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../../vendor/three-jsm/postprocessing/OutputPass.js';
 import { createBlob, BLOB_IDS } from './blob.js';
+import { createStarField } from './starfield.js';
 
 // Vanta cosmic — true-black background, stars via CSS. Lighting kept warm
 // so the blobs read as small celestial bodies against deep space.
@@ -212,7 +213,13 @@ export function createMembraneScene(canvas, opts = {}) {
   canvas.addEventListener('pointerdown', handlePointerDown);
   canvas.addEventListener('pointermove', handlePointerMove);
 
+  // 3D star field — point cloud + nebula mist flowing toward camera.
+  // (Regressed out of scene.js in a prior merge while starfield.js
+  // survived; re-wired here.)
+  const starField = createStarField({ scene, camera });
+
   const startMs = performance.now();
+  let lastTickSeconds = 0;
   let running = true;
   let rafId = null;
 
@@ -291,11 +298,15 @@ export function createMembraneScene(canvas, opts = {}) {
     if (!running) return;
     const nowMs = performance.now();
     const time = (nowMs - startMs) / 1000;
+    const dt = lastTickSeconds === 0 ? 0.016 : time - lastTickSeconds;
+    lastTickSeconds = time;
     tickTweens(nowMs);
     tickMotion(time, nowMs);
     for (const id of BLOB_IDS) {
       blobs[id].tick(time);
     }
+    // Stars flow toward camera — forward drift through space.
+    starField.tick(dt);
     composer.render();
     rafId = requestAnimationFrame(tick);
   }
@@ -327,6 +338,7 @@ export function createMembraneScene(canvas, opts = {}) {
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointermove', handlePointerMove);
       for (const id of BLOB_IDS) blobs[id].dispose();
+      starField.dispose();
       pmrem.dispose();
       composer.dispose?.();
       renderer.dispose();
