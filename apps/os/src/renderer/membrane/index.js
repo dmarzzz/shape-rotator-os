@@ -662,39 +662,35 @@ export function mountMembrane(container, opts = {}) {
   const sound = createSoundDirector();
 
   // ── fold state ───────────────────────────────────────────────────────
-  // Unclaimed = standing inside the ship: the panel (the seal + the claim
-  // rite) shows over the galaxy "window". Striking your seal folds the
-  // ship away → the orbs become the full-bleed world. Clicking an orb
-  // summons its panel back as an overlay; clicking empty space folds it
-  // away again.
+  // The panel is ALWAYS the default home — never auto-fold (an unclaimed
+  // user must always see the seal + claim). "Enter the field" is an
+  // explicit, deliberate action: it folds the panel away and the orbs
+  // become the full-bleed world. From the field, tapping an orb summons
+  // its panel back; tapping empty space folds away again.
   let folded = false;
-  let entered = false; // crossed the threshold this session (claimed)
-  function isClaimed() {
-    const p = dataStore.self?.profile || {};
-    return !!(p.record_id || p.handle || p.name || p.gh_handle);
-  }
   function setFolded(f) {
     folded = !!f;
     container.classList.toggle('membrane-folded', folded);
   }
-  // Explicit "fold away" control on the panel (besides clicking empty space).
+  // Explicit "enter the field" control in the panel footer.
   const foldBtn = document.createElement('button');
-  foldBtn.className = 'membrane-fold-back';
+  foldBtn.className = 'membrane-enter-field';
   foldBtn.type = 'button';
-  foldBtn.setAttribute('aria-label', 'fold away — back to the field');
-  foldBtn.innerHTML = '<span aria-hidden="true">↩</span><span class="mfb-label">the field</span>';
+  foldBtn.setAttribute('aria-label', 'enter the field — fold the panel away');
+  foldBtn.innerHTML = '<span aria-hidden="true">⊹</span><span class="mef-label">enter the field</span>';
   foldBtn.addEventListener('click', () => setFolded(true));
-  panel.appendChild(foldBtn);
+  const panelFoot = panel.querySelector('.membrane-panel-foot');
+  (panelFoot || panel).appendChild(foldBtn);
 
   const scene = createMembraneScene(canvas, {
     onActiveChange(id) {
       sound.setTonic(id);
       renderPanelFor(id);
     },
-    // Tapping an orb in the folded full-bleed world summons its panel.
-    onOrbOpen() { if (entered) setFolded(false); },
-    // Clicking empty space (the void) folds the panel away again.
-    onEmptyClick() { if (entered) setFolded(true); },
+    // From the field, tapping an orb summons its panel back.
+    onOrbOpen() { if (folded) setFolded(false); },
+    // Tapping empty space (the void) folds the panel away again.
+    onEmptyClick() { setFolded(true); },
   });
   console.log('[membrane] scene mounted; blobs:', Object.keys(scene.blobs).join(','));
 
@@ -721,7 +717,7 @@ export function mountMembrane(container, opts = {}) {
       scene.setActiveBlob(id);
       sound.setTonic(id);
       renderPanelFor(id);
-      if (entered) setFolded(false); // summon the panel out of the field
+      if (folded) setFolded(false); // summon the panel out of the field
     });
   });
 
@@ -746,14 +742,6 @@ export function mountMembrane(container, opts = {}) {
         // (no fade — data refresh shouldn't feel like a swap).
         setOrbitalForBlob(active);
         updateSatelliteLabels();
-      }
-      // Once you're claimed you've crossed the threshold — the ship folds
-      // away to the full-bleed field. Auto-folds once; you can summon/fold
-      // panels freely after.
-      if (!entered && isClaimed()) {
-        entered = true;
-        container.classList.add('membrane-can-fold');
-        setTimeout(() => setFolded(true), 60);
       }
     },
     sound,

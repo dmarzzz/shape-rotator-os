@@ -1114,19 +1114,18 @@
 .membrane-stage::before { transition: opacity 620ms ease; }
 .membrane-folded .membrane-stage::before { opacity: 0; }  /* drop the reading gutter → full bleed */
 
-/* fold-back control (appears once you've entered / can fold) */
-.membrane-fold-back {
-  position: absolute; top: 16px; right: 16px; z-index: 6;
-  display: none; align-items: center; gap: 7px;
+/* "enter the field" — explicit fold control in the panel footer. Folds
+   the panel away so the orbs become the full-bleed world. Hidden with the
+   panel once folded; you return by tapping an orb. Never auto-folds. */
+.membrane-enter-field {
+  display: inline-flex; align-items: center; gap: 7px;
   -webkit-app-region: no-drag; cursor: pointer;
   padding: 6px 12px; border-radius: 999px;
   font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9px;
   letter-spacing: 0.16em; text-transform: lowercase;
   color: var(--membrane-mist-mid);
-  background: rgba(0, 0, 0, 0.32);
+  background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 122, 61, 0.3);
   transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
 }
-.membrane-can-fold .membrane-fold-back { display: inline-flex; }
-.membrane-folded .membrane-fold-back { display: none; }
-.membrane-fold-back:hover { color: var(--membrane-ember); border-color: var(--membrane-ember); background: rgba(255,122,61,0.08); }
+.membrane-enter-field:hover { color: var(--membrane-ember); border-color: var(--membrane-ember); background: rgba(255,122,61,0.08); }
