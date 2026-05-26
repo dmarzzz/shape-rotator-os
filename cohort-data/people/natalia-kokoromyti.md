@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — TvEE RL · Stanford Scaling Intelligence Lab)
+Co-founder of TvEE RL — attested reinforcement-learning workflows. Affiliated with Stanford's Scaling Intelligence Lab.

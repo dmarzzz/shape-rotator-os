@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface)
+A member of Contexto, working in ML infrastructure. NYC (GitHub MiraOz).

@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — Crossroads · Liquefaction-built wallet)
+Lead of Crossroads (Cornell Tech) — a Liquefaction-based, policy-constrained cross-chain signing wallet built on IC3-adjacent primitives (Liquefaction and Complete Knowledge).

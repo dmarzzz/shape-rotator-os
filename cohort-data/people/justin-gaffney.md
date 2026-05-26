@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — Prova · healthcare AI agents · EHR pilot)
+Solo founder of Prova — a healthcare-AI-agent venture (St. Louis) running TEE-attested prior-authorization and EHR workflows on Phala TDX. Prova reached production on Phala TDX, took first place in the hackathon's TEE track, and built working US prior-authorization payer integrations.

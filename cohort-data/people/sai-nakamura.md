@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface)
+Co-founder of JJHub, working on agent runtime. PST.

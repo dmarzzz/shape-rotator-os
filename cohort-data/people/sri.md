@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — details to be filled in)
+Lead researcher and architect of Pramaana — a Columbia SEAS CS student building a post-quantum anonymous-identity primitive (PALC: PII-Anchored Lattice Commitment; ML-KEM-1024 + SHA3-512 + HKDF) that extends IC3 reading-list work (Anonymous Self-Credentials, IACR 2025/618).

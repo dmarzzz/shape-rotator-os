@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — WikiGen)
+Founder and BD lead of WikiGen — a healthcare-data TEE marketplace (DNAI: matching data-owners such as sequencing labs with consumers such as pharma, via TEE-mediated confidential compute). Brings a dense bioscience BD network (orchestrate.bio, Stanford pediatrics, longevity cell lines, epigenetics labs). Ohio (PT).

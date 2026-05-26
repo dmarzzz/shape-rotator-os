@@ -24,4 +24,4 @@ dietary_restrictions: "low salt, low fat, heart healthy"
 
 ## about
 
-(public surface — details to be filled in)
+A long-tenured (8-year) crypto-ecosystem builder and the technical center of TeeSQL — a managed Postgres-as-a-service running inside Confidential VMs on dstack (AMD SEV-SNP / Intel TDX via Phala) with mutual RA-TLS and per-transaction attestation. Domain-authentic TEE depth: a maintained dstack fork, phala-cloud-cli, and a working three-CVM Postgres demo. Reads TeeSQL as an attested-storage substrate that folds into other teams' stacks. GitHub dmvt. NYC, nomadic.

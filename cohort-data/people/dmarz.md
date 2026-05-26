@@ -23,4 +23,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface)
+Flashbots-adjacent infrastructure builder (GitHub dmarzzz). Builds Shape Rotator's local-first OS and field-kit, the VoxTerm transcription tool, and his own cohort project searxng-wth-frnds (a LAN-first peer search daemon). A cohort tool-maker and privacy-search builder as much as a single-project founder. NYC.

@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — Crossroads cofounder · Cornell Tech)
+Co-founder of Crossroads (Cornell Tech MS) — a Liquefaction-based wallet with policy-constrained cross-chain signing via an on-chain signing committee, built on IC3-adjacent academic primitives (Liquefaction and Complete Knowledge). NYC.

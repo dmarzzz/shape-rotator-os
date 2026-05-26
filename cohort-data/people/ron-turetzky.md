@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — SignalStack)
+Lead of SignalStack — confidential LLM inference run on Intel TDX and surfaced inside Signal the messenger, plus an attestation-verification SDK offered to the cohort. The thesis: put verifiable private inference where users already are, rather than build a new app surface. Lineage in the IC3-adjacent TEE/oracle scene (Lightblocks, Ittay Eyal's lab, eoracle).

@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — Conclave cofounder)
+Co-founder and ML & AI lead of Conclave. Works on embeddings, clustering, and agentic pre-checks before LLM inference. NY State (Stony Brook).

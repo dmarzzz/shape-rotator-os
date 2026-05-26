@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — BitRouterAI cofounder)
+BitRouter's CTO and technical engine — primary author of the bitrouter/bitrouter codebase, including the x402 and MPP payment integrations. Based in Hong Kong.

@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — Daedalus · prediction-market microstructure)
+CEO of Daedalus — a former CICC quant anchoring a TradFi/crypto financial-infrastructure team building a liquidity-and-intelligence engine for prediction markets (PROF-paper lineage). Distributed (NYC / SF / Asia).

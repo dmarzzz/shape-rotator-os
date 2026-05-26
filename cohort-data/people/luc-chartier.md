@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — TvEE RL · attested RL workflows)
+Lead of TvEE RL — attested reinforcement-learning workflows (tuvalugpt.tv). A prolific builder with an ML credential (a Qwen 2.5-VL contribution to Tinker). A visiting, distributed pair with Natalia Kokoromyti. Portugal (distributed).

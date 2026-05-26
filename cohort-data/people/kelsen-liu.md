@@ -22,4 +22,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — Bitrouter cofounder)
+Team lead and CEO of BitRouter, and an NYU undergraduate. Carries the team's narrative, marketing, and front-of-house (GitHub SPIKESPIGEL404 — a personal site and a marketing-agent that agentizes BitRouter's marketing). NYC.

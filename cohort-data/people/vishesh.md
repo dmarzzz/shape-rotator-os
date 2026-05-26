@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — edit via profile tab to fill in)
+A creative technologist building audio-reactive volumetric LED and generative visualization work (GitHub cytonomy) — a coherent body of real-time generative-AV experiments: audio-reactive volumetric LED "neural-burst" visualizers, flowfield visualizers, and volumetric LED renderings of neuronal signal transduction. NYC / FL.

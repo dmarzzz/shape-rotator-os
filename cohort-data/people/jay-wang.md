@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — Daedalus Research)
+A member of Daedalus Research, working in the crypto domain.

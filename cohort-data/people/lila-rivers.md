@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface)
+A member of Pramaana working on lattice cryptography. NYC / Columbia (GitHub lilariv, X lilariv_).

@@ -25,4 +25,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface)
+Solo founder building Elocute — AI speaking practice with scored feedback — the consumer product with the strongest live traction in the cohort. EIR at Flashbots X. A prolific, AI-first product builder (GitHub albicodes) who packages her own process into reusable tooling: Claude Code skills, app-validation kits, and idea-to-spec workflows.

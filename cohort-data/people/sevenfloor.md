@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — details to be filled in)
+Lead of Teleport Router (cross-network routing), on the crew with steward Andrew Miller and sxysun.

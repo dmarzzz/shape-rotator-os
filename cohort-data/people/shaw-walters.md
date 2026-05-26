@@ -11,7 +11,7 @@ email: developer@elizalabs.ai
 links:
   github: lalalune
   x: shawmakesmagic
-  website: null
+  website: https://elizaos.ai
   linkedin: null
 weekly_intention: "Ship elizaOS improvements across runtime, cloud, and local agent surfaces."
 now: "Building elizaOS — an agentic fullstack operating system."

@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — Tinycloud · user-owned cloud · dstack TEEs)
+CEO and center of TinyCloud — a former SpruceID and OpenAI engineer with a d/acc-native, sovereign-data thesis (TinyCloud Node, a code-level Kepler descendant). An AI-first solo-developer power-user who builds his own tool-chain (claude-ws, agent-browser, opencode, linear-cli) and is pop-up-community-native (built edge-city-bot on the ground at Edge City). GitHub skgbafa.

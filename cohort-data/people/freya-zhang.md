@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — Daedalus cofounder)
+Co-founder and technical PM on Daedalus, and the team's primary contact, carrying much of the team's operating substance. Distributed (NYC / SF / Asia).

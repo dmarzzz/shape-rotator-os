@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — SignalStack)
+SignalStack's second builder, alongside Ron Turetzky. A Solidity/TypeScript on-chain engineer working in the Ethereum DAO and decentralized-identity space (GitHub hudsonhrh): a "Proof of Participation" identity protocol built on Chainlink Functions/CCIP and The Graph, DAO tooling, gas-optimization tooling, and Breadchain ecosystem work.

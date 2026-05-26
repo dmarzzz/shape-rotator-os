@@ -25,4 +25,4 @@ dietary_restrictions: vegetarian
 
 ## about
 
-(public surface — Conclave · NDAI framework · skills runtime)
+A Rust/systems engineer and core builder of Conclave — TEE confidential-compute productionizing the NDAI Agreements paper. Prior work includes NEAR shade-agents and Smart Bet (NEAR/Proximity-funded), and a from-scratch CLOB matching engine. GitHub prakhar728. NYC.

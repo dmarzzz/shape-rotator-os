@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — Tinycloud · Lisbon based)
+TinyCloud's founding engineer, based in Lisbon — credited in TinyCloud's GitHub release history (notably a burst of four releases in six weeks in March 2025).

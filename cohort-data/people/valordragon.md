@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — details to be filled in)
+A member of DCNet — a dining-cryptographer-style anonymity network for anonymous broadcast, with blockchain and private-web-search applications — alongside cnode.
