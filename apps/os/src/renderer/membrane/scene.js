@@ -294,6 +294,16 @@ export function createMembraneScene(canvas, opts = {}) {
     }
   }
 
+  // Barely-there camera sway. A slow Lissajous on x/y plus a gentle dolly on
+  // z makes the parallax between star strata felt even when the user is idle
+  // — the depth cue that motion alone provides. Amplitudes are a few
+  // hundredths of a world unit so it never reads as movement, only as life.
+  // Periods are mutually irrational-ish so the path never visibly repeats.
+  const SWAY = {
+    ax: 0.045, ay: 0.030, az: 0.025,   // amplitudes (world units)
+    fx: 0.037, fy: 0.053, fz: 0.021,   // frequencies (Hz-ish)
+  };
+
   function tick() {
     if (!running) return;
     const nowMs = performance.now();
@@ -305,6 +315,15 @@ export function createMembraneScene(canvas, opts = {}) {
     for (const id of BLOB_IDS) {
       blobs[id].tick(time);
     }
+
+    // Idle camera sway around the base position. Re-look at origin so the
+    // blobs stay anchored while the starfield parallax shifts behind them.
+    const sx = Math.sin(time * SWAY.fx * Math.PI * 2) * SWAY.ax;
+    const sy = Math.cos(time * SWAY.fy * Math.PI * 2) * SWAY.ay;
+    const sz = Math.sin(time * SWAY.fz * Math.PI * 2) * SWAY.az;
+    camera.position.set(sx, sy, cameraZ + sz);
+    camera.lookAt(0, 0, 0);
+
     // Stars flow toward camera — forward drift through space.
     starField.tick(dt);
     composer.render();
