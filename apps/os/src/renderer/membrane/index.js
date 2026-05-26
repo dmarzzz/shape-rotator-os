@@ -201,6 +201,88 @@ function renderAsksInline(data) {
     </section>`;
 }
 
+// Self profile as an intergalactic-mission CREW CREDENTIAL. Mission patch
+// (avatar), designation, call sign, clearance, vessel, frequency, crew
+// bonds, stardate — plus a comms-links manifest and a registry strip.
+// Reuses the panel's action buttons (data-jump-mode) so wiring is intact.
+function renderSelfCard(data, tpl) {
+  const profile = data?.profile || {};
+  const connections = Array.isArray(data?.connections) ? data.connections : [];
+  const name = profile.name || profile.display_name || profile.handle || profile.gh_handle || profile.record_id || 'unclaimed';
+  const claimed = !!(profile.record_id || profile.handle || profile.name || profile.gh_handle);
+  const handle = profile.handle || profile.gh_handle || (profile.links && profile.links.github) || '';
+  const clearance = profile.role || profile.title || (profile.is_mentor ? 'mentor' : 'crew');
+  const vessel = profile.team || (profile.kind === 'team' ? profile.record_id : '') || '—';
+  const edges = data?.edgeCount ?? 0;
+  const geo = profile.geo || '';
+  // Stardate = year.day-of-year (mission-log flavour from the real date).
+  const now = new Date();
+  const doy = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
+  const stardate = `${now.getFullYear()}.${String(doy).padStart(3, '0')}`;
+  // A short registry id derived from the handle/name (stable, ID-card flavour).
+  const reg = (handle || name || 'xxxx').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4).padEnd(4, 'X');
+
+  const readout = (k, v) => `<div class="crewid-row"><span class="crewid-k">${escHtml(k)}</span><span class="crewid-v">${escHtml(String(v))}</span></div>`;
+
+  const commsRows = connections.slice(0, 24).map((c) => `
+    <li class="crewid-comm" data-jump-profile="${escHtml(c.record_id)}" data-jump-kind="${escHtml(c.kind)}" tabindex="0" role="button" aria-label="open ${escHtml(c.name)}">
+      <span class="crewid-comm-rel">${escHtml(c.edgeType || 'link')}</span>
+      <span class="crewid-comm-name">${escHtml(c.name)}</span>
+      <span class="crewid-comm-meta">${escHtml(c.team || c.role || '')}</span>
+    </li>`).join('');
+
+  const actions = (tpl?.actions || []).map((a) =>
+    `<button type="button" class="crewid-action" data-jump-mode="${a.mode}">${a.label}</button>`).join('');
+
+  return `
+    <article class="crewid ${claimed ? 'is-claimed' : 'is-unclaimed'}">
+      <div class="crewid-foil" aria-hidden="true"></div>
+      <div class="crewid-scan" aria-hidden="true"></div>
+
+      <div class="crewid-band">
+        <span class="crewid-issuer">⬡ shape rotator os</span>
+        <span class="crewid-doc">crew credential</span>
+      </div>
+
+      <div class="crewid-hero">
+        <div class="crewid-patch">${renderAvatar(profile)}</div>
+        <div class="crewid-id">
+          <span class="crewid-eyebrow">designation</span>
+          <h2 class="crewid-name">${escHtml(name)}</h2>
+          <div class="crewid-callsign">
+            <span class="crewid-call">call sign · ${handle ? '@' + escHtml(handle) : '—'}</span>
+            <span class="crewid-clearance">clearance · ${escHtml(clearance)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="crewid-readouts">
+        ${readout('vessel', vessel)}
+        ${readout('frequency', 'D2 · 73.42 hz')}
+        ${readout('crew bonds', `${edges} edges`)}
+        ${readout('stardate', stardate)}
+        ${geo ? readout('sector', geo) : ''}
+      </div>
+
+      <div class="crewid-comms">
+        <div class="crewid-comms-head">
+          <span class="crewid-comms-title">comms links</span>
+          <span class="crewid-comms-count">${connections.length}</span>
+        </div>
+        ${connections.length === 0
+          ? `<p class="crewid-empty">no links established — join a vessel and declare dependencies to light your constellation.</p>`
+          : `<ul class="crewid-comm-list" role="list">${commsRows}</ul>`}
+      </div>
+
+      <div class="crewid-registry" aria-hidden="true">
+        <span class="crewid-barcode"></span>
+        <span class="crewid-reg-no">reg ${escHtml(reg)}-${escHtml(stardate.replace('.', ''))}</span>
+      </div>
+
+      <div class="crewid-actions">${actions}</div>
+    </article>`;
+}
+
 function renderSelfInline(data) {
   const profile = data?.profile || {};
   const connections = Array.isArray(data?.connections) ? data.connections : [];
@@ -471,8 +553,23 @@ export function mountMembrane(container, opts = {}) {
     const tpl = PANEL_TEMPLATES[id];
     if (!tpl) return;
     panel.dataset.activeBlob = id;
-    panelContent.innerHTML = renderPanelInner(tpl, dataStore[id] || {});
+    // Self gets a bespoke "crew credential" ID card; others use the
+    // generic panel scaffolding.
+    panelContent.innerHTML = id === 'self'
+      ? renderSelfCard(dataStore[id] || {}, tpl)
+      : renderPanelInner(tpl, dataStore[id] || {});
     panelContent.scrollTop = 0;
+    // Cursor-tracked foil glint on the crew credential (settles flat).
+    const crewid = panelContent.querySelector('.crewid');
+    if (crewid) {
+      crewid.addEventListener('pointermove', (e) => {
+        const r = crewid.getBoundingClientRect();
+        crewid.style.setProperty('--mx', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
+        crewid.style.setProperty('--my', `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+        crewid.classList.add('is-foil');
+      });
+      crewid.addEventListener('pointerleave', () => crewid.classList.remove('is-foil'));
+    }
     panelContent.querySelectorAll('[data-jump-mode]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const mode = btn.dataset.jumpMode;

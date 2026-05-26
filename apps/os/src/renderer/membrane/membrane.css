@@ -838,3 +838,147 @@
   background: var(--membrane-ember);
   display: inline-block;
 }
+
+/* ─── CREW CREDENTIAL — self profile as a space-mission ID card ──────── */
+.crewid {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 22px 22px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 122, 61, 0.28);
+  background:
+    radial-gradient(130% 90% at 6% -12%, rgba(255, 122, 61, 0.08), transparent 58%),
+    linear-gradient(180deg, var(--membrane-card-top), var(--membrane-card-bg));
+  box-shadow: inset 0 0 0 1px rgba(241, 236, 231, 0.04), 0 0 30px rgba(255, 122, 61, 0.06);
+  overflow: hidden;
+  isolation: isolate;
+}
+.crewid.is-unclaimed { border-color: rgba(241, 236, 231, 0.14); }
+/* corner registration ticks */
+.crewid::before, .crewid::after {
+  content: ""; position: absolute; width: 12px; height: 12px; z-index: 2;
+  border: 1px solid rgba(255, 122, 61, 0.45);
+}
+.crewid::before { top: 8px; left: 8px; border-right: 0; border-bottom: 0; }
+.crewid::after { bottom: 8px; right: 8px; border-left: 0; border-top: 0; }
+
+.crewid-foil {
+  position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  opacity: 0; transition: opacity 320ms cubic-bezier(0.65,0,0.05,1);
+  background:
+    radial-gradient(240px 200px at var(--mx,50%) var(--my,0%), rgba(255,210,180,0.12), transparent 60%),
+    linear-gradient(115deg, transparent 43%, rgba(255,122,61,0.12) 50%, transparent 57%);
+  mix-blend-mode: screen;
+}
+.crewid.is-foil .crewid-foil { opacity: 1; }
+.crewid-scan {
+  position: absolute; left: 0; right: 0; top: 0; height: 38%; z-index: 5;
+  pointer-events: none; opacity: 0;
+  background: linear-gradient(180deg, transparent, rgba(255,122,61,0.16), transparent);
+  animation: crewid-sweep 760ms cubic-bezier(0.65,0,0.05,1) 1;
+}
+@keyframes crewid-sweep {
+  0% { opacity: 0; transform: translateY(-100%); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(280%); }
+}
+
+.crewid-band {
+  position: relative; z-index: 2;
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 9px; border-bottom: 1px solid var(--membrane-rule);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.22em; text-transform: uppercase;
+}
+.crewid-issuer { color: var(--membrane-ember); }
+.crewid-doc { color: var(--membrane-mist-dim); }
+
+.crewid-hero { position: relative; z-index: 2; display: flex; gap: 16px; align-items: center; }
+.crewid-patch { flex: 0 0 auto; position: relative; }
+.crewid-patch .membrane-avatar {
+  width: 60px; height: 60px;
+  box-shadow: 0 0 0 1px rgba(255,122,61,0.5), 0 0 18px rgba(255,122,61,0.22);
+}
+.crewid-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.crewid-eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+.crewid-name {
+  margin: 0; font-family: 'Inter Display','Inter',sans-serif; font-style: italic;
+  font-weight: 500; font-size: 34px; line-height: 1; color: var(--membrane-mist);
+  letter-spacing: -0.01em;
+}
+.crewid-callsign { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.crewid-call, .crewid-clearance {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--membrane-mist-mid);
+}
+.crewid-clearance { color: var(--membrane-ember); }
+
+.crewid-readouts {
+  position: relative; z-index: 2;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 7px 22px;
+  padding: 12px 0; border-top: 1px solid var(--membrane-rule); border-bottom: 1px solid var(--membrane-rule);
+}
+.crewid-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.crewid-k {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+.crewid-v {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px; color: var(--membrane-mist); text-align: right;
+}
+
+.crewid-comms { position: relative; z-index: 2; }
+.crewid-comms-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.crewid-comms-title {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--membrane-mist-mid);
+}
+.crewid-comms-count {
+  font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; color: var(--membrane-ember);
+}
+.crewid-empty {
+  font-family: 'Inter','sans-serif'; font-size: 11.5px; line-height: 1.55; font-style: italic;
+  color: var(--membrane-mist-dim); margin: 0;
+}
+.crewid-comm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.crewid-comm {
+  display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; align-items: baseline;
+  padding: 6px 8px; border-radius: 5px; cursor: pointer;
+  transition: background 160ms ease;
+}
+.crewid-comm:hover { background: rgba(255,122,61,0.08); }
+.crewid-comm-rel { font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--membrane-mist-dim); }
+.crewid-comm-name { font-family: 'Inter', sans-serif; font-size: 12px; color: var(--membrane-mist); }
+.crewid-comm-meta { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--membrane-mist-dim); text-align: right; }
+
+/* registry strip — a faux barcode + reg number, ID-card flavour */
+.crewid-registry { position: relative; z-index: 2; display: flex; align-items: center; gap: 12px; }
+.crewid-barcode {
+  flex: 1 1 auto; height: 22px; border-radius: 2px; opacity: 0.55;
+  background-image: repeating-linear-gradient(90deg,
+    var(--membrane-mist-mid) 0 1px, transparent 1px 3px,
+    var(--membrane-mist-mid) 3px 5px, transparent 5px 6px,
+    var(--membrane-mist-mid) 6px 7px, transparent 7px 11px);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.crewid-reg-no {
+  flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 8px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+
+.crewid-actions { position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; }
+.crewid-action {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px; letter-spacing: 0.08em; text-transform: lowercase; cursor: pointer;
+  padding: 7px 13px; border-radius: 6px;
+  color: var(--membrane-mist); background: rgba(241,236,231,0.04);
+  border: 1px solid rgba(255,122,61,0.3);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.crewid-action:hover { background: rgba(255,122,61,0.12); border-color: var(--membrane-ember); }
