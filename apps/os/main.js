@@ -3,6 +3,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const swfNode = require("./swf-node");
 const swarm = require("./swarm-node");
+const easelNdi = require("./easel-ndi");
 
 // One-time userData migration. Electron resolves `app.getPath("userData")`
 // from `productName` (or, if unset, the package name). Every time we
@@ -372,6 +373,34 @@ function broadcastSwarm(channel, payload) {
 }
 swarm.onStatus((s) => broadcastSwarm("fg:swarm:status-changed", s));
 swarm.onOutput((o) => broadcastSwarm("fg:swarm:output", o));
+
+// ─── easel · NDI projection (apps/os/easel-ndi.js) ───────────────────
+// Renderer lists capture sources, then streams RGBA frames here to be
+// broadcast as an NDI source. Source enumeration must run in main
+// (desktopCapturer is main-process in Electron); the renderer turns the
+// chosen id into a MediaStream via getUserMedia.
+ipcMain.handle("easel:available", async () => easelNdi.isAvailable());
+ipcMain.handle("easel:list-sources", async () => {
+  const { desktopCapturer } = require("electron");
+  const sources = await desktopCapturer.getSources({
+    types: ["screen", "window"],
+    thumbnailSize: { width: 320, height: 180 },
+    fetchWindowIcons: false,
+  });
+  return sources.map((s) => ({
+    id: s.id,
+    name: s.name,
+    type: s.id.startsWith("screen") ? "screen" : "window",
+    thumbnail: s.thumbnail ? s.thumbnail.toDataURL() : null,
+  }));
+});
+ipcMain.handle("easel:start", async (_e, opts) => {
+  try { return await easelNdi.start(opts && opts.name); }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle("easel:frame", async (_e, frame) => easelNdi.sendFrame(frame));
+ipcMain.handle("easel:stats", async () => easelNdi.stats());
+ipcMain.handle("easel:stop", async () => easelNdi.stop());
 
 // Dev-only sync-client smoke test. Triggers the renderer's
 // window.__srfgSyncClientSelfTest() helper (apps/os/src/renderer/sync-client.js

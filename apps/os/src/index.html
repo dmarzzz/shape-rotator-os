@@ -199,6 +199,23 @@
             <span class="app-card-label">atlas</span>
           </button>
         </li>
+        <li>
+          <button class="app-card" type="button" data-app-key="easel" aria-label="open easel">
+            <span class="app-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 64 64" width="100%" height="100%">
+                <!-- a screen + NDI broadcast arcs -->
+                <rect x="13" y="16" width="34" height="23" rx="2.5" fill="none" stroke="#EBEEFA" stroke-width="2" opacity="0.85"/>
+                <path d="M24 45 h12 M30 39 v6" stroke="#EBEEFA" stroke-width="2" opacity="0.55" fill="none" stroke-linecap="round"/>
+                <g fill="none" stroke="#8F220E" stroke-width="2" stroke-linecap="round">
+                  <path d="M44 21 a6.5 6.5 0 0 1 0 13"/>
+                  <path d="M48 16.5 a11.5 11.5 0 0 1 0 22"/>
+                </g>
+                <circle cx="40" cy="27.5" r="2.3" fill="#8F220E"/>
+              </svg>
+            </span>
+            <span class="app-card-label">easel</span>
+          </button>
+        </li>
       </ul>
     </section>
 
@@ -416,6 +433,16 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <section id="easel-view" class="easel-view easel-only">
+      <div class="easel-back-bar">
+        <button class="easel-back-btn" type="button" data-apps-back aria-label="back to apps">
+          <span class="easel-back-glyph" aria-hidden="true">←</span>
+          <span class="easel-back-label">apps</span>
+        </button>
+      </div>
+      <div id="easel-stage" class="easel-stage"></div>
     </section>
 
     <section id="alchemy-view" class="alchemy-view alchemy-only" aria-label="operating system">

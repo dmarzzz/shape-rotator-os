@@ -65,4 +65,18 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("fg:swarm:status-changed", h);
     return () => ipcRenderer.removeListener("fg:swarm:status-changed", h);
   },
+
+  // ─── easel · NDI projection (apps/os/easel-ndi.js) ──────────────────
+  // listSources() enumerates screens/windows (main-side desktopCapturer);
+  // start() opens an NDI sender; frame() ships one RGBA frame (await for
+  // natural backpressure — main drops frames if a send is in flight);
+  // stats() reports { live, name, connections, frames }; stop() ends it.
+  easel: {
+    available:   ()  => ipcRenderer.invoke("easel:available"),
+    listSources: ()  => ipcRenderer.invoke("easel:list-sources"),
+    start:       (o) => ipcRenderer.invoke("easel:start", o || {}),
+    frame:       (f) => ipcRenderer.invoke("easel:frame", f),
+    stats:       ()  => ipcRenderer.invoke("easel:stats"),
+    stop:        ()  => ipcRenderer.invoke("easel:stop"),
+  },
 });

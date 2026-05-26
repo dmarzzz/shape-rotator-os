@@ -56,6 +56,7 @@ import {
 const Graph2 = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode() {} };
 const Cosmos = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode() {} };
 import * as Atlas from "./atlas.js";
+import * as Easel from "./easel.js";
 import * as Alchemy from "./alchemy.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
 import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.js";
@@ -5928,7 +5929,7 @@ const NET_SUB_LS_KEY = "srwk:network_sub";
 const TOP_TABS = new Set(["alchemy", "apps", "network", "links"]);
 const NET_SUBS = new Set(["network", "metrics"]);
 const APPS_LS_KEY = "srwk:apps_view";
-const APPS_VIEWS = new Set(["atlas"]);  // grid is the absence of one of these
+const APPS_VIEWS = new Set(["atlas", "easel"]);  // grid is the absence of one of these
 // Legacy values older builds wrote to localStorage. Quietly migrate.
 function migrateLegacyTab(t) {
   // Top-level atlas tab was folded into the apps grid (2026-05-18). Land
@@ -6347,6 +6348,24 @@ function applyActiveTab(tab) {
     });
   } else {
     try { Atlas.setActive(false); } catch {}
+  }
+
+  // easel app — screen/window → NDI projection. Same lazy-mount pattern;
+  // setActive(false) on leave so we stop capturing + broadcasting.
+  const inEaselSubview = (tab === "apps" && document.body.dataset.appsView === "easel");
+  if (inEaselSubview) {
+    requestAnimationFrame(() => {
+      const stage = document.getElementById("easel-stage");
+      if (!stage) return;
+      try {
+        Easel.mount(stage);
+        Easel.setActive(true);
+      } catch (e) {
+        console.error("[easel] mount failed:", e);
+      }
+    });
+  } else {
+    try { Easel.setActive(false); } catch {}
   }
 
   // Alchemy tab — cohort sandbox. Same lazy-mount pattern as atlas.

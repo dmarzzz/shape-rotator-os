@@ -158,6 +158,15 @@ body:not([data-active-tab="apps"]) #atlas-view {
   display: none !important;
   visibility: hidden !important;
 }
+/* easel app — same apps-tab visibility model as atlas. */
+body[data-active-tab="apps"][data-apps-view="easel"] .apps-grid { display: none !important; }
+body[data-active-tab="apps"]:not([data-apps-view="easel"]) .easel-only { display: none !important; }
+body:not([data-active-tab="apps"]) .easel-only { display: none !important; }
+body[data-active-tab="apps"]:not([data-apps-view="easel"]) #easel-view,
+body:not([data-active-tab="apps"]) #easel-view {
+  display: none !important;
+  visibility: hidden !important;
+}
 /* alchemy-only elements only on the alchemy tab. */
 body:not([data-active-tab="alchemy"]) .alchemy-only { display: none !important; }
 
@@ -11128,6 +11137,60 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   flex-direction: column;
 }
 #atlas-view .atlas-stage { flex: 1; min-height: 0; }
+
+/* ─── easel app (apps → easel) · screen/window → NDI projection ──────── */
+#easel-view {
+  grid-area: sidebar / sidebar / main / main;
+  position: relative; z-index: 3;
+  display: flex; flex-direction: column;
+  background: radial-gradient(ellipse 110% 90% at 50% 50%, #100c08 0%, #050402 70%, #010101 100%);
+  overflow: hidden; isolation: isolate;
+}
+.easel-back-bar { display: flex; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--hairline, rgba(var(--ink-rgb), 0.08)); background: rgba(var(--overlay-rgb), 0.85); position: relative; z-index: 5; }
+.easel-back-btn { appearance: none; background: transparent; border: 0; display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; font-family: var(--sr-font-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: lowercase; color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78)); cursor: pointer; transition: color 150ms ease; }
+.easel-back-btn:hover { color: var(--ed-ink-1, #f5f3ee); }
+.easel-back-glyph { font-size: 14px; line-height: 1; }
+.easel-stage { flex: 1; min-height: 0; overflow: auto; }
+.easel-app { display: flex; flex-direction: column; gap: 16px; height: 100%; padding: 22px 26px 18px; box-sizing: border-box; color: var(--ed-ink-1, #f0ece6); }
+.easel-eyebrow { font-family: var(--sr-font-mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(240,236,230,0.5); margin: 0 0 4px; }
+.easel-title { font-family: var(--ed-display, Georgia, serif); font-style: italic; font-size: 30px; margin: 0; color: #f5f1ec; }
+.easel-sub { max-width: 70ch; font-size: 12.5px; line-height: 1.6; color: rgba(240,236,230,0.7); margin: 6px 0 0; }
+.easel-sub strong { color: #d98e6a; font-weight: 600; }
+.easel-banner { padding: 10px 14px; border-radius: 6px; font-size: 12px; }
+.easel-banner-warn { background: rgba(143,34,14,0.18); border: 1px solid rgba(143,34,14,0.5); color: #f0c9bd; }
+.easel-body { display: grid; grid-template-columns: 280px 1fr; gap: 18px; flex: 1; min-height: 0; }
+.easel-sources { overflow: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
+.easel-loading { font-size: 12px; color: rgba(240,236,230,0.5); }
+.easel-src { display: flex; gap: 10px; align-items: center; padding: 7px; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; background: rgba(255,255,255,0.02); cursor: pointer; text-align: left; color: inherit; }
+.easel-src:hover { border-color: rgba(217,142,106,0.5); }
+.easel-src.is-sel { border-color: #d98e6a; background: rgba(217,142,106,0.10); }
+.easel-src:disabled { opacity: 0.4; cursor: default; }
+.easel-src-thumb { width: 72px; height: 44px; object-fit: cover; border-radius: 3px; background: #000; flex: none; }
+.easel-src-thumb-blank { display: block; }
+.easel-src-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.easel-src-kind { font-family: var(--sr-font-mono); font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(240,236,230,0.45); }
+.easel-src-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(240,236,230,0.9); }
+.easel-stagebox { position: relative; border-radius: 4px; overflow: hidden; background: #0c0b10; box-shadow: 0 12px 40px rgba(0,0,0,0.5); min-height: 0; display: flex; align-items: center; justify-content: center; }
+.easel-canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
+.easel-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--sr-font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: lowercase; color: rgba(240,236,230,0.55); pointer-events: none; text-align: center; padding: 0 16px; }
+.easel-controls { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.easel-namefield { display: flex; flex-direction: column; gap: 4px; }
+.easel-namefield span { font-family: var(--sr-font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(240,236,230,0.5); }
+.easel-namefield input { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 5px; padding: 7px 10px; color: #f0ece6; font-size: 13px; width: 240px; }
+.easel-namefield input:disabled { opacity: 0.5; }
+.easel-go { appearance: none; border: 0; border-radius: 6px; padding: 11px 26px; background: #8F220E; color: #fdeee8; font-family: var(--sr-font-mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer; transition: background 160ms ease, opacity 160ms ease; }
+.easel-go:hover { background: #a8331a; }
+.easel-go:disabled { opacity: 0.4; cursor: default; }
+.easel-go.is-live { background: #4a4744; }
+.easel-go.is-live:hover { background: #5a5550; }
+.easel-status { display: flex; align-items: center; gap: 8px; margin-left: auto; font-family: var(--sr-font-mono); font-size: 11px; letter-spacing: 0.1em; color: rgba(240,236,230,0.75); }
+.easel-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.easel-dot-off { background: rgba(240,236,230,0.3); }
+.easel-dot-on { background: #57c177; box-shadow: 0 0 8px rgba(87,193,119,0.8); }
+.easel-stat-sep { opacity: 0.4; }
+.easel-stat-frames { opacity: 0.6; }
+.easel-err { padding: 10px 14px; border-radius: 6px; background: rgba(143,34,14,0.18); border: 1px solid rgba(143,34,14,0.5); color: #f0c9bd; font-size: 12px; line-height: 1.5; }
+@media (max-width: 900px) { .easel-body { grid-template-columns: 1fr; } .easel-sources { max-height: 180px; } }
 
 /* ─── onboarding · bonus rows ─────────────────────────────────────────
  * Separator between core steps and BONUS steps. The bonus rows are
