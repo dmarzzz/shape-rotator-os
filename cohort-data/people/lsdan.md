@@ -31,6 +31,13 @@ recurring_themes:
   - TEE developer experience
   - local proof over claims
 enrichment_source: dossier-derived  # facilitator read; edit freely
+making_signature:
+  class: code-verified
+  built_domain: [systems, agentic]
+  shape: broad
+  note: stated work corroborated by their code
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about

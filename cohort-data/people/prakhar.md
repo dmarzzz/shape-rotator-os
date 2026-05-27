@@ -32,6 +32,13 @@ recurring_themes:
   - runtime semantics
   - framework clarity
 enrichment_source: dossier-derived  # facilitator read; edit freely
+making_signature:
+  class: code-verified
+  built_domain: [data, frontend]
+  shape: balanced
+  note: stated work corroborated by their code
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about

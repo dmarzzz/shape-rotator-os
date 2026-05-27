@@ -28,6 +28,13 @@ recurring_themes:
   - high-commitment founder energy
   - architecture as social substrate
 enrichment_source: dossier-derived  # facilitator read; edit freely
+making_signature:
+  class: underplayed-depth
+  built_domain: [agentic, systems]
+  shape: deep
+  note: builds more than they present — weight up
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about

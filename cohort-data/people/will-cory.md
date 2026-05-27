@@ -31,6 +31,13 @@ recurring_themes:
   - developer flow
   - strong public repo signal with process ambiguity
 enrichment_source: dossier-derived  # facilitator read; edit freely
+making_signature:
+  class: underplayed-depth
+  built_domain: [frontend, agentic]
+  shape: deep
+  note: builds more than they present — weight up
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about

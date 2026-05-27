@@ -17,6 +17,13 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+making_signature:
+  class: latent
+  built_domain: [frontend]
+  shape: broad
+  note: code is the clearest signal we have on them
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about
