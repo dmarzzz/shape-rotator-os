@@ -110,6 +110,7 @@ const state = {
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
   constellationMode: "clusters",  // "clusters" (shared cluster membership) | "dependencies" (team-asserted dependency edges)
+  constellationLayout: "wells",    // "wells" (cluster-grouped grid) | "circle" (single ring — the original view)
   calendar: {                     // calendar tab state — see renderCalendar()
     sub: "day",                   // "day" (typeset today agenda) | "week" (broadsheet grid) | "presence" (availability gantt)
     weekIdx: null,                // 0..9; resolved on first render via calendarCurrentWeekIdx()
@@ -1285,6 +1286,26 @@ function placeConstellation(model, W, H) {
   return { wells, pos };
 }
 
+// The original single-ring layout, kept as a toggle alongside the wells.
+// Teams are ordered cluster-by-cluster so each cluster reads as an arc;
+// node size + domain colour match the wells view. No well backdrops.
+function placeConstellationCircle(model, W, H) {
+  const CX = W / 2, CY = H / 2, R = Math.min(W, H) * 0.4;
+  const order = [];
+  for (const w of model.wellsDef) for (const rid of w.members) order.push(rid);
+  const n = order.length || 1;
+  const pos = new Map();
+  order.forEach((rid, i) => {
+    const team = model.byRecordId.get(rid);
+    if (!team) return;
+    const deg = model.indegree.get(rid) || 0;
+    const r = 6 + Math.min(deg, 8) * 1.5;
+    const ang = -Math.PI / 2 + (i / n) * Math.PI * 2;
+    pos.set(rid, { team, x: CX + Math.cos(ang) * R, y: CY + Math.sin(ang) * R, r, deg });
+  });
+  return { wells: [], pos };
+}
+
 // Watered-down "read" surfaced on hover — public self-asserted fields only
 // (name · domain · how many depend on it · the team's own focus/now).
 function constFrameLine(team, deg) {
@@ -1304,8 +1325,11 @@ function renderConstellation() {
   if (mode === "journey") { renderJourney(); return; }
 
   const W = 980, H = 540;
+  const layout = state.constellationLayout || "wells";
   const model = constellationModel(teams, clusters);
-  const { wells, pos } = placeConstellation(model, W, H);
+  const { wells, pos } = layout === "circle"
+    ? placeConstellationCircle(model, W, H)
+    : placeConstellation(model, W, H);
 
   // Cluster well backdrops (soft dashed ellipse + label) behind everything.
   const wellMarkup = wells.map(w => `
@@ -1388,6 +1412,10 @@ function renderConstellation() {
           <span class="acm-hint">pmf maturity spectrum</span>
         </button>
       </nav>
+      <div class="ac-layout-toggle" role="group" aria-label="map layout">
+        <button class="ac-layout-btn" data-const-layout="wells" aria-selected="${layout === "wells"}" type="button">⬡ wells</button>
+        <button class="ac-layout-btn" data-const-layout="circle" aria-selected="${layout === "circle"}" type="button">◯ circle</button>
+      </div>
       <div class="alch-constellation-stage">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
           <defs>
@@ -1401,7 +1429,8 @@ function renderConstellation() {
         </svg>
       </div>
       <div class="alch-constellation-legend">${legend}</div>
-      <p class="alch-callout"><strong>cohort map · v0.3</strong><br/>${calloutBody}</p>
+      <div class="ac-hoverline" data-ac-hoverline aria-live="polite"></div>
+      <p class="alch-callout"><strong>cohort map · v0.4</strong><br/>${calloutBody}</p>
     </div>
   `;
 }
@@ -1731,10 +1760,10 @@ function wireConstellationHover() {
   const stage = state.canvas.querySelector(".alch-constellation-stage");
   if (stage) {
     const groups = stage.querySelectorAll(".ac-node-group");
-    // Hovering a node also swaps the callout for that team's watered-down
-    // frame (public fields only); leaving restores the default copy.
-    const calloutEl = state.canvas.querySelector(".alch-callout");
-    const calloutDefault = calloutEl ? calloutEl.innerHTML : "";
+    // Hovering a node shows its watered-down frame (public fields only) in a
+    // FIXED-HEIGHT line — never the callout, whose reflow used to shrink the
+    // flex stage, move the node out from under the cursor, and flicker.
+    const hoverEl = state.canvas.querySelector("[data-ac-hoverline]");
     const teamById = new Map((state.cohort?.teams || []).map(t => [t.record_id, t]));
     const indeg = constellationIndegree(state.cohort?.teams || []);
     for (const g of groups) {
@@ -1742,11 +1771,11 @@ function wireConstellationHover() {
       g.addEventListener("mouseenter", () => {
         setConstellationHover(stage, rid, true);
         const t = teamById.get(rid);
-        if (calloutEl && t) calloutEl.innerHTML = constFrameLine(t, indeg.get(rid) || 0);
+        if (hoverEl && t) hoverEl.innerHTML = constFrameLine(t, indeg.get(rid) || 0);
       });
       g.addEventListener("mouseleave", () => {
         setConstellationHover(stage, rid, false);
-        if (calloutEl) calloutEl.innerHTML = calloutDefault;
+        if (hoverEl) hoverEl.innerHTML = "";
       });
       g.addEventListener("click", () => openDrawer(rid));
     }
@@ -1768,6 +1797,15 @@ function wireConstellationHover() {
       const next = btn.dataset.constMode;
       if (next === state.constellationMode) return;
       state.constellationMode = next;
+      render();
+    });
+  }
+  // Layout toggle: cluster-grouped wells ↔ single ring (the original view).
+  for (const btn of state.canvas.querySelectorAll(".ac-layout-btn[data-const-layout]")) {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.constLayout;
+      if (next === state.constellationLayout) return;
+      state.constellationLayout = next;
       render();
     });
   }

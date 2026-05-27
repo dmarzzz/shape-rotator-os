@@ -6593,6 +6593,24 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   display: inline-block; width: 13px; height: 13px; border-radius: 50%;
   border: 1px solid rgba(var(--ink-rgb), 0.4); vertical-align: middle; margin-right: 6px;
 }
+/* hover line — FIXED height so swapping its content never reflows the flex
+   stage (that reflow moved the node out from under the cursor → hover flicker). */
+.ac-hoverline {
+  height: 3.2em; overflow: hidden; padding: 4px 2px 0; line-height: 1.35;
+  font-family: var(--font-mono); font-size: 11px; color: var(--alchemy-paper-warm);
+}
+.ac-hoverline strong { color: var(--alchemy-oxide-bright); font-weight: 600; }
+.ac-hoverline:empty::before { content: "hover a node for its frame · click to open"; color: var(--alchemy-ink-mute); opacity: 0.5; }
+/* layout toggle — cluster wells ↔ single ring */
+.ac-layout-toggle { display: flex; gap: 6px; margin: -4px 0 10px; }
+.ac-layout-btn {
+  appearance: none; background: transparent; border: 1px solid rgba(var(--ink-rgb), 0.14);
+  border-radius: 5px; padding: 4px 12px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: lowercase;
+  color: var(--alchemy-ink-mute); transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
+}
+.ac-layout-btn:hover { color: var(--alchemy-paper-warm); }
+.ac-layout-btn[aria-selected="true"] { border-color: var(--alchemy-oxide-bright); color: var(--alchemy-oxide-bright); background: rgba(143,34,14,0.08); }
 
 /* ─── collaboration board (ported from dossier Connections) ──────────── */
 .alch-collab { display: flex; flex-direction: column; gap: 26px; }
@@ -11199,6 +11217,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .easel-err { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .easel-err-btn { appearance: none; border: 1px solid rgba(246,217,208,0.5); background: rgba(143,34,14,0.32); color: #f6d9d0; border-radius: 5px; padding: 5px 11px; font-family: var(--sr-font-mono); font-size: 10.5px; letter-spacing: 0.08em; cursor: pointer; white-space: nowrap; }
 .easel-err-btn:hover { background: rgba(143,34,14,0.55); }
+.easel-recv-hint { margin: 0; font-family: var(--sr-font-mono); font-size: 10.5px; letter-spacing: 0.04em; color: rgba(240,236,230,0.45); line-height: 1.5; }
 
 /* ─── onboarding · bonus rows ─────────────────────────────────────────
  * Separator between core steps and BONUS steps. The bonus rows are
