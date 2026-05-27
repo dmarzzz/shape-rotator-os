@@ -2364,10 +2364,10 @@ function renderOnboarding() {
     {
       key: "interview",
       title: "do the cohort interview",
-      ask: `a short interview so the cohort has a baseline picture of what you bring. opens in your browser. <em>operator will publish the link here.</em>`,
+      ask: `a short interview so the cohort has a baseline picture of what you bring. <em>operator will publish the browser link here.</em>`,
       autoComplete: false,
       missingState: "info",
-      action: { kind: "external", url: "TODO_INTERVIEW_URL", label: "open the interview" },
+      action: { kind: "interview-quiz-links", label: "show interview status" },
     },
     {
       key: "hermes-agent",
@@ -2376,7 +2376,7 @@ function renderOnboarding() {
       autoComplete: false,
       missingState: "info",
       bonus: true,
-      action: { kind: "external", url: "TODO_HERMES_DOCS_URL", label: "open hermes docs" },
+      action: { kind: "hermes-instructions", label: "show hermes status" },
     },
     {
       key: "agent-on-matrix",
@@ -2603,10 +2603,20 @@ function showInterviewQuizLinks() {
     body: `
       <p class="alch-onb-modal-line">two short asks so the cohort has a baseline picture of what each of you brings:</p>
       <ul class="alch-onb-modal-steps">
-        <li><strong>interview</strong> — 15 minutes, open-ended. <a href="#" data-external>TODO_INTERVIEW_URL</a></li>
-        <li><strong>quiz</strong> — 10 minutes, multiple choice. <a href="#" data-external>TODO_QUIZ_URL</a></li>
+        <li><strong>interview</strong> — 15 minutes, open-ended. <span class="alch-onb-modal-aux">operator will publish the URL.</span></li>
+        <li><strong>quiz</strong> — 10 minutes, multiple choice. <span class="alch-onb-modal-aux">operator will publish the URL.</span></li>
       </ul>
-      <p class="alch-onb-modal-aux">both open in your browser. operator will publish the URLs once the forms are up.</p>
+      <p class="alch-onb-modal-aux">once published, both URLs should open in your browser.</p>
+    `,
+  });
+}
+
+function showHermesInstructions() {
+  showOnboardingModal({
+    title: "hermes agent setup",
+    body: `
+      <p class="alch-onb-modal-line">Hermes docs are not published yet. This step is optional and can wait until the operator posts the setup link.</p>
+      <p class="alch-onb-modal-aux">Once published, this action should open the Hermes setup docs in your browser.</p>
     `,
   });
 }
@@ -2820,6 +2830,8 @@ function wireOnboarding() {
         showBotMatrixInstructions();
       } else if (a.kind === "interview-quiz-links") {
         showInterviewQuizLinks();
+      } else if (a.kind === "hermes-instructions") {
+        showHermesInstructions();
       }
     });
   }
