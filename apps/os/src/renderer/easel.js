@@ -11,11 +11,19 @@
  * Lifecycle mirrors atlas.js: mount(stage) / setActive(bool) / notifyDataChanged().
  */
 
+import { getIdentity } from "./identity.js";
+
 const TARGET_W = 1280;
 const TARGET_H = 720;
 const FPS = 30;
+const PREFS_KEY = "srwk:easel:prefs";
+// macOS deep-link straight to the Screen Recording permission pane.
+const SCREEN_RECORDING_SETTINGS = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
+function loadEaselPrefs() { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch { return {}; } }
+function saveEaselPrefs(p) { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch {} }
 
 let _stage = null;
+let _publishedName = "";
 let _active = false;
 let _live = false;
 let _ndiAvailable = true;
@@ -53,6 +61,11 @@ export function notifyDataChanged() { /* nothing data-driven here */ }
 async function safe(fn, fallback) { try { return await fn(); } catch { return fallback; } }
 
 function renderShell() {
+  // Prefill the NDI name from a saved value or the claimed identity, so each
+  // person's source is distinguishable on the network (not a wall of "Easel").
+  const prefs = loadEaselPrefs();
+  const id = getIdentity();
+  const defaultName = esc(prefs.name || (id && id.display_name) || "Easel");
   _stage.innerHTML = `
     <div class="easel-app">
       <header class="easel-head">
@@ -71,7 +84,7 @@ function renderShell() {
       <footer class="easel-controls">
         <label class="easel-namefield">
           <span>NDI name</span>
-          <input type="text" data-easel-name value="Easel" maxlength="48" spellcheck="false" />
+          <input type="text" data-easel-name value="${defaultName}" maxlength="48" spellcheck="false" />
         </label>
         <button class="easel-go" type="button" data-easel-go disabled>go live</button>
         <div class="easel-status" data-easel-status></div>
@@ -107,6 +120,13 @@ async function loadSources() {
   grid.querySelectorAll("[data-src-id]").forEach((btn) => {
     btn.addEventListener("click", () => selectSource(btn.getAttribute("data-src-id")));
   });
+  // Restore the last-used source, else default to the primary screen so
+  // going live is one click.
+  const prefs = loadEaselPrefs();
+  const restore = (prefs.sourceId && _sources.some((s) => s.id === prefs.sourceId))
+    ? prefs.sourceId
+    : (_sources.find((s) => s.type === "screen") || _sources[0]).id;
+  if (restore) selectSource(restore);
 }
 
 function selectSource(id) {
@@ -141,6 +161,7 @@ async function goLive() {
   const name = (_stage.querySelector("[data-easel-name]").value || "Easel").trim() || "Easel";
   const res = await safe(() => window.api.easel.start({ name }), { ok: false, error: "sender failed to start" });
   if (!res || res.ok === false) { showError(res && res.error ? res.error : "couldn't start the NDI sender."); return; }
+  _publishedName = (res && res.name) || name; // the name receivers actually see (hostname-prefixed)
 
   try {
     _stream = await navigator.mediaDevices.getUserMedia({
@@ -153,7 +174,7 @@ async function goLive() {
     });
   } catch (e) {
     await safe(() => window.api.easel.stop());
-    showError("screen capture was blocked. Grant Screen Recording permission to the app in System Settings → Privacy & Security, then reopen easel. (" + e.message + ")");
+    showError("screen capture was blocked. Grant Screen Recording permission to the app, then fully quit & reopen easel. (" + e.message + ")", true);
     return;
   }
 
@@ -164,6 +185,7 @@ async function goLive() {
   if (track) track.addEventListener("ended", () => stopLive());
 
   _live = true;
+  saveEaselPrefs({ ...loadEaselPrefs(), name, sourceId: _selectedId });
   const ov = _stage.querySelector("[data-easel-overlay]");
   if (ov) ov.hidden = true;
   syncGoButton();
@@ -212,9 +234,10 @@ function refreshStatus(s) {
   const conns = s.connections || 0;
   el.innerHTML =
     `<span class="easel-dot easel-dot-on"></span>` +
-    `<span class="easel-stat-name">${esc(s.name)}</span>` +
+    `<span class="easel-live-tag">LIVE</span>` +
+    `<span class="easel-stat-name">${esc(_publishedName || s.name)}</span>` +
     `<span class="easel-stat-sep">·</span>` +
-    `<span>${conns} receiver${conns === 1 ? "" : "s"}</span>` +
+    `<span class="easel-watching">${conns} watching</span>` +
     `<span class="easel-stat-sep">·</span>` +
     `<span class="easel-stat-frames">${s.frames} frames</span>`;
 }
@@ -231,11 +254,14 @@ function syncGoButton() {
   if (nameI) nameI.disabled = _live;
 }
 
-function showError(msg) {
+function showError(msg, withSettings) {
   const el = _stage.querySelector("[data-easel-err]");
   if (!el) return;
-  el.textContent = msg;
+  el.innerHTML = `<span>${esc(msg)}</span>` +
+    (withSettings ? ` <button type="button" class="easel-err-btn" data-easel-open-settings>open Screen Recording settings</button>` : "");
   el.hidden = false;
+  const b = el.querySelector("[data-easel-open-settings]");
+  if (b) b.addEventListener("click", () => { try { window.api.openExternal(SCREEN_RECORDING_SETTINGS); } catch {} });
 }
 function hideError() {
   const el = _stage.querySelector("[data-easel-err]");

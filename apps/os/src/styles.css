@@ -11191,6 +11191,14 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .easel-stat-frames { opacity: 0.6; }
 .easel-err { padding: 10px 14px; border-radius: 6px; background: rgba(143,34,14,0.18); border: 1px solid rgba(143,34,14,0.5); color: #f0c9bd; font-size: 12px; line-height: 1.5; }
 @media (max-width: 900px) { .easel-body { grid-template-columns: 1fr; } .easel-sources { max-height: 180px; } }
+/* live-state polish */
+.easel-dot-on { animation: easelPulse 1.6s ease-in-out infinite; }
+@keyframes easelPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.82); } }
+.easel-live-tag { font-weight: 700; letter-spacing: 0.18em; color: #57c177; }
+.easel-watching { color: #f0ece6; }
+.easel-err { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.easel-err-btn { appearance: none; border: 1px solid rgba(246,217,208,0.5); background: rgba(143,34,14,0.32); color: #f6d9d0; border-radius: 5px; padding: 5px 11px; font-family: var(--sr-font-mono); font-size: 10.5px; letter-spacing: 0.08em; cursor: pointer; white-space: nowrap; }
+.easel-err-btn:hover { background: rgba(143,34,14,0.55); }
 
 /* ─── onboarding · bonus rows ─────────────────────────────────────────
  * Separator between core steps and BONUS steps. The bonus rows are

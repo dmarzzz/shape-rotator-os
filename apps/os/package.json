@@ -1,7 +1,7 @@
 {
   "name": "@shape-rotator/os",
   "productName": "Shape Rotator OS",
-  "version": "0.2.18",
+  "version": "0.2.19",
   "private": true,
   "main": "main.js",
   "type": "commonjs",
