@@ -89,6 +89,7 @@ function renderShell() {
         <button class="easel-go" type="button" data-easel-go disabled>go live</button>
         <div class="easel-status" data-easel-status></div>
       </footer>
+      <p class="easel-recv-hint">to project: on the receiver — NDI Studio Monitor, OBS, Resolume, or easel — pick your source from the NDI list. "0 watching" just means no one's pulling it yet.</p>
       <div class="easel-err" data-easel-err hidden></div>
     </div>`;
 

@@ -1,7 +1,7 @@
 {
   "name": "@shape-rotator/os",
   "productName": "Shape Rotator OS",
-  "version": "0.2.19",
+  "version": "0.2.20",
   "private": true,
   "main": "main.js",
   "type": "commonjs",
@@ -24,9 +24,11 @@
   "dependencies": {
     "@cosmos.gl/graph": "^2.6.4",
     "3d-force-graph": "^1.80.0",
-    "@stagetimerio/grandiose": "^0.2.0",
     "electron-updater": "^6.8.3",
     "three": "^0.184.0"
+  },
+  "optionalDependencies": {
+    "@stagetimerio/grandiose": "^0.2.0"
   },
   "devDependencies": {
     "electron": "^33.0.0",

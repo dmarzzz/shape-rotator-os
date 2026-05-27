@@ -78,6 +78,16 @@ jobs:
       - name: install (workspaces)
         run: npm ci
 
+      # NDI is macOS-only for now: @stagetimerio/grandiose is a native
+      # (node-gyp) addon whose NDI SDK lib fails to cross-link on the
+      # win/linux runners. Strip it on non-mac so electron-builder's native
+      # rebuild has nothing to choke on; easel-ndi.js degrades to
+      # "NDI unavailable" when the module is absent. (It's an optionalDependency.)
+      - name: strip mac-only NDI module (${{ matrix.platform }})
+        if: matrix.platform != 'mac'
+        shell: bash
+        run: rm -rf node_modules/@stagetimerio/grandiose apps/os/node_modules/@stagetimerio/grandiose
+
       # Pull the bundled swf-node binary from the latest upstream release
       # (dmarzzz/searxng-wth-frnds). The asset lands at
       # apps/os/build-resources/swf-node/<binary> so electron-builder's
