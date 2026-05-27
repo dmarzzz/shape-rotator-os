@@ -7083,6 +7083,27 @@ function hostFromUrl(u) {
 //   idle  — no activity for 180s+
 //   down  — a health probe marked the peer unreachable
 // online = live | stale (recent activity); offline = idle | down.
+// swf-node identifies a peer in /graph by its bare base64url pubkey, but
+// /sync/manifest attributes each record with an `ed25519:<hex>` author —
+// the SAME key in a different encoding. Canonicalize both to lowercase hex
+// so per-peer record counts actually attribute (they were uniformly 0).
+function canonPubkey(pk) {
+  if (!pk) return "";
+  let s = String(pk);
+  const colon = s.indexOf(":");
+  if (colon >= 0) s = s.slice(colon + 1);                  // strip "ed25519:" etc.
+  if (/^[0-9a-f]{64}$/i.test(s)) return s.toLowerCase();   // already hex
+  try {                                                    // base64url → hex
+    const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
+    const bin = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+    let hex = "";
+    for (let i = 0; i < bin.length; i++) hex += bin.charCodeAt(i).toString(16).padStart(2, "0");
+    return hex;
+  } catch {
+    return s.toLowerCase();
+  }
+}
+
 function netPeerStatus(pubkey) {
   const isSelf = pubkey === srwk.selfPubkey;
   const syncTs = _peerLastSeenByPubkey.get(pubkey);
@@ -7125,6 +7146,21 @@ function renderNetPeersList() {
   }
   const pageCount = (p) => liveCounts.get(p.pubkey) ?? p.page_count ?? 0;
 
+  // Records per author from /sync/manifest, keyed by CANONICAL (hex) pubkey
+  // so the manifest's `ed25519:<hex>` author matches the peer's base64url
+  // pubkey. Computed once here instead of per-card. null ⇒ no manifest yet
+  // (cards fall back to legacy page_count).
+  const manifestRecords = srwk._manifest?.manifest?.records;
+  let recordCounts = null;
+  if (manifestRecords && typeof manifestRecords === "object") {
+    recordCounts = new Map();
+    for (const r of Object.values(manifestRecords)) {
+      if (!r || !r.author_pubkey) continue;
+      const c = canonPubkey(r.author_pubkey);
+      recordCounts.set(c, (recordCounts.get(c) || 0) + 1);
+    }
+  }
+
   // Partition: active (online) peers render up top; offline fold away below.
   const active = [], offline = [];
   for (const p of peers) {
@@ -7144,7 +7180,7 @@ function renderNetPeersList() {
     || (a.p.nickname || "").localeCompare(b.p.nickname || ""));
 
   const now = performance.now();
-  for (const { p } of active) list.appendChild(buildNetPeerCard(p, now, liveCounts));
+  for (const { p } of active) list.appendChild(buildNetPeerCard(p, now, liveCounts, recordCounts));
   if (active.length === 0) {
     const note = document.createElement("div");
     note.className = "net-peers-empty";
@@ -7164,13 +7200,13 @@ function renderNetPeersList() {
     det.appendChild(sum);
     const wrap = document.createElement("div");
     wrap.className = "net-peers-offline-list";
-    for (const { p } of offline) wrap.appendChild(buildNetPeerCard(p, now, liveCounts));
+    for (const { p } of offline) wrap.appendChild(buildNetPeerCard(p, now, liveCounts, recordCounts));
     det.appendChild(wrap);
     list.appendChild(det);
   }
 }
 
-function buildNetPeerCard(p, now, liveCounts) {
+function buildNetPeerCard(p, now, liveCounts, recordCounts) {
   // Block-style are.na unit. Updated for Phase 2 sync: counts records (from
   // /sync/manifest, when available) and derives the live/stale/idle tag
   // from /node/log heartbeats rather than the legacy SSE liveSeen ring.
@@ -7219,18 +7255,14 @@ function buildNetPeerCard(p, now, liveCounts) {
 
   const foot = document.createElement("footer");
   foot.className = "npc-foot";
-  // Phase 2: /sync/manifest is authoritative — count records by author_pubkey.
-  // If the manifest hasn't been seen yet (e.g. cohort-source still
-  // bootstrapping), fall back to the legacy page_count.
-  const manifestRecords = srwk._manifest?.manifest?.records;
+  // Phase 2: /sync/manifest is authoritative — recordCounts (computed once
+  // in renderNetPeersList, keyed by canonical hex pubkey) attributes records
+  // to their author. If the manifest hasn't been seen yet, fall back to the
+  // legacy page_count.
   let unitLabel = "pages";
   let count;
-  if (manifestRecords && typeof manifestRecords === "object") {
-    let n = 0;
-    for (const r of Object.values(manifestRecords)) {
-      if (r && r.author_pubkey === p.pubkey) n += 1;
-    }
-    count = n;
+  if (recordCounts) {
+    count = recordCounts.get(canonPubkey(p.pubkey)) || 0;
     unitLabel = "records";
   } else {
     const livePc = liveCounts ? liveCounts.get(p.pubkey) : undefined;
