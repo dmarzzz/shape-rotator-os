@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("api", {
   // { ok, path, version } so the renderer can show "downloaded · drag
   // to /Applications" with the file path the user just got.
   downloadAndRevealUpdate: () => ipcRenderer.invoke("fg:download-and-reveal-update"),
+  openDownloadedInstaller: (path) => ipcRenderer.invoke("shell:openDownloadedInstaller", path),
   getAppInfo:            ()       => ipcRenderer.invoke("fg:get-app-info"),
   // Streams electron-updater's `download-progress` events (forwarded from
   // main.js → "fg:update-progress") into the renderer so the inline update

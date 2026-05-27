@@ -234,6 +234,32 @@ ipcMain.handle("env:get", async () => ({
 ipcMain.handle("shell:openExternal", async (_e, url) => {
   if (typeof url === "string" && /^https?:\/\//i.test(url)) shell.openExternal(url);
 });
+ipcMain.handle("shell:openDownloadedInstaller", async (_e, filePath) => {
+  if (typeof filePath !== "string" || !filePath.trim()) {
+    return { ok: false, reason: "bad_path" };
+  }
+  const downloads = path.resolve(app.getPath("downloads"));
+  const target = path.resolve(filePath);
+  const rel = path.relative(downloads, target);
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
+    return { ok: false, reason: "outside_downloads" };
+  }
+  const allowedExt = new Set([".dmg", ".exe", ".deb", ".appimage"]);
+  if (!allowedExt.has(path.extname(target).toLowerCase())) {
+    return { ok: false, reason: "unsupported_file" };
+  }
+  if (!fs.existsSync(target)) return { ok: false, reason: "missing" };
+  try {
+    if (process.platform === "darwin" || process.platform === "win32") {
+      const detail = await shell.openPath(target);
+      return detail ? { ok: false, reason: "open_failed", detail } : { ok: true };
+    }
+    shell.showItemInFolder(target);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: "open_failed", detail: e?.message || String(e) };
+  }
+});
 
 // ─── bundled swf-node supervisor ─────────────────────────────────────
 // Spawn + supervise the swf-node binary that ships in

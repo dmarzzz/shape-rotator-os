@@ -526,18 +526,17 @@ async function runDownloadAndReveal() {
 
 // User clicked "reopen installer" from the downloaded-manual phase.
 // The file is already on disk — just re-trigger the open/reveal step.
-// We piggy-back on downloadAndRevealUpdate() which will short-circuit
-// the network call if the file is already present at the same path
-// (TODO: add that short-circuit; current build re-downloads). For now,
-// just call openExternal on the file:// URL.
 async function runReopenInstaller() {
   const path = _updatePanelState?.path;
   if (!path) return;
   try {
-    // file:// URLs route through shell.openExternal which on mac opens
-    // a dmg, on windows runs an exe, on linux reveals in Files.
-    await window.api?.openExternal?.(`file://${encodeURI(path)}`);
-  } catch {}
+    const res = await window.api?.openDownloadedInstaller?.(path);
+    if (!res?.ok) {
+      setUpdateState({ ..._updatePanelState, phase: "error", detail: res?.detail || res?.reason || "could not reopen installer." });
+    }
+  } catch (e) {
+    setUpdateState({ ..._updatePanelState, phase: "error", detail: e?.message || String(e) });
+  }
 }
 
 function escapeHtml(s) {
