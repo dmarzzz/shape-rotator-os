@@ -17,6 +17,15 @@ links:
   website: https://teleport.best
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - cross-network routing follow-up
+  - crypto infrastructure context
+  - direct evidence collection
+recurring_themes:
+  - sparse-source profile
+  - routing infrastructure
+  - project-context inference
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

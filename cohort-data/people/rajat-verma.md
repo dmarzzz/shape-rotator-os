@@ -15,6 +15,17 @@ links:
   x: null
   website: null
 dietary_restrictions:
+go_to_them_for:
+  - post-quantum identity implementation
+  - anonymous credential systems
+  - ZK/lattice-adjacent engineering
+  - privacy infrastructure
+recurring_themes:
+  - identity without disclosure
+  - cryptographic systems
+  - implementation support
+  - research-product bridge
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## bio

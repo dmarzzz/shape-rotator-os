@@ -17,6 +17,16 @@ links:
   website: daedalus-research.com
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - prediction-market design
+  - quant/crypto market structure
+  - PROF/order-flow questions
+  - InfoFi strategy
+recurring_themes:
+  - market microstructure
+  - research-backed product
+  - liquidity intelligence
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

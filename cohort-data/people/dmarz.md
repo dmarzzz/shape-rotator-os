@@ -19,6 +19,13 @@ links:
   website: dmarz.xyz
   linkedin: null
 dietary_restrictions:
+making_signature:
+  class: code-verified
+  built_domain: [data]
+  shape: deep
+  note: stated work corroborated by their code
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about

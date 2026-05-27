@@ -17,6 +17,24 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - user-owned cloud strategy
+  - DID/capability architecture
+  - decentralized storage lineage
+  - program momentum and ecosystem building
+recurring_themes:
+  - sovereign personal infrastructure
+  - lineage-aware systems building
+  - high-commitment founder energy
+  - architecture as social substrate
+enrichment_source: dossier-derived  # facilitator read; edit freely
+making_signature:
+  class: underplayed-depth
+  built_domain: [agentic, systems]
+  shape: deep
+  note: builds more than they present — weight up
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about

@@ -15,6 +15,17 @@ links:
   x: null
   website: null
 dietary_restrictions:
+go_to_them_for:
+  - prototype grounding
+  - blockchain implementation
+  - personal-data tooling
+  - turning broad vision into demo
+recurring_themes:
+  - implementation as credibility
+  - personal data agency
+  - pilot narrowing
+  - blockchain-enabled curation
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## bio

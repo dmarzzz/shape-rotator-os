@@ -20,6 +20,24 @@ contribute_interests: "Help with agent orchestrations"
 availability_pref: null
 weekly_intention: "bring the vibes learn about others projects"
 dietary_restrictions: "none"
+go_to_them_for:
+  - agentic coding systems
+  - developer workflow experiments
+  - repo-level builder signal
+  - multi-agent review loops
+recurring_themes:
+  - solo high-context building
+  - AI coding tools
+  - developer flow
+  - strong public repo signal with process ambiguity
+enrichment_source: dossier-derived  # facilitator read; edit freely
+making_signature:
+  class: underplayed-depth
+  built_domain: [frontend, agentic]
+  shape: deep
+  note: builds more than they present — weight up
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about
