@@ -205,6 +205,11 @@ async function showOnboardingModal(cohortHint) {
   const projects = teams.filter(t => (t.kind || "team") === "project");
   const teamsOnly = teams.filter(t => (t.kind || "team") === "team");
   const people   = cohort?.people   || [];
+  const pickerSources = {
+    person: people,
+    team: teamsOnly,
+    project: projects,
+  };
 
   const currentId = getIdentity();
   const currentResolved = currentId ? await resolveIdentityLabel() : null;
@@ -259,14 +264,12 @@ async function showOnboardingModal(cohortHint) {
             ${optHtml(teamsOnly, "team")}
           </select>
         </label>
-        ${projects.length ? `
-          <label class="im-row"><span>project</span>
-            <select id="im-project">
-              <option value="">— your project —</option>
-              ${optHtml(projects, "project")}
-            </select>
-          </label>
-        ` : ""}
+        <label class="im-row"><span>project</span>
+          <select id="im-project">
+            <option value="">— your project —</option>
+            ${optHtml(projects, "project")}
+          </select>
+        </label>
       </section>
 
       <section class="im-section">
@@ -304,6 +307,9 @@ async function showOnboardingModal(cohortHint) {
       const freshProjects = freshTeams.filter(t => (t.kind || "team") === "project");
       const freshTeamsOnly = freshTeams.filter(t => (t.kind || "team") === "team");
       const freshPeople   = fresh?.people   || [];
+      pickerSources.person = freshPeople;
+      pickerSources.team = freshTeamsOnly;
+      pickerSources.project = freshProjects;
       const personSel  = overlay.querySelector("#im-person");
       const teamSel    = overlay.querySelector("#im-team");
       const projectSel = overlay.querySelector("#im-project");
@@ -350,12 +356,13 @@ async function showOnboardingModal(cohortHint) {
   // picking a different record) we just close — the user is mid-task and
   // doesn't want to be yanked into a form. Picking the SAME record is a
   // no-op close.
-  const wirePick = (selId, kind, source) => {
+  const wirePick = (selId, kind) => {
     const sel = overlay.querySelector(`#${selId}`);
     if (!sel) return;
     sel.addEventListener("change", () => {
       const id = sel.value;
       if (!id) return;
+      const source = pickerSources[kind] || [];
       const rec = source.find(r => r.record_id === id);
       if (!rec) return;
       const isSame = claimed
@@ -372,9 +379,9 @@ async function showOnboardingModal(cohortHint) {
       // the onIdentityChanged listener; the user stays where they were.
     });
   };
-  wirePick("im-person",  "person",  people);
-  wirePick("im-team",    "team",    teamsOnly);
-  wirePick("im-project", "project", projects);
+  wirePick("im-person",  "person");
+  wirePick("im-team",    "team");
+  wirePick("im-project", "project");
 
   // Create paths: route to alchemy/profile/add — they can claim after PR merges.
   for (const btn of overlay.querySelectorAll(".im-create[data-create]")) {
