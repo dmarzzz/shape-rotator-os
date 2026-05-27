@@ -1,25 +1,32 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Shape Rotator // Workspace Journal</title>
-  <meta name="description" content="Shape Rotator workspace journal: markdown-style AI, LLM, agent, spatial computing, and founder field notes from Day 1 project intros.">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>shape rotator journal</title>
+  <meta name="description" content="Shape Rotator journal: compact articles on AI agents, LLM workflows, coordination under partial trust, AI workflow memory, trust, timing, taste, and human override." />
+  <link rel="canonical" href="https://os-web.shaperotator.xyz/workspace/journal" />
+  <meta property="og:title" content="shape rotator journal" />
+  <meta property="og:description" content="Articles on AI agents, LLM workflows, coordination under partial trust, AI workflow memory, trust, timing, taste, and human override." />
+  <meta property="og:type" content="blog" />
+  <meta property="og:url" content="https://os-web.shaperotator.xyz/workspace/journal" />
+  <meta property="og:image" content="https://os-web.shaperotator.xyz/workspace/workspace.jpg" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');
 
     :root {
-      --bg: #ffffff;
+      --bg: #fff;
       --fg: #050505;
-      --fg-muted: #858585;
+      --muted: #767676;
+      --soft: #f7f7f3;
       --line: 1px solid var(--fg);
-      --soft-line: 1px dotted rgba(5, 5, 5, 0.24);
-      --paper: #f7f7f4;
-      --font-mono: 'JetBrains Mono', monospace;
-      --grid-pad: 0.75rem;
+      --soft-line: 1px dotted rgba(5, 5, 5, 0.28);
+      --mono: 'JetBrains Mono', monospace;
+      --pad: clamp(12px, 2vw, 24px);
+      --max: 1080px;
     }
 
     * {
@@ -32,512 +39,612 @@
 
     html,
     body {
-      width: 100vw;
-      height: 100dvh;
-      overflow: hidden;
+      min-height: 100%;
       background: var(--bg);
       color: var(--fg);
-      font-family: var(--font-mono);
-      font-size: 10px;
-      line-height: 1.35;
-      letter-spacing: -0.03em;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.45;
+      letter-spacing: 0;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      pointer-events: none;
+      background: linear-gradient(to bottom, transparent, transparent 50%, rgba(0,0,0,0.018) 50%, rgba(0,0,0,0.018));
+      background-size: 100% 4px;
+    }
+
+    a,
+    button {
+      color: inherit;
+      font: inherit;
     }
 
     a {
-      color: inherit;
       text-decoration: none;
     }
 
-    a:hover {
+    button {
+      border: 0;
+      background: none;
+      cursor: pointer;
+    }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: var(--line);
+      outline-offset: 2px;
+    }
+
+    .shell {
+      width: min(100%, var(--max));
+      min-height: 100dvh;
+      margin: 0 auto;
+      border-left: var(--line);
+      border-right: var(--line);
+      background: var(--bg);
+    }
+
+    .topbar,
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px var(--pad);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .topbar {
+      min-height: 38px;
+      border-bottom: var(--line);
+    }
+
+    .footer {
+      color: var(--muted);
+      border-top: var(--line);
+    }
+
+    .nav,
+    .status,
+    .actions,
+    .topics,
+    .article-links,
+    .tag-row,
+    .mechanism-list,
+    .project-list {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav a,
+    .nav span,
+    .status span,
+    .chip,
+    .button,
+    .article-links a,
+    .article-links button {
+      min-height: 24px;
+      display: inline-flex;
+      align-items: center;
+      border: var(--line);
+      padding: 3px 7px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .nav a,
+    .nav span,
+    .status span {
+      border: 0;
+      padding: 0;
+    }
+
+    .nav a + a,
+    .nav a + span {
+      padding-left: 10px;
+      border-left: var(--soft-line);
+    }
+
+    .nav a:hover,
+    .chip:hover,
+    .button:hover,
+    .article:hover,
+    .article-links a:hover,
+    .article-links button:hover {
       background: var(--fg);
       color: var(--bg);
     }
 
-    .scanlines {
-      position: fixed;
-      inset: 0;
-      z-index: 100;
-      pointer-events: none;
-      background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.025) 50%, rgba(0,0,0,0.025));
-      background-size: 100% 4px;
-    }
-
-    .journal-os {
-      display: grid;
-      grid-template-rows: 40px minmax(0, 1fr);
-      width: 100%;
-      height: 100%;
-      border: var(--line);
-    }
-
-    .journal-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--grid-pad);
-      padding: 0 var(--grid-pad);
-      border-bottom: var(--line);
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-
-    .head-left {
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 0;
-      white-space: nowrap;
-    }
-
-    .head-link {
-      border-left: 1px dotted var(--fg-muted);
-      padding-left: 12px;
-      font-weight: 400;
-    }
-
     .status {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--fg-muted);
+      color: var(--muted);
+      font-weight: 500;
     }
 
-    .blink {
-      width: 6px;
-      height: 6px;
-      background: var(--fg);
-      animation: pulse 1s infinite steps(2);
-    }
-
-    @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0; }
-    }
-
-    .journal-grid {
-      min-height: 0;
+    .hero {
       display: grid;
-      grid-template-columns: 270px minmax(0, 1fr) 260px;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+      gap: 20px;
+      padding: 24px var(--pad);
       border-bottom: var(--line);
     }
 
-    .panel {
-      min-width: 0;
-      min-height: 0;
-      border-right: var(--line);
-      overflow: hidden;
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
-    }
-
-    .panel:last-child {
-      border-right: 0;
-    }
-
-    .panel-title {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      padding: var(--grid-pad);
-      border-bottom: var(--line);
-      color: var(--fg-muted);
-      font-size: 9px;
+    .eyebrow,
+    .meta,
+    .tag,
+    .copy-status {
+      color: var(--muted);
+      font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
     }
 
-    .source-list,
-    .index-list,
-    .md-scroll {
-      min-height: 0;
-      overflow: auto;
-    }
-
-    .source-list,
-    .index-list {
-      display: grid;
-      align-content: start;
-      gap: 0;
-      background: var(--paper);
-    }
-
-    .source-row,
-    .index-row {
-      display: grid;
-      gap: 5px;
-      padding: 10px var(--grid-pad);
-      border-bottom: var(--soft-line);
-    }
-
-    .source-row time,
-    .index-row span {
-      color: var(--fg-muted);
-      font-size: 9px;
-      font-feature-settings: "tnum" 1;
-      text-transform: uppercase;
-    }
-
-    .source-row strong,
-    .index-row strong {
-      font-size: 10px;
-      line-height: 1.2;
-      text-transform: uppercase;
-    }
-
-    .source-row p,
-    .index-row p {
-      color: var(--fg-muted);
-      font-size: 10px;
-      line-height: 1.3;
-    }
-
-    .md-scroll {
-      padding: 0;
-      background:
-        linear-gradient(90deg, rgba(0,0,0,0.035) 1px, transparent 1px),
-        linear-gradient(180deg, rgba(0,0,0,0.028) 1px, transparent 1px),
-        var(--bg);
-      background-size: 28px 28px;
-    }
-
-    .md-file {
-      max-width: 940px;
-      margin: 0 auto;
-      padding: 18px clamp(16px, 4vw, 46px) 34px;
-      border-left: var(--line);
-      border-right: var(--line);
-      background: rgba(255, 255, 255, 0.88);
-    }
-
-    .md-path {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 18px;
-      padding-bottom: 10px;
-      border-bottom: var(--soft-line);
-      color: var(--fg-muted);
-      font-size: 9px;
-      text-transform: uppercase;
-    }
-
-    .md-block {
-      margin-bottom: 24px;
-      padding-bottom: 20px;
-      border-bottom: var(--line);
-    }
-
-    .md-block:last-child {
-      margin-bottom: 0;
-      border-bottom: 0;
-    }
-
-    .frontmatter {
-      margin: 0 0 16px;
-      padding: 12px;
-      border: var(--line);
-      background: var(--paper);
-      color: var(--fg);
-      font-family: var(--font-mono);
-      font-size: 10px;
-      line-height: 1.45;
-      white-space: pre-wrap;
-      text-transform: none;
-    }
-
-    .md-block h1,
-    .md-block h2 {
-      margin: 0 0 10px;
-      font-size: clamp(18px, 2.1vw, 30px);
+    h1 {
+      max-width: 780px;
+      margin-top: 8px;
+      font-size: clamp(28px, 4vw, 42px);
       line-height: 1.05;
       font-weight: 700;
-      letter-spacing: -0.04em;
+      letter-spacing: 0;
       text-transform: uppercase;
     }
 
-    .md-block h1::before {
-      content: "# ";
-      color: var(--fg-muted);
-    }
-
-    .md-block h2::before {
-      content: "## ";
-      color: var(--fg-muted);
-    }
-
-    .md-block p {
-      max-width: 82ch;
-      margin: 0 0 10px;
-      font-size: 12px;
-      line-height: 1.55;
-      letter-spacing: 0;
-      text-transform: none;
-    }
-
-    .md-block ul {
-      display: grid;
-      gap: 6px;
-      max-width: 82ch;
-      margin: 10px 0 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .md-block li {
-      display: grid;
-      grid-template-columns: 18px minmax(0, 1fr);
-      gap: 8px;
-      font-size: 11px;
-      line-height: 1.45;
-      letter-spacing: 0;
-      text-transform: none;
-    }
-
-    .md-block li::before {
-      content: "-";
-      color: var(--fg-muted);
-    }
-
-    .pull {
-      margin: 14px 0 0;
-      padding: 10px 12px;
-      border-left: 3px solid var(--fg);
-      background: var(--paper);
-      font-size: 11px;
-      line-height: 1.45;
-      letter-spacing: 0;
-      text-transform: none;
-    }
-
-    .tag-line {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
+    .lede {
+      max-width: 760px;
       margin-top: 12px;
+      font-size: 13px;
     }
 
-    .tag-line span {
-      padding: 4px 7px;
-      border: 1px solid var(--fg);
-      font-size: 9px;
+    .actions {
+      align-content: end;
+      justify-content: flex-end;
+    }
+
+    .topics {
+      padding: 10px var(--pad);
+      border-bottom: var(--line);
+    }
+
+    .intro {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr);
+      gap: 16px;
+      padding: 18px var(--pad);
+      border-bottom: var(--line);
+      background: var(--soft);
+    }
+
+    .intro-copy {
+      display: grid;
+      gap: 13px;
+    }
+
+    .intro h2 {
+      font-size: 15px;
+      line-height: 1.25;
       text-transform: uppercase;
     }
 
-    @media (max-width: 980px) {
-      html,
-      body {
-        height: auto;
-        min-height: 100%;
-        overflow-x: hidden;
-        overflow-y: auto;
-      }
+    .intro p {
+      max-width: 800px;
+      font-size: 12px;
+    }
 
-      .journal-os {
-        min-height: 100dvh;
-        height: auto;
-      }
+    .question {
+      padding: 10px;
+      border: var(--line);
+      background: var(--bg);
+      font-size: 12px;
+      font-weight: 700;
+    }
 
-      .journal-grid {
-        grid-template-columns: 1fr;
-      }
+    .mechanism-list,
+    .project-list {
+      gap: 5px;
+    }
 
-      .panel {
-        border-right: 0;
-        border-bottom: var(--line);
-      }
+    .topic-map {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      border-top: var(--line);
+      border-left: var(--line);
+    }
 
-      .source-list,
-      .index-list {
-        max-height: 260px;
-      }
+    .topic-map a,
+    .topic-map span {
+      min-height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 8px;
+      border-right: var(--line);
+      border-bottom: var(--line);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
 
-      .md-file {
+    .topic-map a:hover {
+      background: var(--fg);
+      color: var(--bg);
+    }
+
+    .topic-map a:hover small {
+      color: var(--bg);
+    }
+
+    .topic-map small {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 16px;
+      padding: 14px var(--pad) 10px;
+      border-bottom: var(--line);
+    }
+
+    .section-head h2 {
+      font-size: 13px;
+      line-height: 1.3;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .article-list {
+      display: grid;
+    }
+
+    .article {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr) 210px;
+      gap: 16px;
+      padding: 16px var(--pad);
+      border-bottom: var(--line);
+    }
+
+    .article-main {
+      min-width: 0;
+    }
+
+    .article-title {
+      max-width: 720px;
+      font-size: clamp(17px, 2vw, 23px);
+      line-height: 1.12;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .article-summary {
+      max-width: 720px;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .article:hover .article-summary,
+    .article:hover .meta,
+    .article:hover .tag {
+      color: var(--bg);
+    }
+
+    .article-tools {
+      display: grid;
+      align-content: start;
+      justify-items: end;
+      gap: 8px;
+    }
+
+    .article-links {
+      justify-content: flex-end;
+    }
+
+    .tag-row {
+      justify-content: flex-end;
+      gap: 5px;
+    }
+
+    .tag {
+      min-height: 20px;
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 5px;
+      border: var(--soft-line);
+    }
+
+    .llm-export {
+      padding: 16px var(--pad) 20px;
+      background: var(--soft);
+    }
+
+    details {
+      border: var(--line);
+      background: var(--bg);
+    }
+
+    summary {
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      padding: 7px 10px;
+      border-bottom: var(--line);
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 150px;
+      display: block;
+      border: 0;
+      resize: vertical;
+      padding: 10px;
+      background: var(--bg);
+      color: var(--fg);
+      font: 12px/1.5 var(--mono);
+      letter-spacing: 0;
+    }
+
+    @media (max-width: 760px) {
+      .shell {
         border-left: 0;
         border-right: 0;
       }
-    }
 
-    @media (max-width: 620px) {
-      .journal-header {
+      .topbar,
+      .footer,
+      .hero,
+      .intro,
+      .section-head,
+      .article {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar,
+      .footer {
         align-items: flex-start;
-        height: auto;
-        min-height: 44px;
-        padding-block: 8px;
         flex-direction: column;
       }
 
-      .head-left {
-        flex-wrap: wrap;
+      .actions,
+      .article-tools,
+      .article-links,
+      .tag-row {
+        justify-content: flex-start;
+        justify-items: start;
       }
 
-      .md-file {
-        padding-inline: 12px;
+      .topic-map {
+        grid-template-columns: 1fr;
       }
     }
   </style>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Blog",
+      "name": "shape rotator journal",
+      "description": "Compact articles on AI agents, LLM workflows, coordination under partial trust, AI workflow memory, trust, timing, taste, and human override.",
+      "url": "https://os-web.shaperotator.xyz/workspace/journal",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Shape Rotator"
+      },
+      "blogPost": [
+        {
+          "@type": "BlogPosting",
+          "headline": "Why LLM agents need memory, workflows, and social routing",
+          "url": "https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing",
+          "keywords": "LLM agents, AI workflow memory, agentic systems, human-in-the-loop AI"
+        },
+        {
+          "@type": "BlogPosting",
+          "headline": "Privacy is not the product; capability is the product",
+          "url": "https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability",
+          "keywords": "AI privacy, private AI agents, trusted execution environments"
+        }
+      ]
+    }
+  </script>
 </head>
 <body>
-  <div class="scanlines"></div>
-
-  <main class="journal-os">
-    <header class="journal-header">
-      <div class="head-left">
+  <main class="shell">
+    <header class="topbar">
+      <nav class="nav" aria-label="primary">
         <a href="/">[SHAPE_ROTATOR]</a>
-        <a class="head-link" href="/workspace">[ WORKSPACE ]</a>
-        <span class="head-link">[ JOURNAL.MD ]</span>
-      </div>
+        <a href="/workspace">[ WORKSPACE ]</a>
+        <span>[ JOURNAL ]</span>
+      </nav>
       <div class="status">
-        <span>SOURCE: DAY_1_PROJECT_INTROS</span>
-        <span class="blink"></span>
+        <span>PUBLIC_CONTENT v0.0.1</span>
       </div>
     </header>
 
-    <section class="journal-grid" aria-label="workspace journal markdown reader">
-      <aside class="panel">
-        <div class="panel-title">
-          <span>// SOURCE MARKS</span>
-          <span>MAY 19</span>
-        </div>
-        <div class="source-list">
-          <div class="source-row"><time>00:15:45</time><strong>Prediction-market hedge demo</strong><p>Portfolio -> risk factors -> event candidates -> operator weights.</p></div>
-          <div class="source-row"><time>01:14:21</time><strong>Feedling black-box loop</strong><p>Screen capture as input, notifications as output, action as feedback.</p></div>
-          <div class="source-row"><time>01:31:49</time><strong>Privacy substrate</strong><p>Encrypted context, approved deployments, remote attestation.</p></div>
-          <div class="source-row"><time>02:11:46</time><strong>Ethereia attention field</strong><p>Speech visualization changes how people listen in the room.</p></div>
-          <div class="source-row"><time>02:38:16</time><strong>Q / Easel / shader stack</strong><p>Timeline, projection mapping, compositing, and tool control.</p></div>
-          <div class="source-row"><time>04:20:02</time><strong>Carter founder journey</strong><p>Art recommendation algorithms meet market reality.</p></div>
-          <div class="source-row"><time>04:40:12</time><strong>Founder warning</strong><p>Do not build an exciting solution that is still chasing a problem.</p></div>
-        </div>
-      </aside>
-
-      <article class="panel">
-        <div class="panel-title">
-          <span>// WORKSPACE/JOURNAL/DAY-1.MD</span>
-          <span>PUBLIC_CANON</span>
-        </div>
-        <div class="md-scroll">
-          <div class="md-file">
-            <div class="md-path">
-              <span>cohort-data</span>
-              <span>/</span>
-              <span>workspace</span>
-              <span>/</span>
-              <span>journal</span>
-              <span>/</span>
-              <span>day-1-project-intros.md</span>
-            </div>
-
-            <section class="md-block">
-              <pre class="frontmatter">---
-record_id: day-1-project-intros
-record_type: journal
-schema_version: 1
-date: 2026-05-19
-source: Day 1 Project Intros Notes May 19 2026.txt
-surface: workspace/journal
-topics:
-  - ai agents
-  - llm interfaces
-  - prediction markets
-  - private context
-  - spatial computing
-  - founder lessons
----</pre>
-              <h1>The transcript is the workspace</h1>
-              <p>Day 1 did not read like a clean conference agenda. It read like the operating system of the cohort booting in public: teams showing unfinished tools, mentors asking where the market is, and the room repeatedly returning to taste, trust, timing, and override.</p>
-              <p>The journal should keep that quality. It is not a polished blog. It is the public markdown layer over the raw room.</p>
-            </section>
-
-            <section class="md-block">
-              <pre class="frontmatter">---
-record_id: ai-risk-engine-events
-kind: article
-source_time: 00:15:45-01:00:31
----</pre>
-              <h2>Prediction markets become an AI hedging surface</h2>
-              <p>The first project turned a portfolio into a graph of event exposure. The agent scanned positions, inferred risks like supply chain, regulation, politics, and geopolitics, then proposed prediction-market events as hedges.</p>
-              <ul>
-                <li><span>The useful interface was not "ask AI about markets." It was a control panel where the operator could inspect risk factors, remove events, change weights, and route execution.</span></li>
-                <li><span>The product question is whether prediction markets are faster or richer signal than public markets for risks traditional assets do not price cleanly.</span></li>
-                <li><span>The AI/LLM angle is event selection plus explanation, not autonomous trading alone.</span></li>
-              </ul>
-              <div class="tag-line"><span>LLM reasoning</span><span>portfolio hedging</span><span>RFQ</span><span>event markets</span></div>
-            </section>
-
-            <section class="md-block">
-              <pre class="frontmatter">---
-record_id: feedling-notification-loop
-kind: article
-source_time: 01:14:21-01:37:11
----</pre>
-              <h2>Notifications are the output layer of the agent</h2>
-              <p>Feedling described a person as a black box. Screen history is the input. Notifications are the output. The metric is what the person does downstream after the nudge.</p>
-              <p>This is a sharper framing than a generic assistant. It makes the system accountable to behavior, not chat satisfaction.</p>
-              <div class="pull">The hard missing event is the notification that should have happened but did not. That is the implicit failure mode the product has to learn to see.</div>
-              <div class="tag-line"><span>personal ai</span><span>screen memory</span><span>agent feedback</span><span>attention</span></div>
-            </section>
-
-            <section class="md-block">
-              <pre class="frontmatter">---
-record_id: private-context-is-substrate
-kind: article
-source_time: 01:31:49-01:33:12
----</pre>
-              <h2>Private context is not a settings page</h2>
-              <p>The more useful the agent becomes, the more sensitive the context it wants. That means privacy is not a feature label. It is the substrate: local capture, encrypted memory, shared private data, approved deployments, and attestation when code changes.</p>
-              <ul>
-                <li><span>If the model watches screens, users need a legible policy for what leaves the device.</span></li>
-                <li><span>If remote compute touches private data, users need proof about the code that is running.</span></li>
-                <li><span>If teammates search each other's synthesized skills, the permission model becomes the product.</span></li>
-              </ul>
-              <div class="tag-line"><span>TEE</span><span>attestation</span><span>encrypted memory</span><span>private agents</span></div>
-            </section>
-
-            <section class="md-block">
-              <pre class="frontmatter">---
-record_id: spatial-imagination-room
-kind: article
-source_time: 02:11:46-02:58:10
----</pre>
-              <h2>The room can answer back</h2>
-              <p>Ethereia, Q, Easel, and shader tools made the room feel like an interface. Speech became visuals. Recording became visible. Conversation became something the group could inspect, steer, and feel together.</p>
-              <p>The important claim is not that visuals are entertaining. It is that spatial AI can change attention and presence when the system responds to the room without taking everyone out of it.</p>
-              <ul>
-                <li><span>Q is the timing layer: when to pass, interrupt, reset, update, or hold a scene.</span></li>
-                <li><span>Easel is the composition layer: stack media, shaders, projection maps, and timelines.</span></li>
-                <li><span>The operator still needs knobs, because room energy changes faster than a static prompt.</span></li>
-              </ul>
-              <div class="tag-line"><span>spatial computing</span><span>conversation visualizer</span><span>generative stage</span><span>LLM tool calling</span></div>
-            </section>
-
-            <section class="md-block">
-              <pre class="frontmatter">---
-record_id: founder-lesson-artsy
-kind: article
-source_time: 04:20:02-04:41:31
----</pre>
-              <h2>Do not confuse an elegant technical problem with a market</h2>
-              <p>Carter's Artsy story is useful because it does not flatten the founder journey into either heroics or cynicism. The original art recommendation idea had taste and technical depth, but the company still had to fight through supply, trust, pricing, entrenched behavior, and the simple question of who pays.</p>
-              <div class="pull">For this cohort, the warning is direct: building a beautiful solution is not the same as finding a painful problem.</div>
-              <div class="tag-line"><span>founder lessons</span><span>customer pain</span><span>market pull</span><span>mission</span></div>
-            </section>
-          </div>
-        </div>
-      </article>
-
-      <aside class="panel">
-        <div class="panel-title">
-          <span>// INDEX</span>
-          <span>MECHANISMS</span>
-        </div>
-        <div class="index-list">
-          <div class="index-row"><span>01 / taste</span><strong>Interface opinion</strong><p>Does the AI output have a shape, or is it just model text?</p></div>
-          <div class="index-row"><span>02 / trust</span><strong>Proof boundary</strong><p>What private context is needed, and who can inspect the policy?</p></div>
-          <div class="index-row"><span>03 / timing</span><strong>Right moment</strong><p>When should the agent interrupt, wait, route, or update?</p></div>
-          <div class="index-row"><span>04 / override</span><strong>Human knobs</strong><p>Where can the operator change the system before it acts?</p></div>
-          <div class="index-row"><span>seo / ai</span><strong>LLM crawl surface</strong><p>Public notes for AI agents, LLM interfaces, spatial computing, and founder operating systems.</p></div>
-        </div>
-      </aside>
+    <section class="hero" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">Shape Rotator Journal</p>
+        <h1 id="page-title">Articles for people and LLMs</h1>
+        <p class="lede">A simple blog index for Shape Rotator writing. Public content v0.0.1 ships readable article pages plus raw Markdown versions for copying, exporting, and model retrieval.</p>
+      </div>
+      <div class="actions" aria-label="journal actions">
+        <button class="button" type="button" data-copy-index>[ COPY INDEX MD ]</button>
+        <a class="button" href="/workspace/journal/index.md">[ RAW INDEX ]</a>
+        <a class="button" href="/workspace/journal/llms.txt">[ LLM LIST ]</a>
+        <span class="copy-status" data-copy-status aria-live="polite"></span>
+      </div>
     </section>
+
+    <nav class="topics" aria-label="topics">
+      <a class="chip" href="#ai-agents">AI agents</a>
+      <a class="chip" href="#private-ai">Private AI</a>
+      <a class="chip" href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">Workflow memory</a>
+      <a class="chip" href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">Human override</a>
+    </nav>
+
+    <section class="intro" aria-labelledby="synthesis-title">
+      <p class="meta">Synthesis</p>
+      <div class="intro-copy">
+        <div>
+          <p class="eyebrow">Shape Rotator - Full Context Synthesis</p>
+          <h2 id="synthesis-title">Meta theme across the entire cohort</h2>
+        </div>
+        <p>The dominant hidden theme across almost every project is not simply AI apps, TEEs, or agent tooling. The deeper recurring layer is coordination under partial trust.</p>
+        <div class="mechanism-list" aria-label="recurring mechanisms">
+          <span class="tag">coordination under partial trust</span>
+          <span class="tag">preserving agency while increasing automation</span>
+          <span class="tag">routing information safely</span>
+          <span class="tag">memory persistence</span>
+          <span class="tag">local-first systems</span>
+          <span class="tag">sovereign systems</span>
+          <span class="tag">human-agent collaboration</span>
+          <span class="tag">reducing invisible coordination overhead</span>
+          <span class="tag">collaboration without full disclosure</span>
+          <span class="tag">context fragmentation</span>
+          <span class="tag">making invisible work legible</span>
+          <span class="tag">privacy-preserving intelligence</span>
+        </div>
+        <p class="question">How do humans, agents, workflows, and organizations coordinate effectively when context, trust, privacy, and memory are all fragmented?</p>
+        <div class="project-list" aria-label="cohort project references">
+          <span class="tag">TinyCloud</span>
+          <span class="tag">TSQL</span>
+          <span class="tag">Conclave</span>
+          <span class="tag">Router</span>
+          <span class="tag">Smithers</span>
+          <span class="tag">SignalSext</span>
+          <span class="tag">anonymous credentials</span>
+          <span class="tag">workflow routing</span>
+          <span class="tag">AI orchestration</span>
+        </div>
+        <div class="topic-map" aria-label="article topic links">
+          <a href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">Memory persistence <small>article</small></a>
+          <a href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">Workflow routing <small>article</small></a>
+          <a href="/workspace/journal/articles/private-ai-capability/">Partial trust <small>article</small></a>
+          <a href="/workspace/journal/articles/private-ai-capability/">Privacy-preserving intelligence <small>article</small></a>
+          <span>TinyCloud <small>next link</small></span>
+          <span>TSQL <small>next link</small></span>
+          <span>Conclave <small>next link</small></span>
+          <span>Router <small>next link</small></span>
+          <span>Smithers <small>next link</small></span>
+          <span>SignalSext <small>next link</small></span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="latest-title">
+      <header class="section-head">
+        <p class="meta">Latest</p>
+        <h2 id="latest-title">Published articles</h2>
+      </header>
+
+      <div class="article-list">
+        <article class="article" id="ai-agents">
+          <time class="meta" datetime="2026-05-27">May 27</time>
+          <div class="article-main">
+            <h3 class="article-title"><a href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">Why LLM agents need memory, workflows, and social routing</a></h3>
+            <p class="article-summary">A practical article on why agentic systems need durable context, explicit work state, social routing, and a human override path.</p>
+          </div>
+          <div class="article-tools">
+            <div class="article-links">
+              <a href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">READ</a>
+              <a href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/article.md">MD</a>
+            </div>
+            <div class="tag-row" aria-label="tags">
+              <span class="tag">LLM agents</span>
+              <span class="tag">workflow memory</span>
+              <span class="tag">override</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="article" id="private-ai">
+          <time class="meta" datetime="2026-05-27">May 27</time>
+          <div class="article-main">
+            <h3 class="article-title"><a href="/workspace/journal/articles/private-ai-capability/">Privacy is not the product; capability is the product</a></h3>
+            <p class="article-summary">A short essay on private AI, sensitive context, trusted execution, and why privacy only matters when it unlocks useful work.</p>
+          </div>
+          <div class="article-tools">
+            <div class="article-links">
+              <a href="/workspace/journal/articles/private-ai-capability/">READ</a>
+              <a href="/workspace/journal/articles/private-ai-capability/article.md">MD</a>
+            </div>
+            <div class="tag-row" aria-label="tags">
+              <span class="tag">private AI</span>
+              <span class="tag">trust</span>
+              <span class="tag">capability</span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="llm-export" aria-labelledby="export-title">
+      <details>
+        <summary id="export-title">LLM export block</summary>
+        <textarea readonly data-index-export># Shape Rotator Journal
+
+Version: public content v0.0.1
+
+Use this as a compact retrieval index for Shape Rotator articles.
+
+## Full Context Synthesis
+
+The dominant hidden theme across almost every Shape Rotator cohort project is not simply AI apps, TEEs, or agent tooling.
+
+The deeper recurring layer is coordination under partial trust: preserving agency while increasing automation, routing information safely, memory persistence, local-first and sovereign systems, human-agent collaboration, reducing invisible coordination overhead, enabling collaboration without full disclosure, managing context fragmentation, making invisible work legible, and building privacy-preserving intelligence systems.
+
+The cohort is collectively exploring this question:
+
+How do humans, agents, workflows, and organizations coordinate effectively when context, trust, privacy, and memory are all fragmented?
+
+This appears across TinyCloud, TSQL, Conclave, Router, Smithers, SignalSext, anonymous credential systems, workflow routing systems, and AI orchestration systems.
+
+- Why LLM agents need memory, workflows, and social routing
+  - HTML: https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing
+  - Markdown: https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing/article.md
+  - Tags: LLM agents, AI workflow memory, agentic systems, human-in-the-loop AI, human override
+
+- Privacy is not the product; capability is the product
+  - HTML: https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability
+  - Markdown: https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability/article.md
+  - Tags: private AI, AI privacy, trusted execution environments, sensitive context, AI capability</textarea>
+      </details>
+    </section>
+
+    <footer class="footer">
+      <span>Shape Rotator OS</span>
+      <span><a href="/workspace">Workspace</a> / <a href="/links">Links</a> / <a href="https://github.com/dmarzzz/shape-rotator-os">Source</a></span>
+    </footer>
   </main>
+
+  <script>
+    const copyButton = document.querySelector('[data-copy-index]');
+    const copyStatus = document.querySelector('[data-copy-status]');
+    const exportText = document.querySelector('[data-index-export]');
+
+    copyButton.addEventListener('click', async () => {
+      const text = exportText.value.trim();
+      try {
+        await navigator.clipboard.writeText(`${text}\n`);
+        copyStatus.textContent = 'copied';
+      } catch (error) {
+        copyStatus.textContent = 'select text below';
+      }
+    });
+  </script>
 </body>
 </html>

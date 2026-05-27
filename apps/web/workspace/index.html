@@ -718,7 +718,7 @@
             () => ({ agent: 'EVENT',   action: `SCHED.${escapeHTML(pick(cohort.events))}` }),
             () => ({ agent: 'TEAM',    action: `HEARTBEAT.${escapeHTML(pick(cohort.teams))}` }),
             () => ({ agent: 'TEAM',    action: `PUSH.${escapeHTML(pick(cohort.teams))} → ${escapeHTML(pick(cohort.people))}` }),
-            () => ({ agent: 'JOURNAL', action: `<a class="op-link" href="/workspace/journal">PUBLISH_QUEUE: whimsy → workspace/journal</a>` }),
+            () => ({ agent: 'JOURNAL', action: `<a class="op-link" href="/workspace/journal">ARTICLE_QUEUE: draft → workspace/journal</a>` }),
             () => {
                 const c = pick(cohort.commits);
                 const who = c.handle ? linkifyHandle(c.handle) : escapeHTML(c.name);
