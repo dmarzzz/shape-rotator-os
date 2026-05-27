@@ -5053,8 +5053,55 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   text-transform: uppercase;
   flex-shrink: 0;
 }
-.net-peer-card .npc-live-tag.is-live { color: var(--accent); }
+.net-peer-card .npc-live-tag.is-live {
+  color: var(--c-success);
+  text-shadow: 0 0 7px rgba(110, 231, 183, 0.45);
+}
 .net-peer-card .npc-live-tag.is-idle { color: var(--ink-4); }
+
+/* Offline peers fold into a collapsed disclosure below the active list. */
+.net-peers-offline {
+  margin-top: 10px;
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  padding-top: 8px;
+}
+.net-peers-offline-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  padding: 6px 2px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  user-select: none;
+  transition: color 160ms ease;
+}
+.net-peers-offline-summary::-webkit-details-marker { display: none; }
+.net-peers-offline-summary:hover { color: var(--ink-2, #b8b3ad); }
+.net-peers-offline .npo-caret {
+  font-size: 9px;
+  display: inline-block;
+  transition: transform 160ms ease;
+}
+.net-peers-offline[open] .npo-caret { transform: rotate(90deg); }
+.net-peers-offline .npo-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-4);
+}
+.net-peers-offline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+/* Offline cards read dimmer than the active ones above. */
+.net-peers-offline-list .net-peer-card { opacity: 0.6; }
+.net-peers-offline-list .net-peer-card:hover { opacity: 1; }
 .net-peer-card .npc-pk {
   font-family: var(--font-mono);
   font-size: 10.5px;

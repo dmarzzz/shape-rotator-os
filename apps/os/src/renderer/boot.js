@@ -5482,7 +5482,7 @@ function drawLiveGraph(now) {
     const isSelf = key === "__self__";
     let baseR = isSelf ? 9 : 6;
     let color;
-    let alpha = 1.0;
+    let offline = false;
     if (isSelf) {
       color = "#FFFFFF";
       // Briefly brighten self when an "in" pulse just arrived
@@ -5496,8 +5496,9 @@ function drawLiveGraph(now) {
         const f = 1 - (now - pingTs) / 800;
         baseR += 3 * f;
       }
-      // Health: peer_unreachable / mdns_peer_disappeared dim the dot.
-      if (livegraphState.peerReachable.get(key) === false) alpha = 0.4;
+      // Online vs offline (same predicate as the peer list). Offline peers
+      // stay on the ring but render as a dim hollow node — present, dark.
+      offline = !netPeerStatus(key).online;
     }
     // Hover halo
     if (livegraphState.hoveredKey === key) baseR += 1.5;
@@ -5509,15 +5510,24 @@ function drawLiveGraph(now) {
       ctx.lineWidth = 1.2;
       ctx.stroke();
     }
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = isSelf ? 14 : 10;
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, baseR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1.0;
+    if (offline) {
+      // Hollow, glowless ring — visually distinct from the solid live dots.
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = "rgba(150, 152, 160, 0.85)";
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, baseR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+    } else {
+      ctx.fillStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = isSelf ? 14 : 10;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, baseR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
   }
 
   // Counter (non-canvas) — gentle update; the only DOM write per frame
@@ -7064,10 +7074,39 @@ function hostFromUrl(u) {
 // Kept in lockstep with the same data the popup peers panel reads from
 // (srwk.peers + srwk.nodes + srwk.liveSeen), so SSE updates render here
 // too via the existing renderPeersPanel call sites.
+
+// Liveness/reachability for a peer, by pubkey. Shared by the peer-list
+// cards, the active/offline partition, and the livegraph node styling so
+// "online vs offline" reads the same everywhere:
+//   live  — self, or sync/SSE activity in the last 60s
+//   stale — activity 60–180s ago
+//   idle  — no activity for 180s+
+//   down  — a health probe marked the peer unreachable
+// online = live | stale (recent activity); offline = idle | down.
+function netPeerStatus(pubkey) {
+  const isSelf = pubkey === srwk.selfPubkey;
+  const syncTs = _peerLastSeenByPubkey.get(pubkey);
+  const sseLiveTs = srwk.liveSeen.get(pubkey);
+  const lastMs = Math.max(syncTs || 0, sseLiveTs || 0);
+  const ageMs = lastMs ? (Date.now() - lastMs) : Infinity;
+  const reachable = _peerReachable.get(pubkey);
+  let statusClass, statusText;
+  if (isSelf) { statusClass = "is-live"; statusText = "live"; }
+  else if (reachable === false) { statusClass = "is-down"; statusText = "down"; }
+  else if (ageMs < 60_000) { statusClass = "is-live"; statusText = "live"; }
+  else if (ageMs < 180_000) { statusClass = "is-stale"; statusText = "stale"; }
+  else { statusClass = "is-idle"; statusText = "idle"; }
+  const online = statusClass === "is-live" || statusClass === "is-stale";
+  return { statusClass, statusText, online, lastMs, ageMs, isSelf };
+}
+
 function renderNetPeersList() {
   const list = document.getElementById("net-peers-list");
   const counter = document.getElementById("net-peers-count");
   if (!list) return;
+  // Preserve the offline dropdown's open state across re-renders (this runs
+  // on every SSE tick — without this, an opened dropdown would snap shut).
+  const wasOpen = !!list.querySelector(".net-peers-offline[open]");
   const peers = [...srwk.peers.values()];
   if (counter) counter.textContent = String(peers.length);
   list.innerHTML = "";
@@ -7084,17 +7123,51 @@ function renderNetPeersList() {
     if (!pk) continue;
     liveCounts.set(pk, (liveCounts.get(pk) || 0) + 1);
   }
-  peers.sort((a, b) => {
-    const aSelf = a.pubkey === srwk.selfPubkey ? 1 : 0;
-    const bSelf = b.pubkey === srwk.selfPubkey ? 1 : 0;
-    if (aSelf !== bSelf) return bSelf - aSelf;
-    const ap = liveCounts.get(a.pubkey) ?? a.page_count ?? 0;
-    const bp = liveCounts.get(b.pubkey) ?? b.page_count ?? 0;
-    if (ap !== bp) return bp - ap;
-    return (a.nickname || "").localeCompare(b.nickname || "");
-  });
+  const pageCount = (p) => liveCounts.get(p.pubkey) ?? p.page_count ?? 0;
+
+  // Partition: active (online) peers render up top; offline fold away below.
+  const active = [], offline = [];
+  for (const p of peers) {
+    const st = netPeerStatus(p.pubkey);
+    (st.online ? active : offline).push({ p, st });
+  }
+  // Active: self first, then live before stale, then by page count, then name.
+  const activeRank = (st) => st.isSelf ? 0 : st.statusClass === "is-live" ? 1 : 2;
+  active.sort((a, b) =>
+    activeRank(a.st) - activeRank(b.st)
+    || pageCount(b.p) - pageCount(a.p)
+    || (a.p.nickname || "").localeCompare(b.p.nickname || ""));
+  // Offline: most-recently-seen first, then page count, then name.
+  offline.sort((a, b) =>
+    (b.st.lastMs || 0) - (a.st.lastMs || 0)
+    || pageCount(b.p) - pageCount(a.p)
+    || (a.p.nickname || "").localeCompare(b.p.nickname || ""));
+
   const now = performance.now();
-  for (const p of peers) list.appendChild(buildNetPeerCard(p, now, liveCounts));
+  for (const { p } of active) list.appendChild(buildNetPeerCard(p, now, liveCounts));
+  if (active.length === 0) {
+    const note = document.createElement("div");
+    note.className = "net-peers-empty";
+    note.textContent = "no active peers right now.";
+    list.appendChild(note);
+  }
+  if (offline.length) {
+    const det = document.createElement("details");
+    det.className = "net-peers-offline";
+    det.open = wasOpen;
+    const sum = document.createElement("summary");
+    sum.className = "net-peers-offline-summary";
+    sum.innerHTML =
+      `<span class="npo-caret" aria-hidden="true">▸</span>` +
+      `<span class="npo-label">offline</span>` +
+      `<span class="npo-count">${offline.length}</span>`;
+    det.appendChild(sum);
+    const wrap = document.createElement("div");
+    wrap.className = "net-peers-offline-list";
+    for (const { p } of offline) wrap.appendChild(buildNetPeerCard(p, now, liveCounts));
+    det.appendChild(wrap);
+    list.appendChild(det);
+  }
 }
 
 function buildNetPeerCard(p, now, liveCounts) {
@@ -7129,32 +7202,10 @@ function buildNetPeerCard(p, now, liveCounts) {
   nick.textContent = p.nickname || `peer-${(p.pubkey || "").slice(0, 8)}`;
   head.appendChild(nick);
 
-  // Status: LIVE (sync activity in <60s) / STALE (60-180s) / IDLE (older).
-  // Self always reads LIVE since we are the source. Reachability from
-  // health events tags an unreachable peer DOWN.
-  const syncTs = _peerLastSeenByPubkey.get(p.pubkey);
-  const sseLiveTs = srwk.liveSeen.get(p.pubkey);
-  const lastMs = Math.max(syncTs || 0, sseLiveTs || 0);
-  const ageMs = lastMs ? (Date.now() - lastMs) : Infinity;
-  const reachable = _peerReachable.get(p.pubkey);
-  const isSelf = p.pubkey === srwk.selfPubkey;
-  let statusClass, statusText;
-  if (isSelf) {
-    statusClass = "is-live";
-    statusText = "live";
-  } else if (reachable === false) {
-    statusClass = "is-down";
-    statusText = "down";
-  } else if (ageMs < 60_000) {
-    statusClass = "is-live";
-    statusText = "live";
-  } else if (ageMs < 180_000) {
-    statusClass = "is-stale";
-    statusText = "stale";
-  } else {
-    statusClass = "is-idle";
-    statusText = "idle";
-  }
+  // Status (live / stale / idle / down) + last-seen come from the shared
+  // netPeerStatus() so the card, the active/offline split, and the livegraph
+  // all agree on who's online.
+  const { statusClass, statusText, lastMs } = netPeerStatus(p.pubkey);
   const liveTag = document.createElement("span");
   liveTag.className = `npc-live-tag ${statusClass}`;
   liveTag.textContent = statusText;
