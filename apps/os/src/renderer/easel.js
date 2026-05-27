@@ -1,7 +1,8 @@
 /* easel.js — the "easel" app: project a screen or window over NDI.
  *
- * Pick a capture source → "go live" → we draw each captured frame to a 720p
- * canvas and ship the RGBA pixels to the main process (apps/os/easel-ndi.js),
+ * Pick a capture source → "go live" → we draw each captured frame to a canvas
+ * at the source's native resolution (capped by the quality toggle: 1080p / 720p)
+ * and ship the RGBA pixels to the main process (apps/os/easel-ndi.js),
  * which broadcasts them as an NDI source on the LAN. Any NDI receiver — the
  * projector tonight, OBS, easel itself — can then pull the stream.
  *
@@ -13,9 +14,11 @@
 
 import { getIdentity } from "./identity.js";
 
-const TARGET_W = 1280;
-const TARGET_H = 720;
 const FPS = 30;
+// Output resolution adapts to the captured source, capped by the chosen
+// quality (even dimensions, downscale-only). "high" = up to 1080p (crisp on a
+// projector), "fast" = up to 720p (lighter IPC if 1080p janks).
+const QUALITY_CAP = { high: { w: 1920, h: 1080 }, fast: { w: 1280, h: 720 } };
 const PREFS_KEY = "srwk:easel:prefs";
 // macOS deep-link straight to the Screen Recording permission pane.
 const SCREEN_RECORDING_SETTINGS = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
@@ -35,6 +38,24 @@ let _canvas = null;
 let _ctx = null;
 let _pumpTimer = null;
 let _statsTimer = null;
+let _quality = "high";
+let _outW = 1280;
+let _outH = 720;
+
+// Output dims = source size scaled down to fit the quality cap, aspect kept,
+// rounded to even (some NDI receivers dislike odd dimensions).
+function computeOutputDims() {
+  const cap = QUALITY_CAP[_quality] || QUALITY_CAP.high;
+  const vw = _video && _video.videoWidth ? _video.videoWidth : cap.w;
+  const vh = _video && _video.videoHeight ? _video.videoHeight : cap.h;
+  const scale = Math.min(1, cap.w / vw, cap.h / vh);
+  return { w: Math.max(2, Math.round(vw * scale / 2) * 2), h: Math.max(2, Math.round(vh * scale / 2) * 2) };
+}
+function applyOutputDims() {
+  const d = computeOutputDims();
+  _outW = d.w; _outH = d.h;
+  if (_canvas) { _canvas.width = _outW; _canvas.height = _outH; }
+}
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -66,6 +87,7 @@ function renderShell() {
   const prefs = loadEaselPrefs();
   const id = getIdentity();
   const defaultName = esc(prefs.name || (id && id.display_name) || "Easel");
+  _quality = prefs.quality === "fast" ? "fast" : "high";
   _stage.innerHTML = `
     <div class="easel-app">
       <header class="easel-head">
@@ -77,7 +99,7 @@ function renderShell() {
       <div class="easel-body">
         <section class="easel-sources" data-easel-sources></section>
         <section class="easel-stagebox">
-          <canvas class="easel-canvas" width="${TARGET_W}" height="${TARGET_H}" data-easel-canvas></canvas>
+          <canvas class="easel-canvas" width="1280" height="720" data-easel-canvas></canvas>
           <div class="easel-overlay" data-easel-overlay>select a source to preview</div>
         </section>
       </div>
@@ -86,6 +108,10 @@ function renderShell() {
           <span>NDI name</span>
           <input type="text" data-easel-name value="${defaultName}" maxlength="48" spellcheck="false" />
         </label>
+        <div class="easel-quality" role="group" aria-label="output quality">
+          <button class="easel-q-btn" type="button" data-quality="high" aria-selected="${_quality === "high"}">1080p</button>
+          <button class="easel-q-btn" type="button" data-quality="fast" aria-selected="${_quality === "fast"}">720p</button>
+        </div>
         <button class="easel-go" type="button" data-easel-go disabled>go live</button>
         <div class="easel-status" data-easel-status></div>
       </footer>
@@ -99,7 +125,16 @@ function renderShell() {
   _video.muted = true; _video.playsInline = true;
 
   _stage.querySelector("[data-easel-go]").addEventListener("click", () => (_live ? stopLive() : goLive()));
+  _stage.querySelectorAll(".easel-q-btn").forEach((b) => b.addEventListener("click", () => setQuality(b.getAttribute("data-quality"))));
   refreshStatus(null);
+}
+
+function setQuality(q) {
+  if (q !== "high" && q !== "fast") return;
+  _quality = q;
+  saveEaselPrefs({ ...loadEaselPrefs(), quality: q });
+  _stage.querySelectorAll(".easel-q-btn").forEach((b) => b.setAttribute("aria-selected", String(b.getAttribute("data-quality") === q)));
+  if (_live) applyOutputDims(); // re-size the live stream on the fly
 }
 
 async function loadSources() {
@@ -147,13 +182,15 @@ function selectSource(id) {
   }
 }
 
+// Preview only (pre-live): letterbox a thumbnail into the current canvas.
 function drawContain(source, sw, sh) {
+  const W = _canvas.width, H = _canvas.height;
   _ctx.fillStyle = "#0c0b10";
-  _ctx.fillRect(0, 0, TARGET_W, TARGET_H);
+  _ctx.fillRect(0, 0, W, H);
   if (!sw || !sh) return;
-  const scale = Math.min(TARGET_W / sw, TARGET_H / sh);
+  const scale = Math.min(W / sw, H / sh);
   const dw = sw * scale, dh = sh * scale;
-  _ctx.drawImage(source, (TARGET_W - dw) / 2, (TARGET_H - dh) / 2, dw, dh);
+  _ctx.drawImage(source, (W - dw) / 2, (H - dh) / 2, dw, dh);
 }
 
 async function goLive() {
@@ -185,6 +222,13 @@ async function goLive() {
   const track = _stream.getVideoTracks()[0];
   if (track) track.addEventListener("ended", () => stopLive());
 
+  // Size the output to the source's native resolution (capped by quality) so
+  // the projection is crisp, instead of a fixed 720p downscale.
+  if (!_video.videoWidth) {
+    await new Promise((r) => { _video.addEventListener("loadedmetadata", r, { once: true }); setTimeout(r, 1500); });
+  }
+  applyOutputDims();
+
   _live = true;
   saveEaselPrefs({ ...loadEaselPrefs(), name, sourceId: _selectedId });
   const ov = _stage.querySelector("[data-easel-overlay]");
@@ -211,10 +255,11 @@ async function stopLive() {
 async function pump() {
   if (!_live || !_ctx || !_video) return;
   const t0 = performance.now();
-  if (_video.videoWidth) drawContain(_video, _video.videoWidth, _video.videoHeight);
+  // Canvas matches the source aspect, so draw the full frame (no letterbox).
+  if (_video.videoWidth) _ctx.drawImage(_video, 0, 0, _outW, _outH);
   let img = null;
-  try { img = _ctx.getImageData(0, 0, TARGET_W, TARGET_H); } catch { /* shouldn't taint on local capture */ }
-  if (img) await safe(() => window.api.easel.frame({ width: TARGET_W, height: TARGET_H, data: img.data }));
+  try { img = _ctx.getImageData(0, 0, _outW, _outH); } catch { /* shouldn't taint on local capture */ }
+  if (img) await safe(() => window.api.easel.frame({ width: _outW, height: _outH, data: img.data }));
   if (!_live) return;
   const elapsed = performance.now() - t0;
   _pumpTimer = setTimeout(pump, Math.max(0, 1000 / FPS - elapsed));
