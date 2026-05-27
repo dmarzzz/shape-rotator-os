@@ -5980,6 +5980,10 @@ function wireTabs() {
     if (!btn) return;
     const t = btn.dataset.tab;
     if (!TOP_TABS.has(t)) return;
+    if (t === "alchemy" && document.body.dataset.activeTab === "alchemy") {
+      if (Alchemy.toggleMembraneMenuFromTopTab()) return;
+    }
+    Alchemy.closeMembraneMenu();
     morphActiveTab(t, () => applyActiveTab(t));
     try { localStorage.setItem(TAB_LS_KEY, t); } catch {}
   });
@@ -6258,6 +6262,7 @@ function registerVisualizerShortcutsAndCommands() {
 
 function applyActiveTab(tab) {
   if (!TOP_TABS.has(tab)) tab = "alchemy";
+  if (tab !== "alchemy") Alchemy.closeMembraneMenu();
   document.body.dataset.activeTab = tab;
   for (const btn of document.querySelectorAll("#tab-bar .tab-btn")) {
     btn.setAttribute("aria-selected", btn.dataset.tab === tab ? "true" : "false");

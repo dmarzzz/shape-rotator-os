@@ -26,8 +26,13 @@
 }
 
 .membrane-host {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
   background: #000000;
   color: var(--membrane-mist);
   overflow: hidden;
@@ -885,9 +890,8 @@
 }
 
 /* When membrane mode is active, hide the alchemy header + grain + decorative
-   chrome so the void breathes. The rail stays visible (it's the way back to
-   the 7 legacy modes during the M1/M2 dev preview); style it quieter via
-   data-alch-mode-current="membrane" if needed. */
+   chrome so the void breathes. The legacy rail becomes a hidden shell menu
+   summoned from the active "operating system" tab. */
 .alchemy-view[data-alch-mode-current="membrane"] .alchemy-header {
   display: none;
 }
@@ -895,24 +899,88 @@
   display: none;
 }
 .alchemy-view[data-alch-mode-current="membrane"] .alchemy-stage {
+  display: block;
+  isolation: isolate;
   background: var(--membrane-void);
 }
 .alchemy-view[data-alch-mode-current="membrane"] .alchemy-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
   background: var(--membrane-void);
 }
-/* Quiet the rail in membrane mode — it's a way out, not the main nav. */
+
+/* In membrane mode the rail becomes a temporary shell menu. Re-click the
+   active "operating system" top tab to summon it; choose a route or click
+   the void/Escape to dismiss it. */
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  opacity: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.48) 0%, rgba(0, 0, 0, 0.22) 38%, rgba(0, 0, 0, 0.00) 72%);
+  transition: opacity 220ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+.alchemy-view[data-alch-mode-current="membrane"][data-alch-menu="open"] .alchemy-stage::after {
+  opacity: 1;
+  pointer-events: auto;
+}
 .alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail {
-  background: transparent;
-  border-right: 1px solid rgba(200, 203, 214, 0.06);
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  width: min(320px, calc(100% - 48px)) !important;
+  flex: none !important;
+  padding: 34px 20px 30px 28px !important;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-104%);
+  background:
+    linear-gradient(180deg, rgba(8, 8, 10, 0.90) 0%, rgba(0, 0, 0, 0.76) 100%);
+  border-right: 1px solid rgba(255, 122, 61, 0.18);
+  box-shadow:
+    inset -1px 0 0 rgba(241, 236, 231, 0.04),
+    22px 0 70px -22px rgba(255, 122, 61, 0.42),
+    36px 0 90px -30px rgba(0, 0, 0, 0.90);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  transition:
+    visibility 0s linear 260ms,
+    transform 260ms cubic-bezier(0.65, 0, 0.05, 1),
+    opacity 180ms ease;
+}
+.alchemy-view[data-alch-mode-current="membrane"][data-alch-menu="open"] .alchemy-rail {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+  transition-delay: 0s, 0s, 0s;
 }
 .alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail-btn {
-  color: rgba(200, 203, 214, 0.45);
+  color: rgba(241, 236, 231, 0.58);
 }
 .alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail-btn[aria-selected="true"] {
   color: var(--membrane-mist);
 }
 .alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail-btn .ar-num {
-  color: rgba(200, 203, 214, 0.3);
+  color: rgba(255, 122, 61, 0.42);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alchemy-view[data-alch-mode-current="membrane"] .alchemy-stage::after,
+  .alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail {
+    transition: none;
+  }
 }
 
 /* Small floating mode pill — lets the user toggle back to legacy view

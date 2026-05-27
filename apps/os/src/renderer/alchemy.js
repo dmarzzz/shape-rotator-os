@@ -94,6 +94,7 @@ const state = {
   canvas: null,
   rail: null,
   mode: "membrane",  // default rail landing — membrane is the 2026-05 redesign
+  menuOpen: false,   // membrane-only rail overlay, toggled from the top OS tab
   membraneController: null,  // active membrane scene controller (mounted lazily on first membrane render)
   shapesKindFilter: "works",  // "works" (teams + projects) | "people"
   shapesMembershipFilter: "cohort",  // works: "cohort" | "visiting" | "all";
@@ -167,6 +168,10 @@ export function mount(container) {
   } catch {}
   loadProfile();
   loadEventsCache();
+  if (state.container) {
+    state.container.dataset.alchModeCurrent = state.mode;
+    syncMembraneMenuChrome();
+  }
   // feed-off (2026-05): the feed surface is unwired pending the teleport-
   // router integration that will replace GH-fork scraping with a single
   // routed activity stream. Until then we don't fire the periodic refresh
@@ -187,6 +192,7 @@ export function mount(container) {
     btn.addEventListener("click", () => {
       const next = btn.dataset.alchMode;
       if (!next) return;
+      if (state.mode === "membrane") setMembraneMenuOpen(false);
       // Clicking any rail mode also exits the detail page if it's open.
       const wasDetail = !!state.detailRecordId;
       if (next === state.mode && !wasDetail) return;
@@ -201,6 +207,18 @@ export function mount(container) {
       render();
     });
   }
+  document.addEventListener("click", (e) => {
+    if (!isMembraneShellOpen()) return;
+    if (e.target.closest(".alchemy-rail")) return;
+    if (e.target.closest('#tab-bar .tab-btn[data-tab="alchemy"]')) return;
+    setMembraneMenuOpen(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isMembraneShellOpen()) {
+      e.preventDefault();
+      setMembraneMenuOpen(false);
+    }
+  });
   syncRailSelection();
   loadCohort().then(render).catch(err => {
     console.error("[alchemy] cohort load failed:", err);
@@ -287,12 +305,49 @@ function syncRailSelection() {
   }
 }
 
+function isMembraneHome() {
+  return state.mode === "membrane" && !state.detailRecordId;
+}
+
+function isMembraneShellOpen() {
+  return !!(state.mounted && state.container && isMembraneHome() && state.menuOpen);
+}
+
+function syncMembraneMenuChrome() {
+  if (!state.container) return;
+  const open = isMembraneHome() && state.menuOpen;
+  state.container.dataset.alchMenu = open ? "open" : "closed";
+  const tab = document.querySelector('#tab-bar .tab-btn[data-tab="alchemy"]');
+  if (tab) {
+    tab.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+}
+
+function setMembraneMenuOpen(open) {
+  state.menuOpen = isMembraneHome() ? !!open : false;
+  syncMembraneMenuChrome();
+}
+
+export function toggleMembraneMenuFromTopTab() {
+  if (!state.container || !isMembraneHome()) return false;
+  setMembraneMenuOpen(!state.menuOpen);
+  return true;
+}
+
+export function closeMembraneMenu() {
+  if (!state.container || !state.menuOpen) return false;
+  setMembraneMenuOpen(false);
+  return true;
+}
+
 function render() {
   if (!state.canvas || !state.cohort) return;
   // Reflect current mode on the alchemy-view container so scoped CSS
   // (membrane.css especially) can target the right surface.
   if (state.container) {
     state.container.dataset.alchModeCurrent = state.mode;
+    if (!isMembraneHome()) state.menuOpen = false;
+    syncMembraneMenuChrome();
   }
   // Cross-fade: leave → swap → enter. Total ~440ms.
   const canvas = state.canvas;
