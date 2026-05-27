@@ -109,7 +109,7 @@ function readSchema() {
   return yaml.load(fs.readFileSync(p, "utf8"));
 }
 function parseMarkdown(file) {
-  const raw = fs.readFileSync(file, "utf8");
+  const raw = fs.readFileSync(file, "utf8").replace(/\r\n?/g, "\n");
   const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(raw);
   if (!m) return { frontmatter: null, body: raw };
   let fm;

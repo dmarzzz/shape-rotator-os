@@ -262,10 +262,11 @@ async function fetchRaw(repoPath) {
 }
 
 function parseMarkdown(text) {
-  const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text);
-  if (!m) return { frontmatter: null, body: text };
+  const normalized = String(text || "").replace(/\r\n?/g, "\n");
+  const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(normalized);
+  if (!m) return { frontmatter: null, body: normalized };
   try { return { frontmatter: yaml.load(m[1]), body: m[2] }; }
-  catch { return { frontmatter: null, body: text }; }
+  catch { return { frontmatter: null, body: normalized }; }
 }
 
 function pickSurface(obj, whitelist) {
