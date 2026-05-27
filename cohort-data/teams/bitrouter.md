@@ -41,6 +41,13 @@ seeking:
 offering:
   - workshop on agentic payment with x402/MPP
   - dogfooding partnership with other cohort tools
+making_signature:
+  built_domain: [systems]
+  shape: deep
+  shared_primitives:
+    - agent runtime / orchestration
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

@@ -23,6 +23,11 @@ links:
 paper_basis: null
 traction: UWaterloo CS · Dayforce ML Engineer (7M+ users)
 hackathon_note: null
+making_signature:
+  built_domain: [data]
+  shape: deep
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

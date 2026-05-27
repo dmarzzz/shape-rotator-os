@@ -61,6 +61,13 @@ journey:
   solution: dual-agent attestation layer (Intel DCAP) with on-chain escrow and a standalone open-source library
   evidence_notes: working DCAP prototype with 56 passing tests; Bradford Quantum Hackathon 2025 winner; validated in demos but no external integrators yet
   next_milestone: get one cohort team to integrate the dual-attestation contract layer in production
+making_signature:
+  built_domain: [data]
+  shape: broad
+  shared_primitives:
+    - TEE attestation
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

@@ -42,6 +42,13 @@ seeking:
 offering:
   - live demo sessions on jjhub + Smithers integration
   - EVM internals + agentic-workflow consultation
+making_signature:
+  built_domain: [agentic, systems]
+  shape: deep
+  shared_primitives:
+    - agent runtime / orchestration
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

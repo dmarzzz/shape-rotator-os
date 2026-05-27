@@ -41,6 +41,13 @@ seeking:
 offering:
   - live demo-day visuals for cohort teams (voice → transcript → stage)
   - design + storytelling consultation
+making_signature:
+  built_domain: [data]
+  shape: deep
+  shared_primitives:
+    - agent runtime / orchestration
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

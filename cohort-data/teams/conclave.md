@@ -57,6 +57,11 @@ journey:
   solution: a modular, open-source skills framework (LangGraph + Phala + Base) factored for reuse
   evidence_notes: ~3.5k LOC hackathon submission plus two end-to-end skills; talking to cohort teams about adoption but no committed users yet
   next_milestone: land the framework as a dependency in at least one other cohort project
+making_signature:
+  built_domain: [data]
+  shape: deep
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

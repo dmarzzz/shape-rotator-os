@@ -48,6 +48,14 @@ seeking:
 offering:
   - tinycloud-secrets for cohort teams (scoped credential delegation for agents)
   - cryptographic engineering pair on threshold + proxy re-encryption
+making_signature:
+  built_domain: [agentic, systems]
+  shape: broad
+  shared_primitives:
+    - TEE attestation
+    - verifiable crypto identity
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

@@ -45,6 +45,15 @@ offering:
   - free TeeSQL service to cohort teams during the accelerator
   - open-source connection-layer attestation code
   - CVM provider market analysis sharing
+making_signature:
+  built_domain: [systems, agentic]
+  shape: broad
+  shared_primitives:
+    - TEE attestation
+    - consensus / BFT
+    - zk / proof systems
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

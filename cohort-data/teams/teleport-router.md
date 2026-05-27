@@ -23,6 +23,13 @@ links:
 paper_basis: null
 traction: null
 hackathon_note: null
+making_signature:
+  built_domain: [agentic]
+  shape: broad
+  shared_primitives:
+    - zk / proof systems
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

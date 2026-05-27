@@ -43,6 +43,14 @@ seeking:
 offering:
   - workshop on long-running agents (OpenClaw context-collapse patterns)
   - agent instrumentation + context monitoring tooling for cohort
+making_signature:
+  built_domain: [agentic]
+  shape: deep
+  shared_primitives:
+    - consensus / BFT
+    - verifiable crypto identity
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about
