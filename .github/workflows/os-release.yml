@@ -88,6 +88,9 @@ jobs:
         shell: bash
         run: rm -rf node_modules/@stagetimerio/grandiose apps/os/node_modules/@stagetimerio/grandiose
 
+      - name: check OS packaging manifest
+        run: npm run check:packaging --workspace @shape-rotator/os
+
       # Pull the bundled swf-node binary from the latest upstream release
       # (dmarzzz/searxng-wth-frnds). The asset lands at
       # apps/os/build-resources/swf-node/<binary> so electron-builder's

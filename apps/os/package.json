@@ -19,7 +19,8 @@
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
     "dist:all": "electron-builder -mwl",
-    "pack": "electron-builder --dir"
+    "pack": "electron-builder --dir",
+    "check:packaging": "node scripts/check-packaging-files.js"
   },
   "dependencies": {
     "@cosmos.gl/graph": "^2.6.4",
@@ -42,10 +43,7 @@
     "nodeGypRebuild": false,
     "buildDependenciesFromSource": false,
     "files": [
-      "main.js",
-      "preload.js",
-      "swarm-node.js",
-      "swf-node.js",
+      "*.js",
       "src/**/*",
       "package.json"
     ],
