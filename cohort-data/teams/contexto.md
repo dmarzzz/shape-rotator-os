@@ -17,6 +17,7 @@ links:
   x: null
   website: https://getcontexto.com
   demo: https://youtu.be/c2trhxEE9X4
+  repo: https://github.com/amiller/contexto
 paper_basis:
   - NDAI Agreements (conceptual alignment)
 traction: Prototype shipped · Shashank PhD Toronto · 237+ citations on PoS decentralization

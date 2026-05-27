@@ -13,7 +13,7 @@ domain: tee
 shape: hex
 is_mentor: false
 links:
-  github: null
+  github: TinyCloudLabs
   x: null
   website: https://tinycloud.xyz
   deck: https://tinycloud.xyz/deck

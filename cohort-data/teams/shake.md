@@ -11,7 +11,8 @@ geo: "NYC"
 domain: app-ux
 shape: null
 is_mentor: false
-links: {}
+links:
+  website: https://quasimatt.com
 paper_basis: null
 traction: "150+ users, pre-monetization"
 hackathon_note: null
@@ -19,4 +20,4 @@ hackathon_note: null
 
 ## about
 
-(project description — what it does, who it's for, current state)
+A consumer social app that connects people when they physically shake their phones together — turning a shared gesture into a connection. iOS (Shake Social).

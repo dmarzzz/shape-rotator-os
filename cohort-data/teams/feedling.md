@@ -20,4 +20,4 @@ links:
 
 ## about
 
-(public surface — details to be filled in)
+Information-diet interventions for short-form video. Uses TEE-delegated access to a person's watch history to reshape what their feed serves — putting the user, not the platform, in control of their information diet.

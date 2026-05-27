@@ -26,4 +26,4 @@ hackathon_note: null
 
 ## about
 
-(public surface — details to be filled in)
+Trustless trusted-execution. Addresses the trust-root problem that confidential-compute systems inherit — the hardware vendor's signing key — rather than treating it as a given.

@@ -16,6 +16,7 @@ links:
   github: null
   x: null
   website: http://www.withetherea.com
+  repo: https://github.com/jameslbarnes/etherea-ai
 paper_basis: null
 traction: Hardware in NYC creative spaces · exhibited at Anthropic HQ · Florent residency
 now: prepping a live-stage demo with cohort voice/transcript input

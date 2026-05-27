@@ -17,6 +17,7 @@ links:
   x: null
   website: https://jjhub.tech
   alt: https://smithers.sh
+  repo: https://github.com/roninjin10/smithers
 paper_basis: null
 traction: EF grant for Tevm (441 stars) · Smithers featured on HN · Guillotine (Zig EVM) 168 stars
 now: shipping cohort onboarding for jjhub + smithers

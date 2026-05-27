@@ -27,4 +27,4 @@ hackathon_note: null
 
 ## about
 
-(public surface — targeting academic medical centers)
+TEE-enabled medical data sharing — confidential compute for exchanging sensitive medical data across stronger trust boundaries, so the data can be used without being exposed.

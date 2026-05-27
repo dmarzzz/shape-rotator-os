@@ -13,7 +13,7 @@ domain: ai
 shape: prism
 is_mentor: false
 links:
-  github: null
+  github: bitrouter
   x: null
   website: https://bitrouter.ai/
 paper_basis:

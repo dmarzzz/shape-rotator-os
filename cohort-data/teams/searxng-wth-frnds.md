@@ -27,4 +27,4 @@ hackathon_note: null
 
 ## about
 
-(public surface — details to be filled in)
+A LAN-first peer search daemon — local-first, privacy-by-default search shared across a local network of trusted peers. Built on the SearXNG metasearch engine.
