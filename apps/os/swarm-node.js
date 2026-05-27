@@ -129,13 +129,14 @@ function start({ requestId, query, lmModel, lmApiKey, lmApiBase, parallel, worke
   child.on("exit", (code, signal) => {
     process.stderr.write(`[swarm] exited code=${code} signal=${signal}\n`);
     const wasOurs = _current && _current.child === child;
+    const startedAt = wasOurs ? _current.startedAt : Date.now();
     if (wasOurs) _current = null;
     emitStatus({
       state: "idle",
       requestId,
       exitCode: code,
       signal,
-      durationMs: Date.now() - (wasOurs && _current ? _current.startedAt : Date.now()),
+      durationMs: Date.now() - startedAt,
     });
   });
   return { ok: true, requestId };
