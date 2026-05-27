@@ -35,7 +35,7 @@ function readSchema() {
 // { frontmatter, body } — frontmatter is null if the file has no
 // frontmatter block.
 function parseMarkdown(file) {
-  const raw = fs.readFileSync(file, "utf8");
+  const raw = fs.readFileSync(file, "utf8").replace(/\r\n?/g, "\n");
   const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(raw);
   if (!m) return { frontmatter: null, body: raw };
   let frontmatter;
