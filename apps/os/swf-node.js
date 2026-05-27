@@ -461,6 +461,32 @@ function stop() {
   });
 }
 
+/**
+ * Re-check and (re)spawn the daemon if it isn't currently up. Unlike
+ * start(), this recovers from `crashed` / `unsupported` / `idle` — the
+ * supervisor otherwise gives up forever after RESTART_LIMIT and start()
+ * refuses to run unless idle, so an app left running with a dead backend
+ * never heals on its own. Triggered on window focus/activate and via the
+ * renderer's explicit "restart backend" path.
+ *
+ * The motivating case: an in-place update swaps the .app out from under a
+ * running process (unsigned-mac manual install). If the app was launched
+ * mid-swap the binary was briefly missing → `unsupported`, and nothing
+ * ever retried. Re-resolving the binary here picks it up once it lands.
+ *
+ * No-op when a child is alive or a spawn is already in flight.
+ * @returns {boolean} true if a (re)start was kicked off.
+ */
+function restart(app, broadcaster) {
+  if (_proc || _state === "starting" || _state === "running") return false;
+  if (broadcaster) _broadcaster = broadcaster;
+  _expectQuit = false;
+  _restartCount = 0;
+  _state = "idle";   // clear crashed/unsupported so start()'s guard passes
+  start(app, _broadcaster);
+  return _state === "starting" || _state === "running";
+}
+
 function getStatus() {
   return _state;
 }
@@ -473,4 +499,4 @@ function getAgentToken() {
   return _agentToken;
 }
 
-module.exports = { start, stop, getStatus, getAgentToken };
+module.exports = { start, restart, stop, getStatus, getAgentToken };
