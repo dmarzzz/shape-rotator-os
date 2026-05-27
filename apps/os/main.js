@@ -251,7 +251,34 @@ function broadcastSwfNodeStatus(state) {
   }
 }
 
+// Self-heal the daemon: if the app is running but the backend is down
+// (crashed, or `unsupported` because the binary was briefly missing during
+// an in-place update), re-check + respawn when the user comes back to the
+// app. Debounced so a genuinely-missing binary isn't hammered on every
+// focus event. The supervisor itself gives up after RESTART_LIMIT, so
+// without this an app left open with a dead daemon never recovers.
+let _lastDaemonRecheck = 0;
+function recheckDaemon() {
+  const st = swfNode.getStatus();
+  if (st === "running" || st === "starting") return;
+  const now = Date.now();
+  if (now - _lastDaemonRecheck < 10_000) return;
+  _lastDaemonRecheck = now;
+  if (swfNode.restart(app, broadcastSwfNodeStatus)) {
+    process.stderr.write("[viz:log] backend was down on focus/activate — respawning swf-node\n");
+  }
+}
+
 ipcMain.handle("fg:swf-node-status", async () => swfNode.getStatus());
+
+// Explicit "restart the backend" — wired to the network tab's down-state
+// affordance. Bypasses the focus-recheck debounce so a deliberate click
+// always tries. Returns whether a spawn was kicked off + the new status.
+ipcMain.handle("fg:swf-node-restart", async () => {
+  _lastDaemonRecheck = Date.now();
+  const started = swfNode.restart(app, broadcastSwfNodeStatus);
+  return { ok: started, status: swfNode.getStatus() };
+});
 
 // Renderer asks for the agent bearer token here so sync-client.js can
 // authenticate against POST /sync/local_record. swf-node.js generates +
@@ -759,7 +786,11 @@ app.whenReady().then(() => {
   swfNode.start(app, broadcastSwfNodeStatus);
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    recheckDaemon();
   });
+  // Coming back to the window re-checks the backend — the main recovery
+  // path after an in-place update that left the daemon down.
+  app.on("browser-window-focus", () => recheckDaemon());
 });
 
 // Gracefully stop the bundled swf-node on quit. We use before-quit

@@ -34,6 +34,9 @@ contextBridge.exposeInMainWorld("api", {
   // running | crashed | unsupported). The returned function detaches
   // the listener — call it on unmount.
   getSwfNodeStatus: () => ipcRenderer.invoke("fg:swf-node-status"),
+  // Explicitly (re)spawn the daemon if it's down — for a manual "restart
+  // backend" affordance. Resolves { ok, status }.
+  restartSwfNode: () => ipcRenderer.invoke("fg:swf-node-restart"),
   onSwfNodeStatus: (cb) => {
     const handler = (_e, s) => { try { cb(s); } catch {} };
     ipcRenderer.on("fg:swf-node-status-changed", handler);
