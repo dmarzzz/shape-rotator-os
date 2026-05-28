@@ -13,6 +13,7 @@ const preview = {
 };
 const embeddedCache = new Map();
 let previewRequestId = 0;
+const URL_TEXT_RE = /\b((?:https?:\/\/)?(?:github\.com|shaperotator\.xyz|mtrx\.shaperotator\.xyz|onboard\.shaperotator\.xyz|school\.shaperotator\.xyz)\/[^\s<]*)/gi;
 
 function text(card, selector) {
   return card.querySelector(selector)?.textContent?.trim() || "";
@@ -28,6 +29,35 @@ function sameOriginPath(url) {
   }
 }
 
+function linkifyBareUrls(doc) {
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!URL_TEXT_RE.test(node.nodeValue || "")) return NodeFilter.FILTER_REJECT;
+      URL_TEXT_RE.lastIndex = 0;
+      if (node.parentElement?.closest("a, script, style")) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+
+  nodes.forEach((node) => {
+    const frag = doc.createDocumentFragment();
+    let last = 0;
+    for (const match of node.nodeValue.matchAll(URL_TEXT_RE)) {
+      const raw = match[1];
+      frag.append(node.nodeValue.slice(last, match.index));
+      const a = doc.createElement("a");
+      a.href = raw.startsWith("http") ? raw : `https://${raw}`;
+      a.textContent = raw;
+      frag.append(a);
+      last = match.index + raw.length;
+    }
+    frag.append(node.nodeValue.slice(last));
+    node.replaceWith(frag);
+  });
+}
+
 async function embeddedHtml(url) {
   if (embeddedCache.has(url)) return embeddedCache.get(url);
 
@@ -40,6 +70,7 @@ async function embeddedHtml(url) {
   base.href = url;
   doc.head.prepend(base);
   doc.querySelectorAll("[target]").forEach((el) => el.removeAttribute("target"));
+  linkifyBareUrls(doc);
 
   const srcdoc = `<!doctype html>\n${doc.documentElement.outerHTML}`;
   embeddedCache.set(url, srcdoc);
