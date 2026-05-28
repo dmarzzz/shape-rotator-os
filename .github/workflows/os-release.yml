@@ -123,6 +123,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/fetch-swf-node.sh
 
+      # Same pattern as fetch-swf-node above, for the research-agent
+      # PyInstaller binary from dmarzzz/research-swarm. Drops it at
+      # apps/os/build-resources/research-swarm/ so electron-builder's
+      # extraResources entry copies it into Resources/research-swarm/
+      # in the produced bundle. swarm-node.js finds it there via
+      # process.resourcesPath. Falls back to a stub on missing assets
+      # / unsupported platforms (Windows today).
+      - name: fetch bundled research-agent binary
+        shell: bash
+        env:
+          RESEARCH_SWARM_VERSION: ${{ vars.RESEARCH_SWARM_VERSION }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/fetch-research-swarm.sh
+
       - name: regenerate cohort-surface.json from cohort-data/
         run: npm run build:cohort
 

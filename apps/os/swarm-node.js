@@ -19,16 +19,29 @@ const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 
-// Resolve the research-agent binary. In dev mode we point at the user's
-// local research-swarm clone; production would need to bundle a Python
-// venv (deferred — see TODO at bottom of file).
+// Resolve the research-agent binary.
+//
+// Resolution order:
+//   1. RESEARCH_AGENT_BIN env override (manual testing / non-standard installs)
+//   2. The bundled PyInstaller binary at process.resourcesPath/research-swarm/
+//      — packaged into the .app by electron-builder's extraResources (see
+//      apps/os/package.json), fetched from dmarzzz/research-swarm's release
+//      assets at build time by scripts/fetch-research-swarm.sh. THIS is the
+//      end-user path; everything below is dev fallback.
+//   3. ~/research-swarm/.venv/bin/research-agent (dev clone)
+//   4. ~/shape-rotator-field-kit/research-swarm/.venv/bin/research-agent
 function resolveAgentBinary() {
   const override = process.env.RESEARCH_AGENT_BIN;
   if (override && fs.existsSync(override)) return override;
-  const candidates = [
+  const binName = process.platform === "win32" ? "research-agent.exe" : "research-agent";
+  const candidates = [];
+  if (process.resourcesPath) {
+    candidates.push(path.join(process.resourcesPath, "research-swarm", binName));
+  }
+  candidates.push(
     `${os.homedir()}/research-swarm/.venv/bin/research-agent`,
     `${os.homedir()}/shape-rotator-field-kit/research-swarm/.venv/bin/research-agent`,
-  ];
+  );
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }

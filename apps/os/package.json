@@ -103,6 +103,13 @@
           ]
         },
         {
+          "from": "build-resources/research-swarm/",
+          "to": "research-swarm/",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
           "from": "build-resources/cohort-keys.json",
           "to": "cohort-keys.json"
         }
@@ -156,6 +163,13 @@
           ]
         },
         {
+          "from": "build-resources/research-swarm/",
+          "to": "research-swarm/",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
           "from": "build-resources/cohort-keys.json",
           "to": "cohort-keys.json"
         }
@@ -190,6 +204,13 @@
         {
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "build-resources/research-swarm/",
+          "to": "research-swarm/",
           "filter": [
             "**/*"
           ]
