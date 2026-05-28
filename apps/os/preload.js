@@ -9,6 +9,12 @@ contextBridge.exposeInMainWorld("api", {
   savePrefs:    (d) => ipcRenderer.invoke("prefs:save", d),
   env:          () => ipcRenderer.invoke("env:get"),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
+  loadContextVault:       ()   => ipcRenderer.invoke("context-vault:manifest"),
+  scanContextVault:       ()   => ipcRenderer.invoke("context-vault:scan"),
+  readContextVaultSource: (id) => ipcRenderer.invoke("context-vault:read-source", id),
+  revealContextVaultSource: (id) => ipcRenderer.invoke("context-vault:reveal-source", id),
+  revealContextVaultCorpus: () => ipcRenderer.invoke("context-vault:reveal-corpus"),
+  clipboardWrite: (text) => ipcRenderer.invoke("clipboard:write", text),
   // app updates (electron-updater + GitHub Releases; no-op in dev)
   checkAppUpdate:        ()       => ipcRenderer.invoke("fg:check-update"),
   applyAppUpdate:        ()       => ipcRenderer.invoke("fg:apply-update"),

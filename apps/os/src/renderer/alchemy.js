@@ -58,7 +58,7 @@ const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
 // once that integration lands; rather than rip out the code and re-write it
 // from git history, the surfaces are simply unwired. See the "feed off"
 // section below this constant for the disabled hooks.
-const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "collab", "calendar", "profile", "onboarding", "program", "asks"];
+const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "collab", "calendar", "profile", "onboarding", "program", "asks", "context"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 
 const WEEKS_TOTAL = 10;
@@ -135,6 +135,17 @@ const state = {
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
   isFetching: false,
+  contextVault: {
+    loaded: false,
+    loading: false,
+    manifest: null,
+    roots: [],
+    selectedId: null,
+    selectedText: "",
+    selectedTruncated: false,
+    error: "",
+    message: "",
+  },
   unsubscribe: null,
   refreshTimer: null,
 };
@@ -397,6 +408,7 @@ function render() {
     else if (state.mode === "onboarding") renderOnboarding();
     else if (state.mode === "program") renderProgram();
     else if (state.mode === "asks") renderAsks();
+    else if (state.mode === "context") renderContextVault();
     // atlas — sub-mode disabled to avoid collision with top-level atlas tab.
     // Index cards for the staggered entrance.
     const cards = canvas.querySelectorAll(".alch-card, .alch-legend-card, .alch-feed-item");
@@ -415,6 +427,7 @@ function render() {
       if (state.mode === "onboarding") wireOnboarding();
       if (state.mode === "program") wireProgram();
       if (state.mode === "asks") wireAsks();
+      if (state.mode === "context") wireContextVault();
       // atlas wire skipped — see ALCHEMY_MODES comment.
     }
     // Mount shape shaders LAST — every <canvas data-shape-fam> emitted
@@ -2035,42 +2048,45 @@ function fmtShortDate(d) {
 // fallback) and "presence" (the existing availability gantt). Anchor events
 // from cohort-data/events/*.md fold into the week cells they fall on — no
 // separate "key dates" tab.
-function renderCalendar() {
+function calendarSubView() {
   const cal = state.calendar;
-  if (cal.weekIdx == null) cal.weekIdx = calendarCurrentWeekIdx();
-
-  // Seed the data on first entry: prefer the bundled snapshot so the first
-  // paint is instant, then kick off the live fetch in the background and
-  // re-render when it resolves.
-  if (cal.data == null && !cal.loading) {
-    const bundled = state.cohort?.calendar || null;
-    if (bundled) {
-      cal.data = bundled;
-      cal.source = "bundled";
-    }
-    cal.loading = true;
-    loadCalendarData({ bundled }).then(res => {
-      cal.data = res.data || cal.data;
-      cal.source = res.source || cal.source;
-      cal.loading = false;
-      if (state.mode === "calendar") render();
-    }).catch(() => { cal.loading = false; });
-  }
-
   // Default sub is "day" — the calendar tab opens to a typeset agenda for
   // today rather than the broadsheet week grid, since that's the question
   // people most often have ("what's on right now?"). Week + presence are
   // one click away from any tab.
-  const sub = cal.sub === "presence" ? "presence"
-            : cal.sub === "week"     ? "week"
-            : "day";
+  return cal.sub === "presence" ? "presence"
+       : cal.sub === "week"     ? "week"
+       : "day";
+}
+
+function seedCalendarData() {
+  const cal = state.calendar;
+  if (cal.weekIdx == null) cal.weekIdx = calendarCurrentWeekIdx();
+  if (cal.data != null || cal.loading) return;
+
+  // Seed the data on first entry: prefer the bundled snapshot so the first
+  // paint is instant, then kick off the live fetch in the background and
+  // update only the calendar surface when it resolves.
+  const bundled = state.cohort?.calendar || null;
+  if (bundled) {
+    cal.data = bundled;
+    cal.source = "bundled";
+  }
+  cal.loading = true;
+  loadCalendarData({ bundled }).then(res => {
+    cal.data = res.data || cal.data;
+    cal.source = res.source || cal.source;
+    cal.loading = false;
+    if (state.mode === "calendar") refreshCalendarView();
+  }).catch(() => { cal.loading = false; });
+}
+
+function renderCalendarHtml() {
+  const cal = state.calendar;
+  const sub = calendarSubView();
   const presenceHtml = sub === "presence" ? renderCalAvailability() : "";
 
-  // Tear down previous mobile-behavior listeners before swapping markup, or
-  // touchstart/touchend handlers will stack up across renders.
-  if (cal.detachMobile) { cal.detachMobile(); cal.detachMobile = null; }
-
-  state.canvas.innerHTML = renderCalendarWeekView({
+  return renderCalendarWeekView({
     data: cal.data,
     weekIdx: cal.weekIdx,
     dayIdx:  cal.dayIdx == null ? null : cal.dayIdx,
@@ -2084,24 +2100,59 @@ function renderCalendar() {
     events: [],
     presenceHtml,
   });
+}
 
+function unmountCalendarBehavior() {
+  const cal = state.calendar;
+  if (cal.detachMobile) {
+    cal.detachMobile();
+    cal.detachMobile = null;
+  }
+}
+
+function mountCalendarBehavior({ scrollToToday = false } = {}) {
+  const cal = state.calendar;
+  const sub = calendarSubView();
   if (sub === "presence") {
     mountAvailabilityCanvas();
-  } else {
-    // Wire mobile behavior on the week view: swipe-to-navigate + auto-scroll
-    // to today on the very first mount (not on every internal re-render —
-    // we don't want week-nav clicks to jump back to today).
-    cal.detachMobile = attachCalendarMobileBehavior(state.canvas, {
-      scrollToToday: cal.initialMount,
-      onWeekChange: (delta) => {
-        const next = cal.weekIdx + delta;
-        if (next < 0 || next > 9) return;
-        cal.weekIdx = next;
-        render();
-      },
-    });
-    cal.initialMount = false;
+    return;
   }
+
+  // Wire mobile behavior on the week/day views: swipe-to-navigate + optional
+  // first-mount auto-scroll to today. Later partial refreshes should not jump
+  // the page back to today.
+  cal.detachMobile = attachCalendarMobileBehavior(state.canvas, {
+    scrollToToday,
+    onWeekChange: (delta) => {
+      const next = cal.weekIdx + delta;
+      if (next < 0 || next > 9) return;
+      cal.weekIdx = next;
+      refreshCalendarView();
+    },
+  });
+  cal.initialMount = false;
+}
+
+function paintCalendarView({ wire = false, scrollToToday = false } = {}) {
+  seedCalendarData();
+  // Tear down previous mobile-behavior listeners before swapping markup, or
+  // touchstart/touchend handlers will stack up across renders.
+  unmountCalendarBehavior();
+  state.canvas.innerHTML = renderCalendarHtml();
+  mountCalendarBehavior({ scrollToToday });
+  if (wire) wireCalendar();
+}
+
+function refreshCalendarView() {
+  if (state.mode !== "calendar" || !state.canvas) {
+    render();
+    return;
+  }
+  paintCalendarView({ wire: true, scrollToToday: false });
+}
+
+function renderCalendar() {
+  paintCalendarView({ wire: false, scrollToToday: state.calendar.initialMount });
 }
 
 // ── presence view (the existing availability Gantt) ─────────────────
@@ -2206,7 +2257,7 @@ function wireCalendar() {
       const next = btn.dataset.calSub;
       if (!next || next === cal.sub) return;
       cal.sub = next;
-      render();
+      refreshCalendarView();
     });
   }
 
@@ -2216,7 +2267,7 @@ function wireCalendar() {
       const i = Number(pill.dataset.calDayPick);
       if (!Number.isFinite(i) || i < 0 || i > 6) return;
       cal.dayIdx = i;
-      render();
+      refreshCalendarView();
     });
   }
 
@@ -2232,7 +2283,7 @@ function wireCalendar() {
       else if (dir === "today") cal.weekIdx = calendarCurrentWeekIdx();
       else return;
       cal.dayIdx = null;
-      render();
+      refreshCalendarView();
     });
   }
 
@@ -2243,7 +2294,7 @@ function wireCalendar() {
       if (Number.isFinite(i) && i !== cal.weekIdx) {
         cal.weekIdx = i;
         cal.dayIdx = null;
-        render();
+        refreshCalendarView();
       }
     });
   }
@@ -2257,7 +2308,7 @@ function wireCalendar() {
         cal.data = res.data || cal.data;
         cal.source = res.source || cal.source;
         cal.loading = false;
-        if (state.mode === "calendar") render();
+        if (state.mode === "calendar") refreshCalendarView();
       }).catch(() => { cal.loading = false; });
     });
   }
@@ -3033,7 +3084,7 @@ function renderProgramMarkdown(md) {
   return out.join("");
 }
 
-function renderProgram() {
+function programPages() {
   const pages = (state.cohort?.program || []).slice();
   // Defensive sort by `order` then record_id; matches the build script.
   pages.sort((a, b) => {
@@ -3042,22 +3093,18 @@ function renderProgram() {
     if (ao !== bo) return ao - bo;
     return String(a.record_id).localeCompare(String(b.record_id));
   });
+  return pages;
+}
 
-  if (pages.length === 0) {
-    state.canvas.innerHTML = `
-      <header class="alch-prog-head">
-        <h2 class="alch-prog-title">program</h2>
-        <p class="alch-prog-sub">no program pages in the surface bundle yet.</p>
-      </header>
-      <p class="alch-callout">run <code>npm run build:cohort</code> after adding files under <code>cohort-data/program/</code>.</p>
-    `;
-    return;
-  }
+function currentProgramPage(pages) {
+  const want = state.programPage || pages[0]?.record_id;
+  const current = pages.find(p => p.record_id === want) || pages[0] || null;
+  if (current) state.programPage = current.record_id;
+  return current;
+}
 
-  const want = state.programPage || pages[0].record_id;
-  const current = pages.find(p => p.record_id === want) || pages[0];
-
-  const tabs = pages.map(p => `
+function renderProgramTabs(pages, current) {
+  return pages.map(p => `
     <button class="alch-prog-tab" type="button"
             data-program-page="${escAttr(p.record_id)}"
             aria-selected="${p.record_id === current.record_id}">
@@ -3065,16 +3112,12 @@ function renderProgram() {
       <span class="alch-prog-tab-label">${escHtml(p.title || p.record_id)}</span>
     </button>
   `).join("");
+}
 
+function renderProgramPage(current) {
   const bodyHtml = renderProgramMarkdown(current.body_md);
   const editPath = `cohort-data/program/${current.record_id}.md`;
-
-  state.canvas.innerHTML = `
-    <header class="alch-prog-head">
-      <h2 class="alch-prog-title">program</h2>
-      <p class="alch-prog-sub">the handbook. edits open a PR on github — stewards merge → next build:cohort ships the change to the cohort.</p>
-    </header>
-    <nav class="alch-prog-tabs" role="tablist" aria-label="program section">${tabs}</nav>
+  return `
     <article class="alch-prog-page">
       <header class="alch-prog-page-head">
         <h2 class="alch-prog-page-title">${escHtml(current.title || current.record_id)}</h2>
@@ -3091,20 +3134,77 @@ function renderProgram() {
   `;
 }
 
-function wireProgram() {
-  for (const btn of state.canvas.querySelectorAll(".alch-prog-tab[data-program-page]")) {
-    btn.addEventListener("click", () => {
-      state.programPage = btn.dataset.programPage;
-      render();
-    });
+function renderProgram() {
+  const pages = programPages();
+
+  if (pages.length === 0) {
+    state.canvas.innerHTML = `
+      <header class="alch-prog-head">
+        <h2 class="alch-prog-title">program</h2>
+        <p class="alch-prog-sub">no program pages in the surface bundle yet.</p>
+      </header>
+      <p class="alch-callout">run <code>npm run build:cohort</code> after adding files under <code>cohort-data/program/</code>.</p>
+    `;
+    return;
   }
-  const editBtn = state.canvas.querySelector(".alch-prog-edit[data-edit-path]");
+
+  const current = currentProgramPage(pages);
+  const tabs = renderProgramTabs(pages, current);
+
+  state.canvas.innerHTML = `
+    <header class="alch-prog-head">
+      <h2 class="alch-prog-title">program</h2>
+      <p class="alch-prog-sub">the handbook. edits open a PR on github — stewards merge → next build:cohort ships the change to the cohort.</p>
+    </header>
+    <nav class="alch-prog-tabs" role="tablist" aria-label="program section">${tabs}</nav>
+    ${renderProgramPage(current)}
+  `;
+}
+
+function syncProgramTabSelection(currentId) {
+  for (const btn of state.canvas.querySelectorAll(".alch-prog-tab[data-program-page]")) {
+    btn.setAttribute("aria-selected", String(btn.dataset.programPage === currentId));
+  }
+}
+
+function wireProgramPageActions(root = state.canvas) {
+  const editBtn = root.querySelector(".alch-prog-edit[data-edit-path]");
   if (editBtn) {
     editBtn.addEventListener("click", async () => {
       await launchPRFlow({ kind: "edit", path: editBtn.dataset.editPath });
     });
   }
-  wireExternalLinks(state.canvas);
+  wireExternalLinks(root);
+}
+
+function selectProgramPage(pageId) {
+  if (!pageId) return;
+  state.programPage = pageId;
+  const pages = programPages();
+  const current = currentProgramPage(pages);
+  if (!current) {
+    render();
+    return;
+  }
+
+  const page = state.canvas?.querySelector(".alch-prog-page");
+  const tabs = state.canvas?.querySelector(".alch-prog-tabs");
+  if (state.mode === "program" && page && tabs) {
+    syncProgramTabSelection(current.record_id);
+    page.outerHTML = renderProgramPage(current);
+    wireProgramPageActions(state.canvas.querySelector(".alch-prog-page") || state.canvas);
+    return;
+  }
+  render();
+}
+
+function wireProgram() {
+  for (const btn of state.canvas.querySelectorAll(".alch-prog-tab[data-program-page]")) {
+    btn.addEventListener("click", () => {
+      selectProgramPage(btn.dataset.programPage);
+    });
+  }
+  wireProgramPageActions(state.canvas);
 }
 
 // ─── asks board ─────────────────────────────────────────────────────
@@ -3616,6 +3716,446 @@ function wireAsks() {
     });
   }
   wireExternalLinks(state.canvas);
+}
+
+// ─── context vault ──────────────────────────────────────────────────
+// Local article-index surface. Raw source notes stay on disk in
+// user-controlled folders; main.js builds one private article index plus
+// a metadata manifest under Electron userData/context-vault. The renderer
+// can then promote selected, public-safe summaries into the existing
+// GitHub PR flow for asks or program notes.
+
+const CONTEXT_CONTENT_VERSION = "v0.0.1";
+const CONTEXT_CONTENT_RELEASE_NOTE = "article drafts, copy .md, in-place switching, local-date calendar";
+
+function contextVaultAvailable() {
+  return !!(window.api?.loadContextVault && window.api?.scanContextVault);
+}
+
+async function loadContextVault({ scan = false } = {}) {
+  if (!contextVaultAvailable()) {
+    state.contextVault.error = "Context Vault IPC is not available in this build.";
+    state.contextVault.loaded = true;
+    state.contextVault.loading = false;
+    render();
+    return;
+  }
+  state.contextVault.loading = true;
+  state.contextVault.error = "";
+  state.contextVault.message = scan ? "building article index..." : "loading article index...";
+  render();
+  try {
+    const res = scan ? await window.api.scanContextVault() : await window.api.loadContextVault();
+    if (!res?.ok) throw new Error(res?.error || "context vault request failed");
+    state.contextVault.manifest = res.manifest || null;
+    state.contextVault.roots = res.roots || res.manifest?.roots || [];
+    state.contextVault.loaded = true;
+    state.contextVault.loading = false;
+    state.contextVault.message = scan
+      ? `article index updated: ${res.manifest?.totals?.articles || res.manifest?.totals?.sources || 0} article${(res.manifest?.totals?.articles || res.manifest?.totals?.sources) === 1 ? "" : "s"}`
+      : "";
+    if (!state.contextVault.selectedId && res.manifest?.sources?.length) {
+      state.contextVault.selectedId = res.manifest.sources[0].id;
+    }
+  } catch (e) {
+    state.contextVault.loaded = true;
+    state.contextVault.loading = false;
+    state.contextVault.error = e?.message || String(e);
+  }
+  render();
+}
+
+async function selectContextSource(sourceId) {
+  if (!sourceId) return;
+  if (state.contextVault.selectedId === sourceId) return;
+  state.contextVault.selectedId = sourceId;
+  state.contextVault.selectedText = "";
+  state.contextVault.selectedTruncated = false;
+  const selected = contextSourceById(sourceId);
+  const detail = state.canvas?.querySelector(".alch-cv-detail");
+  if (state.mode === "context" && selected && detail) {
+    for (const btn of state.canvas.querySelectorAll("[data-cv-source]")) {
+      btn.classList.toggle("is-selected", btn.dataset.cvSource === sourceId);
+    }
+    detail.outerHTML = renderContextVaultDetail(selected);
+    wireContextVaultDetailActions(state.canvas);
+    return;
+  }
+  render();
+}
+
+function contextSourceById(id) {
+  return (state.contextVault.manifest?.sources || []).find(s => s.id === id) || null;
+}
+
+function contextSlug(s, fallback = "context-note") {
+  const base = String(s || fallback)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+  return base || fallback;
+}
+
+function contextMiniHash(s) {
+  const h = Math.abs(hashStr(String(s || ""))).toString(36);
+  return h.slice(0, 5).padStart(5, "0");
+}
+
+function contextSkillBlock(skillAreas) {
+  const skills = (skillAreas || []).map(s => String(s).trim()).filter(Boolean);
+  return skills.length
+    ? "skill_areas:\n" + skills.map(s => `  - ${s}`).join("\n")
+    : "skill_areas: []";
+}
+
+function contextAuthorSlug() {
+  const me = state.profile?.user || {};
+  const gh = String(me.github || "").toLowerCase();
+  return me.record_id || (gh ? gh : "your-slug");
+}
+
+function contextSelectedDigest(source) {
+  return String(source?.article_dek || source?.article_angle || source?.article_title || source?.article_id || "article draft")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 220);
+}
+
+function contextArticleTitle(source) {
+  return source?.article_title || source?.article_id || "Untitled article";
+}
+
+function contextArticleSlug(source) {
+  return source?.article_slug || contextSlug(contextArticleTitle(source), "article");
+}
+
+function contextArticleDek(source) {
+  return source?.article_dek || source?.article_angle || "A private context-vault article candidate awaiting an editorial pass.";
+}
+
+function contextArticleSection(source) {
+  return source?.article_section || "article candidate";
+}
+
+function contextArticleReader(source) {
+  const title = contextArticleTitle(source);
+  const angle = contextArticleDek(source);
+  if (/memory, workflows, and social routing/i.test(title)) {
+    return {
+      kicker: "agent infrastructure",
+      lede: "The hard part of agent software is no longer getting one impressive answer. The hard part is preserving useful work after the chat window closes.",
+      sections: [
+        ["Private sessions lose the plot", "A good agent session can contain decisions, partial research, tool traces, and useful taste. If that work stays trapped in a private scrollback, the next agent starts cold and the human has to re-explain the same context."],
+        ["Workflows need memory and checkpoints", "Durable agent work needs named goals, resumable state, audit trails, and clear handoffs. Otherwise every long-running task becomes brittle: one timeout, one restart, or one missing file can erase the thread."],
+        ["Routing is social, not just technical", "The next layer is deciding who or what should see the work. Some context belongs to the individual, some belongs to a team, and some should become public program knowledge. Shape Rotator should make those routing choices explicit."],
+      ],
+      takeaway: "The useful agent is not the one that talks the most. It is the one that remembers what matters, shows its work, and lets humans redirect it before private context becomes public output.",
+    };
+  }
+  if (/privacy is not the product/i.test(title)) {
+    return {
+      kicker: "privacy and capability",
+      lede: "Privacy infrastructure is only interesting when it lets someone do something they already wanted to do.",
+      sections: [
+        ["Privacy is a means, not the hook", "TEEs, local-first storage, and data sovereignty can sound abstract when they are sold as values alone. The product becomes legible when privacy unlocks a concrete workflow: safer personalization, delegated work on sensitive data, or collaboration without leaking the room."],
+        ["Capability gives privacy a job", "A user does not wake up wanting remote attestation. They want an assistant that can use sensitive context without spraying it everywhere. They want private records to become useful without becoming exposed."],
+        ["The product test is workflow pull", "The right question is not whether the stack is private. The right question is what new behavior becomes possible because the stack is private. If the answer is not a workflow people want, privacy stays infrastructure theater."],
+      ],
+      takeaway: "Privacy wins when it is attached to capability: do the thing better, with less exposure, and with enough control that users trust the system to keep doing it.",
+    };
+  }
+  if (/verifiability is becoming ux/i.test(title)) {
+    return {
+      kicker: "verifiability ux",
+      lede: "Verification is moving out of backend diagrams and into the user experience of AI infrastructure.",
+      sections: [
+        ["Trust primitives are becoming interface primitives", "Remote attestation, proofs, signatures, and deployable evidence used to sit behind the product. In AI infrastructure, users increasingly need to know what ran, where it ran, and whether the system can prove it."],
+        ["Proof has to become legible", "A raw attestation quote is not UX. A useful interface turns verification into something people can act on: this model ran in this environment, this data stayed inside this boundary, this output came from this signed workflow."],
+        ["The proof changes behavior", "When verification becomes visible, users can make better choices. They can decide whether to share context, delegate a task, accept an output, or escalate to a human. Verifiability becomes part of the control surface."],
+      ],
+      takeaway: "The next trust layer will not be a hidden badge. It will be a readable proof trail that helps users understand and steer AI systems.",
+    };
+  }
+  return {
+    kicker: contextArticleSection(source),
+    lede: angle,
+    sections: [
+      ["Thesis", angle],
+      ["What the article should make clear", "Turn the private context into public-safe claims, concrete examples, and a publish boundary that does not leak the room."],
+    ],
+    takeaway: "Use this as a reader-facing article draft, then revise against the private context before publishing.",
+  };
+}
+
+function buildContextArticleMarkdown(source) {
+  const title = contextArticleTitle(source);
+  const reader = contextArticleReader(source);
+  const lines = [
+    `# ${title}`,
+    "",
+    reader.lede,
+    "",
+  ];
+  for (const [heading, body] of reader.sections) {
+    lines.push(`## ${heading}`, "", body, "");
+  }
+  lines.push("## Takeaway", "", reader.takeaway, "");
+  return lines.join("\n");
+}
+
+function renderContextReaderHtml(source) {
+  const title = contextArticleTitle(source);
+  const reader = contextArticleReader(source);
+  const sections = reader.sections.map(([heading, body]) => `
+    <section class="alch-cv-reader-section">
+      <h3>${escHtml(heading)}</h3>
+      <p>${escHtml(body)}</p>
+    </section>
+  `).join("");
+  return `
+    <article class="alch-cv-reader">
+      <p class="alch-cv-reader-kicker">${escHtml(reader.kicker)}</p>
+      <h1>${escHtml(title)}</h1>
+      <p class="alch-cv-reader-lede">${escHtml(reader.lede)}</p>
+      ${sections}
+      <section class="alch-cv-reader-section alch-cv-reader-takeaway">
+        <h3>Takeaway</h3>
+        <p>${escHtml(reader.takeaway)}</p>
+      </section>
+    </article>
+  `;
+}
+
+function renderContextVaultDetail(selected) {
+  const selectedMdFile = selected ? `${contextArticleSlug(selected)}.md` : "article.md";
+  return selected ? `
+    <article class="alch-cv-detail">
+      <header class="alch-cv-detail-head">
+        <div>
+          <span class="alch-cv-eyebrow">reader draft · markdown</span>
+        </div>
+        <button class="alch-cv-md-action" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">
+          <span class="alch-cv-md-action-label">copy .md</span>
+          <span class="alch-cv-md-action-file">${escHtml(selectedMdFile)}</span>
+        </button>
+      </header>
+      ${renderContextReaderHtml(selected)}
+      <div class="alch-cv-result" data-cv-result hidden></div>
+    </article>
+  ` : `
+    <article class="alch-cv-detail alch-cv-empty-detail">
+      <h3>no articles indexed yet</h3>
+      <p>Refresh the private article index to load articles.</p>
+    </article>
+  `;
+}
+
+async function copyTextToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {}
+  try {
+    const res = await window.api?.clipboardWrite?.(text);
+    return !!res?.ok;
+  } catch {}
+  return false;
+}
+
+function flashCopyButton(btn, ok = true) {
+  if (!btn) return;
+  const title = btn.querySelector?.(".link-card-title, .alch-cv-md-action-label");
+  if (title) {
+    const oldTitle = title.textContent;
+    btn.dataset.state = ok ? "copied" : "failed";
+    title.textContent = ok ? "copied" : "copy failed";
+    setTimeout(() => {
+      title.textContent = oldTitle;
+      delete btn.dataset.state;
+    }, 1200);
+    return;
+  }
+  const old = btn.textContent;
+  btn.textContent = ok ? "copied" : "copy failed";
+  setTimeout(() => { btn.textContent = old; }, 1200);
+}
+
+function buildContextAskMarkdown(source) {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const author = contextAuthorSlug();
+  const title = contextArticleTitle(source);
+  const topic = `Draft Shape Rotator article: ${title}`;
+  const recordId = `${author}-${todayIso}-context-${contextMiniHash(source.id + topic)}`;
+  return {
+    path: `cohort-data/asks/${recordId}.md`,
+    markdown: `---
+record_id: ${recordId}
+record_type: ask
+schema_version: 1
+posted_at: ${todayIso}
+author: ${author}
+verb: "🔬 brain on"
+topic: ${yamlScalar(topic, 2)}
+${contextSkillBlock(source.skill_areas)}
+status: open
+---
+
+Context Vault article: ${source.article_id || source.corpus_id || "unindexed"}
+Working title: ${title}
+Drafting cue: ${contextSelectedDigest(source)}
+Private inputs remain local; this ask is the public-safe coordination layer.
+`,
+  };
+}
+
+function buildContextProgramMarkdown(source) {
+  const title = contextArticleTitle(source);
+  const recordId = `context-${source.date || new Date().toISOString().slice(0, 10)}-${contextArticleSlug(source).slice(0, 40)}-${contextMiniHash(source.id)}`;
+  const skills = (source.skill_areas || []).join(", ") || "none inferred";
+  return {
+    path: `cohort-data/program/${recordId}.md`,
+    markdown: `---
+record_id: ${recordId}
+record_type: program_page
+schema_version: 1
+title: ${quoteYaml(title)}
+order: 90
+---
+
+## context vault reference
+
+- context vault article: ${source.article_id || source.corpus_id || "unindexed"}
+- draft status: draft-candidate
+- inferred skill areas: ${skills}
+- editorial section: ${contextArticleSection(source)}
+
+## article direction
+
+${source.article_angle || contextArticleDek(source)}
+
+## drafting boundary
+
+- Private inputs stay hidden.
+- Add public-safe synthesis before publishing.
+- Do not paste private input text into this page.
+
+## steward note
+
+This page was drafted from Context Vault. Private inputs stay local; publish only cleaned program context, resource trails, or public-safe synthesis.
+`,
+  };
+}
+
+function renderContextVault() {
+  const cv = state.contextVault;
+  if (!cv.loaded && !cv.loading) {
+    // Fire after the current render stack so the loading state can paint.
+    setTimeout(() => loadContextVault({ scan: false }), 0);
+  }
+  const manifest = cv.manifest || null;
+  const sources = manifest?.sources || [];
+  const selected = contextSourceById(cv.selectedId) || sources[0] || null;
+  if (selected && !cv.selectedId) cv.selectedId = selected.id;
+  const sourceRows = sources.map(s => {
+    const selectedCls = selected && selected.id === s.id ? " is-selected" : "";
+    const title = contextArticleTitle(s);
+    return `
+      <button class="alch-cv-source${selectedCls}" type="button" data-cv-source="${escAttr(s.id)}">
+        <strong>${escHtml(title)}</strong>
+      </button>
+    `;
+  }).join("");
+  const detail = renderContextVaultDetail(selected);
+
+  state.canvas.innerHTML = `
+    <section class="alch-cv">
+      <header class="alch-cv-head">
+        <div>
+          <p class="alch-cv-kicker">local context vault</p>
+          <h2>article index</h2>
+          <p>A private article list generated from the local context vault. Underlying inputs stay hidden; this view is for choosing articles to draft, review, and promote.</p>
+          <div class="alch-cv-release">
+            <span class="alch-cv-release-version">content ${escHtml(CONTEXT_CONTENT_VERSION)}</span>
+            <span class="alch-cv-release-note">${escHtml(CONTEXT_CONTENT_RELEASE_NOTE)}</span>
+          </div>
+        </div>
+        <div class="alch-cv-head-actions">
+          <button class="alch-feed-btn alch-cv-scan" type="button" ${cv.loading ? "disabled" : ""}>${cv.loading ? "refreshing..." : "refresh article index"}</button>
+        </div>
+      </header>
+      ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
+      ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
+      <div class="alch-cv-layout">
+        <aside class="alch-cv-sidebar">
+          <h3>articles</h3>
+          <div class="alch-cv-sources">${sourceRows || "<p class=\"alch-cv-muted\">refresh to load articles.</p>"}</div>
+        </aside>
+        ${detail}
+      </div>
+    </section>
+  `;
+}
+
+function wireContextVault() {
+  const scan = state.canvas.querySelector(".alch-cv-scan");
+  if (scan) {
+    scan.addEventListener("click", () => loadContextVault({ scan: true }));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-cv-source]")) {
+    btn.addEventListener("click", () => selectContextSource(btn.dataset.cvSource));
+  }
+  wireContextVaultDetailActions(state.canvas);
+}
+
+function wireContextVaultDetailActions(root = state.canvas) {
+  if (!root) return;
+  for (const btn of root.querySelectorAll("[data-cv-reveal-corpus]")) {
+    btn.addEventListener("click", async () => {
+      if (window.api?.revealContextVaultCorpus) await window.api.revealContextVaultCorpus();
+    });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-copy-article]")) {
+    btn.addEventListener("click", async () => {
+      const source = contextSourceById(btn.dataset.cvCopyArticle);
+      if (!source) return;
+      const markdown = buildContextArticleMarkdown(source);
+      flashCopyButton(btn, await copyTextToClipboard(markdown));
+    });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-promote]")) {
+    btn.addEventListener("click", async () => {
+      const source = contextSourceById(btn.dataset.cvSourceId);
+      if (!source) return;
+      const result = root.querySelector("[data-cv-result]");
+      const draft = btn.dataset.cvPromote === "program"
+        ? buildContextProgramMarkdown(source)
+        : buildContextAskMarkdown(source);
+      const launched = await launchPRFlow({ kind: "new", path: draft.path, value: draft.markdown });
+      if (result) {
+        result.hidden = false;
+        result.innerHTML = launched.ok ? `
+          <p class="alch-onb-inline-line">
+            <span class="alch-onb-inline-tag">github opened</span>
+            review the generated markdown before committing the PR.
+          </p>
+          <details class="alch-asks-compose-preview">
+            <summary>preview draft</summary>
+            <pre class="alch-onb-inline-patch">${escHtml(draft.markdown)}</pre>
+          </details>
+          <div class="alch-onb-inline-row"><a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen editor</a></div>
+        ` : `
+          <p class="alch-onb-inline-line">
+            <span class="alch-onb-inline-tag">fork first</span>
+            once your fork exists, click the promote button again.
+          </p>
+        `;
+        wireExternalLinks(result);
+      }
+    });
+  }
 }
 
 // ─── topic atlas ────────────────────────────────────────────────────
@@ -6521,4 +7061,3 @@ function formatDiffValue(v) {
 }
 
 // escAttr lives in @shape-rotator/shape-ui now (imported at the top).
-

@@ -64,9 +64,9 @@ const DAY_NAMES_FULL = {
 };
 
 // ── time helpers ─────────────────────────────────────────────────────
-function todayUtcMs() {
-  const d = new Date();
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+function localCalendarDayMs(date = new Date()) {
+  const src = date instanceof Date ? date : new Date(date);
+  return Date.UTC(src.getFullYear(), src.getMonth(), src.getDate());
 }
 
 // Fraction of the day elapsed (local time), clamped to [0, 1].
@@ -95,7 +95,7 @@ function isoToDayMs(iso) {
 }
 
 export function currentWeekIdx(nowMs = Date.now()) {
-  const days = Math.floor((nowMs - COHORT_START_MS) / 86400000);
+  const days = Math.floor((localCalendarDayMs(nowMs) - COHORT_START_MS) / 86400000);
   return Math.max(0, Math.min(WEEK_COUNT - 1, Math.floor(days / 7)));
 }
 
@@ -206,7 +206,7 @@ export function parseWeekRow(row, weekIdx, eventsByDayMs = new Map()) {
   const dateRange = (meta[0] || "").trim().toLowerCase();
   const theme     = meta.slice(1).filter(s => s.trim()).join(" — ").toLowerCase();
   const weekStartMs = COHORT_START_MS + weekIdx * 7 * 86400000;
-  const todayMs = todayUtcMs();
+  const todayMs = localCalendarDayMs();
 
   const days = DAY_NAMES.map((name, i) => {
     const raw = stripDayHeader((row && row[2 + i] != null ? String(row[2 + i]) : "").trim(), name);
