@@ -72,9 +72,12 @@ export async function mount(stage) {
 
 export function setActive(on) {
   _active = !!on;
-  // Leaving the view while broadcasting → stop cleanly (don't keep capturing
-  // the screen in the background).
-  if (!_active && _live) stopLive();
+  // Intentionally DO NOT stop the broadcast when leaving the easel view. A
+  // projection is meant to keep running while you use the rest of the OS (or
+  // switch to another app) — tearing it down on navigate-away was killing the
+  // NDI stream the moment you clicked elsewhere. The capture pump + NDI sender
+  // stay live until you explicitly stop or quit; returning re-attaches to the
+  // still-running stream (mount() is idempotent, so the live preview persists).
 }
 
 export function notifyDataChanged() { /* nothing data-driven here */ }

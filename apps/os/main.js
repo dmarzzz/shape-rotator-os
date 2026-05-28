@@ -499,13 +499,23 @@ ipcMain.handle("easel:list-sources", async () => {
     thumbnail: s.thumbnail ? s.thumbnail.toDataURL() : null,
   }));
 });
-ipcMain.handle("easel:start", async (_e, opts) => {
-  try { return await easelNdi.start(opts && opts.name); }
-  catch (e) { return { ok: false, error: e.message }; }
+ipcMain.handle("easel:start", async (e, opts) => {
+  try {
+    const res = await easelNdi.start(opts && opts.name);
+    // While broadcasting, keep the renderer's capture pump running at full
+    // FPS even when the OS window is backgrounded/occluded. Otherwise
+    // switching to another app throttles its timers and the NDI stream
+    // stalls. Restored to throttled on stop.
+    try { e.sender.setBackgroundThrottling(false); } catch {}
+    return res;
+  } catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle("easel:frame", async (_e, frame) => easelNdi.sendFrame(frame));
 ipcMain.handle("easel:stats", async () => easelNdi.stats());
-ipcMain.handle("easel:stop", async () => easelNdi.stop());
+ipcMain.handle("easel:stop", async (e) => {
+  try { e.sender.setBackgroundThrottling(true); } catch {}
+  return easelNdi.stop();
+});
 
 // Dev-only sync-client smoke test. Triggers the renderer's
 // window.__srfgSyncClientSelfTest() helper (apps/os/src/renderer/sync-client.js
