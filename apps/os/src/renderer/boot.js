@@ -101,6 +101,21 @@ function mountSyncChip() {
   });
 }
 
+// Same-shape as setInterval, but skips invocations while the document is
+// hidden (tab in the background, window minimized, app fully occluded).
+// Electron throttles rAF in those states but doesn't suspend setInterval,
+// so without this every long-lived poller burns CPU + fires network calls
+// while the user can't see the result. Use everywhere a callback's work
+// is purely UI-refresh or background-sync that the user only needs when
+// they're actually looking. Returns the interval id so callers can clear
+// it the usual way.
+function setIntervalVisible(fn, ms) {
+  return setInterval(() => {
+    if (document.hidden) return;
+    try { fn(); } catch (e) { console.error("[setIntervalVisible]", e); }
+  }, ms);
+}
+
 // Shorthand: animate a numeric DOM cell to `n`. We wrap tickNumber so the
 // dozens of "el.textContent = …" call sites flip to the animated path
 // without ceremony. Pass `fmt` for non-trivial formatters (bytes, %).
@@ -146,7 +161,7 @@ function refreshLiveCount() {
   tick("live-count", live);
 }
 function state_liveSeen() { return srwk.liveSeen; }
-setInterval(() => refreshLiveCount(), 5000);
+setIntervalVisible(() => refreshLiveCount(), 5000);
 
 // ─── app-update chip (electron-updater + GitHub Releases) ────────────
 // Wires the version chip in the top-right of the tab bar. On boot, paints
@@ -1767,7 +1782,7 @@ function startConnectionProbe() {
     }
   }
   probe();
-  setInterval(probe, 5000);
+  setIntervalVisible(probe, 5000);
 }
 
 // Threshold above which we skip the per-page materialize() animation
@@ -1850,7 +1865,7 @@ function addPageToGraph(node) {
 const RECONCILE_INTERVAL_MS = 30000;
 
 function startGraphReconcile() {
-  setInterval(reconcileGraph, RECONCILE_INTERVAL_MS);
+  setIntervalVisible(reconcileGraph, RECONCILE_INTERVAL_MS);
   // Kick once early so we don't sit empty for a full interval after a
   // cold-start fetch failure or a swf-node restart.
   setTimeout(() => { reconcileGraph(); }, 1500);
@@ -2088,7 +2103,7 @@ function wirePeersPanel() {
   // even when the panel is open and idle. Also covers the network-tab
   // panels — cheap to repaint, and the manifest counts the user sees
   // there should be no more than 10s stale.
-  setInterval(() => {
+  setIntervalVisible(() => {
     if (!panel.hidden) {
       refreshManifestCache().finally(() => renderPeersPanel());
     } else if (document.body.dataset.activeTab === "network") {
@@ -3462,14 +3477,26 @@ function buildAtmosphere(scene) {
   srwk.atmosphere = { points: pts, mat };
   // animate via requestAnimationFrame so it drifts even when sim is paused
   const t0 = performance.now();
+  let _atmoArmed = false;
   function tick() {
+    // Don't schedule when the document is hidden — keeps the GPU + main
+    // thread idle when SROS is in the background. Re-armed on
+    // visibilitychange below.
+    if (document.hidden) { _atmoArmed = false; return; }
     const t = (performance.now() - t0) / 1000;
     mat.uniforms.uTime.value = t;
     pts.rotation.y = t * 0.012;
     pts.rotation.x = Math.sin(t * 0.005) * 0.05;
     requestAnimationFrame(tick);
   }
+  _atmoArmed = true;
   requestAnimationFrame(tick);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && !_atmoArmed) {
+      _atmoArmed = true;
+      requestAnimationFrame(tick);
+    }
+  });
 }
 
 // ─── tiny helpers ─────────────────────────────────────────────────────────
@@ -4242,7 +4269,7 @@ function wireAnonBadge() {
   // Light /health poll to seed the popover with active_circle data when no
   // SSE event has arrived yet. Skipped if we already received a fresh
   // anonymity_set_changed.
-  setInterval(async () => {
+  setIntervalVisible(async () => {
     if (Date.now() - dcnetState.lastSetTs < 30000) return;
     try {
       const r = await fetch(`${srwk.serverUrl}/health`);
@@ -8751,7 +8778,7 @@ boot().then(() => {
   function bootstrap() {
     initModeToggle();
     renderGlanceAll();
-    setInterval(renderGlanceAll, 5000);
+    setIntervalVisible(renderGlanceAll, 5000);
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", bootstrap, { once: true });

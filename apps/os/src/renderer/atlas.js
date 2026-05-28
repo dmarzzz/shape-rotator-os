@@ -656,6 +656,16 @@ export function mount(container) {
 
   // start the loop; setActive will gate it
   if (!state.raf) loop();
+
+  // Re-arm the loop when the document becomes visible again — without
+  // this, the rAF gate above leaves us frozen forever once the user
+  // backgrounds the app while atlas is the active tab.
+  if (!state._visibilityListenerInstalled) {
+    state._visibilityListenerInstalled = true;
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && state.active && !state.raf) loop();
+    });
+  }
 }
 
 export function setActive(v) {
@@ -1797,8 +1807,12 @@ function chaikinSmooth(poly) {
 // ─── render loop ─────────────────────────────────────────────────────────
 
 function loop() {
+  // Don't schedule another frame when the tab is inactive or the document
+  // is hidden — keeping rAF armed in those states prevents macOS from
+  // coalescing wakeups and keeps the canvas tick alive in the background.
+  // setActive(true) / the visibilitychange listener below re-arm us.
+  if (!state.active || document.hidden) { state.raf = 0; return; }
   state.raf = requestAnimationFrame(loop);
-  if (!state.active) return;
 
   const now = performance.now();
   const dt = state.lastFrameTs === 0 ? 16 : Math.min(64, now - state.lastFrameTs);
