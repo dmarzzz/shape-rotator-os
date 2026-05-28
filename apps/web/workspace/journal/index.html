@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>shape rotator journal</title>
+  <meta name="description" content="Shape Rotator journal: compact articles on AI agents, LLM workflows, coordination under partial trust, AI workflow memory, trust, timing, taste, and human override." />
+  <link rel="canonical" href="https://os-web.shaperotator.xyz/workspace/journal" />
+  <meta property="og:title" content="shape rotator journal" />
+  <meta property="og:description" content="Articles on AI agents, LLM workflows, coordination under partial trust, AI workflow memory, trust, timing, taste, and human override." />
+  <meta property="og:type" content="blog" />
+  <meta property="og:url" content="https://os-web.shaperotator.xyz/workspace/journal" />
+  <meta property="og:image" content="https://os-web.shaperotator.xyz/workspace/workspace.jpg" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');
+
+    :root {
+      --bg: #fff;
+      --fg: #050505;
+      --muted: #767676;
+      --soft: #f7f7f3;
+      --line: 1px solid var(--fg);
+      --soft-line: 1px dotted rgba(5, 5, 5, 0.28);
+      --mono: 'JetBrains Mono', monospace;
+      --pad: clamp(12px, 2vw, 24px);
+      --max: 1080px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.45;
+      letter-spacing: 0;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      pointer-events: none;
+      background: linear-gradient(to bottom, transparent, transparent 50%, rgba(0,0,0,0.018) 50%, rgba(0,0,0,0.018));
+      background-size: 100% 4px;
+    }
+
+    a,
+    button {
+      color: inherit;
+      font: inherit;
+    }
+
+    a {
+      text-decoration: none;
+    }
+
+    button {
+      border: 0;
+      background: none;
+      cursor: pointer;
+    }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: var(--line);
+      outline-offset: 2px;
+    }
+
+    .shell {
+      width: min(100%, var(--max));
+      min-height: 100dvh;
+      margin: 0 auto;
+      border-left: var(--line);
+      border-right: var(--line);
+      background: var(--bg);
+    }
+
+    .topbar,
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px var(--pad);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .topbar {
+      min-height: 38px;
+      border-bottom: var(--line);
+    }
+
+    .footer {
+      color: var(--muted);
+      border-top: var(--line);
+    }
+
+    .nav,
+    .status,
+    .actions,
+    .topics,
+    .article-links,
+    .tag-row,
+    .mechanism-list,
+    .project-list {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav a,
+    .nav span,
+    .status span,
+    .chip,
+    .button,
+    .article-links a,
+    .article-links button {
+      min-height: 24px;
+      display: inline-flex;
+      align-items: center;
+      border: var(--line);
+      padding: 3px 7px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .nav a,
+    .nav span,
+    .status span {
+      border: 0;
+      padding: 0;
+    }
+
+    .nav a + a,
+    .nav a + span {
+      padding-left: 10px;
+      border-left: var(--soft-line);
+    }
+
+    .nav a:hover,
+    .chip:hover,
+    .button:hover,
+    .article:hover,
+    .article-links a:hover,
+    .article-links button:hover {
+      background: var(--fg);
+      color: var(--bg);
+    }
+
+    .status {
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+      gap: 20px;
+      padding: 24px var(--pad);
+      border-bottom: var(--line);
+    }
+
+    .eyebrow,
+    .meta,
+    .tag,
+    .copy-status {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 780px;
+      margin-top: 8px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.05;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .lede {
+      max-width: 760px;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+
+    .actions {
+      align-content: end;
+      justify-content: flex-end;
+    }
+
+    .topics {
+      padding: 10px var(--pad);
+      border-bottom: var(--line);
+    }
+
+    .intro {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr);
+      gap: 16px;
+      padding: 18px var(--pad);
+      border-bottom: var(--line);
+      background: var(--soft);
+    }
+
+    .intro-copy {
+      display: grid;
+      gap: 13px;
+    }
+
+    .intro h2 {
+      font-size: 15px;
+      line-height: 1.25;
+      text-transform: uppercase;
+    }
+
+    .intro p {
+      max-width: 800px;
+      font-size: 12px;
+    }
+
+    .question {
+      padding: 10px;
+      border: var(--line);
+      background: var(--bg);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .mechanism-list,
+    .project-list {
+      gap: 5px;
+    }
+
+    .topic-map {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      border-top: var(--line);
+      border-left: var(--line);
+    }
+
+    .topic-map a,
+    .topic-map span {
+      min-height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 8px;
+      border-right: var(--line);
+      border-bottom: var(--line);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .topic-map a:hover {
+      background: var(--fg);
+      color: var(--bg);
+    }
+
+    .topic-map a:hover small {
+      color: var(--bg);
+    }
+
+    .topic-map small {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 16px;
+      padding: 14px var(--pad) 10px;
+      border-bottom: var(--line);
+    }
+
+    .section-head h2 {
+      font-size: 13px;
+      line-height: 1.3;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .article-list {
+      display: grid;
+    }
+
+    .article {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr) 210px;
+      gap: 16px;
+      padding: 16px var(--pad);
+      border-bottom: var(--line);
+    }
+
+    .article-main {
+      min-width: 0;
+    }
+
+    .article-title {
+      max-width: 720px;
+      font-size: clamp(17px, 2vw, 23px);
+      line-height: 1.12;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .article-summary {
+      max-width: 720px;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .article:hover .article-summary,
+    .article:hover .meta,
+    .article:hover .tag {
+      color: var(--bg);
+    }
+
+    .article-tools {
+      display: grid;
+      align-content: start;
+      justify-items: end;
+      gap: 8px;
+    }
+
+    .article-links {
+      justify-content: flex-end;
+    }
+
+    .tag-row {
+      justify-content: flex-end;
+      gap: 5px;
+    }
+
+    .tag {
+      min-height: 20px;
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 5px;
+      border: var(--soft-line);
+    }
+
+    .llm-export {
+      padding: 16px var(--pad) 20px;
+      background: var(--soft);
+    }
+
+    details {
+      border: var(--line);
+      background: var(--bg);
+    }
+
+    summary {
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      padding: 7px 10px;
+      border-bottom: var(--line);
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 150px;
+      display: block;
+      border: 0;
+      resize: vertical;
+      padding: 10px;
+      background: var(--bg);
+      color: var(--fg);
+      font: 12px/1.5 var(--mono);
+      letter-spacing: 0;
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        border-left: 0;
+        border-right: 0;
+      }
+
+      .topbar,
+      .footer,
+      .hero,
+      .intro,
+      .section-head,
+      .article {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar,
+      .footer {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .actions,
+      .article-tools,
+      .article-links,
+      .tag-row {
+        justify-content: flex-start;
+        justify-items: start;
+      }
+
+      .topic-map {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Blog",
+      "name": "shape rotator journal",
+      "description": "Compact articles on AI agents, LLM workflows, coordination under partial trust, AI workflow memory, trust, timing, taste, and human override.",
+      "url": "https://os-web.shaperotator.xyz/workspace/journal",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Shape Rotator"
+      },
+      "blogPost": [
+        {
+          "@type": "BlogPosting",
+          "headline": "Why LLM agents need memory, workflows, and social routing",
+          "url": "https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing",
+          "keywords": "LLM agents, AI workflow memory, agentic systems, human-in-the-loop AI"
+        },
+        {
+          "@type": "BlogPosting",
+          "headline": "Privacy is not the product; capability is the product",
+          "url": "https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability",
+          "keywords": "AI privacy, private AI agents, trusted execution environments"
+        }
+      ]
+    }
+  </script>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <nav class="nav" aria-label="primary">
+        <a href="/">[SHAPE_ROTATOR]</a>
+        <a href="/workspace">[ WORKSPACE ]</a>
+        <span>[ JOURNAL ]</span>
+      </nav>
+      <div class="status">
+        <span>PUBLIC_CONTENT v0.0.1</span>
+      </div>
+    </header>
+
+    <section class="hero" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">Shape Rotator Journal</p>
+        <h1 id="page-title">Articles for people and LLMs</h1>
+        <p class="lede">A simple blog index for Shape Rotator writing. Public content v0.0.1 ships readable article pages plus raw Markdown versions for copying, exporting, and model retrieval.</p>
+      </div>
+      <div class="actions" aria-label="journal actions">
+        <button class="button" type="button" data-copy-index>[ COPY INDEX MD ]</button>
+        <a class="button" href="/workspace/journal/index.md">[ RAW INDEX ]</a>
+        <a class="button" href="/workspace/journal/llms.txt">[ LLM LIST ]</a>
+        <span class="copy-status" data-copy-status aria-live="polite"></span>
+      </div>
+    </section>
+
+    <nav class="topics" aria-label="topics">
+      <a class="chip" href="#ai-agents">AI agents</a>
+      <a class="chip" href="#private-ai">Private AI</a>
+      <a class="chip" href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">Workflow memory</a>
+      <a class="chip" href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">Human override</a>
+    </nav>
+
+    <section class="intro" aria-labelledby="synthesis-title">
+      <p class="meta">Synthesis</p>
+      <div class="intro-copy">
+        <div>
+          <p class="eyebrow">Shape Rotator - Full Context Synthesis</p>
+          <h2 id="synthesis-title">Meta theme across the entire cohort</h2>
+        </div>
+        <p>The dominant hidden theme across almost every project is not simply AI apps, TEEs, or agent tooling. The deeper recurring layer is coordination under partial trust.</p>
+        <div class="mechanism-list" aria-label="recurring mechanisms">
+          <span class="tag">coordination under partial trust</span>
+          <span class="tag">preserving agency while increasing automation</span>
+          <span class="tag">routing information safely</span>
+          <span class="tag">memory persistence</span>
+          <span class="tag">local-first systems</span>
+          <span class="tag">sovereign systems</span>
+          <span class="tag">human-agent collaboration</span>
+          <span class="tag">reducing invisible coordination overhead</span>
+          <span class="tag">collaboration without full disclosure</span>
+          <span class="tag">context fragmentation</span>
+          <span class="tag">making invisible work legible</span>
+          <span class="tag">privacy-preserving intelligence</span>
+        </div>
+        <p class="question">How do humans, agents, workflows, and organizations coordinate effectively when context, trust, privacy, and memory are all fragmented?</p>
+        <div class="project-list" aria-label="cohort project references">
+          <span class="tag">TinyCloud</span>
+          <span class="tag">TSQL</span>
+          <span class="tag">Conclave</span>
+          <span class="tag">Router</span>
+          <span class="tag">Smithers</span>
+          <span class="tag">SignalSext</span>
+          <span class="tag">anonymous credentials</span>
+          <span class="tag">workflow routing</span>
+          <span class="tag">AI orchestration</span>
+        </div>
+        <div class="topic-map" aria-label="article topic links">
+          <a href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">Memory persistence <small>article</small></a>
+          <a href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">Workflow routing <small>article</small></a>
+          <a href="/workspace/journal/articles/private-ai-capability/">Partial trust <small>article</small></a>
+          <a href="/workspace/journal/articles/private-ai-capability/">Privacy-preserving intelligence <small>article</small></a>
+          <span>TinyCloud <small>next link</small></span>
+          <span>TSQL <small>next link</small></span>
+          <span>Conclave <small>next link</small></span>
+          <span>Router <small>next link</small></span>
+          <span>Smithers <small>next link</small></span>
+          <span>SignalSext <small>next link</small></span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="latest-title">
+      <header class="section-head">
+        <p class="meta">Latest</p>
+        <h2 id="latest-title">Published articles</h2>
+      </header>
+
+      <div class="article-list">
+        <article class="article" id="ai-agents">
+          <time class="meta" datetime="2026-05-27">May 27</time>
+          <div class="article-main">
+            <h3 class="article-title"><a href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">Why LLM agents need memory, workflows, and social routing</a></h3>
+            <p class="article-summary">A practical article on why agentic systems need durable context, explicit work state, social routing, and a human override path.</p>
+          </div>
+          <div class="article-tools">
+            <div class="article-links">
+              <a href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/">READ</a>
+              <a href="/workspace/journal/articles/llm-agents-memory-workflows-social-routing/article.md">MD</a>
+            </div>
+            <div class="tag-row" aria-label="tags">
+              <span class="tag">LLM agents</span>
+              <span class="tag">workflow memory</span>
+              <span class="tag">override</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="article" id="private-ai">
+          <time class="meta" datetime="2026-05-27">May 27</time>
+          <div class="article-main">
+            <h3 class="article-title"><a href="/workspace/journal/articles/private-ai-capability/">Privacy is not the product; capability is the product</a></h3>
+            <p class="article-summary">A short essay on private AI, sensitive context, trusted execution, and why privacy only matters when it unlocks useful work.</p>
+          </div>
+          <div class="article-tools">
+            <div class="article-links">
+              <a href="/workspace/journal/articles/private-ai-capability/">READ</a>
+              <a href="/workspace/journal/articles/private-ai-capability/article.md">MD</a>
+            </div>
+            <div class="tag-row" aria-label="tags">
+              <span class="tag">private AI</span>
+              <span class="tag">trust</span>
+              <span class="tag">capability</span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="llm-export" aria-labelledby="export-title">
+      <details>
+        <summary id="export-title">LLM export block</summary>
+        <textarea readonly data-index-export># Shape Rotator Journal
+
+Version: public content v0.0.1
+
+Use this as a compact retrieval index for Shape Rotator articles.
+
+## Full Context Synthesis
+
+The dominant hidden theme across almost every Shape Rotator cohort project is not simply AI apps, TEEs, or agent tooling.
+
+The deeper recurring layer is coordination under partial trust: preserving agency while increasing automation, routing information safely, memory persistence, local-first and sovereign systems, human-agent collaboration, reducing invisible coordination overhead, enabling collaboration without full disclosure, managing context fragmentation, making invisible work legible, and building privacy-preserving intelligence systems.
+
+The cohort is collectively exploring this question:
+
+How do humans, agents, workflows, and organizations coordinate effectively when context, trust, privacy, and memory are all fragmented?
+
+This appears across TinyCloud, TSQL, Conclave, Router, Smithers, SignalSext, anonymous credential systems, workflow routing systems, and AI orchestration systems.
+
+- Why LLM agents need memory, workflows, and social routing
+  - HTML: https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing
+  - Markdown: https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing/article.md
+  - Tags: LLM agents, AI workflow memory, agentic systems, human-in-the-loop AI, human override
+
+- Privacy is not the product; capability is the product
+  - HTML: https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability
+  - Markdown: https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability/article.md
+  - Tags: private AI, AI privacy, trusted execution environments, sensitive context, AI capability</textarea>
+      </details>
+    </section>
+
+    <footer class="footer">
+      <span>Shape Rotator OS</span>
+      <span><a href="/workspace">Workspace</a> / <a href="/links">Links</a> / <a href="https://github.com/dmarzzz/shape-rotator-os">Source</a></span>
+    </footer>
+  </main>
+
+  <script>
+    const copyButton = document.querySelector('[data-copy-index]');
+    const copyStatus = document.querySelector('[data-copy-status]');
+    const exportText = document.querySelector('[data-index-export]');
+
+    copyButton.addEventListener('click', async () => {
+      const text = exportText.value.trim();
+      try {
+        await navigator.clipboard.writeText(`${text}\n`);
+        copyStatus.textContent = 'copied';
+      } catch (error) {
+        copyStatus.textContent = 'select text below';
+      }
+    });
+  </script>
+</body>
+</html>

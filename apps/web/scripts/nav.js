@@ -20,7 +20,9 @@ export function markCurrentNav() {
   const here = location.pathname.replace(/\/$/, "") || "/";
   document.querySelectorAll(".site-nav-links a").forEach((a) => {
     const href = a.getAttribute("href").replace(/\/$/, "") || "/";
-    if (href === here) a.setAttribute("aria-current", "page");
+    if (href === here || (href !== "/" && here.startsWith(`${href}/`))) {
+      a.setAttribute("aria-current", "page");
+    }
   });
 }
 

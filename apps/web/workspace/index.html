@@ -70,6 +70,27 @@
             background: var(--bg);
             z-index: 10;
         }
+        .workspace-head-left {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+        .workspace-home-link,
+        .workspace-journal-link {
+            color: var(--fg);
+            text-decoration: none;
+        }
+        .workspace-journal-link {
+            border-left: 1px dotted var(--fg-muted);
+            padding-left: 12px;
+            font-weight: 400;
+        }
+        .workspace-home-link:hover,
+        .workspace-journal-link:hover {
+            background: var(--fg);
+            color: var(--bg);
+        }
         .status-indicator {
             display: flex;
             align-items: center;
@@ -98,7 +119,7 @@
             content: '';
             position: absolute;
             inset: 0;
-            background-image: url('workspace.jpg');
+            background-image: url('/workspace/workspace.jpg');
             background-size: cover;
             background-position: center;
             filter: grayscale(1) contrast(1.4) brightness(1.05) sepia(0.35) hue-rotate(-10deg);
@@ -319,60 +340,16 @@
             z-index: 100;
         }
 
-
-        #entry-gate {
-            position: fixed;
-            inset: 0;
-            background: var(--bg);
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 24px;
-            cursor: pointer;
-            font-family: var(--font-mono);
-            color: var(--fg);
-            text-transform: uppercase;
-            letter-spacing: -0.03em;
-            transition: opacity 0.6s ease-out;
-        }
-        #entry-gate.dismissed {
-            opacity: 0;
-            pointer-events: none;
-        }
-        .gate-title {
-            font-size: 24px;
-            font-weight: 700;
-        }
-        .gate-meta {
-            font-size: 10px;
-            color: var(--fg-muted);
-        }
-        .gate-btn {
-            font-family: var(--font-mono);
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: -0.03em;
-            background: var(--fg);
-            color: var(--bg);
-            border: none;
-            padding: 14px 28px;
-            cursor: pointer;
-        }
-        .gate-btn:hover { background: #333; }
-
         #audio-container {
             position: fixed;
             right: 12px;
             bottom: 12px;
             width: 300px;
             height: 80px;
-            opacity: 0;
-            pointer-events: none;
             z-index: 90;
             transition: opacity 0.4s ease;
+            opacity: 0;
+            pointer-events: none;
         }
         #audio-container.live {
             opacity: 1;
@@ -418,14 +395,6 @@
     <div class="scanlines" vid="7"></div>
 
 
-    <div id="entry-gate">
-        <div class="gate-title">[SHAPE_ROTATOR]</div>
-        <div class="gate-meta">ROOM: ENGINE_01 // COHORT: LVRG_MAX</div>
-        <button class="gate-btn" id="gate-btn">[ ENTER ]</button>
-        <div class="gate-meta">PRESS TO ENTER // CLICK PLAYER FOR AUDIO</div>
-    </div>
-
-
     <div id="audio-container"><div id="spotify-embed"></div></div>
     <button id="audio-toggle" aria-label="Hide audio player">[ HIDE AUDIO ]</button>
 
@@ -443,7 +412,10 @@
 
 
         <header vid="9">
-            <div vid="10">[SHAPE_ROTATOR]</div>
+            <div class="workspace-head-left" vid="10">
+                <a class="workspace-home-link" href="/">[SHAPE_ROTATOR]</a>
+                <a class="workspace-journal-link" href="/workspace/journal">[ JOURNAL ]</a>
+            </div>
             <div class="status-indicator" vid="11">
                 <span class="meta" vid="12">ROOM: ENGINE_01</span>
                 <div class="blink" vid="13"></div>
@@ -746,6 +718,7 @@
             () => ({ agent: 'EVENT',   action: `SCHED.${escapeHTML(pick(cohort.events))}` }),
             () => ({ agent: 'TEAM',    action: `HEARTBEAT.${escapeHTML(pick(cohort.teams))}` }),
             () => ({ agent: 'TEAM',    action: `PUSH.${escapeHTML(pick(cohort.teams))} → ${escapeHTML(pick(cohort.people))}` }),
+            () => ({ agent: 'JOURNAL', action: `<a class="op-link" href="/workspace/journal">ARTICLE_QUEUE: draft → workspace/journal</a>` }),
             () => {
                 const c = pick(cohort.commits);
                 const who = c.handle ? linkifyHandle(c.handle) : escapeHTML(c.name);
@@ -807,20 +780,8 @@
             IFrameAPI.createController(element, options, () => {});
         };
 
-        const gate = document.getElementById('entry-gate');
-
-        function dismissGate() {
-            gate.classList.add('dismissed');
-            audioContainer.classList.add('live');
-            audioToggle.classList.add('live');
-            document.getElementById('attendee-roster').classList.add('live');
-            setTimeout(() => { gate.remove(); }, 700);
-        }
-
-        gate.addEventListener('click', dismissGate);
-        document.addEventListener('keydown', () => {
-            if (gate.isConnected) dismissGate();
-        }, { once: true });
+        audioToggle.classList.add('live');
+        document.getElementById('attendee-roster').classList.add('live');
 
         audioToggle.addEventListener('click', () => {
             const showing = audioContainer.classList.toggle('live');
