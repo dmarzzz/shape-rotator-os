@@ -140,9 +140,13 @@ const state = {
     loading: false,
     manifest: null,
     roots: [],
+    mode: "articles",
     selectedId: null,
+    selectedRawId: null,
     selectedText: "",
     selectedTruncated: false,
+    rawTextById: {},
+    rawLoadingId: null,
     error: "",
     message: "",
   },
@@ -2980,11 +2984,12 @@ function renderProgramMarkdown(md) {
   if (!src) return `<p class="alch-prog-empty">(this page is empty — fill it in via the edit button above.)</p>`;
   const lines = src.split(/\r?\n/);
   const out = [];
-  let inUl = false, inOl = false, inP = false;
+  let inUl = false, inOl = false, inP = false, inTable = false, tableRows = 0;
   const closeBlocks = () => {
     if (inP)  { out.push("</p>"); inP = false; }
     if (inUl) { out.push("</ul>"); inUl = false; }
     if (inOl) { out.push("</ol>"); inOl = false; }
+    if (inTable) { out.push("</tbody></table></div>"); inTable = false; tableRows = 0; }
   };
   const inline = (text) => {
     let t = escHtmlPreserve(text);
@@ -3061,6 +3066,7 @@ function renderProgramMarkdown(md) {
     const ul = /^\s*[-*]\s+(.+)$/.exec(line);
     if (ul) {
       if (inP)  { out.push("</p>"); inP = false; }
+      if (inTable) { out.push("</tbody></table></div>"); inTable = false; tableRows = 0; }
       if (inOl) { out.push("</ol>"); inOl = false; }
       if (!inUl) { out.push(`<ul class="alch-prog-ul">`); inUl = true; }
       out.push(`<li>${inline(ul[1])}</li>`);
@@ -3069,6 +3075,7 @@ function renderProgramMarkdown(md) {
     const ol = /^\s*\d+\.\s+(.+)$/.exec(line);
     if (ol) {
       if (inP)  { out.push("</p>"); inP = false; }
+      if (inTable) { out.push("</tbody></table></div>"); inTable = false; tableRows = 0; }
       if (inUl) { out.push("</ul>"); inUl = false; }
       if (!inOl) { out.push(`<ol class="alch-prog-ol">`); inOl = true; }
       out.push(`<li>${inline(ol[1])}</li>`);
@@ -3076,6 +3083,7 @@ function renderProgramMarkdown(md) {
     }
     // Paragraph text.
     if (inUl || inOl) closeBlocks();
+    if (inTable) { out.push("</tbody></table></div>"); inTable = false; tableRows = 0; }
     if (!inP) { out.push(`<p class="alch-prog-p">`); inP = true; }
     else out.push(" ");
     out.push(inline(line));
@@ -3725,8 +3733,8 @@ function wireAsks() {
 // can then promote selected, public-safe summaries into the existing
 // GitHub PR flow for asks or program notes.
 
-const CONTEXT_CONTENT_VERSION = "v0.0.1";
-const CONTEXT_CONTENT_RELEASE_NOTE = "article drafts, copy .md, in-place switching, local-date calendar";
+const CONTEXT_CONTENT_VERSION = "v0.0.3";
+const CONTEXT_CONTENT_RELEASE_NOTE = "reader drafts · raw scripts · copy bundle · local-date calendar";
 
 function contextVaultAvailable() {
   return !!(window.api?.loadContextVault && window.api?.scanContextVault);
@@ -3768,6 +3776,7 @@ async function loadContextVault({ scan = false } = {}) {
 async function selectContextSource(sourceId) {
   if (!sourceId) return;
   if (state.contextVault.selectedId === sourceId) return;
+  state.contextVault.mode = "articles";
   state.contextVault.selectedId = sourceId;
   state.contextVault.selectedText = "";
   state.contextVault.selectedTruncated = false;
@@ -3784,8 +3793,69 @@ async function selectContextSource(sourceId) {
   render();
 }
 
+function setContextVaultMode(mode) {
+  const nextMode = mode === "raw" ? "raw" : "articles";
+  if (state.contextVault.mode === nextMode) return;
+  state.contextVault.mode = nextMode;
+  renderContextVault();
+  wireContextVault();
+}
+
+async function selectContextRawScript(sourceId) {
+  if (!sourceId) return;
+  if (state.contextVault.mode === "raw" && state.contextVault.selectedRawId === sourceId) return;
+  state.contextVault.mode = "raw";
+  state.contextVault.selectedRawId = sourceId;
+  const selected = contextRawScriptById(sourceId);
+  const detail = state.canvas?.querySelector(".alch-cv-detail");
+  if (state.mode === "context" && selected && detail) {
+    for (const btn of state.canvas.querySelectorAll("[data-cv-raw-source]")) {
+      btn.classList.toggle("is-selected", btn.dataset.cvRawSource === sourceId);
+    }
+    detail.outerHTML = renderContextVaultRawDetail(selected);
+    wireContextVaultDetailActions(state.canvas);
+    loadContextRawScriptText(sourceId);
+    return;
+  }
+  render();
+}
+
 function contextSourceById(id) {
   return (state.contextVault.manifest?.sources || []).find(s => s.id === id) || null;
+}
+
+function contextRawScriptById(id) {
+  return (state.contextVault.manifest?.raw_scripts || []).find(s => s.id === id) || null;
+}
+
+async function loadContextRawScriptText(sourceId) {
+  if (!sourceId || state.contextVault.rawTextById?.[sourceId]) return;
+  if (!window.api?.readContextVaultSource) return;
+  state.contextVault.rawLoadingId = sourceId;
+  try {
+    const res = await window.api.readContextVaultSource(sourceId);
+    if (!res?.ok) throw new Error(res?.error || "raw script read failed");
+    state.contextVault.rawTextById = {
+      ...(state.contextVault.rawTextById || {}),
+      [sourceId]: res.text || "",
+    };
+    state.contextVault.selectedTruncated = !!res.truncated;
+  } catch (e) {
+    state.contextVault.rawTextById = {
+      ...(state.contextVault.rawTextById || {}),
+      [sourceId]: `Could not load raw script: ${e?.message || String(e)}`,
+    };
+  } finally {
+    if (state.contextVault.rawLoadingId === sourceId) state.contextVault.rawLoadingId = null;
+  }
+  if (state.mode === "context" && state.contextVault.mode === "raw" && state.contextVault.selectedRawId === sourceId) {
+    const selected = contextRawScriptById(sourceId);
+    const detail = state.canvas?.querySelector(".alch-cv-detail");
+    if (selected && detail) {
+      detail.outerHTML = renderContextVaultRawDetail(selected);
+      wireContextVaultDetailActions(state.canvas);
+    }
+  }
 }
 
 function contextSlug(s, fallback = "context-note") {
@@ -3840,6 +3910,15 @@ function contextArticleSection(source) {
   return source?.article_section || "article candidate";
 }
 
+function contextArticleMeta(source) {
+  const bits = [];
+  if (source?.status) bits.push(String(source.status));
+  if (source?.content_version) bits.push(String(source.content_version));
+  const section = contextArticleSection(source);
+  if (section) bits.push(section);
+  return bits.join(" · ");
+}
+
 function contextArticleReader(source) {
   const title = contextArticleTitle(source);
   const angle = contextArticleDek(source);
@@ -3891,6 +3970,8 @@ function contextArticleReader(source) {
 }
 
 function buildContextArticleMarkdown(source) {
+  if (source?.article_full_md) return source.article_full_md;
+  if (source?.article_body_md) return source.article_body_md;
   const title = contextArticleTitle(source);
   const reader = contextArticleReader(source);
   const lines = [
@@ -3907,6 +3988,13 @@ function buildContextArticleMarkdown(source) {
 }
 
 function renderContextReaderHtml(source) {
+  if (source?.article_body_md) {
+    return `
+      <article class="alch-cv-reader alch-cv-article-md">
+        ${renderProgramMarkdown(source.article_body_md)}
+      </article>
+    `;
+  }
   const title = contextArticleTitle(source);
   const reader = contextArticleReader(source);
   const sections = reader.sections.map(([heading, body]) => `
@@ -3930,7 +4018,7 @@ function renderContextReaderHtml(source) {
 }
 
 function renderContextVaultDetail(selected) {
-  const selectedMdFile = selected ? `${contextArticleSlug(selected)}.md` : "article.md";
+  const selectedMdFile = selected ? (selected.article_file || `${contextArticleSlug(selected)}.md`) : "article.md";
   return selected ? `
     <article class="alch-cv-detail">
       <header class="alch-cv-detail-head">
@@ -3949,6 +4037,57 @@ function renderContextVaultDetail(selected) {
     <article class="alch-cv-detail alch-cv-empty-detail">
       <h3>no articles indexed yet</h3>
       <p>Refresh the private article index to load articles.</p>
+    </article>
+  `;
+}
+
+function contextRawScriptTitle(source) {
+  return source?.title || source?.path?.split(/[\\/]/).pop()?.replace(/\.txt$/i, "") || "Untitled raw script";
+}
+
+function contextRawScriptMeta(source) {
+  const bits = [];
+  if (source?.date) bits.push(source.date);
+  if (source?.line_count) bits.push(`${source.line_count} lines`);
+  if (source?.source_kind) bits.push(source.source_kind.replace(/-/g, " "));
+  return bits.join(" · ");
+}
+
+function renderContextVaultRawDetail(selected) {
+  if (!selected) {
+    return `
+      <article class="alch-cv-detail alch-cv-empty-detail">
+        <h3>no raw scripts indexed yet</h3>
+        <p>Refresh the context vault to load bundled and local raw scripts.</p>
+      </article>
+    `;
+  }
+  const title = contextRawScriptTitle(selected);
+  const text = state.contextVault.rawTextById?.[selected.id] || "";
+  const loading = state.contextVault.rawLoadingId === selected.id && !text;
+  const fallback = selected.excerpt || "Loading raw script...";
+  const displayText = loading ? "Loading raw script..." : (text || fallback);
+  return `
+    <article class="alch-cv-detail alch-cv-raw-detail">
+      <header class="alch-cv-detail-head">
+        <div>
+          <span class="alch-cv-eyebrow">raw script · txt</span>
+        </div>
+        <div class="alch-cv-detail-actions">
+          <button class="alch-cv-md-action" type="button" data-cv-copy-raw-bundle title="copy all raw scripts">
+            <span class="alch-cv-md-action-label">copy all</span>
+          </button>
+          <button class="alch-cv-md-action" type="button" data-cv-copy-raw="${escAttr(selected.id)}" title="copy ${escAttr(title)}">
+            <span class="alch-cv-md-action-label">copy .txt</span>
+          </button>
+        </div>
+      </header>
+      <article class="alch-cv-reader alch-cv-raw-reader">
+        <p class="alch-cv-reader-kicker">${escHtml(contextRawScriptMeta(selected) || "source transcript")}</p>
+        <h1>${escHtml(title)}</h1>
+      </article>
+      <pre class="alch-cv-raw-text">${escHtml(displayText)}</pre>
+      <div class="alch-cv-result" data-cv-result hidden></div>
     </article>
   `;
 }
@@ -4057,26 +4196,42 @@ function renderContextVault() {
   }
   const manifest = cv.manifest || null;
   const sources = manifest?.sources || [];
+  const rawScripts = manifest?.raw_scripts || [];
+  const mode = cv.mode === "raw" ? "raw" : "articles";
   const selected = contextSourceById(cv.selectedId) || sources[0] || null;
+  const selectedRaw = contextRawScriptById(cv.selectedRawId) || rawScripts[0] || null;
   if (selected && !cv.selectedId) cv.selectedId = selected.id;
-  const sourceRows = sources.map(s => {
-    const selectedCls = selected && selected.id === s.id ? " is-selected" : "";
-    const title = contextArticleTitle(s);
-    return `
-      <button class="alch-cv-source${selectedCls}" type="button" data-cv-source="${escAttr(s.id)}">
-        <strong>${escHtml(title)}</strong>
-      </button>
-    `;
-  }).join("");
-  const detail = renderContextVaultDetail(selected);
+  if (selectedRaw && !cv.selectedRawId) cv.selectedRawId = selectedRaw.id;
+  const sourceRows = mode === "raw"
+    ? rawScripts.map(s => {
+      const selectedCls = selectedRaw && selectedRaw.id === s.id ? " is-selected" : "";
+      return `
+        <button class="alch-cv-source${selectedCls}" type="button" data-cv-raw-source="${escAttr(s.id)}">
+          <strong>${escHtml(contextRawScriptTitle(s))}</strong>
+          <span class="alch-cv-source-meta">${escHtml(contextRawScriptMeta(s))}</span>
+        </button>
+      `;
+    }).join("")
+    : sources.map(s => {
+      const selectedCls = selected && selected.id === s.id ? " is-selected" : "";
+      const title = contextArticleTitle(s);
+      const meta = contextArticleMeta(s);
+      return `
+        <button class="alch-cv-source${selectedCls}" type="button" data-cv-source="${escAttr(s.id)}">
+          <strong>${escHtml(title)}</strong>
+          ${meta ? `<span class="alch-cv-source-meta">${escHtml(meta)}</span>` : ""}
+        </button>
+      `;
+    }).join("");
+  const detail = mode === "raw" ? renderContextVaultRawDetail(selectedRaw) : renderContextVaultDetail(selected);
 
   state.canvas.innerHTML = `
     <section class="alch-cv">
       <header class="alch-cv-head">
         <div>
           <p class="alch-cv-kicker">local context vault</p>
-          <h2>article index</h2>
-          <p>A private article list generated from the local context vault. Underlying inputs stay hidden; this view is for choosing articles to draft, review, and promote.</p>
+          <h2>context library</h2>
+          <p>Reader-facing article drafts plus the raw scripts they came from, bundled into the OS for local prompting.</p>
           <div class="alch-cv-release">
             <span class="alch-cv-release-version">content ${escHtml(CONTEXT_CONTENT_VERSION)}</span>
             <span class="alch-cv-release-note">${escHtml(CONTEXT_CONTENT_RELEASE_NOTE)}</span>
@@ -4090,13 +4245,20 @@ function renderContextVault() {
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
       <div class="alch-cv-layout">
         <aside class="alch-cv-sidebar">
-          <h3>articles</h3>
-          <div class="alch-cv-sources">${sourceRows || "<p class=\"alch-cv-muted\">refresh to load articles.</p>"}</div>
+          <div class="alch-cv-mode">
+            <button class="${mode === "articles" ? "is-selected" : ""}" type="button" data-cv-mode="articles">articles <span>${sources.length}</span></button>
+            <button class="${mode === "raw" ? "is-selected" : ""}" type="button" data-cv-mode="raw">raw scripts <span>${rawScripts.length}</span></button>
+          </div>
+          <h3>${mode === "raw" ? "raw scripts" : "articles"}</h3>
+          <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">refresh to load ${mode === "raw" ? "raw scripts" : "articles"}.</p>`}</div>
         </aside>
         ${detail}
       </div>
     </section>
   `;
+  if (mode === "raw" && selectedRaw && !cv.rawTextById?.[selectedRaw.id]) {
+    setTimeout(() => loadContextRawScriptText(selectedRaw.id), 0);
+  }
 }
 
 function wireContextVault() {
@@ -4104,8 +4266,14 @@ function wireContextVault() {
   if (scan) {
     scan.addEventListener("click", () => loadContextVault({ scan: true }));
   }
+  for (const btn of state.canvas.querySelectorAll("[data-cv-mode]")) {
+    btn.addEventListener("click", () => setContextVaultMode(btn.dataset.cvMode));
+  }
   for (const btn of state.canvas.querySelectorAll("[data-cv-source]")) {
     btn.addEventListener("click", () => selectContextSource(btn.dataset.cvSource));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-cv-raw-source]")) {
+    btn.addEventListener("click", () => selectContextRawScript(btn.dataset.cvRawSource));
   }
   wireContextVaultDetailActions(state.canvas);
 }
@@ -4117,12 +4285,41 @@ function wireContextVaultDetailActions(root = state.canvas) {
       if (window.api?.revealContextVaultCorpus) await window.api.revealContextVaultCorpus();
     });
   }
+  for (const btn of root.querySelectorAll("[data-cv-reveal-source]")) {
+    btn.addEventListener("click", async () => {
+      if (window.api?.revealContextVaultSource) await window.api.revealContextVaultSource(btn.dataset.cvRevealSource);
+    });
+  }
   for (const btn of root.querySelectorAll("[data-cv-copy-article]")) {
     btn.addEventListener("click", async () => {
       const source = contextSourceById(btn.dataset.cvCopyArticle);
       if (!source) return;
       const markdown = buildContextArticleMarkdown(source);
       flashCopyButton(btn, await copyTextToClipboard(markdown));
+    });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-copy-raw]")) {
+    btn.addEventListener("click", async () => {
+      const sourceId = btn.dataset.cvCopyRaw;
+      let text = state.contextVault.rawTextById?.[sourceId] || "";
+      if (!text && window.api?.readContextVaultSource) {
+        const res = await window.api.readContextVaultSource(sourceId);
+        if (res?.ok) {
+          text = res.text || "";
+          state.contextVault.rawTextById = { ...(state.contextVault.rawTextById || {}), [sourceId]: text };
+        }
+      }
+      flashCopyButton(btn, await copyTextToClipboard(text));
+    });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-copy-raw-bundle]")) {
+    btn.addEventListener("click", async () => {
+      let text = "";
+      if (window.api?.readContextVaultRawBundle) {
+        const res = await window.api.readContextVaultRawBundle();
+        if (res?.ok) text = res.text || "";
+      }
+      flashCopyButton(btn, await copyTextToClipboard(text));
     });
   }
   for (const btn of root.querySelectorAll("[data-cv-promote]")) {

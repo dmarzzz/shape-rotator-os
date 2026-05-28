@@ -109,7 +109,9 @@ const LEGACY_PREFS_FILE = path.join(STATE_DIR, "wall_prefs.json");
 const CONTEXT_VAULT_DIR = path.join(STATE_DIR, "context-vault");
 const CONTEXT_VAULT_MANIFEST = path.join(CONTEXT_VAULT_DIR, "manifest.json");
 const CONTEXT_VAULT_ARTICLE_INDEX = path.join(CONTEXT_VAULT_DIR, "shape-rotator-article-index.md");
+const CONTEXT_VAULT_RAW_BUNDLE = path.join(CONTEXT_VAULT_DIR, "shape-rotator-raw-scripts.md");
 const CONTEXT_VAULT_CORPUS = CONTEXT_VAULT_ARTICLE_INDEX;
+const COHORT_ARTICLES_DIR = path.resolve(__dirname, "..", "..", "cohort-data", "articles");
 
 // If a `wall_prefs.json` survived from before the rename (either from this
 // install or copied over by migrateLegacyUserData()), promote it to the new
@@ -167,6 +169,13 @@ function contextVaultRoots() {
       label: "VoxTerm documents",
       path: path.join(docs, "VoxTerm"),
       max_depth: 4,
+    },
+    {
+      key: "bundled-raw-scripts",
+      label: "Bundled raw scripts",
+      path: path.join(__dirname, "src", "content", "context", "raw-scripts"),
+      max_depth: 1,
+      bundled: true,
     },
   ];
 }
@@ -409,6 +418,112 @@ function uniqList(values = [], cap = 12) {
   return out;
 }
 
+function parseSimpleFrontmatterScalar(value) {
+  const raw = String(value || "").trim();
+  if (!raw || raw === "null") return raw === "null" ? null : "";
+  if (raw.startsWith("[") && raw.endsWith("]")) {
+    return raw.slice(1, -1)
+      .split(",")
+      .map(v => parseSimpleFrontmatterScalar(v))
+      .filter(v => v !== "");
+  }
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    return raw.slice(1, -1);
+  }
+  return raw;
+}
+
+function parseSimpleFrontmatter(text) {
+  const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(String(text || ""));
+  if (!m) return { frontmatter: {}, body: String(text || "") };
+  const frontmatter = {};
+  let listKey = null;
+  for (const rawLine of m[1].split(/\r?\n/)) {
+    const list = /^\s*-\s+(.+)$/.exec(rawLine);
+    if (list && listKey) {
+      if (!Array.isArray(frontmatter[listKey])) frontmatter[listKey] = [];
+      frontmatter[listKey].push(parseSimpleFrontmatterScalar(list[1]));
+      continue;
+    }
+    const kv = /^([A-Za-z0-9_-]+):(?:\s*(.*))?$/.exec(rawLine);
+    if (!kv) continue;
+    const key = kv[1];
+    const value = kv[2] || "";
+    if (!value.trim()) {
+      frontmatter[key] = [];
+      listKey = key;
+      continue;
+    }
+    frontmatter[key] = parseSimpleFrontmatterScalar(value);
+    listKey = null;
+  }
+  return { frontmatter, body: m[2] || "" };
+}
+
+function readCommittedArticles() {
+  let files;
+  try {
+    files = fs.readdirSync(COHORT_ARTICLES_DIR).filter(name => name.endsWith(".md")).sort();
+  } catch {
+    return [];
+  }
+  const articles = [];
+  for (const file of files) {
+    const filePath = path.join(COHORT_ARTICLES_DIR, file);
+    let raw;
+    try { raw = fs.readFileSync(filePath, "utf8"); }
+    catch { continue; }
+    const { frontmatter, body } = parseSimpleFrontmatter(raw);
+    if (frontmatter.record_type !== "article" || !frontmatter.record_id) continue;
+    const title = frontmatter.title || sourceTitleForConcept({ title: file });
+    const slug = frontmatter.slug || articleSlug(title);
+    articles.push({
+      id: `article:${frontmatter.record_id}`,
+      entry_kind: "article",
+      article_id: frontmatter.record_id,
+      corpus_id: frontmatter.record_id,
+      article_title: title,
+      article_angle: frontmatter.working_angle || "",
+      article_dek: frontmatter.working_angle || "",
+      article_section: frontmatter.editorial_section || "article",
+      article_slug: slug,
+      article_file: file,
+      article_body_md: String(body || "").trim(),
+      article_full_md: String(raw || "").trim(),
+      content_version: frontmatter.content_version || "",
+      status: frontmatter.status || "draft",
+      date: frontmatter.authored_week || null,
+      source_kind: "cohort-article",
+      source_refs: (frontmatter.sources || []).map(source => ({ title: String(source || "") })),
+      support_count: Array.isArray(frontmatter.sources) ? frontmatter.sources.length : 0,
+      skill_areas: frontmatter.related_clusters || [],
+      related_teams: frontmatter.related_teams || [],
+      related_people: frontmatter.related_people || [],
+      path: filePath,
+      size_bytes: Buffer.byteLength(raw, "utf8"),
+      line_count: raw.split(/\r?\n/).length,
+      char_count: raw.length,
+    });
+  }
+  return articles;
+}
+
+function articleDedupeKey(source) {
+  return String(source?.article_slug || articleSlug(source?.article_title || source?.title || source?.id || "article")).toLowerCase();
+}
+
+function mergeCommittedArticles(generatedArticles = []) {
+  const committed = readCommittedArticles();
+  const seen = new Set(committed.map(articleDedupeKey));
+  const generated = generatedArticles.filter(article => {
+    const key = articleDedupeKey(article);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return [...committed, ...generated];
+}
+
 function articleBriefHaystack(source) {
   return [
     source?.title,
@@ -506,10 +621,11 @@ function scanTranscriptFile(filePath, root) {
   };
 }
 
-function contextVaultTotals(sources = []) {
+function contextVaultTotals(sources = [], rawScripts = []) {
   return {
     sources: sources.length,
     articles: sources.length,
+    raw_scripts: rawScripts.length,
     lines: sources.reduce((n, s) => n + (s.line_count || 0), 0),
     bytes: sources.reduce((n, s) => n + (s.size_bytes || 0), 0),
     voxterm: sources.filter(s => s.source_kind === "voxterm").length,
@@ -528,6 +644,51 @@ function readContextVaultSourceText(filePath, maxBytes = 2_000_000) {
   } catch {
     return { text: "", truncated: false };
   }
+}
+
+function writeContextVaultRawBundle(rawScripts = []) {
+  const generatedAt = new Date().toISOString();
+  const lines = [
+    "---",
+    'title: "Shape Rotator Raw Scripts"',
+    `generated_at: ${JSON.stringify(generatedAt)}`,
+    `script_count: ${rawScripts.length}`,
+    'kind: "raw-script-bundle"',
+    "---",
+    "",
+    "# Shape Rotator Raw Scripts",
+    "",
+    "Bundled source transcript bundle for private prompting inside Shape Rotator OS.",
+    "",
+  ];
+  for (const source of rawScripts) {
+    const raw = readContextVaultSourceText(source.path, 2_000_000);
+    lines.push(`## ${source.title || path.basename(source.path || "raw script")}`);
+    lines.push("");
+    lines.push(`source_id: ${source.id || ""}`);
+    lines.push(`source_kind: ${source.source_kind || "raw-script"}`);
+    lines.push(`date: ${source.date || ""}`);
+    lines.push(`lines: ${source.line_count || 0}`);
+    lines.push(`path: ${source.path || ""}`);
+    lines.push("");
+    lines.push("----- BEGIN RAW SCRIPT -----");
+    lines.push(raw.text || "");
+    if (raw.truncated || source.truncated) lines.push("----- TRUNCATED -----");
+    lines.push("----- END RAW SCRIPT -----");
+    lines.push("");
+  }
+  fs.mkdirSync(path.dirname(CONTEXT_VAULT_RAW_BUNDLE), { recursive: true });
+  const body = lines.join("\n");
+  fs.writeFileSync(CONTEXT_VAULT_RAW_BUNDLE, body);
+  return {
+    path: CONTEXT_VAULT_RAW_BUNDLE,
+    kind: "raw-script-bundle",
+    generated_at: generatedAt,
+    script_count: rawScripts.length,
+    line_count: body.split(/\r?\n/).length,
+    char_count: body.length,
+    size_bytes: Buffer.byteLength(body, "utf8"),
+  };
 }
 
 function writeContextVaultCorpus(sources = []) {
@@ -615,6 +776,7 @@ function normalizeContextVaultManifest(manifest) {
   const currentRoots = contextVaultRoots();
   const currentRootMap = new Map(currentRoots.map(root => [root.key, root]));
   const existingRoots = Array.isArray(manifest.roots) ? manifest.roots : [];
+  const rawScripts = Array.isArray(manifest.raw_scripts) ? manifest.raw_scripts : [];
   const roots = existingRoots.map(root => {
     const current = currentRootMap.get(root.key);
     return current ? { ...root, ...current, exists: fs.existsSync(current.path) } : root;
@@ -625,17 +787,18 @@ function normalizeContextVaultManifest(manifest) {
     }
   }
   if (!manifest.sources.every(source => source.entry_kind === "article")) {
-    const sources = buildArticleEntries(manifest.sources);
-    const totals = contextVaultTotals(sources);
+    const sources = mergeCommittedArticles(buildArticleEntries(manifest.sources));
+    const totals = contextVaultTotals(sources, rawScripts);
     const corpus = writeContextVaultCorpus(sources);
-    const next = { ...manifest, schema_version: 2, roots, totals, corpus, sources };
+    const raw_bundle = rawScripts.length ? writeContextVaultRawBundle(rawScripts) : manifest.raw_bundle || null;
+    const next = { ...manifest, schema_version: 2, roots, totals, corpus, raw_bundle, sources, raw_scripts: rawScripts };
     try { writeJSON(CONTEXT_VAULT_MANIFEST, next); } catch {}
     return next;
   }
   const rootMap = new Map(roots.map(root => [root.key, root]));
   let changed = false;
   if (JSON.stringify(existingRoots) !== JSON.stringify(roots)) changed = true;
-  const sources = manifest.sources.map((source, index) => {
+  const normalizedSources = manifest.sources.map((source, index) => {
     if (source.entry_kind === "article") {
       const title = source.article_title || articleTitle(source);
       const angle = source.article_angle || articleAngle(source);
@@ -690,7 +853,9 @@ function normalizeContextVaultManifest(manifest) {
       root_label: rootLabel,
     };
   });
-  const totals = contextVaultTotals(sources);
+  const sources = mergeCommittedArticles(normalizedSources);
+  if (JSON.stringify(manifest.sources || []) !== JSON.stringify(sources)) changed = true;
+  const totals = contextVaultTotals(sources, rawScripts);
   if (JSON.stringify(manifest.totals || {}) !== JSON.stringify(totals)) changed = true;
   let corpus = manifest.corpus || null;
   if (
@@ -702,8 +867,21 @@ function normalizeContextVaultManifest(manifest) {
     corpus = writeContextVaultCorpus(sources);
     changed = true;
   }
+  let raw_bundle = manifest.raw_bundle || null;
+  if (
+    rawScripts.length
+    && (
+      !raw_bundle
+      || raw_bundle.kind !== "raw-script-bundle"
+      || raw_bundle.path !== CONTEXT_VAULT_RAW_BUNDLE
+      || !fs.existsSync(raw_bundle.path || "")
+    )
+  ) {
+    raw_bundle = writeContextVaultRawBundle(rawScripts);
+    changed = true;
+  }
   if (!changed) return manifest;
-  const next = { ...manifest, totals, corpus, sources };
+  const next = { ...manifest, totals, corpus, raw_bundle, sources, raw_scripts: rawScripts };
   try { writeJSON(CONTEXT_VAULT_MANIFEST, next); } catch {}
   return next;
 }
@@ -714,37 +892,50 @@ function buildContextVaultManifest() {
     const exists = fs.existsSync(root.path);
     return { ...root, exists };
   });
-  const sources = [];
+  const candidates = [];
   for (const root of rootReports) {
     if (!root.exists) continue;
     for (const filePath of walkTranscriptFiles(root.path, [], 0, root.max_depth ?? 4)) {
       const source = scanTranscriptFile(filePath, root);
-      if (source) sources.push(source);
+      if (source) candidates.push(source);
     }
   }
+  const seenScripts = new Set();
+  const sources = [];
+  for (const source of candidates) {
+    const key = `${String(source.title || "").toLowerCase()}:${source.size_bytes || 0}`;
+    if (seenScripts.has(key)) continue;
+    seenScripts.add(key);
+    sources.push(source);
+  }
   sources.sort((a, b) => String(b.date || b.mtime).localeCompare(String(a.date || a.mtime)));
-  const articles = buildArticleEntries(sources);
+  const articles = mergeCommittedArticles(buildArticleEntries(sources));
   const corpus = writeContextVaultCorpus(articles);
+  const rawBundle = writeContextVaultRawBundle(sources);
   const manifest = {
     schema_version: 2,
     scanned_at: new Date().toISOString(),
     vault_dir: CONTEXT_VAULT_DIR,
     roots: rootReports,
-    totals: contextVaultTotals(articles),
+    totals: contextVaultTotals(articles, sources),
     corpus,
+    raw_bundle: rawBundle,
     sources: articles,
+    raw_scripts: sources,
   };
   writeJSON(CONTEXT_VAULT_MANIFEST, manifest);
   return manifest;
 }
 
 function readContextVaultManifest() {
-  return normalizeContextVaultManifest(readJSON(CONTEXT_VAULT_MANIFEST, null));
+  const manifest = normalizeContextVaultManifest(readJSON(CONTEXT_VAULT_MANIFEST, null));
+  return manifest || buildContextVaultManifest();
 }
 
 function sourceFromManifest(sourceId) {
   const manifest = readContextVaultManifest();
-  const source = manifest?.sources?.find(s => s.id === sourceId);
+  const source = manifest?.sources?.find(s => s.id === sourceId)
+    || manifest?.raw_scripts?.find(s => s.id === sourceId);
   return source ? { manifest, source } : { manifest, source: null };
 }
 
@@ -905,8 +1096,27 @@ ipcMain.handle("context-vault:read-source", async (_e, sourceId) => {
     return {
       ok: true,
       source,
-      text: raw.slice(0, 12000),
-      truncated: raw.length > 12000,
+      text: raw.slice(0, 2_000_000),
+      truncated: raw.length > 2_000_000,
+    };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+ipcMain.handle("context-vault:read-raw-bundle", async () => {
+  try {
+    const manifest = readContextVaultManifest();
+    const bundlePath = manifest?.raw_bundle?.path || CONTEXT_VAULT_RAW_BUNDLE;
+    if (!fs.existsSync(bundlePath)) {
+      const rawBundle = writeContextVaultRawBundle(manifest?.raw_scripts || []);
+      if (!fs.existsSync(rawBundle.path)) return { ok: false, error: "raw_bundle_not_found" };
+    }
+    const raw = fs.readFileSync(bundlePath, "utf8");
+    return {
+      ok: true,
+      path: bundlePath,
+      text: raw.slice(0, 5_000_000),
+      truncated: raw.length > 5_000_000,
     };
   } catch (e) {
     return { ok: false, error: e && e.message ? e.message : String(e) };

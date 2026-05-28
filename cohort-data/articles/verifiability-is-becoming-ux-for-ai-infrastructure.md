@@ -7,12 +7,12 @@ slug: verifiability-is-becoming-ux-for-ai-infrastructure
 editorial_section: verifiability ux
 audience: cohort
 status: draft
-content_version: "v0.0.2"
+content_version: "v0.0.3"
 published_at: null
 authored_week: w1.5
 sources:
-  - "TEE dstack easyTEE Phala Transcript (2026-05-27)"
-  - "dstack hangout Alex Shaw LSDan Andrew (2026-05-27)"
+  - "TEE / dstack / easyTEE / Phala session notes"
+  - "dstack session notes with Alex, Shaw, LSDan, and Andrew"
 related_clusters: [dstack]
 related_teams: [teesql, abra, tinycloud, conclave, elizaos]
 related_people: [lsdan, shaw-walters]
@@ -31,7 +31,7 @@ That shift changes what "good" looks like for everyone in this cluster. The prod
 
 ### 1. easyTEE made "rebuild it yourself" a one-command path from a laptop
 
-Alex (Flashbots) walked the room through easyTEE / Make OSI: clone a small repo, run `make build`, and a Nix-based VM spits out a reproducible image plus attestation hashes — *"all in one command from a MacBook"* (~7:37). Sources lock to Debian snapshots; aggressive caching reduces repeat builds *"to seconds instead of a very long time"* (Hang, ~6:54). Yocto can technically do this. In practice nobody did, because the setup tax was crushing, and as Alex put it, the audit surface is what changes: *"unlike Yocto, where you're pulling in all of these different things… this is the audit chamber. This is very small, so people can actually open up your software and understand how you get from source code to attestation"* (~9:05).
+Alex walked the room through easyTEE / Make OSI: clone a small repo, run `make build`, and a Nix-based VM spits out a reproducible image plus attestation hashes. Sources lock to Debian snapshots, and caching makes repeat builds fast enough that rebuilding is no longer a ceremonial audit step. Yocto can technically do this. In practice nobody did, because the setup tax was crushing. The audit surface is what changes: the path from source code to attestation becomes small enough for another engineer to inspect.
 
 This is the verifiability-as-UX move in its purest form. "Trust us, the image is reproducible" becomes "here is a script, here is the hash, run it yourself." That is no longer a security feature. That is the onboarding flow.
 
@@ -39,15 +39,15 @@ If you're shipping a TEE-backed product to anyone outside the cohort, the questi
 
 ### 2. Measurement reconstruction stopped being cloud-coupled
 
-The deeper architectural move was platform-independent measurement reconstruction. As Alex framed it: *"this gives you a set of measurement hashes that are independent of platform — the same hash can be used to verify a running Azure instance or bare metal instance or GCP instance"* (~17:35). Instead of trusting GCP-specific TPM flows or Azure-specific RTMR values, the verifier reconstructs the expected measurements from image data, event data, and hardened ACPI handling. Same image, same measurement, across bare metal and any cloud.
+The deeper architectural move was platform-independent measurement reconstruction. Instead of trusting GCP-specific TPM flows or Azure-specific RTMR values, the verifier reconstructs the expected measurements from image data, event data, and hardened ACPI handling. Same image, same measurement, across bare metal and any cloud.
 
-Hang named the problem this solves precisely: *"you may have dstack and GCP, but the attestation pipeline still assumes trust in Google, and it's flaky in the sense that when the ACPI table changes, or when the firmware changes, you have to physically deploy to GCP, get the measurements, pull them back, and somebody has to trust those measures"* (~14:31). The ACPI hardening approach has a published justification — Alex pointed at *"the edge list as a research paper explaining this particular… security paper, which explains why this is secure"* (~21:43). Worth reading before anyone in the cluster ships a public claim about measurement reconstruction.
+That matters because the old trust story still had a cloud-specific footnote. When ACPI tables or firmware change, teams end up deploying into a specific cloud just to pull measurements back and bless them. The ACPI hardening approach has a published security argument behind it; that paper should be checked before anyone in the cluster ships a public claim about measurement reconstruction.
 
 For deployers in #abra, #tinycloud, #conclave: this is the difference between *"our trust story has a footnote per cloud"* and *"our trust story is one diagram."* The latter is something a customer's security review can actually consume. The former gets stuck in procurement.
 
 ### 3. RA-TLS may not need a rewrite — just new inputs
 
-The original framing was "do we replace RA-TLS with attested TLS?" Flashbots is in fact building an attested TLS layer (Alex, ~33:21: *"we're running at Flashbots right now, attested TLS"*), but waiting for it is not the only path. The pragmatic landing came from LSDan: *"if you can use this to just produce those RTMR values, then you don't even have to modify RA-TLS at all. You just modify the inputs into RA-TLS, which allows you to keep this whole system exactly, and then you don't even need to wait for Flashbots to update our RA-TLS alternatives"* (~21:23). Alex agreed.
+The original framing was "do we replace RA-TLS with attested TLS?" Flashbots is building an attested TLS layer, but waiting for it is not the only path. The pragmatic landing was simpler: if easyTEE can produce the RTMR values, dstack may be able to keep the RA-TLS shape and change the measurement inputs underneath it.
 
 KMS, gateway, and CVM registration flows don't have to be migrated together. The first integration becomes a measurement-source swap, not a protocol change.
 
@@ -64,7 +64,7 @@ LSDan moved the room from cryptography back to operations. The hard part of dsta
 
 That sequence is also the verifiability sequence. Every step in it is something a customer can re-derive and check. The bootstrap script *is* the trust story, expressed as bash.
 
-A complementary integration pattern surfaced in the same conversation: Alex proposed a **mono-repo** pinning versions of PS, KMS, CVM image, host image, and dstack Rust patches together (~1:05:21). That solves a different problem from easyTEE itself — it gives the cluster a single coordinate where "this version of the stack works together" can be asserted and reproduced. For #teesql in particular, that may be the cheaper way to give downstream users a stable release surface before the full host-image story lands.
+A complementary integration pattern surfaced in the same conversation: a **mono-repo** pinning versions of PS, KMS, CVM image, host image, and dstack Rust patches together. That solves a different problem from easyTEE itself — it gives the cluster a single coordinate where "this version of the stack works together" can be asserted and reproduced. For #teesql in particular, that may be the cheaper way to give downstream users a stable release surface before the full host-image story lands.
 
 ### 5. The smallest useful primitive may not be Kubernetes
 
@@ -74,7 +74,7 @@ If anyone in the cohort is rebuilding a service-mesh-shaped system inside their 
 
 ## a moment worth naming
 
-Early in the dstack hangout, Shaw (#elizaos) mentioned in passing that he's been forking Debian for an agent-runnable OS — using Tails as a reference fork, having been *"in this for a minute"* (~1:52, ~7:55). Alex (Flashbots) immediately recognized the same problem he had spent months on for TEE images: *"trust me, I have been down that rabbit hole for the past year. There is a thing called Make OSI"* (~2:27). Within minutes Shaw landed on it himself: *"This is awesome. So you're like, yeah, I want to make my own Debian fork. This is your business."* Alex closed the loop: *"you want not only do you want to make your own Debian fork, do you want to make one that's really small, designed to run in particular agent workloads or blockchain workloads, and you want it to be compatible with TEEs. Yeah, this is your solution."* (~3:32–3:50).
+Early in the dstack session, Shaw (#elizaos) mentioned that he has been forking Debian for an agent-runnable OS, using Tails as a reference fork. Alex immediately recognized the same problem he had spent months on for TEE images: how do you make a small, auditable Debian-derived system that can run agent or blockchain workloads and still be compatible with TEEs? Within minutes, easyTEE / Make OSI stopped being a niche TEE image tool and became a possible answer to an agent-OS problem too.
 
 Two cohort surfaces, same primitive, arrived at independently. That is the kind of cross-project moment the success rubric is designed to catch — and the kind that is invisible if nobody writes it down.
 
@@ -82,12 +82,12 @@ If you found yourself in a hallway conversation this week where someone else's t
 
 ### other cross-project connections from these two sessions
 
-- **[5:40 / 6:54]** Alex (Flashbots) ↔ Hang (Phala/dstack): Debian-snapshot reproducibility + caching answers Phala's repeat-build pain.
-- **[14:31 / 17:35]** Hang ↔ Alex: GCP TPM coupling problem ↔ platform-independent measurement reconstruction.
-- **[21:23]** LSDan (#teesql) ↔ Alex: RA-TLS input-swap unblocks dstack without waiting on Flashbots' attested-TLS ship date.
-- **[42:49 / 1:00:01]** LSDan ↔ Hang ↔ Alex: manual bootstrap ritual ↔ declarative systemd service graphs + easyTEE-built host image.
-- **[1:02:15 / 1:05:21]** LSDan ↔ Alex: host/guest image split ↔ mono-repo for version pinning.
-- **[1:12:53]** Hang ↔ Alex: Coco/Kubernetes skepticism → convergence on attested WireGuard + peer discovery as a lighter primitive.
+- Alex (Flashbots) ↔ Hang (Phala/dstack): Debian-snapshot reproducibility + caching answers Phala's repeat-build pain.
+- Hang ↔ Alex: GCP TPM coupling problem ↔ platform-independent measurement reconstruction.
+- LSDan (#teesql) ↔ Alex: RA-TLS input-swap unblocks dstack without waiting on Flashbots' attested-TLS ship date.
+- LSDan ↔ Hang ↔ Alex: manual bootstrap ritual ↔ declarative systemd service graphs + easyTEE-built host image.
+- LSDan ↔ Alex: host/guest image split ↔ mono-repo for version pinning.
+- Hang ↔ Alex: Coco/Kubernetes skepticism → convergence on attested WireGuard + peer discovery as a lighter primitive.
 
 ## what to do with this
 
@@ -107,47 +107,13 @@ Concrete moves, ranked by who they're for:
 - How should redundancy and second-node onboarding be presented so users understand the key-sharing model without reading source?
 - Which multi-CVM coordination primitive is enough before we have to reach for Coco?
 
-## voices from the room
-
-Verbatim where possible. Transcripts are otter.ai auto-generated, so some lines carry mishears — preserved with `[sic]` where the meaning still reads.
-
-### Alex (Flashbots / easyTEE)
-
-- **[0:09 hangout]** on why easyTEE is a layer, not a product: *"My goal is not to release this as a product akin to VStack, but to have it be a foundational layer that things like VStack and Flashbox can all build upon, so that we can cross-pollinate ideas… right now everybody is reinventing the wheel on their own, and doing so in such a way that requires a lot of maintenance."*
-- **[1:31 hangout]** on reproducible binaries as a distribution channel: *"Flashbox will make a Debian repo that has all of the [ref etc.] in it, pre-packaged as reproducible binaries that can be independently verified, and once you reference that repo, it has all the metadata required for you to verify the [build hashes][sic]."*
-- **[5:40]** on audit-grade Debian pulls: *"It pulls the packages directly from the Debian repository, but it gives you ways to rebuild those reproducibly… if you're super paranoid, you can do that too."*
-- **[9:05]** on shrinking the audit surface: *"Unlike Yocto, where you're pulling in all of these different things and you have to fork them and change them — this is the audit chamber. This is very small, so people can actually open up your software and understand how you get from source code to attestation."*
-- **[17:35]** on platform-independent measurement: *"This gives you a set of measurement hashes that are independent of platform — the same hash can be used to verify a running Azure instance or bare metal instance or GCP instance."*
-- **[21:43]** on the ACPI security argument: *"If you check the edge list as a research paper explaining this particular… it is a security paper, which explains why this is secure."*
-- **[33:21]** on attested TLS at Flashbots: *"We're running at Flashbots right now, attested TLS."*
-
-### Hang (Phala / dstack)
-
-- **[6:54]** on caching as a workflow unlock: *"Does it have a cache to build? So next time I run that it just takes a few minutes instead of a very long time… anyone can just use that itself, and they get all the [producer files][sic], and they can hash the file to get the measurements."*
-- **[14:31]** on the GCP coupling problem: *"You may have dstack and GCP, but the attestation pipeline still assumes trust in Google, and it's flaky in the sense that when the ACPI table changes, or when the firmware changes, you have to physically deploy to GCP, get the measurements, pull them back, and then somebody has to trust those measures."*
-- **[42:49]** on the dstack bootstrap sequence: *"To bootstrap the dstack system, first we need to run the SGX local key provider… and then once this is running — it's a stateless service — we run KMS, but KMS is also running [an attestation flow][sic], a PSEC, essentially a PSAC."*
-- **[1:02:39]** on declarative cluster bootstrap: *"If you want to set this up as a distributed VPN cluster, right now it would be too hard because you'd have to ask everybody to set that up manually with keys — but if you can define it declaratively using this, then all of this becomes [pluggable by image][sic]."*
-- **[1:12:53]** on Coco skepticism: *"The most promising way is still to use Coco confidential container. But the problem with confidential container is that it doesn't have any web-three people, so almost everything's missing here."*
-
-### LSDan (#teesql)
-
-- **[4:51 hangout]** framing the dstack integration goal: *"The purpose of today is to try to get [dstack] to start using all of this stuff, so that we can move further and further into this being productionized and easy to use. The main sticking point so far has been with Hawkins[sic], especially the idea of the self-building images — he still thinks customers are really going to want the guest image that's already built for them."*
-- **[21:23]** on the RA-TLS input swap: *"If you can use this to just produce those RTMR values, then you don't even have to modify RA-TLS at all. You just modify the inputs into RA-TLS, which allows you to keep this whole system exactly — and then you don't even need to wait for Flashbots to update our RA-TLS alternatives."*
-- **[1:02:15]** on collapsing the bootstrap ritual: *"You have one of these, which is your bootstrap image. So you get a bare metal machine, and the first thing you do is turn on your bootstrap image, and that contains all of this stuff. From that point forward, all you're doing is deploying regular CVMs on the guest… what it eliminates is the manual part, because right now there are various reboots and different things."*
-
-### Shaw (#elizaos)
-
-- **[1:52 hangout]** on forking Debian for agents: *"I'm working on an agent operating system… we're actually forking Debian, like everyone's doing that now, because we can't actually build agents on current hardware without a lot of limitations."*
-- **[2:49 hangout]** on Tails as a reference: *"We're actually using Tails, which is another Debian fork, as kind of our example."*
-- **[3:32 hangout]** the realization: *"This is awesome. So you're like, yeah, I want to make my own Debian fork. This is your business."*
-
 ## resources mentioned
 
-Anything named in the room, with provenance. URLs are only listed when stated verbatim in the transcripts.
+Anything named in the room, with provenance. URLs are only listed when already known or stated clearly enough to verify before sharing externally.
 
 | Name | What it is | Mentioned by | URL / pointer |
 |---|---|---|---|
-| **easyTEE** | Reproducible Debian-based TEE image build system | Alex (Flashbots) | stated as `github.com/easy-te` in hangout (~3:52); confirm exact slug before sharing externally |
+| **easyTEE** | Reproducible Debian-based TEE image build system | Alex (Flashbots) | confirm exact repository slug before sharing externally |
 | **Make OSI / MK OSI** | Packer-like Debian spin-off builder with Nix VM + caching; powers easyTEE | Alex | — (search "mkosi" — likely the systemd `mkosi` tool, not stated in transcript) |
 | **dstack** | Confidential-computing control plane (KMS, gateway, CVM registration, RA-TLS) | Hang, LSDan, Alex | Phala project; not linked in transcript |
 | **Phala / Phala Cloud** | Confidential-compute platform; dstack is the control plane | Hang | — |
@@ -169,7 +135,7 @@ Anything named in the room, with provenance. URLs are only listed when stated ve
 | **systemd service graphs** | Declarative service-dependency model; proposed for bootstrap image definition | LSDan, Alex | — |
 | **Packer** | HashiCorp image-build tool; used as Make OSI analogy | Alex | — |
 | **Intel SGX local key provider** | Bootstrap component for dstack | Hang, LSDan | — |
-| **Intel PCCS / QGS** | Platform Certification Caching Service / Quote Generation Service — TDX attestation infra | Hang, Alex | available via Debian repo per Alex (~1:01) |
+| **Intel PCCS / QGS** | Platform Certification Caching Service / Quote Generation Service — TDX attestation infra | Hang, Alex | available through Debian packaging paths; confirm details before publishing |
 | **GCP TPM flows** | Google Cloud's TPM measurement path; the platform coupling being decoupled | Alex, Hang | — |
 | **Azure TDX** | Microsoft's confidential compute; ACPI variance challenge | Alex, Hang | — |
 
@@ -178,7 +144,3 @@ A few names appeared in the room but did not get pinned to a URL or a clear scop
 ## why this article exists
 
 Verifiability used to be the part of the stack that vanished after audit. The week's sessions suggest it is becoming the part of the stack a user feels first. The cohort has unusual leverage here — five projects sit on the same primitive, one visiting contributor brought the unblock, and the rest of the cluster is one bootstrap script away from a shared story. The window to converge on that story is now.
-
----
-
-*Sources: TEE / dstack / easyTEE / Phala session (2026-05-27) and the dstack hangout with Alex (Flashbots), Shaw, LSDan, Andrew (2026-05-27). See `member-highlights/2026-05-27-tee-dstack-easytee-phala.md` for the source-backed beat-by-beat.*

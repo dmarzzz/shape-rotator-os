@@ -1,0 +1,1027 @@
+Chloe Wang  0:01
+So crossroads aim to distinguish from other wallets and exchanges by providing lower fees, permissionless asset, and chain onboarding, and the smooth UX of persistent cross-chain wallet. So, from the user's perspective, how does Crossroad work? The sole for users is to deposit assets from supported chains into Crossroads, where they can hold a universal balance, and then they can swap or spend across different chains from that same balance. Crossroads handles the routing group and execution flow all on the same platform, so the user experience is one continuous account rather than separate bridge and swap steps, and the core technology behind Crossroads is key Encumbrance from the liquefaction paper, so instead of delegating control to a third party and trusting them to behave correctly, you embed the behavior policy directly into the signing authority itself, and the key signs only when the specified conditions are satisfied, so that allows us to create a different architecture from a typical bridge in a center bridge validator set or bridge operator effect effectively controls the release path for assets, but in crossroads execution is tied instead to policy constraint signing on the encumbered accounts, so the user defines the intended transfer, but it is executed only if political state and signing conditions are satisfied. So it shifts the control point away from an external approval network and into the cryptographic policy, and also helps prevent issues like replay or double spending, because execution depends on verified state, current account epoch and valid signing conditions. Because of this design, Crossroads enable a few things. First, onboarding becomes permissionless, new asset and chains can be added without coordination with the Crossroads team, and second, it improves interoperability, since wrapped assets exist as standard ERC 20 tokens on crossroads, they can plug directly into existing DeFi systems like lending, trading, or other on-chain applications, and there's no traditional bridge custodian. Assets are not held or released by external validator or operating network, but instead managed through policy-constrained accounts, and finally this leads to a more efficient cost structure. Instead of paying validator or custodian fees, costs mostly come down as liquidity spread or execution overhead, which makes it closer to centralized exchange pricing over time. Now let's take a look at the technical flow underneath the product, so when the user deposits into Crossroads, let's say in this example we are depositing ETH, they will send ETH on the source Ethereum chain into the ETH encompass account, and that source chain transaction produces a transaction hash, and the user then submits that transaction proof to the crossroads asset contract on the crossroads chain, and crossroads verifies that transaction inclusion proof against the relevant block hash, and then mints wrap eth to the user across, and now the user can swap that wrap eth on the Crossroad chain through our liquidity pulls to any, and to spend the asset. For example, here you can spend the wrap BNB from Crossroads to the BNB chain. It will first lock the RAP asset, and that will create an authorized withdrawal state. A destination chain payout transaction is then constructed for the Encumbered account and the signing committee checks whether it satisfies protocol policy and if all of those conditions are met, the committee signs the payout transaction and finally the UI or the user then broadcasts the signed payout transaction onto the destination chain and finally Crossroad would verify whether that payout transaction was actually encoded on a destination chain and finalizes the withdrawal back into the Crossroad state. And let's take a look at the demo. I don't have it running locally on my laptop, so I will just show this video. So the idea is to have for the users to have a simple bridging or swapping experience, where you will just see the token you want to swap to, but we also have this detailed step by step for the more tech-oriented people using our product, so this is like a very broken down step by step flow for how you would swap an asset on Crossroads, so as a first step, you can deposit a token by sending that native asset into an Encumbered account, and once you found that Encumbered account, the second step will be proving that deposit to receive a wrapped token, so if you send native eth to our eth Encumbered account, you will receive a wrapped eid on the crossroads chain, and once, sorry, let me skip through these, so once you have that wrapped eid on the crossroads chain, you can swap it to any of the supported asset, so this is like swapping from a wrap version of the token to another token, and as a final step, you could spend, you could either just keep that wrap talk in your wallet and just use it, or you could spend it to another address, so this will be bridging this wrap token by
+
+Andrew Miller  5:56
+she
+
+Michael  5:56
+frees
+
+Speaker 1  5:58
+either Chloe froze or our laptop froze. No, I think Chloe froze.
+
+LSDan  6:05
+Yeah, I'm connected. I'm hearing everything.
+
+Speaker 1  6:07
+Yeah, you froze for a second, Chloe.
+
+Andrew Miller  6:12
+I have to say, the hard freeze like that makes me think that it's the cell phone battery, and
+
+LSDan  6:20
+it does have that vibe.
+
+Speaker 2  6:21
+Yeah,
+
+Speaker 3  6:21
+we have..
+
+Andrew Miller  6:23
+oh, wow, you just reconnected.
+
+Albiona Hoti  6:26
+Yeah, sorry about that.
+
+Speaker 2  6:28
+Okay, no problem.
+
+Chloe Wang  6:31
+Yeah, so that's like that's our full workflow for the demo, and we're thinking about different entry points to really commercialize the Crossroad technology, and we have a few go-to-market angle in mind. Several things that I'm considering is first targeting towards crypto native users. We can start where bridges are actually broken, so these are routes where existing solutions might be slow, expensive, or just don't exist, and crossroads could help with that. And the second angle is agent-driven usage, so if an agent is doing repeated cross-chain actions, it doesn't make sense to bridge every time, and agents would want a universal balance and wallet to hold these cross-chain assets. So we can expose crossroads as an API and let agents just draw from a persistent balance. And finally, we are also considering institutions and RWA, and in this case, the main issue is custody and control. So, Crossroads would remove that custodian and lets them encode their own rules directly into how execution works. And, in terms of the current progress, we have on the test line domain flow, a user can deposit on a source chain. We verify the deposit, mean a wrap asset, and then use it for swap or withdrawal. We also have the asset contract can believe in them burn, along with a basic or deposit verification using Merkle transaction inclusion proofs, and on the right is what we are still building, that includes running the signing committee with MPC instead of the current Mark One, and we are also extending, working on extending beyond the EVM chains and supporting different bridge and execution model, so the core system is already in place, and what remains, it's scaling the system and supporting more chains, and yeah, that's the project. So, overall, Crossroads Kuroda research for a different architecture for Crossroad exchange, and we now want to see how to bring different business value and get real users onto really using the crossroads technology, and I'll be very happy to learn from everyone, or collaborate if any interesting use case of liquefaction or crossroads. Yeah, and hope to see everyone in person soon.
+
+Speaker 2  8:53
+Cool.
+
+Andrew Miller  8:59
+Do you have on the demo that you said, do you have, like, an up and running service version of this? Like, is this something that runs on, like, an Ethereum testnet or something?
+
+Chloe Wang  9:11
+No, it's currently not deployed, it's only running local.
+
+Andrew Miller  9:17
+Were you guys working on Oasis? I assume first, because I know that James mostly uses that,
+
+Chloe Wang  9:26
+yeah, for the construction we use Oasis a lot, but for Crossroads I think we might not use Oasis, but we haven't thought about what chain to deploy the Crossroad thing onto I think we need to figure that out.
+
+Andrew Miller  10:02
+Does anyone here done anything interesting with cross-chain bridges? How about sending any transactions from a tee? Oh, yeah, Demers has a hy Tina
+
+Andrew Miller  10:27
+Tina. Also, I think is in New York already, just quite here in person.
+
+Speaker 4  10:34
+Yes, I'm on an Uber in traffic. I didn't realize that the World Cup is happening in New York, New Jersey. Wow,
+
+Andrew Miller  10:46
+I think it started happening, and I think it's going to continue to happen. I think that it's like, is it just one game of the World Cup that's here, like several?
+
+Tina Z  10:55
+I think it's all well. I personally have not paid any attention. I was just looking at why the traffic is so bad,
+
+Andrew Miller  11:03
+Joseph Throw is telling me a story about how he bid on a World Cup ticket, but ended up having to buy all of the World Cup tickets, and so it was like a $12,000 exposure, and then he had to go like cancel the credit card and get some kind of exemption to, you know, back out because he just wanted to buy one game, Deemer is listening to the room. Maybe you could send him into the room. I don't know who's talked to Diems today.
+
+Speaker 5  11:32
+You have better luck mobilizing other comment folks. I'm pretty sure he's hiding in his room
+
+Speaker 1  11:42
+and That's it. You must have told me about issuing blockchain transactions from an agent, and also that agent was ready to CV, so that counts.
+
+Hudson  11:52
+Yeah, I mean, I, the I've experienced with Hyper LAN is mainly what I would use, which is like it's like an APS model for messaging blockchain, but like I don't, I don't really know too much technically about it, and how it differs from a solution like this. Like, do you, do you know about hyperlink and how it works,
+
+Chloe Wang  12:22
+I Yeah, I haven't looked into hyperlink. I think architecturally, how like most of the existing exchanges and bridges differ from crossroad, as they have a validator network, or they're using like intent verification for the bridging part and crossroads really is trying to use like a different architecture to solve the same problem and I guess what I would really love to learn from this accelerator the program is also how to turn a lot of like the nice to have features in Crossroads into like a must to have product angle, so I really like differentiate from a lot of these existing exchanges.
+
+Hudson  13:17
+Okay, yeah, like one of the things my team lives about hyper lane is like right now we're using their service, but we'll be able to in the future, and like especially like we're like I work at like a financial tech company, and we're like you know interested in compliance, soft to compliance and stuff like that, and the easiest way for us to do that is just rough running infrastructure and cell posts with your product. Is there any option for companies that are interested in that?
+
+Chloe Wang  14:00
+Sorry, can you do your question again?
+
+Hudson  14:04
+Yeah, are you.. Is there any option for companies to like self-host their own intent verification infrastructure, because, like, that's why my company prefers Hyperlane, is because while they have an AVS service we're using in the meantime, like we take things into production, we'll just self-host our own infrastructure. Is there any option for that through your product?
+
+Chloe Wang  14:36
+Not for intent verification, but so you could easily onboard any assets or even new chains onto Crossroads, because we have like a very modular design system, so you could just define the asset contract, designing logic, create like the liquidation pool, and you'll be able to onboard the asset into the Crossroad system, where other people can also swap that asset.
+
+Hudson  15:08
+Okay, what I think I might have missed this. Did you talk about, like, the like latency on it, like for like a cross-chain scene? Like, how long does that take?
+
+Chloe Wang  15:25
+No, I haven't talked about latency, and that's a very good question. We haven't looked into that yet, but I will definitely look into it, and I think we'll need to decide on a chain to deploy Crossroad onto, and then calculate the latency there,
+
+Hudson  15:44
+yeah, because, like, I guess from a business perspective, like the things my C suites cared about the most is like, you know, like a lot of bridging solutions and cross solutions aren't actually decentralized, which means there's like a big liability problem, and if they're more centralized, do these companies have like some sort of compliance that they're following, so you know when you know the government or financial institutions comes asking, we can, you know, inform them that there's like guarantees here, and then the second thing is latency, because with cross-chain sinking, there's a lot of like potential hedge cases if things take too long, like a transaction can happen on one chain, and then you know if it doesn't update quick enough, or like that in for that state doesn't update quick enough on the next chain, someone could take advantage of that information asymmetry, and so, yeah, I guess those are the two things kind of we prioritize, if that kind of, so as you go through this
+
+Speaker 2  17:05
+accelerator.
+
+Chloe Wang  17:06
+Yeah, that's really good advice. Thank you.
+
+Andrew Miller  17:12
+I remember that, like, the Avalanche Bridge was kind of the first one to use Tees, but I don't think it did, like, much on attestation, it just use them in fact, and like it was also a multi sig kind of thing. I think that most of the bridges, because I'm trying to think of whether or not I think that existing bridges count as Encumbered keys. I mean, the key is effectively held by the permissioned bridge nodes. I guess it's like there's just no smart contract that, off, you know, organizes what they can do or not. Does seem like that's the difference, as you can, I mean, bridge security being a hot button issue, I think, is good for this, like anything that is in, you know, better provability for bridges or blocking some of the ways in which bridges could fail. I mean, I remember the, I think it was the Axie Infinity Bridge hack, I think that was that one where it's like they had a multi sig bridge, the multi sig, the bridge got totally rugged, like a big loss, and it was something like all of the MPC nodes would sign a transaction that is proposed by just a single node, so there was a single point of failure. All multisig nodes participated, so all the design of having multiple points of failure didn't accomplish anything, because there was a single point of failure, like, outside of that, that seems like something that this addresses, because you're actually putting, like, a policy limit in the, in the technical fabric of the bridge itself.
+
+Chloe Wang  18:56
+Yeah, that's an angle I would explore,
+
+Andrew Miller  19:02
+I I mean, I saw a Tina, you popped up something that I probably find it disappeared before I noticed
+
+Tina Z  19:13
+it. Yeah, so what I shared in the side chat was like, yeah, Greg the Greek, who stopped by last Friday, he's actually like probably my go-to, one of my top three go-to cross-chain solver guy who's went through like a recent startup experience as a seasoned builder in crypto, and basically one of the most interesting insights, which is not new, as every single person that, who is very skilled technically in provisioning, whether you know, essentially intent solvers or cross-chain atomic swaps, like back in 2019 to 20 days, where James Press, which was doing like Crossroad atomic swaps, and like, and then I think in the past, like, three to four years, three years, Zaki Mannion, and many friends, like Dave Ocha from Cosmos ecosystem, they're all working on their own intent solver, or cross-chain, in particular focusing on cross-chain swaps. Dave Ocha, I think, is recent Osmosis pivot into Polaris, so like, and then Sprinter is the one that is close to our Shape Rotator program, and like basically they started in the past like 1.5 years, like as a startup started out doing like an intent solver operating like essentially intense over for cross-chain swaps, and then they realize that actually, in order to have like butter smooth experience for like cross-chain swaps, and like, you know, given the market demands and the competitive landscape, the infrastructure for reducing capital efficiency, like in a nutshell, like you know, clearing, like in a capital efficient way, that clearing infrastructure is simply not quite there. So they started out building a lot of, like, essentially infrastructure to like minimize trust and hunched on like also minimize the capital requirement and then like and then essentially everyone that I speak to in the cross-chain swaps domain they all kind of pivoted away from it towards servicing, like basically as an intent solver, you do not make much money, and because, especially in bear market, like right now, there's like very little money to be made in cross-chain swaps, and like the competition is quite fierce, the spread is like that, you can retain in operating, you know, Crossroad solvers low, and so, like, so essentially, what's interesting about Sprinter is that they essentially pivoted towards, like, essentially enabling this credit facility for other, for themselves first, you know, to lower capital cost of capital for their own solver, and then they started providing this credit facility to other solvers, and then now they're like, but still the entire market is so it's too small, so that this is basically pretty much every single, like, I think project that's working on cross-chain, like, yeah, like, like, basically is like telling me the same thing, and then so now that they're essentially moving, you know, further expanding their market, providing credit facility, and essentially under collateralized loans to like essentially market makers and other like even potentially chat by credit business, so like so all of all of this is to say that I think that one of the things, when I see a project that is providing technically technical infrastructure, especially in like chess, minimize like cross-chain swaps, it's I question the market first, as in, is that like, is that the right thing to build in 2026 but it doesn't mean that you know, like the overall tech or project direction, or like is not solid, but rather finding the smart angle to tackle the problem. What is the right product and service to offer that has a market demand that's something that I would, you know, probably suggest as a starting point to think about this project direction.
+
+Chloe Wang  24:37
+Yeah, that's really helpful context, and I definitely agree with your point, I think, because Crossroad started from a research project, we didn't really think about the business value or even the market at the beginning, and we are sort of thinking about that now and trying to pivot it to different use cases and really explore interesting use cases of this technology.
+
+Tina Z  25:01
+Yeah, just like, as a footprint thought, like, I also like have been paying attention to, so, like, like it, like, again, like, they think about, are you operating? Like, it's usually a good idea if there's strong, you have like strong technical capability, it's oftentimes a good idea to see if you get dog food and be able to actually make money or save money for you, like you know, make money yourself or save money for, like, your friends and family, who's, you know, you know, as power users of this, and to really measure how much of an impact impact does your solution have, comparing to what is already out there, and like, again, when you are in the realm of finance, every single, like, I think bips, you know, 0.1 bips, 0.01 bips matters, like the spread is very, very thin. You have to basically take on volume. So, one of the interesting areas that you know I've been like observing, but it hasn't taken off, of course, because, like, entire intent solving is like the on the crypto side is low in volume, and also agentic payment has not fully, like, become like I think it's too small in scale, but like one area that's worth paying attention is intent solving when it comes to not only agent payment but also agent negotiation, so essentially, like, yeah, agentic coordination, so there's there's a lot there that hasn't been solved, so think like I think that if you're providing like essentially trust facilities for like intent solving, that may be an area that's, you know, worthwhile at least exploring, as there are many players that want to play in that domain, but there's very few that really have, you know, a deep understanding when it comes to Permissionless interoperability, adversarial interoperable interoperability. This aspect last year we call like essentially a lot of the extension of like expanded concept beyond account encumbrance, like essentially OLAW three utilized in like this what we call like adversarial interop, and it's not limited to like just crypto interop, but it's primarily we're dealing with like what we call like social media or real world interrupt, so like I think that those areas are all more or less like blue ocean, like it's less crowded, and also like the same I think research rigor will matter a lot more there, so, so, yeah, just like in general, I think to sum it up, like agentic solving may be an interesting area to look into, and in this realm, like, I think that what to pay attention to is near intense, near, as we know, have near the blockchain, near one, and near intense, which has done a lot of volume, primarily with the cash shielded pool, like its product design is worth looking into, and like, and also it's BD, its strongest suit is BD team, and and then there's the near AI component, so one of the more like into two things that stood out as interesting from the near solving model is that the well, it, you know, it's blockchain provides as a sediment layer, like you know, just like every single, like, you know, basically it's infrastructure for other solvers. However, one of the ways where near retains its profit, like, is it actually operates the intent solver like itself for the chains that it solves. In addition, so in fact I believe maybe 50 to 80% like majority of its volume near intense, maybe going through the nearest proprietary operated servers. That's because, and part of that again, like I'm going into the nitty gritty, you know, business business details but the reason why that's happening is because um again the margin profit margin for operating intense offers is way too
+
+Speaker 2  29:52
+low
+
+Tina Z  29:54
+and so that service
+
+Speaker 2  29:55
+those Gain that much value, but if you can have an edge,
+
+Tina Z  30:02
+you know, essentially in like essentially operating inside servers, but that will be what can bring
+
+Speaker 2  30:17
+in, like, that still to kind of think about what is the business edge
+
+Andrew Miller  30:22
+that
+
+Speaker 5  30:25
+you're cutting up.
+
+Speaker 2  30:30
+Sorry about that. Yeah, I'll be there soon, I Okay, we'll keep going. I only like broke up for a couple seconds. That's really helpful advice. Thank you, Tina. I
+
+Andrew Miller  31:09
+I don't think I have any more to add to that. We did want to do an intro for Christianity. Christian also is in New York. What I heard was he was chasing down trying to get adapters for his laptop, so I don't know if he's in Brooklyn
+
+Speaker 2  31:30
+or making it yet, but
+
+Andrew Miller  31:33
+I guess we might see him to more. Gil is coming by for the lecture on defining product market fit,
+
+Speaker 2  31:43
+but I don't think he's going to get here until six, so we have just, I think, a break time from now until
+
+Andrew Miller  31:48
+six. So, okay, everyone on the call, you're welcome just to stay on the call. I think I'll just leave them beat up on the laptop because it's going to be the same meet link for sure.
+
+Speaker 2  32:03
+Yeah, I guess we'll
+
+Andrew Miller  32:04
+just take a break until Gil gets here at six. Thanks for presenting,
+
+Speaker 2  32:10
+Chloe. Thanks for presenting, Ricky. And I'll be
+
+Albiona Hoti  32:13
+too. Thank you.
+
+Speaker 2  32:20
+Thank you, everyone. Okay. Then see you in an hour. Yep, see you.
+
+Albiona Hoti  33:14
+A bowl let
+
+Speaker 2  33:21
+me see, how much
+
+Andrew Miller  33:23
+49 think it's fitting. No,
+
+Andrew Miller  33:27
+don't take that one, because
+
+Speaker 2  33:29
+I need to have the wise
+
+Speaker 6  33:33
+one. I need this,
+
+Albiona Hoti  33:38
+you
+
+Hudson  33:41
+Is all right
+
+Chloe Wang  33:43
+for type
+
+Hudson  33:44
+C,
+
+Speaker 2  33:56
+because it's, yeah,
+
+Andrew Miller  33:57
+okay. When we get some peace. these right star one,
+
+Speaker 2  34:07
+yeah, AC now, if You which it's I think so
+
+Albiona Hoti  38:44
+Don't, don't close the door, because the air
+
+Speaker 2  38:50
+is so go out and come back, then you'll, you'll see the difference
+
+Andrew Miller  38:58
+the way that he's
+
+Hudson  39:05
+The air is not fresh here, so I want to
+
+Albiona Hoti  39:13
+see that's fine. Can you? I'm
+
+Hudson  39:20
+gonna say this
+
+Albiona Hoti  39:21
+whenever there's water on
+
+Speaker 2  39:24
+Dallas,
+
+Albiona Hoti  39:26
+because
+
+Speaker 2  39:27
+there was no
+
+Andrew Miller  39:28
+water reserved. We're
+
+Albiona Hoti  39:31
+still recording,
+
+Andrew Miller  39:32
+just recording. It's still speaking, it's still streaming,
+
+Speaker 2  39:40
+all. except
+
+Andrew Miller  39:54
+do we all want to go
+
+Speaker 2  39:55
+on a
+
+Albiona Hoti  39:55
+walk around the block,
+
+Speaker 2  39:59
+want to go on a I'm
+
+Albiona Hoti  40:01
+always a walk
+
+Speaker 2  40:03
+around the block.
+
+Andrew Miller  40:04
+Oh, yeah,
+
+Speaker 2  40:07
+seven. You want to go
+
+Hudson  40:10
+for a walk
+
+Albiona Hoti  40:11
+around the block. Okay,
+
+Speaker 2  40:15
+let's go walk time.
+
+Speaker 7  40:17
+Let's get the kids out,
+
+Albiona Hoti  40:33
+I Forgot you.
+
+Speaker 2  41:25
+That's following Thank you. Wow. to be happy What if It's really John Castle. cooperation with talking to the I said Extra I can see it. What? yeah. Very Okay, I On Leave peaceful go. and
+
+Albiona Hoti  49:33
+see what it
+
+Speaker 2  50:10
+I'm saying self-feeding here I Meanwhile Awesome. I I think I'm
+
+Speaker 8  1:14:30
+Lesson Yeah, that's interesting.
+
+Speaker 2  1:14:44
+Oh, I think I should share this, so I
+
+dmarz  1:15:14
+Why did you have that for three days? For bandits, bandits, yeah, we got it from Super Macron, so they
+
+Speaker 2  1:15:22
+have
+
+Andrew Miller  1:15:22
+some customer opportunity, and they give out some sample for the testing house,
+
+dmarz  1:15:27
+because you just have, like, third turn, you have access to it, yeah. Well, I might, my suspicion is
+
+Speaker 6  1:15:35
+before they ship the server, they have to run some load tests,
+
+Speaker 2  1:15:40
+and they just
+
+Andrew Miller  1:15:41
+throw that to us, so we can help them to run the load test. I really want those RTX 6000 because I think the arcs,
+
+Speaker 2  1:15:50
+because those are kind of cheap.
+
+Speaker 6  1:15:52
+It's pretty good, Paraguay,
+
+Speaker 2  1:15:58
+I think
+
+Speaker 6  1:16:00
+C solid is roughly, and it's cheaper because each 100 is designed for C solid. That's one lineup, and for
+
+Speaker 2  1:16:17
+three candidates, that's another story. I'm not sure
+
+Speaker 6  1:16:20
+if that's actually you.
+
+Speaker 8  1:16:25
+There is a website called Cetic and Dances. They do very professional finish one.
+
+Speaker 6  1:16:37
+This one is you can choose a global and then check the performance of different configuration, so every every card in this configuration and tweak it, so like the x x axis, it means how, how much, how much of the user experience the higher the data. So this is like single user inference speed, so because if you increase the throughput, you get worse leaves with this tree, and the y axis is the suit, so they say, and the interesting part is if you check this and the
+
+Speaker 2  1:17:30
+check each
+
+Speaker 6  1:17:30
+to basically just live as the book, but compared with this written here? So, what's the next axis? The speeds different speed, and the y axis is the total single GPU branding parallel requests, the worst experience for each business, and usually at least the people is selected, and then you work on this for so you can have roughly lag of and latency and parallelization trade-offs,
+
+Speaker 2  1:18:36
+so for inference
+
+Speaker 6  1:18:39
+they also this is also ready, so it just shows you the throughput and before this, and so, How I should be interested By example, but this one can have, I think, graphing factors, so just the economy wise, there's no way people still evasive, and
+
+Speaker 2  1:19:50
+these three candidates, the price of these rates,
+
+Speaker 6  1:19:53
+standard, again, the size is also and they don't have pro 16, I think.
+
+Speaker 2  1:20:05
+Pro 16 should be
+
+Speaker 6  1:20:08
+80% or 60 to 80, just for running smaller models, especially
+
+Andrew Miller  1:20:19
+sometimes you may want to run multiple models, all small models, and you don't have a really nice role, so what makes it like more training oriented
+
+Speaker 2  1:20:31
+than inferences,
+
+Speaker 6  1:20:32
+duty yes. Especially for memory panelists. So I think for training memory balance is one of the biggest. Another is the battery risk really large steps,
+
+Andrew Miller  1:21:08
+so all the
+
+Speaker 9  1:21:12
+inferences totally fit everything on the one purpose, you may still use
+
+Speaker 2  1:21:26
+randomly.
+
+Andrew Miller  1:21:26
+This is pretty interesting. I do think that it's interesting to all, like I guess I've been talking about, like, virally training, but there it's also just like, I mean, the core thing that I want to have is like combining products from multiple distrusted bank sources, and trying to be sort of like well formed non-trivial, like it should be expensive to merge that training has this quality, we have training on all this data, relatively small models, but even just running an agent, you know, on some data, like going to have all of this data, and then have a coding, even do stuff with it, or it can still have, like, dense report, or you know, data set, or some kind of
+
+Speaker 6  1:22:26
+output that is now the output of the agent, rather than same model,
+
+Speaker 2  1:22:30
+and then I would have
+
+Andrew Miller  1:22:31
+that as a one I keep busy school, and you want to keep the skill itself. Yeah, exactly. And then, ideally, it even be compositional further. So, now I've got several such things, and I got to aggregate all of those forward to it. So, and it should be like I like the idea of like a temporary royalties, essentially the business source kind of a thing for it, like for a short time you get privileged acts, you get like higher royalty rate, and then after enough time they paid it, or you've made enough on the royalties to like pay back the ROI, then you know then it becomes
+
+Speaker 2  1:23:14
+either more disclosed
+
+Speaker 10  1:23:16
+or more open to their lives. It should be really interesting. The
+
+Speaker 6  1:23:27
+challenge is how to teach the AI. There are focus on maybe solutions to limits also real fine tune of some mean size mobile 773 just not super bad, just
+
+Speaker 2  1:24:22
+a simple, simple,
+
+Andrew Miller  1:24:24
+and
+
+Speaker 8  1:24:26
+if you
+
+Speaker 2  1:24:27
+haven't checked
+
+dmarz  1:24:27
+this magnitude, so they have signal right here,
+
+Speaker 2  1:24:34
+wrapped Icons, yeah, it's just starting over. Yes. character
+
+Speaker 8  1:25:20
+chasing the okay,
+
+Speaker 2  1:25:57
+and this
+
+Speaker 6  1:25:58
+is out
+
+Speaker 2  1:26:02
+in some I'm Hey,
+
+Speaker 1  1:27:20
+we had everyone gathered here for project intros for a bit, and then then finished
+
+Speaker 2  1:27:34
+around
+
+Speaker 1  1:27:35
+10 after
+
+Speaker 11  1:27:37
+five, and then we went for a walk
+
+Speaker 1  1:27:38
+around the block. Stopped at the
+
+Michael  1:27:41
+dashi shop for samples,
+
+Speaker 2  1:27:44
+you know that dashi
+
+Andrew Miller  1:27:45
+shops.
+
+Speaker 11  1:27:46
+Oh, really?
+
+Speaker 2  1:27:47
+Yeah, I like this area a lot.
+
+Michael  1:27:49
+Oh, yeah, I bet.
+
+Andrew Miller  1:27:54
+Yeah, also see where they make them again. See them grinding
+
+Speaker 2  1:28:01
+up all the well. Oh, really. Well, I mean, they've got all the grind up, they've got the like all the like dried fish chunks, like just kind of their
+
+Speaker 12  1:28:14
+I've been just got here last night,
+
+Speaker 6  1:28:27
+yeah.
+
+Speaker 2  1:28:30
+People
+
+Speaker 11  1:28:40
+I was
+
+Speaker 2  1:28:55
+a mix of several, and
+
+Hudson  1:28:58
+then storage storage, yeah,
+
+Speaker 11  1:29:04
+center
+
+Speaker 2  1:29:16
+of like the startup, yeah,
+
+Michael  1:29:20
+it's been fun seeing
+
+Speaker 2  1:29:22
+that kind of
+
+Speaker 1  1:29:23
+evolve. And then, what's the best way for me to join the meet link? I added you to
+
+Speaker 2  1:29:33
+a meet link, and if you join that, you can screen share to here, and that's going to work pretty good. Oh, yeah.
+
+Hudson  1:30:17
+She made
+
+Speaker 2  1:30:18
+it to New York City. Know what, this message, yeah, yeah. How smart are you for
+
+Andrew Miller  1:31:24
+Well,
+
+Andrew Miller  1:31:27
+a couple of different
+
+Speaker 2  1:31:35
+options
+
+Michael  1:31:36
+that backlog seems to do pretty good at
+
+Speaker 2  1:31:38
+picking up
+
+Speaker 1  1:31:39
+voice, we've got our
+
+Michael  1:31:43
+portable migrant views, or yeah, let me try connecting to these. I think it's actually
+
+Speaker 2  1:31:56
+my computer, before it helps. Let me do this one. I think this one's a good choice.
+
+Andrew Miller  1:32:10
+Does this work?
+
+Speaker 2  1:32:16
+I don't know which one. Yeah, I'm going through this one, so you should
+
+Speaker 11  1:32:20
+mute.
+
+Speaker 7  1:32:29
+I've never
+
+Speaker 2  1:32:30
+been told it
+
+Andrew Miller  1:32:31
+on stage well enough.
+
+Andrew Miller  1:32:33
+It was only going to be for the for remote people calling
+
+Speaker 2  1:32:40
+in, yeah, it's pick wherever you want to sit there, its Nice do Alright, matrix
+
+Andrew Miller  1:33:35
+seems like I'll be in seven years
+
+Speaker 2  1:33:36
+in football, I you got some off again, I
+
+dmarz  1:34:26
+I'm Yeah, so did I interrupt your phone before I responded to you?
+
+Andrew Miller  1:34:49
+Well, don't you see the auditorium? Some of it's
+
+dmarz  1:34:56
+the bunch of stuff in auditorium. slide,
+
+Albiona Hoti  1:35:03
+I can't even see
+
+Andrew Miller  1:35:05
+that.
+
+Speaker 2  1:35:16
+Yeah, you can use that thing projected on there as well.
+
+Albiona Hoti  1:35:19
+Oh, in that classroom to
+
+Speaker 3  1:35:21
+the left, and in the back corner says children. Okay, my laptop is charged. That's right, I Talking to staff, I understand.
+
+Albiona Hoti  1:35:43
+Now I have 100
+
+Speaker 2  1:35:44
+tasks. I mean, what more tasks? More tasks. Oh, well,
+
+Albiona Hoti  1:35:51
+I love it, I Okay,
+
+Speaker 2  1:36:01
+okay. Did you message that
+
+Albiona Hoti  1:36:02
+element?
+
+Speaker 2  1:36:03
+I did. Did I go up and down? You just like, yeah. I hope he's doing one more class. If anything, people show up in the class. Let's record it. Then, right. Yep. Good. So, if anyone missed anything, yeah, that's great.
+
+Andrew Miller  1:36:40
+And,
+
+Speaker 2  1:36:48
+oh yeah, Rajan Green connected, he's dialing in from India,
+
+Speaker 11  1:36:53
+so maybe it's already an
+
+Speaker 2  1:36:55
+appropriate time in the morning now, so Now, yeah, wow, before the am I I I think so
+
+Albiona Hoti  1:38:44
+Good to use the seat if it's
+
+Michael  1:38:55
+comfortable, or like.
+
+Speaker 8  1:38:57
+oh, okay,
+
+Speaker 2  1:38:58
+yeah. it's fine. Yeah,
+
+Albiona Hoti  1:39:19
+okay.
+
+Speaker 11  1:39:28
+so
+
+Speaker 2  1:39:38
+I don't, so I don't put myself to sleep.
+
+Michael  1:39:45
+Hi, everyone. I've met some of you, others of you will probably know who I am. So, quick intro, I'm Gil. I do a whole bunch of things now. Really, I've had a fund called Black Respond. I also currently run the Stanford Blockchain Accelerator. I've been doing it for the last four years. We've integrated about 100 teams that have come out of that ecosystem. What else do I do there? I told you to course on blockchain entrepreneurship in the engineering school at Stanford, and run an event series, so a lot of stuff on ecosystem building. I started my career as an IC designer building galley nitride transistors with which are now on all the like power targets. It's nice to see the shit I worked on 20 years ago, actually being used right now. And then I switched into kind of data infrastructure in the data space. I built two companies there. The second one, Excel, we grew a team of 100 building big data platforms for the IRS, London Stock Exchange, there's Petroleum, a bunch of big large enterprise companies doing a whole bunch of like data-driven data strategy and machine learning approaches, which we would have loved to have the tech that we have today with Visual of Stanford, and becoming an investor, I'll spell on the blockchain. Then got a public policy degree, and while I was at Stanford, my policy degree was when I started all these back in 21 is when I started a lot of those programs, and really to me I got into black in 2016 excited about the technology. What was possible, I think. In 2018 I got very disillusioned that it was too early to build what we were promising. And then, in 21 it looked like we were on the cusp of, like, actually, the tech is real, we can build this, let's find stuff. So that's big weather ecosystem building. I also live in New York, so it's been great working with Andrew and the IC Tweet team and the Cornell team at large, and kind of helping the ecosystem here. So, there's two parts of this presentation: one is going to be discussing a little bit about the potential milestones. I'll have both my diamond hat and my investment hat on, and then we're reading the deep end product market fit, which I think is the most important thing about building a startup, so there's a metaphor you'll get the tech, you can look at the article you want, but that startups are like trains that mostly crash in boats, and at every stop along the way, you need to convince a, you need to get enough money from tickets from people to be able to like pay for energy to go to the next train station and convince enough people to work on the train and to actually like forward and to do anything to do as well as survive the trains right so from stop to stop you either make sure that you've done enough at each milestone to get to the next stop or it'll derail the next book I Some current thoughts in general about venture. So, some of you are in AI, some of you aren't. Some of you in blockchain, some of you aren't. AI venture is starting to look a lot more like blockchain venture. What I mean by that is that there's a lot of meaningful tech innovation, which can combine speckly evaluations. Right on the flip side, if you get a ton of like consumer adoption and dumberance that can actually drive a whole bunch of enterprise demand, so these are just like same things to think through as you're building blockchain ventures, now sort of look a lot more like regular venture, which means that people actually care about delivering real value, finding product market fit, and having a revenue generating company, and a narrative alone is just not enough anymore, right? Also, distribution is any right. So, what do I mean by that? Is we have all these like large foundation models, so tech is often not enough, because you might be disrupted by these large foundational companies, whereas if you have significant paths and inroads towards distribution of your technology. Now you have
+
+Speaker 2  1:44:00
+potentially a
+
+Michael  1:44:00
+competitive advantage in terms of the data that you have that could be proprietary, proprietary in terms of your ability to sell into these markets, right? So the value is very much in these distribution and niche versus just in the horizontal technology layer that tends to be a little harder, though there are exceptions. If you are kind of playing against these large enemy model companies, and mainly in aggregate ability, then playing at the layer in between. There are also many more expansive scenarios. Right, it used to be if you were a crypto company, you go on Stoked in, and both token go up if you're not a crypto company, you wait, you know, 10 to 15 years, and hopefully NPO. Now there's there's always been acquisitions in the middle. We're seeing a ton more acquisitions at every step, every step of the web launched option, right? We're also seeing the rebelblocked abnorthy, reckoned, rebinded, reckoned, rebirth, and other verticals, as we're all going to.. there's like, four...bthsis, and it's your dickbird, to.. I'd be respise, as much as possible, rebest, spoon, reckise, reign, the reign, rehns, or unobtec. ahh. technical expertise, the second expertise, you know, how to manage people, you know, understand, do you understand, like business strategy, corporate strategy in general, to actually grow in the right direction? Can you attract the right talent? Are you and your co-founders going to get into a fight and split up, which happens to quite a lot of companies. There's technology risk, right? Does your tech work? Is it better than a competition? Does it create value? Do you have, and will you have a continuous slope as you continue to build here? There's market risk. Are you too early? Are you so late? Is the market viable large and growing? Is it too large? They're going to go after them inside the competitive right. And then there's go to market risk, which is, do you have to spend the skills to actually acquire users and customers in the strategic segments that's best for you to actually like? Are you able to support their needs at scale? Are you gonna be able to be thought leaders in space over time, right? And kind of all these other dependencies in the cap. So your job, as you build your company, is to kind of try to de-risk as much as possible. And there are a number of different venture stages. These are representative. Those numbers on the left are very like rough estimates. They shift based on a number of things, but ultimately, when you're in an angel stage, right, usually it's like two people, might be one person, ideally it's more like one person that helps you miss things. We like risking things, right? When building a starter gets hard and it's just you, it's easy to say, 'forget what' but if there's at least one or another person, usually that helps motivate you. Also, there's something to, like, be a check-in graphics, but basically, and at the angel stage, this is all founders. You have nothing else to believe that list, right? So your personas need to somehow be relevant to the startup that you're building. When you're into Christie stage, you might hire an engineer, you might not, and here you're really waiting to demonstrate the value by process, and we'll get into more details about that later, but what is the value that you're actually creating here? Right, initial market validation, you're part of NVT works at the seed stage. You're trying to, so not just that you can deliver some value to someone, but that there might be product market fit, right? And you're trying to validate, there are a few indicators of product market fit. We'll talk about those diggers in the session at the seed stage. Now, ideally, you've proven some product market fit, or you validate it as much as possible, and you're trying, and you're raising for this purpose, and then you start looking at potential growth suggestions. And at the A stage, really, you're trying to prove that you know you don't just have hard market fit, you actually know how to grow and scale your company,
+
+Michael  1:48:00
+and you can see here you're layering on engineers and biz dev rock community debt, right? So you're laying
+
+Speaker 2  1:48:07
+on additional people
+
+Michael  1:48:09
+for your company at each stage, and then you're reading your C stage, etc. Really, you're just at this point, you just grow. I'm going to race through these next few slides, because I give you the deck, but it's really like at each stack, right? What do you have pre-raised? What do you see capital for the aim of this stage, right? Again, many of you are at this initial stage, you know you're going to use your own cash, what we call the 3f friend standing fools, who are willing to give you money to come up with an idea of product, ideally you're leveraging your own research at research and experience here to try and find potential market sizes and markets to go after for where you can potentially use your technology, your research to go to one thing out of the studio. Sorry, you're in the round, right? So that now you're gonna kind of use whatever capital you've raised to work or drink, improve capabilities, and validate and test different markets again. You're doing business work yourself. You don't want to be hiring people at this stage, because you, as the CEO and CTO, you really want to be learning everything that you're getting feedback from customers, etc. right? So, you're an interview with Todd. I did every course I've ever taken and taught that's like a practical course in building startups. We were literally like interviewing people anywhere from like 20 to 100 people easily, right? Because you want to get as much feedback as possible from people that will actually use your product, or could use your product, or might use your products, right. And the key thing here is you're going to want to line up design partners, right? Design partners are people that are friendly enough to do, see the value of what you're doing, and are willing to use your product. They might not pay you, and that's fine. You don't need to pay, you just need them to care enough to give you time, and to actually use your product to show that it creates value. The first thing you want to show is that you can actually create value for someone, and then you can use that to get real customers, ideally they convert the bank customers, etc. but ultimately you're trying to do the design firm face here, right? And investors here, they want to see your experience across the technology that you're building in the sector that you're building in, and ideally some business experience, but if you outperform on the other things, you can get away with not having one of the key skills to be, right? So, basically, as an investor, I look at three things: is your technical expertise on the team, is there domain or sector expertise on the team, like industry expertise, and is there management expertise, or some sort of expertise? Does someone know how to run something? And again, you might not have all three, you
+
+Speaker 2  1:50:58
+don't have all three, you need to outperform in two.
+
+Michael  1:51:00
+You only have one, you really perform in that one. And then, ideally, you're likable enough that you can hire someone else. Pre-see, right? So, now you got to leverage your NVP and design partners to validate your partner correction. Again, design partners don't like it. You got to find your design partners, right? We get iterate on the product or design process. We'll get into this a little bit later. Should you be iterating more on the product, or should you be iterating more on the market and the customers that we got? Right, because it might be that you've got the wrong customers. I believe you want to keep standing here and show traction through design partner engagement, community growth, and building through technical milestones. This is a big one. You guys are building really technical products. It might take you a year or two to actually get the technology where it needs to be right. So, you need to show that if you can still get design partners that will say, 'Yeah, if this works, we'll use it. And then you need to be able to show your milestones and technical milestones that you guys reach
+
+Speaker 2  1:52:00
+as you stage in
+
+Michael  1:52:01
+the one to two years that it takes and then you need to meet those milestones and then people will trust you both the design partners and investors right seed stage again at this point you have a few design partners and you're iterating they didn't have some paying customers, and they're continuing to iterate on things like your messaging, how you reach them, who you talk to, users and customers, your products, make sure that your feature sets meet their
+
+Speaker 2  1:52:30
+needs, and you're trying to get more and more
+
+Michael  1:52:32
+users and customers, and this is going to be different if you're more retail focused, consumer focused versus enterprise, or B2B focus at the Series A. This point, you should have, like, half a dozen to a dozen enterprise customers, or 10s to hundreds of 1000s of users, and really you're showing that you can cut and paste and scale up on the growth side, and you're going to be
+
+Speaker 2  1:53:00
+tested. What are the best channels to go to
+
+Michael  1:53:03
+market on? What are the best sales people? How do you actually grow and scale the company?
+
+Albiona Hoti  1:53:11
+And then, seriously,
+
+Michael  1:53:12
+that is growing your company series, seriously, we have done some common mistakes. Building the dark is the biggest mistake by law, right? If you just think you know what you need to build, and you should build, you're not talking to people who are going to continue to use this, you can go very far in the wrong direction, and then before you know it, not only be wasted time, you might burn out of lack of user persona focus in early stages. If you're trying to build for too many different user personas, right, you can't build everything for everyone. If you try, you're going to get an average, and someone else is going to build for the for a specific user, and they're going to outtake you because you're building exactly for their needs, scaling too early, right? If you don't have product market fit and you scale, you could easily die, and you likely will die. Why? Because it costs nine to scale. Now you're going to hire four or five people, they're going to cost you potentially up to a billion dollars a year, and that money that you raise is going to get squandered on building something in the wrong direction, which is why product market fit is really, really important. Sharing too much squarely, right? So, if you tell the entire world publicly everything you're building and how you're building it before you built it, and it's going to take a year to build it, well, they might just take it and copy and build it. Usually, I'm all for people sharing as much as they can. I think
+
+Speaker 2  1:54:37
+that's very a facility, good way
+
+Speaker 8  1:54:38
+of building, as people are collaborative,
+
+Michael  1:54:40
+but there's also some degree of discretion that you should not hear. Really quick, what is stacking saves? Oh, yes, right. If you raise it for you, so stacking saves is if you just raise on saves and you never do a price round when you finally get to a price round, you as a founder, again, they get really, really good, and there's a lot of, I mean, it's not that you can't do that, many people do do that, but you seem to understand that there are trade-offs in doing that, and it's much better to have, like, a few saves and then have someone actually like price around, and then kind of you as a founder, you,
+
+Speaker 2  1:55:20
+you get your equity, you know exactly how much you own, and then everything above that
+
+Michael  1:55:24
+dilutes everyone kind of equally, not just you as a doctor. Okay,
+
+Speaker 11  1:55:35
+now we get fun stuff, it's product market fit? What is
+
+Michael  1:55:44
+product market fit? So, Andrew Ratcliff is one of the people that's known for potentially, like, having coined the term product market, said he actually attributed to, like, Bobby Valentine, was another big, big VC back in Silicon Valley, right? He's the CEO of Benchmark. I'm sorry, he was one of the co-founders of Benchmark for the capital company, and he's the CEO of Wealthfront, which is like Algo trading for automated trading for savings, like betterment, etc. But anyhow, so he basically says that a company with product market fit is one that's proven its value hypothesis. Why a customer is likely to use a given product. Knowing the value hypothesis identifies the features, audience, and business model, right. And again, we're going to talk a lot about this, like the why, the who, the what, right. So, the who is who are you building for, the what is what are you building, and the why is like, well, what value are they getting from this, right? So, this value hypothesis is what's the value that they're getting, and that's turning the audience right, who you're selling to, the features that it needs, and what this fun will actually make you money. Steve Blank, big, the Lean Startup world talks about the value of both value and growth hypothesis, right? So, value is you can create value, growth is you can scale the crap out of it, so that it's a real serial company, and testing where your product or service delivers value of customers using it, right. So, it's how do customers discover and use this product. Eric Rees calls it when a widespread set of customers resonate with a product. Alec, close from Facebook, talks about Nonzero attention over time. Right, what does this mean? This is also really important. We'll get more into this later, but if a ton of people use your product and then stop using it, that's not necessarily great. That's not product market fit, right? You could skip, you know, IRL fitting. You guys remember Vine Dext walk by like X that let people like make quick videos that said, like, super viral growth, super high servant people use it, people drop using it now. They might use it because it doesn't deliver value, they might use it because it doesn't work very well, but that's not product market fit, because you can't make money from people that don't use the product anymore. So, even though you have great market recent said that being in a good, good marketing product that satisfies that market, right? So, again, this is the why, the problem need the how this model, and then what market deserves, and I put myself next to these greats. The way I define it is that it's a product or business model and customer engagement rental, right? So you need to have both a product, means that a business model for the product, you need to have a way of engaging with customers, right, that consistently meets the needs of customers of a specific segment, not all segments, right, better than other people, such that people are willing to pay for, and I structured it like this, so you could think about what are the things that I need when I'm trying to build product market fit. So, why does it matter if you have investors will give you money and be like this, but more importantly, it means you're ready to move on to the next phase, which is the growth phase, right? And if you don't have it, then you need to iterate either on your products, right, because you have the right market, but the product doesn't mean what they need, so you gotta take your oral market, maybe stick your product, maybe iterate on which market it's for, or on your message, we can go to market right, because it could just be that the way you're talking about it, or who at the company you're talking to is the wrong person. You're talking to CEO, the CM is the parent, you're talking to a technical guy, but actually it's what do you call it, it's not a head of engineering, it's QA side, that's gonna play right. So, who's using this thing, and if you don't have product market fit, the important thing is you have to stay lean, right? Because if you scale your team too early, it might collapse. If you scale your customers too early, might collapse. Why? Right? If you sell to a whole bunch of customers, you promise them a bunch of stuff, and it doesn't work or doesn't do what they need. Well, then they leave, and they don't go ahead, right? And if marketing and sales higher, or
+
+Speaker 2  1:59:59
+sales
+
+Michael  1:59:59
+hires again. You're blowing a lot of your money. Your money is the most valuable than you have. In the beginning, you have a lot of it. So, racks up like you recently said that you need to prove your value hypothesis before testing and investing in your growth hypothesis. So, as you first prove that the value process is there, prove that you have private market fit, then worry about growth. You want to set the customer segment persona, their needs, their value free for them, like you gain for them, and why. Like, there's no point in trying to attract customers if they're not going to stay with you, right? So that's why product market fit matters, it's all the same stuff. So, how do you know if we have product market fit? Right, there are many different perspectives on this. A lot of people say, "Oh, you just know that's not helpful. It's true, you will know, and the reason you know is because you feel bold, but there are some practicing indicators here, right? So, for consumer-focused company, you talk about retail by humans, we call this organic viral road without undue sugar, right? So, you got to remember what to turn it, right? So, people love your product so much they tell other people, they love your product, they tell other people, and they continue to use it, and they engage other people, that means there's something there, and it's growing an organic function that's not paid growth, that's not throwing tokens at people, but throwing those at people are people that will take those tokens intense, they need to go elsewhere, right, it's people that are actually like using the product for what it is, and telling other people that, and for B2B focused companies, if you're talking about, like, enterprise sales type stuff, you want six to seven to 10 repeatable sales to similar customers, and similar customers is if I, my product was used by the bank and used by a gaming company and used by a hospital, like those are three very different types of different types of users with different needs, that doesn't mean that I have product market fit. That means I found someone in a bunch of different industries who might find some use for my problem, but that doesn't mean I can now repeatedly sell my product and actually create value there. And then there's a large market there, right? But if I'm able to sell it to three or four different people, like three or four different hospital systems, or three or four different geomags. Now that means that actually all of these people have a similar problem that I uniquely enabled solved, or they would be talking right. So, Alex Salt stops about retention over time, right? So, in each industry, you're going to have different expectations around retention that are just like common to those industries based on how competitive it is, based off of their specific attributes, so you know, for e-commerce it might be like 30% for social media you want like 80% right? So if your attention asymptotes, so what's common for the industry that you likely had the product market fit, if I started shortly after customer
+
+Speaker 2  2:02:58
+acquisition. The value just
+
+Michael  2:03:00
+isn't bit right, whether you have a dozen enterprise sales, they all drop you within a few months. The value just isn't that right. And then Andrew Chen talks about, like, if you're doing this model of like three to eight, then that conversion needs to be something like at least 5% and you want to be able to track
+
+Speaker 2  2:03:20
+your, like, life-time value, back, back to stuff, and acquisition calls, right?
+
+Michael  2:03:24
+That should be, like, roughly about 3x at least. Okay, so PMF options, there are a lot of other metrics people talk about, like NPS, right? Would you be very disappointed if this product were to be discontinued? So, these are great indicators that people like your products. They're not necessarily indicators of product, but it's sufficient indicators the product aren't to fit, because the main thing that talks is not, 'Do people like your product? It's, are they willing to pay for it? Are they continuing to use it? Right, use and payment is the most important thing here. If you have high organic growth across multiple segments, so we spoke about this earlier, right? If you're across multiple segments, you need to build features for someone. You can't build features for everyone, and you'll lose users that you don't continue to support, right? You have a limited number of engineering hours. If you have six different types of customers, and each one is asking for feature sets, you can't build all of them forever. So, you'll make a choice, and when you make that choice, you're going to start losing people in the other segments, which is why it's important to have folks. Oh, the other thing is, if I have, like, five different segments, let's say I'm selling to healthcare, someone in banking doesn't care that I sold for hospital, right? Someone in gaming probably doesn't care that I've sold for bank, they're going to care about all the other gaming people I've sold to, right? So, again, if you have every just one customer you have creates
+
+Andrew Miller  2:04:55
+these network effects, could
+
+Michael  2:04:56
+you be able to sell to additional customers with their references and validation that you're solving problems? What's in ks net promoter score? Sorry, net promoter score, which is like you talk to your customers and they'll say, like, how satisfied they are with you. So it's these surveys that people send, which is like, you know, would you be very disappointed if this product was so discontinued, and there's specific numbers around SPS. I'm forgetting the exact scale, but in different industries there's like different types of NPS, but it's mainly like, do you like the product?
+
+Speaker 2  2:05:31
+Would you be disappointed if you didn't have it? And it's a very good indicator, that's
+
+Michael  2:05:35
+important. Is that as important as are people using it, and are they paying for it? Okay, so in short, we're not done. Now we have a whole section about strategy for finding product market
+
+Speaker 2  2:05:51
+cleans, but in terms of what
+
+Michael  2:05:53
+is product market fit, right? So you have a concrete identifier, identify the cluster segments or persona. You understand there are specific needs and pains. You have a product and a business model which address those things. You know how to communicate and get to them, so they understand and appreciate what you're right. You know how to talk to them, so that they know what you have, and they like what you have, and they care about your solution enough that they're going to pay for it, either directly or indirectly, right? So, and
+
+Speaker 2  2:06:26
+that's kind of these things are the
+
+Michael  2:06:28
+basic TLDR
+
+Speaker 2  2:06:30
+of, you know, how you should think about product
+
+Michael  2:06:32
+market fit, in my humble opinion. Okay, so now this is the fun and exciting
+
+Speaker 2  2:06:42
+discussion of how to find product market fit, and this is tend to be different for different industries and
+
+Michael  2:06:47
+for different, for different family personas, right. So this might be one of these, might be right for one, not for the other. So there's the Steve Blank, Eric Rees camp here, right? Like what they say is product first, and their view is start with a technology or an innovation, right? That's something they do uniquely have, right? It's a source of competitive advantage, because you're the person that you have this net new thing you've invented, you've worked on from a research perspective for years, it's hard to get this much knowledge and understanding from a technical perspective for anyone to just come up, which means competition is going to be very difficult, potentially, right, so their claim is start with technology and iterate on the market and see which markets work. Try and market out for a few months, do everything you know, research the market, and then try building something and validating for the market. If it doesn't work, go to the next market. The same thing, does it work? Go to the next market, and their view is you may not find any market that works right there. Might not be a market for your product, but if you do, you have such a huge competitive advantage from the technology perspective that you will win, right. It's very hard for someone to catch up if you have like technology that you meaningfully worked at the last few years, and you're the smartest and best on this specific tech, right? there's like Snowflake, it in within the media industry. I don't know how many you guys know the company, Snowflake, from back in the day. They literally did this exact.. they were the first real, like, cloud database company, and they went after the media industry first. Why? Because the media industry had a ton, a ton of data that would be moved around a lot, were they experts in media? No, they know a lot about media, no, that was not their background, they were tech people, but they iterated over industries, and they looked at which industries had the most volumes of data that they could potentially take advantage of, and really gave, you know, have an outsized advantage by having a cloud solution, and that was medium speed, and went after,
+
+Andrew Miller  2:09:00
+and they won it, and they went and won industry after industry after media, until like they basically came to stand up for one.
+
+Michael  2:09:07
+How narrow should I think of, like, a market being? I imagine it's a little blurry, or buzzy, or changes over time. So, in the beginning, the narrower the better, and we'll talk about this in a minute, because you want to win the market. You go after a really, really big market, it's actually hard to win, because everyone's going out to the market, and if there's, you know, like a billion users in a market, how are you going to reach a billion people for them to find out who you are when you're a small start, right? So actually, you want to go after a market that Samsung talked us to the next slide that has a small niche that's easy for you to go after with a lot of other similar niches that you can use the exact right at the end of the day you want a large market in the beginning large markets are hard so the other approach is design thinking and idea focused, right? So the approach here is you start with a market, we start with a user and a customer, you deeply, deeply, deeply understand their needs, and maybe if you've worked in a sector or segment for a while, whether it's in finance or in bio or energy, right? This might be better for you. Know a sector really well, you understand the pains really well, and you start trying to build for a specific set of challenges that that sector has. Now, what are the upsets? Here, the upside is, you know that there's a problem, you know this really well, right? You study the sector really well, you are creating a solution exactly for this problem, so your probability of success is much higher, right? Because it's been a problem, you're building solution for it. However, other people can too, right? So, from a competitive standpoint, it could actually be really difficult, because if you do a really good job, you're going to have well-funded people jumping into this client competes, and it might not be that hard to compute, so you have to continuously think about what is your competitive advantage, and how can you build for them. Areas where this is great is like the medical space, medical space, right? You have a condition you want to solve, the specific condition, right, and it's really, really hard to solve this condition, so design thinking tends to be really successful across the medical industry, AI software technology very often is kind of in that first category, but again, there's no right and wrong answer, you just need to also think about, like, what's your skill set, where are you coming from. Are you starting with research? Do that one. Are you starting a lot of sector expertise? Do this one. This is also shifting now with kind of large language models and generative AI. I've used large finance models, like intelligence is starting to become modernized, and actually understanding of market and having access to that market has a lot more value, so we're starting to actually see more people that might be looking at the first at the product first going to market first. So this isn't a very clear cut, but these are important considerations to have. Now there's always this question, why not go after multiple markets at once? And again, it's a question of time. You want to know for sure that if you try to market it's the right market or the wrong market. Okay, now one of the ways you might do this is, let's say I was feeding a team today that's building machine learning for engineering, right, machine learning agents for engineering, and they're trying to figure out what market to go after, and there's a bunch of different markets they can go after, there's like sports betting people, there's there's manufacturing, they're doing like predictive failure for predictive predictive maintenance and failure modes in the manufacturing space, there's energy space, there are people that are using it like in software design and machine learning engineers, as there's a whole school of different use cases, they don't have a whole lot of money,
+
+Speaker 2  2:13:00
+they're trying to
+
+Michael  2:13:00
+figure out who to go after, and they're like, "Oh, why don't we just go after everything? And the short answer is, you're not necessarily going to be able to convert everyone, and if you try to market now to six different industries, well, from a marketing and sales perspective, usually you need like seven to 10 touch points until someone converts, so if I can put a whole bunch of like marketing dollars and do three impressions across five to six different industries, the probability that I'll convert anyone is actually pretty low, but if I put all that marketing budget into one sector now, potentially I've got like up to 10 to 18 different touch points that someone is going to have that they're going to, or investment they're going to have, and then if they convert, well, great, they've converted, and if they don't convert, I know that it's because it's my product isn't right for them, right? So if you focus and you talk to 20 different 20 different companies in a given sector, you'll know very quickly, is this the right sector or the wrong sector? Right, you can go to 20 different conferences. It's easier to go to
+
+Speaker 2  2:14:06
+three conferences in one sector
+
+Michael  2:14:08
+and really find out and hone and iterate over your own fish than to try to like test out right. So this is why we usually say at least for now start seriously. Now there's a question, is it shifting with AI? Because now the cost of actually customizing and building marketing content for a whole bunch of different industries might be lower, so the kindness might start to change here,
+
+Speaker 2  2:14:37
+but you need to do that math to make sure that you're giving
+
+Michael  2:14:39
+enough focus to any one given industry to know to know that it's the right entry or the wrong industry for you, good versus bad part of market fit, right? So just because you have a product business model and customer segment that wants to pay for it doesn't mean that you're all good, right? So
+
+Speaker 2  2:15:01
+you need to have a viable business model.
+
+Michael  2:15:03
+Okay, so what is a viable business model? Your revenue is what people pay for it needs to be more than your costs, and it's not just the cost of buying, it's also the cost of sale. So an example might be if you have software that you can get $10,000 from every customer, right? But it takes an account executive, a sales guy, a few months to be able to close that customer. That's that viable,
+
+Speaker 2  2:15:30
+right?
+
+Michael  2:15:30
+Think of how many customers he needs to be able to close to be able to actually.. so now we're talking about because your sales guys get on running like two to 500k a year, okay? So, so now that means you need at least 50 to 150 just to break even potentially, and then potentially like 100 plus sales, right? So maybe it's easy, maybe he's a sales guy that just has to make up phone calls and he's able to close, but if it's something that is literally like an extended sales process, you don't have to buy the product. However, if you have annual subscriptions of more, right now this is much more binding. Now a sales guy needs to have like five to 10 and 20 sales, and they can cover their own costs, and this makes a lot more sense. Next, the market might be too big, right? Too big. It's going to be this book capture, and it's going to be highly competitive. How do you stand out in a huge market? Are you going to go like money 2020 in Amsterdam? The biggest finance conference going on. If you want to get approved, that money's 2020 I think it costs about $100,000 $2 million for a booth, right. So, if you want to advertise to this large market, and that's the only place you can find customers, like that's a viable first start, but if you go after, like, a very niche area within the fintech market, you can go to that niche conference, or it's going to be a lot more reasonable for you to meet customers and advertise to them, and right, if the market is too small with Billy Basie sees, so you might win in this market, but then once you've won in the market, there's nowhere to go, right, so again, if your markets are going to be finance, insurance, gaming, and I and healthcare, so if you start in gaming, well, or in healthcare, healthcare isn't like any of these other markets, so that might not be an easy one here. Maybe you can start healthcare, and then go to health insurance, and then for insurance go to some other insurance, and really what you're trying to do is find these niches that are similar to each other, so when you win one niche, you have enough of a product there and enough trust there, that if you go to an adjacent
+
+Speaker 2  2:17:42
+niche, that'll help convince other
+
+Michael  2:17:43
+people that actually this is relevant experience, and I should buy this box. So, what you really want is there's this pinball analogy where the pins in, sorry, Stephen's bowling ball. When you go bowling, the bowling has pins, right? Is that one one pin, and then two pins, and then three pins, and then four pins. You want to choose the first pin, and then you want that pin to be close enough to the other two pins, adjacencies, similar enough industries, so that when you go to the, you know, you can easily sell to those two other things. Then you want each of those pins to be close enough to another two or three pins that you can go to. That good friends of mine are the founders of company called Cherry. Cherry is a buy now pay later company that managed to find better ways of assessing people's credit weirdness. They started off iterating problems, but I think they had their medical spas full with both arms of all things, right? That was their first market, not a huge market. They were attacked really well by, like, from the doctors, doctor's offices that are giving people blood cups. They then capture that market completely built out the product, and in these, that wasn't like end of the world, and it didn't work, but they built a really strong product, had strong revenues, and then they moved into dental dental hydrogen, right, so these are like 2005 $1,000 procedures, or $503,000 procedures, where if someone wanted financing for six months, then this was a really great outfit that basically cost them nothing, so it's like industry financing for six weeks, right? So then they want the dental industry, dentists love them, so now they're going up to the pet industries, right? And the pet industry is more similar, like the medical sponsor, like the veterinarian industry, right. So, they're finding these adjacencies where, if you're doing medical spas, okay? Well, this is like health-related. You can see procedures, you understand how this business works, and you can go to the business that's different, but
+
+Speaker 2  2:19:49
+similar enough that you understand it well enough,
+
+Michael  2:19:51
+and the customer trusts you that it'll actually work for that visit somewhere, right? You want to think about moics and competitive event. It's not enough to have a mode or competitive event. There's a moment in time. You need to maintain this over time, right? So, you need to be a continuous innovation machine. People don't invest in a product, they invest in a team that knows how to build products. They don't invest in innovation, they don't invest in a team that knows that it continues the end of the day. Some other things around nodes of your network effects, and obviously increase the value that helps, because every new customer you have, it increases the value to your network if someone else doesn't have. If you can find distribution advantages and complexity, the harder an industry is to get into, the better. Why? Because if you're able to get into there, it's really hard for other people to get into there.
+
+Speaker 2  2:20:45
+So, if they're
+
+Fucory  2:20:45
+regulatory modes or licensure, like these are actually good if you know how to figure it out and can figure it out. Yep, are some of these like things that you want to think about up front versus like other of these being things
+
+Michael  2:21:02
+that you might not want to overthink, and instead like maybe later when it like proves itself be true, then did it, so you would you start off, let's say you're trying to do an analysis of
+
+Fucory  2:21:15
+various markets
+
+Michael  2:21:17
+for your product, right? So, you have the product or technology organization, so you're building authentic workflow. That's a fairly generic thing that'd be incredibly valuable for a lot of different industries, right? So, now as we think about which industries you go after, because you can go after everyone together, because otherwise you know Anthropo is also building a gender workflow, so Gemini, so right. So you want to, you want to be able to focus on something, focus on the legal industry, and as you make a list of sectors that you think you can go after, because you have some experience, they're relevant, and you think that maybe they're not going to be a good fit for the large language model for the large foundation model companies. Why? Because having best of breed in multiple models might actually be better, and having some combination of open source models and foundational models might be really important as you start to think about that. Yeah, you definitely don't want to think about these as attributes of each market, right? Does this market.. so you're going to put together a big list of prospective markets, and you can see how big is this market? Is it a niche with adjacencies? Can I go after this market? How competitive is it? Are there potential network effects here? And each of these are considerations as to if you should prioritize them, and even what order you prioritizing, so they should, they should be considerations initially as you're trying to make the decision. Then, once you start going after the market, should you start building a network effects from day one? But being in a market where you can is certainly important. Well, and high switching costs, right? I know we all come from open source, and potentially high switching costs is antithesis to that, but it does make a good business. So I'm not saying you should
+
+Albiona Hoti  2:23:09
+add friction to make high switching costs,
+
+Speaker 2  2:23:11
+but if you're going to go to an industry where they're by definition or high switching costs, then there
+
+Speaker 13  2:23:16
+are benefits to that question, I think. Yeah, do that. Oh, so I'll be there in around like 15 minutes.
+
+Speaker 2  2:23:30
+I just
+
+Tina Z  2:23:30
+check into the Airbnb, but so just I think for this cohort in particular, what I've noticed based on my observation, is that a lot of these, a lot of the founders and entrepreneurs, they're strong in a particular technical domain, and, or, like, can iterate their product very fast, but one of the shortest, like one of the I would say the weakest link for everyone, pretty much in this cohort is the sense of market, as in, like, what is the market that, like, and business, like, what is a market that is a viable market, and what is the right timing, and are you like differentiated enough? So it's like this is like maybe something that like I would suggest, you know, you can further double click a little bit, because like in my personal experience, like PMF search, oftentimes, especially for those in this cohort, in this agent, age is founder market fit, as in, like, what is the right product and form factor of product and services that you should be building based on what your strength is, and that you have experience of servicing a particular market, so for example, most folks that I've met in this cohort, I would advise against going at enterprise, I would advise against going towards enterprise sales, unless you have a partner, like a co-founder, or like a very strong team, or personal experience having done enterprise sales, at least from this cohort, like perspective, whereas for consumer I would also suggest, like basically having Ali, someone on your founding team, or a co-founder that such experience, so it's like really knowing what you're great at, like knowing what your core differentiation and what you may have a moat that can protect you for perhaps a year to a year, and that at least is valuable to be acquired if you're in the agent tech space by another like one of the major AI labs that's essentially sucking up all of the capital in a like, so that, like, what I'm seeing is, like, in early, early stage, there's funding, but in most, like, the funding get sucked into the much later stage, as we're seeing, like, the mega IPOs that's happening recently, so again, so, like, I think be very careful, I think that, like, a lot of the PMF search is more so like it's going to be solo searching and finding the right market based on what you're good at and what your competitive strength, comparing to your peer and what everyone else in that servicing that market,
+
+Speaker 2  2:26:54
+like
+
+Tina Z  2:26:55
+what you uniquely have. So I feel like that's something that you know I was just, you know, based on this cohort, and also I think to partly address concretes question just now, like, and also I find another like mental model that's helpful is to think about product market fit search like an optimization function, because you yourself, again, is the core asset here, and with your agentic capabilities, and so how do you leverage what you're great at, and it's like an.. it's almost like you'll build up intuition, you, it's almost like product market fit, something you know, you hit it not only by the metrics, but you would like, you have, like, essentially not just a hyped up, I was like, okay, well, this direction is very novel, but when you see the market, you may be able to love intuition that you have hit product market fit before you even see the numbers, but you need to see the numbers to validate it to make sure that you're not hallucinating, but like you like it's almost like it's like riding bicycle, you will know when you are actually riding or when you're serving, like you know that the weight is coming and that one is yours, it's very like we're like driving, so like I would say, like I think it's more intuitive than you think,
+
+Speaker 2  2:28:24
+not just metrics. I think metrics are
+
+Michael  2:28:26
+super important, but at the end of the day, you know yourself the best, or you should learn to get to know yourself better. Awesome. Yeah, I completely agree. So I think founder market fit is just as important as product market fit, and you cannot find product market fit without founder, and that's kind of in the first part. One thing I was mentioning is like you want to have three types of roles in your company, right? So you want to have the technical person, you want to have the person that understands the sector or domain that you're in, and you want to have someone that can handle the business managerial aspects of things, and they could all be in one person, they might be in two people, they might be in three separate people, but you need to have those people, so if you're going to go after a segment or a specific sector, you want to make sure you have expertise in that sector. Now, from an analysis perspective, you guys are smart. You could do a whole bunch of analyzes, trying to understand where, perhaps, especially using Claude and Chet, etc. where there might be opportunities for you to potentially go after, and you can also, like, ideally, if you don't have these skill sets on your team, have other people kind of support you in this one. Other thought to have is you're early to be doing enterprise sales, but if you guys are really technical and you're strong engineers, there are engineers at these other companies, and if you're building something for those engineers, those likely are
+
+Speaker 2  2:29:55
+people that
+
+Andrew Miller  2:29:55
+you can speak with and kind of understand common ground, and they will respect the innovation that you have if it's relevant to them, and vice versa. Is
+
+Michael  2:30:03
+there something in between consumer and enterprise sales, or are those the two like small businesses, or I guess B is like there is small businesses, and that's kind of so if I think about the how small businesses is definitely in the middle there, there's a fourth one as well, which is like prosumer self service, and they kind of all tie it together. So, SNB small businesses are actually really great. We love small businesses. Generally, if you're an early stage, you don't want to be going after very large companies, because those sales cycles are really hard, and they're not going to trust that you're actually going to be able to build something that they need, so if you go up to small businesses, their needs are high, they're willing to talk to you, and usually the decision makers are much easier, and you can kind of solve their problems relatively quickly. Similarly, here, depending on how long it's going to be, and again, not in the early stage, you're just doing research. Once
+
+Speaker 2  2:30:58
+you get to a phase where you have a product that you're trying to sell, you want to
+
+dmarz  2:31:01
+make sure that the value the
+
+Tina Z  2:31:02
+product delivers is commensurate with what that sales cycle will look like. I think that maybe it's just a couple of things. I see that there's a lot of examples here. I think those are good. I just wanted to kind of like follow up on, because I think that in the room there's a lot of people who are building what I would call like agentic tooling or privacy tooling, like kind of for different audiences, like most of them are currently able to service individuals like in a way that's like I would say it's not a 10x product that's like you know it's probably a 2x product comparing to what is available out there and it saved a lot of effort, and then that, whereas, and then I also see some of the products being utilized by small teams, like friends and family, small teams, like, like, so they're not enterprise, I'm like kind of small teams that, like, where the, or like, you know, within ourselves, like dog fooding across essentially friendly teams, however, like most of the products that I have seen or is familiar with within this cohort, in the more bb sense, they, I would say that comparing to being able to actually hit through small, medium businesses, and like enterprise sales, the products are lacking in a sense of like when you do bb, like certainty and guarantees, oftentimes instantiated in the form of service level agreement, like SLAs, and also controls, where like certain guarantees, but the sense of, and the permissions, those are some of the most important, like, attributes to, like, servicing teams, even small, like, you know, even if you have the connection connection, so, in other words, a lot of the products that may be gearing towards small, you know, individual developers to, you know, cross-team collaborations are missing essentially like just like agentic harness. Why do you need a harness? It's almost like you like it's missing a harness on your product, as in, like, like, you know, that's like that, that's what differentiates like a great product for enterprise, which is reliability, the level of control, configurability, and the ease of UX. You know, all of that are just preconditioned to really sell to I would say something that's like a 10 to 50 people's company that is, you know, in the tech industry, even like, and like, and then, and then, like, on the sales side of things, that's where I think Gil was measuring, essentially, like, yes, you know, lean to your strength and make friends and impress the senior engineers, and let the word of mouth, like you know, be able to win you essentially the pitch, but oftentimes, if you're servicing 10 to 50 people companies, if you can identify the CTO, like oftentimes the decision maker is like the C suite, but then, or the founders, but then, like, the decision making is very diffused, as in like it's it's super super important, like you know, will they pay versus will they just use like the your retention versus like you know effective engagement, like is it actually like someone who like actually will will value what you are offering. That difference oftentimes is like, did you find the right people to negotiate, even at the beginning, because you need to establish price points. You need to have pricing, which involves you need to talk to multiple people. So, oftentimes in this cohort, and then in a network like ours these days, oftentimes it's directly founder to founder, or like founder to CTO, or like, yeah, so like it's respected SWE, or we like, in that case, and in this cohort, one of the benefits to have this cohort is that it's almost like if you're servicing this particular niche, and like, that's more tech, tech-savvy target customers, and it's more enterprise, is more like engineering privacy tooling. You yourself, and like everyone in this cohort, is your best target to hone your product to be good enough that they would trust that they will be able to use your product. So, like, again, like, when I'm seeing, like, there's a lot of, like, people building toolings, and all of your toolings are currently short of being useful, like, I'm not, this is not meant to be a criticism, because this is a great starting point, and I think one of the, like, exciting things is that let's see how far you can get in two weeks, in three weeks, like an actually improving and defining, like with sharper granularity of like what is exactly your product that is going to be useful, that's 10x that of anyone else, like I think that is a basic skill, like even like if your market like choices may still be iffy, like at least service, if you're building a tool, like service your target
+
+Speaker 2  2:36:44
+audience, find that person in this cohort, and
+
+Michael  2:36:47
+then win them over, not just through friendship, but rather they can, they're addicted to your product. Yeah. Sorry, completely agree. Yeah, and I've got a couple slides on authentic harnesses and tooling and expectations, how that's shifting. I think the other thing to note is, like, I'm talking more broadly now about considerations you should have in choosing markets, but you're not selling right now, right? You're aiming right now, so do as much market research as you can to talk to people, especially your friends that are here, but also people that we can connect you with, and define design partners, and these design partners are people that are friendly, that are going to be more flexible until you are able to build something that's a 10x or 100x better than current state. I'm going to skip these just from a time perspective, so a couple thoughts on how, like AI affects product market fit approaches, right. So the big labs, kind of, as Tina was saying, they're taking a lot of the capital out, they're taking a lot of the, they're cannibalizing a lot. Like we had a sex security company that we invested in that was doing kind of automated code auditing, and they just couldn't raise right now because they were a horizontal layer cybersecurity company and after mid this came out everyone's like well the big leverage is going to take this right so they had to they ended up getting an acro hire they're fine but this idea that the horizontal layer is significantly harder right so horizontal coding horizontal technologies are much harder because they are going after these markets specifically, right. So this, the harnesses, long running agents, cyber security, code synthesis. So this makes like this idea of like tech first and purely tech first a lot harder than it used to be, but technology is not dead, right? So everything on the hardware side and single AI side on small model and edge models like these are places that they're not necessarily convening and can compete with, right? New model paradigms, potentially, as well as everything around kind of the interoperability layer around coordination across multiple models, because by definition they're not necessarily going to be strong at that, and similarly distribution is king, right? So partisans for specific industries where you know maybe you're a 2x broadly, but if you go after a specific sector, you can really focus on the details of that sector and become more than just 2x become a 10x etc. etc, right? So this also gives you potentially proprietary data, proprietary access to specific types of folks, right? So market first potentially could become easier, and lastly, like as startups, you guys have the ability to infuse AI tooling into every aspect of your company, which is significantly harder for large companies to do. Right, large companies are hiring a center to have these multi euro labs of becoming effective at AI, whereas we built some companies that are literally like they've either let go of a couple folks or they've just significantly ramped up their capabilities across every aspect of running the company, from the tech side, and everyone is now an engineering manager, instead of just an engineer, to marketing side, right, and having leveraging kind of these models to create the iterate over content to support them on the sales side, support them on the coordination side, so like you have this competitive advantage that you can potentially leverage, and this Tina event, this as well, but the gap between an 80% demo and a 99% reliable workflow is actually a strong technical mobile, right? So user elements have won out because of user experience was really that that easy to use, right? So, if you guys can nail these complex workflows, especially for specific sectors, and make sure that it's actually 99% reliable, it'll get used similarly. We're seeing if something used to be done by a human, now it could be done by a human that's AI enabled, but still requires a human that's great, that's productivity begins, right, that's software, but potentially, but now potentially there are fewer humans overall, because it doesn't need a human
+
+Speaker 2  2:41:10
+at all in this aspect, because you're reliability is that high
+
+Michael  2:41:12
+now you're able to access different types of budgets, but this, like personnel budget, not disturb her budget. There was something here we spoke into this. Oh yeah, proprietary access advantage, right? So, if you have proprietary access to data, to knowledge, to licensure, or anything like these, are really valuable and become really valuable. UX again, this is absolutely critical here, especially when we're dealing with AI, because AI is automating all of these apps around a human, and if that human, if the work to use your workflow is actually harder than them just doing it, they're not going to use it, and there's no value, right? So that UX becomes all the more important, this kind of cognitive architectures, we have multiple, and it sounds like a lot of you are working on these types of approaches. We have multiple models, you have routing, you have guardrails, but make sure it does do the wrong thing. I mean, you have complex workflow logic and reasoning loops. If you can get these right, where they're all like seamlessly integrated with one another, like that could be a real 10x 1x company. Because now you're not just 2x better or one and a half x better, you're not enabling the human, you literally like scaling what's possible. There's been a big shift of selling tools and technologies to selling the outcomes, because you're actually able to automate entire workflows now. We can do them well. You can potentially price it based
+
+Speaker 2  2:42:42
+off of the outcome itself, right? And
+
+Michael  2:42:44
+I think we're starting to see.. I forget which one of the models actually just announced doing something like this, where you still need high margins, you still need nonlinear scaling, but you can basically sell a service now, instead of just selling software, and take a cut of the performance that you actually improve, right? That's this idea of value-based pricing. And lastly, there's an idea of weak links. So, Ezra Klein had an interesting article about this a couple months ago, but Chad Jones, who's a professor of economic growth over at Stanford. Great lecture, talking about how, despite all of the innovation we've seen in the last 150 years, economic growth in the US has remained at 2% Right, so we're talking about invention, the steam engine, we're talking about electricity, computers, internet, mobile phone, everything still only 2% right. And why is it that growth has not been significantly higher? We thought at every step of the way that these would be game-changing technologies that will simply revolutionize everything we do. The reason is it takes a long time for technology to diffuse within society, right, because it's complicated, and it's not gated, because these are complex workflows that have humans in them, and they have weak links, and those weak links become bottlenecks for the adoption of technology. Now, what happens if you automate everything? Link is that weak link becomes even more valuable. The big example here is radiology, right? Everyone thought, okay, we're gonna look at AI and automate radiology. Radiologists aren't in Huntington's. What happened? Actually, radiology became cheaper. We now have way more diagnostics, and we have more radiologists, significant. I think, like, five is more radiologists than we had before, right? And the reason is because now, like, the human aspect can't be automated. Somebody needs to take you, position you correctly, understand what the results are, explain them to you, understand how they fit into your life, right. So, these weak links are important. So, what does this mean? Is presents with an opportunity, either you become the weak link, right, or you take advantage of the weak links of proprietary data complexity of a sector of an industry, or you uniquely automate those weak links. Right, it can be very, very challenging to automate this
+
+Speaker 2  2:45:05
+weak link, and if you're able to automate this bottleneck, this weak link that requires a human in the
+
+Michael  2:45:10
+loop, there's significant value in that. Okay, so like PMF used to be, can we build something people want, and now a lot of this seems very relevant to many. You guys know, is can we own some sort of painful workflow, but more importantly, the outcome that will improve as the models improve, so that as the models get better, they're not competing with you, right, your overall complex workflow is something you're uniquely solid, and it gets better as these models get better. That can survive bundling, right, that can produce a reliable ROI, and can compound through data distribution and workflow,
+
+Speaker 2  2:45:57
+so it's a much larger mouthful than anything we build something people want, but it actually presents a lot of instinct.
+
+Michael  2:46:05
+That's the DAG. Happy to take questions.
+
+LSDan  2:46:19
+Also, go into some of the examples, but those are more.. I kind of mentioned some of them as well beforehand. So, yeah, nothing in here about creating a market, and of course, the traditional advice is don't create market, right? But we have a whole trusted execution environment stack or track here for this cohort, and I'm wondering, what do you think about that? Maybe the tech, or just generally the
+
+Speaker 2  2:46:47
+growth
+
+Michael  2:46:48
+opportunity of privacy that isn't.. I mean, we know inference is interesting, but outside of that, so I think privacy is, I don't necessarily think that is creating market, I think privacy, then we've always had you to solve it a different way, time to solve privacy by trusting a third party, so we know we know that there's a market that needs to be trusted, we have middlemen who provide some sort of privacy, some sort of trust, reliability, etc. Now we don't necessarily trust them. That's a whole other story, and it's not just privacy, there's also blights, resipating about financial transactions. There are many like hedge funds, banks, and the like that they are uncomfortable giving all of their data to these other financial companies. So then, what are the echoes? Well, they've been put on the US, they've been great, have models running locally, and if those test assumptions aren't enough, then they might literally want to use best space environments. So I think if you're creating a market, it's like people are trying to do something that they didn't even tell that Disney, whereas here this is much more for the people that have quite good concerns and have some clients' concerns. What are the current solutions? What are the gaps and issues with those current solutions? You get a third party, now you don't have interoperability, now you don't have all the things that blockchain enables in open interoperable ecosystems, potentially are things that you don't get when you have a lot of fragmented middle net, so I think you can look at kind of what what are people currently doing, what are the things, and how can you solve this problem in a way that is 10x cheaper, 10x better than they're comfortable using these models where they might not be comfortable using these models where there are friction points because you want to have multiple agents that are interacting with each other, and when they need to coordinate and transfer information, there are challenges around
+
+Speaker 2  2:49:06
+that,
+
+LSDan  2:49:07
+especially if it sounds just like one way handover, that there's like joint processing, and they need to do, they may want to order to do so than just longer, so quick follow up to that, the with AI, I mean, you alluded to that a couple times in the slides, right? Everything's changing very, very quickly, right? So, when you have that lack of stability in terms of what people actually want, and to a large extent, a lot of people don't know what they want, they know that it's going to change, and they're afraid of that change. How do you, how do you kind of try to carve
+
+Speaker 2  2:49:44
+out a niche within that market or
+
+Michael  2:49:46
+find a position within that kind of very volatile global dynamic? So, I think that there's, there's kind of two ways to think about this. One is, you know, as some sort of sector really, really well, and you're just going to take Elon Musk, and to hell with hell. People have been doing things for the last 100 years. There's many files, automotive manufacturing, space, etc. I'm going to start from scratch, and reins, and then he didn't necessarily know those. Basically, he took me, but he brought in Devon. The other is there are existing ways of solving problems, right? How can you make those 10x better by you have these complex workflows in your automated, and where are these complex workflows, especially when it comes to TEDs. What do these break down at the integration? What do these break down because of the sensitivity around privacy, compliance, etc. And it might not be in the retail consumer case, because we're seeing more and more that people don't actually care about that, but it certainly is in the in the finance space, the healthcare space, the all of these other sectors where privacy value is legislated or or its core from a trade perspective or a risk perspective as you specifically customer profile in the spectrum between consumer and as I decided, but also I also
+
+Speaker 14  2:51:30
+very possible, and by the way, BNI that's
+
+Michael  2:51:42
+why there's you guys familiar with Tableau. Tableau was an analytics company that would let people make like pretty graphs that were hard to make, right. And the way that they would sell the product was, it was, it was pretty easy for an individual user to literally go online and start using a free product. It was like topics analytics tool that you could create all these really interesting graphics and visualizations. They had a free tool, they had a five ml tier tool, and 2000 ml tier tool, and what happened is it was so good and so easy, and they were selling to literally like developers or business people at these companies individually, that another people at a company would use it, and then Tableau would come to that company and say, hey, look, we've got 20 people using spotlights here. Why don't you buy an enterprise first one? And that was literally their golden market, right? It was like, go and sell to the individual developers or the individuals within an organization, because you're doing something that adds that most value. So, if you're going to sell to them, there are two considerations there. One, your price point needs to be low, right? Because they don't have time to spend $100,000 right? Your sales needs to be self-service. What does that mean? It needs to be the tool itself needs to be easy enough for anyone to acquire, download, and start this, right? If you require a bunch of people to help someone get it up and running, now that's all cost, and that's not self-service, right? And now you need, you need to charge more, and then it needs permission, and I earn enterprises. You're trying to get out of enterprise sales, so you treat a lot more like selling to an individual, like retail, like, consume in that sense, right? So these are the like kind of feature sets that you need to have, so it needs to be self-service. It needs to be relatively easy to use and quick to get value out of it. Needs to have a price point that is relatively lower, because you're going to be going off of volume initially, and that little price point means that you don't need a salesperson for it. But more morally, it means that this individual can just pay for it out of whatever budget that they have. Specifically, now the other thing you still want to think about it from a segmentation perspective, just like we would for an interview sentence, right? Because the developer that works with a team of four or five people, each of whom have now become engineering managers and has relatively fast cell goals, is going to be different than a developer that you know is working on a team of 100 and like different requirements in governance, etc. So you still want to create the segmentation, you're still going to want to it, you're still going to want to think of like
+
+Fucory  2:54:30
+what are the personas and what are the environments they're working in and who to go up there on It can you give, like, sorry, can you give, like, a concrete example of, like, a company that did this, like, AI here, and, like, what they
+
+Michael  2:54:51
+did, like, hit all these things, like, I asked ChatGPT, and he gave me a list of, like, a bridge party, Sierra, we party, yes. So, like, obviously, great example of that. I heard you first are doing a pretty good job for this, even though they're kind of horizontal, but they're finding a way, right? So it's pick your industry niche. There are going to be advantages of different models that are good for different things, and especially as we talk about routing, right? You move to instead of having asked Chat GPT to write this whole thing, and ask Photo Expert. This whole thing, for me, are you're creating agents that perform different tasks. The more you have this multitude of agents, the more you're going to have, like, some router agents that are going to be like super lightweight, because you want it to be low policy, don't want to be spending a whole bunch of tokens on just figuring out with which agent to route, they're going to be things that open source agencies are better at, they're going to be things that Codex and Open AI agents are better at things that Gemini is better at, so by definition, because of that, you're going to want to have these harnesses that they know how to kind of, which is best for which specific task, and as you understand the workflow within a given separate industry, you can back each of those to that, and that's a unique capability
+
+Speaker 2  2:56:17
+that you, as a technical
+
+Fucory  2:56:17
+person, can have, will see, and you can iterate it until you figure out how to do it, and then add the guardrails on top of it, and then just make sure that all the shit works.
+
+Michael  2:56:24
+So, like Harvey, for example, like, what did they do? Yeah, what did they do to accomplish? So, Harvey, Harvey is your lawyer, right, your AI dealer, and I'm going to surmise here, so because I'm not an expert on Harvey, but there are a lot of different tasks. There's a research task, there's finding all of the units in all of case law, so that they probably done a whole bunch of stuff around getting embeddings for everything. Okay, as well, being able to search across all that to find the relevant things, that's one set of skills that probably use a few different agents, a few different models. Then you have reasoning, right, and complex reasoning, and that's probably a whole school of owners. Then you have like drafting contracts, and within law specifically, you need to constantly check to make sure that you're not messing these things up, you're not making up case law, you're not hallucinating, and you're not making, like, ideological assumption here, because this is going to go these radical contexts. So, the fact that it is that complex, and there's so many different parts to it that leverage different models that need to all work and decide the workflow makes it very amenable to like it's hard, it's a part of problems that needs to be back on technology
+
+Fucory  2:57:47
+that has a lot of room for error, needs to be checked every step of the way to
+
+Speaker 2  2:57:52
+guard rails
+
+Michael  2:57:52
+and it needs to be cost effective and relatively better since I was like, too niche for, like, anthropic to want to do, I mean, they are going after it,
+
+Speaker 2  2:58:03
+so it's
+
+Andrew Miller  2:58:03
+not that it's too niche, right? They are, they are going after it, that doesn't mean they're necessarily going to be the best at it, because they're limited to their own
+
+Tina Z  2:58:11
+enthalpic tool set. You want to be called on in physical, right? Was it virtual? What, but you had your hand raised for a while. Oh, right. Still hands, but I was going to a high-gil. Great talk, most best prepared presentation so far. You know, we're improving, iterating, shape rotating. So I think my I raised my hand more so for the privacy question, I have a strong take, so you know, feel free to fight me. I think privacy is not a, is a value proposition, is an attribute, but it's not what makes a product tenets. Well, it can make it can be the differentiator if it's applied and integrated, so it's like it must be like to create a product that has a differentiating privacy like attribute, like you have to find the right product to latch onto or the right distribution channel, as in, like, think about why would another major distribution channel end up needing what you provide, but that is, you got to walk a very narrow fine line between that and what, when there's like essentially the major solid providers, oftentimes how they will eat your cake, so like, how to leverage is a fine dance. Just because they could compete with you, that means that they probably won't compete with you until they distribute you, or try to distribute you, and have really great traction. So, just always think three steps ahead, and knowing that, okay, you will never be friends or false forever, and like doing business is like an arbitrage time arbitrage, like you know, leverage what you can, and then once the alpha decays, or once your friends become your foes, and we've seen that happening multiple times in many industries, switch gears, you already know what is the next thing ahead, so they will never be able to cannibalize you, and like one good I think I think we should invite Henry from Privy at some point here, so like after he left protocol, that's a researcher, like he preview was originally a privacy product that did not have product market fit for years, so they pivoted to what do people actually care about now. We all know what preview does, so like essentially they leverage what they understood the most, which is how to create a product that has, like, how to design cost assumptions, and how to based on the understanding of the distribution channel, which is like the products that could benefit from what we know is pretty now, and also understanding a particular population first, like they're paying more very well, the crypto-native ones. So that's where they started out, and then that's where they branched out eventually to now the scale that they are. Yeah, there's still an aggregate market, so I do think that, like, you know, this is another thing, is like when we started out this talk about, like, venture PMF, like one of the questions is, if you're trying to create a business, what is your access strategy, like, especially in an agent, centric world, like, are you? I think I encourage everyone here to try to think about building an agentic company, instead of, and that company makes money, if that, right away, probably within the year to achieve, like, sustainability. Maybe venture is not what you need, maybe it's just angels, friends, and family as a first check, and also like try not to, and also or position yourself as a, if you, if you're trying to do like within the next six to 12 months, after hiring and acquisition is very lucrative. We have a couple friends, former contributors, who was visiting every single week. I asked him, what was you been up to? What's your startup? Doesn't matter, it's about selling to Android, because they have extended their head count that they cannot hire nearly enough people, and there's a sweet premium, and a lot of searches in Silicon Valley are literally doing exactly just that. Another thing that that is a,
+
+Andrew Miller  3:03:04
+you know, as inspiring goal,
+
+Albiona Hoti  3:03:06
+but that's like, you know, two like multiple extremes that we should be thinking realistically. You gotta wrap up and go down to dinner now iterations. so I put on each song in person for that. Ask your ages 30 times to three of the use cases. One comes up,
+
+Speaker 2  3:03:30
+and then once I figured
+
+Tina Z  3:03:33
+out more cake out stack, yeah, yeah, I like, I just feel like, and also one of the things, like one of the other privacy trap is that I've seen so many privacy projects, or infra projects, including IGLAYR, pivoted into near Fala, our friend over there, confidential clouds, that is a death trap, like essentially, like Near is currently buying, you know, still in that trap. I don't know how long they will be in there. They're essentially working super close with data centers, to the point that, like, if you want to go down that road, you may as well prepare capital to buy data centers, and actually, like, have that, like, if you, if you want to provide, like, infra, not only the, like, why did I gon layer
+
+Speaker 2  3:04:30
+pivot
+
+Tina Z  3:04:30
+now away from icon cloud into agent and companies as of this month, is because essentially making business and making money using your contractual interest, using whatever infrastructure, as you know, that you are building right now, is going to reach sustainability faster than a possibility, so then potentially like trying to sell it as a service, because there's not enough people doing that right now, so that's like about market timing, and if you can leverage like essentially the agent tech stack needs privacy, but no one paid for it, so why don't you use it and use it really well to squeeze out the margins, so that you have, you can achieve 80% margin, whereas, like everyone else, is like, at, you know, 50% right, that's more money that you can reinvest into your product projects.
+
+Michael  3:05:29
+Yeah. Sorry, like, when it comes to PMF, I feel like things are a bit different these days, with, like, shift shifted a lot, I was trying to, like, touch on that as well, in terms of, like, even the approach of, you know, technology, like, don't don't go after multiple marks at once, might be shifting, right? How quickly you can build, how much money you need to actually raise to build, I mean, the expectation of investors are also high. If a company doesn't have an MVP that's already validated, it's really hard to get any money at this point. Yeah,
+
+Speaker 2  3:06:05
+right. So, like, the expectations that you've been able to build significantly more,
+
+Speaker 3  3:06:08
+and you can build a lot
+
+Speaker 2  3:06:09
+faster, and
+
+Speaker 1  3:06:10
+revenue grows.
+
+Speaker 2  3:06:11
+Like, we have probably wiki, by Rachel, by Hi,
+
+Transcribed by https://otter.ai

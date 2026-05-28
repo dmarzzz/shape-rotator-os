@@ -1,0 +1,1433 @@
+Andrew Miller  0:00
+World, it's stream
+
+dmarz  0:00
+as well.
+
+Andrew Miller  0:01
+I'm not gonna stream. I am gonna,
+
+dmarz  0:04
+and Gemini is on, or
+
+Andrew Miller  0:06
+I don't know how to turn the Gemini on. What am I missing here?
+
+dmarz  0:10
+Well, we have no
+
+Andrew Miller  0:11
+idea.
+
+dmarz  0:12
+So,
+
+Andrew Miller  0:13
+okay, yeah, I think it's gonna be fine.
+
+dmarz  0:15
+Okay,
+
+Andrew Miller  0:16
+all right. Okay, so we're gonna try to get through about four project intros today. I do think that we should start with Sri. So, yeah, I know Sris in India right now, so it must be like 1am 2am or something. I do appreciate you being willing to present. I think you're just preparing for your time here and like keeping on the East Coast US schedule despite being in India, so that's pretty cool.
+
+Albiona Hoti  0:41
+This is yeah,
+
+Andrew Miller  0:43
+okay, yeah, feel free to start, and you know, we'll do the format of like roughly 10 minute project intros, and then we'll do a lot of Q and A, and we especially want to learn about any workflows or engineering techniques that you use, and yeah, the overall goal for the week is just intra cohort familiarization, so that's the goal.
+
+Vaishnavi Dasika  1:09
+So I can listen to my own voice, kind of, kind of
+
+Andrew Miller  1:18
+distracting. Okay, yeah, let me mechanically turn the mic off when we're not speaking.
+
+Vaishnavi Dasika  1:27
+Yeah, like we had two options here, like we have slides with everything that has been clearly narrated, and there's like the actual product that we were building up. Which one would you kind of prefer? Like, should we just go through slides or should we just, should I just make you go through the entire project and how it works.
+
+Andrew Miller  1:48
+Let's go through the second one, the entire project, how it works.
+
+Vaishnavi Dasika  1:52
+Something, Rajat, if it's all right, can you please share the screen?
+
+Speaker 1  1:59
+Yes, yeah. is
+
+RAJAT VERMA  2:16
+my screen visible?
+
+Vaishnavi Dasika  2:19
+Yeah, it's visible in some somebody else also confirms the screen is visible.
+
+Ahmed Ghappour  2:28
+That looks
+
+Albiona Hoti  2:28
+great.
+
+Vaishnavi Dasika  2:30
+Thank you. So the entire concept of VERMA is to make sure that you have access to every single place that requires verification of your private information or sensitive information, like your SSN, or any personal information, like your passport details and stuff, and still have a verification process happening, and you know, without having to store all these details, and going ahead, and like having an opportunity to log into various resources, talk to different types of people, have different crypto transactions or non-crypto transactions happening. So this works on the yield paper, and it's based on the anonymous self credentials as a concept. So here we are using PLC and P hash, and can you please scroll down, so every time the main problem that, oh, just every time you try to log in, you kind of leave a trail, right? Like, so whenever you're using Google Earth, even Google Auth as a service has turned off loopholes, and you can literally, you know, see all your history, and KYC is Know Your Customer, and these databases are very highly prone to risk, and also blockchain wallets also kind of links all your activity publicly. So, we have three steps. Can you scroll down? So, the first one is when you enroll. So, here is when you give your government ID, and then you use this government ID as cryptographic fuel, so initially we thought of having a verification method using a third-party service, but after talking to Andrea, we decided on going with T here and using T, we will be verifying if the government ID actually belongs to the person, and after the verification is done, we kind of destroy the government ID and just keep the proof of verification, and then we use the government ID itself as a cryptographic SQL, like it acts as a source of entropy, and then there is no tracing back to this particular, you know, government ID or any personal information that can trace you back into your actions, and then you can register privately, so each service gets a unique pseudonym. So, if you want to go to Twitter, if you want to go to, like, Facebook, or literally, if you want to go and trade on, like, you know, Coinbase, you will have different accounts, and each account have their own pseudonym, and all these pseudonyms are connected to the master account, which has been created through verifying your government ID, and finally you can authenticate freely. You don't have to constantly connect your wallet, constantly prove that you're human, constantly prove that all these services you know to all the services that you are really using here to your passport and stuff. So it can be a safe measure for both the companies and the people. Yeah, this is not just any other identity solution, it's also quantum safe. So this is inspired out of BIP 360 and here we are using a post-content cryptographic measures to not only predict your quantum wall, sorry, crypto wallet, and also ensure that your transactions are also protected, and then it's completely private, so whatever the personal data that you're using, or it has been enrolled or shared, it's completely private, and it's civil resistant, and it's completely unlinkable. So let's start with the actual product.
+
+Fucory  6:01
+Oh, someone is trying to get into the presentation.
+
+Vaishnavi Dasika  6:11
+Okay, so this is a part where you can actually scan your wallet. If somebody has their own crypto wallet, can somebody you know share your crypto wallet address to actually show if your call, your wallet is actually, you know, safe or has any risk. Can you please share your crypto wallet address in the chat,
+
+dmarz  6:42
+so Theme
+
+Andrew Miller  6:45
+you want to enter in foamy sky dot eth, that's the DMARS. It's the DMARS ens,
+
+Speaker 2  6:53
+or do you need the 0x version
+
+Vaishnavi Dasika  6:55
+medium addresses right now? Yeah, it needs the 0x version as of now, like, although we are trying to incorporate multi-chain, like, the current one that is working is on an Ethereum address, I think. Rajat, can you just try to connect your Metamask wallet?
+
+RAJAT VERMA  7:13
+Yeah, like I'm just trying to open it, and it's just showing like Metamask at double starting internal level, so
+
+dmarz  7:21
+can
+
+RAJAT VERMA  7:23
+I just show in the presentation
+
+Vaishnavi Dasika  7:27
+you can. Okay, sent us, okay? Can you copy the, you know, wallet address in the chat and just paste it here in, analyze any address,
+
+Fucory  7:42
+I I hope this works.
+
+Vaishnavi Dasika  7:54
+Yeah, so it kind of scans all your this is predominantly working on Ethereum, because we are using either scan as our like remote, also here your wallet is really risky, so there are one transactions and there's one public key exporter scope, and there is also okay fun fact, there is no civil exposure, so you're kind of safe with civil attacks, and yeah, it's kind of unpredicted, so you can just go ahead and enroll this wallet to actually predict your wallet. So click on enroll now. Yeah, so here this part, before this part, we actually want to, you know, verify the government ID number, but as of now, we didn't really implement it, but you know the drill, right? So, say we have a verified government ID number, just enter any random number,
+
+dmarz  8:54
+okay? It can be, yeah, take a random date of birth, yeah,
+
+Vaishnavi Dasika  9:01
+all right. Pick any jurisdiction where a particular set of laws are followed. You can also give your own, you know, random material or like a source of entropy, and you can start and begin to enroll. Rajat, can you explain more about what exactly is happening here, the PLC commit or the free hash, can you explain
+
+RAJAT VERMA  9:25
+it? So, yeah, PLC stands for PII and disconnectment. PLC turns your real-world ID into a secret, one of a kind fingerprint that proves you are you without ever showing who you are, so it so let me just explain it. Let me just explain the PLC pipeline. So the goal of this pipeline is simple: take a person's real world identity, as you just did, and turn it into a cryptographic finger plate. Okay, so this is the graphic fingerprints, and then destroy the identity itself, so no one can ever state it back. So we'll start with our, like, with our PII, so that is just name and the jurisdiction date of all that we entered earlier. So the second step is we just hash it with SHA 3512 hash hashing scrambles your PII into a fixed 64 byte string. You can't reverse it. Think of it as putting your ID to one way shredder. The output looks random, but the same input always produces the same output. The property is what makes the whole system work. So, after it, we just feed that hash into HPDF. HKDF is a key derivation function. It's its job is to take the scrambled hash and stretch it into a clean, well-permemented 64 byte seed that the next step can actually use same input and same seed out every single time, so after we hand that seed to Kyber 1024 key gen Kyber is a post quantum encryption algorithm meaning even a future quantum computer can't even break it. The key gen normally needs a random number to create a public private key there, but here's the trick: instead of using fresh randomness, we use the CT right from your PII, that means the keys are deterministic, your PII always produces your keys on and on yours. So, after we run and caps, this is Kyber encryption step. It produces a cipher text using public key we just generated again, deterministic derived from the seat, so next we bundle that public key and the cipher text together that bundles the commitment C. Then we hash C, which is commitment one more time with S H x3 pi one two to produce the PI on the master P a clean 64 byte master identity? Pi is what gets generated on chain. So, and this is the critical step here, we erase everything, the PII, the hash, the seed, the randomness, all wiped from the memory. What remains is the commitment on chain and a small secret key on your device. The original data is mathematically gone. So, over to you, Shri.
+
+Vaishnavi Dasika  12:57
+Okay, that's awesome. So, this is essentially how our enrollment works, and here, once we get the PLC enrollment, and we can also register it on our Ethereum Sapporo network. And can you just click on register on Ethereum?
+
+Vaishnavi Dasika  13:16
+This is a real transaction that is happening, and it is linked with your wallet, so is
+
+Vaishnavi Dasika  13:40
+kind of
+
+Vaishnavi Dasika  13:45
+give it to
+
+Speaker 1  13:47
+me.
+
+Vaishnavi Dasika  13:52
+Okay, can you copy that Ethereum address like on chain transaction address, no, up there, up there, not master key. You can also copy that, and this is the on-chain transaction. Just open it in a different time. Yeah, we have worked with this,
+
+Speaker 1  14:19
+yes.
+
+Vaishnavi Dasika  14:25
+So this is the either stand report of the entire transaction that happens about you registering as a commitment and all your mathematical information getting raised and all your transactions that are associated with this account is particularly secured by this step. Can you go back to the application itself?
+
+Speaker 1  14:43
+Yes.
+
+Vaishnavi Dasika  14:50
+So, copy the master key here beneath it. Anything is fine.
+
+RAJAT VERMA  14:58
+Yeah,
+
+Speaker 2  14:58
+yeah, just go on to verify I and
+
+Vaishnavi Dasika  15:05
+yeah, just click it. Can you explain what ST
+
+RAJAT VERMA  15:14
+is here? Sorry,
+
+Vaishnavi Dasika  15:16
+so here we are registering here, right? So the ASC authentication flow, so this is actually based on the paper itself, right? So this is based on the EL paper, and this is the pseudonym registration flow, and this pseudonym actually acts as your source name, and then you are trying to register with different services, like Serio Ghana, try to register with Reddit or Facebook, or like, you know, any coin market cap, anything, right? So this actually acts as your master name, and whatever the derivations of, you know, the sub names with each domain derives from this SP. And can you check the identity registration? Can you enter the fee hash here,
+
+Vaishnavi Dasika  16:04
+yeah, check,
+
+Vaishnavi Dasika  16:07
+see, you can see there's a small village here, but here you can see that there is an identity registration dashboard, and you can see all the different identities that are registered, and what is the amount of time that has been taken to register, and when it is registered, and the whole details about everything, and yeah, there is also on chain transaction details. Can you go to on chain? So this is our, you know, smart contract that is led to doing all this process for us. Can you scroll down? Right, so this is the contact interaction information. You can literally enter the free hash, and you can see all the interactions that has been done with this contact. So, essentially, whenever you log in into any service, this is where you can see the track of all that history, and this is only privately visible to you, because you are the only person who owns the master key. So, anybody who holds the master key has the details of everything, and only master key can give you the traceability between all the applications. Otherwise, you're completely anonymous. And there is web 360 We have mentioned, like, how the web 360 element work is using the post content cryptography, can you go to the dashboard? So here you can, based on the FEE hash that we have entered in the previous page, we can see what all events that have happened on this particular smart contract. What are the different, you know, interactions that have happened until this point, and what are like the secures at what time the timestamp, and everything. Can you scroll down? It's basically like having your own personal history without anybody you know keeping track of your history itself. Whereas the AI agent, right now we kind
+
+Vaishnavi Dasika  18:00
+of ran out of the clock period, it's like, but what this does is like we can let it give it any function and it generates, or like lets you automate this entire process, making it easier for two people to come onto this platform and do things easily, and there is also like a documentation page, and this is completely open source, so that's how a project combined. All
+
+Andrew Miller  18:28
+right, cool. Let's, um, well, I have a bunch of questions to start with. I mean, first of all, um, so there's two things here, right? It's like the anonymous credential, and also sticking to the discipline of being post quantum to start with, is there an obvious way of doing this, or an alternative existing solution if you didn't have post quantum secure as a goal?
+
+Vaishnavi Dasika  18:55
+I mean, nothing as such. I mean, I have to
+
+Vaishnavi Dasika  19:00
+like read about it. As of now, I don't think there's something that is probably strictly enormous self-criticals, because I believe this paper has been really replaying this last year, right? I don't think anybody has implemented this sort of methodology, even if they did try implementing anonymous self credentials in a different methodology,
+
+Andrew Miller  19:27
+and does it make sense to compare this with, with Privy? I mean, that's like the most well-known and popular, like, login with Ethereum address into other applications, or I guess that also kind of goes in reverse, like that can be like logging into a smart contract using something else, like a Gmail account, rather than that. Yeah, is this like functionality wise similar to some other things existing
+
+Vaishnavi Dasika  19:57
+when we are talking about application functionality like I'm so sorry, like applications. Yeah, we can compare that, but when we are talking about document verifications in more serious situations, like somebody give submitting proof to a law firm, or somebody trying to register for their passport, or gone in international trip, or somebody trying to open an anonymous bank account, this I don't think really has a way to actually verify background check and have this anonymous credential and reach that credentials within multiple platforms with strict authorization check, so that's the point that we think is kind of unique into a platform,
+
+Andrew Miller  20:44
+could you walk through in more detail, like one of, I mean, pick on one of those, like the giving of proof to a law firm, could you walk through, like an example, like that, maybe in more detail, what that would be like.
+
+Vaishnavi Dasika  20:56
+Sure, say, imagine you are in a court case, right, and you are trying to submit an eyewitness or some witness documents. The first thing that you need to do is give your personal information, like you are this person, so you need to give your password information, your SSN, your personal details, your address, and all these things. And by using these, we actually verify whether all these details are true or false. And after this point, the identity of the person who is actually submitting the witness is completely at ease, so there wouldn't be any restrictive person who's submitting the witness, and after that point, enemies, all these documents and records are stored on an indestructible chain, so there is no way that somebody can tamper with these documents. Along with that, we also have this verification check that this person is real and legitimate, and this puts both the documents and the person in ultimate security, without, you know, having anybody missing with the whole procedure. That's kind of the situation that we were thinking about.
+
+Speaker 1  21:56
+All right.
+
+dmarz  22:00
+Yeah, can you hear me? Hello. Okay, cool. Thanks for the presentation. I was curious if we could double click on that law firm example, maybe, or that court case one. So, so I'm a witness, and I am submitting, you know, evidence that I have video camera evidence that Andrew ate all the donuts, and I don't. In order to submit that video, you're saying I need to submit my social security number, and I don't want the court to have access to that social security number. Is that the example?
+
+Vaishnavi Dasika  22:36
+Yeah, yeah, kind of,
+
+dmarz  22:41
+okay, so so the key is getting my social security number, and it is checking it against the government database. Or, how does it like what if I just submit a rant, some random person's social security number? How does the court know that,
+
+Vaishnavi Dasika  23:03
+in fact, like we are trying to work this through with Andrew's platform, platform, so similar sexuality analysis. It also uses AI to verify whether the document is legitimate or not, along with checking with the database and the background check, so we are trying to incorporate that as the part of verification methodology in this particular platform, and we are also trying to find more sophisticated ways to, you know, actually verify the document in a much more secure manner, and once the verification is done, it's completely destroyed. So that's kind of what we are thinking right now.
+
+dmarz  23:49
+And what if I go onto one of those dark web database leaks, and I grab the social security numbers from someone's, you know, one of these health ones that happens like recently, can I register as someone else? And then now they can't register anymore.
+
+Vaishnavi Dasika  24:10
+Actually, that's what I was talking about. So we are trying to implement much more safer and robust verification methodologies. In fact, we are also trying to implement using AI agents and computer vision methodologies to use biometrics, so one example I can give you is this case of World Coin, where they kind of use the retina data, right? So similar to that, if we can have some free field recognition AI software, or anything that uses biometric information as the source of entropy, also that can also be a great start for us to improve the verification and have only one person verified with one given documentation.
+
+dmarz  24:50
+Okay, so, so you would say the product is comparable to World ID, but you're trying to add a document verification on top,
+
+Vaishnavi Dasika  25:00
+like in the comparison page, can you just scroll down a bit? Yeah, here, can you please click on why compare with
+
+dmarz  25:14
+even
+
+Speaker 5  25:21
+that? that, there is a text beneath.
+
+RAJAT VERMA  25:27
+Yeah,
+
+Vaishnavi Dasika  25:32
+so this is kind of the initial example that we were thinking about to have, like, a more robust verification method. So, what WorkCoin does is it kind of uses, you know, Iris biometrics for civil resistance, and it kind of has a similar goal with Pramana, and here the boycoin actually stores this biometric templates in like centralized infrastructure, whereas we are taking this biometric information and taking it and making it deterministic, and actually after, you know, making it as a source of entropy, then we completely destroy it, and yeah, that will be a verification method without actually having to save the verification method, and if you can just scroll a little bit up, okay, so this is kind of how we are trying to compare with all the different implementations of this anonymous self credentials that are currently available in the market, so here, if you can see, there is Google Auth, there is KYC, know your customer in adhar is like Indian SSN, there is also web 3d ID, there is WorldCoin, and here these are the major factors that we are trying to improve on that the current existing implementations do not have.
+
+dmarz  26:49
+Okay, I see. Yeah, so I.. so I thought that World ID just stores like a hash of your retina. I think I tweeted at one of the people once, since they confirmed this. I also just asked Chat GPT and says world ID does not centrally store your IRIS image.
+
+Yeah,
+
+I think sorry,
+
+Vaishnavi Dasika  27:13
+they're not truly central, but they still use, like, AWS
+
+Speaker 2  27:17
+servers.
+
+dmarz  27:20
+Are you using something other than AWS? What do you like? What's your cloud provider?
+
+Vaishnavi Dasika  27:28
+We are actually not storing anything.
+
+dmarz  27:33
+Okay. Okay, cool. Well, I'll pass it to someone else if they have questions. Anyone else, I Okay, James,
+
+James Barnes  27:50
+like, how well equipped do you think the average consumer is for, like, a post-quantum world, and what do you think will be like the most effective way to drive like any evolution or behavior change, and at what level? Like, is it through institutions, is it through individual people, is it just that the technology needs to improve? Like, how can I, as a consumer, prepare for a post-quantum world?
+
+Vaishnavi Dasika  28:22
+Well, like, if it's okay, can you please mute yourself? I'm listening, my own words. I'm so sorry,
+
+Speaker 6  28:33
+I
+
+Vaishnavi Dasika  28:46
+Okay, yeah, perfect. So one of the primary steps that started going towards the post-point and cryptographic norms is all the VIS state organizations, different organizations, and I also believe there are like tons of hospitals, and also there are tons of wealthy on businesses that are moving towards post-quantum future. In fact, the main companies, like Microsoft and Google and IBM, even these companies have started going forward with post-quantum cryptographic measures within their systems. So one of the key guiding factors is the fact that BIP 360 and BIP 361 have released the fact that these BIPS have come out means that there has been some attacks that have been, like, you know, implemented on chain at some point of time, they might have failed, but there is clearly a risk of these attacks happening, and one more way that a person, an average individual, can secure all these accounts is just by having a basic bank account, or just by having any basic, you know, Google or Microsoft account. They are literally using post control measures just by using these accounts, too. There is no need to explicitly say privacy encryption as the main part of the user experience. A user doesn't want to know, like this is post quantum. I user doesn't want to know this is all the encryption schemes that are involved. They just want ease of usage, they want high security, and they want direct implementation of whatever the task that they are trying to do. So it needs to be abstracted, is what I believe in this particular application, and whatever that happens is happening in the background. So, just like how you would use our ID or like Google Auth, even this ad functions in the similar way, but having this additional layer of security, that's kind of what I'm thinking at this point, but you can totally correct me, and like this is something that I'm, you know, thinking of improving, or just brainstorming with everyone together,
+
+dmarz  30:57
+okay, so I
+
+Hudson  31:09
+was asking
+
+Andrew Miller  31:14
+fact,
+
+Rajat  31:18
+so there's something called Fractal ID, also, which shows like all your information, like decentralized, and basically it's an identity solution for web three. And initially they used to store information like permanently, but now they work on the whole KYC process, so they store your whatever documents you upload for, like, I think 14 or 15 days until the verification is complete, and then they completely delete it, and they also assign you like a specific unique key according to whatever document you uploaded. So, once it's, it's kind of like the same thing, so you connect your wallet, upload your KYC documents, and once you get like a verification key, the documents are done for. So, and then you can use fractal for verification onto like any other system, so any other system in Web Three can just use Fractal to verify that you are who you claim to be without, you know, looking at the docs.
+
+Vaishnavi Dasika  32:16
+Okay, yeah, that's great example that has been in the market right now. The one way that we are trying to improve is by improving the features, making it more abstracted and making it more user-friendly, and having an access for actually people to use this application by implementing it in highly safe protocol systems, like giving your documents to a hospital, or submitting your law records, or submitting your healthcare information to your insurance provider. So I'm just trying to make a way to ensure that more people actually use this more safer system. One more vision that we have is to have an OS that can implement this complete transparency and complete anonymity and complete privacy, so this is kind of like a long-term goal, so we just don't want to be limited to a transactional information, we also want to have it as an user experience from every single thing that they do on internet or every single interaction that they do with a different person, so that's kind of like our long-term goal, so that's kind of what we are working on,
+
+Rajat  33:36
+so kind of like the same product but different audience,
+
+Vaishnavi Dasika  33:41
+different audience, but better use cases and better abstraction, and easier for Navy users to onboard.
+
+Rajat  33:52
+Thank you.
+
+Albiona Hoti  33:54
+Sure.
+
+Andrew Miller  34:00
+Who would you sell this to? What are your, like, go-to-market ideas?
+
+Vaishnavi Dasika  34:06
+I want to sell this to companies, because a lot of companies need to, you know, verify their employee information, and also they can, you know, distribute the salaries or airdrops, or, like, you know, have people cash on their air drops and stuff, so that can be a good start. And one more thing is like high security organizations, like the space organizations or defense organizations, and the law firms, and stuff like that. Yeah, I believe that any system that involves protecting the user's identity and also wants to choose to go post quantum cryptographic safe, that's kind of our target audience.
+
+Andrew Miller  34:54
+Okay, and what can you tell me about your workflows? Also, do I.. do I have.. like, did you start this project only after that, Shape Rotator Virtual Hackathon, or for that, were you aware of the anonymous credentials paper prior to it? Were you wanting to work on identity? I think you were wanting to work on post-quantum something long before this, but maybe not an identity app like this in particular.
+
+Vaishnavi Dasika  35:18
+In fact, I did work on identity, and especially the PII hashing, and using PI as a source of entropy. I kind of worked for the summer of Bitcoin, and in that there was this company called Swan Private, and they were using this particular methodology of taking people's, you know, personal details and using those personal details as a deterministic measure, and also using it as a source of entropy, that's kind of how I started on the PII journey, and coming to the anonymous self-credentials. This is a project of mine that I started working in more of a healthcare-related field. I'm currently doing medicals in breast
+
+Vaishnavi Dasika  36:00
+cancer research, and I've seen tons of medical data sets where tons of patients' information is just out of use, and there are also people who are really selling the data, and they don't know how much they're at risk of identity theft just by information. So I have, in fact, implemented a protocol for a while, yeah, and it kind of, you know, takes all this information and destroys all of the root information that leads to the patient details, and
+
+Vaishnavi Dasika  36:30
+just uses the key information, like the parameters of the ACK details, any factors or markers that is essential to the diagnosis and not the entire thing, so that's kind of how I started my journey with PIIS and anonymous sub credentials. This paper kind of led me into implementing a much more sophisticated encryption scheme,
+
+Andrew Miller  37:00
+and then I'm for like workflows, or do you use like agentic engineering? Do you use a lot of cloud code or cursor? Anything interesting you want to share, or that you would imagine showing off or sharing with the rest of the cohort?
+
+Vaishnavi Dasika  37:15
+Yeah, in fact, like we did use ton of clod code, not gonna lie. The first thing was like we kind of created a project, and we imported all the different papers and all the different encryption works. We also use some of the open source platform libraries that are working on PII based hashing and PIS as source of entropy, and yeah, we were experimenting a lot. It took us complete week, yes. just figuring out what exactly our source materials need to be, what our references need to be. So after that, we kind of developed on it, we kind of manually coded some, we kind of white coded some. So that's our story.
+
+Andrew Miller  38:05
+Yeah, I think we're done. Then I don't see more questions. That was a good amount of time. Awesome. Thank you for presenting first today, Shri and Rajat.
+
+Vaishnavi Dasika  38:12
+Awesome, thank you. Is it all ready? If I can leave the meet,
+
+Andrew Miller  38:20
+permission to leave the meeting.
+
+Vaishnavi Dasika  38:23
+Yeah, it's super late right now.
+
+Andrew Miller  38:26
+Yeah, you should get some sleep. We all, on behalf of the entire room here, you may go to sleep.
+
+Speaker 5  38:33
+Thank you. See you guys.
+
+Andrew Miller  38:41
+Okay, I forget. Who's next? Is it obvious to everyone else who's next? Tiny Cloud is Tiny Cloud X. That's four
+
+dmarz  38:56
+tiny cloud TSU of bid router sick.
+
+Ahmed Ghappour  39:05
+It's a great idea on
+
+Andrew Miller  39:29
+What's going
+
+Hudson  39:40
+thought I'm
+
+Ganzo  39:52
+trying to join the meeting I
+
+Andrew Miller  40:15
+Excellent.
+
+Speaker 7  40:30
+All right, I think
+
+Andrew Miller  40:40
+All right. Hey everyone, I'm Sam. Honorable company called Tiny Cloud. I
+
+sam gbafa  40:55
+can you guys hear me over here?
+
+Albiona Hoti  40:58
+Yes. Yeah. Great.
+
+sam gbafa  41:00
+Excellent. Let me share my screen.
+
+James Barnes  41:08
+Yeah, cool.
+
+Andrew Miller  41:11
+I just put the mic.
+
+dmarz  41:12
+Oh, yes,
+
+Andrew Miller  41:14
+it's much better.
+
+sam gbafa  41:20
+Well, all right. right, that's great. Nice. All right. Hey everyone, I'm Sam, and I'm here to talk to you guys about Tiny Cloud. We've been building sovereign tools for the agentic web. These are PRIMITIVES for user own data interoperability and agent coordination. So, we've been doing a lot of stuff. I'm going to try to kind of talk from two like angles and two directions. One is kind of like our mission and like why we exist as organization, and the other is kind of like what becomes possible with our technology, so start our team founder. I previously opened AI in 2020 and 2021 I did doing a research program there. I, after I had a conversation, and I had multiple conversations with Sam Altman. One of the last ones was like, should I do crypto or AI, and he was like, you know, they're kind of like equal, and it was the wrong decision. Should I say an AI? But here I am. I spent a lot of time also at a company called Spruce ID, where we did a lot of decentralized identity, cryptography, verifiable verifiability in general, and so TinyCloud is kind of a real synthesis of that. My cofounder, Hunters, is over here. He, we met a couple years ago through our mutual friend Patrick, also our chief strategy officer, Hunter operator. He's so owned and sold multiple businesses. Really great. There's Roman excellent engineer. Patrick is chief strategy, firstly Coinbase, and good strategy there, a product strategy, among other things. So we have a really great team. I'm really excited to be here. And part of our mission, I think, part of the framing is to recognize that we're already cybernetic beings, right? We exist in both physical and digital spaces. Things that happen in digital space really change how we operate in physical space, and this is the.. we just have tools and parts of ourselves that are outside of our bodies, right? In the same way our stomachs are outside of us, unlike other animals, right? We cook our food, our brains, in a way, are outside of us, and that we have, like, tools for cognition, right, like to-do lists, or calendars, or algorithmic feeds. So it's outside of your control, right? If you use Notion, and you're like, PhD student, you've put all your stuff is there, you're great, you're able to organize everything, but maybe you live in Russia, and you get sanctioned, and all of a sudden you've had a digital stroke, right? You no longer have access to part of your brain, you're kind of crippled as a cybernetic being. So, this happens for many reasons, but part of it's because we actually don't have any control. So, we really, 10 o'clock started focused on data sovereignty, and really, our thesis has kind of evolved to focus on like maintaining data asymmetry. Data asymmetry is when you know something or you have some information that someone else doesn't have. This is how you preserve value and crypto. This is like private keys, right? If you publish your private key, all the value of crypto just disappears right out of it. Data symmetry on the other side is how we transfer value, right. We have the same language, so you can understand what I'm saying. Transfer is seamless, so these are this is like a kind of something we've, like, I would say, like uncovered in a way, a tiny cloud, and really realize that data asymmetry is actually maintaining data asymmetry selectively while you gain capabilities with AI is the shape of kind of what we're all doing here. Tes are kind of technology where you get to maintain some asymmetry while gaining some functional benefits with AI, and so there's kind of this asymmetry spectrum where if you can maintain certain level asymmetry and gain some benefits, that space is actually really rich space to operate, this is like I can give my genetic data to AI to do x and y z freely, right? And I wanted to have everything because it's highly asymmetric. I'm not sharing it with a company that's going to exploit that data. Yeah, so this is a something we think a lot about. Maybe another perspective is like having a cell wall, so like the boundary around your, like, your digital self, and if in the future, where you have like super powerful agents, right, like these are other entities that exist in this digital space with you. How do you maintain some kind of boundary to say, this is my, this is my stuff, you can't access it, it's actually really very necessary, so yeah, we just think about how do we stay sovereign in the future. So that being said, we've been building Tiny Cloud. So Tiny Cloud is a protocol for user-owned data spaces. So space is like a user-owned data container, you can. It's controlled by a cryptographic identity. It can host like a key value store, SQL store, and other services. So applications are kind of built on user data, and they're not the owners of the data. So, in the same way, Bitcoin lets people hold value without banks. 10 Cloud lets people hold data without platforms, so digital signatures are the keystone to this. Our white paper is cheekily titled signatures are all you need, because truly it's all you need to maintain control of your identity and your data. So we use signatures. I'll actually kind of show, I'll show you a little bit. So, Tiny Cloud uses object capabilities, so we delegate permission to someone else. They're able to use that permission. It's like permission slip, and they say, "Hey, look, I have permission to do ABC, and then they can sign and say, "I want to do this thing, this this image is really interesting, because I actually have a better image that the quad made this one, but I'll show you the actual image. So, this first, I'll just make this a little bigger. You guys can see that, right? Okay, so actually I'll just go through the source, okay? So in Obsidian, okay, so you in Tinycloud, you have a key, let's say you're Alice, you have a key, and you can create a space by signing a message to, to say, hey, I'm creating this space. You're giving this node permission to host the space. The node is a server, it's like it's a rest server. It can run in many different places. You can run it in the browser, it can live in many, many places, live locally. But basically, you give permission to a node to host your data, and his node is like a bouncer at the club, it's not gonna let you in without the right permission, so Alice could give permission to this other key, maybe it belongs to Bob, maybe belongs to an app, maybe it belongs to an agent, and this other key can sign and say, "Hey, I want to do, I want to take this action. Alice gave me permission to write to this SQL store, to read from it, to do this query, to do this operation, do this computation. I do this thing. I was getting permission. It's so we built apps that are using the same thing. Here, Alice is using an app. She has her key. She gives the app, she gives this app permission to do some stuff, and if she clicks around and uses the app, the app is able to say, hey, like I'm doing these signed interactions, right, and here's my permission from Alice. The app maybe delegates to the back end, and maybe the back end delegates to an agent. All of these have Alice's permission at the root, so this is kind of like the kind of core of like how Tiny Cloud works, so at 10 Cloud we've actually built a lot of other pieces besides the protocol, because the end state that we're going for requires a lot, so we built stuff in access controls, we built stuff in identity and credentialing and data structure and context in interoperable applications, which we'll talk about with managing secrets, API keys, and running agents that are sovereign, and also like, like, we have this policy engine, so I kind of want to touch on these things, just so you understand, kind of like I would say we've also been around for two years as an organization, so we've had a lot of time to really think about and build our technology, and I'd say some of it is like, like mature, and we're like kind of hitting some, some or kind of hitting our stride in a way, so yeah, so the protocol, the access control pieces, so I'm going to kind of just touch on each of these, so an access control, there's a protocol itself, so it's fundamentally access control protocol, where you delegate permission to someone to do something. We also are building a policy engine. This policy engine is, I can delegate permission to execute to somebody who meets this policy, right? So maybe the policy is you have to bring a credential issued by this issuer and have signed this document with the same key in order to access this data, or you have to be a member of this group in order to access ABC. So, the policy engine lets, like, allows you to have, like, very robust policy that you could just delegate against, and say, yep, anyone meets this policy can kind of come on in another access control piece of AI keys and secrets and tiny cloud, so you can store, you can store stuff here, and then other applications who say, 'Hey, I want to access your Open AI key and your Firefly's key, right? And maybe some whatever other APIs. This is kind of a UI to manage those. I could maybe demonstrate it a little, you sign in with a product called OpenKey. Let me see, OpenKey is maybe here, it's our identity, it's our signer, so OpenKey is kind of like Privy, you think of Privy, right? Privy is like Studio Wallet, OpenKey is a custodial key solution for Ethereum keys. We don't use them for smart contract transactions. We use them as a route of identity, and they're controlled by pass keys. So, these pass keys.. sorry, I just.. okay, I'm recording. I thought I was recording. These pass keys are.. they let, like, anyone use Tiny Cloud, right? Like my mom, my sister, they could come and use Tiny Cloud super easily. And OpenCredentials is a way to issue credentials. We won't really focus too much on opencredentials, but we'd love to talk about it some other time. So here I'm using OpenKey, so I click it, it pops up in an iframe, it has me sign in my passkey, I have many pass keys. I've been testing this a lot, so I'm going to go ahead and sign in. So then it will ask me to sign something else, or ask me to pick a key. So I have multiple keys. If I have one key, default to that. And then it asked me to sign this payload. Over time, this view will get like more simple, just like, yeah, this is safe to like Safegunrearshaharchar, but basically, you're, here's, can't, like,AprigateAnglectressions'Antharatpate, using, somethingthatprectriatgarchargar think it's awesome. And so this is a EIP that we made at Spruce called Recaps, where it's like you're delegating capabilities in a signed message, and then you're just saying, I'm I authorize the stated URI to perform following actions, and then you list a bunch of actions that are possible. These actions are human readable and machine readable. Here in the basic C for encoding, so we use this to, as I kind of, this is this is the permission slip, right? Once this is signed, then the delegate key, which is the say the URI here, which is a did, so any any did methods you could delegate to can now invoke any of the permissions you gave it, which here there are eight different permissions, including like writing to SQL, right, for this particular secret store. So I'm going to sign in and signing in, doing some handshakes. Let's see. All right, so here there is, there are there room for improvements here. The secrets, basically, what what's a good way to.. I will.. I'll continue moving. If you want to learn about secrets and how we do them, it's really cool. One maybe last piece to share is how we do encryption in Signing Cloud, which is necessary for your secrets, right? Where you can put your secrets, are they encrypted, so Time Mark is okay. 10 minutes, great. In Tiny Cloud, Alice delegates. She creates her space, delegates permission to Bob. We've seen that before. But what if Bob wants? What if she wants to send something encrypted? She wants to send encryption in Tiny Cloud. Alice can encrypt data to a multi-party compute network, threshold computing. There are multiple nodes that she says, 'Hey, please, you guys could Decrypt if you have my permission. These nodes can also be tiny cloud nodes, right? Maybe she has tiny cloud running on her laptop or her own phone or the box her agent lives in, right? So basically, Alice is able to establish a solver and threshold network, where she can give permission to Bob, say, 'Hey, could encrypt some data. I mean, tell Bob he can grab this and he can Decrypt it. So Bob is able to grab the data, he has some encrypted data, and he's able to go to the threshold network to say, 'Hey, please, each of you, please do partial decryption. And then Bob, on his end, is able to aggregate those pieces, and then reconstruct data, Decrypt it. Bob is able to sub delegate to someone else, maybe Bob delegates to his agent, right? His agent can actually grab the data using that delegation and have it encrypted from from Alice. So the this is really why we say signatures are all you need, right? You, by assigning something, you could really just pass along delegations, and it makes for very robust, like, ecosystem possibility. So, in the interest of time, let's move on. We've some stuff with context. We have this really cool thing called Autograph Knowledge Graph. Ask about it. There's a piece about Interoperable apps that I will come back to contracts, so we have right now we have two directions that we're really focused on. Our first direction is really is called Interoperable apps. This is a very underwhelming name for what is actually here, so it's not about like apps that like are interoperating, like, oh, this app plugs in this and plugs in here. It's I'll just read this right as the weak version of this. We build apps that talk to each other. The actual version is that user-owned structured permission data enables dynamic ad hoc Agentic applications that can be assembled around a user's needs. Right, so in one example, maybe I'll give this example. It's like personal to me, my girlfriend, right now she's having some problems where the food she eats causes her pain, and it's really hard to diagnose what. So I built two apps. These are interoperable. One is a food tracker, right? Take pictures of the food, like track what it is, even add calories, right? You can have really good food tracker, very specific, very narrow. The other is a pain tracker, right? Whenever she feels pain, she can talk about how long it is, how long she's been feeling it, where it is, intensity. And gathering both of these data has allowed us to have this third app, which is this like insights app, right? That's able to kind of like, all right. Hey, we've been collecting data for some time, let's do some correlations. The insights app, really, like, is actually an agent capability you want to operate on this data, so that you can just ask questions, have an agent look in your timing cloud, examine things, try different analyzes. What's possible? Well, what makes them Interoperable is that there's first off a common identity between across the apps. It's like the same person is accessing and owns this data. There's a place in which the data lives. Oh, it's trial. Okay, it's a sound routing thing there. And the third thing is a contract, so this is interoperability, requires some some formalization, right. There's like, well, how do these pieces work together? Each app has a manifest that declares like what, where it stores data, the kind of data it stores, so that other apps can also find it. So the other, if in there's this fourth piece of discoverability, right? Your agents, like, hey, what apps are you using? What data do you have? I want to do stuff with it, right. Oh, this new app I can plug in here and have this capability. So, what emerges is this surface of basically for each person, it's particularly unique surface that you could build on top of, and so it's not like, like you're using like a fixed app, it to have your agent be able to make things for you on the fly, and this is actually what we're delivering to, we have an enterprise customer. I'm going to hop around in the interest of time. Hold on, so I'll come back to that. So we have this enterprise customer, Spark. We've been building this app for them called Listen. Listen is a transcript aggregator. It pulls in transcripts from various places: Firefly, Granola, Google Meets. Right now, also, like, we're just like voice thing, it pulls in from there. We're working on pulling into Vox term into Tiny Cloud, and we're delivering. We started building this because Spark are what we're building for Spark is not just a transcript aggregation, but oops, we're building kind of this is really the first version of what's possible with this interoperability. These various apps we've built for them this fundraising tool, which is super useful. Here's fundraising. You should definitely talk to Hunter about it. He built the whole thing. It's really incredible. Basically, it's a this is like an A Gen X CRM tool. You can send outreach to a bunch of VCs, do research on them, and maintain the conversations. So, listen is aggregating all your team conversations and your external conversations, and if one of them lands there, that's, oh, this investor conversation, it updates the pipeline, right? It's, oh, actually, there's some this relates to pipeline, I'm going to go ahead and update these, update the status needs, so you're able, by having this data in one place, you're able to, like, like your agents able to kind of operate here, but what we're really interested in is this feed. So, this feed represents the kind of this like super capability that's impossible by interoperability, and that super capability is like the ability to have your own custom feed that is highly like tailored to your context, right? Like, let's say I'm using, I'm part of a community, right, and I have my community has a bunch of data, right. I'm like, let's say a community like the Shape Rotator Accelerator, right, and maybe we have team meetings, maybe have X and Y, Z. I could scroll a feed that is really custom to me, right. My agent knows that I actually like short form version of Studio Ghibli reenactments of the meetings that I missed, right, and I'm like, I'm just getting this, and like, this is great, let me just share it with the chat, right. So there's a highly specific feed where there's things kind of like some of the other stuff that is being worked on, like feed links, where you're able to tap into other feeds, you could pull them into the space of very specific context to you, right, where you can say, oh, cool, like, if let's say someone shared, like, I can see my existing feeds here, if somebody tells me something, I can have an agent do research and create, like, an article or a tweet thread for me that is very, that is for me, and I, this is great, I want to retweet this to the world, it ends up being the surface of, like, really amazing capability that's made possible by interoperability. So, Interoperable apps kind of sounds like, yeah, cool, but it's like it really is like I think the kind of maybe some of the things that are like almost a breakthrough that makes like consumer possible with AI, because my sister will never install Hermes, but she probably would do whatever, me, whatever it takes to like get this feat if she sees her friends using it, right. So this is kind of like a bit of our kind of consumer thesis. Another piece, an interest of time, is the other piece is we're really thinking deeply about Agentic interactions. This is something really I would say, like I really been battling with Patrick on for like the last two years. Patrick has been like agents, Sam, it's agents this whole time, and I slowly begin to get it as everybody else does. But I think in our conversation we've really been thinking deeply on this, about like, what does it look like, what does sovereignty look like here, and there's almost like, like, I give this analogy of like a laser, there's this like piece we've kind of pulled from this like space that's like you, it's like a unique ly shaped thing, I really got paid for this, it's uniquely shaped thing, in that it's like, seems useless today, but it's actually incredibly, incredibly necessary in this future to gentr actions, and it's atomic data for payment, so this is kind of like where really like, like everything we're doing, we are focused on the feed stuff, we're focused on that, but this is really where we want to focus, because it's basically, I have some highly asymmetric data that I want to be able to delegate someone to pay for, right? Is like, like, for.. and this is like this has like really big implications just when it comes to like agents. So you come chat with us about it if you're interested. Definitely chat, Patrick, about it. And yeah, I'm there's high value markets there, so yeah, right now we have like open credentials, we have openkey, these things are like open AI, they are open, unfortunately, in name only at the moment, we will open source them, they're not open source, but like, and their reasons, and it has to do with, like, asymmetry. The point of asymmetry is to preserve value, right, by, like, giving up your asymmetry. You, you transfer the value, like, to everyone, and there's a strategic time to do that. But it's here at the Shape Rotator Accelerator. Like, we're this open source thing, we like want to collaborate with everyone. If you want, like, access to stuff, just hit us up, we'll share with you. We want to integrate, we want to connect. So, yeah, so that's just a note on that. And, yeah, it's like one architecture, not a bunch of products. So, there's a stack here, and it sometimes makes it hard to talk about. It's hard to say, like, what are you guys working on it's like, well, do you have 20 minutes? But yeah, come chat with us. And thank you, guys, for your time.
+
+Speaker 8  1:05:37
+Hello.
+
+sam gbafa  1:05:58
+so our customers haven't asked for that, and that's that's actually really important for like the function of Tiny Cloud, like Tiny Cloud right now is like it local second, not local first, like, but our customers haven't asked for that, they've kind of asked for like higher level stuff where we're like, well, maybe we could build it this way, but like many really cool technical things, nobody's asking for
+
+dmarz  1:06:27
+two questions. One, at least you said you worked on spruce id, so curious what learning to taking that second question is, so like the the theory of ecosystem I attributed to a variety of interop protocols all the last two years, like the interop wars. I think the book we had seen is like one domain, one
+
+Dmarz  1:07:00
+chain dropper straight, but set different interop interoperability standards. Sure, so
+
+dmarz  1:07:14
+yeah,
+
+sam gbafa  1:07:17
+sure, yeah. Those are good questions. Um, at Spruce, Spruce is like I would say, like an identity brain trust, I guess they were like as really, really excellent when it comes to like just verifiable, just verifiability in general, identity in general. I think from my time at Spruce, like one thing, one one, I guess thing about, I don't know if you guys know about, like, self-sovereign identity, like, conceptually, the idea that you can own your identity, own your credentials, they live in a place you control, this really influenced the architecture and the shape of Tiny Cloud, Tiny Cloud, originally conceived of as a, like, identity store that I was like, we should use that for application data, and this was one of the things I was really driving at Spruce, and so I think really that my time at Spruce, I think just really just kind of gave me like this, the deep knowledge necessary to build like robust like identity PRIMITIVES to know what verifiability means, actually, and in a way that was like, I would say, unopinionated, in like, from like a crypto perspective, right? Like, blockchains, like, we have, like, kind of like we're not anti-blockchain at Tinycloud, but it's kind of like every tool has its job, and literally, this escrow, the escrow for atomic data payments, I'm like, cool, there's escrow, we can use smart contract for that, but that's really like one of the first places that we've used blockchains, so to that point on interoperability, interoperability in an Agentic era has the benefit of, of like AI, right, where AI can kind of smooth over things, and so like even like if you consider like the manifest, like the manifest, right Interoperable apps, this is kind of like, hey, here's a schema of how we do stuff here, and you have like an intelligent actor, kind of like, okay, cool, that means I can put these keys together like that. So it is like it's not, it doesn't require like the on-chain interoperability, where you need like, like it's much more rigid, like here interoperability, if someone else comes up with another schema, your agent could also figure it out. If there's like, let's say, a parallel system to something like Tiny Cloud, you can have an agent actually sit in between and say, 'Okay, well, this data lives here and this data lives here, I'm going to go ahead and handle that. So the piece that Tiny Cloud is maybe doing is just like the really is doing is a Permissioning and access control, the like tiny clouds are very powerful lock and key for data at the end of the day, and then we're just like cool. Well, with agents we can do this, so yeah,
+
+Speaker 1  1:09:58
+open keys,
+
+sam gbafa  1:10:01
+yeah. sure, yeah, so we support dids. So let's say I sign in. If you have, like, your own, like, like you're.. we.. I'm thinking, what's a good website to go demonstrate this? So if I go to listen and I go to sign in, I can like use an external wallet. This supports like Ethereum wallets, and so I could just sign in, and I could just use like my MetaMask to operate Tiny Cloud. It can be fully sovereign, and it's built to be fully sovereign. We do have actually a smart contract for a registry to say my Tiny Cloud nodes live here, here, and here, right? And so I can post on chain with, like, I can be, have fully a fully solved around stack, where no one touches my data, never touches anybody's infrastructure, except maybe a public blockchain, as like a registry to know where my other nodes are.
+
+Andrew Miller  1:10:56
+I guess my question is, like, where's the data actually scored, and where are the guarantees there? Sure, it's resistance, sure.
+
+sam gbafa  1:11:04
+Yeah, so that's a, that's a great question. Also, on the censor, but resistance part, so tiny cloud. I will, I will
+
+Speaker 1  1:11:13
+share
+
+sam gbafa  1:11:14
+this image. So here you have Alice storing her data in multiple places, she has, like.. oops.. and my laptop
+
+dmarz  1:11:30
+died.
+
+sam gbafa  1:11:32
+So, Alice, so you can host your own data. You could trust someone else to host your data, so like we could host Tiny Cloud Node here.
+
+Speaker 1  1:11:43
+As an
+
+sam gbafa  1:11:43
+organization, we anticipate, and maybe are even trying to generate enough user signing cloud that people just host their data with us. And so we be data host, we run Signing Cloud nodes in trusted execution environments. It's kind of like a first-class primitive, so like you could report, say, 'Hey, is this Tiny Cloud in a TE? And so, and we hosted data like Tiny Cloud, of supports multiple data storage options, you can use like, like, like a key value, so like S or something, you use, we use Postgres, actually, so super interested to talk to Dan about T SQL right now, our data, we store it using Planet Scale for our, like, just for storing our data, because we were going to actually try to build TSEL. We're like, we're doing too much, and so, yeah, so censorship for us as, like, data custodians, like, we take on the responsibility of being a data fiduciary, like, that means something very specific to us, and part of that is also maintaining our ability to be the data fiduciary, so people hosting illegal stuff, we will ban it. The government is like, "Hey, there's some stuff here, we're just like, "Pool, we'll get rid of it. If, because it's sovereign, it's a sovereign system. If you want to host, we can't decrypt, but if there's like a court order saying to like this content should be deleted, we will comply. If we say this is, this is more on the censorship, persistence, right? I would say the model that we're running and hosting locally, like, like, is about, like, compliance. It's like a Coinbase take, right? It's about compliance, and if you want to do your own stuff, hey, you get sovereign, go run your own node, so if it's it's opaque to us, we're running it in a TE, right? Like, there's a bit of, like, like opacity led to the whole system, but there is, if there is, like, hey, looks like this key belongs to this guy, we found it in his computer, he's in jail, then then it's like, okay, yeah, we will delete that right, because maybe like it could be terrible content, right? There's a, there's like, there's a, there's just a fiduciary responsibility for the other stuff we host to be like to maintain our ability to exist, right. And so, like, let's say the nodes we host are like fully censored or something, right. So that's on the censorship resistance side, that's kind of something that we've thought about and talked about quite a bit.
+
+Andrew Miller  1:14:10
+Yes, yes, yes. Sorry, I'll, like, basically, like any
+
+Fucory  1:14:18
+Question, now that, like,
+
+Speaker 1  1:14:32
+basically
+
+sam gbafa  1:14:32
+censorship. Yeah, yeah. So I say the censorship resistance of Tiny Cloud is the ability to host your own node, and you can point, you could even like host your own registry, if you want, right? So it's actually like I host my own registry over here, like my nose know to look at this registry to find all the other nodes, it's sovereign system for individuals, for like organizations, yeah, and replication, so we we use like lip P for like communication we were right now we're changing how we do replication there's a project there's like a Joel Thorstein from Ceramic Ceramic built this really great replication system ceramic is always very slow, but they had really great replication, and so he, we spoke with him about it. He's advisor, and so that's kind of how Tiny Cloud, it's called set reconciliation, and this is how we do replication in Tiny Cloud today. This is this, so consensus is something that I've like made some trade-offs, and we'd love to have a discussion on this right now. There's like, I guess, like strong consistency, and so, like, there's Tiny Cloud has two kind of like data models, there's the authorization DAG, so it's like, like, I gave you permission to do this, you delegated it here, that you've revoked permission here, and then this person didn't get the, like, they delegated before you that revocation took place, and so maybe any changes that happened later actually don't apply because this revocation happened, but maybe this happened in one node versus another node, so there's some like more complex, like distributed systems challenges that Tiny Cloud has, and so we, because of that, we take like this strongly consistent approach, where because it's really about enforcing the authority of the person who made the space, where, right, so that that signature said this over here, like that, that's the thing that we care the most about city enforced chat about tiny cloudy
+
+Speaker 9  1:16:53
+748
+
+Speaker 10  1:17:10
+um
+
+Andrew Miller  1:17:22
+but better, enough
+
+Speaker 11  1:17:32
+About
+
+dmarz  1:18:00
+six
+
+Speaker 11  1:18:02
+It's
+
+Speaker 12  1:18:18
+out here. ginger,
+
+Speaker 11  1:18:40
+that's Yes,
+
+Ahmed Ghappour  1:19:00
+it works. Okay. it
+
+Speaker 13  1:19:16
+works,
+
+Speaker 14  1:19:20
+so Well, I
+
+LSDan  1:19:57
+Up powered by community, right. yeah.
+
+Speaker 14  1:20:10
+Okay,
+
+Speaker 1  1:20:11
+okay. See
+
+Speaker 11  1:20:40
+Well, you can't
+
+Speaker 15  1:20:45
+really
+
+Speaker 11  1:21:10
+I'll
+
+LSDan  1:21:14
+be back,
+
+Speaker 1  1:21:22
+see.
+
+Speaker 15  1:21:29
+Off regular, okay. it
+
+Speaker 13  1:22:20
+Yeah. it
+
+Speaker 11  1:22:32
+is. All right, let me do this kind of player
+
+Speaker 1  1:22:44
+next
+
+LSDan  1:23:16
+it
+
+Speaker 11  1:23:33
+Keep setting That
+
+Speaker 1  1:24:04
+you know,
+
+LSDan  1:24:07
+like, there's a
+
+Speaker 7  1:24:08
+big requirement in Harry Potter.
+
+James Barnes  1:24:10
+No,
+
+Andrew Miller  1:24:11
+Ali, you of all
+
+Speaker 11  1:24:20
+people I saw before, I think we need that,
+
+Ganzo  1:24:34
+so
+
+Speaker 7  1:24:38
+I On
+
+Speaker 1  1:25:00
+back boldness.
+
+Speaker 11  1:25:57
+it instead of the Again,
+
+Speaker 1  1:26:30
+okay. Is you It's Well, yes, say I Next
+
+Andrew Miller  1:29:05
+I trust,
+
+Speaker 1  1:29:12
+yeah,
+
+Andrew Miller  1:29:18
+it was bad today. Yeah, probably staying here to the office program Probably around here, awesome.
+
+Speaker 16  1:30:09
+Oh, my tissues. All day, your
+
+Andrew Miller  1:30:18
+tee
+
+Speaker 16  1:30:25
+Why not all
+
+Speaker 1  1:30:39
+Up, so
+
+Speaker 17  1:30:45
+Bill at seven. Oh, yeah, I
+
+Hudson  1:31:19
+Zip,
+
+we work on that. round state is like the concept of like private currency, so yes, yeah, basically it's just like back 101 if you open the S guides distributed their business objects, right? and so it's basically donate crowd state is like, oh
+
+Andrew Miller  1:32:29
+Stacey
+
+Hudson  1:32:41
+Lee just passed, we learned. CC, and then, like, you can combine, and
+
+dmarz  1:32:58
+yeah,
+
+Andrew Miller  1:33:00
+the voting, like, if you can, you can customize the movies' mods combined, so I
+
+Shashank  1:33:08
+both see,
+
+Hudson  1:33:12
+and I can, like, customize this. Like I talked to a lot of people, like Aragon is like it has a very simple feature set, like it's like mine, like basically you can either talk to the AI,
+
+Fucory  1:33:58
+but Vera gone
+
+Andrew Miller  1:34:01
+Like,
+
+dmarz  1:34:04
+yeah,
+
+Hudson  1:34:08
+but they're like, their whole thing
+
+Andrew Miller  1:34:15
+is like you buy that,
+
+Speaker 8  1:34:22
+yeah. my
+
+Hudson  1:34:33
+first one, first shrine space. Well, actually, I did like it. Is yeah, of course, it is the full-time saloon-based Yeah. Oh,
+
+Speaker 18  1:34:59
+really? Hey, man. How real should they're
+
+Andrew Miller  1:35:21
+so
+
+Speaker 18  1:35:28
+the
+
+Speaker 16  1:35:40
+train transpire
+
+Speaker 19  1:35:52
+a CK,
+
+Speaker 18  1:35:53
+okay.
+
+Speaker 20  1:36:00
+and
+
+LSDan  1:36:16
+I
+
+Speaker 16  1:36:24
+Like
+
+Kelsen Liu  1:36:32
+it's called Beer Rotter, Beer Road, doing the open order, it's a permissionless open up. No,
+
+Andrew Miller  1:36:47
+as
+
+LSDan  1:36:49
+we learned with Tiny Open in front of
+
+Kelsen Liu  1:36:53
+it, it's it's geo block in a lot of region, and yeah,
+
+Speaker 16  1:37:00
+yeah, so what
+
+Speaker 21  1:37:09
+I threw. It looks like
+
+Speaker 22  1:37:22
+Could make up my mind,
+
+Speaker 1  1:37:40
+please. she's
+
+Dmarz  1:38:02
+23
+
+LSDan  1:38:20
+Glad all the electricity is off the wall, so part of it starts getting on fire. We'll see the DC change is good. The courts are all capable of admin edits. Yeah, that I'm worried about. that way
+
+Andrew Miller  1:38:56
+for touching it, therefore not by awesome.
+
+dmarz  1:39:14
+Nah, okay.
+
+Speaker 1  1:39:20
+Yeah. thanks,
+
+Speaker 8  1:39:40
+sir.
+
+Kelsen Liu  1:39:41
+Okay, so hi, guys. I'm Kelsen. Me and my Cofounder are building BeerRouter, which is open intelligence router for agents. Yeah, I'm one of the co-founders, and this is my co-founder. He's right now in China. Yeah, he couldn't be here because of the whole visa stuff. Yeah, anyway, so I want to start with start a bit interactive with your guests, because I think every one of you guys is my targeted consumer. So, how many of you guys have known or tried Open Order before? That's almost all of you guys. So, yeah, so open order is one of the biggest API aggregator for URL agents right now, right, as you can see, so what it's bit, so, so what it's business, its business model is basically like, so it take it aggregates all those different models, it takes 5% markup from from you guys, right, that's once its business model, the second business model is that, so for open order, so it aggregates open source model and closed source model, and for open source model, there's all these serverless inference providers, when this serverless inference provider that are hosting open source model, they are trying to get onboarded, and as one of the providers on Open Order, the Open Order will negotiate with them individually, for example, maybe with Silicon Flow, because I've talked to Silicon Flow, Open Order will take over 30% of the revenue shares per token-based pricing from Silicon Flow, if Silicon Flow are willing to get onboarded, and they have different routing decision as a black box as a black box black box behind for different service inference provider depends on how much revenue share they are waiting to give to the open router so that's one of the first thing and second how many of you guys know that so it's like it's like open source proceeds that people can deploy locally and just proceed through it, it goes viral, like I think it's two years ago when AOM becomes so virus, so it has it has a lot of GitHub star that the business model of LLM is basically that it is open source proceed, but they sell enterprise solutions to enterprise customers, like the one they listed here. So that's Light OLMs. So that's the second type of API gateway for AOMs. The third type API gateway for LM is this kind of service inference provider chooses one of the biggest open source model providers on open order, and it is in the Bit Tensor ecosystem. So I'm just using it as an example. So, what they do with their business model is this is that they serve open open source model on their compute, and you know they try to get a revenue by per token, you know, they do a markup themselves. Yes, and this is the third type of API gateway I want to introduce to you guys. So, so, so, so, the contact is so right now the the whole AI space I become more and more like geopolitical right now, so, so, so, for example, like, for people here in the US, you guys can use GPT, use cloud, you use CR, use Gemini all the way you want, but it is banned and blocked in a lot of countries, such as in China, in Russia, in Iran, and also other countries, so, so that's that's the first thing. The second thing is that, so, so, a lot of so, so, so, in China, there's a lot of open source mode, like basically all open source models are coming from China, essentially. Like, so, sorry for, for being to, to, yes, but, but it is true, and basically, what, well, what those Chinese companies want is basically they want to export their tokens, export their compute, because it's way cheaper than the compute than the token here in the US. They want to export and sell them to other countries, is particularly in the US. So, so that's the, that's the two context I want to see. So, so, so, because, because all these close-ups model abandoned China, so there's actually a lot of 8/3-party API gateway right now in China, like the one here. So, basically, as you can see, you can get a 72% off using Gpt 4.1 70% off for all of these things, and that's this is like a so, so, so, a lot of those those vendors can provide even to like 45% off for Gpt and cloud. The way they do that is basically they, they got a lot of account from Gpt and cloud, and they do, they subscribe with those accounts, and they provide those accounts as a token-based pricing, so it's illegal, but, but they do it that way. So, the problem with this kind of API gateway is also there, although they are cheap, they are not reliable and trustworthy. So, wonderful example here is, by the way, this guy, this is the guy who, who exposed the cloud code source code. Yeah. Oh, yeah. Oh, yeah. I also met him before, so, so, so, basically, like, like what he said, that a lot of those AOE and brother are injecting malicious to use calls and stealing, you know, a lot of credentials, that that's so, so the problem is those ship provider, they are not trustworthy because their business model is basically that they get those tokens from from those different vendors, different distribution they own, and they try to sell it, try to try to get it cheaper and sell it, you know, at a markup to it, so yeah, and so so so for us they are also an API gateway, but we, but we, so we have three features that set us apart. The first is being open, so, so open means three things. So, first, we are completely open source, yes, and we are writing RAS, so, so, and we are much more performant than Light IO apps. And second thing is anyone can use all register on our platform as a provider or use the on our platform so so basically if you are you have a way to get cheaper tokens like like you are you are the owner of tech icode and you want to provide it you just register as one for the provider through us, we won't, we won't censor you down, you can just write, you can just provide tokens through us, and we will say, I'll sell it for you, and you get your revenue. Yes, and the second thing is being tangent, so we designed this, the all API database specifically for AGENTIC use cases, so we have observabilities, we have guardrails, and we have also other advanced features that are coming soon. So, so what are so so so what are the four most important aspects for for for for AGENTIC use? First is you want your agent to be reliable, you don't want that you are using agent for important tasks you are doing, then suddenly the model fails, that's that's not good for you. Second, you want to observe it because, because you want to know what tasks, which models perform well, where it goes wrong, it is really important for a lot of production ready agents. Third is security. If you are using cloud code, you give it a root access you want. You want to make sure it is secure, both on the model level and on a harness level, right? And the third thing is efficiency. So, so not every cloud necessarily needs cloud code Oppose 4.7 or Gpt 5.5 not necessarily. If you want, if you are doing really simple stuff, you just want to use cheaper open source model to do it for you, you know, to save costs and stuff. So that's the four direction we are aiming. So also, other than that, we provide headerless COI for agents to operate in GitHub CI/CD, for, for, for, you know, so, so, so, so, the agent can manage the route infrastructures for you, and we also have MCP, SAP Gateway, so, so, so you know, so you don't have to use others and bank bundles with others. Yes, also we, we enable agents to pay for themselves with stable coins to use our services. Yes, and so, and we take 2% if you are, if you are just pay with stable coins, we take 5% same as open order fiat. And for your information, if you are using stable coin to pay for open order, you charge you 10% Yeah, stable coins, yeah, and yeah, so, so this is basically our app. You can use it. This basically every consoles you are using. So I want to go deep into it, and we are focused only on coding agent, coding, coding AOMs right now on the models, and we want to make sure it is reliable, and it is, it is cheaper. So we are right now. So I think in about a week or two, we are, we are able to provide reliable erlms for all the leading closed source, open source, like Gpt Cloud, at 25% cheaper compared to open order. Yes, and this is, yeah, this is our report. So, basically, yes, so yes, yes, we have a lot of more advanced features in the open source one, and we'd love you guys to try it out, and yes, and I also want to, yeah, so okay, so the goal for us, so is we essentially want to become the bit tolerant for tokens, not bad, so basically we want anyone can buy or sells tokens, route or request tokens through our platform, that's that's how permissions we wanted to be in the long term. Yes, so, so basically, like, like, like you can think of of open water as the AWS, and we want to be like the Ethereum, that kind of stuff. Yeah, so that's like our history, and that's it. Yeah. Thank you. Two
+
+dmarz  1:50:28
+questions. The first one is, how do I verify? I think it's question muscle. How do I verify was
+
+Kelsen Liu  1:50:46
+so like let's select, you know, whatever summit, but you mean, yeah, you mean like, like we told you, it's like cloud point cloud Opus 4.7 but actually we use like cheaper ones, is that what you mean? So it's like we told like we are providing Opus 4.7 to you, but we are actually using other models, is that what? Yeah, that's that's all the provider, that's all that's like the typical problem with all those third-party API gateway. I just said, like, for example, this one, you cannot verify it. And so, basically, you have two ways. First, use Open Order, because it's centralized and it's credible. You basically, you just, they, you trust them. So, so you trust them. That's why you would say Open Order provide, you know, what they say, the second way is, is actually why we want to be, are in this accelerator, because, so, so second, the second way is through, FTE, you know, you provide a proof, yes, so, yeah, that's basically the two ways,
+
+Speaker 1  1:51:55
+yeah, so I
+
+dmarz  1:52:00
+think you had the four unique
+
+dmarz  1:52:06
+props data, or just to double check. So, are those the four ways like the four product differentiated?
+
+Kelsen Liu  1:52:17
+Is that correct? To be fair, open order also has those four all those four for us is like for open audit, like it provides tons of models. It does not only focus on a genetic use cases, it has image, video, image model, video media model, audio model, and different use cases serve different use cases to different customers in different regions. For us, we just want to serve the AGENTIC use cases, particularly on coding agents. Yeah, yeah, by focusing on these directions, I I think, to be fair, I think, I think, I think, I think they, I think, overall, it is the best API gateway right now. So, I think they serve a lot of features, and there, and the founder, you know, the founder was previously the OpenC, right? And he's a, he's a great, really good guy, and he, he's constantly adding features for AGENTIC use cases. Yeah, he's in New York, I know. Yeah, and so, so they do provide a lot of AGENTIC use cases. I think one of the things Open Order cannot provide is it runs on Cloud Fair, and a few months ago the Open Order, the server goes down because they're, you know, they just rely on cloud fair, and the cloud fair goes down. That's, that's like a single point of failure for us in the future. We want to make it like a, so like a pair to pair router network. So, basically, if one of the server instance is down, the other, the other one is still usable. That's the, that's one of the unique feature you want to have in the future. Yes, so yeah, so this is basically the router, the API Gateway, you can host it by yourself in all the places you want, or you can use our cloud services, which is essentially the same thing. It's just we hosted for you, and we deploy it to different, different, no serverless platform, like railway, like fly, to make sure it is reliable,
+
+Shashank  1:54:42
+is just letting me log in into my with my API keys in manage with one endpoint. They don't really provide any of the model directly. Open order is just giving me the models without really the right endpoints, per se. I can't give local nodes in Clockwork directly. Where do you see yourself more? And is it on the Muslim side or is it on the device?
+
+Kelsen Liu  1:55:17
+Gotcha, gotcha. So, so, so, so, so. This is so.. I would say this is how we want to differentiate ourselves from open order and later, OM. So, for over order, they are centralized and they are not open sourced, you know. For us, we are open sourced. So, so basically, you know, every closed house product, they have an open source, so open source competitors. So,
+
+Speaker 19  1:55:40
+differentiation, you
+
+Kelsen Liu  1:55:49
+This is the case,
+
+Shashank  1:55:57
+but
+
+James Barnes  1:56:00
+I don't get a good item. censorship,
+
+Andrew Miller  1:56:08
+yeah.
+
+Kelsen Liu  1:56:13
+So, basically, like, as I said before, so, so, if you want to be a provider on open order, they basically negotiate you and onboarding you through through a long long term process, right. So this is like a permission registration for provider for us. We want to make the make provider onboarding permissionless fee. So, so why this is different. This is different because for all this, all those from all those like third-party vendors like Packy Code I just mentioned before, they cannot distribute and sell their tokens through open order because they are not compliant. Yes,
+
+Andrew Miller  1:56:49
+yeah,
+
+LSDan  1:56:52
+yes, yes,
+
+Kelsen Liu  1:56:55
+yes. And because we are, we are, we are on the same level as open order, we are the aggregator, so we can route you so many of them, and if one of them lose trust with us, we just cut them off and serve other model for the for our users, some other provider for our users
+
+Andrew Miller  1:57:09
+like that open provider. Make a deal with open router, right? versions of the bottom, like retention permission, specifically tokens. Also, guys,
+
+Kelsen Liu  1:57:34
+yeah, that's that's always the downside of being being permissionless, is that you can also just assume that all the people are trustworthy, so yeah, so the currently we do also like a centralized onboarding our providers, so we will make sure they are trustworthy, so we yes to provide reliable services to our customers, and in the future, what we want to do is essentially two ways, right? The first way is you do it through TE or other cryptographically proved stuff, the other, the other ways to, you is like a reputation, like who is more reputable in your marketplace, right? It's basically any marketplace model, which, when there is more reputable, and you just, you know, update them, give them more attention. Yeah,
+
+Shashank  1:58:22
+see. you mean the price discount. Yeah,
+
+Kelsen Liu  1:58:40
+you mean mean, you mean like we charge 2% so we are cheaper, 3% that you mean the markup fees, or the, I mean, I mean, so, so the reason we charge 2% through stable coin and 3% through FEA is that Cripe charge 3% from us, so basically when open order charge you, it also just take 2% as their revenue. 3% goes to Stripe, so we just do the same.
+
+Shashank  1:59:13
+I define the differentiators with Open Order. I see that over there, my data is being collected. Here's my data is being collected, can be used for discrimination purposes, can be sold, like the price difference is not really adding a lot of difference, especially if I go to any of the Open AI or Anthropic models, is very little delta that we can provide 70% off, I don't know how civilization can be managed in the long rider, always a lot of
+
+Speaker 19  2:00:10
+traces resell
+
+Kelsen Liu  2:00:26
+Is yeah, so first, basically, like you want, you want cheaper, but how do you preserve privacy, right? Is that which
+
+Ahmed Ghappour  2:00:38
+privacy or for
+
+Kelsen Liu  2:00:44
+most people, the price is the key selling point. If you really care about privacy, then we provide models in TEF for you, but it's not cheaper, because you know it's that one. one way of, of cheaper token. Another way is that for cloud GPT, Cloud Gemini, they provide cheaper token discount to enterprises, and a lot of big enterprises in them, they resell those tokens to third party like us with the same discount, I think the trends go is going to continue, so first the enterprise will always get, always get cheaper tokens because they bought it as a very huge amount of tokens, they will prepay for it. The second thing is that as long as the AI risk is continuing, you know, all those, you know, Open AI anthropic, they will keep providing subscript subscription at the cost of their compute, that trends will continue, you know. It will not stop in a year or two. Yeah, you mean sharing data? Yeah,
+
+Shashank  2:02:25
+they are running running computations just with that coherc data on the latest models sustainable this case, so every data is sensitive. yeah,
+
+Kelsen Liu  2:02:43
+that's the same for other. If they, if you are willing to give all your trades to open router as a router, you get 1% discount for all the models, but we don't do that right now, because it's fully, it's really highly illegal, and we don't want to get in trouble. Yeah, highly illegal, you are selling customer data.
+
+Speaker 23  2:03:11
+What
+
+dmarz  2:03:12
+now? They don't need the user
+
+Kelsen Liu  2:03:20
+can accept the terms of service, but before you have to deal with a lot of regulatory stuff, you have to be compliant in a lot of ways. We just don't have the resources to do that first, you know. So, so we don't do that. Yeah,
+
+dmarz  2:03:30
+terms of service, say you're not allowed to resell input and responses for the purposes of training and other
+
+Kelsen Liu  2:03:41
+competitive, yeah. Us edited, yeah, it's also illegal, yeah,
+
+Shashank  2:03:53
+it's bro. I also find giving the access to other people, and
+
+dmarz  2:04:08
+yeah, I mean, this stuff is never black and white, but like Netflix tried to cut down on people sharing, like passwords, and it's like a history of service doing that. I mean, opacity is a works at it. I think one of their initial products was the dayk TLS, where you could export your Uber credentials to different apps, so you could just like exit your reputation, because a lot of people, it was like, you have a distract problem, and I think their strategy was get big players have enough resources to win.
+
+Kelsen Liu  2:04:47
+Yeah, for us, our primary gold market strategy is we provide cheaper tokens. People want cheaper tokens. That's how we put strap. Yeah, essentially
+
+Andrew Miller  2:05:00
+your provider is perhaps vetted by you, but not certain themselves strong evidence that you're switching your client, I mean, that can only prove that we are trustworthy. We don't collect your data, but I don't think that.
+
+Kelsen Liu  2:05:27
+I mean, I think if just by us running, he said, well, just prove we don't collect customer data, it won't prove that those providers are not collecting, even open, auto cannot guarantee that. Yes, also I don't think that that will help solve the essential problem. I think essentially is that if it's a free market, if they are behaving badly, they will essentially go down. Yeah,
+
+Andrew Miller  2:05:58
+reputation is kind of a tough answer for things like stealing customer data, because a reputation works when there's clear
+
+Kelsen Liu  2:06:07
+evidence. Yeah, me too. We just use the to provide privacy-based model, and I also don't think reputation is going to be a solvable problem in the short term for this TV approach
+
+Andrew Miller  2:06:29
+being like commercially viable, like I guess I'm really in favor of that. Is that viable, but
+
+Kelsen Liu  2:06:45
+yeah, as we discussed before, I think I think most people don't care, the people to care, the people who care about so much about privacy that they are willing to pay the price for model runs in TE, and also they need to know the concept of TEE in order to trust it, it's going to be very niche, very particular use cases. For example, like my friend is a red hat, like he's going to do some hacking behavior, maybe like legal hacking behavior, like like with models, that's why he cares about privacy, but or maybe like it's like you know, like an SFW AI chat, you know, it's like super dirty. The guy don't want to add to the end of his chatting information with others, that's super, that's maybe one of the two cases. But for generally, I don't think people will care in the short term, they will care about using cheaper tokens. Yeah,
+
+Speaker 19  2:07:41
+I
+
+Kelsen Liu  2:07:47
+You mean like technical, we don't sell trees, so I don't know, yeah, the core of getting super token is not sealing the trees, is the one I said, either you get it through other enterprise enterprise receivers, or you get it through subscription, provide token-based pricing, and if you provide, and the industry fact is, if you are using like token-based pricing from doing a subscription, it's mostly like 50% maximum discount you can get. If it's enterprise, it's like 85% for closed source model. If it's open source model, it's about 80% and if it's open source model, but using subscription is also like 50 to 60%
+
+Speaker 19  2:08:39
+of that's
+
+Kelsen Liu  2:08:48
+true, that's true. Yeah, you can verify it, but that's true. Yeah, what's
+
+Speaker 19  2:08:54
+your source of the stat?
+
+Speaker 23  2:08:57
+I mean, I talked to my provider, you know, yeah. people
+
+Shashank  2:09:12
+using file words and other solutions, mostly enterprises within vertex Amazon Bedrup are offering JDR programs, they want the same under the models on San Francisco sales models, and giving the router inside the TE would work for that before I that before, but that would only give guarantees that I'm selling to the right provider. If that provider is not clustered, then it's nothing.
+
+Kelsen Liu  2:09:55
+So, you may have the enterprise trust us, is to be frankly, most enterprise don't use this kind of services, even open order, because our business model essentially is we take a markup, but for enterprise they just want models, they know what model they are going to be using. So that's first of all, and for if you are selling to enterprise, you have to be you have to be SOC two compliant, you have to be GPA compliant. A lot of compliance is for work you have to do in the first in order to talk to enterprises, so, so, so, we do not target enterprise as our primary, primary customers. But if you want to sell your enterprise, they will care about compliance, and this model doesn't work. You have to be SOC two compliant, you have to be GPA compliant. You have to, your downstream provider needs to be compliant. The enterprise can use you big enterprises. I mean, yeah, auto failover
+
+LSDan  2:10:51
+from one model to another. How do you maintain the session context? I'm asking, because I have absolutely no background in this, but I've noticed that, like Hermes, for instance, will not allow you to jump to a different provider in midstream. Is this something that's at the agent level, and it doesn't model that path at the model level, or that's
+
+Kelsen Liu  2:11:19
+pretty simple. Exactly, for example, if you're using cremated agents through Overall, there, Overall, er, is a provider, you know, it. Do you know what I mean? It's the same API, so what, what, so when, and how we fail over will not be the constant of the hunters, you know.
+
+Fucory  2:11:39
+How does the pricing work that, because if you fail over to a new provider, that new provider actually have to pass again
+
+Kelsen Liu  2:11:54
+when you fail over. Yeah, yeah, that's the intelligent routing part we are trying to do. So, basically, for any router like open router, we have to try to provide a good routing strategy for customer on three dimension: first price, second latency, third throughput, and for price, especially, you need to calculate which provider is cheaper, and also in the same times the cash cost, if you are switching providers, and we have, we are, we are just like we have a formula to, for doing that, to calculate that, whether it is, it is worth it to switch your provider, you know. Yeah. Thank you. All
+
+Andrew Miller  2:12:42
+right, mr. Tse. TSE folder
+
+break after that.
+
+Speaker 1  2:13:00
+for the last
+
+Andrew Miller  2:13:01
+one
+
+Kristel Alliksaar  2:13:08
+position
+
+Andrew Miller  2:13:11
+I
+
+LSDan  2:13:28
+Okay, so Crystal and I, I'm Ella Stan, for anyone who doesn't know me, and we are that's Crystal, and we are T SQL. The basic premise here is PostgreSQL running inside of CVM environment, so how many of you have ever tried to deploy a multi CVM application? All right, it's a bit difficult, the confidential virtual machine, good, good, good. Ask, so how many of you are familiar with Postgres? Okay, so most of you. Anyone here ever self-host a high availability cluster? Why did you decide to do it, and how long did you keep doing it? Yeah, why was it not worth
+
+Speaker 1  2:14:32
+it? It is
+
+LSDan  2:14:33
+a pain in the ass. You're correct. That's why every cloud provider you've ever been at has, you know, RDS or Postgres service, something in there somewhere, right? Yeah, so my favorite is usually Digital Ocean, and they've got it built right in, right? You can get a high availability cluster, it costs about 125 bucks a month at the base level, you get to scale your own machine, that type of thing, but you don't critically, you don't have to worry about all the things like point in time recovery, or backup cadence, or auto failover, auto scaling, these types of things are abstracted away from you as a developer, you can just focus on your application, so what we found in working with DStack, in particular, was that it was very hard to do things like this, and there also, there's no provider of these types of Primitives out in the market, and so I'm coming at this from a web two background. Before I got into blockchain, I built B2B, B2C, fintech, all sorts of stuff, and you know, one of the things I like about this particular moment in time with confidential computing and AGENTIC computing, and all of these other things that are happening, is we have this moment to sort of merge web two and web three people again, right, like you know, web two people want to use AGENTIC stuff, confidential stuff. Web three people want to use it. Web three people generally came from a world where they started in web three. There are some of us who started before web three, but most people are in web three, started in web three, and haven't had the experience of building an application that scales to 10s or hundreds of millions of users, and this type of system is absolutely critical for that. Otherwise, you're going to spend a large portion of your budget on DevOps. So, what we've done is kind of try to merge DStack and your traditional Petrone high availability cluster approach, little bit of blockchain in there for control, where we're attempting to prove that the data that's hosted in the Postgres cluster has never been touched by a human, or that if it is touched by a human, there's a break of the glass moment warrant canary type mechanism where anybody who's using the application can see that the developers have gone in and accessed the raw data, and this comes out of a lot of the work that the teleport and Flashbot X teams have done, and Andrew, in particular, has this great concept. I really like this phrase of dev proof, which is, if the developer of the application is actually a bad actor, how do we prove that the data still isn't compromised? And so this doesn't go quite that far, but it does take you in the direction. So, in order to connect to T SQL, you have to connect through this data sidecar, and this has an RA TLS handshake with the client to prove that the client is actually running in a confidential virtual machine and in a TE, and that they're capable of attesting to what they're running. We plan to introduce features later that allow the customer of TESQL to lock down the specific compose hash that's being used, the specific instance ID that's connecting all of these types of things, so they can, they can security gate it further. But right now, what happens is we just kind of prove that there's the client is running in a TE, and then allow them to connect, and then from that point on, all of the protocols that allow you to interact with Postgres are the standard Postgres protocols. So, the way that we accomplish this is we put a very couple of simple lines of code in front of whatever package you're using to connect to Postgres, so if you're using Psycho PG or or something like this, then you just add, like, usually four or five lines of import and connection modifier that handles this handshake before the main package that you're used to using takes over and does everything that it normally does. We control, we connect, we connect the CVM is by using a Wire Guard network. The auth, the authorization to join the Wireguard network is based on the measurements of the confidential virtual machine, and also based on a smart contract. So, within the stack you have, if you think the on-chain KMS, you have this concept of an IAP Auth contract, and that contract, what it does is give the owner of the application the ability to whitelist which KMS is they trust and which compose hashes they want to allow to boot within the application, so that particular model is is what we use for control. Here we abstract it away a little bit by providing this cluster, which implements the core functionality, and then we create member contracts for each individual running node that basically allows you to have a separate app ID for every connecting member, but you still have the underlying data that's accessible to all of the members and is the same for all of the members, so you don't have to update like three or five different CVMs or smart contracts when you want to deploy a new compose hash, just update it in one place and it updates across the board, the other thing that this allows us to do is add on a number of things, like a messaging layer. So, inspired by the work that Andrew did on the KMS bundler, we have the first cluster member that joins creates a private key for encrypting all of the data within the TE, and then encrypts that and sends it over the blockchain to all of the other members that join, so that they're capable of encrypting and decrypting the data with the same key. We have three different nodes in our cluster. The first one is the leader, or primary, and that handles all of the normal connection that is actually connected to using a Cloudflare CNAME, so the client doesn't have to think too hard about what node it should connect to. It just kind of uses that CNAME. There's a little process that runs for us that monitors the DNS controller, monitors the on-chain contract, or uses the chain index, or rather, to monitor the on-chain contract, and it will update the DNS records if a failover event happens. So, if the leader goes down, the other two nodes will connect, talk to each other, and say, hey, we can't see the leader, who's going to be the next leader, new leader is elected, and then the each one of the nodes has the ability to send that signal out to the smart contract, this is using Alchemy's gas policy payer functionality, so every node that joins is capable of calling these functions, and from that point on, the new leader takes over, the C name is updated, and the client has a downtime of maybe 30 to 60 seconds. Standard Petrone would be 15 to 20 seconds, so it'll be longer than a traditional deployment, but not that much longer. Any questions before I go any deeper into this? I feel like the model of waiting till the end for all questions might not make sense for a more background product like this. The smart, so the clusters agree who the new leader is, and then they send out a message to the blockchain to update the new leader, and then that event is picked up by an indexer, which sends it to the DNS controller, and the DNS controller updates Cloudflare, so the blockchain is the originator of all of these changes that happen within the system, but ultimately the running services do that. The indexer, by the way, if anyone's interested, is running also in a CBM. It proves it attests to the call that it made in order to get the data, and it provides the RPC call with every response, so with randomized every roughly 60 seconds or so, the nodes will actually check the blockchain to see, is this index or index or compromised and still behaving? Has anything happened, that type of thing, but the index er sits there for efficiency reasons, and also for things like chain reorgs and other things like that, that may need to happen. We use a SSE and GRPC protocol approach to stream anything that comes from the indexer to the machine, so the machines don't have to pull. There's no latency on that level. What else? What's up? Thank you. So every command, one of the big challenges of this, even more so than running your own high availability cluster in a normal environment, is we want to be dev proof again, and we also want to be dev proof against ourselves, so we can't be controlling how the messages to the machines to upgrade or change settings or whatever they're going to need to do from an external controller, we need to make sure that that's actually secured as well, so the way that we do that is through all of our member accounts, or through Privy. Everybody that has access gets access to a multi-sig, which then relays all of the instructions in an encrypted format over the cluster contract, so whenever any sort of change is going to happen, the person requesting the change needs to be cryptographically authorized, and then once they send that information, the public can see that they've requested generally a command, and we're still kind of playing with how much information to show and how much to hide, but the sensitive parameters of that command will be encrypted, and then only Decrypted by the machine that's actually listening to that command and executing on it. The machine then that's executing then records its log and encrypts that log and saves it to our r2 bucket. r2 by the way, if you're not familiar, is Cloud Flares s3 implementation, and it's about half the cost if you're not doing a lot of reads, which we don't, we don't do a lot of reads, so the the other thing I didn't mention is the backups, so in the third node, whichever is like the lowest ID of the two secondaries, takes on the role of being the backup server, and that basically encrypts all of the wall files and the six hour intermittent pg dumps that we take and sends that over to r2 so all of that sits on r2 If, for some reason, the entire cluster goes down, or there's some sort of catastrophic event, and we've got to reboot everything from the beginning, as long as we can still access one of those physical machines that one of the CVMs was running on, then we'll be able to reread the initial message that was sent and reboot strap the cluster from the backups, so there is a little bit of a risk here in that keeping everything private. There is no way to recover from a full catastrophic failure of everything. What we're thinking about doing here, and if anybody has strong opinions on this, I'd love to hear them over the course of the next couple of weeks, is encrypting that key and giving a sort of emergency break the glass mechanism to the developer who is acting as a client of the cluster, so they can actually break that glass, but it would be registered on chain, and then they would have the ability to restore, and we would probably have multiple layers of this one, which allows them to expose that key to a new CVM that wasn't previously part of the cluster, and that would actually reboot the CVM, and then another version, which would give them access
+
+Speaker 6  2:27:38
+to the
+
+Speaker 1  2:27:40
+actual
+
+LSDan  2:27:40
+data. Well, the there will be bots in the system that manage the auto failover and that type of thing. So, if we were to lose a leader node and it didn't come back up within, say, you know, two minutes, five minutes, something like that, we'd want to boot a third node, so that we don't lose the two of three guarantee inside of the cluster, so there will probably be other bots in addition to that one, which listen for, you know, did all the nodes go down, you know, what is the default policy as we get further and further, and we find out what, who our customers are, number one, and then number two, what do they actually want in terms of features we can certainly still provide all of that automatic command signaling that would need to happen, but we would want to make that a per customer kind of configuration, and our defaults would be to not have that automation, but to make that type of catastrophic situation a manual interaction I I mean, if you can let me know how you did it. I know you shouldn't be able to, hopefully not, and and the other piece of this that's that's kind of pie in the sky, but is definitely something we're thinking about. Is how could you self-host a node? So, let's say you didn't want us to own any of the keys that send the controls, and you don't want us to host any of the CVMs, you want to host them in your own account. How can we still provide you a managed service? And so this is something that we're still, we're still looking, looking at, I don't know, which is why I'm not looking at it too hard yet, but for instance, Shin did ask me whether or not he could kick me out of the control plane, right, and that kind of kicked off this whole thought of so, so the way that we have this monitoring hub, right, and what this does is a couple of different things. First, it looks at the Grafana and attestation, or the Prometheus and attestation metrics endpoints, and records those for all clusters that we're running within our system, so you have a historical record of all of the load issues, what the attestation was saying, so if there's any ever any change to the attestation, you can see that really clearly, which, which machines are in the clusters, etc. etc. This is also the kind of client app that allows you to sign and send out the control signals, and so I have this probably slightly over-engineered, and again, this is something I love input on over the course of the next couple of weeks. Multi-sig, which is essentially at its default a one of n that's nested in a completely unnecessarily complex sort of way, but what what this does, ultimately, you know, we have our admin multi sig, which is Crystal and I, and this is hardware wallets where we can send out, you know, we want you to, we want this cluster to upgrade kind of messages, right. And then we also, you could, you could take that cluster multi sig and you could make it a two of two instead of a one of two, the the other signer on that cluster multi sig is a cluster user multi sig, and that exists basically to keep track of the users' privy keys, so they're capable of making the signatures within our interface. You will have the ability to then add other keys that are not privy or other wallets that are not privy generated, so if you wanted to add your own hardware wallet, you could, that would require then that you generate your own signatures and things like that, but I assume anyone who's at that level is going to be able to do that, so the hub, you know, redundancy is obviously a really important part of this project, so the hub runs on multiple CVMs across multiple machines. It kind of talks to it, the different instances talk to each other and make sure that they're not, you know, double doing it, double recording and other things of that nature. But the other thing that they do is manage each other's addition, so if another hub comes online and it's part of the hub cluster, then it gets added to the hub's multisig. The hub's multisig only has the ability to add and remove users from the clusters cluster user multisig, and you know what this gives us ultimately is that anybody can kick anyone else out and continue to operate the system, so if Shin is comfortable with us being able to propose things, we could make this a two of two, and he could propose things, and we could sign off, or we could propose things, and he could sign off, if you know, if he's not comfortable with us being in here at all, he could just kind of say, 'Okay, this is now a one of one. We're kicking the admin multisig out of this cluster entirely, right? And we're kicking the hub multisig out of the cluster user multisig. We're going to sign all of our own stuff from this point forward. We're going to add our own hardware wallets, kick the privy keys out, all of that. Now you're really, your team is controlling it. You can change the number of signers required for the user multisig, and so you can ultimately get this down into like a five of seven, or whatever structure you're comfortable with. We, I think, like I wouldn't have designed this right now if he hadn't actually asked me for this already, so I think that's like what we're here to discover as a project, is is anyone who's interested in using this, what do you need, right? Like Sam and Tiny Cloud are going to be a really big driver of what are the things that we build next, because if we can prove out that this is a value add for you guys. Then we're proving out that it's a value add for a market that maybe doesn't really fully exist yet, but hopefully will by the end of the fourth or fifth shape rotators
+
+Speaker 24  2:33:55
+kind of like design, and like on this social kind of like just like
+
+LSDan  2:34:14
+I think the idea is that we are a custodian, and then some users will not want us to be a custodian, and then they probably don't want any custodian. Does that make sense? Yeah, I think everybody's got a slightly different, you know, model of is a registered custodian safe, right? That's whole, that's that's falling back on the legal system in order to protect yourself. Yeah, obviously. I mean, we're using Privy, right? So, like, we're already, we're already kind of walking down that road a little bit. Most of this is built already. So I designed and built a prototype, and that was up maybe three weeks ago, and then some of these questions came in. I found a couple of flaws in the model needed to add the control plane stuff. So right now I'm, I've got my agents kind of cycling while we have this talks on trying to get the first MVP cluster deployed and working through the bugs that are preventing that, hoping that's going to be within the next day or two, and then that should be a production grade cluster. The question is, what does everybody ask for next? I'd like to have a couple of customers and validation of the product, so I think in the application I said five customers. I'm not like super ambitious about the customer side, I actually just want to see like this is useful for anyone outside of the Flash Bot X world, and number one, and number two, that we can actually do it at the level of constraint that we're trying to do it at, and have it be cost efficient. So one of the cool things about this right now is it's looking like the same spec that costs you $125 on Digital Ocean will cost you about $150 with our service, so it's not a dramatic increase in the baseline non-te, non-CBM version,
+
+Andrew Miller  2:36:30
+with this design-wise ceiling of this is like sensor-shaped resistance to explore service monitor gaps that are interested, also the analogy, or a follow-up to that, as if you do that, which I would like somewhere else to maintain some primary
+
+LSDan  2:37:01
+I think, well, well, first of all, yes, once we get to the point where you can self-host a node, then that, that implies that you can self-host all nodes, and then that provides whatever level of censorship resistance you can actually manage, I mean, practically speaking, you need to own the TES, and there's only so many networks, and so I don't know how far down censorship resistance we can go without major upgrades to the way the ecosystem works. Sorry, what was the second part of your ask? What alpha, the edge is exactly what I pointed up front, right. Demars is one of the smartest people, like any of us know, right. And he tried to host, self-host, found it wasn't any cheaper. It's actually more expensive, probably. And why the fuck would I do this? Once it's there, there's no reason for anybody who's deploying this to self-host from that point, further, it's going to cost almost the same amount. They might save, you know, might be a third for the actual hardware of our baseline price, but then you need to pay the employees to actually manage it, monitor it, all of the systems that make sure that it stays up, you know that that type of stuff is non-trivial, and it's not so much the monetary cost, it's the time wasted when what you're trying to do is just get your product out the door. I mean, Sam said it himself earlier in his talk, right? Like, they were going to build this, but then they just moved past it, because they had to draw the lines somewhere, and just build what they were building
+
+Andrew Miller  2:38:43
+for
+
+LSDan  2:38:50
+correct. If it's not part of the attestation chain, then it's not open sourced. Yeah, so that's the defensibility. Now, Crystal was grilling me on this earlier, you know, just so we could prep for that question coming, and you know, ultimately, if somebody like Azure or GCP decided to offer this product, the only defensibility or moat we would have at that point would be the fact that we operate on multiple networks, and to that note, while we are deploying on Fala, at the beginning, we do have one bare metal machine from Open Metal, which we're also going to be hosting on, and then we're talking very closely with Secret Labs about hosting some nodes on Secret. We're going to move to anyone who is part of Proof of Cloud, we're going to want to support them and host on them, so that the choice of how much redundancy you have or what your geographic location is can be as flexible as possible, and also hopefully so that if you're running something that's latency sensitive and you're running on Fala, you and you know you're on node four, you can have your primary CVM on node four on follow, so by by making sure that we run on the same physical machine, yeah, yeah, so for the primary, yeah,
+
+Fucory  2:40:20
+is there any anything like back handles like gas, but I certain suggestion
+
+Speaker 11  2:40:30
+anything that would
+
+Fucory  2:40:30
+prevent you from like getting that train back,
+
+LSDan  2:40:34
+so we need to add node redundancy. Right now we're kind of constrained at both or downtime sensitive to both Cloudflare and Alchemy. What I want to do is add multiple hosted providers and probably also run our own node. It would be a lot cheaper to run our own node at a certain scale. Right now it's not, so we're better off using alchemy, the gas is paid for by a payer, so as long as the payer, which we control, is willing to pay for the gas, gas spikes don't really matter. We're also running on base, so cost shouldn't be an issue. I don't know, we'll see. Ultimately, we can. My hope is to get to a point where we can bridge, and I don't see why we wouldn't be able to, where we could bridge multiple blockchains as well. So, you could actually run on multiple KMSs on multiple blockchains. We would then need to add some sort of messaging layer into the cluster contract, so that the clusters were in sync across blockchains, and that's why I'm not touching that yet, but that should be possible, and, you know, a properly configured layer zero approach might be, might be good for that
+
+Fucory  2:41:57
+blockchain, or I guess, I guess a question that would be at that question is, what would be the difference between the between having to have the transaction technically, I just signed the transaction that I simply I said that you can do, can submit the chain, but you like, see that I signed some something. Is it providing some kind of expense?
+
+LSDan  2:42:26
+It's providing primarily transparency, so all of the signals that are sent within the system are sent over blockchain, and that can be proven through events
+
+Fucory  2:42:41
+like that.
+
+LSDan  2:42:42
+right, or or your customers, you know, I again, I don't know who our, who our clients are yet. So, like, all of these things are easy to back away from, like it's way easier for me to add. Earlier today, Hong did a demo of DStack, and he showed off service mesh with console, which runs a Postgres high availability cluster on an attested CVM, you know, service mesh, basically, and, and that's great, but it doesn't like provide those additional guarantees of nobody access this who shouldn't, you know some in the example that's in DStack examples, you know, the compose hashes the gate to join the network. So, if I'm running the same version of Postgres that you're running, then I can join. Right, he gets around this a little bit by putting the client application inside of the nodes that are providing the high availability cluster, but that means you're now running your client application and trip kit when you may not want to, and also if you want to prove the attestation of your client at your client application anyway, you have to open source it, right? So that still gives me the ability to then run your code in my CVM and connect to your network and replicate your data, so all of those types of concerns and questions are like what we're solving, and kind of the hard part of this.
+
+Fucory  2:44:13
+Obviously, this will be over-engineered now, but I think the long run, like, wouldn't necessarily, oh like base, like it varies.
+
+LSDan  2:44:28
+Oh, yeah. Actually, so, so the bundler thing that Andrew did, that that I referenced in the inspiration for Cluster, that actually uses GitHub Actions as as a signer for this system,
+
+Fucory  2:44:42
+so like, so take base, for example, yeah, if you built like an application specific
+
+disability to like up and the data, like actually like status satisfactory, because it's just good simple sequences. Yeah,
+
+you don't need, you basically just need the ability, like you don't really need, like, order.
+
+LSDan  2:45:20
+I did think about, but over-engineering and early stage, right? I did think about the idea of like running a gas-less l2 that all the nodes participate in, and then the nodes are running a an l2 that is then publicly visible, but is is permissioned in that to be a, you know, a not a writing node within the l2 you would have to be running inside the cluster or one of the clusters, and then that would kind of hit both marks in that every cluster increases the the censorship resistance and increases the decentralization, while also keeping it all like semi controlled. Yeah, yeah, exactly. You wouldn't have a token, you wouldn't have gas, you wouldn't have anything. It would just be like, I mean, it could be as simple as, like, exactly a state chain that then settles one blockchain transaction every day, or something that then locks it. Yeah, because we would want it to be as lightweight as possible, like we don't need indexing, we don't, you know, that that all, if it's going to run on our notes, we want it to run in the smallest possible footprint.
+
+Speaker 1  2:46:50
+Yeah, yeah.
+
+LSDan  2:46:53
+Any other questions? Great. All right. Perfect. Thanks, all.
+
+Andrew Miller  2:47:07
+Which just end up saying
+
+Hudson  2:47:44
+I just asked to join the meeting.
+
+LSDan  2:47:54
+So, you'll be back next
+
+Speaker 1  2:47:57
+week, I
+
+Andrew Forman  2:47:57
+think. Your design plus these just attacked every little bit,
+
+LSDan  2:48:01
+basically I want, I want one of the most paradigm of people out there to come at me, say, "If you think about this, and I did, that's the goal, whether or not we'll get there inside of Shaper, like Tiny Cop, for instance, right? They're running on top of us,
+
+Speaker 1  2:48:42
+right, but right,
+
+LSDan  2:49:01
+yeah. Let's, let's talk about it when you're back. Good start
+
+Speaker 1  2:49:08
+out there.
+
+Andrew Miller  2:49:11
+Finally, just breaking. All right. Welcome, Benson. Tell us about signal sex, and your
+
+Hudson  2:49:18
+site results about the team, other members as well. So, signal stat is a, you know, it's for signal, the messaging app instead of privacy preserving AI services, translation, tool calls, transcription overseeing, and the benefit of that is, you know, with Chat GPT, Gemini, every other major AI, you're, you know, they're taking their data on you, and then translation services do the same thing. Obviously, it's not private signal, and signals users are pretty unique, as they highly value privacy. People on Telegram know that it's not actually intended encrypted, it's not really private, and people know that they're okay with that, but signal users are, they want privacy, and so that's kind of excluded them from a lot of these bots you see within your title dance was for slaps and all the benefits there, and so, yeah, we have like pretty simple solutions, just, you know, grabbing it through a TE for AI-based models, that inference happens within the TED, and then for things like translation, it's just open source translation model running the TV subs, so I assume a lot of you guys know Logout TVs, they come up a lot here, so I'm not going to explain that part, but the part I get fallback more is kind of like the market potential here. We already have one active customer, there's a mutual aid group in Brooklyn that uses Signal primarily, and they have a translation bundle that we set up for them. Currently, there's like a lot, a lot of need for this, I guess. As the last slide show, there's like 70 million active users on Signal. There's a massive market for computational compute, and this is really just like the perfect fit. It protects users' privacies, and they get access to typical tools you're familiar with throughout Discworld Slack. So, kind of the main feature we first started with, for this translation, because we actually found not only wasn't there wasn't any sort of translation box for signal at all, there's other signal box, but none were privacy preserving, and there was nothing with translation, and we identified groups that need that already, like the mutual mutual aid groups, a good example is they have a lot members with different backgrounds, and they need live transcription for their announcements to make it more accessible translations to make it more accessible. Another obvious use case is AI chat bots. I assume you guys know how that database within Slack and Discord, I assume you guys use that stuff already, but basically the main benefit here is privacy preserving, and then transcription is really interesting. A lot of you are familiar with Boston, and what's going on with that, and that's something we kind of planned on integrating, if you guys go about kind of the Convents AI system, Salem, that's something we're also like looking at. We're kind of running some experiments similar to that as well, right now. So, just the basic of how it works is we use our own signal, sends a message, it's decrypted, no privacy concerns there. There's already a signal CLI for box, which still sees entity message. It gets passed on to the TE Enclave. The inference runs there, and then the response is delivered back to the group chat and the individual web, so a little more about the market opportunity is we kind of just looked at some subscriptions for similar services, so something like, you know, Chat Gpt Plus, obviously, like a model running on TV might not be as good as that, but you know, they charge $20,000,020 a month, people are using it within these messaging services already, and then there's typical language translation bots already, like Depew, and that's about $10 per user for the Chrome model. Yeah, there's actually like a huge network, like people are already paying like $6 a month subscriptions for these basic little bots that are doing simple tools, so the kind of the goal is six app is to kind of, you know, compromise any of those markets you can, because like if we can bundle in translation services, transcription for meetings, and group chats, and, like, a useful AI chat bot, all under one subscription service, and people don't have to be paid for these individual services like they're used to, and they get the benefits of the privacy-preserving nature, and they can signal that would be great. I'm not gonna skip this slide. I think you guys know how signal provides some privacy.
+
+Kristel Alliksaar  2:54:51
+10 minutes work.
+
+Hudson  2:54:53
+Yeah, I think I'm gonna skip this slide as well. But yeah, so currently, kind of what we've been thinking about is, you know, offering a free tier. It's very limited, just for basically testing it out and seeing a small group, but then if you scale, we have a $19 a month off there, that's currently like, you know, we're still in the like testing phase, but the mutual acreage thought to you. Once the feature site gets more advanced, they're comfortable paying that, and then a team be about $49 And you guys are familiar with other bot services, and even by things like Slack Flow, they charge per user per month, and they didn't get really false, but something like this, our main costs are, you know, the costs are on the TV themselves, and like that's basically it. Yeah, so currently I'm going to VP right now for both translation and the basic AI chat bot like interact here, and like the translation is working flawlessly, kind of the main reason we're here, and what we can benefit the most from this, like we already feel like we have even market direction, and we have like a good team that's like well connected with a lot of different groups and activists that are highly concerned about privacy and would want to use something like this, but the AI side of things is kind of where we need to do some extra marketing to make sure that things are actually secure, private, and won't fail as much. The current EVP game for that is using DStack and New York AI for the inference, but yeah, we plan to launch a site integration soon for payments, and basically have a lot of these features, you know, there's a lot of different like use cases, and I don't feel like I have to dive too deep into them. That's basically it. The main things we're looking for is more forwarding of our TV model, and how things actually work. Like, we already have customers, we already have a way to expand, but we don't want to expand until we know these are suited secure in the books. Yeah, I guess I'll open up for questions. Then, so pretty simple.
+
+LSDan  2:57:32
+Do you have plans for marketplace
+
+Hudson  2:57:35
+like a marketplace in boss?
+
+LSDan  2:57:38
+Well, you have rails, right? Yeah, that are pretty, pretty effective. You could prove that a bot is running inside of a TE, and then charge some sort of markup on on the baseline price. And just wondering if you've thought about that at all.
+
+Hudson  2:57:53
+Something we've thought about, but like, you know, how I hope anything about things is like, you know, you have the ideal inversion of like what you're looking towards, and like that's definitely part, because you know that makes things more robust. There's more likely to be more users, we don't have to do all the marketing ourselves, but for now our focus is just kind of like the three main areas, like the AI chat bot translation and transcription of just like flushing this all out and making sure that there's user experience with that, but yeah, that's so many. Definitely, what a spoiler open source. Do you see some place where you can keep on an edge? It seems like this is then some open source code that relies on the screen gpu providers, and yeah, what do you imagine? I mean, honestly, like we want to be as open source as we can, and I think the maintenance we have is like reputation and trust, especially for these like privacy-focused communities, like they're not like if a new competitor goes into a market and it's like Google comes out with some version, right, they're going to be like less likely to trust them than a group they know like that they already like this, but you know, like another possible edge we could have is
+
+just,
+
+I mean, I guess like it kind of comes back to the markets, like like what you said, that is part of the future vision, because like if we are the place that people go and resource your models from, like, that is it.
+
+James Barnes  2:59:49
+So, are you focused on, like, individual one on one interactions?
+
+Hudson  2:59:55
+Yeah, but also the individual one on one interactions, but I think we see that, like, like the main use case right now is a good chat, right? Like, there's the where they're using it is, and basically their announcements channel, and they just have to translate to two different..
+
+Ganzo  3:00:16
+maybe I just, like, I don't know exactly how it works. Is this signal already private?
+
+Hudson  3:00:24
+Yeah, so it's private, because the problem is, if you're going to interact with, like, external a lot, right, and you're looking around train stations, we'll be able to see, like, what we're trans, and you know, there's groups that you know all across the world with that signal to state oppression from their governance, et cetera, that would be very harmful if that data lead to need capacity, and so if you're running that on like a traditional server
+
+Speaker 11  3:00:55
+setup
+
+Hudson  3:00:56
+instead of like through a CPE, there's usually for like an instant meeting and seeing who said what in this group chat
+
+was like for translation, if you're translating every message and it's going through like a central server, this that's like it's encrypted at that point, like theoretically validated everywhere and every messaging your child is now out. Yeah, like it could still be hard to, like, pinpoint it to a specific user. It's just that, like, this is just, you know, more concluding,
+
+Ganzo  3:01:36
+and it's like better to build it on top of Signal versus it's like building messenger app that's like native.
+
+Hudson  3:01:45
+Well, I mean, all these groups are using Signal
+
+Kristel Alliksaar  3:01:48
+Production already. Signal is already heavily used distribution channel for your access.
+
+Hudson  3:01:57
+Yeah, like there's 70 million monthly users for Signal already, and so it just makes the most sense, like there's other private messaging apps with user bases, and we'll probably enter into those as well. Signals just like
+
+LSDan  3:02:19
+just a comment, I really like pairing it with Signal. I think I see exactly why that's a perfect market. It people on Signal are more likely to be aware of why they would want to do this in the first place, and the bot market just doesn't exist, probably because most people on Signal don't want a bot in the middle of their conversation, and so I like this a lot, and the transcription and translation, I've both had a need for that myself.
+
+Hudson  3:02:49
+Yeah, yeah, like the biggest struggle we've run into is like convincing people using Signal that, like, this is also legacy privacy solution, like every time we talk to some group about, like, that's the first question. It's like, well, how do we know? Is this private? And so, like, back to, like, when I was asked about, like, what's the edge? Like, that is the edge. If we can establish ourselves as, like, basically, you know, the privacy preservative signal box provider, and like, that reputation does not make privacy things. I mean, that's kind of it's not a direct comparison, it's but like
+
+LSDan  3:03:47
+I was surprised to see confidential computing for ex-ing the global chat bot market.
+
+Hudson  3:03:52
+Yeah, yeah, I mean it is like a big market, but I don't know if that statistic is, you know, obviously it's not
+
+Andrew Miller  3:04:05
+what's that statistic.
+
+Hudson  3:04:07
+The market for confidential.. I honestly, I don't know where this statistic came from exactly. I didn't make this specific slide. We, someone else that read it, did along the market,
+
+Andrew Miller  3:04:22
+but like
+
+James Barnes  3:04:41
+we're inside of this evening, these world books, and also,
+
+Hudson  3:04:48
+yeah, I mean, that is part of, like, our kind of one of the next steps we'll probably take is, like, I know you familiar with same would be integrated something like this super chest, like we have, like, like for red cooperative, like we have, we're doing an experiment with that, like, just through our Discord, say, like, obviously, Discord signs and encrypted, but if it works with that, it works, it's just slot,
+
+Andrew Miller  3:05:21
+yeah, you try to unpack how your team works. What Brett Co-op
+
+Hudson  3:05:25
+is. Yeah, so Brett Cooperative is a like software design studio, and we focus a lot on mainly kind of crypto-oriented stuff, or like different infrastructure for cooperatives, activist groups, etc. and like we, we originally started with like different solidarity Primitives on chain within, we just needed to just kind of cover like all different things that are affecting the groups who are working with, and this was like a problem we ran into ourselves, like we wanted, like we have signal groups, and we wanted to use bots, and we just saw, is there even any solutions out there? There's like not even bots. Okay, well, is there any privacy? These are enormous, and like Ron's also part of this, and we both work out opacity, or we use TES, and we're like, oh, this seems like an actual fit, you could use it to be used for this, but more about like, like, not everyone from Greg is working on this right now. We have like two, like, besides Juan and I, we have like two other software engineers, one's like front end, ones back end, and then we have like a designer slash product person, also Healthy Fast, many different brand products, and you know, getting into the market numbers.
+
+LSDan  3:06:53
+What numbers?
+
+Hudson  3:06:54
+Yeah, but, yeah, that's the basic setup, like it's just like super tip blocker,
+
+Andrew Miller  3:07:04
+see if you have a goal for the cohort. I mean, the, I guess your ideal customer profile is already fairly clear to see their chats. You want to sign up three or five more new ones? Do you want to stay in the local area where you can reach them, or have other plans?
+
+Hudson  3:07:19
+Yeah, I mean, I guess my main plan is, get things flushed out. We already got working demos, and my customers lined up, and many of them in this area. You talked about, like, maybe using the auditorium that this business, so we thought about hosting, like, a onboarding event for, like, groups we already know in the area that are interested in it. That's like one of the persons living in our city is a lot of people here, there's a lot of people from different groups, even global groups, but then, yeah, mainly like on their, like, AI TV side, you know, making sure, you know, all the steps of its flow,
+
+Albiona Hoti  3:08:02
+thank what's going to kick-starting like approach to get your solution.
+
+Hudson  3:08:13
+Yeah, I mean, like, like very cooperative, we already got connections a lot of different groups, and like we expect some of that on the press grant through word of mouth, but then also, like, if you just like right now, if you like look up like Signalbots, like there's a few results, but there's like not many, and so if you can like actually establish ourselves and like have users like SEO, they just do a lot of work, especially for one that's privacy, but yeah, like, yeah, I don't want.. I don't want.. I hope people will have much troubles, because we've had, like, a lot of people already ask us about single stuff, or maybe, like, in the Discord for Reddit, they see our, like, boss services that we already use, and they're like, 'Oh, this is cool, I can't integrate this into my signal group, and you were like no, and so that's why we built out this product.
+
+Yeah,
+
+Andrew Miller  3:09:17
+has near given you any, any credit? Have you asked for it?
+
+Speaker 1  3:09:20
+Have
+
+Andrew Miller  3:09:21
+senior AI given you any, any credit? Do you have good context there? We still need to ask them for credit
+
+together. Yeah, any of them in New York? What are any of them in New York? I don't know. All right, I get a long stripe contacting them, but he's he's been out of town, so it's On,
+
+Speaker 1  3:09:47
+thank you very much. All
+
+Andrew Miller  3:09:54
+right. Why don't you take a 10 minute break, and then we can spend evening time with Phil. That sound good.
+
+Speaker 1  3:10:12
+We actually don't know
+
+Speaker 11  3:10:21
+you. Computer,
+
+Hudson  3:10:44
+but
+
+LSDan  3:11:17
+it and I added a thing where you browsed to, if it like saves it in a different directory, and you browse status, suppose
+
+Ganzo  3:11:46
+but
+
+LSDan  3:11:52
+I don't like boxing
+
+Speaker 11  3:11:59
+for
+
+dmarz  3:12:22
+Well well, I mean, he's got to know what to talk about, whether it's their goal, I mean, inspiring,
+
+Andrew Miller  3:12:39
+oh I was interested in this
+
+dmarz  3:12:57
+setting, so the theme of today's, okay,
+
+dmarz  3:13:21
+but anyways, okay, that's good, and then just
+
+Speaker 25  3:13:30
+said, yeah, is seen a new way,
+
+dmarz  3:13:40
+so talking
+
+dmarz  3:13:44
+about decent, yep,
+
+dmarz  3:13:53
+like
+
+dmarz  3:13:57
+Okay,
+
+I
+
+Andrew Miller  3:14:16
+wanted to talk about the plus experiment, especially at novels,
+
+Novel Tokens  3:14:25
+we do anything about food. I get a new rese set up right now.
+
+LSDan  3:14:32
+Absolutely, whatever Phil's done is going to be a lot later, so
+
+dmarz  3:14:37
+I need to fix this before I pop up with any reads. That I still need to fix my head, our see still acted
+
+LSDan  3:15:36
+earlier on the day, like this, and these two couple of others were
+
+Speaker 1  3:15:45
+all
+
+dmarz  3:15:47
+red. Do you have
+
+Speaker 8  3:15:53
+the
+
+Speaker 25  3:15:54
+app?
+
+dmarz  3:15:56
+Sorry, sorry, you are in there. I just mean
+
+LSDan  3:16:00
+finding my it's just like a regular development, like, no, it's not my problem,
+
+Speaker 11  3:16:17
+I said five minutes.
+
+Speaker 26  3:16:37
+Minutes. so
+
+LSDan  3:16:54
+that I send a picture, I'm glad I can send it a picture and have it understand, but
+
+Speaker 27  3:17:21
+so listed
+
+Speaker 11  3:17:35
+for the I create that. yeah, Also,
+
+LSDan  3:18:29
+new set of status page, are they coming?
+
+Andrew Miller  3:18:34
+No, Quran just says they can't travel out of
+
+LSDan  3:18:39
+that, they can't travel up at
+
+Andrew Miller  3:18:41
+least they aren't coming. I told them that we would be doing on Thursdays. Tutorial has said no. I'm kind of annoyed with them.
+
+LSDan  3:18:50
+Yeah, that's
+
+dmarz  3:18:54
+silly news.
+
+Andrew Miller  3:18:58
+They're basically anti-te. Also, oh
+
+LSDan  3:19:00
+really? I didn't get that bad last year.
+
+Andrew Miller  3:19:02
+We're just unsupportive, I guess, because their business model is on reselling the traces of their portal, kind of all I can guess. I mean, just because. well, yeah, I was just hoping that they would be adopters of that, because I think it makes a lot of sense for their psyche network, at least for their, like, you know, public training using, like, crowdsourced for it. They can basically then only be creative training sets,
+
+LSDan  3:19:39
+you know, disappointment. I was paying the credits this month, just because I thought they were going
+
+Albiona Hoti  3:19:57
+to be
+
+Speaker 1  3:20:00
+On Wiki,
+
+Andrew Miller  3:20:10
+we're in a pause right now, but we'll be back in about 10 minutes.
+
+Fucory  3:20:16
+No worries,
+
+Speaker 11  3:20:18
+take Is hair like
+
+Kristel Alliksaar  3:20:51
+twice,
+
+Speaker 28  3:21:01
+yeah. I
+
+Fucory  3:21:14
+think what you should do. So hosting blobs to your finger email, too. This has, like,
+
+bases, yeah. But then you're using the base sequencer, basically almost like a pre-confirmation, so base will confirm it before the blob actually gets posted, and then you're trusting days to actually post it.
+
+Speaker 1  3:21:45
+Yeah,
+
+Fucory  3:21:46
+so you could actually accomplish the same thing by using Helios if you put that SP and basically you're sending your transactions to this like body, which might be pretty cheap through sending transactions like Pine, just like Pine, it should relay it to the network. Yeah, and you're doing, and it doesn't have to relay it, you can like, you can control like how often it relates, like if you want to go map through it, you can do it in batches, if you want to even like get lower. Biggest
+
+LSDan  3:22:16
+Perplexity about moving off base is the KMS, once we move, so the KMS and V stack, the on-chain KMS is hosted by the fire, so Fallout hosts the base KMS, and I can't employ my own KMS on Pala without them audible,
+
+Fucory  3:22:35
+so it's like
+
+LSDan  3:22:40
+then we can our own, then have to be redundant across multiple hardware providers and availability zones.
+
+Speaker 1  3:22:57
+Cost
+
+LSDan  3:22:57
+level, but at this stage, at about 500 customers
+
+Andrew Miller  3:23:04
+until you sense that everyone wants tools. Are you on our matrix? Where you recorder link at the matrix server. Oh, awesome. What you go to Them by screen sharing, not do you have a matrix.org Are there with all these many steps? I think I can send you a signal and send it. You can also send it up, the theme of today is local first, private first
+
+LSDan  3:24:27
+Telegram. Yeah, we are using a good name
+
+Ganzo  3:24:37
+for
+
+LSDan  3:24:40
+transcribing it all with Gemini and
+
+Speaker 1  3:24:42
+honor. all
+
+Speaker 11  3:24:48
+with Gemini, that's probably me sick for the think
+
+dmarz  3:25:18
+private,
+
+LSDan  3:25:24
+yeah. Oh, great. Yeah.
+
+dmarz  3:25:56
+but also the other
+
+effect my
+
+Speaker 6  3:26:08
+cousin just had actually hooked up to anything I
+
+dmarz  3:26:39
+For she's certainly document for that. Yes,
+
+Andrew Miller  3:26:58
+start off by doing the sharing. Agreed. Oh, then just send you that by signal.
+
+Speaker 1  3:27:04
+Okay, I
+
+Speaker 11  3:27:04
+sent it to Yose.
+
+dmarz  3:27:09
+Yeah, did I make like a shorter, short URL for it?
+
+Andrew Miller  3:27:17
+Oh no, we shared it to everyone. You don't have to broadcast it, us. I just thought it would be fun to watch you select here at this distributed in three days. So,
+
+dmarz  3:27:28
+okay, I just want to make sure you get the food order in for yourself, and the second makes it up in shape, sleeping. Is the number one AI recommendation, not privacy, to they're in any one.
+
+dmarz  3:28:02
+They told me that it's medium. This seems to be represented. Oh,
+
+LSDan  3:28:07
+yeah,
+
+Kristel Alliksaar  3:28:18
+that's the best. This
+
+dmarz  3:28:25
+right,
+
+is that satisfying? Oh,
+
+dmarz  3:28:28
+yeah, I actually really enjoyed that. Introduce, uh I'll
+
+dmarz  3:29:00
+try to submit the orders. Yeah,
+
+Speaker 11  3:29:07
+so yeah,
+
+dmarz  3:29:19
+I guess we can get started. Okay, intro, Phil. I don't know. Yeah,
+
+internet troll. I know for one of my recent favorite hits of Phil is why signal is not actually that secure. Some talk at SPC that Phil gave. I used much more nuanced than that. That wasn't the title, but that was sort of amazing. Takea played some Phil's games as well. Do the rest nice. Yeah, so I'm Phil. I'm a weird, weird nerd, I guess. So, I don't really.. I don't really know what I'm going to talk about, and I haven't really prepared much, so this will be kind of fun. But I think Andrew badly asked me to talk about an art project I did a little bit about two years ago. It must have been last year, I think. It was last year two years ago. Yeah, last year I didn't do so two years ago. Project I did at the IC Three Weekend, which is what this presentation is about. For the people who don't know, the IC Three Week 10, it's like a week long research hackathon, kind of like this, but a little bit more impressed, I guess, at universities, and I usually do a hackathon project there, so like sitting there coding stuff, but this year I was kind of burned out, just going to go and vibe and like off the people and hang out, and it'll be great. So that was my plan, but then kind of on the way to the boot camp, I got nerd sniped by this idea. So, one of the things I do on the side is make games, like video games, making like a 2.5 g, like isometric spice stat game, right now on the side for fun, and Id skating at that point for a while. This was, I don't know, maybe PPP, like three era or something like that, about this question that actually was presented at this conference in Negro about AI, and it was an artist presenting kind of about AI art, and at that point that conference is like nine months prior, so that was probably like between the two that this artist was getting the presentation, but they had like a very, very strong claim and a strong case, and I think we can still pull up that talk. Maybe I'll find it on the Matrix or link it to the Matrix afterwards, but they had a pretty strong and interesting and thought-provoking case, basically saying that, like, AI was not capable of making art, and really only human-derived things could be art in the long term. It was a little bit more nuanced than that, not really doing it justice to watch the talk that you cared. And so, for a while, kind of early in the LLM days, I was a little bit obsessed with that question of, like, okay, can AI actually make art when a new tech comes out, like LLMs or something like that. I like to kind of find activities, right? So one of the things that I kind of realized pretty quickly that distinguished LLMs from human intelligence was the ability to like reverse their things effectively, but that seemed like a more surmountable gap, maybe sometimes it made it hard, and there was this human claiming like AI could not make others, so I had many, many months of kind of medicating, like, a gallon game design. How do we create a game that's like actually fun using AI, not to, like, create an NPC or, like, a Bob or anything like that, obviously, because that's been very explored, but can we create, like, a novel game loop that's actually driven somehow by an LLM, and so I started experimenting with this and messing with it in my, in my garage. To be honest, I was kind of sad that we had, like, burned out of work. So I was just like hacking on that, and I was having a lot of fun playing my own game. So I was like, okay, maybe for the IC three boot camp I should try to troll all of these tech people, all these nerds, and give them some sort of new experience with an LLM, and people generally like to do the things that I say, for some reason. So I was like, okay, I will create this scavenger hunt, which I did. I created a scavenger hunt by, like, writing a clue on the whiteboard in one of the rooms, and then as you go through the scavenger hunt, which was like a few physical things on campus, you would get this like URL for this sign-up sheet, and it was like all like kind of top secret, classified, like coded language, like don't tell anyone you're on a secret mission now, and you would sign up for a timeslot, and basically what I would do in that timeslot is, I would kidnap the person, quote unquote, I would tell them, like, "Hey, come to this Google location, I tell you anything else, and I put them in my van, which is a 2009 4250 wheelchair van from New York City, with about 350,000 miles on it, that I rebuild myself, almost got kicked out of grad school because I was like fixing this van for two months, and it's kind of like a shell of a van, right. Keep in mind this camp was in July, so it was like probably like over 90 degrees, and like feeding sunshine here on Roosevelt Island, and I would kidnap people, and I would say, okay, so I actually have to give you a briefing, and my briefing was that we had actually contacted Alien Life on Earth, and that the government had asked me personally to liaison with this Alien Life. Now, why would they do something like that? Well, because I was in some sort of computer science PhD, so at least on paper there was some like reputability, but also I look like this, you know what I mean. So, like, if I go and tell people, like, 'Yo, they found aliens, no one's gonna believe me, right? And so what I told people was that the alien is trying to decide whether we live or die as a species, which I think is not exactly like far-fetched from like LLM land. I'm sure people here feel that, right? And they want to do this by talking to humanities, kind of people, a sample of them, at least, and trying to figure out, like, what is the core of being a human all about. And then it will decide whether we're kind of good enough to let colonize the universe, or whether it's just going to frag us from billion feet, or whatever, and so I told all the people that I was kidnapping that it was now their mission to sit in front of this laptop that I put in my van, and for about one hour talk to this alien, which obviously was actually Chad GPT, and in doing so, kind of my goal was to give people an emotional experience that I couldn't predict, but also create a game where it could be progression-based and satisfying. So, this is what I came up with. This was V Zero, what I called Alien Love, that was the name of the game. So, the state would basically be basically the previous conversation that the user had had with the alien, and there would also be like a hidden kind of system prompt that was determined by what level of the game you were on, so as you play the game and the loop runs, you would kind of go through different kind of schizophrenic system prompts. Another one of the inspirations for this early on was I was playing with Chat Gpt a lot to see if I could get it to trip like psychedelically, but I get it to convincingly act as if it was on psychedelic substances, or I tried many forms of drugs, but this is like the most interesting to me, because it's kind of the most parsable via text, I feel. Oh no, so, so many of the prompts were also having the alien beyond various types of mind altering substances, kind of changing in various ways. It was designed to be like both schizophrenic, but also visible to the user. So, how did the game loop work? Basically, like, so there's two different types of wind conditions for each level, right? And after you provide an input and the alien replies, the conversation gets sent to another LLM, which looks at the window condition, or for some of them it could just be if you kind of engaged with this particular personality enough, and then kind of decides whether the user has proceeded. So one of the examples, because this was tailored for the IC three PAM, there were 10 different levels. One of them was supposed to make the user guess who they thought Satoshi was, which I thought, like, reveal a lot of value with some other, like, weird system prop stuff from it. One of them was designed to, like, emulate exactly a professor that was at the camp, and people actually told me, like, as they went through it, that, like, they really felt like they were talking to this person. Okay, so why do all this? Well, I wanted to see if LLMs could make us feel something, which I think a lot of people did have various emotional experiences. It was also like a therapy style debrief afterwards of like what happened, because some parts of it got very personal and kind of psychoanalytic. It got into people's traumas and stuff like that, so can LLMs trick you? And the last part was kind of this unable aspect of can we, together with LLMs, like learn more about each other. Can there be a human element to all of this? Of course, NLMs make us uncomfortable. What is a more kind of LLM native game loop at the time? I also, I feel like this has changed for the better in the last two years, but at the time I was really frustrated because all LLMs were this like white text box or black text box that you could just talk on a chat window and it would basically be programmed to act like a middle manager, so I was like, is this really the best we can do? We've claimed to invent intelligence and we have it like, do a middle manager thing in, like, a chat window. We have, like, a cooler substrate, and so the communal aspect of it was basically each person I kind of visualize each person's path through the conversation to, like, winning the game as this, like, very open-ended. It's kind of path they can take, and people's conversations went very different, like some people it was a lot about work, other people it was about, like, their family life, for some people it was about the nature of love, or whatever it might be, and the game was not programmed to take you certain ways, it was programmed to be open-ended, and the idea was kind of like, where people end up should say something potentially about their brain, who they are, their mental state, when they showed up in my van to be kidnapped, stuff like that, and possibly together in a community we can discover things about each other by how our trees relate to each other. So at the time I was intending to design a new level of game where after you've gone through this path, it'll give you basically a token that you can then share with people, and you can have other kind of LLMs or other systems that then ask you things about the intersection. So, if you both kind of went through a level that was designed to elicit what you thought the nature of love was, and it wasn't satisfied until it had done that, well, maybe you could have another LLM that takes like your thing and someone else's thing and then asks a question about how do you see love differently as humans and like what are the similarities and differences there or something like that and of course you can do this all in a privacy preserving way we've heard a lot about t e LLMs i think this experience made a lot of people uncomfortable because it was like kind of probing, and so during the debrief, I did say, like, hey, this also motivates, like, better tech for LLMs, because they want to play these kinds of games with each other. Oh, well, oh, my battery just died. It's okay, I'll just talk. That was my last slide. Anyway, clearly we want to play these games with each other, right, but we don't want to just dump our raw emotions to Sam Altman, that seems pretty horrible, and so it also motivates privacy-preserving CES. There was one last thing I wanted to show, but my battery is dead and I'm lazy, so maybe I'll post it in the matrix, but I iterated this game at one of our Flash Bots on sites about a year ago, because I wanted people at Flash Bots to play it a little bit more with the bent of like team building, and like, hey, what is unique about other people in the organization that, like, you might not see, or you might not even be on the surface. So, there's another version of this, which used to be up at publicly on the internet, which is a totally separate code base, and that one was designed to be much meaner. So one thing I noticed is like I have a charger, but you know, sure, sure, yes, let's do it. You're not going to own my endpoint here, are you? Like,
+
+Hudson  3:41:58
+I trust,
+
+dmarz  3:42:02
+yeah. Well, this is my local device, you know. So, yeah, I'll show you this then. In that case, so I created a whole new version of this, and this one was also kind of designed to be meaner to people. So, one thing I noticed, yeah, I will. I just got to find the folder with all the all the images first. It was a mess. One thing I noticed was, you know, Gpt was like very bad at being mean to you in the early versions, but around like 5.1 they like, I guess, let people like increase the weight of a system prompt against their own like art-based system prompt, so for the Flashbots version, I had it kind of just be very rude to people and like extremely condescending and questioning, but also like use that to kind of like get you on the defensive, and people were actually surprised, like some people were emotionally affected by how mean it was being to them, so that was fun. It was mean to everyone else, just you. Let's see, I saved all that code base, but I'll show you this one. I'll show you on my computer. So, from that, I then had it basically generate this continuous art piece, so I just talked to our friend James over there, who kind of had a similar visualization of things, but basically every, like every time there was like a new person that had completed the game, it would look at everyone conversations, look at where everyone ended up, try to figure out how people related to each other. I was, I was doing this with a spaceship theme, because, like, why not, right? And so it would kind of try to render its own version of what it thought the flash ball spaceship looked like, and I'll, I can't find, I have a whole, like, video of this, but it may not be easily saved on my hard drive, so I'll show you the one, which has been my desktop background for the last, like, probably year, but I think it's pretty cool. So this was kind of where the Flash Bot ship ended up, and I'm at a cooler visualization with the better model, you know? It was, it was like hackathon constraint back then. I took, like, two minutes to make this, but yeah, maybe I'll print this out for people at Flash Bots. It gives a little key change. So that was my journey through, can AI make art? At least one of the game times.. there's a whole separate thing about, like, one of my other games that I started pre-AI. Like, I've been having a crisis of faith about, should I use AI more in that game, or should I keep that one, like, totally no, not untouched by AI as a separate conversation. So, yeah, if anyone has thoughts on AI or games, which one, the image or the original game? This image was less like 2025 I think. Yeah, but it was not. I wasn't using like whatever state of the art, like you know. I forgot what model generated this, but it was. It was a pretty crappy model.
+
+Ganzo  3:45:21
+I hear, I hear this a lot, that AI can make art, or the computers can make art, and at first I was like also learning about the same Q, like I showed you, you know, kind of a vibe, and then it seems to me that, like, perhaps these critics don't really understand the definition of, like, what art is, because, like, art is something that you don't have to explain things to you in motion, and computers can 1,000,000% do that, so why do you think like you? Yeah, I guess, like, what made you like so compelled to kind of like, you know, once through this idea that you can make art with computers through, like, being design.
+
+dmarz  3:46:24
+Well, for me, it's more like proving it to myself. Like, I wanted to find whether I consider it art or not. Like, can it make me feel something? The most compelling, like, thing I found early on of this, where I had, like, the first step in my journey, was there was a story, like, very early in the image generation days, about this guy on Instagram, and there's like a whole genre of photography that's portrait photography, and the goal is to like capture someone like as they are, and kind of convey a story through like a photograph, so like it goes back like 100 years, and like I love photography, it's one of my passions, you know, like so there was this guy, and what he did was he basically had like a fake portrait photography Instagram account where he would do like Castleblad style, like very detailed portraits of like somebody, and he would include like, hey, I took this on this camera with like this lens at this aperture, here is the picture, here's like the person's backstory, and like, it actually blew up on Instagram, because his photos were really good. And then, like, four months in, the guy was like, 'I had, like, a confession to make. This has been, like, heavily weighing on me. Like, 100% of these images are, like, AI generated. Like, I just made up all of the camera information by, like, what kind of looked right. And this was like a huge scandal in, like, the photography community, but to me, like, the fact that it pissed people off so much, like, that was the art versus, like, the actual thing he was generating, you know, yeah, exactly, it made them feel something, right, and so that's when I was kind of like more convinced that, like, possibly, yes, but then, like, for me, as someone who makes, like, I just like to make art, like, all the time, just like, right, it's okay, but should I use this in what I'm doing, and, like, my process in some ways, like, wasn't super obvious how to integrate it, so that's kind of why I pushed it in Sway. Awesome, yeah,
+
+Kristel Alliksaar  3:48:20
+Judy, your point, that on the other hand, the situation also, like that's like how you think of an agent and how it makes art, so it's I think this is also something like people like
+
+LSDan  3:49:00
+piggybacking on that I would say the common thread, and what you guys are all talking about, is that you're driving the art, right? Like, you're, I would argue, you're creating the art, the agent is just a performer within, within the art that you're creating, and it's interesting, question of, is that agent then creating art at some level? Definitely,
+
+dmarz  3:49:19
+yeah, I mean, I think it's interesting with agents too, right? Because, like, the more we go, the more I kind of agree to some extent that, like, yes, this is, I think, part of what's difficult about games is you need to design like a very curated experience, like generally the game designer, they know what feeling they kind of want to create, or at least the universe of like how people will be reacting to certain things, and it's about like curating that to give someone like the experience, so to some extent, like I did very intentionally do that by like designing the loop and choosing the prompts and like tailoring it to the audience, so I knew it would be more impactful. I think like if agents get like more and more autonomous, it's like an interesting like domino question, right? It's like probably some human, like, first pushed over the domino, but like, could some downstream aspect of that, like, make somebody feel something, and to what extent is, like, the domino pusher, like, responsible versus not? Well, it's like, am I coding right? Exactly.
+
+dmarz  3:50:15
+Are you the program? Yeah, yeah,
+
+dmarz  3:50:20
+one last thing to say, which is I was having a conversation with my friend, a friend earlier, who's like super deep into like the auto learning and like RL stuff, and he was saying that like his thing is like, I want to win the Nobel Prize, and I believe like an agent will win a Nobel Prize imminently, and it's just about like finding the right prompt, you know what I mean, and so this is like what he's working on right now, and I was like, well, do you think like when you're doing that, like, question, will it actually be like a very sophisticated prompt, and like a harness, and like all this stuff, or are you just gonna say like give Nobel and like hit enter, that will be the prompt that wins the Nobel Prize, like how many bits of entropy are going to be in that Nobel Prize-winning prompt? I think it's kind of a similar question, as like, can you just be like, make art, and like, it's actually art, or do you need to like have a message, have like intentionality?
+
+Speaker 7  3:51:16
+Yeah, I was wondering, how you think about consent in these games, and how experiences like get more of a real thing beyond some curious, like what your case on all that, especially like it's,
+
+dmarz  3:51:42
+yeah, that's a really fun question. So, one of the aspects of this game was like when I kidnapped people and gave them the first briefing of, like, what was about to happen. I told them, like, look, like, there's this super secret technology on the communicator you're going to be using, and, like, no human can ever see your messages, you know? Like, this is between you and the alien. It's like super secure, which was a blatant lie. They're like stored in plain text on my server, you know. So, like, I could see that I felt too, but legitimately I did not actually look at them ever, nor open them. Also, Sam Hoffman could see that, that, but I think that was kind of obvious from playing games, so I felt like that was that was like consented to enough, I think. People do feel like, yes, like I mean, that's always somewhat the case with games, which is why also a lot of games now, like, they'll kind of warn you up front, like at least the themes they're going to explore, and things like that, because they do tend to take people into, into new places, I think this kind of experience would be, would be hard to scale, kind of probably for reasons like that, or like it would be, I wouldn't like just release this to the world, like I kind of managed that by just inviting like a few curated people, I'm like hoping they were okay with like he lying to them a little bit, but what philosophy now? No, no,
+
+Speaker 7  3:53:10
+basically like this guy, he discovered like a little private like social media network back in Gary, some friends that he didn't read his family training, and so they kind of spy on them, and basically over the next, like, four or five years, he, besides the interview, and one of their guys' life, he seemed like a rebounding best stuff for the good, and like essentially, like, like, because he knew things about him, like, meet him in real life, and he sent him on these missions and stuff like that. There's no podcast about it, but pretty cool, like this, and I think some loves questions, but I kind of, I think it's like more and more, especially with the tool that we have, like we can create these types of like slowly up augment reality, like immersive in your life, like 50, or like people sign up for, like, some scavenger hunting, there's some scavenger hunts at some point.
+
+dmarz  3:54:17
+Yeah, one of my, one of my favorite books, as a teenager, which I re-read it as an adult, and I think it's actually horribly written, so I wouldn't necessarily recommend it, but it was this book called Thee, and like the computer demon, and it was about this like game designer who died of like a terminal illness, and he wanted to be immortal, so he creates this like program, which basically people can play this game where like they're seeing like the interface, but like other people don't know they're playing it, and essentially the goal of the game was like to build like a shadow state that like goes to war with the US government, but like that was like on a very meta level, and like no individual could see from like necessarily their actions what like the whole meta was, and I think it's kind of interesting because in some ways, like a lot of programmers do that, like isn't Facebook just like some sort of weird augmented reality meta game in the first place, where like Mark Zuckerberg is kind of messing with us, like we
+
+Speaker 7  3:55:12
+do with our agents, I guess context engineering is like we get different graded outputs by constraining agents in different conditions, yeah, there's the need to get yeah,
+
+dmarz  3:55:23
+I think there's a lot of potential there. Yeah,
+
+dmarz  3:55:28
+say more about trolling as a way of making
+
+LSDan  3:55:30
+impact.
+
+dmarz  3:55:32
+Oh, trolling, so trolling to me, trolling is like it's like it's like a form of play, it's good-natured fun, but it's also very serious, right? So, like, because of the things around, like, consent and being kind to people and stuff, like, you should never troll somebody to be mean, because that's just all bullying, that seems bad. But I think trolling is about, like, like kind of lack of seriousness in the, in the tone of what you're doing while being like actually very serious in the intent, so like obviously I was kind of trolling people by telling them there was going to be this really cool experience. People kind of trust me because like I don't know, I've been in the hackathon and like I do well, so they thought it was like this very serious thing, right? And then they get like shoved into a van with like a bunch of loud music, I also had like super loud speakers and stuff, you know, like told to dump their secrets to an AI. I think that's kind of trolling. I also think, for me, like I don't like it when people take me seriously. It's a lot more fun to be playful. This is like partially true at work, right? It's I feel like if I say things, people sometimes just believe them, and I would rather, yeah, I would rather they like just their prior me that I'm wrong. It's like a lot more fun, and I find it like a lot more connective. And so, yeah, I love trolling. My trolling is very serious. I'll probably troll you all, and I stopped by for the next few weeks.
+
+Albiona Hoti  3:57:04
+What's your percentage for a month?
+
+dmarz  3:57:14
+I think all I do is like some form of troll, you know. In some ways, maybe not this. This is kind of earnest, which is rare for me, you know. So today it's maybe a seven, but like on an average day maybe it's like a nine, and I aspire to be a 10. Yeah, I don't know. DMARS, how much do I troll? Yeah. Like, yeah. Well, Dee Mars gets his life trolled by me way too often, so you know, yeah,
+
+it's limited until the troll expands
+
+it. Yeah, I thought another form of trolling I really like is just pretending like, like, like when you do understand something, just asking really stupid questions that, like, seem like you don't understand it, to try to, like, get someone to, like, realize something. It's like a very fun form of play for me. So, like, any of these stuff, like, I used to have this thing where, like, I go to every conference and there would be, like, 50 people, like being like, 'Hey, I solved me. Here's my like threshold encryption thing. Can I like show it to you? And like, I don't know, I could tell them my honest opinion about like why that doesn't work,
+
+Unknown Speaker  3:58:31
+I.

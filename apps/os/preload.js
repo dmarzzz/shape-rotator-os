@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("api", {
   loadContextVault:       ()   => ipcRenderer.invoke("context-vault:manifest"),
   scanContextVault:       ()   => ipcRenderer.invoke("context-vault:scan"),
   readContextVaultSource: (id) => ipcRenderer.invoke("context-vault:read-source", id),
+  readContextVaultRawBundle: () => ipcRenderer.invoke("context-vault:read-raw-bundle"),
   revealContextVaultSource: (id) => ipcRenderer.invoke("context-vault:reveal-source", id),
   revealContextVaultCorpus: () => ipcRenderer.invoke("context-vault:reveal-corpus"),
   clipboardWrite: (text) => ipcRenderer.invoke("clipboard:write", text),
