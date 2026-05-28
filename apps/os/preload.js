@@ -93,5 +93,20 @@ contextBridge.exposeInMainWorld("api", {
       ipcRenderer.on("easel:rx-frame", handler);
       return () => ipcRenderer.removeListener("easel:rx-frame", handler);
     },
+    onRxAudio:   (cb) => {
+      const handler = (_e, frame) => { try { cb(frame); } catch {} };
+      ipcRenderer.on("easel:rx-audio", handler);
+      return () => ipcRenderer.removeListener("easel:rx-audio", handler);
+    },
+    // Per-source low-bandwidth thumbnail receivers — drives the live
+    // previews inside each LAN feed card.
+    thumbStart:  (sourceName) => ipcRenderer.invoke("easel:thumb-start", { sourceName }),
+    thumbStop:   (sourceName) => ipcRenderer.invoke("easel:thumb-stop", { sourceName }),
+    thumbStopAll: () => ipcRenderer.invoke("easel:thumb-stop-all"),
+    onThumbFrame: (cb) => {
+      const handler = (_e, frame) => { try { cb(frame); } catch {} };
+      ipcRenderer.on("easel:thumb-frame", handler);
+      return () => ipcRenderer.removeListener("easel:thumb-frame", handler);
+    },
   },
 });

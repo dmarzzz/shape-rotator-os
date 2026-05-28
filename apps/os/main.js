@@ -481,6 +481,10 @@ ipcMain.handle("easel:rx-start", async (e, opts) => {
       if (wc.isDestroyed()) return;
       try { wc.send("easel:rx-frame", frame); } catch {}
     },
+    onAudio: (frame) => {
+      if (wc.isDestroyed()) return;
+      try { wc.send("easel:rx-audio", frame); } catch {}
+    },
   });
 });
 ipcMain.handle("easel:rx-stop", async (e) => {
@@ -492,6 +496,22 @@ ipcMain.handle("easel:rx-stop", async (e) => {
   return easelNdi.recvStop();
 });
 ipcMain.handle("easel:rx-stats", async () => easelNdi.recvStats());
+
+// Per-source thumbnail receivers — drive the live previews inside each
+// LAN feed card. Frames stream back via "easel:thumb-frame" tagged with
+// sourceName so the renderer can route to the right card canvas.
+ipcMain.handle("easel:thumb-start", async (e, opts) => {
+  const wc = e.sender;
+  return easelNdi.thumbStart({
+    sourceName: opts && opts.sourceName,
+    onFrame: (frame) => {
+      if (wc.isDestroyed()) return;
+      try { wc.send("easel:thumb-frame", frame); } catch {}
+    },
+  });
+});
+ipcMain.handle("easel:thumb-stop", async (_e, opts) => easelNdi.thumbStop(opts && opts.sourceName));
+ipcMain.handle("easel:thumb-stop-all", async () => easelNdi.thumbStopAll());
 
 // Dev-only sync-client smoke test. Triggers the renderer's
 // window.__srfgSyncClientSelfTest() helper (apps/os/src/renderer/sync-client.js

@@ -105,7 +105,12 @@ let _rxReceiver = null;
 let _rxAlive = false;
 let _rxFrameCount = 0;
 let _rxOnFrame = null;
+let _rxOnAudio = null;
 let _rxCurrentSourceName = "";
+
+// Per-source low-bandwidth thumbnail receivers (independent of the main
+// viewer receiver). Map<sourceName, { receiver, alive, onFrame }>.
+const _thumbs = new Map();
 
 // Discover NDI sources on the LAN. Returns [{ name, urlAddress }]. Wrapped
 // in a soft timeout so a quiet LAN doesn't hang the renderer.
@@ -146,7 +151,7 @@ async function find({ timeoutMs = 2500 } = {}) {
   }
 }
 
-async function recvStart({ sourceName, onFrame } = {}) {
+async function recvStart({ sourceName, onFrame, onAudio } = {}) {
   await recvStop();
   if (!sourceName) return { ok: false, error: "no source name" };
   const g = load();
@@ -166,11 +171,35 @@ async function recvStart({ sourceName, onFrame } = {}) {
     return { ok: false, error: "receiver init failed: " + e.message };
   }
   _rxOnFrame = typeof onFrame === "function" ? onFrame : null;
+  _rxOnAudio = typeof onAudio === "function" ? onAudio : null;
   _rxAlive = true;
   _rxFrameCount = 0;
   _rxCurrentSourceName = sourceName;
   pumpRecv().catch((e) => console.error("[easel-ndi] recv pump:", e.message));
+  pumpRecvAudio().catch((e) => console.error("[easel-ndi] recv-audio pump:", e.message));
   return { ok: true, name: sourceName };
+}
+
+// Audio pump runs in parallel with the video pump — grandiose's receiver
+// exposes separate .video()/.audio() methods, so we just drive both loops.
+async function pumpRecvAudio() {
+  while (_rxAlive && _rxReceiver) {
+    let frame = null;
+    try { frame = await _rxReceiver.audio(1000); } catch { /* timeout / transient */ }
+    if (!_rxAlive) break;
+    if (frame && frame.data && frame.sampleRate > 0 && frame.noSamples > 0) {
+      if (_rxOnAudio) {
+        try {
+          _rxOnAudio({
+            sampleRate: frame.sampleRate,
+            channels: frame.noChannels,
+            samples: frame.noSamples,
+            data: frame.data,
+          });
+        } catch {}
+      }
+    }
+  }
 }
 
 async function pumpRecv() {
@@ -201,11 +230,94 @@ async function pumpRecv() {
 async function recvStop() {
   _rxAlive = false;
   _rxOnFrame = null;
+  _rxOnAudio = null;
   if (_rxReceiver) {
     try { await _rxReceiver.destroy(); } catch {}
     _rxReceiver = null;
   }
   _rxCurrentSourceName = "";
+  return true;
+}
+
+// ─── per-source thumbnail receivers ──────────────────────────────────
+// Each card in the LAN feed gets a tiny, low-bandwidth receiver so the
+// thumbnail shows actual live preview frames at ~3fps (Twitch parity).
+// Runs independently of the main viewer receiver — even if you're
+// watching source A in the viewer, the thumb for A keeps updating.
+async function thumbStart({ sourceName, onFrame } = {}) {
+  if (!sourceName) return { ok: false, error: "no source name" };
+  if (_thumbs.has(sourceName)) {
+    // Already running — just rebind the callback to the current renderer.
+    _thumbs.get(sourceName).onFrame = typeof onFrame === "function" ? onFrame : null;
+    return { ok: true, already: true };
+  }
+  const g = load();
+  const sources = await find({ timeoutMs: 2000 });
+  const source = sources.find((s) => s.name === sourceName);
+  if (!source) return { ok: false, error: "source not on LAN" };
+  let receiver;
+  try {
+    receiver = await g.receive({
+      source,
+      colorFormat: g.COLOR_FORMAT_RGBX_RGBA,
+      bandwidth: g.BANDWIDTH_LOWEST,   // tiny preview is enough for the thumb
+      allowVideoFields: false,
+    });
+  } catch (e) {
+    return { ok: false, error: "thumb receiver failed: " + e.message };
+  }
+  const state = { receiver, alive: true, onFrame: typeof onFrame === "function" ? onFrame : null };
+  _thumbs.set(sourceName, state);
+  pumpThumb(sourceName).catch((e) => console.error("[easel-ndi] thumb pump:", e.message));
+  return { ok: true };
+}
+
+async function pumpThumb(sourceName) {
+  let lastSentAt = 0;
+  while (true) {
+    const s = _thumbs.get(sourceName);
+    if (!s || !s.alive) break;
+    let frame = null;
+    try { frame = await s.receiver.video(1000); } catch { /* transient */ }
+    const s2 = _thumbs.get(sourceName);
+    if (!s2 || !s2.alive) break;
+    if (!frame || !frame.data || !frame.xres || !frame.yres) continue;
+    // Throttle emission to ~3fps regardless of source rate.
+    const now = Date.now();
+    if (now - lastSentAt < 320) continue;
+    lastSentAt = now;
+    if (s2.onFrame) {
+      try {
+        s2.onFrame({
+          sourceName,
+          width: frame.xres,
+          height: frame.yres,
+          lineStride: frame.lineStrideBytes || frame.xres * 4,
+          data: frame.data,
+        });
+      } catch {}
+    }
+  }
+}
+
+async function thumbStop(sourceName) {
+  if (!sourceName) return true;
+  const s = _thumbs.get(sourceName);
+  if (!s) return true;
+  s.alive = false;
+  s.onFrame = null;
+  try { await s.receiver.destroy(); } catch {}
+  _thumbs.delete(sourceName);
+  return true;
+}
+
+async function thumbStopAll() {
+  const names = [..._thumbs.keys()];
+  for (const n of names) {
+    const s = _thumbs.get(n);
+    if (s) { s.alive = false; s.onFrame = null; try { await s.receiver.destroy(); } catch {} }
+    _thumbs.delete(n);
+  }
   return true;
 }
 
@@ -217,4 +329,8 @@ function recvStats() {
   };
 }
 
-module.exports = { isAvailable, start, sendFrame, stats, stop, find, recvStart, recvStop, recvStats };
+module.exports = {
+  isAvailable, start, sendFrame, stats, stop,
+  find, recvStart, recvStop, recvStats,
+  thumbStart, thumbStop, thumbStopAll,
+};

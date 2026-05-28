@@ -11464,12 +11464,31 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   height: 31.5px;
   border-radius: 5px;
   overflow: hidden;
-  /* Restrained dark with a faint sig-color glow — not a saturated fill. */
+  /* Restrained dark with a faint sig-color glow — visible until a live
+     thumbnail frame paints over it. */
   background:
     radial-gradient(120% 100% at 30% 30%, color-mix(in oklab, var(--ews-sig, #ff7a3d) 22%, #07060a) 0%, #07060a 70%);
   display: flex; align-items: center; justify-content: center;
   flex: 0 0 auto;
 }
+.ews-thumb-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.ews-thumb-canvas.has-frame { opacity: 1; }
+/* Once a live frame is showing, hide the avatar so the preview reads
+   clean. Badges (LIVE / watching / YOU) stay visible above. */
+.ews-thumb-canvas.has-frame ~ .ews-avatar { opacity: 0; }
+.ews-card .ews-avatar { transition: opacity 200ms ease; }
+.ews-card .ews-live,
+.ews-card .ews-you,
+.ews-card .ews-watching { z-index: 2; }
 .ews-card .ews-avatar {
   display: flex; align-items: center; justify-content: center;
   width: 22px; height: 22px;
@@ -11604,6 +11623,20 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 }
 .evi-sep { opacity: 0.35; }
 .evi-duration { font-variant-numeric: tabular-nums; }
+.evi-mute {
+  appearance: none;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 50%;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(240,236,230,0.75);
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.evi-mute:hover { background: rgba(255,255,255,0.08); color: #f0ece6; border-color: rgba(255,122,61,0.4); }
+.evi-mute-glyph[hidden] { display: none; }
 /* Author rules with `display:` override the UA stylesheet's
    `[hidden] { display: none }` (equal specificity, later wins) — restore
    the hide for any element we toggle via the hidden attribute. */

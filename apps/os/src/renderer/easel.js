@@ -54,6 +54,15 @@ let _watchFrames = 0;
 let _watchStartMs = 0;
 let _liveStartMs = 0;
 let _infoTick = null;          // 1s ticker that updates the viewer's duration
+let _watchRefreshTimer = null; // background poll of findNdi while easel is active
+let _thumbFrameUnsub = null;   // detach for onThumbFrame
+let _thumbsRunning = new Set();// sourceNames with an active thumb receiver
+// Audio playback
+let _audioCtx = null;
+let _audioGain = null;
+let _audioMuted = (() => { try { return localStorage.getItem("easel:audio-muted") !== "0"; } catch { return true; } })();
+let _audioNext = 0;
+let _audioUnsub = null;
 
 // ─── identity + duration helpers ──────────────────────────────────────
 // First letter (or • fallback) — used in the avatar circle.
@@ -131,6 +140,21 @@ export function setActive(on) {
   // NDI stream the moment you clicked elsewhere. The capture pump + NDI sender
   // stay live until you explicitly stop or quit; returning re-attaches to the
   // still-running stream (mount() is idempotent, so the live preview persists).
+  if (_active) {
+    // Background-poll the LAN every 9s so new streams appear without a click.
+    if (!_watchRefreshTimer && _ndiAvailable) {
+      _watchRefreshTimer = setInterval(() => loadWatchSources().catch(() => {}), 9000);
+    }
+  } else {
+    if (_watchRefreshTimer) { clearInterval(_watchRefreshTimer); _watchRefreshTimer = null; }
+    // Tear down per-card thumb receivers when easel isn't visible — they
+    // burn LAN bandwidth + native resources otherwise. Card list re-renders
+    // (and starts thumbs again) when the user returns.
+    if (window.api && window.api.easel && window.api.easel.thumbStopAll) {
+      window.api.easel.thumbStopAll().catch(() => {});
+    }
+    _thumbsRunning.clear();
+  }
 }
 
 export function notifyDataChanged() { /* nothing data-driven here */ }
@@ -215,6 +239,14 @@ function renderShell() {
                 <span class="evi-duration" data-evi-duration>00:00</span>
               </div>
             </div>
+            <button class="evi-mute" type="button" data-evi-mute aria-label="toggle audio">
+              <svg class="evi-mute-glyph" data-evi-mute-on viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                <path d="M5 9v6h4l5 4V5L9 9H5zm11.5 3c0-1.77-1-3.29-2.5-4.03v8.05c1.5-.73 2.5-2.25 2.5-4.02z"/>
+              </svg>
+              <svg class="evi-mute-glyph" data-evi-mute-off viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true" hidden>
+                <path d="M16.5 12c0-1.77-1-3.29-2.5-4.03v2.21l2.45 2.45c.03-.21.05-.42.05-.63zM5 9v6h4l5 4V5L9 9H5zM3.27 2L2 3.27 6.73 8H5v8h4l5 5v-5.73L18.73 18c-.55.45-1.16.81-1.83 1.05V21c1.39-.31 2.63-.97 3.69-1.84L21.73 21 23 19.73 3.27 2z"/>
+              </svg>
+            </button>
           </footer>
         </main>
       </div>
@@ -235,6 +267,11 @@ function renderShell() {
   if (_watchCanvas) {
     _stage.querySelector("[data-watch-refresh]").addEventListener("click", () => loadWatchSources());
     loadWatchSources();
+    // Persistent listener: per-card thumbnail frames stream in tagged with
+    // sourceName so we can route each to the right card's canvas.
+    if (!_thumbFrameUnsub) _thumbFrameUnsub = window.api.easel.onThumbFrame((frame) => onThumbFrame(frame));
+    // Persistent listener: audio frames flow whenever we're receiving.
+    if (!_audioUnsub) _audioUnsub = window.api.easel.onRxAudio((frame) => onRxAudio(frame));
   }
 
   // Viewer mode tabs — preview (your broadcast) vs watching (a LAN stream).
@@ -242,7 +279,110 @@ function renderShell() {
     btn.addEventListener("click", () => setViewerMode(btn.getAttribute("data-viewer-tab"), { user: true }));
   });
 
+  // Mute toggle in the viewer info bar.
+  const muteBtn = _stage.querySelector("[data-evi-mute]");
+  if (muteBtn) {
+    muteBtn.addEventListener("click", toggleAudioMute);
+    syncMuteUi();
+  }
+
   refreshStatus(null);
+}
+
+// ─── audio playback (Web Audio) ───────────────────────────────────────
+function initAudio() {
+  if (_audioCtx) return;
+  try {
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    _audioGain = _audioCtx.createGain();
+    _audioGain.gain.value = _audioMuted ? 0 : 1;
+    _audioGain.connect(_audioCtx.destination);
+    _audioNext = 0;
+  } catch (e) {
+    console.warn("[easel] audio init failed:", e.message);
+  }
+}
+function onRxAudio(frame) {
+  if (_audioMuted) return;            // skip work entirely when muted
+  if (!frame || !frame.data) return;
+  if (!_audioCtx) initAudio();
+  if (!_audioCtx || !_audioGain) return;
+  const { sampleRate, channels, samples, data } = frame;
+  if (!sampleRate || !channels || !samples) return;
+  // grandiose's default audio format is FLOAT_32_SEPARATE: channel-strided
+  // float32 with channel 0's `samples` floats first, then channel 1, etc.
+  const f32 = new Float32Array(data.buffer, data.byteOffset, data.byteLength / 4);
+  let buf;
+  try { buf = _audioCtx.createBuffer(channels, samples, sampleRate); }
+  catch { return; }
+  for (let ch = 0; ch < channels; ch++) {
+    buf.copyToChannel(f32.subarray(ch * samples, (ch + 1) * samples), ch);
+  }
+  const now = _audioCtx.currentTime;
+  // Small cushion ahead of currentTime, then chain. If we've drifted way
+  // behind real-time (paused tab, GC pause, etc.) snap forward to drop the
+  // backlog instead of building latency.
+  let startAt = Math.max(now + 0.03, _audioNext);
+  if (startAt - now > 0.5) startAt = now + 0.05;
+  const node = _audioCtx.createBufferSource();
+  node.buffer = buf;
+  node.connect(_audioGain);
+  node.start(startAt);
+  _audioNext = startAt + samples / sampleRate;
+}
+function toggleAudioMute() {
+  _audioMuted = !_audioMuted;
+  try { localStorage.setItem("easel:audio-muted", _audioMuted ? "1" : "0"); } catch {}
+  if (_audioCtx && _audioGain) _audioGain.gain.value = _audioMuted ? 0 : 1;
+  if (!_audioMuted && _audioCtx && _audioCtx.state === "suspended") {
+    _audioCtx.resume().catch(() => {});
+  }
+  // Reset the schedule clock so we don't try to catch up on the backlog.
+  if (_audioCtx) _audioNext = _audioCtx.currentTime + 0.05;
+  syncMuteUi();
+}
+function syncMuteUi() {
+  const onG = _stage && _stage.querySelector("[data-evi-mute-on]");
+  const offG = _stage && _stage.querySelector("[data-evi-mute-off]");
+  if (onG)  onG.hidden  = _audioMuted;
+  if (offG) offG.hidden = !_audioMuted;
+}
+
+// ─── live thumbnails ──────────────────────────────────────────────────
+// Frames arrive tagged with sourceName; route to the matching card canvas.
+function onThumbFrame(frame) {
+  if (!frame || !frame.data || !frame.sourceName || !_stage) return;
+  const cvs = _stage.querySelector(`[data-ews-thumb="${cssEscape(frame.sourceName)}"]`);
+  if (!cvs) return;
+  const { width, height, lineStride, data } = frame;
+  if (!width || !height) return;
+  // Source frames are usually full-res; the canvas is 160×90 — drawImage
+  // an offscreen ImageBitmap or putImageData scaled. Simpler + fast enough:
+  // build an ImageData at native size in a temp canvas, then drawImage to
+  // downsample. createImageBitmap also works and avoids the alpha-fix loop.
+  const expected = width * 4;
+  let buf;
+  if (lineStride === expected) {
+    buf = new Uint8ClampedArray(data.buffer, data.byteOffset, width * height * 4);
+  } else {
+    buf = new Uint8ClampedArray(width * height * 4);
+    const src = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    for (let y = 0; y < height; y++) buf.set(src.subarray(y * lineStride, y * lineStride + expected), y * expected);
+  }
+  for (let i = 3; i < buf.length; i += 4) buf[i] = 255;
+  const imgData = new ImageData(buf, width, height);
+  // Offscreen canvas → draw to card canvas (downscale via drawImage).
+  const off = (onThumbFrame._off ||= document.createElement("canvas"));
+  if (off.width !== width || off.height !== height) { off.width = width; off.height = height; }
+  off.getContext("2d").putImageData(imgData, 0, 0);
+  const ctx = cvs.getContext("2d");
+  ctx.drawImage(off, 0, 0, cvs.width, cvs.height);
+  cvs.classList.add("has-frame");
+}
+function cssEscape(s) {
+  // Minimal CSS attribute-selector escape — source names contain `(`, `)`,
+  // `.`, spaces. CSS.escape() exists on modern browsers but we'll be safe.
+  return (typeof CSS !== "undefined" && CSS.escape) ? CSS.escape(s) : String(s).replace(/(["'\\\n])/g, "\\$1");
 }
 
 // Drive what the right-pane viewer shows. Modes:
@@ -325,6 +465,7 @@ async function loadWatchSources() {
                      data-watch-self="${isSelf ? "1" : "0"}"
                      style="--ews-sig:${esc(sig)}">
       <span class="ews-thumb">
+        ${!isSelf ? `<canvas class="ews-thumb-canvas" data-ews-thumb="${esc(source.name)}" width="160" height="90"></canvas>` : ""}
         <span class="ews-avatar">${esc(initialOf(name))}</span>
         <span class="ews-live"><span class="ews-live-dot"></span>LIVE</span>
         ${isSelf ? `<span class="ews-you" aria-label="you">YOU</span>` : ""}
@@ -348,6 +489,25 @@ async function loadWatchSources() {
       }
     });
   });
+
+  // Reconcile per-card thumbnail receivers — start one for every non-self
+  // card now visible; stop any whose source dropped off the list.
+  const wantThumbs = new Set(
+    matched.filter((m) => !m.isSelf).map((m) => m.source.name)
+  );
+  for (const existing of _thumbsRunning) {
+    if (!wantThumbs.has(existing)) {
+      window.api.easel.thumbStop(existing).catch(() => {});
+      _thumbsRunning.delete(existing);
+    }
+  }
+  for (const name of wantThumbs) {
+    if (_thumbsRunning.has(name)) continue;
+    _thumbsRunning.add(name);
+    window.api.easel.thumbStart(name).then((r) => {
+      if (!r || r.ok === false) _thumbsRunning.delete(name);
+    }).catch(() => _thumbsRunning.delete(name));
+  }
 }
 
 // Update the viewer's info bar (avatar + title + LIVE + duration) to match
