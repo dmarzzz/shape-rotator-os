@@ -11097,8 +11097,26 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   overflow-y: auto;
   height: 100%;
   box-sizing: border-box;
+  background:
+    linear-gradient(180deg, rgba(var(--overlay-rgb), 0.24), rgba(var(--overlay-rgb), 0.02) 42%, transparent);
 }
-.links-head { margin: 0 0 40px 0; max-width: 88ch; }
+.links-head {
+  margin: 0 0 32px 0;
+  max-width: 1040px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
+  position: relative;
+}
+.links-head::after {
+  content: "05 routes · 02 handouts · 02 repos · 01 download";
+  display: block;
+  margin-top: 18px;
+  font-family: var(--sr-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ed-ink-4, rgba(var(--ink-rgb), 0.42));
+}
 .links-eyebrow {
   font-family: var(--sr-font-mono);
   font-size: 11px;
@@ -11112,7 +11130,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   font-style: italic;
   font-size: 38px;
   line-height: 1.1;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--ed-ink-1, #f5f3ee);
   margin: 0 0 10px 0;
   text-transform: lowercase;
@@ -11123,34 +11141,79 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   line-height: 1.55;
   color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78));
   margin: 0;
+  max-width: 66ch;
 }
 .links-grid {
+  counter-reset: link-route;
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
   gap: 16px;
-  max-width: 1200px;
+  max-width: 1120px;
+}
+.links-grid > li {
+  counter-increment: link-route;
+  min-width: 0;
 }
 .link-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 18px 20px 16px;
-  background: rgba(var(--ink-rgb), 0.025);
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
+  gap: 8px;
+  min-height: 210px;
+  padding: 22px 20px 16px;
+  background:
+    linear-gradient(180deg, rgba(var(--ink-rgb), 0.040), rgba(var(--ink-rgb), 0.012));
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
   border-radius: 8px;
   text-decoration: none;
   color: inherit;
-  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  box-shadow:
+    inset 0 1px 0 rgba(var(--overlay-rgb), 0.20),
+    inset 3px 0 0 rgba(143, 34, 14, 0.26);
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
   height: 100%;
   box-sizing: border-box;
 }
+.link-card::before {
+  content: counter(link-route, decimal-leading-zero);
+  align-self: flex-start;
+  font-family: var(--sr-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: var(--sr-red, #8f220e);
+}
+.link-card::after {
+  content: "open";
+  position: absolute;
+  top: 22px;
+  right: 20px;
+  font-family: var(--sr-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ed-ink-4, rgba(var(--ink-rgb), 0.42));
+  transition: color 180ms ease, transform 180ms ease;
+}
 .link-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(var(--ink-rgb), 0.30);
-  background: rgba(var(--ink-rgb), 0.05);
+  border-color: rgba(var(--ink-rgb), 0.28);
+  background:
+    linear-gradient(180deg, rgba(var(--ink-rgb), 0.060), rgba(var(--ink-rgb), 0.022));
+  box-shadow:
+    inset 0 1px 0 rgba(var(--overlay-rgb), 0.28),
+    inset 3px 0 0 var(--sr-red, #8f220e),
+    0 16px 44px rgba(0, 0, 0, 0.10);
+}
+.link-card:hover::after {
+  color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78));
+  transform: translateX(2px);
+}
+.link-card:focus-visible {
+  outline: 1px solid var(--sr-red, #8f220e);
+  outline-offset: 3px;
 }
 .link-card-eyebrow {
   font-family: var(--sr-font-mono);
@@ -11162,9 +11225,9 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .link-card-title {
   font-family: var(--sr-font-sans);
   font-size: 20px;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   color: var(--ed-ink-1, #f5f3ee);
-  margin: 6px 0 2px;
+  margin: 0 0 2px;
   line-height: 1.15;
 }
 .link-card-desc {
@@ -11172,7 +11235,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   font-size: 12.5px;
   line-height: 1.45;
   color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78));
-  margin: 4px 0 10px;
+  margin: 2px 0 8px;
 }
 .link-card-desc code {
   font-family: var(--sr-font-mono);
@@ -11187,11 +11250,27 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   letter-spacing: 0.02em;
   color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.55));
   margin-top: auto;
-  padding-top: 8px;
+  line-height: 1.45;
+  padding-top: 7px;
   border-top: 1px dashed rgba(var(--ink-rgb), 0.10);
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .link-card:hover .link-card-url { color: var(--ed-ink-1, #f5f3ee); }
+
+@media (max-width: 760px) {
+  .links-view {
+    padding: 32px 22px 36px;
+  }
+  .links-head {
+    margin-bottom: 22px;
+  }
+  .links-title {
+    font-size: 30px;
+  }
+  .link-card {
+    min-height: 0;
+  }
+}
 
 /* Back-to-apps bar at the top of the Atlas sub-view. */
 .atlas-back-bar {
