@@ -3734,7 +3734,7 @@ function wireAsks() {
 // GitHub PR flow for asks or program notes.
 
 const CONTEXT_CONTENT_VERSION = "v0.0.3";
-const CONTEXT_CONTENT_RELEASE_NOTE = "reader drafts · raw scripts · copy bundle · local-date calendar";
+const CONTEXT_CONTENT_RELEASE_NOTE = "reader drafts · transcripts · copy bundle · local-date calendar";
 
 function contextVaultAvailable() {
   return !!(window.api?.loadContextVault && window.api?.scanContextVault);
@@ -3834,7 +3834,7 @@ async function loadContextRawScriptText(sourceId) {
   state.contextVault.rawLoadingId = sourceId;
   try {
     const res = await window.api.readContextVaultSource(sourceId);
-    if (!res?.ok) throw new Error(res?.error || "raw script read failed");
+    if (!res?.ok) throw new Error(res?.error || "transcript read failed");
     state.contextVault.rawTextById = {
       ...(state.contextVault.rawTextById || {}),
       [sourceId]: res.text || "",
@@ -3843,7 +3843,7 @@ async function loadContextRawScriptText(sourceId) {
   } catch (e) {
     state.contextVault.rawTextById = {
       ...(state.contextVault.rawTextById || {}),
-      [sourceId]: `Could not load raw script: ${e?.message || String(e)}`,
+      [sourceId]: `Could not load transcript: ${e?.message || String(e)}`,
     };
   } finally {
     if (state.contextVault.rawLoadingId === sourceId) state.contextVault.rawLoadingId = null;
@@ -4042,7 +4042,7 @@ function renderContextVaultDetail(selected) {
 }
 
 function contextRawScriptTitle(source) {
-  return source?.title || source?.path?.split(/[\\/]/).pop()?.replace(/\.txt$/i, "") || "Untitled raw script";
+  return source?.title || source?.path?.split(/[\\/]/).pop()?.replace(/\.txt$/i, "") || "Untitled transcript";
 }
 
 function contextRawScriptMeta(source) {
@@ -4057,24 +4057,24 @@ function renderContextVaultRawDetail(selected) {
   if (!selected) {
     return `
       <article class="alch-cv-detail alch-cv-empty-detail">
-        <h3>no raw scripts indexed yet</h3>
-        <p>Refresh the context vault to load bundled and local raw scripts.</p>
+        <h3>no transcripts indexed yet</h3>
+        <p>Refresh the context vault to load bundled and local transcripts.</p>
       </article>
     `;
   }
   const title = contextRawScriptTitle(selected);
   const text = state.contextVault.rawTextById?.[selected.id] || "";
   const loading = state.contextVault.rawLoadingId === selected.id && !text;
-  const fallback = selected.excerpt || "Loading raw script...";
-  const displayText = loading ? "Loading raw script..." : (text || fallback);
+  const fallback = selected.excerpt || "Loading transcript...";
+  const displayText = loading ? "Loading transcript..." : (text || fallback);
   return `
     <article class="alch-cv-detail alch-cv-raw-detail">
       <header class="alch-cv-detail-head">
         <div>
-          <span class="alch-cv-eyebrow">raw script · txt</span>
+          <span class="alch-cv-eyebrow">transcript · txt</span>
         </div>
         <div class="alch-cv-detail-actions">
-          <button class="alch-cv-md-action" type="button" data-cv-copy-raw-bundle title="copy all raw scripts">
+          <button class="alch-cv-md-action" type="button" data-cv-copy-raw-bundle title="copy all transcripts">
             <span class="alch-cv-md-action-label">copy all</span>
           </button>
           <button class="alch-cv-md-action" type="button" data-cv-copy-raw="${escAttr(selected.id)}" title="copy ${escAttr(title)}">
@@ -4206,7 +4206,7 @@ function renderContextVault() {
     ? rawScripts.map(s => {
       const selectedCls = selectedRaw && selectedRaw.id === s.id ? " is-selected" : "";
       return `
-        <button class="alch-cv-source${selectedCls}" type="button" data-cv-raw-source="${escAttr(s.id)}">
+        <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-raw-source="${escAttr(s.id)}">
           <strong>${escHtml(contextRawScriptTitle(s))}</strong>
           <span class="alch-cv-source-meta">${escHtml(contextRawScriptMeta(s))}</span>
         </button>
@@ -4231,7 +4231,7 @@ function renderContextVault() {
         <div>
           <p class="alch-cv-kicker">local context vault</p>
           <h2>context library</h2>
-          <p>Reader-facing article drafts plus the raw scripts they came from, bundled into the OS for local prompting.</p>
+          <p>Reader-facing article drafts plus the transcripts they came from, bundled into the OS for local prompting.</p>
           <div class="alch-cv-release">
             <span class="alch-cv-release-version">content ${escHtml(CONTEXT_CONTENT_VERSION)}</span>
             <span class="alch-cv-release-note">${escHtml(CONTEXT_CONTENT_RELEASE_NOTE)}</span>
@@ -4247,10 +4247,10 @@ function renderContextVault() {
         <aside class="alch-cv-sidebar">
           <div class="alch-cv-mode">
             <button class="${mode === "articles" ? "is-selected" : ""}" type="button" data-cv-mode="articles">articles <span>${sources.length}</span></button>
-            <button class="${mode === "raw" ? "is-selected" : ""}" type="button" data-cv-mode="raw">raw scripts <span>${rawScripts.length}</span></button>
+            <button class="${mode === "raw" ? "is-selected" : ""}" type="button" data-cv-mode="raw">transcripts <span>${rawScripts.length}</span></button>
           </div>
-          <h3>${mode === "raw" ? "raw scripts" : "articles"}</h3>
-          <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">refresh to load ${mode === "raw" ? "raw scripts" : "articles"}.</p>`}</div>
+          <h3>${mode === "raw" ? "transcripts" : "articles"}</h3>
+          <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">refresh to load ${mode === "raw" ? "transcripts" : "articles"}.</p>`}</div>
         </aside>
         ${detail}
       </div>

@@ -13357,6 +13357,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 @media (max-width: 720px) {
   .swarm-input-row { grid-template-columns: 1fr; }
   .swarm-panel-card { width: calc(100vw - 24px); height: calc(100vh - 48px); }
+}
 
 /* ─── Context Vault ─────────────────────────────────────────────────── */
 .alch-cv {
@@ -13605,8 +13606,29 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 }
 
 .alch-cv-source strong {
+  display: block;
+  overflow-wrap: anywhere;
   color: #f5f0e8;
   font: 460 14px/1.25 var(--sans);
+}
+
+.alch-cv-transcript-source {
+  gap: 7px;
+  min-height: auto;
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+
+.alch-cv-transcript-source strong {
+  font-size: 13px;
+  line-height: 1.32;
+}
+
+.alch-cv-transcript-source .alch-cv-source-meta {
+  display: block;
+  max-width: 100%;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .alch-cv-source-dek {

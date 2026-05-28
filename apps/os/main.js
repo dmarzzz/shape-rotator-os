@@ -109,7 +109,7 @@ const LEGACY_PREFS_FILE = path.join(STATE_DIR, "wall_prefs.json");
 const CONTEXT_VAULT_DIR = path.join(STATE_DIR, "context-vault");
 const CONTEXT_VAULT_MANIFEST = path.join(CONTEXT_VAULT_DIR, "manifest.json");
 const CONTEXT_VAULT_ARTICLE_INDEX = path.join(CONTEXT_VAULT_DIR, "shape-rotator-article-index.md");
-const CONTEXT_VAULT_RAW_BUNDLE = path.join(CONTEXT_VAULT_DIR, "shape-rotator-raw-scripts.md");
+const CONTEXT_VAULT_RAW_BUNDLE = path.join(CONTEXT_VAULT_DIR, "shape-rotator-transcripts.md");
 const CONTEXT_VAULT_CORPUS = CONTEXT_VAULT_ARTICLE_INDEX;
 const COHORT_ARTICLES_DIR = path.resolve(__dirname, "..", "..", "cohort-data", "articles");
 
@@ -172,7 +172,7 @@ function contextVaultRoots() {
     },
     {
       key: "bundled-raw-scripts",
-      label: "Bundled raw scripts",
+      label: "Bundled transcripts",
       path: path.join(__dirname, "src", "content", "context", "raw-scripts"),
       max_depth: 1,
       bundled: true,
@@ -650,31 +650,31 @@ function writeContextVaultRawBundle(rawScripts = []) {
   const generatedAt = new Date().toISOString();
   const lines = [
     "---",
-    'title: "Shape Rotator Raw Scripts"',
+    'title: "Shape Rotator Transcripts"',
     `generated_at: ${JSON.stringify(generatedAt)}`,
-    `script_count: ${rawScripts.length}`,
-    'kind: "raw-script-bundle"',
+    `transcript_count: ${rawScripts.length}`,
+    'kind: "transcript-bundle"',
     "---",
     "",
-    "# Shape Rotator Raw Scripts",
+    "# Shape Rotator Transcripts",
     "",
-    "Bundled source transcript bundle for private prompting inside Shape Rotator OS.",
+    "Bundled transcript set for private prompting inside Shape Rotator OS.",
     "",
   ];
   for (const source of rawScripts) {
     const raw = readContextVaultSourceText(source.path, 2_000_000);
-    lines.push(`## ${source.title || path.basename(source.path || "raw script")}`);
+    lines.push(`## ${source.title || path.basename(source.path || "transcript")}`);
     lines.push("");
     lines.push(`source_id: ${source.id || ""}`);
-    lines.push(`source_kind: ${source.source_kind || "raw-script"}`);
+    lines.push(`source_kind: ${source.source_kind || "transcript"}`);
     lines.push(`date: ${source.date || ""}`);
     lines.push(`lines: ${source.line_count || 0}`);
     lines.push(`path: ${source.path || ""}`);
     lines.push("");
-    lines.push("----- BEGIN RAW SCRIPT -----");
+    lines.push("----- BEGIN TRANSCRIPT -----");
     lines.push(raw.text || "");
     if (raw.truncated || source.truncated) lines.push("----- TRUNCATED -----");
-    lines.push("----- END RAW SCRIPT -----");
+    lines.push("----- END TRANSCRIPT -----");
     lines.push("");
   }
   fs.mkdirSync(path.dirname(CONTEXT_VAULT_RAW_BUNDLE), { recursive: true });
@@ -682,9 +682,9 @@ function writeContextVaultRawBundle(rawScripts = []) {
   fs.writeFileSync(CONTEXT_VAULT_RAW_BUNDLE, body);
   return {
     path: CONTEXT_VAULT_RAW_BUNDLE,
-    kind: "raw-script-bundle",
+    kind: "transcript-bundle",
     generated_at: generatedAt,
-    script_count: rawScripts.length,
+    transcript_count: rawScripts.length,
     line_count: body.split(/\r?\n/).length,
     char_count: body.length,
     size_bytes: Buffer.byteLength(body, "utf8"),
@@ -872,7 +872,7 @@ function normalizeContextVaultManifest(manifest) {
     rawScripts.length
     && (
       !raw_bundle
-      || raw_bundle.kind !== "raw-script-bundle"
+      || raw_bundle.kind !== "transcript-bundle"
       || raw_bundle.path !== CONTEXT_VAULT_RAW_BUNDLE
       || !fs.existsSync(raw_bundle.path || "")
     )
