@@ -620,9 +620,13 @@ function mountSharedOverlay(overlay) {
   let running = true;
   let started = performance.now();
 
-  // Per-frame DOM query — cheap for tens of shapes, and re-querying
-  // catches DOM mutations without needing a MutationObserver.
-  function placeholderList() {
+  // Build the placeholder list once + cache it; refresh only when the
+  // DOM under the alchemy host changes. Prior shape: queried the DOM +
+  // re-hashed colors every frame (60Hz) for every placeholder. Cheap
+  // per call but adds up — cohort growth has been 60Hz × O(cards) ×
+  // per-frame for ~3+ months. Cache + observer drops it to O(1) reads.
+  let _cache = null;
+  function rebuildCache() {
     const out = [];
     for (const el of document.querySelectorAll("canvas[data-shape-fam]")) {
       if (el === overlay) continue;
@@ -636,11 +640,24 @@ function mountSharedOverlay(overlay) {
         colors: hashColors(el.dataset.shapeSeed || ""),
       });
     }
-    return out;
+    _cache = out;
   }
+  function placeholderList() {
+    if (!_cache) rebuildCache();
+    return _cache;
+  }
+  // Invalidate on any subtree change to the body — that's where alchemy
+  // mounts/unmounts cards. childList/subtree only; we don't care about
+  // attribute changes (the data-* attrs are baked at card-creation time).
+  const _mo = new MutationObserver(() => { _cache = null; });
+  _mo.observe(document.body, { childList: true, subtree: true });
 
   function frame(now) {
     if (!running) { raf = 0; return; }
+    // Don't draw or re-arm rAF when the document is hidden. The
+    // visibilitychange handler installed below re-arms us when the
+    // user comes back to the window.
+    if (document.hidden) { raf = 0; return; }
     const t = (now - started) / 1000;
     gl.viewport(0, 0, overlay.width, overlay.height);
     gl.scissor(0, 0, overlay.width, overlay.height);
@@ -684,9 +701,22 @@ function mountSharedOverlay(overlay) {
 
   raf = requestAnimationFrame(frame);
 
+  // The frame() loop also bails when document.hidden so we don't keep the
+  // WebGL2 context active in the background. Re-arm rAF when the document
+  // becomes visible again — without this, the hidden-gate above would
+  // leave us frozen forever once the user backgrounds the app.
+  const _onVisibilityChange = () => {
+    if (!document.hidden && running && raf === 0) {
+      raf = requestAnimationFrame(frame);
+    }
+  };
+  document.addEventListener("visibilitychange", _onVisibilityChange);
+
   return {
     destroy() {
       pause();
+      _mo.disconnect();
+      document.removeEventListener("visibilitychange", _onVisibilityChange);
       window.removeEventListener("resize", resize);
       const lose = gl.getExtension("WEBGL_lose_context");
       if (lose) try { lose.loseContext(); } catch {}
