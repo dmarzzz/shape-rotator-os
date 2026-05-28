@@ -13,6 +13,7 @@
  */
 
 import { getIdentity } from "./identity.js";
+import { getCohortSurface } from "./cohort-source.js";
 
 const FPS = 30;
 // Output resolution adapts to the captured source, capped by the chosen
@@ -54,15 +55,7 @@ let _watchStartMs = 0;
 let _liveStartMs = 0;
 let _infoTick = null;          // 1s ticker that updates the viewer's duration
 
-// ─── twitch-y helpers ─────────────────────────────────────────────────
-// Deterministic hue from a source name so each "channel" gets a distinct
-// but stable color across renders + clients.
-function hashHue(str) {
-  let h = 0;
-  const s = String(str || "");
-  for (let i = 0; i < s.length; i++) h = ((h * 31) + s.charCodeAt(i)) | 0;
-  return ((h % 360) + 360) % 360;
-}
+// ─── identity + duration helpers ──────────────────────────────────────
 // First letter (or • fallback) — used in the avatar circle.
 function initialOf(name) {
   const m = String(name || "").trim().match(/[A-Za-z0-9]/);
@@ -80,6 +73,26 @@ function fmtDuration(ms) {
 function shortName(full) {
   const m = String(full || "").match(/\(([^)]+)\)\s*$/);
   return m ? m[1] : String(full || "");
+}
+// Resolve an NDI source to a cohort person. Broadcasters typically name
+// their stream as their handle / display_name, so the inner-paren publish
+// name matches a person record. Returns the person or null.
+function matchPersonForNdi(ndiName, people) {
+  const inner = shortName(ndiName).toLowerCase().trim();
+  if (!inner || !Array.isArray(people)) return null;
+  // Exact match on handle / display_name / record_id first.
+  for (const p of people) {
+    const h = String(p.handle || p.gh_handle || (p.links && p.links.github) || "").toLowerCase();
+    const d = String(p.display_name || p.name || "").toLowerCase();
+    const r = String(p.record_id || "").toLowerCase();
+    if (inner === h || inner === d || inner === r) return p;
+  }
+  // Fall back to a loose match on display_name (handles "Daniel Marz" → "dmarz", etc.).
+  for (const p of people) {
+    const d = String(p.display_name || p.name || "").toLowerCase().replace(/\s+/g, "");
+    if (d && (inner.includes(d) || d.includes(inner.replace(/\s+/g, "")))) return p;
+  }
+  return null;
 }
 
 // Output dims = source size scaled down to fit the quality cap, aspect kept,
@@ -265,37 +278,83 @@ async function loadWatchSources() {
   if (!list) return;
   list.innerHTML = `<li class="easel-watch-loading">scanning…</li>`;
   if (statusEl) statusEl.textContent = "scanning…";
-  const sources = await safe(() => window.api.easel.findNdi({ timeoutMs: 3000 }), []);
+  const [sources, cohort] = await Promise.all([
+    safe(() => window.api.easel.findNdi({ timeoutMs: 3000 }), []),
+    safe(() => getCohortSurface(), null),
+  ]);
   _watchSources = Array.isArray(sources) ? sources : [];
-  if (statusEl) statusEl.textContent = `${_watchSources.length} found`;
-  if (!_watchSources.length) {
-    list.innerHTML = `<li class="easel-watch-empty">no NDI sources on the LAN yet — when a cohort peer goes live, they'll show up here.</li>`;
+  const people = (cohort && cohort.people) || [];
+  // Resolve each NDI source to a cohort person; show ONLY cohort matches
+  // (the user explicitly only wants to see their friends streaming, not
+  // arbitrary NDI signals on the LAN like NDI Test Pattern).
+  const matched = _watchSources
+    .map((s) => ({ source: s, person: matchPersonForNdi(s.name, people) }))
+    .filter((m) => m.person);
+  // NDI's same-process self-discovery is unreliable, so synthesize a YOU
+  // card locally whenever we're live — that way you always see yourself in
+  // the cohort feed the moment you go live (Twitch sidebar behavior).
+  const id = getIdentity();
+  const selfPerson = (id && people.find((p) => p.record_id === id.record_id)) || null;
+  if (_live && selfPerson) {
+    // De-dup if NDI did happen to return a source matching ourselves.
+    const dupIdx = matched.findIndex((m) => m.person.record_id === selfPerson.record_id);
+    if (dupIdx >= 0) matched.splice(dupIdx, 1);
+    matched.unshift({
+      source: { name: _publishedName || "you", urlAddress: "" },
+      person: selfPerson,
+      isSelf: true,
+    });
+  }
+  const unknownCount = _watchSources.length - (matched.filter((m) => !m.isSelf).length);
+  if (statusEl) statusEl.textContent = `${matched.length} live`;
+  if (!matched.length) {
+    list.innerHTML = `<li class="easel-watch-empty">no cohort streams on the LAN right now${
+      unknownCount ? ` — ${unknownCount} other NDI source${unknownCount === 1 ? "" : "s"} not matched to a member` : ""
+    }.</li>`;
     return;
   }
-  list.innerHTML = _watchSources.map((s) => {
-    const active = _watchSelected === s.name;
-    const hue = hashHue(s.name);
-    const initial = initialOf(shortName(s.name));
-    const friendly = esc(shortName(s.name));
-    return `<li><button type="button" class="ews-card${active ? " is-watching" : ""}" data-watch-src="${esc(s.name)}">
-      <span class="ews-thumb" style="--ews-h:${hue}">
-        <span class="ews-avatar" style="--ews-h:${hue}">${esc(initial)}</span>
-        ${active ? `<span class="ews-live"><span class="ews-live-dot"></span>LIVE</span>` : ""}
+  const viewerMode = _stage.querySelector(".easel-viewer")?.dataset.viewerMode;
+  list.innerHTML = matched.map(({ source, person, isSelf }) => {
+    const active = isSelf ? (viewerMode === "preview") : (_watchSelected === source.name);
+    const sig = person.signature_color || "var(--membrane-ember, #ff7a3d)";
+    const name = person.display_name || person.name || shortName(source.name);
+    const handle = person.handle || person.gh_handle || (person.links && person.links.github) || "";
+    const sub = isSelf ? "your broadcast" : (person.role || (handle ? `@${handle}` : person.team || shortName(source.name)));
+    return `<li><button type="button" class="ews-card${active ? " is-watching" : ""}${isSelf ? " is-self" : ""}"
+                     data-watch-src="${esc(source.name)}"
+                     data-watch-self="${isSelf ? "1" : "0"}"
+                     style="--ews-sig:${esc(sig)}">
+      <span class="ews-thumb">
+        <span class="ews-avatar">${esc(initialOf(name))}</span>
+        <span class="ews-live"><span class="ews-live-dot"></span>LIVE</span>
+        ${isSelf ? `<span class="ews-you" aria-label="you">YOU</span>` : ""}
+        ${active && !isSelf ? `<span class="ews-watching" aria-label="now watching">▶</span>` : ""}
       </span>
       <span class="ews-meta">
-        <span class="ews-name">${friendly}</span>
-        <span class="ews-sub">${esc(s.name)}</span>
+        <span class="ews-name">${esc(name)}</span>
+        <span class="ews-sub">${esc(sub)}</span>
       </span>
     </button></li>`;
   }).join("");
   list.querySelectorAll("[data-watch-src]").forEach((btn) => {
-    btn.addEventListener("click", () => watchSelect(btn.getAttribute("data-watch-src")));
+    btn.addEventListener("click", () => {
+      if (btn.dataset.watchSelf === "1") {
+        // Clicking your own card flips the viewer to PREVIEW — you can't
+        // receive your own NDI stream over loopback, but the preview canvas
+        // shows what you're broadcasting.
+        setViewerMode("preview");
+      } else {
+        watchSelect(btn.getAttribute("data-watch-src"));
+      }
+    });
   });
 }
 
 // Update the viewer's info bar (avatar + title + LIVE + duration) to match
 // the current mode. Called from setViewerMode, on go/stop, and by the 1s tick.
-function syncViewerInfo() {
+// Uses cohort identity (signature_color + display_name) when the source maps
+// to a known peer, so the player chrome reads as a member, not a hue-hash.
+async function syncViewerInfo() {
   const info = _stage && _stage.querySelector("[data-viewer-info]");
   if (!info) return;
   const mode = _stage.querySelector(".easel-viewer")?.dataset.viewerMode;
@@ -304,28 +363,33 @@ function syncViewerInfo() {
   const kindEl = _stage.querySelector("[data-evi-kind]");
   const liveEl = _stage.querySelector("[data-evi-live]");
   const durEl = _stage.querySelector("[data-evi-duration]");
-  let name = "", kind = "", liveNow = false, startMs = 0, hue = 0;
+  let name = "", kind = "", liveNow = false, startMs = 0, person = null;
+  // Cohort lookup — async but only fires when we actually need it (mode active).
+  const cohort = (mode === "preview" || mode === "watch") ? await safe(() => getCohortSurface(), null) : null;
+  const people = (cohort && cohort.people) || [];
   if (mode === "preview" && (_live || _selectedId)) {
-    name = _live ? (shortName(_publishedName) || "Easel") : (_sources.find(s => s.id === _selectedId)?.name || "preview");
+    const id = getIdentity();
+    person = people.find((p) => id && p.record_id === id.record_id) || null;
+    name = person ? (person.display_name || person.name) : (_live ? (shortName(_publishedName) || "Easel") : (_sources.find(s => s.id === _selectedId)?.name || "preview"));
     kind = "your broadcast";
     liveNow = _live;
     startMs = _liveStartMs;
-    hue = hashHue(name);
   } else if (mode === "watch" && _watchSelected) {
-    name = shortName(_watchSelected);
+    person = matchPersonForNdi(_watchSelected, people);
+    name = person ? (person.display_name || person.name) : shortName(_watchSelected);
     kind = "LAN · NDI";
     liveNow = true;
     startMs = _watchStartMs;
-    hue = hashHue(_watchSelected);
   } else {
     info.hidden = true;
     if (_infoTick) { clearInterval(_infoTick); _infoTick = null; }
     return;
   }
   info.hidden = false;
+  const sig = (person && person.signature_color) || "var(--membrane-ember, #ff7a3d)";
   if (avatarEl) {
     avatarEl.textContent = initialOf(name);
-    avatarEl.style.setProperty("--ews-h", hue);
+    avatarEl.style.setProperty("--ews-sig", sig);
   }
   if (titleEl) titleEl.textContent = name;
   if (kindEl) kindEl.textContent = kind;
@@ -521,11 +585,15 @@ async function goLive() {
   _statsTimer = setInterval(refreshStats, 1000);
   refreshStats();
   syncViewerInfo();
+  // Surface ourselves in the LAN feed now that we're live.
+  loadWatchSources();
 }
 
 async function stopLive() {
   _live = false;
   _liveStartMs = 0;
+  // Drop the YOU card from the LAN feed.
+  loadWatchSources();
   if (_pumpTimer) { clearTimeout(_pumpTimer); _pumpTimer = null; }
   if (_statsTimer) { clearInterval(_statsTimer); _statsTimer = null; }
   if (_stream) { _stream.getTracks().forEach((t) => t.stop()); _stream = null; }

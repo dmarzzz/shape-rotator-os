@@ -11464,8 +11464,9 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   height: 31.5px;
   border-radius: 5px;
   overflow: hidden;
+  /* Restrained dark with a faint sig-color glow — not a saturated fill. */
   background:
-    radial-gradient(120% 90% at 30% 30%, hsl(var(--ews-h, 0), 65%, 45%) 0%, hsl(var(--ews-h, 0), 65%, 22%) 60%, #07060a 100%);
+    radial-gradient(120% 100% at 30% 30%, color-mix(in oklab, var(--ews-sig, #ff7a3d) 22%, #07060a) 0%, #07060a 70%);
   display: flex; align-items: center; justify-content: center;
   flex: 0 0 auto;
 }
@@ -11474,10 +11475,11 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   width: 22px; height: 22px;
   border-radius: 50%;
   font-family: var(--sr-font-mono);
-  font-size: 11px; font-weight: 700;
-  color: #fff;
-  background: hsl(var(--ews-h, 0), 70%, 55%);
-  box-shadow: 0 0 0 1.5px rgba(0,0,0,0.35);
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0;
+  color: #f0ece6;
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 0 0 1.4px var(--ews-sig, rgba(255,122,61,0.7));
 }
 .ews-card .ews-live {
   position: absolute;
@@ -11485,12 +11487,40 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   display: flex; align-items: center; gap: 4px;
   padding: 1px 4px 1px 3px;
   border-radius: 3px;
-  background: #e0463a;
+  background: #d63a30;
   color: #fff;
   font-family: var(--sr-font-mono);
   font-size: 7.5px; font-weight: 700;
   letter-spacing: 0.10em;
   text-transform: uppercase;
+}
+.ews-card .ews-watching {
+  position: absolute;
+  top: 2px; right: 2px;
+  display: flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px;
+  border-radius: 3px;
+  background: rgba(255, 122, 61, 0.92);
+  color: #07060a;
+  font-size: 8px; font-weight: 700;
+  line-height: 1;
+}
+.ews-card .ews-you {
+  position: absolute;
+  top: 2px; right: 2px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 122, 61, 0.92);
+  color: #07060a;
+  font-family: var(--sr-font-mono);
+  font-size: 7.5px; font-weight: 700;
+  letter-spacing: 0.10em;
+}
+/* Subtle self-state ring even when not actively in PREVIEW mode. */
+.ews-card.is-self {
+  border-color: rgba(255, 122, 61, 0.45);
+  background: rgba(255, 122, 61, 0.05);
 }
 .ews-card .ews-live-dot {
   width: 4px; height: 4px;
@@ -11531,10 +11561,11 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   width: 42px; height: 42px;
   border-radius: 50%;
   font-family: var(--sr-font-mono);
-  font-size: 18px; font-weight: 700;
-  color: #fff;
-  background: radial-gradient(120% 90% at 30% 30%, hsl(var(--ews-h, 0), 70%, 55%) 0%, hsl(var(--ews-h, 0), 70%, 30%) 100%);
-  box-shadow: 0 0 0 1.5px rgba(0,0,0,0.5);
+  font-size: 16px; font-weight: 500;
+  letter-spacing: 0;
+  color: var(--ews-sig, #f0ece6);
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 0 0 1.5px var(--ews-sig, rgba(255,122,61,0.7));
   flex: 0 0 auto;
 }
 .evi-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
