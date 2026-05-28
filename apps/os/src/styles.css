@@ -13465,13 +13465,18 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   display: grid;
   grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
   gap: clamp(22px, 3vw, 48px);
+  align-items: start;
   min-height: 560px;
 }
 
 .alch-cv-sidebar {
+  position: sticky;
+  top: 18px;
   display: flex;
   flex-direction: column;
+  align-self: start;
   min-height: 0;
+  max-height: calc(100vh - var(--tab-bar-h, 40px) - 76px);
   padding: 14px 24px 12px 0;
   border-right: 1px solid rgba(245, 240, 232, 0.08);
 }
@@ -13562,6 +13567,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-sources {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: 4px;
   min-height: 0;
   overflow: auto;
@@ -13961,6 +13967,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
     max-width: 100%;
   }
   .alch-cv-sidebar {
+    position: static;
     max-height: 420px;
     padding-right: 0;
     padding-bottom: 22px;
