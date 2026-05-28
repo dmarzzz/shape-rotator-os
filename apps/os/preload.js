@@ -1,6 +1,10 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("api", {
+  // Renderer-ready sentinel for the --smoke-test launch mode. boot.js
+  // calls this once boot() resolves; main's smoke path waits for it and
+  // exits 0. Fire-and-forget; ignored when not in smoke mode.
+  signalReady:  () => { try { ipcRenderer.send("smoke:ready"); } catch {} },
   loadPrefs:    () => ipcRenderer.invoke("prefs:load"),
   savePrefs:    (d) => ipcRenderer.invoke("prefs:save", d),
   env:          () => ipcRenderer.invoke("env:get"),

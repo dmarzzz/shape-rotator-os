@@ -20,7 +20,9 @@
     "dist:linux": "electron-builder --linux",
     "dist:all": "electron-builder -mwl",
     "pack": "electron-builder --dir",
-    "check:packaging": "node scripts/check-packaging-files.js"
+    "check:packaging": "node scripts/check-packaging-files.js",
+    "smoke": "electron . --smoke-test",
+    "bundle:check": "node scripts/bundle-renderer.cjs --check"
   },
   "dependencies": {
     "@cosmos.gl/graph": "^2.6.4",
@@ -33,7 +35,8 @@
   },
   "devDependencies": {
     "electron": "^33.0.0",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "esbuild": "^0.24.2"
   },
   "build": {
     "appId": "com.shape-rotator.os",
@@ -50,6 +53,7 @@
     "extraMetadata": {
       "main": "main.js"
     },
+    "afterPack": "scripts/after-pack-verify.cjs",
     "directories": {
       "output": "dist",
       "buildResources": "build-resources"
@@ -94,7 +98,9 @@
         {
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "build-resources/cohort-keys.json",
@@ -145,7 +151,9 @@
         {
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "build-resources/cohort-keys.json",
@@ -182,7 +190,9 @@
         {
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "build-resources/cohort-keys.json",

@@ -126,6 +126,15 @@ jobs:
       - name: regenerate cohort-surface.json from cohort-data/
         run: npm run build:cohort
 
+      # Fast fail-early gate: bundle the renderer's full import graph with
+      # esbuild's real resolver before the ~10-min electron-builder run.
+      # Catches a renderer module importing a bare package that isn't
+      # installed / a module that won't resolve — the gap the afterPack
+      # asar check (relative-only) deliberately skips. Runs on every
+      # platform; cheap and platform-agnostic.
+      - name: bundle-check renderer (esbuild resolver gate)
+        run: npm run bundle:check --workspace @shape-rotator/os
+
       # ── macOS signing prep (gated) ──────────────────────────────
       # Only runs when ALL five signing secrets are present. Decodes
       # the .p12 cert to a temp file and EXPORTS the CSC_/APPLE_ env
@@ -188,6 +197,15 @@ jobs:
           # Skip publish when triggered manually with pack-only=true.
           # Tag-triggered builds always publish.
           EB_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.pack-only && 'never' || 'onTagOrDraft' }}
+          # Live boot smoke test (scripts/after-pack-verify.cjs §5). Enabled
+          # on mac only: macos runners have a window server so the hidden
+          # BrowserWindow boots cleanly, and the v0.2.13/v0.2.14 blank-pane
+          # regressions both shipped on mac. The hook only smokes the
+          # host-arch pack (arm64 on macos-latest) and skips the x64 pack —
+          # the renderer JS is arch-independent. linux (needs xvfb + sandbox
+          # handling) and windows smoke are a deferred follow-up; static
+          # asar verification still runs on every platform.
+          SROS_SMOKE_TEST: ${{ matrix.platform == 'mac' && '1' || '' }}
           # CSC_LINK / CSC_KEY_PASSWORD / APPLE_* come in via
           # $GITHUB_ENV from the prep step when signing is enabled.
           # They are NOT set here so they stay unset on the unsigned

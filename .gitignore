@@ -8,6 +8,8 @@ __pycache__/
 # build / dist (electron-builder output → published to GitHub Releases, not git)
 dist/
 apps/*/dist/
+dist-renderer/
+apps/*/dist-renderer/
 build/
 out/
 

@@ -8115,7 +8115,12 @@ window.__srwk_inject_event = (kind, payload = {}) => {
   try { livegraphPushFromEvent(evt); } catch (e) { console.warn("[livegraph inject]", e); }
 };
 
-boot().catch((e) => {
+boot().then(() => {
+  // Renderer-ready sentinel for --smoke-test: boot() resolving means the
+  // module graph evaluated (the v0.2.14 failure point) and initial init
+  // ran without throwing. Harmless no-op in normal launches.
+  try { window.api?.signalReady?.(); } catch {}
+}).catch((e) => {
   console.error("[boot]", e);
   setStatus("boot failed: " + e.message, true);
 });
