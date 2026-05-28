@@ -11077,6 +11077,17 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   max-width: 1040px;
   padding-bottom: 22px;
   border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
+  position: relative;
+}
+.links-head::after {
+  content: "06 routes · 03 public handouts · 02 app surfaces · 01 source";
+  display: block;
+  margin-top: 18px;
+  font-family: var(--sr-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ed-ink-4, rgba(var(--ink-rgb), 0.42));
 }
 .links-eyebrow {
   font-family: var(--sr-font-mono);
@@ -11123,8 +11134,8 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-height: 220px;
-  padding: 22px 20px 18px;
+  min-height: 210px;
+  padding: 22px 20px 16px;
   background:
     linear-gradient(180deg, rgba(var(--ink-rgb), 0.040), rgba(var(--ink-rgb), 0.012));
   border: 1px solid rgba(var(--ink-rgb), 0.12);
@@ -11196,7 +11207,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   font-size: 12.5px;
   line-height: 1.45;
   color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78));
-  margin: 4px 0 10px;
+  margin: 2px 0 8px;
 }
 .link-card-desc code {
   font-family: var(--sr-font-mono);
@@ -11211,7 +11222,8 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   letter-spacing: 0.02em;
   color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.55));
   margin-top: auto;
-  padding-top: 8px;
+  line-height: 1.45;
+  padding-top: 7px;
   border-top: 1px dashed rgba(var(--ink-rgb), 0.10);
   overflow-wrap: anywhere;
 }
