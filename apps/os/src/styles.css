@@ -9605,6 +9605,34 @@ html, body {
 .alch-prog-p { margin: 0 0 12px 0; }
 .alch-prog-ul, .alch-prog-ol { margin: 0 0 14px 22px; padding: 0; }
 .alch-prog-ul li, .alch-prog-ol li { margin: 4px 0; }
+.alch-prog-bq {
+  margin: 0 0 14px 0;
+  padding: 6px 0 6px 14px;
+  border-left: 2px solid rgba(var(--ink-rgb), 0.18);
+  color: rgba(var(--ink-rgb), 0.78);
+  font-style: italic;
+}
+.alch-prog-table {
+  margin: 0 0 16px 0;
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13.5px;
+}
+.alch-prog-table th,
+.alch-prog-table td {
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
+}
+.alch-prog-table thead th {
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.18);
+  font-weight: 600;
+  color: rgba(var(--ink-rgb), 0.65);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+.alch-prog-table tbody tr:last-child td { border-bottom: none; }
 .alch-prog-body code {
   font-family: var(--ed-mono);
   font-size: 12.5px;

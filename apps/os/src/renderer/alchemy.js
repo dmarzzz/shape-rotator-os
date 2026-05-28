@@ -2950,11 +2950,63 @@ function renderProgramMarkdown(md) {
     return t;
   };
 
-  for (const raw of lines) {
+  // Split a pipe-delimited markdown row into cells. Trims the leading +
+  // trailing pipe if present, then splits on `|` and trims each cell.
+  // (Escaped pipes \| within cells are rare in our content; not handled.)
+  const splitRow = (row) => row.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map(s => s.trim());
+  // GFM separator row, with optional alignment markers (:---, ---:, :---:).
+  // Returns alignments array (each "left"|"right"|"center"|null) or null
+  // if the line isn't a valid separator.
+  const parseSeparator = (row) => {
+    const cells = splitRow(row);
+    if (!cells.length) return null;
+    const aligns = [];
+    for (const c of cells) {
+      if (!/^:?-{3,}:?$/.test(c)) return null;
+      const left = c.startsWith(":");
+      const right = c.endsWith(":");
+      aligns.push(left && right ? "center" : right ? "right" : left ? "left" : null);
+    }
+    return aligns;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
     const line = raw.replace(/\s+$/, "");
     if (!line.trim()) { closeBlocks(); continue; }
     const h = /^(#{1,6})\s+(.+)$/.exec(line);
     if (h) { closeBlocks(); out.push(`<h${h[1].length} class="alch-prog-h${h[1].length}">${inline(h[2])}</h${h[1].length}>`); continue; }
+    // GFM table — header row + separator row + N body rows. Detected by
+    // the next line being a valid separator; otherwise this line is just
+    // text-with-pipes and falls through to the paragraph path.
+    if (line.includes("|") && i + 1 < lines.length) {
+      const aligns = parseSeparator(lines[i + 1].trim());
+      if (aligns) {
+        closeBlocks();
+        const headers = splitRow(line);
+        const alignAttr = (j) => aligns[j] ? ` style="text-align:${aligns[j]}"` : "";
+        let html = `<table class="alch-prog-table"><thead><tr>`;
+        headers.forEach((c, j) => { html += `<th${alignAttr(j)}>${inline(c)}</th>`; });
+        html += `</tr></thead><tbody>`;
+        let j = i + 2;
+        while (j < lines.length && lines[j].trim() && lines[j].includes("|")) {
+          const cells = splitRow(lines[j].trim());
+          html += `<tr>`;
+          cells.forEach((c, k) => { html += `<td${alignAttr(k)}>${inline(c)}</td>`; });
+          html += `</tr>`;
+          j++;
+        }
+        html += `</tbody></table>`;
+        out.push(html);
+        i = j - 1; // outer loop will i++ past the last body row
+        continue;
+      }
+    }
+    // Blockquote — single-line `> text`, no nesting. Most program pages
+    // use these for pull-quotes; multi-line continuation isn't worth
+    // the complexity until we need it.
+    const bq = /^>\s+(.+)$/.exec(line);
+    if (bq) { closeBlocks(); out.push(`<blockquote class="alch-prog-bq">${inline(bq[1])}</blockquote>`); continue; }
     const ul = /^\s*[-*]\s+(.+)$/.exec(line);
     if (ul) {
       if (inP)  { out.push("</p>"); inP = false; }
