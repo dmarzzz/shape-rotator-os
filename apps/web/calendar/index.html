@@ -36,7 +36,27 @@
 
   <main class="page page--calendar">
     <div id="mount" class="page-mount"></div>
+    <p class="cal-export" id="cal-export">
+      add to your calendar:
+      <a id="cal-ics" href="/calendar.ics" download>download .ics</a>
+      <span aria-hidden="true">·</span>
+      <a id="cal-webcal" href="#">subscribe (apple/outlook)</a>
+      <span aria-hidden="true">·</span>
+      <a id="cal-google" href="#" target="_blank" rel="noopener">google calendar</a>
+    </p>
   </main>
+
+  <script>
+    // Build subscribe links from the live host so the same markup works on
+    // any deploy. webcal:// is the subscribe scheme Apple Calendar/Outlook
+    // register; Google takes the same feed URL via ?cid=.
+    {
+      const feed = location.host + "/calendar.ics";
+      document.getElementById("cal-webcal").href = "webcal://" + feed;
+      document.getElementById("cal-google").href =
+        "https://calendar.google.com/calendar/r?cid=" + encodeURIComponent("webcal://" + feed);
+    }
+  </script>
 
   <footer class="site-footer">
     <span>v<span data-version>—</span></span>

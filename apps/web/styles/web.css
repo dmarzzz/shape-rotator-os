@@ -297,3 +297,7 @@ body.layout--wide .page--calendar { max-width: none; }
   .cd-shape { width: 100%; max-width: 280px; height: 280px; justify-self: start; }
   .cd-bar { flex-wrap: wrap; row-gap: var(--space-2); }
 }
+
+.cal-export { margin: var(--space-5) 0 0; font-family: var(--font-mono); font-size: var(--t-11); color: var(--ink-3); display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.cal-export a { color: var(--ink-2); }
+.cal-export a:hover { color: var(--ink-1); }
