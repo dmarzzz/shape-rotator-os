@@ -11080,7 +11080,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   position: relative;
 }
 .links-head::after {
-  content: "06 routes · 03 public handouts · 02 app surfaces · 01 source";
+  content: "05 routes · 02 handouts · 02 repos · 01 download";
   display: block;
   margin-top: 18px;
   font-family: var(--sr-font-mono);

@@ -279,7 +279,7 @@ body.links-page-body .hero-tagline {
   gap: var(--space-3);
 }
 .links-list::before {
-  content: "06 routes · 03 public handouts · 02 app surfaces · 01 source";
+  content: "05 routes · 02 handouts · 02 repos · 01 download";
   display: block;
   font-family: var(--font-mono);
   font-size: var(--t-11);
