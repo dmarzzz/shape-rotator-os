@@ -406,8 +406,8 @@ body.links-page-body .hero-tagline {
   color: var(--ink-2);
 }
 .links-preview-frame-shell {
-  height: min(680px, calc(100vh - 190px));
-  min-height: 520px;
+  height: min(900px, calc(100vh - 128px));
+  min-height: 620px;
   background: var(--abyss);
 }
 .links-preview-frame-shell[hidden],
