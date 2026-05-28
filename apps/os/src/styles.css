@@ -11272,6 +11272,161 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .easel-q-btn:hover { color: rgba(240,236,230,0.9); }
 .easel-q-btn[aria-selected="true"] { background: rgba(217,142,106,0.16); color: #e7a886; }
 
+/* ─── easel · two-column ('twocol') layout ──────────────────────────
+   Sidebar (broadcast picker + LAN list + controls) on the left, dominant
+   viewer on the right that switches between your broadcast preview and a
+   LAN stream via tabs at the top. */
+.easel-app--twocol {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  padding: 20px 26px 18px;
+  box-sizing: border-box;
+  min-height: 0;
+}
+.easel-head--compact { display: flex; align-items: flex-start; gap: 16px; flex: 0 0 auto; }
+.easel-head--compact .easel-title { margin: 2px 0 4px; }
+.easel-head--compact .easel-sub { max-width: 60ch; margin: 0; }
+
+.easel-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: 18px;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+.easel-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 6px;
+}
+.easel-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+}
+.easel-panel-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.easel-panel-eyebrow {
+  font-family: var(--sr-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(240,236,230,0.55);
+}
+.easel-panel-head .easel-status { margin-left: auto; }
+.easel-panel-head .easel-watch-status { margin-left: auto; }
+.easel-panel .easel-sources {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+.easel-panel .easel-namefield { gap: 4px; }
+.easel-panel .easel-namefield input { width: 100%; }
+.easel-control-row {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap;
+}
+.easel-control-row .easel-go { flex: 1; min-width: 100px; }
+
+/* Right pane — viewer. */
+.easel-viewer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+}
+.easel-viewer-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  flex: 0 0 auto;
+}
+.easel-viewer-tab {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 6px 12px;
+  border-radius: 5px;
+  font-family: var(--sr-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(240,236,230,0.55);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.easel-viewer-tab:hover { color: #f0ece6; background: rgba(255,255,255,0.04); }
+.easel-viewer-tab.is-active {
+  color: #f0ece6;
+  background: rgba(217,142,106,0.16);
+}
+.easel-viewer-meta {
+  margin-left: auto;
+  font-family: var(--sr-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: rgba(240,236,230,0.45);
+}
+.easel-viewer-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.easel-viewer-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  display: block;
+}
+.easel-viewer-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--sr-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: rgba(240,236,230,0.50);
+  pointer-events: none;
+  padding: 24px;
+  text-align: center;
+}
+/* Mode-based visibility. */
+.easel-viewer[data-viewer-mode="preview"] [data-watch-canvas],
+.easel-viewer[data-viewer-mode="preview"] [data-watch-overlay],
+.easel-viewer[data-viewer-mode="watch"]   [data-easel-canvas],
+.easel-viewer[data-viewer-mode="watch"]   [data-easel-overlay],
+.easel-viewer[data-viewer-mode="empty"]   [data-watch-canvas],
+.easel-viewer[data-viewer-mode="empty"]   [data-watch-overlay],
+.easel-viewer[data-viewer-mode="empty"]   [data-easel-canvas] { display: none; }
+
+@media (max-width: 900px) {
+  .easel-grid { grid-template-columns: 1fr; }
+}
+
 /* ─── easel · watching the LAN (receive side) ────────────────────────
    List of NDI sources discoverable on the LAN + a viewer canvas. Lives
    under the broadcast controls; you can broadcast and watch at once. */

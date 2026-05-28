@@ -101,50 +101,65 @@ function renderShell() {
   const defaultName = esc(prefs.name || (id && id.display_name) || "Easel");
   _quality = prefs.quality === "fast" ? "fast" : "high";
   _stage.innerHTML = `
-    <div class="easel-app">
-      <header class="easel-head">
-        <p class="easel-eyebrow">apps · projection</p>
-        <h1 class="easel-title">easel</h1>
-        <p class="easel-sub">broadcast a screen or window over <strong>NDI</strong> to the projector. pick a source, name it, go live — any NDI receiver on the LAN can pull it.</p>
+    <div class="easel-app easel-app--twocol">
+      <header class="easel-head easel-head--compact">
+        <div class="easel-head-text">
+          <p class="easel-eyebrow">apps · projection</p>
+          <h1 class="easel-title">easel</h1>
+          <p class="easel-sub">broadcast over <strong>NDI</strong> + watch other cohort streams on the LAN.</p>
+        </div>
       </header>
-      ${_ndiAvailable ? "" : `<div class="easel-banner easel-banner-warn">NDI runtime not available on this machine — the native sender failed to load. (Install NDI Tools, then reopen easel.)</div>`}
-      <div class="easel-body">
-        <section class="easel-sources" data-easel-sources></section>
-        <section class="easel-stagebox">
-          <canvas class="easel-canvas" width="1280" height="720" data-easel-canvas></canvas>
-          <div class="easel-overlay" data-easel-overlay>select a source to preview</div>
-        </section>
-      </div>
-      <footer class="easel-controls">
-        <label class="easel-namefield">
-          <span>NDI name</span>
-          <input type="text" data-easel-name value="${defaultName}" maxlength="48" spellcheck="false" />
-        </label>
-        <div class="easel-quality" role="group" aria-label="output quality">
-          <button class="easel-q-btn" type="button" data-quality="high" aria-selected="${_quality === "high"}">1080p</button>
-          <button class="easel-q-btn" type="button" data-quality="fast" aria-selected="${_quality === "fast"}">720p</button>
-        </div>
-        <button class="easel-go" type="button" data-easel-go disabled>go live</button>
-        <div class="easel-status" data-easel-status></div>
-      </footer>
-      <p class="easel-recv-hint">to project: on the receiver — NDI Studio Monitor, OBS, Resolume, or easel — pick your source from the NDI list. "0 watching" just means no one's pulling it yet.</p>
-      <div class="easel-err" data-easel-err hidden></div>
+      ${_ndiAvailable ? "" : `<div class="easel-banner easel-banner-warn">NDI runtime not available — the native sender failed to load. (Install NDI Tools, then reopen easel.)</div>`}
 
-      ${_ndiAvailable ? `
-      <section class="easel-watch">
-        <header class="easel-watch-head">
-          <span class="easel-watch-eyebrow">watching the LAN</span>
-          <span class="easel-watch-status" data-watch-status>—</span>
-          <button class="easel-watch-refresh" type="button" data-watch-refresh aria-label="refresh sources">↻ refresh</button>
-        </header>
-        <ul class="easel-watch-list" data-watch-list role="list">
-          <li class="easel-watch-loading">looking for NDI sources on the LAN…</li>
-        </ul>
-        <div class="easel-watch-viewer">
-          <canvas class="easel-watch-canvas" data-watch-canvas width="640" height="360"></canvas>
-          <div class="easel-watch-overlay" data-watch-overlay>pick a stream above to watch</div>
-        </div>
-      </section>` : ""}
+      <div class="easel-grid">
+        <aside class="easel-side">
+          <section class="easel-panel">
+            <header class="easel-panel-head">
+              <span class="easel-panel-eyebrow">broadcast</span>
+              <span class="easel-status" data-easel-status></span>
+            </header>
+            <div class="easel-sources" data-easel-sources></div>
+            <label class="easel-namefield">
+              <span>NDI name</span>
+              <input type="text" data-easel-name value="${defaultName}" maxlength="48" spellcheck="false" />
+            </label>
+            <div class="easel-control-row">
+              <div class="easel-quality" role="group" aria-label="output quality">
+                <button class="easel-q-btn" type="button" data-quality="high" aria-selected="${_quality === "high"}">1080p</button>
+                <button class="easel-q-btn" type="button" data-quality="fast" aria-selected="${_quality === "fast"}">720p</button>
+              </div>
+              <button class="easel-go" type="button" data-easel-go disabled>go live</button>
+            </div>
+            <div class="easel-err" data-easel-err hidden></div>
+          </section>
+
+          ${_ndiAvailable ? `
+          <section class="easel-panel">
+            <header class="easel-panel-head">
+              <span class="easel-panel-eyebrow">watching the LAN</span>
+              <span class="easel-watch-status" data-watch-status>—</span>
+              <button class="easel-watch-refresh" type="button" data-watch-refresh aria-label="refresh">↻</button>
+            </header>
+            <ul class="easel-watch-list" data-watch-list role="list">
+              <li class="easel-watch-loading">scanning…</li>
+            </ul>
+          </section>` : ""}
+        </aside>
+
+        <main class="easel-viewer" data-viewer-mode="empty">
+          <div class="easel-viewer-tabs" role="tablist">
+            <button class="easel-viewer-tab is-active" type="button" data-viewer-tab="preview" role="tab">preview</button>
+            ${_ndiAvailable ? `<button class="easel-viewer-tab" type="button" data-viewer-tab="watch" role="tab">watching</button>` : ""}
+            <span class="easel-viewer-meta" data-viewer-meta></span>
+          </div>
+          <div class="easel-viewer-stage">
+            <canvas class="easel-canvas" width="1280" height="720" data-easel-canvas></canvas>
+            ${_ndiAvailable ? `<canvas class="easel-watch-canvas" width="640" height="360" data-watch-canvas></canvas>` : ""}
+            <div class="easel-viewer-overlay" data-easel-overlay>pick a screen below to preview, then go live</div>
+            ${_ndiAvailable ? `<div class="easel-viewer-overlay" data-watch-overlay hidden>pick a stream from the LAN list to watch</div>` : ""}
+          </div>
+        </main>
+      </div>
     </div>`;
 
   _canvas = _stage.querySelector("[data-easel-canvas]");
@@ -164,7 +179,38 @@ function renderShell() {
     loadWatchSources();
   }
 
+  // Viewer mode tabs — preview (your broadcast) vs watching (a LAN stream).
+  _stage.querySelectorAll("[data-viewer-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => setViewerMode(btn.getAttribute("data-viewer-tab"), { user: true }));
+  });
+
   refreshStatus(null);
+}
+
+// Drive what the right-pane viewer shows. Modes:
+//   empty   — neither side has content yet
+//   preview — your broadcast preview canvas
+//   watch   — a LAN stream's receive canvas
+// Auto-switches on selectSource / watchSelect; manual tab clicks pass {user:true}.
+function setViewerMode(mode, { user = false } = {}) {
+  if (mode !== "preview" && mode !== "watch" && mode !== "empty") return;
+  const viewer = _stage && _stage.querySelector(".easel-viewer");
+  if (!viewer) return;
+  // If the user explicitly clicks a tab whose side has no content, fall back
+  // to the empty state for that tab (we still flip the tab so they see it).
+  viewer.dataset.viewerMode = mode;
+  for (const t of _stage.querySelectorAll("[data-viewer-tab]")) {
+    t.classList.toggle("is-active", t.getAttribute("data-viewer-tab") === mode);
+  }
+  const meta = _stage.querySelector("[data-viewer-meta]");
+  if (meta) {
+    meta.textContent = mode === "watch" && _watchSelected
+      ? `watching · ${_watchSelected}`
+      : mode === "preview" && _live
+        ? `live · ${_publishedName || ""}`
+        : "";
+  }
+  void user; // marker kept for future hooks
 }
 
 async function loadWatchSources() {
@@ -214,6 +260,7 @@ async function watchSelect(sourceName) {
   _watchFrames = 0;
   // Re-render the list to mark the selected source.
   await loadWatchSources();
+  setViewerMode("watch");
 }
 
 async function watchStop() {
@@ -222,7 +269,9 @@ async function watchStop() {
   _watchSelected = null;
   _watchFrames = 0;
   if (_watchCtx && _watchCanvas) _watchCtx.clearRect(0, 0, _watchCanvas.width, _watchCanvas.height);
-  if (_watchOverlay) { _watchOverlay.textContent = "pick a stream above to watch"; _watchOverlay.hidden = false; }
+  if (_watchOverlay) { _watchOverlay.textContent = "pick a stream from the LAN list to watch"; _watchOverlay.hidden = false; }
+  // Fall back to the broadcast preview if there is one, else go empty.
+  setViewerMode((_selectedId || _live) ? "preview" : "empty");
 }
 
 function onRxFrame(frame) {
@@ -303,13 +352,14 @@ function selectSource(id) {
   if (go) go.disabled = !_ndiAvailable || !id;
   const ov = _stage.querySelector("[data-easel-overlay]");
   const src = _sources.find((s) => s.id === id);
-  if (ov) { ov.textContent = src ? `ready · ${src.name}` : "select a source to preview"; ov.hidden = false; }
+  if (ov) { ov.textContent = src ? `ready · ${src.name} — hit go live to broadcast` : "select a source to preview"; ov.hidden = false; }
   // Show the chosen source's thumbnail as a static preview until live.
   if (src && src.thumbnail && _ctx) {
     const img = new Image();
     img.onload = () => { if (!_live) drawContain(img, img.naturalWidth, img.naturalHeight); };
     img.src = src.thumbnail;
   }
+  setViewerMode("preview");
 }
 
 // Preview only (pre-live): letterbox a thumbnail into the current canvas.
