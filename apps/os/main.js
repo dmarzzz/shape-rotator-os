@@ -373,7 +373,57 @@ function writeSwarmApiKey(plain) {
 
 ipcMain.handle("fg:swarm:status", async () => swarm.getStatus());
 
+// Poll swf-node's /health until 200 or the deadline. The supervisor's
+// "running" state doesn't guarantee the HTTP server is bound yet —
+// there's a small grace window between spawn and listen. The agent's
+// very first /web_search will fail if we don't wait for it.
+async function waitForSwfHttpReady(swfNodeUrl, deadlineMs) {
+  const url = `${swfNodeUrl.replace(/\/+$/, "")}/health`;
+  while (Date.now() < deadlineMs) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 400);
+      const r = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (r.ok) return true;
+    } catch { /* not up yet */ }
+    await new Promise(res => setTimeout(res, 150));
+  }
+  return false;
+}
+
+// Before the swarm spawns, make sure the swf-node sidecar is healthy
+// — the agent now routes ALL web traffic through it (RA_BACKEND=
+// swf-node in swarm-node.js), so a down peer means a dead run with
+// network errors and zero atlas growth. Tries one auto-restart if
+// needed; gives the renderer a clear actionable error if that fails.
+async function ensureSwfNodeReady() {
+  const url = process.env.SWF_NODE_URL || "http://127.0.0.1:7777";
+  if (await waitForSwfHttpReady(url, Date.now() + 250)) return { ok: true, url };
+  const st = swfNode.getStatus();
+  if (st !== "running" && st !== "starting") {
+    process.stderr.write(`[swarm] swf-node not ready (state=${st}) — auto-restart before swarm start\n`);
+    _lastDaemonRecheck = Date.now();
+    swfNode.restart(app, broadcastSwfNodeStatus);
+  }
+  const ready = await waitForSwfHttpReady(url, Date.now() + 3000);
+  if (ready) return { ok: true, url };
+  return {
+    ok: false,
+    reason: "swf_node_unavailable",
+    detail:
+      "swf-node sidecar isn't responding on " + url + ". The swarm " +
+      "routes all of its web traffic through swf-node so the atlas " +
+      "stays consistent and your privacy policy is applied — without " +
+      "it, a run would produce nothing useful. Try the 'restart " +
+      "backend' affordance in the network tab.",
+  };
+}
+
 ipcMain.handle("fg:swarm:start", async (_e, opts) => {
+  const swfReady = await ensureSwfNodeReady();
+  if (!swfReady.ok) return swfReady;
+
   const cfg = readSwarmConfig();
   const o = opts || {};
   // model can be overridden per-call; defaults to the saved config.
@@ -387,6 +437,8 @@ ipcMain.handle("fg:swarm:start", async (_e, opts) => {
     lmModel, lmApiKey, lmApiBase,
     parallel:  !!o.parallel,
     workers:   o.workers,
+    swfNodeUrl:   swfReady.url,
+    swfNodeToken: swfNode.getAgentToken() || "",
   });
 });
 

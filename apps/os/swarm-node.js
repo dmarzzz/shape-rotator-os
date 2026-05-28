@@ -57,7 +57,7 @@ function isRunning() {
   return _current != null && _current.child && !_current.child.killed && _current.child.exitCode === null;
 }
 
-function start({ requestId, query, lmModel, lmApiKey, lmApiBase, parallel, workers }) {
+function start({ requestId, query, lmModel, lmApiKey, lmApiBase, parallel, workers, swfNodeUrl, swfNodeToken }) {
   if (isRunning()) {
     return { ok: false, reason: "swarm_already_running" };
   }
@@ -83,6 +83,15 @@ function start({ requestId, query, lmModel, lmApiKey, lmApiBase, parallel, worke
     ...(lmModel ? { LM_MODEL: lmModel } : {}),
     ...(lmApiKey ? { LM_API_KEY: lmApiKey } : {}),
     ...(lmApiBase ? { LM_API_BASE: lmApiBase } : {}),
+    // Force the agent to route ALL web traffic through the bundled
+    // swf-node sidecar. The peer becomes the single ingest point:
+    // it owns archive writes + privacy policy, and is the surface
+    // the atlas listens to. Without these vars, research-swarm goes
+    // direct to DDG + urllib and the atlas never sees the pages.
+    // Requires research-swarm >= v0.2.0 (RA_BACKEND=swf-node).
+    RA_BACKEND: "swf-node",
+    SWF_NODE_URL: swfNodeUrl || "http://127.0.0.1:7777",
+    ...(swfNodeToken ? { SWF_NODE_TOKEN: swfNodeToken } : {}),
   };
   // back-compat: if user picked anthropic and we have a key, also set
   // ANTHROPIC_API_KEY since the CLI's .env shorthand uses it.
