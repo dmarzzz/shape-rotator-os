@@ -474,13 +474,63 @@ explaining.
 
 Order by smallest shippable. Each slice should be PR-sized.
 
-### slice 1 — verify the implicit atlas claim
-- Confirm research-swarm-fetched pages actually surface in
-  `swf-node` `/pages` and onto the atlas. If not, write the missing
-  glue (either on the research-swarm side: insert into `pages_meta`
-  on archive write; or on the swf-node side: scan the
-  `world_knowledge/web/` tree and ingest).
-- No UI changes. Just verification + plumbing.
+### slice 1 — route the swarm through swf-node (two coordinated PRs)
+
+Today: research-swarm goes direct — `web_search` calls DDG (and
+SearXNG only if `SEARXNG_URL` is set, which SROS doesn't set);
+`fetch_url` uses raw urllib + trafilatura + Jina, writing pages
+straight to `~/world_knowledge/web/`. swf-node never sees the
+traffic, so atlas growth from swarm runs is at best accidental.
+
+Target: all swarm search and fetch route through swf-node. swf-node
+becomes the single ingest point — it owns the archive write, the
+privacy/share-scope tagging, and the atlas-visible `pages` row.
+
+swf-node already exposes the needed endpoints
+(`apps/searxng-wth-frnds/src/swf/peer_server.py`):
+- `POST /web_search` — SPEC v0.3 envelope
+- `POST /search` and `POST /local_search`
+- `POST /fetch` and `POST /fetch_url` (deprecated alias) — bearer-token
+- `POST /fetch/batch` and `POST /fetch_urls` (deprecated alias)
+- `POST /metasearch` — legacy fan-out, kept literally "for the
+  research-agent until it migrates" (its own code comment)
+
+Two PRs, both small + additive:
+
+**PR-A · research-swarm: `RA_BACKEND=swf-node`**
+
+- New env vars: `RA_BACKEND` (`direct` default, `swf-node` enables
+  routing), `SWF_NODE_URL` (e.g. `http://127.0.0.1:7777`),
+  `SWF_NODE_TOKEN` (bearer for `/fetch*`).
+- When `RA_BACKEND=swf-node`:
+  - `web/providers.py:_provider_searxng` (or a sibling
+    `_provider_swf`) calls `POST /web_search` against `SWF_NODE_URL`,
+    bypassing DDG entirely.
+  - `web/fetch.py:fetch_url` calls `POST /fetch` with bearer token
+    instead of urllib+trafilatura. Returns the same `(text, extractor)`
+    shape so callers don't change.
+  - `web/fetch.py:fetch_urls_parallel` calls `POST /fetch/batch`.
+  - Local archive write is skipped on this path — swf-node owns it.
+- Default path (`RA_BACKEND=direct`) is unchanged. Non-SROS users
+  keep DDG+trafilatura+Jina.
+- Tests: unit-test each backend choice with a fake swf-node fixture.
+
+**PR-B · SROS: inject SWF env into swarm-node.js**
+
+- `apps/os/swarm-node.js:start()` builds the spawn env. Add:
+  ```js
+  RA_BACKEND: "swf-node",
+  SWF_NODE_URL: process.env.SWF_NODE_URL || "http://127.0.0.1:7777",
+  SWF_NODE_TOKEN: swfNode.getAgentToken() || "",
+  ```
+  (Token comes from the existing `fg:swf-agent-token` plumbing —
+  `main.js:315`. It's the same bearer the renderer already uses.)
+- No UI changes.
+
+**Acceptance**: launch SROS → swarm → run any web-touching query →
+within seconds, a new town appears in the atlas tagged
+`user_fetched` + `friends` share scope, just like a regular search.
+No theatre yet; this is invisible-plumbing slice.
 
 ### slice 2 — research-swarm event stream
 - PR `--emit-events ndjson` to research-swarm.
@@ -520,12 +570,15 @@ Order by smallest shippable. Each slice should be PR-sized.
 
 These need answers before we build past slice 1.
 
-**Q1. Does research-swarm's archive actually land in swf-node's
-`pages` table?** Both read/write `~/world_knowledge/index.db`, but
-swf-node has its own `pages` + `pages_meta` schema (with
-`share_scope`). Research-swarm's `web/index.py` may write to a
-different `pages` FTS5 table in the same DB. Need to verify schema
-overlap or build the bridge. **(Slice 1.)**
+**Q1. (resolved.)** ~~Does research-swarm's archive actually land
+in swf-node's `pages` table?~~ Answered by inspecting both repos:
+research-swarm today writes its own FTS5 schema directly to
+`~/world_knowledge/index.db`, bypassing swf-node entirely. SROS
+also fails to set `SEARXNG_URL`, so even the search path skips
+swf-node. **Slice 1 now routes all swarm traffic THROUGH swf-node
+(see two-PR plan in Rollout) instead of trying to bridge two
+parallel writers to the same archive — single-ingestion-point is
+the correct architecture and matches the user's intent.**
 
 **Q2. Where does the synthesis card live?**
 - (a) Inline on the atlas legend (cartouche-adjacent). Persistent.
