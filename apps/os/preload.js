@@ -82,5 +82,16 @@ contextBridge.exposeInMainWorld("api", {
     frame:       (f) => ipcRenderer.invoke("easel:frame", f),
     stats:       ()  => ipcRenderer.invoke("easel:stats"),
     stop:        ()  => ipcRenderer.invoke("easel:stop"),
+    // Receive side — discover NDI sources on the LAN + stream the chosen
+    // source's video frames into the renderer. Returns a detach function.
+    findNdi:     (o) => ipcRenderer.invoke("easel:find-sources", o || {}),
+    rxStart:     (sourceName) => ipcRenderer.invoke("easel:rx-start", { sourceName }),
+    rxStop:      ()  => ipcRenderer.invoke("easel:rx-stop"),
+    rxStats:     ()  => ipcRenderer.invoke("easel:rx-stats"),
+    onRxFrame:   (cb) => {
+      const handler = (_e, frame) => { try { cb(frame); } catch {} };
+      ipcRenderer.on("easel:rx-frame", handler);
+      return () => ipcRenderer.removeListener("easel:rx-frame", handler);
+    },
   },
 });

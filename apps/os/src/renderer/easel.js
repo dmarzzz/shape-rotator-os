@@ -42,6 +42,15 @@ let _quality = "high";
 let _outW = 1280;
 let _outH = 720;
 
+// "Watching the LAN" — receive side.
+let _watchCanvas = null;
+let _watchCtx = null;
+let _watchOverlay = null;
+let _watchSources = [];
+let _watchSelected = null;     // name of the source we're currently receiving
+let _watchFrameUnsub = null;   // detach function from window.api.easel.onRxFrame
+let _watchFrames = 0;
+
 // Output dims = source size scaled down to fit the quality cap, aspect kept,
 // rounded to even (some NDI receivers dislike odd dimensions).
 function computeOutputDims() {
@@ -120,6 +129,22 @@ function renderShell() {
       </footer>
       <p class="easel-recv-hint">to project: on the receiver — NDI Studio Monitor, OBS, Resolume, or easel — pick your source from the NDI list. "0 watching" just means no one's pulling it yet.</p>
       <div class="easel-err" data-easel-err hidden></div>
+
+      ${_ndiAvailable ? `
+      <section class="easel-watch">
+        <header class="easel-watch-head">
+          <span class="easel-watch-eyebrow">watching the LAN</span>
+          <span class="easel-watch-status" data-watch-status>—</span>
+          <button class="easel-watch-refresh" type="button" data-watch-refresh aria-label="refresh sources">↻ refresh</button>
+        </header>
+        <ul class="easel-watch-list" data-watch-list role="list">
+          <li class="easel-watch-loading">looking for NDI sources on the LAN…</li>
+        </ul>
+        <div class="easel-watch-viewer">
+          <canvas class="easel-watch-canvas" data-watch-canvas width="640" height="360"></canvas>
+          <div class="easel-watch-overlay" data-watch-overlay>pick a stream above to watch</div>
+        </div>
+      </section>` : ""}
     </div>`;
 
   _canvas = _stage.querySelector("[data-easel-canvas]");
@@ -129,7 +154,109 @@ function renderShell() {
 
   _stage.querySelector("[data-easel-go]").addEventListener("click", () => (_live ? stopLive() : goLive()));
   _stage.querySelectorAll(".easel-q-btn").forEach((b) => b.addEventListener("click", () => setQuality(b.getAttribute("data-quality"))));
+
+  // Wire the "watching the LAN" surface (present only when NDI is available).
+  _watchCanvas = _stage.querySelector("[data-watch-canvas]");
+  _watchCtx = _watchCanvas ? _watchCanvas.getContext("2d") : null;
+  _watchOverlay = _stage.querySelector("[data-watch-overlay]");
+  if (_watchCanvas) {
+    _stage.querySelector("[data-watch-refresh]").addEventListener("click", () => loadWatchSources());
+    loadWatchSources();
+  }
+
   refreshStatus(null);
+}
+
+async function loadWatchSources() {
+  const list = _stage.querySelector("[data-watch-list]");
+  const statusEl = _stage.querySelector("[data-watch-status]");
+  if (!list) return;
+  list.innerHTML = `<li class="easel-watch-loading">scanning…</li>`;
+  if (statusEl) statusEl.textContent = "scanning…";
+  const sources = await safe(() => window.api.easel.findNdi({ timeoutMs: 3000 }), []);
+  _watchSources = Array.isArray(sources) ? sources : [];
+  if (statusEl) statusEl.textContent = `${_watchSources.length} found`;
+  if (!_watchSources.length) {
+    list.innerHTML = `<li class="easel-watch-empty">no NDI sources on the LAN yet — when a cohort peer goes live, they'll show up here.</li>`;
+    return;
+  }
+  list.innerHTML = _watchSources.map((s) => {
+    const sel = _watchSelected === s.name ? " is-watching" : "";
+    return `<li><button type="button" class="easel-watch-src${sel}" data-watch-src="${esc(s.name)}">
+      <span class="ews-glyph" aria-hidden="true">${_watchSelected === s.name ? "▶" : "○"}</span>
+      <span class="ews-name">${esc(s.name)}</span>
+    </button></li>`;
+  }).join("");
+  list.querySelectorAll("[data-watch-src]").forEach((btn) => {
+    btn.addEventListener("click", () => watchSelect(btn.getAttribute("data-watch-src")));
+  });
+}
+
+async function watchSelect(sourceName) {
+  if (!sourceName) return;
+  // Toggle off if clicking the active source.
+  if (_watchSelected === sourceName) { await watchStop(); return; }
+  // Tear down any previous stream first.
+  await watchStop();
+  _watchSelected = sourceName;
+  if (_watchOverlay) { _watchOverlay.textContent = `connecting to ${sourceName}…`; _watchOverlay.hidden = false; }
+  // Attach the frame listener BEFORE asking main to start, so we don't drop
+  // the first frame.
+  _watchFrameUnsub = window.api.easel.onRxFrame((frame) => onRxFrame(frame));
+  const res = await safe(() => window.api.easel.rxStart(sourceName), { ok: false, error: "rx failed" });
+  if (!res || res.ok === false) {
+    if (_watchOverlay) { _watchOverlay.textContent = (res && res.error) || "couldn't open that stream"; _watchOverlay.hidden = false; }
+    if (_watchFrameUnsub) { _watchFrameUnsub(); _watchFrameUnsub = null; }
+    _watchSelected = null;
+    await loadWatchSources();    // re-render to clear selection
+    return;
+  }
+  _watchFrames = 0;
+  // Re-render the list to mark the selected source.
+  await loadWatchSources();
+}
+
+async function watchStop() {
+  if (_watchFrameUnsub) { try { _watchFrameUnsub(); } catch {} _watchFrameUnsub = null; }
+  await safe(() => window.api.easel.rxStop());
+  _watchSelected = null;
+  _watchFrames = 0;
+  if (_watchCtx && _watchCanvas) _watchCtx.clearRect(0, 0, _watchCanvas.width, _watchCanvas.height);
+  if (_watchOverlay) { _watchOverlay.textContent = "pick a stream above to watch"; _watchOverlay.hidden = false; }
+}
+
+function onRxFrame(frame) {
+  if (!_watchCtx || !frame || !frame.data) return;
+  const { width, height, lineStride, data } = frame;
+  if (!width || !height) return;
+  if (_watchCanvas.width !== width || _watchCanvas.height !== height) {
+    _watchCanvas.width = width;
+    _watchCanvas.height = height;
+  }
+  const expected = width * 4;
+  let buf;
+  if (lineStride === expected) {
+    // Tight RGBA — view directly without copy.
+    buf = new Uint8ClampedArray(data.buffer, data.byteOffset, width * height * 4);
+  } else {
+    // Padded stride — copy row-by-row into a tight buffer for ImageData.
+    buf = new Uint8ClampedArray(width * height * 4);
+    const src = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    for (let y = 0; y < height; y++) {
+      buf.set(src.subarray(y * lineStride, y * lineStride + expected), y * expected);
+    }
+  }
+  // RGBX (no-alpha source) leaves the 4th byte undefined → force opaque so
+  // putImageData renders rather than blending to transparent.
+  for (let i = 3; i < buf.length; i += 4) buf[i] = 255;
+  _watchCtx.putImageData(new ImageData(buf, width, height), 0, 0);
+  _watchFrames += 1;
+  if (_watchOverlay && !_watchOverlay.hidden) _watchOverlay.hidden = true;
+  // Lightweight status update — every ~30 frames so we don't thrash the DOM.
+  if ((_watchFrames % 30) === 0) {
+    const statusEl = _stage && _stage.querySelector("[data-watch-status]");
+    if (statusEl) statusEl.textContent = `${_watchSelected || ""} · ${_watchFrames}f`;
+  }
 }
 
 function setQuality(q) {

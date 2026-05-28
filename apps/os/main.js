@@ -465,6 +465,34 @@ ipcMain.handle("easel:stop", async (e) => {
   return easelNdi.stop();
 });
 
+// ─── easel · receive side (watch others on the LAN) ───
+// Discover NDI sources + stream the chosen source's frames back to the
+// renderer. Frame data crosses IPC as a Uint8Array (RGBA, line-stride);
+// the renderer puts it on a canvas via putImageData.
+ipcMain.handle("easel:find-sources", async (_e, opts) => easelNdi.find(opts || {}));
+ipcMain.handle("easel:rx-start", async (e, opts) => {
+  const wc = e.sender;
+  // Keep the renderer's frame-draw work running smoothly even when the app
+  // window is backgrounded (same reason we do it for the sender side).
+  try { wc.setBackgroundThrottling(false); } catch {}
+  return easelNdi.recvStart({
+    sourceName: opts && opts.sourceName,
+    onFrame: (frame) => {
+      if (wc.isDestroyed()) return;
+      try { wc.send("easel:rx-frame", frame); } catch {}
+    },
+  });
+});
+ipcMain.handle("easel:rx-stop", async (e) => {
+  // Only re-throttle if the sender side isn't still live.
+  try {
+    const sStats = easelNdi.stats && easelNdi.stats();
+    if (!sStats || !sStats.live) e.sender.setBackgroundThrottling(true);
+  } catch {}
+  return easelNdi.recvStop();
+});
+ipcMain.handle("easel:rx-stats", async () => easelNdi.recvStats());
+
 // Dev-only sync-client smoke test. Triggers the renderer's
 // window.__srfgSyncClientSelfTest() helper (apps/os/src/renderer/sync-client.js
 // installs it on load). Bound here so a user can also run it from

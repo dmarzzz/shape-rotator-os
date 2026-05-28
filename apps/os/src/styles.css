@@ -11272,6 +11272,110 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .easel-q-btn:hover { color: rgba(240,236,230,0.9); }
 .easel-q-btn[aria-selected="true"] { background: rgba(217,142,106,0.16); color: #e7a886; }
 
+/* ─── easel · watching the LAN (receive side) ────────────────────────
+   List of NDI sources discoverable on the LAN + a viewer canvas. Lives
+   under the broadcast controls; you can broadcast and watch at once. */
+.easel-watch {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.easel-watch-head {
+  display: flex; align-items: center; gap: 10px;
+}
+.easel-watch-eyebrow {
+  font-family: var(--sr-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(240,236,230,0.55);
+}
+.easel-watch-status {
+  font-family: var(--sr-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: rgba(240,236,230,0.4);
+  margin-right: auto;
+}
+.easel-watch-refresh {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: transparent;
+  color: rgba(240,236,230,0.7);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: var(--sr-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.easel-watch-refresh:hover { background: rgba(255,255,255,0.05); color: #f0ece6; }
+.easel-watch-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.easel-watch-loading,
+.easel-watch-empty {
+  font-family: var(--sr-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(240,236,230,0.4);
+  padding: 8px 10px;
+}
+.easel-watch-src {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  appearance: none; background: transparent;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 7px;
+  padding: 9px 12px;
+  color: rgba(240,236,230,0.78);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+.easel-watch-src:hover {
+  border-color: rgba(217,142,106,0.35);
+  background: rgba(217,142,106,0.06);
+  color: #f0ece6;
+}
+.easel-watch-src.is-watching {
+  border-color: #57c177;
+  background: rgba(87,193,119,0.10);
+  color: #f0ece6;
+}
+.easel-watch-src .ews-glyph {
+  font-size: 11px;
+  color: rgba(240,236,230,0.5);
+  width: 14px; text-align: center;
+}
+.easel-watch-src.is-watching .ews-glyph { color: #57c177; }
+.easel-watch-src .ews-name {
+  font-family: var(--sr-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.easel-watch-viewer {
+  position: relative;
+  width: 100%;
+  background: #000;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+}
+.easel-watch-canvas { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.easel-watch-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--sr-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(240,236,230,0.45);
+  background: linear-gradient(180deg, rgba(0,0,0,0.0), rgba(0,0,0,0.3));
+  pointer-events: none;
+}
+
 /* ─── onboarding · bonus rows ─────────────────────────────────────────
  * Separator between core steps and BONUS steps. The bonus rows are
  * the same step shape but slightly dimmed so the eye reads them as

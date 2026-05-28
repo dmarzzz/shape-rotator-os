@@ -95,4 +95,126 @@ async function stop() {
   return true;
 }
 
-module.exports = { isAvailable, start, sendFrame, stats, stop };
+// ─── NDI receive side ────────────────────────────────────────────────
+// Same native binding, opposite direction: discover sources on the LAN and
+// pull video frames from one of them. The receiver pump runs here in main
+// and pushes each frame to the renderer via the onFrame callback (wired to
+// webContents.send in main.js).
+
+let _rxReceiver = null;
+let _rxAlive = false;
+let _rxFrameCount = 0;
+let _rxOnFrame = null;
+let _rxCurrentSourceName = "";
+
+// Discover NDI sources on the LAN. Returns [{ name, urlAddress }]. Wrapped
+// in a soft timeout so a quiet LAN doesn't hang the renderer.
+async function find({ timeoutMs = 2500 } = {}) {
+  try {
+    const g = load();
+    // Native find appears to be a one-shot snapshot of the current mDNS
+    // cache rather than a blocking wait — so first call after launch is
+    // often empty. Poll a few times within timeoutMs so the cache has time
+    // to populate as Bonjour resolves.
+    const start = Date.now();
+    const seen = new Map();
+    let pollCount = 0;
+    while (Date.now() - start < timeoutMs) {
+      pollCount += 1;
+      let batch = [];
+      try {
+        batch = await Promise.resolve(g.find({ showLocalSources: true, wait: 800 }));
+      } catch (e) {
+        console.error("[easel-ndi] find poll:", e.message);
+      }
+      if (Array.isArray(batch)) {
+        for (const s of batch) {
+          const name = s && s.name;
+          if (!name || seen.has(name)) continue;
+          seen.set(name, { name, urlAddress: s.urlAddress || "" });
+        }
+      }
+      if (Date.now() - start >= timeoutMs) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    const out = [...seen.values()];
+    console.log(`[easel-ndi] find: ${out.length} sources after ${pollCount} polls (${Date.now()-start}ms)`);
+    return out;
+  } catch (e) {
+    console.error("[easel-ndi] find:", e.message);
+    return [];
+  }
+}
+
+async function recvStart({ sourceName, onFrame } = {}) {
+  await recvStop();
+  if (!sourceName) return { ok: false, error: "no source name" };
+  const g = load();
+  // Refind to resolve the source's urlAddress (the receiver needs the full
+  // source object). The list is cheap to rebuild.
+  const sources = await find({ timeoutMs: 2500 });
+  const source = sources.find((s) => s.name === sourceName);
+  if (!source) return { ok: false, error: "source not on LAN" };
+  try {
+    _rxReceiver = await g.receive({
+      source,
+      colorFormat: g.COLOR_FORMAT_RGBX_RGBA,
+      bandwidth: g.BANDWIDTH_HIGHEST,
+      allowVideoFields: false,
+    });
+  } catch (e) {
+    return { ok: false, error: "receiver init failed: " + e.message };
+  }
+  _rxOnFrame = typeof onFrame === "function" ? onFrame : null;
+  _rxAlive = true;
+  _rxFrameCount = 0;
+  _rxCurrentSourceName = sourceName;
+  pumpRecv().catch((e) => console.error("[easel-ndi] recv pump:", e.message));
+  return { ok: true, name: sourceName };
+}
+
+async function pumpRecv() {
+  while (_rxAlive && _rxReceiver) {
+    let frame = null;
+    try {
+      // 1s soft timeout so recvStop() can wind the loop down quickly without
+      // a permanently-blocked native call.
+      frame = await _rxReceiver.video(1000);
+    } catch { /* timeout / transient — keep looping */ }
+    if (!_rxAlive) break;
+    if (frame && frame.data && frame.xres > 0 && frame.yres > 0) {
+      _rxFrameCount += 1;
+      if (_rxOnFrame) {
+        try {
+          _rxOnFrame({
+            width: frame.xres,
+            height: frame.yres,
+            lineStride: frame.lineStrideBytes || frame.xres * 4,
+            data: frame.data,
+          });
+        } catch {}
+      }
+    }
+  }
+}
+
+async function recvStop() {
+  _rxAlive = false;
+  _rxOnFrame = null;
+  if (_rxReceiver) {
+    try { await _rxReceiver.destroy(); } catch {}
+    _rxReceiver = null;
+  }
+  _rxCurrentSourceName = "";
+  return true;
+}
+
+function recvStats() {
+  return {
+    active: !!_rxReceiver,
+    sourceName: _rxCurrentSourceName,
+    frames: _rxFrameCount,
+  };
+}
+
+module.exports = { isAvailable, start, sendFrame, stats, stop, find, recvStart, recvStop, recvStats };
