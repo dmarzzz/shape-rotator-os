@@ -11,6 +11,8 @@ const preview = {
   url: document.querySelector("[data-preview-url]"),
   behavior: document.querySelector("[data-preview-behavior]"),
 };
+const embeddedCache = new Map();
+let previewRequestId = 0;
 
 function text(card, selector) {
   return card.querySelector(selector)?.textContent?.trim() || "";
@@ -26,7 +28,45 @@ function sameOriginPath(url) {
   }
 }
 
+async function embeddedHtml(url) {
+  if (embeddedCache.has(url)) return embeddedCache.get(url);
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`preview fetch failed: ${response.status}`);
+
+  const html = await response.text();
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const base = doc.createElement("base");
+  base.href = url;
+  doc.head.prepend(base);
+  doc.querySelectorAll("[target]").forEach((el) => el.removeAttribute("target"));
+
+  const srcdoc = `<!doctype html>\n${doc.documentElement.outerHTML}`;
+  embeddedCache.set(url, srcdoc);
+  return srcdoc;
+}
+
+async function loadEmbed(href, requestId) {
+  const url = new URL(href, location.href);
+  preview.frame.title = `${preview.title.textContent} preview`;
+  preview.frame.removeAttribute("src");
+  preview.frame.removeAttribute("srcdoc");
+
+  if (url.origin === location.origin) {
+    preview.frame.src = href;
+    return;
+  }
+
+  try {
+    const srcdoc = await embeddedHtml(url.href);
+    if (requestId === previewRequestId) preview.frame.srcdoc = srcdoc;
+  } catch {
+    if (requestId === previewRequestId) preview.frame.src = href;
+  }
+}
+
 function selectCard(card) {
+  const requestId = ++previewRequestId;
   const kind = card.dataset.previewKind || "links";
   const href = card.getAttribute("href") || "";
   const label = text(card, ".link-card-title");
@@ -42,12 +82,12 @@ function selectCard(card) {
   preview.behavior.textContent = kind === "embed" ? "inline preview" : "curated link card";
 
   if (kind === "embed") {
-    preview.frame.title = `${label} preview`;
-    if (preview.frame.getAttribute("src") !== href) preview.frame.src = href;
     preview.frameShell.hidden = false;
     preview.links.hidden = true;
+    loadEmbed(href, requestId);
   } else {
     preview.frame.removeAttribute("src");
+    preview.frame.removeAttribute("srcdoc");
     preview.frameShell.hidden = true;
     preview.links.hidden = false;
   }
