@@ -367,12 +367,16 @@ body.links-page-body .hero-tagline {
 }
 .links-preview {
   min-width: 0;
+  min-height: min(900px, calc(100vh - 128px));
   border: 1px solid var(--ink-4);
   border-radius: var(--r-md);
-  background: transparent;
+  background:
+    linear-gradient(180deg, rgba(247, 241, 236, 0.038), rgba(247, 241, 236, 0.014));
   overflow: hidden;
   position: sticky;
   top: var(--space-5);
+  display: flex;
+  flex-direction: column;
 }
 .links-preview-head {
   display: grid;
@@ -406,7 +410,8 @@ body.links-page-body .hero-tagline {
   color: var(--ink-2);
 }
 .links-preview-frame-shell {
-  height: min(900px, calc(100vh - 128px));
+  flex: 1;
+  height: auto;
   min-height: 620px;
   background: var(--abyss);
 }
@@ -425,6 +430,7 @@ body.links-page-body .hero-tagline {
   display: grid;
   align-content: start;
   gap: var(--space-4);
+  flex: 1;
   padding: var(--space-5);
 }
 .links-preview-note {
