@@ -1,0 +1,136 @@
+name: pr-conflict-watch
+
+# Watches open PRs authored by the configured GitHub user and leaves a sticky
+# PR comment when GitHub reports branch conflicts. This exists because the
+# calendar-sync workflow advances main every 2 hours and can make long-lived
+# content branches conflict on generated bundle files.
+
+on:
+  schedule:
+    # Every 2 hours, offset from calendar-sync so it checks after main may move.
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: pr-conflict-watch
+  cancel-in-progress: true
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check authored PRs for branch conflicts
+        uses: actions/github-script@v7
+        env:
+          WATCH_AUTHOR: AlbionaHoti
+        with:
+          script: |
+            const marker = "<!-- shape-rotator-pr-conflict-watch -->";
+            const author = process.env.WATCH_AUTHOR;
+            const { owner, repo } = context.repo;
+            const now = new Date().toISOString();
+
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            async function getStablePull(prNumber) {
+              let latest = null;
+              for (let attempt = 0; attempt < 4; attempt += 1) {
+                const { data } = await github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: prNumber,
+                });
+                latest = data;
+                if (data.mergeable !== null && data.mergeable_state !== "unknown") {
+                  return data;
+                }
+                await sleep(2500);
+              }
+              return latest;
+            }
+
+            async function upsertConflictComment(pr, body) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: pr.number,
+                per_page: 100,
+              });
+              const existing = comments.find((comment) => comment.body?.includes(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body,
+                });
+                return;
+              }
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pr.number,
+                body,
+              });
+            }
+
+            const openPulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+            const authoredPulls = openPulls.filter((pr) => pr.user?.login === author);
+            const conflicts = [];
+
+            for (const pr of authoredPulls) {
+              const detail = await getStablePull(pr.number);
+              const state = detail?.mergeable_state || "unknown";
+              const hasConflict = state === "dirty";
+              const conflictBody = [
+                marker,
+                `⚠️ **Branch conflict detected** at ${now}.`,
+                "",
+                `GitHub reports this PR as \`${state}\`, which usually means it needs a rebase onto the latest \`${detail.base.ref}\`.`,
+                "",
+                `Current head: \`${detail.head.sha}\``,
+                `Base branch: \`${detail.base.ref}\``,
+                "",
+                "Suggested local fix:",
+                "",
+                "```bash",
+                `git fetch origin ${detail.base.ref}`,
+                `git rebase origin/${detail.base.ref}`,
+                "npm run build:cohort",
+                "git add apps/os/src/cohort-surface.json",
+                "git rebase --continue",
+                "git push --force-with-lease",
+                "```",
+              ].join("\n");
+              const cleanBody = [
+                marker,
+                `✅ **No branch conflict detected** at ${now}.`,
+                "",
+                `GitHub reports this PR as \`${state}\` against \`${detail.base.ref}\`.`,
+              ].join("\n");
+              const body = hasConflict ? conflictBody : cleanBody;
+
+              if (hasConflict) conflicts.push(`#${pr.number} ${pr.title}`);
+              await upsertConflictComment(pr, body);
+            }
+
+            await core.summary
+              .addHeading("PR conflict watch")
+              .addRaw(`Checked ${authoredPulls.length} open PR(s) authored by ${author}.`)
+              .addBreak()
+              .addList(conflicts.length ? conflicts : ["No branch conflicts detected."])
+              .write();
+
+            if (conflicts.length) {
+              core.setFailed(`Branch conflicts detected: ${conflicts.join(", ")}`);
+            }
