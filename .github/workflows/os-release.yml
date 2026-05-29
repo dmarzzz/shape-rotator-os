@@ -57,12 +57,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # `arches` lists every arch electron-builder cross-builds on this
+          # runner. The fetch steps below loop over it so BOTH arches' bundled
+          # binaries are staged (see #186); the host arch is built first.
           - os: macos-latest
             platform: mac
+            arches: arm64 x64
           - os: windows-latest
             platform: win
+            arches: x64 arm64
           - os: ubuntu-latest
             platform: linux
+            arches: x64 arm64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -121,7 +127,16 @@ jobs:
           # unset to follow `latest`.
           SWF_NODE_VERSION: ${{ vars.SWF_NODE_VERSION }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/fetch-swf-node.sh
+        # Fetch every arch this runner cross-builds (see #186). Each pass stages
+        # into build-resources/_staging/swf-node/<arch>/; the beforePack hook
+        # flattens the matching arch per dmg/AppImage at pack time.
+        run: |
+          set -euo pipefail
+          for arch in ${{ matrix.arches }}; do
+            echo "::group::fetch swf-node ($arch)"
+            SWF_NODE_ARCH="$arch" bash scripts/fetch-swf-node.sh
+            echo "::endgroup::"
+          done
 
       # Same pattern as fetch-swf-node above, for the research-agent
       # PyInstaller binary from dmarzzz/research-swarm. Drops it at
@@ -135,7 +150,15 @@ jobs:
         env:
           RESEARCH_SWARM_VERSION: ${{ vars.RESEARCH_SWARM_VERSION }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/fetch-research-swarm.sh
+        # Fetch every arch this runner cross-builds (see #186); same staging +
+        # beforePack flattening as swf-node above.
+        run: |
+          set -euo pipefail
+          for arch in ${{ matrix.arches }}; do
+            echo "::group::fetch research-agent ($arch)"
+            RESEARCH_SWARM_ARCH="$arch" bash scripts/fetch-research-swarm.sh
+            echo "::endgroup::"
+          done
 
       - name: regenerate cohort-surface.json from cohort-data/
         run: npm run build:cohort

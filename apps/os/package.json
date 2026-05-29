@@ -53,6 +53,7 @@
     "extraMetadata": {
       "main": "main.js"
     },
+    "beforePack": "scripts/before-pack-stage-binaries.cjs",
     "afterPack": "scripts/after-pack-verify.cjs",
     "directories": {
       "output": "dist",
