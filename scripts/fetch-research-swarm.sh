@@ -43,8 +43,13 @@ set -euo pipefail
 REPO="dmarzzz/research-swarm"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DEST_DIR="$REPO_ROOT/apps/os/build-resources/research-swarm"
-DEST_BIN="$DEST_DIR/research-agent"
+# Per-arch staging dir (resolved fully once $ARCH is known, below). Mirrors
+# fetch-swf-node.sh: CI fetches both arches into
+# build-resources/_staging/research-swarm/<arch>/ and the beforePack hook
+# (apps/os/scripts/before-pack-stage-binaries.cjs) flattens the matching arch
+# into build-resources/research-swarm/ per target. Fixes #186.
+STAGING_BASE="$REPO_ROOT/apps/os/build-resources/_staging/research-swarm"
+# DEST_DIR / DEST_BIN are set after platform/arch resolution (see below).
 
 FORCE=0
 for arg in "$@"; do
@@ -82,6 +87,11 @@ esac
 # Allow CI to override target via env vars (mirrors fetch-swf-node.sh).
 PLATFORM="${RESEARCH_SWARM_PLATFORM:-$PLATFORM}"
 ARCH="${RESEARCH_SWARM_ARCH:-$ARCH}"
+
+# Now that the target arch is known, point the staging dir at this arch so a
+# single runner can fetch both arches without clobbering.
+DEST_DIR="$STAGING_BASE/$ARCH"
+DEST_BIN="$DEST_DIR/research-agent"
 
 mkdir -p "$DEST_DIR"
 

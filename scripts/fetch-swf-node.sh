@@ -45,9 +45,13 @@ set -euo pipefail
 REPO="dmarzzz/searxng-wth-frnds"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DEST_DIR="$REPO_ROOT/apps/os/build-resources/swf-node"
-# DEST_BIN gets `.exe` appended once we detect a Windows runner below.
-DEST_BIN="$DEST_DIR/swf-node"
+# Per-arch staging dir (resolved fully once $ARCH is known, below). CI fetches
+# BOTH arches into build-resources/_staging/swf-node/<arch>/ and the electron-
+# builder beforePack hook (apps/os/scripts/before-pack-stage-binaries.cjs)
+# flattens the matching arch into build-resources/swf-node/ before each per-arch
+# dmg/AppImage is packed. Fixes #186 (cross-arch builds shipped the wrong arch).
+STAGING_BASE="$REPO_ROOT/apps/os/build-resources/_staging/swf-node"
+# DEST_DIR / DEST_BIN are set after platform/arch resolution (see below).
 
 FORCE=0
 for arg in "$@"; do
@@ -87,6 +91,13 @@ esac
 # documenting the seam in case Track A needs it).
 PLATFORM="${SWF_NODE_PLATFORM:-$PLATFORM}"
 ARCH="${SWF_NODE_ARCH:-$ARCH}"
+
+# Now that the target arch is known, point the staging dir at this arch so a
+# single runner can fetch both arches without clobbering (mac runner fetches
+# arm64 + x64; linux runner fetches x64 + arm64).
+DEST_DIR="$STAGING_BASE/$ARCH"
+# DEST_BIN gets `.exe` appended once we detect a Windows target below.
+DEST_BIN="$DEST_DIR/swf-node"
 
 # Windows asset is the only one with a file extension upstream
 # (swf-node-<v>-windows-x64.exe). Mirror that locally so the supervisor
