@@ -1,3 +1,26 @@
+---
+record_id: why-llm-agents-need-memory-workflows-and-social-routing
+record_type: article
+schema_version: 1
+title: "Why LLM agents need memory, workflows, and social routing"
+slug: why-llm-agents-need-memory-workflows-and-social-routing
+editorial_section: agent infrastructure
+audience: cohort
+status: draft
+content_version: "v0.0.1"
+published_at: null
+authored_week: w1.5
+sources:
+  - "Day 1 project intro session notes"
+  - "Agents Day 3 project intro session notes"
+  - "Dumb Agent Tricks session notes"
+  - "Friday session notes with Shaw and Greg"
+related_clusters: [agents, agentic-dev-platform]
+related_teams: [elizaos, jjhub, contexto, teleport-router, tinycloud]
+related_people: [shaw-walters, andrew-miller, sm86, will-cory, hudson, lsdan]
+working_angle: "Useful agent work disappears into private sessions, lost context, and brittle long-running tasks, so Shape Rotator should explain why agent workflows need durable memory, social routing, audit trails, and human override."
+---
+
 # Why LLM agents need memory, workflows, and social routing
 
 ## the claim

@@ -1,3 +1,24 @@
+---
+record_id: privacy-is-not-the-product-capability-is-the-product
+record_type: article
+schema_version: 1
+title: "Privacy is not the product; capability is the product"
+slug: privacy-is-not-the-product-capability-is-the-product
+editorial_section: privacy and capability
+audience: cohort
+status: draft
+content_version: "v0.0.2"
+published_at: null
+authored_week: w1.5
+sources:
+  - "dstack salon session notes"
+  - "Day 2 local / private-first intro session notes (Phil's Alien Love debrief + project intros)"
+related_clusters: [dstack, confidential-data, confidential-ai-ops, crypto-id]
+related_teams: [teesql, abra, tinycloud, conclave, etherea, signalstack, dcnet, pramaana, bitrouter]
+related_people: [lsdan, prakhar, andrew-miller, sam-gbafa, kelsen-liu, rajat-verma]
+working_angle: "Private AI infrastructure, TEEs, and data sovereignty only become interesting when they unlock a concrete workflow people already want."
+---
+
 # Privacy is not the product; capability is the product
 
 ## the claim

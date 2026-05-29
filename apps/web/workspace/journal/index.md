@@ -1,40 +1,31 @@
 # Shape Rotator Journal
 
-Version: public content v0.0.1
+Version: public content v0.0.3
 
 Use this as a compact retrieval index for Shape Rotator articles.
-
-## Full Context Synthesis
-
-The dominant hidden theme across almost every Shape Rotator cohort project is not simply AI apps, TEEs, or agent tooling.
-
-The deeper recurring layer is coordination under partial trust:
-
-- preserving agency while increasing automation
-- routing information safely
-- memory persistence
-- local-first and sovereign systems
-- human-agent collaboration
-- reducing invisible coordination overhead
-- enabling collaboration without full disclosure
-- managing context fragmentation
-- making invisible work legible
-- privacy-preserving intelligence systems
-
-The cohort is collectively exploring this question:
-
-How do humans, agents, workflows, and organizations coordinate effectively when context, trust, privacy, and memory are all fragmented?
-
-This appears across TinyCloud, TSQL, Conclave, Router, Smithers, SignalSext, anonymous credential systems, workflow routing systems, and AI orchestration systems.
 
 ## Articles
 
 - Why LLM agents need memory, workflows, and social routing
   - HTML: https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing
   - Markdown: https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing/article.md
-  - Tags: LLM agents, AI workflow memory, agentic systems, human-in-the-loop AI, human override
+  - Version: v0.0.1
+  - Section: agent infrastructure
+  - Tags: LLM agents, workflow memory, human override
+  - Source file: cohort-data/articles/why-llm-agents-need-memory-workflows-and-social-routing.md
 
 - Privacy is not the product; capability is the product
   - HTML: https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability
   - Markdown: https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability/article.md
-  - Tags: private AI, AI privacy, trusted execution environments, sensitive context, AI capability
+  - Version: v0.0.2
+  - Section: privacy and capability
+  - Tags: private AI, trust, capability
+  - Source file: cohort-data/articles/privacy-is-not-the-product-capability-is-the-product.md
+
+- Verifiability is becoming UX for AI infrastructure
+  - HTML: https://os-web.shaperotator.xyz/workspace/journal/articles/verifiability-is-becoming-ux-for-ai-infrastructure
+  - Markdown: https://os-web.shaperotator.xyz/workspace/journal/articles/verifiability-is-becoming-ux-for-ai-infrastructure/article.md
+  - Version: v0.0.3
+  - Section: verifiability ux
+  - Tags: verifiability, TEE UX, dstack
+  - Source file: cohort-data/articles/verifiability-is-becoming-ux-for-ai-infrastructure.md
