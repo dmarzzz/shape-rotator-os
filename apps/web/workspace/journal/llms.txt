@@ -1,39 +1,8 @@
 # Shape Rotator Journal
 
-Version: public content v0.0.1
+Version: public content v0.0.3
 
 This file lists the current journal articles and their raw Markdown sources for LLM retrieval, copy/paste, and citation.
-
-## Full Context Synthesis
-
-The dominant hidden theme across almost every Shape Rotator cohort project is not simply AI apps, TEEs, or agent tooling. The deeper recurring layer is coordination under partial trust.
-
-The cohort is collectively exploring: How do humans, agents, workflows, and organizations coordinate effectively when context, trust, privacy, and memory are all fragmented?
-
-Core mechanisms:
-
-- preserving agency while increasing automation
-- routing information safely
-- memory persistence
-- local-first and sovereign systems
-- human-agent collaboration
-- reducing invisible coordination overhead
-- collaboration without full disclosure
-- context fragmentation
-- making invisible work legible
-- privacy-preserving intelligence systems
-
-Project/topic anchors:
-
-- TinyCloud
-- TSQL
-- Conclave
-- Router
-- Smithers
-- SignalSext
-- anonymous credential systems
-- workflow routing systems
-- AI orchestration systems
 
 ## Current articles
 
@@ -43,15 +12,38 @@ Project/topic anchors:
 - https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability
 - https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability/article.md
 
+- https://os-web.shaperotator.xyz/workspace/journal/articles/verifiability-is-becoming-ux-for-ai-infrastructure
+- https://os-web.shaperotator.xyz/workspace/journal/articles/verifiability-is-becoming-ux-for-ai-infrastructure/article.md
+
 ## Topic map
 
+- agent infrastructure
+- agents
+- agentic-dev-platform
+- elizaos
+- jjhub
+- contexto
+- teleport-router
+- tinycloud
 - LLM agents
-- AI workflow memory
-- agentic systems
-- human-in-the-loop AI
+- workflow memory
 - human override
+- privacy and capability
+- dstack
+- confidential-data
+- confidential-ai-ops
+- crypto-id
+- teesql
+- abra
+- conclave
+- etherea
+- signalstack
+- dcnet
+- pramaana
+- bitrouter
 - private AI
-- AI privacy
-- trusted execution environments
-- sensitive context
-- AI capability
+- trust
+- capability
+- verifiability ux
+- verifiability
+- TEE UX
