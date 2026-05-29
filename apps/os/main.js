@@ -1,6 +1,7 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, safeStorage, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, clipboard, dialog, ipcMain, nativeTheme, safeStorage, screen, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+const crypto = require("node:crypto");
 const swfNode = require("./swf-node");
 const swarm = require("./swarm-node");
 const easelNdi = require("./easel-ndi");
@@ -105,6 +106,12 @@ const STATE_DIR = app.getPath("userData");
 const WINDOW_STATE = path.join(STATE_DIR, "window_state.json");
 const PREFS_FILE = path.join(STATE_DIR, "viz_prefs.json");
 const LEGACY_PREFS_FILE = path.join(STATE_DIR, "wall_prefs.json");
+const CONTEXT_VAULT_DIR = path.join(STATE_DIR, "context-vault");
+const CONTEXT_VAULT_MANIFEST = path.join(CONTEXT_VAULT_DIR, "manifest.json");
+const CONTEXT_VAULT_ARTICLE_INDEX = path.join(CONTEXT_VAULT_DIR, "shape-rotator-article-index.md");
+const CONTEXT_VAULT_RAW_BUNDLE = path.join(CONTEXT_VAULT_DIR, "shape-rotator-transcripts.md");
+const CONTEXT_VAULT_CORPUS = CONTEXT_VAULT_ARTICLE_INDEX;
+const COHORT_ARTICLES_DIR = path.resolve(__dirname, "..", "..", "cohort-data", "articles");
 
 // If a `wall_prefs.json` survived from before the rename (either from this
 // install or copied over by migrateLegacyUserData()), promote it to the new
@@ -129,6 +136,807 @@ function writeJSON(p, d) {
   const tmp = p + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(d));
   fs.renameSync(tmp, p);
+}
+
+function hashShort(s) {
+  return crypto.createHash("sha256").update(String(s)).digest("hex").slice(0, 12);
+}
+
+function contextVaultRoots() {
+  const desktop = app.getPath("desktop");
+  const docs = app.getPath("documents");
+  return [
+    {
+      key: "shape-rotator-desktop",
+      label: "In-person session context",
+      path: path.join(desktop, "scripts @ shape rotator"),
+      max_depth: 4,
+    },
+    {
+      key: "voxterm-transcripts",
+      label: "VoxTerm transcripts",
+      path: path.join(docs, "voxterm-transcripts"),
+      max_depth: 4,
+    },
+    {
+      key: "voxterm-documents",
+      label: "VoxTerm documents",
+      path: path.join(docs, "voxterm"),
+      max_depth: 4,
+    },
+    {
+      key: "voxterm-documents-cap",
+      label: "VoxTerm documents",
+      path: path.join(docs, "VoxTerm"),
+      max_depth: 4,
+    },
+    {
+      key: "bundled-raw-scripts",
+      label: "Bundled transcripts",
+      path: path.join(__dirname, "src", "content", "context", "raw-scripts"),
+      max_depth: 1,
+      bundled: true,
+    },
+  ];
+}
+
+function skipContextVaultEntry(name) {
+  return name.startsWith(".") || new Set([
+    "node_modules",
+    "dist",
+    "build",
+    "release",
+    ".git",
+    ".next",
+    ".vercel",
+    "coverage",
+  ]).has(name);
+}
+
+function walkTranscriptFiles(root, out = [], depth = 0, maxDepth = 4) {
+  if (!root || depth > maxDepth || out.length >= 350) return out;
+  let entries;
+  try { entries = fs.readdirSync(root, { withFileTypes: true }); }
+  catch { return out; }
+  for (const entry of entries) {
+    if (out.length >= 350) break;
+    if (!entry || skipContextVaultEntry(entry.name)) continue;
+    const fp = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      if (depth < maxDepth) walkTranscriptFiles(fp, out, depth + 1, maxDepth);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    if (!/\.(txt|md|markdown)$/i.test(entry.name)) continue;
+    out.push(fp);
+  }
+  return out;
+}
+
+function meaningfulLines(text, cap = 14) {
+  const lines = String(text || "").split(/\r?\n/);
+  const picked = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(line)) continue;
+    if (/^meeting\s+/i.test(line) && picked.length > 0) continue;
+    picked.push(line);
+    if (picked.length >= cap) break;
+  }
+  return picked;
+}
+
+function inferTranscriptDate(name, text, mtime) {
+  const hay = `${name}\n${String(text || "").slice(0, 400)}`;
+  const iso = /\b(20\d{2})[-_ ](0?[1-9]|1[0-2])[-_ ](0?[1-9]|[12]\d|3[01])\b/.exec(hay);
+  if (iso) {
+    const y = iso[1];
+    const m = String(iso[2]).padStart(2, "0");
+    const d = String(iso[3]).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  const month = /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+([0-3]?\d)(?:,)?\s+(20\d{2})\b/i.exec(hay);
+  if (month) {
+    const months = {
+      jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+      jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+    };
+    const m = months[month[1].slice(0, 3).toLowerCase()] || "01";
+    const d = String(month[2]).padStart(2, "0");
+    return `${month[3]}-${m}-${d}`;
+  }
+  try { return new Date(mtime).toISOString().slice(0, 10); }
+  catch { return null; }
+}
+
+function inferSpeakers(text) {
+  const counts = new Map();
+  const add = (name) => {
+    let n = String(name || "").trim().replace(/\s+/g, " ");
+    n = n.replace(/[.,;:]+$/, "");
+    if (!n || n.length < 2 || n.length > 48) return;
+    if (/^(speaker|unknown|meeting|transcript|session)$/i.test(n)) return;
+    counts.set(n, (counts.get(n) || 0) + 1);
+  };
+  for (const line of String(text || "").split(/\r?\n/)) {
+    const a = /^([^:\n]{2,48}):\s+\S/.exec(line.trim());
+    if (a) add(a[1]);
+    const b = /^([^0-9\n]{2,48}?)\s{2,}\d{1,2}:\d{2}(?::\d{2})?\s*$/.exec(line.trim());
+    if (b) add(b[1]);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([name]) => name);
+}
+
+function inferSkillAreas(text) {
+  const t = String(text || "").toLowerCase();
+  const checks = [
+    ["tee", /\btee\b|trusted execution|tdx|sgx|sev|enclave/],
+    ["dstack", /\bdstack\b|phala/],
+    ["attestation", /attestation|ra-tls|quote verification/],
+    ["formal-verification", /formal verification|kani|cvc5|proof certificate/],
+    ["zk", /\bzk\b|zero[- ]knowledge|groth|snark/],
+    ["threshold-crypto", /threshold|committee signs|mpc signature/],
+    ["mpc", /\bmpc\b|multi-party/],
+    ["agentic", /agent|agents|claude|codex|llm|hermes|smithers/],
+    ["agent-runtime", /runtime|orchestrat|workflow|sandbox|daemon/],
+    ["agent-routing", /routing|router|openrouter|model route/],
+    ["cross-chain", /cross[- ]chain|bridge|wallet|asset|erc ?20|swap/],
+    ["identity", /identity|credential|pubkey|signature|device key/],
+    ["p2p", /\bp2p\b|mdns|lan|peer|gossip/],
+    ["durable-workflows", /durable|cron|checkpoint|resume|handoff/],
+    ["confidential-db", /database|postgres|encrypted-at-rest|confidential db/],
+    ["design", /design|ux|interface|visual|prototype/],
+    ["bd-gtm", /\bgtm\b|distribution|sales|customer|market|launch/],
+    ["research-to-product", /research|paper|product|prototype|productization/],
+    ["generative-media", /video|audio|media|transcript|voice|voxterm/],
+    ["mechanism-design", /mechanism|incentive|market design|auction/],
+  ];
+  return checks.filter(([, re]) => re.test(t)).map(([k]) => k).slice(0, 8);
+}
+
+function inferSignals(text) {
+  const lines = String(text || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const signalRe = /\b(should|need|needs|want|wants|would love|help|debug|question|ask|resource|tool|demo|ship|build|insight|pattern|risk|privacy|trust|verify|automate|workflow)\b/i;
+  const out = [];
+  for (const line of lines) {
+    if (out.length >= 6) break;
+    if (/^\d{1,2}:\d{2}/.test(line)) continue;
+    if (line.length < 28 || line.length > 260) continue;
+    if (signalRe.test(line)) out.push(line);
+  }
+  return out;
+}
+
+function transcriptTitle(filePath) {
+  return path.basename(filePath).replace(/\.(txt|md|markdown)$/i, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+const ARTICLE_BRIEFS = [
+  {
+    key: "llm-agent-memory-workflows-social-routing",
+    title: "Why LLM agents need memory, workflows, and social routing",
+    angle: "Useful agent work disappears into private sessions, lost context, and brittle long-running tasks, so Shape Rotator should explain why agent workflows need durable memory, social routing, audit trails, and human override.",
+    section: "agent infrastructure",
+    match: /\b(agent|agents|llm|memory|workflow|workflows|routing|router|social|audit|override|long-running|durable|elocute|dumb agent|project intros|office hours)\b/i,
+  },
+  {
+    key: "privacy-capability-product",
+    title: "Privacy is not the product; capability is the product",
+    angle: "Private AI infrastructure, TEEs, and data sovereignty only become interesting when they unlock a concrete workflow people already want.",
+    section: "privacy and capability",
+    match: /\b(privacy|private|local-first|private-first|tee|tees|dstack|enclave|confidential|sovereignty|capability)\b/i,
+  },
+  {
+    key: "verifiability-ai-infrastructure-ux",
+    title: "Verifiability is becoming UX for AI infrastructure",
+    angle: "Remote attestation and deployable proof are moving from backend trust primitives into things users can see, understand, and act on.",
+    section: "verifiability ux",
+    match: /\b(verifiability|verify|verification|attestation|remote attestation|proof|dstack|zk|quote|deployable)\b/i,
+  },
+];
+
+function sourceTitleForConcept(source) {
+  return String(source?.title || "")
+    .replace(/\btranscripts?\b/ig, "")
+    .replace(/\bnotes?\b/ig, "")
+    .replace(/\bsession\b/ig, "")
+    .replace(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:,)?(?:\s+20\d{2})?\b/ig, "")
+    .replace(/\b20\d{2}\b/g, "")
+    .replace(/\(\d+\)/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s,;:.-]+|[\s,;:.-]+$/g, "")
+    .trim();
+}
+
+function articleConcept(source) {
+  if (source?.article_title) {
+    return {
+      title: source.article_title,
+      dek: source.article_dek || source.article_angle || "",
+      angle: source.article_angle || source.article_dek || "",
+      section: source.article_section || "article",
+    };
+  }
+  const hay = [
+    source?.title,
+    (source?.skill_areas || []).join(" "),
+    (source?.signals || []).join(" "),
+    source?.excerpt,
+  ].filter(Boolean).join(" ");
+  const matched = ARTICLE_BRIEFS.find(rule => rule.match.test(hay));
+  if (matched) return { ...matched, dek: matched.angle };
+  const id = String(source?.article_id || source?.corpus_id || "").trim();
+  const skills = (source?.skill_areas || []).slice(0, 2).join(" + ");
+  const focus = skills || sourceTitleForConcept(source) || "cohort context";
+  return {
+    title: `${id || "Article draft"}: ${focus} patterns worth drafting`,
+    dek: `A public-safe article candidate distilled from private context around ${focus}.`,
+    angle: `Draft a public-safe Shape Rotator article about the reusable ${focus} patterns in this context vault entry.`,
+    section: "article candidate",
+  };
+}
+
+function articleTitle(source) {
+  return articleConcept(source).title;
+}
+
+function articleDek(source) {
+  return articleConcept(source).dek;
+}
+
+function articleAngle(source) {
+  return articleConcept(source).angle;
+}
+
+function articleSection(source) {
+  return articleConcept(source).section;
+}
+
+function articleSlug(s, fallback = "article") {
+  const slug = String(s || fallback)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 72);
+  return slug || fallback;
+}
+
+function uniqList(values = [], cap = 12) {
+  const out = [];
+  for (const value of values.map(v => String(v || "").trim()).filter(Boolean)) {
+    if (out.includes(value)) continue;
+    out.push(value);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
+function parseSimpleFrontmatterScalar(value) {
+  const raw = String(value || "").trim();
+  if (!raw || raw === "null") return raw === "null" ? null : "";
+  if (raw.startsWith("[") && raw.endsWith("]")) {
+    return raw.slice(1, -1)
+      .split(",")
+      .map(v => parseSimpleFrontmatterScalar(v))
+      .filter(v => v !== "");
+  }
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    return raw.slice(1, -1);
+  }
+  return raw;
+}
+
+function parseSimpleFrontmatter(text) {
+  const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(String(text || ""));
+  if (!m) return { frontmatter: {}, body: String(text || "") };
+  const frontmatter = {};
+  let listKey = null;
+  for (const rawLine of m[1].split(/\r?\n/)) {
+    const list = /^\s*-\s+(.+)$/.exec(rawLine);
+    if (list && listKey) {
+      if (!Array.isArray(frontmatter[listKey])) frontmatter[listKey] = [];
+      frontmatter[listKey].push(parseSimpleFrontmatterScalar(list[1]));
+      continue;
+    }
+    const kv = /^([A-Za-z0-9_-]+):(?:\s*(.*))?$/.exec(rawLine);
+    if (!kv) continue;
+    const key = kv[1];
+    const value = kv[2] || "";
+    if (!value.trim()) {
+      frontmatter[key] = [];
+      listKey = key;
+      continue;
+    }
+    frontmatter[key] = parseSimpleFrontmatterScalar(value);
+    listKey = null;
+  }
+  return { frontmatter, body: m[2] || "" };
+}
+
+function readCommittedArticles() {
+  let files;
+  try {
+    files = fs.readdirSync(COHORT_ARTICLES_DIR).filter(name => name.endsWith(".md")).sort();
+  } catch {
+    return [];
+  }
+  const articles = [];
+  for (const file of files) {
+    const filePath = path.join(COHORT_ARTICLES_DIR, file);
+    let raw;
+    try { raw = fs.readFileSync(filePath, "utf8"); }
+    catch { continue; }
+    const { frontmatter, body } = parseSimpleFrontmatter(raw);
+    if (frontmatter.record_type !== "article" || !frontmatter.record_id) continue;
+    const title = frontmatter.title || sourceTitleForConcept({ title: file });
+    const slug = frontmatter.slug || articleSlug(title);
+    articles.push({
+      id: `article:${frontmatter.record_id}`,
+      entry_kind: "article",
+      article_id: frontmatter.record_id,
+      corpus_id: frontmatter.record_id,
+      article_title: title,
+      article_angle: frontmatter.working_angle || "",
+      article_dek: frontmatter.working_angle || "",
+      article_section: frontmatter.editorial_section || "article",
+      article_slug: slug,
+      article_file: file,
+      article_body_md: String(body || "").trim(),
+      article_full_md: String(raw || "").trim(),
+      content_version: frontmatter.content_version || "",
+      status: frontmatter.status || "draft",
+      date: frontmatter.authored_week || null,
+      source_kind: "cohort-article",
+      source_refs: (frontmatter.sources || []).map(source => ({ title: String(source || "") })),
+      support_count: Array.isArray(frontmatter.sources) ? frontmatter.sources.length : 0,
+      skill_areas: frontmatter.related_clusters || [],
+      related_teams: frontmatter.related_teams || [],
+      related_people: frontmatter.related_people || [],
+      path: filePath,
+      size_bytes: Buffer.byteLength(raw, "utf8"),
+      line_count: raw.split(/\r?\n/).length,
+      char_count: raw.length,
+    });
+  }
+  return articles;
+}
+
+function articleDedupeKey(source) {
+  return String(source?.article_slug || articleSlug(source?.article_title || source?.title || source?.id || "article")).toLowerCase();
+}
+
+function mergeCommittedArticles(generatedArticles = []) {
+  const committed = readCommittedArticles();
+  const seen = new Set(committed.map(articleDedupeKey));
+  const generated = generatedArticles.filter(article => {
+    const key = articleDedupeKey(article);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return [...committed, ...generated];
+}
+
+function articleBriefHaystack(source) {
+  return [
+    source?.title,
+    source?.article_title,
+    source?.article_angle,
+    (source?.skill_areas || []).join(" "),
+    (source?.signals || []).join(" "),
+    source?.excerpt,
+  ].filter(Boolean).join("\n");
+}
+
+function buildArticleEntries(inputSources = []) {
+  if (!inputSources.length) return [];
+  return ARTICLE_BRIEFS.map((brief) => {
+    let matched = inputSources.filter(source => brief.match.test(articleBriefHaystack(source)));
+    if (!matched.length) matched = inputSources;
+    const slug = articleSlug(brief.title, brief.key);
+    const skills = uniqList(matched.flatMap(source => source.skill_areas || []), 10);
+    const refs = matched.map(source => ({
+      id: source.id,
+      title: source.title,
+      date: source.date,
+      kind: source.source_kind,
+    })).filter(ref => ref.id || ref.title);
+    return {
+      id: slug,
+      entry_kind: "article",
+      article_id: slug,
+      corpus_id: slug,
+      article_title: brief.title,
+      article_angle: brief.angle,
+      article_dek: brief.angle,
+      article_section: brief.section,
+      article_slug: slug,
+      date: matched.map(source => source.date).filter(Boolean).sort().pop() || null,
+      source_kind: "article-brief",
+      support_count: matched.length,
+      source_refs: refs,
+      skill_areas: skills,
+      line_count: matched.reduce((sum, source) => sum + (source.line_count || 0), 0),
+      size_bytes: matched.reduce((sum, source) => sum + (source.size_bytes || 0), 0),
+      char_count: matched.reduce((sum, source) => sum + (source.char_count || 0), 0),
+    };
+  });
+}
+
+function inferSourceKind(filePath, root) {
+  const hay = `${root?.key || ""} ${root?.label || ""} ${filePath}`.toLowerCase();
+  if (hay.includes("voxterm")) return "voxterm";
+  if (root?.key === "shape-rotator-desktop" || hay.includes("transcript")) return "in-person-context";
+  return "manual";
+}
+
+function scanTranscriptFile(filePath, root) {
+  let stat;
+  try { stat = fs.statSync(filePath); }
+  catch { return null; }
+  if (!stat.isFile() || stat.size <= 0) return null;
+  // Keep individual reads bounded. These are transcripts, not binary blobs.
+  const maxBytes = 1_500_000;
+  let raw;
+  try { raw = fs.readFileSync(filePath, "utf8").slice(0, maxBytes); }
+  catch { return null; }
+  const lines = raw.split(/\r?\n/);
+  const title = transcriptTitle(filePath);
+  const date = inferTranscriptDate(path.basename(filePath), raw, stat.mtimeMs);
+  const skills = inferSkillAreas(`${title}\n${raw}`);
+  const speakers = inferSpeakers(raw);
+  const excerptLines = meaningfulLines(raw, 10);
+  const signals = inferSignals(raw);
+  const id = hashShort(`${filePath}:${stat.size}:${Math.round(stat.mtimeMs)}`);
+  const sourceKind = inferSourceKind(filePath, root);
+  return {
+    id,
+    article_title: null,
+    article_angle: null,
+    article_slug: null,
+    article_dek: null,
+    article_section: null,
+    title,
+    path: filePath,
+    root_key: root.key,
+    root_label: root.label,
+    source_kind: sourceKind,
+    date,
+    size_bytes: stat.size,
+    line_count: lines.length,
+    char_count: raw.length,
+    mtime: new Date(stat.mtimeMs).toISOString(),
+    speakers,
+    skill_areas: skills,
+    signals,
+    excerpt: excerptLines.join("\n"),
+    truncated: stat.size > maxBytes,
+  };
+}
+
+function contextVaultTotals(sources = [], rawScripts = []) {
+  return {
+    sources: sources.length,
+    articles: sources.length,
+    raw_scripts: rawScripts.length,
+    lines: sources.reduce((n, s) => n + (s.line_count || 0), 0),
+    bytes: sources.reduce((n, s) => n + (s.size_bytes || 0), 0),
+    voxterm: sources.filter(s => s.source_kind === "voxterm").length,
+    in_person_context: sources.filter(s => s.source_kind === "in-person-context").length,
+    manual: sources.filter(s => s.source_kind === "manual").length,
+  };
+}
+
+function readContextVaultSourceText(filePath, maxBytes = 2_000_000) {
+  try {
+    const raw = fs.readFileSync(filePath, "utf8").replace(/\r\n/g, "\n");
+    return {
+      text: raw.slice(0, maxBytes),
+      truncated: Buffer.byteLength(raw, "utf8") > maxBytes,
+    };
+  } catch {
+    return { text: "", truncated: false };
+  }
+}
+
+function writeContextVaultRawBundle(rawScripts = []) {
+  const generatedAt = new Date().toISOString();
+  const lines = [
+    "---",
+    'title: "Shape Rotator Transcripts"',
+    `generated_at: ${JSON.stringify(generatedAt)}`,
+    `transcript_count: ${rawScripts.length}`,
+    'kind: "transcript-bundle"',
+    "---",
+    "",
+    "# Shape Rotator Transcripts",
+    "",
+    "Bundled transcript set for private prompting inside Shape Rotator OS.",
+    "",
+  ];
+  for (const source of rawScripts) {
+    const raw = readContextVaultSourceText(source.path, 2_000_000);
+    lines.push(`## ${source.title || path.basename(source.path || "transcript")}`);
+    lines.push("");
+    lines.push(`source_id: ${source.id || ""}`);
+    lines.push(`source_kind: ${source.source_kind || "transcript"}`);
+    lines.push(`date: ${source.date || ""}`);
+    lines.push(`lines: ${source.line_count || 0}`);
+    lines.push(`path: ${source.path || ""}`);
+    lines.push("");
+    lines.push("----- BEGIN TRANSCRIPT -----");
+    lines.push(raw.text || "");
+    if (raw.truncated || source.truncated) lines.push("----- TRUNCATED -----");
+    lines.push("----- END TRANSCRIPT -----");
+    lines.push("");
+  }
+  fs.mkdirSync(path.dirname(CONTEXT_VAULT_RAW_BUNDLE), { recursive: true });
+  const body = lines.join("\n");
+  fs.writeFileSync(CONTEXT_VAULT_RAW_BUNDLE, body);
+  return {
+    path: CONTEXT_VAULT_RAW_BUNDLE,
+    kind: "transcript-bundle",
+    generated_at: generatedAt,
+    transcript_count: rawScripts.length,
+    line_count: body.split(/\r?\n/).length,
+    char_count: body.length,
+    size_bytes: Buffer.byteLength(body, "utf8"),
+  };
+}
+
+function writeContextVaultCorpus(sources = []) {
+  const generatedAt = new Date().toISOString();
+  const lines = [
+    "---",
+    'title: "Shape Rotator Article Index"',
+    `generated_at: ${JSON.stringify(generatedAt)}`,
+    `article_count: ${sources.length}`,
+    'kind: "private-article-index"',
+    "---",
+    "",
+    "# Shape Rotator Article Index",
+    "",
+    "Private local article index generated from the local context vault. It is a working list of draft candidates, not public-ready copy.",
+    "",
+    "## Prompting Contract",
+    "",
+    "- Treat each entry as an article draft candidate.",
+    "- Separate public-safe synthesis from private/internal notes.",
+    "- Do not publish private user data, travel logistics, raw notes, or personal details without review.",
+    "- Prefer extracting reusable OS content: articles, context cards, program notes, asks, journal entries, people/project references, and open questions.",
+    "- Reference article titles when making claims from this index.",
+    "",
+  ];
+  lines.push("## Article Index", "");
+  lines.push("| title | angle | supporting inputs |");
+  lines.push("|---|---|---|");
+  for (const source of sources) {
+    const title = source.article_title || articleTitle(source);
+    const angle = source.article_angle || articleAngle(source);
+    const support = source.support_count || source.source_refs?.length || 0;
+    lines.push(`| ${title.replace(/\|/g, "\\|")} | ${angle.replace(/\|/g, "\\|")} | ${support} |`);
+  }
+  lines.push("", "## Articles", "");
+  for (const source of sources) {
+    const title = source.article_title || articleTitle(source);
+    const angle = source.article_angle || articleAngle(source);
+    const section = source.article_section || articleSection(source);
+    const slug = source.article_slug || articleSlug(title);
+    const skillAreas = (source.skill_areas || []).slice(0, 8);
+    const support = source.support_count || source.source_refs?.length || 0;
+    lines.push(`### ${title}`);
+    lines.push("");
+    lines.push(`- status: draft-candidate`);
+    lines.push(`- suggested_slug: ${slug}`);
+    lines.push(`- editorial_section: ${section}`);
+    lines.push(`- working_angle: ${angle}`);
+    lines.push(`- supporting_private_inputs: ${support}`);
+    lines.push(`- inferred_skill_areas: ${skillAreas.length ? skillAreas.join(", ") : "none inferred"}`);
+    lines.push("");
+    lines.push("#### Drafting Cues");
+    lines.push("");
+    lines.push("- Review the private input before drafting.");
+    lines.push("- Extract a public-safe thesis, reusable program context, and any explicit asks.");
+    if (skillAreas.length) lines.push(`- Inferred areas to consider: ${skillAreas.join(", ")}.`);
+    lines.push("");
+    lines.push("#### Article Notes");
+    lines.push("");
+    lines.push("- Article body is intentionally not generated here; use the private input only during a reviewed drafting pass.");
+    lines.push("- Do not copy raw private notes into public OS content.");
+    lines.push("");
+    lines.push("#### Publish Boundary");
+    lines.push("");
+    lines.push("- Keep private inputs hidden.");
+    lines.push("- Publish only cleaned synthesis, reusable program context, or explicit asks.");
+    lines.push("");
+  }
+  fs.mkdirSync(path.dirname(CONTEXT_VAULT_CORPUS), { recursive: true });
+  const body = lines.join("\n");
+  fs.writeFileSync(CONTEXT_VAULT_CORPUS, body);
+  return {
+    path: CONTEXT_VAULT_CORPUS,
+    kind: "private-article-index",
+    generated_at: generatedAt,
+    article_count: sources.length,
+    line_count: body.split(/\r?\n/).length,
+    char_count: body.length,
+    size_bytes: Buffer.byteLength(body, "utf8"),
+  };
+}
+
+function normalizeContextVaultManifest(manifest) {
+  if (!manifest || !Array.isArray(manifest.sources)) return manifest;
+  const currentRoots = contextVaultRoots();
+  const currentRootMap = new Map(currentRoots.map(root => [root.key, root]));
+  const existingRoots = Array.isArray(manifest.roots) ? manifest.roots : [];
+  const rawScripts = Array.isArray(manifest.raw_scripts) ? manifest.raw_scripts : [];
+  const roots = existingRoots.map(root => {
+    const current = currentRootMap.get(root.key);
+    return current ? { ...root, ...current, exists: fs.existsSync(current.path) } : root;
+  });
+  for (const root of currentRoots) {
+    if (!roots.some(r => r.key === root.key)) {
+      roots.push({ ...root, exists: fs.existsSync(root.path) });
+    }
+  }
+  if (!manifest.sources.every(source => source.entry_kind === "article")) {
+    const sources = mergeCommittedArticles(buildArticleEntries(manifest.sources));
+    const totals = contextVaultTotals(sources, rawScripts);
+    const corpus = writeContextVaultCorpus(sources);
+    const raw_bundle = rawScripts.length ? writeContextVaultRawBundle(rawScripts) : manifest.raw_bundle || null;
+    const next = { ...manifest, schema_version: 2, roots, totals, corpus, raw_bundle, sources, raw_scripts: rawScripts };
+    try { writeJSON(CONTEXT_VAULT_MANIFEST, next); } catch {}
+    return next;
+  }
+  const rootMap = new Map(roots.map(root => [root.key, root]));
+  let changed = false;
+  if (JSON.stringify(existingRoots) !== JSON.stringify(roots)) changed = true;
+  const normalizedSources = manifest.sources.map((source, index) => {
+    if (source.entry_kind === "article") {
+      const title = source.article_title || articleTitle(source);
+      const angle = source.article_angle || articleAngle(source);
+      const dek = source.article_dek || articleDek(source);
+      const section = source.article_section || articleSection(source);
+      const slug = source.article_slug || articleSlug(title);
+      if (
+        source.article_title === title
+        && source.article_angle === angle
+        && source.article_dek === dek
+        && source.article_section === section
+        && source.article_slug === slug
+      ) return source;
+      changed = true;
+      return { ...source, article_title: title, article_angle: angle, article_dek: dek, article_section: section, article_slug: slug };
+    }
+    const root = rootMap.get(source.root_key) || { key: source.root_key, label: source.root_label };
+    const sourceKind = inferSourceKind(source.path || "", root);
+    const articleId = source.article_id || (
+      /^ART-\d+$/i.test(String(source.corpus_id || "")) ? source.corpus_id : `ART-${String(index + 1).padStart(3, "0")}`
+    );
+    const corpusId = articleId;
+    const articleBase = { ...source, article_id: articleId, corpus_id: corpusId };
+    const articleTitleValue = articleTitle(articleBase);
+    const articleAngleValue = articleAngle({ ...articleBase, article_title: articleTitleValue });
+    const articleDekValue = articleDek({ ...articleBase, article_title: articleTitleValue });
+    const articleSectionValue = articleSection({ ...articleBase, article_title: articleTitleValue });
+    const articleSlugValue = articleSlug(articleTitleValue);
+    const rootLabel = root.label || source.root_label;
+    if (
+      source.source_kind === sourceKind
+      && source.article_id === articleId
+      && source.corpus_id === corpusId
+      && source.article_title === articleTitleValue
+      && source.article_angle === articleAngleValue
+      && source.article_dek === articleDekValue
+      && source.article_section === articleSectionValue
+      && source.article_slug === articleSlugValue
+      && source.root_label === rootLabel
+    ) return source;
+    changed = true;
+    return {
+      ...source,
+      source_kind: sourceKind,
+      article_id: articleId,
+      corpus_id: corpusId,
+      article_title: articleTitleValue,
+      article_angle: articleAngleValue,
+      article_dek: articleDekValue,
+      article_section: articleSectionValue,
+      article_slug: articleSlugValue,
+      root_label: rootLabel,
+    };
+  });
+  const sources = mergeCommittedArticles(normalizedSources);
+  if (JSON.stringify(manifest.sources || []) !== JSON.stringify(sources)) changed = true;
+  const totals = contextVaultTotals(sources, rawScripts);
+  if (JSON.stringify(manifest.totals || {}) !== JSON.stringify(totals)) changed = true;
+  let corpus = manifest.corpus || null;
+  if (
+    !corpus
+    || corpus.kind !== "private-article-index"
+    || corpus.path !== CONTEXT_VAULT_CORPUS
+    || !fs.existsSync(corpus.path || "")
+  ) {
+    corpus = writeContextVaultCorpus(sources);
+    changed = true;
+  }
+  let raw_bundle = manifest.raw_bundle || null;
+  if (
+    rawScripts.length
+    && (
+      !raw_bundle
+      || raw_bundle.kind !== "transcript-bundle"
+      || raw_bundle.path !== CONTEXT_VAULT_RAW_BUNDLE
+      || !fs.existsSync(raw_bundle.path || "")
+    )
+  ) {
+    raw_bundle = writeContextVaultRawBundle(rawScripts);
+    changed = true;
+  }
+  if (!changed) return manifest;
+  const next = { ...manifest, totals, corpus, raw_bundle, sources, raw_scripts: rawScripts };
+  try { writeJSON(CONTEXT_VAULT_MANIFEST, next); } catch {}
+  return next;
+}
+
+function buildContextVaultManifest() {
+  const roots = contextVaultRoots();
+  const rootReports = roots.map((root) => {
+    const exists = fs.existsSync(root.path);
+    return { ...root, exists };
+  });
+  const candidates = [];
+  for (const root of rootReports) {
+    if (!root.exists) continue;
+    for (const filePath of walkTranscriptFiles(root.path, [], 0, root.max_depth ?? 4)) {
+      const source = scanTranscriptFile(filePath, root);
+      if (source) candidates.push(source);
+    }
+  }
+  const seenScripts = new Set();
+  const sources = [];
+  for (const source of candidates) {
+    const key = `${String(source.title || "").toLowerCase()}:${source.size_bytes || 0}`;
+    if (seenScripts.has(key)) continue;
+    seenScripts.add(key);
+    sources.push(source);
+  }
+  sources.sort((a, b) => String(b.date || b.mtime).localeCompare(String(a.date || a.mtime)));
+  const articles = mergeCommittedArticles(buildArticleEntries(sources));
+  const corpus = writeContextVaultCorpus(articles);
+  const rawBundle = writeContextVaultRawBundle(sources);
+  const manifest = {
+    schema_version: 2,
+    scanned_at: new Date().toISOString(),
+    vault_dir: CONTEXT_VAULT_DIR,
+    roots: rootReports,
+    totals: contextVaultTotals(articles, sources),
+    corpus,
+    raw_bundle: rawBundle,
+    sources: articles,
+    raw_scripts: sources,
+  };
+  writeJSON(CONTEXT_VAULT_MANIFEST, manifest);
+  return manifest;
+}
+
+function readContextVaultManifest() {
+  const manifest = normalizeContextVaultManifest(readJSON(CONTEXT_VAULT_MANIFEST, null));
+  return manifest || buildContextVaultManifest();
+}
+
+function sourceFromManifest(sourceId) {
+  const manifest = readContextVaultManifest();
+  const source = manifest?.sources?.find(s => s.id === sourceId)
+    || manifest?.raw_scripts?.find(s => s.id === sourceId);
+  return source ? { manifest, source } : { manifest, source: null };
 }
 
 function createWindow() {
@@ -266,6 +1074,84 @@ function buildAppMenu() {
 
 ipcMain.handle("prefs:load", async () => readJSON(PREFS_FILE, {}));
 ipcMain.handle("prefs:save", async (_e, d) => { writeJSON(PREFS_FILE, d); return true; });
+ipcMain.handle("context-vault:manifest", async () => ({
+  ok: true,
+  manifest: readContextVaultManifest(),
+  roots: contextVaultRoots(),
+  vault_dir: CONTEXT_VAULT_DIR,
+}));
+ipcMain.handle("context-vault:scan", async () => {
+  try {
+    return { ok: true, manifest: buildContextVaultManifest() };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+ipcMain.handle("context-vault:read-source", async (_e, sourceId) => {
+  try {
+    const { source } = sourceFromManifest(sourceId);
+    if (!source) return { ok: false, error: "source_not_found" };
+    if (!source.path) return { ok: false, error: "article_has_no_single_source_file" };
+    const raw = fs.readFileSync(source.path, "utf8");
+    return {
+      ok: true,
+      source,
+      text: raw.slice(0, 2_000_000),
+      truncated: raw.length > 2_000_000,
+    };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+ipcMain.handle("context-vault:read-raw-bundle", async () => {
+  try {
+    const manifest = readContextVaultManifest();
+    const bundlePath = manifest?.raw_bundle?.path || CONTEXT_VAULT_RAW_BUNDLE;
+    if (!fs.existsSync(bundlePath)) {
+      const rawBundle = writeContextVaultRawBundle(manifest?.raw_scripts || []);
+      if (!fs.existsSync(rawBundle.path)) return { ok: false, error: "raw_bundle_not_found" };
+    }
+    const raw = fs.readFileSync(bundlePath, "utf8");
+    return {
+      ok: true,
+      path: bundlePath,
+      text: raw.slice(0, 5_000_000),
+      truncated: raw.length > 5_000_000,
+    };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+ipcMain.handle("context-vault:reveal-source", async (_e, sourceId) => {
+  const { source } = sourceFromManifest(sourceId);
+  if (!source) return { ok: false, error: "source_not_found" };
+  if (!source.path) return { ok: false, error: "article_has_no_single_source_file" };
+  try {
+    shell.showItemInFolder(source.path);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+ipcMain.handle("context-vault:reveal-corpus", async () => {
+  try {
+    const manifest = readContextVaultManifest();
+    const corpusPath = manifest?.corpus?.path || CONTEXT_VAULT_CORPUS;
+    if (!fs.existsSync(corpusPath)) return { ok: false, error: "corpus_not_found" };
+    shell.showItemInFolder(corpusPath);
+    return { ok: true, path: corpusPath };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+ipcMain.handle("clipboard:write", async (_e, text) => {
+  try {
+    clipboard.writeText(String(text || ""));
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
 ipcMain.handle("env:get", async () => ({
   // Point at a local swf-node --full. The aggregator routes (/graph,
   // /events, /admin/*) live on the same port as the peer-server;

@@ -24,6 +24,7 @@ data/
 .DS_Store
 .vscode/
 .idea/
+.context-vault/
 
 # env / secrets
 .env

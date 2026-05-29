@@ -1,0 +1,1549 @@
+Alex flashbots  0:00
+That's
+
+Hang  0:00
+clean,
+
+Alex flashbots  0:02
+this weird brown machine. Just avoid that
+
+LSDan  0:17
+it's childhood. This was a yeah, yeah, anything sticky is child two. All right, it was pretty good. Yeah, appreciate it.
+
+Hang  0:32
+Do you want to move the laptop to there, so it can be closer? But
+
+Wiki  0:37
+yes,
+
+Hang  0:38
+about your battery, not much battery,
+
+Hang  0:41
+not much battery, but it's charging now, and I'm recording it always possible.
+
+Ganzo  0:46
+Invite you guys if
+
+Ganzo  1:04
+I just feel like
+
+LSDan  1:05
+kind of normal, right?
+
+Alex flashbots  1:09
+So I guess the best way to start this talk about the different things that I created. So first thing is tv it and then punct scripts, ttv live, etc. Right, so you have scripts that just run bands with its flat system, and you,
+
+Alex flashbots  2:07
+and
+
+Alex flashbots  2:15
+so what easy TV does is it gives you configuration language, which is the system D Mango side configuration. It takes all of this and it gets converted into a G Skeet P R E Z A either B H B Go, you in this, this whole thing is reusable. That's where it is. Security patches
+
+Alex flashbots  3:00
+just get all,
+
+Alex flashbots  3:09
+and then this upstream is the easy te idcte, so the way it works is flashbots maintain flash box images, easy te e full security updates, easy. The flashbots and edges repository is designed that all security updates all additional shared features go in this directory called shared, and that is strictly maintained only stuff that would be relevant to stay all of that information with that periodically gets pulled into the EZTE repository, so it directly mirrors any security updates or hardening patches that we make upstream to our flashlights properties, so this EZTE project is basically automatically maintained by virtue of the product needs of the Flash Box organization. Okay, so this.. oh, and then the final thing here is that it's designed
+
+Alex flashbots  4:15
+for cool, so this is VCTV, which I have already used at the board. Just then, so this is ready today,
+
+Alex flashbots  4:30
+and I see this is replaced. I suspect it will be pretty easy to merge whatever you've done in the Octo or rewrite its work on this,
+
+Hang  4:42
+yeah, I think usually the only instrument should be ductile once yet at some point they're going to add our stuff, so for example we have the NSA agents,
+
+Alex flashbots  4:55
+yeah,
+
+Hang  4:56
+and if we do that with species from folks very close or be built
+
+Alex flashbots  5:08
+with this, you specify git repository, and specify specify a checksum git shop, it will build back for you and take care of all your discovery.
+
+Hang  5:25
+Okay, thanks, guys. And I try to understand if we use YZTV, should we make for the opportunity in our repo, or we just use the abstract one? But when writing that, we can specify special use,
+
+Alex flashbots  5:40
+so I would say, because you want to have full ownership of everything, I would say just start it that gives you the most flexibility, especially if you're kind of cool with this, is to just use this as a way to not have to maintain stuff like this. One of the upsides to this is that it gains a lot of more complicated aspects of building the Google Cloud Platform for impacts in such a way that those are reproducible, and so that's a big thing for expanding to posting on GCP, and then another thing is, it does some kernel sandboxing and stuff like that to make it more secure on shared metal puzzles. So, I would say just fork this, and it should be pretty straightforward to get all of your like meta layers. Each of them, I don't suspect it to be more than like five lines at something like this, especially if you're just calling out to some other rebuilding like this is designed to like take our huge array of like Yocto Meta, whatever, and then compress that down into like 100 or so lines of basic fashion figuration parts.
+
+Hang  6:54
+Yeah, and does it have a cache to build? So next time I run that and just take a few minutes instead of a very long time,
+
+Alex flashbots  7:02
+instead of a few minutes, it takes seconds. Oh, that's yeah, and it pulls the packages directly from the Debian repository, but it gives you ways to rebuild those reproducibly. So, let's say you pull in Git, you want to make sure that the version of Git on the Debian repository is actually not backdrop. If you're super paranoid, you can do that too.
+
+Hang  7:27
+Okay,
+
+Alex flashbots  7:28
+so this theoretically, if you really want to, you can make it as in depth as the actual
+
+Speaker 1  7:33
+nice
+
+Alex flashbots  7:33
+no effort from your part.
+
+Hang  7:35
+Okay, that's nice.
+
+Alex flashbots  7:37
+And so this isn't necessarily something that is like, like, the goal of this is basically like right now you have the Octo, like technically your users, if they wanted to, could rebuild from the Octo, but like from what we've seen at Flashbots, getting individual users to rebuild the Octo is really hard, they like don't know how to do it, it's a huge setup, it takes like hours and gigabytes of your machine, easy to be all they need to do is clone the repo and run the build. When it does, and the way it works is, it opens a VM on your computer. This even works on Mac OS. Oh, so they can just take their R MacBooks and run and make build, and it will spawn a VM on the MacBook, install everything in the VM, run the build, extract the files, and give you the attestation hashes.
+
+Hang  8:28
+Okay,
+
+Alex flashbots  8:29
+all in one command from a MacBook. So this is like this actually gives you the opportunity. It makes your life easier, and it also makes the attestation process, the beginning part of it, when you produce images from code that,
+
+Hang  8:44
+yeah, I can imagine anyone can just use that itself, and so they get all the producer files, and they can hash the file to get the measurements,
+
+LSDan  8:54
+yes, exactly,
+
+Hang  8:55
+reference value, yes,
+
+Alex flashbots  8:57
+yes, and so another thing about this is that the code itself is very small and easy
+
+Speaker 1  9:04
+to auto,
+
+Alex flashbots  9:05
+so unlike Yocto, where you're pulling in all of these different things and you have to fork them and change them. This is the audit chamber. This is very small, so what that means is that people can actually open up your software and understand how to work like understand how you get from source code to audition,
+
+Hang  9:24
+which
+
+Alex flashbots  9:24
+I think is more theoretically important. I mean, that's like less useful than the actual quality of life benefits that you get, but still something to keep in mind. Yeah, so this, ycy is like, you could switch to this today, I can help you with this. This is right.
+
+Speaker 1  9:40
+The second
+
+Alex flashbots  9:40
+thing
+
+Hang  9:41
+is, how do you deal with the reproducible builds? Do you use MOC or whatever under the hood?
+
+Alex flashbots  9:52
+So, under the hood, what this is doing is this is building a tree, so you have a little Debian file system
+
+Ganzo  10:04
+in inside your file
+
+Speaker 1  10:06
+system,
+
+Alex flashbots  10:08
+and what it does is it builds inside that trigger, so what that means is that as long as you see your build is actually happening because the image itself is reproducible. It provides, it creates a clone of your filesys, of the file system builds within that file system, within the clone, copies the built files original file system, and then deletes the clone.
+
+Hang  10:39
+Okay, and it tells us under the hood, it doesn't use any like a third-party build system.
+
+Speaker 1  10:45
+Yeah, because
+
+Alex flashbots  10:45
+the bank of SI itself provides the perfect reproducible environment to build, so if you have like just some make file or whatever, you can be sure that all of the shared libraries are going to be the exact
+
+Speaker 1  10:59
+tinned version. Yeah, so that makes a lot of sense. so
+
+Alex flashbots  11:05
+that is how that works, and then, of course, the cash is dependent on there, so the, the, if you change the dependency, that will invalidate, yeah, and so the way this works is with Debian times So, basically, when you build your image, you specify the exact date that you'd like to lock all of the packages to, and that allows you to basically say anybody who builds this, like, a year in the future, they will be exact same image, because they are building using packages from this exact snapshot. Yes, of the Debbie repository.
+
+LSDan  11:51
+Does it, does it fully snapshot the entire repository,
+
+Alex flashbots  11:54
+entire repository? Okay, so even if a package is depublished later, exactly, it's still, it's still on here, and they have been doing that for the over 10 years, so I don't think they're going to stop any good.
+
+Hang  12:07
+Yeah, I got a question. So, what if it's very well known that if you build a raster binary I guess it's mostly the like a compiler flags,
+
+Alex flashbots  12:52
+yes, this passes those, it has basically the whole list of compiler flags, and it passes those by default, so that you don't have to write all of those compiler flags
+
+Hang  13:02
+does it pass it with the environmental variable.
+
+Alex flashbots  13:05
+Yeah, so it passes it with an argument, so you can specify custom flags. So, if you want to override the behavior of this, you can, but it provides defaults that, like, cover 99% of our use cases, like, if it can build rep, and it can build Lighthouse, and all those other massive monolithic repositories. Yeah, it can build whatever you
+
+Speaker 1  13:30
+do. Cool. So, that's
+
+Hang  13:31
+you have already tested that with, like, lighthouse.
+
+Alex flashbots  13:34
+Oh, yeah, and it works for
+
+Speaker 1  13:35
+us. Yeah, nice, nice.
+
+Alex flashbots  13:38
+Yeah, so this is this is what I've been implementing for the last year or so at Flash Lots, because when I joined, they just didn't change the base image because it was too much work. Yeah, and so once I implemented this, now they're like, okay, let's change the base image all the time, and now they're getting to the point where, like, oh, maybe we don't want to change the base image as much, we like something like DSAC, so in Flash
+
+Speaker 1  14:01
+Bots,
+
+Ganzo  14:01
+everybody's like, "Oh, we'd like to use D-Stack. The issue is that
+
+Alex flashbots  14:04
+all of our clients want everything to get
+
+Speaker 1  14:06
+GCP. Yeah, right.
+
+Alex flashbots  14:08
+So, if you could get D-Stacks working on GCP, I'm pretty sure that flat Flash Bots would use it for a lot of stuff.
+
+Hang  14:16
+Yeah, we don't have that,
+
+LSDan  14:17
+actually. Well, I mean, the two without a business license, number one, but then number two is that Mateush and Moe both push back on, you know, D Stack isn't close enough to
+
+Speaker 1  14:29
+the metal,
+
+LSDan  14:30
+so this brings it,
+
+Alex flashbots  14:31
+yeah, closer to the metal, and then the other thing is you may have DStack and GCP, but the attestation pipeline still assumes trust in Google, and it's flaky in the sense that when the ACPI table changes, or when the firmware changes, you have to physically deploy to GCP, get the measurements, pull them back, and then somebody has to trust those measures. The individual users have to trust that.
+
+Hang  14:58
+Ah, okay. So this is how you produce the GCP test. No, no. So we, I.. so this is where the second one comes. Okay, a test,
+
+Alex flashbots  15:09
+and this attest thing has three branches. Truth,
+
+LSDan  15:16
+you. you have the securities. Oh yeah, proof. measure,
+
+Alex flashbots  15:32
+so this right here, this is basically D stack up, okay, but it works with Google, this is just produces measurements, but instead of raw RTMR one, RTMR two measurements, it produces individual event actions from the CCE. Okay, so for example, this will give you, or so, excuse me, this is what produces individual event, so instead of giving you RTMR zero, RTMR one, RTR two, this gives you
+
+Hang  16:05
+also like event logs,
+
+Alex flashbots  16:07
+yes, not just the event logs, but like just the relevant, so in it RD right kernel, etc. and then Prabhrvsyr, if you'd
+
+Hang  16:32
+like,
+
+Ganzo  16:32
+that's right, and itsylate
+
+Alex flashbots  16:40
+and it gives you AC P I hashness,
+
+Alex flashbots  16:48
+so now what the verify does is it takes this information and this information, excuse me, it takes this information plus this information, yep, and uses it to reconstruct what the TDX quote could. Okay, and then if that matches, then it says the TDX quote is available, so it goes one level beneath RTMR zero, RTMR one, RTMR two. Okay, and in doing so it allows you to have a hash that doesn't change, even if the firmware changes, which
+
+Speaker 2  17:30
+hash is that there's these hashes.
+
+Hang  17:34
+Okay,
+
+Alex flashbots  17:35
+so it is. It gives you a set of measurement hashes that are in a independent of platform the same hash works can you be used to verify and running Azure instance or better bare metal instance or GCP instance.
+
+Hang  17:49
+Okay, but I guess if the action includes both this part and this part and the ACPF hashes will be very easy to change between the passes.
+
+Alex flashbots  18:01
+Yeah, so this is why that information comes from the proof.
+
+Speaker 1  18:04
+So
+
+Alex flashbots  18:04
+that information is attached alongside each TDX quote, so that you can use that information to reconstruct the TD Hop. And so the ACPI tables here are important, because by default you can't just trust the ACPI tables because of things like bad bayhouses. Yeah, right. So, within EZTE, within these security patches, we sandbox the ACPI tables, so that no matter what you set as your ACPI hashes, they can't get read-write access on the ships. Oh, that's interesting. How to do that? So, there's a couple ways to the first one is you just sandbox, so the only certain white list of ACPI commands, because ACPI has this thing called AM L, which is the language, and these op codes, right, it's pretty complicated, yeah, so you basically, but the key here is that between GCP, Azure, and bare metal, only a few opcodes are actually used. Yeah, so you can just say only allow these few op codes, and then all other ACPI tables only allow this type of table. So you basically very narrowly restricted, because most of ACPI tables are necessary for real hardware. When you're on a VM image, 99% of that isn't being used. Yeah, that's right. So you can just turn all of that and say that only this VS CVM will only run inside a virtual environment, and it will only run with QEMU or cloud hypervisor or Google hypervisor.
+
+Hang  19:45
+Yeah, so in this way I believe instead of reproducing the exact ACPI, I mean like RTMR zero, yeah, you can actually accept the original input exactly and grab the filter to check, okay. This is good. This is nice, exactly inside. And then you can produce the ACPI. Well, this is a.. you can, you can do that, but the point is, you can accept any ACPI table as long as it.. yes,
+
+Alex flashbots  20:13
+exactly.
+
+Hang  20:14
+It doesn't look bad.
+
+Alex flashbots  20:16
+Yep. And so you can go even further, and you modify the Linux kernel
+
+Speaker 1  20:23
+to
+
+Alex flashbots  20:23
+physically reject any bad ACPI tipples. Ah, okay. So then all you need, you don't even need to statically analyze this as possible party reverification process. This is just always okay. If the limit, if the image has booted to the point where it has produced ATDX quote, then with the included kernel security patches, that means that the ACPI table is sick, because the kernel will panic if it ever gets to the point where it has unsafe tables.
+
+Speaker 1  20:53
+Okay,
+
+Ganzo  20:55
+and so
+
+Alex flashbots  20:55
+edit list has done something like this for SVP, because this is also an issue for SVP, because in SVB the ACPI tables are not measured. Yes, this solution also works on SVB.
+
+Hang  21:06
+Okay, thanks. This is great. I want.. I'm not accepting ACPI table, but I'm not sure if the ACPI table have some codes that run before the kernel starts,
+
+LSDan  21:18
+no,
+
+Speaker 1  21:19
+or before like the kernel start to measure the API table,
+
+Alex flashbots  21:23
+yeah. So, so that the important parts, AML, the parts where you actually do this happen in the current, and so the if you check the edge list as a research paper explaining this particular,
+
+Speaker 1  21:38
+okay, yeah,
+
+Ganzo  21:38
+so you can check bad
+
+Speaker 1  21:43
+AML
+
+Alex flashbots  21:43
+is a security paper, which explains why this is, or why this is secure.
+
+Hang  21:51
+That's great. That's great. I think that combination is that first we have a hardware kernel, and you can call that a sandbox, yeah, but it's not really like a random kernel in a sandbox environment, but more like you just add some hardening to the kernel, so it rejects bad AML oppose, and combining with a test elaborate, then now we can safely say, given any RTMR zero, we can verify it's if it's and without relying on say GCP TDM, yes,
+
+Alex flashbots  22:25
+exactly. And okay, so the next thing is, so this this replaces GSA, mr. this replaces YACC. Now there's another thing here, which can depend on a test, which they're running at Flash Moss right now, attested TLS. Okay, okay. So this is just an ATLS wrapper that uses a test instead of simple RTMR zero measure.
+
+Hang  23:02
+Okay, so do you put more information in the, in the certificate? Because RTR is means you put the code in the certificate, but actually the code doesn't need to have just for RTRS itself, it doesn't hear about, for example, the event plan, and you send this together with the PLS request and verify the codes, but actually the verification is not that easy, because you don't want to just verify code, you want to verify everything here. So, what it does is, you, what you do here is, you include everything together in the certificate, so in the certificate,
+
+Alex flashbots  23:41
+you don't, you just leave this, and you need this as well. So, the amount of RAM in the HCPI
+
+Hang  23:47
+hashes, and is this like measurements? Okay, the measurements can.. the measurements.. what I mean,
+
+Alex flashbots  23:57
+this is produced within the TE environment. This is. this is produced within the environment. This is produced by the user. This is how you generate your measurement faults. This is a DSec mr.
+
+Hang  24:13
+Okay, so the input to that is, for example, the version of
+
+Alex flashbots  24:18
+this, this or this goes into here.
+
+Hang  24:20
+Okay, okay, cool.
+
+Alex flashbots  24:20
+This runs in
+
+Hang  24:25
+DDS.
+
+LSDan  24:27
+Okay,
+
+Alex flashbots  24:29
+this runs on client. So your test, so
+
+Hang  24:35
+it will use the verify functionality to verify, take this as the inputs and get this from the TLS ATLS connection, and then you read the verb function.
+
+Alex flashbots  24:46
+Okay, yeah. This right, this is like TLS client. This is TLS server. TLS client accepts this as it's all SQL.
+
+Hang  24:55
+Okay, okay.
+
+Alex flashbots  24:56
+And so this, this would be replacement for a large portion of what you're doing in, say, desec gate,
+
+Hang  25:04
+yeah, where you relies on a library, it's just called R A T L S, yeah. So I think this will be a replacement of R A T L S,
+
+Alex flashbots  25:18
+yeah, because this is remote, that's ATLS attested to
+
+LSDan  25:22
+a quick question, is there a fundamental difference between contracted bar ATLS or ATLS, or are they more or less compatible? Because I'm thinking about, like, like if we move the stack over, is it a dramatic upgrade for the users, or is it like kind of the familiar upgrade to the user, right? Like, how divergent,
+
+Hang  25:42
+so I mean, attested TLS is tested, TLS, at the end of the day, here, yeah, they are very similar, yeah, but on the other side, you very rarely use RTLS directly, so I don't even think you will feel the difference, okay, yeah, RTLS is only used in some internal connection, and usually, for example, the key, there's KMS, there's gateway, and then there's your CBN, and when they communicate with each other, we use RTLS, so if we just from some version we swap to the as test ATLs, I think you shouldn't feel any difference.
+
+LSDan  26:18
+Yeah, I was thinking only because, like E SQL does a NRA TLS handshake between,
+
+Alex flashbots  26:26
+oh yeah, use RSI
+
+LSDan  26:27
+CPM and the actual
+
+LSDan  26:30
+Postgres leader, side start, so I don't know how many people are actually implementing like that, if it's just me, I don't care, I can change it, yeah,
+
+Alex flashbots  26:40
+and this gives you flexibility, like you can use like a Rust TLS middleware it provides, you can use it like a reverse proxy binary client server, and then also this actually gives you another functionality where you can pin it to an actual TLS certificate, so that if you trust the holder of the like DNS record, then you can do some like Lexing, type shit, where you like you can host HTTP web pages, and if you trust the person who's hosting the certificate to run the valid infrastructure, then you can also trust this, so you can actually get like the check mark in your web browser, and then you can go and take the certificate from that check mark, and then independently verify
+
+Hang  27:25
+in this part, I believe some part of the, oh, not those two, not those two. When you run the ruler, you also attach the event log from
+
+Alex flashbots  27:40
+not the whole event, like just the ACPI acts, and the amount of RAM.
+
+Hang  27:44
+Yeah. And how do you? Okay, so you don't usually don't take care of you, don't you? Just don't care the grapt on that block.
+
+Speaker 1  27:58
+Yeah,
+
+Hang  27:58
+okay, got it. Got it.
+
+Alex flashbots  27:59
+And then, oh, also the number of disks, yeah, this RAM, and have you tried to design that with a GPU? No, I haven't done it with the GPU, but with the GPU it's just an attached PCI device, so that operates at a higher level, that's going to be with a virtual driver,
+
+Speaker 1  28:20
+I so
+
+Alex flashbots  28:23
+that's not going to be as far as I'm aware, that's not going to affect the measurements that's done with. So, how are you doing? GP, are you doing a 100 Probably not, right?
+
+Hang  28:35
+h1 100, h2 100, and black. Well, okay, yeah, we tested all of them,
+
+Alex flashbots  28:40
+so then that could just work separately. I don't think this all of this should not touch that. Yeah, they operate differently.
+
+Hang  28:47
+I think it's just, you know, some fields in the ACPI stable, or maybe a few outcomes, because as long as the opco doesn't come with any executable codes, I think should be good.
+
+Alex flashbots  29:01
+Yeah, it should just be hardware topology. Yeah, yeah. So, in that case, it's any hardware topology commands done by AML are just elapsed. Oh, right. Okay, so
+
+Hang  29:10
+that will produce a little slightly different ACPI hashes, but
+
+Alex flashbots  29:14
+that's okay. That's okay. I'm
+
+Hang  29:16
+also thinking about, do you also need to add, in that case we also need to add other fields besides the RAM and the digital size,
+
+Speaker 1  29:28
+like what
+
+Hang  29:33
+I'm sorry, like what, what else would you add? Yeah, in my, in my fashion now, now when we create a create a GPU CDN, we're going to pass a lot of configuration to Chloe, and I believe we also hook the cumul a little bit to get some intermediate representation of something that will eventually arrive in a CPI table, so with that we can produce, we can produce measurements of the reference value of RTMR zero, and in this way, How do you, how do you check RTMR zero and compare that with the data available here, or do you just exactly skip RTMR zero?
+
+Alex flashbots  30:26
+So we do it, we regenerate RTR zero as part of verify. Okay, so in verify as part of verify, you get this information, and then you get this information, and these should be sufficient to create the event. Okay, and if you create the event log in the hash you arrived with is equal to the hash from the TDX foot, then you know that you have, you have done the measurement chain of RTMR zero,
+
+Hang  31:02
+yeah, and for RTMR zero, like the memory is a part that's the piece for the number of CPU
+
+Alex flashbots  31:12
+number of CPUs, actually does not affect the measure amount of RAM is for the hop, the handoff tables they differ based on the RAM, because the size of where the handoff table is going, that's different based on and then the actual contents of the handoff tables is hard coded in basically by QM.
+
+Hang  31:34
+Yeah, and why is this the size related boost?
+
+Alex flashbots  31:37
+Because when you have a different number of disks the UEFI firmware sees a different number of potential boot devices, so you know when you like bash the F 12 key, when you're cleaning up, you see like option one, option two, option three. The number of options that the UEFI sees in the order in which those options are listed is part of our team. Okay,
+
+Hang  32:00
+so this is number of this instead of the size of the, yes, exactly. Okay, okay. That'll make a lot, and with that, so here there's just a function calculate the reference value of ArchiMart zero, and those are the input, and those are the inputs. Then give it as the inputs, you get the RTMA zero outputs. Then you can compare the output with the real measurement. Yeah, yeah. So everything in the code is already measured by Gary. Yep, so Yeah, another thing I think is probably irrelevant is RTMR three, because RTMR three is fully controlled by the operating system, and we're probably moving RTMR three from the current private format in these stack to a more generalized format, and I think it doesn't affect anything here.
+
+Alex flashbots  33:14
+Yeah, here you just, if you want to, you can specify a list of valid RTMR threes, yeah,
+
+Ganzo  33:21
+and then you can just add that when you're preparing
+
+Speaker 1  33:24
+it, and then
+
+Alex flashbots  33:25
+then of course that can go in here, or it can go, you know, anywhere within the chain where you are initiating a secure communication channel. At that point, at the same place that you're providing the image measurements that are allowed, you can also provide the RTMR threes that are on,
+
+Speaker 1  33:41
+okay, that's cool.
+
+Alex flashbots  33:42
+And this creep has a policy TSL, which allows you to say, for this image we allowed these RTMR threes, for this image we allow these RTMR
+
+Hang  33:52
+threes, etc. Okay, okay. And this is also open source.
+
+Alex flashbots  33:56
+Yeah, so right now this works. This works. Currently, several employees at Flash Bots are working on reimplementing this to work on top of this.
+
+Hang  34:07
+Okay, nice, nice, nice, roughly, got the rough idea of everything. I think it's pretty good, especially how you can decouple the dependency of TDM, because we, yeah, I can tell you how we do that with the GCP. We do have, like, a GCP version of the stack, and because the RTML zero is reproducible, so what we do is GCP has a TTM attached to ALP.
+
+Alex flashbots  34:43
+This supports for backwards compatibility. If you, this also supports TTM.
+
+Hang  34:48
+Yeah, we want to get rid of that.
+
+Alex flashbots  34:50
+Yeah, so if you want to do, like, for example, Azure right now only works with
+
+Speaker 1  34:55
+TPM.
+
+Ganzo  34:55
+Oh, yeah. Why?
+
+Alex flashbots  34:56
+Because they're Hyper-V system. You cannot reproduce the same. I'm still going to look into it. I'll try to get,
+
+Hang  35:04
+okay,
+
+Alex flashbots  35:05
+get rid of TPM on Azure,
+
+Speaker 1  35:06
+but
+
+Hang  35:07
+I said, from the probably having theoretically,
+
+Alex flashbots  35:16
+yeah, this should work with Azure as well.
+
+Hang  35:18
+Yeah, what is the gap?
+
+Alex flashbots  35:21
+Well, the gap is just I haven't put much effort into it. Okay, we don't want, we don't want to use Agger. I mean, Azure kind of sucks, they're flaky. It, it goes offline, you know.
+
+Hang  35:31
+Yeah, that's true. We used to use Aggress SGS, you just silently replacing, and now we have to ask them, where is the key? Yeah,
+
+Alex flashbots  35:42
+that's why we're, that's exactly why we're not using
+
+Speaker 1  35:45
+ADB.
+
+Hang  35:46
+They did the same thing with TX. They didn't
+
+Alex flashbots  35:48
+even reboot the VM. They were somehow able to swap out the hardware on the same instance. Yeah, like the fact that they're able to do that means that it's insecure. You know what I'm saying. So, anyway, GCP environmental, but if you really want to use Azure, it
+
+Hang  36:02
+works. Okay, all right. This is great. So, eventually we have platforms independent there, so we don't have to deal with all the details. Yeah, I think that legacy world is what you describe, we just use CCP to produce a TTM definition, and in the TPM attestation it already has TDS quotes, a TPM has a TPM quote, and then we can reach the RPMR zero from the code and compare that with the attestation, but that also means for our RTLS and anything that require attestation would have to would have to combine both the VTP and station together with the PDS codes that's important. Yeah, so we want to get the right output,
+
+Alex flashbots  36:54
+and then not only that, but I think a lot of customers that we've talked
+
+Hang  36:58
+to,
+
+Alex flashbots  36:58
+they don't trust VTP, because if you doubted about it, at the end of the day, you're trusting Google Cloud Platform, whether or not you're doing PS right, and so this doesn't really improve the security guarantees, but at the same time it adds a lot of maintenance burden to a lot of the customers, so what we found is that VPM is just not like the easiest self. Yeah, I think that's probably applied way more to you than it does
+
+Speaker 1  37:27
+SOS. Yes, yeah,
+
+Hang  37:30
+nice. Another related thing is, so this is just a very general bare metal song, bare metal image, yeah, I guess if we want to link
+
+Alex flashbots  37:51
+it in,
+
+Speaker 1  37:52
+so these
+
+Hang  37:53
+are just zip files, they just have very slight difference, this
+
+Alex flashbots  37:59
+is a UKI file, which means it contains the kernel and the Bootloader and the file system.
+
+Hang  38:06
+You may need to load slightly different kernel mode modules in different,
+
+Alex flashbots  38:14
+so they all get different kernel modules. All good. So this is
+
+Speaker 1  38:19
+one file for
+
+Alex flashbots  38:20
+all grids, so you have the same measurements. What happens is all of the kernel modules get baked in for all of the different platforms. ECT, when you're making an image, you can say don't include anything that is required for Azure, because we're not both deploying on Azure.
+
+Hang  38:36
+Okay. Okay. And yeah, so if we run the bare metal kernel, it also includes driver, and I don't disable that's not so bad. I think
+
+Alex flashbots  38:53
+you can turn that on, configure it to create different images, just
+
+Hang  38:57
+run three
+
+Alex flashbots  38:58
+different builds exactly. Yeah,
+
+Speaker 1  39:00
+sure,
+
+Hang  39:01
+but that's not
+
+Alex flashbots  39:02
+bad. That's not bad.
+
+Hang  39:06
+Let's talk
+
+Speaker 2  39:06
+about a super
+
+Speaker 1  39:07
+power point.
+
+Hang  39:08
+They want to exclude
+
+Alex flashbots  39:10
+anything they don't walk from the bar. Yeah, that's an extra line in your configuration file. Yeah, and that will still use milk cash if you want to do offering, okay? Oh, okay. Nice.
+
+Hang  39:25
+All right. I don't think I have any other questions, so maybe I can just introduce you. How, yeah,
+
+LSDan  39:33
+so practically like how quickly could we ask, like how big of a lift is this?
+
+Hang  39:41
+I don't think it's a big lift, so maybe there will be some work to port our customized exchange to somewhere here, or you know, just some configuration here.
+
+LSDan  39:53
+I also have that Open Metal server that is as of yet not set up with anything. Okay, so if you want to use it as an experimentation graph,
+
+Hang  40:02
+yeah, of course, we can do that. The first step, I can, it doesn't require any special hardware, we can even do that on Mac, and as long as we can build some virtual image, next thing is to find like a better battery to test just a random full test suite for desec. I don't think the rest of parts have so much time. Maybe we just need to map all the Yocto customization here, and on the Yocto side, I think we have two different Yocto profiles: one is for the base image of DST, and the NGO, Try, for the stack, and Dydia, so, ary, so, just the original, but to add, do more GP,
+
+Alex flashbots  40:51
+who's that, all's going to Thracia, so,
+
+Speaker 1  40:53
+yeah, so, so,
+
+Alex flashbots  40:54
+so, just like, gorizol, that's going to also
+
+Hang  40:57
+have the,
+
+Alex flashbots  40:58
+yeah, we're all shovels, and, right, I'm
+
+Hang  40:59
+going to, so, so, I'm going to, in the future, Insts Uragessiiilaii Urach, Blattstst Urts, mert Us Urs, sighs, sorlyss, mertils, stoint USSS true images, and that's basically everything we need. We need to change, and for this, if we already use the use this, I think the benefit is already there. I mean, we don't really need to make much change. Maybe this, there is a binary or library, we can compile the library and use that in the sec, but these parts will change, change the set more than this, because we have basically, we have a few components, so we have, we have the, there is a CV, and and we have the agent. It's a, it's a process like IndieFC, and then we have the PMS, and we also have the gateway.
+
+Alex flashbots  42:15
+So, the gateway uses RITLS.
+
+Speaker 1  42:18
+Yes,
+
+Ganzo  42:19
+does the KMS use RTLS?
+
+Hang  42:21
+Yes, they both use RTLS.
+
+Ganzo  42:23
+Oh, okay. So then what I see is
+
+Alex flashbots  42:27
+possible or not possible is that once this is once we have an attested TLS layer that runs on this attest, then all you need to do is replace RATLS, which is, is that Rust. Oh, yes, it's Rust. Perfect. So, then we can just replace that, and then we've tested TLS, and then replace DSEC mr. with a test measure.
+
+Hang  42:49
+Yeah, so the whole picture is this to bootstrap the DST system. First of all, we need to run the SGX local key local QBI lighter, and then once this is running, it's just this is just a stateless service, and then we run KMS, but KMS is also running ecosystem, and this is a PSEC, so it's essentially a PSAC, all of them are PSAC
+
+Speaker 1  43:21
+using and PMS is for me to connect to the SGX local key provider,
+
+Hang  43:30
+and this part I think we may not even make any change, and I believe this connection is R A TLS and probably we can just even just change our ra TLS implementation to add to version, probably, and there's maybe the v1 and v2 and v2 we can use a test ATLS, and here maybe we just keep v1 because we already have a lot of local providers running, we don't have to change that, and the gate use with swag into attest the PS doesn't give much benefit, but then the next thing is every CBS, they are going to register, register their agents to the PMS, and this can be the tested TLS, and within the TMS, it actually runs the DST mr. and these stack verifier, which is to do everything you have here, so we can, we can swap that to the test library, gotcha, and then we use use the test APIs, so this can be more secure. And then next thing is, of course, they also do the same. This is part of the bootstrap, and when the CDM starts, first thing is it registers on the next thing is it will connect to the so this is also we can also use ATLS for that. Okay,
+
+Alex flashbots  45:10
+I see. So I have, I have an idea here. So maybe you want to take your RATLS and make that version too, like you said,
+
+Speaker 1  45:17
+and then
+
+Alex flashbots  45:17
+you can make the basically you can do what a dtestant TLS is,
+
+Speaker 1  45:22
+dim it, to
+
+Alex flashbots  45:22
+live on top of a test, which is a daltielid. All you do is, when you, dr, cuz, I think, ya, yaatais, all you do is, yaaa, dalide metadata, kanel, you'd call that dd, adscode, you just, dithis,
+
+Hang  45:39
+dal,
+
+Speaker 1  45:40
+dd, notinide, dsmedi
+
+Alex flashbots  45:40
+right, and that generates your blob of metadata that you send along with the blog, and then your second thing that you do is when you would be comparing RTMR zero, RTMR one, RTMR two, you pass this information and this information into a function which reconstructs MRTD, RTMR zero MRT RTMR one and two, and so basically, then from that point forward, RTLS operates exactly like how it does now. Yeah, so basically, you wouldn't even use this, you would just use this in the same way that this is using this.
+
+Hang  46:15
+Yeah, and I think the RTL as the RTL library itself, I'm not quite sure how much flexibility we can have, but I would assume, because it's a TLS, so essentially we should be able to negotiate for the versions, and that is the versions, of course, the version two that we simply swap switch to the testing TLS,
+
+Alex flashbots  46:39
+because in TLS, I'm not sure exactly how it works, but at some point it receives a list of valid RTMR values. Yes, right. So, if you can use this to just produce those RTMR values, then you don't even have to modify RATLS at all. Yep, you just modify the inputs into RATLS, which allows you to keep this whole system exactly, and then you don't even need to wait for Flash Bots to update our R A TLS alternatives.
+
+Hang  47:07
+Yeah, I think then this become a input constraint instead of the wire protocol doesn't change at all.
+
+Alex flashbots  47:15
+Exactly,
+
+Hang  47:16
+we just change the field that the nation in this, maybe in the certificate, in some way, yeah, as long as we can put all of that in a certificate, then this topic,
+
+Alex flashbots  47:25
+yeah, that would work,
+
+Speaker 1  47:26
+yeah.
+
+Speaker 2  47:30
+Oh, that's what
+
+Alex flashbots  47:31
+this, by the way, this doesn't need to be in the certificate, you could just add in this metadata on top of the certificate if you want to. Okay, that question,
+
+LSDan  47:41
+this is always I find to be the biggest pain in the ass of bringing up a new machine. It's like the, you have to run a local provider, running the local provider, but then the getting the KMS to run with BMM running, like that whole bit right there, and that once gateway at the same time. Does anything about this architectural change clean that up, or can this be re-modified in some sort of way? What I'm thinking about is like, like, can this just be included as part of this? Maybe I'm way off base here, but I'm just like, this is creating these,
+
+Hang  48:22
+I Yeah, but this part I think is unavoidable. The reason is that TDM, so far, well, in the, in the TDS roadmap, yeah, somehow states say that in the future they're going to give the key the CVM the ability to get a key, yeah, a stable key, so it survives.
+
+LSDan  48:43
+What I'm wondering specifically, like maybe I'll rephrase. Right, we talked about having two packages, one is for the CPU, once for the GPU, right? Like two guest images, yes. Can we also create a guest image which is specifically for the canvas? Oh yeah, you could totally do that, so that the bootstrapping of getting to the point of like I'm going to now run VMM and Gateway is like starting from the point of this is already running as part of the guest image, so I don't need to dick around with configuring that, it's just there the second that I spin up.
+
+Speaker 1  49:17
+Yeah,
+
+LSDan  49:18
+my bare metal,
+
+Hang  49:20
+what do you think the difficulty come from? Of course, so first, if we just do everything manually, first thing is we need to run this, but this is a this is a service.
+
+LSDan  49:32
+My main, my main experience of the difficulty is the stack VMAP running with two different like source configurations, like, like PSAC VMM is providing the CM CVM, but in one scenario it's providing the CVM backed by the SGX, and the other scenarios providing the CPM backed by JMS.
+
+Hang  49:55
+Ah, okay, right.
+
+LSDan  49:56
+And so, and so,
+
+Speaker 2  49:57
+yeah. Now, if you know
+
+Hang  50:00
+all the CVM is is managed by a VM, so there's a VMM is offset of the T, and it just control everything here, so,
+
+LSDan  50:13
+so, so, what I'm thinking of is like, if, if here, this choice is not a function of all of this, but it's just like instead of running this guest image by running this guest image,
+
+Hang  50:25
+so you just choose which gets the images,
+
+Speaker 2  50:29
+which
+
+Hang  50:30
+gets the image you want to run, so you want to somehow maybe like a bake the KMS into this special image, exactly. Yeah, that's that's doable. What is to
+
+LSDan  50:39
+make that super easy, right. That's that's what I'm thinking, is like, because, because then the configuration difficulty, like this, is provided by this image as well. This is like all of this, this full stack is extracted away from the person who's setting up DStack, and it just becomes a function of like the first VMM that runs it, like the first VMM that you boot out of VMM. actually that,
+
+Speaker 1  51:04
+Gasty,
+
+Alex flashbots  51:05
+you know, you could use something even, it's like, here, you can, say, "Ok, this is a.. I'm going to put that, regressibly, check it, like, match, it's right, like, like, it in,
+
+LSDan  51:18
+right,
+
+Alex flashbots  51:19
+right, mate, you're going to have, you're going to have, specialized, I'm DSAC images that are like baked in with certain data files,
+
+LSDan  51:27
+exactly. And then
+
+Alex flashbots  51:27
+that could be that could be your RTMR three or something,
+
+LSDan  51:30
+and I mean that could the gateway isn't really difficult to spin up, so I don't know that it needs to be, but the gateway,
+
+Hang  51:37
+the gateway is just a simple app. KMS
+
+LSDan  51:41
+is more quantitative
+
+Alex flashbots  51:42
+part. You can take these EFI files and then extend them to include VAC, and then measure it, because it's just measuring the NRD in the kernel. The measurement is the same, but when you go and deploy that, it's deployed with a preset configuration, so it's not dynamic. Then you have all of the things that you were talking about, where, like, oh, you don't want to have specialized images, but at the same time you don't have to
+
+Wiki  52:10
+do the, I
+
+Hang  52:10
+got an idea, I think probably what I'm going to do instead of publishing different versions of the destack image, I would just publish one version, but in the, in the destat, in any destat image, it already includes one version of the KMS, and maybe it's here, but it doesn't invoke the
+
+Speaker 1  52:34
+idea,
+
+Hang  52:34
+we always defined the version of the KMS with the CVS, so you are
+
+Alex flashbots  52:42
+now you have a
+
+Ganzo  52:43
+tool
+
+Ganzo  52:43
+chain that you can use. This is the purpose of
+
+Ganzo  52:46
+this all of this up here is to take user software
+
+Ganzo  52:50
+and make it into images without having to go through the
+
+Speaker 2  52:53
+active steps. Yes, yes, yes. The point of based off of course we don't want to use the auditory, it's super simple,
+
+Hang  53:01
+and if we do that, what is the, what is the benefit? We can, we can try to simulate the user experiment first. They use you're still going to run the local provider, but this one is easy. And then you deploy VM, and maybe in the bootstrap process, there's a button, you just click the button
+
+Speaker 1  53:22
+is selected. you could,
+
+LSDan  53:25
+you could question, but like, could you run the local providers exceptionally?
+
+Alex flashbots  53:34
+We
+
+LSDan  53:35
+like, like, could an STS provider be run in one of these guys?
+
+Alex flashbots  53:39
+What is an SGX provider? Like, how does that work?
+
+Hang  53:42
+I can show you. So, SGX provider is just a key provider. So, what we want is, if we have a KMS, and the KMS can generate a key in the memory, and then we need to store the key somewhere, so that next time, if we reboot the KMS, we still get the same key, that's how we can make sure all the CPMs can always get a stable key for anything they want, and the problem is TDX doesn't have an API to get a key from the hardware, so we need to get a hardware stable key, it doesn't change all the time, and now the way we do that is we use SGX local key local provider. I believe this is also developed by Flash Roads, and the KMS starts with this local key provider as this dependency. Yeah, so this provider always returns the same key for the KMS, so okay,
+
+LSDan  54:41
+so then, so then you know there's nothing saying that one of these images has to run in a CPM, right? Oh, yeah, yeah, I see, right. So if we package this in one of, right, we package this, and right, then what I'm starting to think about is like the complexity of starting DST from scratch is primarily the chicken and egg configuration. Yes, like, like, once you have the BIOS configured, there's nothing like you have to go through all of these incredibly manual steps to like stand it up, and I'm wondering, like, can we shortcut all of those manual steps by utilizing ECT, but, but actually just run it for the SGX local provider. just, it's altb,
+
+Alex flashbots  55:25
+oh, yeah, yay, exactly, like, the valk, when you're going to dodswortking, Cyp, Sylved, hardened, Wbd, does one thytip, and does itwhere, and that, this is what's acialays, h'lk, like, the stuff on top is like a functionality feature of this, which all of the things you need for TBX are like security packages, reproducibility, etc. Right, those things are like not just useful for TDX. So I would say this is the perfect system to do this as well.
+
+Hang  55:58
+Sweet, so so you can have another output together with the rest of that, but this is just the SG expand, right? So it doesn't have the Linux hurdle right inside.
+
+Alex flashbots  56:08
+Oh, it doesn't. So then what's the issue again?
+
+Hang  56:15
+Let me describe why HTML struggle. So if we deploy a full TDX, the fully functional TDS. Yeah, so first, and usually a fully functional TDR DSTAC runs on multiple servers, because you want redundancy, but if you don't want to redundancy, you can just do that on one server. So, for example, this is Server One.
+
+Alex flashbots  56:36
+Wait, can I ask a couple questions first, just so I can get on the same page. So, the STX local provider does that, that does that runs outside of the CD. Yes. Okay, it's just a single binary, right? Yes. So, what if you have the ability to build it reproducible? Correct. Yeah,
+
+Hang  56:57
+yeah. This is already recorded.
+
+Alex flashbots  56:59
+So, how are you building that reproducible?
+
+Hang  57:02
+I believe it's just a single Rust Band-Aid, so there's a script to run that, and you get the exact Sigma outputs.
+
+Alex flashbots  57:11
+So, what is where.. what is the issue that we're trying to fix here?
+
+Hang  57:14
+Yeah, let me describe the issue. This is not like a single sentence, so if I want to build that on a redundant setup, so first thing is we did the SGS provider key key provider, so key provider, so this is the first thing I need to defend, second thing is I will be going to run a VM, this is this is a demon, it's also outside of the separate process, it's like front end and the back end
+
+Speaker 1  57:46
+for
+
+Hang  57:47
+each set, and then through this event you're going to deploy your PMS. This is the bootstrap PMS, so let's call that PMS zero, and when putting this camera, zero, it connects to the SGS key provider. So this is how the key can be, can be persistent, because we don't want to lose the key, and combining them now. The key is sealed into the disk. Okay. Yeah. So you can put all of this in ET, yeah. Of course, we can do these ones, and then this is not.. I believe this is not the hardest part. The hardest part is if we work redundancy, it means that we need to find another server, and there is also an STS key provider, right, and we're also going to deploy the exact same stack DMM, and then we have the PMS. This is PMS one, and it also connects to the key providers, but this PMS one students boot strap again because every time you bootstrap, you get a new key, and instead of getting a new key, we want those two pns to share the same, so we have a, we have onboarding protocol, you want to onboard this pns to the original setup, and this one is, I guess this is the hardest
+
+LSDan  59:22
+second machine, so yeah,
+
+Hang  59:26
+don't do this. Okay, that's good. No,
+
+LSDan  59:28
+no, I mean, I would, I would get there right with my second machine. The what.. what I find to be difficult about this, and why I like, I'm pushing on hacking it like as deployable, like it's ready to go, is that you bring this up, and you bring this up, but bringing this up
+
+Speaker 1  59:51
+requires issues. Yeah, race conditions, yes.
+
+LSDan  59:57
+And so, if we can like lock that down.
+
+Hang  1:00:01
+Yeah, so ideally you want to somehow package them together. It's a single, that's
+
+Alex flashbots  1:00:06
+what this does. That's exactly,
+
+LSDan  1:00:08
+exactly. It
+
+Alex flashbots  1:00:09
+uses system needs, so you have like a like this needs this to run, and then this is the conditional in which you start this service up, and all three of these services are built reproducibly using this code,
+
+Hang  1:00:20
+etc. Yeah. Oh, where does that use system D? And how do you use that files here? In
+
+Alex flashbots  1:00:29
+files, you specified at C system D, whatever dot service. Okay. And then you can specify service grap, so you say, like, I want to run this binary, that binary, and the other binary part of the field process. Yes. Oh, no, it's part of the, the actual resulting image, because
+
+LSDan  1:00:51
+remember, the other thing that we have in here is PCCS, and, like, there's a couple of other parts here, we have to run PCCs too, you know what I mean, so exactly, and that, yeah,
+
+Ganzo  1:01:03
+if you use
+
+Hang  1:01:04
+these to run everything, then how do you define
+
+Alex flashbots  1:01:08
+PCCs for packages? All you do packages equals Intel hyphen PCCs, whatever it's in a Debian repo, so
+
+Speaker 1  1:01:17
+that
+
+Hang  1:01:17
+goes into the guest
+
+Speaker 1  1:01:20
+image.
+
+Alex flashbots  1:01:20
+Oh, you're talking about for our system.
+
+Hang  1:01:23
+Yes,
+
+Alex flashbots  1:01:24
+yeah. So, when I said PCC, yes, I mean whatever the client thing can I see, because we do the caching separately. So, we basically on the on the host, you're just running the Intel QSP or Q PS
+
+Hang  1:01:38
+Q GS QS QGS,
+
+Alex flashbots  1:01:41
+right? And so then you have the cache that connects to the QBS separately.
+
+Hang  1:01:46
+Oh yeah, so I think I got to a point. So, what do you mean? Is in this build system you can specify anything you want to config for the for the host OS,
+
+Alex flashbots  1:01:58
+right? Oh, this is for the whole size of CVM. Oh, this
+
+LSDan  1:02:02
+is run in the hooks without.
+
+Alex flashbots  1:02:06
+Yes,
+
+LSDan  1:02:06
+yeah,
+
+Alex flashbots  1:02:08
+yeah. I have used this for that purpose before. Yeah, because I just like, I kept setting these things up. So,
+
+LSDan  1:02:15
+so that's like, so that's like what I'm trying to drive at, is right? Like, like, you have one of these, which is package, which is like your bootstrap image, right? So you get a bare metal machine, and the first thing you do is turn on your boots, your bootstrap image, and that contains all of this stuff, right. And then from that point forward, all you're doing is deploying regular CDNs on the guest.
+
+Hang  1:02:39
+Yeah, yeah, yeah, I think that makes perfect sense. What in my imagination, if we use this for the build system, then probably we're going to have two things, so one is for the guest and one is for the host. Yeah, they are separate, exactly. And the guest, I think, guess that we already were already aligned, yeah, and for the host, what we can do is like a VM extra key provider or whatever outside of the CVM can be configured in a dependency graph, and you build it, you just clone the code base, build it, and then maybe there is there is combined, you write a client to bring up everything, but it doesn't really eliminate bootstrap burden, so maybe what it
+
+LSDan  1:03:32
+eliminates is the manual part, because right now, if you follow the process, like, there's no, like, sure, we could write some shell scripts and things like that, but there's various reboots and different things
+
+Alex flashbots  1:03:43
+that also said that in this situation, now that you have all of this defined declarative, you can just throw some super complex wire guard configuration, and now you can say, okay, go out to this SEAD node cluster, register yourself with this like gossip thing, and now all of these guys can automatically discover each other as peers and connect to like a virtual, we
+
+LSDan  1:04:10
+can have very, we can have varying dashboards for the VA stick,
+
+Alex flashbots  1:04:15
+the one you want, if you want to set this up as like a distributed VPN cluster, then right now, if you wanted to do that, it would be too hard, because you'd have to ask everybody to set that up manually keys, but if you can define declaratively using this, then all of this becomes a plugin by image,
+
+Hang  1:04:37
+and by plugin plain image to mean the gas thing image or the hosting post image, the host image. Oh, okay, yeah. I think I got the point,
+
+Alex flashbots  1:04:45
+and that host image could be a guest VM on just run it with QM, you, but you want it as an SGX.
+
+Hang  1:04:53
+Yeah, this reminds me the point where people build the minor OS, so they have a minor OS with all the optimization and all the existing binary clients, you just vacate into a USB slash drive set and you build it and you
+
+LSDan  1:05:15
+exactly value out
+
+Hang  1:05:20
+that's interesting
+
+Alex flashbots  1:05:21
+and then you can track this all in a mono repo, so you have your whatever, like a last mono repo that has the PS, the KMS to the version of the CVM to the version of the host image, and then that references pinned versions of your D stack repo that has all of your Rust patches, and so then you can basically, those two things kind of exist as independent entities that you want to upgrade and lock stuff with each other, so that's the communication.
+
+Speaker 1  1:05:51
+Yeah,
+
+Alex flashbots  1:05:52
+so you don't have to split your stuff up into a bajillion rebounds, and then say there's something from this server one from the host image that you want on some cases to add to the guest image, like the KMS or whatever, then that same Rust binary can be referenced with a single build script, right? So if you have to add some features to it or change some flags, you only change them in one place.
+
+Hang  1:06:20
+Yep, I think on the host side the biggest problem is still a lot of configurations, but I do think first the thing we should do, this is probably outside of the outside of the ECT, is that those should be managed by System D,
+
+LSDan  1:06:42
+yeah. Oh, yeah,
+
+Hang  1:06:44
+yeah. So, so now we reduce the burden to manually configure all the dependency.
+
+Alex flashbots  1:06:51
+So EZT is developed with the idea that you're going to have a bunch of services that you want to orchestrate System D. Yeah, so it's designed with that use case. There's YATC, getting system D working in Yak is kind of integral.
+
+Hang  1:07:03
+Yeah, we are also running System D in the gas.
+
+Alex flashbots  1:07:07
+Okay, perfect.
+
+Hang  1:07:08
+So we, it can be mapped to that directly, and the test system D, I think the bootstrap part is still there's a huge role to input, I think I From the I think from the first principle, all we need to do is just the two steps. Yeah, waiting for Als Net, nor you can finish first.
+
+LSDan  1:07:36
+Sorry, I was just trying to
+
+Speaker 1  1:07:42
+I trying
+
+LSDan  1:07:48
+to get the pictures of the whiteboard onto Matrix, so you're recording. Yeah, it should be.
+
+Hang  1:07:58
+I didn't see there's like green, green light, usually green lights show this report. This one, that,
+
+LSDan  1:08:08
+yes, they removed to that from the cheap.
+
+Speaker 1  1:08:14
+Okay, perfect sales world, perfect for
+
+Alex flashbots  1:08:22
+security. security is a community. Yeah,
+
+LSDan  1:08:26
+this thing is struggling quite a bit with the Google Beach.
+
+Alex flashbots  1:08:30
+Well, beats the Windows laptop.
+
+Hang  1:08:32
+Yeah, it runs an iPhone sheet, right? Yeah, that's an A 19. Yeah, it's too much further for that, so I think for this we should just abstract that to two steps. Maybe eventually what we have is one like underscore install.sh you just run that all the dependencies like PCC, whatever can be set up, and the second one is we have two options, one is bootstrap sh, so you run this responsible strap, yep, and then another is maybe drawing, yeah, sh, maybe a drawing, and then invite, okay, you write invite, you get something, some URL, and you write join with the URL, so another, another TMS can join this one. You
+
+Speaker 1  1:09:28
+can just
+
+Alex flashbots  1:09:28
+pass that in when you're running this, like as a parameter, like QM,
+
+Hang  1:09:32
+yeah, can be just a single single script, and then you don't have to configure this and manually wire them together, yeah. And then once you do all of that, VLM is already a system D service running in the on the host, so you just access it to whatever you need.
+
+Ganzo  1:09:54
+Now, now,
+
+LSDan  1:09:55
+over here, as long as we're continuing down this path, would we, we would probably want like to provide a guest image that's GCP compatible for the K-Max, correct? Because that, but right, GCP is going to kind of perform the same functional.
+
+Speaker 1  1:10:14
+That's right.
+
+LSDan  1:10:15
+Yeah. Okay.
+
+Hang  1:10:16
+And now I'm not sure if you have tried this, that PCP it already
+
+LSDan  1:10:20
+know, but, but, but what I'm thinking about is, like, is like, if the primary KMS could, like, you could actually have your bare metal, but then you could back up your KMS to GCP,
+
+Hang  1:10:34
+you can connect to the bare metal PMS and the GCP,
+
+LSDan  1:10:37
+yeah, exactly, exactly,
+
+Speaker 1  1:10:38
+yeah, this
+
+LSDan  1:10:39
+is,
+
+Hang  1:10:39
+this is already so early, and I think that's a ah, we've, have, au, functional, Gen, so, mum, the, an, a,
+
+Alex flashbots  1:10:57
+G, right,
+
+LSDan  1:11:01
+Sweet, so what's the next step? Like, like this doesn't sound.. I've not heard anybody yet say this is complicated. Any of this is complicated. So,
+
+Alex flashbots  1:11:15
+there's an amazing wiki that I suited, just explains everything to you guys, the Make of Site documentation itself, which explains all the configuration languages, is very confused.
+
+LSDan  1:11:26
+Do we want to hack on this while we're here, like we're all here? Do we got a machine? Like, do we want to try to, like, see how quickly we could actually do this?
+
+Hang  1:11:34
+I think we can give you this time, like, just to run a bunch of cloud code and give all the contacts to the cloud code and see how that works, and I would also like to discuss with Kevin Kevin, who built all the like reproducible build
+
+Speaker 1  1:11:50
+team,
+
+Hang  1:11:51
+and I think I can do that maybe later today, tonight,
+
+Alex flashbots  1:11:56
+probably because
+
+Hang  1:11:57
+they are there in the China time, so but it doesn't
+
+LSDan  1:12:02
+ever travel. Would Kevin want to come to New York?
+
+Hang  1:12:07
+Yeah, Kevin is actually applying for H 1b
+
+Speaker 1  1:12:10
+Okay,
+
+Hang  1:12:10
+so if he can get to the H 1b he can come to the US. Alright,
+
+LSDan  1:12:14
+so it's
+
+Hang  1:12:14
+easier for us
+
+Ganzo  1:12:16
+to talk next administration,
+
+Speaker 1  1:12:22
+so That's like, hell, yes.
+
+Alex flashbots  1:12:23
+This
+
+Hang  1:12:26
+is totally experimental, ready for experiment. So, let's just try that. I don't think there's any blocking issues. Oh, and another thing I want to discuss before we close is the next step we're trying to move the stack to Kubernetes
+
+Alex flashbots  1:12:45
+to what Kubernetes.
+
+Hang  1:12:46
+Yeah, so
+
+Alex flashbots  1:12:47
+D stack in Kubernetes,
+
+Hang  1:12:51
+not in the corporate Kubernetes
+
+Speaker 1  1:12:53
+policy.
+
+LSDan  1:12:53
+Yeah, yeah, Kubernetes in DSA,
+
+Hang  1:12:56
+yes. We already had some very silly experiments, like run a case, 3s and SCDM is really easy, but it doesn't give us any benefits. Now, the most promising way is still to use Coco confidential container. Yeah, but the problem of confidential container is that it doesn't have any, you know, web three people, so yeah, almost everything's missing here. So we probably are going to follow roughly the same way as AgLS.
+
+Alex flashbots  1:13:32
+Oh yeah, I was just about to say it.
+
+Hang  1:13:33
+Yeah, they have contrast, yeah, and they harden some part on top of Coco, but they
+
+Alex flashbots  1:13:39
+use something similar to ECT. They're using mango aside, like you can probably just copy.
+
+Hang  1:13:47
+I think we can just use ET, and
+
+Alex flashbots  1:13:50
+if you're using PCT, it will be way easier to copy a contrast.
+
+Hang  1:13:57
+Well, we're not trying to copy cloud. They have, they have some very weird design decision. I don't think it's so good for us for our users, and also maybe I'm not sure how how F Life goes has investigated Coco. Yeah, so we looked into it, and it's just like
+
+Alex flashbots  1:14:26
+you said, it's just weird. Honestly, it's so.. it's over-engineered, is the word I would use. Yeah, the thing is, if we decide, like, if we switch to Coco, we're just going to be 99% of our development effort is going to be fighting Coco, because that's like, yeah, can't do that. Yeah, this is simple. You know what I mean? Source code, yeah, of course. File out, they are
+
+Hang  1:14:48
+at a different level. So the point of Coco is that we can have multiple CVMs, and they can connect with
+
+Speaker 1  1:14:57
+just like the Sor.
+
+Alex flashbots  1:14:58
+Here's what I was thinking. So this is like, beyond, they're not really, they don't have any use for this at Flash Bots right now, but I'm just waiting for inter CVM communication, I think some sort of like VPN plus some sort of like distributed key value stored, like say take Wire Guard, I tested wire guard instead of the tested TLS have peer discovery and then throw like hashing or console on top of
+
+Speaker 1  1:15:30
+that
+
+Alex flashbots  1:15:30
+and would that hash agr console or something similar to give you or some sort of distributed pubs ups
+
+Speaker 1  1:15:36
+yeah
+
+Alex flashbots  1:15:36
+gives you like a distributed like consensus key value store that you can use to like synchronize the state of everything,
+
+Speaker 1  1:15:45
+yeah. And
+
+Alex flashbots  1:15:45
+for me that gives you like 99% of what people actually need when they go to Coco. Yeah, so if there's some sort of like ECT module that people could just import that adds self peer discovery like wire guard tested wire guard plus console over that authenticated wire guard that you basically you don't have to worry about you can develop als you can do like policies like this machine can only connect to versions x through z specific the ad all of that stuff can be like defined super declaratively without having to write a single line of code.
+
+Speaker 1  1:16:24
+Here is the, here is the client. This is
+
+LSDan  1:16:26
+convergence, right?
+
+Speaker 1  1:16:28
+Yeah,
+
+Alex flashbots  1:16:30
+here's, here's the thing with this is I feel like right now everybody wants to do the same thing, and we're all reinventing the same wheels to get this working. Detack, mr. Attested TLS.
+
+LSDan  1:16:42
+I've got a whole bunch of code that does what you just
+
+Ganzo  1:16:44
+exactly, so many people at Flat,
+
+LSDan  1:16:48
+he's got a version and examples service mesh, yeah,
+
+Alex flashbots  1:16:51
+like the number of, if you go to the Flash Bots GitHub organizations, the number of things that are like service mesh shaped is insane, and we're not using a single one of them,
+
+Speaker 1  1:17:01
+like,
+
+Alex flashbots  1:17:02
+so I
+
+Hang  1:17:03
+already using any of them,
+
+Alex flashbots  1:17:06
+because they're just over-engineered for what we're trying to do.
+
+LSDan  1:17:09
+Yeah,
+
+Alex flashbots  1:17:10
+exactly, it's just a pain in the ass to use service mesh, but I think hash-informed console and Wire Guard, you don't even need to write your
+
+Hang  1:17:18
+app. Yeah, we have an experiment project that can already be deployed in the stack, yeah, and it's essentially what you have described, yeah. So HashiCorp console, and then have some kind of attestation on top of that. So the question
+
+Alex flashbots  1:17:37
+below that, because I have done a lot, I have made what I pull requests to console for a previous job to try to get this stuff working in console after a certain point it's a pain in the ass.
+
+LSDan  1:17:50
+Here's what I did. So I took the IM off contract, right?
+
+Hang  1:17:56
+Oh yeah,
+
+LSDan  1:17:57
+so the stack app contract for the KMS. Right, I took Andrews work on sharing, like the bridge sharing the encryption key over blockchain. Yeah, right. I added that to it. I call this cluster, right. So then I have a member contract, which basically is just the IF Auth interface pass through the cluster, so we have the UDC cap ID by contract address for each one of the DVM, right within the cluster there's the messaging channel, so essentially every time a member registers with the cluster it gives a public key and then the private key that's being used as shared everywhere, and also a couple of other things, including the Wire Guard keys, are encrypted and shared over the block messaging channels, and then everybody connects to everybody else by virtue of, so I'm using TCP unity over TCP to basically have the gateway and the initial Wire Guard connection is made over the gateway, and so once everything you know the cluster gates shares all of the keys and also gates which Wire Guard members to join, and so the Wire Guard network joins based on the cluster registration. If a new member comes in, joins the cluster, that gives it authorization with all of the other machines connected cluster, and now you have the Wire Guard network and shared encryption key across all of the individual CDNs. That doesn't provide the orchestration of the service mesh, yeah, but it does provide like the four network connection and all the shared keys, so that you know it's another abstraction layer over the KMS, so you know the keys were originally derived from the KMS, but ultimately, as long as we never lose all of the members of cluster, any new member can join, and that original member that created
+
+Speaker 1  1:20:02
+it's the more p to p shape,
+
+LSDan  1:20:04
+exactly, exactly. So, so that's that's kind of below the console level, right? Yeah, exactly. Apply, yeah, yeah.
+
+Speaker 2  1:20:14
+I
+
+Speaker 1  1:20:14
+would have to
+
+LSDan  1:20:15
+normalize it, yeah, yeah.
+
+Hang  1:20:16
+I will say this is more like the this distributed VPC, so you use VPN to establish the network for all the nodes, and then all the nodes are running in the same VPC, so you can, they can communicate with each other.
+
+Alex flashbots  1:20:32
+Right, right, right. Yeah, I think this is, that's probably the best, the most useful. I think I can see that being useful at Flash Bots. I think that's probably useful in a lot of different applications, and see if that was the sort of thing that was developed as, like, exactly, exactly right, and that's why that's where the value adds for Flash Bots comes in, because, like, all of these things that we have to reinvent them ourselves, you know what I mean, and nobody wants to do that,
+
+Speaker 1  1:21:02
+yeah, even
+
+LSDan  1:21:02
+within Flash Flops is being reinvented regularly, right?
+
+Hang  1:21:08
+As far as I can tell, this is the tradition, tradition of Flash Bots.
+
+Alex flashbots  1:21:14
+It's a tradition of any startup, because that after a certain point in time, somebody develops their own distributed sub key value, distributing key value system.
+
+Speaker 1  1:21:24
+Yeah,
+
+Ganzo  1:21:24
+so somebody has to reinvent Kaka
+
+Speaker 1  1:21:27
+at some point.
+
+Hang  1:21:31
+My experiment is just you run a coordinator, and this is the this is the hash cup console coordinator. Yeah, and then you have multiple nodes, and each node you assign a role to that, and the role can be just defining a central config file. For example, you can have the backhand, backhand, and can have three replica, and then you can have a database with three replicas. Then they connect to the to the coordinator. The coordinator check all their attestation, and if the testation matches, follow the policy, release the key, so they can be connected to this service mesh.
+
+Alex flashbots  1:22:08
+And then, even if you don't want to use Wire Guard, console provides all of this for, yeah, asked to write middleware form, but I have
+
+Hang  1:22:17
+done it. That's
+
+LSDan  1:22:17
+why I use it. I decided, Water,
+
+Alex flashbots  1:22:19
+trust me, I went down that rabbit hole. Do not go down
+
+LSDan  1:22:23
+exactly what Claud and Codex folks said to me as well, and I was like looking at the documentation, thinking about doing it at that, and I knew he was using console, and I was like, I was like, it would be nicer if I just use console, but now you don't need 90% of
+
+Alex flashbots  1:22:38
+it. I thought I got on a call, and for a previous job with one of the cons, we need for console, and he just straight up told me, 'Don't use this. He's like, 'Please don't use that.
+
+LSDan  1:22:50
+I feel like that's the, like, kind of the should be the tagline of how she broke, like, like, 'Please don't use this, you know, Bagrat. I fucking love Bagrat, but it's nowhere near it's gonna stop, or
+
+Alex flashbots  1:23:02
+you know what it is. It's like in the movie theater, they have the medium size popcorn for like $10 and then they have the large size popcorn for $11 The large size popcorn is Terraform cloud, you know what I'm saying, like they just put this here to make you get so frustrated that you switch to their cloud service, but I digress.
+
+Speaker 1  1:23:22
+Yeah,
+
+Hang  1:23:28
+very, very productive. I think it's really good.
+
+LSDan  1:23:31
+Yeah, sorry, I pushed so hard on you to get here, but I knew the second that we could all get in a room and actually talk about this around the whiteboard, it would be.
+
+Alex flashbots  1:23:37
+Yeah, I think this is a really good because if it looks like this, you're going to be able to go so fast, and so many people are going to be able to use it,
+
+LSDan  1:23:47
+so
+
+Hang  1:23:48
+yeah. Let's get, get started on the experiments. Yep, all right.
+
+LSDan  1:23:53
+When are when are you back, by the way? So, you, you fly tomorrow,
+
+Hang  1:23:59
+think somewhere 10pm 11pm pm.
+
+LSDan  1:24:03
+Okay,
+
+Hang  1:24:03
+I will be back in USF.
+
+LSDan  1:24:04
+I'm out, I'm out of the day, most, most of the day tomorrow. Okay. And then you're coming back in two weeks, or
+
+Hang  1:24:14
+I may not come back, but Marvin will be here,
+
+Alex flashbots  1:24:17
+okay?
+
+Hang  1:24:18
+Maybe two weeks later, because I know he's going to join an event here somewhere in New York, and I think he will just hang you around some GPR. Theater, nice, nice. Oh yeah. Does Andrew have some time today? I want to get you and Andrew together, because recently we're just trying to reconcile the, you know, the bill for a lot of accounts you guys have operated on the cloud, and I believe, like, most of them are just very old accounts, maybe running some very old CBM from last year, and we don't have to account them, we can just wipe all of that. Just want to confirm which one is still in use and which one is not. And then from there are some, there are some CVMs created recently, but for some reason I believe in the team they didn't really send out the bill, so we can just check all of the resources, which one are in use, which one is not in use, and which one should be accounted, and then we can also talk about the way to set up maybe a unified billy, so in the future you don't have to deal with all those friction,
+
+LSDan  1:25:38
+yeah, awesome, so I have the one on my side, I have two accounts, I have one that I put like $50 into, and then we turned it into like a free test around account, like $6 in, or something like that, so and then what I've been using is basically a test development account, things that are kind of all going to be thrown out very quickly. Yeah, and then I have the $500 funded account, which is for key, so I have a separate company box, right, which is what runs Te SQL,
+
+Speaker 1  1:26:14
+and
+
+LSDan  1:26:14
+that's like a separate entity Flash Box, and that's the one that I funded with 500 production.
+
+Hang  1:26:21
+Actually, you have just, you can just have one account, and we can have multiple workspace.
+
+LSDan  1:26:27
+Okay,
+
+Hang  1:26:28
+so you have
+
+Speaker 1  1:26:29
+fine. I
+
+LSDan  1:26:30
+mean, I just use two different email recipes.
+
+Hang  1:26:32
+Okay, okay, okay,
+
+LSDan  1:26:34
+yeah. So, Alice Dan and Flash Boss is the one that is the kind of freebie account right now. Okay, and I'm not gonna pay for that, by the way. It's just at some point he turned it free, and like, so I've basically been operating.
+
+Speaker 1  1:26:51
+Yeah, I
+
+LSDan  1:26:52
+second that. I'm charging for something. I will make sure that I'm paying you as well.
+
+Hang  1:26:57
+Yeah, of course. Of course,
+
+LSDan  1:26:59
+take advantage of it.
+
+Hang  1:27:00
+Yeah, I think there are just some old CBM, and we clean them up at once, and the history review can be just removed. I don't think it's because it was some account created since early last year,
+
+LSDan  1:27:16
+yeah,
+
+Hang  1:27:16
+and accumulated the accumulated amount is really high, and I don't want to just send you a bill with all of that funny, rest of the things like the accounts just created this year, I think that can be
+
+LSDan  1:27:32
+all right, let me see what,
+
+LSDan  1:27:37
+so the calendar is from 330 to four, it should be T on the roof, I think. Andrew's session is done, so we should go up to the rear field. He'll probably be up there, we can talk about it. Okay. And then from four to 530 is customer profiling, user introducer James. And then from six to 730 is the Flash Neck Jam by RS, not sure what that is, and 730 to nine is a low-key dinner.
+
+Hang  1:28:11
+So, do you switch, Jerry?
+
+LSDan  1:28:12
+We can pull Andrew aside for a few minutes.
+
+Speaker 1  1:28:16
+Okay, yeah, let's go, let's go upstairs. Okay,
+
+LSDan  1:28:20
+do that, and then during the user onboarding, maybe we can, we can all pop in a room and hack a bit on this, and see if
+
+Speaker 1  1:28:27
+we can. Yeah, of course,
+
+LSDan  1:28:29
+I think we're good too. Yeah, I think so. Thanks for joining, Wiki. Hope any of that made sense.
+
+Wiki  1:28:35
+Oh no, it's awesome. If you guys are gonna work on this, I know, like, okay, me and, like, Luke have had some complaints about the stack before the UI, but I think the Kubernetes thing is super cool, like if you can help figure that out, and so yeah, I'm just learning, and I think if you also want other support, like just reach out, because I think other people have like tried to work on this.
+
+Hang  1:29:02
+Oh yeah, if you have some compliance on the UI, let me know.
+
+Wiki  1:29:07
+Thank you. Yeah, I think that we'll try to see if we can write it up, or if we have in the past. I know we've tried to present DSAC heavily to Lucid Computing, but I don't think that they were like that convinced, and so it was just so frustrating.
+
+Hang  1:29:26
+Yeah, just when you get any chance, feel free to send it to me, or if having a video chat is better, we can also set up like a 10 minutes chat somewhere.
+
+Wiki  1:29:38
+Yeah, we really would appreciate that. I want to learn how to use Fala for also not things that have to deal with like blockchain and some like contracting, and I just also need that kind of like free like support there too. But I've been in, I still talk to Dylan. I know Dylan is kind of like has worked with Fallout before, and he's in SF, so if that's also helpful at all, yeah, he's, we're on the same, yeah,
+
+Hang  1:30:07
+you're connected with dealers
+
+Wiki  1:30:10
+over Telegram,
+
+Hang  1:30:11
+okay, yeah, you can let me know the director feedback, Dylan is not working with us right now, he left the team a few months ago, but we're still in very good relationship.
+
+Wiki  1:30:25
+That's awesome. That's good to know. Okay, and yeah, we would love to set up a call with you. Honestly, you're like so great at like teaching, and like that's really cool that you have a coordinator that does the KMS stuff. That's awesome. That's so cool with databases, that's cool,
+
+Hang  1:30:42
+and I would like to solve any problem or take any suggestion from everyone.
+
+Wiki  1:30:49
+Definitely. Well, have a good tea, and hopefully we'll also be in the same state in the future, like in person as well. But we'll communicate. I have your signal.
+
+Hang  1:30:58
+Okay.
+
+Speaker 1  1:31:00
+Nice, later. later,
+
+Ganzo  1:31:03
+okay,
+
+Speaker 1  1:31:04
+so I'm.
+
+Transcribed by https://otter.ai
