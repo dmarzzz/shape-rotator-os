@@ -53,6 +53,9 @@ apps/web/cohort-surface.json
 # vercel cli local link metadata
 .vercel
 
+# upstream reference clones (element-web, matrix-rust-sdk) — read-only, not vendored
+reference/
+
 # CI-fetched single-file PyInstaller binaries (populated at build time
 # by scripts/fetch-swf-node.sh + scripts/fetch-research-swarm.sh; the
 # per-arch _staging/ tree is flattened into the dirs below by the
