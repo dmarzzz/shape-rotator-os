@@ -68,6 +68,15 @@ let _cache = null;            // grouped by record_type (baseline merged with sy
 let _baseline = null;
 let _baselineFetchedAt = 0;
 let _refreshTimer = null;
+// Snapshot of _cache._syncAvailable taken when _refreshTimer was armed.
+// Boot arms the timer with sync-unavailable (REFRESH_MS = 1h) and the
+// first background refresh flips _syncAvailable to true seconds later.
+// Without this snapshot, refreshTick's prev/next compare would not see
+// the transition (it already happened before the first tick), and the
+// timer would stay pinned at 1h forever. We compare the live cache value
+// against this snapshot after each background refresh and re-arm if they
+// diverge — this is how the cadence actually flips from 1h → 30s.
+let _refreshTimerSyncAvail = false;
 let _bgRefreshInFlight = null; // promise of any active background refresh
 const _subscribers = new Set();
 // Separate channel for sync lifecycle. Subscribers receive
@@ -703,6 +712,13 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
     } finally {
       _bgRefreshInFlight = null;
       _emitSyncState("idle");
+      // If the just-completed refresh flipped _syncAvailable relative to
+      // the cadence the timer was armed with, re-arm at the new cadence.
+      // Covers the boot case where scheduleRefresh() is armed at 1h with
+      // sync-unavailable, and seconds later the background refresh flips
+      // _syncAvailable to true — without this re-arm, the cross-tick
+      // compare in refreshTick never sees the false→true edge.
+      _maybeRearmRefresh();
     }
   })();
   return _bgRefreshInFlight;
@@ -755,23 +771,32 @@ function scheduleRefresh() {
   // Use the faster cadence when sync is live so a peer's profile edit
   // shows up within one sync tick instead of waiting on the github poll.
   // The fallback is still gh-only when swf-node is unreachable.
-  const interval = _cache?._syncAvailable ? SYNC_REFRESH_MS : REFRESH_MS;
+  const syncAvail = !!_cache?._syncAvailable;
+  const interval = syncAvail ? SYNC_REFRESH_MS : REFRESH_MS;
+  _refreshTimerSyncAvail = syncAvail;
   _refreshTimer = setInterval(refreshTick, interval);
+}
+
+// Re-arm _refreshTimer if the cadence it was armed at no longer matches
+// the current _syncAvailable state. Called after every background refresh
+// so the boot-time false→true flip (which lands between scheduleRefresh
+// and the first tick) actually switches the cadence from 1h to 30s.
+function _maybeRearmRefresh() {
+  if (!_refreshTimer) return;
+  const syncAvail = !!_cache?._syncAvailable;
+  if (syncAvail === _refreshTimerSyncAvail) return;
+  clearInterval(_refreshTimer);
+  _refreshTimer = null;
+  scheduleRefresh();
 }
 
 async function refreshTick() {
   // Polled refresh delegates to the same background path used on first
   // boot, so we don't have two slightly-different resolve paths to keep
   // in sync. The LS write + subscriber notify happens inside
-  // _startBackgroundRefresh; we only handle sync-availability cadence
-  // switching here.
-  const prevSyncAvail = !!_cache?._syncAvailable;
+  // _startBackgroundRefresh, and cadence re-arming happens in its
+  // finally block via _maybeRearmRefresh() — no per-tick compare needed.
   await _startBackgroundRefresh();
-  const nextSyncAvail = !!_cache?._syncAvailable;
-  if (prevSyncAvail !== nextSyncAvail) {
-    if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
-    scheduleRefresh();
-  }
 }
 
 /**
@@ -793,5 +818,6 @@ export function _resetCohortSource() {
   _bgRefreshInFlight = null;
   _subscribers.clear();
   if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
+  _refreshTimerSyncAvail = false;
   try { localStorage.removeItem(SURFACE_LS_KEY); } catch {}
 }
