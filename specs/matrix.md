@@ -1,8 +1,8 @@
 # Spec: Matrix client ("matrix" tab) in Shape Rotator OS
 
-Status: **DRAFT (v0.1)** — research in flight; SDK snippets + full parity checklist finalized as the
-`matrix-research` workflow lands. Architecture and integration points below are verified against the
-current codebase.
+Status: **v1.0** — architecture + API finalized from research (4-agent `matrix-research` workflow:
+SDK core, crypto/media, Element inventory, Tauri bridge). Integration points verified against the
+current codebase. Full parity checklist: **`specs/matrix-parity.md`** (~190 items).
 
 > Goal: a Matrix chat client embedded as a new top-level **matrix** tab in `apps/os`, powered by the
 > **matrix-rust-sdk** (Rust) over the existing Tauri 2 backend. Target **100% feature parity with
@@ -87,14 +87,45 @@ PopFront, PopBack, Insert, Set, Remove, Truncate, Reset`).
 
 ## 3. Backend design (Rust)
 
-### 3.1 Crates (Phase B will pin exact versions)
+### 3.1 Crates (finalized — **matrix-sdk 0.17.0**)
+All matrix-sdk-* crates are version-locked and must match (0.17). Verified against the clone +
+crates.io. `eyeball-im` (the reactive Vector/VectorDiff type) is **re-exported** as
+`matrix_sdk_ui::eyeball_im` — import it from there, never as a direct dep, to avoid a type-skew where
+our `VectorDiff` differs from the SDK's.
 ```toml
-matrix-sdk        = { version = "0.17", default-features = false, features = ["e2e-encryption", "sqlite", "rustls-tls", "markdown"] }
-matrix-sdk-ui     = { version = "0.17", default-features = false, features = ["e2e-encryption", "native-tls"... ] } # reconcile TLS with above
-# matrix-sdk-sqlite pulled transitively via the "sqlite" feature
+matrix-sdk    = { version = "0.17", default-features = false, features = [
+    "e2e-encryption",                 # crypto state machine (most rooms are encrypted)
+    "sqlite", "bundled-sqlite",       # state + crypto + event-cache store; bundle libsqlite3 (no system dep)
+    "automatic-room-key-forwarding",  # auto key-forward between your own verified devices
+    "rustls-tls",                     # matches our existing reqwest rustls; avoids OpenSSL cross-compile
+    "markdown",                       # RoomMessageEventContent::text_markdown(...)
+    "sso-login",                      # matrix_auth().login_sso(...)
+    "qrcode",                         # QR device verification
+] }
+matrix-sdk-ui = { version = "0.17", default-features = false, features = ["e2e-encryption"] }
+futures-util  = "0.3"                 # StreamExt for diff streams (already present)
+mime          = "0.3"                 # attachment uploads
 ```
-(We already depend on `tokio` multi-thread, `reqwest` rustls, `serde`/`serde_json`, `keyring`,
-`dirs`/`tauri` app-data paths — reused here.)
+`bundled-sqlite` is the key cross-platform choice (static SQLite → clean macOS/Windows/Linux/iOS
+bundles). We already depend on `tokio` multi-thread, `reqwest` rustls, `serde`/`serde_json`,
+`keyring`, `dirs`/`tauri` app-data paths — reused here. **MSRV:** SDK HEAD wants 1.93; local toolchain
+is 1.94.1 — bump the crate's `rust-version` to `1.93` (or whatever `cargo` resolves) when adding deps,
+and confirm CI uses ≥ that.
+
+**Make E2EE "just work"** via the builder:
+```rust
+.with_encryption_settings(EncryptionSettings {
+    auto_enable_cross_signing: true,
+    auto_enable_backups: true,
+    backup_download_strategy: BackupDownloadStrategy::AfterDecryptionFailure,
+})
+```
+After login/restore, `client.encryption().wait_for_e2ee_initialization_tasks().await` before reading
+cross-signing/backup state (they init asynchronously).
+
+Prior art to crib from: **`IT-ess/tauri-plugin-matrix-svelte`** (Tauri + matrix-rust-sdk + keyring
+session storage) and the SDK's own `examples/{persist_session,oauth_cli,timeline,emoji_verification,
+cross_signing_bootstrap}`.
 
 ### 3.2 State (`src-tauri/src/state.rs`)
 Add `matrix: Arc<tokio::Mutex<MatrixRuntime>>` to `AppState`. `MatrixRuntime` holds:
@@ -197,19 +228,17 @@ look/behaviour in the `matrix/` modules + a dedicated CSS file.
 
 ## 6. Feature-parity checklist (master)
 
-> Filled/expanded from the `element-features` research agent + `reference/element-web/apps/web/src`.
-> Tags: **S/M/L** effort. Phasing in §7. (Placeholder — research output merged on landing.)
+The full ~190-item checklist lives in **`specs/matrix-parity.md`** (12 domains: auth, room list,
+spaces, timeline, composer, encryption, room settings, calls, user settings, notifications, search,
+misc/platform — each item tagged S/M/L and mapped to a phase). Tick items there as they ship. Summary
+of the 12 domains:
 
-- [ ] **Auth**: password login · SSO/OAuth · homeserver discovery · session restore · logout · (later) registration, multi-account
-- [ ] **Room list**: list + sort · unread badges · favourites/low-priority · filters (people/rooms/unread) · search · breadcrumbs
-- [ ] **Spaces**: spaces panel · hierarchy · room↔space membership
-- [ ] **Timeline**: text/markdown/code/emoji · mentions/pills · replies · threads · edits · reactions · redaction · read receipts & markers · typing · day dividers · event grouping · jump-to-bottom · permalinks · pinning · polls · location
-- [ ] **Composer**: markdown · emoji picker · mentions autocomplete · slash commands · file/image upload & paste · voice messages · stickers · formatting toolbar · drafts
-- [ ] **Encryption**: E2EE indicators · device verification (SAS/QR) · cross-signing · key backup · recovery (4S) · UTD handling · room encryption toggle
-- [ ] **Room admin**: create · invite · membership/roles/power levels · name/topic/avatar · directory · per-room notifications · aliases · widgets
-- [ ] **Calls**: 1:1 voice/video · group calls (Element Call) · screen share
-- [ ] **Settings**: profile · appearance/themes · notifications · security/privacy · labs · sessions/devices management
-- [ ] **Misc**: message search · presence/status · share · export chat
+1. Auth & account lifecycle · 2. Room list / left panel · 3. Spaces · 4. Timeline / room view ·
+5. Composer · 6. Encryption (E2EE) · 7. Room settings & management · 8. Voice/video calls ·
+9. User settings · 10. Notifications · 11. Search · 12. Misc / platform.
+
+The **customization seam** is domain 12's "Customisations / branding" — re-skinning Element's look
+should be a localized change in `src/renderer/matrix/` + `matrix.css`, never a fork of behaviour.
 
 ---
 
@@ -260,9 +289,39 @@ Phases are ordered so the app stays bootable throughout (other agents may be wor
 
 ---
 
-## 9. Open questions (resolve as research lands)
-1. Exact pinned `matrix-sdk` / `matrix-sdk-ui` version + feature flags + MSRV bump?
-2. `sync_service::SyncService` vs raw sliding sync — confirm the recommended desktop pattern.
-3. Media delivery: Tauri custom protocol vs temp files vs data URLs (size/perf/CSP trade-off).
-4. TLS feature reconciliation between `matrix-sdk` (we use rustls elsewhere) and `matrix-sdk-ui`.
-5. Mobile: which subsystems are `#[cfg(desktop)]` (keyring) vs universal (the client itself).
+## 9. Resolved decisions (from research)
+1. **Version/features:** `matrix-sdk`/`matrix-sdk-ui` **0.17.0**, features in §3.1; bump crate
+   `rust-version` to the SDK MSRV (~1.93; local is 1.94.1). `eyeball-im` via `matrix_sdk_ui::eyeball_im`.
+2. **Sync:** use **`matrix_sdk_ui::sync_service::SyncService`** (drives simplified sliding sync +
+   encryption sync as one supervised unit — the Element X pattern). Never touch `SlidingSync` directly.
+   `SyncService::room_list_service()` gives the `RoomListService`; supervise `.state()` and re-`start()`
+   on `Error`/`Offline`. No manual sync-token persistence (that's only for legacy `sync_once`).
+3. **Media:** serve resolved MXC content to the webview via a **Tauri custom protocol**
+   (`matrixmedia://<mxc>?thumb=...`) backed by `client.media().get_media_content(...)`, so we don't
+   loosen CSP to arbitrary homeservers and avoid large data-URL/IPC payloads. (`matrix_media_url`
+   command returns the protocol URL; the protocol handler fetches+caches bytes.) Fallback for v1:
+   temp-file under app cache + `convertFileSrc`.
+4. **TLS:** `rustls-tls` on both crates (matches our existing reqwest; avoids OpenSSL cross-compile).
+5. **Mobile:** the Matrix client/runtime is **all-platform** (NOT `#[cfg(desktop)]`, unlike the
+   subprocess supervisors). Only **keyring** secret storage is desktop-only — on mobile fall back to
+   the encrypted-store passphrase path that `secrets.rs` already provides. Pause/resume sync on app
+   background/foreground via `RunEvent`.
+
+## 10. Backend module map (from the bridge brief)
+- `src/matrix/state.rs` — `MatrixState { inner: Arc<Mutex<MatrixInner>> }`; `MatrixInner` holds
+  `client`, `room_list: Arc<RoomListService>`, `sync_task`/`room_list_task` AbortHandles, and
+  `open_rooms: HashMap<String, OpenRoom>` (each `OpenRoom` = `Arc<Timeline>` + its diff-task AbortHandle).
+- `src/matrix/diff.rs` — `DiffOp<V>` (tagged `op` enum) + `map_diff(VectorDiff<T>, &f) -> DiffOp<V>` +
+  `DiffEnvelope { key, seq, diffs }`. **Pure + unit-tested** (every variant).
+- `src/matrix/pump.rs` — generic `spawn_diff_pump<T,V,S>(app, channel, key, initial, stream, map_item)
+  -> AbortHandle`: seeds a `Reset` from the snapshot, then drains the stream emitting one event per
+  batch. Used by both room-list and every timeline.
+- `src/matrix/diff_dto.rs` — `RoomDto` / `TimelineItemDto` / `ReactionDto` — small, stable, camelCase,
+  **panic-free** projections (a panic in a pump silently kills it).
+- `src/matrix/rooms.rs`, `src/matrix/timeline.rs` — RoomListService + per-room Timeline wiring.
+- `src/matrix/session.rs` — store dir under `paths::user_data`, passphrase + tokens in `secrets.rs`
+  keyring, `MatrixSession` metadata JSON via `json_store`.
+- **Mutex rule:** lock → clone out `Arc<Client>`/`Arc<Timeline>` → drop guard → do async work (never
+  hold the guard across a long `.await`; SDK handles are cheap `Arc` clones).
+- **seq/gap handling:** `DiffEnvelope.seq` lets the renderer detect a dropped batch and re-subscribe
+  to force a fresh `Reset`. Always treat `Reset` as "rebuild the local array".
