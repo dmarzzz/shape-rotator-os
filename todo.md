@@ -79,3 +79,65 @@ research briefs: `reference/_research-briefs.md`.
 - Mutex rule: lock → clone out `Arc<Client>`/`Arc<Timeline>` → drop guard → async work (never hold
   the guard across a long `.await`)
 - Don't sweep up other agents' uncommitted edits when committing matrix work
+
+---
+
+# TODO — Agent tab (local Codex / Claude Code)
+
+Design doc: [`specs/agent.md`](specs/agent.md) (v0.1, **design only — not scheduled**).
+Draft is written; a 5-persona simulated-user panel (maintainer, terminal-native founder,
+non-technical operator, security/governance, product skeptic) returned **zero approvals**.
+Architecture is sound; the embedded terminal + several safety claims need rework before build.
+
+## Product decision to settle first
+- [ ] **Invert the deliverable?** Panel's highest-leverage call: make the **MCP server
+      (Phases C–E) the v0.1 product** — standalone `127.0.0.1` loopback with a printable
+      connection snippet users paste into their own `claude`/`codex` config — and defer the
+      embedded PTY+xterm tab (Phases A/B/F) to v0.2 behind an explicit "why embed"
+      justification. (Real product call for Daniel, not a mechanical edit.)
+
+## Blockers (before build)
+- [ ] §0 **Jobs-to-be-done** (who can help with X / who's working on Y / draft-refresh
+      profile); trace every section to one. Rewrite §7 testing as *outcome* acceptance
+      ("member types a need → ≥1 correct citable person in <10s"), not "the TUI renders."
+- [ ] §5: reads return **public surface bundle ONLY** via an explicit field allow-list;
+      `cohort_get_record`/`sync_get_record` must refuse depth-tier fields (`profile_lens`,
+      `facilitator.*`, `growth_edge`, `salient_tensions`, `open_questions`). Add a test proving
+      no depth field ever appears — including for a key-holding alchemist.
+- [ ] §6 **Data egress** subsection: read results leave the machine to the user's cloud model
+      provider (the one non-local part of a local-first product). One-time consent on first use.
+- [ ] Reconcile §1 "inherits the user's auth" vs §3.2 `env_clear()`: default user-facing path to
+      inheriting real HOME/PATH + config; reserve clean-env for E2E tests. Phase B test: auth
+      survives the spawn.
+
+## Should-fix
+- [ ] §6 honesty note: agent is unsandboxed → MCP write-gate + "bearer never returned" are UX
+      guardrails, not a boundary (agent can read `userData/swf-node-data/agent_token` + hit
+      `:7777`). Move token out of agent-readable scope or document it.
+- [ ] §6 **prompt-injection**: treat self-authored cohort free-text as untrusted; wrap reads as
+      data-not-instructions; write dialogs show full payload + provenance.
+- [ ] §5/§6: specify the **confirmation surface** — plain-language summary + readable diff/preview
+      (full PR diff, full sync envelope, target repo/branch/handle), how `mcp.rs` binds a write to
+      the active session, no "remember my choice" for writes, looping/rate-limit guard.
+- [ ] Fix §3.2: NOT a reuse of `resolve_agent_binary` (that resolves `research-agent` via
+      `RESEARCH_AGENT_BIN`). Rename to "a new resolver modeled on swarm's"; enumerate `claude`/
+      `codex` probe locations (npm/bun global, `~/.local/bin`, Homebrew, asdf/volta, npx, aliases).
+- [ ] Rebuild §8 risk register: demote stdio-vs-loopback / cwd / persistence; promote
+      clean-env-vs-auth, write-to-session binding, CLI flag drift
+      (`--mcp-config`/`--strict-mcp-config`), data egress. Resolve transport → loopback.
+- [ ] Resolve `open_pr_draft` overlap with the existing `shape-rotator-profile` skill — defer the
+      profile job to the skill or justify the tab as a better surface; `sync_push` is the only
+      net-new write.
+- [ ] Change default cwd (Open Q5) to repo/configurable project dir, not empty scratch; note the
+      scratch dir shares a parent with `cohort-keys.json` + the token.
+- [ ] Define empty/error state when no binary detected (guided onboarding, not a blank terminal);
+      scope audience honestly (v0.1 = technical members).
+
+## Nice-to-have
+- [ ] Fix stale `boot.js` anchors (APPS_VIEWS ~5968 not ~1479; `applyActiveTab` ~6299); re-verify
+      integration points against current `boot.js`.
+- [ ] One sentence justifying the `xterm.js` + `addon-fit` + `portable-pty` dependency add vs the
+      vanilla-JS line-stream baseline.
+- [ ] Reinstate "Alternatives considered" (structured-chat UI + its cost to non-technical members).
+- [ ] If the embedded tab survives v0.1: terminal-parity bar (TERM/truecolor, mouse, scrollback,
+      copy-paste, keybinding passthrough) + multi-session/persistence milestone.
