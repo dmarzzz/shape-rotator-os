@@ -15,9 +15,16 @@ out/
 
 # data (lives on the local swf-node, not in repo)
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 data/
+
+# agent / tooling scratch (smithers orchestrator + bug-fix worktrees)
+.smithers/
+.worktrees/
+apps/os/dist-frontend/
 
 # logs / scratch
 *.log
