@@ -63,3 +63,11 @@ reference/
 apps/os/build-resources/_staging/
 apps/os/build-resources/swf-node/
 apps/os/build-resources/research-swarm/
+
+# Tauri: Rust build output (huge) + generated mobile projects (regenerated)
+apps/os/src-tauri/target/
+apps/os/src-tauri/gen/
+# ...but DO track the generated app icons — tauri.conf.json references them and
+# the global *.png ignore above would otherwise drop them from the build.
+!apps/os/src-tauri/icons/
+!apps/os/src-tauri/icons/**

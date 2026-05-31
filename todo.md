@@ -1,3 +1,38 @@
+# TODO — Electron → Tauri migration of `apps/os`
+
+Migrating `apps/os` from Electron 33 to **Tauri 2** at full parity, plus iOS/Android.
+Full plan: `~/.claude/plans/warm-wobbling-catmull.md`. Crate: `apps/os/src-tauri/`.
+Renderer is unchanged behind `apps/os/src/api-shim.js` (`window.api` → Tauri `invoke`/`listen`).
+
+## ✅ Done & verified (compiles, `tauri dev` boots, `SROS_SMOKE_TEST=1` exits 0)
+- [x] **Phase 1** — scaffold `src-tauri` + `scripts/tauri-prebuild.cjs` → `dist-frontend`; mobile-ready (`#[cfg_attr(mobile,…)]`, mobile Rust targets installed)
+- [x] **Phase 2** — `window.api` shim + commands: prefs, env, clipboard, openExternal, open_downloaded_installer, signal_ready
+- [x] **Phase 3** — shell: hermes window, native menu (Cmd/Ctrl+Shift+H), window-state, `--smoke-test`
+- [x] **Phase 5** — swf-node supervisor (state machine, indrex squatter probe, agent token, restart cap, SIGTERM→SIGKILL, focus recheck)
+- [x] **Phase 6** — research-swarm supervisor + `keyring` secrets (replaces `safeStorage`)
+- [x] **Phase 8** — calendar export PNG (native dialog + write)
+
+## 🔜 Remaining
+- [ ] **Phase 4 — context-vault** (~900-line port; currently a graceful empty-manifest stub): `walkTranscriptFiles`, date/speaker/skill/signal inference regexes, frontmatter parse, raw-bundle + corpus markdown, `hashShort`. Unit-test vs fixtures.
+- [ ] **Phase 7 — updater**: `tauri-plugin-updater` (endpoints + EdDSA pubkey) + custom `download_and_reveal_update`; generate signing keypair.
+- [ ] **Phase 9 — easel/NDI**: Node sidecar re-hosting `easel-ndi.js` + `ws`; renderer connects `ws://127.0.0.1:<port>` (binary protocol already in `api-shim.js`); `getDisplayMedia` replaces `desktopCapturer`; send pump in a Worker.
+- [ ] **Phase 10 — CI/packaging**: `tauri.conf` bundle/externalBin/entitlements/Info.plist; per-triple `fetch-*.sh`; `build-ndi-sidecar.cjs`; rewrite `os-release.yml` (per-(OS,arch) matrix + `tauri-action` + `latest.json`); drop electron-builder.
+
+### Renderer follow-ups
+- [ ] Vendor **jsPDF** + `window.__srfgMakePdfDataUrl` for calendar **PDF** (Rust already writes any data URL).
+- [ ] `easel.js`: `getDisplayMedia()` + Worker send pump (no `setBackgroundThrottling` in Tauri).
+
+### Mobile (iOS/Android) — code ready; setup in `apps/os/TAURI-MOBILE.md`
+- [ ] `tauri:ios:init` (needs full Xcode + CocoaPods) · `tauri:android:init` (needs JDK 17 + Android SDK/NDK)
+- [ ] Responsive layout pass; "remote swf-node URL" settings (no local daemon on mobile)
+
+### Improvements ("do better")
+- [ ] Type-safe IPC via `tauri-specta`; flesh out E2E (`apps/os/e2e/`, `webdriver` feature wired)
+- [ ] Audit `ExitRequested` vs macOS window-close; add `tauri-plugin-single-instance` (avoid `:7777` races)
+- [ ] `tracing` logging + panic/crash file; release profile (LTO/strip/opt-z); measure bundle-size win vs Electron
+
+---
+
 # TODO — Matrix client (the "matrix" tab)
 
 Work-in-progress tracker for the embedded Matrix client. Full design:
