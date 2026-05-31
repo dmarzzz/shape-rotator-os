@@ -39,6 +39,7 @@ let _canvas = null;
 let _ctx = null;
 let _pumpTimer = null;
 let _statsTimer = null;
+let _starting = false;
 let _quality = "high";
 let _outW = 1280;
 let _outH = 720;
@@ -700,53 +701,63 @@ function drawContain(source, sw, sh) {
 }
 
 async function goLive() {
-  if (!_selectedId) return;
-  hideError();
-  const name = (_stage.querySelector("[data-easel-name]").value || "Easel").trim() || "Easel";
-  const res = await safe(() => window.api.easel.start({ name }), { ok: false, error: "sender failed to start" });
-  if (!res || res.ok === false) { showError(res && res.error ? res.error : "couldn't start the NDI sender."); return; }
-  _publishedName = (res && res.name) || name; // the name receivers actually see (hostname-prefixed)
-
-  try {
-    _stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { mandatory: {
-        chromeMediaSource: "desktop",
-        chromeMediaSourceId: _selectedId,
-        maxWidth: 1920, maxHeight: 1080, maxFrameRate: FPS,
-      } },
-    });
-  } catch (e) {
-    await safe(() => window.api.easel.stop());
-    showError("screen capture was blocked. Grant Screen Recording permission to the app, then fully quit & reopen easel. (" + e.message + ")", true);
-    return;
-  }
-
-  _video.srcObject = _stream;
-  await _video.play().catch(() => {});
-  // If the user stops sharing via the OS, tear down cleanly.
-  const track = _stream.getVideoTracks()[0];
-  if (track) track.addEventListener("ended", () => stopLive());
-
-  // Size the output to the source's native resolution (capped by quality) so
-  // the projection is crisp, instead of a fixed 720p downscale.
-  if (!_video.videoWidth) {
-    await new Promise((r) => { _video.addEventListener("loadedmetadata", r, { once: true }); setTimeout(r, 1500); });
-  }
-  applyOutputDims();
-
-  _live = true;
-  _liveStartMs = Date.now();
-  saveEaselPrefs({ ...loadEaselPrefs(), name, sourceId: _selectedId });
-  const ov = _stage.querySelector("[data-easel-overlay]");
-  if (ov) ov.hidden = true;
+  // Re-entrancy guard: the button stays enabled through a multi-second async
+  // startup (IPC + getUserMedia + up-to-1500ms loadedmetadata wait), so a second
+  // click would otherwise overwrite _stream/_statsTimer and spawn a duplicate
+  // pump loop. Lock immediately, and release on every exit path.
+  if (_starting || _live || !_selectedId) return;
+  _starting = true;
   syncGoButton();
-  pump();
-  _statsTimer = setInterval(refreshStats, 1000);
-  refreshStats();
-  syncViewerInfo();
-  // Surface ourselves in the LAN feed now that we're live.
-  loadWatchSources();
+  hideError();
+  try {
+    const name = (_stage.querySelector("[data-easel-name]").value || "Easel").trim() || "Easel";
+    const res = await safe(() => window.api.easel.start({ name }), { ok: false, error: "sender failed to start" });
+    if (!res || res.ok === false) { showError(res && res.error ? res.error : "couldn't start the NDI sender."); return; }
+    _publishedName = (res && res.name) || name; // the name receivers actually see (hostname-prefixed)
+
+    try {
+      _stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { mandatory: {
+          chromeMediaSource: "desktop",
+          chromeMediaSourceId: _selectedId,
+          maxWidth: 1920, maxHeight: 1080, maxFrameRate: FPS,
+        } },
+      });
+    } catch (e) {
+      await safe(() => window.api.easel.stop());
+      showError("screen capture was blocked. Grant Screen Recording permission to the app, then fully quit & reopen easel. (" + e.message + ")", true);
+      return;
+    }
+
+    _video.srcObject = _stream;
+    await _video.play().catch(() => {});
+    // If the user stops sharing via the OS, tear down cleanly.
+    const track = _stream.getVideoTracks()[0];
+    if (track) track.addEventListener("ended", () => stopLive());
+
+    // Size the output to the source's native resolution (capped by quality) so
+    // the projection is crisp, instead of a fixed 720p downscale.
+    if (!_video.videoWidth) {
+      await new Promise((r) => { _video.addEventListener("loadedmetadata", r, { once: true }); setTimeout(r, 1500); });
+    }
+    applyOutputDims();
+
+    _live = true;
+    _liveStartMs = Date.now();
+    saveEaselPrefs({ ...loadEaselPrefs(), name, sourceId: _selectedId });
+    const ov = _stage.querySelector("[data-easel-overlay]");
+    if (ov) ov.hidden = true;
+    pump();
+    _statsTimer = setInterval(refreshStats, 1000);
+    refreshStats();
+    syncViewerInfo();
+    // Surface ourselves in the LAN feed now that we're live.
+    loadWatchSources();
+  } finally {
+    _starting = false;
+    syncGoButton();
+  }
 }
 
 async function stopLive() {
@@ -804,9 +815,9 @@ function refreshStatus(s) {
 function syncGoButton() {
   const go = _stage.querySelector("[data-easel-go]");
   if (!go) return;
-  go.textContent = _live ? "stop" : "go live";
+  go.textContent = _live ? "stop" : (_starting ? "starting…" : "go live");
   go.classList.toggle("is-live", _live);
-  go.disabled = !_ndiAvailable || (!_live && !_selectedId);
+  go.disabled = _starting || !_ndiAvailable || (!_live && !_selectedId);
   // Lock source switching + name while live.
   _stage.querySelectorAll(".easel-src").forEach((b) => (b.disabled = _live));
   const nameI = _stage.querySelector("[data-easel-name]");
