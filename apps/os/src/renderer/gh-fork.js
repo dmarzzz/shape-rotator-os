@@ -23,6 +23,8 @@
 //
 // No OAuth, no token storage, no in-app sign-in.
 
+import { normalizeHandle } from "./gh-handle.js";
+
 const CANONICAL_OWNER = "dmarzzz";
 const CANONICAL_REPO  = "shape-rotator-os";
 const FORK_CACHE_KEY  = "srfg:gh_fork_cache_v1";
@@ -139,22 +141,23 @@ export async function resolvePREndpoint(opts) {
     ? () => buildEditUrl(CANONICAL_OWNER, path, branch)
     : () => buildNewUrl(CANONICAL_OWNER, path, value, branch);
 
-  if (!ghHandle) {
+  const handle = normalizeHandle(ghHandle);
+  if (!handle) {
     return { kind: "no-identity", canonicalUrl: canonicalBuilder() };
   }
 
-  const exists = await checkForkExists(ghHandle);
+  const exists = await checkForkExists(handle);
   if (exists) {
     const url = kind === "edit"
-      ? buildEditUrl(ghHandle, path, branch)
-      : buildNewUrl(ghHandle, path, value, branch);
+      ? buildEditUrl(handle, path, branch)
+      : buildNewUrl(handle, path, value, branch);
     return { kind: "ready", url };
   }
   return {
     kind: "needs-fork",
     canonicalUrl: canonicalBuilder(),
     forkUrl: buildForkCreateUrl(),
-    handle: ghHandle,
+    handle,
     retryHint: "after the fork finishes (~3 seconds), click submit again — every future edit goes directly to your fork.",
   };
 }

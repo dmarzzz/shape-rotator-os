@@ -14,6 +14,8 @@
 //     `github.com/<handle>.png` redirect; this module is for the
 //     text fields only.
 
+import { normalizeHandle } from "./gh-handle.js";
+
 const CACHE_KEY = "srfg:gh_user_cache_v1";
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;   // 24 hours
 // 404s + rate-limit errors get a SHORTER TTL so a typo doesn't wedge
@@ -50,22 +52,6 @@ function writeCached(handle, entry) {
 // Returns `{ ok: true, data: {name, bio, location, blog,
 // twitter_username} }` on hit, `{ ok: false }` on 404 / network /
 // rate-limit. Cached result short-circuits the network call entirely.
-
-// Normalize handles: cohort .md files have stored `links.github` in a
-// few shapes — bare username ("amiller"), URL ("https://github.com/
-// amiller"), or with a leading @ ("@amiller"). Strip everything down
-// to the bare username before hitting the API.
-function normalizeHandle(raw) {
-  if (!raw) return "";
-  let s = String(raw).trim();
-  s = s.replace(/^@+/, "");
-  // Pull the last path segment out of a URL-ish value.
-  const m = s.match(/github\.com\/([^/?#]+)/i);
-  if (m) s = m[1];
-  // Strip any trailing path/query/fragment that snuck through.
-  s = s.split(/[/?#]/)[0];
-  return s;
-}
 
 async function fetchOne(handle) {
   handle = normalizeHandle(handle);
