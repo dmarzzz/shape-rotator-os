@@ -1,0 +1,21 @@
+{
+  "name": "@shape-rotator/os-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WebdriverIO end-to-end suite driving the real Tauri build of Shape Rotator OS on macOS, via the injected WKWebView WebDriver bridge.",
+  "scripts": {
+    "build:app": "node ../scripts/tauri-prebuild.cjs && cargo build --manifest-path ../src-tauri/Cargo.toml --features webdriver",
+    "install:driver": "cargo install tauri-webdriver-automation --locked",
+    "pretest": "npm run build:app",
+    "test": "wdio run ./wdio.conf.mjs",
+    "test:nobuild": "wdio run ./wdio.conf.mjs"
+  },
+  "devDependencies": {
+    "@wdio/cli": "^9.4.1",
+    "@wdio/local-runner": "^9.4.1",
+    "@wdio/mocha-framework": "^9.4.1",
+    "@wdio/spec-reporter": "^9.4.1",
+    "expect-webdriverio": "^4.15.4"
+  }
+}

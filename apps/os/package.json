@@ -14,6 +14,16 @@
   "scripts": {
     "start": "electron .",
     "dev": "SRWK_DEVTOOLS=1 electron .",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:ios:init": "tauri ios init",
+    "tauri:ios:dev": "tauri ios dev",
+    "tauri:ios:build": "tauri ios build",
+    "tauri:android:init": "tauri android init",
+    "tauri:android:dev": "tauri android dev",
+    "tauri:android:build": "tauri android build",
+    "prebuild:frontend": "node scripts/tauri-prebuild.cjs",
     "postinstall": "node scripts/link-deps.js",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
@@ -34,6 +44,7 @@
     "@stagetimerio/grandiose": "^0.2.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2",
     "electron": "^33.0.0",
     "electron-builder": "^26.8.1",
     "esbuild": "^0.24.2"

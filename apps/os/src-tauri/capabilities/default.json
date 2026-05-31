@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Core capability for the main + hermes windows. The renderer only ever calls our own #[tauri::command]s via invoke (which need no explicit permission) plus core event listen/emit and window show — all covered by core:default. Plugin work happens in Rust, so no plugin permissions are exposed to the webview.",
+  "windows": ["main", "hermes"],
+  "permissions": ["core:default"]
+}
