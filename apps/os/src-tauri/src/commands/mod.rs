@@ -2,6 +2,7 @@ pub mod calendar;
 pub mod context_vault;
 pub mod easel;
 pub mod env_shell;
+pub mod notify;
 pub mod prefs;
 pub mod swarm;
 pub mod swf_node;

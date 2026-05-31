@@ -56,6 +56,8 @@ import {
 const Graph2 = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode() {} };
 const Cosmos = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode() {} };
 import * as Atlas from "./atlas.js";
+import * as Settings from "./settings.js";
+import "./event-notifier.js";
 import * as Easel from "./easel.js";
 import * as Alchemy from "./alchemy.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
@@ -6048,6 +6050,11 @@ function wireTabs() {
 // body[data-apps-view] so the visibility CSS does the rest.
 function wireAppsGrid() {
   document.addEventListener("click", (e) => {
+    const settingsCard = e.target.closest('[data-app-key="settings"]');
+    if (settingsCard) {
+      try { Settings.open(); } catch (err) { console.error("[settings] open failed", err); }
+      return;
+    }
     const card = e.target.closest("[data-app-key]");
     if (card) {
       const key = card.dataset.appKey;
@@ -7138,8 +7145,15 @@ function canonPubkey(pk) {
 function netPeerStatus(pubkey) {
   const isSelf = pubkey === srwk.selfPubkey;
   const syncTs = _peerLastSeenByPubkey.get(pubkey);
+  // syncTs is wall-clock epoch ms; liveSeen stores performance.now() (monotonic
+  // since page load). Convert the SSE value to wall-clock via timeOrigin so the
+  // Math.max + Date.now() arithmetic below stays in one clock — otherwise an
+  // SSE-only peer's tiny perf-now value makes ageMs ≈ Date.now() and pins the
+  // peer offline, while Math.max would silently drop SSE liveness whenever a
+  // sync ts exists.
   const sseLiveTs = srwk.liveSeen.get(pubkey);
-  const lastMs = Math.max(syncTs || 0, sseLiveTs || 0);
+  const sseLiveEpoch = sseLiveTs ? (performance.timeOrigin + sseLiveTs) : 0;
+  const lastMs = Math.max(syncTs || 0, sseLiveEpoch || 0);
   const ageMs = lastMs ? (Date.now() - lastMs) : Infinity;
   const reachable = _peerReachable.get(pubkey);
   let statusClass, statusText;

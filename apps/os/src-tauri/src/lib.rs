@@ -35,13 +35,16 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init());
 
     // E2E only. Starts a WebDriver bridge inside the WKWebView so WebdriverIO
-    // can drive the app on macOS. Compiled in ONLY with `--features webdriver`
-    // (see Cargo.toml + apps/os/e2e/) — never present in release builds.
+    // can drive the app on macOS. Registered on the builder (not at runtime) so
+    // the plugin's initialization script — window.__WEBDRIVER__ — is injected
+    // into the page at webview creation; without that, every execute/findElement
+    // hangs. Compiled in ONLY with `--features webdriver`, never in release.
     #[cfg(feature = "webdriver")]
     {
         builder = builder.plugin(tauri_plugin_webdriver_automation::init());
@@ -94,6 +97,9 @@ pub fn run() {
             commands::swarm::swarm_config_set,
             commands::easel::easel_available,
             commands::easel::easel_endpoint,
+            commands::notify::notify,
+            commands::notify::notify_request_permission,
+            commands::notify::notify_permission_granted,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

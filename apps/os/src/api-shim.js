@@ -70,6 +70,12 @@
 
     clipboardWrite: (text) => invoke("clipboard_write", { text }),
 
+    // native OS notifications (macOS / Linux / Windows / iOS / Android)
+    notify: (opts) =>
+      invoke("notify", { title: (opts && opts.title) || "", body: (opts && opts.body) || "" }),
+    notifyRequestPermission: () => invoke("notify_request_permission"),
+    notifyPermissionGranted: () => invoke("notify_permission_granted"),
+
     // app updates
     checkAppUpdate: () => invoke("check_app_update"),
     applyAppUpdate: () => invoke("apply_app_update"),
