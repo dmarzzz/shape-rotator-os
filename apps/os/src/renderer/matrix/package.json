@@ -1,0 +1,4 @@
+{
+  "//": "Marks src/renderer/matrix/*.js as native ES modules for Node tooling (node --test). The browser already loads them as ESM via <script type=module>; this file is inert in the webview.",
+  "type": "module"
+}
