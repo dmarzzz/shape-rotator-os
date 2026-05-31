@@ -62,15 +62,19 @@ describe("profile editor", () => {
         }, S.alchemyCanvas),
       { timeout: 30000, timeoutMsg: "profile editor never mounted" },
     );
-    // The editor should surface a GitHub handle field somewhere in the canvas.
-    const hasHandleField = await browser.execute(() => {
-      const scope = document.querySelector("#alchemy-canvas");
-      if (!scope) return false;
-      return !!scope.querySelector(
-        "input[placeholder*='github' i], input[name*='handle' i], input[id*='handle' i], input[placeholder*='handle' i]",
-      );
-    });
-    expect(hasHandleField).toBe(true);
+    // The editor surfaces a GitHub handle field (placeholder "@handle") a beat
+    // after the canvas populates — poll for it rather than checking once.
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const scope = document.querySelector("#alchemy-canvas");
+          if (!scope) return false;
+          return !!scope.querySelector(
+            "input[placeholder*='github' i], input[name*='handle' i], input[id*='handle' i], input[placeholder*='handle' i], input[placeholder*='username' i]",
+          );
+        }),
+      { timeout: 30000, timeoutMsg: "profile handle field never appeared" },
+    );
   });
 
   it("opens a real profile PR (gated by SRWK_E2E_ALLOW_WRITES)", async function () {

@@ -3,16 +3,24 @@
 // and dismisses cleanly. We do NOT start a real swarm run (that spends real LLM
 // tokens / requires a configured key) — that's an opt-in flow, not a smoke path.
 
-import { $, browser, expect } from "@wdio/globals";
+import { $, expect } from "@wdio/globals";
 import { S } from "../helpers/selectors.mjs";
-import { waitForBoot, openApp } from "../helpers/app.mjs";
+import {
+  waitForBoot,
+  openApp,
+  expectVisible,
+  waitVisible,
+  waitHidden,
+  setInputValue,
+  getInputValue,
+} from "../helpers/app.mjs";
 
 async function openSwarm() {
   await openApp("atlas");
   await $(S.atlasSearchToggle).click();
-  await $(S.searchView).waitForDisplayed({ timeout: 15000 });
+  await waitVisible(S.searchView);
   await $(S.searchAskAgent).click();
-  await $(S.swarmPanel).waitForDisplayed({ timeout: 15000 });
+  await waitVisible(S.swarmPanel);
 }
 
 describe("swarm (ask my agent)", () => {
@@ -22,27 +30,27 @@ describe("swarm (ask my agent)", () => {
   });
 
   it("opens as an accessible modal dialog", async () => {
-    await expect($(S.swarmPanel)).toBeDisplayed();
+    await expectVisible(S.swarmPanel);
     await expect($(S.swarmPanel)).toHaveAttribute("role", "dialog");
     await expect($(S.swarmPanel)).toHaveAttribute("aria-modal", "true");
-    await expect($(S.swarmQuery)).toBeDisplayed();
+    await expectVisible(S.swarmQuery);
     await expect($(S.swarmModel)).toBeExisting();
-    await expect($(S.swarmStart)).toBeDisplayed();
+    await expectVisible(S.swarmStart);
   });
 
   it("opens and closes the settings sub-modal", async () => {
     await $(S.swarmSettingsBtn).click();
-    await expect($(S.swarmSettings)).toBeDisplayed();
-    await expect($(S.swarmAnthropicKey)).toBeDisplayed();
+    await waitVisible(S.swarmSettings);
+    await expectVisible(S.swarmAnthropicKey);
     // key field must be a password input — never plaintext on screen
     await expect($(S.swarmAnthropicKey)).toHaveAttribute("type", "password");
     await $(S.swarmSettingsClose).click();
-    await expect($(S.swarmSettings)).not.toBeDisplayed();
+    await waitHidden(S.swarmSettings);
   });
 
   it("accepts a query without auto-running", async () => {
-    await $(S.swarmQuery).setValue("what is the cohort working on?");
-    expect(await $(S.swarmQuery).getValue()).toContain("cohort");
+    await setInputValue(S.swarmQuery, "what is the cohort working on?");
+    expect(await getInputValue(S.swarmQuery)).toContain("cohort");
     // status stays idle until the user presses start
     await expect($("#swarm-status-line")).toHaveText("idle");
   });
@@ -50,6 +58,6 @@ describe("swarm (ask my agent)", () => {
   it("closes via its close affordance", async () => {
     // first matching [data-swarm-close] is the header ✕ / backdrop
     await $(S.swarmClose).click();
-    await expect($(S.swarmPanel)).not.toBeDisplayed();
+    await waitHidden(S.swarmPanel);
   });
 });

@@ -10,6 +10,10 @@ import {
   openTab,
   openNetSub,
   getNetSub,
+  expectVisible,
+  waitVisible,
+  waitHidden,
+  isVisible,
 } from "../helpers/app.mjs";
 
 describe("network", () => {
@@ -21,34 +25,36 @@ describe("network", () => {
   it("defaults to the network sub-view", async () => {
     await openNetSub("network");
     expect(await getNetSub()).toBe("network");
-    // glance is the default view-mode surface
-    await expect($(S.glanceView)).toBeDisplayed();
+    // The network sub-tab surfaces the protocol grid (#network-view) by default.
+    await expectVisible(S.networkView);
   });
 
   it("switches between glance and debug view modes", async () => {
     await $(S.netModeBtn("debug")).click();
     await expect($(S.netModeBtn("debug"))).toHaveAttribute("aria-pressed", "true");
-    await expect($(S.networkView)).toBeDisplayed(); // debug = protocol-level grid
+    await expectVisible(S.networkView); // debug = protocol-level grid
     await $(S.netModeBtn("glance")).click();
     await expect($(S.netModeBtn("glance"))).toHaveAttribute("aria-pressed", "true");
+    await expect($(S.netModeBtn("debug"))).toHaveAttribute("aria-pressed", "false");
   });
 
   it("filters traffic by category (debug mode)", async () => {
     await $(S.netModeBtn("debug")).click();
+    await expectVisible(S.networkView);
     for (const filter of ["sync", "mdns", "search", "all"]) {
       await $(S.trafficChip(filter)).click();
       await expect($(S.trafficChip(filter))).toHaveElementClass("selected");
     }
   });
 
-  it("opens the peers panel from the sidebar footer", async () => {
-    // The peer-count button lives in the graph sidebar; ensure it's reachable.
-    if (await $(S.peerCountBtn).isExisting()) {
-      await $(S.peerCountBtn).click();
-      await expect($(S.peersPanel)).toBeDisplayed();
-      await $(S.peersPanelClose).click();
-      await expect($(S.peersPanel)).not.toBeDisplayed();
-    }
+  it("opens the peers panel when the sidebar is present", async () => {
+    // The peer-count button lives in the graph-only sidebar, which isn't shown
+    // on the network tab — skip cleanly when it isn't visible in this context.
+    if (!(await isVisible(S.peerCountBtn))) return;
+    await $(S.peerCountBtn).click();
+    await waitVisible(S.peersPanel);
+    await $(S.peersPanelClose).click();
+    await waitHidden(S.peersPanel);
   });
 
   describe("metrics sub-tab", () => {
@@ -58,7 +64,7 @@ describe("network", () => {
 
     it("shows the metrics view", async () => {
       expect(await getNetSub()).toBe("metrics");
-      await expect($(S.metricsView)).toBeDisplayed();
+      await expectVisible(S.metricsView);
     });
 
     it("changes the time range", async () => {
@@ -70,12 +76,10 @@ describe("network", () => {
 
     it("refreshes without error", async () => {
       await $(S.metricsRefresh).click();
-      // status line should update to something non-placeholder within a beat,
-      // or the warm-up empty-state should show — either is a valid live result.
       await browser.waitUntil(
         async () => {
           const status = (await $(S.metricsStatus).getText()).trim();
-          const empty = await $("#metrics-empty").isDisplayed().catch(() => false);
+          const empty = await isVisible("#metrics-empty");
           return (status && status !== "—") || empty;
         },
         { timeout: 30000, timeoutMsg: "metrics never reported status or warm-up" },

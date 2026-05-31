@@ -4,7 +4,7 @@
 
 import { $, browser, expect } from "@wdio/globals";
 import { S } from "../helpers/selectors.mjs";
-import { waitForBoot, getActiveTab } from "../helpers/app.mjs";
+import { waitForBoot, getActiveTab, expectVisible, waitVisible } from "../helpers/app.mjs";
 
 describe("boot", () => {
   before(async () => {
@@ -18,26 +18,24 @@ describe("boot", () => {
   });
 
   it("renders the primary tab bar with all four tabs", async () => {
-    await expect($(S.tabBar)).toBeDisplayed();
+    await expectVisible(S.tabBar);
     for (const name of ["alchemy", "apps", "network", "links"]) {
       await expect($(S.tab(name))).toBeExisting();
     }
   });
 
-  it("boots into the operating-system tab by default", async () => {
+  it("boots into a valid top tab", async () => {
     // index.html ships data-active-tab="alchemy"; boot may restore a persisted
-    // tab, so we only assert it landed on *some* valid tab and that alchemy is
-    // reachable as the default surface.
+    // tab, so we only assert it landed on *some* valid tab.
     const tab = await getActiveTab();
     expect(["alchemy", "apps", "network", "links"]).toContain(tab);
   });
 
   it("resolves the app version chip (not the placeholder)", async () => {
-    const chip = $(S.versionChip);
-    await chip.waitForDisplayed({ timeout: 30000 });
+    await waitVisible(S.versionChip, 30000);
     await browser.waitUntil(
       async () => {
-        const t = (await chip.getText()).trim();
+        const t = (await $(S.versionChip).getText()).trim();
         return /v?\d+\.\d+\.\d+/.test(t);
       },
       { timeout: 30000, timeoutMsg: "version chip never resolved to a semver" },

@@ -65,17 +65,73 @@ export async function anyVisible(selectors) {
 // ─── boot + state readers ───────────────────────────────────────────────────
 
 /**
- * Wait until the renderer has booted: tab bar present and the body has settled
- * on an active tab (applyActiveTab runs during boot and sets data-active-tab).
+ * Wait until the app actually has a webview window and make it the active one.
+ * tauri-wd announces the session as soon as the plugin server binds — which is
+ * BEFORE the Tauri window is created — so right after session creation any
+ * element command throws a fatal "no such window". We poll for a window handle
+ * (the window appears a beat later) and switch to it before doing anything else.
+ */
+export async function waitForWindow(timeout = 90000) {
+  // Poll GET /window (getWindowHandle, singular). tauri-wd implements this and
+  // returns a "no such window" error until the webview exists, then the handle.
+  // (getWindowHandles — plural — is NOT implemented by tauri-wd 0.1.x; it 404s,
+  // so don't use it.)
+  await browser.waitUntil(
+    async () => {
+      try {
+        const h = await browser.getWindowHandle();
+        return !!h;
+      } catch {
+        return false; // window not up yet
+      }
+    },
+    { timeout, timeoutMsg: "app window never appeared" },
+  );
+}
+
+/**
+ * Wait until the renderer has booted: a window exists, the tab bar is present,
+ * and the body has settled on an active tab (applyActiveTab runs during boot
+ * and sets data-active-tab).
  */
 export async function waitForBoot() {
-  await $(S.tabBar).waitForExist({ timeout: 90000 });
+  await waitForWindow();
+  // Give injected scripts room; the renderer boots three.js + a force graph,
+  // which can keep the main thread busy right after the window appears.
+  try {
+    await browser.setTimeout({ script: 60000, pageLoad: 120000 });
+  } catch {
+    /* some drivers reject setTimeout — non-fatal */
+  }
+  await waitForRenderer();
   await browser.waitUntil(
     async () => {
       const t = await getActiveTab();
       return typeof t === "string" && t.length > 0;
     },
     { timeout: 90000, timeoutMsg: "renderer never set body[data-active-tab]" },
+  );
+}
+
+/**
+ * Wait until the page document is loaded and the tab bar exists — checked via
+ * `execute` (a simple DOM query), NOT findElement, and tolerant of transient
+ * "script timed out" while the heavy renderer is still initializing.
+ */
+export async function waitForRenderer(timeout = 120000) {
+  await browser.waitUntil(
+    async () => {
+      try {
+        return await browser.execute(
+          () =>
+            document.readyState === "complete" &&
+            !!document.getElementById("tab-bar"),
+        );
+      } catch {
+        return false; // page busy / script timed out — keep polling
+      }
+    },
+    { timeout, interval: 2000, timeoutMsg: "renderer never became ready" },
   );
 }
 
@@ -152,10 +208,76 @@ export async function openApp(key) {
   });
 }
 
+/**
+ * Open the apps tab and ensure the grid is showing. All app instances share one
+ * user-data-dir, so localStorage (incl. the restored apps sub-view) persists
+ * across sessions — a prior spec may have left atlas/easel open. Click back out
+ * of any restored sub-app so we land on the grid deterministically.
+ */
+export async function gotoAppsGrid() {
+  await openTab("apps");
+  const view = await getAppsView();
+  if (view === "atlas" || view === "easel") {
+    await browser.execute((v) => {
+      document.querySelector(`#${v}-view [data-apps-back]`)?.click();
+    }, view);
+  }
+  await waitVisible(S.appsGrid);
+}
+
 /** True if a selector exists and has at least one child element. */
 export async function hasChildren(selector) {
   return browser.execute((sel) => {
     const el = document.querySelector(sel);
     return !!el && el.childElementCount > 0;
   }, selector);
+}
+
+/**
+ * Dispatch a synthetic keydown on document. The app's global shortcuts listen
+ * on document keydown; tauri-wd's `browser.keys()` (real OS key events) does
+ * not reliably reach those handlers, but a dispatched KeyboardEvent does.
+ */
+export async function dispatchKey(key, opts = {}) {
+  await browser.execute(
+    (k, o) => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true, ...o }),
+      );
+    },
+    key,
+    opts,
+  );
+}
+
+/** Set an input's value via the DOM + fire input/change (reliable through the bridge). */
+export async function setInputValue(selector, value) {
+  await browser.execute(
+    (sel, val) => {
+      const el = document.querySelector(sel);
+      if (!el) return;
+      el.focus?.();
+      el.value = val;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    },
+    selector,
+    value,
+  );
+}
+
+/** Read an input's current value. */
+export async function getInputValue(selector) {
+  return browser.execute((sel) => document.querySelector(sel)?.value ?? "", selector);
+}
+
+/** Read a localStorage key. */
+export async function getLocalStorage(key) {
+  return browser.execute((k) => {
+    try {
+      return localStorage.getItem(k);
+    } catch {
+      return null;
+    }
+  }, key);
 }

@@ -24,17 +24,22 @@ import { existsSync } from "node:fs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const WD_PORT = 4444;
-// The debug binary the driver should launch. Cargo names it after the package
-// (`shape-rotator-os`), not the lib. Built by `npm run build:app`.
-const APP_BINARY = resolve(__dirname, "../src-tauri/target/debug/shape-rotator-os");
+// The debug binary the driver should launch. We use an ISOLATED copy
+// (`-e2e` suffix) produced by `build:app`, so that another concurrent
+// `cargo build` (which writes the plain `shape-rotator-os`, possibly WITHOUT
+// the `webdriver` feature) can never clobber the binary the driver attaches to.
+const APP_BINARY = resolve(
+  __dirname,
+  "../src-tauri/target/debug/shape-rotator-os-e2e",
+);
 
 let tauriWd; // child process handle for the tauri-wd server
 
-// Kill any of OUR test binaries (matched by the exact debug path, so the user's
-// installed/Electron app is never touched).
+// Kill any of OUR test binaries (matched by the exact `-e2e` debug path, so
+// neither the user's installed app nor a concurrent dev build is touched).
 function reapAppProcesses() {
   try {
-    execSync(`pkill -f "src-tauri/target/debug/shape-rotator-os" 2>/dev/null`, {
+    execSync(`pkill -f "target/debug/shape-rotator-os-e2e" 2>/dev/null`, {
       stdio: "ignore",
     });
   } catch {
@@ -61,11 +66,16 @@ export const config = {
 
   logLevel: "warn",
   bail: 0,
+  // One retry absorbs the occasional live-data hiccup (a slow daemon response,
+  // a transient empty network) without masking real, repeatable failures.
+  specFileRetries: 1,
+  specFileRetriesDeferred: false,
   waitforTimeout: 20000, // live P2P/daemon data can take a beat to land
   connectionRetryTimeout: 180000,
-  // 0 = don't retry session creation. A retry would spawn ANOTHER app instance
-  // (the failed one isn't always reaped), compounding load until timeouts.
-  connectionRetryCount: 0,
+  // Retry session creation: tauri-wd announces the plugin port before the Tauri
+  // window exists, so the first newSession can hit "no window" under load. A
+  // retry re-rolls that race.
+  connectionRetryCount: 10,
 
   framework: "mocha",
   reporters: ["spec"],

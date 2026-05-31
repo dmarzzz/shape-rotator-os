@@ -3,18 +3,23 @@
 //
 // Live deps: this hits the real swf-node search path. We deliberately leave
 // "allow public egress" OFF so the query stays local/cohort and never leaves
-// the network as a test side effect. (Egress + auto-share is expected product
-// behavior for this user, just not something a test suite should trigger.)
+// the network as a test side effect.
 
 import { $, browser, expect } from "@wdio/globals";
 import { S } from "../helpers/selectors.mjs";
-import { waitForBoot, openApp, anyDisplayed } from "../helpers/app.mjs";
+import {
+  waitForBoot,
+  openApp,
+  expectVisible,
+  waitVisible,
+  anyVisible,
+} from "../helpers/app.mjs";
 
 async function openSearch() {
   // The search toggle lives in the tab bar and is revealed on the atlas surface.
   await openApp("atlas");
   await $(S.atlasSearchToggle).click();
-  await $(S.searchView).waitForDisplayed({ timeout: 15000 });
+  await waitVisible(S.searchView);
 }
 
 describe("search", () => {
@@ -24,9 +29,9 @@ describe("search", () => {
   });
 
   it("opens the search overlay with its form", async () => {
-    await expect($(S.searchView)).toBeDisplayed();
-    await expect($(S.searchInput)).toBeDisplayed();
-    await expect($(S.searchSubmit)).toBeDisplayed();
+    await expectVisible(S.searchView);
+    await expectVisible(S.searchInput);
+    await expectVisible(S.searchSubmit);
   });
 
   it("exposes policy, egress and top_k controls", async () => {
@@ -52,12 +57,9 @@ describe("search", () => {
           S.searchResults,
         );
         if (resultsHaveItems) return true;
-        return anyDisplayed([S.searchMeta, S.searchStatus]);
+        return anyVisible([S.searchMeta, S.searchStatus]);
       },
-      {
-        timeout: 60000,
-        timeoutMsg: "search never produced results, meta, or a status line",
-      },
+      { timeout: 60000, timeoutMsg: "search never produced results, meta, or status" },
     );
   });
 });

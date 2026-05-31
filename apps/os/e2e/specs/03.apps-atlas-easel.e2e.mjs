@@ -7,22 +7,25 @@ import { $, browser, expect } from "@wdio/globals";
 import { S } from "../helpers/selectors.mjs";
 import {
   waitForBoot,
-  openTab,
   openApp,
   getAppsView,
-  anyDisplayed,
+  gotoAppsGrid,
+  expectVisible,
+  waitVisible,
+  waitHidden,
+  anyVisible,
 } from "../helpers/app.mjs";
 
 describe("apps", () => {
   before(async () => {
     await waitForBoot();
-    await openTab("apps");
+    await gotoAppsGrid();
   });
 
   it("shows the apps grid with atlas + easel cards", async () => {
-    await expect($(S.appsGrid)).toBeDisplayed();
-    await expect($(S.appCard("atlas"))).toBeDisplayed();
-    await expect($(S.appCard("easel"))).toBeDisplayed();
+    await expectVisible(S.appsGrid);
+    await expectVisible(S.appCard("atlas"));
+    await expectVisible(S.appCard("easel"));
   });
 
   describe("atlas", () => {
@@ -31,7 +34,7 @@ describe("apps", () => {
     });
 
     it("opens the atlas view", async () => {
-      await expect($(S.atlasView)).toBeDisplayed();
+      await expectVisible(S.atlasView);
       expect(await getAppsView()).toBe("atlas");
     });
 
@@ -43,43 +46,36 @@ describe("apps", () => {
             return !!el && (el.childElementCount > 0 || !!el.querySelector("canvas, svg"));
           }, S.atlasStage);
           if (stageHasContent) return true;
-          return anyDisplayed([S.atlasEmpty, S.atlasOffline]);
+          return anyVisible([S.atlasEmpty, S.atlasOffline]);
         },
-        {
-          timeout: 45000,
-          timeoutMsg: "atlas never reached stage/empty/offline",
-        },
+        { timeout: 45000, timeoutMsg: "atlas never reached stage/empty/offline" },
       );
     });
 
     it("toggles the help panel", async () => {
       await $(S.atlasHelpToggle).click();
-      await expect($(S.atlasHelpPanel)).toBeDisplayed();
+      await waitVisible(S.atlasHelpPanel);
       await expect($(S.atlasHelpToggle)).toHaveAttribute("aria-expanded", "true");
-      // close it again via its own ✕
       await $(`${S.atlasHelpPanel} .ahp-close`).click();
-      await expect($(S.atlasHelpPanel)).not.toBeDisplayed();
+      await waitHidden(S.atlasHelpPanel);
     });
 
     it("returns to the apps grid via back", async () => {
-      await $(S.appsBack).click();
-      await browser.waitUntil(async () => (await getAppsView()) === "grid", {
-        timeout: 15000,
-        timeoutMsg: "atlas back never returned to the grid",
-      });
-      await expect($(S.appsGrid)).toBeDisplayed();
+      // Two [data-apps-back] buttons exist (atlas + easel); click the atlas one.
+      // Back clears body[data-apps-view] (→ grid), it does not set it to "grid".
+      await $(`${S.atlasView} ${S.appsBack}`).click();
+      await waitVisible(S.appsGrid);
+      expect(await getAppsView()).not.toBe("atlas");
     });
   });
 
   describe("easel", () => {
     it("opens and returns to the grid", async () => {
       await openApp("easel");
-      await expect($(S.easelView)).toBeDisplayed();
-      await $(S.appsBack).click();
-      await browser.waitUntil(async () => (await getAppsView()) === "grid", {
-        timeout: 15000,
-        timeoutMsg: "easel back never returned to the grid",
-      });
+      await expectVisible(S.easelView);
+      await $(`${S.easelView} ${S.appsBack}`).click();
+      await waitVisible(S.appsGrid);
+      expect(await getAppsView()).not.toBe("easel");
     });
   });
 });

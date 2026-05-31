@@ -98,6 +98,9 @@ export const S = {
   // links view
   linksView: "#links-view",
   linkCard: ".link-card",
+
+  // theme toggle (lives in the alchemy operating-system views)
+  themeToggle: "#alch-theme-toggle",
 };
 
 // the four top tabs, in DOM order
