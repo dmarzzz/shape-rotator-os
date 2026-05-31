@@ -9,6 +9,7 @@
 mod commands;
 mod error;
 mod json_store;
+mod matrix;
 mod paths;
 mod state;
 
