@@ -12,6 +12,7 @@
     "os:dev": "npm --workspace @shape-rotator/os run dev",
     "build:cohort": "node scripts/build-bundles.js",
     "check:cohort": "node scripts/build-bundles.js --check",
+    "build:web-journal": "node scripts/build-web-journal.js",
     "publish:cohort": "node scripts/publish-bundles.js",
     "publish:cohort:dry": "node scripts/publish-bundles.js --dry-run",
     "context:corpus": "node scripts/build-context-vault-corpus.js",
