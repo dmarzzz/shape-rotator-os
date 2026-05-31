@@ -6662,6 +6662,31 @@ function buildTeamMarkdown(draft, slug, kind, body = null) {
   }
   if (draft.now) extras.push(`now: ${quoteYaml(draft.now)}`);
   if (draft.prior_shipping) extras.push(`prior_shipping: ${yamlScalar(draft.prior_shipping)}`);
+
+  // PMF journey block. teamFieldsFor() exposes 11 editable journey.* keys
+  // and existing cohort records carry a nested `journey:` map; without
+  // emitting it here, editing any unrelated field would rebuild the file
+  // with the entire PMF section deleted (BUG-001). Numeric scalars (stage,
+  // evidence_quality, market_upside) are kept as integers; enum strings
+  // are quoted; free-text fields go through yamlScalar so multiline
+  // problem/solution/evidence_notes survive as block scalars.
+  const j = (draft.journey && typeof draft.journey === "object") ? draft.journey : null;
+  if (j) {
+    const jlines = [];
+    if (j.stage != null && j.stage !== "")                       jlines.push(`  stage: ${Number(j.stage)}`);
+    if (j.evidence_quality != null && j.evidence_quality !== "") jlines.push(`  evidence_quality: ${Number(j.evidence_quality)}`);
+    if (j.market_upside != null && j.market_upside !== "")       jlines.push(`  market_upside: ${Number(j.market_upside)}`);
+    if (j.primary_bottleneck) jlines.push(`  primary_bottleneck: ${quoteYaml(j.primary_bottleneck)}`);
+    if (j.company_type)       jlines.push(`  company_type: ${quoteYaml(j.company_type)}`);
+    if (j.confidence)         jlines.push(`  confidence: ${quoteYaml(j.confidence)}`);
+    if (j.icp)                jlines.push(`  icp: ${yamlScalar(j.icp, 4)}`);
+    if (j.problem)            jlines.push(`  problem: ${yamlScalar(j.problem, 4)}`);
+    if (j.solution)           jlines.push(`  solution: ${yamlScalar(j.solution, 4)}`);
+    if (j.evidence_notes)     jlines.push(`  evidence_notes: ${yamlScalar(j.evidence_notes, 4)}`);
+    if (j.next_milestone)     jlines.push(`  next_milestone: ${yamlScalar(j.next_milestone, 4)}`);
+    if (jlines.length) extras.push(`journey:\n${jlines.join("\n")}`);
+  }
+
   const extrasBlock = extras.length ? `\n${extras.join("\n")}` : "";
 
   const bodyHint = kind === "project"
