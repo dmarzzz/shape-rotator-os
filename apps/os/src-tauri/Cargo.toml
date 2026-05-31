@@ -4,7 +4,8 @@ version = "0.2.27"
 description = "Shape Rotator OS"
 authors = ["Shape Rotator"]
 edition = "2021"
-rust-version = "1.77"
+# Bumped from 1.77 for matrix-sdk 0.17 (its workspace declares rust-version 1.93).
+rust-version = "1.93"
 
 # The library the binary links against (Tauri's mobile/desktop split).
 [lib]
@@ -45,6 +46,25 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 thiserror = "1"
 walkdir = "2"
 dirs = "5"
+mime = "0.3"
+
+# ── Matrix (matrix-rust-sdk) ─────────────────────────────────────────
+# Powers the "matrix" tab. All-platform (NOT desktop-gated) — the client,
+# sync, crypto and store must run on iOS/Android too. TLS (rustls) is
+# bundled unconditionally by matrix-sdk, so no tls feature is passed.
+# `bundled-sqlite` statically links SQLite for clean cross-platform bundles.
+# matrix-sdk-ui re-exports eyeball-im (the VectorDiff reactive stream) and
+# pulls matrix-sdk with e2e-encryption already on; we add the store + extras.
+matrix-sdk = { version = "0.17", default-features = false, features = [
+    "e2e-encryption",
+    "sqlite",
+    "bundled-sqlite",
+    "automatic-room-key-forwarding",
+    "markdown",
+    "sso-login",
+    "qrcode",
+] }
+matrix-sdk-ui = { version = "0.17", default-features = false }
 
 # ── Desktop-only deps ────────────────────────────────────────────────
 # These power subsystems that cannot exist on iOS/Android (subprocess
