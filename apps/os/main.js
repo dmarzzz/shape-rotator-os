@@ -999,6 +999,39 @@ function createWindow() {
   win.webContents.on("console-message", (_e, lvl, msg) => {
     process.stderr.write(`[viz:${["log","warn","error"][lvl]||"log"}] ${msg}\n`);
   });
+
+  // ─── dev hot-reload (opt-in via SRWK_WATCH=1) ──────────────────────────
+  // The renderer loads raw ES modules straight off disk, so a saved edit is
+  // already "live" — the window just needs to re-read it. We watch src/ and
+  // reload (ignoring cache, so edited modules aren't served stale). Active
+  // tab + alchemy mode + open detail all persist to localStorage, so a reload
+  // lands the user back on the same view (e.g. the collab board). Gated behind
+  // an env flag so normal/packaged runs never construct a watcher.
+  if (process.env.SRWK_WATCH === "1") {
+    const watchRoot = path.join(__dirname, "src");
+    const WATCH_EXT = new Set([".js", ".css", ".html", ".json"]);
+    let reloadTimer = null;
+    let watcher = null;
+    try {
+      watcher = fs.watch(watchRoot, { recursive: true }, (_evt, file) => {
+        if (file && !WATCH_EXT.has(path.extname(String(file)).toLowerCase())) return;
+        clearTimeout(reloadTimer);
+        reloadTimer = setTimeout(() => {
+          if (win.isDestroyed()) return;
+          process.stderr.write(`[viz:watch] ${file || "src"} changed — reloading\n`);
+          win.webContents.reloadIgnoringCache();
+        }, 150);
+      });
+      process.stderr.write(`[viz:watch] watching ${watchRoot} for changes\n`);
+    } catch (e) {
+      process.stderr.write(`[viz:watch] failed to start watcher: ${e && e.message}\n`);
+    }
+    win.on("closed", () => {
+      clearTimeout(reloadTimer);
+      try { watcher?.close(); } catch {}
+    });
+  }
+
   return win;
 }
 

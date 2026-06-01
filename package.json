@@ -10,6 +10,7 @@
   "scripts": {
     "os": "npm --workspace @shape-rotator/os start",
     "os:dev": "npm --workspace @shape-rotator/os run dev",
+    "os:watch": "npm --workspace @shape-rotator/os run watch",
     "build:cohort": "node scripts/build-bundles.js",
     "check:cohort": "node scripts/build-bundles.js --check",
     "publish:cohort": "node scripts/publish-bundles.js",
