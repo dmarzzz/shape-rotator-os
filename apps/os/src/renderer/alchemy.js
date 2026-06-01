@@ -127,6 +127,11 @@ function cohortRecordUrl(record_id) {
 }
 
 const state = {
+  collabLens: "all",               // "all" | "deps" | "needs" — matrix emphasis in the collab board
+  collabTeamFilter: "all",         // "all" | "needs" | "offers" — which teams are visible in the collab matrix
+  collabSort: "cluster",           // "cluster" | "intro" | "dependency" — ordering for the collab matrix
+  collabSelection: null,           // { type: "team"|"pair"|"cluster", ... } — pinned inspector state
+  renderToken: 0,                  // invalidates pending cross-fade swaps when a newer render starts
   mounted: false,
   active: false,
   container: null,
@@ -572,7 +577,9 @@ function render(opts = {}) {
     canvas.classList.add("is-entering");
     canvas.classList.remove("is-leaving");
     renderModeContent();
-    requestAnimationFrame(() => canvas.classList.remove("is-entering"));
+    const clearEntering = () => canvas.classList.remove("is-entering");
+    requestAnimationFrame(clearEntering);
+    setTimeout(clearEntering, 80);
   }, 220);
 }
 
@@ -582,45 +589,51 @@ function render(opts = {}) {
 function renderModeContent() {
   const canvas = state.canvas;
   if (!canvas) return;
-  // Detail page takes precedence over mode — opened by clicking a card,
-  // closed by the back button (which clears state.detailRecordId).
-  if (state.detailRecordId) {
-    renderDetail(state.detailRecordId);
-  } else if (state.mode === "membrane") renderMembrane();
-  else if (state.mode === "feed") renderFeed();
-  else if (state.mode === "shapes") renderShapes();
-  else if (state.mode === "pulse") renderPulse();
-  else if (state.mode === "constellation") renderConstellation();
-  else if (state.mode === "intel") renderIntel(state.canvas);
-  else if (state.mode === "collab") renderCollab();
-  else if (state.mode === "calendar") renderCalendar();
-  else if (state.mode === "profile") renderProfile();
-  else if (state.mode === "onboarding") renderOnboarding();
-  else if (state.mode === "program") renderProgram();
-  else if (state.mode === "asks") renderAsks();
-  else if (state.mode === "context") renderContextVault();
-  // Index cards for the staggered entrance.
-  const cards = canvas.querySelectorAll(".alch-card, .alch-legend-card, .alch-feed-item");
-  cards.forEach((c, i) => c.style.setProperty("--alch-i", String(i)));
-  // Wire up post-render interactions per mode.
-  if (!state.detailRecordId) {
-    if (state.mode === "shapes") wireShapeCardClicks();
-    if (state.mode === "feed") wireFeedInteractions();
-    if (state.mode === "profile") wireProfileForm();
-    // Kick a feed refresh on entry; the timer keeps it warm in background.
-    if (state.mode === "feed") refreshFeed({ source: "mode-enter" });
-    if (state.mode === "constellation") wireConstellationHover();
-    if (state.mode === "intel") wireIntel(state.canvas);
-    if (state.mode === "collab") wireCollab();
-    if (state.mode === "calendar") wireCalendar();
-    if (state.mode === "onboarding") wireOnboarding();
-    if (state.mode === "program") wireProgram();
-    if (state.mode === "asks") wireAsks();
-    if (state.mode === "context") wireContextVault();
+  const renderLabel = state.detailRecordId ? `detail:${state.detailRecordId}` : state.mode;
+  try {
+    // Detail page takes precedence over mode — opened by clicking a card,
+    // closed by the back button (which clears state.detailRecordId).
+    if (state.detailRecordId) {
+      renderDetail(state.detailRecordId);
+    } else if (state.mode === "membrane") renderMembrane();
+    else if (state.mode === "feed") renderFeed();
+    else if (state.mode === "shapes") renderShapes();
+    else if (state.mode === "pulse") renderPulse();
+    else if (state.mode === "constellation") renderConstellation();
+    else if (state.mode === "intel") renderIntel(state.canvas);
+    else if (state.mode === "collab") renderCollab();
+    else if (state.mode === "calendar") renderCalendar();
+    else if (state.mode === "profile") renderProfile();
+    else if (state.mode === "onboarding") renderOnboarding();
+    else if (state.mode === "program") renderProgram();
+    else if (state.mode === "asks") renderAsks();
+    else if (state.mode === "context") renderContextVault();
+    // Index cards for the staggered entrance.
+    const cards = canvas.querySelectorAll(".alch-card, .alch-legend-card, .alch-feed-item");
+    cards.forEach((c, i) => c.style.setProperty("--alch-i", String(i)));
+    // Wire up post-render interactions per mode.
+    if (!state.detailRecordId) {
+      if (state.mode === "shapes") wireShapeCardClicks();
+      if (state.mode === "feed") wireFeedInteractions();
+      if (state.mode === "profile") wireProfileForm();
+      // Kick a feed refresh on entry; the timer keeps it warm in background.
+      if (state.mode === "feed") refreshFeed({ source: "mode-enter" });
+      if (state.mode === "constellation") wireConstellationHover();
+      if (state.mode === "intel") wireIntel(state.canvas);
+      if (state.mode === "collab") wireCollab();
+      if (state.mode === "calendar") wireCalendar();
+      if (state.mode === "onboarding") wireOnboarding();
+      if (state.mode === "program") wireProgram();
+      if (state.mode === "asks") wireAsks();
+      if (state.mode === "context") wireContextVault();
+    }
+    // Mount shape shaders LAST — every <canvas data-shape-fam> emitted by the
+    // renderers above gets one WebGL2 context here.
+    mountAllShapes();
+  } catch (err) {
+    console.error(`[alchemy] render failed for ${renderLabel}:`, err);
+    canvas.innerHTML = `<p class="alch-callout"><strong>${escHtml(renderLabel)} failed to render</strong><br/>${escHtml(err?.message || String(err))}</p>`;
   }
-  // Mount shape shaders LAST — every <canvas data-shape-fam> emitted by the
-  // renderers above gets one WebGL2 context here.
-  mountAllShapes();
 }
 
 function destroyAllShapes() {
@@ -7641,23 +7654,68 @@ function renderCollab() {
   const m = buildCollabModel(teams, clusters, state.cohort?.dependencies || []);
   const ordered = m.ordered;
   const N = ordered.length;
+  const totalN = m.ordered.length;
+  const lens = state.collabLens || "all";
+  const selected = collabSelectionVisible(state.collabSelection, ordered, m);
+  if (state.collabSelection && !selected) state.collabSelection = null;
   const colN = `--cb-cols:${N}`;
+  const byId = new Map(m.ordered.map(o => [o.rid, o.team]));
+  const openAttrs = (rid) => `data-collab-open="${escAttr(rid)}" role="button" tabindex="0"`;
+  const lensButton = (key, label, count) => `
+    <button class="cb-lens" type="button" data-collab-lens="${escAttr(key)}" aria-pressed="${teamFilter === "all" && lens === key ? "true" : "false"}">
+      <span>${escHtml(label)}</span><strong>${escHtml(String(count))}</strong>
+    </button>`;
+  const sortOption =(key, label) => `<option value="${escAttr(key)}" ${sort === key ? "selected" : ""}>${escHtml(label)}</option>`;
+  const controlBar = `
+    <div class="cb-controls">
+      <div class="cb-lenses" role="group" aria-label="collaboration board lens and filters">
+        ${lensButton("all", "all signals", m.deps.size + m.seekOffer.length)}
+        ${lensButton("deps", "dependencies", m.deps.size)}
+        ${lensButton("needs", "seek / offer", m.seekOffer.length)}
+      </div>
+      <label class="cb-sort-control">
+        <span>sort by</span>
+        <select data-collab-sort aria-label="sort collab board rows">
+          ${sortOption("cluster", "cluster")}
+          ${sortOption("intro", "intro potential")}
+          ${sortOption("dependency", "dependency pressure")}
+        </select>
+      </label>
+    </div>`;
+
+  // The standalone keystones section was removed: it rendered as a lone
+  // left-aligned panel (empty right half) and duplicated the keystones already
+  // shown in the matrix's default "select a signal" inspector.
+
+  // Teams with no declared matrix signal (no dependency, no seek/offer) render
+  // as an all-empty row/column that reads as "broken". Dim those headers so the
+  // populated teams lead and the empty ones quietly recede (no reorder, so the
+  // cluster bands stay contiguous).
+  const matrixActive = new Set();
+  for (const e of m.deps) { const i = e.indexOf(">"); matrixActive.add(e.slice(0, i)); matrixActive.add(e.slice(i + 1)); }
+  for (const s of m.seekOffer) { matrixActive.add(s.seeker); matrixActive.add(s.offerer); }
+  const quietCls = (rid) => (!matrixActive.has(rid) ? " is-quiet" : "");
 
   // header row (offerers across the top)
-  let headCells = `<div class="cb-corner" aria-hidden="true">seeks ↓ · offers →</div>`;
+  let headCells = `<div class="cb-corner" aria-hidden="true">needs ↓ · provides →</div>`;
   ordered.forEach((o, ci) => {
     const deg = m.indegree.get(o.rid) || 0;
     headCells += `<button type="button" class="cb-colhead${deg >= 5 ? " is-key" : ""}" data-col="${ci}" data-collab-open="${escAttr(o.rid)}" title="${escAttr(o.team.name + " — " + deg + " inbound relationships")}"><span>${escHtml(o.team.name)}</span></button>`;
   });
   let rows = `<div class="cb-row cb-headrow" style="${colN}">${headCells}</div>`;
+  if (sort === "cluster") rows += collabGroupBand(ordered, colN, selected);
   ordered.forEach((R, ri) => {
-    let line = `<button type="button" class="cb-rowhead" data-row="${ri}" data-collab-open="${escAttr(R.rid)}" title="${escAttr(R.team.name + " · " + R.clusterLabel)}"><span class="cb-rowhead-name">${escHtml(R.team.name)}</span><span class="cb-rowhead-grp">${escHtml(R.clusterLabel)}</span></button>`;
-    ordered.forEach((C, ci) => { line += collabCell(R, C, ri, ci, m); });
+    const selectedCls = collabSameSelection(selected, { type: "team", rid: R.rid }) ? " is-selected" : "";
+    let line = `<button type="button" class="cb-rowhead${selectedCls}${quietCls(R.rid)}" data-row="${ri}" data-collab-open="${escAttr(R.rid)}" title="${escAttr(R.team.name + " · " + R.clusterLabel)}"><span class="cb-rowhead-name">${escHtml(R.team.name)}</span><span class="cb-rowhead-grp">${escHtml(R.clusterLabel)}</span></button>`;
+    ordered.forEach((C, ci) => { line += collabCell(R, C, ri, ci, m, lens, true, selected); });
     rows += `<div class="cb-row" style="${colN}">${line}</div>`;
   });
+  const inspectorHtml = selected ? collabInspectorHtmlForSelection(selected, m) : collabInspectorDefaultHtml(m);
+  const inspector = `<aside class="cb-inspector" data-collab-inspector aria-live="polite">${inspectorHtml}</aside>`;
+  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div>${inspector}`;
   const matrix = `
-    <section class="alch-cb-section">
-      <div class="alch-cb-sechead"><h3>adjacency matrix</h3>
+    <section class="alch-cb-section cb-matrix-section">
+      <div class="alch-cb-sechead"><h3>Adjacency matrix</h3>
         <div class="cb-legend">
           <span><i class="cb-sw dep"></i>declared link</span>
           <span><i class="cb-sw so"></i>seeks → offers</span>
@@ -7665,8 +7723,8 @@ function renderCollab() {
           <span><i class="cb-sw key"></i>keystone column</span>
         </div>
       </div>
-      <div class="cb-scroll" tabindex="0"><div class="cb-grid">${rows}</div></div>
-      <p class="cb-hint">rows = the team that needs · columns = the team that provides · hover a cell for the basis · click to open the provider</p>
+      <div class="cb-scroll">${matrixBody}</div>
+      <p class="cb-hint">hover a name to preview · click a cell or team for detail</p>
     </section>`;
 
   // intros to make — strongest seek↔offer per unordered pair
@@ -7688,7 +7746,7 @@ function renderCollab() {
   }).join("");
   const introSection = `
     <section class="alch-cb-section">
-      <div class="alch-cb-sechead"><h3>intros to make</h3><span class="cb-sub">strongest seek ↔ offer overlaps — the conversations to schedule</span></div>
+      <div class="alch-cb-sechead"><h3>Intros to make</h3><span class="cb-sub">strongest seek ↔ offer overlaps — the conversations to schedule</span></div>
       <div class="cb-intro-grid">${introCards || '<p class="cb-empty">no overlaps found.</p>'}</div>
     </section>`;
 
@@ -7705,7 +7763,7 @@ function renderCollab() {
   }).join("");
   const convSection = `
     <section class="alch-cb-section">
-      <div class="alch-cb-sechead"><h3>convergence</h3><span class="cb-sub">skill areas shared by 3+ teams — where the cohort concentrates</span></div>
+      <div class="alch-cb-sechead"><h3>Convergence</h3><span class="cb-sub">skill areas shared by 3+ teams — where the cohort concentrates</span></div>
       <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
     </section>`;
 
@@ -7740,28 +7798,157 @@ function wireCollab() {
       try { window.api?.openExternal?.(cohortRecordUrl(rid)); } catch {}
     };
     el.addEventListener("click", activate);
-    el.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") activate(event);
+    if (el.tagName !== "BUTTON" && el.tagName !== "A") {
+      if (!el.hasAttribute("tabindex")) el.tabIndex = 0;
+      if (!el.hasAttribute("role")) el.setAttribute("role", "link");
+      el.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") activate(event);
+      });
+    }
+  }
+}
+
+function wireCollab() {
+  const collabRoot = state.canvas.querySelector(".alch-collab");
+  wireCollabCohortLinks(state.canvas);
+  for (const btn of state.canvas.querySelectorAll("[data-collab-lens]")) {
+    btn.addEventListener("click", () => {
+      const next = btn.getAttribute("data-collab-lens") || "all";
+      if (next === state.collabLens && state.collabTeamFilter === "all") return;
+      state.collabLens = next;
+      state.collabTeamFilter = "all";
+      render({ instant: true });
+    });
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-collab-filter]")) {
+    btn.addEventListener("click", () => {
+      const next = btn.getAttribute("data-collab-filter") || "all";
+      state.collabTeamFilter = state.collabTeamFilter === next ? "all" : next;
+      state.collabLens = "all";
+      render({ instant: true });
+    });
+  }
+  for (const sel of state.canvas.querySelectorAll("[data-collab-sort]")) {
+    sel.addEventListener("change", () => {
+      const next = sel.value || "cluster";
+      if (next === state.collabSort) return;
+      state.collabSort = next;
+      render({ instant: true });
+    });
+  }
+  for (const el of state.canvas.querySelectorAll("[data-collab-pair-from][data-collab-pair-to]")) {
+    el.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const next = {
+        type: "pair",
+        fromRid: el.getAttribute("data-collab-pair-from") || "",
+        toRid: el.getAttribute("data-collab-pair-to") || "",
+      };
+      if (collabSameSelection(state.collabSelection, next)) clearCollabSelection();
+      else setCollabSelection(next);
+    });
+  }
+  for (const el of state.canvas.querySelectorAll("[data-collab-cluster]")) {
+    el.addEventListener("mouseenter", () => {
+      previewCollabInspector({ type: "cluster", id: el.getAttribute("data-collab-cluster") || "" });
+    });
+    el.addEventListener("mouseleave", () => {
+      if (!state.collabSelection) setCollabInspectorHtml(collabInspectorDefaultHtml(collabCurrentModel()));
+    });
+    el.addEventListener("focus", () => {
+      previewCollabInspector({ type: "cluster", id: el.getAttribute("data-collab-cluster") || "" });
+    });
+    el.addEventListener("blur", () => {
+      if (!state.collabSelection) setCollabInspectorHtml(collabInspectorDefaultHtml(collabCurrentModel()));
+    });
+    el.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const next = { type: "cluster", id: el.getAttribute("data-collab-cluster") || "" };
+      if (collabSameSelection(state.collabSelection, next)) clearCollabSelection();
+      else setCollabSelection(next);
+    });
+  }
+  // Hover a row/column header → preview that team's full (curated) inspector in
+  // the side panel, so company details are readable without clicking in. Reuses
+  // the team inspector; reverts to default on leave when nothing is pinned.
+  for (const el of state.canvas.querySelectorAll(".cb-colhead, .cb-rowhead")) {
+    const rid = el.getAttribute("data-collab-open");
+    if (!rid) continue;
+    el.addEventListener("mouseenter", () => previewCollabInspector({ type: "team", rid }));
+    el.addEventListener("mouseleave", () => {
+      if (!state.collabSelection) setCollabInspectorHtml(collabInspectorDefaultHtml(collabCurrentModel()));
     });
   }
   for (const el of state.canvas.querySelectorAll("[data-collab-open]")) {
-    el.addEventListener("click", () => { const rid = el.getAttribute("data-collab-open"); if (rid) openDrawer(rid); });
+    const activate = (event) => {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      const rid = el.getAttribute("data-collab-open");
+      if (!rid) return;
+      if (collabRoot) {
+        const next = { type: "team", rid };
+        if (collabSameSelection(state.collabSelection, next)) clearCollabSelection();
+        else setCollabSelection(next);
+      } else {
+        openDrawer(rid);
+      }
+    };
+    el.addEventListener("click", activate);
+    if (el.tagName !== "BUTTON" && el.tagName !== "A") {
+      if (!el.hasAttribute("tabindex")) el.tabIndex = 0;
+      if (!el.hasAttribute("role")) el.setAttribute("role", "button");
+      el.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") activate(event);
+      });
+    }
   }
   const grid = state.canvas.querySelector(".cb-grid");
   if (!grid) return;
-  const clearHL = () => grid.querySelectorAll(".is-hl-row, .is-hl-col").forEach(e => e.classList.remove("is-hl-row", "is-hl-col"));
-  const setHL = (r, c) => {
-    clearHL();
-    if (r != null) grid.querySelectorAll(`[data-row="${r}"]`).forEach(e => e.classList.add("is-hl-row"));
-    if (c != null) grid.querySelectorAll(`[data-col="${c}"]`).forEach(e => e.classList.add("is-hl-col"));
+  let activeRow = null;
+  let activeCol = null;
+  const clearHL = () => {
+    if (activeRow == null && activeCol == null) return;
+    grid.querySelectorAll(".is-hl-row, .is-hl-col").forEach(e => e.classList.remove("is-hl-row", "is-hl-col"));
+    activeRow = null;
+    activeCol = null;
   };
-  grid.addEventListener("mouseover", (e) => {
-    const t = e.target.closest("[data-row], [data-col]");
-    if (!t) return;
+  const setHL = (r, c) => {
+    r = r == null ? null : String(r);
+    c = c == null ? null : String(c);
+    if (r === activeRow && c === activeCol) return;
+    clearHL();
+    activeRow = r;
+    activeCol = c;
+    if (r != null) grid.querySelectorAll(`[data-row="${cssAttr(r)}"]`).forEach(e => e.classList.add("is-hl-row"));
+    if (c != null) grid.querySelectorAll(`[data-col="${cssAttr(c)}"]`).forEach(e => e.classList.add("is-hl-col"));
+  };
+  const highlightFromTarget = (target) => {
+    const t = target?.closest?.("[data-row], [data-col]");
+    if (!t || !grid.contains(t)) return;
     const r = t.getAttribute("data-row"), c = t.getAttribute("data-col");
-    setHL(r != null ? +r : null, c != null ? +c : null);
+    setHL(r, c);
+  };
+  grid.addEventListener("pointerover", (e) => {
+    highlightFromTarget(e.target);
   });
-  grid.addEventListener("mouseleave", clearHL);
+  grid.addEventListener("focusin", (e) => {
+    highlightFromTarget(e.target);
+  });
+  grid.addEventListener("focus", (e) => {
+    highlightFromTarget(e.target);
+  }, true);
+  grid.addEventListener("focusout", (e) => {
+    if (!grid.contains(e.relatedTarget)) clearHL();
+  });
+  grid.addEventListener("mouseleave", () => {
+    if (!grid.contains(document.activeElement)) clearHL();
+  });
+  if (grid.contains(document.activeElement)) highlightFromTarget(document.activeElement);
+  collabRoot?.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !state.collabSelection) return;
+    event.preventDefault();
+    clearCollabSelection();
+  });
 }
 
 function renderAsks() {
