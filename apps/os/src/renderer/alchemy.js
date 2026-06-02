@@ -90,11 +90,15 @@ const FEED_DISABLED = true;
 // to a separate repo (D4 from the spec walkthrough), update this.
 const COHORT_DATA_REPO = "https://github.com/dmarzzz/shape-rotator-os";
 const COHORT_DATA_BRANCH = "main";
+const COHORT_WEB_BASE_URL = "https://shape-rotator-os.vercel.app";
 function teamRecordEditUrl(record_id) {
   return `${COHORT_DATA_REPO}/edit/${COHORT_DATA_BRANCH}/cohort-data/teams/${record_id}.md`;
 }
 function teamRecordViewUrl(record_id) {
   return `${COHORT_DATA_REPO}/blob/${COHORT_DATA_BRANCH}/cohort-data/teams/${record_id}.md`;
+}
+function cohortRecordUrl(record_id) {
+  return `${COHORT_WEB_BASE_URL}/cohort#${encodeURIComponent(String(record_id || ""))}`;
 }
 
 const state = {
@@ -3411,7 +3415,7 @@ function renderCollab() {
   const intros = [...introByPair.values()].sort((a, b) => b.score - a.score).slice(0, 12);
   const introCards = intros.map(s => {
     const chips = s.shared.slice(0, 5).map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("");
-    return `<article class="cb-intro" data-collab-open="${escAttr(s.offerer)}">
+    return `<article class="cb-intro" data-collab-cohort-open="${escAttr(s.offerer)}" role="link" tabindex="0" title="${escAttr(`open ${s.offererName || s.offerer} on the cohort page`)}">
       <div class="cb-intro-flow">
         <div class="cb-intro-side"><span class="cb-intro-role">needs</span><span class="cb-intro-team">${escHtml(s.seekerName)}</span>${s.seeking ? `<span class="cb-intro-text">${escHtml(s.seeking)}</span>` : ""}</div>
         <div class="cb-intro-arrow" aria-hidden="true">→</div>
@@ -3462,6 +3466,19 @@ function renderCollab() {
 }
 
 function wireCollab() {
+  for (const el of state.canvas.querySelectorAll("[data-collab-cohort-open]")) {
+    const activate = (event) => {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      const rid = el.getAttribute("data-collab-cohort-open");
+      if (!rid) return;
+      try { window.api?.openExternal?.(cohortRecordUrl(rid)); } catch {}
+    };
+    el.addEventListener("click", activate);
+    el.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") activate(event);
+    });
+  }
   for (const el of state.canvas.querySelectorAll("[data-collab-open]")) {
     el.addEventListener("click", () => { const rid = el.getAttribute("data-collab-open"); if (rid) openDrawer(rid); });
   }
