@@ -39,11 +39,11 @@ import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from ".
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
 import { getIdentity } from "./identity.js";
-import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
 // Membrane mode — 2026-05 redesign. Pressurized-membrane object that replaces
 // the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
 // "membrane" so the legacy modes stay reachable while we evaluate.
 import { mountMembrane } from "./membrane/index.js";
+import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const PROFILE_LS_KEY  = "srwk:profile_v1";
