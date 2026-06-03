@@ -3,10 +3,14 @@ import { INTEL_SIGNALS } from "./intel-signals.js";
 
 const state = {
   data: SANITIZED_INTEL_DATA,
+  panel: "signals",
   query: "",
+  dataQuery: "",
+  dataType: "all",
   tier: "all",
   kind: "all",
   selectedSignalId: INTEL_SIGNALS[0]?.id || "",
+  selectedEntityId: "",
 };
 
 const TIER_ORDER = ["grounded", "inferred", "speculative"];
@@ -55,6 +59,14 @@ function entityType(entity) {
   return entity?.displayType || entity?.type || "Object";
 }
 
+function entitySubtitle(entity) {
+  const subtitle = entity?.subtitle || "";
+  if (/\b(?:corpus|status|graph)\//i.test(subtitle)) {
+    return `${entityType(entity)} / audience-facing metadata`;
+  }
+  return subtitle || entity?.displayRole || entityType(entity);
+}
+
 function byId(data) {
   return new Map((data.entities || []).map((entity) => [entity.id, entity]));
 }
@@ -72,6 +84,34 @@ function neighborsFor(data, selected) {
     .filter(Boolean)
     .sort((a, b) => (b.coverage || 0) - (a.coverage || 0) || entityTitle(a).localeCompare(entityTitle(b)))
     .slice(0, 8);
+}
+
+function entitySignalCount(entityId) {
+  return INTEL_SIGNALS.filter((signal) => (signal.entities || []).includes(entityId)).length;
+}
+
+function selectedSignalEntityIds(signal, data) {
+  const entities = byId(data);
+  return (signal?.entities || []).filter((id) => entities.has(id));
+}
+
+function entityMatchesQuery(entity, query, relatedSignals = []) {
+  if (!query) return true;
+  return [
+    entity.id,
+    entityTitle(entity),
+    entityType(entity),
+    entity.subtitle,
+    entity.displayRole,
+    ...(entity.surfaces || []),
+    ...(entity.sourceMix || []).map((item) => item.label),
+    ...(entity.repos || []).map((repo) => `${repo.name} ${repo.status} ${repo.privacy}`),
+    ...relatedSignals.map((signal) => signal.title),
+  ].join(" ").toLowerCase().includes(query);
+}
+
+function signalsForEntity(entityId) {
+  return INTEL_SIGNALS.filter((signal) => (signal.entities || []).includes(entityId));
 }
 
 function signalMatches(signal) {
@@ -122,7 +162,29 @@ function tierCounts() {
   }, {});
 }
 
-function metricTiles() {
+function metricTiles(data) {
+  if (state.panel === "data") {
+    const entities = data.entities || [];
+    const people = entities.filter((entity) => entity.type === "person").length;
+    const projects = entities.filter((entity) => entity.type === "project").length;
+    const sourceDocs = entities.reduce((total, entity) => total + (entity.sourceDocCount || 0), 0);
+    const repos = entities.reduce((total, entity) => total + (entity.repos?.length || 0), 0);
+    const metrics = [
+      ["entities", entities.length],
+      ["people", people],
+      ["projects", projects],
+      ["edges", data.edges?.length || 0],
+      ["source docs", sourceDocs],
+      ["repo refs", repos],
+    ];
+    return metrics.map(([label, value]) => `
+      <div class="intel-metric">
+        <strong>${esc(value ?? "—")}</strong>
+        <span>${esc(label)}</span>
+      </div>
+    `).join("");
+  }
+
   const counts = tierCounts();
   const actorCount = new Set(INTEL_SIGNALS.flatMap((signal) => signal.displayEntities || signal.entities || [])).size;
   const receiptCount = new Set(INTEL_SIGNALS.flatMap((signal) => signal.sourceReceipts || [])).size;
@@ -140,6 +202,29 @@ function metricTiles() {
       <span>${esc(label)}</span>
     </div>
   `).join("");
+}
+
+function renderModeSwitch() {
+  const modes = [
+    ["signals", "Signals", "coordinator moves"],
+    ["data", "Data", "grounding map"],
+  ];
+  return `
+    <div class="intel-mode-switch" role="tablist" aria-label="Constellation Intel panel">
+      ${modes.map(([mode, label, caption]) => `
+        <button
+          type="button"
+          role="tab"
+          data-intel-panel="${esc(mode)}"
+          aria-selected="${state.panel === mode ? "true" : "false"}"
+          class="${state.panel === mode ? "is-active" : ""}"
+        >
+          <span>${esc(label)}</span>
+          <small>${esc(caption)}</small>
+        </button>
+      `).join("")}
+    </div>
+  `;
 }
 
 function renderTierBadge(tier) {
@@ -190,6 +275,73 @@ function renderSignalList(signals, data) {
           </span>
           <strong>${esc(signal.title)}</strong>
           <small>${esc(names || "No mapped entities")}</small>
+        </span>
+      </button>
+    `;
+  }).join("");
+}
+
+function renderDataFilters(data) {
+  const types = ["all", ...[...new Set((data.entities || []).map((entity) => entity.type))].sort()];
+  return `
+    <div class="intel-search">
+      <input type="search" data-intel-data-query aria-label="Filter data entities by person, project, surface, source, or linked signal" placeholder="filter people, projects, surfaces, receipts" value="${esc(state.dataQuery)}" />
+      <div class="intel-filter-row" role="group" aria-label="data type filter">
+        ${types.map((type) => `
+          <button type="button" data-intel-data-type="${esc(type)}" class="${state.dataType === type ? "is-active" : ""}">
+            ${esc(type === "all" ? "all data" : type)}
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function filteredDataEntities(data, signal) {
+  const query = state.dataQuery.trim().toLowerCase();
+  const scoped = new Set(selectedSignalEntityIds(signal, data));
+  return (data.entities || [])
+    .filter((entity) => state.dataType === "all" || entity.type === state.dataType)
+    .filter((entity) => entityMatchesQuery(entity, query, signalsForEntity(entity.id)))
+    .sort((a, b) => {
+      const aScoped = scoped.has(a.id) ? 1 : 0;
+      const bScoped = scoped.has(b.id) ? 1 : 0;
+      return bScoped - aScoped
+        || entitySignalCount(b.id) - entitySignalCount(a.id)
+        || (b.coverage || 0) - (a.coverage || 0)
+        || (b.neighborCount || 0) - (a.neighborCount || 0)
+        || entityTitle(a).localeCompare(entityTitle(b));
+    });
+}
+
+function selectedDataEntity(data, signal, entities) {
+  const allEntities = byId(data);
+  if (state.selectedEntityId && allEntities.has(state.selectedEntityId)) {
+    const visible = entities.some((entity) => entity.id === state.selectedEntityId);
+    if (visible) return allEntities.get(state.selectedEntityId);
+  }
+
+  const firstSignalEntity = selectedSignalEntityIds(signal, data)[0];
+  const fallback = entities[0]?.id || firstSignalEntity || data.defaultId || data.entities?.[0]?.id || "";
+  state.selectedEntityId = fallback;
+  return allEntities.get(fallback) || null;
+}
+
+function renderDataEntityList(entities, signal, data) {
+  if (!entities.length) return `<p class="intel-empty">No data entities match this filter.</p>`;
+  const scoped = new Set(selectedSignalEntityIds(signal, data));
+  return entities.map((entity) => {
+    const active = entity.id === state.selectedEntityId ? " is-selected" : "";
+    const inSignal = scoped.has(entity.id) ? " is-signal-linked" : "";
+    const dot = KIND_DOTS[entity.type] || KIND_DOTS.source;
+    const linkedSignals = entitySignalCount(entity.id);
+    return `
+      <button class="intel-entity${active}${inSignal}" type="button" data-intel-entity="${esc(entity.id)}">
+        <span class="intel-entity-dot" style="--dot:${esc(dot)}"></span>
+        <span class="intel-entity-main">
+          <strong>${esc(entityTitle(entity))}</strong>
+          <small>${esc(entitySubtitle(entity))}</small>
+          <small>${esc(entityType(entity))}${linkedSignals ? ` · ${esc(linkedSignals)} linked signal${linkedSignals === 1 ? "" : "s"}` : ""}</small>
         </span>
       </button>
     `;
@@ -323,7 +475,7 @@ function renderEntityContext(signal, data) {
           <article class="intel-context-item">
             <p class="intel-kicker">${esc(entityType(entity))}</p>
             <h4>${esc(entityTitle(entity))}</h4>
-            <p>${esc(entity.subtitle || entity.path || entity.id)}</p>
+            <p>${esc(entitySubtitle(entity))}</p>
             <div class="intel-source-mix">${sourceMix(entity) || `<span class="intel-pill">source mix pending</span>`}</div>
             <div class="intel-context-neighbors">
               ${neighbors.slice(0, 4).map((neighbor) => `<span>${esc(entityTitle(neighbor))}</span>`).join("") || `<span>no visible neighbors</span>`}
@@ -332,6 +484,165 @@ function renderEntityContext(signal, data) {
         `;
       }).join("")}
     </aside>
+  `;
+}
+
+function renderRepoReceipts(entity) {
+  if (!entity?.repos?.length) return `<p class="intel-muted">No public repo receipt attached in this export.</p>`;
+  return `
+    <div class="intel-repo-list">
+      ${entity.repos.map((repo) => `
+        <div class="intel-repo-row">
+          <strong>${esc(repo.name || repo.id || "repo")}</strong>
+          <span>${esc(repo.status || "unknown")} · ${esc(repo.privacy || "unknown")}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderRelationSummary(entity) {
+  const relations = entity?.displayRelations || {};
+  const entries = Object.entries(relations);
+  if (!entries.length) return `<span class="intel-pill">relation map pending</span>`;
+  return entries.map(([label, count]) => `<span class="intel-pill"><strong>${esc(count)}</strong> ${esc(label)}</span>`).join("");
+}
+
+function renderDataInspector(entity, data) {
+  if (!entity) return `<section class="intel-inspector"><p class="intel-empty">No entity selected.</p></section>`;
+  const neighbors = neighborsFor(data, entity);
+  const linkedSignals = signalsForEntity(entity.id);
+  return `
+    <section class="intel-inspector intel-data-inspector">
+      <header class="intel-inspector-head">
+        <div>
+          <p class="intel-kicker">${esc(entityType(entity))}</p>
+          <h2>${esc(entityTitle(entity))}</h2>
+          <p>${esc(entitySubtitle(entity))}</p>
+        </div>
+        <span class="intel-status">${esc(entity.sensitive ? "held back" : "audience-safe")}</span>
+      </header>
+
+      <div class="intel-data-stat-grid">
+        <div><strong>${esc(entity.coverage || 0)}</strong><span>coverage</span></div>
+        <div><strong>${esc(entity.sourceDocCount || 0)}</strong><span>source docs</span></div>
+        <div><strong>${esc(entity.neighborCount || neighbors.length || 0)}</strong><span>neighbors</span></div>
+        <div><strong>${esc(linkedSignals.length)}</strong><span>signals</span></div>
+      </div>
+
+      <section>
+        <h3>Source mix</h3>
+        <div class="intel-source-mix">${sourceMix(entity) || `<span class="intel-pill">source mix pending</span>`}</div>
+      </section>
+
+      <section>
+        <h3>Relationship shape</h3>
+        <div class="intel-source-mix">${renderRelationSummary(entity)}</div>
+      </section>
+
+      <section>
+        <h3>Public surfaces</h3>
+        <div class="intel-source-mix">${(entity.surfaces || []).map((surface) => `<span class="intel-pill">${esc(surface)}</span>`).join("") || `<span class="intel-pill">surface export pending</span>`}</div>
+      </section>
+
+      <section>
+        <h3>Repo receipts</h3>
+        ${renderRepoReceipts(entity)}
+      </section>
+
+      <section>
+        <h3>Nearest mapped entities</h3>
+        <div class="intel-neighbors">
+          ${neighbors.map((neighbor) => `
+            <button class="intel-neighbor" type="button" data-intel-entity="${esc(neighbor.id)}">
+              <span>${esc(entityTitle(neighbor))}</span>
+              <span class="intel-neighbor-type">${esc(entityType(neighbor))}</span>
+            </button>
+          `).join("") || `<p class="intel-muted">No neighbors in the public-safe graph export.</p>`}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+function renderSignalGrounding(signal, entity, data) {
+  const linkedSignals = entity ? signalsForEntity(entity.id) : [];
+  return `
+    <aside class="intel-context intel-grounding">
+      <div class="intel-section-head">
+        <h3>Signal grounding</h3>
+        <p>why this data is here</p>
+      </div>
+      ${signal ? `
+        <article class="intel-context-item intel-grounding-signal">
+          <p class="intel-kicker">${esc(KIND_LABELS[signal.kind] || signal.kind)}</p>
+          <h4>${esc(signal.title)}</h4>
+          <p>${esc(signal.coordinatorMove)}</p>
+          <button type="button" data-intel-open-signal="${esc(signal.id)}">open signal</button>
+        </article>
+        <section>
+          <h3>Evidence receipts</h3>
+          ${renderSourceReceipts(signal.sourceReceipts || [])}
+        </section>
+      ` : `<p class="intel-empty">No signal selected.</p>`}
+
+      <section>
+        <h3>Related signals for selected entity</h3>
+        <div class="intel-related-signals">
+          ${linkedSignals.map((related) => `
+            <button type="button" data-intel-open-signal="${esc(related.id)}">
+              <span>${esc(KIND_LABELS[related.kind] || related.kind)}</span>
+              <strong>${esc(related.title)}</strong>
+            </button>
+          `).join("") || `<p class="intel-muted">This entity is not directly referenced by a headline signal yet.</p>`}
+        </div>
+      </section>
+
+      <section class="intel-boundary-note">
+        <h3>Boundary</h3>
+        <p>Data view shows audience-facing metadata, relationship counts, and receipt labels. Corpus files and transcript bodies stay in the vault.</p>
+      </section>
+    </aside>
+  `;
+}
+
+function renderSignalsPanel(data, signal, signals) {
+  return `
+    <section class="intel-layout intel-layout--signals">
+      <aside class="intel-sidebar">
+        ${renderFilters()}
+        <div class="intel-list-head">
+          <span>${signals.length} visible signals</span>
+          <button type="button" data-intel-reset>reset</button>
+        </div>
+        <div class="intel-list intel-signal-list">${renderSignalList(signals, data)}</div>
+      </aside>
+      <main class="intel-main intel-main--signals">
+        ${renderSignalDetail(signal, data)}
+        ${renderEntityContext(signal, data)}
+      </main>
+    </section>
+  `;
+}
+
+function renderDataPanel(data, signal) {
+  const entities = filteredDataEntities(data, signal);
+  const entity = selectedDataEntity(data, signal, entities);
+  return `
+    <section class="intel-layout intel-layout--data">
+      <aside class="intel-sidebar">
+        ${renderDataFilters(data)}
+        <div class="intel-list-head">
+          <span>${entities.length} visible entities</span>
+          <button type="button" data-intel-data-reset>reset</button>
+        </div>
+        <div class="intel-list intel-data-list">${renderDataEntityList(entities, signal, data)}</div>
+      </aside>
+      <main class="intel-main intel-main--data">
+        ${renderDataInspector(entity, data)}
+        ${renderSignalGrounding(signal, entity, data)}
+      </main>
+    </section>
   `;
 }
 
@@ -352,21 +663,9 @@ function renderShell(container, data) {
           <span>curated preview · coordinator-facing</span>
         </div>
       </header>
-      <div class="intel-metrics">${metricTiles()}</div>
-      <section class="intel-layout intel-layout--signals">
-        <aside class="intel-sidebar">
-          ${renderFilters()}
-          <div class="intel-list-head">
-            <span>${signals.length} visible signals</span>
-            <button type="button" data-intel-reset>reset</button>
-          </div>
-          <div class="intel-list intel-signal-list">${renderSignalList(signals, data)}</div>
-        </aside>
-        <main class="intel-main intel-main--signals">
-          ${renderSignalDetail(signal, data)}
-          ${renderEntityContext(signal, data)}
-        </main>
-      </section>
+      ${renderModeSwitch()}
+      <div class="intel-metrics">${metricTiles(data)}</div>
+      ${state.panel === "data" ? renderDataPanel(data, signal) : renderSignalsPanel(data, signal, signals)}
     </section>
   `;
 }
@@ -380,7 +679,7 @@ function rerender(container, { focusQuery = false } = {}) {
   renderIntel(container);
   wireIntel(container);
   if (focusQuery) {
-    const input = container.querySelector("[data-intel-query]");
+    const input = container.querySelector(state.panel === "data" ? "[data-intel-data-query]" : "[data-intel-query]");
     input?.focus();
     input?.setSelectionRange(input.value.length, input.value.length);
   }
@@ -388,10 +687,26 @@ function rerender(container, { focusQuery = false } = {}) {
 
 export function wireIntel(container) {
   if (!container) return;
+  for (const button of container.querySelectorAll("[data-intel-panel]")) {
+    button.addEventListener("click", () => {
+      state.panel = button.dataset.intelPanel || "signals";
+      if (state.panel === "data") {
+        state.selectedEntityId = selectedSignalEntityIds(selectedSignal(filteredSignals()), state.data)[0] || state.selectedEntityId;
+      }
+      rerender(container);
+    });
+  }
   const query = container.querySelector("[data-intel-query]");
   if (query) {
     query.addEventListener("input", () => {
       state.query = query.value || "";
+      rerender(container, { focusQuery: true });
+    });
+  }
+  const dataQuery = container.querySelector("[data-intel-data-query]");
+  if (dataQuery) {
+    dataQuery.addEventListener("input", () => {
+      state.dataQuery = dataQuery.value || "";
       rerender(container, { focusQuery: true });
     });
   }
@@ -413,6 +728,25 @@ export function wireIntel(container) {
       rerender(container);
     });
   }
+  for (const button of container.querySelectorAll("[data-intel-entity]")) {
+    button.addEventListener("click", () => {
+      state.selectedEntityId = button.dataset.intelEntity || "";
+      rerender(container);
+    });
+  }
+  for (const button of container.querySelectorAll("[data-intel-data-type]")) {
+    button.addEventListener("click", () => {
+      state.dataType = button.dataset.intelDataType || "all";
+      rerender(container);
+    });
+  }
+  for (const button of container.querySelectorAll("[data-intel-open-signal]")) {
+    button.addEventListener("click", () => {
+      state.selectedSignalId = button.dataset.intelOpenSignal || state.selectedSignalId;
+      state.panel = "signals";
+      rerender(container);
+    });
+  }
   const reset = container.querySelector("[data-intel-reset]");
   if (reset) {
     reset.addEventListener("click", () => {
@@ -420,6 +754,15 @@ export function wireIntel(container) {
       state.tier = "all";
       state.kind = "all";
       state.selectedSignalId = INTEL_SIGNALS[0]?.id || "";
+      rerender(container);
+    });
+  }
+  const dataReset = container.querySelector("[data-intel-data-reset]");
+  if (dataReset) {
+    dataReset.addEventListener("click", () => {
+      state.dataQuery = "";
+      state.dataType = "all";
+      state.selectedEntityId = selectedSignalEntityIds(selectedSignal(INTEL_SIGNALS), state.data)[0] || "";
       rerender(container);
     });
   }
