@@ -14,7 +14,8 @@ shape: hex
 is_mentor: false
 links:
   github: kkoci/Dealproof
-  x: null
+  x: kkoci80
+  website: https://medium.com/@feeltech_kkoci
   demo: https://youtu.be/Dc6iVYAl9OU
   article: https://bit.ly/4tbAmJA
 paper_basis:
@@ -23,6 +24,11 @@ paper_basis:
 traction: Working Intel DCAP prototype · contributed to Quantinuum's guppylang
 hackathon_note: Bradford Quantum Hackathon 2025 winner
 now: open-sourcing the dual-attestation primitive as a standalone cohort module
+graduation_target: "DealProof v2 live: ephemeral key generation inside TEE at boot, reproducible Docker builds with MRENCLAVE published on-chain, co-signing session parameters flow end-to-end. Agent-agnostic SDK drafted. At least one serious pilot conversation initiated with an enterprise or crypto-native counterparty."
+monthly_milestones: |
+  June: ephemeral keys at TEE boot, reproducible Docker build, MRENCLAVE on-chain, co-signing API spec
+  July: co-signing frontend live, agent-agnostic framing documented, SDK draft, first external pilot conversation
+weekly_goals: "Arrive NYC Monday, connect with Justin (ProvaTrust) on attestation layer complementarity, connect with dmarz on dstack/TEE pairing, explore Conclave collaboration (NDAI overlap), claim Shape Router profile"
 success_dimensions:
   - productization
   - research_lineage
