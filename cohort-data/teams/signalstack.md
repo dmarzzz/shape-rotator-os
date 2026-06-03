@@ -7,14 +7,15 @@ membership: cohort
 
 name: SignalStack
 focus: TEE + LLM into Signal
-members_count: 1
+members_count: 2
 geo: NYC
 domain: tee
 shape: hex
 is_mentor: false
 links:
-  github: null
+  github: RonTuretzky/sigstack
   x: null
+  repo: RonTuretzky/sigstack
   slides: https://ronturetzky.github.io/sigstack-slides/
 paper_basis: null
 traction: Vitalik blog mention · prior at Lightblocks (Ittay Eyal lab, eoracle)
@@ -24,6 +25,7 @@ success_dimensions:
   - collaborative
 prior_shipping:
   - SignalStack — confidential LLM inference on Intel TDX (beta development)
+  - SigStack public repo — Rust Signal bot, TEE attestation, and modular services
   - Vitalik Buterin acknowledgment in April 2026 secure-LLM blog post
 skill_areas:
   - tee
