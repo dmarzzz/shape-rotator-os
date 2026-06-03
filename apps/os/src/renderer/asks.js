@@ -31,7 +31,7 @@ export function askAgeLabel(ask) {
 }
 
 export function askIsOpen(ask) {
-  return !!ask && askStatus(ask) === "open";
+  return !!ask && askStatus(ask) === "open" && askIsCurrent(ask);
 }
 
 export function askIsCurrent(ask) {
