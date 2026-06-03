@@ -212,19 +212,19 @@ export function aggregateSkillAreas(cohort = {}) {
   const tagPairs = new Map();
 
   const consume = (areas, kind, id) => {
-    const uniq = Array.from(new Set((Array.isArray(areas) ? areas : []).filter(Boolean)));
-    for (const tag of uniq) {
-      const normalized = String(tag).trim().toLowerCase();
-      if (!normalized) continue;
+    const uniq = Array.from(new Set((Array.isArray(areas) ? areas : [])
+      .map(tag => String(tag).trim().toLowerCase())
+      .filter(Boolean)));
+    for (const normalized of uniq) {
       const map = kind === "team" ? tagsToTeams : tagsToPeople;
       if (!map.has(normalized)) map.set(normalized, new Set());
       map.get(normalized).add(id);
     }
     for (let i = 0; i < uniq.length; i++) {
       for (let j = i + 1; j < uniq.length; j++) {
-        const a = String(uniq[i]).trim().toLowerCase();
-        const b = String(uniq[j]).trim().toLowerCase();
-        if (!a || !b || a === b) continue;
+        const a = uniq[i];
+        const b = uniq[j];
+        if (a === b) continue;
         const key = a < b ? `${a}::${b}` : `${b}::${a}`;
         tagPairs.set(key, (tagPairs.get(key) || 0) + 1);
       }

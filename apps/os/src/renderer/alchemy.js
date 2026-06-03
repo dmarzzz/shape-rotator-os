@@ -5590,8 +5590,8 @@ function githubEventUrl(ev, repo) {
 }
 
 // ─── feed renderer ───────────────────────────────────────────────────
-function teamLabel(rid) {
-  return buildCohortIndex(state.cohort).teamLabel(rid);
+function teamLabel(rid, cohortIndex = buildCohortIndex(state.cohort)) {
+  return cohortIndex.teamLabel(rid);
 }
 function relativeTime(ms) {
   const diff = Date.now() - ms;
@@ -5675,7 +5675,8 @@ function renderFeed() {
     // pushed 1 commit" — one card with the latest event + a "+N more"
     // tail is easier to scan.
     const groups = groupFeedItemsByActor(items);
-    body = `<ul class="alch-feed-list">${groups.map(renderFeedGroup).join("")}</ul>`;
+    const cohortIndex = buildCohortIndex(state.cohort);
+    body = `<ul class="alch-feed-list">${groups.map(group => renderFeedGroup(group, cohortIndex)).join("")}</ul>`;
     body += `
       <p class="alch-callout"><strong>feed · v0.2</strong><br/>
       One card per person/team — the latest event headlines, a "+N more" tail counts the rest. Click a card to open the latest event on github. Sources: team repos + every cohort member's public github activity. Refreshed every 12 min in the background.</p>
@@ -5723,20 +5724,20 @@ function groupFeedItemsByActor(events) {
 // Headline derivation: prefer the cohort person's name, else cohort team
 // name, else raw gh actor. Returns { primary, secondary } for two-line
 // layout (primary = bold name, secondary = team/repo context line).
-function feedGroupHeadline(g) {
+function feedGroupHeadline(g, cohortIndex = buildCohortIndex(state.cohort)) {
   const ev = g.latest;
   let primary = "";
   let secondary = "";
   if (g.person_id) {
-    const p = buildCohortIndex(state.cohort).personById.get(g.person_id);
+    const p = cohortIndex.personById.get(g.person_id);
     primary = p?.name || g.actor || g.person_id;
     if (ev.team_id) {
-      const t = teamLabel(ev.team_id);
+      const t = teamLabel(ev.team_id, cohortIndex);
       if (t && t !== "—") secondary = t;
     }
     if (!secondary && ev.repo) secondary = ev.repo;
   } else if (g.team_id) {
-    primary = teamLabel(g.team_id);
+    primary = teamLabel(g.team_id, cohortIndex);
     secondary = g.actor ? `@${g.actor}` : (ev.repo || "");
   } else {
     primary = g.actor || ev.repo || "—";
@@ -5775,9 +5776,9 @@ function feedGroupTail(g) {
   return top.join(" · ");
 }
 
-function renderFeedGroup(g) {
+function renderFeedGroup(g, cohortIndex = buildCohortIndex(state.cohort)) {
   const ev = g.latest;
-  const { primary, secondary } = feedGroupHeadline(g);
+  const { primary, secondary } = feedGroupHeadline(g, cohortIndex);
   const tail = feedGroupTail(g);
   const sourceClass = `is-${ev.source}`;
   return `
