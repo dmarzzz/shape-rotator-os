@@ -32,13 +32,6 @@ import {
   parseWeekRow as calendarParseWeekRow,
   attachWeekViewBehavior as attachCalendarMobileBehavior,
 } from "@shape-rotator/shape-ui";
-import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
-import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
-import { enrichPeople } from "./gh-user.js";
-import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
-import { toast } from "./ux.js";
-import { getTheme, toggleTheme } from "./theme.js";
-import { getIdentity } from "./identity.js";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey,
   constellationIndegree, constellationModel, teamKind, teamsOfKind,
@@ -47,6 +40,13 @@ import {
   contextRawScriptById as findContextRawScriptById,
   contextSourceById as findContextSourceById,
 } from "./context-vault-model.js";
+import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
+import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
+import { enrichPeople } from "./gh-user.js";
+import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
+import { toast } from "./ux.js";
+import { getTheme, toggleTheme } from "./theme.js";
+import { getIdentity } from "./identity.js";
 // Membrane mode — 2026-05 redesign. Pressurized-membrane object that replaces
 // the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
 // "membrane" so the legacy modes stay reachable while we evaluate.
