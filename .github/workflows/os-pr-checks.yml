@@ -1,0 +1,40 @@
+name: os-pr-checks
+
+on:
+  pull_request:
+    paths:
+      - "apps/os/**"
+      - "cohort-data/**"
+      - "scripts/build-bundles.js"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/os-pr-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  os:
+    name: cohort + intel + renderer checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: install
+        run: npm ci --ignore-scripts
+
+      - name: cohort bundle is current
+        run: npm run check:cohort
+
+      - name: cohort-facing intel safety
+        run: npm --workspace @shape-rotator/os run check:intel
+
+      - name: renderer bundle resolves
+        run: npm --workspace @shape-rotator/os run bundle:check
