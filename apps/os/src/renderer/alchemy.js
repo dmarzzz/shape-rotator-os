@@ -5001,6 +5001,56 @@ function renderDetail(recordId) {
   closeDetail();
 }
 
+function detailItems(value) {
+  if (Array.isArray(value)) return value.map(v => String(v || "").trim()).filter(Boolean);
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return [];
+}
+
+function detailList(items, opts = {}) {
+  const vals = detailItems(items);
+  if (!vals.length) return "";
+  const cls = opts.compact ? " alch-detail-list-compact" : "";
+  return `<ul class="alch-detail-list${cls}">${vals.map(v => `<li>${escHtml(v)}</li>`).join("")}</ul>`;
+}
+
+function detailChips(items, opts = {}) {
+  const vals = detailItems(items);
+  if (!vals.length) return "";
+  const cls = opts.muted ? " alch-detail-chips-muted" : "";
+  return `<div class="alch-detail-chips${cls}">${vals.map(v => `<span class="alch-detail-chip">${escHtml(v)}</span>`).join("")}</div>`;
+}
+
+function detailRows(rows) {
+  return rows
+    .filter(r => r && r.value)
+    .map(r => `<div class="alch-detail-row"><span class="adr-k">${escHtml(r.key)}</span><span class="adr-v">${r.value}</span></div>`)
+    .join("");
+}
+
+function renderDetailSection(title, rows, aux = "") {
+  const body = detailRows(rows);
+  if (!body) return "";
+  return `
+    <section class="alch-detail-section">
+      <h3 class="alch-detail-h">${escHtml(title)}${aux ? ` <span class="alch-profile-h-aux">${escHtml(aux)}</span>` : ""}</h3>
+      ${body}
+    </section>
+  `;
+}
+
+function renderDependencyLinks(ids) {
+  const vals = detailItems(ids);
+  if (!vals.length) return "";
+  const teamsById = new Map((state.cohort?.teams || []).map(t => [t.record_id, t]));
+  return `<ul class="alch-detail-list alch-detail-list-compact">${vals.map(id => {
+    const t = teamsById.get(id);
+    const label = t ? (t.name || t.record_id) : id;
+    const role = t ? teamKind(t) : "record";
+    return `<li><button type="button" class="alch-detail-inline-link" data-person="${escAttr(id)}">${escHtml(label)}</button> <span class="adl-role">${escHtml(role)}</span></li>`;
+  }).join("")}</ul>`;
+}
+
 function renderTeamDetail(team) {
   const recordId = team.record_id;
   const s = shapeForTeam(team);
@@ -5074,6 +5124,7 @@ function renderTeamDetail(team) {
       <div class="alch-detail-grid">
         <section class="alch-detail-section">
           <h3 class="alch-detail-h">about</h3>
+          ${team.now ? `<div class="alch-detail-row"><span class="adr-k">now</span><span class="adr-v alch-detail-now">${escHtml(team.now)}</span></div>` : ""}
           <div class="alch-detail-row"><span class="adr-k">contributors</span><span class="adr-v">${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</span></div>
           ${team.traction ? `<div class="alch-detail-row"><span class="adr-k">traction</span><span class="adr-v">${escHtml(team.traction)}</span></div>` : ""}
         </section>
@@ -5092,6 +5143,18 @@ function renderTeamDetail(team) {
             </div>
           </section>
         ` : ""}
+
+        ${renderDetailSection("coordination", [
+          { key: "depends on", value: renderDependencyLinks(team.dependencies) },
+          { key: "seeking", value: detailList(team.seeking) },
+          { key: "offering", value: detailList(team.offering) },
+        ])}
+
+        ${renderDetailSection("capability", [
+          { key: "skills", value: detailChips(team.skill_areas) },
+          { key: "shipped", value: detailList(team.prior_shipping) },
+          { key: "success", value: detailChips(team.success_dimensions, { muted: true }) },
+        ])}
 
         <section class="alch-detail-section">
           <h3 class="alch-detail-h">links</h3>
@@ -5229,6 +5292,23 @@ function renderPersonDetail(person) {
           <div class="alch-detail-row"><span class="adr-v">${escHtml(person.dietary_restrictions)}</span></div>
         </section>
       ` : ""}
+
+      ${renderDetailSection("current work", [
+        { key: "now", value: person.now ? `<span class="alch-detail-now">${escHtml(person.now)}</span>` : "" },
+        { key: "skills", value: detailChips(person.skill_areas || person.skills) },
+      ])}
+
+      ${renderDetailSection("collaboration", [
+        { key: "ask about", value: detailList(person.go_to_them_for || person.offering) },
+        { key: "best in", value: detailList(person.best_contexts) },
+        { key: "seeking", value: detailList(person.seeking) },
+        { key: "style", value: person.working_style ? escHtml(person.working_style) : "" },
+      ])}
+
+      ${renderDetailSection("throughlines", [
+        { key: "themes", value: detailList(person.recurring_themes) },
+        { key: "prior work", value: detailList(person.prior_work) },
+      ])}
 
       <section class="alch-detail-section">
         <h3 class="alch-detail-h">links</h3>
