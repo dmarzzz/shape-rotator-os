@@ -32,6 +32,14 @@ import {
   parseWeekRow as calendarParseWeekRow,
   attachWeekViewBehavior as attachCalendarMobileBehavior,
 } from "@shape-rotator/shape-ui";
+import {
+  aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey,
+  constellationIndegree, constellationModel, teamKind, teamsOfKind,
+} from "./cohort-relations.js";
+import {
+  contextRawScriptById as findContextRawScriptById,
+  contextSourceById as findContextSourceById,
+} from "./context-vault-model.js";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
 import { enrichPeople } from "./gh-user.js";
@@ -523,8 +531,9 @@ function todayGridEvents(cal) {
 // refresh via subscribeToCohortChanges → render() chain.
 function computeMembraneData() {
   const c = state.cohort || {};
-  const teams = Array.isArray(c.teams) ? c.teams : [];
-  const people = Array.isArray(c.people) ? c.people : [];
+  const cohortIndex = buildCohortIndex(c);
+  const teams = cohortIndex.teams;
+  const people = cohortIndex.people;
   const events = Array.isArray(c.events) ? c.events : [];
   const asks = Array.isArray(c.asks) ? c.asks : [];
 
@@ -536,9 +545,9 @@ function computeMembraneData() {
   let myRecord = null;
   if (identity?.record_id) {
     if (identity.kind === 'team') {
-      myRecord = teams.find((t) => t.record_id === identity.record_id) || null;
+      myRecord = cohortIndex.teamById.get(identity.record_id) || null;
     } else {
-      myRecord = people.find((p) => p.record_id === identity.record_id) || null;
+      myRecord = cohortIndex.personById.get(identity.record_id) || null;
     }
   }
   // Fallback for handle-based matching when the editor user is set but no
@@ -620,10 +629,9 @@ function computeMembraneData() {
   // the self panel can render. Includes teammates (same team), members
   // of teams my team depends on, and people in shared synergy clusters.
   const connections = [];
-  const teamById = new Map(teams.map((t) => [t.record_id, t]));
   if (myRecord) {
     const myTeamId = myRecord.team || (myRecord.kind === 'team' ? myRecord.record_id : null);
-    const myTeam = myTeamId ? teamById.get(myTeamId) : null;
+    const myTeam = myTeamId ? cohortIndex.teamById.get(myTeamId) : null;
     const seen = new Set();
     const add = (person, edgeType, team) => {
       if (!person || person.record_id === myRecord.record_id) return;
@@ -640,25 +648,19 @@ function computeMembraneData() {
     };
     if (myTeam) {
       // Teammates
-      for (const p of people) {
-        if (p.team === myTeam.record_id) add(p, 'teammate', myTeam);
-      }
+      for (const p of cohortIndex.primaryPeopleByTeam.get(myTeam.record_id) || []) add(p, 'teammate', myTeam);
       // Dependency-team members
       const depIds = Array.isArray(myTeam.dependencies) ? myTeam.dependencies : [];
       for (const depId of depIds) {
-        const depTeam = teamById.get(depId);
+        const depTeam = cohortIndex.teamById.get(depId);
         if (!depTeam) continue;
-        for (const p of people) {
-          if (p.team === depId) add(p, 'depends on', depTeam);
-        }
+        for (const p of cohortIndex.primaryPeopleByTeam.get(depId) || []) add(p, 'depends on', depTeam);
       }
       // Reverse-dependency: teams that depend on mine
       for (const t of teams) {
         if (!Array.isArray(t.dependencies)) continue;
         if (!t.dependencies.includes(myTeam.record_id)) continue;
-        for (const p of people) {
-          if (p.team === t.record_id) add(p, 'depended by', t);
-        }
+        for (const p of cohortIndex.primaryPeopleByTeam.get(t.record_id) || []) add(p, 'depended by', t);
       }
     }
     // Cluster overlap — people in same synergy cluster as my team
@@ -669,10 +671,8 @@ function computeMembraneData() {
       if (!myTeam || !teamIds.includes(myTeam.record_id)) continue;
       for (const tid of teamIds) {
         if (tid === myTeam.record_id) continue;
-        const team = teamById.get(tid);
-        for (const p of people) {
-          if (p.team === tid) add(p, `cluster: ${cl.label || cl.name || cl.record_id}`, team);
-        }
+        const team = cohortIndex.teamById.get(tid);
+        for (const p of cohortIndex.primaryPeopleByTeam.get(tid) || []) add(p, `cluster: ${cl.label || cl.name || cl.record_id}`, team);
       }
     }
   }
@@ -693,7 +693,7 @@ function computeMembraneData() {
     role_class: myRecord.role_class,
     handle: ghHandle,
     bio: myRecord.bio || myRecord.description || myRecord.about || '',
-    kind: myRecord.kind || (teams.find((t) => t.record_id === myRecord.record_id) ? 'team' : 'person'),
+    kind: myRecord.kind || (cohortIndex.teamById.has(myRecord.record_id) ? 'team' : 'person'),
     links: myRecord.links || {},
     avatarUrl,
   } : (identity ? {
@@ -1310,36 +1310,6 @@ function constDomainClass(d) {
   return CONST_DOMAIN_KEYS.includes(k) ? k : "other";
 }
 
-// Dependency in-degree: how many OTHER teams name this team in their
-// self-asserted dependencies[]. Drives node size (keystones grow).
-function constellationIndegree(teams) {
-  const have = new Set(teams.map(t => t.record_id));
-  const ind = new Map(teams.map(t => [t.record_id, 0]));
-  for (const t of teams) {
-    for (const dep of (Array.isArray(t.dependencies) ? t.dependencies : [])) {
-      if (dep !== t.record_id && have.has(dep)) ind.set(dep, ind.get(dep) + 1);
-    }
-  }
-  return ind;
-}
-
-// Assign each team a primary cluster (first cluster that lists it), build
-// the cluster "wells", and compute in-degree.
-function constellationModel(teams, clusters) {
-  const byRecordId = new Map(teams.map(t => [t.record_id, t]));
-  const primary = new Map();
-  const wellsDef = [];
-  for (const cl of (clusters || [])) {
-    const members = (cl.teams || []).filter(rid => byRecordId.has(rid) && !primary.has(rid));
-    if (!members.length) continue;
-    members.forEach(rid => primary.set(rid, cl.record_id));
-    wellsDef.push({ id: cl.record_id || cl.name, label: cl.label || cl.name || "cluster", members });
-  }
-  const orphans = teams.filter(t => !primary.has(t.record_id)).map(t => t.record_id);
-  if (orphans.length) wellsDef.push({ id: "_other", label: "other", members: orphans });
-  return { byRecordId, wellsDef, indegree: constellationIndegree(teams) };
-}
-
 // Lay wells out on an adaptive grid (favoring more columns on the wide
 // canvas) so they never overlap regardless of cluster count, then place
 // each well's teams: keystone (highest in-degree) at the centre, the rest
@@ -1858,8 +1828,9 @@ function wireConstellationHover() {
     // FIXED-HEIGHT line — never the callout, whose reflow used to shrink the
     // flex stage, move the node out from under the cursor, and flicker.
     const hoverEl = state.canvas.querySelector("[data-ac-hoverline]");
-    const teamById = new Map((state.cohort?.teams || []).map(t => [t.record_id, t]));
-    const indeg = constellationIndegree(state.cohort?.teams || []);
+    const cohortIndex = buildCohortIndex(state.cohort);
+    const teamById = cohortIndex.teamById;
+    const indeg = constellationIndegree(cohortIndex.teams);
     for (const g of groups) {
       const rid = g.dataset.recordId;
       g.addEventListener("mouseenter", () => {
@@ -1875,7 +1846,7 @@ function wireConstellationHover() {
     }
     // Journey scatterplot nodes: hover → tooltip, click → drawer.
     const tip = stage.querySelector(".alch-journey-tip");
-    const byId = new Map((state.cohort?.teams || []).map(t => [t.record_id, t]));
+    const byId = cohortIndex.teamById;
     for (const node of stage.querySelectorAll(".ac-jnode")) {
       const rid = node.dataset.recordId;
       node.addEventListener("mouseenter", () => showJourneyTip(stage, tip, byId.get(rid)));
@@ -2380,8 +2351,8 @@ function toggleOnboardingDone(key) {
 }
 
 function renderOnboarding() {
-  const people  = state.cohort?.people || [];
-  const teams   = state.cohort?.teams  || [];
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const people = cohortIndex.people;
   const p       = state.profile || {};
   // Best-effort identity: prefer an explicit profile.user.record_id, else
   // match by github handle, else nothing. Onboarding doesn't require this
@@ -2392,7 +2363,7 @@ function renderOnboarding() {
     (meId && pp.record_id === meId) ||
     (meGh && (pp.links?.github || "").toLowerCase() === meGh)
   ) || null;
-  const myTeam = me ? teams.find(t => t.record_id === me.team) : null;
+  const myTeam = cohortIndex.teamForPerson(me);
 
   // Two sources of "complete":
   //   1. Auto-detect: the underlying field exists in the cohort surface.
@@ -2845,8 +2816,9 @@ async function submitOnboardingInline(form) {
   const cohort = state.cohort;
   let baseline = null;
   if (cohort) {
-    if (recordKind === "person") baseline = (cohort.people || []).find(r => r.record_id === recordId);
-    else baseline = (cohort.teams || []).find(r => r.record_id === recordId);
+    const cohortIndex = buildCohortIndex(cohort);
+    if (recordKind === "person") baseline = cohortIndex.personById.get(recordId);
+    else baseline = cohortIndex.teamById.get(recordId);
   }
   if (!baseline) {
     result.hidden = false;
@@ -3285,79 +3257,6 @@ function dmLinkForPerson(p) {
 // 'shared_papers' scores are NOT used — affinity is recomputed from shared
 // skill_areas (+ self-declared pair_with), and intros from public
 // seeking↔offering term overlap, shown as chips so every match is legible.
-const COLLAB_STOP = new Set(("a an and the to of for with in on at or be is are am was were we our us you your yours i me my mine they them their it its this that these those as by from into about over under more most less few many much can could should would will may might want wants wanted need needs needed looking look able build building built make making made get gets help helps using use used via across other others team teams project projects cohort people person folks who whom what when where why how do does done also like just very real new use").split(/\s+/));
-function collabTokens(val) {
-  const out = new Set();
-  const arr = Array.isArray(val) ? val : [val];
-  for (const s of arr) String(s == null ? "" : s).toLowerCase().split(/[^a-z0-9+]+/).forEach(w => {
-    if (w.length >= 3 && !COLLAB_STOP.has(w)) out.add(w);
-  });
-  return out;
-}
-const collabInter = (a, b) => { const o = []; for (const x of a) if (b.has(x)) o.push(x); return o; };
-const collabAffKey = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
-
-// Build the matchmaking model from public fields only. Reuses the map's
-// constellationModel for cluster grouping + in-degree so the two surfaces
-// agree on cluster membership and keystones.
-function collabModel(teams, clusters) {
-  const base = constellationModel(teams, clusters);
-  const ordered = [];
-  for (const w of base.wellsDef) {
-    const mem = w.members.slice().sort((a, b) => (base.indegree.get(b) || 0) - (base.indegree.get(a) || 0));
-    for (const rid of mem) {
-      const team = base.byRecordId.get(rid);
-      if (team) ordered.push({ rid, team, clusterId: w.id, clusterLabel: w.label });
-    }
-  }
-  const seekSet = new Map(), offerSet = new Map(), skillSet = new Map();
-  for (const { rid, team } of ordered) {
-    const skills = new Set((team.skill_areas || []).map(s => String(s).toLowerCase()));
-    skillSet.set(rid, skills);
-    seekSet.set(rid, collabTokens(team.seeking));
-    const off = collabTokens(team.offering);
-    for (const s of skills) off.add(s); // what a team HAS is part of what it can offer
-    offerSet.set(rid, off);
-  }
-  // directed dependency edges
-  const deps = new Set();
-  for (const { rid, team } of ordered)
-    for (const d of (team.dependencies || [])) if (base.byRecordId.has(d) && d !== rid) deps.add(rid + ">" + d);
-  // seek (row) → offer (col) matches, directed
-  const seekOffer = [];
-  const soByPair = new Map();
-  for (const A of ordered) for (const B of ordered) {
-    if (A.rid === B.rid) continue;
-    const shared = collabInter(seekSet.get(A.rid), offerSet.get(B.rid));
-    if (!shared.length) continue;
-    const rec = { seeker: A.rid, offerer: B.rid, seekerName: A.team.name, offererName: B.team.name,
-      seeking: (A.team.seeking || [])[0] || "", offering: (B.team.offering || [])[0] || "",
-      shared, score: shared.length };
-    seekOffer.push(rec);
-    soByPair.set(A.rid + ">" + B.rid, rec);
-  }
-  // affinity (undirected): shared skill_areas (+ self-declared pair_with)
-  const aff = new Map();
-  for (let i = 0; i < ordered.length; i++) for (let j = i + 1; j < ordered.length; j++) {
-    const A = ordered[i], B = ordered[j];
-    const shared = collabInter(skillSet.get(A.rid), skillSet.get(B.rid));
-    const endorsed = (Array.isArray(A.team.pair_with) && A.team.pair_with.includes(B.rid))
-      || (Array.isArray(B.team.pair_with) && B.team.pair_with.includes(A.rid));
-    if (!shared.length && !endorsed) continue;
-    aff.set(collabAffKey(A.rid, B.rid), { a: A.rid, b: B.rid, aName: A.team.name, bName: B.team.name, shared, endorsed });
-  }
-  // convergence: skill_areas shared by ≥3 teams
-  const conv = new Map();
-  for (const { team } of ordered) for (const s of (team.skill_areas || [])) {
-    const k = String(s).toLowerCase();
-    (conv.get(k) || conv.set(k, []).get(k)).push(team.name);
-  }
-  const convergence = [...conv.entries()].filter(([, t]) => t.length >= 3)
-    .map(([skill, names]) => ({ skill, teams: names, count: names.length }))
-    .sort((a, b) => b.count - a.count || a.skill.localeCompare(b.skill));
-  return { ordered, deps, seekOffer, soByPair, aff, convergence, indegree: base.indegree };
-}
-
 function collabCell(R, C, ri, ci, m) {
   if (R.rid === C.rid) return `<div class="cb-cell cb-diag" data-row="${ri}" data-col="${ci}" aria-hidden="true"></div>`;
   const dep = m.deps.has(R.rid + ">" + C.rid);
@@ -3378,7 +3277,7 @@ function renderCollab() {
     state.canvas.innerHTML = `<header class="alch-cb-head"><h2 class="alch-cb-title">collaboration board</h2></header><p class="alch-callout">no team data yet.</p>`;
     return;
   }
-  const m = collabModel(teams, clusters);
+  const m = buildCollabModel(teams, clusters);
   const ordered = m.ordered;
   const N = ordered.length;
   const colN = `--cb-cols:${N}`;
@@ -3841,11 +3740,11 @@ async function selectContextRawScript(sourceId) {
 }
 
 function contextSourceById(id) {
-  return (state.contextVault.manifest?.sources || []).find(s => s.id === id) || null;
+  return findContextSourceById(state.contextVault.manifest, id);
 }
 
 function contextRawScriptById(id) {
-  return (state.contextVault.manifest?.raw_scripts || []).find(s => s.id === id) || null;
+  return findContextRawScriptById(state.contextVault.manifest, id);
 }
 
 async function loadContextRawScriptText(sourceId) {
@@ -4385,57 +4284,6 @@ function wireContextVaultDetailActions(root = state.canvas) {
 // for a real graph library. The deterministic seed-based init keeps
 // the layout stable across renders.
 
-function aggregateSkillAreas() {
-  const cohort = state.cohort || {};
-  const tagsToTeams = new Map();   // tag → Set(team_record_id)
-  const tagsToPeople = new Map();  // tag → Set(person_record_id)
-  const teamPairs = new Map();     // "tagA::tagB" → count (for adjacency)
-
-  const consume = (areas, kind, id) => {
-    const uniq = Array.from(new Set((areas || []).filter(Boolean)));
-    for (const t of uniq) {
-      const tn = String(t).trim().toLowerCase();
-      if (!tn) continue;
-      if (kind === "team") {
-        if (!tagsToTeams.has(tn)) tagsToTeams.set(tn, new Set());
-        tagsToTeams.get(tn).add(id);
-      } else {
-        if (!tagsToPeople.has(tn)) tagsToPeople.set(tn, new Set());
-        tagsToPeople.get(tn).add(id);
-      }
-    }
-    for (let i = 0; i < uniq.length; i++) {
-      for (let j = i + 1; j < uniq.length; j++) {
-        const a = String(uniq[i]).trim().toLowerCase();
-        const b = String(uniq[j]).trim().toLowerCase();
-        if (!a || !b || a === b) continue;
-        const key = a < b ? `${a}::${b}` : `${b}::${a}`;
-        teamPairs.set(key, (teamPairs.get(key) || 0) + 1);
-      }
-    }
-  };
-  for (const t of cohort.teams || []) consume(t.skill_areas, "team", t.record_id);
-  for (const p of cohort.people || []) consume(p.skill_areas, "person", p.record_id);
-
-  const allTags = new Set([...tagsToTeams.keys(), ...tagsToPeople.keys()]);
-  const nodes = Array.from(allTags).map(tag => {
-    const teams = Array.from(tagsToTeams.get(tag) || []);
-    const people = Array.from(tagsToPeople.get(tag) || []);
-    return {
-      tag,
-      teams,
-      people,
-      size: teams.length + people.length,
-    };
-  }).sort((a, b) => b.size - a.size);
-
-  const edges = Array.from(teamPairs.entries()).map(([k, v]) => {
-    const [a, b] = k.split("::");
-    return { a, b, weight: v };
-  });
-  return { nodes, edges };
-}
-
 // Deterministic seeded RNG so the layout is stable across renders.
 function mulberry32(seed) {
   let t = seed >>> 0;
@@ -4513,9 +4361,10 @@ function layoutAtlas(nodes, edges, w, h) {
 }
 
 function renderAtlas() {
-  const { nodes, edges } = aggregateSkillAreas();
-  const teams = state.cohort?.teams || [];
-  const people = state.cohort?.people || [];
+  const { nodes, edges } = aggregateSkillAreas(state.cohort);
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const teams = cohortIndex.teams;
+  const people = cohortIndex.people;
   const totalTeams = teams.length;
   const totalPeople = people.length;
   const W = 880, H = 520;
@@ -4566,11 +4415,11 @@ function renderAtlas() {
   let panel = "";
   if (activeNode) {
     const tList = (activeNode.teams || []).map(rid => {
-      const t = teams.find(x => x.record_id === rid);
+      const t = cohortIndex.teamById.get(rid);
       return `<li class="alch-atlas-li" data-atlas-go-team="${escAttr(rid)}">${escHtml(t?.name || rid)}</li>`;
     }).join("");
     const pList = (activeNode.people || []).map(rid => {
-      const p = people.find(x => x.record_id === rid);
+      const p = cohortIndex.personById.get(rid);
       return `<li class="alch-atlas-li" data-atlas-go-person="${escAttr(rid)}">${escHtml(p?.name || rid)}</li>`;
     }).join("");
     panel = `
@@ -4634,8 +4483,9 @@ function wireAtlas() {
 // focus, lead, and member count to a single offscreen canvas, then
 // pipes through the same IPC PNG save flow.
 async function exportDossier() {
-  const all = (state.cohort?.teams || []).slice();
-  const people = state.cohort?.people || [];
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const all = cohortIndex.teams.slice();
+  const people = cohortIndex.people;
   if (all.length === 0) return;
   // Sort teams first by kind (team > project), then alpha.
   all.sort((a, b) => {
@@ -4646,13 +4496,7 @@ async function exportDossier() {
   });
 
   // Group people by team id so each card can list members inline.
-  const peopleByTeam = new Map();
-  for (const p of people) {
-    const k = p.team;
-    if (!k) continue;
-    if (!peopleByTeam.has(k)) peopleByTeam.set(k, []);
-    peopleByTeam.get(k).push(p);
-  }
+  const peopleByTeam = new Map(cohortIndex.primaryPeopleByTeam);
   // Sort each team's members: lead first, then alpha.
   for (const arr of peopleByTeam.values()) {
     arr.sort((a, b) => {
@@ -5012,9 +4856,10 @@ function announceExport(r) {
 // synergy clusters. Entered by clicking a card; back button returns to
 // the previous mode (typically shapes).
 function renderDetail(recordId) {
-  const team = state.cohort?.teams.find(t => t.record_id === recordId);
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const team = cohortIndex.teamById.get(recordId);
   if (team) return renderTeamDetail(team);
-  const person = (state.cohort?.people || []).find(p => p.record_id === recordId);
+  const person = cohortIndex.personById.get(recordId);
   if (person) return renderPersonDetail(person);
   // Record vanished (e.g. cohort republished, slug changed). Bail out
   // back to the grid rather than showing an empty page.
@@ -5022,16 +4867,15 @@ function renderDetail(recordId) {
 }
 
 function renderTeamDetail(team) {
+  const cohortIndex = buildCohortIndex(state.cohort);
   const recordId = team.record_id;
   const s = shapeForTeam(team);
   const kind = teamKind(team);
   const m = Number(team.members_count) || 0;
-  const memberClusters = (state.cohort.clusters || []).filter(cl =>
-    Array.isArray(cl.teams) && cl.teams.includes(recordId)
-  );
+  const memberClusters = cohortIndex.clustersByTeam.get(recordId) || [];
   // People whose `team` field points at this record. For projects this
   // surfaces who's working on it; for teams, the roster.
-  const teamPeople = (state.cohort.people || []).filter(p => p.team === recordId);
+  const teamPeople = cohortIndex.primaryPeopleByTeam.get(recordId) || [];
 
   const linksRow = renderDetailLinks(team.links || {});
   const editUrl = buildEditPRUrl({ recordType: "team", recordId });
@@ -5039,7 +4883,7 @@ function renderTeamDetail(team) {
   // ── Cohort Plate framing ──
   const j = journeyFor(team);
   const tier = tierForStage(j.stage);
-  const allTeams = state.cohort.teams || [];
+  const allTeams = cohortIndex.teams;
   const idx = allTeams.findIndex(t => t.record_id === recordId) + 1;
   const idxStr = `${String(Math.max(1, idx)).padStart(3, "0")}/${String(allTeams.length).padStart(3, "0")}`;
   // taxonomy "class line" — domain as class, shape as order.
@@ -5170,13 +5014,12 @@ function wirePlateFoil(plate) {
 }
 
 function renderPersonDetail(person) {
+  const cohortIndex = buildCohortIndex(state.cohort);
   const recordId = person.record_id;
   const fam = Math.abs(hashStr(recordId || "_")) % 6;
-  const team = person.team
-    ? (state.cohort?.teams || []).find(t => t.record_id === person.team)
-    : null;
+  const team = cohortIndex.teamForPerson(person);
   const secondary = (Array.isArray(person.secondary_teams) ? person.secondary_teams : [])
-    .map(id => (state.cohort?.teams || []).find(t => t.record_id === id))
+    .map(id => cohortIndex.teamById.get(id))
     .filter(Boolean);
   const linksRow = renderDetailLinks(person.links || {});
   const editUrl = buildEditPRUrl({ recordType: "person", recordId });
@@ -5320,7 +5163,8 @@ function renderDetailLinks(L) {
 // ─── drawer (specimen detail) ────────────────────────────────────────
 function openDrawer(recordId) {
   if (!state.cohort) return;
-  const team = state.cohort.teams.find(t => t.record_id === recordId);
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const team = cohortIndex.teamById.get(recordId);
   if (!team) return;
 
   const { backdrop, drawer, body } = ensureDrawer();
@@ -5329,9 +5173,7 @@ function openDrawer(recordId) {
   const m = Number(team.members_count) || 0;
 
   // Find which clusters this team belongs to
-  const memberClusters = (state.cohort.clusters || []).filter(cl =>
-    Array.isArray(cl.teams) && cl.teams.includes(recordId)
-  );
+  const memberClusters = cohortIndex.clustersByTeam.get(recordId) || [];
 
   // Render every available link key with a sensible label; github + x
   // get full URL prefixes, the rest are passed through.
@@ -5768,12 +5610,8 @@ function githubEventUrl(ev, repo) {
 }
 
 // ─── feed renderer ───────────────────────────────────────────────────
-function teamByRecordId(rid) {
-  return (state.cohort?.teams || []).find(t => t.record_id === rid) || null;
-}
-function teamLabel(rid) {
-  const t = teamByRecordId(rid);
-  return t ? t.name : rid || "—";
+function teamLabel(rid, cohortIndex = buildCohortIndex(state.cohort)) {
+  return cohortIndex.teamLabel(rid);
 }
 function relativeTime(ms) {
   const diff = Date.now() - ms;
@@ -5857,7 +5695,8 @@ function renderFeed() {
     // pushed 1 commit" — one card with the latest event + a "+N more"
     // tail is easier to scan.
     const groups = groupFeedItemsByActor(items);
-    body = `<ul class="alch-feed-list">${groups.map(renderFeedGroup).join("")}</ul>`;
+    const cohortIndex = buildCohortIndex(state.cohort);
+    body = `<ul class="alch-feed-list">${groups.map(group => renderFeedGroup(group, cohortIndex)).join("")}</ul>`;
     body += `
       <p class="alch-callout"><strong>feed · v0.2</strong><br/>
       One card per person/team — the latest event headlines, a "+N more" tail counts the rest. Click a card to open the latest event on github. Sources: team repos + every cohort member's public github activity. Refreshed every 12 min in the background.</p>
@@ -5905,20 +5744,20 @@ function groupFeedItemsByActor(events) {
 // Headline derivation: prefer the cohort person's name, else cohort team
 // name, else raw gh actor. Returns { primary, secondary } for two-line
 // layout (primary = bold name, secondary = team/repo context line).
-function feedGroupHeadline(g) {
+function feedGroupHeadline(g, cohortIndex = buildCohortIndex(state.cohort)) {
   const ev = g.latest;
   let primary = "";
   let secondary = "";
   if (g.person_id) {
-    const p = (state.cohort?.people || []).find(x => x.record_id === g.person_id);
+    const p = cohortIndex.personById.get(g.person_id);
     primary = p?.name || g.actor || g.person_id;
     if (ev.team_id) {
-      const t = teamLabel(ev.team_id);
+      const t = teamLabel(ev.team_id, cohortIndex);
       if (t && t !== "—") secondary = t;
     }
     if (!secondary && ev.repo) secondary = ev.repo;
   } else if (g.team_id) {
-    primary = teamLabel(g.team_id);
+    primary = teamLabel(g.team_id, cohortIndex);
     secondary = g.actor ? `@${g.actor}` : (ev.repo || "");
   } else {
     primary = g.actor || ev.repo || "—";
@@ -5957,9 +5796,9 @@ function feedGroupTail(g) {
   return top.join(" · ");
 }
 
-function renderFeedGroup(g) {
+function renderFeedGroup(g, cohortIndex = buildCohortIndex(state.cohort)) {
   const ev = g.latest;
-  const { primary, secondary } = feedGroupHeadline(g);
+  const { primary, secondary } = feedGroupHeadline(g, cohortIndex);
   const tail = feedGroupTail(g);
   const sourceClass = `is-${ev.source}`;
   return `
@@ -6150,22 +5989,16 @@ function setNested(obj, path, value) {
   cur[ks[ks.length - 1]] = value;
 }
 
-// `kind` lives on the team-shaped record; absence defaults to "team".
-// Treats projects as team-shaped records with `kind: "project"`.
-function teamKind(t) { return (t && t.kind) || "team"; }
-function teamsOfKind(teams, kind) {
-  return (teams || []).filter(t => teamKind(t) === kind);
-}
-
 // When switching mode/kind in EDIT mode, snap editTargetId to a valid
 // record from the new pool if the current one isn't in it. Avoids the
 // editor showing a stale form for a record that doesn't match the kind.
 function pickFirstTargetIfMissing(p) {
   const cohort = state.cohort;
   if (!cohort) return;
+  const cohortIndex = buildCohortIndex(cohort);
   const pool = (p.editKind === "person")
-    ? (cohort.people || [])
-    : teamsOfKind(cohort.teams, p.editKind);
+    ? cohortIndex.people
+    : teamsOfKind(cohortIndex.teams, p.editKind);
   const stillValid = pool.some(r => r.record_id === p.editTargetId);
   if (!stillValid) p.editTargetId = pool[0]?.record_id || null;
 }
@@ -6178,6 +6011,7 @@ function loadEditTarget() {
   // we wiped editDraft and editBaseline here, which let a single
   // cohort refresh blow away the user's in-progress edits.
   if (!cohort) return;
+  const cohortIndex = buildCohortIndex(cohort);
 
   // Sticky draft: only (re)seed when the edit context actually changed.
   // Same mode + same kind + same target → preserve whatever the user has
@@ -6233,7 +6067,7 @@ function loadEditTarget() {
 
   // EDIT mode: look up the picked record in the cohort.
   if (p.editKind === "person") {
-    const person = (cohort.people || []).find(pp => pp.record_id === p.editTargetId);
+    const person = cohortIndex.personById.get(p.editTargetId);
     if (person) {
       p.editDraft = JSON.parse(JSON.stringify(person));
       p.editBaseline = JSON.parse(JSON.stringify(person));
@@ -6244,7 +6078,7 @@ function loadEditTarget() {
     return;
   }
   // team or project — pull from cohort.teams, filter by kind.
-  const pool = teamsOfKind(cohort.teams, p.editKind);
+  const pool = teamsOfKind(cohortIndex.teams, p.editKind);
   const t = pool.find(x => x.record_id === p.editTargetId);
   if (t) {
     p.editDraft = JSON.parse(JSON.stringify(t));
