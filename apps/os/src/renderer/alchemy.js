@@ -47,6 +47,10 @@ import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from ".
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
 import { getIdentity } from "./identity.js";
+import {
+  askAgeLabel, askIsCurrent, askIsOpen, askStatus, askTopic, asksWithStatus,
+  isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
+} from "./asks.js";
 // Membrane mode — 2026-05 redesign. Pressurized-membrane object that replaces
 // the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
 // "membrane" so the legacy modes stay reachable while we evaluate.
@@ -133,6 +137,7 @@ const state = {
   programPage: null,   // active program-handbook page slug (overview | success | rules | schedule)
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
+  openAskComposer: false, // one-shot landing state when membrane sends someone to post
   constellationMode: "clusters",  // "clusters" (shared cluster membership) | "dependencies" (team-asserted dependency edges)
   constellationLayout: "wells",    // "wells" (cluster-grouped grid) | "circle" (single ring — the original view)
   calendar: {                     // calendar tab state — see renderCalendar()
@@ -535,7 +540,7 @@ function computeMembraneData() {
   const teams = cohortIndex.teams;
   const people = cohortIndex.people;
   const events = Array.isArray(c.events) ? c.events : [];
-  const asks = Array.isArray(c.asks) ? c.asks : [];
+  const asks = asksWithStatus(c.asks);
 
   // Pull the user's claimed identity from identity.js (the source of truth
   // — same module the top-right pill reads). Then resolve it to the full
@@ -552,19 +557,18 @@ function computeMembraneData() {
   }
   // Fallback for handle-based matching when the editor user is set but no
   // formal claim has been made yet.
-  const editorHandle = editorUser?.gh_handle || editorUser?.handle || null;
+  const editorHandle = editorUser?.github || editorUser?.gh_handle || editorUser?.handle || editorUser?.links?.github || null;
   if (!myRecord && editorHandle) {
-    const lc = editorHandle.toLowerCase();
+    const lc = normalizeAskIdentity(editorHandle);
     myRecord = people.find((p) =>
-      (p.links?.github || p.gh_handle || p.handle || '').toLowerCase() === lc);
+      normalizeAskIdentity(p.links?.github || p.gh_handle || p.handle || '') === lc);
   }
   const myHandle = (myRecord?.links?.github || myRecord?.gh_handle
                  || editorHandle || identity?.record_id || null);
 
-  const myAsks = myHandle
-    ? asks.filter((a) => (a?.owner || '').toLowerCase() === myHandle.toLowerCase()).length
-    : 0;
-  const openAsks = asks.filter((a) => (a?.status || 'open') === 'open').length;
+  const askIdentity = { identity, profileUser: editorUser, people };
+  const myAsks = asks.filter((a) => askIsCurrent(a) && isAskMine(a, askIdentity)).length;
+  const openAsks = asks.filter(askIsOpen).length;
 
   const now = Date.now();
   const DAY_MS = 24 * 60 * 60 * 1000;
@@ -733,7 +737,8 @@ function computeMembraneData() {
       openAskCount: String(openAsks),
       myAskCount: String(myAsks),
       asksList: asks,
-      myHandle: myHandle || '',
+      peopleList: people,
+      askIdentity,
     },
   };
 }
@@ -748,6 +753,9 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   // dependencies / journey). Used by the cohort panel's view cards.
   if (mode === "constellation" && opts && opts.constellationMode) {
     state.constellationMode = opts.constellationMode;
+  }
+  if (mode === "asks" && opts && opts.openComposer) {
+    state.openAskComposer = true;
   }
   try { localStorage.setItem(ALCHEMY_LS_KEY, mode); } catch {}
   syncRailSelection();
@@ -3202,40 +3210,8 @@ function wireProgram() {
 // the audit trail is preserved).
 //
 // Sensitivity: this surface intentionally has NO leaderboard, NO claim
-// count, NO "endorsement" mechanic, NO algorithm matching. Filter +
-// browse + open-the-author's-dm. See program/rules.md anti-patterns.
-
-const ASK_EXPIRY_DAYS = 5;
-
-function asksWithStatus() {
-  const all = (state.cohort?.asks || []).slice();
-  const todayMs = Date.now();
-  return all.map(a => {
-    const posted = isoToDate(a.posted_at);
-    // When posted_at is missing or unparseable, treat the ask as
-    // "undated" (age=null) rather than "ancient" (age=999). The
-    // previous default flagged every undated ask as expired —
-    // visible as cohort posts faded out in the "fading" section
-    // because their posted_at was empty in the seed data.
-    const ageDays = posted
-      ? Math.floor((todayMs - posted.getTime()) / 86400000)
-      : null;
-    const expired = ageDays != null && ageDays >= ASK_EXPIRY_DAYS;
-    return { ...a, _ageDays: ageDays, _expired: expired };
-  }).sort((a, b) => {
-    // Open + recent first; expired drift to the bottom.
-    if (a._expired !== b._expired) return a._expired ? 1 : -1;
-    // Undated asks (ageDays === null) sort to the top of their group
-    // since we can't position them by age — treat as fresh.
-    const aAge = a._ageDays == null ? 0 : a._ageDays;
-    const bAge = b._ageDays == null ? 0 : b._ageDays;
-    return aAge - bAge;
-  });
-}
-
-function personByRecordId(rid) {
-  return (state.cohort?.people || []).find(p => p.record_id === rid) || null;
-}
+// count, NO "endorsement" mechanic, NO algorithm matching. Keep the
+// interaction to post, claim, finish, and contact the author.
 
 function dmLinkForPerson(p) {
   // Preference order: telegram > x > website > github > email.
@@ -3248,6 +3224,16 @@ function dmLinkForPerson(p) {
   if (L.website)  return { label: "website",  url: L.website };
   if (p.email)    return { label: "email",    url: `mailto:${p.email}` };
   return null;
+}
+
+function currentAskContext() {
+  const people = state.cohort?.people || [];
+  const me = state.profile?.user || {};
+  const askIdentity = { identity: getIdentity(), profileUser: me, people };
+  const myPerson = resolveAskIdentityPerson(askIdentity);
+  const myHandle = normalizeAskIdentity(me.github || me.gh_handle || me.handle || me.links?.github);
+  const authorSlug = myPerson?.record_id || me.record_id || (myHandle ? myHandle : "your-slug");
+  return { people, me, askIdentity, myPerson, myHandle, authorSlug };
 }
 
 // ─── cohort collaboration board (ported from the dossier Connections) ─
@@ -3402,72 +3388,85 @@ function wireCollab() {
 }
 
 function renderAsks() {
-  const asks = asksWithStatus();
-  const me = state.profile?.user || {};
-  const myHandle = String(me.github || "").toLowerCase();
-  const myAuthorId = me.record_id || null;
+  const asks = asksWithStatus(state.cohort?.asks);
+  const { people, askIdentity, myHandle, authorSlug } = currentAskContext();
 
-  if (asks.length === 0) {
-    state.canvas.innerHTML = `
-      <header class="alch-asks-head">
-        <h2 class="alch-asks-title">asks</h2>
-        <p class="alch-asks-sub">verb-first pair-requests. 5-day expiry. tap-to-claim opens the author's DM.</p>
-      </header>
-      <p class="alch-callout">no asks yet. <strong>post one</strong> by creating a markdown file under <code>cohort-data/asks/</code> via the same PR flow as your profile.</p>
-    `;
-    return;
-  }
-
-  const open    = asks.filter(a => !a._expired && (a.status || "open") === "open");
-  const claimed = asks.filter(a => !a._expired && a.status === "claimed");
-  const done    = asks.filter(a => !a._expired && a.status === "done");
-  const expired = asks.filter(a => a._expired);
+  const open = asks.filter(askIsOpen);
+  const closed = asks.filter(a => !askIsOpen(a));
 
   const renderAsk = (a) => {
-    const author = personByRecordId(a.author);
-    const authorLabel = author ? (author.name || author.record_id) : a.author;
+    const author = resolveAskAuthor(a, people);
+    const authorLabel = author ? (author.name || author.record_id) : (a.author || a.owner || "unknown");
     const dm = dmLinkForPerson(author);
     const chips = (a.skill_areas || []).map(s => `<span class="alch-asks-chip">${escHtml(s)}</span>`).join("");
-    const isMine = (a.author === myAuthorId) || (author && String(author.links?.github || "").toLowerCase() === myHandle);
-    const ageLabel = a._ageDays == null ? "—"
-                   : a._ageDays === 0 ? "today"
-                   : a._ageDays === 1 ? "1 day ago"
-                   : `${a._ageDays} days ago`;
-    const statusBadge = a.status === "claimed" ? `<span class="alch-asks-status alch-asks-status-claimed">claimed</span>`
-                      : a.status === "done"    ? `<span class="alch-asks-status alch-asks-status-done">done</span>`
+    const isMine = isAskMine(a, askIdentity);
+    const claimedByMe = a.claimed_by ? isAskMine({ author: a.claimed_by }, askIdentity) : false;
+    const ageLabel = askAgeLabel(a) || "—";
+    const status = askStatus(a);
+    const verb = String(a.verb || "ask").trim();
+    const verbGlyph = Array.from(verb)[0] || "·";
+    const verbLabel = Array.from(verb).slice(1).join("").trim() || verb;
+    const statusBadge = status === "claimed" ? `<span class="alch-asks-status alch-asks-status-claimed">claimed</span>`
+                      : status === "done"    ? `<span class="alch-asks-status alch-asks-status-done">done</span>`
+                      : a._expired           ? `<span class="alch-asks-status alch-asks-status-fading">fading</span>`
                       : "";
-    const action = isMine
-      ? `<a class="alch-asks-action alch-asks-action-edit" data-asks-edit="${escAttr(a.record_id)}" href="#">edit</a>`
-      : (dm
-          ? `<a class="alch-asks-action" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)} →</a>`
-          : `<span class="alch-asks-action alch-asks-action-disabled">no contact link on author</span>`);
+    const topic = askTopic(a) || "untitled ask";
+    const actions = [];
+    if (isMine && status !== "done") {
+      actions.push(`<a class="alch-asks-action alch-asks-action-primary alch-asks-action-edit" data-asks-edit="${escAttr(a.record_id)}" href="#">edit</a>`);
+    } else if (status === "open" && !a._expired) {
+      if (authorSlug !== "your-slug") {
+        actions.push(`<button class="alch-asks-action alch-asks-action-primary" type="button" data-asks-claim="${escAttr(a.record_id)}">claim</button>`);
+      } else if (dm) {
+        actions.push(`<a class="alch-asks-action alch-asks-action-primary" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)} →</a>`);
+      } else {
+        actions.push(`<span class="alch-asks-action alch-asks-action-disabled">claim needs profile</span>`);
+      }
+    } else if (status === "claimed" && (claimedByMe || isMine)) {
+      actions.push(`<button class="alch-asks-action alch-asks-action-primary" type="button" data-asks-done="${escAttr(a.record_id)}">done</button>`);
+    }
+    if (dm && !isMine && status !== "done") {
+      actions.push(`<a class="alch-asks-action alch-asks-action-secondary" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)}</a>`);
+    }
+    const actionsMarkup = actions.length
+      ? `<div class="alch-asks-actions">${actions.join("")}</div>`
+      : "";
     return `
-      <article class="alch-asks-card" data-expired="${a._expired ? "1" : "0"}">
-        <div class="alch-asks-verb">${escHtml(a.verb || "·")}</div>
-        <div class="alch-asks-body">
-          <div class="alch-asks-topic">${escHtml(a.topic || "")}</div>
-          <div class="alch-asks-meta">
-            <span class="alch-asks-author">${escHtml(authorLabel)}</span>
-            <span class="alch-asks-sep">·</span>
-            <span class="alch-asks-when">${escHtml(ageLabel)}</span>
-            ${statusBadge}
-          </div>
+      <details class="alch-asks-card" data-expired="${a._expired ? "1" : "0"}" data-asks-record="${escAttr(a.record_id)}">
+        <summary class="alch-asks-summary">
+          <span class="alch-asks-verb" title="${escAttr(verb)}" aria-label="${escAttr(verbLabel)}">${escHtml(verbGlyph)}</span>
+          <span class="alch-asks-body">
+            <span class="alch-asks-topic" title="${escAttr(topic)}">${escHtml(topic)}</span>
+            <span class="alch-asks-meta">
+              <span class="alch-asks-author">${escHtml(authorLabel)}</span>
+              <span class="alch-asks-sep">·</span>
+              <span class="alch-asks-when">${escHtml(ageLabel)}</span>
+              ${statusBadge}
+            </span>
+          </span>
+          <span class="alch-asks-row-caret" aria-hidden="true"></span>
+        </summary>
+        <div class="alch-asks-expanded">
           ${chips ? `<div class="alch-asks-chips">${chips}</div>` : ""}
+          <div class="alch-asks-context" data-asks-context-panel hidden></div>
+          ${actionsMarkup}
+          <div class="alch-asks-row-note" data-asks-row-note hidden></div>
         </div>
-        <div class="alch-asks-actions">${action}</div>
-      </article>
+      </details>
     `;
   };
 
-  const section = (title, list, extraNote = "") => list.length === 0 ? "" : `
-    <section class="alch-asks-section">
-      <header class="alch-asks-section-head">
+  const section = (title, list, emptyText) => `
+    <details class="alch-asks-section" open>
+      <summary class="alch-asks-section-head">
+        <span class="alch-asks-section-caret" aria-hidden="true"></span>
         <h3 class="alch-asks-section-title">${escHtml(title)}</h3>
         <span class="alch-asks-section-count">${list.length}</span>
-        ${extraNote ? `<span class="alch-asks-section-note">${escHtml(extraNote)}</span>` : ""}
-      </header>
-      <div class="alch-asks-list">${list.map(renderAsk).join("")}</div>
-    </section>
+      </summary>
+      ${list.length
+        ? `<div class="alch-asks-list">${list.map(renderAsk).join("")}</div>`
+        : `<p class="alch-asks-empty">${escHtml(emptyText)}</p>`}
+    </details>
   `;
 
   // Author slug: prefer the cohort-resolved person record_id (so the
@@ -3476,7 +3475,6 @@ function renderAsks() {
   // the github web editor. (Old code injected a stale branch name here;
   // both /new/ and /edit/ now target `main`.)
   const todayIso = new Date().toISOString().slice(0, 10);
-  const authorSlug = myAuthorId || (myHandle ? myHandle : "your-slug");
 
   // Common verbs the compose form offers as quick picks. Stays in code
   // (not cohort-data) since it's a tiny vocab that drives nothing else.
@@ -3488,50 +3486,185 @@ function renderAsks() {
     "📣 looking for",
     "🪛 help me debug",
   ];
+  const askVerbPills = ASK_VERB_OPTIONS.map((v, i) => `
+    <button class="alch-asks-verb-pill" type="button" data-asks-verb="${escAttr(v)}" aria-pressed="${i === 0 ? "true" : "false"}">
+      ${escHtml(v)}
+    </button>
+  `).join("");
+  const openComposer = state.openAskComposer === true;
+  state.openAskComposer = false;
 
   state.canvas.innerHTML = `
     <header class="alch-asks-head">
       <h2 class="alch-asks-title">asks</h2>
-      <p class="alch-asks-sub">verb-first pair-requests · 5-day expiry · tap-to-claim opens the author's DM</p>
     </header>
 
-    <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}">
-      <header class="alch-asks-compose-head">
-        <span class="alch-asks-compose-title">post an ask</span>
-        <span class="alch-asks-compose-sub">submit opens a github PR to add this file under <code>cohort-data/asks/</code></span>
-      </header>
-      <div class="alch-asks-compose-grid">
-        <label class="alch-asks-compose-field alch-asks-compose-verb">
-          <span class="alch-asks-compose-label">verb</span>
-          <select name="verb" class="alch-asks-compose-input">
-            ${ASK_VERB_OPTIONS.map(v => `<option value="${escAttr(v)}">${escHtml(v)}</option>`).join("")}
-          </select>
-        </label>
-        <label class="alch-asks-compose-field alch-asks-compose-topic">
-          <span class="alch-asks-compose-label">topic</span>
-          <textarea name="topic" rows="2" class="alch-asks-compose-input"
-                    placeholder="fuzzing the AMM contract — would love 30 min with someone who's done property testing"></textarea>
-        </label>
-        <label class="alch-asks-compose-field alch-asks-compose-tags">
-          <span class="alch-asks-compose-label">tags <span class="alch-asks-compose-hint">(comma-separated, from cohort vocab if you can)</span></span>
-          <input name="skill_areas" type="text" class="alch-asks-compose-input" placeholder="tee, dstack, attestation" />
-        </label>
-      </div>
-      <div class="alch-asks-compose-row">
-        <button class="alch-feed-btn alch-asks-compose-submit" type="submit">submit → open PR</button>
-        <span class="alch-asks-compose-author">posting as <strong>${escHtml(authorSlug)}</strong>${myHandle && authorSlug !== myHandle ? ` · @${escHtml(myHandle)}` : ""}</span>
-      </div>
-      <div class="alch-asks-compose-result" hidden></div>
+    <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}" data-autofocus="${openComposer ? "1" : "0"}">
+      <details class="alch-asks-compose-shell" data-asks-compose-details${openComposer ? " open" : ""}>
+        <summary class="alch-asks-compose-head">
+          <span class="alch-asks-compose-title">post an ask</span>
+          <span class="alch-asks-verb-pills" role="group" aria-label="ask type">
+            ${askVerbPills}
+          </span>
+          <span class="alch-asks-compose-caret" aria-hidden="true"></span>
+        </summary>
+        <input type="hidden" name="verb" value="${escAttr(ASK_VERB_OPTIONS[0])}" />
+        <div class="alch-asks-compose-body">
+          <div class="alch-asks-compose-grid">
+            <label class="alch-asks-compose-field alch-asks-compose-topic">
+              <span class="alch-asks-compose-label">topic</span>
+              <textarea name="topic" rows="2" class="alch-asks-compose-input"
+                        placeholder="fuzzing the AMM contract — would love 30 min with someone who's done property testing"></textarea>
+            </label>
+            <label class="alch-asks-compose-field alch-asks-compose-tags">
+              <span class="alch-asks-compose-label">tags <span class="alch-asks-compose-hint">(comma-separated, from cohort vocab if you can)</span></span>
+              <input name="skill_areas" type="text" class="alch-asks-compose-input" placeholder="tee, dstack, attestation" />
+            </label>
+            <details class="alch-asks-compose-context">
+              <summary>add context</summary>
+              <label class="alch-asks-compose-field">
+                <span class="alch-asks-compose-label">context</span>
+                <textarea name="body" rows="3" class="alch-asks-compose-input" placeholder="links, constraints, what you've tried"></textarea>
+              </label>
+            </details>
+          </div>
+          <div class="alch-asks-compose-row">
+            <button class="alch-feed-btn alch-asks-compose-submit" type="submit">submit → open PR</button>
+            <span class="alch-asks-compose-author">posting as <strong>${escHtml(authorSlug)}</strong>${myHandle && authorSlug !== myHandle ? ` · @${escHtml(myHandle)}` : ""}</span>
+          </div>
+          <div class="alch-asks-compose-result" hidden></div>
+        </div>
+      </details>
     </form>
 
-    ${section("open", open)}
-    ${section("claimed", claimed, "in flight")}
-    ${section("done", done, "wrap-up only")}
-    ${section("fading", expired, "past the 5-day window")}
+    ${section("open", open, "no open asks.")}
 
-    <p class="alch-callout"><strong>asks · v0.2</strong><br/>
-    posts are markdown under <code>cohort-data/asks/</code>. expiry is renderer-side — files stay so the audit trail is preserved. no claim count, no leaderboard, no algorithm. filter + browse + DM. see <button class="alch-link-btn" data-go="program" data-program-page="rules">program · rules</button> for the anti-patterns we left out.</p>
+    ${section("closed", closed, "nothing closed yet.")}
   `;
+}
+
+function askMarkdownPath(recordId) {
+  return `cohort-data/asks/${recordId}.md`;
+}
+
+function askPostedDate(ask) {
+  const raw = String(ask?.posted_at || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+  return raw ? raw[0] : new Date().toISOString().slice(0, 10);
+}
+
+function askTagsBlock(skillAreas) {
+  const tags = (Array.isArray(skillAreas) ? skillAreas : [])
+    .map(s => String(s).trim())
+    .filter(Boolean);
+  return tags.length
+    ? "skill_areas:\n" + tags.map(s => `  - ${quoteYaml(s)}`).join("\n")
+    : "skill_areas: []";
+}
+
+function askBodyOrPlaceholder(body) {
+  if (body == null) return "\n(optional body — extra context for the ask.)\n";
+  const s = String(body);
+  return s.startsWith("\n") ? s : `\n${s}`;
+}
+
+function buildAskMarkdown(ask, overrides = {}, body = null) {
+  const merged = { ...ask, ...overrides };
+  const claimedBy = String(merged.claimed_by || "").trim();
+  return `---
+record_id: ${merged.record_id}
+record_type: ask
+schema_version: ${merged.schema_version || 1}
+posted_at: ${askPostedDate(merged)}
+author: ${quoteYaml(merged.author || "your-slug")}
+verb: ${quoteYaml(merged.verb || "🤝 pair on")}
+topic: ${yamlScalar(askTopic(merged) || "untitled ask", 2)}
+${askTagsBlock(merged.skill_areas)}
+status: ${quoteYaml(askStatus(merged))}
+${claimedBy ? `claimed_by: ${quoteYaml(claimedBy)}\n` : ""}---${askBodyOrPlaceholder(body)}`;
+}
+
+function cleanAskBody(body) {
+  const s = String(body || "").trim();
+  if (!s) return "";
+  if (/^\(optional body\s+—\s+extra context for the ask\.\)$/i.test(s)) return "";
+  if (/^\(this is a seed example so the asks tab isn't empty/i.test(s)) return "";
+  return s;
+}
+
+function findRenderedAsk(recordId) {
+  return asksWithStatus(state.cohort?.asks).find(a => a.record_id === recordId) || null;
+}
+
+function askRowNote(el, html, kind = "info") {
+  const card = el?.closest?.(".alch-asks-card");
+  const note = card?.querySelector?.("[data-asks-row-note]");
+  if (!note) return;
+  note.hidden = false;
+  note.dataset.kind = kind;
+  note.innerHTML = html;
+}
+
+async function launchAskStatusUpdate(el, recordId, nextStatus) {
+  const ask = findRenderedAsk(recordId);
+  if (!ask) {
+    askRowNote(el, `<span class="alch-onb-inline-tag">missing</span> ask record not found.`, "error");
+    return;
+  }
+  const { authorSlug } = currentAskContext();
+  if (authorSlug === "your-slug") {
+    askRowNote(el, `<span class="alch-onb-inline-tag">profile</span> claim your profile before changing ask status.`, "error");
+    return;
+  }
+  const path = askMarkdownPath(recordId);
+  askRowNote(el, `<span class="alch-onb-inline-tag">preparing</span> building status update...`);
+  const body = await fetchExistingBody(path);
+  const overrides = { status: nextStatus };
+  if (nextStatus === "claimed") overrides.claimed_by = authorSlug;
+  if (nextStatus === "done") overrides.claimed_by = ask.claimed_by || authorSlug;
+  const markdown = buildAskMarkdown(ask, overrides, body);
+  let copied = false;
+  try {
+    if (window.api?.clipboardWrite) {
+      const res = await window.api.clipboardWrite(markdown);
+      copied = !res || res.ok !== false;
+    }
+  } catch {}
+  const launched = await launchPRFlow({ kind: "edit", path, value: markdown });
+  if (!launched.ok) {
+    askRowNote(el, `<span class="alch-onb-inline-tag">fork first</span> create your fork, then click again.`, "error");
+    return;
+  }
+  askRowNote(el, `
+    <span class="alch-onb-inline-tag">github opened</span>
+    ${copied
+      ? `replacement markdown copied — paste it over the file in github, then commit the ${escHtml(nextStatus)} update and create the PR.`
+      : `copy the replacement markdown below, paste it over the file in github, then commit the ${escHtml(nextStatus)} update and create the PR.`}
+    <a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen</a>
+    <details class="alch-asks-compose-preview">
+      <summary>replacement markdown</summary>
+      <pre class="alch-onb-inline-patch">${escHtml(markdown)}</pre>
+    </details>
+  `, "success");
+  const note = el?.closest?.(".alch-asks-card")?.querySelector?.("[data-asks-row-note]");
+  if (note) wireExternalLinks(note);
+}
+
+async function loadAskContextForCard(card, recordId) {
+  const panel = card?.querySelector?.("[data-asks-context-panel]");
+  if (!panel || !recordId) return null;
+  if (panel.dataset.loaded === "1") {
+    panel.hidden = false;
+    return panel;
+  }
+  panel.hidden = false;
+  panel.dataset.loaded = "0";
+  panel.innerHTML = `<span class="alch-onb-inline-tag">loading</span> reading context...`;
+  const body = cleanAskBody(await fetchExistingBody(askMarkdownPath(recordId)));
+  panel.dataset.loaded = "1";
+  panel.innerHTML = body
+    ? `<pre>${escHtml(body)}</pre>`
+    : `<span class="alch-onb-inline-tag">context</span> no extra context in this ask.`;
+  return panel;
 }
 
 // Compose-form submit. Reads verb/topic/skill_areas, derives a stable
@@ -3544,6 +3677,7 @@ async function submitAskCompose(form) {
   const verb       = String(form.elements.verb?.value || "🤝 pair on").trim();
   const topic      = String(form.elements.topic?.value || "").trim();
   const tagsRaw    = String(form.elements.skill_areas?.value || "").trim();
+  const bodyRaw    = String(form.elements.body?.value || "").trim();
   const result     = form.querySelector(".alch-asks-compose-result");
   if (!result) return;
 
@@ -3566,8 +3700,11 @@ async function submitAskCompose(form) {
 
   // Build the markdown body. quoteYaml + yamlScalar handle quoting + multiline.
   const tagsBlock = skillAreas.length
-    ? "skill_areas:\n" + skillAreas.map(s => `  - ${s}`).join("\n")
+    ? "skill_areas:\n" + skillAreas.map(s => `  - ${quoteYaml(s)}`).join("\n")
     : "skill_areas: []";
+  const bodyBlock = bodyRaw
+    ? `\n${bodyRaw}\n`
+    : "\n(optional body — extra context for the ask.)\n";
   const askMarkdown = `---
 record_id: ${recordId}
 record_type: ask
@@ -3578,10 +3715,7 @@ verb: ${quoteYaml(verb)}
 topic: ${yamlScalar(topic, 2)}
 ${tagsBlock}
 status: open
----
-
-(optional body — extra context for the ask.)
-`;
+---${bodyBlock}`;
   const filename = `cohort-data/asks/${recordId}.md`;
 
   // Fork-aware launch. needs-fork pops a modal; ready opens the URL on
@@ -3620,16 +3754,52 @@ function wireAsks() {
   // Compose form: build the full markdown content from the form values
   // and open github's /new/ URL with that content prefilled.
   for (const form of state.canvas.querySelectorAll("form.alch-asks-compose")) {
+    const verbInput = form.elements.verb;
+    const composeDetails = form.querySelector("[data-asks-compose-details]");
+    for (const b of form.querySelectorAll("[data-asks-verb]")) {
+      b.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (verbInput) verbInput.value = b.dataset.asksVerb || "";
+        form.querySelectorAll("[data-asks-verb]").forEach((x) => {
+          x.setAttribute("aria-pressed", x === b ? "true" : "false");
+        });
+        if (composeDetails) composeDetails.open = true;
+        if (!String(form.elements.topic?.value || "").trim()) {
+          requestAnimationFrame(() => form.elements.topic?.focus?.());
+        }
+      });
+    }
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       submitAskCompose(form);
     });
+    if (form.dataset.autofocus === "1") {
+      requestAnimationFrame(() => form.elements.topic?.focus?.());
+    }
   }
   for (const a of state.canvas.querySelectorAll(".alch-asks-action[data-asks-edit]")) {
     a.addEventListener("click", async (e) => {
       e.preventDefault();
       const slug = a.dataset.asksEdit;
       await launchPRFlow({ kind: "edit", path: `cohort-data/asks/${slug}.md` });
+    });
+  }
+  for (const b of state.canvas.querySelectorAll("[data-asks-claim]")) {
+    b.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await launchAskStatusUpdate(b, b.dataset.asksClaim, "claimed");
+    });
+  }
+  for (const b of state.canvas.querySelectorAll("[data-asks-done]")) {
+    b.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await launchAskStatusUpdate(b, b.dataset.asksDone, "done");
+    });
+  }
+  for (const row of state.canvas.querySelectorAll(".alch-asks-card[data-asks-record]")) {
+    row.addEventListener("toggle", () => {
+      if (row.open) loadAskContextForCard(row, row.dataset.asksRecord);
     });
   }
   // Inline jump to program → rules from the callout.
