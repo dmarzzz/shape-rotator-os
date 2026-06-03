@@ -122,19 +122,6 @@ export const CALENDAR_TRANSCRIPT_MATCHES = [
     ],
   },
   {
-    date: "2026-05-25",
-    title_contains: ["Andrew has office hours"],
-    section: "andrew office hours",
-    confidence: "needs-review",
-    sources: [
-      {
-        role: "transcript",
-        label: "office hours",
-        path: "apps/os/src/content/context/raw-scripts/Office Hours Transcript.txt",
-      },
-    ],
-  },
-  {
     date: "2026-05-26",
     title_contains: ["Project Intros", "Elocute", "Wikigen", "Crossroads"],
     section: "week 2 project intros",
