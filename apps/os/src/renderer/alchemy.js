@@ -43,6 +43,7 @@ import { getIdentity } from "./identity.js";
 // the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
 // "membrane" so the legacy modes stay reachable while we evaluate.
 import { mountMembrane } from "./membrane/index.js";
+import { renderIntel, wireIntel } from "./intel/intel.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const PROFILE_LS_KEY  = "srwk:profile_v1";
@@ -58,7 +59,7 @@ const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
 // once that integration lands; rather than rip out the code and re-write it
 // from git history, the surfaces are simply unwired. See the "feed off"
 // section below this constant for the disabled hooks.
-const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "collab", "calendar", "profile", "onboarding", "program", "asks", "context"];
+const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "intel", "collab", "calendar", "profile", "onboarding", "program", "asks", "context"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 
 const WEEKS_TOTAL = 10;
@@ -406,6 +407,7 @@ function render() {
     else if (state.mode === "shapes") renderShapes();
     else if (state.mode === "pulse") renderPulse();
     else if (state.mode === "constellation") renderConstellation();
+    else if (state.mode === "intel") renderIntel(state.canvas);
     else if (state.mode === "collab") renderCollab();
     else if (state.mode === "calendar") renderCalendar();
     else if (state.mode === "profile") renderProfile();
@@ -426,6 +428,7 @@ function render() {
       // Kick a feed refresh on entry; the timer keeps it warm in background.
       if (state.mode === "feed") refreshFeed({ source: "mode-enter" });
       if (state.mode === "constellation") wireConstellationHover();
+      if (state.mode === "intel") wireIntel(state.canvas);
       if (state.mode === "collab") wireCollab();
       if (state.mode === "calendar") wireCalendar();
       if (state.mode === "onboarding") wireOnboarding();

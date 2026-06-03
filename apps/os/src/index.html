@@ -15,6 +15,7 @@
     <!-- Membrane mode (2026-05 redesign). Scoped via .membrane-host so it
          doesn't leak into legacy alchemy modes. -->
     <link rel="stylesheet" href="renderer/membrane/membrane.css" />
+    <link rel="stylesheet" href="renderer/intel/intel.css" />
     <script type="importmap">
       {
         "imports": {
@@ -467,8 +468,13 @@
           </button>
           <!-- pulse retired 2026-05; renderer kept in alchemy.js until we have a real activity-over-time signal worth surfacing. -->
 
-          <button class="alchemy-rail-btn" data-alch-mode="constellation" type="button" aria-selected="false">
+          <button class="alchemy-rail-btn" data-alch-mode="intel" type="button" aria-selected="false">
             <span class="ar-num">02</span>
+            <span class="ar-label">intel</span>
+            <span class="ar-hint">vault-backed signals</span>
+          </button>
+          <button class="alchemy-rail-btn" data-alch-mode="constellation" type="button" aria-selected="false">
+            <span class="ar-num">✦</span>
             <span class="ar-label">constellation</span>
             <span class="ar-hint">shared edges</span>
           </button>
