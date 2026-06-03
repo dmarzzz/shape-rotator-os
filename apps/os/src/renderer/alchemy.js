@@ -32,6 +32,14 @@ import {
   parseWeekRow as calendarParseWeekRow,
   attachWeekViewBehavior as attachCalendarMobileBehavior,
 } from "@shape-rotator/shape-ui";
+import {
+  aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey,
+  constellationIndegree, constellationModel, teamKind, teamsOfKind,
+} from "./cohort-relations.js";
+import {
+  contextRawScriptById as findContextRawScriptById,
+  contextSourceById as findContextSourceById,
+} from "./context-vault-model.js";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
 import { enrichPeople } from "./gh-user.js";
@@ -39,11 +47,16 @@ import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from ".
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
 import { getIdentity } from "./identity.js";
+import {
+  askAgeLabel, askIsCurrent, askIsOpen, askStatus, askTopic, asksWithStatus,
+  isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
+} from "./asks.js";
 // Membrane mode — 2026-05 redesign. Pressurized-membrane object that replaces
 // the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
 // "membrane" so the legacy modes stay reachable while we evaluate.
 import { mountMembrane } from "./membrane/index.js";
 import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
+import { renderIntel, wireIntel } from "./intel/intel.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const PROFILE_LS_KEY  = "srwk:profile_v1";
@@ -59,7 +72,7 @@ const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
 // once that integration lands; rather than rip out the code and re-write it
 // from git history, the surfaces are simply unwired. See the "feed off"
 // section below this constant for the disabled hooks.
-const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "collab", "calendar", "profile", "onboarding", "program", "asks", "context"];
+const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "intel", "collab", "calendar", "profile", "onboarding", "program", "asks", "context"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 
 const WEEKS_TOTAL = 10;
@@ -91,11 +104,15 @@ const FEED_DISABLED = true;
 // to a separate repo (D4 from the spec walkthrough), update this.
 const COHORT_DATA_REPO = "https://github.com/dmarzzz/shape-rotator-os";
 const COHORT_DATA_BRANCH = "main";
+const COHORT_WEB_BASE_URL = "https://shape-rotator-os.vercel.app";
 function teamRecordEditUrl(record_id) {
   return `${COHORT_DATA_REPO}/edit/${COHORT_DATA_BRANCH}/cohort-data/teams/${record_id}.md`;
 }
 function teamRecordViewUrl(record_id) {
   return `${COHORT_DATA_REPO}/blob/${COHORT_DATA_BRANCH}/cohort-data/teams/${record_id}.md`;
+}
+function cohortRecordUrl(record_id) {
+  return `${COHORT_WEB_BASE_URL}/cohort#${encodeURIComponent(String(record_id || ""))}`;
 }
 
 const state = {
@@ -121,6 +138,7 @@ const state = {
   programPage: null,   // active program-handbook page slug (overview | success | rules | schedule)
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
+  openAskComposer: false, // one-shot landing state when membrane sends someone to post
   constellationMode: "clusters",  // "clusters" (shared cluster membership) | "dependencies" (team-asserted dependency edges)
   constellationLayout: "wells",    // "wells" (cluster-grouped grid) | "circle" (single ring — the original view)
   calendar: {                     // calendar tab state — see renderCalendar()
@@ -408,6 +426,7 @@ function render() {
     else if (state.mode === "shapes") renderShapes();
     else if (state.mode === "pulse") renderPulse();
     else if (state.mode === "constellation") renderConstellation();
+    else if (state.mode === "intel") renderIntel(state.canvas);
     else if (state.mode === "collab") renderCollab();
     else if (state.mode === "calendar") renderCalendar();
     else if (state.mode === "profile") renderProfile();
@@ -428,6 +447,7 @@ function render() {
       // Kick a feed refresh on entry; the timer keeps it warm in background.
       if (state.mode === "feed") refreshFeed({ source: "mode-enter" });
       if (state.mode === "constellation") wireConstellationHover();
+      if (state.mode === "intel") wireIntel(state.canvas);
       if (state.mode === "collab") wireCollab();
       if (state.mode === "calendar") wireCalendar();
       if (state.mode === "onboarding") wireOnboarding();
@@ -518,10 +538,11 @@ function todayGridEvents(cal) {
 // refresh via subscribeToCohortChanges → render() chain.
 function computeMembraneData() {
   const c = state.cohort || {};
-  const teams = Array.isArray(c.teams) ? c.teams : [];
-  const people = Array.isArray(c.people) ? c.people : [];
+  const cohortIndex = buildCohortIndex(c);
+  const teams = cohortIndex.teams;
+  const people = cohortIndex.people;
   const events = Array.isArray(c.events) ? c.events : [];
-  const asks = Array.isArray(c.asks) ? c.asks : [];
+  const asks = asksWithStatus(c.asks);
 
   // Pull the user's claimed identity from identity.js (the source of truth
   // — same module the top-right pill reads). Then resolve it to the full
@@ -531,26 +552,25 @@ function computeMembraneData() {
   let myRecord = null;
   if (identity?.record_id) {
     if (identity.kind === 'team') {
-      myRecord = teams.find((t) => t.record_id === identity.record_id) || null;
+      myRecord = cohortIndex.teamById.get(identity.record_id) || null;
     } else {
-      myRecord = people.find((p) => p.record_id === identity.record_id) || null;
+      myRecord = cohortIndex.personById.get(identity.record_id) || null;
     }
   }
   // Fallback for handle-based matching when the editor user is set but no
   // formal claim has been made yet.
-  const editorHandle = editorUser?.gh_handle || editorUser?.handle || null;
+  const editorHandle = editorUser?.github || editorUser?.gh_handle || editorUser?.handle || editorUser?.links?.github || null;
   if (!myRecord && editorHandle) {
-    const lc = editorHandle.toLowerCase();
+    const lc = normalizeAskIdentity(editorHandle);
     myRecord = people.find((p) =>
-      (p.links?.github || p.gh_handle || p.handle || '').toLowerCase() === lc);
+      normalizeAskIdentity(p.links?.github || p.gh_handle || p.handle || '') === lc);
   }
   const myHandle = (myRecord?.links?.github || myRecord?.gh_handle
                  || editorHandle || identity?.record_id || null);
 
-  const myAsks = myHandle
-    ? asks.filter((a) => (a?.owner || '').toLowerCase() === myHandle.toLowerCase()).length
-    : 0;
-  const openAsks = asks.filter((a) => (a?.status || 'open') === 'open').length;
+  const askIdentity = { identity, profileUser: editorUser, people };
+  const myAsks = asks.filter((a) => askIsCurrent(a) && isAskMine(a, askIdentity)).length;
+  const openAsks = asks.filter(askIsOpen).length;
 
   const now = Date.now();
   const DAY_MS = 24 * 60 * 60 * 1000;
@@ -615,10 +635,9 @@ function computeMembraneData() {
   // the self panel can render. Includes teammates (same team), members
   // of teams my team depends on, and people in shared synergy clusters.
   const connections = [];
-  const teamById = new Map(teams.map((t) => [t.record_id, t]));
   if (myRecord) {
     const myTeamId = myRecord.team || (myRecord.kind === 'team' ? myRecord.record_id : null);
-    const myTeam = myTeamId ? teamById.get(myTeamId) : null;
+    const myTeam = myTeamId ? cohortIndex.teamById.get(myTeamId) : null;
     const seen = new Set();
     const add = (person, edgeType, team) => {
       if (!person || person.record_id === myRecord.record_id) return;
@@ -635,25 +654,19 @@ function computeMembraneData() {
     };
     if (myTeam) {
       // Teammates
-      for (const p of people) {
-        if (p.team === myTeam.record_id) add(p, 'teammate', myTeam);
-      }
+      for (const p of cohortIndex.primaryPeopleByTeam.get(myTeam.record_id) || []) add(p, 'teammate', myTeam);
       // Dependency-team members
       const depIds = Array.isArray(myTeam.dependencies) ? myTeam.dependencies : [];
       for (const depId of depIds) {
-        const depTeam = teamById.get(depId);
+        const depTeam = cohortIndex.teamById.get(depId);
         if (!depTeam) continue;
-        for (const p of people) {
-          if (p.team === depId) add(p, 'depends on', depTeam);
-        }
+        for (const p of cohortIndex.primaryPeopleByTeam.get(depId) || []) add(p, 'depends on', depTeam);
       }
       // Reverse-dependency: teams that depend on mine
       for (const t of teams) {
         if (!Array.isArray(t.dependencies)) continue;
         if (!t.dependencies.includes(myTeam.record_id)) continue;
-        for (const p of people) {
-          if (p.team === t.record_id) add(p, 'depended by', t);
-        }
+        for (const p of cohortIndex.primaryPeopleByTeam.get(t.record_id) || []) add(p, 'depended by', t);
       }
     }
     // Cluster overlap — people in same synergy cluster as my team
@@ -664,10 +677,8 @@ function computeMembraneData() {
       if (!myTeam || !teamIds.includes(myTeam.record_id)) continue;
       for (const tid of teamIds) {
         if (tid === myTeam.record_id) continue;
-        const team = teamById.get(tid);
-        for (const p of people) {
-          if (p.team === tid) add(p, `cluster: ${cl.label || cl.name || cl.record_id}`, team);
-        }
+        const team = cohortIndex.teamById.get(tid);
+        for (const p of cohortIndex.primaryPeopleByTeam.get(tid) || []) add(p, `cluster: ${cl.label || cl.name || cl.record_id}`, team);
       }
     }
   }
@@ -688,7 +699,7 @@ function computeMembraneData() {
     role_class: myRecord.role_class,
     handle: ghHandle,
     bio: myRecord.bio || myRecord.description || myRecord.about || '',
-    kind: myRecord.kind || (teams.find((t) => t.record_id === myRecord.record_id) ? 'team' : 'person'),
+    kind: myRecord.kind || (cohortIndex.teamById.has(myRecord.record_id) ? 'team' : 'person'),
     links: myRecord.links || {},
     avatarUrl,
   } : (identity ? {
@@ -728,7 +739,8 @@ function computeMembraneData() {
       openAskCount: String(openAsks),
       myAskCount: String(myAsks),
       asksList: asks,
-      myHandle: myHandle || '',
+      peopleList: people,
+      askIdentity,
     },
   };
 }
@@ -743,6 +755,9 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   // dependencies / journey). Used by the cohort panel's view cards.
   if (mode === "constellation" && opts && opts.constellationMode) {
     state.constellationMode = opts.constellationMode;
+  }
+  if (mode === "asks" && opts && opts.openComposer) {
+    state.openAskComposer = true;
   }
   try { localStorage.setItem(ALCHEMY_LS_KEY, mode); } catch {}
   syncRailSelection();
@@ -1305,36 +1320,6 @@ function constDomainClass(d) {
   return CONST_DOMAIN_KEYS.includes(k) ? k : "other";
 }
 
-// Dependency in-degree: how many OTHER teams name this team in their
-// self-asserted dependencies[]. Drives node size (keystones grow).
-function constellationIndegree(teams) {
-  const have = new Set(teams.map(t => t.record_id));
-  const ind = new Map(teams.map(t => [t.record_id, 0]));
-  for (const t of teams) {
-    for (const dep of (Array.isArray(t.dependencies) ? t.dependencies : [])) {
-      if (dep !== t.record_id && have.has(dep)) ind.set(dep, ind.get(dep) + 1);
-    }
-  }
-  return ind;
-}
-
-// Assign each team a primary cluster (first cluster that lists it), build
-// the cluster "wells", and compute in-degree.
-function constellationModel(teams, clusters) {
-  const byRecordId = new Map(teams.map(t => [t.record_id, t]));
-  const primary = new Map();
-  const wellsDef = [];
-  for (const cl of (clusters || [])) {
-    const members = (cl.teams || []).filter(rid => byRecordId.has(rid) && !primary.has(rid));
-    if (!members.length) continue;
-    members.forEach(rid => primary.set(rid, cl.record_id));
-    wellsDef.push({ id: cl.record_id || cl.name, label: cl.label || cl.name || "cluster", members });
-  }
-  const orphans = teams.filter(t => !primary.has(t.record_id)).map(t => t.record_id);
-  if (orphans.length) wellsDef.push({ id: "_other", label: "other", members: orphans });
-  return { byRecordId, wellsDef, indegree: constellationIndegree(teams) };
-}
-
 // Lay wells out on an adaptive grid (favoring more columns on the wide
 // canvas) so they never overlap regardless of cluster count, then place
 // each well's teams: keystone (highest in-degree) at the centre, the rest
@@ -1853,8 +1838,9 @@ function wireConstellationHover() {
     // FIXED-HEIGHT line — never the callout, whose reflow used to shrink the
     // flex stage, move the node out from under the cursor, and flicker.
     const hoverEl = state.canvas.querySelector("[data-ac-hoverline]");
-    const teamById = new Map((state.cohort?.teams || []).map(t => [t.record_id, t]));
-    const indeg = constellationIndegree(state.cohort?.teams || []);
+    const cohortIndex = buildCohortIndex(state.cohort);
+    const teamById = cohortIndex.teamById;
+    const indeg = constellationIndegree(cohortIndex.teams);
     for (const g of groups) {
       const rid = g.dataset.recordId;
       g.addEventListener("mouseenter", () => {
@@ -1870,7 +1856,7 @@ function wireConstellationHover() {
     }
     // Journey scatterplot nodes: hover → tooltip, click → drawer.
     const tip = stage.querySelector(".alch-journey-tip");
-    const byId = new Map((state.cohort?.teams || []).map(t => [t.record_id, t]));
+    const byId = cohortIndex.teamById;
     for (const node of stage.querySelectorAll(".ac-jnode")) {
       const rid = node.dataset.recordId;
       node.addEventListener("mouseenter", () => showJourneyTip(stage, tip, byId.get(rid)));
@@ -2383,8 +2369,8 @@ function toggleOnboardingDone(key) {
 }
 
 function renderOnboarding() {
-  const people  = state.cohort?.people || [];
-  const teams   = state.cohort?.teams  || [];
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const people = cohortIndex.people;
   const p       = state.profile || {};
   // Best-effort identity: prefer an explicit profile.user.record_id, else
   // match by github handle, else nothing. Onboarding doesn't require this
@@ -2395,7 +2381,7 @@ function renderOnboarding() {
     (meId && pp.record_id === meId) ||
     (meGh && (pp.links?.github || "").toLowerCase() === meGh)
   ) || null;
-  const myTeam = me ? teams.find(t => t.record_id === me.team) : null;
+  const myTeam = cohortIndex.teamForPerson(me);
 
   // Two sources of "complete":
   //   1. Auto-detect: the underlying field exists in the cohort surface.
@@ -2848,8 +2834,9 @@ async function submitOnboardingInline(form) {
   const cohort = state.cohort;
   let baseline = null;
   if (cohort) {
-    if (recordKind === "person") baseline = (cohort.people || []).find(r => r.record_id === recordId);
-    else baseline = (cohort.teams || []).find(r => r.record_id === recordId);
+    const cohortIndex = buildCohortIndex(cohort);
+    if (recordKind === "person") baseline = cohortIndex.personById.get(recordId);
+    else baseline = cohortIndex.teamById.get(recordId);
   }
   if (!baseline) {
     result.hidden = false;
@@ -3233,40 +3220,8 @@ function wireProgram() {
 // the audit trail is preserved).
 //
 // Sensitivity: this surface intentionally has NO leaderboard, NO claim
-// count, NO "endorsement" mechanic, NO algorithm matching. Filter +
-// browse + open-the-author's-dm. See program/rules.md anti-patterns.
-
-const ASK_EXPIRY_DAYS = 5;
-
-function asksWithStatus() {
-  const all = (state.cohort?.asks || []).slice();
-  const todayMs = Date.now();
-  return all.map(a => {
-    const posted = isoToDate(a.posted_at);
-    // When posted_at is missing or unparseable, treat the ask as
-    // "undated" (age=null) rather than "ancient" (age=999). The
-    // previous default flagged every undated ask as expired —
-    // visible as cohort posts faded out in the "fading" section
-    // because their posted_at was empty in the seed data.
-    const ageDays = posted
-      ? Math.floor((todayMs - posted.getTime()) / 86400000)
-      : null;
-    const expired = ageDays != null && ageDays >= ASK_EXPIRY_DAYS;
-    return { ...a, _ageDays: ageDays, _expired: expired };
-  }).sort((a, b) => {
-    // Open + recent first; expired drift to the bottom.
-    if (a._expired !== b._expired) return a._expired ? 1 : -1;
-    // Undated asks (ageDays === null) sort to the top of their group
-    // since we can't position them by age — treat as fresh.
-    const aAge = a._ageDays == null ? 0 : a._ageDays;
-    const bAge = b._ageDays == null ? 0 : b._ageDays;
-    return aAge - bAge;
-  });
-}
-
-function personByRecordId(rid) {
-  return (state.cohort?.people || []).find(p => p.record_id === rid) || null;
-}
+// count, NO "endorsement" mechanic, NO algorithm matching. Keep the
+// interaction to post, claim, finish, and contact the author.
 
 function dmLinkForPerson(p) {
   // Preference order: telegram > x > website > github > email.
@@ -3281,6 +3236,16 @@ function dmLinkForPerson(p) {
   return null;
 }
 
+function currentAskContext() {
+  const people = state.cohort?.people || [];
+  const me = state.profile?.user || {};
+  const askIdentity = { identity: getIdentity(), profileUser: me, people };
+  const myPerson = resolveAskIdentityPerson(askIdentity);
+  const myHandle = normalizeAskIdentity(me.github || me.gh_handle || me.handle || me.links?.github);
+  const authorSlug = myPerson?.record_id || me.record_id || (myHandle ? myHandle : "your-slug");
+  return { people, me, askIdentity, myPerson, myHandle, authorSlug };
+}
+
 // ─── cohort collaboration board (ported from the dossier Connections) ─
 // Standing seek↔offer matchmaking across teams, fed ENTIRELY from public
 // self-asserted cohort-surface fields (dependencies / seeking / offering /
@@ -3288,79 +3253,6 @@ function dmLinkForPerson(p) {
 // 'shared_papers' scores are NOT used — affinity is recomputed from shared
 // skill_areas (+ self-declared pair_with), and intros from public
 // seeking↔offering term overlap, shown as chips so every match is legible.
-const COLLAB_STOP = new Set(("a an and the to of for with in on at or be is are am was were we our us you your yours i me my mine they them their it its this that these those as by from into about over under more most less few many much can could should would will may might want wants wanted need needs needed looking look able build building built make making made get gets help helps using use used via across other others team teams project projects cohort people person folks who whom what when where why how do does done also like just very real new use").split(/\s+/));
-function collabTokens(val) {
-  const out = new Set();
-  const arr = Array.isArray(val) ? val : [val];
-  for (const s of arr) String(s == null ? "" : s).toLowerCase().split(/[^a-z0-9+]+/).forEach(w => {
-    if (w.length >= 3 && !COLLAB_STOP.has(w)) out.add(w);
-  });
-  return out;
-}
-const collabInter = (a, b) => { const o = []; for (const x of a) if (b.has(x)) o.push(x); return o; };
-const collabAffKey = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
-
-// Build the matchmaking model from public fields only. Reuses the map's
-// constellationModel for cluster grouping + in-degree so the two surfaces
-// agree on cluster membership and keystones.
-function collabModel(teams, clusters) {
-  const base = constellationModel(teams, clusters);
-  const ordered = [];
-  for (const w of base.wellsDef) {
-    const mem = w.members.slice().sort((a, b) => (base.indegree.get(b) || 0) - (base.indegree.get(a) || 0));
-    for (const rid of mem) {
-      const team = base.byRecordId.get(rid);
-      if (team) ordered.push({ rid, team, clusterId: w.id, clusterLabel: w.label });
-    }
-  }
-  const seekSet = new Map(), offerSet = new Map(), skillSet = new Map();
-  for (const { rid, team } of ordered) {
-    const skills = new Set((team.skill_areas || []).map(s => String(s).toLowerCase()));
-    skillSet.set(rid, skills);
-    seekSet.set(rid, collabTokens(team.seeking));
-    const off = collabTokens(team.offering);
-    for (const s of skills) off.add(s); // what a team HAS is part of what it can offer
-    offerSet.set(rid, off);
-  }
-  // directed dependency edges
-  const deps = new Set();
-  for (const { rid, team } of ordered)
-    for (const d of (team.dependencies || [])) if (base.byRecordId.has(d) && d !== rid) deps.add(rid + ">" + d);
-  // seek (row) → offer (col) matches, directed
-  const seekOffer = [];
-  const soByPair = new Map();
-  for (const A of ordered) for (const B of ordered) {
-    if (A.rid === B.rid) continue;
-    const shared = collabInter(seekSet.get(A.rid), offerSet.get(B.rid));
-    if (!shared.length) continue;
-    const rec = { seeker: A.rid, offerer: B.rid, seekerName: A.team.name, offererName: B.team.name,
-      seeking: (A.team.seeking || [])[0] || "", offering: (B.team.offering || [])[0] || "",
-      shared, score: shared.length };
-    seekOffer.push(rec);
-    soByPair.set(A.rid + ">" + B.rid, rec);
-  }
-  // affinity (undirected): shared skill_areas (+ self-declared pair_with)
-  const aff = new Map();
-  for (let i = 0; i < ordered.length; i++) for (let j = i + 1; j < ordered.length; j++) {
-    const A = ordered[i], B = ordered[j];
-    const shared = collabInter(skillSet.get(A.rid), skillSet.get(B.rid));
-    const endorsed = (Array.isArray(A.team.pair_with) && A.team.pair_with.includes(B.rid))
-      || (Array.isArray(B.team.pair_with) && B.team.pair_with.includes(A.rid));
-    if (!shared.length && !endorsed) continue;
-    aff.set(collabAffKey(A.rid, B.rid), { a: A.rid, b: B.rid, aName: A.team.name, bName: B.team.name, shared, endorsed });
-  }
-  // convergence: skill_areas shared by ≥3 teams
-  const conv = new Map();
-  for (const { team } of ordered) for (const s of (team.skill_areas || [])) {
-    const k = String(s).toLowerCase();
-    (conv.get(k) || conv.set(k, []).get(k)).push(team.name);
-  }
-  const convergence = [...conv.entries()].filter(([, t]) => t.length >= 3)
-    .map(([skill, names]) => ({ skill, teams: names, count: names.length }))
-    .sort((a, b) => b.count - a.count || a.skill.localeCompare(b.skill));
-  return { ordered, deps, seekOffer, soByPair, aff, convergence, indegree: base.indegree };
-}
-
 function collabCell(R, C, ri, ci, m) {
   if (R.rid === C.rid) return `<div class="cb-cell cb-diag" data-row="${ri}" data-col="${ci}" aria-hidden="true"></div>`;
   const dep = m.deps.has(R.rid + ">" + C.rid);
@@ -3381,7 +3273,7 @@ function renderCollab() {
     state.canvas.innerHTML = `<header class="alch-cb-head"><h2 class="alch-cb-title">collaboration board</h2></header><p class="alch-callout">no team data yet.</p>`;
     return;
   }
-  const m = collabModel(teams, clusters);
+  const m = buildCollabModel(teams, clusters);
   const ordered = m.ordered;
   const N = ordered.length;
   const colN = `--cb-cols:${N}`;
@@ -3421,7 +3313,7 @@ function renderCollab() {
   const intros = [...introByPair.values()].sort((a, b) => b.score - a.score).slice(0, 12);
   const introCards = intros.map(s => {
     const chips = s.shared.slice(0, 5).map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("");
-    return `<article class="cb-intro" data-collab-open="${escAttr(s.offerer)}">
+    return `<article class="cb-intro" data-collab-cohort-open="${escAttr(s.offerer)}" role="link" tabindex="0" title="${escAttr(`open ${s.offererName || s.offerer} on the cohort page`)}">
       <div class="cb-intro-flow">
         <div class="cb-intro-side"><span class="cb-intro-role">needs</span><span class="cb-intro-team">${escHtml(s.seekerName)}</span>${s.seeking ? `<span class="cb-intro-text">${escHtml(s.seeking)}</span>` : ""}</div>
         <div class="cb-intro-arrow" aria-hidden="true">→</div>
@@ -3472,6 +3364,19 @@ function renderCollab() {
 }
 
 function wireCollab() {
+  for (const el of state.canvas.querySelectorAll("[data-collab-cohort-open]")) {
+    const activate = (event) => {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      const rid = el.getAttribute("data-collab-cohort-open");
+      if (!rid) return;
+      try { window.api?.openExternal?.(cohortRecordUrl(rid)); } catch {}
+    };
+    el.addEventListener("click", activate);
+    el.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") activate(event);
+    });
+  }
   for (const el of state.canvas.querySelectorAll("[data-collab-open]")) {
     el.addEventListener("click", () => { const rid = el.getAttribute("data-collab-open"); if (rid) openDrawer(rid); });
   }
@@ -3493,72 +3398,85 @@ function wireCollab() {
 }
 
 function renderAsks() {
-  const asks = asksWithStatus();
-  const me = state.profile?.user || {};
-  const myHandle = String(me.github || "").toLowerCase();
-  const myAuthorId = me.record_id || null;
+  const asks = asksWithStatus(state.cohort?.asks);
+  const { people, askIdentity, myHandle, authorSlug } = currentAskContext();
 
-  if (asks.length === 0) {
-    state.canvas.innerHTML = `
-      <header class="alch-asks-head">
-        <h2 class="alch-asks-title">asks</h2>
-        <p class="alch-asks-sub">verb-first pair-requests. 5-day expiry. tap-to-claim opens the author's DM.</p>
-      </header>
-      <p class="alch-callout">no asks yet. <strong>post one</strong> by creating a markdown file under <code>cohort-data/asks/</code> via the same PR flow as your profile.</p>
-    `;
-    return;
-  }
-
-  const open    = asks.filter(a => !a._expired && (a.status || "open") === "open");
-  const claimed = asks.filter(a => !a._expired && a.status === "claimed");
-  const done    = asks.filter(a => !a._expired && a.status === "done");
-  const expired = asks.filter(a => a._expired);
+  const open = asks.filter(askIsOpen);
+  const closed = asks.filter(a => !askIsOpen(a));
 
   const renderAsk = (a) => {
-    const author = personByRecordId(a.author);
-    const authorLabel = author ? (author.name || author.record_id) : a.author;
+    const author = resolveAskAuthor(a, people);
+    const authorLabel = author ? (author.name || author.record_id) : (a.author || a.owner || "unknown");
     const dm = dmLinkForPerson(author);
     const chips = (a.skill_areas || []).map(s => `<span class="alch-asks-chip">${escHtml(s)}</span>`).join("");
-    const isMine = (a.author === myAuthorId) || (author && String(author.links?.github || "").toLowerCase() === myHandle);
-    const ageLabel = a._ageDays == null ? "—"
-                   : a._ageDays === 0 ? "today"
-                   : a._ageDays === 1 ? "1 day ago"
-                   : `${a._ageDays} days ago`;
-    const statusBadge = a.status === "claimed" ? `<span class="alch-asks-status alch-asks-status-claimed">claimed</span>`
-                      : a.status === "done"    ? `<span class="alch-asks-status alch-asks-status-done">done</span>`
+    const isMine = isAskMine(a, askIdentity);
+    const claimedByMe = a.claimed_by ? isAskMine({ author: a.claimed_by }, askIdentity) : false;
+    const ageLabel = askAgeLabel(a) || "—";
+    const status = askStatus(a);
+    const verb = String(a.verb || "ask").trim();
+    const verbGlyph = Array.from(verb)[0] || "·";
+    const verbLabel = Array.from(verb).slice(1).join("").trim() || verb;
+    const statusBadge = status === "claimed" ? `<span class="alch-asks-status alch-asks-status-claimed">claimed</span>`
+                      : status === "done"    ? `<span class="alch-asks-status alch-asks-status-done">done</span>`
+                      : a._expired           ? `<span class="alch-asks-status alch-asks-status-fading">fading</span>`
                       : "";
-    const action = isMine
-      ? `<a class="alch-asks-action alch-asks-action-edit" data-asks-edit="${escAttr(a.record_id)}" href="#">edit</a>`
-      : (dm
-          ? `<a class="alch-asks-action" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)} →</a>`
-          : `<span class="alch-asks-action alch-asks-action-disabled">no contact link on author</span>`);
+    const topic = askTopic(a) || "untitled ask";
+    const actions = [];
+    if (isMine && status !== "done") {
+      actions.push(`<a class="alch-asks-action alch-asks-action-primary alch-asks-action-edit" data-asks-edit="${escAttr(a.record_id)}" href="#">edit</a>`);
+    } else if (status === "open" && !a._expired) {
+      if (authorSlug !== "your-slug") {
+        actions.push(`<button class="alch-asks-action alch-asks-action-primary" type="button" data-asks-claim="${escAttr(a.record_id)}">claim</button>`);
+      } else if (dm) {
+        actions.push(`<a class="alch-asks-action alch-asks-action-primary" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)} →</a>`);
+      } else {
+        actions.push(`<span class="alch-asks-action alch-asks-action-disabled">claim needs profile</span>`);
+      }
+    } else if (status === "claimed" && (claimedByMe || isMine)) {
+      actions.push(`<button class="alch-asks-action alch-asks-action-primary" type="button" data-asks-done="${escAttr(a.record_id)}">done</button>`);
+    }
+    if (dm && !isMine && status !== "done") {
+      actions.push(`<a class="alch-asks-action alch-asks-action-secondary" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)}</a>`);
+    }
+    const actionsMarkup = actions.length
+      ? `<div class="alch-asks-actions">${actions.join("")}</div>`
+      : "";
     return `
-      <article class="alch-asks-card" data-expired="${a._expired ? "1" : "0"}">
-        <div class="alch-asks-verb">${escHtml(a.verb || "·")}</div>
-        <div class="alch-asks-body">
-          <div class="alch-asks-topic">${escHtml(a.topic || "")}</div>
-          <div class="alch-asks-meta">
-            <span class="alch-asks-author">${escHtml(authorLabel)}</span>
-            <span class="alch-asks-sep">·</span>
-            <span class="alch-asks-when">${escHtml(ageLabel)}</span>
-            ${statusBadge}
-          </div>
+      <details class="alch-asks-card" data-expired="${a._expired ? "1" : "0"}" data-asks-record="${escAttr(a.record_id)}">
+        <summary class="alch-asks-summary">
+          <span class="alch-asks-verb" title="${escAttr(verb)}" aria-label="${escAttr(verbLabel)}">${escHtml(verbGlyph)}</span>
+          <span class="alch-asks-body">
+            <span class="alch-asks-topic" title="${escAttr(topic)}">${escHtml(topic)}</span>
+            <span class="alch-asks-meta">
+              <span class="alch-asks-author">${escHtml(authorLabel)}</span>
+              <span class="alch-asks-sep">·</span>
+              <span class="alch-asks-when">${escHtml(ageLabel)}</span>
+              ${statusBadge}
+            </span>
+          </span>
+          <span class="alch-asks-row-caret" aria-hidden="true"></span>
+        </summary>
+        <div class="alch-asks-expanded">
           ${chips ? `<div class="alch-asks-chips">${chips}</div>` : ""}
+          <div class="alch-asks-context" data-asks-context-panel hidden></div>
+          ${actionsMarkup}
+          <div class="alch-asks-row-note" data-asks-row-note hidden></div>
         </div>
-        <div class="alch-asks-actions">${action}</div>
-      </article>
+      </details>
     `;
   };
 
-  const section = (title, list, extraNote = "") => list.length === 0 ? "" : `
-    <section class="alch-asks-section">
-      <header class="alch-asks-section-head">
+  const section = (title, list, emptyText) => `
+    <details class="alch-asks-section" open>
+      <summary class="alch-asks-section-head">
+        <span class="alch-asks-section-caret" aria-hidden="true"></span>
         <h3 class="alch-asks-section-title">${escHtml(title)}</h3>
         <span class="alch-asks-section-count">${list.length}</span>
-        ${extraNote ? `<span class="alch-asks-section-note">${escHtml(extraNote)}</span>` : ""}
-      </header>
-      <div class="alch-asks-list">${list.map(renderAsk).join("")}</div>
-    </section>
+      </summary>
+      ${list.length
+        ? `<div class="alch-asks-list">${list.map(renderAsk).join("")}</div>`
+        : `<p class="alch-asks-empty">${escHtml(emptyText)}</p>`}
+    </details>
   `;
 
   // Author slug: prefer the cohort-resolved person record_id (so the
@@ -3567,7 +3485,6 @@ function renderAsks() {
   // the github web editor. (Old code injected a stale branch name here;
   // both /new/ and /edit/ now target `main`.)
   const todayIso = new Date().toISOString().slice(0, 10);
-  const authorSlug = myAuthorId || (myHandle ? myHandle : "your-slug");
 
   // Common verbs the compose form offers as quick picks. Stays in code
   // (not cohort-data) since it's a tiny vocab that drives nothing else.
@@ -3579,50 +3496,185 @@ function renderAsks() {
     "📣 looking for",
     "🪛 help me debug",
   ];
+  const askVerbPills = ASK_VERB_OPTIONS.map((v, i) => `
+    <button class="alch-asks-verb-pill" type="button" data-asks-verb="${escAttr(v)}" aria-pressed="${i === 0 ? "true" : "false"}">
+      ${escHtml(v)}
+    </button>
+  `).join("");
+  const openComposer = state.openAskComposer === true;
+  state.openAskComposer = false;
 
   state.canvas.innerHTML = `
     <header class="alch-asks-head">
       <h2 class="alch-asks-title">asks</h2>
-      <p class="alch-asks-sub">verb-first pair-requests · 5-day expiry · tap-to-claim opens the author's DM</p>
     </header>
 
-    <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}">
-      <header class="alch-asks-compose-head">
-        <span class="alch-asks-compose-title">post an ask</span>
-        <span class="alch-asks-compose-sub">submit opens a github PR to add this file under <code>cohort-data/asks/</code></span>
-      </header>
-      <div class="alch-asks-compose-grid">
-        <label class="alch-asks-compose-field alch-asks-compose-verb">
-          <span class="alch-asks-compose-label">verb</span>
-          <select name="verb" class="alch-asks-compose-input">
-            ${ASK_VERB_OPTIONS.map(v => `<option value="${escAttr(v)}">${escHtml(v)}</option>`).join("")}
-          </select>
-        </label>
-        <label class="alch-asks-compose-field alch-asks-compose-topic">
-          <span class="alch-asks-compose-label">topic</span>
-          <textarea name="topic" rows="2" class="alch-asks-compose-input"
-                    placeholder="fuzzing the AMM contract — would love 30 min with someone who's done property testing"></textarea>
-        </label>
-        <label class="alch-asks-compose-field alch-asks-compose-tags">
-          <span class="alch-asks-compose-label">tags <span class="alch-asks-compose-hint">(comma-separated, from cohort vocab if you can)</span></span>
-          <input name="skill_areas" type="text" class="alch-asks-compose-input" placeholder="tee, dstack, attestation" />
-        </label>
-      </div>
-      <div class="alch-asks-compose-row">
-        <button class="alch-feed-btn alch-asks-compose-submit" type="submit">submit → open PR</button>
-        <span class="alch-asks-compose-author">posting as <strong>${escHtml(authorSlug)}</strong>${myHandle && authorSlug !== myHandle ? ` · @${escHtml(myHandle)}` : ""}</span>
-      </div>
-      <div class="alch-asks-compose-result" hidden></div>
+    <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}" data-autofocus="${openComposer ? "1" : "0"}">
+      <details class="alch-asks-compose-shell" data-asks-compose-details${openComposer ? " open" : ""}>
+        <summary class="alch-asks-compose-head">
+          <span class="alch-asks-compose-title">post an ask</span>
+          <span class="alch-asks-verb-pills" role="group" aria-label="ask type">
+            ${askVerbPills}
+          </span>
+          <span class="alch-asks-compose-caret" aria-hidden="true"></span>
+        </summary>
+        <input type="hidden" name="verb" value="${escAttr(ASK_VERB_OPTIONS[0])}" />
+        <div class="alch-asks-compose-body">
+          <div class="alch-asks-compose-grid">
+            <label class="alch-asks-compose-field alch-asks-compose-topic">
+              <span class="alch-asks-compose-label">topic</span>
+              <textarea name="topic" rows="2" class="alch-asks-compose-input"
+                        placeholder="fuzzing the AMM contract — would love 30 min with someone who's done property testing"></textarea>
+            </label>
+            <label class="alch-asks-compose-field alch-asks-compose-tags">
+              <span class="alch-asks-compose-label">tags <span class="alch-asks-compose-hint">(comma-separated, from cohort vocab if you can)</span></span>
+              <input name="skill_areas" type="text" class="alch-asks-compose-input" placeholder="tee, dstack, attestation" />
+            </label>
+            <details class="alch-asks-compose-context">
+              <summary>add context</summary>
+              <label class="alch-asks-compose-field">
+                <span class="alch-asks-compose-label">context</span>
+                <textarea name="body" rows="3" class="alch-asks-compose-input" placeholder="links, constraints, what you've tried"></textarea>
+              </label>
+            </details>
+          </div>
+          <div class="alch-asks-compose-row">
+            <button class="alch-feed-btn alch-asks-compose-submit" type="submit">submit → open PR</button>
+            <span class="alch-asks-compose-author">posting as <strong>${escHtml(authorSlug)}</strong>${myHandle && authorSlug !== myHandle ? ` · @${escHtml(myHandle)}` : ""}</span>
+          </div>
+          <div class="alch-asks-compose-result" hidden></div>
+        </div>
+      </details>
     </form>
 
-    ${section("open", open)}
-    ${section("claimed", claimed, "in flight")}
-    ${section("done", done, "wrap-up only")}
-    ${section("fading", expired, "past the 5-day window")}
+    ${section("open", open, "no open asks.")}
 
-    <p class="alch-callout"><strong>asks · v0.2</strong><br/>
-    posts are markdown under <code>cohort-data/asks/</code>. expiry is renderer-side — files stay so the audit trail is preserved. no claim count, no leaderboard, no algorithm. filter + browse + DM. see <button class="alch-link-btn" data-go="program" data-program-page="rules">program · rules</button> for the anti-patterns we left out.</p>
+    ${section("closed", closed, "nothing closed yet.")}
   `;
+}
+
+function askMarkdownPath(recordId) {
+  return `cohort-data/asks/${recordId}.md`;
+}
+
+function askPostedDate(ask) {
+  const raw = String(ask?.posted_at || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+  return raw ? raw[0] : new Date().toISOString().slice(0, 10);
+}
+
+function askTagsBlock(skillAreas) {
+  const tags = (Array.isArray(skillAreas) ? skillAreas : [])
+    .map(s => String(s).trim())
+    .filter(Boolean);
+  return tags.length
+    ? "skill_areas:\n" + tags.map(s => `  - ${quoteYaml(s)}`).join("\n")
+    : "skill_areas: []";
+}
+
+function askBodyOrPlaceholder(body) {
+  if (body == null) return "\n(optional body — extra context for the ask.)\n";
+  const s = String(body);
+  return s.startsWith("\n") ? s : `\n${s}`;
+}
+
+function buildAskMarkdown(ask, overrides = {}, body = null) {
+  const merged = { ...ask, ...overrides };
+  const claimedBy = String(merged.claimed_by || "").trim();
+  return `---
+record_id: ${merged.record_id}
+record_type: ask
+schema_version: ${merged.schema_version || 1}
+posted_at: ${askPostedDate(merged)}
+author: ${quoteYaml(merged.author || "your-slug")}
+verb: ${quoteYaml(merged.verb || "🤝 pair on")}
+topic: ${yamlScalar(askTopic(merged) || "untitled ask", 2)}
+${askTagsBlock(merged.skill_areas)}
+status: ${quoteYaml(askStatus(merged))}
+${claimedBy ? `claimed_by: ${quoteYaml(claimedBy)}\n` : ""}---${askBodyOrPlaceholder(body)}`;
+}
+
+function cleanAskBody(body) {
+  const s = String(body || "").trim();
+  if (!s) return "";
+  if (/^\(optional body\s+—\s+extra context for the ask\.\)$/i.test(s)) return "";
+  if (/^\(this is a seed example so the asks tab isn't empty/i.test(s)) return "";
+  return s;
+}
+
+function findRenderedAsk(recordId) {
+  return asksWithStatus(state.cohort?.asks).find(a => a.record_id === recordId) || null;
+}
+
+function askRowNote(el, html, kind = "info") {
+  const card = el?.closest?.(".alch-asks-card");
+  const note = card?.querySelector?.("[data-asks-row-note]");
+  if (!note) return;
+  note.hidden = false;
+  note.dataset.kind = kind;
+  note.innerHTML = html;
+}
+
+async function launchAskStatusUpdate(el, recordId, nextStatus) {
+  const ask = findRenderedAsk(recordId);
+  if (!ask) {
+    askRowNote(el, `<span class="alch-onb-inline-tag">missing</span> ask record not found.`, "error");
+    return;
+  }
+  const { authorSlug } = currentAskContext();
+  if (authorSlug === "your-slug") {
+    askRowNote(el, `<span class="alch-onb-inline-tag">profile</span> claim your profile before changing ask status.`, "error");
+    return;
+  }
+  const path = askMarkdownPath(recordId);
+  askRowNote(el, `<span class="alch-onb-inline-tag">preparing</span> building status update...`);
+  const body = await fetchExistingBody(path);
+  const overrides = { status: nextStatus };
+  if (nextStatus === "claimed") overrides.claimed_by = authorSlug;
+  if (nextStatus === "done") overrides.claimed_by = ask.claimed_by || authorSlug;
+  const markdown = buildAskMarkdown(ask, overrides, body);
+  let copied = false;
+  try {
+    if (window.api?.clipboardWrite) {
+      const res = await window.api.clipboardWrite(markdown);
+      copied = !res || res.ok !== false;
+    }
+  } catch {}
+  const launched = await launchPRFlow({ kind: "edit", path, value: markdown });
+  if (!launched.ok) {
+    askRowNote(el, `<span class="alch-onb-inline-tag">fork first</span> create your fork, then click again.`, "error");
+    return;
+  }
+  askRowNote(el, `
+    <span class="alch-onb-inline-tag">github opened</span>
+    ${copied
+      ? `replacement markdown copied — paste it over the file in github, then commit the ${escHtml(nextStatus)} update and create the PR.`
+      : `copy the replacement markdown below, paste it over the file in github, then commit the ${escHtml(nextStatus)} update and create the PR.`}
+    <a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen</a>
+    <details class="alch-asks-compose-preview">
+      <summary>replacement markdown</summary>
+      <pre class="alch-onb-inline-patch">${escHtml(markdown)}</pre>
+    </details>
+  `, "success");
+  const note = el?.closest?.(".alch-asks-card")?.querySelector?.("[data-asks-row-note]");
+  if (note) wireExternalLinks(note);
+}
+
+async function loadAskContextForCard(card, recordId) {
+  const panel = card?.querySelector?.("[data-asks-context-panel]");
+  if (!panel || !recordId) return null;
+  if (panel.dataset.loaded === "1") {
+    panel.hidden = false;
+    return panel;
+  }
+  panel.hidden = false;
+  panel.dataset.loaded = "0";
+  panel.innerHTML = `<span class="alch-onb-inline-tag">loading</span> reading context...`;
+  const body = cleanAskBody(await fetchExistingBody(askMarkdownPath(recordId)));
+  panel.dataset.loaded = "1";
+  panel.innerHTML = body
+    ? `<pre>${escHtml(body)}</pre>`
+    : `<span class="alch-onb-inline-tag">context</span> no extra context in this ask.`;
+  return panel;
 }
 
 // Compose-form submit. Reads verb/topic/skill_areas, derives a stable
@@ -3635,6 +3687,7 @@ async function submitAskCompose(form) {
   const verb       = String(form.elements.verb?.value || "🤝 pair on").trim();
   const topic      = String(form.elements.topic?.value || "").trim();
   const tagsRaw    = String(form.elements.skill_areas?.value || "").trim();
+  const bodyRaw    = String(form.elements.body?.value || "").trim();
   const result     = form.querySelector(".alch-asks-compose-result");
   if (!result) return;
 
@@ -3657,8 +3710,11 @@ async function submitAskCompose(form) {
 
   // Build the markdown body. quoteYaml + yamlScalar handle quoting + multiline.
   const tagsBlock = skillAreas.length
-    ? "skill_areas:\n" + skillAreas.map(s => `  - ${s}`).join("\n")
+    ? "skill_areas:\n" + skillAreas.map(s => `  - ${quoteYaml(s)}`).join("\n")
     : "skill_areas: []";
+  const bodyBlock = bodyRaw
+    ? `\n${bodyRaw}\n`
+    : "\n(optional body — extra context for the ask.)\n";
   const askMarkdown = `---
 record_id: ${recordId}
 record_type: ask
@@ -3669,10 +3725,7 @@ verb: ${quoteYaml(verb)}
 topic: ${yamlScalar(topic, 2)}
 ${tagsBlock}
 status: open
----
-
-(optional body — extra context for the ask.)
-`;
+---${bodyBlock}`;
   const filename = `cohort-data/asks/${recordId}.md`;
 
   // Fork-aware launch. needs-fork pops a modal; ready opens the URL on
@@ -3711,16 +3764,52 @@ function wireAsks() {
   // Compose form: build the full markdown content from the form values
   // and open github's /new/ URL with that content prefilled.
   for (const form of state.canvas.querySelectorAll("form.alch-asks-compose")) {
+    const verbInput = form.elements.verb;
+    const composeDetails = form.querySelector("[data-asks-compose-details]");
+    for (const b of form.querySelectorAll("[data-asks-verb]")) {
+      b.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (verbInput) verbInput.value = b.dataset.asksVerb || "";
+        form.querySelectorAll("[data-asks-verb]").forEach((x) => {
+          x.setAttribute("aria-pressed", x === b ? "true" : "false");
+        });
+        if (composeDetails) composeDetails.open = true;
+        if (!String(form.elements.topic?.value || "").trim()) {
+          requestAnimationFrame(() => form.elements.topic?.focus?.());
+        }
+      });
+    }
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       submitAskCompose(form);
     });
+    if (form.dataset.autofocus === "1") {
+      requestAnimationFrame(() => form.elements.topic?.focus?.());
+    }
   }
   for (const a of state.canvas.querySelectorAll(".alch-asks-action[data-asks-edit]")) {
     a.addEventListener("click", async (e) => {
       e.preventDefault();
       const slug = a.dataset.asksEdit;
       await launchPRFlow({ kind: "edit", path: `cohort-data/asks/${slug}.md` });
+    });
+  }
+  for (const b of state.canvas.querySelectorAll("[data-asks-claim]")) {
+    b.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await launchAskStatusUpdate(b, b.dataset.asksClaim, "claimed");
+    });
+  }
+  for (const b of state.canvas.querySelectorAll("[data-asks-done]")) {
+    b.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await launchAskStatusUpdate(b, b.dataset.asksDone, "done");
+    });
+  }
+  for (const row of state.canvas.querySelectorAll(".alch-asks-card[data-asks-record]")) {
+    row.addEventListener("toggle", () => {
+      if (row.open) loadAskContextForCard(row, row.dataset.asksRecord);
     });
   }
   // Inline jump to program → rules from the callout.
@@ -3832,11 +3921,11 @@ async function selectContextRawScript(sourceId) {
 }
 
 function contextSourceById(id) {
-  return (state.contextVault.manifest?.sources || []).find(s => s.id === id) || null;
+  return findContextSourceById(state.contextVault.manifest, id);
 }
 
 function contextRawScriptById(id) {
-  return (state.contextVault.manifest?.raw_scripts || []).find(s => s.id === id) || null;
+  return findContextRawScriptById(state.contextVault.manifest, id);
 }
 
 function normalizeContextPath(pathValue) {
@@ -4429,57 +4518,6 @@ function wireContextVaultDetailActions(root = state.canvas) {
 // for a real graph library. The deterministic seed-based init keeps
 // the layout stable across renders.
 
-function aggregateSkillAreas() {
-  const cohort = state.cohort || {};
-  const tagsToTeams = new Map();   // tag → Set(team_record_id)
-  const tagsToPeople = new Map();  // tag → Set(person_record_id)
-  const teamPairs = new Map();     // "tagA::tagB" → count (for adjacency)
-
-  const consume = (areas, kind, id) => {
-    const uniq = Array.from(new Set((areas || []).filter(Boolean)));
-    for (const t of uniq) {
-      const tn = String(t).trim().toLowerCase();
-      if (!tn) continue;
-      if (kind === "team") {
-        if (!tagsToTeams.has(tn)) tagsToTeams.set(tn, new Set());
-        tagsToTeams.get(tn).add(id);
-      } else {
-        if (!tagsToPeople.has(tn)) tagsToPeople.set(tn, new Set());
-        tagsToPeople.get(tn).add(id);
-      }
-    }
-    for (let i = 0; i < uniq.length; i++) {
-      for (let j = i + 1; j < uniq.length; j++) {
-        const a = String(uniq[i]).trim().toLowerCase();
-        const b = String(uniq[j]).trim().toLowerCase();
-        if (!a || !b || a === b) continue;
-        const key = a < b ? `${a}::${b}` : `${b}::${a}`;
-        teamPairs.set(key, (teamPairs.get(key) || 0) + 1);
-      }
-    }
-  };
-  for (const t of cohort.teams || []) consume(t.skill_areas, "team", t.record_id);
-  for (const p of cohort.people || []) consume(p.skill_areas, "person", p.record_id);
-
-  const allTags = new Set([...tagsToTeams.keys(), ...tagsToPeople.keys()]);
-  const nodes = Array.from(allTags).map(tag => {
-    const teams = Array.from(tagsToTeams.get(tag) || []);
-    const people = Array.from(tagsToPeople.get(tag) || []);
-    return {
-      tag,
-      teams,
-      people,
-      size: teams.length + people.length,
-    };
-  }).sort((a, b) => b.size - a.size);
-
-  const edges = Array.from(teamPairs.entries()).map(([k, v]) => {
-    const [a, b] = k.split("::");
-    return { a, b, weight: v };
-  });
-  return { nodes, edges };
-}
-
 // Deterministic seeded RNG so the layout is stable across renders.
 function mulberry32(seed) {
   let t = seed >>> 0;
@@ -4557,9 +4595,10 @@ function layoutAtlas(nodes, edges, w, h) {
 }
 
 function renderAtlas() {
-  const { nodes, edges } = aggregateSkillAreas();
-  const teams = state.cohort?.teams || [];
-  const people = state.cohort?.people || [];
+  const { nodes, edges } = aggregateSkillAreas(state.cohort);
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const teams = cohortIndex.teams;
+  const people = cohortIndex.people;
   const totalTeams = teams.length;
   const totalPeople = people.length;
   const W = 880, H = 520;
@@ -4610,11 +4649,11 @@ function renderAtlas() {
   let panel = "";
   if (activeNode) {
     const tList = (activeNode.teams || []).map(rid => {
-      const t = teams.find(x => x.record_id === rid);
+      const t = cohortIndex.teamById.get(rid);
       return `<li class="alch-atlas-li" data-atlas-go-team="${escAttr(rid)}">${escHtml(t?.name || rid)}</li>`;
     }).join("");
     const pList = (activeNode.people || []).map(rid => {
-      const p = people.find(x => x.record_id === rid);
+      const p = cohortIndex.personById.get(rid);
       return `<li class="alch-atlas-li" data-atlas-go-person="${escAttr(rid)}">${escHtml(p?.name || rid)}</li>`;
     }).join("");
     panel = `
@@ -4678,8 +4717,9 @@ function wireAtlas() {
 // focus, lead, and member count to a single offscreen canvas, then
 // pipes through the same IPC PNG save flow.
 async function exportDossier() {
-  const all = (state.cohort?.teams || []).slice();
-  const people = state.cohort?.people || [];
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const all = cohortIndex.teams.slice();
+  const people = cohortIndex.people;
   if (all.length === 0) return;
   // Sort teams first by kind (team > project), then alpha.
   all.sort((a, b) => {
@@ -4690,13 +4730,7 @@ async function exportDossier() {
   });
 
   // Group people by team id so each card can list members inline.
-  const peopleByTeam = new Map();
-  for (const p of people) {
-    const k = p.team;
-    if (!k) continue;
-    if (!peopleByTeam.has(k)) peopleByTeam.set(k, []);
-    peopleByTeam.get(k).push(p);
-  }
+  const peopleByTeam = new Map(cohortIndex.primaryPeopleByTeam);
   // Sort each team's members: lead first, then alpha.
   for (const arr of peopleByTeam.values()) {
     arr.sort((a, b) => {
@@ -5056,9 +5090,10 @@ function announceExport(r) {
 // synergy clusters. Entered by clicking a card; back button returns to
 // the previous mode (typically shapes).
 function renderDetail(recordId) {
-  const team = state.cohort?.teams.find(t => t.record_id === recordId);
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const team = cohortIndex.teamById.get(recordId);
   if (team) return renderTeamDetail(team);
-  const person = (state.cohort?.people || []).find(p => p.record_id === recordId);
+  const person = cohortIndex.personById.get(recordId);
   if (person) return renderPersonDetail(person);
   // Record vanished (e.g. cohort republished, slug changed). Bail out
   // back to the grid rather than showing an empty page.
@@ -5066,16 +5101,15 @@ function renderDetail(recordId) {
 }
 
 function renderTeamDetail(team) {
+  const cohortIndex = buildCohortIndex(state.cohort);
   const recordId = team.record_id;
   const s = shapeForTeam(team);
   const kind = teamKind(team);
   const m = Number(team.members_count) || 0;
-  const memberClusters = (state.cohort.clusters || []).filter(cl =>
-    Array.isArray(cl.teams) && cl.teams.includes(recordId)
-  );
+  const memberClusters = cohortIndex.clustersByTeam.get(recordId) || [];
   // People whose `team` field points at this record. For projects this
   // surfaces who's working on it; for teams, the roster.
-  const teamPeople = (state.cohort.people || []).filter(p => p.team === recordId);
+  const teamPeople = cohortIndex.primaryPeopleByTeam.get(recordId) || [];
 
   const linksRow = renderDetailLinks(team.links || {});
   const editUrl = buildEditPRUrl({ recordType: "team", recordId });
@@ -5083,7 +5117,7 @@ function renderTeamDetail(team) {
   // ── Cohort Plate framing ──
   const j = journeyFor(team);
   const tier = tierForStage(j.stage);
-  const allTeams = state.cohort.teams || [];
+  const allTeams = cohortIndex.teams;
   const idx = allTeams.findIndex(t => t.record_id === recordId) + 1;
   const idxStr = `${String(Math.max(1, idx)).padStart(3, "0")}/${String(allTeams.length).padStart(3, "0")}`;
   // taxonomy "class line" — domain as class, shape as order.
@@ -5214,13 +5248,12 @@ function wirePlateFoil(plate) {
 }
 
 function renderPersonDetail(person) {
+  const cohortIndex = buildCohortIndex(state.cohort);
   const recordId = person.record_id;
   const fam = Math.abs(hashStr(recordId || "_")) % 6;
-  const team = person.team
-    ? (state.cohort?.teams || []).find(t => t.record_id === person.team)
-    : null;
+  const team = cohortIndex.teamForPerson(person);
   const secondary = (Array.isArray(person.secondary_teams) ? person.secondary_teams : [])
-    .map(id => (state.cohort?.teams || []).find(t => t.record_id === id))
+    .map(id => cohortIndex.teamById.get(id))
     .filter(Boolean);
   const linksRow = renderDetailLinks(person.links || {});
   const editUrl = buildEditPRUrl({ recordType: "person", recordId });
@@ -5364,7 +5397,8 @@ function renderDetailLinks(L) {
 // ─── drawer (specimen detail) ────────────────────────────────────────
 function openDrawer(recordId) {
   if (!state.cohort) return;
-  const team = state.cohort.teams.find(t => t.record_id === recordId);
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const team = cohortIndex.teamById.get(recordId);
   if (!team) return;
 
   const { backdrop, drawer, body } = ensureDrawer();
@@ -5373,9 +5407,7 @@ function openDrawer(recordId) {
   const m = Number(team.members_count) || 0;
 
   // Find which clusters this team belongs to
-  const memberClusters = (state.cohort.clusters || []).filter(cl =>
-    Array.isArray(cl.teams) && cl.teams.includes(recordId)
-  );
+  const memberClusters = cohortIndex.clustersByTeam.get(recordId) || [];
 
   // Render every available link key with a sensible label; github + x
   // get full URL prefixes, the rest are passed through.
@@ -5812,12 +5844,8 @@ function githubEventUrl(ev, repo) {
 }
 
 // ─── feed renderer ───────────────────────────────────────────────────
-function teamByRecordId(rid) {
-  return (state.cohort?.teams || []).find(t => t.record_id === rid) || null;
-}
-function teamLabel(rid) {
-  const t = teamByRecordId(rid);
-  return t ? t.name : rid || "—";
+function teamLabel(rid, cohortIndex = buildCohortIndex(state.cohort)) {
+  return cohortIndex.teamLabel(rid);
 }
 function relativeTime(ms) {
   const diff = Date.now() - ms;
@@ -5901,7 +5929,8 @@ function renderFeed() {
     // pushed 1 commit" — one card with the latest event + a "+N more"
     // tail is easier to scan.
     const groups = groupFeedItemsByActor(items);
-    body = `<ul class="alch-feed-list">${groups.map(renderFeedGroup).join("")}</ul>`;
+    const cohortIndex = buildCohortIndex(state.cohort);
+    body = `<ul class="alch-feed-list">${groups.map(group => renderFeedGroup(group, cohortIndex)).join("")}</ul>`;
     body += `
       <p class="alch-callout"><strong>feed · v0.2</strong><br/>
       One card per person/team — the latest event headlines, a "+N more" tail counts the rest. Click a card to open the latest event on github. Sources: team repos + every cohort member's public github activity. Refreshed every 12 min in the background.</p>
@@ -5949,20 +5978,20 @@ function groupFeedItemsByActor(events) {
 // Headline derivation: prefer the cohort person's name, else cohort team
 // name, else raw gh actor. Returns { primary, secondary } for two-line
 // layout (primary = bold name, secondary = team/repo context line).
-function feedGroupHeadline(g) {
+function feedGroupHeadline(g, cohortIndex = buildCohortIndex(state.cohort)) {
   const ev = g.latest;
   let primary = "";
   let secondary = "";
   if (g.person_id) {
-    const p = (state.cohort?.people || []).find(x => x.record_id === g.person_id);
+    const p = cohortIndex.personById.get(g.person_id);
     primary = p?.name || g.actor || g.person_id;
     if (ev.team_id) {
-      const t = teamLabel(ev.team_id);
+      const t = teamLabel(ev.team_id, cohortIndex);
       if (t && t !== "—") secondary = t;
     }
     if (!secondary && ev.repo) secondary = ev.repo;
   } else if (g.team_id) {
-    primary = teamLabel(g.team_id);
+    primary = teamLabel(g.team_id, cohortIndex);
     secondary = g.actor ? `@${g.actor}` : (ev.repo || "");
   } else {
     primary = g.actor || ev.repo || "—";
@@ -6001,9 +6030,9 @@ function feedGroupTail(g) {
   return top.join(" · ");
 }
 
-function renderFeedGroup(g) {
+function renderFeedGroup(g, cohortIndex = buildCohortIndex(state.cohort)) {
   const ev = g.latest;
-  const { primary, secondary } = feedGroupHeadline(g);
+  const { primary, secondary } = feedGroupHeadline(g, cohortIndex);
   const tail = feedGroupTail(g);
   const sourceClass = `is-${ev.source}`;
   return `
@@ -6194,22 +6223,16 @@ function setNested(obj, path, value) {
   cur[ks[ks.length - 1]] = value;
 }
 
-// `kind` lives on the team-shaped record; absence defaults to "team".
-// Treats projects as team-shaped records with `kind: "project"`.
-function teamKind(t) { return (t && t.kind) || "team"; }
-function teamsOfKind(teams, kind) {
-  return (teams || []).filter(t => teamKind(t) === kind);
-}
-
 // When switching mode/kind in EDIT mode, snap editTargetId to a valid
 // record from the new pool if the current one isn't in it. Avoids the
 // editor showing a stale form for a record that doesn't match the kind.
 function pickFirstTargetIfMissing(p) {
   const cohort = state.cohort;
   if (!cohort) return;
+  const cohortIndex = buildCohortIndex(cohort);
   const pool = (p.editKind === "person")
-    ? (cohort.people || [])
-    : teamsOfKind(cohort.teams, p.editKind);
+    ? cohortIndex.people
+    : teamsOfKind(cohortIndex.teams, p.editKind);
   const stillValid = pool.some(r => r.record_id === p.editTargetId);
   if (!stillValid) p.editTargetId = pool[0]?.record_id || null;
 }
@@ -6222,6 +6245,7 @@ function loadEditTarget() {
   // we wiped editDraft and editBaseline here, which let a single
   // cohort refresh blow away the user's in-progress edits.
   if (!cohort) return;
+  const cohortIndex = buildCohortIndex(cohort);
 
   // Sticky draft: only (re)seed when the edit context actually changed.
   // Same mode + same kind + same target → preserve whatever the user has
@@ -6277,7 +6301,7 @@ function loadEditTarget() {
 
   // EDIT mode: look up the picked record in the cohort.
   if (p.editKind === "person") {
-    const person = (cohort.people || []).find(pp => pp.record_id === p.editTargetId);
+    const person = cohortIndex.personById.get(p.editTargetId);
     if (person) {
       p.editDraft = JSON.parse(JSON.stringify(person));
       p.editBaseline = JSON.parse(JSON.stringify(person));
@@ -6288,7 +6312,7 @@ function loadEditTarget() {
     return;
   }
   // team or project — pull from cohort.teams, filter by kind.
-  const pool = teamsOfKind(cohort.teams, p.editKind);
+  const pool = teamsOfKind(cohortIndex.teams, p.editKind);
   const t = pool.find(x => x.record_id === p.editTargetId);
   if (t) {
     p.editDraft = JSON.parse(JSON.stringify(t));

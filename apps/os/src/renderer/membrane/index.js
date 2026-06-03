@@ -1,6 +1,7 @@
 import { createMembraneScene, SLOT_OFFSETS } from './scene.js';
 import { createSoundDirector } from './sound.js';
 import { BLOB_IDS, BLOB_PROFILES } from './blob.js';
+import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAuthor } from '../asks.js';
 
 function up(s) { return String(s ?? '').toUpperCase(); }
 
@@ -77,11 +78,10 @@ const PANEL_TEMPLATES = {
     stats: [
       { key: 'open',  val: '—', dataKey: 'openAskCount' },
       { key: 'mine',  val: '—', dataKey: 'myAskCount' },
+      { key: 'ask', label: 'post ask', mode: 'asks', opts: { openComposer: true } },
     ],
     inline: (data) => renderAsksInline(data),
-    actions: [
-      { label: 'open full asks board →', mode: 'asks' },
-    ],
+    actions: [],
   },
 };
 
@@ -91,15 +91,6 @@ function escHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
-}
-
-function fmtRel(ms) {
-  if (!Number.isFinite(ms)) return '';
-  const abs = Math.abs(ms);
-  const min = 60 * 1000, hr = 60 * min, day = 24 * hr;
-  if (abs < hr)  return `${Math.round(abs / min)}m ${ms < 0 ? 'ago' : 'from now'}`;
-  if (abs < day) return `${Math.round(abs / hr)}h ${ms < 0 ? 'ago' : 'from now'}`;
-  return `${Math.round(abs / day)}d ${ms < 0 ? 'ago' : 'from now'}`;
 }
 
 const WD = ['sun','mon','tue','wed','thu','fri','sat'];
@@ -159,37 +150,59 @@ function renderEventsInline(data) {
 
 function renderAsksInline(data) {
   const asks = Array.isArray(data?.asksList) ? data.asksList : [];
-  const myHandle = (data?.myHandle || '').toLowerCase();
-  const open = asks.filter((a) => (a?.status || 'open') === 'open');
+  const people = Array.isArray(data?.peopleList) ? data.peopleList : [];
+  const askIdentity = { ...(data?.askIdentity || {}), people };
+  const open = asks.filter(askIsOpen);
   if (open.length === 0) {
     return `
       <section class="membrane-section">
         <header class="membrane-section-head">
-          <h3 class="membrane-section-title">open</h3>
+          <h3 class="membrane-section-title">requests</h3>
           <span class="membrane-section-count">0</span>
         </header>
         <p class="membrane-empty">no open asks. things are quiet.</p>
       </section>`;
   }
   const rows = open.slice(0, 24).map((a) => {
-    const title = a.title || a.text || a.ask || 'untitled ask';
-    const owner = a.owner || a.author || '';
-    const isMine = owner.toLowerCase() === myHandle;
-    const posted = a.posted_at || a.created_at;
-    const postedT = posted ? Date.parse(posted) : null;
-    const ago = Number.isFinite(postedT) ? fmtRel(postedT - Date.now()) : '';
+    const title = askTopic(a) || 'untitled ask';
+    const author = resolveAskAuthor(a, people);
+    const owner = author ? (author.name || author.record_id) : (a.author || a.owner || '');
+    const mine = isAskMine(a, askIdentity);
+    const ago = askAgeLabel(a);
+    const verb = a.verb || 'ask';
+    const verbGlyph = Array.from(String(verb).trim())[0] || '·';
+    const status = askStatus(a);
+    const statusBadge = status === 'open' && a._expired
+      ? '<span class="membrane-ask-status membrane-ask-status-fading">fading</span>'
+      : status !== 'open'
+        ? `<span class="membrane-ask-status">${escHtml(status)}</span>`
+        : '';
+    const chips = (Array.isArray(a.skill_areas) ? a.skill_areas : [])
+      .slice(0, 5)
+      .map((s) => `<span class="membrane-ask-chip">${escHtml(s)}</span>`)
+      .join('');
     return `
-      <li class="membrane-ask-row">
-        <span class="membrane-ask-title">${escHtml(title)}</span>
-        <span class="membrane-ask-meta">
-          ${isMine ? '<span class="ask-status-mine">mine</span> · ' : ''}${escHtml(owner)}${ago ? ' · ' + escHtml(ago) : ''}
-        </span>
+      <li class="membrane-ask-item" data-expired="${a._expired ? '1' : '0'}">
+        <details class="membrane-ask-row">
+          <summary class="membrane-ask-summary">
+            <span class="membrane-ask-verb" title="${escHtml(verb)}">${escHtml(verbGlyph)}</span>
+            <span class="membrane-ask-body">
+              <span class="membrane-ask-title">${escHtml(title)}</span>
+              <span class="membrane-ask-meta">
+                ${mine ? '<span class="ask-status-mine">mine</span> · ' : ''}${escHtml(owner)}${ago ? ' · ' + escHtml(ago) : ''}${statusBadge ? ' · ' + statusBadge : ''}
+              </span>
+            </span>
+          </summary>
+          <div class="membrane-ask-detail">
+            ${chips ? `<div class="membrane-ask-chips">${chips}</div>` : ''}
+          </div>
+        </details>
       </li>`;
   }).join('');
   return `
     <section class="membrane-section">
       <header class="membrane-section-head">
-        <h3 class="membrane-section-title">open</h3>
+        <h3 class="membrane-section-title">requests</h3>
         <span class="membrane-section-count">${open.length}</span>
       </header>
       <ul class="membrane-ask-list" role="list">${rows}</ul>
@@ -456,8 +469,18 @@ function renderCohortViews() {
 
 function renderStatList(template, data = {}) {
   return template.stats.map((s) => {
+    if (s.mode) {
+      const opts = s.opts ? ` data-jump-opts="${escHtml(JSON.stringify(s.opts))}"` : '';
+      return `
+        <li class="membrane-panel-list-action">
+          <button type="button" class="mpl-action" data-jump-mode="${escHtml(s.mode)}"${opts}>
+            <span class="mpl-key">${escHtml(s.key)}</span>
+            <span class="mpl-val">${escHtml(s.label || s.val || 'open')}</span>
+          </button>
+        </li>`;
+    }
     const v = s.dataKey && data[s.dataKey] != null ? data[s.dataKey] : s.val;
-    return `<li><span class="mpl-key">${s.key}</span><span class="mpl-val">${v}</span></li>`;
+    return `<li><span class="mpl-key">${escHtml(s.key)}</span><span class="mpl-val">${escHtml(v)}</span></li>`;
   }).join('');
 }
 
@@ -471,6 +494,7 @@ function renderPanelInner(template, data = {}) {
   const inlineHtml = template.inline ? template.inline(data) : '';
   const title = typeof template.title === 'function' ? template.title(data) : template.title;
   const accessory = template.headAccessory ? template.headAccessory(data) : '';
+  const actionsHtml = renderActionList(template);
   return `
     <header class="membrane-panel-head${accessory ? ' membrane-panel-head--with-accessory' : ''}">
       <div class="membrane-panel-head-text">
@@ -482,7 +506,7 @@ function renderPanelInner(template, data = {}) {
     ${template.copy ? `<p class="membrane-panel-note">${template.copy}</p>` : ''}
     <ul class="membrane-panel-list" role="list">${renderStatList(template, data)}</ul>
     ${inlineHtml}
-    <ul class="membrane-panel-actions" role="list">${renderActionList(template)}</ul>
+    ${actionsHtml ? `<ul class="membrane-panel-actions" role="list">${actionsHtml}</ul>` : ''}
   `;
 }
 
@@ -657,8 +681,12 @@ export function mountMembrane(container, opts = {}) {
       btn.addEventListener('click', () => {
         const mode = btn.dataset.jumpMode;
         if (!mode) return;
+        let opts = {};
+        if (btn.dataset.jumpOpts) {
+          try { opts = JSON.parse(btn.dataset.jumpOpts); } catch { opts = {}; }
+        }
         if (typeof window.__srwkAlchemyJump === 'function') {
-          window.__srwkAlchemyJump(mode);
+          window.__srwkAlchemyJump(mode, opts);
         }
       });
     });

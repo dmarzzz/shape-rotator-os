@@ -332,6 +332,51 @@
   border-bottom: 1px solid var(--membrane-rule);
 }
 
+.membrane-panel-list li.membrane-panel-list-action {
+  border-bottom: 0;
+  display: block;
+  padding: 0;
+}
+
+.mpl-action {
+  appearance: none;
+  align-items: baseline;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--membrane-rule);
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  justify-content: space-between;
+  letter-spacing: 0.08em;
+  padding: 11px 0;
+  text-align: left;
+  width: 100%;
+  -webkit-app-region: no-drag;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.mpl-action:hover,
+.mpl-action:focus-visible {
+  background: rgba(255, 122, 61, 0.035);
+  outline: none;
+  transform: translateX(3px);
+}
+
+.mpl-action .mpl-key {
+  color: var(--membrane-ember);
+}
+
+.mpl-action .mpl-val {
+  color: var(--membrane-ember);
+}
+
+.mpl-action .mpl-val::after {
+  content: " ›";
+  opacity: 0.62;
+}
+
 .mpl-key {
   color: var(--membrane-mist-mid);
   text-transform: uppercase;
@@ -468,18 +513,102 @@
   flex-direction: column;
 }
 
+.membrane-ask-item {
+  list-style: none;
+}
+
+.membrane-ask-item[data-expired="1"] {
+  opacity: 0.56;
+}
+
+.membrane-ask-item[data-expired="1"]:has(.membrane-ask-row[open]) {
+  opacity: 0.78;
+}
+
 .membrane-ask-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   padding: 14px 0;
   border-bottom: 1px solid var(--membrane-rule);
 }
 
+.membrane-ask-summary {
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 16px;
+  gap: 5px 10px;
+  align-items: start;
+  list-style: none;
+  outline: none;
+}
+
+.membrane-ask-summary::-webkit-details-marker {
+  display: none;
+}
+
+.membrane-ask-summary::after {
+  align-self: center;
+  color: var(--membrane-mist-mid);
+  content: "›";
+  font-size: 17px;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  opacity: 0.46;
+  transform-origin: center;
+  transition: color 180ms ease, opacity 180ms ease, transform 180ms ease;
+}
+
+.membrane-ask-row[open] .membrane-ask-summary::after {
+  color: var(--membrane-ember);
+  opacity: 0.82;
+  transform: rotate(90deg);
+}
+
+.membrane-ask-summary:hover .membrane-ask-title,
+.membrane-ask-summary:focus-visible .membrane-ask-title {
+  color: var(--membrane-ember);
+}
+
+.membrane-ask-summary:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 34%, transparent);
+  outline-offset: 5px;
+}
+
+.membrane-ask-verb {
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--membrane-mist-mid) 26%, transparent);
+  border-radius: 999px;
+  color: var(--membrane-mist);
+  display: inline-flex;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  height: 20px;
+  justify-content: center;
+  line-height: 1;
+  margin-top: 1px;
+  opacity: 0.72;
+  width: 20px;
+}
+
+.membrane-ask-body {
+  display: block;
+  min-width: 0;
+}
+
 .membrane-ask-title {
+  display: block;
   font-size: 15px;
   color: var(--membrane-mist);
   line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  transition: color 180ms ease;
+}
+
+.membrane-ask-row[open] .membrane-ask-title {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .membrane-ask-meta {
@@ -487,12 +616,45 @@
   font-size: 11px;
   color: var(--membrane-mist-mid);
   letter-spacing: 0.10em;
+  line-height: 1.35;
+  min-width: 0;
 }
 
 .membrane-ask-meta .ask-status-mine {
   color: var(--membrane-ember);
   text-transform: uppercase;
   letter-spacing: 0.14em;
+}
+
+.membrane-ask-status {
+  color: var(--membrane-mist-mid);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.membrane-ask-status-fading {
+  color: color-mix(in srgb, var(--membrane-ember) 70%, var(--membrane-mist-mid));
+}
+
+.membrane-ask-detail {
+  padding: 10px 22px 1px 34px;
+}
+
+.membrane-ask-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.membrane-ask-chip {
+  border: 1px solid color-mix(in srgb, var(--membrane-mist-mid) 28%, transparent);
+  border-radius: 999px;
+  color: var(--membrane-mist-mid);
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
 }
 
 .membrane-empty {
