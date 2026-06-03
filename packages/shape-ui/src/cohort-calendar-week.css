@@ -614,6 +614,103 @@
 }
 .cal-event .cal-bullets .cal-bullets > li { opacity: 0.7; }
 
+.cal-source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  max-width: 62ch;
+}
+.cal-source-links.is-compact {
+  gap: 8px;
+  margin: 6px 0 0 56px;
+}
+.cal-source-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-left: 8px;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+.cal-source-link {
+  appearance: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  min-height: 0;
+  padding: 0 0 1px;
+  border: 0;
+  border-bottom: 1px solid rgba(180, 58, 25, 0.34);
+  border-radius: 0;
+  background: transparent;
+  color: var(--alchemy-oxide-bright, #B43A19);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  text-align: left;
+  opacity: 0.72;
+  transition: border-color 140ms ease-out, color 140ms ease-out, opacity 140ms ease-out;
+}
+.cal-source-link:hover,
+.cal-source-link:focus-visible {
+  border-bottom-color: rgba(180, 58, 25, 0.72);
+  opacity: 1;
+  outline: none;
+}
+.cal-source-link:focus-visible {
+  box-shadow: 0 2px 0 rgba(180, 58, 25, 0.18);
+}
+.cal-source-link[data-confidence="medium"] {
+  border-bottom-color: rgba(193,168,114,0.42);
+  color: rgba(193,168,114,0.95);
+}
+.cal-source-link[data-confidence="needs-review"] {
+  border-bottom-color: rgba(var(--ink-rgb), 0.24);
+  color: var(--ed-ink-2);
+  opacity: 0.58;
+}
+.cal-source-link .csl-role {
+  font-family: var(--ed-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+  color: currentColor;
+}
+.cal-source-link .csl-sep {
+  font-family: var(--ed-mono);
+  font-size: 9px;
+  color: currentColor;
+  opacity: 0.42;
+}
+.cal-source-link .csl-label {
+  font-family: var(--ed-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: var(--ed-ink-2);
+  opacity: 0.72;
+}
+.cal-source-links.is-compact .cal-source-link {
+  padding-bottom: 1px;
+}
+.cal-source-links.is-compact .csl-sep,
+.cal-source-links.is-compact .csl-label {
+  display: none;
+}
+.cda-row-title .cal-source-inline {
+  margin-left: 10px;
+}
+.cda-row-title .cal-source-link {
+  position: relative;
+  top: -0.22em;
+}
+.cda-bullets .cal-source-inline,
+.cal-bullets .cal-source-inline {
+  margin-left: 7px;
+}
+
 /* ── day view ────────────────────────────────────────────────────────── */
 /* Full-width typeset agenda for one day. The aesthetic ambition: feel like
  * a printed program from a music festival or a Swiss-design timetable.
@@ -942,6 +1039,10 @@
   .cda-row > .cda-row-time { font-size: 11px; padding-top: 7px; }
   .cda-row-title { font-size: 22px; line-height: 1.1; }
   .cda-row-anchor .cda-row-title { font-size: 24px; }
+  .cal-source-links { gap: 6px; margin-top: 8px; }
+  .cal-source-links.is-compact { margin-left: 0; }
+  .cal-source-inline { gap: 5px; margin-left: 6px; }
+  .cal-source-link { min-height: 0; }
   .cal-day-empty { padding: 56px 0 32px; }
   .cal-day-empty .cde-line { font-size: 26px; }
 }

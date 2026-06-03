@@ -55,6 +55,7 @@ import {
 // the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
 // "membrane" so the legacy modes stay reachable while we evaluate.
 import { mountMembrane } from "./membrane/index.js";
+import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
 import { renderIntel, wireIntel } from "./intel/intel.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
@@ -163,6 +164,7 @@ const state = {
     selectedRawId: null,
     selectedText: "",
     selectedTruncated: false,
+    pendingRawPath: null,
     rawTextById: {},
     rawLoadingId: null,
     error: "",
@@ -2088,6 +2090,7 @@ function renderCalendarHtml() {
     // cells → tea showing twice on every weekday). Drop the anchor overlay
     // for now; restore once dedupe + a recurrence model are in place.
     events: [],
+    transcriptMatches: CALENDAR_TRANSCRIPT_MATCHES,
     presenceHtml,
   });
 }
@@ -2258,6 +2261,13 @@ function wireCalendar() {
       if (!Number.isFinite(i) || i < 0 || i > 6) return;
       cal.dayIdx = i;
       refreshCalendarView();
+    });
+  }
+
+  for (const btn of state.canvas.querySelectorAll("[data-cal-transcript-path]")) {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      openCalendarTranscript(btn.dataset.calTranscriptPath);
     });
   }
 
@@ -3848,6 +3858,7 @@ async function loadContextVault({ scan = false } = {}) {
     state.contextVault.roots = res.roots || res.manifest?.roots || [];
     state.contextVault.loaded = true;
     state.contextVault.loading = false;
+    resolvePendingContextRawScript();
     state.contextVault.message = scan
       ? `article index updated: ${res.manifest?.totals?.articles || res.manifest?.totals?.sources || 0} article${(res.manifest?.totals?.articles || res.manifest?.totals?.sources) === 1 ? "" : "s"}`
       : "";
@@ -3915,6 +3926,58 @@ function contextSourceById(id) {
 
 function contextRawScriptById(id) {
   return findContextRawScriptById(state.contextVault.manifest, id);
+}
+
+function normalizeContextPath(pathValue) {
+  return String(pathValue || "")
+    .replace(/\\/g, "/")
+    .replace(/^\.?\//, "")
+    .toLowerCase();
+}
+
+function contextPathBasename(pathValue) {
+  const normalized = normalizeContextPath(pathValue);
+  return normalized.split("/").filter(Boolean).pop() || normalized;
+}
+
+function contextRawScriptByPath(pathValue) {
+  const target = normalizeContextPath(pathValue);
+  if (!target) return null;
+  const targetBase = contextPathBasename(target);
+  return (state.contextVault.manifest?.raw_scripts || []).find(source => {
+    const sourcePath = normalizeContextPath(source.path || source.file || source.href || "");
+    return sourcePath === target
+      || sourcePath.endsWith(`/${target}`)
+      || contextPathBasename(sourcePath) === targetBase;
+  }) || null;
+}
+
+function resolvePendingContextRawScript() {
+  const pending = state.contextVault.pendingRawPath;
+  if (!pending || !state.contextVault.manifest) return null;
+  const source = contextRawScriptByPath(pending);
+  if (source) {
+    state.contextVault.selectedRawId = source.id;
+    state.contextVault.pendingRawPath = null;
+  }
+  return source;
+}
+
+function openCalendarTranscript(pathValue) {
+  if (!pathValue) return;
+  state.contextVault.mode = "raw";
+  const source = contextRawScriptByPath(pathValue);
+  if (source) {
+    state.contextVault.selectedRawId = source.id;
+    state.contextVault.pendingRawPath = null;
+  } else {
+    state.contextVault.selectedRawId = null;
+    state.contextVault.pendingRawPath = pathValue;
+  }
+  state.mode = "context";
+  try { localStorage.setItem(ALCHEMY_LS_KEY, "context"); } catch {}
+  syncRailSelection();
+  render();
 }
 
 async function loadContextRawScriptText(sourceId) {
@@ -4287,8 +4350,9 @@ function renderContextVault() {
   const sources = manifest?.sources || [];
   const rawScripts = manifest?.raw_scripts || [];
   const mode = cv.mode === "raw" ? "raw" : "articles";
+  const pendingRaw = resolvePendingContextRawScript();
   const selected = contextSourceById(cv.selectedId) || sources[0] || null;
-  const selectedRaw = contextRawScriptById(cv.selectedRawId) || rawScripts[0] || null;
+  const selectedRaw = pendingRaw || contextRawScriptById(cv.selectedRawId) || rawScripts[0] || null;
   if (selected && !cv.selectedId) cv.selectedId = selected.id;
   if (selectedRaw && !cv.selectedRawId) cv.selectedRawId = selectedRaw.id;
   const sourceRows = mode === "raw"
