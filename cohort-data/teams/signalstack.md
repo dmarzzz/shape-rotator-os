@@ -43,6 +43,18 @@ offering:
   - TEE deployment workshop (setup, remote attestation, pitfalls)
   - open-source attestation verification SDK for cohort
   - AI tasks + AI translation features available to cohort via Signal
+journey:
+  stage: 4
+  evidence_quality: 3
+  market_upside: 4
+  primary_bottleneck: Solution Quality
+  company_type: AI
+  confidence: Medium
+  icp: Signal users and privacy-sensitive teams that want AI assistance without moving private messages into a hosted AI app
+  problem: mainstream AI tools require users to leave private messaging contexts and trust servers with sensitive prompts
+  solution: confidential LLM inference inside Signal with TEE attestation and zero-retention workflow primitives
+  evidence_notes: public sigstack repo, beta-development surface, attestation SDK, and privacy-AI market framing are present; repeated user adoption remains to prove
+  next_milestone: onboard real Signal users or cohort teams to test translation, summarization, and assistant workflows
 making_signature:
   built_domain: [systems]
   shape: deep

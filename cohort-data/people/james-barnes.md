@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Shipping Etherea's revenue-positive creative-AI surface: speech, music, and motion into real-time video and shaders."
+skill_areas:
+  - generative-media
+  - creative-engineering
+  - attestation
+  - live-demo-systems
 go_to_them_for:
   - generative performance systems
   - creative engineering
@@ -27,6 +33,14 @@ recurring_themes:
   - live generativity
   - creative systems
   - demo-first clarity
+working_style: "Demo-first technical lead who has already made the infra-to-product turn from crypto attestation into a focused creative-AI surface."
+best_contexts:
+  - live-stage demos
+  - creative-AI product focus
+  - attestation-to-product translation
+prior_work:
+  - Flashbots egress-attestation work
+  - Etherea creative-AI system
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

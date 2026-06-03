@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Architecting Pramaana's PALC post-quantum anonymous-identity primitive."
+skill_areas:
+  - post-quantum-identity
+  - lattice-cryptography
+  - anonymous-credentials
+  - formal-proofs
 go_to_them_for:
   - post-quantum anonymous identity
   - lattice credential design
@@ -28,6 +34,13 @@ recurring_themes:
   - cryptographic specificity
   - identity sovereignty
 working_style: "Builds research-first: formal proofs plus a working prototype, assembled in 'relative isolation' (her own framing)"
+best_contexts:
+  - Pramaana protocol review
+  - anonymous self-credential framing
+  - cryptographic proof/product translation
+prior_work:
+  - PALC primitive
+  - Columbia SEAS anonymous-identity work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

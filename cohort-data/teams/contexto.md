@@ -43,6 +43,18 @@ seeking:
 offering:
   - workshop on long-running agents (OpenClaw context-collapse patterns)
   - agent instrumentation + context monitoring tooling for cohort
+journey:
+  stage: 3
+  evidence_quality: 2
+  market_upside: 4
+  primary_bottleneck: Solution Quality
+  company_type: AI
+  confidence: Low
+  icp: long-running agent builders who need memory, episode retrieval, and context observability across runtimes
+  problem: agents lose task continuity when context collapses, moves across tools, or becomes impossible to inspect
+  solution: an episode-based context engine that instruments memory and retrieval across agent runtimes
+  evidence_notes: working prototype and OpenClaw/plugin direction are present; repeated external use still needs proof
+  next_milestone: instrument one cohort agent workflow end to end and show better recovery or continuity
 making_signature:
   built_domain: [agentic]
   shape: deep

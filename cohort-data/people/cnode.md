@@ -17,6 +17,29 @@ links:
   website: https://cnode.phd
   linkedin: null
 dietary_restrictions:
+now: hacking on DCNets with Shape Rotator while tracking Zcash Project Tachyon-style anonymity work
+skill_areas:
+  - p2p
+  - identity
+  - mechanism-design
+  - zk
+go_to_them_for:
+  - DCNet anonymity design
+  - cryptocurrency protocol questions
+  - Zcash / Project Tachyon context
+recurring_themes:
+  - anonymous broadcast
+  - cryptographic privacy
+  - protocol tradeoffs
+working_style: cryptography-oriented engineer; explores primitives from first principles before productizing
+best_contexts:
+  - protocol review
+  - anonymity-network threat modeling
+  - private-search and blockchain coordination discussions
+prior_work:
+  - Zcash Project Tachyon focus
+  - DCNet anonymous-broadcast exploration
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Working on Pramaana's lattice-cryptography side for post-quantum anonymous identity."
+skill_areas:
+  - lattice-cryptography
+  - post-quantum-identity
+  - anonymous-credentials
+  - privacy-preserving-verification
 go_to_them_for:
   - anonymous credential UX
   - post-quantum identity framing
@@ -28,6 +34,12 @@ recurring_themes:
   - cryptographic enrollment
   - usability pressure
 working_style: Unknown — no independent behavioral evidence yet
+best_contexts:
+  - Pramaana cryptography review
+  - anonymous-credential UX
+  - privacy-preserving identity framing
+prior_work:
+  - Pramaana lattice-cryptography work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

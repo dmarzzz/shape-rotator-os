@@ -33,6 +33,26 @@ skill_areas:
   - agentic
 now: cohort matrix infra · hermes/contexto integration · openfeedling self-host
 dietary_restrictions:
+go_to_them_for:
+  - TEE / dstack / attestation infrastructure
+  - cohort matrix and onboarding issues
+  - Hermes, Contexto, and local agent runtime integration
+  - Feedling and delegated-data architecture
+recurring_themes:
+  - verifiable infrastructure
+  - local-first cohort operations
+  - privacy-preserving agent coordination
+  - stewarding systems into usable defaults
+working_style: infrastructure steward who keeps protocol details tied to concrete cohort operations
+best_contexts:
+  - debugging cohort infra
+  - TEE and dstack architecture review
+  - turning rough agent-runtime ideas into working local services
+prior_work:
+  - Shape Rotator matrix homeserver and onboarding flow
+  - Teleport Router and Feedling steward work
+  - TEE / dstack / attestation research and infrastructure
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

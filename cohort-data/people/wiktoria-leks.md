@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Leading WikiGen's healthcare-data marketplace narrative, data-provider relationships, and pilot surface."
+skill_areas:
+  - healthcare-data
+  - bd
+  - marketplace-design
+  - tee
 go_to_them_for:
   - personal-data agency vision
   - AI curation concepts
@@ -28,6 +34,13 @@ recurring_themes:
   - need for pilot discipline
   - brand/product mismatch risk
 working_style: BD-first, network-led — she opens doors in bioscience and frames the venture around data-provider relationships
+best_contexts:
+  - bioscience data-provider outreach
+  - healthcare marketplace positioning
+  - pilot discipline and narrative review
+prior_work:
+  - WikiGen / DNAI
+  - bioscience BD network
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

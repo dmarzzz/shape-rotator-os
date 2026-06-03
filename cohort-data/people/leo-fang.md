@@ -17,6 +17,12 @@ links:
   website: daedalus-research.com
   linkedin: null
 dietary_restrictions:
+now: "Leading Daedalus on prediction-market liquidity intelligence and protected order-flow infrastructure."
+skill_areas:
+  - prediction-markets
+  - market-microstructure
+  - quant-finance
+  - research-to-product
 go_to_them_for:
   - prediction-market design
   - quant/crypto market structure
@@ -26,6 +32,14 @@ recurring_themes:
   - market microstructure
   - research-backed product
   - liquidity intelligence
+working_style: "Quant-founder profile: most useful where market design, order-flow mechanics, and product surface have to stay mathematically coherent."
+best_contexts:
+  - prediction-market infrastructure
+  - protected order-flow design
+  - TradFi-to-crypto translation
+prior_work:
+  - CICC quant work
+  - Daedalus / PROF prediction-market infrastructure
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

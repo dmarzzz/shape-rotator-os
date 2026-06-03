@@ -18,8 +18,13 @@ links:
 comm_style: |
   lets chat in person
 weekly_intention: "personal - agent setup; team - vision map"
-now: "onboarding"
+now: "Helping TinyCloud sharpen strategy, vision mapping, and product narrative around user-owned cloud."
 dietary_restrictions:
+skill_areas:
+  - strategy
+  - crypto-product
+  - decentralized-storage
+  - founder-coaching
 go_to_them_for:
   - Tinycloud architecture
   - decentralized storage
@@ -30,6 +35,14 @@ recurring_themes:
   - deep systems implementation
   - capability control
   - sovereign storage
+working_style: "People-and-strategy oriented operator; useful when a technical system needs a clearer human, market, or narrative boundary."
+best_contexts:
+  - TinyCloud vision mapping
+  - founder/product strategy
+  - crypto product critique
+prior_work:
+  - angel investing and advising
+  - crypto strategy work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

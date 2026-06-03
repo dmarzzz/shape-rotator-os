@@ -15,6 +15,27 @@ links:
   linkedin: null
 weekly_intention: "Ship elizaOS improvements across runtime, cloud, and local agent surfaces."
 now: "Building elizaOS — an agentic fullstack operating system."
+skill_areas:
+  - agentic
+  - agent-runtime
+  - ai
+go_to_them_for:
+  - elizaOS runtime and plugin architecture
+  - local-first agent surfaces
+  - agent cloud / desktop / connector strategy
+recurring_themes:
+  - open-source agent ecosystems
+  - runtime plus product surface
+  - broad agentic platform building
+working_style: ecosystem-scale founder; holds runtime, cloud, desktop, mobile, and connector surfaces in parallel
+best_contexts:
+  - agent runtime integrations
+  - plugin and skill-system design
+  - strategic direction for agentic products
+prior_work:
+  - elizaOS runtime and plugin system
+  - Eliza Cloud
+  - desktop and mobile local-first agent clients
 making_signature:
   class: founder
   shape: broad

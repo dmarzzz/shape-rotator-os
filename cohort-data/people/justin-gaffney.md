@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Running Prova's TEE-attested healthcare-agent workflow across prior authorization and EHR integration."
+skill_areas:
+  - healthcare-ai
+  - ehr-workflows
+  - tee
+  - productized-agents
 go_to_them_for:
   - healthcare AI pilots
   - EHR workflow questions
@@ -28,6 +34,14 @@ recurring_themes:
   - healthcare integration
   - useful agents over flashy agents
 working_style: Inferred only — his own voice is absent from the evidence
+best_contexts:
+  - healthcare pilot design
+  - prior-authorization workflow review
+  - TEE-attested agent deployment
+prior_work:
+  - Prova production deployment on Phala TDX
+  - TEE-track hackathon win
+  - US prior-authorization payer integrations
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

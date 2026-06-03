@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Leading Crossroads, a policy-constrained cross-chain signing wallet built from Liquefaction and Complete Knowledge primitives."
+skill_areas:
+  - cross-chain
+  - wallet-infrastructure
+  - policy-constrained-signing
+  - crypto-product
 go_to_them_for:
   - wallet UX questions
   - Liquefaction-adjacent implementation
@@ -25,6 +31,13 @@ recurring_themes:
   - wallet infrastructure
   - routing and custody questions
   - sparse-source review needed
+working_style: "Project-context read: wallet/product lead working from academic crypto primitives toward a concrete signing experience."
+best_contexts:
+  - cross-chain wallet UX
+  - policy-constrained signing review
+  - Liquefaction translation
+prior_work:
+  - Crossroads prototype and Cornell Tech wallet work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

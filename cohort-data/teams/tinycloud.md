@@ -48,6 +48,18 @@ seeking:
 offering:
   - tinycloud-secrets for cohort teams (scoped credential delegation for agents)
   - cryptographic engineering pair on threshold + proxy re-encryption
+journey:
+  stage: 4
+  evidence_quality: 3
+  market_upside: 4
+  primary_bottleneck: ICP Clarity
+  company_type: Infra
+  confidence: Medium
+  icp: agent builders who need user-owned cloud execution and scoped credential delegation inside TEE-backed infrastructure
+  problem: users and agents need to delegate secrets or cloud actions without giving broad account control to opaque services
+  solution: user-owned cloud and tinycloud-secrets for scoped credential delegation on dstack/TEE rails
+  evidence_notes: live SDK/protocol, paid pilot, dstack fork, and shipped related tools show execution; product wedge should narrow around cohort dogfooders
+  next_milestone: get one cohort project using tinycloud-secrets for a real scoped delegation workflow
 making_signature:
   built_domain: [agentic, systems]
   shape: broad

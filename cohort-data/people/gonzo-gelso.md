@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Carrying Etherea's product, community, and developer-relations voice around live generative performance systems."
+skill_areas:
+  - generative-media
+  - product-design
+  - community
+  - developer-relations
 go_to_them_for:
   - generative live systems
   - performance tooling
@@ -27,6 +33,13 @@ recurring_themes:
   - ritual and performance
   - creative infrastructure
   - shipping through experience
+working_style: "Experience-led product cofounder: sharpest when a technical system has to become something a community can feel and use."
+best_contexts:
+  - live demo shaping
+  - creative-tool positioning
+  - community and developer-facing launch work
+prior_work:
+  - Etherea cofounding and creative-AI product/community work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

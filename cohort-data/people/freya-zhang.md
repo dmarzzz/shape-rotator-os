@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Operating Daedalus across technical PM work, prediction-market infrastructure, and TradFi-to-crypto translation."
+skill_areas:
+  - prediction-markets
+  - market-microstructure
+  - technical-product-management
+  - infofi
 go_to_them_for:
   - prediction market infrastructure
   - InfoFi coordination
@@ -27,6 +33,13 @@ recurring_themes:
   - TradFi-to-crypto translation
   - structured execution
   - market design
+working_style: "Execution-centered operator who makes a research-heavy market-infrastructure project legible and shippable."
+best_contexts:
+  - market-infra planning
+  - InfoFi product framing
+  - founder/team coordination
+prior_work:
+  - Daedalus operating lead and prediction-market infrastructure work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

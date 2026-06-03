@@ -17,6 +17,12 @@ links:
   website: https://teleport.best
   linkedin: null
 dietary_restrictions:
+now: "Building around Teleport Router and TEE-attestation experiments."
+skill_areas:
+  - cross-chain
+  - routing-infrastructure
+  - tee
+  - attestation
 go_to_them_for:
   - cross-network routing follow-up
   - crypto infrastructure context
@@ -25,6 +31,15 @@ recurring_themes:
   - sparse-source profile
   - routing infrastructure
   - project-context inference
+working_style: "Implementation-oriented crypto/attestation builder; strongest evidence comes from public project artifacts rather than a polished personal profile."
+best_contexts:
+  - Teleport Router implementation review
+  - attestation prototype discussion
+  - evidence-backed technical mapping
+prior_work:
+  - fisherman
+  - is-this-real-tea
+  - teleport.best
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

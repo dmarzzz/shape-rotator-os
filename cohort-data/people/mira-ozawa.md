@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: mira-ozawa
 dietary_restrictions:
+now: "Working in ML infrastructure around Contexto-style agent context, memory, and retrieval systems."
+skill_areas:
+  - agentic-workflows
+  - memory-retrieval
+  - ml-infrastructure
+  - developer-tools
 go_to_them_for:
   - agent context systems
   - memory and retrieval workflows
@@ -27,6 +33,13 @@ recurring_themes:
   - agent memory
   - framework design
   - making invisible state legible
+working_style: "Infrastructure-minded ML builder: sharpest on the hidden state, memory, and retrieval layer that makes agent systems actually usable."
+best_contexts:
+  - Contexto architecture review
+  - memory/retrieval workflow design
+  - framework critique
+prior_work:
+  - Contexto ML infrastructure work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

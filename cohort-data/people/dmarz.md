@@ -19,6 +19,29 @@ links:
   website: dmarz.xyz
   linkedin: null
 dietary_restrictions:
+now: building Shape Rotator OS/field-kit plus searxng-wth-frnds as a local-first privacy-search surface
+skill_areas:
+  - p2p
+  - identity
+  - design
+  - bd-gtm
+go_to_them_for:
+  - Shape Rotator OS and local-first cohort tooling
+  - privacy-search and LAN-first retrieval
+  - field-kit / VoxTerm / app distribution questions
+recurring_themes:
+  - local-first operating surfaces
+  - privacy-preserving search
+  - tools that make cohort work visible and usable
+working_style: tool-maker operator; builds the working surface while keeping the social workflow in view
+best_contexts:
+  - OS/app integration discussions
+  - local-first and LAN-first prototype review
+  - cohort tooling and distribution strategy
+prior_work:
+  - Shape Rotator OS and field-kit
+  - VoxTerm transcription tool
+  - searxng-wth-frnds
 making_signature:
   class: code-verified
   built_domain: [data]

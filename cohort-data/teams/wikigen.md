@@ -43,6 +43,18 @@ offering:
   - workshop on agentic pipelines for personal data banks
   - RL + tinker environments for ML tasks
   - data intake/processing infrastructure for cohort dogfooders
+journey:
+  stage: 3
+  evidence_quality: 2
+  market_upside: 3
+  primary_bottleneck: ICP Clarity
+  company_type: AI
+  confidence: Low
+  icp: bioinformatics and research teams that need secure collaborative curation over sensitive scientific workflows
+  problem: collaborative research pipelines need curation, identity, and privacy boundaries before sensitive data can move productively
+  solution: WikiGen/BioToolsHub plus Topos backend for secure, agentic research curation
+  evidence_notes: strong scientific/public background and live surfaces exist; the exact paid workflow and buyer remain less clear
+  next_milestone: demonstrate one secure collaborative research workflow with identity/consent boundaries visible
 ---
 
 ## about

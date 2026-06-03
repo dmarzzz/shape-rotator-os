@@ -37,6 +37,13 @@ recurring_themes:
   - secure open verified silicon
   - trust minimization below the application layer
   - sequencing and latency in execution systems
+working_style: "Trust-minimization specialist focused below the application layer, especially where TEE systems inherit hardware-vendor assumptions."
+best_contexts:
+  - remote-attestation threat modeling
+  - trust-root mechanism design
+  - Ethereum execution-system questions
+prior_work:
+  - Trustless TEE
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

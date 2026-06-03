@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Engineering TinyCloud's sovereign-data node SDK and storage primitives."
+skill_areas:
+  - decentralized-storage
+  - rust
+  - typescript
+  - capability-systems
 go_to_them_for:
   - decentralized storage architecture
   - Tinycloud implementation
@@ -28,6 +34,13 @@ recurring_themes:
   - systems implementation
   - trust by architecture
 working_style: Visible only through release credits — a steady engineering contributor to the sovereign-data node SDK (Rust + TypeScript)
+best_contexts:
+  - TinyCloud SDK implementation
+  - storage and capability primitives
+  - release-engineering follow-up
+prior_work:
+  - TinyCloud GitHub release history
+  - sovereign-data node SDK work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

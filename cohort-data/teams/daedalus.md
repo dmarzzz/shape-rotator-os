@@ -44,6 +44,18 @@ seeking:
 offering:
   - market microstructure learnings (toxic flow handling, latency, orderbook dynamics)
   - open data + evaluation pipeline (orderbook ingestion, backtesting)
+journey:
+  stage: 2
+  evidence_quality: 2
+  market_upside: 4
+  primary_bottleneck: ICP Clarity
+  company_type: Infra
+  confidence: Low
+  icp: systematic prediction-market traders and infrastructure builders who need protected order-flow evaluation
+  problem: prediction-market liquidity and execution quality are constrained by toxic flow, latency, and weak microstructure tooling
+  solution: an orderbook ingestion and backtest pipeline grounded in protected order flow research
+  evidence_notes: PROF paper and market-data pipeline direction are credible; customer/user pull is not yet proven in the app surface
+  next_milestone: show one backtest or live-trading result that changes a market-making decision
 ---
 
 ## about

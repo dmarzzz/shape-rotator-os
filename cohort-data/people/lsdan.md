@@ -20,6 +20,12 @@ contribute_interests: "Happy to work on anything TEE related, SQL/DB related, wh
 availability_pref: "Never available Sundays."
 weekly_intention: "I want a functioning production ready cluster online this week."
 dietary_restrictions: "low salt, low fat, heart healthy"
+now: "Pushing TeeSQL toward a functioning production-ready confidential Postgres cluster."
+skill_areas:
+  - tee
+  - confidential-databases
+  - postgres
+  - attestation
 go_to_them_for:
   - TEE database architecture
   - Postgres deployment
@@ -30,6 +36,15 @@ recurring_themes:
   - database pragmatism
   - TEE developer experience
   - local proof over claims
+working_style: "Pragmatic systems architect: useful when a TEE idea has to survive real database operations and developer trust boundaries."
+best_contexts:
+  - Postgres-in-CVM deployment
+  - RA-TLS and dstack review
+  - attested storage integration
+prior_work:
+  - maintained dstack fork
+  - phala-cloud-cli
+  - three-CVM Postgres demo
 enrichment_source: dossier-derived  # facilitator read; edit freely
 making_signature:
   class: code-verified

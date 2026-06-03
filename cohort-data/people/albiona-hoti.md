@@ -21,6 +21,12 @@ links:
   website: albiona.dev
   linkedin: AlbionaHoti
 dietary_restrictions:
+now: growing Elocute from live traction into a repeatable speaking-practice habit loop
+skill_areas:
+  - agentic
+  - generative-media
+  - design
+  - bd-gtm
 go_to_them_for:
   - speech-practice tools
   - tight feedback loops
@@ -31,6 +37,15 @@ recurring_themes:
   - clear feedback
   - solo learning loops
   - accessible tooling
+working_style: fast consumer-product builder who turns her own learning and validation process into tools others can use
+best_contexts:
+  - rapid AI product validation
+  - user-facing feedback loops
+  - consumer GTM and content-led launch experiments
+prior_work:
+  - Elocute — live AI speaking-practice app with scored feedback
+  - Claude Code skills, app-validation kits, and idea-to-spec workflows
+  - Flashbots X EIR work around AI-first product building
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

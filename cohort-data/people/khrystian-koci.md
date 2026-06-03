@@ -22,7 +22,32 @@ availability_pref: |
   No meetings on weekends.
 weekly_intention: "Redeploy to Phala, get intel_verified=True on a real TDX quote, then scope the Automata on-chain DCAP integration."
 now: "Solving the trust problem for AI-to-AI data deals, at IC3 NYC."
+skill_areas:
+  - tee
+  - dstack
+  - attestation
+  - agentic
+  - post-quantum
 dietary_restrictions:
+go_to_them_for:
+  - dual-agent attestation
+  - DCAP verification
+  - AI-to-AI escrow and contract flows
+  - Phala / TDX deployment debugging
+recurring_themes:
+  - verifiable AI agreements
+  - TEE trust boundaries
+  - prototype discipline and test coverage
+working_style: solo technical founder who pushes from working tests to real attested deployment
+best_contexts:
+  - TEE deployment reviews
+  - agent-contract protocol design
+  - test-driven security prototype work
+prior_work:
+  - DealProof — TEE-enforced agent-to-agent negotiation protocol
+  - 56 passing tests across documented DealProof phases
+  - confidential-agent-market hackathon and Intel TDX/DCAP work
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
