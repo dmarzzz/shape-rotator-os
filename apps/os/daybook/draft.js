@@ -47,17 +47,22 @@ function localDateStr(d = new Date()) {
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
 }
 
-// The user's FIRST name (third-person voice). DAYBOOK_NAME or ~/.routerrc.name;
-// first token only; falls back to "James". (Mirrors the former main.js helper so
-// buildDraft can run without the Electron main process.)
+// The user's FIRST name (third-person voice). DAYBOOK_NAME or ~/.routerrc.name,
+// then the registered ~/.routerrc.handle (which join/use-key always persist) so
+// a user who never set an explicit name is still themselves; first token only.
+// Falls back to a neutral "you" rather than any one developer's name, so an
+// unconfigured install never labels every user as the same person. (Mirrors the
+// former main.js helper so buildDraft can run without the Electron main process.)
 function firstNameOf(s) { return String(s || '').trim().split(/\s+/)[0] || ''; }
 function resolveName() {
   let raw = process.env.DAYBOOK_NAME || '';
   if (!raw) {
-    try { raw = JSON.parse(fs.readFileSync(path.join(HOME, '.routerrc'), 'utf8')).name || ''; }
-    catch { /* ignore */ }
+    try {
+      const rc = JSON.parse(fs.readFileSync(path.join(HOME, '.routerrc'), 'utf8'));
+      raw = rc.name || rc.handle || '';
+    } catch { /* ignore */ }
   }
-  return firstNameOf(raw) || 'James';
+  return firstNameOf(raw) || 'you';
 }
 
 // ── cheap, model-free freshness fingerprint ───────────────────────────────

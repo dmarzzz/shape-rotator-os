@@ -161,7 +161,7 @@ const els = {
   sshSavedList: $('ssh-saved-list'),
 };
 
-let ctx = { digest: '', name: 'James', dateLabel: 'today', server: '' };
+let ctx = { digest: '', name: 'you', dateLabel: 'today', server: '' };
 let cur = { text: '', generated: '', fnMap: {}, editing: false };
 let mode = 'digest';            // 'digest' | 'intro'
 let welcomeBallOn = false;      // start the big welcome disco ball only once
@@ -298,7 +298,7 @@ async function boot() {
   els.loadingText.textContent = 'Getting set up…';
   let b;
   try { b = await window.daybook.bootstrap(); } catch (e) { return fail(e.message || String(e)); }
-  ctx.name = b.name || 'James';
+  ctx.name = b.name || b.handle || 'you';
   ctx.server = b.server || '';
   els.postingAs.innerHTML = `posting to <b>${hostLabel(b.server)}</b>`;
   if (!b.hasKey) return showConnect(); // no identity yet — join the Router first
@@ -772,7 +772,7 @@ function fillStats(stats, peers) {
 function paintRecord(record) {
   ctx = {
     digest: record.sessionInputs ? record.sessionInputs.digest : '',
-    name: record.name || 'James',
+    name: record.name || 'you',
     dateLabel: (record.stats && record.stats.date) || 'today',
     server: record.server || '',
   };
