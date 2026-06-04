@@ -124,4 +124,12 @@ contextBridge.exposeInMainWorld("api", {
       return () => ipcRenderer.removeListener("easel:thumb-frame", handler);
     },
   },
+
+  // ─── router (Teleport Router) ────────────────────────────────────────
+  // The router app runs in its OWN pop-out window (src/router/) behind its own
+  // shim preload (window.daybook). From the MAIN window we only need to open it
+  // — the apps card / command palette / onboarding step call this.
+  daybook: {
+    openWindow: () => ipcRenderer.invoke("daybook:open-window"),
+  },
 });

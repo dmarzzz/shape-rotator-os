@@ -2485,10 +2485,11 @@ function renderOnboarding() {
     {
       key: "interview",
       title: "do the cohort interview",
-      ask: `a short interview so the cohort has a baseline picture of what you bring. <em>operator will publish the browser link here.</em>`,
+      ask: `a short interview so the cohort has a baseline picture of what you bring. the <strong>router</strong> app runs it locally — answer a few questions and it writes your intro for you to review + post.`,
       autoComplete: false,
       missingState: "info",
-      action: { kind: "interview-quiz-links", label: "show interview status" },
+      action: { kind: "open-app", app: "daybook", label: "open router →" },
+      secondaryAction: { kind: "interview-quiz-links", label: "or: show interview status" },
     },
     {
       key: "hermes-agent",
@@ -2946,6 +2947,9 @@ function wireOnboarding() {
         render();
       } else if (a.kind === "external" && a.url) {
         try { window.api?.openExternal?.(a.url); } catch {}
+      } else if (a.kind === "open-app" && a.app) {
+        // Deep-link into an apps-tab sub-app (boot.js owns the navigation).
+        try { window.__srwkOpenApp?.(a.app); } catch {}
       } else if (a.kind === "matrix-instructions") {
         showMatrixInstructions();
       } else if (a.kind === "bot-matrix-instructions") {

@@ -5,6 +5,10 @@ const crypto = require("node:crypto");
 const swfNode = require("./swf-node");
 const swarm = require("./swarm-node");
 const easelNdi = require("./easel-ndi");
+// Daybook (apps→daybook): registering this module wires every `daybook:*`
+// ipcMain handler (digest pipeline, scope/redaction, onboarding). Side-effect
+// require, mirroring the prefs/swarm/easel handlers below. See daybook-main.js.
+require("./daybook-main");
 
 // Headless launch self-test. `--smoke-test` (or SROS_SMOKE_TEST=1) boots
 // the renderer in a hidden window, waits for boot.js to signal ready, and

@@ -32,7 +32,11 @@ const path = require("node:path");
 const ARCH_NAME = { 0: "ia32", 1: "x64", 2: "armv7l", 3: "arm64", 4: "universal" };
 
 // Single-file binaries fetched per-arch in CI and copied via extraResources.
-const BUNDLES = ["swf-node", "research-swarm"];
+// "whisper" stages a dir (whisper-cli + ffmpeg + ggml model) for cross-platform
+// voice (scripts/fetch-whisper.sh). Like swf-node it degrades gracefully: a
+// missing per-arch staging dir leaves build-resources/whisper/ untouched and the
+// app falls back to MLX (Apple Silicon) or type-only.
+const BUNDLES = ["swf-node", "research-swarm", "whisper"];
 
 module.exports = async function beforePack(context) {
   const archName = ARCH_NAME[context.arch] || String(context.arch);
