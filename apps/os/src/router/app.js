@@ -902,7 +902,9 @@ els.refineCta.addEventListener('click', () => startRefine(ctx.firstQuestion));
 els.startover.addEventListener('click', () => (mode === 'intro' ? buildIntro() : rebuildDraft('manual')));
 els.skip.addEventListener('click', async () => {
   if (mode === 'intro') { await window.daybook.markIntroduced(); return run(); }
-  window.close();
+  // Skipping today's post isn't a dead end — drop into the cohort feed (back
+  // returns to the draft if you change your mind) rather than closing.
+  showFeed('reflect');
 });
 
 // ── scope manager (#scope) — pick which repos the Router can see ──────────────
