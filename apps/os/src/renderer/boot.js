@@ -6022,6 +6022,17 @@ function wireTabs() {
     if (t === "alchemy" && document.body.dataset.activeTab === "alchemy") {
       if (Alchemy.toggleMembraneMenuFromTopTab()) return;
     }
+    // Clicking the apps tab while already inside an app sub-view (atlas/easel)
+    // bounces back to the apps grid — a reliable escape when a sub-app is a dead
+    // end (e.g. atlas with swf-node down). The tab bar sits outside the sub-app
+    // stage, so this works even if the sub-app itself is unresponsive.
+    if (t === "apps" && document.body.dataset.activeTab === "apps" && document.body.dataset.appsView) {
+      delete document.body.dataset.appsView;
+      try { localStorage.removeItem(APPS_LS_KEY); } catch {}
+      Alchemy.closeMembraneMenu();
+      applyActiveTab("apps");
+      return;
+    }
     Alchemy.closeMembraneMenu();
     morphActiveTab(t, () => applyActiveTab(t));
     try { localStorage.setItem(TAB_LS_KEY, t); } catch {}
