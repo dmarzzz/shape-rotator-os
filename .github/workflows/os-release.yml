@@ -57,12 +57,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # `arches` lists every arch electron-builder cross-builds on this
+          # runner. The fetch steps below loop over it so BOTH arches' bundled
+          # binaries are staged (see #186); the host arch is built first.
           - os: macos-latest
             platform: mac
+            arches: arm64 x64
           - os: windows-latest
             platform: win
+            arches: x64 arm64
           - os: ubuntu-latest
             platform: linux
+            arches: x64 arm64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -77,6 +83,19 @@ jobs:
 
       - name: install (workspaces)
         run: npm ci
+
+      # NDI is macOS-only for now: @stagetimerio/grandiose is a native
+      # (node-gyp) addon whose NDI SDK lib fails to cross-link on the
+      # win/linux runners. Strip it on non-mac so electron-builder's native
+      # rebuild has nothing to choke on; easel-ndi.js degrades to
+      # "NDI unavailable" when the module is absent. (It's an optionalDependency.)
+      - name: strip mac-only NDI module (${{ matrix.platform }})
+        if: matrix.platform != 'mac'
+        shell: bash
+        run: rm -rf node_modules/@stagetimerio/grandiose apps/os/node_modules/@stagetimerio/grandiose
+
+      - name: check OS packaging manifest
+        run: npm run check:packaging --workspace @shape-rotator/os
 
       # Pull the bundled swf-node binary from the latest upstream release
       # (dmarzzz/searxng-wth-frnds). The asset lands at
@@ -108,10 +127,50 @@ jobs:
           # unset to follow `latest`.
           SWF_NODE_VERSION: ${{ vars.SWF_NODE_VERSION }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/fetch-swf-node.sh
+        # Fetch every arch this runner cross-builds (see #186). Each pass stages
+        # into build-resources/_staging/swf-node/<arch>/; the beforePack hook
+        # flattens the matching arch per dmg/AppImage at pack time.
+        run: |
+          set -euo pipefail
+          for arch in ${{ matrix.arches }}; do
+            echo "::group::fetch swf-node ($arch)"
+            SWF_NODE_ARCH="$arch" bash scripts/fetch-swf-node.sh
+            echo "::endgroup::"
+          done
+
+      # Same pattern as fetch-swf-node above, for the research-agent
+      # PyInstaller binary from dmarzzz/research-swarm. Drops it at
+      # apps/os/build-resources/research-swarm/ so electron-builder's
+      # extraResources entry copies it into Resources/research-swarm/
+      # in the produced bundle. swarm-node.js finds it there via
+      # process.resourcesPath. Falls back to a stub on missing assets
+      # / unsupported platforms (Windows today).
+      - name: fetch bundled research-agent binary
+        shell: bash
+        env:
+          RESEARCH_SWARM_VERSION: ${{ vars.RESEARCH_SWARM_VERSION }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Fetch every arch this runner cross-builds (see #186); same staging +
+        # beforePack flattening as swf-node above.
+        run: |
+          set -euo pipefail
+          for arch in ${{ matrix.arches }}; do
+            echo "::group::fetch research-agent ($arch)"
+            RESEARCH_SWARM_ARCH="$arch" bash scripts/fetch-research-swarm.sh
+            echo "::endgroup::"
+          done
 
       - name: regenerate cohort-surface.json from cohort-data/
         run: npm run build:cohort
+
+      # Fast fail-early gate: bundle the renderer's full import graph with
+      # esbuild's real resolver before the ~10-min electron-builder run.
+      # Catches a renderer module importing a bare package that isn't
+      # installed / a module that won't resolve — the gap the afterPack
+      # asar check (relative-only) deliberately skips. Runs on every
+      # platform; cheap and platform-agnostic.
+      - name: bundle-check renderer (esbuild resolver gate)
+        run: npm run bundle:check --workspace @shape-rotator/os
 
       # ── macOS signing prep (gated) ──────────────────────────────
       # Only runs when ALL five signing secrets are present. Decodes
@@ -175,6 +234,15 @@ jobs:
           # Skip publish when triggered manually with pack-only=true.
           # Tag-triggered builds always publish.
           EB_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.pack-only && 'never' || 'onTagOrDraft' }}
+          # Live boot smoke test (scripts/after-pack-verify.cjs §5). Enabled
+          # on mac only: macos runners have a window server so the hidden
+          # BrowserWindow boots cleanly, and the v0.2.13/v0.2.14 blank-pane
+          # regressions both shipped on mac. The hook only smokes the
+          # host-arch pack (arm64 on macos-latest) and skips the x64 pack —
+          # the renderer JS is arch-independent. linux (needs xvfb + sandbox
+          # handling) and windows smoke are a deferred follow-up; static
+          # asar verification still runs on every platform.
+          SROS_SMOKE_TEST: ${{ matrix.platform == 'mac' && '1' || '' }}
           # CSC_LINK / CSC_KEY_PASSWORD / APPLE_* come in via
           # $GITHUB_ENV from the prep step when signing is enabled.
           # They are NOT set here so they stay unset on the unsigned

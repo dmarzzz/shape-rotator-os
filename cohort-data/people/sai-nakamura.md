@@ -17,8 +17,19 @@ links:
   website: sainak.dev
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - agentic coding workflows
+  - developer tooling
+  - multi-agent review loops
+  - AI coding product feedback
+recurring_themes:
+  - developer flow
+  - agent-assisted shipping
+  - tooling over theory
+  - recursive coding systems
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface)
+Co-founder of JJHub, working on agent runtime. PST.

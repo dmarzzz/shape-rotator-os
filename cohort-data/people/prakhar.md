@@ -21,8 +21,26 @@ contribute_interests: "Mostly backend and brainstorming if possible :)"
 availability_pref: "Flexible / async"
 weekly_intention: "Ship one backend feature"
 dietary_restrictions: vegetarian
+go_to_them_for:
+  - agent framework architecture
+  - NDAI interpretation
+  - skills/runtime abstractions
+  - coordination protocol design
+recurring_themes:
+  - programmable coordination
+  - agent agreements
+  - runtime semantics
+  - framework clarity
+enrichment_source: dossier-derived  # facilitator read; edit freely
+making_signature:
+  class: code-verified
+  built_domain: [data, frontend]
+  shape: balanced
+  note: stated work corroborated by their code
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about
 
-(public surface — Conclave · NDAI framework · skills runtime)
+A Rust/systems engineer and core builder of Conclave — TEE confidential-compute productionizing the NDAI Agreements paper. Prior work includes NEAR shade-agents and Smart Bet (NEAR/Proximity-funded), and a from-scratch CLOB matching engine. GitHub prakhar728. NYC.

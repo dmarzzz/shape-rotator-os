@@ -23,8 +23,15 @@ links:
 paper_basis: null
 traction: null
 hackathon_note: null
+making_signature:
+  built_domain: [data]
+  shape: deep
+  shared_primitives:
+    - verifiable crypto identity
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about
 
-(public surface — details to be filled in)
+A LAN-first peer search daemon — local-first, privacy-by-default search shared across a local network of trusted peers. Built on the SearXNG metasearch engine.

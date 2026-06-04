@@ -17,8 +17,17 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - cross-network routing follow-up
+  - Teleport Router project context
+  - evidence collection
+recurring_themes:
+  - sparse-source profile
+  - routing infrastructure
+  - crypto coordination
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface — details to be filled in)
+Lead of Teleport Router (cross-network routing), on the crew with steward Andrew Miller and sxysun.

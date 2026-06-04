@@ -28,4 +28,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface — Trustless TEE)
+Solo lead of Trustless TEE ("trustless trusted-execution", X handle 0xQuintus) — a one-person team addressing the trust-root problem that TEE systems inherit (the Intel/AMD signing key).

@@ -15,16 +15,23 @@ shape: meridian
 is_mentor: false
 links:
   github: null
-  repo: null
+  repo: https://github.com/jameslbarnes/teleport-router
   x: null
-  website: null
+  website: https://teleport.best
   demo: null
   deck: null
 paper_basis: null
 traction: null
 hackathon_note: null
+making_signature:
+  built_domain: [agentic]
+  shape: broad
+  shared_primitives:
+    - zk / proof systems
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about
 
-(public surface — details to be filled in)
+Cross-network routing in the TEE/attestation space. The public surface (teleport.best) offers one-time-use delegated posting — let someone post to your account once without handing over control — with related work on attestation-verified delegation.

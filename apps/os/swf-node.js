@@ -6,14 +6,21 @@
 // running it externally — this module makes the app spawn its own.
 //
 // State machine
-//   idle         — not started yet
-//   starting     — spawn() called, no exit signal yet
-//   running      — child is alive (first stdout/stderr line OR
-//                  300ms grace window passed without an exit)
-//   crashed      — exited unexpectedly 3 times in a row
-//   unsupported  — binary missing on disk (e.g. win32-arm64 host, where
-//                  upstream pyrage has no arm64-windows wheel yet) OR
-//                  explicitly disabled via SWF_NODE_DISABLE=1
+//   idle                — not started yet
+//   starting            — spawn() called, no exit signal yet
+//   running             — child is alive (first stdout/stderr line OR
+//                         300ms grace window passed without an exit)
+//   crashed             — exited unexpectedly 3 times in a row
+//   external_squatter   — a foreign swf-node is already on :7777 (e.g. a
+//                         pipx install from before the bundling work);
+//                         we skip spawn rather than race-and-fail.
+//                         Detected by `/.well-known/indrex` probe at
+//                         start() time. getExternalDaemonInfo() returns
+//                         what we saw so the renderer can warn the user.
+//   unsupported         — binary missing on disk (e.g. win32-arm64 host,
+//                         where upstream pyrage has no arm64-windows
+//                         wheel yet) OR explicitly disabled via
+//                         SWF_NODE_DISABLE=1
 //
 // Lifecycle
 //   start(BrowserWindow|null)  — call on app.whenReady
@@ -42,8 +49,10 @@
 //     install on the same machine.
 
 const { spawn } = require("node:child_process");
+const http = require("node:http");
 const path = require("node:path");
 const fs = require("node:fs");
+const os = require("node:os");
 const crypto = require("node:crypto");
 
 const LOG_MAX_BYTES = 5 * 1024 * 1024;   // ~5MB before rotation
@@ -51,6 +60,14 @@ const RESTART_LIMIT = 3;                  // unexpected exits before we give up
 const RESTART_BACKOFF_MS = 2000;
 const SIGTERM_GRACE_MS = 3000;            // wait this long before SIGKILL on quit
 const PORT = 7777;                        // the renderer's hardcoded default
+const PROBE_TIMEOUT_MS = 1500;            // /.well-known/indrex probe budget
+// PyInstaller --onefile bundles don't embed setuptools_scm — the bundled
+// swf-node reports this literal as its `version` over the wire. A
+// `/.well-known/indrex` response from :7777 reporting anything OTHER
+// than this sentinel means we're staring at a foreign daemon (e.g.
+// a pipx-installed swf-node squatting on the port from the pre-
+// bundling era), and our spawn would race-and-fail against it.
+const BUNDLED_VERSION_SENTINEL = "0.0.0+unknown";
 
 let _proc = null;
 let _state = "idle";
@@ -66,6 +83,11 @@ let _broadcaster = null;       // (state) => void
 let _agentToken = null;        // generated once per launch, persisted to disk under _dataDir/agent_token
 let _agentTokenPath = null;
 let _cohortKeysPath = null;    // userData/swf-node-data/cohort-keys.json (after bootstrap)
+// When the pre-spawn probe finds someone else on :7777 (typically an
+// older pipx-installed swf-node from before bundling existed), we stash
+// what they reported so the renderer can surface a remediation banner.
+// Null when no external daemon was detected at start() time.
+let _externalDaemon = null;    // { version, indrex } | null
 
 function setState(next) {
   if (_state === next) return;
@@ -120,6 +142,38 @@ function appendLog(stream, chunk) {
       openLogStream();
     }
   } catch {}
+}
+
+// GET http://127.0.0.1:PORT/.well-known/indrex with a hard timeout.
+// Returns the parsed JSON body on a 200, or null on anything else
+// (no listener, non-200, parse error, timeout). Never throws.
+function probeIndrex(timeoutMs) {
+  return new Promise((resolve) => {
+    const req = http.get({
+      hostname: "127.0.0.1",
+      port: PORT,
+      path: "/.well-known/indrex",
+      timeout: timeoutMs,
+    }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return resolve(null);
+      }
+      let buf = "";
+      res.setEncoding("utf8");
+      res.on("data", (c) => {
+        buf += c;
+        // Indrex docs are small (a few hundred bytes). Anything bigger
+        // is either not us or a bug — bail rather than buffer forever.
+        if (buf.length > 8192) { req.destroy(); resolve(null); }
+      });
+      res.on("end", () => {
+        try { resolve(JSON.parse(buf)); } catch { resolve(null); }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  });
 }
 
 // Filename of the bundled binary inside Resources/swf-node/. Windows
@@ -230,8 +284,30 @@ function spawnChild() {
   setState("starting");
   _expectQuit = false;
 
+  // PyInstaller onefile bootloader extracts the bundled runtime to
+  // `$TMPDIR/_MEI<hash>`. When the parent process is Electron (not a
+  // login shell), stale `_MEI*` siblings in the system temp folder
+  // confuse the bootloader's extraction path — community_full/schema.sql
+  // and other --collect-data files end up missing from the new _MEI,
+  // and the daemon crashes at `_start_full_subsystems`. Giving each
+  // spawn its own private TMPDIR sidesteps the issue entirely: the
+  // bootloader sees a clean parent dir and extracts cleanly every time.
+  // Verified end-to-end against v0.13.0/0.13.1/0.13.2/0.13.3 mac-arm64
+  // binaries — all of which crashed reliably under shared $TMPDIR and
+  // booted cleanly under a private one.
+  let _swfTmpDir;
+  try {
+    _swfTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "swf-node-tmp-"));
+  } catch (e) {
+    // mkdtemp fail is non-fatal — fall through to system TMPDIR and
+    // hope for the best. Log so operators can see the degraded path.
+    process.stderr.write(`[swf-node] mkdtempSync failed (${e.message}); using system TMPDIR\n`);
+  }
+
   const env = {
     ...process.env,
+    // Per-spawn TMPDIR (see comment above). Skip when mkdtemp failed.
+    ...(_swfTmpDir ? { TMPDIR: _swfTmpDir } : {}),
     // Bind on all interfaces so cohort LAN peers can reach this node
     // inbound. The renderer still hits http://127.0.0.1:<PORT> for
     // local aggregator surface; binding to 0.0.0.0 keeps that working
@@ -248,12 +324,15 @@ function spawnChild() {
     // Pin the cohort-keys file location to userData/swf-node-data/
     // (bootstrapped from the bundled empty seed by ensureCohortKeys).
     SWF_COHORT_KEYS_FILE: _cohortKeysPath,
-    // LAN-trust mode (swf-node v0.11.0+): the cohort lives on a single
-    // WiFi LAN today, so any signed envelope from any mDNS-discovered
-    // peer is acceptable. This bypasses cohort-keys gating + single-
-    // writer-pinning so a fresh install on a second laptop can sync
-    // with the first laptop without manual key exchange. See
-    // searxng-wth-frnds docs/SYNC.md §11.
+    // LAN-trust mode (swf-node v0.11.0+). Bypasses cohort-keys author
+    // whitelist + single-writer-pin + fork detection; sig verify and
+    // replay dedup remain. Spec §11 labels this "Not for production
+    // cohorts" — we run it anyway because (a) v1 cohort-keys can't
+    // express multi-device-per-handle and (b) the cohort meets on a
+    // closed venue WiFi. ASSUMPTION: no untrusted devices on that LAN.
+    // PLAN to drop the flag: collect every member's device pubkey at
+    // the first in-person meet, sign + publish a roster bundle, then
+    // unset this. See searxng-wth-frnds docs/SYNC.md §11.
     SWF_TRUST_LAN_PEERS: "1",
     // Non-loopback bind ⇒ swf-node demands a bearer token for agent
     // routes (incl. POST /sync/local_record per spec §7.4). Generate
@@ -403,7 +482,48 @@ function start(app, broadcaster) {
   openLogStream();
 
   _restartCount = 0;
-  spawnChild();
+  // Probe BEFORE spawn. If a foreign daemon (e.g. a pipx-installed
+  // swf-node left over from the pre-bundling era) is already on :7777,
+  // our spawn would just race-and-fail three times into "crashed" and
+  // the renderer would silently end up talking to the old daemon — the
+  // exact failure mode dmarzzz/shape-rotator-os#84-followup describes.
+  // The probe is async; spawnChild() runs inside on miss, so start()
+  // stays fire-and-forget for callers (main.js doesn't await).
+  probeAndStart();
+}
+
+// Pre-spawn external-daemon detection. Either spawns our child or
+// latches into the `external_squatter` terminal state with a clear
+// remediation message. Caller (start) doesn't await.
+async function probeAndStart() {
+  const existing = await probeIndrex(PROBE_TIMEOUT_MS);
+  if (!existing) {
+    // Nothing on :7777 — the common case. Proceed with normal spawn.
+    spawnChild();
+    return;
+  }
+  const ver = (existing && existing.version) || "(unknown)";
+  _externalDaemon = { version: ver, indrex: existing };
+
+  // Anything other than the PyInstaller sentinel means we're staring
+  // at a different binary. Almost always a stale `pipx install swf-node`
+  // from the pre-bundling era still bound to :7777 at SROS launch.
+  const stderrLines = [
+    `[swf-node] external swf-node detected on :${PORT} (version="${ver}")`,
+    `[swf-node]   the bundled binary reports "${BUNDLED_VERSION_SENTINEL}"; this is something else.`,
+    `[swf-node]   skipping spawn — would race-and-fail. The renderer will see the old daemon's responses;`,
+    `[swf-node]   new sync endpoints (/sync/manifest, /sync/log, /node/log) will 404 on it.`,
+    `[swf-node]   fix: \`pkill -f swf-node\` (also \`pipx uninstall swf-node\` if applicable), then relaunch SROS.`,
+  ];
+  for (const line of stderrLines) process.stderr.write(line + "\n");
+  appendLog("squatter",
+    `external swf-node on :${PORT} version="${ver}" — skipping spawn.\n` +
+    `  remediation: pkill -f swf-node (and pipx uninstall swf-node if applicable), then relaunch SROS.\n`,
+  );
+  // Treat both cases — foreign version AND same sentinel (second SROS
+  // instance) — as "external_squatter". The renderer can read the
+  // detected version via getExternalDaemonInfo() to decide what to show.
+  setState("external_squatter");
 }
 
 /**
@@ -435,6 +555,32 @@ function stop() {
   });
 }
 
+/**
+ * Re-check and (re)spawn the daemon if it isn't currently up. Unlike
+ * start(), this recovers from `crashed` / `unsupported` / `idle` — the
+ * supervisor otherwise gives up forever after RESTART_LIMIT and start()
+ * refuses to run unless idle, so an app left running with a dead backend
+ * never heals on its own. Triggered on window focus/activate and via the
+ * renderer's explicit "restart backend" path.
+ *
+ * The motivating case: an in-place update swaps the .app out from under a
+ * running process (unsigned-mac manual install). If the app was launched
+ * mid-swap the binary was briefly missing → `unsupported`, and nothing
+ * ever retried. Re-resolving the binary here picks it up once it lands.
+ *
+ * No-op when a child is alive or a spawn is already in flight.
+ * @returns {boolean} true if a (re)start was kicked off.
+ */
+function restart(app, broadcaster) {
+  if (_proc || _state === "starting" || _state === "running") return false;
+  if (broadcaster) _broadcaster = broadcaster;
+  _expectQuit = false;
+  _restartCount = 0;
+  _state = "idle";   // clear crashed/unsupported so start()'s guard passes
+  start(app, _broadcaster);
+  return _state === "starting" || _state === "running";
+}
+
 function getStatus() {
   return _state;
 }
@@ -447,4 +593,12 @@ function getAgentToken() {
   return _agentToken;
 }
 
-module.exports = { start, stop, getStatus, getAgentToken };
+// When start() found a foreign daemon on :7777 at launch, this returns
+// `{ version, indrex }` so the renderer can show a targeted remediation
+// banner. Returns null when our own spawn is the daemon on :7777 (the
+// normal case) or before start() has run.
+function getExternalDaemonInfo() {
+  return _externalDaemon;
+}
+
+module.exports = { start, restart, stop, getStatus, getAgentToken, getExternalDaemonInfo };

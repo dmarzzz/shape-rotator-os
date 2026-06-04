@@ -25,6 +25,13 @@ const PERSON_FIELDS = [
   { key: "links.x",         label: "x",              type: "text" },
   { key: "links.website",   label: "website",        type: "text" },
   { key: "links.linkedin",  label: "linkedin",       type: "text" },
+  // enrichment (schema v1.1) — list fields entered comma-separated
+  { key: "now",             label: "now (one-liner)", type: "text", placeholder: "what I'm working on right now" },
+  { key: "working_style",   label: "working style",  type: "text", placeholder: "how you build — one line" },
+  { key: "go_to_them_for",  label: "ask me about",   type: "list", placeholder: "comma,separated topics" },
+  { key: "best_contexts",   label: "at my best in",  type: "list", placeholder: "comma,separated situations" },
+  { key: "recurring_themes",label: "recurring themes",type: "list", placeholder: "comma,separated throughlines" },
+  { key: "prior_work",      label: "prior work",     type: "list", placeholder: "comma,separated shipped things" },
 ];
 
 const TEAM_FIELDS = [
@@ -61,8 +68,12 @@ function setNested(obj, path, value) {
   cur[parts[parts.length - 1]] = value;
 }
 
-function coerceInputValue(input) {
+function coerceInputValue(input, fieldType) {
   const v = input.value;
+  if (fieldType === "list") {
+    const items = String(v).split(",").map((s) => s.trim()).filter(Boolean);
+    return items.length ? items : null;
+  }
   if (input.type === "number") return v === "" ? null : Number(v);
   if (v === "") return null;
   return v;
@@ -97,13 +108,18 @@ export function renderProfileForm({
 
   const rows = fields.map(f => {
     const value = getNested(draft, f.key);
-    const display = value == null ? "" : String(value);
+    const display = value == null ? ""
+      : (f.type === "list" && Array.isArray(value)) ? value.join(", ")
+      : String(value);
+    // 'list' is a logical type entered as a comma-separated text input
+    const inputType = f.type === "list" ? "text" : f.type;
     return `<label class="shape-pf-row">
       <span class="shape-pf-label">${escHtml(f.label)}</span>
       <input
         class="shape-pf-input"
-        type="${escAttr(f.type)}"
+        type="${escAttr(inputType)}"
         name="${escAttr(f.key)}"
+        data-ftype="${escAttr(f.type)}"
         value="${escAttr(display)}"
         placeholder="${escAttr(f.placeholder || "")}" />
     </label>`;
@@ -134,7 +150,8 @@ export function renderProfileForm({
   const onChange = (e) => {
     const target = e.target;
     if (!target || !target.name) return;
-    setNested(draft, target.name, coerceInputValue(target));
+    const ftype = target.getAttribute("data-ftype") || target.type;
+    setNested(draft, target.name, coerceInputValue(target, ftype));
   };
   form.addEventListener("input", onChange);
   form.addEventListener("change", onChange);

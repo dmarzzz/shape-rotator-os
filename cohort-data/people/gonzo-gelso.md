@@ -17,8 +17,19 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - generative live systems
+  - performance tooling
+  - creative technical demos
+  - stage-like product experiences
+recurring_themes:
+  - live generation
+  - ritual and performance
+  - creative infrastructure
+  - shipping through experience
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface — details to be filled in)
+Design co-founder of Etherea, carrying the product, community, and developer-relations voice alongside James Barnes's technical and mechanism work. Co-founded Etherea with James after meeting at the Convent in September 2025.

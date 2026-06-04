@@ -64,9 +64,9 @@ const DAY_NAMES_FULL = {
 };
 
 // ── time helpers ─────────────────────────────────────────────────────
-function todayUtcMs() {
-  const d = new Date();
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+function localCalendarDayMs(date = new Date()) {
+  const src = date instanceof Date ? date : new Date(date);
+  return Date.UTC(src.getFullYear(), src.getMonth(), src.getDate());
 }
 
 // Fraction of the day elapsed (local time), clamped to [0, 1].
@@ -95,7 +95,7 @@ function isoToDayMs(iso) {
 }
 
 export function currentWeekIdx(nowMs = Date.now()) {
-  const days = Math.floor((nowMs - COHORT_START_MS) / 86400000);
+  const days = Math.floor((localCalendarDayMs(nowMs) - COHORT_START_MS) / 86400000);
   return Math.max(0, Math.min(WEEK_COUNT - 1, Math.floor(days / 7)));
 }
 
@@ -156,7 +156,7 @@ function splitLeadingTime(line) {
 // narrow day cards (the previous layout) was clipping titles after two
 // characters; pulling time off the title line frees the whole card
 // width for the words that actually identify the event.
-function renderEventBlock(blockText) {
+function renderEventBlock(blockText, sources = []) {
   const lines = blockText.split("\n").map(l => l.replace(/\s+$/, ""));
   if (!lines.length) return "";
   const firstRaw = lines[0].trim();
@@ -171,29 +171,31 @@ function renderEventBlock(blockText) {
   } else if (!time && !rest) {
     titleText = firstRaw;
   }
-  const titleHtml = titleText ? escHtml(titleText) : "";
   const timeHtml  = time ? `<span class="cev-time">${escHtml(time)}</span>` : `<span class="cev-time cev-time--empty" aria-hidden="true"></span>`;
   const tail = lines.slice(1);
   const bullets = [];
   const extras  = [];
   for (const raw of tail) {
     if (!raw.trim()) continue;
-    const top  = raw.match(/^\s{1,3}-\s+(.+)$/);
+    const top  = raw.match(/^\s*-\s+(.+)$/);
     const deep = raw.match(/^\s{4,}-\s+(.+)$/);
     if (deep && bullets.length) {
       bullets[bullets.length - 1].sub.push(boldTimes(escHtml(deep[1].trim())));
     } else if (top) {
-      bullets.push({ text: boldTimes(escHtml(top[1].trim())), sub: [] });
+      const rawText = top[1].trim();
+      bullets.push({ raw: rawText, text: boldTimes(escHtml(rawText)), sub: [] });
     } else {
       extras.push(`<div class="cal-event-extra">${boldTimes(escHtml(raw.trim()))}</div>`);
     }
   }
+  const { byLine: bulletSources, fallback: titleSources } = splitSourcesByLines(sources, bullets.map(b => b.raw));
+  const titleHtml = titleText ? `${escHtml(titleText)}${renderInlineTranscriptLinks(titleSources)}` : "";
   const bulletsHtml = bullets.length
-    ? `<ul class="cal-bullets">${bullets.map(b => {
+    ? `<ul class="cal-bullets">${bullets.map((b, i) => {
         const sub = b.sub.length
           ? `<ul class="cal-bullets">${b.sub.map(s => `<li>${s}</li>`).join("")}</ul>`
           : "";
-        return `<li>${b.text}${sub}</li>`;
+        return `<li>${b.text}${renderInlineTranscriptLinks(bulletSources[i])}${sub}</li>`;
       }).join("")}</ul>`
     : "";
   return `<div class="cal-event-row">${timeHtml}<span class="cal-event-title">${titleHtml}</span></div>${extras.join("")}${bulletsHtml}`;
@@ -206,7 +208,7 @@ export function parseWeekRow(row, weekIdx, eventsByDayMs = new Map()) {
   const dateRange = (meta[0] || "").trim().toLowerCase();
   const theme     = meta.slice(1).filter(s => s.trim()).join(" — ").toLowerCase();
   const weekStartMs = COHORT_START_MS + weekIdx * 7 * 86400000;
-  const todayMs = todayUtcMs();
+  const todayMs = localCalendarDayMs();
 
   const days = DAY_NAMES.map((name, i) => {
     const raw = stripDayHeader((row && row[2 + i] != null ? String(row[2 + i]) : "").trim(), name);
@@ -269,6 +271,102 @@ export function buildEventsByDay(events = []) {
   return m;
 }
 
+function dayIso(dayMs) {
+  return new Date(dayMs).toISOString().slice(0, 10);
+}
+
+function matchFragments(value) {
+  return Array.isArray(value) ? value : (value ? [value] : []);
+}
+
+function normalizedMatchText(value) {
+  return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+const SOURCE_LINE_STOPWORDS = new Set([
+  "and", "the", "with", "transcript", "notes", "note", "session", "source",
+  "project", "projects", "intro", "intros", "segment", "guests",
+]);
+
+function transcriptSourcesForBlock(matches, dateIso, blockText) {
+  if (!Array.isArray(matches) || !dateIso || !blockText) return [];
+  const hay = normalizedMatchText(blockText);
+  const out = [];
+  const seen = new Set();
+  for (const match of matches) {
+    if (!match || match.date !== dateIso) continue;
+    const fragments = matchFragments(match.title_contains || match.contains || match.title);
+    if (!fragments.length) continue;
+    if (!fragments.every(fragment => hay.includes(normalizedMatchText(fragment)))) continue;
+    for (const source of (match.sources || [])) {
+      if (!source?.path) continue;
+      const key = `${source.path}:${source.role || ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        ...source,
+        confidence: source.confidence || match.confidence || "high",
+        section: source.section || match.section || "",
+      });
+    }
+  }
+  return out;
+}
+
+function sourceKey(source) {
+  return `${source?.path || ""}:${source?.role || ""}`;
+}
+
+function sourceLineTokens(source) {
+  const raw = `${source?.label || ""} ${source?.section || ""}`.toLowerCase();
+  const tokens = raw.match(/[a-z0-9]+/g) || [];
+  return [...new Set(tokens.filter(token => (
+    token.length > 2 && !SOURCE_LINE_STOPWORDS.has(token)
+  )))];
+}
+
+function sourcesForLine(sources = [], lineText = "") {
+  const hay = normalizedMatchText(lineText);
+  if (!hay) return [];
+  return sources.filter(source => sourceLineTokens(source).some(token => hay.includes(token)));
+}
+
+function splitSourcesByLines(sources = [], lineTexts = []) {
+  const byLine = lineTexts.map(line => sourcesForLine(sources, line));
+  const matched = new Set();
+  for (const lineSources of byLine) {
+    for (const source of lineSources) matched.add(sourceKey(source));
+  }
+  return {
+    byLine,
+    fallback: sources.filter(source => !matched.has(sourceKey(source))),
+  };
+}
+
+function renderTranscriptLink(source) {
+  if (!source?.path) return "";
+  const confidence = source.confidence || "high";
+  const role = source.role === "notes" ? "notes" : "transcript";
+  const label = source.label || source.section || role;
+  const title = [source.section, label, confidence === "high" ? "" : confidence]
+    .filter(Boolean)
+    .join(" · ");
+  return `
+    <button class="cal-source-link"
+            type="button"
+            data-cal-transcript-path="${escAttr(source.path)}"
+            data-confidence="${escAttr(confidence)}"
+            aria-label="${escAttr(`open ${label}`)}"
+            title="${escAttr(title)}">
+      <span class="csl-role">${escHtml(role)}</span>
+    </button>`;
+}
+
+function renderInlineTranscriptLinks(sources = []) {
+  if (!sources.length) return "";
+  return `<span class="cal-source-inline">${sources.map(renderTranscriptLink).join("")}</span>`;
+}
+
 // ── day-view helpers ─────────────────────────────────────────────────
 
 // Pull the leading time-range off a block and return it as minutes-since-
@@ -303,7 +401,7 @@ function currentMinutesOfDay() {
 //   theme    — string; the week's theme, surfaced in the day header meta
 //   weekNum  — 1..10; surfaced in the day header meta (e.g. "w1 · m1")
 //   phase    — "m1" | "m2" | "m3"; tints the meta
-function renderDayView({ days, dayIdx, theme, weekNum, phase }) {
+function renderDayView({ days, dayIdx, theme, weekNum, phase, transcriptMatches = [] }) {
   const safeIdx = Math.max(0, Math.min(6, dayIdx | 0));
   const day = days[safeIdx];
   if (!day) return "";
@@ -345,6 +443,7 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase }) {
     items.push({
       kind: "event",
       raw: block,
+      sources: transcriptSourcesForBlock(transcriptMatches, dayIso(day.dayMs), block),
       startMin: t ? t.startMin : 1e9,
       endMin:   t ? t.endMin   : 1e9,
     });
@@ -392,22 +491,24 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase }) {
     const extras  = [];
     for (const raw of tail) {
       if (!raw.trim()) continue;
-      const top  = raw.match(/^\s{1,3}-\s+(.+)$/);
+      const top  = raw.match(/^\s*-\s+(.+)$/);
       const deep = raw.match(/^\s{4,}-\s+(.+)$/);
       if (deep && bullets.length) {
         bullets[bullets.length - 1].sub.push(boldTimes(escHtml(deep[1].trim())));
       } else if (top) {
-        bullets.push({ text: boldTimes(escHtml(top[1].trim())), sub: [] });
+        const rawText = top[1].trim();
+        bullets.push({ raw: rawText, text: boldTimes(escHtml(rawText)), sub: [] });
       } else {
         extras.push(`<div class="cda-row-meta">${boldTimes(escHtml(raw.trim()))}</div>`);
       }
     }
+    const { byLine: bulletSources, fallback: titleSources } = splitSourcesByLines(it.sources, bullets.map(b => b.raw));
     const bulletsHtml = bullets.length
-      ? `<ul class="cda-bullets">${bullets.map(b => {
+      ? `<ul class="cda-bullets">${bullets.map((b, bulletIdx) => {
           const sub = b.sub.length
             ? `<ul class="cda-bullets cda-bullets-sub">${b.sub.map(s => `<li>${s}</li>`).join("")}</ul>`
             : "";
-          return `<li>${b.text}${sub}</li>`;
+          return `<li>${b.text}${renderInlineTranscriptLinks(bulletSources[bulletIdx])}${sub}</li>`;
         }).join("")}</ul>`
       : "";
 
@@ -422,7 +523,7 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase }) {
       <article class="cda-row" data-state="${state}">
         <div class="cda-row-time">${time ? escHtml(time) : `<span class="cda-row-time-dim">—</span>`}</div>
         <div class="cda-row-body">
-          <h3 class="cda-row-title">${escHtml(title)}</h3>
+          <h3 class="cda-row-title">${escHtml(title)}${renderInlineTranscriptLinks(titleSources)}</h3>
           ${extras.join("")}
           ${bulletsHtml}
         </div>
@@ -466,7 +567,7 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase }) {
 
 // ── markup ───────────────────────────────────────────────────────────
 
-// renderWeekView({ data, weekIdx, dayIdx, sub, source, events, presenceHtml, surface })
+// renderWeekView({ data, weekIdx, dayIdx, sub, source, events, transcriptMatches, presenceHtml, surface })
 //
 //   data         — the raw Phala JSON (live or bundled)
 //   weekIdx      — 0..9
@@ -474,6 +575,7 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase }) {
 //   source       — "live" | "bundled" | null (null = no data; banner suppressed)
 //   bundledStamp — "wed may 13 · 9:14am" or similar; shown in stale banner
 //   events       — array of event records (from cohort.events) for anchor merge
+//   transcriptMatches — reviewed date + block fragment links to local transcripts
 //   presenceHtml — caller-supplied HTML for the presence sub-tab (null = link
 //                  out / no content). Lets each surface plug in its own
 //                  presence renderer without this module knowing about it.
@@ -490,6 +592,7 @@ export function renderWeekView({
   source = null,
   bundledStamp = null,
   events = [],
+  transcriptMatches = [],
   presenceHtml = "",
   surface = "electron",
 } = {}) {
@@ -540,8 +643,10 @@ export function renderWeekView({
         <span class="cda-title">${escHtml(a.title)}</span>
         ${a.subtitle ? `<span class="cda-sub">${escHtml(a.subtitle)}</span>` : ""}
       </div>`).join("");
-    const blockRows = d.blocks.map(b => `
-      <div class="cal-event">${renderEventBlock(b)}</div>`).join("");
+    const blockRows = d.blocks.map(b => {
+      const sources = transcriptSourcesForBlock(transcriptMatches, dayIso(d.dayMs), b);
+      return `<div class="cal-event">${renderEventBlock(b, sources)}</div>`;
+    }).join("");
     return `
       <article class="cal-day ${d.isToday ? "is-today" : ""} ${d.isEmpty ? "is-empty" : ""}"
                data-phase="${escAttr(phase)}"
@@ -615,6 +720,7 @@ export function renderWeekView({
         theme:   week.theme,
         weekNum: safeWeekIdx + 1,
         phase,
+        transcriptMatches,
       })
     : "";
 

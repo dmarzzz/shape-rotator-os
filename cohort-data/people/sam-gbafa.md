@@ -17,8 +17,26 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - user-owned cloud strategy
+  - DID/capability architecture
+  - decentralized storage lineage
+  - program momentum and ecosystem building
+recurring_themes:
+  - sovereign personal infrastructure
+  - lineage-aware systems building
+  - high-commitment founder energy
+  - architecture as social substrate
+enrichment_source: dossier-derived  # facilitator read; edit freely
+making_signature:
+  class: underplayed-depth
+  built_domain: [agentic, systems]
+  shape: deep
+  note: builds more than they present — weight up
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about
 
-(public surface — Tinycloud · user-owned cloud · dstack TEEs)
+CEO and center of TinyCloud — a former SpruceID and OpenAI engineer with a d/acc-native, sovereign-data thesis (TinyCloud Node, a code-level Kepler descendant). An AI-first solo-developer power-user who builds his own tool-chain (claude-ws, agent-browser, opencode, linear-cli) and is pop-up-community-native (built edge-city-bot on the ground at Edge City). GitHub skgbafa.

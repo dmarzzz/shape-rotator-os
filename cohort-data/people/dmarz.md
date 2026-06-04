@@ -19,8 +19,15 @@ links:
   website: dmarz.xyz
   linkedin: null
 dietary_restrictions:
+making_signature:
+  class: code-verified
+  built_domain: [data]
+  shape: deep
+  note: stated work corroborated by their code
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about
 
-(public surface)
+Flashbots-adjacent infrastructure builder (GitHub dmarzzz). Builds Shape Rotator's local-first OS and field-kit, the VoxTerm transcription tool, and his own cohort project searxng-wth-frnds (a LAN-first peer search daemon). A cohort tool-maker and privacy-search builder as much as a single-project founder. NYC.

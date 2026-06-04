@@ -17,8 +17,10 @@ links:
   website: tuvalugpt.tv
   linkedin: null
 dietary_restrictions:
+working_style: "Inferred from the team record: high-volume building plus hands-on modern-ML work (VLM/RL, Tinker/Qwen ecosystem)"
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface — TvEE RL · attested RL workflows)
+Lead of TvEE RL — attested reinforcement-learning workflows (tuvalugpt.tv). A prolific builder with an ML credential (a Qwen 2.5-VL contribution to Tinker). A visiting, distributed pair with Natalia Kokoromyti. Portugal (distributed).

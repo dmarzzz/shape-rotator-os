@@ -48,4 +48,4 @@ offering:
 
 ## about
 
-(public surface)
+Prediction-market microstructure research — a liquidity-and-intelligence engine for prediction markets and InfoFi. Building AI-powered market-making infrastructure that combines predictive intelligence, calibrated belief models, and systematic execution into a unified data, risk, and execution layer for institutional and systematic traders. Research lineage in the PROF paper (IC3). daedalus-research.com.

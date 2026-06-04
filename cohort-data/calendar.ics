@@ -6,7 +6,7 @@ METHOD:PUBLISH
 X-WR-CALNAME:Shape Rotator Cohort
 BEGIN:VEVENT
 UID:may-18-start-20260518-mon@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260518
 DTEND;VALUE=DATE:20260519
 SUMMARY:Mon May 18:
@@ -19,7 +19,7 @@ CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260519-tue@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260519
 DTEND;VALUE=DATE:20260520
 SUMMARY:Tue May 19:
@@ -32,7 +32,7 @@ CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260520-wed@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260520
 DTEND;VALUE=DATE:20260521
 SUMMARY:12:00:14:00
@@ -44,80 +44,86 @@ CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260521-thu@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260521
 DTEND;VALUE=DATE:20260522
 SUMMARY:14:00–14:30 tea on roof
 DESCRIPTION:14:00–14:30 tea on roof\n\n12:00:14:00\n Tutorial: Dumb agent
   tricks\, install hermes\n\n14:30-16:00 \n - More onboarding & on-site rei
- gstration\n\n16:00-18:00 Project Intros\n   Theme: Agentic: Contexto\, Rou
- ter\, JJHub\, Conclave\n\n18:00-19:00 (Conflict) Yoga
+ gstration\n\n16:00-18:00 Project Intros\n   Theme: Agentic: Contexto\, Con
+ clave\, Router\, JJHub \n\n18:00-19:00  Yoga
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260522-fri@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260522
 DTEND;VALUE=DATE:20260523
 SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof\n\n14:30-20:00 Salon (Tina curated):\
- nStartup Crash course\n\n& Sorting hat game\n\n& Community Dinner
+DESCRIPTION:14:00–14:30 tea on roof\n\n5:15-6:30pm Introduce Tina\, \nint
+ eractive recap the week\nProject Mappings\n\n6:30 PMF Roast w/ Tina and Gr
+ eg The Greek\n\n7:30 - 9:00 Founders Journey w/ Shaw
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260525-mon@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260525
 DTEND;VALUE=DATE:20260526
-SUMMARY:Memorial Day - nothing scheduled
-DESCRIPTION:Memorial Day - nothing scheduled
+SUMMARY:Memorial Day
+DESCRIPTION:Memorial Day\n\n16:00-17:30.   Andrew has office hours (in salo
+ n room)\n\n19:00 muse dinner
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260526-tue@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260526
 DTEND;VALUE=DATE:20260527
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof\n\n15:00-18:00 Project Intros\n- Eloc
+SUMMARY:14:30–15:00 tea on roof
+DESCRIPTION:14:30–15:00 tea on roof\n\n15:00-17:00 Project Intros\n- Eloc
  ute (Albi)\n- Dealproof (Kristian)\n- Wikigen (Wiki)\n- Crossroads (Chloe 
- Wang)\n\n18:00 Lecture - Defining Product Market Fit\n Gil Rosen (Blockcha
- in Builders)
+ Wang)\n\n18:00-1930 Lecture - Defining Product Market Fit\n Gil Rosen (Blo
+ ckchain Builders)\n\n19:30 Community Dinner in auditorium (Chef Matt prese
+ nts)
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260527-wed@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260527
 DTEND;VALUE=DATE:20260528
 SUMMARY:Wed May 27:
-DESCRIPTION:Wed May 27:\n  Salon: User Interviews & Consumer Product Iterat
- ion (James\, Albi\, Sevenfloor)\n  Reset #1 begins\n14:00–14:30 tea on r
- oof
+DESCRIPTION:Wed May 27:\n\n14:00-15:30  (James\, Andrew) Onboarding for tel
+ eport router\, q&a \n\n15:30–16:00 tea on roof\n\n- 1600-1730 Salon: Ide
+ al Customer Profiling\, User Interviews (James) \n(TAs: Albi\, Sevenfloor)
+ \n\n- 18:00-19:30: Flashnet jam (Dmarz)\n\n- 19:30-21:00: low key dinner (
+ auditorium)
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260528-thu@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260528
 DTEND;VALUE=DATE:20260529
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof\n\n1600 - 1830: Agentic Tooling works
+ hops/clinic
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260529-fri@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260529
 DTEND;VALUE=DATE:20260530
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof\n17:00 "what did you do last week" re
- tro (Andrew hosts)
+SUMMARY:14:30-15:30 router onboarding/workshop
+DESCRIPTION:14:30-15:30 router onboarding/workshop\n\n15:30–16:00 tea on 
+ roof\n\n19:00: sorting hat dinner (Tina)
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260530-sat@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260530
 DTEND;VALUE=DATE:20260531
 SUMMARY:Convent
@@ -126,104 +132,105 @@ CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260601-mon@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260601
 DTEND;VALUE=DATE:20260602
-SUMMARY:Mon-Tue: IC3 Blockchain Camp
-DESCRIPTION:Mon-Tue: IC3 Blockchain Camp\n14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260602-tue@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260602
 DTEND;VALUE=DATE:20260603
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260603-wed@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260603
 DTEND;VALUE=DATE:20260604
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260604-thu@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260604
 DTEND;VALUE=DATE:20260605
 SUMMARY:Thu — group activity\, sculpture garden
-DESCRIPTION:Thu — group activity\, sculpture garden\n14:00–14:30 tea on
+DESCRIPTION:Thu — group activity\, sculpture garden\n15:30–16:00 tea on
   roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260605-fri@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260605
 DTEND;VALUE=DATE:20260606
 SUMMARY:Fri — reception at art museum (overlap w/ shaperotator)
-DESCRIPTION:Fri — reception at art museum (overlap w/ shaperotator)\n14:0
- 0–14:30 tea on roof\n17:00 "what did you do last week" retro (Andrew hos
+DESCRIPTION:Fri — reception at art museum (overlap w/ shaperotator)\n15:3
+ 0–16:00 tea on roof\n17:00 "what did you do last week" retro (Andrew hos
  ts)
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260608-mon@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260608
 DTEND;VALUE=DATE:20260609
 SUMMARY:Mon-Tue: TEE Technical: Agent Harnesses for Productivity (Fucory\, 
  Jazir)
 DESCRIPTION:Mon-Tue: TEE Technical: Agent Harnesses for Productivity (Fucor
- y\, Jazir)\n14:00–14:30 tea on roof
+ y\, Jazir)\n15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260609-tue@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260609
 DTEND;VALUE=DATE:20260610
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260610-wed@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260610
 DTEND;VALUE=DATE:20260611
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260611-thu@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260611
 DTEND;VALUE=DATE:20260612
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:13:00 - 14:30  Prediction Markets jam w/
+DESCRIPTION:13:00 - 14:30  Prediction Markets jam w/ \n  Charles St. Louis 
+ from Ethereum Foundation\n\n15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260612-fri@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260612
 DTEND;VALUE=DATE:20260613
 SUMMARY:Fri Jun 12:
 DESCRIPTION:Fri Jun 12:\n  Salon: Autonomous SW Eng Firms (Jazir\, Eliza?)\
- n14:00–14:30 tea on roof\n17:00 "what did you do last week" retro (Andre
+ n15:30–16:00 tea on roof\n17:00 "what did you do last week" retro (Andre
  w hosts)
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260613-sat@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260613
 DTEND;VALUE=DATE:20260614
 SUMMARY:Convent
@@ -232,56 +239,56 @@ CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260615-mon@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260615
 DTEND;VALUE=DATE:20260616
 SUMMARY:Mon-Tue: TEE Technical: TEEs/Attestation in AI & LLM Inference (Nea
  r\, Phala\, …
 DESCRIPTION:Mon-Tue: TEE Technical: TEEs/Attestation in AI & LLM Inference 
- (Near\, Phala\, Venice.AI\, Tinfoil)\n14:00–14:30 tea on roof
+ (Near\, Phala\, Venice.AI\, Tinfoil)\n15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260616-tue@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260616
 DTEND;VALUE=DATE:20260617
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260617-wed@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260617
 DTEND;VALUE=DATE:20260618
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260618-thu@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260618
 DTEND;VALUE=DATE:20260619
 SUMMARY:Thu-Fri: "Cohort Builds Itself" Practice Day
-DESCRIPTION:Thu-Fri: "Cohort Builds Itself" Practice Day\nLead: Novel\n14:0
- 0–14:30 tea on roof
+DESCRIPTION:Thu-Fri: "Cohort Builds Itself" Practice Day\nLead: Novel\n15:3
+ 0–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260619-fri@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260619
 DTEND;VALUE=DATE:20260620
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof\n17:00 "what did you do last week" re
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof\n17:00 "what did you do last week" re
  tro (Andrew hosts)
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260620-sat@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260620
 DTEND;VALUE=DATE:20260621
 SUMMARY:Convent
@@ -290,56 +297,56 @@ CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260622-mon@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260622
 DTEND;VALUE=DATE:20260623
 SUMMARY:Mon-Tue: Lecture: Go-to-Market (Eshita Nandini)
-DESCRIPTION:Mon-Tue: Lecture: Go-to-Market (Eshita Nandini)\n14:00–14:30 
+DESCRIPTION:Mon-Tue: Lecture: Go-to-Market (Eshita Nandini)\n15:30–16:00 
  tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260623-tue@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260623
 DTEND;VALUE=DATE:20260624
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260624-wed@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260624
 DTEND;VALUE=DATE:20260625
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260625-thu@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260625
 DTEND;VALUE=DATE:20260626
 SUMMARY:Thu-Fri: Salon: Content and Marketing (Liz\, Albi)
 DESCRIPTION:Thu-Fri: Salon: Content and Marketing (Liz\, Albi)\n+ Duna lega
- l wrapper (Wyoming UNA — discussion sub-topic)\n14:00–14:30 tea on roo
+ l wrapper (Wyoming UNA — discussion sub-topic)\n15:30–16:00 tea on roo
  f
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260626-fri@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260626
 DTEND;VALUE=DATE:20260627
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof\n17:00 "what did you do last week" re
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof\n17:00 "what did you do last week" re
  tro (Andrew hosts)
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260627-sat@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260627
 DTEND;VALUE=DATE:20260628
 SUMMARY:Convent
@@ -348,56 +355,56 @@ CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260629-mon@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260629
 DTEND;VALUE=DATE:20260630
 SUMMARY:Mon-Tue: Lecture: Legal and Policy (speaker via Gil)
 DESCRIPTION:Mon-Tue: Lecture: Legal and Policy (speaker via Gil)\nSalon: AI
-  and Legal or Regulation (Ahmed\, James\, Daniel Barabender)\n14:00–14:3
+  and Legal or Regulation (Ahmed\, James\, Daniel Barabender)\n15:30–16:0
  0 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260630-tue@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260630
 DTEND;VALUE=DATE:20260701
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260701-wed@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260701
 DTEND;VALUE=DATE:20260702
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260702-thu@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260702
 DTEND;VALUE=DATE:20260703
 SUMMARY:Thu-Fri: Cohort Builds itself Demo Day
-DESCRIPTION:Thu-Fri: Cohort Builds itself Demo Day\nLead: Novel\n14:00–14
- :30 tea on roof
+DESCRIPTION:Thu-Fri: Cohort Builds itself Demo Day\nLead: Novel\n15:30–16
+ :00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260703-fri@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260703
 DTEND;VALUE=DATE:20260704
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof\n17:00 "what did you do last week" re
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof\n17:00 "what did you do last week" re
  tro (Andrew hosts)
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260704-sat@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260704
 DTEND;VALUE=DATE:20260705
 SUMMARY:Convent + Cornell Tech
@@ -406,55 +413,55 @@ CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260706-mon@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260706
 DTEND;VALUE=DATE:20260707
 SUMMARY:Mon-Tue: Lecture: Fundraising + Incentive Design (speakers via Gil)
 DESCRIPTION:Mon-Tue: Lecture: Fundraising + Incentive Design (speakers via 
- Gil)\nTeam-driven deep dives\n14:00–14:30 tea on roof
+ Gil)\nTeam-driven deep dives\n15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260707-tue@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260707
 DTEND;VALUE=DATE:20260708
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260708-wed@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260708
 DTEND;VALUE=DATE:20260709
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260709-thu@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260709
 DTEND;VALUE=DATE:20260710
 SUMMARY:Thu-Fri: TEE Technical: P2P and Self-Host Day (dmarz et al.)
 DESCRIPTION:Thu-Fri: TEE Technical: P2P and Self-Host Day (dmarz et al.)\n1
- 4:00–14:30 tea on roof
+ 5:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260710-fri@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260710
 DTEND;VALUE=DATE:20260711
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof\n17:00 "what did you do last week" re
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof\n17:00 "what did you do last week" re
  tro (Andrew hosts)
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260711-sat@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260711
 DTEND;VALUE=DATE:20260712
 SUMMARY:Convent + Cornell Tech
@@ -463,57 +470,57 @@ CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260713-mon@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260713
 DTEND;VALUE=DATE:20260714
 SUMMARY:Mon-Tue: Lecture: People Ops — recruiting & AI CRMs (Mike William
  s + Alexis) …
 DESCRIPTION:Mon-Tue: Lecture: People Ops — recruiting & AI CRMs (Mike Wil
  liams + Alexis) · Lecture: Business Development + Hiring (via Gil)\nPitch
-  training + final rehearsals\n14:00–14:30 tea on roof
+  training + final rehearsals\n15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260714-tue@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260714
 DTEND;VALUE=DATE:20260715
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260715-wed@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260715
 DTEND;VALUE=DATE:20260716
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260716-thu@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260716
 DTEND;VALUE=DATE:20260717
 SUMMARY:Thu-Fri: Pitch practice + VC intros
 DESCRIPTION:Thu-Fri: Pitch practice + VC intros\nMock Demo Day (internal dr
- y-run)\n14:00–14:30 tea on roof
+ y-run)\n15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260717-fri@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260717
 DTEND;VALUE=DATE:20260718
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof\n17:00 "what did you do last week" re
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof\n17:00 "what did you do last week" re
  tro (Andrew hosts)
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260718-sat@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260718
 DTEND;VALUE=DATE:20260719
 SUMMARY:Convent + Cornell Tech · Sat Jul 18 (Andrew → Berlin)
@@ -522,56 +529,56 @@ CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260720-mon@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260720
 DTEND;VALUE=DATE:20260721
 SUMMARY:Mon-Tue: Convergence: investor + partner feedback · Final product 
  polish
 DESCRIPTION:Mon-Tue: Convergence: investor + partner feedback · Final prod
- uct polish\n14:00–14:30 tea on roof
+ uct polish\n15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260721-tue@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260721
 DTEND;VALUE=DATE:20260722
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260722-wed@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260722
 DTEND;VALUE=DATE:20260723
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260723-thu@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260723
 DTEND;VALUE=DATE:20260724
 SUMMARY:Thu-Fri: **Final Demo Day #2 (Thu Jul 23 or Fri Jul 24)**
 DESCRIPTION:Thu-Fri: **Final Demo Day #2 (Thu Jul 23 or Fri Jul 24)**\nGrad
- uation · Follow-on intros\n14:00–14:30 tea on roof
+ uation · Follow-on intros\n15:30–16:00 tea on roof
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260724-fri@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260724
 DTEND;VALUE=DATE:20260725
-SUMMARY:14:00–14:30 tea on roof
-DESCRIPTION:14:00–14:30 tea on roof\n17:00 "what did you do last week" re
+SUMMARY:15:30–16:00 tea on roof
+DESCRIPTION:15:30–16:00 tea on roof\n17:00 "what did you do last week" re
  tro (Andrew hosts)
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
 UID:may-18-start-20260725-sat@shape-rotator-os
-DTSTAMP:20260521T183346Z
+DTSTAMP:20260601T141953Z
 DTSTART;VALUE=DATE:20260725
 DTEND;VALUE=DATE:20260726
 SUMMARY:Convent + Cornell Tech · Demo Day weekend

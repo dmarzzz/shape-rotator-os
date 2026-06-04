@@ -97,11 +97,10 @@ export function getSyncState() { return _syncState; }
 // no GH-commit-ts API calls block boot. The background refresh that
 // fires right after will replace the snapshot when it lands and
 // notify subscribers so views repaint with fresh data.
-// Bumped to v2 in v0.1.35: the v1 snapshot doesn't carry a `calendar`
-// field, so users who hydrated under v0.1.31..v0.1.34 would render an
-// empty calendar tab on first paint after the upgrade. The v2 key forces
-// a fresh fetch which now includes the calendar bundle.
-const SURFACE_LS_KEY = "srfg:cohort_surface_v2";
+// Bumped to v3 in v0.2.7: the v2 snapshot can carry a stale May-22
+// calendar bundle, so users may see outdated week-2 agenda copy even after
+// the shipped fixture and live calendar source have moved forward.
+const SURFACE_LS_KEY = "srfg:cohort_surface_v3";
 // Surface snapshots can grow to ~200KB (50 people × ~3KB each plus other
 // kinds). localStorage is bounded at ~5MB per origin so this fits, but
 // we still guard against quota errors on write — a write failure just
@@ -262,10 +261,11 @@ async function fetchRaw(repoPath) {
 }
 
 function parseMarkdown(text) {
-  const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text);
-  if (!m) return { frontmatter: null, body: text };
+  const normalized = String(text || "").replace(/\r\n?/g, "\n");
+  const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(normalized);
+  if (!m) return { frontmatter: null, body: normalized };
   try { return { frontmatter: yaml.load(m[1]), body: m[2] }; }
-  catch { return { frontmatter: null, body: text }; }
+  catch { return { frontmatter: null, body: normalized }; }
 }
 
 function pickSurface(obj, whitelist) {

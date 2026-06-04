@@ -17,8 +17,20 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - healthcare AI pilots
+  - EHR workflow questions
+  - clinical agent productization
+  - practical deployment constraints
+recurring_themes:
+  - workflow trust
+  - pilot discipline
+  - healthcare integration
+  - useful agents over flashy agents
+working_style: Inferred only — his own voice is absent from the evidence
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface — Prova · healthcare AI agents · EHR pilot)
+Solo founder of Prova — a healthcare-AI-agent venture (St. Louis) running TEE-attested prior-authorization and EHR workflows on Phala TDX. Prova reached production on Phala TDX, took first place in the hackathon's TEE track, and built working US prior-authorization payer integrations.

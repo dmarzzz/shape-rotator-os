@@ -17,8 +17,19 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - generative performance systems
+  - creative engineering
+  - live demos
+  - experience-led product work
+recurring_themes:
+  - stage as interface
+  - live generativity
+  - creative systems
+  - demo-first clarity
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface — Etherea · generative live-stage system)
+CEO and technical lead of Etherea — a shipping, revenue-positive creative-AI team. Formerly at Flashbots (egress attestation), he made a deliberate move into creative AI: a generative live-stage system that turns speech, music, and motion into real-time video and shaders (roughly five seconds from concept to screen). NYC (the Convent).

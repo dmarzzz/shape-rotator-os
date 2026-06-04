@@ -24,6 +24,18 @@ contribute_interests: |
 availability_pref: just ask
 weekly_intention: TeeSQL TAM
 dietary_restrictions: none
+go_to_them_for:
+  - TEE Postgres
+  - database trust boundaries
+  - dstack deployment
+  - developer-facing infrastructure
+recurring_themes:
+  - trusted databases
+  - implementation clarity
+  - attestation as product surface
+  - infrastructure reliability
+working_style: Self-described as a product/strategy/BD thinker rather than a builder (empty GitHub)
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## bio

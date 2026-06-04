@@ -17,6 +17,7 @@ links:
   x: null
   website: https://jjhub.tech
   alt: https://smithers.sh
+  repo: https://github.com/roninjin10/smithers
 paper_basis: null
 traction: EF grant for Tevm (441 stars) · Smithers featured on HN · Guillotine (Zig EVM) 168 stars
 now: shipping cohort onboarding for jjhub + smithers
@@ -41,6 +42,13 @@ seeking:
 offering:
   - live demo sessions on jjhub + Smithers integration
   - EVM internals + agentic-workflow consultation
+making_signature:
+  built_domain: [agentic, systems]
+  shape: deep
+  shared_primitives:
+    - agent runtime / orchestration
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

@@ -205,6 +205,11 @@ async function showOnboardingModal(cohortHint) {
   const projects = teams.filter(t => (t.kind || "team") === "project");
   const teamsOnly = teams.filter(t => (t.kind || "team") === "team");
   const people   = cohort?.people   || [];
+  const pickerSources = {
+    person: people,
+    team: teamsOnly,
+    project: projects,
+  };
 
   const currentId = getIdentity();
   const currentResolved = currentId ? await resolveIdentityLabel() : null;
@@ -221,51 +226,55 @@ async function showOnboardingModal(cohortHint) {
   const overlay = document.createElement("div");
   overlay.className = "identity-modal-backdrop";
   overlay.innerHTML = `
-    <div class="identity-modal" role="dialog" aria-labelledby="im-title">
+    <div class="identity-modal enroll" role="dialog" aria-labelledby="im-title">
+      <div class="enroll-scan" aria-hidden="true"></div>
+      <div class="enroll-band">
+        <span class="enroll-issuer">⬡ shape rotator · alchemy</span>
+        <span class="enroll-doc">${claimed ? "re-seal" : "the threshold"}</span>
+      </div>
+
       <header class="im-head">
         <h2 id="im-title" class="im-title">
-          ${claimed ? "switch profile" : "welcome — who are you?"}
+          ${claimed ? "re-seal" : "identify yourself"}
         </h2>
         <p class="im-sub">
           ${claimed
-            ? `you're currently claimed as <strong>${escHtml(currentResolved?.label || currentId.display_name)}</strong> <span class="im-current-kind">(${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)})</span>. pick a different record to switch, or use the actions below.`
-            : "tell shape rotator your record so Shape Rotator OS can show your team and route the editor straight to you. stored locally on this device only — no PR, no broadcast."}
+            ? `sealed as <strong>${escHtml(currentResolved?.label || currentId.display_name)}</strong> <span class="im-current-kind">(${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)})</span>. choose another shape to re-seal, or use the controls below.`
+            : "strike your seal to cross into the cohort. your shape, your record — stored on this device, never broadcast."}
         </p>
         ${claimed ? `
           <div class="im-current-actions">
-            <button class="im-btn im-current-edit"    type="button" data-im-action="edit">edit my record</button>
-            <button class="im-btn im-current-unclaim" type="button" data-im-action="unclaim">unclaim · clear local identity</button>
+            <button class="im-btn im-current-edit"    type="button" data-im-action="edit">edit my record →</button>
+            <button class="im-btn im-current-unclaim" type="button" data-im-action="unclaim">break the seal</button>
           </div>
         ` : ""}
       </header>
 
       <section class="im-section">
-        <h3 class="im-h">${claimed ? "switch to a different cohort record" : "i'm already on the cohort"}</h3>
-        <label class="im-row"><span>i am a person</span>
+        <h3 class="im-h"><span class="im-h-no">01</span> ${claimed ? "re-seal as another shape" : "find your shape"}</h3>
+        <label class="im-row"><span>person</span>
           <select id="im-person">
-            <option value="">— pick yourself —</option>
+            <option value="">— you —</option>
             ${optHtml(people, "person")}
           </select>
         </label>
-        <label class="im-row"><span>or claim a team</span>
+        <label class="im-row"><span>team</span>
           <select id="im-team">
-            <option value="">— pick a team —</option>
+            <option value="">— your team —</option>
             ${optHtml(teamsOnly, "team")}
           </select>
         </label>
-        ${projects.length ? `
-          <label class="im-row"><span>or a project</span>
-            <select id="im-project">
-              <option value="">— pick a project —</option>
-              ${optHtml(projects, "project")}
-            </select>
-          </label>
-        ` : ""}
+        <label class="im-row"><span>project</span>
+          <select id="im-project">
+            <option value="">— your project —</option>
+            ${optHtml(projects, "project")}
+          </select>
+        </label>
       </section>
 
       <section class="im-section">
-        <h3 class="im-h">${claimed ? "or add a brand-new record" : "i'm new"}</h3>
-        <p class="im-sub" style="margin:0 0 10px 0">opens the editor with a blank form — submit a PR to add yourself.</p>
+        <h3 class="im-h"><span class="im-h-no">02</span> ${claimed ? "or strike a new shape" : "not on the rolls yet"}</h3>
+        <p class="im-sub" style="margin:0 0 12px 0">opens the editor with a blank shape — submit a PR to join.</p>
         <div class="im-create-row">
           <button class="im-btn im-create" data-create="person"  type="button">+ new person</button>
           <button class="im-btn im-create" data-create="team"    type="button">+ new team</button>
@@ -276,9 +285,9 @@ async function showOnboardingModal(cohortHint) {
       <footer class="im-foot">
         <button class="im-resync" id="im-resync" type="button"
                 title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
-          <span class="im-resync-label">resync from github</span>
+          <span class="im-resync-label">re-sync the rolls</span>
         </button>
-        <button class="im-skip" id="im-skip" type="button">${claimed ? "close" : "i'll do this later"}</button>
+        <button class="im-skip" id="im-skip" type="button">${claimed ? "close" : "not yet →"}</button>
       </footer>
     </div>
   `;
@@ -298,6 +307,9 @@ async function showOnboardingModal(cohortHint) {
       const freshProjects = freshTeams.filter(t => (t.kind || "team") === "project");
       const freshTeamsOnly = freshTeams.filter(t => (t.kind || "team") === "team");
       const freshPeople   = fresh?.people   || [];
+      pickerSources.person = freshPeople;
+      pickerSources.team = freshTeamsOnly;
+      pickerSources.project = freshProjects;
       const personSel  = overlay.querySelector("#im-person");
       const teamSel    = overlay.querySelector("#im-team");
       const projectSel = overlay.querySelector("#im-project");
@@ -344,12 +356,13 @@ async function showOnboardingModal(cohortHint) {
   // picking a different record) we just close — the user is mid-task and
   // doesn't want to be yanked into a form. Picking the SAME record is a
   // no-op close.
-  const wirePick = (selId, kind, source) => {
+  const wirePick = (selId, kind) => {
     const sel = overlay.querySelector(`#${selId}`);
     if (!sel) return;
     sel.addEventListener("change", () => {
       const id = sel.value;
       if (!id) return;
+      const source = pickerSources[kind] || [];
       const rec = source.find(r => r.record_id === id);
       if (!rec) return;
       const isSame = claimed
@@ -366,9 +379,9 @@ async function showOnboardingModal(cohortHint) {
       // the onIdentityChanged listener; the user stays where they were.
     });
   };
-  wirePick("im-person",  "person",  people);
-  wirePick("im-team",    "team",    teamsOnly);
-  wirePick("im-project", "project", projects);
+  wirePick("im-person",  "person");
+  wirePick("im-team",    "team");
+  wirePick("im-project", "project");
 
   // Create paths: route to alchemy/profile/add — they can claim after PR merges.
   for (const btn of overlay.querySelectorAll(".im-create[data-create]")) {

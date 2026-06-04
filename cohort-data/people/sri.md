@@ -17,8 +17,20 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - post-quantum anonymous identity
+  - lattice credential design
+  - research collaboration
+  - privacy-preserving proof systems
+recurring_themes:
+  - realness without disclosure
+  - research isolation seeking community
+  - cryptographic specificity
+  - identity sovereignty
+working_style: "Builds research-first: formal proofs plus a working prototype, assembled in 'relative isolation' (her own framing)"
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface — details to be filled in)
+Lead researcher and architect of Pramaana — a Columbia SEAS CS student building a post-quantum anonymous-identity primitive (PALC: PII-Anchored Lattice Commitment; ML-KEM-1024 + SHA3-512 + HKDF) that extends IC3 reading-list work (Anonymous Self-Credentials, IACR 2025/618).

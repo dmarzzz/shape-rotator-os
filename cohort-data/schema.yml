@@ -1,4 +1,8 @@
 schema_version: 1
+# v1.1 (additive, backwards-compatible): person enrichment fields — go_to_them_for,
+# recurring_themes, working_style, best_contexts, prior_work, making_signature
+# (public); profile_lens + facilitator (depth-tier, documented below). No bump to
+# schema_version: all additions are optional and the build version-gate stays == 1.
 
 # Visibility schema per docs/SHAPE-ROTATOR-OS-SPEC.md §3.3.
 #
@@ -52,6 +56,48 @@ people:
     - seeking               # list[string] — verb-first "I want help with X" chips. Directional, not status.
     - offering              # list[string] — "I'd happily be DM'd about X" chips.
     - pair_with             # list[string] — self-asserted "I've paired well with <slug>". Asymmetric, NOT a bidirectional endorsement.
+    # ── Enrichment fields (schema v1.1) ───────────────────────────────────────
+    # Richer collaboration surface. Two kinds, distinguished by who can fake them:
+    #   SPECIFIC fields (below) only exist when real evidence produced them — a
+    #     thin profile yields empty arrays, which is honest. Safe to surface.
+    #   LABEL/lens fields (guiding_metaphor, orientation_lens) degrade into a
+    #     default cluster on low-evidence profiles, so they are NOT surface_fields —
+    #     they live in the depth tier and only render behind the gate in §profile_lens.
+    # Any field that may carry facilitator-derived values should set a sibling
+    # `<field>_source: self | derived` (default self). Derived values render with a
+    # "facilitator read — editable" affordance, never as the person's own assertion.
+    - go_to_them_for        # list[string] — concrete "ask me about X" (sharper than offering)
+    - recurring_themes      # list[string] — the throughlines across their work (specific; can't default)
+    - working_style         # one-line how-they-build ("substrate-first; lets PMF decide the surface")
+    - best_contexts         # list[string] — situations where they're at their best ("early ambiguous systems work")
+    - prior_work            # list[string] — factual shipped artifacts (public only)
+    - making_signature      # nested {built_domain:[..], shape: deep|broad, note}. Derived from public code; optional.
+                            #   NOT an identity claim — a description of what the code shows.
+
+  # ── DEPTH-TIER person fields (defined here for documentation; deliberately NOT
+  # in surface_fields — they never ship in cohort.surface). ─────────────────────
+  #
+  # profile_lens: an OPTIONAL working-lens object. Facilitator-derived archetype /
+  # metaphor framing — useful for collaboration, dangerous as a label. It is NOT
+  # surfaced by default. A lens entry is VALID only if it carries ALL of:
+  #     consent: true          (the person opted to show it)
+  #     confidence: low|medium|high   (and low is never surfaced)
+  #     not_identity_claim: true
+  #     note: <str>            (the human-readable gloss — a bare label is invalid)
+  # AND it passes the earned-vs-defaulted gate: a label equal to the cohort modal
+  # value on a low-evidence profile is presumed default-driven and suppressed.
+  #   profile_lens:
+  #     guiding_metaphor: { label: Iceberg, note: "...", confidence: medium,
+  #                         consent: false, not_identity_claim: true }
+  #     orientation_lens: { basin: "...", class: "...", genre: "...", confidence, consent }
+  #
+  # facilitator: ORGANIZER-PRIVATE coaching notes. NEVER surfaced, never consent-
+  # gated for participants (it's a steward tool). Coaching prompts, not verdicts.
+  #   facilitator:
+  #     salient_tensions: [str, ...]   # productive tensions to hold, framed kindly
+  #     open_questions:   [str, ...]   # what we haven't asked / don't yet know
+  #     growth_edge:      str          # one kindly-framed development direction
+  #     source: dossier-derived
 
 teams:
   surface_fields:
@@ -94,6 +140,22 @@ teams:
     - dependencies          # list[string] — other team record_ids this project depends on, unblocks, or pairs naturally with. Seeds the connection graph.
     - seeking               # list[string] — what the team wants help with from the cohort.
     - offering              # list[string] — what the team would happily share/help others with.
+    # PMF journey — one optional nested object placing this team/project on the
+    # startup-maturity spectrum (constellation › journey tab). All fields optional;
+    # defaulted-at-read in the app, so omitting `journey` (or any sub-field) plots
+    # the record at stage 1 / evidence 1 (idea / vibes) without breaking. Additive —
+    # never backwards-incompatible. Shape:
+    #   journey:
+    #     stage: 1..8                 # 1 Idea … 8 Scale Fit
+    #     evidence_quality: 1..5      # 1 Vibes/Thesis … 5 Repeatable Pull
+    #     market_upside: 1..5         # drives dot radius on the plot
+    #     primary_bottleneck: ICP Clarity | Pain Intensity | Solution Quality |
+    #                         Technical Risk | GTM | Retention | Business Model |
+    #                         Fundraising | Regulatory | Team   (drives dot color)
+    #     company_type: B2B | Consumer | Infra | Marketplace | Protocol | AI | Other
+    #     confidence: Low | Medium | High
+    #     icp, problem, solution, evidence_notes, next_milestone   # free text
+    - journey
 
 clusters:
   surface_fields:

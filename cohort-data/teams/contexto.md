@@ -7,7 +7,7 @@ membership: cohort
 
 name: Contexto
 focus: agent context engine
-members_count: 3
+members_count: 2
 geo: ET
 domain: ai
 shape: prism
@@ -17,6 +17,7 @@ links:
   x: null
   website: https://getcontexto.com
   demo: https://youtu.be/c2trhxEE9X4
+  repo: https://github.com/amiller/contexto
 paper_basis:
   - NDAI Agreements (conceptual alignment)
 traction: Prototype shipped · Shashank PhD Toronto · 237+ citations on PoS decentralization
@@ -42,6 +43,14 @@ seeking:
 offering:
   - workshop on long-running agents (OpenClaw context-collapse patterns)
   - agent instrumentation + context monitoring tooling for cohort
+making_signature:
+  built_domain: [agentic]
+  shape: deep
+  shared_primitives:
+    - consensus / BFT
+    - verifiable crypto identity
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

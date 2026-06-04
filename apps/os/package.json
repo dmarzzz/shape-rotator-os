@@ -1,7 +1,7 @@
 {
   "name": "@shape-rotator/os",
   "productName": "Shape Rotator OS",
-  "version": "0.2.0",
+  "version": "0.2.27",
   "private": true,
   "main": "main.js",
   "type": "commonjs",
@@ -19,7 +19,11 @@
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
     "dist:all": "electron-builder -mwl",
-    "pack": "electron-builder --dir"
+    "pack": "electron-builder --dir",
+    "check:packaging": "node scripts/check-packaging-files.js",
+    "check:intel": "node scripts/check-intel-signals.cjs",
+    "smoke": "electron . --smoke-test",
+    "bundle:check": "node scripts/bundle-renderer.cjs --check"
   },
   "dependencies": {
     "@cosmos.gl/graph": "^2.6.4",
@@ -27,9 +31,13 @@
     "electron-updater": "^6.8.3",
     "three": "^0.184.0"
   },
+  "optionalDependencies": {
+    "@stagetimerio/grandiose": "^0.2.0"
+  },
   "devDependencies": {
     "electron": "^33.0.0",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "esbuild": "^0.24.2"
   },
   "build": {
     "appId": "com.shape-rotator.os",
@@ -39,15 +47,15 @@
     "nodeGypRebuild": false,
     "buildDependenciesFromSource": false,
     "files": [
-      "main.js",
-      "preload.js",
-      "swf-node.js",
+      "*.js",
       "src/**/*",
       "package.json"
     ],
     "extraMetadata": {
       "main": "main.js"
     },
+    "beforePack": "scripts/before-pack-stage-binaries.cjs",
+    "afterPack": "scripts/after-pack-verify.cjs",
     "directories": {
       "output": "dist",
       "buildResources": "build-resources"
@@ -92,7 +100,16 @@
         {
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "build-resources/research-swarm/",
+          "to": "research-swarm/",
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "build-resources/cohort-keys.json",
@@ -143,7 +160,16 @@
         {
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "build-resources/research-swarm/",
+          "to": "research-swarm/",
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "build-resources/cohort-keys.json",
@@ -180,7 +206,16 @@
         {
           "from": "build-resources/swf-node/",
           "to": "swf-node/",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "build-resources/research-swarm/",
+          "to": "research-swarm/",
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "build-resources/cohort-keys.json",

@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface)
+Solo founder/engineer (NYC, GitHub kju4q, qendresa.dev) building AgentEval — a pre-deployment evaluation system for commerce AI agents ("know if your agent works before it goes live"). Eight years of full-stack engineering across funded startups (Jiga, Butler Hospitality); currently in the 60days.ai builder accelerator (Virtuals).

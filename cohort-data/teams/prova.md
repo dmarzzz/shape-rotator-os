@@ -56,6 +56,18 @@ offering:
   - TEE-deployment workshop (docker compose, dstack secrets, async patterns)
   - dual-attestation library — open-sourced for cohort reuse
   - prova trust-api as free attestation layer for other cohort teams
+journey:
+  stage: 5
+  evidence_quality: 3
+  market_upside: 5
+  primary_bottleneck: GTM
+  company_type: B2B
+  confidence: Medium
+  icp: regional payers + provider groups drowning in prior-auth volume
+  problem: prior-authorization is a manual, multi-day fax-and-phone slog that delays care and burns clinical staff time
+  solution: TEE-attested healthcare AI agent that runs the prior-auth workflow end-to-end against payer EHR integrations
+  evidence_notes: live on Phala TDX with stable uptime since hackathon; working Da Vinci PAS / X12 278 payer integrations; founder has 2x prior exits
+  next_milestone: convert the active EHR pilot into a signed paid design-partner contract
 ---
 
 ## about

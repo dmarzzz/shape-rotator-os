@@ -22,20 +22,41 @@ import {
   // Extracted into shape-ui so the sibling web app can render the same
   // cohort surface. The Electron renderer keeps the same call sites —
   // only the implementations moved.
-  escHtml, escAttr,
+  escHtml, escAttr, normalizeLinkHref,
   buildEditPRUrl,
   teamCardHtml, personCardHtml,
   buildCalendarRows, drawCalendar,
   renderWeekView as renderCalendarWeekView,
   loadCalendar as loadCalendarData,
   currentWeekIdx as calendarCurrentWeekIdx,
+  parseWeekRow as calendarParseWeekRow,
   attachWeekViewBehavior as attachCalendarMobileBehavior,
 } from "@shape-rotator/shape-ui";
+import {
+  aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey,
+  constellationIndegree, constellationModel, teamKind, teamsOfKind,
+} from "./cohort-relations.js";
+import {
+  contextRawScriptById as findContextRawScriptById,
+  contextSourceById as findContextSourceById,
+} from "./context-vault-model.js";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
 import { enrichPeople } from "./gh-user.js";
-import { putLocalRecord, getRecord, getHealth, getManifest } from "./sync-client.js";
+import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
+import { getTheme, toggleTheme } from "./theme.js";
+import { getIdentity } from "./identity.js";
+import {
+  askAgeLabel, askIsCurrent, askIsOpen, askStatus, askTopic, asksWithStatus,
+  isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
+} from "./asks.js";
+// Membrane mode — 2026-05 redesign. Pressurized-membrane object that replaces
+// the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
+// "membrane" so the legacy modes stay reachable while we evaluate.
+import { mountMembrane } from "./membrane/index.js";
+import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
+import { renderIntel, wireIntel } from "./intel/intel.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const PROFILE_LS_KEY  = "srwk:profile_v1";
@@ -51,7 +72,8 @@ const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
 // once that integration lands; rather than rip out the code and re-write it
 // from git history, the surfaces are simply unwired. See the "feed off"
 // section below this constant for the disabled hooks.
-const ALCHEMY_MODES   = ["shapes", "pulse", "constellation", "calendar", "profile", "onboarding", "program", "asks"];
+const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "intel", "collab", "calendar", "profile", "onboarding", "program", "asks", "context"];
+const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 
 const WEEKS_TOTAL = 10;
 const WEEK_NOW = 1; // TODO: bump weekly, or derive from a cohort start date.
@@ -66,17 +88,31 @@ const WEEK_NOW = 1; // TODO: bump weekly, or derive from a cohort start date.
 // being visible — no point burning quota when nobody's looking.
 const FEED_REFRESH_MS = 24 * 60 * 60 * 1000;
 
+// Feed kill-switch — disabled per user request 2026-05-20. The feed tab
+// hits api.github.com /events ~35×/refresh and is the last remaining
+// rate-limit offender after v0.1.39's cohort-sync fix. While off:
+//   - the rail button is `hidden` in src/index.html
+//   - any stored `mode === "feed"` is migrated to "shapes" on mount
+//   - refreshFeed() short-circuits, so no background poll, no timer fire
+// To bring it back: flip FEED_DISABLED to false and remove the `hidden`
+// attribute on the rail button (index.html around line 300).
+const FEED_DISABLED = true;
+
 // Where the cohort-data markdown lives. Profile tab surfaces a link to
 // each team's record so participants can edit it directly. Hardcoded
 // for now — if this repo is ever renamed or the cohort-data dir moves
 // to a separate repo (D4 from the spec walkthrough), update this.
 const COHORT_DATA_REPO = "https://github.com/dmarzzz/shape-rotator-os";
 const COHORT_DATA_BRANCH = "main";
+const COHORT_WEB_BASE_URL = "https://shape-rotator-os.vercel.app";
 function teamRecordEditUrl(record_id) {
   return `${COHORT_DATA_REPO}/edit/${COHORT_DATA_BRANCH}/cohort-data/teams/${record_id}.md`;
 }
 function teamRecordViewUrl(record_id) {
   return `${COHORT_DATA_REPO}/blob/${COHORT_DATA_BRANCH}/cohort-data/teams/${record_id}.md`;
+}
+function cohortRecordUrl(record_id) {
+  return `${COHORT_WEB_BASE_URL}/cohort#${encodeURIComponent(String(record_id || ""))}`;
 }
 
 const state = {
@@ -85,7 +121,9 @@ const state = {
   container: null,
   canvas: null,
   rail: null,
-  mode: "shapes",  // default rail landing — feed used to be first, now lives at the bottom
+  mode: "membrane",  // default rail landing — membrane is the 2026-05 redesign
+  menuOpen: false,   // membrane-only rail overlay, toggled from the top OS tab
+  membraneController: null,  // active membrane scene controller (mounted lazily on first membrane render)
   shapesKindFilter: "works",  // "works" (teams + projects) | "people"
   shapesMembershipFilter: "cohort",  // works: "cohort" | "visiting" | "all";
                                      // people: "cohort-member" | "visiting-scholar" | "coordinator" | "all".
@@ -100,7 +138,9 @@ const state = {
   programPage: null,   // active program-handbook page slug (overview | success | rules | schedule)
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
+  openAskComposer: false, // one-shot landing state when membrane sends someone to post
   constellationMode: "clusters",  // "clusters" (shared cluster membership) | "dependencies" (team-asserted dependency edges)
+  constellationLayout: "wells",    // "wells" (cluster-grouped grid) | "circle" (single ring — the original view)
   calendar: {                     // calendar tab state — see renderCalendar()
     sub: "day",                   // "day" (typeset today agenda) | "week" (broadsheet grid) | "presence" (availability gantt)
     weekIdx: null,                // 0..9; resolved on first render via calendarCurrentWeekIdx()
@@ -114,6 +154,22 @@ const state = {
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
   isFetching: false,
+  contextVault: {
+    loaded: false,
+    loading: false,
+    manifest: null,
+    roots: [],
+    mode: "articles",
+    selectedId: null,
+    selectedRawId: null,
+    selectedText: "",
+    selectedTruncated: false,
+    pendingRawPath: null,
+    rawTextById: {},
+    rawLoadingId: null,
+    error: "",
+    message: "",
+  },
   unsubscribe: null,
   refreshTimer: null,
 };
@@ -135,6 +191,22 @@ export function mount(container) {
     // grid instead of a dead tab. Restore symmetry when the feed comes
     // back as a teleport-router surface.
     if (saved === "feed")      { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
+    // Defensive: if state.mode somehow came in as "feed" from a non-
+    // localStorage path while FEED_DISABLED is true, reroute to shapes
+    // so we don't try to render a tab that no longer has a rail button.
+    if (FEED_DISABLED && state.mode === "feed") {
+      state.mode = "shapes";
+      try { localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); } catch {}
+    }
+    // One-time membrane intro: on this preview branch, first launch lands
+    // every user on the membrane mode regardless of prior preference so the
+    // redesign is the first thing they see. Subsequent rail clicks persist
+    // normally — once they pick another mode, that sticks.
+    const membraneSeen = localStorage.getItem(MEMBRANE_INTRO_LS_KEY);
+    if (!membraneSeen) {
+      state.mode = "membrane";
+      localStorage.setItem(MEMBRANE_INTRO_LS_KEY, "1");
+    }
   } catch {}
   // Detail page state — if a record was open at last reload, restore it
   // so the user lands back where they were instead of on the grid.
@@ -148,26 +220,29 @@ export function mount(container) {
   } catch {}
   loadProfile();
   loadEventsCache();
-  // feed-off (2026-05): the feed surface is unwired pending the teleport-
-  // router integration that will replace GH-fork scraping with a single
-  // routed activity stream. Until then we don't fire the periodic refresh
-  // OR the deferred mount fetch — they were the only callers of refreshFeed
-  // in normal use, and keeping them firing means hitting GH on every launch
-  // for a UI no one can navigate to. The interval + mount lines are kept
-  // (commented) so the resurrection diff is trivial.
-  //
-  //   if (!state.refreshTimer) {
-  //     state.refreshTimer = setInterval(() => {
-  //       if (state.mode !== "feed") return;
-  //       refreshFeed({ source: "interval" });
-  //     }, FEED_REFRESH_MS);
-  //     setTimeout(() => refreshFeed({ source: "mount" }), 1500);
-  //   }
+  if (state.container) {
+    state.container.dataset.alchModeCurrent = state.mode;
+    syncMembraneMenuChrome();
+  }
+  // Background feed refresh — interval gated on the feed tab being open
+  // so we don't burn the 60 req/hr unauth GH budget on a user who hasn't
+  // looked at the feed today. Skipped entirely while FEED_DISABLED — no
+  // timer, no mount kick, nothing hitting api.github.com from this code
+  // path. Flip FEED_DISABLED to false (top of file) to revive.
+  if (!FEED_DISABLED && !state.refreshTimer) {
+    state.refreshTimer = setInterval(() => {
+      if (state.mode !== "feed") return;
+      refreshFeed({ source: "interval" });
+    }, FEED_REFRESH_MS);
+    // First fetch on mount, deferred a beat so we don't compete with cohort load.
+    setTimeout(() => refreshFeed({ source: "mount" }), 1500);
+  }
 
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.addEventListener("click", () => {
       const next = btn.dataset.alchMode;
       if (!next) return;
+      if (state.mode === "membrane") setMembraneMenuOpen(false);
       // Clicking any rail mode also exits the detail page if it's open.
       const wasDetail = !!state.detailRecordId;
       if (next === state.mode && !wasDetail) return;
@@ -182,6 +257,18 @@ export function mount(container) {
       render();
     });
   }
+  document.addEventListener("click", (e) => {
+    if (!isMembraneShellOpen()) return;
+    if (e.target.closest(".alchemy-rail")) return;
+    if (e.target.closest('#tab-bar .tab-btn[data-tab="alchemy"]')) return;
+    setMembraneMenuOpen(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isMembraneShellOpen()) {
+      e.preventDefault();
+      setMembraneMenuOpen(false);
+    }
+  });
   syncRailSelection();
   loadCohort().then(render).catch(err => {
     console.error("[alchemy] cohort load failed:", err);
@@ -268,8 +355,50 @@ function syncRailSelection() {
   }
 }
 
+function isMembraneHome() {
+  return state.mode === "membrane" && !state.detailRecordId;
+}
+
+function isMembraneShellOpen() {
+  return !!(state.mounted && state.container && isMembraneHome() && state.menuOpen);
+}
+
+function syncMembraneMenuChrome() {
+  if (!state.container) return;
+  const open = isMembraneHome() && state.menuOpen;
+  state.container.dataset.alchMenu = open ? "open" : "closed";
+  const tab = document.querySelector('#tab-bar .tab-btn[data-tab="alchemy"]');
+  if (tab) {
+    tab.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+}
+
+function setMembraneMenuOpen(open) {
+  state.menuOpen = isMembraneHome() ? !!open : false;
+  syncMembraneMenuChrome();
+}
+
+export function toggleMembraneMenuFromTopTab() {
+  if (!state.container || !isMembraneHome()) return false;
+  setMembraneMenuOpen(!state.menuOpen);
+  return true;
+}
+
+export function closeMembraneMenu() {
+  if (!state.container || !state.menuOpen) return false;
+  setMembraneMenuOpen(false);
+  return true;
+}
+
 function render() {
   if (!state.canvas || !state.cohort) return;
+  // Reflect current mode on the alchemy-view container so scoped CSS
+  // (membrane.css especially) can target the right surface.
+  if (state.container) {
+    state.container.dataset.alchModeCurrent = state.mode;
+    if (!isMembraneHome()) state.menuOpen = false;
+    syncMembraneMenuChrome();
+  }
   // Cross-fade: leave → swap → enter. Total ~440ms.
   const canvas = state.canvas;
   canvas.classList.remove("is-entering");
@@ -279,6 +408,12 @@ function render() {
   // ~16. Leaving them alive across renders would silently exhaust the
   // budget after a few mode switches.
   destroyAllShapes();
+  // Tear down the membrane scene when leaving membrane mode — same WebGL
+  // budget concern, plus the RAF loop should stop.
+  if (state.mode !== "membrane" && state.membraneController) {
+    try { state.membraneController.destroy(); } catch {}
+    state.membraneController = null;
+  }
   setTimeout(() => {
     canvas.classList.add("is-entering");
     canvas.classList.remove("is-leaving");
@@ -286,15 +421,19 @@ function render() {
     // closed by the back button (which clears state.detailRecordId).
     if (state.detailRecordId) {
       renderDetail(state.detailRecordId);
-    } else if (state.mode === "feed") renderFeed();
+    } else if (state.mode === "membrane") renderMembrane();
+    else if (state.mode === "feed") renderFeed();
     else if (state.mode === "shapes") renderShapes();
     else if (state.mode === "pulse") renderPulse();
     else if (state.mode === "constellation") renderConstellation();
+    else if (state.mode === "intel") renderIntel(state.canvas);
+    else if (state.mode === "collab") renderCollab();
     else if (state.mode === "calendar") renderCalendar();
     else if (state.mode === "profile") renderProfile();
     else if (state.mode === "onboarding") renderOnboarding();
     else if (state.mode === "program") renderProgram();
     else if (state.mode === "asks") renderAsks();
+    else if (state.mode === "context") renderContextVault();
     // atlas — sub-mode disabled to avoid collision with top-level atlas tab.
     // Index cards for the staggered entrance.
     const cards = canvas.querySelectorAll(".alch-card, .alch-legend-card, .alch-feed-item");
@@ -308,10 +447,13 @@ function render() {
       // Kick a feed refresh on entry; the timer keeps it warm in background.
       if (state.mode === "feed") refreshFeed({ source: "mode-enter" });
       if (state.mode === "constellation") wireConstellationHover();
+      if (state.mode === "intel") wireIntel(state.canvas);
+      if (state.mode === "collab") wireCollab();
       if (state.mode === "calendar") wireCalendar();
       if (state.mode === "onboarding") wireOnboarding();
       if (state.mode === "program") wireProgram();
       if (state.mode === "asks") wireAsks();
+      if (state.mode === "context") wireContextVault();
       // atlas wire skipped — see ALCHEMY_MODES comment.
     }
     // Mount shape shaders LAST — every <canvas data-shape-fam> emitted
@@ -332,6 +474,312 @@ function mountAllShapes() {
   if (!state.canvas) return;
   state.shapeControllers = mountShapesIn(state.canvas);
 }
+
+// ─── membrane ───────────────────────────────────────────────────────────
+// 2026-05 redesign. The membrane controller owns its own canvas + WebGL +
+// RAF loop + audio scaffold; render() teardown is handled by the
+// `state.membraneController.destroy()` call that fires when switching out
+// of membrane mode (see the render() prelude above).
+function renderMembrane() {
+  if (!state.canvas) return;
+  if (state.membraneController) {
+    state.membraneController.setData(computeMembraneData());
+    return;
+  }
+  state.membraneController = mountMembrane(state.canvas);
+  state.membraneController.setData(computeMembraneData());
+}
+
+// Today's timed events from the Phala calendar GRID (cohort.calendar.tabs).
+// The daily schedule (sessions, dinners) lives in the grid cells, not in
+// cohort.events — so the membrane events panel needs to parse today's cell
+// to surface things like "19:00 muse dinner". Reuses the calendar module's
+// week-row parser; only lines that lead with a clock time count as events.
+function todayGridEvents(cal) {
+  try {
+    if (!cal || !cal.tabs) return [];
+    const tabName = cal.tabs["May 18 Start"] ? "May 18 Start" : Object.keys(cal.tabs)[0];
+    const rows = cal.tabs[tabName] || [];
+    const wk = calendarCurrentWeekIdx();
+    const weekRow = rows[2 + wk] || [];
+    const week = calendarParseWeekRow(weekRow, wk);
+    // Match the LOCAL calendar date, not parseWeekRow's UTC `isToday`. The
+    // grid cell dates are UTC-midnight; comparing on Y/M/D keeps "today"
+    // pinned to the day the user is actually in (otherwise, after ~8pm
+    // US-eastern, UTC rolls to tomorrow and the panel shows tomorrow's cell).
+    const now = new Date();
+    const localKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    const today = (week.days || []).find((d) => {
+      const dd = new Date(d.dayMs);
+      return `${dd.getUTCFullYear()}-${dd.getUTCMonth()}-${dd.getUTCDate()}` === localKey;
+    });
+    if (!today) return [];
+    const out = [];
+    for (const block of (today.blocks || [])) {
+      const first = String(block).split("\n")[0].trim();
+      let time = "", rest = "";
+      const range = first.match(/^(\d{1,2}:\d{2})\s*[-–—:]\s*(\d{1,2}:\d{2})(.*)$/);
+      if (range) { time = `${range[1]}–${range[2]}`; rest = range[3]; }
+      else {
+        const single = first.match(/^(\d{1,2}:\d{2})(.*)$/);
+        if (!single) continue;           // no leading time → not a scheduled event
+        time = single[1]; rest = single[2];
+      }
+      rest = rest.replace(/^[\s.·:–—-]+/, "").trim();
+      if (!rest) continue;
+      out.push({ time, title: rest, sub: "" });
+    }
+    return out;
+  } catch { return []; }
+}
+
+// Cross-blob data feed. Read the cohort surface and shape it into per-blob
+// stat dictionaries that the panels can render. Re-runs on every cohort
+// refresh via subscribeToCohortChanges → render() chain.
+function computeMembraneData() {
+  const c = state.cohort || {};
+  const cohortIndex = buildCohortIndex(c);
+  const teams = cohortIndex.teams;
+  const people = cohortIndex.people;
+  const events = Array.isArray(c.events) ? c.events : [];
+  const asks = asksWithStatus(c.asks);
+
+  // Pull the user's claimed identity from identity.js (the source of truth
+  // — same module the top-right pill reads). Then resolve it to the full
+  // cohort record so we have name, team, bio, github link, role, etc.
+  const identity = getIdentity();
+  const editorUser = state.profile?.user || null;
+  let myRecord = null;
+  if (identity?.record_id) {
+    if (identity.kind === 'team') {
+      myRecord = cohortIndex.teamById.get(identity.record_id) || null;
+    } else {
+      myRecord = cohortIndex.personById.get(identity.record_id) || null;
+    }
+  }
+  // Fallback for handle-based matching when the editor user is set but no
+  // formal claim has been made yet.
+  const editorHandle = editorUser?.github || editorUser?.gh_handle || editorUser?.handle || editorUser?.links?.github || null;
+  if (!myRecord && editorHandle) {
+    const lc = normalizeAskIdentity(editorHandle);
+    myRecord = people.find((p) =>
+      normalizeAskIdentity(p.links?.github || p.gh_handle || p.handle || '') === lc);
+  }
+  const myHandle = (myRecord?.links?.github || myRecord?.gh_handle
+                 || editorHandle || identity?.record_id || null);
+
+  const askIdentity = { identity, profileUser: editorUser, people };
+  const myAsks = asks.filter((a) => askIsCurrent(a) && isAskMine(a, askIdentity)).length;
+  const openAsks = asks.filter(askIsOpen).length;
+
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const weekFromNow = now + 7 * DAY_MS;
+  // Range-aware parse — match renderEventsInline(): point events use
+  // date/starts_at, spans use range_start/range_end (extended to day end).
+  // Without this, every span event (daily tea, office hours…) was dropped.
+  const spans = events
+    .map((e) => {
+      const startMs = Date.parse(e?.starts_at || e?.start || e?.date || e?.range_start || '');
+      if (!Number.isFinite(startMs)) return null;
+      const endRaw = Date.parse(e?.range_end || '');
+      const endMs = Number.isFinite(endRaw) ? endRaw + (DAY_MS - 1) : startMs;
+      return { startMs, endMs, e };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.startMs - b.startMs);
+  // This week = events still live (not ended) that start within 7 days —
+  // includes anything ongoing right now.
+  const eventsThisWeek = spans.filter((u) => u.endMs >= now && u.startMs <= weekFromNow).length;
+  const happeningNow = spans.find((u) => u.startMs <= now && u.endMs >= now);
+  const nextStart = spans.find((u) => u.startMs >= now);
+  const nextEventEntry = happeningNow || nextStart;
+  const nextEvent = nextEventEntry?.e;
+  const nextEventLabel = nextEvent ? (nextEvent.title || nextEvent.name || 'untitled') : '—';
+  const nextEventInMs = happeningNow ? 0 : (nextStart ? nextStart.startMs - now : null);
+
+  // TODAY's agenda for the events panel. Merges two sources:
+  //   - timed lines from today's Phala calendar GRID cell (e.g. "19:00 muse
+  //     dinner") — the daily schedule lives in cohort.calendar.tabs, NOT in
+  //     cohort.events, so the panel used to miss them entirely.
+  //   - cohort.events spans that overlap today (e.g. "daily tea").
+  // Deduped by title; all-day/ongoing items first, then by clock time.
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayStartMs = todayStart.getTime();
+  const tomorrowMs = todayStartMs + DAY_MS;
+  const gridItems = todayGridEvents(c.calendar);
+  const spanItems = spans
+    .filter((u) => u.startMs < tomorrowMs && u.endMs >= todayStartMs)
+    .map((u) => ({
+      time: '',
+      title: u.e.title || u.e.name || 'untitled',
+      sub: u.e.subtitle || '',
+      ongoing: (u.endMs - u.startMs) > 12 * 60 * 60 * 1000,
+    }));
+  const seenToday = new Set();
+  const eventsToday = [];
+  for (const it of [...spanItems, ...gridItems]) {
+    const k = (it.title || '').toLowerCase().trim();
+    if (!k || seenToday.has(k)) continue;
+    seenToday.add(k);
+    eventsToday.push(it);
+  }
+  eventsToday.sort((a, b) =>
+    (a.time ? 1 : 0) - (b.time ? 1 : 0) || String(a.time).localeCompare(String(b.time)));
+
+  // Edge count: count unique team↔team dependencies the current user's team
+  // participates in. Fallback: total cohort-level edges.
+  const allEdges = teams.reduce((n, t) => n + (Array.isArray(t.dependencies) ? t.dependencies.length : 0), 0);
+
+  // Connections — mirror the constellation view's edges into a flat list
+  // the self panel can render. Includes teammates (same team), members
+  // of teams my team depends on, and people in shared synergy clusters.
+  const connections = [];
+  if (myRecord) {
+    const myTeamId = myRecord.team || (myRecord.kind === 'team' ? myRecord.record_id : null);
+    const myTeam = myTeamId ? cohortIndex.teamById.get(myTeamId) : null;
+    const seen = new Set();
+    const add = (person, edgeType, team) => {
+      if (!person || person.record_id === myRecord.record_id) return;
+      if (seen.has(person.record_id)) return;
+      seen.add(person.record_id);
+      connections.push({
+        kind: 'person',
+        record_id: person.record_id,
+        name: person.display_name || person.name || person.handle || person.record_id,
+        team: team?.name || person.team || '',
+        role: person.role || person.title || '',
+        edgeType,
+      });
+    };
+    if (myTeam) {
+      // Teammates
+      for (const p of cohortIndex.primaryPeopleByTeam.get(myTeam.record_id) || []) add(p, 'teammate', myTeam);
+      // Dependency-team members
+      const depIds = Array.isArray(myTeam.dependencies) ? myTeam.dependencies : [];
+      for (const depId of depIds) {
+        const depTeam = cohortIndex.teamById.get(depId);
+        if (!depTeam) continue;
+        for (const p of cohortIndex.primaryPeopleByTeam.get(depId) || []) add(p, 'depends on', depTeam);
+      }
+      // Reverse-dependency: teams that depend on mine
+      for (const t of teams) {
+        if (!Array.isArray(t.dependencies)) continue;
+        if (!t.dependencies.includes(myTeam.record_id)) continue;
+        for (const p of cohortIndex.primaryPeopleByTeam.get(t.record_id) || []) add(p, 'depended by', t);
+      }
+    }
+    // Cluster overlap — people in same synergy cluster as my team
+    const clusters = Array.isArray(c.clusters) ? c.clusters : [];
+    for (const cl of clusters) {
+      const teamIds = Array.isArray(cl.teams) ? cl.teams
+                    : Array.isArray(cl.members) ? cl.members : [];
+      if (!myTeam || !teamIds.includes(myTeam.record_id)) continue;
+      for (const tid of teamIds) {
+        if (tid === myTeam.record_id) continue;
+        const team = cohortIndex.teamById.get(tid);
+        for (const p of cohortIndex.primaryPeopleByTeam.get(tid) || []) add(p, `cluster: ${cl.label || cl.name || cl.record_id}`, team);
+      }
+    }
+  }
+
+  // Shape the profile object the panel will render. Prefer the full
+  // cohort record (rich fields), fall back to the identity claim (just
+  // name + kind + record_id), fall back to editor-state user.
+  const ghHandle = myRecord?.links?.github || myRecord?.gh_handle || myRecord?.handle || editorHandle || '';
+  const avatarUrl = ghHandle
+    ? `https://github.com/${encodeURIComponent(ghHandle)}.png?size=256`
+    : null;
+
+  const profileForPanel = myRecord ? {
+    record_id: myRecord.record_id,
+    name: myRecord.name,
+    team: myRecord.team || (myRecord.kind === 'team' ? myRecord.record_id : ''),
+    role: myRecord.role || myRecord.title || '',
+    role_class: myRecord.role_class,
+    handle: ghHandle,
+    bio: myRecord.bio || myRecord.description || myRecord.about || '',
+    kind: myRecord.kind || (cohortIndex.teamById.has(myRecord.record_id) ? 'team' : 'person'),
+    links: myRecord.links || {},
+    avatarUrl,
+  } : (identity ? {
+    record_id: identity.record_id,
+    name: identity.display_name,
+    kind: identity.kind,
+    handle: '',
+    team: '',
+    role: '',
+    bio: '',
+    avatarUrl: null,
+  } : editorUser);
+
+  return {
+    self: {
+      edgeCount: String(connections.length || allEdges),
+      // Reliable claim signal — ONLY a formal identity claim counts, never
+      // the editor-handle fallback (that mis-flagged the github editor user
+      // as "claimed" and stranded them in an empty field). The membrane uses
+      // this to auto-enter the field for returning claimed users.
+      claimed: !!(identity && identity.record_id),
+      profile: profileForPanel,
+      connections,
+    },
+    cohort: {
+      peerCount: String(people.length),
+      onlineCount: c._syncAvailable ? 'live' : 'idle',
+    },
+    events: {
+      eventsThisWeek: String(eventsThisWeek),
+      nextEventLabel: nextEventLabel.length > 28 ? nextEventLabel.slice(0, 26) + '…' : nextEventLabel,
+      nextEventInMs,
+      eventsList: events,
+      eventsToday,
+    },
+    asks: {
+      openAskCount: String(openAsks),
+      myAskCount: String(myAsks),
+      asksList: asks,
+      peopleList: people,
+      askIdentity,
+    },
+  };
+}
+
+// Bridge from membrane panels → alchemy rail navigation. Lets the panel
+// "open network →" / "open calendar →" buttons jump into the legacy mode.
+// Public hook used by membrane/index.js.
+window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
+  if (!ALCHEMY_MODES.includes(mode)) return;
+  state.mode = mode;
+  // Optional: land on a specific constellation sub-view (clusters /
+  // dependencies / journey). Used by the cohort panel's view cards.
+  if (mode === "constellation" && opts && opts.constellationMode) {
+    state.constellationMode = opts.constellationMode;
+  }
+  if (mode === "asks" && opts && opts.openComposer) {
+    state.openAskComposer = true;
+  }
+  try { localStorage.setItem(ALCHEMY_LS_KEY, mode); } catch {}
+  syncRailSelection();
+  render();
+};
+
+// Jump straight to a specific record's detail page in the legacy view.
+// Used by the self panel's "connections" list — clicking a peer opens
+// their profile in the cohort surface (shapes mode with detail page).
+window.__srwkAlchemyShowRecord = function showRecordFromMembrane(recordId, returnMode = 'shapes') {
+  if (!recordId) return;
+  if (!ALCHEMY_MODES.includes(returnMode)) returnMode = 'shapes';
+  state.mode = returnMode;
+  state.detailRecordId = String(recordId);
+  state.detailReturnMode = returnMode;
+  try {
+    localStorage.setItem(ALCHEMY_LS_KEY, returnMode);
+    localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: String(recordId), returnMode }));
+  } catch {}
+  syncRailSelection();
+  render();
+};
 
 // Display id "SHAPE-NN" from the team's index in the array.
 function displayId(idx) {
@@ -549,92 +997,478 @@ function hashStr(s) {
   return h;
 }
 
+// ─── journey (PMF spectrum) ──────────────────────────────────────────
+// PMF fields live INSIDE each team/project record under one optional
+// `journey` object. Everything below is defaulted-at-read: a record with
+// no `journey` (or a missing field) renders at the origin (stage 1,
+// evidence 1) without crashing. Old records render fine; older app
+// versions reading newer data never break (the object is additive).
+const JOURNEY_STAGE_LABELS = [
+  "side project", // stage 0 — off the main PMF maturity track
+  "idea",
+  "problem discovery",
+  "problem-solution fit",
+  "mvp / product validation",
+  "early traction",
+  "emerging pmf",
+  "strong pmf",
+  "scale fit",
+];
+const JOURNEY_EVIDENCE_LABELS = [
+  null, // 1-indexed
+  "vibes / thesis",
+  "interviews",
+  "pilots / lois / design partners",
+  "usage / revenue / retention",
+  "repeatable pull",
+];
+const JOURNEY_BOTTLENECKS = [
+  "ICP Clarity", "Pain Intensity", "Solution Quality", "Technical Risk",
+  "GTM", "Retention", "Business Model", "Fundraising", "Regulatory", "Team",
+];
+const JOURNEY_COMPANY_TYPES = ["B2B", "Consumer", "Infra", "Marketplace", "Protocol", "AI", "Other"];
+const JOURNEY_CONFIDENCE = ["Low", "Medium", "High"];
+// 10-color palette keyed by primary_bottleneck (CSS classes ac-jdot-b0..b9).
+// Lives in styles.css; this array keeps the index↔bottleneck mapping in one place.
+const JOURNEY_BOTTLENECK_COLORS = [
+  "#c44025", // ICP Clarity     — oxide red
+  "#d98a3d", // Pain Intensity  — amber
+  "#c9a35e", // Solution Quality— brass
+  "#7fa05a", // Technical Risk  — olive
+  "#4fa3a0", // GTM             — teal
+  "#4f7fa3", // Retention       — steel blue
+  "#7a6fb0", // Business Model  — muted violet
+  "#a35e8f", // Fundraising     — plum
+  "#9a6b5a", // Regulatory      — clay
+  "#8a8f99", // Team            — slate
+];
+const JOURNEY_DEFAULTS = {
+  stage: 1, evidence_quality: 1, market_upside: 3,
+  primary_bottleneck: "ICP Clarity", confidence: "Low",
+};
+// Journey select fields whose value is an integer (not a string label).
+const NUMERIC_JOURNEY_KEYS = new Set([
+  "journey.stage", "journey.evidence_quality", "journey.market_upside",
+]);
+
+// Read a record's journey object with defaults applied. NEVER assumes the
+// key exists; clamps the scaled fields so out-of-range data can't break the
+// plot. Returns a fully-populated object the renderer/tooltip can trust.
+function journeyFor(rec) {
+  const j = (rec && typeof rec.journey === "object" && rec.journey) || {};
+  const clampInt = (v, lo, hi, dflt) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : dflt;
+  };
+  const pickFrom = (v, list, dflt) => (list.includes(v) ? v : dflt);
+  return {
+    stage: clampInt(j.stage, 0, 8, JOURNEY_DEFAULTS.stage),
+    evidence_quality: clampInt(j.evidence_quality, 1, 5, JOURNEY_DEFAULTS.evidence_quality),
+    market_upside: clampInt(j.market_upside, 1, 5, JOURNEY_DEFAULTS.market_upside),
+    primary_bottleneck: pickFrom(j.primary_bottleneck, JOURNEY_BOTTLENECKS, JOURNEY_DEFAULTS.primary_bottleneck),
+    company_type: pickFrom(j.company_type, JOURNEY_COMPANY_TYPES, null),
+    confidence: pickFrom(j.confidence, JOURNEY_CONFIDENCE, JOURNEY_DEFAULTS.confidence),
+    icp: typeof j.icp === "string" ? j.icp : "",
+    problem: typeof j.problem === "string" ? j.problem : "",
+    solution: typeof j.solution === "string" ? j.solution : "",
+    evidence_notes: typeof j.evidence_notes === "string" ? j.evidence_notes : "",
+    next_milestone: typeof j.next_milestone === "string" ? j.next_milestone : "",
+  };
+}
+
+// Stable signed jitter in [-1,1] from (record_id, salt) so the many
+// Stage-1/Evidence-1 dots don't stack. The TRUE integer values still drive
+// the tooltip + detail drawer — only the pixel position is nudged.
+function journeyJitter(recordId, salt) {
+  let t = (hashStr(String(recordId) + ":" + salt) >>> 0);
+  t += 0x6D2B79F5;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((((t ^ (t >>> 14)) >>> 0) % 10000) / 10000) * 2 - 1;
+}
+
+// Market-upside labels (index = upside 1..5).
+const JOURNEY_UPSIDE_LABELS = ["", "niche", "modest", "solid", "large", "category-defining"];
+
+// Rarity tier derived from PMF stage — drives the Cohort Plate frame
+// material (escalates hairline → double-rule → foil edge; single accent,
+// never multi-hue). Stage 0 (side project) is off-track = "prospect".
+function tierForStage(stage) {
+  if (stage <= 0) return { key: "prospect", name: "side quest" };
+  if (stage <= 2) return { key: "signal", name: "signal" };
+  if (stage <= 4) return { key: "traction", name: "traction" };
+  if (stage <= 6) return { key: "fit", name: "fit" };
+  return { key: "scale", name: "scale" };
+}
+
+// Human label for a stage value (0 = the off-track "side project").
+function journeyStageLabel(stage) {
+  if (stage === 0) return JOURNEY_STAGE_LABELS[0];
+  return `${stage} · ${JOURNEY_STAGE_LABELS[stage] || "—"}`;
+}
+
+// Read-only PMF/journey CARD for the record detail page + drawer. The data
+// IS the visual: a stage spectrum track with a glowing marker, dot-meters
+// for evidence + upside, and a colored bottleneck chip. Always shown for
+// teams/projects (defaults via journeyFor); editable via profile → edit.
+function journeyDetailSection(rec) {
+  const j = journeyFor(rec);
+  const isSide = j.stage === 0;
+
+  // Stage spectrum: an off-track "side" tick, then 8 segments idea→scale-fit.
+  // Filled up to the current stage; current segment marked.
+  const segs = [];
+  segs.push(`<span class="jcard-seg jcard-seg-side ${isSide ? "is-cur is-on" : ""}" title="side project">◇</span>`);
+  for (let s = 1; s <= 8; s++) {
+    const on = !isSide && s <= j.stage ? "is-on" : "";
+    const cur = !isSide && s === j.stage ? "is-cur" : "";
+    segs.push(`<span class="jcard-seg ${on} ${cur}" title="${escHtml(`${s} · ${JOURNEY_STAGE_LABELS[s]}`)}"><i>${s}</i></span>`);
+  }
+
+  // 1..max dot meters.
+  const meter = (val, max) => {
+    let d = "";
+    for (let i = 1; i <= max; i++) d += `<span class="jcm-dot ${i <= val ? "is-on" : ""}"></span>`;
+    return `<span class="jcm-dots">${d}</span>`;
+  };
+
+  const bIdx = Math.max(0, JOURNEY_BOTTLENECKS.indexOf(j.primary_bottleneck));
+  const bColor = JOURNEY_BOTTLENECK_COLORS[bIdx] || JOURNEY_BOTTLENECK_COLORS[0];
+
+  const textRow = (k, v) => v ? `<div class="jcard-note"><span class="jcard-note-k">${escHtml(k)}</span><span class="jcard-note-v">${escHtml(v)}</span></div>` : "";
+
+  return `
+    <div class="jcard ${isSide ? "is-side" : ""}">
+      <div class="jcard-head">
+        <span class="jcard-stage-name">${escHtml(JOURNEY_STAGE_LABELS[j.stage] || "—")}</span>
+        <span class="jcard-stage-meta">${isSide ? "off-track" : `stage ${j.stage} / 8`}</span>
+      </div>
+      <div class="jcard-track">${segs.join("")}</div>
+      <div class="jcard-meters">
+        <div class="jcard-meter">
+          <span class="jcm-k">evidence</span>${meter(j.evidence_quality, 5)}
+          <span class="jcm-lbl">${escHtml(JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "")}</span>
+        </div>
+        <div class="jcard-meter">
+          <span class="jcm-k">upside</span>${meter(j.market_upside, 5)}
+          <span class="jcm-lbl">${escHtml(JOURNEY_UPSIDE_LABELS[j.market_upside] || "")}</span>
+        </div>
+      </div>
+      <div class="jcard-chips">
+        <span class="jcard-chip jcard-chip-bottleneck" style="--jc:${bColor}">${escHtml(j.primary_bottleneck)}</span>
+        ${j.company_type ? `<span class="jcard-chip">${escHtml(j.company_type)}</span>` : ""}
+      </div>
+      ${(j.icp || j.problem || j.solution || j.evidence_notes || j.next_milestone) ? `
+        <div class="jcard-notes">
+          ${textRow("icp", j.icp)}
+          ${textRow("problem", j.problem)}
+          ${textRow("solution", j.solution)}
+          ${textRow("evidence", j.evidence_notes)}
+          ${textRow("next milestone", j.next_milestone)}
+        </div>` : ""}
+    </div>`;
+}
+
+function renderJourney() {
+  const all = state.cohort.teams || [];
+  // Filters (persist for the session). side = include the off-track stage-0
+  // "side project" column; bottleneck = isolate one bottleneck.
+  const jf = state.journeyFilters || (state.journeyFilters = { teams: true, projects: true, side: true, bottleneck: null });
+  const teams = all.filter((t) => {
+    const j = journeyFor(t);
+    const isProject = teamKind(t) === "project";
+    if (isProject && !jf.projects) return false;
+    if (!isProject && !jf.teams) return false;
+    if (j.stage === 0 && !jf.side) return false;
+    if (jf.bottleneck && j.primary_bottleneck !== jf.bottleneck) return false;
+    return true;
+  });
+  // Stage distribution over the filtered set (drives the per-column counts).
+  const stageCounts = new Array(9).fill(0);
+  for (const t of teams) stageCounts[journeyFor(t).stage]++;
+  const W = 980, H = 540;
+  // Plot area inset: leave room for axis labels (left = evidence, bottom = stage).
+  const PAD_L = 96, PAD_R = 28, PAD_T = 28, PAD_B = 88;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+  // X = stage. Column 0 is "side project" — OFF the main maturity track,
+  // set apart by a divider — then stages 1..8 (idea → scale fit). 9 columns.
+  // Y = evidence_quality (1..5, higher = up).
+  const STAGE_COUNT = JOURNEY_STAGE_LABELS.length; // 9 (0..8)
+  const colW = plotW / STAGE_COUNT;
+  const rowH = plotH / 5;
+  const xForStage = (stage) => PAD_L + (stage + 0.5) * colW;
+  const yForEvidence = (ev) => PAD_T + plotH - (ev - 0.5) * rowH;
+
+  // ── grid + axis labels ──
+  const gridLines = [];
+  for (let i = 0; i <= STAGE_COUNT; i++) {
+    const x = PAD_L + i * colW;
+    gridLines.push(`<line class="ac-jgrid" x1="${x.toFixed(1)}" y1="${PAD_T}" x2="${x.toFixed(1)}" y2="${(PAD_T + plotH).toFixed(1)}"/>`);
+  }
+  for (let i = 0; i <= 5; i++) {
+    const y = PAD_T + i * rowH;
+    gridLines.push(`<line class="ac-jgrid" x1="${PAD_L}" y1="${y.toFixed(1)}" x2="${(PAD_L + plotW).toFixed(1)}" y2="${y.toFixed(1)}"/>`);
+  }
+  // Divider between the off-track side-project column (0) and idea (1).
+  const dividerX = PAD_L + colW;
+  gridLines.push(`<line class="ac-jdivider" x1="${dividerX.toFixed(1)}" y1="${(PAD_T - 6).toFixed(1)}" x2="${dividerX.toFixed(1)}" y2="${(PAD_T + plotH + 6).toFixed(1)}"/>`);
+  const xLabels = JOURNEY_STAGE_LABELS.map((lbl, stage) => {
+    const x = xForStage(stage);
+    // Stage 0 (side project) is off-track — render the label only, no number.
+    const num = stage === 0 ? "" : `<tspan class="ac-jaxis-num">${stage}</tspan> `;
+    const cls = stage === 0 ? "ac-jaxis-x ac-jaxis-x-side" : "ac-jaxis-x";
+    return `<text class="${cls}" x="${x.toFixed(1)}" y="${(PAD_T + plotH + 18).toFixed(1)}" text-anchor="middle">${num}${escHtml(lbl)}</text>`;
+  }).join("");
+  const yLabels = JOURNEY_EVIDENCE_LABELS.slice(1).map((lbl, i) => {
+    const ev = i + 1;
+    const y = yForEvidence(ev);
+    return `<text class="ac-jaxis-y" x="${(PAD_L - 10).toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="end"><tspan class="ac-jaxis-num">${ev}</tspan> ${escHtml(lbl)}</text>`;
+  }).join("");
+  const axisTitleX = `<text class="ac-jaxis-title" x="${(PAD_L + plotW / 2).toFixed(1)}" y="${(H - 16).toFixed(1)}" text-anchor="middle">stage →</text>`;
+  const axisTitleY = `<text class="ac-jaxis-title" transform="translate(18,${(PAD_T + plotH / 2).toFixed(1)}) rotate(-90)" text-anchor="middle">evidence quality →</text>`;
+  // Per-stage count strip across the top — a quick distribution read.
+  const countLabels = stageCounts.map((c, stage) =>
+    c > 0 ? `<text class="ac-jcount" x="${xForStage(stage).toFixed(1)}" y="${(PAD_T - 7).toFixed(1)}" text-anchor="middle">${c}</text>` : ""
+  ).join("");
+
+  // ── dots: one per team AND project. Radius ← market_upside; fill ←
+  // primary_bottleneck. Deterministic jitter spreads same-cell dots. ──
+  const dots = teams.map((t) => {
+    const j = journeyFor(t);
+    const jx = journeyJitter(t.record_id, "x") * (colW * 0.32);
+    const jy = journeyJitter(t.record_id, "y") * (rowH * 0.32);
+    const cx = xForStage(j.stage) + jx;
+    const cy = yForEvidence(j.evidence_quality) + jy;
+    const r = 4 + j.market_upside * 1.8; // upside 1..5 → r 5.8..13
+    const colorIdx = Math.max(0, JOURNEY_BOTTLENECKS.indexOf(j.primary_bottleneck));
+    const isProject = teamKind(t) === "project";
+    return `<g class="ac-jnode${isProject ? " is-project" : ""}" data-record-id="${escHtml(t.record_id)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
+        <circle class="ac-jdot ac-jdot-b${colorIdx}" r="${r.toFixed(1)}"/>
+        <text class="ac-jnode-label" y="${(-r - 5).toFixed(1)}" text-anchor="middle">${escHtml(t.name)}</text>
+      </g>`;
+  }).join("");
+
+  // ── bottleneck legend (10 colors) — clickable to isolate a bottleneck ──
+  const legend = JOURNEY_BOTTLENECKS.map((b, i) =>
+    `<button type="button" class="acl-item acl-jbtn ${jf.bottleneck === b ? "is-active" : ""} ${jf.bottleneck && jf.bottleneck !== b ? "is-dim" : ""}" data-jbottleneck="${escAttr(b)}"><span class="acl-jswatch ac-jdot-b${i}"></span>${escHtml(b)}</button>`
+  ).join("");
+
+  // ── filter bar — toggle teams / projects / side projects ──
+  const fbtn = (key, label) => `<button type="button" class="ajf-toggle ${jf[key] ? "is-on" : ""}" data-jfilter="${key}">${label}</button>`;
+  const filterBar = `
+    <div class="alch-journey-filters">
+      <span class="ajf-label">show</span>
+      ${fbtn("teams", "teams")}
+      ${fbtn("projects", "projects")}
+      ${fbtn("side", "side projects")}
+      <span class="ajf-count">${teams.length} shown</span>
+    </div>`;
+
+  state.canvas.innerHTML = `
+    <div class="alch-constellation">
+      <nav class="alch-const-modes" role="tablist" aria-label="constellation view">
+        <button class="alch-const-mode-btn" data-const-mode="clusters" aria-selected="false" type="button">
+          <span class="acm-glyph" aria-hidden="true">◑</span><span class="acm-label">clusters</span>
+          <span class="acm-hint">shared cluster membership</span>
+        </button>
+        <button class="alch-const-mode-btn" data-const-mode="dependencies" aria-selected="false" type="button">
+          <span class="acm-glyph" aria-hidden="true">↬</span><span class="acm-label">dependencies</span>
+          <span class="acm-hint">team-asserted edges</span>
+        </button>
+        <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="true" type="button">
+          <span class="acm-glyph" aria-hidden="true">⌁</span><span class="acm-label">journey</span>
+          <span class="acm-hint">pmf maturity spectrum</span>
+        </button>
+      </nav>
+      ${filterBar}
+      <div class="alch-constellation-stage alch-journey-stage">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+          ${gridLines.join("")}
+          ${xLabels}
+          ${yLabels}
+          ${axisTitleX}
+          ${axisTitleY}
+          ${countLabels}
+          ${dots}
+        </svg>
+        <div class="alch-journey-tip" hidden></div>
+      </div>
+      <div class="alch-constellation-legend">${legend}</div>
+      <p class="alch-callout"><strong>journey · v0.1</strong><br/>
+      Every cohort team and project placed on a startup-maturity spectrum — <strong>stage</strong> (idea → scale fit) across, <strong>evidence quality</strong> (vibes → repeatable pull) up. Dot size is market upside; dot color is the primary bottleneck. Initial placement defaults every company to <em>idea / vibes</em> — update each as evidence is collected, via <strong>profile → edit → team / project</strong>.</p>
+    </div>
+  `;
+}
+
 // ─── constellation ───────────────────────────────────────────────────
+// ─── cohort map · cluster-well constellation ─────────────────────────
+// Ported (watered-down, PUBLIC-data-only) from the cohort dossier's Map
+// view. Teams sit inside their primary cluster's "well"; node size = how
+// many teams declare a dependency on them (keystones grow); domain → a
+// warm tonal color. Detail-on-click reuses the existing record drawer.
+// Nothing here reads coordinator judgement or any private dossier input —
+// every field used is self-asserted in the cohort surface.
+const CONST_DOMAIN_LABEL = {
+  tee: "trusted compute", ai: "agent infra", crypto: "crypto · identity",
+  "app-ux": "app · ux", "bd-gtm": "app · ux", other: "other",
+};
+const CONST_DOMAIN_KEYS = ["tee", "ai", "crypto", "app-ux"];
+function constDomainClass(d) {
+  const k = String(d || "other").toLowerCase();
+  if (k === "bd-gtm") return "app-ux";
+  return CONST_DOMAIN_KEYS.includes(k) ? k : "other";
+}
+
+// Lay wells out on an adaptive grid (favoring more columns on the wide
+// canvas) so they never overlap regardless of cluster count, then place
+// each well's teams: keystone (highest in-degree) at the centre, the rest
+// on a ring inside the well.
+function placeConstellation(model, W, H) {
+  const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const N = Math.max(1, model.wellsDef.length);
+  const cols = Math.max(1, Math.min(N, Math.round(Math.sqrt(N * (W / H)))));
+  const rows = Math.ceil(N / cols);
+  const cellW = W / cols, cellH = H / rows;
+  const wells = [];
+  const pos = new Map();
+  model.wellsDef.forEach((w, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    // centre a partial last row
+    const rowCount = (row === rows - 1) ? (N - row * cols) : cols;
+    const rowPad = (cols - rowCount) * cellW / 2;
+    const cx = rowPad + col * cellW + cellW / 2;
+    const cy = row * cellH + cellH / 2;
+    const rx = cellW * 0.42, ry = cellH * 0.40;
+    wells.push({ id: w.id, label: w.label, cx, cy, rx, ry });
+    const ordered = w.members.slice().sort((a, b) => (model.indegree.get(b) || 0) - (model.indegree.get(a) || 0));
+    const ringN = Math.max(1, ordered.length - 1);
+    ordered.forEach((rid, k) => {
+      const team = model.byRecordId.get(rid);
+      const deg = model.indegree.get(rid) || 0;
+      const r = 6 + Math.min(deg, 8) * 1.5;
+      let x = cx, y = cy + (ordered.length > 1 ? -ry * 0.1 : 0);
+      if (k > 0) {
+        const a = -Math.PI / 2 + ((k - 1) / ringN) * Math.PI * 2;
+        const spread = ringN > 5 && (k % 2 === 0) ? 0.92 : 0.66;
+        x = cl(cx + Math.cos(a) * rx * spread, r + 4, W - r - 4);
+        y = cl(cy + Math.sin(a) * ry * spread, r + 12, H - r - 12);
+      }
+      pos.set(rid, { team, x, y, r, deg });
+    });
+  });
+  return { wells, pos };
+}
+
+// The original single-ring layout, kept as a toggle alongside the wells.
+// Teams are ordered cluster-by-cluster so each cluster reads as an arc;
+// node size + domain colour match the wells view. No well backdrops.
+function placeConstellationCircle(model, W, H) {
+  const CX = W / 2, CY = H / 2, R = Math.min(W, H) * 0.4;
+  const order = [];
+  for (const w of model.wellsDef) for (const rid of w.members) order.push(rid);
+  const n = order.length || 1;
+  const pos = new Map();
+  order.forEach((rid, i) => {
+    const team = model.byRecordId.get(rid);
+    if (!team) return;
+    const deg = model.indegree.get(rid) || 0;
+    const r = 6 + Math.min(deg, 8) * 1.5;
+    const ang = -Math.PI / 2 + (i / n) * Math.PI * 2;
+    pos.set(rid, { team, x: CX + Math.cos(ang) * R, y: CY + Math.sin(ang) * R, r, deg });
+  });
+  return { wells: [], pos };
+}
+
+// Watered-down "read" surfaced on hover — public self-asserted fields only
+// (name · domain · how many depend on it · the team's own focus/now).
+function constFrameLine(team, deg) {
+  const dom = CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other";
+  const depWord = deg === 1 ? "team depends on this" : "teams depend on this";
+  const frame = team.focus || team.now || "";
+  return `<strong>${escHtml(team.name || team.record_id)}</strong> · ${escHtml(dom)} · ${deg} ${depWord}`
+    + (frame ? `<br/>${escHtml(frame)}` : "");
+}
+
 function renderConstellation() {
   const teams = state.cohort.teams;
   const clusters = state.cohort.clusters;
   const mode = state.constellationMode || "clusters";
 
-  const W = 980, H = 540, CX = W / 2, CY = H / 2, R = 215;
-  const byRecordId = new Map(teams.map(t => [t.record_id, t]));
-  const positions = teams.map((t, i) => {
-    const a = (i / teams.length) * Math.PI * 2 - Math.PI / 2;
-    return { t, x: CX + Math.cos(a) * R, y: CY + Math.sin(a) * R };
-  });
-  const posByRecordId = new Map(positions.map(p => [p.t.record_id, p]));
+  // Journey sub-tab renders a PMF scatterplot instead of the map.
+  if (mode === "journey") { renderJourney(); return; }
 
-  // Build edges based on the selected mode.
-  // - "clusters":     every pair of teams that share a cluster gets one edge per cluster (existing behavior).
-  // - "dependencies": directed edges from each team to its `dependencies[]` records. Asserted by the team itself.
-  const edges = [];
-  if (mode === "clusters") {
-    for (const cl of clusters) {
-      const present = (cl.teams || []).filter(rid => byRecordId.has(rid));
-      for (let i = 0; i < present.length; i++) {
-        for (let j = i + 1; j < present.length; j++) {
-          const a = posByRecordId.get(present[i]);
-          const b = posByRecordId.get(present[j]);
-          if (a && b) edges.push({ a, b, cluster: cl });
-        }
-      }
-    }
-  } else if (mode === "dependencies") {
-    // Each team's self-asserted dependency list. Deduped by unordered pair
-    // so a mutual "we depend on each other" only draws one edge.
-    const seen = new Set();
-    for (const t of teams) {
-      const deps = Array.isArray(t.dependencies) ? t.dependencies : [];
-      for (const depId of deps) {
-        if (!byRecordId.has(depId)) continue;
-        const k = [t.record_id, depId].sort().join("→");
-        if (seen.has(k)) continue;
-        seen.add(k);
-        const a = posByRecordId.get(t.record_id);
-        const b = posByRecordId.get(depId);
-        if (a && b) edges.push({ a, b, cluster: null, kind: "dependency" });
-      }
-    }
-  }
+  const W = 980, H = 540;
+  const layout = state.constellationLayout || "wells";
+  const model = constellationModel(teams, clusters);
+  const { wells, pos } = layout === "circle"
+    ? placeConstellationCircle(model, W, H)
+    : placeConstellation(model, W, H);
 
-  // Multi-line dedupe: cluster mode can have multiple edges between the
-  // same pair (one per shared cluster); dependencies mode is already
-  // deduped above (each pair appears once) so the offset becomes a no-op.
-  const dup = new Map();
-  for (const e of edges) {
-    const k = [e.a.t.record_id, e.b.t.record_id].sort().join("→");
-    e._dupKey = k;
-    e._dupIdx = (dup.get(k) || 0);
-    dup.set(k, e._dupIdx + 1);
-  }
-  const dupTotal = new Map(dup);
-
-  const edgeMarkup = edges.map(e => {
-    const total = dupTotal.get(e._dupKey) || 1;
-    const offset = (e._dupIdx - (total - 1) / 2) * 4;
-    const dx = e.b.x - e.a.x, dy = e.b.y - e.a.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const px = -dy / len * offset, py = dx / len * offset;
-    const cls = mode === "dependencies"
-      ? "ac-edge ac-edge-dependency"
-      : `ac-edge ac-edge-${e.cluster.record_id || e.cluster.name || "x"}`;
-    return `<line class="${cls}" data-a="${escHtml(e.a.t.record_id)}" data-b="${escHtml(e.b.t.record_id)}"
-      x1="${(e.a.x + px).toFixed(1)}" y1="${(e.a.y + py).toFixed(1)}"
-      x2="${(e.b.x + px).toFixed(1)}" y2="${(e.b.y + py).toFixed(1)}"/>`;
-  }).join("");
-
-  const nodeMarkup = positions.map(({ t, x, y }) => `
-    <g class="ac-node-group" data-record-id="${escHtml(t.record_id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
-      <circle class="ac-node-shape ${t.is_mentor ? "ac-node-mentor" : ""}" r="9"/>
-      <text class="ac-node-label" y="26" text-anchor="middle">${escHtml(t.name)}</text>
+  // Cluster well backdrops (soft dashed ellipse + label) behind everything.
+  const wellMarkup = wells.map(w => `
+    <g class="ac-well" data-well="${escHtml(w.id)}">
+      <ellipse cx="${w.cx.toFixed(1)}" cy="${w.cy.toFixed(1)}" rx="${w.rx.toFixed(1)}" ry="${w.ry.toFixed(1)}"/>
+      <text class="ac-well-label" x="${w.cx.toFixed(1)}" y="${(w.cy - w.ry + 15).toFixed(1)}" text-anchor="middle">${escHtml(w.label)}</text>
     </g>`).join("");
 
-  const legend = mode === "clusters"
-    ? clusters.map(cl => `<span class="acl-item"><span class="acl-swatch acl-swatch-${escHtml(cl.record_id)}"></span>${escHtml(cl.label)}</span>`).join("")
-    : `<span class="acl-item"><span class="acl-swatch acl-swatch-dependency"></span>declared dependency · self-asserted by the team</span>`;
+  // Edges:
+  // - "clusters":     undirected line between teams sharing a cluster.
+  // - "dependencies": directed arrow from a team to each team it depends on.
+  const edges = [];
+  if (mode === "clusters") {
+    for (const c of clusters) {
+      const present = (c.teams || []).filter(rid => pos.has(rid));
+      for (let i = 0; i < present.length; i++)
+        for (let j = i + 1; j < present.length; j++)
+          edges.push({ from: present[i], to: present[j], cluster: c, directed: false });
+    }
+  } else { // dependencies
+    const seen = new Set();
+    for (const t of teams) {
+      for (const dep of (Array.isArray(t.dependencies) ? t.dependencies : [])) {
+        if (!pos.has(dep) || dep === t.record_id) continue;
+        const k = t.record_id + ">" + dep;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        edges.push({ from: t.record_id, to: dep, cluster: null, directed: true });
+      }
+    }
+  }
+
+  const edgeMarkup = edges.map(e => {
+    const a = pos.get(e.from), b = pos.get(e.to);
+    if (!a || !b) return "";
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const ux = dx / dist, uy = dy / dist;
+    const sx = a.x + ux * (a.r + 2), sy = a.y + uy * (a.r + 2);
+    const ex = b.x - ux * (b.r + (e.directed ? 7 : 3)), ey = b.y - uy * (b.r + (e.directed ? 7 : 3));
+    const bend = 12 + Math.min(48, dist * 0.12);
+    const qx = (sx + ex) / 2 - uy * bend, qy = (sy + ey) / 2 + ux * bend;
+    const cls = e.directed
+      ? "ac-edge ac-edge-dependency"
+      : `ac-edge ac-edge-${(e.cluster && (e.cluster.record_id || e.cluster.name)) || "x"}`;
+    const marker = e.directed ? ` marker-end="url(#ac-arrow)"` : "";
+    return `<path class="${cls}" data-a="${escHtml(e.from)}" data-b="${escHtml(e.to)}"`
+      + ` d="M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${qx.toFixed(1)} ${qy.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}"${marker}/>`;
+  }).join("");
+
+  // Draw small→large so keystones sit on top of the pile.
+  const nodeMarkup = [...pos.values()].sort((p, q) => p.r - q.r).map(({ team, x, y, r }) => `
+    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}" data-record-id="${escHtml(team.record_id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+      <circle class="ac-node-shape ${team.is_mentor ? "ac-node-mentor" : ""}" r="${r.toFixed(1)}"/>
+      <text class="ac-node-label" y="${(r + 13).toFixed(1)}" text-anchor="middle">${escHtml(team.name)}</text>
+    </g>`).join("");
+
+  const legend =
+    CONST_DOMAIN_KEYS.map(k => `<span class="acl-item"><span class="acl-dot acl-dot-${k}"></span>${escHtml(CONST_DOMAIN_LABEL[k])}</span>`).join("")
+    + `<span class="acl-item"><span class="acl-size"></span>larger = more teams depend on it</span>`
+    + (mode === "dependencies" ? `<span class="acl-item"><span class="acl-swatch acl-swatch-dependency"></span>declared dependency →</span>` : "");
 
   const calloutBody = mode === "clusters"
-    ? `Edges are the synergy clusters from the cohort surface data — every pair of teams that share a cluster gets one line per cluster (so Conclave, which sits in three, fans out). Mentor cards are rendered hollow.`
-    : `Edges are <code>dependencies[]</code> declared by each team — "we depend on this team's output" or "we'd unblock with them." Self-asserted, asymmetric source data, deduped per pair. Mentor cards are rendered hollow. See <button class="alch-link-btn" data-go="program" data-program-page="rules">program · rules</button> for why we don't infer connections automatically.`;
+    ? `Teams grouped into their <strong>cohort cluster</strong> wells; lines join teams that share a cluster. Color = domain, size = how many teams declare a dependency on them. Hover a node for its frame; click to open the full card. Mentor teams render hollow.`
+    : `Arrows point from a team to the teams it <code>depends on</code> — self-asserted in the cohort surface. The biggest nodes are the cohort's keystones (most depended-upon). Hover for a frame; click for the card. See <button class="alch-link-btn" data-go="program" data-program-page="rules">program · rules</button> for why connections aren't inferred.`;
 
   state.canvas.innerHTML = `
     <div class="alch-constellation">
@@ -647,15 +1481,30 @@ function renderConstellation() {
           <span class="acm-glyph" aria-hidden="true">↬</span><span class="acm-label">dependencies</span>
           <span class="acm-hint">team-asserted edges</span>
         </button>
+        <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="${mode === "journey"}" type="button">
+          <span class="acm-glyph" aria-hidden="true">⌁</span><span class="acm-label">journey</span>
+          <span class="acm-hint">pmf maturity spectrum</span>
+        </button>
       </nav>
+      <div class="ac-layout-toggle" role="group" aria-label="map layout">
+        <button class="ac-layout-btn" data-const-layout="wells" aria-selected="${layout === "wells"}" type="button">⬡ wells</button>
+        <button class="ac-layout-btn" data-const-layout="circle" aria-selected="${layout === "circle"}" type="button">◯ circle</button>
+      </div>
       <div class="alch-constellation-stage">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
-          ${edgeMarkup}
-          ${nodeMarkup}
+          <defs>
+            <marker id="ac-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z"/>
+            </marker>
+          </defs>
+          <g class="ac-wells">${wellMarkup}</g>
+          <g class="ac-edges">${edgeMarkup}</g>
+          <g class="ac-nodes">${nodeMarkup}</g>
         </svg>
       </div>
       <div class="alch-constellation-legend">${legend}</div>
-      <p class="alch-callout"><strong>constellation · v0.2</strong><br/>${calloutBody}</p>
+      <div class="ac-hoverline" data-ac-hoverline aria-live="polite"></div>
+      <p class="alch-callout"><strong>cohort map · v0.4</strong><br/>${calloutBody}</p>
     </div>
   `;
 }
@@ -985,11 +1834,35 @@ function wireConstellationHover() {
   const stage = state.canvas.querySelector(".alch-constellation-stage");
   if (stage) {
     const groups = stage.querySelectorAll(".ac-node-group");
+    // Hovering a node shows its watered-down frame (public fields only) in a
+    // FIXED-HEIGHT line — never the callout, whose reflow used to shrink the
+    // flex stage, move the node out from under the cursor, and flicker.
+    const hoverEl = state.canvas.querySelector("[data-ac-hoverline]");
+    const cohortIndex = buildCohortIndex(state.cohort);
+    const teamById = cohortIndex.teamById;
+    const indeg = constellationIndegree(cohortIndex.teams);
     for (const g of groups) {
       const rid = g.dataset.recordId;
-      g.addEventListener("mouseenter", () => setConstellationHover(stage, rid, true));
-      g.addEventListener("mouseleave", () => setConstellationHover(stage, rid, false));
+      g.addEventListener("mouseenter", () => {
+        setConstellationHover(stage, rid, true);
+        const t = teamById.get(rid);
+        if (hoverEl && t) hoverEl.innerHTML = constFrameLine(t, indeg.get(rid) || 0);
+      });
+      g.addEventListener("mouseleave", () => {
+        setConstellationHover(stage, rid, false);
+        if (hoverEl) hoverEl.innerHTML = "";
+      });
       g.addEventListener("click", () => openDrawer(rid));
+    }
+    // Journey scatterplot nodes: hover → tooltip, click → drawer.
+    const tip = stage.querySelector(".alch-journey-tip");
+    const byId = cohortIndex.teamById;
+    for (const node of stage.querySelectorAll(".ac-jnode")) {
+      const rid = node.dataset.recordId;
+      node.addEventListener("mouseenter", () => showJourneyTip(stage, tip, byId.get(rid)));
+      node.addEventListener("mousemove", (e) => positionJourneyTip(stage, tip, e));
+      node.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
+      node.addEventListener("click", () => openDrawer(rid));
     }
   }
   // Mode-toggle nav: switches the edge source between cluster-membership
@@ -1002,6 +1875,15 @@ function wireConstellationHover() {
       render();
     });
   }
+  // Layout toggle: cluster-grouped wells ↔ single ring (the original view).
+  for (const btn of state.canvas.querySelectorAll(".ac-layout-btn[data-const-layout]")) {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.constLayout;
+      if (next === state.constellationLayout) return;
+      state.constellationLayout = next;
+      render();
+    });
+  }
   // Inline jump to program → rules from the callout (dependencies mode).
   for (const b of state.canvas.querySelectorAll(".alch-link-btn[data-go='program']")) {
     b.addEventListener("click", () => {
@@ -1009,6 +1891,23 @@ function wireConstellationHover() {
       state.programPage = b.dataset.programPage || null;
       try { localStorage.setItem(ALCHEMY_LS_KEY, "program"); } catch {}
       syncRailSelection();
+      render();
+    });
+  }
+  // Journey filters: toggle teams / projects / side projects.
+  const jf = state.journeyFilters;
+  for (const btn of state.canvas.querySelectorAll(".ajf-toggle[data-jfilter]")) {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.jfilter;
+      if (jf && key in jf) { jf[key] = !jf[key]; render(); }
+    });
+  }
+  // Journey legend: click a bottleneck to isolate it; click again to clear.
+  for (const btn of state.canvas.querySelectorAll(".acl-jbtn[data-jbottleneck]")) {
+    btn.addEventListener("click", () => {
+      if (!jf) return;
+      const b = btn.dataset.jbottleneck;
+      jf.bottleneck = jf.bottleneck === b ? null : b;
       render();
     });
   }
@@ -1037,6 +1936,39 @@ function setConstellationHover(stage, recordId, on) {
     if (related.has(rid) && rid !== recordId) g.classList.add("is-related");
     else g.classList.remove("is-related");
   });
+}
+
+// Journey tooltip: name + stage/evidence labels + bottleneck + next
+// milestone. Reads journey with defaults applied so it never crashes on a
+// record that has no `journey` object.
+function showJourneyTip(stage, tip, rec) {
+  if (!tip || !rec) return;
+  const j = journeyFor(rec);
+  const stageLbl = JOURNEY_STAGE_LABELS[j.stage] || "—";
+  const evLbl = JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "—";
+  const milestone = j.next_milestone
+    ? `<div class="ajt-row"><span class="ajt-k">next</span><span class="ajt-v">${escHtml(j.next_milestone)}</span></div>`
+    : "";
+  tip.innerHTML = `
+    <div class="ajt-name">${escHtml(rec.name || rec.record_id)}</div>
+    <div class="ajt-row"><span class="ajt-k">stage</span><span class="ajt-v">${j.stage} · ${escHtml(stageLbl)}</span></div>
+    <div class="ajt-row"><span class="ajt-k">evidence</span><span class="ajt-v">${j.evidence_quality} · ${escHtml(evLbl)}</span></div>
+    <div class="ajt-row"><span class="ajt-k">bottleneck</span><span class="ajt-v">${escHtml(j.primary_bottleneck)}</span></div>
+    ${milestone}
+  `;
+  tip.hidden = false;
+}
+function positionJourneyTip(stage, tip, e) {
+  if (!tip || tip.hidden) return;
+  const r = stage.getBoundingClientRect();
+  let x = e.clientX - r.left + 14;
+  let y = e.clientY - r.top + 14;
+  // Keep the tip inside the stage on the right/bottom edges.
+  const tw = tip.offsetWidth || 200, th = tip.offsetHeight || 80;
+  if (x + tw > r.width) x = e.clientX - r.left - tw - 14;
+  if (y + th > r.height) y = e.clientY - r.top - th - 14;
+  tip.style.left = `${Math.max(4, x)}px`;
+  tip.style.top = `${Math.max(4, y)}px`;
 }
 
 // ─── calendar (cohort presence over time) ─────────────────────────────
@@ -1108,42 +2040,45 @@ function fmtShortDate(d) {
 // fallback) and "presence" (the existing availability gantt). Anchor events
 // from cohort-data/events/*.md fold into the week cells they fall on — no
 // separate "key dates" tab.
-function renderCalendar() {
+function calendarSubView() {
   const cal = state.calendar;
-  if (cal.weekIdx == null) cal.weekIdx = calendarCurrentWeekIdx();
-
-  // Seed the data on first entry: prefer the bundled snapshot so the first
-  // paint is instant, then kick off the live fetch in the background and
-  // re-render when it resolves.
-  if (cal.data == null && !cal.loading) {
-    const bundled = state.cohort?.calendar || null;
-    if (bundled) {
-      cal.data = bundled;
-      cal.source = "bundled";
-    }
-    cal.loading = true;
-    loadCalendarData({ bundled }).then(res => {
-      cal.data = res.data || cal.data;
-      cal.source = res.source || cal.source;
-      cal.loading = false;
-      if (state.mode === "calendar") render();
-    }).catch(() => { cal.loading = false; });
-  }
-
   // Default sub is "day" — the calendar tab opens to a typeset agenda for
   // today rather than the broadsheet week grid, since that's the question
   // people most often have ("what's on right now?"). Week + presence are
   // one click away from any tab.
-  const sub = cal.sub === "presence" ? "presence"
-            : cal.sub === "week"     ? "week"
-            : "day";
+  return cal.sub === "presence" ? "presence"
+       : cal.sub === "week"     ? "week"
+       : "day";
+}
+
+function seedCalendarData() {
+  const cal = state.calendar;
+  if (cal.weekIdx == null) cal.weekIdx = calendarCurrentWeekIdx();
+  if (cal.data != null || cal.loading) return;
+
+  // Seed the data on first entry: prefer the bundled snapshot so the first
+  // paint is instant, then kick off the live fetch in the background and
+  // update only the calendar surface when it resolves.
+  const bundled = state.cohort?.calendar || null;
+  if (bundled) {
+    cal.data = bundled;
+    cal.source = "bundled";
+  }
+  cal.loading = true;
+  loadCalendarData({ bundled }).then(res => {
+    cal.data = res.data || cal.data;
+    cal.source = res.source || cal.source;
+    cal.loading = false;
+    if (state.mode === "calendar") refreshCalendarView();
+  }).catch(() => { cal.loading = false; });
+}
+
+function renderCalendarHtml() {
+  const cal = state.calendar;
+  const sub = calendarSubView();
   const presenceHtml = sub === "presence" ? renderCalAvailability() : "";
 
-  // Tear down previous mobile-behavior listeners before swapping markup, or
-  // touchstart/touchend handlers will stack up across renders.
-  if (cal.detachMobile) { cal.detachMobile(); cal.detachMobile = null; }
-
-  state.canvas.innerHTML = renderCalendarWeekView({
+  return renderCalendarWeekView({
     data: cal.data,
     weekIdx: cal.weekIdx,
     dayIdx:  cal.dayIdx == null ? null : cal.dayIdx,
@@ -1155,26 +2090,62 @@ function renderCalendar() {
     // cells → tea showing twice on every weekday). Drop the anchor overlay
     // for now; restore once dedupe + a recurrence model are in place.
     events: [],
+    transcriptMatches: CALENDAR_TRANSCRIPT_MATCHES,
     presenceHtml,
   });
+}
 
+function unmountCalendarBehavior() {
+  const cal = state.calendar;
+  if (cal.detachMobile) {
+    cal.detachMobile();
+    cal.detachMobile = null;
+  }
+}
+
+function mountCalendarBehavior({ scrollToToday = false } = {}) {
+  const cal = state.calendar;
+  const sub = calendarSubView();
   if (sub === "presence") {
     mountAvailabilityCanvas();
-  } else {
-    // Wire mobile behavior on the week view: swipe-to-navigate + auto-scroll
-    // to today on the very first mount (not on every internal re-render —
-    // we don't want week-nav clicks to jump back to today).
-    cal.detachMobile = attachCalendarMobileBehavior(state.canvas, {
-      scrollToToday: cal.initialMount,
-      onWeekChange: (delta) => {
-        const next = cal.weekIdx + delta;
-        if (next < 0 || next > 9) return;
-        cal.weekIdx = next;
-        render();
-      },
-    });
-    cal.initialMount = false;
+    return;
   }
+
+  // Wire mobile behavior on the week/day views: swipe-to-navigate + optional
+  // first-mount auto-scroll to today. Later partial refreshes should not jump
+  // the page back to today.
+  cal.detachMobile = attachCalendarMobileBehavior(state.canvas, {
+    scrollToToday,
+    onWeekChange: (delta) => {
+      const next = cal.weekIdx + delta;
+      if (next < 0 || next > 9) return;
+      cal.weekIdx = next;
+      refreshCalendarView();
+    },
+  });
+  cal.initialMount = false;
+}
+
+function paintCalendarView({ wire = false, scrollToToday = false } = {}) {
+  seedCalendarData();
+  // Tear down previous mobile-behavior listeners before swapping markup, or
+  // touchstart/touchend handlers will stack up across renders.
+  unmountCalendarBehavior();
+  state.canvas.innerHTML = renderCalendarHtml();
+  mountCalendarBehavior({ scrollToToday });
+  if (wire) wireCalendar();
+}
+
+function refreshCalendarView() {
+  if (state.mode !== "calendar" || !state.canvas) {
+    render();
+    return;
+  }
+  paintCalendarView({ wire: true, scrollToToday: false });
+}
+
+function renderCalendar() {
+  paintCalendarView({ wire: false, scrollToToday: state.calendar.initialMount });
 }
 
 // ── presence view (the existing availability Gantt) ─────────────────
@@ -1279,7 +2250,7 @@ function wireCalendar() {
       const next = btn.dataset.calSub;
       if (!next || next === cal.sub) return;
       cal.sub = next;
-      render();
+      refreshCalendarView();
     });
   }
 
@@ -1289,7 +2260,14 @@ function wireCalendar() {
       const i = Number(pill.dataset.calDayPick);
       if (!Number.isFinite(i) || i < 0 || i > 6) return;
       cal.dayIdx = i;
-      render();
+      refreshCalendarView();
+    });
+  }
+
+  for (const btn of state.canvas.querySelectorAll("[data-cal-transcript-path]")) {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      openCalendarTranscript(btn.dataset.calTranscriptPath);
     });
   }
 
@@ -1305,7 +2283,7 @@ function wireCalendar() {
       else if (dir === "today") cal.weekIdx = calendarCurrentWeekIdx();
       else return;
       cal.dayIdx = null;
-      render();
+      refreshCalendarView();
     });
   }
 
@@ -1316,7 +2294,7 @@ function wireCalendar() {
       if (Number.isFinite(i) && i !== cal.weekIdx) {
         cal.weekIdx = i;
         cal.dayIdx = null;
-        render();
+        refreshCalendarView();
       }
     });
   }
@@ -1330,7 +2308,7 @@ function wireCalendar() {
         cal.data = res.data || cal.data;
         cal.source = res.source || cal.source;
         cal.loading = false;
-        if (state.mode === "calendar") render();
+        if (state.mode === "calendar") refreshCalendarView();
       }).catch(() => { cal.loading = false; });
     });
   }
@@ -1391,8 +2369,8 @@ function toggleOnboardingDone(key) {
 }
 
 function renderOnboarding() {
-  const people  = state.cohort?.people || [];
-  const teams   = state.cohort?.teams  || [];
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const people = cohortIndex.people;
   const p       = state.profile || {};
   // Best-effort identity: prefer an explicit profile.user.record_id, else
   // match by github handle, else nothing. Onboarding doesn't require this
@@ -1403,7 +2381,7 @@ function renderOnboarding() {
     (meId && pp.record_id === meId) ||
     (meGh && (pp.links?.github || "").toLowerCase() === meGh)
   ) || null;
-  const myTeam = me ? teams.find(t => t.record_id === me.team) : null;
+  const myTeam = cohortIndex.teamForPerson(me);
 
   // Two sources of "complete":
   //   1. Auto-detect: the underlying field exists in the cohort surface.
@@ -1507,10 +2485,10 @@ function renderOnboarding() {
     {
       key: "interview",
       title: "do the cohort interview",
-      ask: `a short interview so the cohort has a baseline picture of what you bring. opens in your browser. <em>operator will publish the link here.</em>`,
+      ask: `a short interview so the cohort has a baseline picture of what you bring. <em>operator will publish the browser link here.</em>`,
       autoComplete: false,
       missingState: "info",
-      action: { kind: "external", url: "TODO_INTERVIEW_URL", label: "open the interview" },
+      action: { kind: "interview-quiz-links", label: "show interview status" },
     },
     {
       key: "hermes-agent",
@@ -1519,7 +2497,7 @@ function renderOnboarding() {
       autoComplete: false,
       missingState: "info",
       bonus: true,
-      action: { kind: "external", url: "TODO_HERMES_DOCS_URL", label: "open hermes docs" },
+      action: { kind: "hermes-instructions", label: "show hermes status" },
     },
     {
       key: "agent-on-matrix",
@@ -1746,10 +2724,20 @@ function showInterviewQuizLinks() {
     body: `
       <p class="alch-onb-modal-line">two short asks so the cohort has a baseline picture of what each of you brings:</p>
       <ul class="alch-onb-modal-steps">
-        <li><strong>interview</strong> — 15 minutes, open-ended. <a href="#" data-external>TODO_INTERVIEW_URL</a></li>
-        <li><strong>quiz</strong> — 10 minutes, multiple choice. <a href="#" data-external>TODO_QUIZ_URL</a></li>
+        <li><strong>interview</strong> — 15 minutes, open-ended. <span class="alch-onb-modal-aux">operator will publish the URL.</span></li>
+        <li><strong>quiz</strong> — 10 minutes, multiple choice. <span class="alch-onb-modal-aux">operator will publish the URL.</span></li>
       </ul>
-      <p class="alch-onb-modal-aux">both open in your browser. operator will publish the URLs once the forms are up.</p>
+      <p class="alch-onb-modal-aux">once published, both URLs should open in your browser.</p>
+    `,
+  });
+}
+
+function showHermesInstructions() {
+  showOnboardingModal({
+    title: "hermes agent setup",
+    body: `
+      <p class="alch-onb-modal-line">Hermes docs are not published yet. This step is optional and can wait until the operator posts the setup link.</p>
+      <p class="alch-onb-modal-aux">Once published, this action should open the Hermes setup docs in your browser.</p>
     `,
   });
 }
@@ -1846,8 +2834,9 @@ async function submitOnboardingInline(form) {
   const cohort = state.cohort;
   let baseline = null;
   if (cohort) {
-    if (recordKind === "person") baseline = (cohort.people || []).find(r => r.record_id === recordId);
-    else baseline = (cohort.teams || []).find(r => r.record_id === recordId);
+    const cohortIndex = buildCohortIndex(cohort);
+    if (recordKind === "person") baseline = cohortIndex.personById.get(recordId);
+    else baseline = cohortIndex.teamById.get(recordId);
   }
   if (!baseline) {
     result.hidden = false;
@@ -1963,6 +2952,8 @@ function wireOnboarding() {
         showBotMatrixInstructions();
       } else if (a.kind === "interview-quiz-links") {
         showInterviewQuizLinks();
+      } else if (a.kind === "hermes-instructions") {
+        showHermesInstructions();
       }
     });
   }
@@ -1990,11 +2981,12 @@ function renderProgramMarkdown(md) {
   if (!src) return `<p class="alch-prog-empty">(this page is empty — fill it in via the edit button above.)</p>`;
   const lines = src.split(/\r?\n/);
   const out = [];
-  let inUl = false, inOl = false, inP = false;
+  let inUl = false, inOl = false, inP = false, inTable = false, tableRows = 0;
   const closeBlocks = () => {
     if (inP)  { out.push("</p>"); inP = false; }
     if (inUl) { out.push("</ul>"); inUl = false; }
     if (inOl) { out.push("</ol>"); inOl = false; }
+    if (inTable) { out.push("</tbody></table></div>"); inTable = false; tableRows = 0; }
   };
   const inline = (text) => {
     let t = escHtmlPreserve(text);
@@ -2011,14 +3003,67 @@ function renderProgramMarkdown(md) {
     return t;
   };
 
-  for (const raw of lines) {
+  // Split a pipe-delimited markdown row into cells. Trims the leading +
+  // trailing pipe if present, then splits on `|` and trims each cell.
+  // (Escaped pipes \| within cells are rare in our content; not handled.)
+  const splitRow = (row) => row.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map(s => s.trim());
+  // GFM separator row, with optional alignment markers (:---, ---:, :---:).
+  // Returns alignments array (each "left"|"right"|"center"|null) or null
+  // if the line isn't a valid separator.
+  const parseSeparator = (row) => {
+    const cells = splitRow(row);
+    if (!cells.length) return null;
+    const aligns = [];
+    for (const c of cells) {
+      if (!/^:?-{3,}:?$/.test(c)) return null;
+      const left = c.startsWith(":");
+      const right = c.endsWith(":");
+      aligns.push(left && right ? "center" : right ? "right" : left ? "left" : null);
+    }
+    return aligns;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
     const line = raw.replace(/\s+$/, "");
     if (!line.trim()) { closeBlocks(); continue; }
     const h = /^(#{1,6})\s+(.+)$/.exec(line);
     if (h) { closeBlocks(); out.push(`<h${h[1].length} class="alch-prog-h${h[1].length}">${inline(h[2])}</h${h[1].length}>`); continue; }
+    // GFM table — header row + separator row + N body rows. Detected by
+    // the next line being a valid separator; otherwise this line is just
+    // text-with-pipes and falls through to the paragraph path.
+    if (line.includes("|") && i + 1 < lines.length) {
+      const aligns = parseSeparator(lines[i + 1].trim());
+      if (aligns) {
+        closeBlocks();
+        const headers = splitRow(line);
+        const alignAttr = (j) => aligns[j] ? ` style="text-align:${aligns[j]}"` : "";
+        let html = `<table class="alch-prog-table"><thead><tr>`;
+        headers.forEach((c, j) => { html += `<th${alignAttr(j)}>${inline(c)}</th>`; });
+        html += `</tr></thead><tbody>`;
+        let j = i + 2;
+        while (j < lines.length && lines[j].trim() && lines[j].includes("|")) {
+          const cells = splitRow(lines[j].trim());
+          html += `<tr>`;
+          cells.forEach((c, k) => { html += `<td${alignAttr(k)}>${inline(c)}</td>`; });
+          html += `</tr>`;
+          j++;
+        }
+        html += `</tbody></table>`;
+        out.push(html);
+        i = j - 1; // outer loop will i++ past the last body row
+        continue;
+      }
+    }
+    // Blockquote — single-line `> text`, no nesting. Most program pages
+    // use these for pull-quotes; multi-line continuation isn't worth
+    // the complexity until we need it.
+    const bq = /^>\s+(.+)$/.exec(line);
+    if (bq) { closeBlocks(); out.push(`<blockquote class="alch-prog-bq">${inline(bq[1])}</blockquote>`); continue; }
     const ul = /^\s*[-*]\s+(.+)$/.exec(line);
     if (ul) {
       if (inP)  { out.push("</p>"); inP = false; }
+      if (inTable) { out.push("</tbody></table></div>"); inTable = false; tableRows = 0; }
       if (inOl) { out.push("</ol>"); inOl = false; }
       if (!inUl) { out.push(`<ul class="alch-prog-ul">`); inUl = true; }
       out.push(`<li>${inline(ul[1])}</li>`);
@@ -2027,6 +3072,7 @@ function renderProgramMarkdown(md) {
     const ol = /^\s*\d+\.\s+(.+)$/.exec(line);
     if (ol) {
       if (inP)  { out.push("</p>"); inP = false; }
+      if (inTable) { out.push("</tbody></table></div>"); inTable = false; tableRows = 0; }
       if (inUl) { out.push("</ul>"); inUl = false; }
       if (!inOl) { out.push(`<ol class="alch-prog-ol">`); inOl = true; }
       out.push(`<li>${inline(ol[1])}</li>`);
@@ -2034,6 +3080,7 @@ function renderProgramMarkdown(md) {
     }
     // Paragraph text.
     if (inUl || inOl) closeBlocks();
+    if (inTable) { out.push("</tbody></table></div>"); inTable = false; tableRows = 0; }
     if (!inP) { out.push(`<p class="alch-prog-p">`); inP = true; }
     else out.push(" ");
     out.push(inline(line));
@@ -2042,7 +3089,7 @@ function renderProgramMarkdown(md) {
   return out.join("");
 }
 
-function renderProgram() {
+function programPages() {
   const pages = (state.cohort?.program || []).slice();
   // Defensive sort by `order` then record_id; matches the build script.
   pages.sort((a, b) => {
@@ -2051,22 +3098,18 @@ function renderProgram() {
     if (ao !== bo) return ao - bo;
     return String(a.record_id).localeCompare(String(b.record_id));
   });
+  return pages;
+}
 
-  if (pages.length === 0) {
-    state.canvas.innerHTML = `
-      <header class="alch-prog-head">
-        <h2 class="alch-prog-title">program</h2>
-        <p class="alch-prog-sub">no program pages in the surface bundle yet.</p>
-      </header>
-      <p class="alch-callout">run <code>npm run build:cohort</code> after adding files under <code>cohort-data/program/</code>.</p>
-    `;
-    return;
-  }
+function currentProgramPage(pages) {
+  const want = state.programPage || pages[0]?.record_id;
+  const current = pages.find(p => p.record_id === want) || pages[0] || null;
+  if (current) state.programPage = current.record_id;
+  return current;
+}
 
-  const want = state.programPage || pages[0].record_id;
-  const current = pages.find(p => p.record_id === want) || pages[0];
-
-  const tabs = pages.map(p => `
+function renderProgramTabs(pages, current) {
+  return pages.map(p => `
     <button class="alch-prog-tab" type="button"
             data-program-page="${escAttr(p.record_id)}"
             aria-selected="${p.record_id === current.record_id}">
@@ -2074,16 +3117,12 @@ function renderProgram() {
       <span class="alch-prog-tab-label">${escHtml(p.title || p.record_id)}</span>
     </button>
   `).join("");
+}
 
+function renderProgramPage(current) {
   const bodyHtml = renderProgramMarkdown(current.body_md);
   const editPath = `cohort-data/program/${current.record_id}.md`;
-
-  state.canvas.innerHTML = `
-    <header class="alch-prog-head">
-      <h2 class="alch-prog-title">program</h2>
-      <p class="alch-prog-sub">the handbook. edits open a PR on github — stewards merge → next build:cohort ships the change to the cohort.</p>
-    </header>
-    <nav class="alch-prog-tabs" role="tablist" aria-label="program section">${tabs}</nav>
+  return `
     <article class="alch-prog-page">
       <header class="alch-prog-page-head">
         <h2 class="alch-prog-page-title">${escHtml(current.title || current.record_id)}</h2>
@@ -2100,20 +3139,77 @@ function renderProgram() {
   `;
 }
 
-function wireProgram() {
-  for (const btn of state.canvas.querySelectorAll(".alch-prog-tab[data-program-page]")) {
-    btn.addEventListener("click", () => {
-      state.programPage = btn.dataset.programPage;
-      render();
-    });
+function renderProgram() {
+  const pages = programPages();
+
+  if (pages.length === 0) {
+    state.canvas.innerHTML = `
+      <header class="alch-prog-head">
+        <h2 class="alch-prog-title">program</h2>
+        <p class="alch-prog-sub">no program pages in the surface bundle yet.</p>
+      </header>
+      <p class="alch-callout">run <code>npm run build:cohort</code> after adding files under <code>cohort-data/program/</code>.</p>
+    `;
+    return;
   }
-  const editBtn = state.canvas.querySelector(".alch-prog-edit[data-edit-path]");
+
+  const current = currentProgramPage(pages);
+  const tabs = renderProgramTabs(pages, current);
+
+  state.canvas.innerHTML = `
+    <header class="alch-prog-head">
+      <h2 class="alch-prog-title">program</h2>
+      <p class="alch-prog-sub">the handbook. edits open a PR on github — stewards merge → next build:cohort ships the change to the cohort.</p>
+    </header>
+    <nav class="alch-prog-tabs" role="tablist" aria-label="program section">${tabs}</nav>
+    ${renderProgramPage(current)}
+  `;
+}
+
+function syncProgramTabSelection(currentId) {
+  for (const btn of state.canvas.querySelectorAll(".alch-prog-tab[data-program-page]")) {
+    btn.setAttribute("aria-selected", String(btn.dataset.programPage === currentId));
+  }
+}
+
+function wireProgramPageActions(root = state.canvas) {
+  const editBtn = root.querySelector(".alch-prog-edit[data-edit-path]");
   if (editBtn) {
     editBtn.addEventListener("click", async () => {
       await launchPRFlow({ kind: "edit", path: editBtn.dataset.editPath });
     });
   }
-  wireExternalLinks(state.canvas);
+  wireExternalLinks(root);
+}
+
+function selectProgramPage(pageId) {
+  if (!pageId) return;
+  state.programPage = pageId;
+  const pages = programPages();
+  const current = currentProgramPage(pages);
+  if (!current) {
+    render();
+    return;
+  }
+
+  const page = state.canvas?.querySelector(".alch-prog-page");
+  const tabs = state.canvas?.querySelector(".alch-prog-tabs");
+  if (state.mode === "program" && page && tabs) {
+    syncProgramTabSelection(current.record_id);
+    page.outerHTML = renderProgramPage(current);
+    wireProgramPageActions(state.canvas.querySelector(".alch-prog-page") || state.canvas);
+    return;
+  }
+  render();
+}
+
+function wireProgram() {
+  for (const btn of state.canvas.querySelectorAll(".alch-prog-tab[data-program-page]")) {
+    btn.addEventListener("click", () => {
+      selectProgramPage(btn.dataset.programPage);
+    });
+  }
+  wireProgramPageActions(state.canvas);
 }
 
 // ─── asks board ─────────────────────────────────────────────────────
@@ -2124,40 +3220,8 @@ function wireProgram() {
 // the audit trail is preserved).
 //
 // Sensitivity: this surface intentionally has NO leaderboard, NO claim
-// count, NO "endorsement" mechanic, NO algorithm matching. Filter +
-// browse + open-the-author's-dm. See program/rules.md anti-patterns.
-
-const ASK_EXPIRY_DAYS = 5;
-
-function asksWithStatus() {
-  const all = (state.cohort?.asks || []).slice();
-  const todayMs = Date.now();
-  return all.map(a => {
-    const posted = isoToDate(a.posted_at);
-    // When posted_at is missing or unparseable, treat the ask as
-    // "undated" (age=null) rather than "ancient" (age=999). The
-    // previous default flagged every undated ask as expired —
-    // visible as cohort posts faded out in the "fading" section
-    // because their posted_at was empty in the seed data.
-    const ageDays = posted
-      ? Math.floor((todayMs - posted.getTime()) / 86400000)
-      : null;
-    const expired = ageDays != null && ageDays >= ASK_EXPIRY_DAYS;
-    return { ...a, _ageDays: ageDays, _expired: expired };
-  }).sort((a, b) => {
-    // Open + recent first; expired drift to the bottom.
-    if (a._expired !== b._expired) return a._expired ? 1 : -1;
-    // Undated asks (ageDays === null) sort to the top of their group
-    // since we can't position them by age — treat as fresh.
-    const aAge = a._ageDays == null ? 0 : a._ageDays;
-    const bAge = b._ageDays == null ? 0 : b._ageDays;
-    return aAge - bAge;
-  });
-}
-
-function personByRecordId(rid) {
-  return (state.cohort?.people || []).find(p => p.record_id === rid) || null;
-}
+// count, NO "endorsement" mechanic, NO algorithm matching. Keep the
+// interaction to post, claim, finish, and contact the author.
 
 function dmLinkForPerson(p) {
   // Preference order: telegram > x > website > github > email.
@@ -2172,73 +3236,247 @@ function dmLinkForPerson(p) {
   return null;
 }
 
-function renderAsks() {
-  const asks = asksWithStatus();
+function currentAskContext() {
+  const people = state.cohort?.people || [];
   const me = state.profile?.user || {};
-  const myHandle = String(me.github || "").toLowerCase();
-  const myAuthorId = me.record_id || null;
+  const askIdentity = { identity: getIdentity(), profileUser: me, people };
+  const myPerson = resolveAskIdentityPerson(askIdentity);
+  const myHandle = normalizeAskIdentity(me.github || me.gh_handle || me.handle || me.links?.github);
+  const authorSlug = myPerson?.record_id || me.record_id || (myHandle ? myHandle : "your-slug");
+  return { people, me, askIdentity, myPerson, myHandle, authorSlug };
+}
 
-  if (asks.length === 0) {
-    state.canvas.innerHTML = `
-      <header class="alch-asks-head">
-        <h2 class="alch-asks-title">asks</h2>
-        <p class="alch-asks-sub">verb-first pair-requests. 5-day expiry. tap-to-claim opens the author's DM.</p>
-      </header>
-      <p class="alch-callout">no asks yet. <strong>post one</strong> by creating a markdown file under <code>cohort-data/asks/</code> via the same PR flow as your profile.</p>
-    `;
+// ─── cohort collaboration board (ported from the dossier Connections) ─
+// Standing seek↔offer matchmaking across teams, fed ENTIRELY from public
+// self-asserted cohort-surface fields (dependencies / seeking / offering /
+// skill_areas / pair_with). The dossier's private 'strength' + OSINT
+// 'shared_papers' scores are NOT used — affinity is recomputed from shared
+// skill_areas (+ self-declared pair_with), and intros from public
+// seeking↔offering term overlap, shown as chips so every match is legible.
+function collabCell(R, C, ri, ci, m) {
+  if (R.rid === C.rid) return `<div class="cb-cell cb-diag" data-row="${ri}" data-col="${ci}" aria-hidden="true"></div>`;
+  const dep = m.deps.has(R.rid + ">" + C.rid);
+  const so = m.soByPair.get(R.rid + ">" + C.rid);
+  const af = m.aff.get(collabAffKey(R.rid, C.rid));
+  let cls = "cb-cell", mark = "", title = "", has = false;
+  if (af) { cls += " has-aff"; has = true; mark = "·"; title = `${R.team.name} ↔ ${C.team.name} — shares ${af.shared.join(", ") || "interests"}${af.endorsed ? " · endorsed pairing" : ""}`; }
+  if (so) { cls += " has-so s" + Math.min(4, so.score); has = true; mark = "◆"; title = `${R.team.name} seeks → ${C.team.name} offers — ${so.shared.join(", ")}`; }
+  if (dep) { cls += " has-dep"; has = true; mark = "▲"; title = `${R.team.name} depends on ${C.team.name}`; }
+  if (!has) return `<div class="cb-cell" data-row="${ri}" data-col="${ci}"></div>`;
+  return `<button type="button" class="${cls}" data-row="${ri}" data-col="${ci}" data-collab-open="${escAttr(C.rid)}" title="${escAttr(title)}"><span class="cb-mark">${mark}</span></button>`;
+}
+
+function renderCollab() {
+  const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
+  const clusters = state.cohort?.clusters || [];
+  if (!teams.length) {
+    state.canvas.innerHTML = `<header class="alch-cb-head"><h2 class="alch-cb-title">collaboration board</h2></header><p class="alch-callout">no team data yet.</p>`;
     return;
   }
+  const m = buildCollabModel(teams, clusters);
+  const ordered = m.ordered;
+  const N = ordered.length;
+  const colN = `--cb-cols:${N}`;
 
-  const open    = asks.filter(a => !a._expired && (a.status || "open") === "open");
-  const claimed = asks.filter(a => !a._expired && a.status === "claimed");
-  const done    = asks.filter(a => !a._expired && a.status === "done");
-  const expired = asks.filter(a => a._expired);
+  // header row (offerers across the top)
+  let headCells = `<div class="cb-corner" aria-hidden="true">seeks ↓ · offers →</div>`;
+  ordered.forEach((o, ci) => {
+    const deg = m.indegree.get(o.rid) || 0;
+    headCells += `<button type="button" class="cb-colhead${deg >= 5 ? " is-key" : ""}" data-col="${ci}" data-collab-open="${escAttr(o.rid)}" title="${escAttr(o.team.name + " — " + deg + " teams depend on it")}"><span>${escHtml(o.team.name)}</span></button>`;
+  });
+  let rows = `<div class="cb-row cb-headrow" style="${colN}">${headCells}</div>`;
+  ordered.forEach((R, ri) => {
+    let line = `<button type="button" class="cb-rowhead" data-row="${ri}" data-collab-open="${escAttr(R.rid)}" title="${escAttr(R.team.name + " · " + R.clusterLabel)}"><span class="cb-rowhead-name">${escHtml(R.team.name)}</span><span class="cb-rowhead-grp">${escHtml(R.clusterLabel)}</span></button>`;
+    ordered.forEach((C, ci) => { line += collabCell(R, C, ri, ci, m); });
+    rows += `<div class="cb-row" style="${colN}">${line}</div>`;
+  });
+  const matrix = `
+    <section class="alch-cb-section">
+      <div class="alch-cb-sechead"><h3>adjacency matrix</h3>
+        <div class="cb-legend">
+          <span><i class="cb-sw dep"></i>depends on</span>
+          <span><i class="cb-sw so"></i>seeks → offers</span>
+          <span><i class="cb-sw aff"></i>shared skill area</span>
+          <span><i class="cb-sw key"></i>keystone column</span>
+        </div>
+      </div>
+      <div class="cb-scroll" tabindex="0"><div class="cb-grid">${rows}</div></div>
+      <p class="cb-hint">rows = the team that needs · columns = the team that provides · hover a cell for the basis · click to open the provider</p>
+    </section>`;
+
+  // intros to make — strongest seek↔offer per unordered pair
+  const introByPair = new Map();
+  for (const s of m.seekOffer) {
+    const k = collabAffKey(s.seeker, s.offerer);
+    if (!introByPair.has(k) || s.score > introByPair.get(k).score) introByPair.set(k, s);
+  }
+  const intros = [...introByPair.values()].sort((a, b) => b.score - a.score).slice(0, 12);
+  const introCards = intros.map(s => {
+    const chips = s.shared.slice(0, 5).map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("");
+    return `<article class="cb-intro" data-collab-cohort-open="${escAttr(s.offerer)}" role="link" tabindex="0" title="${escAttr(`open ${s.offererName || s.offerer} on the cohort page`)}">
+      <div class="cb-intro-flow">
+        <div class="cb-intro-side"><span class="cb-intro-role">needs</span><span class="cb-intro-team">${escHtml(s.seekerName)}</span>${s.seeking ? `<span class="cb-intro-text">${escHtml(s.seeking)}</span>` : ""}</div>
+        <div class="cb-intro-arrow" aria-hidden="true">→</div>
+        <div class="cb-intro-side"><span class="cb-intro-role">provides</span><span class="cb-intro-team">${escHtml(s.offererName)}</span>${s.offering ? `<span class="cb-intro-text">${escHtml(s.offering)}</span>` : ""}</div>
+      </div>${chips ? `<div class="cb-intro-chips">${chips}</div>` : ""}
+    </article>`;
+  }).join("");
+  const introSection = `
+    <section class="alch-cb-section">
+      <div class="alch-cb-sechead"><h3>intros to make</h3><span class="cb-sub">strongest seek ↔ offer overlaps — the conversations to schedule</span></div>
+      <div class="cb-intro-grid">${introCards || '<p class="cb-empty">no overlaps found.</p>'}</div>
+    </section>`;
+
+  // convergence — skill areas shared by 3+ teams
+  const maxConv = m.convergence.reduce((mx, c) => Math.max(mx, c.count), 1);
+  const convRows = m.convergence.map(c => {
+    const pct = Math.round((c.count / maxConv) * 100);
+    const weight = c.count >= 8 ? " heavy" : c.count >= 5 ? " mid" : "";
+    return `<article class="cb-cv${weight}">
+      <div class="cb-cv-head"><span class="cb-cv-skill">${escHtml(c.skill)}</span><span class="cb-cv-count">${c.count} teams</span></div>
+      <div class="cb-cv-bar"><i style="width:${pct}%"></i></div>
+      <div class="cb-cv-teams">${c.teams.map(t => `<span class="cb-cv-team">${escHtml(t)}</span>`).join("")}</div>
+    </article>`;
+  }).join("");
+  const convSection = `
+    <section class="alch-cb-section">
+      <div class="alch-cb-sechead"><h3>convergence</h3><span class="cb-sub">skill areas shared by 3+ teams — where the cohort concentrates</span></div>
+      <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
+    </section>`;
+
+  state.canvas.innerHTML = `
+    <div class="alch-collab">
+      <header class="alch-cb-head">
+        <h2 class="alch-cb-title">collaboration board</h2>
+        <p class="alch-cb-sub">who depends on whom, who can unblock whom, where the cohort over-concentrates — all from teams' own declared dependencies, seeking, offering &amp; skill areas.</p>
+        <div class="alch-cb-stats">
+          <span><strong>${m.deps.size}</strong> dependencies</span>
+          <span><strong>${m.seekOffer.length}</strong> seek ↔ offer overlaps</span>
+          <span><strong>${m.aff.size}</strong> shared affinities</span>
+          <span><strong>${m.convergence.length}</strong> convergence areas</span>
+        </div>
+      </header>
+      ${matrix}
+      ${introSection}
+      ${convSection}
+      <p class="alch-callout"><strong>collaboration board · v0.1</strong><br/>Self-asserted only — affinities are shared <code>skill_areas</code>, intros are <code>seeking</code>↔<code>offering</code> term overlaps. No inferred or private scoring.</p>
+    </div>`;
+}
+
+function wireCollab() {
+  for (const el of state.canvas.querySelectorAll("[data-collab-cohort-open]")) {
+    const activate = (event) => {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      const rid = el.getAttribute("data-collab-cohort-open");
+      if (!rid) return;
+      try { window.api?.openExternal?.(cohortRecordUrl(rid)); } catch {}
+    };
+    el.addEventListener("click", activate);
+    el.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") activate(event);
+    });
+  }
+  for (const el of state.canvas.querySelectorAll("[data-collab-open]")) {
+    el.addEventListener("click", () => { const rid = el.getAttribute("data-collab-open"); if (rid) openDrawer(rid); });
+  }
+  const grid = state.canvas.querySelector(".cb-grid");
+  if (!grid) return;
+  const clearHL = () => grid.querySelectorAll(".is-hl-row, .is-hl-col").forEach(e => e.classList.remove("is-hl-row", "is-hl-col"));
+  const setHL = (r, c) => {
+    clearHL();
+    if (r != null) grid.querySelectorAll(`[data-row="${r}"]`).forEach(e => e.classList.add("is-hl-row"));
+    if (c != null) grid.querySelectorAll(`[data-col="${c}"]`).forEach(e => e.classList.add("is-hl-col"));
+  };
+  grid.addEventListener("mouseover", (e) => {
+    const t = e.target.closest("[data-row], [data-col]");
+    if (!t) return;
+    const r = t.getAttribute("data-row"), c = t.getAttribute("data-col");
+    setHL(r != null ? +r : null, c != null ? +c : null);
+  });
+  grid.addEventListener("mouseleave", clearHL);
+}
+
+function renderAsks() {
+  const asks = asksWithStatus(state.cohort?.asks);
+  const { people, askIdentity, myHandle, authorSlug } = currentAskContext();
+
+  const open = asks.filter(askIsOpen);
+  const closed = asks.filter(a => !askIsOpen(a));
 
   const renderAsk = (a) => {
-    const author = personByRecordId(a.author);
-    const authorLabel = author ? (author.name || author.record_id) : a.author;
+    const author = resolveAskAuthor(a, people);
+    const authorLabel = author ? (author.name || author.record_id) : (a.author || a.owner || "unknown");
     const dm = dmLinkForPerson(author);
     const chips = (a.skill_areas || []).map(s => `<span class="alch-asks-chip">${escHtml(s)}</span>`).join("");
-    const isMine = (a.author === myAuthorId) || (author && String(author.links?.github || "").toLowerCase() === myHandle);
-    const ageLabel = a._ageDays == null ? "—"
-                   : a._ageDays === 0 ? "today"
-                   : a._ageDays === 1 ? "1 day ago"
-                   : `${a._ageDays} days ago`;
-    const statusBadge = a.status === "claimed" ? `<span class="alch-asks-status alch-asks-status-claimed">claimed</span>`
-                      : a.status === "done"    ? `<span class="alch-asks-status alch-asks-status-done">done</span>`
+    const isMine = isAskMine(a, askIdentity);
+    const claimedByMe = a.claimed_by ? isAskMine({ author: a.claimed_by }, askIdentity) : false;
+    const ageLabel = askAgeLabel(a) || "—";
+    const status = askStatus(a);
+    const verb = String(a.verb || "ask").trim();
+    const verbGlyph = Array.from(verb)[0] || "·";
+    const verbLabel = Array.from(verb).slice(1).join("").trim() || verb;
+    const statusBadge = status === "claimed" ? `<span class="alch-asks-status alch-asks-status-claimed">claimed</span>`
+                      : status === "done"    ? `<span class="alch-asks-status alch-asks-status-done">done</span>`
+                      : a._expired           ? `<span class="alch-asks-status alch-asks-status-fading">fading</span>`
                       : "";
-    const action = isMine
-      ? `<a class="alch-asks-action alch-asks-action-edit" data-asks-edit="${escAttr(a.record_id)}" href="#">edit</a>`
-      : (dm
-          ? `<a class="alch-asks-action" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)} →</a>`
-          : `<span class="alch-asks-action alch-asks-action-disabled">no contact link on author</span>`);
+    const topic = askTopic(a) || "untitled ask";
+    const actions = [];
+    if (isMine && status !== "done") {
+      actions.push(`<a class="alch-asks-action alch-asks-action-primary alch-asks-action-edit" data-asks-edit="${escAttr(a.record_id)}" href="#">edit</a>`);
+    } else if (status === "open" && !a._expired) {
+      if (authorSlug !== "your-slug") {
+        actions.push(`<button class="alch-asks-action alch-asks-action-primary" type="button" data-asks-claim="${escAttr(a.record_id)}">claim</button>`);
+      } else if (dm) {
+        actions.push(`<a class="alch-asks-action alch-asks-action-primary" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)} →</a>`);
+      } else {
+        actions.push(`<span class="alch-asks-action alch-asks-action-disabled">claim needs profile</span>`);
+      }
+    } else if (status === "claimed" && (claimedByMe || isMine)) {
+      actions.push(`<button class="alch-asks-action alch-asks-action-primary" type="button" data-asks-done="${escAttr(a.record_id)}">done</button>`);
+    }
+    if (dm && !isMine && status !== "done") {
+      actions.push(`<a class="alch-asks-action alch-asks-action-secondary" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)}</a>`);
+    }
+    const actionsMarkup = actions.length
+      ? `<div class="alch-asks-actions">${actions.join("")}</div>`
+      : "";
     return `
-      <article class="alch-asks-card" data-expired="${a._expired ? "1" : "0"}">
-        <div class="alch-asks-verb">${escHtml(a.verb || "·")}</div>
-        <div class="alch-asks-body">
-          <div class="alch-asks-topic">${escHtml(a.topic || "")}</div>
-          <div class="alch-asks-meta">
-            <span class="alch-asks-author">${escHtml(authorLabel)}</span>
-            <span class="alch-asks-sep">·</span>
-            <span class="alch-asks-when">${escHtml(ageLabel)}</span>
-            ${statusBadge}
-          </div>
+      <details class="alch-asks-card" data-expired="${a._expired ? "1" : "0"}" data-asks-record="${escAttr(a.record_id)}">
+        <summary class="alch-asks-summary">
+          <span class="alch-asks-verb" title="${escAttr(verb)}" aria-label="${escAttr(verbLabel)}">${escHtml(verbGlyph)}</span>
+          <span class="alch-asks-body">
+            <span class="alch-asks-topic" title="${escAttr(topic)}">${escHtml(topic)}</span>
+            <span class="alch-asks-meta">
+              <span class="alch-asks-author">${escHtml(authorLabel)}</span>
+              <span class="alch-asks-sep">·</span>
+              <span class="alch-asks-when">${escHtml(ageLabel)}</span>
+              ${statusBadge}
+            </span>
+          </span>
+          <span class="alch-asks-row-caret" aria-hidden="true"></span>
+        </summary>
+        <div class="alch-asks-expanded">
           ${chips ? `<div class="alch-asks-chips">${chips}</div>` : ""}
+          <div class="alch-asks-context" data-asks-context-panel hidden></div>
+          ${actionsMarkup}
+          <div class="alch-asks-row-note" data-asks-row-note hidden></div>
         </div>
-        <div class="alch-asks-actions">${action}</div>
-      </article>
+      </details>
     `;
   };
 
-  const section = (title, list, extraNote = "") => list.length === 0 ? "" : `
-    <section class="alch-asks-section">
-      <header class="alch-asks-section-head">
+  const section = (title, list, emptyText) => `
+    <details class="alch-asks-section" open>
+      <summary class="alch-asks-section-head">
+        <span class="alch-asks-section-caret" aria-hidden="true"></span>
         <h3 class="alch-asks-section-title">${escHtml(title)}</h3>
         <span class="alch-asks-section-count">${list.length}</span>
-        ${extraNote ? `<span class="alch-asks-section-note">${escHtml(extraNote)}</span>` : ""}
-      </header>
-      <div class="alch-asks-list">${list.map(renderAsk).join("")}</div>
-    </section>
+      </summary>
+      ${list.length
+        ? `<div class="alch-asks-list">${list.map(renderAsk).join("")}</div>`
+        : `<p class="alch-asks-empty">${escHtml(emptyText)}</p>`}
+    </details>
   `;
 
   // Author slug: prefer the cohort-resolved person record_id (so the
@@ -2247,7 +3485,6 @@ function renderAsks() {
   // the github web editor. (Old code injected a stale branch name here;
   // both /new/ and /edit/ now target `main`.)
   const todayIso = new Date().toISOString().slice(0, 10);
-  const authorSlug = myAuthorId || (myHandle ? myHandle : "your-slug");
 
   // Common verbs the compose form offers as quick picks. Stays in code
   // (not cohort-data) since it's a tiny vocab that drives nothing else.
@@ -2259,50 +3496,185 @@ function renderAsks() {
     "📣 looking for",
     "🪛 help me debug",
   ];
+  const askVerbPills = ASK_VERB_OPTIONS.map((v, i) => `
+    <button class="alch-asks-verb-pill" type="button" data-asks-verb="${escAttr(v)}" aria-pressed="${i === 0 ? "true" : "false"}">
+      ${escHtml(v)}
+    </button>
+  `).join("");
+  const openComposer = state.openAskComposer === true;
+  state.openAskComposer = false;
 
   state.canvas.innerHTML = `
     <header class="alch-asks-head">
       <h2 class="alch-asks-title">asks</h2>
-      <p class="alch-asks-sub">verb-first pair-requests · 5-day expiry · tap-to-claim opens the author's DM</p>
     </header>
 
-    <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}">
-      <header class="alch-asks-compose-head">
-        <span class="alch-asks-compose-title">post an ask</span>
-        <span class="alch-asks-compose-sub">submit opens a github PR to add this file under <code>cohort-data/asks/</code></span>
-      </header>
-      <div class="alch-asks-compose-grid">
-        <label class="alch-asks-compose-field alch-asks-compose-verb">
-          <span class="alch-asks-compose-label">verb</span>
-          <select name="verb" class="alch-asks-compose-input">
-            ${ASK_VERB_OPTIONS.map(v => `<option value="${escAttr(v)}">${escHtml(v)}</option>`).join("")}
-          </select>
-        </label>
-        <label class="alch-asks-compose-field alch-asks-compose-topic">
-          <span class="alch-asks-compose-label">topic</span>
-          <textarea name="topic" rows="2" class="alch-asks-compose-input"
-                    placeholder="fuzzing the AMM contract — would love 30 min with someone who's done property testing"></textarea>
-        </label>
-        <label class="alch-asks-compose-field alch-asks-compose-tags">
-          <span class="alch-asks-compose-label">tags <span class="alch-asks-compose-hint">(comma-separated, from cohort vocab if you can)</span></span>
-          <input name="skill_areas" type="text" class="alch-asks-compose-input" placeholder="tee, dstack, attestation" />
-        </label>
-      </div>
-      <div class="alch-asks-compose-row">
-        <button class="alch-feed-btn alch-asks-compose-submit" type="submit">submit → open PR</button>
-        <span class="alch-asks-compose-author">posting as <strong>${escHtml(authorSlug)}</strong>${myHandle && authorSlug !== myHandle ? ` · @${escHtml(myHandle)}` : ""}</span>
-      </div>
-      <div class="alch-asks-compose-result" hidden></div>
+    <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}" data-autofocus="${openComposer ? "1" : "0"}">
+      <details class="alch-asks-compose-shell" data-asks-compose-details${openComposer ? " open" : ""}>
+        <summary class="alch-asks-compose-head">
+          <span class="alch-asks-compose-title">post an ask</span>
+          <span class="alch-asks-verb-pills" role="group" aria-label="ask type">
+            ${askVerbPills}
+          </span>
+          <span class="alch-asks-compose-caret" aria-hidden="true"></span>
+        </summary>
+        <input type="hidden" name="verb" value="${escAttr(ASK_VERB_OPTIONS[0])}" />
+        <div class="alch-asks-compose-body">
+          <div class="alch-asks-compose-grid">
+            <label class="alch-asks-compose-field alch-asks-compose-topic">
+              <span class="alch-asks-compose-label">topic</span>
+              <textarea name="topic" rows="2" class="alch-asks-compose-input"
+                        placeholder="fuzzing the AMM contract — would love 30 min with someone who's done property testing"></textarea>
+            </label>
+            <label class="alch-asks-compose-field alch-asks-compose-tags">
+              <span class="alch-asks-compose-label">tags <span class="alch-asks-compose-hint">(comma-separated, from cohort vocab if you can)</span></span>
+              <input name="skill_areas" type="text" class="alch-asks-compose-input" placeholder="tee, dstack, attestation" />
+            </label>
+            <details class="alch-asks-compose-context">
+              <summary>add context</summary>
+              <label class="alch-asks-compose-field">
+                <span class="alch-asks-compose-label">context</span>
+                <textarea name="body" rows="3" class="alch-asks-compose-input" placeholder="links, constraints, what you've tried"></textarea>
+              </label>
+            </details>
+          </div>
+          <div class="alch-asks-compose-row">
+            <button class="alch-feed-btn alch-asks-compose-submit" type="submit">submit → open PR</button>
+            <span class="alch-asks-compose-author">posting as <strong>${escHtml(authorSlug)}</strong>${myHandle && authorSlug !== myHandle ? ` · @${escHtml(myHandle)}` : ""}</span>
+          </div>
+          <div class="alch-asks-compose-result" hidden></div>
+        </div>
+      </details>
     </form>
 
-    ${section("open", open)}
-    ${section("claimed", claimed, "in flight")}
-    ${section("done", done, "wrap-up only")}
-    ${section("fading", expired, "past the 5-day window")}
+    ${section("open", open, "no open asks.")}
 
-    <p class="alch-callout"><strong>asks · v0.2</strong><br/>
-    posts are markdown under <code>cohort-data/asks/</code>. expiry is renderer-side — files stay so the audit trail is preserved. no claim count, no leaderboard, no algorithm. filter + browse + DM. see <button class="alch-link-btn" data-go="program" data-program-page="rules">program · rules</button> for the anti-patterns we left out.</p>
+    ${section("closed", closed, "nothing closed yet.")}
   `;
+}
+
+function askMarkdownPath(recordId) {
+  return `cohort-data/asks/${recordId}.md`;
+}
+
+function askPostedDate(ask) {
+  const raw = String(ask?.posted_at || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+  return raw ? raw[0] : new Date().toISOString().slice(0, 10);
+}
+
+function askTagsBlock(skillAreas) {
+  const tags = (Array.isArray(skillAreas) ? skillAreas : [])
+    .map(s => String(s).trim())
+    .filter(Boolean);
+  return tags.length
+    ? "skill_areas:\n" + tags.map(s => `  - ${quoteYaml(s)}`).join("\n")
+    : "skill_areas: []";
+}
+
+function askBodyOrPlaceholder(body) {
+  if (body == null) return "\n(optional body — extra context for the ask.)\n";
+  const s = String(body);
+  return s.startsWith("\n") ? s : `\n${s}`;
+}
+
+function buildAskMarkdown(ask, overrides = {}, body = null) {
+  const merged = { ...ask, ...overrides };
+  const claimedBy = String(merged.claimed_by || "").trim();
+  return `---
+record_id: ${merged.record_id}
+record_type: ask
+schema_version: ${merged.schema_version || 1}
+posted_at: ${askPostedDate(merged)}
+author: ${quoteYaml(merged.author || "your-slug")}
+verb: ${quoteYaml(merged.verb || "🤝 pair on")}
+topic: ${yamlScalar(askTopic(merged) || "untitled ask", 2)}
+${askTagsBlock(merged.skill_areas)}
+status: ${quoteYaml(askStatus(merged))}
+${claimedBy ? `claimed_by: ${quoteYaml(claimedBy)}\n` : ""}---${askBodyOrPlaceholder(body)}`;
+}
+
+function cleanAskBody(body) {
+  const s = String(body || "").trim();
+  if (!s) return "";
+  if (/^\(optional body\s+—\s+extra context for the ask\.\)$/i.test(s)) return "";
+  if (/^\(this is a seed example so the asks tab isn't empty/i.test(s)) return "";
+  return s;
+}
+
+function findRenderedAsk(recordId) {
+  return asksWithStatus(state.cohort?.asks).find(a => a.record_id === recordId) || null;
+}
+
+function askRowNote(el, html, kind = "info") {
+  const card = el?.closest?.(".alch-asks-card");
+  const note = card?.querySelector?.("[data-asks-row-note]");
+  if (!note) return;
+  note.hidden = false;
+  note.dataset.kind = kind;
+  note.innerHTML = html;
+}
+
+async function launchAskStatusUpdate(el, recordId, nextStatus) {
+  const ask = findRenderedAsk(recordId);
+  if (!ask) {
+    askRowNote(el, `<span class="alch-onb-inline-tag">missing</span> ask record not found.`, "error");
+    return;
+  }
+  const { authorSlug } = currentAskContext();
+  if (authorSlug === "your-slug") {
+    askRowNote(el, `<span class="alch-onb-inline-tag">profile</span> claim your profile before changing ask status.`, "error");
+    return;
+  }
+  const path = askMarkdownPath(recordId);
+  askRowNote(el, `<span class="alch-onb-inline-tag">preparing</span> building status update...`);
+  const body = await fetchExistingBody(path);
+  const overrides = { status: nextStatus };
+  if (nextStatus === "claimed") overrides.claimed_by = authorSlug;
+  if (nextStatus === "done") overrides.claimed_by = ask.claimed_by || authorSlug;
+  const markdown = buildAskMarkdown(ask, overrides, body);
+  let copied = false;
+  try {
+    if (window.api?.clipboardWrite) {
+      const res = await window.api.clipboardWrite(markdown);
+      copied = !res || res.ok !== false;
+    }
+  } catch {}
+  const launched = await launchPRFlow({ kind: "edit", path, value: markdown });
+  if (!launched.ok) {
+    askRowNote(el, `<span class="alch-onb-inline-tag">fork first</span> create your fork, then click again.`, "error");
+    return;
+  }
+  askRowNote(el, `
+    <span class="alch-onb-inline-tag">github opened</span>
+    ${copied
+      ? `replacement markdown copied — paste it over the file in github, then commit the ${escHtml(nextStatus)} update and create the PR.`
+      : `copy the replacement markdown below, paste it over the file in github, then commit the ${escHtml(nextStatus)} update and create the PR.`}
+    <a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen</a>
+    <details class="alch-asks-compose-preview">
+      <summary>replacement markdown</summary>
+      <pre class="alch-onb-inline-patch">${escHtml(markdown)}</pre>
+    </details>
+  `, "success");
+  const note = el?.closest?.(".alch-asks-card")?.querySelector?.("[data-asks-row-note]");
+  if (note) wireExternalLinks(note);
+}
+
+async function loadAskContextForCard(card, recordId) {
+  const panel = card?.querySelector?.("[data-asks-context-panel]");
+  if (!panel || !recordId) return null;
+  if (panel.dataset.loaded === "1") {
+    panel.hidden = false;
+    return panel;
+  }
+  panel.hidden = false;
+  panel.dataset.loaded = "0";
+  panel.innerHTML = `<span class="alch-onb-inline-tag">loading</span> reading context...`;
+  const body = cleanAskBody(await fetchExistingBody(askMarkdownPath(recordId)));
+  panel.dataset.loaded = "1";
+  panel.innerHTML = body
+    ? `<pre>${escHtml(body)}</pre>`
+    : `<span class="alch-onb-inline-tag">context</span> no extra context in this ask.`;
+  return panel;
 }
 
 // Compose-form submit. Reads verb/topic/skill_areas, derives a stable
@@ -2315,6 +3687,7 @@ async function submitAskCompose(form) {
   const verb       = String(form.elements.verb?.value || "🤝 pair on").trim();
   const topic      = String(form.elements.topic?.value || "").trim();
   const tagsRaw    = String(form.elements.skill_areas?.value || "").trim();
+  const bodyRaw    = String(form.elements.body?.value || "").trim();
   const result     = form.querySelector(".alch-asks-compose-result");
   if (!result) return;
 
@@ -2337,8 +3710,11 @@ async function submitAskCompose(form) {
 
   // Build the markdown body. quoteYaml + yamlScalar handle quoting + multiline.
   const tagsBlock = skillAreas.length
-    ? "skill_areas:\n" + skillAreas.map(s => `  - ${s}`).join("\n")
+    ? "skill_areas:\n" + skillAreas.map(s => `  - ${quoteYaml(s)}`).join("\n")
     : "skill_areas: []";
+  const bodyBlock = bodyRaw
+    ? `\n${bodyRaw}\n`
+    : "\n(optional body — extra context for the ask.)\n";
   const askMarkdown = `---
 record_id: ${recordId}
 record_type: ask
@@ -2349,10 +3725,7 @@ verb: ${quoteYaml(verb)}
 topic: ${yamlScalar(topic, 2)}
 ${tagsBlock}
 status: open
----
-
-(optional body — extra context for the ask.)
-`;
+---${bodyBlock}`;
   const filename = `cohort-data/asks/${recordId}.md`;
 
   // Fork-aware launch. needs-fork pops a modal; ready opens the URL on
@@ -2391,16 +3764,52 @@ function wireAsks() {
   // Compose form: build the full markdown content from the form values
   // and open github's /new/ URL with that content prefilled.
   for (const form of state.canvas.querySelectorAll("form.alch-asks-compose")) {
+    const verbInput = form.elements.verb;
+    const composeDetails = form.querySelector("[data-asks-compose-details]");
+    for (const b of form.querySelectorAll("[data-asks-verb]")) {
+      b.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (verbInput) verbInput.value = b.dataset.asksVerb || "";
+        form.querySelectorAll("[data-asks-verb]").forEach((x) => {
+          x.setAttribute("aria-pressed", x === b ? "true" : "false");
+        });
+        if (composeDetails) composeDetails.open = true;
+        if (!String(form.elements.topic?.value || "").trim()) {
+          requestAnimationFrame(() => form.elements.topic?.focus?.());
+        }
+      });
+    }
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       submitAskCompose(form);
     });
+    if (form.dataset.autofocus === "1") {
+      requestAnimationFrame(() => form.elements.topic?.focus?.());
+    }
   }
   for (const a of state.canvas.querySelectorAll(".alch-asks-action[data-asks-edit]")) {
     a.addEventListener("click", async (e) => {
       e.preventDefault();
       const slug = a.dataset.asksEdit;
       await launchPRFlow({ kind: "edit", path: `cohort-data/asks/${slug}.md` });
+    });
+  }
+  for (const b of state.canvas.querySelectorAll("[data-asks-claim]")) {
+    b.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await launchAskStatusUpdate(b, b.dataset.asksClaim, "claimed");
+    });
+  }
+  for (const b of state.canvas.querySelectorAll("[data-asks-done]")) {
+    b.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await launchAskStatusUpdate(b, b.dataset.asksDone, "done");
+    });
+  }
+  for (const row of state.canvas.querySelectorAll(".alch-asks-card[data-asks-record]")) {
+    row.addEventListener("toggle", () => {
+      if (row.open) loadAskContextForCard(row, row.dataset.asksRecord);
     });
   }
   // Inline jump to program → rules from the callout.
@@ -2416,6 +3825,689 @@ function wireAsks() {
   wireExternalLinks(state.canvas);
 }
 
+// ─── context vault ──────────────────────────────────────────────────
+// Local article-index surface. Raw source notes stay on disk in
+// user-controlled folders; main.js builds one private article index plus
+// a metadata manifest under Electron userData/context-vault. The renderer
+// can then promote selected, public-safe summaries into the existing
+// GitHub PR flow for asks or program notes.
+
+const CONTEXT_CONTENT_VERSION = "v0.0.3";
+const CONTEXT_CONTENT_RELEASE_NOTE = "reader drafts · transcripts · copy bundle · local-date calendar";
+
+function contextVaultAvailable() {
+  return !!(window.api?.loadContextVault && window.api?.scanContextVault);
+}
+
+async function loadContextVault({ scan = false } = {}) {
+  if (!contextVaultAvailable()) {
+    state.contextVault.error = "Context Vault IPC is not available in this build.";
+    state.contextVault.loaded = true;
+    state.contextVault.loading = false;
+    render();
+    return;
+  }
+  state.contextVault.loading = true;
+  state.contextVault.error = "";
+  state.contextVault.message = scan ? "building article index..." : "loading article index...";
+  render();
+  try {
+    const res = scan ? await window.api.scanContextVault() : await window.api.loadContextVault();
+    if (!res?.ok) throw new Error(res?.error || "context vault request failed");
+    state.contextVault.manifest = res.manifest || null;
+    state.contextVault.roots = res.roots || res.manifest?.roots || [];
+    state.contextVault.loaded = true;
+    state.contextVault.loading = false;
+    resolvePendingContextRawScript();
+    state.contextVault.message = scan
+      ? `article index updated: ${res.manifest?.totals?.articles || res.manifest?.totals?.sources || 0} article${(res.manifest?.totals?.articles || res.manifest?.totals?.sources) === 1 ? "" : "s"}`
+      : "";
+    if (!state.contextVault.selectedId && res.manifest?.sources?.length) {
+      state.contextVault.selectedId = res.manifest.sources[0].id;
+    }
+  } catch (e) {
+    state.contextVault.loaded = true;
+    state.contextVault.loading = false;
+    state.contextVault.error = e?.message || String(e);
+  }
+  render();
+}
+
+async function selectContextSource(sourceId) {
+  if (!sourceId) return;
+  if (state.contextVault.selectedId === sourceId) return;
+  state.contextVault.mode = "articles";
+  state.contextVault.selectedId = sourceId;
+  state.contextVault.selectedText = "";
+  state.contextVault.selectedTruncated = false;
+  const selected = contextSourceById(sourceId);
+  const detail = state.canvas?.querySelector(".alch-cv-detail");
+  if (state.mode === "context" && selected && detail) {
+    for (const btn of state.canvas.querySelectorAll("[data-cv-source]")) {
+      btn.classList.toggle("is-selected", btn.dataset.cvSource === sourceId);
+    }
+    detail.outerHTML = renderContextVaultDetail(selected);
+    wireContextVaultDetailActions(state.canvas);
+    return;
+  }
+  render();
+}
+
+function setContextVaultMode(mode) {
+  const nextMode = mode === "raw" ? "raw" : "articles";
+  if (state.contextVault.mode === nextMode) return;
+  state.contextVault.mode = nextMode;
+  renderContextVault();
+  wireContextVault();
+}
+
+async function selectContextRawScript(sourceId) {
+  if (!sourceId) return;
+  if (state.contextVault.mode === "raw" && state.contextVault.selectedRawId === sourceId) return;
+  state.contextVault.mode = "raw";
+  state.contextVault.selectedRawId = sourceId;
+  const selected = contextRawScriptById(sourceId);
+  const detail = state.canvas?.querySelector(".alch-cv-detail");
+  if (state.mode === "context" && selected && detail) {
+    for (const btn of state.canvas.querySelectorAll("[data-cv-raw-source]")) {
+      btn.classList.toggle("is-selected", btn.dataset.cvRawSource === sourceId);
+    }
+    detail.outerHTML = renderContextVaultRawDetail(selected);
+    wireContextVaultDetailActions(state.canvas);
+    loadContextRawScriptText(sourceId);
+    return;
+  }
+  render();
+}
+
+function contextSourceById(id) {
+  return findContextSourceById(state.contextVault.manifest, id);
+}
+
+function contextRawScriptById(id) {
+  return findContextRawScriptById(state.contextVault.manifest, id);
+}
+
+function normalizeContextPath(pathValue) {
+  return String(pathValue || "")
+    .replace(/\\/g, "/")
+    .replace(/^\.?\//, "")
+    .toLowerCase();
+}
+
+function contextPathBasename(pathValue) {
+  const normalized = normalizeContextPath(pathValue);
+  return normalized.split("/").filter(Boolean).pop() || normalized;
+}
+
+function contextRawScriptByPath(pathValue) {
+  const target = normalizeContextPath(pathValue);
+  if (!target) return null;
+  const targetBase = contextPathBasename(target);
+  return (state.contextVault.manifest?.raw_scripts || []).find(source => {
+    const sourcePath = normalizeContextPath(source.path || source.file || source.href || "");
+    return sourcePath === target
+      || sourcePath.endsWith(`/${target}`)
+      || contextPathBasename(sourcePath) === targetBase;
+  }) || null;
+}
+
+function resolvePendingContextRawScript() {
+  const pending = state.contextVault.pendingRawPath;
+  if (!pending || !state.contextVault.manifest) return null;
+  const source = contextRawScriptByPath(pending);
+  if (source) {
+    state.contextVault.selectedRawId = source.id;
+    state.contextVault.pendingRawPath = null;
+  }
+  return source;
+}
+
+function openCalendarTranscript(pathValue) {
+  if (!pathValue) return;
+  state.contextVault.mode = "raw";
+  const source = contextRawScriptByPath(pathValue);
+  if (source) {
+    state.contextVault.selectedRawId = source.id;
+    state.contextVault.pendingRawPath = null;
+  } else {
+    state.contextVault.selectedRawId = null;
+    state.contextVault.pendingRawPath = pathValue;
+  }
+  state.mode = "context";
+  try { localStorage.setItem(ALCHEMY_LS_KEY, "context"); } catch {}
+  syncRailSelection();
+  render();
+}
+
+async function loadContextRawScriptText(sourceId) {
+  if (!sourceId || state.contextVault.rawTextById?.[sourceId]) return;
+  if (!window.api?.readContextVaultSource) return;
+  state.contextVault.rawLoadingId = sourceId;
+  try {
+    const res = await window.api.readContextVaultSource(sourceId);
+    if (!res?.ok) throw new Error(res?.error || "transcript read failed");
+    state.contextVault.rawTextById = {
+      ...(state.contextVault.rawTextById || {}),
+      [sourceId]: res.text || "",
+    };
+    state.contextVault.selectedTruncated = !!res.truncated;
+  } catch (e) {
+    state.contextVault.rawTextById = {
+      ...(state.contextVault.rawTextById || {}),
+      [sourceId]: `Could not load transcript: ${e?.message || String(e)}`,
+    };
+  } finally {
+    if (state.contextVault.rawLoadingId === sourceId) state.contextVault.rawLoadingId = null;
+  }
+  if (state.mode === "context" && state.contextVault.mode === "raw" && state.contextVault.selectedRawId === sourceId) {
+    const selected = contextRawScriptById(sourceId);
+    const detail = state.canvas?.querySelector(".alch-cv-detail");
+    if (selected && detail) {
+      detail.outerHTML = renderContextVaultRawDetail(selected);
+      wireContextVaultDetailActions(state.canvas);
+    }
+  }
+}
+
+function contextSlug(s, fallback = "context-note") {
+  const base = String(s || fallback)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+  return base || fallback;
+}
+
+function contextMiniHash(s) {
+  const h = Math.abs(hashStr(String(s || ""))).toString(36);
+  return h.slice(0, 5).padStart(5, "0");
+}
+
+function contextSkillBlock(skillAreas) {
+  const skills = (skillAreas || []).map(s => String(s).trim()).filter(Boolean);
+  return skills.length
+    ? "skill_areas:\n" + skills.map(s => `  - ${s}`).join("\n")
+    : "skill_areas: []";
+}
+
+function contextAuthorSlug() {
+  const me = state.profile?.user || {};
+  const gh = String(me.github || "").toLowerCase();
+  return me.record_id || (gh ? gh : "your-slug");
+}
+
+function contextSelectedDigest(source) {
+  return String(source?.article_dek || source?.article_angle || source?.article_title || source?.article_id || "article draft")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 220);
+}
+
+function contextArticleTitle(source) {
+  return source?.article_title || source?.article_id || "Untitled article";
+}
+
+function contextArticleSlug(source) {
+  return source?.article_slug || contextSlug(contextArticleTitle(source), "article");
+}
+
+function contextArticleDek(source) {
+  return source?.article_dek || source?.article_angle || "A private context-vault article candidate awaiting an editorial pass.";
+}
+
+function contextArticleSection(source) {
+  return source?.article_section || "article candidate";
+}
+
+function contextArticleMeta(source) {
+  const bits = [];
+  if (source?.status) bits.push(String(source.status));
+  if (source?.content_version) bits.push(String(source.content_version));
+  const section = contextArticleSection(source);
+  if (section) bits.push(section);
+  return bits.join(" · ");
+}
+
+function contextArticleReader(source) {
+  const title = contextArticleTitle(source);
+  const angle = contextArticleDek(source);
+  if (/memory, workflows, and social routing/i.test(title)) {
+    return {
+      kicker: "agent infrastructure",
+      lede: "The hard part of agent software is no longer getting one impressive answer. The hard part is preserving useful work after the chat window closes.",
+      sections: [
+        ["Private sessions lose the plot", "A good agent session can contain decisions, partial research, tool traces, and useful taste. If that work stays trapped in a private scrollback, the next agent starts cold and the human has to re-explain the same context."],
+        ["Workflows need memory and checkpoints", "Durable agent work needs named goals, resumable state, audit trails, and clear handoffs. Otherwise every long-running task becomes brittle: one timeout, one restart, or one missing file can erase the thread."],
+        ["Routing is social, not just technical", "The next layer is deciding who or what should see the work. Some context belongs to the individual, some belongs to a team, and some should become public program knowledge. Shape Rotator should make those routing choices explicit."],
+      ],
+      takeaway: "The useful agent is not the one that talks the most. It is the one that remembers what matters, shows its work, and lets humans redirect it before private context becomes public output.",
+    };
+  }
+  if (/privacy is not the product/i.test(title)) {
+    return {
+      kicker: "privacy and capability",
+      lede: "Privacy infrastructure is only interesting when it lets someone do something they already wanted to do.",
+      sections: [
+        ["Privacy is a means, not the hook", "TEEs, local-first storage, and data sovereignty can sound abstract when they are sold as values alone. The product becomes legible when privacy unlocks a concrete workflow: safer personalization, delegated work on sensitive data, or collaboration without leaking the room."],
+        ["Capability gives privacy a job", "A user does not wake up wanting remote attestation. They want an assistant that can use sensitive context without spraying it everywhere. They want private records to become useful without becoming exposed."],
+        ["The product test is workflow pull", "The right question is not whether the stack is private. The right question is what new behavior becomes possible because the stack is private. If the answer is not a workflow people want, privacy stays infrastructure theater."],
+      ],
+      takeaway: "Privacy wins when it is attached to capability: do the thing better, with less exposure, and with enough control that users trust the system to keep doing it.",
+    };
+  }
+  if (/verifiability is becoming ux/i.test(title)) {
+    return {
+      kicker: "verifiability ux",
+      lede: "Verification is moving out of backend diagrams and into the user experience of AI infrastructure.",
+      sections: [
+        ["Trust primitives are becoming interface primitives", "Remote attestation, proofs, signatures, and deployable evidence used to sit behind the product. In AI infrastructure, users increasingly need to know what ran, where it ran, and whether the system can prove it."],
+        ["Proof has to become legible", "A raw attestation quote is not UX. A useful interface turns verification into something people can act on: this model ran in this environment, this data stayed inside this boundary, this output came from this signed workflow."],
+        ["The proof changes behavior", "When verification becomes visible, users can make better choices. They can decide whether to share context, delegate a task, accept an output, or escalate to a human. Verifiability becomes part of the control surface."],
+      ],
+      takeaway: "The next trust layer will not be a hidden badge. It will be a readable proof trail that helps users understand and steer AI systems.",
+    };
+  }
+  return {
+    kicker: contextArticleSection(source),
+    lede: angle,
+    sections: [
+      ["Thesis", angle],
+      ["What the article should make clear", "Turn the private context into public-safe claims, concrete examples, and a publish boundary that does not leak the room."],
+    ],
+    takeaway: "Use this as a reader-facing article draft, then revise against the private context before publishing.",
+  };
+}
+
+function buildContextArticleMarkdown(source) {
+  if (source?.article_full_md) return source.article_full_md;
+  if (source?.article_body_md) return source.article_body_md;
+  const title = contextArticleTitle(source);
+  const reader = contextArticleReader(source);
+  const lines = [
+    `# ${title}`,
+    "",
+    reader.lede,
+    "",
+  ];
+  for (const [heading, body] of reader.sections) {
+    lines.push(`## ${heading}`, "", body, "");
+  }
+  lines.push("## Takeaway", "", reader.takeaway, "");
+  return lines.join("\n");
+}
+
+function renderContextReaderHtml(source) {
+  if (source?.article_body_md) {
+    return `
+      <article class="alch-cv-reader alch-cv-article-md">
+        ${renderProgramMarkdown(source.article_body_md)}
+      </article>
+    `;
+  }
+  const title = contextArticleTitle(source);
+  const reader = contextArticleReader(source);
+  const sections = reader.sections.map(([heading, body]) => `
+    <section class="alch-cv-reader-section">
+      <h3>${escHtml(heading)}</h3>
+      <p>${escHtml(body)}</p>
+    </section>
+  `).join("");
+  return `
+    <article class="alch-cv-reader">
+      <p class="alch-cv-reader-kicker">${escHtml(reader.kicker)}</p>
+      <h1>${escHtml(title)}</h1>
+      <p class="alch-cv-reader-lede">${escHtml(reader.lede)}</p>
+      ${sections}
+      <section class="alch-cv-reader-section alch-cv-reader-takeaway">
+        <h3>Takeaway</h3>
+        <p>${escHtml(reader.takeaway)}</p>
+      </section>
+    </article>
+  `;
+}
+
+function renderContextVaultDetail(selected) {
+  const selectedMdFile = selected ? (selected.article_file || `${contextArticleSlug(selected)}.md`) : "article.md";
+  return selected ? `
+    <article class="alch-cv-detail">
+      <header class="alch-cv-detail-head">
+        <div>
+          <span class="alch-cv-eyebrow">reader draft · markdown</span>
+        </div>
+        <button class="alch-cv-md-action" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">
+          <span class="alch-cv-md-action-label">copy .md</span>
+          <span class="alch-cv-md-action-file">${escHtml(selectedMdFile)}</span>
+        </button>
+      </header>
+      ${renderContextReaderHtml(selected)}
+      <div class="alch-cv-result" data-cv-result hidden></div>
+    </article>
+  ` : `
+    <article class="alch-cv-detail alch-cv-empty-detail">
+      <h3>no articles indexed yet</h3>
+      <p>Refresh the private article index to load articles.</p>
+    </article>
+  `;
+}
+
+function contextRawScriptTitle(source) {
+  return source?.title || source?.path?.split(/[\\/]/).pop()?.replace(/\.txt$/i, "") || "Untitled transcript";
+}
+
+function contextRawScriptMeta(source) {
+  const bits = [];
+  if (source?.date) bits.push(source.date);
+  if (source?.line_count) bits.push(`${source.line_count} lines`);
+  if (source?.source_kind) bits.push(source.source_kind.replace(/-/g, " "));
+  return bits.join(" · ");
+}
+
+function renderContextVaultRawDetail(selected) {
+  if (!selected) {
+    return `
+      <article class="alch-cv-detail alch-cv-empty-detail">
+        <h3>no transcripts indexed yet</h3>
+        <p>Refresh the context vault to load bundled and local transcripts.</p>
+      </article>
+    `;
+  }
+  const title = contextRawScriptTitle(selected);
+  const text = state.contextVault.rawTextById?.[selected.id] || "";
+  const loading = state.contextVault.rawLoadingId === selected.id && !text;
+  const fallback = selected.excerpt || "Loading transcript...";
+  const displayText = loading ? "Loading transcript..." : (text || fallback);
+  return `
+    <article class="alch-cv-detail alch-cv-raw-detail">
+      <header class="alch-cv-detail-head">
+        <div>
+          <span class="alch-cv-eyebrow">transcript · txt</span>
+        </div>
+        <div class="alch-cv-detail-actions">
+          <button class="alch-cv-md-action" type="button" data-cv-copy-raw-bundle title="copy all transcripts">
+            <span class="alch-cv-md-action-label">copy all</span>
+          </button>
+          <button class="alch-cv-md-action" type="button" data-cv-copy-raw="${escAttr(selected.id)}" title="copy ${escAttr(title)}">
+            <span class="alch-cv-md-action-label">copy .txt</span>
+          </button>
+        </div>
+      </header>
+      <article class="alch-cv-reader alch-cv-raw-reader">
+        <p class="alch-cv-reader-kicker">${escHtml(contextRawScriptMeta(selected) || "source transcript")}</p>
+        <h1>${escHtml(title)}</h1>
+      </article>
+      <pre class="alch-cv-raw-text">${escHtml(displayText)}</pre>
+      <div class="alch-cv-result" data-cv-result hidden></div>
+    </article>
+  `;
+}
+
+async function copyTextToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {}
+  try {
+    const res = await window.api?.clipboardWrite?.(text);
+    return !!res?.ok;
+  } catch {}
+  return false;
+}
+
+function flashCopyButton(btn, ok = true) {
+  if (!btn) return;
+  const title = btn.querySelector?.(".link-card-title, .alch-cv-md-action-label");
+  if (title) {
+    const oldTitle = title.textContent;
+    btn.dataset.state = ok ? "copied" : "failed";
+    title.textContent = ok ? "copied" : "copy failed";
+    setTimeout(() => {
+      title.textContent = oldTitle;
+      delete btn.dataset.state;
+    }, 1200);
+    return;
+  }
+  const old = btn.textContent;
+  btn.textContent = ok ? "copied" : "copy failed";
+  setTimeout(() => { btn.textContent = old; }, 1200);
+}
+
+function buildContextAskMarkdown(source) {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const author = contextAuthorSlug();
+  const title = contextArticleTitle(source);
+  const topic = `Draft Shape Rotator article: ${title}`;
+  const recordId = `${author}-${todayIso}-context-${contextMiniHash(source.id + topic)}`;
+  return {
+    path: `cohort-data/asks/${recordId}.md`,
+    markdown: `---
+record_id: ${recordId}
+record_type: ask
+schema_version: 1
+posted_at: ${todayIso}
+author: ${author}
+verb: "🔬 brain on"
+topic: ${yamlScalar(topic, 2)}
+${contextSkillBlock(source.skill_areas)}
+status: open
+---
+
+Context Vault article: ${source.article_id || source.corpus_id || "unindexed"}
+Working title: ${title}
+Drafting cue: ${contextSelectedDigest(source)}
+Private inputs remain local; this ask is the public-safe coordination layer.
+`,
+  };
+}
+
+function buildContextProgramMarkdown(source) {
+  const title = contextArticleTitle(source);
+  const recordId = `context-${source.date || new Date().toISOString().slice(0, 10)}-${contextArticleSlug(source).slice(0, 40)}-${contextMiniHash(source.id)}`;
+  const skills = (source.skill_areas || []).join(", ") || "none inferred";
+  return {
+    path: `cohort-data/program/${recordId}.md`,
+    markdown: `---
+record_id: ${recordId}
+record_type: program_page
+schema_version: 1
+title: ${quoteYaml(title)}
+order: 90
+---
+
+## context vault reference
+
+- context vault article: ${source.article_id || source.corpus_id || "unindexed"}
+- draft status: draft-candidate
+- inferred skill areas: ${skills}
+- editorial section: ${contextArticleSection(source)}
+
+## article direction
+
+${source.article_angle || contextArticleDek(source)}
+
+## drafting boundary
+
+- Private inputs stay hidden.
+- Add public-safe synthesis before publishing.
+- Do not paste private input text into this page.
+
+## steward note
+
+This page was drafted from Context Vault. Private inputs stay local; publish only cleaned program context, resource trails, or public-safe synthesis.
+`,
+  };
+}
+
+function renderContextVault() {
+  const cv = state.contextVault;
+  if (!cv.loaded && !cv.loading) {
+    // Fire after the current render stack so the loading state can paint.
+    setTimeout(() => loadContextVault({ scan: false }), 0);
+  }
+  const manifest = cv.manifest || null;
+  const sources = manifest?.sources || [];
+  const rawScripts = manifest?.raw_scripts || [];
+  const mode = cv.mode === "raw" ? "raw" : "articles";
+  const pendingRaw = resolvePendingContextRawScript();
+  const selected = contextSourceById(cv.selectedId) || sources[0] || null;
+  const selectedRaw = pendingRaw || contextRawScriptById(cv.selectedRawId) || rawScripts[0] || null;
+  if (selected && !cv.selectedId) cv.selectedId = selected.id;
+  if (selectedRaw && !cv.selectedRawId) cv.selectedRawId = selectedRaw.id;
+  const sourceRows = mode === "raw"
+    ? rawScripts.map(s => {
+      const selectedCls = selectedRaw && selectedRaw.id === s.id ? " is-selected" : "";
+      return `
+        <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-raw-source="${escAttr(s.id)}">
+          <strong>${escHtml(contextRawScriptTitle(s))}</strong>
+          <span class="alch-cv-source-meta">${escHtml(contextRawScriptMeta(s))}</span>
+        </button>
+      `;
+    }).join("")
+    : sources.map(s => {
+      const selectedCls = selected && selected.id === s.id ? " is-selected" : "";
+      const title = contextArticleTitle(s);
+      const meta = contextArticleMeta(s);
+      return `
+        <button class="alch-cv-source${selectedCls}" type="button" data-cv-source="${escAttr(s.id)}">
+          <strong>${escHtml(title)}</strong>
+          ${meta ? `<span class="alch-cv-source-meta">${escHtml(meta)}</span>` : ""}
+        </button>
+      `;
+    }).join("");
+  const detail = mode === "raw" ? renderContextVaultRawDetail(selectedRaw) : renderContextVaultDetail(selected);
+
+  state.canvas.innerHTML = `
+    <section class="alch-cv">
+      <header class="alch-cv-head">
+        <div>
+          <p class="alch-cv-kicker">local context vault</p>
+          <h2>context library</h2>
+          <p>Reader-facing article drafts plus the transcripts they came from, bundled into the OS for local prompting.</p>
+          <div class="alch-cv-release">
+            <span class="alch-cv-release-version">content ${escHtml(CONTEXT_CONTENT_VERSION)}</span>
+            <span class="alch-cv-release-note">${escHtml(CONTEXT_CONTENT_RELEASE_NOTE)}</span>
+          </div>
+        </div>
+        <div class="alch-cv-head-actions">
+          <button class="alch-feed-btn alch-cv-scan" type="button" ${cv.loading ? "disabled" : ""}>${cv.loading ? "refreshing..." : "refresh article index"}</button>
+        </div>
+      </header>
+      ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
+      ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
+      <div class="alch-cv-layout">
+        <aside class="alch-cv-sidebar">
+          <div class="alch-cv-mode">
+            <button class="${mode === "articles" ? "is-selected" : ""}" type="button" data-cv-mode="articles">articles <span>${sources.length}</span></button>
+            <button class="${mode === "raw" ? "is-selected" : ""}" type="button" data-cv-mode="raw">transcripts <span>${rawScripts.length}</span></button>
+          </div>
+          <h3>${mode === "raw" ? "transcripts" : "articles"}</h3>
+          <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">refresh to load ${mode === "raw" ? "transcripts" : "articles"}.</p>`}</div>
+        </aside>
+        ${detail}
+      </div>
+    </section>
+  `;
+  if (mode === "raw" && selectedRaw && !cv.rawTextById?.[selectedRaw.id]) {
+    setTimeout(() => loadContextRawScriptText(selectedRaw.id), 0);
+  }
+}
+
+function wireContextVault() {
+  const scan = state.canvas.querySelector(".alch-cv-scan");
+  if (scan) {
+    scan.addEventListener("click", () => loadContextVault({ scan: true }));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-cv-mode]")) {
+    btn.addEventListener("click", () => setContextVaultMode(btn.dataset.cvMode));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-cv-source]")) {
+    btn.addEventListener("click", () => selectContextSource(btn.dataset.cvSource));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-cv-raw-source]")) {
+    btn.addEventListener("click", () => selectContextRawScript(btn.dataset.cvRawSource));
+  }
+  wireContextVaultDetailActions(state.canvas);
+}
+
+function wireContextVaultDetailActions(root = state.canvas) {
+  if (!root) return;
+  for (const btn of root.querySelectorAll("[data-cv-reveal-corpus]")) {
+    btn.addEventListener("click", async () => {
+      if (window.api?.revealContextVaultCorpus) await window.api.revealContextVaultCorpus();
+    });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-reveal-source]")) {
+    btn.addEventListener("click", async () => {
+      if (window.api?.revealContextVaultSource) await window.api.revealContextVaultSource(btn.dataset.cvRevealSource);
+    });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-copy-article]")) {
+    btn.addEventListener("click", async () => {
+      const source = contextSourceById(btn.dataset.cvCopyArticle);
+      if (!source) return;
+      const markdown = buildContextArticleMarkdown(source);
+      flashCopyButton(btn, await copyTextToClipboard(markdown));
+    });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-copy-raw]")) {
+    btn.addEventListener("click", async () => {
+      const sourceId = btn.dataset.cvCopyRaw;
+      let text = state.contextVault.rawTextById?.[sourceId] || "";
+      if (!text && window.api?.readContextVaultSource) {
+        const res = await window.api.readContextVaultSource(sourceId);
+        if (res?.ok) {
+          text = res.text || "";
+          state.contextVault.rawTextById = { ...(state.contextVault.rawTextById || {}), [sourceId]: text };
+        }
+      }
+      flashCopyButton(btn, await copyTextToClipboard(text));
+    });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-copy-raw-bundle]")) {
+    btn.addEventListener("click", async () => {
+      let text = "";
+      if (window.api?.readContextVaultRawBundle) {
+        const res = await window.api.readContextVaultRawBundle();
+        if (res?.ok) text = res.text || "";
+      }
+      flashCopyButton(btn, await copyTextToClipboard(text));
+    });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-promote]")) {
+    btn.addEventListener("click", async () => {
+      const source = contextSourceById(btn.dataset.cvSourceId);
+      if (!source) return;
+      const result = root.querySelector("[data-cv-result]");
+      const draft = btn.dataset.cvPromote === "program"
+        ? buildContextProgramMarkdown(source)
+        : buildContextAskMarkdown(source);
+      const launched = await launchPRFlow({ kind: "new", path: draft.path, value: draft.markdown });
+      if (result) {
+        result.hidden = false;
+        result.innerHTML = launched.ok ? `
+          <p class="alch-onb-inline-line">
+            <span class="alch-onb-inline-tag">github opened</span>
+            review the generated markdown before committing the PR.
+          </p>
+          <details class="alch-asks-compose-preview">
+            <summary>preview draft</summary>
+            <pre class="alch-onb-inline-patch">${escHtml(draft.markdown)}</pre>
+          </details>
+          <div class="alch-onb-inline-row"><a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen editor</a></div>
+        ` : `
+          <p class="alch-onb-inline-line">
+            <span class="alch-onb-inline-tag">fork first</span>
+            once your fork exists, click the promote button again.
+          </p>
+        `;
+        wireExternalLinks(result);
+      }
+    });
+  }
+}
+
 // ─── topic atlas ────────────────────────────────────────────────────
 // Force-directed bubble cluster of `skill_areas` tags across teams +
 // people. Bubble size = number of cohort members carrying the tag.
@@ -2425,57 +4517,6 @@ function wireAsks() {
 // Layout: simple custom force iteration on canvas. ~25 nodes; no need
 // for a real graph library. The deterministic seed-based init keeps
 // the layout stable across renders.
-
-function aggregateSkillAreas() {
-  const cohort = state.cohort || {};
-  const tagsToTeams = new Map();   // tag → Set(team_record_id)
-  const tagsToPeople = new Map();  // tag → Set(person_record_id)
-  const teamPairs = new Map();     // "tagA::tagB" → count (for adjacency)
-
-  const consume = (areas, kind, id) => {
-    const uniq = Array.from(new Set((areas || []).filter(Boolean)));
-    for (const t of uniq) {
-      const tn = String(t).trim().toLowerCase();
-      if (!tn) continue;
-      if (kind === "team") {
-        if (!tagsToTeams.has(tn)) tagsToTeams.set(tn, new Set());
-        tagsToTeams.get(tn).add(id);
-      } else {
-        if (!tagsToPeople.has(tn)) tagsToPeople.set(tn, new Set());
-        tagsToPeople.get(tn).add(id);
-      }
-    }
-    for (let i = 0; i < uniq.length; i++) {
-      for (let j = i + 1; j < uniq.length; j++) {
-        const a = String(uniq[i]).trim().toLowerCase();
-        const b = String(uniq[j]).trim().toLowerCase();
-        if (!a || !b || a === b) continue;
-        const key = a < b ? `${a}::${b}` : `${b}::${a}`;
-        teamPairs.set(key, (teamPairs.get(key) || 0) + 1);
-      }
-    }
-  };
-  for (const t of cohort.teams || []) consume(t.skill_areas, "team", t.record_id);
-  for (const p of cohort.people || []) consume(p.skill_areas, "person", p.record_id);
-
-  const allTags = new Set([...tagsToTeams.keys(), ...tagsToPeople.keys()]);
-  const nodes = Array.from(allTags).map(tag => {
-    const teams = Array.from(tagsToTeams.get(tag) || []);
-    const people = Array.from(tagsToPeople.get(tag) || []);
-    return {
-      tag,
-      teams,
-      people,
-      size: teams.length + people.length,
-    };
-  }).sort((a, b) => b.size - a.size);
-
-  const edges = Array.from(teamPairs.entries()).map(([k, v]) => {
-    const [a, b] = k.split("::");
-    return { a, b, weight: v };
-  });
-  return { nodes, edges };
-}
 
 // Deterministic seeded RNG so the layout is stable across renders.
 function mulberry32(seed) {
@@ -2554,9 +4595,10 @@ function layoutAtlas(nodes, edges, w, h) {
 }
 
 function renderAtlas() {
-  const { nodes, edges } = aggregateSkillAreas();
-  const teams = state.cohort?.teams || [];
-  const people = state.cohort?.people || [];
+  const { nodes, edges } = aggregateSkillAreas(state.cohort);
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const teams = cohortIndex.teams;
+  const people = cohortIndex.people;
   const totalTeams = teams.length;
   const totalPeople = people.length;
   const W = 880, H = 520;
@@ -2607,11 +4649,11 @@ function renderAtlas() {
   let panel = "";
   if (activeNode) {
     const tList = (activeNode.teams || []).map(rid => {
-      const t = teams.find(x => x.record_id === rid);
+      const t = cohortIndex.teamById.get(rid);
       return `<li class="alch-atlas-li" data-atlas-go-team="${escAttr(rid)}">${escHtml(t?.name || rid)}</li>`;
     }).join("");
     const pList = (activeNode.people || []).map(rid => {
-      const p = people.find(x => x.record_id === rid);
+      const p = cohortIndex.personById.get(rid);
       return `<li class="alch-atlas-li" data-atlas-go-person="${escAttr(rid)}">${escHtml(p?.name || rid)}</li>`;
     }).join("");
     panel = `
@@ -2675,8 +4717,9 @@ function wireAtlas() {
 // focus, lead, and member count to a single offscreen canvas, then
 // pipes through the same IPC PNG save flow.
 async function exportDossier() {
-  const all = (state.cohort?.teams || []).slice();
-  const people = state.cohort?.people || [];
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const all = cohortIndex.teams.slice();
+  const people = cohortIndex.people;
   if (all.length === 0) return;
   // Sort teams first by kind (team > project), then alpha.
   all.sort((a, b) => {
@@ -2687,13 +4730,7 @@ async function exportDossier() {
   });
 
   // Group people by team id so each card can list members inline.
-  const peopleByTeam = new Map();
-  for (const p of people) {
-    const k = p.team;
-    if (!k) continue;
-    if (!peopleByTeam.has(k)) peopleByTeam.set(k, []);
-    peopleByTeam.get(k).push(p);
-  }
+  const peopleByTeam = new Map(cohortIndex.primaryPeopleByTeam);
   // Sort each team's members: lead first, then alpha.
   for (const arr of peopleByTeam.values()) {
     arr.sort((a, b) => {
@@ -3053,9 +5090,10 @@ function announceExport(r) {
 // synergy clusters. Entered by clicking a card; back button returns to
 // the previous mode (typically shapes).
 function renderDetail(recordId) {
-  const team = state.cohort?.teams.find(t => t.record_id === recordId);
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const team = cohortIndex.teamById.get(recordId);
   if (team) return renderTeamDetail(team);
-  const person = (state.cohort?.people || []).find(p => p.record_id === recordId);
+  const person = cohortIndex.personById.get(recordId);
   if (person) return renderPersonDetail(person);
   // Record vanished (e.g. cohort republished, slug changed). Bail out
   // back to the grid rather than showing an empty page.
@@ -3063,19 +5101,31 @@ function renderDetail(recordId) {
 }
 
 function renderTeamDetail(team) {
+  const cohortIndex = buildCohortIndex(state.cohort);
   const recordId = team.record_id;
   const s = shapeForTeam(team);
   const kind = teamKind(team);
   const m = Number(team.members_count) || 0;
-  const memberClusters = (state.cohort.clusters || []).filter(cl =>
-    Array.isArray(cl.teams) && cl.teams.includes(recordId)
-  );
+  const memberClusters = cohortIndex.clustersByTeam.get(recordId) || [];
   // People whose `team` field points at this record. For projects this
   // surfaces who's working on it; for teams, the roster.
-  const teamPeople = (state.cohort.people || []).filter(p => p.team === recordId);
+  const teamPeople = cohortIndex.primaryPeopleByTeam.get(recordId) || [];
 
   const linksRow = renderDetailLinks(team.links || {});
   const editUrl = buildEditPRUrl({ recordType: "team", recordId });
+
+  // ── Cohort Plate framing ──
+  const j = journeyFor(team);
+  const tier = tierForStage(j.stage);
+  const allTeams = cohortIndex.teams;
+  const idx = allTeams.findIndex(t => t.record_id === recordId) + 1;
+  const idxStr = `${String(Math.max(1, idx)).padStart(3, "0")}/${String(allTeams.length).padStart(3, "0")}`;
+  // taxonomy "class line" — domain as class, shape as order.
+  const klass = (domainLabel(team.domain) || "—").toLowerCase();
+  const order = (s ? s.name : (team.shape || "—")).toLowerCase();
+  // cohort phase (m1/m2/m3) from the current program week.
+  let phase = "";
+  try { const w = calendarCurrentWeekIdx() + 1; phase = w <= 4 ? "m1" : w <= 9 ? "m2" : "m3"; } catch {}
 
   state.canvas.innerHTML = `
     <header class="alch-detail-bar">
@@ -3092,84 +5142,118 @@ function renderTeamDetail(team) {
       <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
     </header>
 
-    <section class="alch-detail-hero">
-      <div class="alch-detail-shape">${s ? `<canvas data-shape-fam="${s.fam}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</div>
-      <div class="alch-detail-hero-text">
-        <h2 class="alch-detail-name">${escHtml(team.name)}</h2>
-        <p class="alch-detail-focus">${escHtml(team.focus || "—")}</p>
-        <div class="alch-detail-meta">
-          <span><span class="adm-k">shape</span> ${escHtml(s ? s.name : "—")}</span>
-          <span class="ct-sep">·</span>
-          <span><span class="adm-k">domain</span> ${escHtml(domainLabel(team.domain))}</span>
-          <span class="ct-sep">·</span>
-          <span><span class="adm-k">${kind === "project" ? "contributors" : "team"}</span> ${m} ${m === 1 ? "person" : "people"}</span>
-          <span class="ct-sep">·</span>
-          <span><span class="adm-k">geo</span> ${escHtml(team.geo || "—")}</span>
-        </div>
+    <article class="cohort-plate is-revealing" data-tier="${escAttr(tier.key)}" data-kind="${escAttr(kind)}" id="cohort-plate">
+      <div class="plate-foil" aria-hidden="true"></div>
+      <div class="plate-scan" aria-hidden="true"></div>
+
+      <div class="plate-band">
+        <span class="pb-desig">${escHtml(team.name)}</span>
+        <span class="pb-meta">designation · ${escHtml(kind)} · idx ${escHtml(idxStr)}${phase ? ` · cohort ${escHtml(phase)}` : ""}</span>
+        <span class="pb-tier" data-tier="${escAttr(tier.key)}">tier · ${escHtml(tier.name)}</span>
       </div>
-    </section>
+      <div class="plate-class">class: ${escHtml(klass)} <span class="pc-sep">//</span> order: ${escHtml(order)}${team.is_mentor ? ` <span class="pc-sep">//</span> mentor` : ""}</div>
 
-    <div class="alch-detail-grid">
-      <section class="alch-detail-section">
-        <h3 class="alch-detail-h">about</h3>
-        <div class="alch-detail-row"><span class="adr-k">contributors</span><span class="adr-v">${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</span></div>
-        ${team.traction ? `<div class="alch-detail-row"><span class="adr-k">traction</span><span class="adr-v">${escHtml(team.traction)}</span></div>` : ""}
-      </section>
-
-      ${(team.paper_basis || team.hackathon_note) ? `
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">credentials</h3>
-          ${team.paper_basis  ? `<div class="alch-detail-row"><span class="adr-k">paper</span><span class="adr-v">${escHtml(team.paper_basis)}</span></div>`  : ""}
-          ${team.hackathon_note ? `<div class="alch-detail-row"><span class="adr-k">hackathon</span><span class="adr-v"><span style="color:var(--alchemy-oxide-bright)">★</span> ${escHtml(team.hackathon_note)}</span></div>` : ""}
-        </section>
-      ` : ""}
-
-      <section class="alch-detail-section">
-        <h3 class="alch-detail-h">links</h3>
-        ${linksRow}
-      </section>
-
-      ${teamPeople.length ? `
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">${kind === "project" ? "contributors" : "members"} <span class="alch-profile-h-aux">— ${teamPeople.length}</span></h3>
-          <ul class="alch-detail-people">
-            ${teamPeople.map(p => `
-              <li class="alch-detail-person is-clickable" data-person="${escHtml(p.record_id)}" tabindex="0" role="button" aria-label="open ${escHtml(p.name || p.record_id)}">
-                <span class="adp-name">${escHtml(p.name || p.record_id)}</span>
-                ${p.role ? `<span class="adp-role">${escHtml(p.role)}</span>` : ""}
-              </li>
-            `).join("")}
-          </ul>
-        </section>
-      ` : ""}
-
-      ${memberClusters.length ? `
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">synergy clusters</h3>
-          <div class="alch-detail-clusters">
-            ${memberClusters.map(cl => `
-              <span class="alch-detail-cluster">${escHtml(cl.label)}</span>
-            `).join("")}
+      <section class="alch-detail-hero plate-hero">
+        <div class="alch-detail-shape">${s ? `<canvas data-shape-fam="${s.fam}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</div>
+        <div class="alch-detail-hero-text">
+          <h2 class="alch-detail-name">${escHtml(team.name)}</h2>
+          <p class="alch-detail-focus">${escHtml(team.focus || "—")}</p>
+          <div class="alch-detail-meta">
+            <span><span class="adm-k">domain</span> ${escHtml(domainLabel(team.domain))}</span>
+            <span class="ct-sep">·</span>
+            <span><span class="adm-k">${kind === "project" ? "contributors" : "team"}</span> ${m} ${m === 1 ? "person" : "people"}</span>
+            <span class="ct-sep">·</span>
+            <span><span class="adm-k">geo</span> ${escHtml(team.geo || "—")}</span>
           </div>
+        </div>
+        <div class="plate-grade-stamp" data-tier="${escAttr(tier.key)}" aria-hidden="true">${escHtml(tier.name)}</div>
+      </section>
+
+      <div class="alch-detail-grid">
+        <section class="alch-detail-section">
+          <h3 class="alch-detail-h">about</h3>
+          <div class="alch-detail-row"><span class="adr-k">contributors</span><span class="adr-v">${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</span></div>
+          ${team.traction ? `<div class="alch-detail-row"><span class="adr-k">traction</span><span class="adr-v">${escHtml(team.traction)}</span></div>` : ""}
         </section>
-      ` : ""}
-    </div>
+
+        <section class="alch-detail-section">
+          <h3 class="alch-detail-h">pmf · journey</h3>
+          ${journeyDetailSection(team)}
+        </section>
+
+        ${(team.paper_basis || team.hackathon_note) ? `
+          <section class="alch-detail-section">
+            <h3 class="alch-detail-h">trophies</h3>
+            <div class="plate-trophies">
+              ${team.hackathon_note ? `<span class="plate-trophy trophy-rare"><span class="ptr-mark">★</span><span class="ptr-body"><span class="ptr-grade">rare</span><span class="ptr-name">${escHtml(team.hackathon_note)}</span></span></span>` : ""}
+              ${team.paper_basis ? `<span class="plate-trophy trophy-notable"><span class="ptr-mark">◆</span><span class="ptr-body"><span class="ptr-grade">notable</span><span class="ptr-name">${escHtml(team.paper_basis)}</span></span></span>` : ""}
+            </div>
+          </section>
+        ` : ""}
+
+        <section class="alch-detail-section">
+          <h3 class="alch-detail-h">links</h3>
+          ${linksRow}
+        </section>
+
+        ${teamPeople.length ? `
+          <section class="alch-detail-section">
+            <h3 class="alch-detail-h">${kind === "project" ? "contributors" : "members"} <span class="alch-profile-h-aux">— ${teamPeople.length}</span></h3>
+            <ul class="alch-detail-people">
+              ${teamPeople.map(p => `
+                <li class="alch-detail-person is-clickable" data-person="${escHtml(p.record_id)}" tabindex="0" role="button" aria-label="open ${escHtml(p.name || p.record_id)}">
+                  <span class="adp-name">${escHtml(p.name || p.record_id)}</span>
+                  ${p.role ? `<span class="adp-role">${escHtml(p.role)}</span>` : ""}
+                </li>
+              `).join("")}
+            </ul>
+          </section>
+        ` : ""}
+
+        ${memberClusters.length ? `
+          <section class="alch-detail-section">
+            <h3 class="alch-detail-h">guild <span class="alch-profile-h-aux">— synergy clusters</span></h3>
+            <div class="plate-guild">
+              ${memberClusters.map(cl => `<span class="guild-tag">${escHtml(cl.label)}</span>`).join("")}
+            </div>
+          </section>
+        ` : ""}
+      </div>
+    </article>
   `;
 
   // Wire interactions.
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
+  wirePlateFoil(state.canvas.querySelector(".cohort-plate"));
+}
+
+// Cursor-tracked foil glint: update --mx/--my (0..100%) as the pointer
+// moves over the plate; CSS positions a faint oxide sheen there. Settles
+// flat on leave. The one-shot reveal (scan sweep + grade stamp) is pure
+// CSS, triggered by the .is-revealing class on mount.
+function wirePlateFoil(plate) {
+  if (!plate) return;
+  plate.addEventListener("pointermove", (e) => {
+    const r = plate.getBoundingClientRect();
+    plate.style.setProperty("--mx", `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
+    plate.style.setProperty("--my", `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+    plate.classList.add("is-foil");
+  });
+  plate.addEventListener("pointerleave", () => plate.classList.remove("is-foil"));
+  // Drop the reveal class once the animation has played so it doesn't
+  // re-run on incidental reflows.
+  setTimeout(() => plate.classList.remove("is-revealing"), 1400);
 }
 
 function renderPersonDetail(person) {
+  const cohortIndex = buildCohortIndex(state.cohort);
   const recordId = person.record_id;
   const fam = Math.abs(hashStr(recordId || "_")) % 6;
-  const team = person.team
-    ? (state.cohort?.teams || []).find(t => t.record_id === person.team)
-    : null;
+  const team = cohortIndex.teamForPerson(person);
   const secondary = (Array.isArray(person.secondary_teams) ? person.secondary_teams : [])
-    .map(id => (state.cohort?.teams || []).find(t => t.record_id === id))
+    .map(id => cohortIndex.teamById.get(id))
     .filter(Boolean);
   const linksRow = renderDetailLinks(person.links || {});
   const editUrl = buildEditPRUrl({ recordType: "person", recordId });
@@ -3278,6 +5362,7 @@ function renderDetailLinks(L) {
   const LINK_LABELS = {
     website: "website", demo: "demo", deck: "deck", repo: "repo",
     article: "article", slides: "slides", alt: "alt site",
+    linkedin: "linkedin",
   };
   const rows = [];
   if (L.repo && GH_REPO_RE.test(String(L.repo))) {
@@ -3285,12 +5370,12 @@ function renderDetailLinks(L) {
   }
   if (L.github) {
     const gh = String(L.github);
-    const url = gh.startsWith("http") ? gh : `https://github.com/${gh}`;
-    rows.push(`<div class="alch-detail-row"><span class="adr-k">github</span><span class="adr-v"><a href="${escHtml(url)}" data-external>${escHtml(gh)}</a></span></div>`);
+    const url = normalizeLinkHref("github", gh);
+    rows.push(`<div class="alch-detail-row"><span class="adr-k">github</span><span class="adr-v"><a href="${escAttr(url)}" data-external>${escHtml(gh)}</a></span></div>`);
   }
   if (L.x) {
     const handle = String(L.x).replace(/^@/, "");
-    rows.push(`<div class="alch-detail-row"><span class="adr-k">x</span><span class="adr-v"><a href="https://x.com/${escHtml(handle)}" data-external>@${escHtml(handle)}</a></span></div>`);
+    rows.push(`<div class="alch-detail-row"><span class="adr-k">x</span><span class="adr-v"><a href="${escAttr(normalizeLinkHref("x", handle))}" data-external>@${escHtml(handle)}</a></span></div>`);
   }
   for (const k of Object.keys(L)) {
     if (k === "github" || k === "x" || k === "repo") continue;
@@ -3298,7 +5383,12 @@ function renderDetailLinks(L) {
     if (!v) continue;
     const label = LINK_LABELS[k] || k;
     const display = (typeof v === "string") ? v.replace(/^https?:\/\//, "") : String(v);
-    rows.push(`<div class="alch-detail-row"><span class="adr-k">${escHtml(label)}</span><span class="adr-v"><a href="${escHtml(v)}" data-external>${escHtml(display)}</a></span></div>`);
+    const href = normalizeLinkHref(k, v);
+    if (href) {
+      rows.push(`<div class="alch-detail-row"><span class="adr-k">${escHtml(label)}</span><span class="adr-v"><a href="${escAttr(href)}" data-external>${escHtml(display)}</a></span></div>`);
+    } else {
+      rows.push(`<div class="alch-detail-row"><span class="adr-k">${escHtml(label)}</span><span class="adr-v">${escHtml(display)}</span></div>`);
+    }
   }
   if (rows.length === 0) rows.push(`<div class="alch-detail-row"><span class="adr-k">links</span><span class="adr-v" style="opacity:0.55">— not yet submitted</span></div>`);
   return rows.join("");
@@ -3307,7 +5397,8 @@ function renderDetailLinks(L) {
 // ─── drawer (specimen detail) ────────────────────────────────────────
 function openDrawer(recordId) {
   if (!state.cohort) return;
-  const team = state.cohort.teams.find(t => t.record_id === recordId);
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const team = cohortIndex.teamById.get(recordId);
   if (!team) return;
 
   const { backdrop, drawer, body } = ensureDrawer();
@@ -3316,9 +5407,7 @@ function openDrawer(recordId) {
   const m = Number(team.members_count) || 0;
 
   // Find which clusters this team belongs to
-  const memberClusters = (state.cohort.clusters || []).filter(cl =>
-    Array.isArray(cl.teams) && cl.teams.includes(recordId)
-  );
+  const memberClusters = cohortIndex.clustersByTeam.get(recordId) || [];
 
   // Render every available link key with a sensible label; github + x
   // get full URL prefixes, the rest are passed through.
@@ -3373,6 +5462,10 @@ function openDrawer(recordId) {
       <div class="alch-drawer-row"><span class="dr-k">team</span><span class="dr-v">${m} ${m === 1 ? "person" : "people"}</span></div>
       <div class="alch-drawer-row"><span class="dr-k">geo</span><span class="dr-v">${escHtml(team.geo || "—")}</span></div>
       ${team.traction ? `<div class="alch-drawer-row"><span class="dr-k">traction</span><span class="dr-v">${escHtml(team.traction)}</span></div>` : ""}
+    </section>
+    <section class="alch-drawer-section">
+      <h4>pmf · journey</h4>
+      ${journeyDetailSection(team)}
     </section>
     ${team.paper_basis || team.hackathon_note ? `
       <section class="alch-drawer-section">
@@ -3514,6 +5607,10 @@ function saveEventsCache() {
 const GH_REPO_RE = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/;
 
 async function refreshFeed({ source = "auto", force = false } = {}) {
+  // Kill-switch — see FEED_DISABLED at top of file. Short-circuits every
+  // caller (mount kick, interval, mode-enter, the in-header refresh
+  // button) so the github /events feed makes zero requests while off.
+  if (FEED_DISABLED) return;
   if (state.isFetching) return;
   const fresh = Date.now() - state.fetchedAt < FEED_REFRESH_MS;
   if (fresh && !force && state.events.length > 0) {
@@ -3747,12 +5844,8 @@ function githubEventUrl(ev, repo) {
 }
 
 // ─── feed renderer ───────────────────────────────────────────────────
-function teamByRecordId(rid) {
-  return (state.cohort?.teams || []).find(t => t.record_id === rid) || null;
-}
-function teamLabel(rid) {
-  const t = teamByRecordId(rid);
-  return t ? t.name : rid || "—";
+function teamLabel(rid, cohortIndex = buildCohortIndex(state.cohort)) {
+  return cohortIndex.teamLabel(rid);
 }
 function relativeTime(ms) {
   const diff = Date.now() - ms;
@@ -3836,7 +5929,8 @@ function renderFeed() {
     // pushed 1 commit" — one card with the latest event + a "+N more"
     // tail is easier to scan.
     const groups = groupFeedItemsByActor(items);
-    body = `<ul class="alch-feed-list">${groups.map(renderFeedGroup).join("")}</ul>`;
+    const cohortIndex = buildCohortIndex(state.cohort);
+    body = `<ul class="alch-feed-list">${groups.map(group => renderFeedGroup(group, cohortIndex)).join("")}</ul>`;
     body += `
       <p class="alch-callout"><strong>feed · v0.2</strong><br/>
       One card per person/team — the latest event headlines, a "+N more" tail counts the rest. Click a card to open the latest event on github. Sources: team repos + every cohort member's public github activity. Refreshed every 12 min in the background.</p>
@@ -3884,20 +5978,20 @@ function groupFeedItemsByActor(events) {
 // Headline derivation: prefer the cohort person's name, else cohort team
 // name, else raw gh actor. Returns { primary, secondary } for two-line
 // layout (primary = bold name, secondary = team/repo context line).
-function feedGroupHeadline(g) {
+function feedGroupHeadline(g, cohortIndex = buildCohortIndex(state.cohort)) {
   const ev = g.latest;
   let primary = "";
   let secondary = "";
   if (g.person_id) {
-    const p = (state.cohort?.people || []).find(x => x.record_id === g.person_id);
+    const p = cohortIndex.personById.get(g.person_id);
     primary = p?.name || g.actor || g.person_id;
     if (ev.team_id) {
-      const t = teamLabel(ev.team_id);
+      const t = teamLabel(ev.team_id, cohortIndex);
       if (t && t !== "—") secondary = t;
     }
     if (!secondary && ev.repo) secondary = ev.repo;
   } else if (g.team_id) {
-    primary = teamLabel(g.team_id);
+    primary = teamLabel(g.team_id, cohortIndex);
     secondary = g.actor ? `@${g.actor}` : (ev.repo || "");
   } else {
     primary = g.actor || ev.repo || "—";
@@ -3936,9 +6030,9 @@ function feedGroupTail(g) {
   return top.join(" · ");
 }
 
-function renderFeedGroup(g) {
+function renderFeedGroup(g, cohortIndex = buildCohortIndex(state.cohort)) {
   const ev = g.latest;
-  const { primary, secondary } = feedGroupHeadline(g);
+  const { primary, secondary } = feedGroupHeadline(g, cohortIndex);
   const tail = feedGroupTail(g);
   const sourceClass = `is-${ev.source}`;
   return `
@@ -4080,6 +6174,20 @@ function teamFieldsFor(kind) {
     { key: "graduation_target",  label: "graduation target",  type: "textarea", placeholder: "what 'graduating well' looks like for this project" },
     { key: "monthly_milestones", label: "monthly milestones", type: "textarea", placeholder: "rough month-by-month checkpoints (one per line)" },
     { key: "weekly_goals",       label: "this week's goals",  type: "textarea", placeholder: "concrete goal(s) for this week — refresh on monday" },
+    // ── PMF journey — placed on the constellation › journey spectrum.
+    // stage / evidence STORE the integer but SHOW "1 · idea" via {value,label}.
+    // All optional + defaulted-at-read; an unset journey plots at idea/vibes.
+    { key: "journey.stage",            label: "pmf · stage",            type: "select", options: JOURNEY_STAGE_LABELS.map((l, i) => ({ value: i, label: i === 0 ? l : `${i} · ${l}` })) },
+    { key: "journey.evidence_quality", label: "pmf · evidence quality", type: "select", options: JOURNEY_EVIDENCE_LABELS.slice(1).map((l, i) => ({ value: i + 1, label: `${i + 1} · ${l}` })) },
+    { key: "journey.market_upside",    label: "pmf · market upside",    type: "select", options: [1, 2, 3, 4, 5].map(n => ({ value: n, label: `${n} · ${["", "niche", "modest", "solid", "large", "category-defining"][n]}` })) },
+    { key: "journey.primary_bottleneck", label: "pmf · primary bottleneck", type: "select", options: JOURNEY_BOTTLENECKS },
+    { key: "journey.company_type",     label: "pmf · company type",     type: "select", options: JOURNEY_COMPANY_TYPES },
+    { key: "journey.confidence",       label: "pmf · confidence",       type: "select", options: JOURNEY_CONFIDENCE },
+    { key: "journey.icp",              label: "pmf · ICP",              type: "text",     placeholder: "who is this for — the ideal customer profile" },
+    { key: "journey.problem",          label: "pmf · problem",          type: "textarea", placeholder: "the pain you're solving, in their words" },
+    { key: "journey.solution",         label: "pmf · solution",         type: "textarea", placeholder: "what you ship to solve it" },
+    { key: "journey.evidence_notes",   label: "pmf · evidence notes",   type: "textarea", placeholder: "what proof you have so far (interviews, pilots, usage…)" },
+    { key: "journey.next_milestone",   label: "pmf · next milestone",   type: "text",     placeholder: "the next thing that would move you up the spectrum" },
   ];
 }
 
@@ -4115,22 +6223,16 @@ function setNested(obj, path, value) {
   cur[ks[ks.length - 1]] = value;
 }
 
-// `kind` lives on the team-shaped record; absence defaults to "team".
-// Treats projects as team-shaped records with `kind: "project"`.
-function teamKind(t) { return (t && t.kind) || "team"; }
-function teamsOfKind(teams, kind) {
-  return (teams || []).filter(t => teamKind(t) === kind);
-}
-
 // When switching mode/kind in EDIT mode, snap editTargetId to a valid
 // record from the new pool if the current one isn't in it. Avoids the
 // editor showing a stale form for a record that doesn't match the kind.
 function pickFirstTargetIfMissing(p) {
   const cohort = state.cohort;
   if (!cohort) return;
+  const cohortIndex = buildCohortIndex(cohort);
   const pool = (p.editKind === "person")
-    ? (cohort.people || [])
-    : teamsOfKind(cohort.teams, p.editKind);
+    ? cohortIndex.people
+    : teamsOfKind(cohortIndex.teams, p.editKind);
   const stillValid = pool.some(r => r.record_id === p.editTargetId);
   if (!stillValid) p.editTargetId = pool[0]?.record_id || null;
 }
@@ -4143,6 +6245,7 @@ function loadEditTarget() {
   // we wiped editDraft and editBaseline here, which let a single
   // cohort refresh blow away the user's in-progress edits.
   if (!cohort) return;
+  const cohortIndex = buildCohortIndex(cohort);
 
   // Sticky draft: only (re)seed when the edit context actually changed.
   // Same mode + same kind + same target → preserve whatever the user has
@@ -4154,7 +6257,7 @@ function loadEditTarget() {
   p._editContextKey = contextKey;
 
   // ADD mode: seed a blank draft for the chosen kind. No baseline (null
-  // signals "creating", which submitEditAsPR uses to pick /new/ URL).
+  // signals "creating", which runGithubPRFlow uses to pick /new/ URL).
   if (p.editMode === "add") {
     if (p.editKind === "person") {
       p.editDraft = {
@@ -4198,7 +6301,7 @@ function loadEditTarget() {
 
   // EDIT mode: look up the picked record in the cohort.
   if (p.editKind === "person") {
-    const person = (cohort.people || []).find(pp => pp.record_id === p.editTargetId);
+    const person = cohortIndex.personById.get(p.editTargetId);
     if (person) {
       p.editDraft = JSON.parse(JSON.stringify(person));
       p.editBaseline = JSON.parse(JSON.stringify(person));
@@ -4209,7 +6312,7 @@ function loadEditTarget() {
     return;
   }
   // team or project — pull from cohort.teams, filter by kind.
-  const pool = teamsOfKind(cohort.teams, p.editKind);
+  const pool = teamsOfKind(cohortIndex.teams, p.editKind);
   const t = pool.find(x => x.record_id === p.editTargetId);
   if (t) {
     p.editDraft = JSON.parse(JSON.stringify(t));
@@ -4250,9 +6353,24 @@ function renderProfile() {
     </div>
   ` : "";
 
+  const themeNow = getTheme();
+  const themeNext = themeNow === "light" ? "dark" : "light";
   state.canvas.innerHTML = `
     <header class="alch-profile-head">
-      <h2 class="alch-profile-title">profile</h2>
+      <div class="alch-profile-head-row">
+        <h2 class="alch-profile-title">profile</h2>
+        <button
+          id="alch-theme-toggle"
+          class="alch-theme-toggle"
+          type="button"
+          data-theme-now="${themeNow}"
+          title="switch to ${themeNext} mode"
+          aria-label="switch to ${themeNext} mode"
+        >
+          <span class="alch-theme-toggle-icon" aria-hidden="true">${themeNow === "light" ? "☾" : "☀"}</span>
+          <span class="alch-theme-toggle-label">${themeNext} mode</span>
+        </button>
+      </div>
       <p class="alch-profile-sub">
         add or edit a team / project / person record. when swf-node is running, edits land locally and gossip to LAN peers; github PR is the fallback.
       </p>
@@ -4340,8 +6458,16 @@ function renderEditorForm(fields, draft, ctx) {
     const display = value == null ? "" : String(value);
     let input;
     if (f.type === "select") {
+      // Options may be plain strings (value === label) OR {value,label}
+      // objects (store the value, show the label). Selected when the
+      // stringified option value matches the stringified current value.
       const opts = ['<option value="">—</option>']
-        .concat(f.options.map(o => `<option value="${escHtml(o)}" ${o === value ? "selected" : ""}>${escHtml(o)}</option>`))
+        .concat(f.options.map(o => {
+          const ov = (o && typeof o === "object") ? o.value : o;
+          const ol = (o && typeof o === "object") ? o.label : o;
+          const sel = String(ov) === String(value) ? "selected" : "";
+          return `<option value="${escAttr(String(ov))}" ${sel}>${escHtml(String(ol))}</option>`;
+        }))
         .join("");
       input = `<select name="${escAttr(f.key)}">${opts}</select>`;
     } else if (f.type === "team-select") {
@@ -4366,23 +6492,24 @@ function renderSubmitBlock(p) {
   // team and project both live under cohort-data/teams/.
   const folder = (p.editKind === "person") ? "people" : "teams";
   const targetPath = `cohort-data/${folder}/${slug}.md`;
-  // Phase 2 sync: when swf-node is reachable, prefer the local-write
-  // path. The button label shifts to match. We don't await
-  // isSyncAvailable() here — cohort-source flips the flag synchronously
-  // after the first load — and submitEditAsPR re-probes on click so the
-  // routing is correct even if the daemon went down between render
-  // and click.
+  // Two explicit buttons — no surprise fallback. The local-sync path used
+  // to silently fall through to github when swf-node returned an error;
+  // users couldn't tell which path actually fired. Now: pick the path
+  // explicitly. The sync button disables when swf-node isn't reachable
+  // OR when the draft kind isn't supported by Phase 2 sync (person only).
   const syncOn = isSyncAvailable();
-  const action = isAdd
-    ? (syncOn ? "save profile (local · syncing)" : "create new file (PR)")
-    : (syncOn ? "save profile (local · syncing)" : "open github editor (PR)");
-  const hint = isAdd
-    ? (syncOn
-        ? `posts to your local swf-node — your record gossips to LAN peers on the next sync tick (~30s). github PR is the fallback when swf-node is down.`
-        : `opens github's web editor pre-filled with the new record. click <strong>commit new file</strong> → github walks you into PR creation.`)
-    : (syncOn
-        ? `posts the edit to your local swf-node as a freshly-signed envelope. LAN peers pick it up on the next sync tick. github PR is the fallback when swf-node is down.`
-        : `opens github's web editor on the existing file plus a <strong>changes</strong> panel showing exactly which lines to edit. github web editor doesn't accept pre-filled content for existing files.`);
+  const isPerson = p.editKind === "person";
+  const syncEnabled = syncOn && isPerson;
+  const syncLabel = isAdd ? "create · local sync" : "save · local sync";
+  const ghLabel   = isAdd ? "create · open github PR" : "save · open github PR";
+  const syncDisabledNote =
+    !syncOn   ? ` <span class="alch-submit-pr-mute">(swf-node down)</span>`
+    : !isPerson ? ` <span class="alch-submit-pr-mute">(person only · Phase 3 adds ${escHtml(p.editKind)})</span>`
+    : "";
+  const syncTitle =
+    !syncOn   ? "swf-node is not reachable on 127.0.0.1:7777"
+    : !isPerson ? `local sync is person-only in Phase 2 — this draft is a ${p.editKind}; use github PR`
+    : "post to local swf-node — gossips to LAN peers in ~30s";
   // History link — only in EDIT mode (ADD has no chain to inspect yet).
   // Reads /sync/record/<id>?full=true via sync-client. When swf-node is
   // unreachable the modal renders "history unavailable" and links to
@@ -4392,14 +6519,28 @@ function renderSubmitBlock(p) {
     : "";
   return `
     <div class="alch-profile-submit">
-      <button id="alch-submit-pr" class="alch-feed-btn alch-submit-pr-btn" type="button">
-        <span aria-hidden="true">↑</span>
-        <span class="alch-submit-pr-label">${escHtml(action)}</span>
-      </button>
-      ${historyHtml}
+      <div class="alch-profile-submit-row">
+        <button id="alch-submit-sync"
+                class="alch-feed-btn alch-submit-pr-btn alch-submit-pr-primary"
+                type="button"
+                ${syncEnabled ? "" : "disabled aria-disabled=\"true\""}
+                title="${escAttr(syncTitle)}">
+          <span aria-hidden="true">↑</span>
+          <span class="alch-submit-pr-label">${escHtml(syncLabel)}</span>${syncDisabledNote}
+        </button>
+        <button id="alch-submit-pr"
+                class="alch-feed-btn alch-submit-pr-btn alch-submit-pr-secondary"
+                type="button"
+                title="open github's web editor — durable, requires fork + merge">
+          <span aria-hidden="true">⎘</span>
+          <span class="alch-submit-pr-label">${escHtml(ghLabel)}</span>
+        </button>
+        ${historyHtml}
+      </div>
       <p class="alch-submit-pr-hint">
         will publish to <code id="alch-submit-pr-target">${escHtml(targetPath)}</code>.
-        ${hint}
+        <strong>local sync</strong> writes to your swf-node — instant on this machine, gossips to LAN peers on the next ~30s tick.
+        <strong>github PR</strong> opens the web editor pre-filled with your edits — durable, requires a fork + reviewer merge.
       </p>
     </div>
   `;
@@ -4436,6 +6577,17 @@ function wireExternalLinks(root) {
 }
 
 function wireProfileForm() {
+  // Light/dark toggle (lives in the profile header).
+  const themeBtn = state.canvas.querySelector("#alch-theme-toggle");
+  if (themeBtn) {
+    themeBtn.addEventListener("click", () => {
+      const next = toggleTheme();
+      toast(`switched to ${next} mode`);
+      renderProfile();
+      wireProfileForm();
+    });
+  }
+
   // Mode tabs (add / edit)
   for (const btn of state.canvas.querySelectorAll(".alch-pf-modetab[data-edit-mode]")) {
     btn.addEventListener("click", () => {
@@ -4492,6 +6644,12 @@ function wireProfileForm() {
       let coerced = value;
       if (target.type === "number") coerced = value === "" ? null : Number(value);
       else if (value === "") coerced = null;
+      // Integer-valued journey selects store the number, not the string,
+      // so the data model stays clean (stage/evidence/market_upside are
+      // 1..N integers). Other selects keep their string value.
+      else if (NUMERIC_JOURNEY_KEYS.has(target.name) && /^-?\d+$/.test(value)) {
+        coerced = Number(value);
+      }
       setNested(state.profile.editDraft, target.name, coerced);
       saveProfile();
       // Refresh the ADD path preview so the user can see exactly where
@@ -4509,8 +6667,10 @@ function wireProfileForm() {
   }
 
   // Submit
+  const syncBtn = document.getElementById("alch-submit-sync");
+  if (syncBtn) syncBtn.addEventListener("click", submitEditAsLocalSync);
   const prBtn = document.getElementById("alch-submit-pr");
-  if (prBtn) prBtn.addEventListener("click", submitEditAsPR);
+  if (prBtn) prBtn.addEventListener("click", submitEditAsGithubPR);
 
   // History — Phase 2 modal listing prior versions of the record. Pulls
   // the full chain via /sync/record/<id>?full=true. Each row exposes a
@@ -4837,58 +6997,239 @@ function applyEnvelopeToCohort(envelope, recordId, kind) {
   cohort[listKey] = arr;
 }
 
-async function submitEditAsPR() {
+// ─── profile-sync diagnostic logger ────────────────────────────────────
+// Verbose by design — profile sync is where users most often need a quick
+// wire-level read. Lands in DevTools (SRWK_DEVTOOLS=1) and is dumped into
+// the "copy diagnostics" payload from the error result panel.
+const _profileSyncLog = [];
+function psLog(level, ...args) {
+  const ts = new Date().toISOString();
+  _profileSyncLog.push({ ts, level, args });
+  if (_profileSyncLog.length > 200) _profileSyncLog.splice(0, _profileSyncLog.length - 200);
+  // eslint-disable-next-line no-console
+  (console[level] || console.log)("[profile-sync]", ...args);
+}
+
+// Translate a trySyncWriteForCurrentEdit failure into something a human
+// can read. Headline gets the in-app line; body gets the daemon's actual
+// response payload (if any) for the diagnostics dump.
+function describeSyncFailure(synced) {
+  const r = synced.reason || "unknown";
+  let headline;
+  switch (r) {
+    case "no_token":           headline = "no agent token — swf-node hasn't shared its auth token with the renderer yet"; break;
+    case "no_cohort_keys":     headline = "swf-node has no cohort signing keys bootstrapped (POST /sync/local_record → 503)"; break;
+    case "sync_unavailable":   headline = "swf-node not reachable on 127.0.0.1:7777"; break;
+    case "unauthorized":       headline = "swf-node rejected the agent token (401) even after a refresh"; break;
+    case "no_slug":            headline = "no record_id could be determined from the draft (no github username, no name)"; break;
+    case "kind_unsupported":   headline = `local sync is person-only in Phase 2 — this draft is a ${state.profile?.editKind || "?"}`; break;
+    case "bad_request":        headline = `client-side validation: ${synced.error || "unknown"}`; break;
+    case "conflict":           headline = "swf-node rejected the write as a chain conflict (409) — another device may have written first; reload + retry"; break;
+    case "envelope_too_large": headline = "swf-node rejected the envelope as too large (413) — trim the draft and retry"; break;
+    case "not_found":          headline = "swf-node returned 404 — the local_record route may be missing on this swf-node version"; break;
+    case "server_error":       headline = `swf-node returned a 5xx (${synced.status ?? "?"}) — daemon-side error; check swf-node logs`; break;
+    case "http_error":         headline = `swf-node returned HTTP ${synced.status ?? "?"} — see daemon response body`; break;
+    case "malformed":          headline = "swf-node returned 200 but the response shape wasn't recognized (expected { envelope: … })"; break;
+    case "timeout":            headline = "POST /sync/local_record timed out — swf-node didn't respond within the request budget"; break;
+    case "network":            headline = `network error talking to swf-node — ${synced.error || "fetch failed"}`; break;
+    case "post_failed":
+    default:                   headline = `POST /sync/local_record returned status ${synced.status ?? "?"} (reason: ${r})`;
+  }
+  let body = "";
+  if (synced.body && typeof synced.body === "object")  body = JSON.stringify(synced.body, null, 2);
+  else if (synced.body)                                body = String(synced.body);
+  return { headline, body };
+}
+
+// ─── propagation watch ────────────────────────────────────────────────
+// After a successful local-sync the user had no signal that the LAN
+// actually picked up the change. Capture /node/log's max seq right
+// before the POST; at +30s and +60s, re-query for events since save
+// and surface a one-line status (peer manifest fetches, pulls, applied,
+// reachable). Not a strict proof of propagation — swf-node's view of
+// peers is partial — but enough to distinguish "wire is alive" from
+// "wire is dead".
+async function captureCurrentLogSeq() {
+  try {
+    const r = await getNodeLog({ sinceSeq: 0, limit: 1 });
+    if (!r.ok || !r.log || !Array.isArray(r.log.events)) return null;
+    const evs = r.log.events;
+    if (!evs.length) return null;
+    const last = evs[evs.length - 1];
+    return last && typeof last.seq === "number" ? last.seq : null;
+  } catch { return null; }
+}
+
+const PEER_KINDS = new Set([
+  "manifest_fetched", "pulled", "applied_local",
+  "peer_reachable", "peer_unreachable",
+]);
+
+async function pollPropagation(statusEl, sinceSeq, label) {
+  if (!statusEl) return;
+  try {
+    const r = await getNodeLog({ sinceSeq: sinceSeq ?? 0, limit: 200 });
+    if (!r.ok || !r.log || !Array.isArray(r.log.events)) {
+      statusEl.innerHTML = `propagation watch (<strong>${escHtml(label)}</strong>): /node/log unavailable`;
+      return;
+    }
+    const evs = r.log.events;
+    const total = evs.length;
+    const peerEvs = evs.filter(e => PEER_KINDS.has(e.kind));
+    const fetched = peerEvs.filter(e => e.kind === "manifest_fetched").length;
+    const pulled  = peerEvs.filter(e => e.kind === "pulled").length;
+    const applied = peerEvs.filter(e => e.kind === "applied_local").length;
+    const reach   = peerEvs.filter(e => e.kind === "peer_reachable").length;
+    statusEl.innerHTML = `propagation <strong>${escHtml(label)}</strong>: ${total} wire event${total === 1 ? "" : "s"} since save · ${fetched} peer manifest fetch${fetched === 1 ? "" : "es"} · ${pulled} pull${pulled === 1 ? "" : "s"} · ${applied} applied · ${reach} peer-reachable`;
+    psLog("info", "propagation poll", { label, sinceSeq, total, fetched, pulled, applied, reach });
+  } catch (e) {
+    statusEl.innerHTML = `propagation watch (<strong>${escHtml(label)}</strong>): error reading /node/log`;
+    psLog("warn", "propagation poll failed", String(e));
+  }
+}
+
+async function submitEditAsLocalSync() {
   const result = document.getElementById("alch-submit-pr-result");
   if (!result) return;
   const p = state.profile;
 
-  // ─── Phase 2 sync write — try first, fall back to github PR. ─────
-  // We attempt this for both ADD and EDIT, person-only. Team/project
-  // edits and unsupported kinds skip straight to the github PR path
-  // below (trySyncWriteForCurrentEdit reports `kind_unsupported`).
-  if (p.editKind === "person") {
+  psLog("info", "submitEditAsLocalSync click", {
+    editMode: p.editMode,
+    editKind: p.editKind,
+    editTargetId: p.editTargetId,
+    draftSlug: draftSlug(p),
+    syncAvailable: isSyncAvailable(),
+    draftKeys: Object.keys(p.editDraft || {}),
+  });
+
+  if (p.editKind !== "person") {
     result.hidden = false;
-    result.dataset.kind = "loading";
-    result.innerHTML = `<div class="aspr-line"><span class="aspr-tag">saving</span> <span>posting to local swf-node…</span></div>`;
-    const synced = await trySyncWriteForCurrentEdit();
-    if (synced.routed === "sync") {
-      const recordId = synced.recordId;
-      applyEnvelopeToCohort(synced.envelope, recordId, "person");
-      // Snap the editor's baseline to the new content so a follow-up
-      // EDIT diffs from the just-saved state.
-      if (p.editMode === "edit") {
-        p.editBaseline = JSON.parse(JSON.stringify(p.editDraft));
-      }
-      toast({
-        kind: "success",
-        title: "profile saved locally",
-        message: "syncing to peers on the next tick (~30s)",
-      });
-      result.hidden = false;
-      result.dataset.kind = "success";
-      result.innerHTML = `
-        <div class="aspr-line"><span class="aspr-tag">saved · local</span> <span>your edit is on this swf-node. LAN peers will pull it on the next ~30s tick.</span></div>
-        <div class="aspr-line aspr-aux">record: <code>${escHtml(recordId)}</code></div>
-      `;
-      // Re-render so the canvas + form pick up the new latest state.
-      renderProfile();
-      wireProfileForm();
-      return;
-    }
-    // Fall through to the github PR path. Surface a one-line banner so
-    // the user knows we tried sync and bailed.
-    if (synced.reason !== "kind_unsupported" && synced.reason !== "sync_unavailable") {
-      console.warn("[sync] local_record failed, falling back to github PR:", synced.reason, synced.body);
-    }
-    if (synced.reason !== "kind_unsupported") {
-      result.hidden = false;
-      result.dataset.kind = "fallback";
-      result.innerHTML = `<div class="aspr-line"><span class="aspr-tag aspr-tag-warn">swf-node unavailable</span> <span>using github PR instead — your edits are preserved.</span></div>`;
-    }
+    result.dataset.kind = "error";
+    result.innerHTML = `<div class="aspr-line"><span class="aspr-tag aspr-tag-warn">unsupported</span> <span>local sync is person-only in Phase 2 (this draft is a ${escHtml(p.editKind)}). use <strong>save · open github PR</strong>.</span></div>`;
+    return;
   }
 
-  // ─── github PR fallback (pre-sync behavior, unchanged below) ─────
-  // ADD mode → github /new/ URL with prefilled content.
+  result.hidden = false;
+  result.dataset.kind = "loading";
+  result.innerHTML = `<div class="aspr-line"><span class="aspr-tag">saving</span> <span>posting to local swf-node…</span></div>`;
+
+  // Capture the /node/log frontier BEFORE the POST so the post-save
+  // propagation watch can count events that fired since the save (rather
+  // than the entire log buffer).
+  const preSaveSeq = await captureCurrentLogSeq();
+  psLog("info", "captured pre-save log seq", { seq: preSaveSeq });
+
+  const synced = await trySyncWriteForCurrentEdit();
+  psLog("info", "trySyncWriteForCurrentEdit returned", synced);
+
+  if (synced.routed === "sync") {
+    const recordId = synced.recordId;
+    applyEnvelopeToCohort(synced.envelope, recordId, "person");
+    // Snap the editor's baseline to the new content so a follow-up EDIT
+    // diffs from the just-saved state.
+    if (p.editMode === "edit") {
+      p.editBaseline = JSON.parse(JSON.stringify(p.editDraft));
+    }
+    toast({ kind: "success", title: "profile saved locally", message: "syncing to peers on the next tick (~30s)" });
+    result.dataset.kind = "success";
+    result.innerHTML = `
+      <div class="aspr-line"><span class="aspr-tag">saved · local</span> <span>your edit is on this swf-node. LAN peers will pull it on the next ~30s tick.</span></div>
+      <div class="aspr-line aspr-aux">record: <code>${escHtml(recordId)}</code> · envelope_hash: <code>${escHtml(synced.envelope?.content_hash || "—")}</code></div>
+      <div class="aspr-line aspr-aux" id="aspr-prop-status">propagation watch: starting (+30s, +60s polls)…</div>
+    `;
+    // Schedule propagation watches. Best-effort signal: counts peer-side
+    // sync events that fire in the window after save.
+    const statusEl = result.querySelector("#aspr-prop-status");
+    setTimeout(() => { pollPropagation(statusEl, preSaveSeq, "+30s"); }, 30000);
+    setTimeout(() => { pollPropagation(statusEl, preSaveSeq, "+60s"); }, 60000);
+    renderProfile();
+    wireProfileForm();
+    return;
+  }
+
+  // Failure. Do NOT fall back — the github button is sitting right next to
+  // this one for the user to decide. Surface the daemon's actual reason +
+  // any response body in a copyable diagnostic.
+  const detail = describeSyncFailure(synced);
+  psLog("warn", "sync failed — surfacing to user (no auto-fallback)", { reason: synced.reason, status: synced.status, body: synced.body });
+  result.dataset.kind = "error";
+  result.innerHTML = `
+    <div class="aspr-line"><span class="aspr-tag aspr-tag-warn">local sync failed</span> <span>${escHtml(detail.headline)}</span></div>
+    ${detail.body ? `<div class="aspr-line aspr-aux"><pre class="aspr-debug">${escHtml(detail.body)}</pre></div>` : ""}
+    <div class="aspr-line aspr-aux">
+      <button type="button" class="alch-feed-btn aspr-copy-log">copy diagnostics</button>
+      <span class="aspr-aux">or click <strong>save · open github PR</strong> for the durable path.</span>
+    </div>
+  `;
+  const copyBtn = result.querySelector(".aspr-copy-log");
+  if (copyBtn) copyBtn.addEventListener("click", async () => {
+    // Gather a self-contained snapshot for triage: app version, daemon
+    // reachability, the failed call's full inputs/outputs, and the last
+    // 50 /node/log events so reviewers can see what the wire was doing
+    // around the failure. Best-effort — each lookup may itself fail and
+    // we surface that as null, never blocking the dump.
+    let appInfo = null;
+    try { appInfo = await (window.api?.getAppInfo?.() ?? null); } catch (e) { appInfo = { error: String(e) }; }
+    let recentLog = null;
+    try {
+      const r = await getNodeLog({ sinceSeq: 0, limit: 50 });
+      recentLog = r.ok ? { count: r.log?.events?.length ?? 0, events: r.log?.events ?? [] } : { error: r.reason || "log_unavailable" };
+    } catch (e) { recentLog = { error: String(e) }; }
+    let manifestSummary = null;
+    try {
+      const m = await getManifest();
+      if (m.ok) {
+        const recs = Object.keys(m.manifest?.records || {});
+        manifestSummary = { record_count: recs.length, record_ids: recs.slice(0, 20) };
+      } else {
+        manifestSummary = { error: m.reason || "manifest_unavailable" };
+      }
+    } catch (e) { manifestSummary = { error: String(e) }; }
+    const payload = {
+      timestamp: new Date().toISOString(),
+      app: appInfo,
+      sync_available: isSyncAvailable(),
+      edit: {
+        mode: p.editMode,
+        kind: p.editKind,
+        target_id: p.editTargetId,
+        draft_keys: Object.keys(p.editDraft || {}),
+      },
+      result: synced,
+      manifest_summary: manifestSummary,
+      recent_node_log: recentLog,
+      log_tail: _profileSyncLog.slice(-40),
+    };
+    const blob = JSON.stringify(payload, null, 2);
+    try {
+      await navigator.clipboard.writeText(blob);
+      toast({ kind: "info", title: "diagnostics copied", message: `${blob.length} bytes — paste anywhere to debug` });
+    } catch (e) {
+      psLog("warn", "clipboard write failed", String(e));
+      toast({ kind: "warn", title: "copy failed", message: "see DevTools console for the dump" });
+      console.log("[profile-sync] diagnostics dump:\n" + blob);
+    }
+  });
+}
+
+async function submitEditAsGithubPR() {
+  const result = document.getElementById("alch-submit-pr-result");
+  if (!result) return;
+  psLog("info", "submitEditAsGithubPR click", {
+    editMode: state.profile.editMode,
+    editKind: state.profile.editKind,
+    editTargetId: state.profile.editTargetId,
+  });
+  await runGithubPRFlow(result);
+}
+
+// ─── github PR launcher — extracted from the old submitEditAsPR ───────
+// ADD → github /new/ URL with prefilled content. EDIT → rebuild full
+// markdown (mutated frontmatter + preserved body fetched from raw) and
+// route through /new/?value= so github forces "create new branch +
+// propose changes". Pure UI flow — no swf-node side effects.
+async function runGithubPRFlow(result) {
+  const p = state.profile;
   if (p.editMode === "add") {
     const slug = draftSlug(p);
     if (!slug) {
@@ -5005,4 +7346,3 @@ function formatDiffValue(v) {
 }
 
 // escAttr lives in @shape-rotator/shape-ui now (imported at the top).
-

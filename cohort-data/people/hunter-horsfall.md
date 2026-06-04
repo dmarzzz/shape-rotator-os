@@ -28,6 +28,17 @@ availability_pref: |
   Currently open. Prefer async by default, with calls for high-context collaboration or anything that benefits from rapid back-and-forth.
 weekly_intention: "Improve my personal feed and build a better system prompt for filtering information."
 dietary_restrictions: none
+go_to_them_for:
+  - user-owned cloud architecture
+  - DID/auth capability systems
+  - TEE-backed storage
+  - decentralized systems implementation
+recurring_themes:
+  - personal cloud sovereignty
+  - deep infrastructure
+  - capability-based access
+  - implementation discipline
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

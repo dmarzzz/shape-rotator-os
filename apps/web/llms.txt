@@ -1,0 +1,30 @@
+# Shape Rotator OS
+
+> Public web surface for the Shape Rotator cohort and workspace.
+
+Public content version: v0.0.1
+
+Important pages:
+
+- [Workspace](https://os-web.shaperotator.xyz/workspace): immersive Shape Rotator control-room surface.
+- [Workspace journal](https://os-web.shaperotator.xyz/workspace/journal): compact articles on AI agents, LLM workflows, AI workflow memory, trust, timing, taste, and human override.
+- [Journal LLM list](https://os-web.shaperotator.xyz/workspace/journal/llms.txt): raw article links and Markdown sources for LLM retrieval.
+- [Cohort](https://os-web.shaperotator.xyz/cohort): public cohort viewer.
+- [Calendar](https://os-web.shaperotator.xyz/calendar): public program calendar.
+- [Links](https://os-web.shaperotator.xyz/links): important project links.
+
+Journal themes:
+
+- LLM agents
+- AI workflow memory
+- human-in-the-loop AI
+- Model Context Protocol
+- AI trust and verification
+- trusted execution environments
+- agentic workspaces
+- creative AI tools
+
+Journal article sources:
+
+- [Why LLM agents need memory, workflows, and social routing](https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing/article.md)
+- [Privacy is not the product; capability is the product](https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability/article.md)

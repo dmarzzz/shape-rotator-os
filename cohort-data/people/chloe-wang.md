@@ -17,8 +17,17 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - wallet UX questions
+  - Liquefaction-adjacent implementation
+  - crypto product mechanics
+recurring_themes:
+  - wallet infrastructure
+  - routing and custody questions
+  - sparse-source review needed
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface — Crossroads · Liquefaction-built wallet)
+Lead of Crossroads (Cornell Tech) — a Liquefaction-based, policy-constrained cross-chain signing wallet built on IC3-adjacent primitives (Liquefaction and Complete Knowledge).

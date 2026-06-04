@@ -10,15 +10,30 @@ geo: NYC
 domain: ai
 email: hello@albiona.dev
 dates_start: 2026-05-18
-dates_end: 2026-06-11
+dates_end: 2026-07-18
+absences:
+  - start: 2026-06-11
+    end: 2026-06-17
+    note: week off — back Thu Jun 18 for the rest of the accelerator
 links:
   github: AlbionaHoti
   x: albicodes
   website: albiona.dev
   linkedin: AlbionaHoti
 dietary_restrictions:
+go_to_them_for:
+  - speech-practice tools
+  - tight feedback loops
+  - friendly solo-rep interfaces
+  - turning self-improvement into software
+recurring_themes:
+  - practice as product
+  - clear feedback
+  - solo learning loops
+  - accessible tooling
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface)
+Solo founder building Elocute — AI speaking practice with scored feedback — the consumer product with the strongest live traction in the cohort. EIR at Flashbots X. A prolific, AI-first product builder (GitHub albicodes) who packages her own process into reusable tooling: Claude Code skills, app-validation kits, and idea-to-spec workflows.

@@ -8,6 +8,8 @@ __pycache__/
 # build / dist (electron-builder output → published to GitHub Releases, not git)
 dist/
 apps/*/dist/
+dist-renderer/
+apps/*/dist-renderer/
 build/
 out/
 
@@ -22,6 +24,7 @@ data/
 .DS_Store
 .vscode/
 .idea/
+.context-vault/
 
 # env / secrets
 .env
@@ -43,3 +46,11 @@ apps/web/calendar.ics
 
 # vercel cli local link metadata
 .vercel
+
+# CI-fetched single-file PyInstaller binaries (populated at build time
+# by scripts/fetch-swf-node.sh + scripts/fetch-research-swarm.sh; the
+# per-arch _staging/ tree is flattened into the dirs below by the
+# beforePack hook, apps/os/scripts/before-pack-stage-binaries.cjs)
+apps/os/build-resources/_staging/
+apps/os/build-resources/swf-node/
+apps/os/build-resources/research-swarm/

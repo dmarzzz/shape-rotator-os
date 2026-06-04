@@ -17,8 +17,19 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - prediction market infrastructure
+  - InfoFi coordination
+  - TPM-style execution
+  - market microstructure framing
+recurring_themes:
+  - information as liquidity
+  - TradFi-to-crypto translation
+  - structured execution
+  - market design
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface — Daedalus cofounder)
+Co-founder and technical PM on Daedalus, and the team's primary contact, carrying much of the team's operating substance. Distributed (NYC / SF / Asia).

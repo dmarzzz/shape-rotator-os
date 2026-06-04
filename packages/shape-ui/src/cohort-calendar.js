@@ -1,5 +1,12 @@
 // cohort-calendar.js — shared canvas renderer for the cohort calendar.
 //
+// Program window comes from cohort-calendar-week.js so both surfaces
+// agree on the same May 18 → Jul 26 ten-week span. Used as a lower
+// bound when deriving the chart range from cohort.people windows —
+// the canvas always extends through the program end even if the latest
+// person record's dates_end is earlier (see #126).
+import { PROGRAM_START_MS, PROGRAM_END_MS } from "./cohort-calendar-week.js";
+//
 // Gantt-style canvas: rows = people grouped by team, columns = days from
 // program start → end. Each row shows the person's overall window as a
 // filled bar in their hash-derived hue; absences render as a striped
@@ -24,27 +31,56 @@ const CAL_LEFT_W     = 240;       // left column — person labels
 const CAL_PAD_R      = 40;
 const CAL_PAD_B      = 40;
 const CAL_FOOTER_H   = 64;        // bottom — date span + legend
-const CAL_BG         = "#231F20";
+// Palette tokens for the gantt are pulled from CSS custom properties
+// at draw time via readCalPalette() so the canvas flips when the user
+// toggles light/dark mode (data-theme on <html>). The defaults below
+// are the dark-mode fallbacks used when the CSS hasn't loaded yet (the
+// `let` ⇒ mutable; reassigned by readCalPalette before each draw).
+let CAL_BG         = "#231F20";
 // Lane background: lifted a notch (was #15120e) so the present/absent
 // delta has somewhere to land. Bars on a near-black field read as one
 // solid mass; on a slightly-warm field they pop.
-const CAL_BG_LANE    = "#2C2728";
+let CAL_BG_LANE    = "#2C2728";
 // Absence base: pulled darker than the lane so stripes ride on a solid
 // hole, not on the same value as everywhere else.
-const CAL_ABS_BASE   = "#1A1719";
-const CAL_RULE       = "rgba(245, 243, 238, 0.07)";
-const CAL_RULE_WEEK  = "rgba(245, 243, 238, 0.14)";
-const CAL_INK_1      = "#f5f3ee";
-const CAL_INK_2      = "#b8b4ab";
-const CAL_INK_3      = "#7a7368";
-const CAL_INK_4      = "#3a3833";
-const CAL_OXIDE      = "#8F220E";  // today marker (xyz sr-red)
+let CAL_ABS_BASE   = "#1A1719";
+let CAL_RULE       = "rgba(245, 243, 238, 0.07)";
+let CAL_RULE_WEEK  = "rgba(245, 243, 238, 0.14)";
+let CAL_INK_1      = "#f5f3ee";
+let CAL_INK_2      = "#b8b4ab";
+let CAL_INK_3      = "#7a7368";
+let CAL_INK_4      = "#3a3833";
+let CAL_OXIDE      = "#8F220E";  // today marker (xyz sr-red)
+
+// Refresh palette from CSS custom properties — keeps the imperatively
+// drawn gantt aligned with the data-theme attribute on <html>. Called
+// once at the top of drawCalendar() so every redraw picks up the
+// current theme. CSS-side names mirror the JS constants 1:1.
+function readCalPalette() {
+  if (typeof document === "undefined") return;
+  const cs = getComputedStyle(document.documentElement);
+  const pick = (name, fallback) => {
+    const v = cs.getPropertyValue(name).trim();
+    return v || fallback;
+  };
+  CAL_BG        = pick("--cal-bg",        CAL_BG);
+  CAL_BG_LANE   = pick("--cal-bg-lane",   CAL_BG_LANE);
+  CAL_ABS_BASE  = pick("--cal-abs-base",  CAL_ABS_BASE);
+  CAL_RULE      = pick("--cal-rule",      CAL_RULE);
+  CAL_RULE_WEEK = pick("--cal-rule-week", CAL_RULE_WEEK);
+  CAL_INK_1     = pick("--cal-ink-1",     CAL_INK_1);
+  CAL_INK_2     = pick("--cal-ink-2",     CAL_INK_2);
+  CAL_INK_3     = pick("--cal-ink-3",     CAL_INK_3);
+  CAL_INK_4     = pick("--cal-ink-4",     CAL_INK_4);
+  CAL_OXIDE     = pick("--cal-oxide",     CAL_OXIDE);
+}
 
 // Reasonable defaults for the program; the wrapper API accepts an
 // override range, and the surface data may eventually carry its own
-// programStart/end which can be fed in directly.
-const CAL_PROGRAM_START = "2026-05-18";
-const CAL_PROGRAM_END   = "2026-07-18";
+// programStart/end which can be fed in directly. Sourced from
+// cohort-calendar-week.js so the broadsheet and the gantt agree.
+const CAL_PROGRAM_START_D = new Date(PROGRAM_START_MS);
+const CAL_PROGRAM_END_D   = new Date(PROGRAM_END_MS);
 
 // ── Date helpers (UTC-anchored to avoid TZ drift) ─────────────────────
 function isoToDate(s) {
@@ -117,6 +153,10 @@ export function buildCalendarRows(cohort) {
 
 // ── Top-level canvas painter ──────────────────────────────────────────
 export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
+  // Pull palette from CSS custom properties so the gantt respects the
+  // current data-theme. Cheap enough to run every draw (string copies).
+  readCalPalette();
+
   // Background.
   ctx.fillStyle = CAL_BG;
   ctx.fillRect(0, 0, W, H);
@@ -679,11 +719,13 @@ export function renderCohortCalendar({ container, cohort, range }) {
 function resolveRange(cohort, range) {
   // Explicit range wins.
   if (range && (range.start || range.end)) {
-    const s = range.start instanceof Date ? range.start : isoToDate(range.start) || isoToDate(CAL_PROGRAM_START);
-    const e = range.end   instanceof Date ? range.end   : isoToDate(range.end)   || isoToDate(CAL_PROGRAM_END);
+    const s = range.start instanceof Date ? range.start : isoToDate(range.start) || CAL_PROGRAM_START_D;
+    const e = range.end   instanceof Date ? range.end   : isoToDate(range.end)   || CAL_PROGRAM_END_D;
     return { start: s, end: e };
   }
-  // Derive from cohort.people windows.
+  // Derive from cohort.people windows, but clamp to the program span so
+  // the chart always covers the full cohort — even if every person's
+  // dates_end falls before the program end (which was the #126 bug).
   const people = (cohort && cohort.people) || [];
   let minStart = null;
   let maxEnd   = null;
@@ -693,8 +735,7 @@ function resolveRange(cohort, range) {
     if (s && (!minStart || s < minStart)) minStart = s;
     if (e && (!maxEnd   || e > maxEnd))   maxEnd   = e;
   }
-  return {
-    start: minStart || isoToDate(CAL_PROGRAM_START),
-    end:   maxEnd   || isoToDate(CAL_PROGRAM_END),
-  };
+  const start = (minStart && minStart < CAL_PROGRAM_START_D) ? minStart : CAL_PROGRAM_START_D;
+  const end   = (maxEnd   && maxEnd   > CAL_PROGRAM_END_D)   ? maxEnd   : CAL_PROGRAM_END_D;
+  return { start, end };
 }

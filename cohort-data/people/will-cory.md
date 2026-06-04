@@ -11,7 +11,7 @@ domain: ai
 dates_start: 2026-05-18T00:00:00.000Z
 dates_end: 2026-07-18T00:00:00.000Z
 links:
-  github: "roninijin10"
+  github: "roninjin10"
   x: "@fucory"
   website: "https://smithers.sh"
   linkedin: "willcory10"
@@ -20,8 +20,26 @@ contribute_interests: "Help with agent orchestrations"
 availability_pref: null
 weekly_intention: "bring the vibes learn about others projects"
 dietary_restrictions: "none"
+go_to_them_for:
+  - agentic coding systems
+  - developer workflow experiments
+  - repo-level builder signal
+  - multi-agent review loops
+recurring_themes:
+  - solo high-context building
+  - AI coding tools
+  - developer flow
+  - strong public repo signal with process ambiguity
+enrichment_source: dossier-derived  # facilitator read; edit freely
+making_signature:
+  class: underplayed-depth
+  built_domain: [frontend, agentic]
+  shape: deep
+  note: builds more than they present — weight up
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about
 
-(public surface — JJHub / Tevm)
+A scene-native open-source builder (GitHub roninjin10) running an interlocking set of Ethereum-infrastructure and agentic-coding projects: Tevm (an EVM implemented in TypeScript, ~440 stars, EF-grant-supported), Smithers (durable agentic-workflow orchestration), and JJHub (an agentic-coding platform with 80k+ tests). SF (PST).

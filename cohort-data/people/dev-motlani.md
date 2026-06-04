@@ -21,4 +21,4 @@ dietary_restrictions:
 
 ## about
 
-(public surface)
+Co-founder & CEO of AlphaI, an agentic trading OS for AI-native funds and serious traders. Quant-finance background (formerly Equarion Capital, managing crypto AUM and building live trading models). Leads product and market thesis. Bangalore / LA.

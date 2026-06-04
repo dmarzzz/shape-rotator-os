@@ -1,0 +1,79 @@
+// before-pack-stage-binaries.cjs
+//
+// electron-builder `beforePack` hook. Fixes #186.
+//
+// The os-release matrix runs ONE runner per platform, but electron-builder
+// cross-builds both arches of each .dmg / .AppImage on that single runner.
+// The fetch scripts (scripts/fetch-swf-node.sh, scripts/fetch-research-swarm.sh)
+// now stage BOTH arches into:
+//
+//   apps/os/build-resources/_staging/<name>/<arch>/<binary>
+//
+// extraResources in package.json copies build-resources/<name>/ →
+// Resources/<name>/. beforePack runs once per arch target (inside the
+// per-arch pack loop, before extraResources are copied — verified against
+// app-builder-lib platformPackager.doPack), so here we flatten the matching
+// arch's staged binary into build-resources/<name>/ so each per-arch bundle
+// ships the correct binary instead of the runner's host arch.
+//
+// electron-builder does NOT macro-expand the `from` field of extraResources
+// (app-builder-lib fileMatcher), so a ${arch} path in package.json is not an
+// option — staging through this hook is the supported seam.
+//
+// Defensive: if a per-arch staging dir is absent (e.g. local `npm run pack`
+// without running the fetch scripts), the flat build-resources/<name>/ dir is
+// left as-is so existing local/dev workflows keep working.
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+// app-builder-lib Arch enum (packages/builder-util/src/arch.ts) → the arch
+// token the fetch scripts use for the staging subdir.
+const ARCH_NAME = { 0: "ia32", 1: "x64", 2: "armv7l", 3: "arm64", 4: "universal" };
+
+// Single-file binaries fetched per-arch in CI and copied via extraResources.
+const BUNDLES = ["swf-node", "research-swarm"];
+
+module.exports = async function beforePack(context) {
+  const archName = ARCH_NAME[context.arch] || String(context.arch);
+  const buildResources = path.resolve(__dirname, "..", "build-resources");
+  const stagingBase = path.join(buildResources, "_staging");
+
+  for (const name of BUNDLES) {
+    const flatDir = path.join(buildResources, name);
+    // Ensure the extraResources `from` dir always exists (may end up empty,
+    // e.g. windows-arm64 where there is no upstream asset — same degraded
+    // behavior as before this fix).
+    fs.mkdirSync(flatDir, { recursive: true });
+
+    const archDir = path.join(stagingBase, name, archName);
+    if (!fs.existsSync(archDir)) {
+      console.log(
+        `[before-pack] ${name}: no staged binary for ${archName} — leaving build-resources/${name}/ untouched`
+      );
+      continue;
+    }
+
+    // Clear stale top-level files left by the previous arch in this same job
+    // (arches pack sequentially), then copy this arch's staged files up.
+    for (const entry of fs.readdirSync(flatDir, { withFileTypes: true })) {
+      if (entry.isFile()) fs.rmSync(path.join(flatDir, entry.name), { force: true });
+    }
+
+    let copied = 0;
+    for (const entry of fs.readdirSync(archDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const dest = path.join(flatDir, entry.name);
+      fs.copyFileSync(path.join(archDir, entry.name), dest);
+      try {
+        fs.chmodSync(dest, 0o755);
+      } catch {
+        /* best-effort exec bit; non-fatal on Windows */
+      }
+      copied += 1;
+    }
+    console.log(
+      `[before-pack] ${name}: staged ${copied} file(s) for ${archName} (${context.electronPlatformName})`
+    );
+  }
+};

@@ -45,6 +45,23 @@ seeking:
 offering:
   - modular skill framework — open-source — for other TEE-based agent projects
   - hackathon-novelty skill for cohort multi-party workflows
+journey:
+  stage: 3
+  evidence_quality: 2
+  market_upside: 4
+  primary_bottleneck: ICP Clarity
+  company_type: Infra
+  confidence: Low
+  icp: developers building multi-party TEE-agent workflows who need a reusable skills runtime
+  problem: every TEE-agent project re-implements its own skill plumbing from scratch
+  solution: a modular, open-source skills framework (LangGraph + Phala + Base) factored for reuse
+  evidence_notes: ~3.5k LOC hackathon submission plus two end-to-end skills; talking to cohort teams about adoption but no committed users yet
+  next_milestone: land the framework as a dependency in at least one other cohort project
+making_signature:
+  built_domain: [data]
+  shape: deep
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

@@ -17,8 +17,27 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - NDAI frameworks
+  - skills runtime design
+  - agent coordination protocols
+  - developer abstractions
+recurring_themes:
+  - agent agreements
+  - runtime structure
+  - coordination primitives
+  - framework-to-tool translation
+working_style: Under-observed
+enrichment_source: dossier-derived  # facilitator read; edit freely
+making_signature:
+  class: latent
+  built_domain: [data, frontend]
+  shape: broad
+  note: code is the clearest signal we have on them
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about
 
-(public surface — Conclave cofounder)
+Co-founder and ML & AI lead of Conclave. Works on embeddings, clustering, and agentic pre-checks before LLM inference. NY State (Stony Brook).

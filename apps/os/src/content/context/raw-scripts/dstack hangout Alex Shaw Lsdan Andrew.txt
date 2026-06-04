@@ -1,0 +1,247 @@
+Shaw  0:00
+October makes OS,
+
+Shaw  0:03
+yeah, that sounds like it'd also make running VStack a bit easier, yeah, exactly, that would be pretty like defaulted.
+
+Alex (flashbots?)  0:09
+So my goal is not to like release this as a product akin to VStack, but to have it kind of be like a foundational layer that things like VStack and things like Flashbox, Flashbox can all build upon, so that we can all kind of cross pollinate ideas, and like kind of use this water work that we built here to like kind of have all of the products benefit from each other, because right now what I've seen is that everybody is kind of reinventing the wheel on their own, and doing so in such a way that kind of requires a lot of maintenance.
+
+Shaw  0:45
+Yeah, yeah, I mean, I really think that, like, if my reprovoice is more like, yeah, I already have a following in stars, and everyone knows what it is, like you're like, I have a deterministically better solution to this problem that every developer is going to want, then why not just upgrade it? Yeah, I would much rather just not change the stack, and like,
+
+Alex (flashbots?)  1:06
+yes, etc. And the idea is to design this as sort of an SDK, so people can take it, can fork it, and extend it, but then whenever there's like a security patch or there's a new feature, they can easily pull that into one of the modules, so it's designed to be either usable out of the box or extended like an SDK.
+
+Shaw  1:26
+Yeah, I mean, if you're doing nothing, you could also like prepare for package managers and stuff too.
+
+Alex (flashbots?)  1:31
+Yeah, and so the hope is that, like, you know, we Flashbox will make, like, a Debian repo that has all of the, like, ref, etc. in it, pre-packaged as reproducible binaries that can be independently verified, and then you can just reference that, and then once you reference that repo, it has all the metadata in there required for you to verify the batch reviews.
+
+Shaw  1:52
+Yeah, that's very cool. What I'm working on an agent operating system that's based, yeah, of course, but I think we're actually like doing it like we're forking Debian, like everyone's doing that now, but you know, been in this for a minute. I think that's the way it's going, because we're all, you know, we can't actually build agents on like current hardware without a lot of limit limitations, blah blah.
+
+Alex (flashbots?)  2:14
+So trying to, is in your process, is there a set where you have to build minimal Debian isos?
+
+Shaw  2:21
+Yes, we're actually like building around Debbie and Ford,
+
+Alex (flashbots?)  2:24
+yeah. So there's a much easier
+
+LSDan   2:26
+way to do that,
+
+Alex (flashbots?)  2:27
+because I have been, trust me, I have been down that rabbit hole for the past year. There is a thing called Make OSI, which I will be discussing headline, what is it
+
+Shaw  2:35
+called,
+
+Alex (flashbots?)  2:36
+MK OSI,
+
+Shaw  2:39
+MK OSI,
+
+Alex (flashbots?)  2:40
+yeah. So you don't do, you don't have a forest image, basically. What this does is this, it's like Packer for like building your own Debian spin-offs,
+
+Shaw  2:49
+yeah, because we're using, we're actually like using Tails, which is another Debian fork, is kind of our example, but this is pretty,
+
+Alex (flashbots?)  2:56
+yeah, this is what I've written for, is basically extendable tails configuration like ISO configuration for TPS.
+
+Shaw  3:05
+Yeah, yeah, that's very cool. Yeah, I'm thinking, like, well, we're gonna want.. yeah, it'd be nice. This is all extremely, like, oh, it's super thick, it's
+
+Alex (flashbots?)  3:16
+super like the base ISO is less than 30 minutes, and it has
+
+Shaw  3:23
+it
+
+Alex (flashbots?)  3:23
+has all of the tails, like kernel recommendations, it has all of the like security hardening patches, right? It's got everything.
+
+Shaw  3:32
+This is awesome. So you're like, yeah, I want to make my own Debian fork. This is your business. Yeah,
+
+Alex (flashbots?)  3:36
+you want not only do you want to make your own Debian fork, do you want to make one that's really small, designed to run in particular agent workloads or blockchain workloads, and you want it to be compatible with t ease. Yeah, this is your solution.
+
+Shaw  3:50
+Yeah, all right, cool.
+
+Alex (flashbots?)  3:52
+I will. Yeah, let me send you the link to the specific project. It's called it's github.com/easy te
+
+Shaw  4:00
+easy te easy hyphen te,
+
+Alex (flashbots?)  4:05
+so yeah, if you're forking tails, this will make your life a lot easier, because I consider forking tails, and I went down that rabbit hole for like three months, I was like, this
+
+Shaw  4:14
+is a pain in the air, awesome, that's such a good outfit, telling me, guys,
+
+Alex (flashbots?)  4:21
+yeah, I can give you my email if you, if you run into any issues,
+
+LSDan   4:32
+by the way, we'll be here between 115
+
+Shaw  4:38
+Alex. It Alexander,
+
+LSDan   4:51
+so basically the purpose of today is to try to get a VStack to start using all of this stuff, so that we can move further and further into the. This is all productionized and easy to use. I know the main sticking point so far in the conversation has with Hawkins, especially the idea of the self-building images he still wants to provide. I think the he still thinks that the customers are really going to want the guest image that's already built for them.
+
+Alex (flashbots?)  5:22
+Oh, yeah, I mean, the idea is that you build the guest image, and then this is available for people who want to rebuild themselves to rebuild themselves. Yeah, right. This, like, the issue is like with Yocto, it's the same system. You have a self-building image with Yocto, but nobody's self, nobody can self-build it, because it's such a pain in the ass to set up, whereas with this Make OSI thing, it has a Nix environment, and it has like a VM thing set up. You just clone the repo when you run Make Build, and it spins up a VM, builds the whole thing in the VM, and spits out an image file, so that, like, for the people who are paranoid, want to verify this, they have an easy apple introduced,
+
+LSDan   6:01
+gotcha,
+
+Alex (flashbots?)  6:04
+like I've designed the software to be kind of for both the use case of people who do want to do image customization and for people who just want an out of the box solution where they can have transparency around image reproducibility and attestation.
+
+Speaker 1  6:20
+Cool,
+
+LSDan   6:26
+looking at your Starbucks, I think I may need to go get a
+
+Speaker 1  6:28
+coffee
+
+LSDan   6:28
+before we start this conversation with two shots of espresso. Yeah, I do the chai with espresso out of dirty chai is my damn.. I was like, could I do a dirty child of a matcha that works pretty good, actually. I just like weird hitter shit. Anyone, anyone else want Starbucks? Yeah, more hoti, more coffee. All right,
+
+Speaker 1  6:57
+very cool.
+
+Shaw  7:14
+By the way, if you want to send me an email, the best email to reach me is Alex at Alex holbrook.com spelled like okay, abuser name. I'm not as fair as a great idea, but yeah, me neither. I mean, also, if you have like, I'll definitely, I, you know, we're leaning pretty heavily into the TV stuff, obviously. Like, oh yeah, cool, run it on your own computer, that's cool. No one's gonna do that shit, they're all around DMs.
+
+Alex (flashbots?)  7:41
+Oh, are you the Eliza Oz guy? Yeah, okay, yeah, okay. So you are the.. when I was like, oh, everybody's doing that, I've seen.. yeah,
+
+Shaw  7:48
+I think I'm like, is anybody else's like LM psycho? Everybody
+
+Alex (flashbots?)  7:54
+else is trying to do it, but they're not doing great.
+
+Shaw  7:55
+I just been grinding, like one thing for a very long time now, we started to hit bullet, you know. It's like, hey Siri, open Open AI to ask a question. This is fucking dead. Yeah, I can go get a pixel and spread my own OS or whatever, so we'll see.
+
+Speaker 2  8:28
+How can I build my product to the product itself actually isn't that good, so
+
+LSDan   8:46
+what about sort of like automatic generation work variation on my own?
+
+Speaker 2  8:51
+Yeah, let's repeat the sample size before that afterwards I
+
+Speaker 1  10:07
+Stay
+
+Albiona Hoti  12:17
+It will a three for you, just raise them again. Oh, you're just wondering,
+
+Speaker 1  12:22
+I You, so Is that 76 and It's You
+
+LSDan   20:14
+trying to try and get the vibes up, do
+
+Speaker 1  20:36
+Should be a walking area process I
+
+Alex (flashbots?)  22:06
+Does anybody know the password?
+
+LSDan   22:12
+Yes,
+
+Albiona Hoti  22:13
+yes,
+
+LSDan   22:22
+no one. Han gets here,
+
+Speaker 1  22:25
+let
+
+LSDan   22:26
+me know when Han gets
+
+Albiona Hoti  22:27
+it.
+
+LSDan   22:31
+Have a little a too. Still have a little bit of dev work today,
+
+Albiona Hoti  22:38
+H and A is uppercase.
+
+Albiona Hoti  22:50
+These are just some details that you might want to check, like onboarding, or whatever that you want to
+
+Speaker 1  23:20
+You're still working well. Today, if anyone doesn't like me to
+
+Albiona Hoti  39:02
+write a name, please
+
+Albiona Hoti  39:07
+say I know what I decided to do.
+
+Speaker 1  39:40
+Next,
+
+Speaker 3  39:42
+the next time you speak, should we have to recognize the speakers of Germany just come to a bit and see if you can rename it in the.
+
+Speaker 1  40:00
+So I only got two minutes so much, I It Alex, how long do you have?
+
+Albiona Hoti  44:30
+What, how
+
+LSDan   44:30
+long can you stay?
+
+Alex (flashbots?)  44:31
+However long. Okay. Well, all right. Just want to make sure
+
+LSDan   44:36
+he should have already been here by now.
+
+Alex (flashbots?)  44:38
+So I thought he only had it till two.
+
+LSDan   44:45
+No, I thought he was leaving tomorrow. Andrew Adams, a one
+
+Albiona Hoti  44:50
+now.
+
+LSDan   44:54
+I mean, he flew out here specifically after his
+
+Alex (flashbots?)  44:56
+game. Yeah, that's what I was gonna say, like I. Me,
+
+LSDan   45:02
+yeah, I'm free whenever I'm just working right now, so all right. When I go, doing it home, just wanted to make sure that I have now to start cracking
+
+Speaker 1  45:08
+at this or something different. Yeah, I and she has been I'm Questions Great, thank No, please. In me Love saying, how do you. God I Now, dear God, happy fears. Just Come Out here Away. Did you think that you should know better? There
+
+Transcribed by https://otter.ai

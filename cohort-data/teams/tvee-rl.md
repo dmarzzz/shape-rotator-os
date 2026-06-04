@@ -27,4 +27,4 @@ hackathon_note: null
 
 ## about
 
-(public surface — Natalia Kokoromyti at Stanford Scaling Intelligence Lab)
+Attested reinforcement-learning workflows — running RL training and evaluation inside trusted-execution environments so the process is verifiable. The team also runs tuvalugpt.tv, a Tuvalu-focused AI/chat surface.

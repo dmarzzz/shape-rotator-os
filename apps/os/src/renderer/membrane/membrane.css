@@ -1,0 +1,1484 @@
+/* Membrane mode — scoped palette + layout.
+   Palette tokens are defined on BOTH the .membrane-host (the alchemy-canvas
+   div once mounted) AND the alchemy-view container while membrane mode is
+   active, so cascading rules that target the outer view can resolve them. */
+
+.membrane-host,
+.alchemy-view[data-alch-mode-current="membrane"] {
+  /* Vanta cosmic — true black with a sparse star field. The blobs read as
+     small warm celestial bodies against deep space. Reading surfaces are
+     translucent panels with ember neon trim — Vision Pro × Tron Legacy. */
+  --membrane-void: #000000;
+  --membrane-void-warm: #060509;
+  --membrane-void-deep: #000000;
+  --membrane-mist: #f1ece7;
+  --membrane-mist-mid: #b8b3ad;
+  --membrane-mist-dim: #6f6a64;
+  --membrane-ember: #ff7a3d;          /* brighter neon ember */
+  --membrane-ember-deep: #c75a2a;
+  --membrane-ember-soft: rgba(255, 122, 61, 0.55);
+  --membrane-star: rgba(255, 255, 255, 0.85);
+  --membrane-slate: #3a4a5e;
+  /* Card is translucent so atmosphere reads through — not a black slab. */
+  --membrane-card-bg: rgba(22, 20, 25, 0.52);
+  --membrane-card-top: rgba(36, 30, 36, 0.62);
+  --membrane-rule: rgba(241, 236, 231, 0.08);
+}
+
+.membrane-host {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  background: #000000;
+  color: var(--membrane-mist);
+  overflow: hidden;
+  font-family: 'Inter Display', 'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', system-ui, sans-serif;
+  font-feature-settings: 'ss01' on, 'cv11' on;
+  letter-spacing: 0.005em;
+}
+
+/* Atmosphere = distant stars + a single soft warm presence around the
+   throne. Stars are the cosmic field; throne-presence is the lit anchor.
+   Inactive blobs fade into this field — see blob.js setActive(). */
+.membrane-atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* Stars are now a 3D point cloud rendered by Three.js (starfield.js).
+   The old CSS-based stars are gone — full-screen box-shadow approach was
+   broken (each shadow rendered as a screen-sized box). The 3D approach
+   gives real perspective + seamless wrap-around as stars stream past. */
+
+/* Throne presence — barely-there warm radial glow that anchors the
+   active blob in the void. The only atmosphere besides the stars. */
+.ma-throne-presence {
+  position: absolute;
+  width: 70vmin;
+  height: 70vmin;
+  right: -8vmin;
+  bottom: -8vmin;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 140, 80, 0.10) 0%,
+    rgba(255, 120, 60, 0.05) 22%,
+    rgba(200, 90, 40, 0.02) 45%,
+    transparent 70%
+  );
+  filter: blur(60px);
+  mix-blend-mode: screen;
+}
+
+/* Orbital ring text — tiny mono caps tracing an arc around the throne
+   blob. Positioned via CSS vars set in JS based on throne slot's
+   screen-space center. Slowly rotates (~80s/revolution) for "alive". */
+.throne-orbital {
+  position: absolute;
+  right: calc(var(--throne-right, 200px) - var(--orbital-radius, 200px));
+  bottom: calc(var(--throne-bottom, 150px) - var(--orbital-radius, 200px));
+  width: calc(var(--orbital-radius, 200px) * 2);
+  height: calc(var(--orbital-radius, 200px) * 2);
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  transition: opacity 600ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.throne-orbital.is-visible {
+  opacity: 0.92;
+}
+
+.throne-orbital text {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  fill: rgba(245, 240, 233, 0.95);
+  /* Dark outline drawn UNDER the fill so the word stays legible when it
+     orbits across the bright wet-glass highlight on the orb. */
+  paint-order: stroke;
+  stroke: rgba(6, 5, 14, 0.92);
+  stroke-width: 4.5px;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.55));
+}
+
+/* Background-orb name labels — pinned under each satellite orb (positioned
+   in JS via updateSatelliteLabels). Dark halo keeps them readable over the
+   orb's bright highlight. */
+.membrane-sat-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.membrane-sat-label {
+  position: absolute;
+  transform: translate(-50%, 0);
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(247, 242, 236, 0.96);
+  -webkit-text-stroke: 0.4px rgba(6, 5, 14, 0.7);
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.95);
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+
+.membrane-host * {
+  box-sizing: border-box;
+}
+
+.membrane-stage {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.membrane-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: transparent;
+  z-index: 1;
+}
+
+/* Left-side panel — sits over the canvas in the negative space.
+   Calm typography, no chrome borders, no glassmorphism. */
+/* Reading gutter — softer now, since the panel itself does the heavy
+   contrast lifting via its translucent card chrome. */
+.membrane-stage::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 65%;
+  height: 100%;
+  background: linear-gradient(90deg,
+    rgba(0, 0, 0, 0.45) 0%,
+    rgba(0, 0, 0, 0.30) 50%,
+    rgba(0, 0, 0, 0.00) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.membrane-panel {
+  position: absolute;
+  top: 6%;
+  left: 5%;
+  bottom: 4%;
+  right: 38%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  z-index: 3;
+  pointer-events: auto;
+  /* Luxury neon-piped surface. Translucent body + ember bezel + outer bloom.
+     Vision Pro × Tron Legacy. Three stacked shadows: inset top highlight,
+     ember stroke, outer ember bloom. Plus a soft drop. */
+  background:
+    linear-gradient(180deg, var(--membrane-card-top) 0%, var(--membrane-card-bg) 28%, var(--membrane-card-bg) 100%);
+  border: 1px solid rgba(255, 122, 61, 0.32);
+  border-radius: 16px;
+  overflow: hidden;
+  backdrop-filter: blur(6px) saturate(1.1);
+  -webkit-backdrop-filter: blur(6px) saturate(1.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 60px rgba(255, 122, 61, 0.045),
+    0 0 0 1px rgba(255, 122, 61, 0.08),
+    0 0 24px rgba(255, 122, 61, 0.18),
+    0 0 80px -10px rgba(255, 122, 61, 0.10),
+    0 28px 70px -22px rgba(0, 0, 0, 0.75);
+}
+
+/* Corner brackets — small L-shaped marks that say "this was designed."
+   Subtle but tactile, matches the ember neon. Top-left and bottom-right
+   for asymmetry (less corporate than 4-corner symmetry). */
+.membrane-panel::before,
+.membrane-panel::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  z-index: 4;
+}
+.membrane-panel::before {
+  top: 10px;
+  left: 10px;
+  border-top: 1.5px solid rgba(255, 122, 61, 0.55);
+  border-left: 1.5px solid rgba(255, 122, 61, 0.55);
+  border-top-left-radius: 6px;
+  box-shadow: 0 0 8px rgba(255, 122, 61, 0.28);
+}
+.membrane-panel::after {
+  bottom: 10px;
+  right: 10px;
+  border-bottom: 1.5px solid rgba(255, 122, 61, 0.55);
+  border-right: 1.5px solid rgba(255, 122, 61, 0.55);
+  border-bottom-right-radius: 6px;
+  box-shadow: 0 0 8px rgba(255, 122, 61, 0.28);
+}
+
+.membrane-panel-content {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding: 40px 44px 28px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(241, 236, 231, 0.10) transparent;
+}
+
+.membrane-panel-content::-webkit-scrollbar {
+  width: 6px;
+}
+.membrane-panel-content::-webkit-scrollbar-thumb {
+  background: rgba(241, 236, 231, 0.10);
+  border-radius: 3px;
+}
+
+.membrane-panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+/* When the head has an accessory (e.g. the self panel's avatar), lay it
+   out as a row: text on the left, accessory pinned top-right. */
+.membrane-panel-head--with-accessory {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+.membrane-panel-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.membrane-panel-eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--membrane-mist-mid);
+}
+
+.membrane-panel-title {
+  font-size: clamp(40px, 4.6vw, 64px);
+  font-weight: 500;
+  line-height: 1.0;
+  margin: 0;
+  color: var(--membrane-mist);
+  letter-spacing: -0.02em;
+}
+
+.membrane-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.membrane-panel-note {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--membrane-mist-mid);
+  max-width: 44ch;
+}
+
+.membrane-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.membrane-panel-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--membrane-rule);
+}
+
+.membrane-panel-list li.membrane-panel-list-action {
+  border-bottom: 0;
+  display: block;
+  padding: 0;
+}
+
+.mpl-action {
+  appearance: none;
+  align-items: baseline;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--membrane-rule);
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  justify-content: space-between;
+  letter-spacing: 0.08em;
+  padding: 11px 0;
+  text-align: left;
+  width: 100%;
+  -webkit-app-region: no-drag;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.mpl-action:hover,
+.mpl-action:focus-visible {
+  background: rgba(255, 122, 61, 0.035);
+  outline: none;
+  transform: translateX(3px);
+}
+
+.mpl-action .mpl-key {
+  color: var(--membrane-ember);
+}
+
+.mpl-action .mpl-val {
+  color: var(--membrane-ember);
+}
+
+.mpl-action .mpl-val::after {
+  content: " ›";
+  opacity: 0.62;
+}
+
+.mpl-key {
+  color: var(--membrane-mist-mid);
+  text-transform: uppercase;
+}
+
+.mpl-val {
+  color: var(--membrane-mist);
+  font-weight: 500;
+}
+
+/* Per-blob rim accent on the title — picked up via data-active-blob */
+.membrane-panel[data-active-blob="self"] .membrane-panel-title,
+.membrane-panel[data-active-blob="asks"] .membrane-panel-title {
+  color: var(--membrane-mist);
+}
+.membrane-panel[data-active-blob="self"] .mpl-val,
+.membrane-panel[data-active-blob="asks"] .mpl-val {
+  color: var(--membrane-mist);
+}
+
+/* ─── Inline per-blob content blocks ─── */
+
+.membrane-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+}
+
+.membrane-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--membrane-rule);
+  margin-bottom: 4px;
+}
+
+.membrane-section-title {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--membrane-mist-mid);
+  margin: 0;
+}
+
+.membrane-section-count {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--membrane-ember);
+  letter-spacing: 0.14em;
+  font-weight: 500;
+}
+
+/* TODAY section gets visual prominence — bigger, ember-tinted title,
+   slight inset glow so it reads as the moment-of-now. */
+.membrane-section-today .membrane-section-title {
+  color: var(--membrane-ember);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+}
+.membrane-section-today .membrane-section-count {
+  font-size: 12px;
+}
+.membrane-section-today {
+  padding: 14px 18px 18px;
+  margin: -4px -18px 4px;
+  border-radius: 8px;
+  background: rgba(255, 122, 61, 0.025);
+  border: 1px solid rgba(255, 122, 61, 0.10);
+}
+.membrane-section-today .membrane-event-title {
+  font-weight: 500;
+}
+
+/* Event row — calendar inline */
+.membrane-event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.membrane-event-row {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 18px;
+  align-items: baseline;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--membrane-rule);
+}
+
+.membrane-event-row:hover {
+  background: rgba(241, 236, 231, 0.02);
+}
+
+.membrane-event-date {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--membrane-mist-mid);
+}
+
+.membrane-event-title {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--membrane-mist);
+  line-height: 1.4;
+}
+
+.membrane-event-meta {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--membrane-mist-mid);
+  text-align: right;
+  white-space: nowrap;
+  letter-spacing: 0.08em;
+}
+
+.membrane-event-now .membrane-event-date {
+  color: var(--membrane-ember);
+}
+
+/* Ask row */
+.membrane-ask-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.membrane-ask-item {
+  list-style: none;
+}
+
+.membrane-ask-item[data-expired="1"] {
+  opacity: 0.56;
+}
+
+.membrane-ask-item[data-expired="1"]:has(.membrane-ask-row[open]) {
+  opacity: 0.78;
+}
+
+.membrane-ask-row {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--membrane-rule);
+}
+
+.membrane-ask-summary {
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 16px;
+  gap: 5px 10px;
+  align-items: start;
+  list-style: none;
+  outline: none;
+}
+
+.membrane-ask-summary::-webkit-details-marker {
+  display: none;
+}
+
+.membrane-ask-summary::after {
+  align-self: center;
+  color: var(--membrane-mist-mid);
+  content: "›";
+  font-size: 17px;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  opacity: 0.46;
+  transform-origin: center;
+  transition: color 180ms ease, opacity 180ms ease, transform 180ms ease;
+}
+
+.membrane-ask-row[open] .membrane-ask-summary::after {
+  color: var(--membrane-ember);
+  opacity: 0.82;
+  transform: rotate(90deg);
+}
+
+.membrane-ask-summary:hover .membrane-ask-title,
+.membrane-ask-summary:focus-visible .membrane-ask-title {
+  color: var(--membrane-ember);
+}
+
+.membrane-ask-summary:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 34%, transparent);
+  outline-offset: 5px;
+}
+
+.membrane-ask-verb {
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--membrane-mist-mid) 26%, transparent);
+  border-radius: 999px;
+  color: var(--membrane-mist);
+  display: inline-flex;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  height: 20px;
+  justify-content: center;
+  line-height: 1;
+  margin-top: 1px;
+  opacity: 0.72;
+  width: 20px;
+}
+
+.membrane-ask-body {
+  display: block;
+  min-width: 0;
+}
+
+.membrane-ask-title {
+  display: block;
+  font-size: 15px;
+  color: var(--membrane-mist);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  transition: color 180ms ease;
+}
+
+.membrane-ask-row[open] .membrane-ask-title {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.membrane-ask-meta {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--membrane-mist-mid);
+  letter-spacing: 0.10em;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.membrane-ask-meta .ask-status-mine {
+  color: var(--membrane-ember);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.membrane-ask-status {
+  color: var(--membrane-mist-mid);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.membrane-ask-status-fading {
+  color: color-mix(in srgb, var(--membrane-ember) 70%, var(--membrane-mist-mid));
+}
+
+.membrane-ask-detail {
+  padding: 10px 22px 1px 34px;
+}
+
+.membrane-ask-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.membrane-ask-chip {
+  border: 1px solid color-mix(in srgb, var(--membrane-mist-mid) 28%, transparent);
+  border-radius: 999px;
+  color: var(--membrane-mist-mid);
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+}
+
+.membrane-empty {
+  font-size: 14px;
+  color: var(--membrane-mist-mid);
+  font-style: italic;
+  padding: 18px 0;
+}
+
+/* Identity bio — sits below the identity hero. Italic, slightly muted,
+   max-width capped so long bios stay readable. */
+.membrane-bio-line {
+  margin: 18px 0 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--membrane-mist-mid);
+  font-style: italic;
+  max-width: 52ch;
+}
+
+/* Identity hero — big avatar on left, name/handle/team stack on right.
+   The avatar is the visual anchor of the self panel. */
+.membrane-section-identity {
+  padding-top: 4px;
+}
+
+.membrane-identity-hero {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 4px 0 18px;
+  border-bottom: 1px solid var(--membrane-rule);
+}
+
+.membrane-avatar {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  min-width: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 200, 140, 0.30), transparent 65%),
+    linear-gradient(155deg, #2a2026 0%, #1a1418 100%);
+  border: 1px solid rgba(255, 122, 61, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(255, 122, 61, 0.08),
+    0 0 22px rgba(255, 122, 61, 0.18),
+    0 12px 28px -8px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Smaller variant for the panel-head accessory slot — pinned top-right
+   beside the title, sized so it sits on the same baseline weight. */
+.membrane-avatar--head {
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+  margin-top: 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(255, 122, 61, 0.08),
+    0 0 16px rgba(255, 122, 61, 0.18),
+    0 8px 18px -6px rgba(0, 0, 0, 0.6);
+}
+.membrane-avatar--head .membrane-avatar-initials {
+  font-size: 22px;
+}
+
+.membrane-avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  z-index: 1;
+}
+
+.membrane-avatar-initials {
+  font-family: 'Inter Display', 'Inter', sans-serif;
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--membrane-mist);
+  letter-spacing: -0.02em;
+  opacity: 0.85;
+}
+
+/* When the img loads successfully, the initials sit behind it as a
+   fallback only — img covers them. When the img fails / removes itself,
+   the parent loses data-has-img and the initials become visible. */
+.membrane-avatar[data-has-img] .membrane-avatar-initials {
+  opacity: 0;
+}
+
+.membrane-identity-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.membrane-identity-name {
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 500;
+  color: var(--membrane-mist);
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.membrane-identity-handle {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--membrane-ember);
+}
+
+.membrane-identity-team {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  color: var(--membrane-mist-mid);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Connection row — clickable peer entry in the self panel's connections
+   section. Hairline border, ember on hover/focus, slight slide right. */
+.membrane-connection-row {
+  cursor: pointer;
+  outline: none;
+  transition: background 200ms cubic-bezier(0.65, 0, 0.05, 1),
+              transform 200ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+.membrane-connection-row:hover,
+.membrane-connection-row:focus-visible {
+  background: rgba(255, 122, 61, 0.05);
+  transform: translateX(3px);
+}
+.membrane-connection-row:hover .membrane-event-title,
+.membrane-connection-row:focus-visible .membrane-event-title {
+  color: var(--membrane-ember);
+}
+.membrane-connection-row .membrane-event-date {
+  /* Mono edge-type label — keep it tight and dim so the name dominates */
+  color: var(--membrane-mist-dim);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+
+.membrane-panel-actions {
+  list-style: none;
+  margin: 14px 0 0 0;
+  padding: 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid var(--membrane-rule);
+}
+
+.mpa-btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--membrane-mist);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  padding: 10px 0;
+  text-align: left;
+  cursor: pointer;
+  transition: color 240ms cubic-bezier(0.65, 0, 0.05, 1),
+              transform 240ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.mpa-btn:hover {
+  color: var(--membrane-ember);
+  transform: translateX(4px);
+}
+
+/* ── cohort lens cards ──────────────────────────────────────────────────
+   The cohort panel's body: one real, clickable tile per constellation lens
+   + the full roster. Fills the space the old hair-thin links left blank. */
+.cohort-view-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.cohort-view-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+  text-align: left;
+  min-height: 124px;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--membrane-rule);
+  border-radius: 14px;
+  background:
+    linear-gradient(158deg, rgba(255, 255, 255, 0.038), rgba(255, 255, 255, 0.008));
+  color: var(--membrane-mist);
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+  transition: border-color 280ms cubic-bezier(0.65, 0, 0.05, 1),
+              transform 280ms cubic-bezier(0.65, 0, 0.05, 1),
+              background 280ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.cohort-view-card::after {
+  /* a faint ember wash that blooms from the glyph corner on hover */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 16% 0%, rgba(255, 122, 61, 0.16), transparent 62%);
+  opacity: 0;
+  transition: opacity 280ms cubic-bezier(0.65, 0, 0.05, 1);
+  pointer-events: none;
+}
+
+.cohort-view-card:hover,
+.cohort-view-card:focus-visible {
+  border-color: var(--membrane-ember-soft);
+  transform: translateY(-3px);
+  outline: none;
+}
+
+.cohort-view-card:hover::after,
+.cohort-view-card:focus-visible::after {
+  opacity: 1;
+}
+
+.cvc-glyph {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  color: var(--membrane-ember);
+  opacity: 0.82;
+  transition: opacity 280ms ease, transform 280ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.cohort-view-card:hover .cvc-glyph {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.cvc-glyph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cvc-text {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cvc-title {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  color: var(--membrane-mist);
+}
+
+.cvc-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--membrane-mist-dim);
+}
+
+.cvc-arrow {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 13px;
+  color: var(--membrane-ember);
+  opacity: 0;
+  transform: translateX(-3px);
+  transition: opacity 280ms ease, transform 280ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.cohort-view-card:hover .cvc-arrow,
+.cohort-view-card:focus-visible .cvc-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.membrane-panel-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 44px 24px;
+  border-top: 1px solid rgba(255, 122, 61, 0.14);
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.0) 0%, rgba(0, 0, 0, 0.35) 100%);
+  /* faint inner-top ember rule echoing the bezel */
+  box-shadow: inset 0 1px 0 rgba(255, 122, 61, 0.08);
+}
+
+.membrane-blob-dots {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.membrane-blob-dot {
+  appearance: none;
+  background: transparent;
+  border: none;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--membrane-mist-dim);
+  padding: 4px 0;
+  cursor: pointer;
+  position: relative;
+  transition: color 240ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.membrane-blob-dot::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(200, 203, 214, 0.18);
+  margin-right: 7px;
+  vertical-align: middle;
+  transition: background 240ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.membrane-blob-dot:hover {
+  color: var(--membrane-mist);
+}
+
+.membrane-blob-dot[aria-pressed="true"] {
+  color: var(--membrane-mist);
+}
+
+.membrane-blob-dot[aria-pressed="true"]::before {
+  background: var(--membrane-ember);
+}
+
+.membrane-sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid rgba(255, 122, 61, 0.18);
+  color: var(--membrane-mist-mid);
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 240ms cubic-bezier(0.65, 0, 0.05, 1),
+              border-color 240ms cubic-bezier(0.65, 0, 0.05, 1),
+              box-shadow 240ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.membrane-sound-toggle:hover {
+  color: var(--membrane-mist);
+  border-color: rgba(255, 122, 61, 0.35);
+  box-shadow: 0 0 16px rgba(255, 122, 61, 0.15);
+}
+
+.membrane-sound-toggle[aria-pressed="true"] {
+  color: var(--membrane-ember);
+  border-color: rgba(255, 122, 61, 0.55);
+  box-shadow: 0 0 18px rgba(255, 122, 61, 0.30);
+}
+
+.mst-glyph {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.mst-state {
+  opacity: 0.65;
+}
+
+/* When membrane mode is active, hide the alchemy header + grain + decorative
+   chrome so the void breathes. The legacy rail becomes a hidden shell menu
+   summoned from the active "operating system" tab. */
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-header {
+  display: none;
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-grain {
+  display: none;
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-stage {
+  --membrane-shell-menu-width: min(320px, calc(100% - 48px));
+  --membrane-shell-menu-gap: clamp(18px, 2.4vw, 40px);
+  display: block;
+  isolation: isolate;
+  background: var(--membrane-void);
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  background: var(--membrane-void);
+}
+
+/* In membrane mode the rail becomes a temporary shell menu. Re-click the
+   active "operating system" top tab to summon it; choose a route or click
+   the void/Escape to dismiss it. */
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  opacity: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.48) 0%, rgba(0, 0, 0, 0.22) 38%, rgba(0, 0, 0, 0.00) 72%);
+  transition: opacity 220ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+.alchemy-view[data-alch-mode-current="membrane"][data-alch-menu="open"] .alchemy-stage::after {
+  opacity: 1;
+  pointer-events: auto;
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  width: var(--membrane-shell-menu-width) !important;
+  flex: none !important;
+  padding: 34px 20px 30px 28px !important;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-104%);
+  background:
+    linear-gradient(180deg, rgba(8, 8, 10, 0.90) 0%, rgba(0, 0, 0, 0.76) 100%);
+  border-right: 1px solid rgba(255, 122, 61, 0.18);
+  box-shadow:
+    inset -1px 0 0 rgba(241, 236, 231, 0.04),
+    22px 0 70px -22px rgba(255, 122, 61, 0.42),
+    36px 0 90px -30px rgba(0, 0, 0, 0.90);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  transition:
+    visibility 0s linear 260ms,
+    transform 260ms cubic-bezier(0.65, 0, 0.05, 1),
+    opacity 180ms ease;
+}
+.alchemy-view[data-alch-mode-current="membrane"][data-alch-menu="open"] .alchemy-rail {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+  transition-delay: 0s, 0s, 0s;
+}
+.alchemy-view[data-alch-mode-current="membrane"][data-alch-menu="open"] .membrane-host:not(.membrane-folded) .membrane-panel {
+  left: calc(var(--membrane-shell-menu-width) + var(--membrane-shell-menu-gap));
+  right: clamp(330px, 31vw, 480px);
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail-btn {
+  color: rgba(241, 236, 231, 0.58);
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail-btn[aria-selected="true"] {
+  color: var(--membrane-mist);
+}
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail-btn .ar-num {
+  color: rgba(255, 122, 61, 0.42);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alchemy-view[data-alch-mode-current="membrane"] .alchemy-stage::after,
+  .alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail,
+  .alchemy-view[data-alch-mode-current="membrane"] .membrane-panel {
+    transition: none;
+  }
+}
+
+/* Small floating mode pill — lets the user toggle back to legacy view
+   without committing to the membrane forever. */
+.membrane-mode-pill {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(10, 14, 20, 0.6);
+  border: 1px solid rgba(200, 203, 214, 0.1);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--membrane-mist-dim);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: color 240ms cubic-bezier(0.65, 0, 0.05, 1);
+}
+
+.membrane-mode-pill:hover {
+  color: var(--membrane-mist);
+}
+
+.membrane-mode-pill .mmp-glyph {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--membrane-ember);
+  display: inline-block;
+}
+
+/* ─── CREW CREDENTIAL — self profile as a space-mission ID card ──────── */
+/* The credential IS the panel content — NOT a card inside the card. The
+   membrane panel's ember border + corner brackets are the frame; this just
+   lays the credential out and fills the full height. */
+.crewid {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  isolation: isolate;
+}
+
+.crewid-foil {
+  position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  opacity: 0; transition: opacity 320ms cubic-bezier(0.65,0,0.05,1);
+  background:
+    radial-gradient(240px 200px at var(--mx,50%) var(--my,0%), rgba(255,210,180,0.12), transparent 60%),
+    linear-gradient(115deg, transparent 43%, rgba(255,122,61,0.12) 50%, transparent 57%);
+  mix-blend-mode: screen;
+}
+.crewid.is-foil .crewid-foil { opacity: 1; }
+.crewid-scan {
+  position: absolute; left: 0; right: 0; top: 0; height: 38%; z-index: 5;
+  pointer-events: none; opacity: 0;
+  background: linear-gradient(180deg, transparent, rgba(255,122,61,0.16), transparent);
+  animation: crewid-sweep 760ms cubic-bezier(0.65,0,0.05,1) 1;
+}
+@keyframes crewid-sweep {
+  0% { opacity: 0; transform: translateY(-100%); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(280%); }
+}
+
+.crewid-band {
+  position: relative; z-index: 2;
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 9px; border-bottom: 1px solid var(--membrane-rule);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.22em; text-transform: uppercase;
+}
+.crewid-issuer { color: var(--membrane-ember); }
+.crewid-doc { color: var(--membrane-mist-dim); }
+
+.crewid-hero { position: relative; z-index: 2; display: flex; gap: 16px; align-items: center; }
+.crewid-patch { flex: 0 0 auto; position: relative; }
+.crewid-patch .membrane-avatar {
+  width: 60px; height: 60px;
+  box-shadow: 0 0 0 1px rgba(255,122,61,0.5), 0 0 18px rgba(255,122,61,0.22);
+}
+.crewid-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.crewid-eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+.crewid-name {
+  margin: 0; font-family: 'Inter Display','Inter',sans-serif; font-style: italic;
+  font-weight: 500; font-size: 34px; line-height: 1; color: var(--membrane-mist);
+  letter-spacing: -0.01em;
+}
+.crewid-callsign { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.crewid-call, .crewid-clearance {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--membrane-mist-mid);
+}
+.crewid-clearance { color: var(--membrane-ember); }
+
+.crewid-readouts {
+  position: relative; z-index: 2;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 7px 22px;
+  padding: 12px 0; border-top: 1px solid var(--membrane-rule); border-bottom: 1px solid var(--membrane-rule);
+}
+.crewid-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.crewid-k {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+.crewid-v {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px; color: var(--membrane-mist); text-align: right;
+}
+
+/* Comms section grows to fill the panel's vertical space, pushing the
+   registry strip + actions to the bottom of the credential. */
+.crewid-comms { position: relative; z-index: 2; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.crewid-comms-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.crewid-comms-title {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--membrane-mist-mid);
+}
+.crewid-comms-count {
+  font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; color: var(--membrane-ember);
+}
+/* Empty state — a centred mission-status block that gives the void a
+   purposeful "awaiting uplink" presence instead of dead space. */
+.crewid-empty {
+  flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; text-align: center; margin: 0; padding: 24px 0;
+  position: relative;
+}
+.crewid-empty::before {
+  content: ""; width: 88px; height: 88px; border-radius: 50%;
+  border: 1px solid rgba(255,122,61,0.22);
+  box-shadow: 0 0 0 8px rgba(255,122,61,0.04), inset 0 0 22px rgba(255,122,61,0.06);
+  animation: crewid-pulse 3.6s ease-in-out infinite;
+}
+@keyframes crewid-pulse {
+  0%, 100% { transform: scale(0.96); opacity: 0.7; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+.crewid-empty .ce-status {
+  font-family: 'JetBrains Mono', monospace; font-size: 8.5px; letter-spacing: 0.26em;
+  text-transform: uppercase; color: var(--membrane-ember);
+}
+.crewid-empty .ce-msg {
+  font-family: 'Inter', sans-serif; font-size: 12px; line-height: 1.6; font-style: italic;
+  color: var(--membrane-mist-dim); max-width: 34ch;
+}
+.crewid-comm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.crewid-comm {
+  display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; align-items: baseline;
+  padding: 6px 8px; border-radius: 5px; cursor: pointer;
+  transition: background 160ms ease;
+}
+.crewid-comm:hover { background: rgba(255,122,61,0.08); }
+.crewid-comm-rel { font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--membrane-mist-dim); }
+.crewid-comm-name { font-family: 'Inter', sans-serif; font-size: 12px; color: var(--membrane-mist); }
+.crewid-comm-meta { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--membrane-mist-dim); text-align: right; }
+
+/* registry strip — a faux barcode + reg number, ID-card flavour */
+.crewid-registry { position: relative; z-index: 2; display: flex; align-items: center; gap: 12px; }
+.crewid-barcode {
+  flex: 1 1 auto; height: 22px; border-radius: 2px; opacity: 0.55;
+  background-image: repeating-linear-gradient(90deg,
+    var(--membrane-mist-mid) 0 1px, transparent 1px 3px,
+    var(--membrane-mist-mid) 3px 5px, transparent 5px 6px,
+    var(--membrane-mist-mid) 6px 7px, transparent 7px 11px);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.crewid-reg-no {
+  flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 8px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+
+.crewid-actions { position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; }
+.crewid-action {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px; letter-spacing: 0.08em; text-transform: lowercase; cursor: pointer;
+  padding: 7px 13px; border-radius: 6px;
+  color: var(--membrane-mist); background: rgba(241,236,231,0.04);
+  border: 1px solid rgba(255,122,61,0.3);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.crewid-action:hover { background: rgba(255,122,61,0.12); border-color: var(--membrane-ember); }
+
+/* In-card claim CTA — the prominent "identify yourself" move for an
+   unclaimed credential, so you claim from the big display itself. */
+.crewid-claim {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; gap: 14px;
+  width: 100%; text-align: left; cursor: pointer;
+  padding: 14px 16px; border-radius: 10px;
+  color: var(--membrane-mist);
+  border: 1px solid rgba(255,122,61,0.5);
+  background: linear-gradient(180deg, rgba(255,122,61,0.16), rgba(255,122,61,0.07));
+  box-shadow: 0 0 22px rgba(255,122,61,0.16), inset 0 0 0 1px rgba(255,122,61,0.12);
+  transition: background 200ms ease, box-shadow 200ms ease, transform 160ms ease;
+  animation: crewid-claim-pulse 3s ease-in-out infinite;
+}
+.crewid-claim:hover {
+  background: linear-gradient(180deg, rgba(255,122,61,0.26), rgba(255,122,61,0.12));
+  box-shadow: 0 0 32px rgba(255,122,61,0.3), inset 0 0 0 1px rgba(255,122,61,0.22);
+  transform: translateY(-1px);
+}
+@keyframes crewid-claim-pulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(255,122,61,0.12), inset 0 0 0 1px rgba(255,122,61,0.1); }
+  50% { box-shadow: 0 0 30px rgba(255,122,61,0.26), inset 0 0 0 1px rgba(255,122,61,0.18); }
+}
+.crewid-claim .cc-glyph {
+  font-size: 22px; color: #ff7a3d; line-height: 1;
+  filter: drop-shadow(0 0 8px rgba(255,122,61,0.5));
+}
+.crewid-claim .cc-text { display: flex; flex-direction: column; gap: 3px; }
+.crewid-claim .cc-title {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--membrane-mist);
+}
+.crewid-claim .cc-sub {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px; letter-spacing: 0.14em; text-transform: lowercase; color: rgba(255,154,106,0.9);
+}
+
+/* ─── THE SEAL — self profile reframed (shape-as-sigil in a vesica) ───── */
+.seal-hero {
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  text-align: center; padding-top: 4px;
+}
+.seal { position: relative; width: 96px; height: 122px; margin-bottom: 6px; }
+.seal svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.seal-vesica-path {
+  fill: rgba(255,122,61,0.04);
+  stroke: rgba(255,122,61,0.5); stroke-width: 1;
+  filter: drop-shadow(0 0 10px rgba(255,122,61,0.18));
+}
+.seal-sigil-line {
+  fill: none; stroke: var(--membrane-mist); stroke-width: 1.1;
+  stroke-linejoin: round; stroke-linecap: round;
+  /* construct-itself rite on mount */
+  stroke-dasharray: 240; stroke-dashoffset: 240;
+  animation: seal-draw 1100ms cubic-bezier(0.65,0,0.05,1) 120ms forwards;
+}
+.seal-sigil-dots circle { fill: var(--membrane-ember); opacity: 0; animation: seal-dot 500ms ease 900ms forwards; }
+@keyframes seal-draw { to { stroke-dashoffset: 0; } }
+@keyframes seal-dot { to { opacity: 0.9; } }
+/* slight hand-touched tilt so it reads drawn, not CAD */
+.seal-sigil { transform: rotate(-2.5deg); transform-origin: center; }
+.seal.has-face .seal-sigil { display: none; }
+.seal-face {
+  position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px);
+  object-fit: cover; opacity: 0.96;
+}
+.seal.no-face .seal-face { display: none; }
+
+.seal-hero .crewid-eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--membrane-mist-dim);
+}
+.seal-hero .crewid-name {
+  margin: 2px 0 0; font-family: 'Inter Display','Inter',sans-serif; font-style: italic;
+  font-weight: 500; font-size: 32px; line-height: 1; letter-spacing: -0.01em; color: var(--membrane-mist);
+}
+.seal-tagline {
+  font-family: 'Inter','sans-serif'; font-style: italic; font-size: 12px;
+  color: var(--membrane-mist-dim); letter-spacing: 0.01em;
+}
+.seal-handle {
+  font-family: 'JetBrains Mono', monospace; font-size: 9.5px; letter-spacing: 0.14em; color: rgba(255,154,106,0.85);
+}
+
+/* readouts centered as a quiet row under the seal */
+.seal-readouts { grid-template-columns: 1fr 1fr 1fr; gap: 6px 18px; }
+.seal-readouts .crewid-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+.seal-readouts .crewid-v { text-align: left; }
+
+.seal-sovereign {
+  position: relative; z-index: 2; text-align: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--membrane-mist-dim); opacity: 0.7;
+}
+
+/* the strike CTA reuses .crewid-claim; just center its text block */
+.seal-strike { justify-content: center; text-align: center; }
+.seal-strike .cc-text { align-items: center; }
+.seal-strike .cc-glyph { animation: seal-glyph-spin 14s linear infinite; }
+@keyframes seal-glyph-spin { to { transform: rotate(360deg); } }
+
+/* ─── THE FIELD — folded full-bleed world ────────────────────────────── */
+/* The panel folds away like a wall of the ship receding; the orbs become
+   the full-bleed world. Click an orb to summon a panel back as an overlay;
+   click empty space (or ↩) to fold it away again. */
+.membrane-panel {
+  transition:
+    left 420ms cubic-bezier(0.65, 0, 0.05, 1),
+    right 420ms cubic-bezier(0.65, 0, 0.05, 1),
+    transform 760ms cubic-bezier(0.7, 0, 0.2, 1),
+    opacity 480ms ease;
+  transform-origin: left center;
+}
+.membrane-folded .membrane-panel {
+  transform: perspective(1500px) translateX(-14%) rotateY(-34deg) scale(0.95);
+  opacity: 0;
+  pointer-events: none;
+}
+.membrane-stage::before { transition: opacity 620ms ease; }
+.membrane-folded .membrane-stage::before { opacity: 0; }  /* drop the reading gutter → full bleed */
+
+/* "enter the field" — explicit fold control in the panel footer. Folds
+   the panel away so the orbs become the full-bleed world. Hidden with the
+   panel once folded; you return by tapping an orb. Never auto-folds. */
+.membrane-enter-field {
+  display: inline-flex; align-items: center; gap: 7px;
+  -webkit-app-region: no-drag; cursor: pointer;
+  padding: 6px 12px; border-radius: 999px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9px;
+  letter-spacing: 0.16em; text-transform: lowercase;
+  color: var(--membrane-mist-mid);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 122, 61, 0.3);
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.membrane-enter-field:hover { color: var(--membrane-ember); border-color: var(--membrane-ember); background: rgba(255,122,61,0.08); }

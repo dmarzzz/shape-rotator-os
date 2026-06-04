@@ -20,8 +20,26 @@ contribute_interests: "Happy to work on anything TEE related, SQL/DB related, wh
 availability_pref: "Never available Sundays."
 weekly_intention: "I want a functioning production ready cluster online this week."
 dietary_restrictions: "low salt, low fat, heart healthy"
+go_to_them_for:
+  - TEE database architecture
+  - Postgres deployment
+  - attestation boundaries
+  - developer trust models
+recurring_themes:
+  - trusted data systems
+  - database pragmatism
+  - TEE developer experience
+  - local proof over claims
+enrichment_source: dossier-derived  # facilitator read; edit freely
+making_signature:
+  class: code-verified
+  built_domain: [systems, agentic]
+  shape: broad
+  note: stated work corroborated by their code
+  not_identity_claim: true
+  source: code-derived
 ---
 
 ## about
 
-(public surface — details to be filled in)
+A long-tenured (8-year) crypto-ecosystem builder and the technical center of TeeSQL — a managed Postgres-as-a-service running inside Confidential VMs on dstack (AMD SEV-SNP / Intel TDX via Phala) with mutual RA-TLS and per-transaction attestation. Domain-authentic TEE depth: a maintained dstack fork, phala-cloud-cli, and a working three-CVM Postgres demo. Reads TeeSQL as an attested-storage substrate that folds into other teams' stacks. GitHub dmvt. NYC, nomadic.

@@ -18,8 +18,20 @@ links:
   linkedin: kelsen-liu-668b72258
   telegram: kelsenLu
 dietary_restrictions:
+go_to_them_for:
+  - AI infra GTM
+  - agent routing networks
+  - crypto fundraising context
+  - developer adoption questions
+recurring_themes:
+  - agent economy routing
+  - market wedge search
+  - P2P infrastructure
+  - founder-level GTM
+working_style: "Builds the company's narrative, marketing, and business surface rather than the core engine"
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface — Bitrouter cofounder)
+Team lead and CEO of BitRouter, and an NYU undergraduate. Carries the team's narrative, marketing, and front-of-house (GitHub SPIKESPIGEL404 — a personal site and a marketing-agent that agentizes BitRouter's marketing). NYC.

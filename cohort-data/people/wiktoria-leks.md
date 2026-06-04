@@ -17,8 +17,20 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - personal-data agency vision
+  - AI curation concepts
+  - pilot narrative
+  - founder vision critique
+recurring_themes:
+  - data as autonomy
+  - broad product imagination
+  - need for pilot discipline
+  - brand/product mismatch risk
+working_style: BD-first, network-led — she opens doors in bioscience and frames the venture around data-provider relationships
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface — WikiGen)
+Founder and BD lead of WikiGen — a healthcare-data TEE marketplace (DNAI: matching data-owners such as sequencing labs with consumers such as pharma, via TEE-mediated confidential compute). Brings a dense bioscience BD network (orchestrate.bio, Stanford pediatrics, longevity cell lines, epigenetics labs). Ohio (PT).

@@ -41,6 +41,13 @@ offering:
   - TEE deployment workshop (setup, remote attestation, pitfalls)
   - open-source attestation verification SDK for cohort
   - AI tasks + AI translation features available to cohort via Signal
+making_signature:
+  built_domain: [systems]
+  shape: deep
+  shared_primitives:
+    - zk / proof systems
+  note: "derived from the team's public code (structure + cross-cohort shared primitives), not a self-claim"
+  source: code-derived
 ---
 
 ## about

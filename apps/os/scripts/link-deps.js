@@ -48,6 +48,21 @@ if (!ROOT_NM) {
 
 fs.mkdirSync(APP_NM, { recursive: true });
 
+function linkDir(target, linkPath) {
+  const relTarget = path.relative(path.dirname(linkPath), target);
+  try {
+    fs.symlinkSync(relTarget, linkPath, "dir");
+  } catch (e) {
+    if (process.platform !== "win32" || !["EPERM", "EACCES"].includes(e?.code)) {
+      throw e;
+    }
+    // Directory symlinks require elevated privileges or Developer Mode on
+    // many Windows installs. Junctions do not, and Node expects an absolute
+    // target for them.
+    fs.symlinkSync(target, linkPath, "junction");
+  }
+}
+
 let linked = 0;
 for (const pkg of PKGS) {
   const target = path.join(ROOT_NM, pkg);
@@ -60,12 +75,9 @@ for (const pkg of PKGS) {
     fs.unlinkSync(linkPath);
   } catch { /* doesn't exist yet */ }
   if (!fs.existsSync(target)) continue;
-  // Symlink with a path RELATIVE to the link's parent so the link works
-  // regardless of where the repo lives on disk.
-  const relTarget = path.relative(path.dirname(linkPath), target);
   // For nested @scope packages, ensure the @scope dir exists.
   fs.mkdirSync(path.dirname(linkPath), { recursive: true });
-  fs.symlinkSync(relTarget, linkPath, "dir");
+  linkDir(target, linkPath);
   linked++;
 }
 if (linked > 0) {

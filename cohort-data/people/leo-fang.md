@@ -17,8 +17,18 @@ links:
   website: daedalus-research.com
   linkedin: null
 dietary_restrictions:
+go_to_them_for:
+  - prediction-market design
+  - quant/crypto market structure
+  - PROF/order-flow questions
+  - InfoFi strategy
+recurring_themes:
+  - market microstructure
+  - research-backed product
+  - liquidity intelligence
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
 
-(public surface — Daedalus · prediction-market microstructure)
+CEO of Daedalus — a former CICC quant anchoring a TradFi/crypto financial-infrastructure team building a liquidity-and-intelligence engine for prediction markets (PROF-paper lineage). Distributed (NYC / SF / Asia).
