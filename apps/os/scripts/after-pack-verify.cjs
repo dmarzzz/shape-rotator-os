@@ -114,7 +114,10 @@ exports.default = async function afterPack(context) {
   }
 
   // ── 4. anchor allowlist — the load-bearing files must exist ───────
-  const MUST_EXIST = ["main.js", "preload.js", "swarm-node.js", "swf-node.js", "src/index.html", "src/renderer/boot.js"];
+  const MUST_EXIST = ["main.js", "preload.js", "swarm-node.js", "swf-node.js", "src/index.html", "src/renderer/boot.js",
+    // router pop-out: host adapter + vendored pipeline + verbatim renderer/shim
+    "daybook-main.js", "daybook/redact.js", "daybook/draft.js", "daybook/link.js",
+    "src/router/index.html", "src/router/app.js", "src/router/preload.js"];
   for (const f of MUST_EXIST) {
     if (!entries.has(f)) problems.push(`required runtime file missing from asar: ${f}`);
   }

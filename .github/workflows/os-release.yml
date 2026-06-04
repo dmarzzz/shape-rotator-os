@@ -160,6 +160,22 @@ jobs:
             echo "::endgroup::"
           done
 
+      # Cross-platform voice backend for the router pop-out: stage whisper.cpp
+      # (whisper-cli) + a ggml model + ffmpeg per arch into _staging/whisper/,
+      # flattened by the beforePack hook into Resources/whisper/. Like swf-node
+      # it DEGRADES GRACEFULLY — a target without a staged binary falls back to
+      # MLX (Apple Silicon) or type-only, and the build still succeeds. mac/linux
+      # build whisper-cli from source (cmake is present on GH runners).
+      - name: fetch whisper.cpp voice backend
+        shell: bash
+        run: |
+          set -uo pipefail
+          for arch in ${{ matrix.arches }}; do
+            echo "::group::fetch whisper ($arch)"
+            WHISPER_ARCH="$arch" bash scripts/fetch-whisper.sh || echo "[ci] whisper staging for $arch degraded (voice falls back) — non-fatal"
+            echo "::endgroup::"
+          done
+
       - name: regenerate cohort-surface.json from cohort-data/
         run: npm run build:cohort
 

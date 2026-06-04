@@ -5966,6 +5966,9 @@ const TOP_TABS = new Set(["alchemy", "apps", "network", "links"]);
 const NET_SUBS = new Set(["network", "metrics"]);
 const APPS_LS_KEY = "srwk:apps_view";
 const APPS_VIEWS = new Set(["atlas", "easel"]);  // grid is the absence of one of these
+// router (daybook) is NOT an apps-stage view — it opens as its own pop-out
+// window. The apps card / command palette / onboarding deep-link all route here.
+const openRouter = () => { try { window.api?.daybook?.openWindow?.(); } catch {} };
 // Legacy values older builds wrote to localStorage. Quietly migrate.
 function migrateLegacyTab(t) {
   // Top-level atlas tab was folded into the apps grid (2026-05-18). Land
@@ -6051,6 +6054,8 @@ function wireAppsGrid() {
     const card = e.target.closest("[data-app-key]");
     if (card) {
       const key = card.dataset.appKey;
+      // router opens as a pop-out window, not an apps-stage sub-view.
+      if (key === "daybook") { openRouter(); return; }
       if (!APPS_VIEWS.has(key)) return;
       document.body.dataset.appsView = key;
       try { localStorage.setItem(APPS_LS_KEY, key); } catch {}
@@ -6122,9 +6127,22 @@ function registerVisualizerShortcutsAndCommands() {
     morphActiveTab(t, () => applyActiveTab(t));
     try { localStorage.setItem(TAB_LS_KEY, t); } catch {}
   };
+  // Jump straight into an apps-tab sub-app (atlas | easel | daybook) in one
+  // step — used by the command palette + cross-module deep-links (e.g. the
+  // alchemy onboarding "interview" step opens daybook via window.__srwkOpenApp).
+  const openApp = (key) => {
+    // router is a pop-out window, not an apps-stage view.
+    if (key === "daybook") { openRouter(); return; }
+    if (!APPS_VIEWS.has(key)) return;
+    document.body.dataset.appsView = key;
+    try { localStorage.setItem(APPS_LS_KEY, key); } catch {}
+    morphActiveTab("apps", () => applyActiveTab("apps"));
+    try { localStorage.setItem(TAB_LS_KEY, "apps"); } catch {}
+  };
   // Expose for cross-module navigation (identity.js routes the user
   // into the profile editor after they claim a record).
   window.__srwkGoTab = goTab;
+  window.__srwkOpenApp = openApp;
 
   registerKeyboardShortcuts([
     {
@@ -6181,6 +6199,10 @@ function registerVisualizerShortcutsAndCommands() {
       hint: "cohort sandbox",
       keywords: ["tab","alchemy","cohort","teams","specimens","pulse","constellation","activity","progress"],
       run: () => goTab("alchemy") },
+    { id: "go.daybook", group: "Go to", label: "Go to Router",
+      hint: "your daily cohort update",
+      keywords: ["app","router","daybook","digest","update","post","cohort","daily","reflect","intro","interview"],
+      run: () => openApp("daybook") },
     { id: "atlas.timelapse", group: "Atlas", label: "Atlas: toggle time-lapse",
       keys: ["T"], hint: "cinematic replay of the last N days",
       keywords: ["atlas","timelapse","time-lapse","replay","scrub","cinematic","T"],
@@ -6408,6 +6430,8 @@ function applyActiveTab(tab) {
   } else {
     try { Easel.setActive(false); } catch {}
   }
+  // router (daybook) is a pop-out window, not an apps-stage view — no mount
+  // branch here; the apps card / command / onboarding open it via openRouter().
 
   // Alchemy tab — cohort sandbox. Same lazy-mount pattern as atlas.
   if (tab === "alchemy") {

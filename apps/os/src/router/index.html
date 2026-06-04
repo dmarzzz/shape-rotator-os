@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;" />
+  <title>Teleport Router</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="drag-strip"></div>
+  <canvas id="voice-shader" class="voice-shader" hidden></canvas>
+
+  <main class="shell">
+    <header class="head">
+      <div class="brand">
+        <canvas class="discoball" id="discoball" width="40" height="40" aria-hidden="true"></canvas>
+        <span class="wordmark">Teleport Router</span>
+      </div>
+      <div class="head-right">
+        <button class="link head-link" id="open-feedview" title="The cohort feed" aria-label="Open the cohort feed"><span aria-hidden="true">❏</span> Feed</button>
+        <button class="link head-link" id="open-scope" title="What the Router can see" aria-label="Open Scope — what the Router can see"><span aria-hidden="true">◈</span> Scope</button>
+        <button class="link head-link" id="open-link" title="Link another computer" aria-label="Link another computer"><span aria-hidden="true">⛓</span> Link</button>
+        <span class="date" id="date">—</span>
+      </div>
+    </header>
+
+    <section class="stats draft-stats" id="stats" hidden>
+      <div class="stat"><span class="num" id="s-projects">0</span><span class="lbl">projects</span></div>
+      <div class="stat"><span class="num" id="s-messages">0</span><span class="lbl">messages</span></div>
+      <div class="stat"><span class="num" id="s-files">0</span><span class="lbl">files touched</span></div>
+    </section>
+
+    <!-- LOADING -->
+    <section class="card state" id="loading">
+      <div class="spinner"></div>
+      <p class="status" id="loading-text" role="status" aria-live="polite">Getting set up…</p>
+      <div class="think-stream" id="think-stream" aria-hidden="true" hidden></div>
+      <p class="sub">Files and voice stay on-device; text is written by your Claude subscription. Nothing posts until you approve.</p>
+    </section>
+
+    <!-- EMPTY -->
+    <section class="card state" id="empty" hidden>
+      <div class="glyph">🌙</div>
+      <p class="status" id="empty-status" role="status" aria-live="polite">No new Claude or Codex activity since your last post — yet.</p>
+      <p class="sub" id="empty-sub">Come back after some work and the Router will have a reflection ready.</p>
+      <button class="btn ghost" id="empty-open-scope" hidden>Open Scope →</button>
+    </section>
+
+    <!-- ERROR -->
+    <section class="card state" id="error" hidden>
+      <div class="glyph">⚠️</div>
+      <p class="status">Something went sideways.</p>
+      <p class="sub" id="error-text" role="alert"></p>
+      <button class="btn ghost" id="retry">Try again</button>
+    </section>
+
+    <!-- CONNECT (no key yet): join the Router in-app, no CLI needed -->
+    <section class="card welcome" id="connect" hidden>
+      <div class="welcome-inner">
+        <span class="dot welcome-dot"></span>
+        <h2 class="welcome-title">Connect to the Router</h2>
+        <p class="welcome-body">Router posts to your cohort’s shared notebook. Paste your invite link and pick a handle to join — no terminal needed.</p>
+        <div class="connect-fields">
+          <input id="connect-invite" class="fb-input" placeholder="Invite link or code" aria-label="Invite link or code" autocomplete="off" spellcheck="false" />
+          <label class="connect-handle">
+            <span class="at">@</span>
+            <input id="connect-handle" class="fb-input" placeholder="choose a handle" autocomplete="off" spellcheck="false" />
+          </label>
+          <div class="connect-err" id="connect-err" hidden></div>
+        </div>
+        <div class="welcome-actions">
+          <button class="btn primary" id="connect-join">Join the Router →</button>
+        </div>
+        <div class="connect-alt">
+          <button class="link" id="connect-have-key">Already have a key? Paste it →</button>
+          <div class="connect-key-row" id="connect-key-row" hidden>
+            <input id="connect-key" class="fb-input" placeholder="Paste your Router key" autocomplete="off" spellcheck="false" />
+            <button class="btn ghost" id="connect-use-key">Use key →</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- WELCOME (first run): introduce the reader to the Router -->
+    <section class="card welcome" id="welcome" hidden>
+      <div class="welcome-inner">
+        <canvas class="discoball discoball-big" id="discoball-welcome" width="240" height="240" aria-hidden="true"></canvas>
+        <h2 class="welcome-title">You’re initiating the Teleport Router v0.1.</h2>
+        <p class="welcome-body" id="welcome-body"></p>
+        <div class="welcome-actions">
+          <button class="btn ghost" id="welcome-skip">Skip intro</button>
+          <button class="btn primary" id="welcome-begin">Begin →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- INTERVIEW (first run): a dynamic, one-question-at-a-time conversation -->
+    <section class="card interview" id="interview" hidden>
+      <div class="reflect-head">
+        <span class="eyebrow" id="iv-progress">Question 1</span>
+        <button class="link" id="iv-skip" title="Skip the interview and write now">Wrap up →</button>
+      </div>
+      <div class="iv-stage">
+        <label class="iv-question" id="iv-question" for="iv-answer"></label>
+        <div class="iv-hint" id="iv-hint" role="status" aria-live="polite" hidden></div>
+        <div class="iv-answer-area" id="iv-answer-area">
+          <button class="iv-speak" id="iv-mic">🎙 Speak your answer</button>
+          <button class="link iv-type" id="iv-type">or type instead</button>
+          <textarea id="iv-answer" class="fb-input iv-answer" placeholder="Type your answer…" hidden></textarea>
+          <button class="link iv-redo" id="iv-redo" hidden>🎙 Speak again</button>
+        </div>
+      </div>
+      <div class="iv-actions">
+        <button class="btn ghost" id="iv-back">← Back</button>
+        <button class="btn primary" id="iv-next">Next →</button>
+      </div>
+    </section>
+
+    <!-- REFLECTION -->
+    <section class="card reflect" id="reflect" hidden>
+      <div class="editor-wrap">
+        <div class="reflect-head">
+          <span class="eyebrow" id="eyebrow">Cohort digest</span>
+        </div>
+
+        <div class="quiet-banner" id="quiet" hidden>
+          <span>Quiet day — what's in scope didn't have much worth a cohort post. Nothing posts.</span>
+        </div>
+
+        <!-- the draft IS the editor — edit the text directly -->
+        <textarea id="editor" class="prose editor" spellcheck="true" aria-label="Your cohort post — edit it directly" placeholder="Your draft will appear here…"></textarea>
+
+        <!-- bundled refine opener: a question + CTA into the interview -->
+        <div class="refine-prompt" id="refine-prompt" hidden>
+          <p class="refine-q" id="refine-q"></p>
+          <button class="refine-cta" id="refine-cta">Refine in interview →</button>
+        </div>
+
+        <div class="meta-row" id="projlist"></div>
+      </div>
+    </section>
+
+    <!-- SUCCESS -->
+    <section class="card state" id="success" hidden>
+      <div class="glyph check">✓</div>
+      <p class="status">Staged to the Router.</p>
+      <p class="sub" id="success-sub">It’s held in staging and stays deletable for a while before it goes public.</p>
+      <div class="feed-list success-feed" id="success-feed"></div>
+      <button class="btn ghost" id="open-feed">Open the feed in your browser →</button>
+    </section>
+
+    <!-- LINK: connect another computer running Router -->
+    <section class="card linkview" id="link" hidden>
+      <div class="reflect-head">
+        <span class="eyebrow">Link a device</span>
+        <button class="link" id="link-back">← back</button>
+      </div>
+      <p class="link-lead">Pull another computer's Claude/Codex work — recent digests, or raw logs on request. Two ways: a <b>pairing code</b> (both machines run Router, same network, direct device-to-device) or <b>SSH</b> (connect to any machine you can already ssh into — nothing runs there; works on your LAN or across the internet, and it's encrypted).</p>
+      <div class="link-cols">
+        <div class="link-card">
+          <div class="link-card-title">Share this machine</div>
+          <div id="host-idle">
+            <label class="link-perm"><input type="checkbox" id="perm-recent" checked /> share recent-work digests</label>
+            <label class="link-perm"><input type="checkbox" id="perm-raw" /> share raw logs on request</label>
+            <button class="btn primary" id="host-start">Start sharing →</button>
+          </div>
+          <div id="host-active" hidden>
+            <div class="link-sub">Pairing code — paste it on the other computer:</div>
+            <textarea id="host-code" class="link-code" readonly rows="3" aria-label="Pairing code to paste on the other computer"></textarea>
+            <div class="link-status" id="host-status">0 peers connected</div>
+            <button class="btn ghost" id="host-stop">Stop sharing</button>
+          </div>
+        </div>
+        <div class="link-card">
+          <div class="link-card-title">Connect to a machine</div>
+          <div class="link-tabs" id="peer-tabs">
+            <button class="link-tab is-on" id="tab-code" data-mode="code">Pairing code</button>
+            <button class="link-tab" id="tab-ssh" data-mode="ssh">SSH</button>
+          </div>
+          <div id="peer-idle">
+            <div id="peer-pane-code">
+              <textarea id="peer-code" class="link-code" placeholder="Paste a pairing code" aria-label="Pairing code from the other computer" rows="3"></textarea>
+              <button class="btn primary" id="peer-connect">Connect →</button>
+            </div>
+            <div id="peer-pane-ssh" hidden>
+              <input id="peer-ssh" class="fb-input link-ssh-input" placeholder="user@host  ·  name.local  ·  ssh config alias" aria-label="SSH target (user@host, name.local, or ssh alias)" autocomplete="off" spellcheck="false" />
+              <div class="link-sub">Nothing needs to run on the other machine. Uses your existing SSH key access to read its ~/.claude &amp; ~/.codex logs — a computer on your network (try <b>name.local</b>) or across the internet.</div>
+              <button class="btn primary" id="peer-ssh-connect">Connect over SSH →</button>
+              <div class="ssh-saved" id="ssh-saved" hidden>
+                <div class="ssh-saved-title">Folded into your daily digest:</div>
+                <div id="ssh-saved-list"></div>
+              </div>
+            </div>
+            <div class="link-err" id="peer-err" hidden></div>
+          </div>
+          <div id="peer-active" hidden>
+            <div class="link-status" id="peer-status">Connected to this machine.</div>
+            <div class="link-actions2">
+              <button class="btn ghost" id="peer-pull-recent">Pull recent work</button>
+              <button class="btn ghost" id="peer-pull-raw">Pull raw logs</button>
+            </div>
+            <div class="link-result" id="peer-result"></div>
+            <button class="link" id="peer-disconnect">disconnect</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEED: the cohort feed in-app — your posts + the room's -->
+    <section class="card feedview" id="feed" hidden>
+      <div class="reflect-head">
+        <span class="eyebrow">❏ Feed</span>
+        <button class="link" id="feed-back">← back</button>
+      </div>
+      <div class="scope-headline">The cohort feed</div>
+      <div class="scope-sub">Your posts and the room’s, newest first.</div>
+      <div class="feed-list" id="feed-list"></div>
+    </section>
+
+    <!-- SCOPE: pick which repos the Router can see -->
+    <section class="card scopeview" id="scope" hidden>
+      <div class="reflect-head">
+        <span class="eyebrow">◈ Scope</span>
+        <button class="link" id="scope-back">← back</button>
+      </div>
+      <div class="scope-headline">Which repos can the Router see?</div>
+      <div class="scope-sub">Only the repos you turn on are read for your daily update. Everything else stays out.</div>
+
+      <div class="scope-list" id="scope-list"></div>
+
+      <div class="scope-save"><button class="btn primary" id="scope-save">Done →</button></div>
+    </section>
+
+    <footer class="actions" id="actions" hidden>
+      <div class="posting-as" id="posting-as"></div>
+      <div class="act-row">
+        <button class="link" id="startover" title="Write a fresh draft">Start over</button>
+        <div class="buttons">
+          <button class="btn ghost" id="skip">Skip</button>
+          <button class="btn primary" id="post">Post to cohort →</button>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

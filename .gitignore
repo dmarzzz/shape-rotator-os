@@ -53,3 +53,6 @@ apps/web/cohort-surface.json
 apps/os/build-resources/_staging/
 apps/os/build-resources/swf-node/
 apps/os/build-resources/research-swarm/
+# whisper.cpp voice backend — large model + per-platform binary, staged by
+# apps/os/scripts/fetch-whisper-cpp.sh (not committed)
+apps/os/build-resources/whisper/
