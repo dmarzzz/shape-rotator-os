@@ -1118,30 +1118,6 @@ a.cd-timeline-title:hover {
   color: var(--ink-4);
   text-transform: lowercase;
 }
-.cd-links { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); }
-.cd-links li { list-style: none; }
-.cd-links a,
-.cd-link-static { display: grid; grid-template-columns: 78px 1fr; align-items: baseline; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--hairline); border-radius: var(--r-sm); font-family: var(--font-mono); font-size: var(--t-12); color: var(--ink-1); transition: border-color var(--dur-base) var(--ease); }
-.cd-links a:hover { border-color: var(--ink-3); }
-.cd-link-k { color: var(--ink-3); text-transform: uppercase; letter-spacing: var(--track-caps); font-size: var(--t-11); }
-.cd-link-v { word-break: break-all; }
-.cd-people { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-3); }
-.cd-people > li { list-style: none; }
-.cd-person-link {
-  display: grid;
-  gap: var(--space-1);
-  min-height: 58px;
-  padding: var(--space-3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
-  transition: border-color var(--dur-base) var(--ease), background var(--dur-base) var(--ease);
-}
-.cd-person-link:hover {
-  border-color: rgba(208, 83, 50, 0.55);
-  background: rgba(180, 58, 25, 0.06);
-}
-.adp-name { color: var(--ink-1); font-weight: 500; }
-.adp-role { font-family: var(--font-mono); font-size: var(--t-11); color: var(--ink-3); letter-spacing: var(--track-caps); text-transform: uppercase; }
 .cd-clusters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .cd-cluster { padding: 4px var(--space-2); border: 1px solid var(--hairline); border-radius: var(--r-sm); font-family: var(--font-mono); font-size: var(--t-11); color: var(--ink-3); letter-spacing: var(--track-caps); text-transform: lowercase; }
 

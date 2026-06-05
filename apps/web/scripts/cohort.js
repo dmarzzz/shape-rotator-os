@@ -235,23 +235,6 @@ function renderSection(title, body, open = false) {
   `;
 }
 
-function renderLinkList(links = {}) {
-  const entries = Object.entries(links).filter(([, v]) => v && String(v).trim());
-  if (!entries.length) return "";
-  return `
-    <ul class="cd-links">
-      ${entries.map(([k, v]) => {
-        const href = normalizeLinkHref(k, v);
-        const display = String(v).replace(/^https?:\/\//, "");
-        if (href) {
-          return `<li><a href="${escAttr(href)}" target="_blank" rel="noopener noreferrer"><span class="cd-link-k">${escHtml(k)}</span><span class="cd-link-v">${escHtml(display)}</span></a></li>`;
-        }
-        return `<li><span class="cd-link-static"><span class="cd-link-k">${escHtml(k)}</span><span class="cd-link-v">${escHtml(display)}</span></span></li>`;
-      }).join("")}
-    </ul>
-  `;
-}
-
 function linkTargetAttrs(href) {
   return /^https?:\/\//i.test(String(href || "")) ? ` target="_blank" rel="noopener noreferrer"` : "";
 }
@@ -696,15 +679,16 @@ function compactPills(items) {
     return `
       ${renderTeamRail(rec, teamPeople, fam, kind)}
       <section class="cd-ledger">
+        <div class="cd-section-stack">
+          ${renderSection("current read", aboutRows, true)}
+        </div>
         <div class="cd-ledger-head">
           <span class="cd-h">${escHtml(kind)} read</span>
         </div>
         <div class="cd-quick cd-team-quick">${nextMove}${needs}${provides}${proof}${trajectory}${collab}${explore}</div>
         <div class="cd-section-stack">
-          ${renderSection("current read", aboutRows, true)}
           ${renderSection("trajectory", trajectoryRows)}
           ${renderSection("evidence", evidenceRows)}
-          ${renderSection("links", renderLinkList(links))}
           ${renderSection("guild", guild)}
         </div>
       </section>
