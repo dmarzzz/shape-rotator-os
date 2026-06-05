@@ -12264,6 +12264,8 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 .cb-intro-text { font-size: 10.5px; color: var(--alchemy-ink-mute); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
+.cb-intro-meta { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
+
 .cb-intro-arrow { color: var(--alchemy-oxide-bright); font-size: 16px; }
 
 .cb-intro-chips, .cb-cv-teams { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
@@ -12273,6 +12275,22 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .cb-cv-team { background: rgba(var(--ink-rgb), 0.05); color: var(--alchemy-ink-mute); }
 
 .cb-chip { background: rgba(193,168,114,0.14); color: rgba(214,189,134,0.95); }
+
+.cb-underused-flow { grid-template-columns: minmax(0, 1fr) auto; }
+
+.cb-underused-count {
+  align-self: start;
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  border-radius: 5px;
+  padding: 4px 7px;
+  background: rgba(var(--ink-rgb), 0.025);
+  color: var(--alchemy-ink-mute);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
 
 /* convergence */
 .cb-cv-list { display: flex; flex-direction: column; gap: 10px; }

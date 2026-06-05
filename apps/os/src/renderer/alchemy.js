@@ -7756,6 +7756,30 @@ function renderCollab() {
       <div class="cb-intro-grid">${introCards || '<p class="cb-empty">no overlaps found.</p>'}</div>
     </section>`;
 
+  // underused offers — declared help with the lowest routed demand
+  const underused = (m.underusedOffers || []).slice(0, 12);
+  const underusedCards = underused.map(item => {
+    const chips = item.skills.slice(0, 5).map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("");
+    const matchLabel = item.matchCount === 1 ? "1 matched ask" : `${item.matchCount} matched asks`;
+    const teamMeta = [domainLabel(item.team?.domain), item.team?.geo].filter(Boolean).join(" · ");
+    return `<article class="cb-intro cb-underused-offer" data-collab-cohort-open="${escAttr(item.rid)}" role="link" tabindex="0" title="${escAttr(`open ${item.teamName} profile`)}">
+      <div class="cb-intro-flow cb-underused-flow">
+        <div class="cb-intro-side">
+          <span class="cb-intro-role">available offer</span>
+          <span class="cb-intro-team">${escHtml(item.teamName)}</span>
+          ${teamMeta ? `<span class="cb-intro-meta">${escHtml(teamMeta)}</span>` : ""}
+          ${item.offering ? `<span class="cb-intro-text">${escHtml(item.offering)}</span>` : ""}
+        </div>
+        <span class="cb-underused-count">${escHtml(matchLabel)}</span>
+      </div>${chips ? `<div class="cb-intro-chips">${chips}</div>` : ""}
+    </article>`;
+  }).join("");
+  const underusedSection = `
+    <section class="alch-cb-section">
+      <div class="alch-cb-sechead"><h3>Underused offers</h3><span class="cb-sub">declared help with the lowest matched demand — useful supply to route better</span></div>
+      <div class="cb-intro-grid">${underusedCards || '<p class="cb-empty">no underused offers found.</p>'}</div>
+    </section>`;
+
   // convergence — skill areas shared by 3+ teams
   const maxConv = m.convergence.reduce((mx, c) => Math.max(mx, c.count), 1);
   const convRows = m.convergence.map(c => {
@@ -7788,6 +7812,7 @@ function renderCollab() {
       </header>
       ${matrix}
       ${introSection}
+      ${underusedSection}
       ${convSection}
       <p class="alch-callout"><strong>collaboration board · v0.1</strong><br/>Self-asserted only — affinities are shared <code>skill_areas</code>, intros are <code>seeking</code>↔<code>offering</code> term overlaps. No inferred or private scoring.</p>
     </div>`;
