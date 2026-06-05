@@ -10055,12 +10055,8 @@ textarea.cb-intake-input {
   transform: none;
 }
 
-.cb-intake-team-option.is-filtered-out {
-  display: none;
-}
-
 .cb-intake-blocker-picker {
-  gap: 8px;
+  gap: 9px;
 }
 
 .cb-intake-blocker-head {
@@ -10091,13 +10087,6 @@ textarea.cb-intake-input {
   font-size: 9px;
   letter-spacing: 0.1em;
   text-transform: lowercase;
-}
-
-.cb-intake-blocker-filter {
-  min-height: 34px;
-  max-width: 280px;
-  padding-block: 7px;
-  font-size: 11px;
 }
 
 .cb-intake-tags {
