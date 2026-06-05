@@ -352,7 +352,6 @@ function pill(label, value) {
           ${renderSection("current read", currentRows, true)}
           ${renderSection("routes / asks", routeRows)}
           ${renderSection("evidence", evidenceRows)}
-          ${renderSection("links", renderLinkList(links))}
         </div>
       </section>
     `;
