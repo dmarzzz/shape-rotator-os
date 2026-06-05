@@ -6733,23 +6733,32 @@ button.cb-cell { cursor: pointer; }
 /* ─── journey (PMF spectrum scatterplot) ─────────────────────────────── */
 /* Reuses the constellation stage chrome; the scatter-specific bits (grid,
    axes, dots, tooltip) live here. Matches the dark oxide-on-warm aesthetic. */
+.alch-constellation {
+  --journey-ink: var(--ed-ink-1, #f5f3ee);
+  --journey-muted: var(--ed-ink-2, #b8b4ab);
+  --journey-quiet: var(--ed-ink-3, #6e695e);
+  --journey-rule: rgba(var(--ink-rgb), 0.16);
+  --journey-rule-strong: rgba(var(--ink-rgb), 0.34);
+  --journey-control-bg: rgba(var(--ink-rgb), 0.035);
+  --journey-control-bg-hover: rgba(var(--ink-rgb), 0.065);
+}
 .alch-journey-stage svg { width: 100%; height: 100%; display: block; }
 .alch-journey-stage svg .ac-jgrid {
-  stroke: rgba(var(--ink-rgb), 0.08); stroke-width: 0.6;
+  stroke: var(--journey-rule); stroke-width: 0.65;
 }
 .alch-journey-stage svg .ac-jaxis-x,
 .alch-journey-stage svg .ac-jaxis-y {
-  fill: var(--alchemy-ink-mute);
-  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.06em; text-transform: lowercase;
+  fill: var(--journey-muted);
+  font-family: var(--font-mono); font-size: 8.8px; letter-spacing: 0.06em; text-transform: lowercase;
 }
-.alch-journey-stage svg .ac-jaxis-num { fill: var(--alchemy-paper-warm); font-weight: 600; }
+.alch-journey-stage svg .ac-jaxis-num { fill: var(--journey-ink); font-weight: 600; }
 /* Divider setting the off-track "side project" column apart from idea→scale-fit. */
 .alch-journey-stage svg .ac-jdivider {
-  stroke: rgba(var(--ink-rgb), 0.28); stroke-width: 1; stroke-dasharray: 3 4;
+  stroke: var(--journey-rule-strong); stroke-width: 1; stroke-dasharray: 3 4;
 }
-.alch-journey-stage svg .ac-jaxis-x-side { fill: var(--alchemy-ink-mute); font-style: italic; opacity: 0.8; }
+.alch-journey-stage svg .ac-jaxis-x-side { fill: var(--journey-muted); font-style: italic; opacity: 0.86; }
 .alch-journey-stage svg .ac-jaxis-title {
-  fill: var(--alchemy-ink-mute);
+  fill: var(--journey-muted);
   font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
 }
 .alch-journey-stage svg .ac-jnode { cursor: pointer; }
@@ -6765,7 +6774,7 @@ button.cb-cell { cursor: pointer; }
   filter: drop-shadow(0 0 8px rgba(143,34,14,0.55));
 }
 .alch-journey-stage svg .ac-jnode-label {
-  fill: var(--alchemy-paper-warm); opacity: 0;
+  fill: var(--journey-ink); opacity: 0;
   font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase;
   pointer-events: none;
   transition: opacity 180ms var(--ease);
@@ -6784,13 +6793,14 @@ button.cb-cell { cursor: pointer; }
 .ac-jdot-b9 { fill: #8a8f99; }  /* Team */
 /* Legend swatches reuse the same palette as filled dots. */
 .alch-constellation-legend .acl-jswatch {
-  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  display: inline-block; flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%;
   vertical-align: middle; margin-right: 6px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.36);
 }
 /* Per-stage count strip across the top of the plot. */
 .alch-journey-stage svg .ac-jcount {
-  fill: var(--alchemy-ink-mute); font-family: var(--font-mono);
-  font-size: 9px; font-weight: 600; opacity: 0.7;
+  fill: var(--journey-ink); font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600; opacity: 0.86;
 }
 /* Filter bar */
 .alch-journey-filters {
@@ -6800,32 +6810,58 @@ button.cb-cell { cursor: pointer; }
 .alch-journey-filters .ajf-label,
 .alch-journey-filters .ajf-count {
   font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.16em;
-  text-transform: uppercase; color: var(--alchemy-ink-mute);
+  text-transform: uppercase; color: var(--journey-muted);
 }
 .alch-journey-filters .ajf-count { margin-left: auto; }
 .ajf-toggle {
+  appearance: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 24px; line-height: 1;
   font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
   text-transform: uppercase; cursor: pointer;
   padding: 4px 11px; border-radius: 999px;
-  color: var(--alchemy-ink-mute);
-  background: transparent; border: 1px solid rgba(var(--ink-rgb), 0.16);
+  color: var(--journey-muted);
+  background: var(--journey-control-bg); border: 1px solid rgba(var(--ink-rgb), 0.18);
   transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
 }
 .ajf-toggle.is-on {
-  color: var(--alchemy-paper-warm);
-  border-color: rgba(196,64,37,0.55);
-  background: rgba(196,64,37,0.12);
+  color: var(--journey-ink);
+  border-color: rgba(143,34,14,0.72);
+  background: rgba(143,34,14,0.18);
 }
-.ajf-toggle:not(.is-on) { opacity: 0.55; text-decoration: line-through; }
+.ajf-toggle:hover {
+  color: var(--journey-ink);
+  border-color: rgba(var(--ink-rgb), 0.36);
+  background: var(--journey-control-bg-hover);
+}
+.ajf-toggle:focus-visible,
+.alch-constellation-legend .acl-jbtn:focus-visible {
+  outline: 1px solid rgba(143,34,14,0.78);
+  outline-offset: 2px;
+}
+.ajf-toggle:not(.is-on) { opacity: 0.62; text-decoration: line-through; }
 /* Clickable bottleneck legend */
 .alch-constellation-legend .acl-jbtn {
-  cursor: pointer; background: transparent; border: 1px solid transparent;
+  appearance: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 24px; line-height: 1;
+  cursor: pointer; background: var(--journey-control-bg); border: 1px solid rgba(var(--ink-rgb), 0.16);
   border-radius: 999px; padding: 3px 9px 3px 6px;
-  font: inherit; color: inherit; transition: opacity 160ms var(--ease), border-color 160ms var(--ease);
+  font: inherit; color: var(--journey-muted);
+  transition: opacity 160ms var(--ease), color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
 }
-.alch-constellation-legend .acl-jbtn.is-active { border-color: rgba(var(--ink-rgb), 0.4); }
-.alch-constellation-legend .acl-jbtn.is-dim { opacity: 0.32; }
-.alch-constellation-legend .acl-jbtn:hover { opacity: 1; }
+.alch-constellation-legend .acl-jbtn.is-active {
+  color: var(--journey-ink);
+  border-color: rgba(143,34,14,0.72);
+  background: rgba(143,34,14,0.16);
+}
+.alch-constellation-legend .acl-jbtn.is-dim { opacity: 0.42; }
+.alch-constellation-legend .acl-jbtn:hover {
+  opacity: 1;
+  color: var(--journey-ink);
+  border-color: rgba(var(--ink-rgb), 0.36);
+  background: var(--journey-control-bg-hover);
+}
 /* Tooltip — anchored to the stage, positioned in JS on mousemove. */
 .alch-journey-tip {
   position: absolute; top: 0; left: 0; z-index: 5;

@@ -1186,9 +1186,9 @@ function renderJourney() {
   // Stage distribution over the filtered set (drives the per-column counts).
   const stageCounts = new Array(9).fill(0);
   for (const t of teams) stageCounts[journeyFor(t).stage]++;
-  const W = 980, H = 540;
+  const W = 1120, H = 560;
   // Plot area inset: leave room for axis labels (left = evidence, bottom = stage).
-  const PAD_L = 96, PAD_R = 28, PAD_T = 28, PAD_B = 88;
+  const PAD_L = 178, PAD_R = 30, PAD_T = 30, PAD_B = 106;
   const plotW = W - PAD_L - PAD_R;
   const plotH = H - PAD_T - PAD_B;
   // X = stage. Column 0 is "side project" — OFF the main maturity track,
@@ -1213,17 +1213,47 @@ function renderJourney() {
   // Divider between the off-track side-project column (0) and idea (1).
   const dividerX = PAD_L + colW;
   gridLines.push(`<line class="ac-jdivider" x1="${dividerX.toFixed(1)}" y1="${(PAD_T - 6).toFixed(1)}" x2="${dividerX.toFixed(1)}" y2="${(PAD_T + plotH + 6).toFixed(1)}"/>`);
+  const stageAxisLines = [
+    ["side", "project"],
+    ["1", "idea"],
+    ["2", "problem", "discovery"],
+    ["3", "problem-", "solution fit"],
+    ["4", "product", "validation"],
+    ["5", "scaling", "traction"],
+    ["6", "emerging", "pmf"],
+    ["7", "strong", "pmf"],
+    ["8", "scale", "fit"],
+  ];
   const xLabels = JOURNEY_STAGE_LABELS.map((lbl, stage) => {
     const x = xForStage(stage);
-    // Stage 0 (side project) is off-track — render the label only, no number.
-    const num = stage === 0 ? "" : `<tspan class="ac-jaxis-num">${stage}</tspan> `;
     const cls = stage === 0 ? "ac-jaxis-x ac-jaxis-x-side" : "ac-jaxis-x";
-    return `<text class="${cls}" x="${x.toFixed(1)}" y="${(PAD_T + plotH + 18).toFixed(1)}" text-anchor="middle">${num}${escHtml(lbl)}</text>`;
+    const lines = stageAxisLines[stage] || [String(stage), lbl];
+    const tspans = lines.map((line, i) => {
+      const numCls = stage > 0 && i === 0 ? ` class="ac-jaxis-num"` : "";
+      const dy = i === 0 ? "0" : "11";
+      return `<tspan${numCls} x="${x.toFixed(1)}" dy="${dy}">${escHtml(line)}</tspan>`;
+    }).join("");
+    return `<text class="${cls}" x="${x.toFixed(1)}" y="${(PAD_T + plotH + 18).toFixed(1)}" text-anchor="middle">${tspans}</text>`;
   }).join("");
+  const evidenceAxisLines = [
+    [],
+    ["vibes / thesis"],
+    ["interviews"],
+    ["pilots / LOIs", "design partners"],
+    ["usage / revenue", "retention"],
+    ["repeatable pull"],
+  ];
   const yLabels = JOURNEY_EVIDENCE_LABELS.slice(1).map((lbl, i) => {
     const ev = i + 1;
     const y = yForEvidence(ev);
-    return `<text class="ac-jaxis-y" x="${(PAD_L - 10).toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="end"><tspan class="ac-jaxis-num">${ev}</tspan> ${escHtml(lbl)}</text>`;
+    const lines = evidenceAxisLines[ev] || [lbl];
+    const baseY = y + 3 - (lines.length - 1) * 5;
+    const tspans = lines.map((line, lineIdx) => {
+      const prefix = lineIdx === 0 ? `<tspan class="ac-jaxis-num">${ev}</tspan> ` : "";
+      const dy = lineIdx === 0 ? "0" : "10";
+      return `<tspan x="${(PAD_L - 14).toFixed(1)}" dy="${dy}">${prefix}${escHtml(line)}</tspan>`;
+    }).join("");
+    return `<text class="ac-jaxis-y" x="${(PAD_L - 14).toFixed(1)}" y="${baseY.toFixed(1)}" text-anchor="end">${tspans}</text>`;
   }).join("");
   const axisTitleX = `<text class="ac-jaxis-title" x="${(PAD_L + plotW / 2).toFixed(1)}" y="${(H - 16).toFixed(1)}" text-anchor="middle">stage →</text>`;
   const axisTitleY = `<text class="ac-jaxis-title" transform="translate(18,${(PAD_T + plotH / 2).toFixed(1)}) rotate(-90)" text-anchor="middle">evidence quality →</text>`;
