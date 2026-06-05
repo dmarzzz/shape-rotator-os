@@ -115,7 +115,8 @@ body .alch-shape-overlay { display: block !important; }
 .cohort-detail[hidden] { display: none !important; }
 .cohort-browse {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-4);
+  padding-top: var(--space-1);
 }
 .cohort-toolbar {
   display: flex;
@@ -161,19 +162,22 @@ body .alch-shape-overlay { display: block !important; }
 .cohort-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: var(--space-3);
+  gap: var(--space-4);
   align-items: start;
 }
 .cohort-item-card {
+  position: relative;
   min-width: 0;
   display: grid;
-  gap: var(--space-4);
+  align-content: start;
+  gap: var(--space-3);
   padding: var(--space-4);
   border: 1px solid rgba(241, 236, 231, 0.105);
   border-top-color: rgba(143, 34, 14, 0.32);
   border-radius: var(--r-sm);
   background:
-    linear-gradient(180deg, rgba(241, 236, 231, 0.034), rgba(143, 34, 14, 0.010)),
+    linear-gradient(112deg, rgba(180, 58, 25, 0.10), rgba(180, 58, 25, 0.020) 34%, transparent 62%),
+    linear-gradient(180deg, rgba(241, 236, 231, 0.036), rgba(143, 34, 14, 0.010)),
     rgba(33, 27, 25, 0.54);
   box-shadow: inset 0 1px 0 rgba(241, 236, 231, 0.028);
   cursor: pointer;
@@ -184,7 +188,8 @@ body .alch-shape-overlay { display: block !important; }
   border-color: rgba(241, 236, 231, 0.16);
   border-top-color: rgba(208, 83, 50, 0.46);
   background:
-    linear-gradient(180deg, rgba(241, 236, 231, 0.044), rgba(143, 34, 14, 0.020)),
+    linear-gradient(112deg, rgba(180, 58, 25, 0.13), rgba(180, 58, 25, 0.030) 38%, transparent 64%),
+    linear-gradient(180deg, rgba(241, 236, 231, 0.046), rgba(143, 34, 14, 0.020)),
     rgba(35, 29, 27, 0.72);
 }
 .cohort-item-card:active { transform: scale(0.995); }
@@ -193,14 +198,14 @@ body .alch-shape-overlay { display: block !important; }
 .cohort-item-card.is-project { border-top-color: rgba(208, 83, 50, 0.46); }
 .cic-head {
   display: grid;
-  grid-template-columns: 118px minmax(0, 1fr);
+  grid-template-columns: 112px minmax(0, 1fr);
   gap: var(--space-4);
   align-items: center;
   min-width: 0;
 }
 .cic-shape {
-  width: 118px;
-  height: 118px;
+  width: 112px;
+  height: 112px;
   overflow: hidden;
   background: transparent;
 }
@@ -235,7 +240,7 @@ body .alch-shape-overlay { display: block !important; }
 .cic-title-block h3 {
   margin: 0 0 var(--space-2);
   color: var(--ink-1);
-  font-size: var(--t-15);
+  font-size: var(--t-18, 18px);
   font-weight: 600;
   line-height: var(--lh-tight);
   text-transform: lowercase;
@@ -250,7 +255,7 @@ body .alch-shape-overlay { display: block !important; }
 }
 .cic-routes {
   display: grid;
-  gap: var(--space-2);
+  gap: 0;
   min-width: 0;
   padding-top: var(--space-3);
   border-top: 1px solid rgba(245, 243, 238, 0.06);
@@ -258,9 +263,10 @@ body .alch-shape-overlay { display: block !important; }
 .cic-route-line {
   min-width: 0;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: var(--space-2);
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: var(--space-3);
   align-items: baseline;
+  padding-block: 4px;
   color: rgba(245, 243, 238, 0.62);
   font-family: var(--font-mono);
   font-size: var(--t-11);
@@ -268,7 +274,9 @@ body .alch-shape-overlay { display: block !important; }
 }
 .cic-route-line > span {
   color: rgba(245, 243, 238, 0.30);
-  text-transform: lowercase;
+  font-size: 9.5px;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
 }
 .cic-route-line p {
   min-width: 0;
@@ -295,6 +303,7 @@ body .alch-shape-overlay { display: block !important; }
   flex-wrap: wrap;
   gap: var(--space-2);
   min-width: 0;
+  padding-top: var(--space-1);
 }
 .cic-pills span {
   max-width: 24ch;
@@ -314,8 +323,6 @@ body .alch-shape-overlay { display: block !important; }
   padding: var(--space-4);
   border: 1px solid var(--hairline);
   border-radius: var(--r-sm);
-}
-  overflow-wrap: anywhere;
 }
 
 /* calendar wrapper — provides the sized box that cohort-calendar.js can

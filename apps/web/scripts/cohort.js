@@ -333,6 +333,9 @@ function compactPills(items) {
       }
       rows.push({ label: teamKind(rec) === "project" ? "contributors" : "team", items: visible });
     }
+    if (!isPerson && !isBlank(rec.now)) {
+      rows.push({ label: "now", items: [`<span>${escHtml(rec.now)}</span>`] });
+    }
     const links = surfaceLinkAnchors(rec.links || {});
     if (links.length) rows.push({ label: "links", items: links.slice(0, 4) });
     if (!rows.length) return "";
@@ -364,7 +367,7 @@ function compactPills(items) {
       : [idLabel, shapeKind, rec.membership ? labelize(rec.membership) : "", rec.domain ? domainLabel(rec.domain) : "", rec.geo].filter(Boolean);
     const hints = isPerson
       ? [...asArray(rec.go_to_them_for).slice(0, 2), ...asArray(rec.recurring_themes).slice(0, 2)]
-      : [...asArray(rec.skill_areas).slice(0, 2), ...asArray(rec.seeking).slice(0, 1)];
+      : [...asArray(rec.skill_areas).slice(0, 2), ...asArray(rec.success_dimensions).slice(0, 1)];
     const routes = renderSurfaceRoutes(rec, isPerson, team, members);
     const card = document.createElement("article");
     card.className = `cohort-item-card ${isPerson ? "is-person" : `is-${shapeKind}`}`;
