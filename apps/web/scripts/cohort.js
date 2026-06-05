@@ -177,7 +177,7 @@ function renderSection(title, body, open = false) {
   if (!cleaned.trim()) return "";
   return `
     <details class="cd-section" ${open ? "open" : ""}>
-      <summary><span>${escHtml(title)}</span><span class="cd-section-mark" aria-hidden="true">+</span></summary>
+      <summary><span>${escHtml(title)}</span><span class="cd-section-mark" aria-hidden="true"></span></summary>
       <div class="cd-section-body">${cleaned}</div>
     </details>
   `;
@@ -197,6 +197,39 @@ function renderLinkList(links = {}) {
         return `<li><span class="cd-link-static"><span class="cd-link-k">${escHtml(k)}</span><span class="cd-link-v">${escHtml(display)}</span></span></li>`;
       }).join("")}
     </ul>
+  `;
+}
+
+function linkTargetAttrs(href) {
+  return /^https?:\/\//i.test(String(href || "")) ? ` target="_blank" rel="noopener noreferrer"` : "";
+}
+
+function renderTimelineItems(items = []) {
+  const rows = asArray(items);
+  if (!rows.length) return "";
+  return `
+    <ol class="cd-timeline">
+      ${rows.map(item => {
+        const href = item.href || "";
+        const title = item.title || item.type || "timeline item";
+        const titleHtml = href
+          ? `<a class="cd-timeline-title" href="${escAttr(href)}"${linkTargetAttrs(href)}>${escHtml(title)}</a>`
+          : `<span class="cd-timeline-title">${escHtml(title)}</span>`;
+        return `
+          <li class="cd-timeline-item">
+            <time class="cd-timeline-date">${escHtml(dateText(item.date) || "undated")}</time>
+            <div class="cd-timeline-body">
+              <div class="cd-timeline-head">
+                ${titleHtml}
+                ${item.type ? `<span class="cd-timeline-type">${escHtml(labelize(item.type))}</span>` : ""}
+              </div>
+              ${item.detail ? `<p>${escHtml(item.detail)}</p>` : ""}
+              ${item.source ? `<span class="cd-timeline-source">${escHtml(item.source)}</span>` : ""}
+            </div>
+          </li>
+        `;
+      }).join("")}
+    </ol>
   `;
 }
 
@@ -480,6 +513,7 @@ function compactPills(items) {
   function renderPersonDetail(rec, editUrl, fam) {
     const team = rec.team ? teamById.get(rec.team) : null;
     const secondary = asArray(rec.secondary_teams).map(id => teamById.get(id)).filter(Boolean);
+    const timelineItems = cohort.person_timeline?.[rec.record_id] || [];
     const links = rec.links || {};
     const explore = renderQuickRow("explore", [
       quickLink("GitHub", linkForKey(links, "github")),
@@ -506,19 +540,12 @@ function compactPills(items) {
       quickLink(team.name || team.record_id, `#${encodeURIComponent(team.record_id)}`, false),
       quickText("focus", team.focus),
     ]) : "";
-    const absences = asArray(rec.absences).map(a => {
-      if (!a || typeof a !== "object") return String(a);
-      const range = dateRange(a.start, a.end);
-      return `${range}${a.note ? ` (${a.note})` : ""}`;
-    });
     const currentRows = [
-      renderRow("window", dateRange(rec.dates_start, rec.dates_end)),
       renderRow("now", rec.now),
       renderRow("weekly intention", rec.weekly_intention),
       renderRow("contributes", rec.contribute_interests),
       renderRow("comm style", rec.comm_style),
       renderRow("availability", rec.availability_pref),
-      renderRow("absences", absences),
     ];
     const routeRows = [
       secondary.length ? renderHtmlRow("also contributes", secondary.map(t => `<a class="cd-text-link" href="#${escAttr(encodeURIComponent(t.record_id))}">${escHtml(t.name || t.record_id)}</a>`).join(" ")) : "",
@@ -542,6 +569,7 @@ function compactPills(items) {
         <div class="cd-quick">${explore}${route}${askMeAbout}${themes}${teamContext}</div>
         <div class="cd-section-stack">
           ${renderSection("current read", currentRows, true)}
+          ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems))}
           ${renderSection("routes / asks", routeRows)}
           ${renderSection("evidence", evidenceRows)}
         </div>
