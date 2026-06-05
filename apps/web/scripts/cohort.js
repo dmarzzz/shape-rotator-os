@@ -1,5 +1,4 @@
 import {
-  renderCohortCard,
   mountShapesIn,
   escHtml,
   escAttr,
@@ -235,6 +234,33 @@ function quickText(label, value) {
   return `<span class="cd-quick-text">${label ? `<span>${escHtml(label)}</span>` : ""}${escHtml(values.join(" · "))}</span>`;
 }
 
+function prettyLinkLabel(key) {
+  const labels = {
+    github: "GitHub",
+    repo: "Repo",
+    repository: "Repo",
+    website: "Website",
+    site: "Website",
+    demo: "Demo",
+    docs: "Docs",
+    deck: "Deck",
+    linkedin: "LinkedIn",
+    x: "X",
+    twitter: "X",
+  };
+  const k = String(key || "").toLowerCase();
+  return labels[k] || labelize(k || "link").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function compactPills(items) {
+  const rows = asArray(items)
+    .map(item => String(item || "").trim())
+    .filter(item => item && item.length <= 28)
+    .slice(0, 3);
+  if (!rows.length) return "";
+  return `<div class="cic-pills">${rows.map(item => `<span>${escHtml(item)}</span>`).join("")}</div>`;
+}
+
 (async function init() {
   const r = await fetch("/cohort-surface.json").catch(() => null);
   const cohort = r && r.ok ? await r.json() : null;
@@ -246,28 +272,20 @@ function quickText(label, value) {
   const teamById = new Map(teams.map(t => [t.record_id, t]));
 
   mount.innerHTML = `
-    <section class="cohort-surface">
-      <div class="cohort-surface-head">
-        <div class="cohort-surface-title">
-          <span>cohort records</span>
-          <span data-cohort-view-count></span>
-        </div>
-        <div class="cohort-toolbar">
-          <nav class="cohort-filter cohort-filter-kind" role="tablist" aria-label="filter by kind">
-            <button class="cohort-chip" data-kind="works" type="button" aria-selected="true">teams &amp; projects <span class="cohort-chip-count">${teams.length}</span></button>
-            <button class="cohort-chip" data-kind="people" type="button" aria-selected="false">individuals <span class="cohort-chip-count">${people.length}</span></button>
-          </nav>
-          <nav class="cohort-filter cohort-filter-membership" role="tablist" aria-label="filter by membership"></nav>
-        </div>
+    <section class="cohort-browse">
+      <div class="cohort-toolbar">
+        <nav class="cohort-filter cohort-filter-kind" role="tablist" aria-label="filter by kind">
+          <button class="cohort-chip" data-kind="works" type="button" aria-selected="true">teams &amp; projects <span class="cohort-chip-count">${teams.length}</span></button>
+          <button class="cohort-chip" data-kind="people" type="button" aria-selected="false">individuals <span class="cohort-chip-count">${people.length}</span></button>
+        </nav>
+        <nav class="cohort-filter cohort-filter-membership" role="tablist" aria-label="filter by membership"></nav>
       </div>
       <div id="cohort-grid" class="cohort-grid"></div>
     </section>
     <div id="cohort-detail" class="cohort-detail" hidden></div>
   `;
-  const surface = mount.querySelector(".cohort-surface");
-  const toolbar = mount.querySelector(".cohort-toolbar");
+  const browse = mount.querySelector(".cohort-browse");
   const membershipNav = mount.querySelector(".cohort-filter-membership");
-  const surfaceCount = mount.querySelector("[data-cohort-view-count]");
   const grid = mount.querySelector("#cohort-grid");
   const detailHost = mount.querySelector("#cohort-detail");
 
@@ -279,6 +297,106 @@ function quickText(label, value) {
     return teams.find(t => t.record_id === recordId)
         || people.find(p => p.record_id === recordId)
         || null;
+  }
+
+  function teamPeopleFor(teamId) {
+    return people.filter(p =>
+      p.team === teamId || asArray(p.secondary_teams).includes(teamId)
+    );
+  }
+
+  function surfaceLinkAnchors(links = {}) {
+    return Object.entries(links || {})
+      .filter(([, value]) => !isBlank(value))
+      .map(([key, value]) => {
+        const href = normalizeLinkHref(key, value);
+        const label = prettyLinkLabel(key);
+        if (!href) return `<span>${escHtml(label)}</span>`;
+        return `<a href="${escAttr(href)}" target="_blank" rel="noopener noreferrer">${escHtml(label)}</a>`;
+      });
+  }
+
+  function renderSurfaceRoutes(rec, isPerson, team, members) {
+    const rows = [];
+    if (isPerson && team) {
+      rows.push({
+        label: "team",
+        items: [`<a href="#${escAttr(encodeURIComponent(team.record_id))}">${escHtml(team.name || team.record_id)}</a>`],
+      });
+    }
+    if (!isPerson && members.length) {
+      const visible = members.slice(0, 2).map(member =>
+        `<a href="#${escAttr(encodeURIComponent(member.record_id))}">${escHtml(member.name || member.record_id)}</a>`
+      );
+      if (members.length > visible.length) {
+        visible.push(`<a href="#${escAttr(encodeURIComponent(rec.record_id))}">+${members.length - visible.length}</a>`);
+      }
+      rows.push({ label: teamKind(rec) === "project" ? "contributors" : "team", items: visible });
+    }
+    const links = surfaceLinkAnchors(rec.links || {});
+    if (links.length) rows.push({ label: "links", items: links.slice(0, 4) });
+    if (!rows.length) return "";
+    return `
+      <div class="cic-routes" aria-label="record routes">
+        ${rows.map(row => `
+          <div class="cic-route-line">
+            <span>${escHtml(row.label)}</span>
+            <p>${row.items.join('<i>,</i>')}</p>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderSurfaceCard(rec, idx, sourceName) {
+    const isPerson = sourceName === "people";
+    const shapeKind = isPerson ? "person" : teamKind(rec);
+    const fam = shapeFamily(rec, isPerson ? "person" : "team");
+    const idLabel = `${isPerson ? "person" : "shape"}-${String(idx + 1).padStart(2, "0")}`;
+    const team = isPerson && rec.team ? teamById.get(rec.team) : null;
+    const members = isPerson ? [] : teamPeopleFor(rec.record_id);
+    const title = rec.name || rec.record_id;
+    const subtitle = isPerson
+      ? (rec.role || team?.name || labelize(rec.role_class || "individual"))
+      : (rec.focus || rec.record_id);
+    const tags = isPerson
+      ? [idLabel, labelize(rec.role_class || rec.role || "individual"), rec.domain ? domainLabel(rec.domain) : "", rec.geo].filter(Boolean)
+      : [idLabel, shapeKind, rec.membership ? labelize(rec.membership) : "", rec.domain ? domainLabel(rec.domain) : "", rec.geo].filter(Boolean);
+    const hints = isPerson
+      ? [...asArray(rec.go_to_them_for).slice(0, 2), ...asArray(rec.recurring_themes).slice(0, 2)]
+      : [...asArray(rec.skill_areas).slice(0, 2), ...asArray(rec.seeking).slice(0, 1)];
+    const routes = renderSurfaceRoutes(rec, isPerson, team, members);
+    const card = document.createElement("article");
+    card.className = `cohort-item-card ${isPerson ? "is-person" : `is-${shapeKind}`}`;
+    card.dataset.recordId = rec.record_id || "";
+    card.tabIndex = 0;
+    card.setAttribute("role", "link");
+    card.setAttribute("aria-label", `${title} - open record`);
+    card.innerHTML = `
+      <div class="cic-head">
+        <div class="cic-shape"><canvas data-shape-fam="${fam}" data-shape-kind="${escAttr(shapeKind)}" data-shape-seed="${escAttr(rec.record_id)}"></canvas></div>
+        <div class="cic-title-block">
+          <div class="cic-tag">${tags.map(tag => `<span>${escHtml(tag)}</span>`).join("<i>·</i>")}</div>
+          <h3>${escHtml(title)}</h3>
+          <p>${escHtml(subtitle)}</p>
+        </div>
+      </div>
+      ${routes}
+      ${compactPills(hints)}
+    `;
+    const open = () => {
+      if (rec.record_id) location.hash = `#${encodeURIComponent(rec.record_id)}`;
+    };
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("a")) return;
+      open();
+    });
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      open();
+    });
+    return card;
   }
 
   function renderGrid() {
@@ -299,24 +417,13 @@ function quickText(label, value) {
 
     const active = chipSet.find(c => c.id === state.membership) || chipSet[0];
     const records = source.filter(active.match);
-    if (surfaceCount) {
-      surfaceCount.textContent = `${records.length} shown / ${source.length} ${state.kind === "people" ? "individuals" : "teams + projects"}`;
-    }
     grid.innerHTML = "";
     if (!records.length) {
       grid.innerHTML = `<p class="page-empty">no ${escHtml(active.label)} yet.</p>`;
     } else {
       records.forEach((rec, idx) => {
         try {
-          const card = renderCohortCard(rec, {
-            idx,
-            people,
-            onClick: (event) => {
-              const person = event?.target?.closest?.("[data-person]");
-              const id = person?.dataset?.person || rec.record_id;
-              if (id) location.hash = `#${encodeURIComponent(id)}`;
-            },
-          });
+          const card = renderSurfaceCard(rec, idx, state.kind === "people" ? "people" : "teams");
           if (card instanceof Node) grid.appendChild(card);
         } catch (e) { console.warn("[cohort] card render failed:", rec.record_id, e); }
       });
@@ -586,18 +693,14 @@ function quickText(label, value) {
     const rec = id ? findRecord(id) : null;
     state.detail = rec ? rec.record_id : null;
     if (rec) {
-      surface.hidden = true;
-      toolbar.hidden = true;
-      grid.hidden = true;
+      browse.hidden = true;
       detailHost.hidden = false;
       renderDetail(rec);
       window.scrollTo({ top: 0, behavior: "auto" });
     } else {
       detailHost.hidden = true;
       detailHost.innerHTML = "";
-      surface.hidden = false;
-      toolbar.hidden = false;
-      grid.hidden = false;
+      browse.hidden = false;
       renderGrid();
     }
   }
