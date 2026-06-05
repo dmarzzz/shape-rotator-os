@@ -1,33 +1,179 @@
-import { renderCohortCard, mountShapesIn, escHtml, escAttr, normalizeLinkHref, buildEditPRUrl } from "@shape-rotator/shape-ui";
+import {
+  renderCohortCard,
+  mountShapesIn,
+  escHtml,
+  escAttr,
+  normalizeLinkHref,
+  buildEditPRUrl,
+  shapeForTeam,
+  domainLabel,
+} from "@shape-rotator/shape-ui";
 
-// Membership taxonomy — mirrored from apps/os/src/renderer/alchemy.js so the
-// web surface filters the same way the Electron app does. The cohort chip is
-// the default so visitors land on the formally-invited cohort first (per the
-// coordinator's note about not implying a 1-in-30 invite rate when the formal
-// cohort is 1-in-7).
 const TEAM_CHIPS = [
-  { id: "cohort",   label: "cohort teams",  match: (t) => (t.membership || "visiting") === "cohort" },
-  { id: "visiting", label: "visiting",      match: (t) => (t.membership || "visiting") !== "cohort" },
-  { id: "all",      label: "all",           match: () => true },
+  { id: "all",      label: "all",              match: () => true },
+  { id: "cohort",   label: "cohort teams",     match: (t) => (t.membership || "visiting") === "cohort" },
+  { id: "visiting", label: "visiting",         match: (t) => (t.membership || "visiting") !== "cohort" },
 ];
 const PERSON_CHIPS = [
+  { id: "all",              label: "all",               match: () => true },
   { id: "cohort-member",    label: "cohort members",    match: (p) => (p.role_class || "visiting-scholar") === "cohort-member" },
   { id: "visiting-scholar", label: "visiting scholars", match: (p) => (p.role_class || "visiting-scholar") === "visiting-scholar" },
   { id: "coordinator",      label: "coordinators",      match: (p) => (p.role_class || "visiting-scholar") === "coordinator" },
-  { id: "all",              label: "all",               match: () => true },
 ];
+const DEFAULT_MEMBERSHIP = "all";
 
 const state = {
-  kind: "works",                  // "works" (teams) | "people"
-  membership: "cohort",           // chip id from the active chip set
-  detail: null,                   // record_id of the currently-open detail, or null
+  kind: "works",
+  membership: DEFAULT_MEMBERSHIP,
+  detail: null,
 };
 
-// Detail routing uses location.hash so a profile URL is shareable + the
-// browser back button works without extra wiring. Format: #<record_id>.
 function parseDetailHash() {
   const h = (typeof location !== "undefined" ? location.hash : "") || "";
   return h.startsWith("#") ? decodeURIComponent(h.slice(1)) || null : null;
+}
+
+function hashString(s) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < String(s || "").length; i++) {
+    h ^= String(s).charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function isBlank(v) {
+  if (v == null) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  return String(v).trim() === "";
+}
+
+function asArray(v) {
+  if (Array.isArray(v)) return v.filter(x => !isBlank(x));
+  return isBlank(v) ? [] : [v];
+}
+
+function labelize(v) {
+  return String(v || "not declared").replace(/[-_]+/g, " ");
+}
+
+function dateText(v) {
+  if (!v) return "";
+  const s = String(v);
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+  return m ? m[1] : s;
+}
+
+function dateRange(start, end) {
+  const a = dateText(start);
+  const b = dateText(end);
+  return a || b ? `${a || "open"} to ${b || "open"}` : "";
+}
+
+function recordKind(rec) {
+  return (rec.record_type === "person" || rec.role_class || rec.kind === "person") ? "person" : "team";
+}
+
+function teamKind(t) {
+  if (!t) return "team";
+  const k = String(t.kind || "team").toLowerCase();
+  return k === "project" ? "project" : "team";
+}
+
+function shapeFamily(rec, kind) {
+  if (kind === "person") return hashString(rec.record_id || rec.name || "person") % 6;
+  const s = shapeForTeam ? shapeForTeam(rec) : null;
+  return Number(s?.fam ?? rec.shape_fam ?? rec.shape ?? 0) || 0;
+}
+
+function recordSourceUrl(rec, kind) {
+  if (buildEditPRUrl) {
+    return buildEditPRUrl({ recordType: kind === "person" ? "person" : "team", recordId: rec.record_id });
+  }
+  return `https://github.com/dmarzzz/shape-rotator-os/blob/main/cohort-data/${kind === "person" ? "people" : "teams"}/${rec.record_id}.md`;
+}
+
+function renderValue(v) {
+  const values = asArray(v);
+  if (!values.length) return "";
+  if (values.length === 1) return escHtml(values[0]);
+  return `<ul class="cd-bullet-list">${values.map(item => `<li>${escHtml(item)}</li>`).join("")}</ul>`;
+}
+
+function renderRow(label, value) {
+  if (isBlank(value)) return "";
+  return `
+    <div class="cd-row">
+      <span class="cd-row-k">${escHtml(label)}</span>
+      <span class="cd-row-v">${renderValue(value)}</span>
+    </div>
+  `;
+}
+
+function renderHtmlRow(label, html) {
+  if (!html) return "";
+  return `
+    <div class="cd-row">
+      <span class="cd-row-k">${escHtml(label)}</span>
+      <span class="cd-row-v">${html}</span>
+    </div>
+  `;
+}
+
+function renderSection(title, body, open = false) {
+  const cleaned = asArray(body).join("");
+  if (!cleaned.trim()) return "";
+  return `
+    <details class="cd-section" ${open ? "open" : ""}>
+      <summary><span>${escHtml(title)}</span><span class="cd-section-mark" aria-hidden="true">+</span></summary>
+      <div class="cd-section-body">${cleaned}</div>
+    </details>
+  `;
+}
+
+function renderLinkList(links = {}) {
+  const entries = Object.entries(links).filter(([, v]) => v && String(v).trim());
+  if (!entries.length) return "";
+  return `
+    <ul class="cd-links">
+      ${entries.map(([k, v]) => {
+        const href = normalizeLinkHref(k, v);
+        const display = String(v).replace(/^https?:\/\//, "");
+        if (href) {
+          return `<li><a href="${escAttr(href)}" target="_blank" rel="noopener noreferrer"><span class="cd-link-k">${escHtml(k)}</span><span class="cd-link-v">${escHtml(display)}</span></a></li>`;
+        }
+        return `<li><span class="cd-link-static"><span class="cd-link-k">${escHtml(k)}</span><span class="cd-link-v">${escHtml(display)}</span></span></li>`;
+      }).join("")}
+    </ul>
+  `;
+}
+
+function quickLink(label, href, external = true) {
+  if (!href) return "";
+  const attrs = external ? ` target="_blank" rel="noopener noreferrer"` : "";
+  return `<a class="cd-quick-link" href="${escAttr(href)}"${attrs}>${escHtml(label)}</a>`;
+}
+
+function renderQuickRow(label, items) {
+  const html = items.filter(Boolean).join("");
+  if (!html) return "";
+  return `
+    <div class="cd-quick-row">
+      <span class="cd-quick-k">${escHtml(label)}</span>
+      <span class="cd-quick-v">${html}</span>
+    </div>
+  `;
+}
+
+function linkForKey(links, key) {
+  const value = links?.[key];
+  if (!value || !String(value).trim()) return "";
+  return normalizeLinkHref(key, value);
+}
+
+function pill(label, value) {
+  if (isBlank(value)) return "";
+  return `<span class="cd-pill"><span>${escHtml(label)}</span>${escHtml(value)}</span>`;
 }
 
 (async function init() {
@@ -38,18 +184,20 @@ function parseDetailHash() {
 
   const teams = cohort.teams || [];
   const people = cohort.people || [];
+  const teamById = new Map(teams.map(t => [t.record_id, t]));
 
-  // Build the toolbar shell once; rerender just the grid on chip clicks.
   mount.innerHTML = `
-    <nav class="cohort-filter" role="tablist" aria-label="filter by kind">
-      <button class="cohort-chip" data-kind="works" type="button" aria-selected="true">teams &amp; projects <span class="cohort-chip-count">${teams.length}</span></button>
-      <button class="cohort-chip" data-kind="people" type="button" aria-selected="false">individuals <span class="cohort-chip-count">${people.length}</span></button>
-    </nav>
-    <nav class="cohort-filter cohort-filter-membership" role="tablist" aria-label="filter by membership"></nav>
+    <div class="cohort-toolbar">
+      <nav class="cohort-filter cohort-filter-kind" role="tablist" aria-label="filter by kind">
+        <button class="cohort-chip" data-kind="works" type="button" aria-selected="true">teams &amp; projects <span class="cohort-chip-count">${teams.length}</span></button>
+        <button class="cohort-chip" data-kind="people" type="button" aria-selected="false">individuals <span class="cohort-chip-count">${people.length}</span></button>
+      </nav>
+      <nav class="cohort-filter cohort-filter-membership" role="tablist" aria-label="filter by membership"></nav>
+    </div>
     <div id="cohort-grid" class="cohort-grid"></div>
     <div id="cohort-detail" class="cohort-detail" hidden></div>
   `;
-  const filterRows = mount.querySelectorAll(".cohort-filter");
+  const toolbar = mount.querySelector(".cohort-toolbar");
   const membershipNav = mount.querySelector(".cohort-filter-membership");
   const grid = mount.querySelector("#cohort-grid");
   const detailHost = mount.querySelector("#cohort-detail");
@@ -66,11 +214,11 @@ function parseDetailHash() {
 
   function renderGrid() {
     const chipSet = activeChipSet();
-    if (!chipSet.some(c => c.id === state.membership)) state.membership = chipSet[0].id;
+    if (!chipSet.some(c => c.id === state.membership)) state.membership = DEFAULT_MEMBERSHIP;
     const source = state.kind === "people" ? people : teams;
     const counts = new Map(chipSet.map(c => [c.id, source.filter(c.match).length]));
     membershipNav.innerHTML = chipSet.map(chip => `
-      <button class="cohort-chip cohort-chip-membership" data-membership="${chip.id}" type="button" aria-selected="${chip.id === state.membership}">${chip.label} <span class="cohort-chip-count">${counts.get(chip.id) || 0}</span></button>
+      <button class="cohort-chip cohort-chip-membership" data-membership="${escAttr(chip.id)}" type="button" aria-selected="${chip.id === state.membership}">${escHtml(chip.label)} <span class="cohort-chip-count">${counts.get(chip.id) || 0}</span></button>
     `).join("");
     for (const btn of membershipNav.querySelectorAll(".cohort-chip[data-membership]")) {
       btn.addEventListener("click", () => {
@@ -84,12 +232,12 @@ function parseDetailHash() {
     const records = source.filter(active.match);
     grid.innerHTML = "";
     if (!records.length) {
-      grid.innerHTML = `<p class="page-empty">no ${active.label} yet.</p>`;
+      grid.innerHTML = `<p class="page-empty">no ${escHtml(active.label)} yet.</p>`;
     } else {
       for (const rec of records) {
         try {
           const card = renderCohortCard(rec, {
-            onClick: (_e, _el) => {
+            onClick: () => {
               const id = rec.record_id;
               if (id) location.hash = `#${encodeURIComponent(id)}`;
             },
@@ -105,141 +253,212 @@ function parseDetailHash() {
     });
   }
 
-  // Detail view. Mirrors the OS app's openDetail() pattern (renderTeamDetail
-  // / renderPersonDetail in apps/os/src/renderer/alchemy.js) at a fraction
-  // of the LOC — the OS uses 250+ lines of templated HTML with subsystem
-  // classes that don't exist on web. This is a focused, web-native variant
-  // built on the same data shape with the same primary affordances:
-  // back-link, hero (name + focus + shape canvas), metadata strip, links,
-  // and (for teams) the member roster as clickable sub-cards.
-  function renderDetailLinks(links = {}) {
-    const entries = Object.entries(links).filter(([, v]) => v && String(v).trim());
-    if (!entries.length) return "";
-    const rows = [];
-    for (const [k, v] of entries) {
-      const href = normalizeLinkHref(k, v);
-      const display = String(v).replace(/^https?:\/\//, "");
-      if (href) {
-        rows.push(`<li><a href="${escAttr(href)}" target="_blank" rel="noopener noreferrer"><span class="cd-link-k">${escHtml(k)}</span><span class="cd-link-v">${escHtml(display)}</span></a></li>`);
-      } else {
-        rows.push(`<li><span class="cd-link-k">${escHtml(k)}</span><span class="cd-link-v">${escHtml(display)}</span></li>`);
-      }
-    }
-    return `<ul class="cd-links">${rows.join("")}</ul>`;
+  function renderPersonRail(rec, team, fam) {
+    const dates = dateRange(rec.dates_start, rec.dates_end);
+    return `
+      <aside class="cd-rail">
+        <div class="cd-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-seed="${escAttr(rec.record_id)}"></canvas></div>
+        <div class="cd-rail-read">
+          <span class="cd-rail-kicker">individual</span>
+          <h2 class="cd-name">${escHtml(rec.name || rec.record_id)}</h2>
+          ${rec.role ? `<p class="cd-focus">${escHtml(rec.role)}</p>` : ""}
+          <div class="cd-rail-list">
+            ${team ? `<div><span>team</span><a href="#${escAttr(encodeURIComponent(team.record_id))}">${escHtml(team.name || team.record_id)}</a></div>` : ""}
+            ${rec.geo ? `<div><span>geo</span>${escHtml(rec.geo)}</div>` : ""}
+            ${rec.domain ? `<div><span>domain</span>${escHtml(domainLabel(rec.domain))}</div>` : ""}
+            ${dates ? `<div><span>window</span>${escHtml(dates)}</div>` : ""}
+          </div>
+        </div>
+      </aside>
+    `;
   }
 
-  function teamKind(t) {
-    if (!t) return "team";
-    const k = String(t.kind || "team").toLowerCase();
-    return k === "project" ? "project" : "team";
+  function renderTeamRail(rec, teamPeople, fam, kind) {
+    return `
+      <aside class="cd-rail">
+        <div class="cd-shape"><canvas data-shape-fam="${fam}" data-shape-kind="${escAttr(kind)}" data-shape-seed="${escAttr(rec.record_id)}"></canvas></div>
+        <div class="cd-rail-read">
+          <span class="cd-rail-kicker">${escHtml(kind)}</span>
+          <h2 class="cd-name">${escHtml(rec.name || rec.record_id)}</h2>
+          ${rec.focus ? `<p class="cd-focus">${escHtml(rec.focus)}</p>` : ""}
+          <div class="cd-rail-list">
+            ${rec.domain ? `<div><span>domain</span>${escHtml(domainLabel(rec.domain))}</div>` : ""}
+            ${rec.geo ? `<div><span>geo</span>${escHtml(rec.geo)}</div>` : ""}
+            <div><span>${kind === "project" ? "contributors" : "team"}</span>${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</div>
+            ${rec.membership ? `<div><span>status</span>${escHtml(labelize(rec.membership))}</div>` : ""}
+          </div>
+        </div>
+      </aside>
+    `;
+  }
+
+  function renderPersonDetail(rec, editUrl, fam) {
+    const team = rec.team ? teamById.get(rec.team) : null;
+    const secondary = asArray(rec.secondary_teams).map(id => teamById.get(id)).filter(Boolean);
+    const links = rec.links || {};
+    const explore = renderQuickRow("explore", [
+      quickLink("GitHub", linkForKey(links, "github")),
+      quickLink("X", linkForKey(links, "x")),
+      quickLink("Website", linkForKey(links, "website")),
+      quickLink("LinkedIn", linkForKey(links, "linkedin")),
+      quickLink("calendar", "/calendar", false),
+      quickLink("availability", "/availability", false),
+      quickLink("source", editUrl),
+    ]);
+    const route = renderQuickRow("route", [
+      pill("status", labelize(rec.role_class || "person")),
+      pill("role", rec.role),
+      pill("domain", rec.domain ? domainLabel(rec.domain) : ""),
+      pill("geo", rec.geo),
+    ]);
+    const absences = asArray(rec.absences).map(a => {
+      if (!a || typeof a !== "object") return String(a);
+      const range = dateRange(a.start, a.end);
+      return `${range}${a.note ? ` (${a.note})` : ""}`;
+    });
+    const currentRows = [
+      renderRow("role", rec.role),
+      renderRow("window", dateRange(rec.dates_start, rec.dates_end)),
+      renderRow("now", rec.now),
+      renderRow("weekly intention", rec.weekly_intention),
+      renderRow("contributes", rec.contribute_interests),
+      renderRow("comm style", rec.comm_style),
+      renderRow("availability", rec.availability_pref),
+      renderRow("absences", absences),
+    ];
+    const routeRows = [
+      secondary.length ? renderHtmlRow("also contributes", secondary.map(t => `<a class="cd-text-link" href="#${escAttr(encodeURIComponent(t.record_id))}">${escHtml(t.name || t.record_id)}</a>`).join(" ")) : "",
+      renderRow("go to them for", rec.go_to_them_for),
+      renderRow("recurring themes", rec.recurring_themes),
+      renderRow("best contexts", rec.best_contexts),
+      renderRow("working style", rec.working_style),
+      renderRow("seeking", rec.seeking),
+      renderRow("offering", rec.offering),
+    ];
+    const evidenceRows = [
+      renderRow("prior work", rec.prior_work),
+      renderRow("making signature", rec.making_signature?.note),
+      renderRow("built domain", rec.making_signature?.built_domain),
+    ];
+
+    return `
+      ${renderPersonRail(rec, team, fam)}
+      <section class="cd-ledger">
+        <div class="cd-ledger-head">
+          <span class="cd-h">individual read</span>
+        </div>
+        <div class="cd-quick">${explore}${route}</div>
+        <div class="cd-section-stack">
+          ${renderSection("current read", currentRows, true)}
+          ${renderSection("routes / asks", routeRows)}
+          ${renderSection("evidence", evidenceRows)}
+          ${renderSection("links", renderLinkList(links))}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTeamPeople(teamId, kind) {
+    const teamPeople = people.filter(p => p.team === teamId);
+    if (!teamPeople.length) return "";
+    return `
+      <ul class="cd-people">
+        ${teamPeople.map(p => `
+          <li>
+            <a class="cd-person-link" href="#${escAttr(encodeURIComponent(p.record_id))}">
+              <span class="adp-name">${escHtml(p.name || p.record_id)}</span>
+              ${p.role ? `<span class="adp-role">${escHtml(p.role)}</span>` : ""}
+            </a>
+          </li>
+        `).join("")}
+      </ul>
+    `;
+  }
+
+  function renderTeamDetail(rec, editUrl, fam, kind) {
+    const teamPeople = people.filter(p => p.team === rec.record_id);
+    const memberClusters = (cohort.clusters || []).filter(cl =>
+      Array.isArray(cl.teams) && cl.teams.includes(rec.record_id)
+    );
+    const links = rec.links || {};
+    const current = renderQuickRow("current", [
+      pill("status", labelize(rec.membership || "visiting")),
+      pill(kind === "project" ? "contributors" : "members", `${teamPeople.length}`),
+      pill("domain", rec.domain ? domainLabel(rec.domain) : ""),
+      pill("geo", rec.geo),
+    ]);
+    const explore = renderQuickRow("explore", [
+      quickLink("GitHub", linkForKey(links, "github")),
+      quickLink("Repo", linkForKey(links, "repo")),
+      quickLink("X", linkForKey(links, "x")),
+      quickLink("Website", linkForKey(links, "website")),
+      quickLink("Demo", linkForKey(links, "demo")),
+      quickLink("Deck", linkForKey(links, "deck")),
+      quickLink("source", editUrl),
+    ]);
+    const aboutRows = [
+      renderRow("focus", rec.focus),
+      renderRow("now", rec.now),
+      renderRow("traction", rec.traction),
+      renderRow(kind === "project" ? "contributors" : "members", `${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}`),
+    ];
+    const routeRows = [
+      renderRow("seeking", rec.seeking),
+      renderRow("offering", rec.offering),
+      renderRow("dependencies", rec.dependencies),
+      renderRow("skill areas", rec.skill_areas),
+      renderRow("success dimensions", rec.success_dimensions),
+    ];
+    const evidenceRows = [
+      renderRow("paper basis", rec.paper_basis),
+      renderRow("prior shipping", rec.prior_shipping),
+      renderRow("hackathon note", rec.hackathon_note),
+    ];
+    const guild = memberClusters.length
+      ? `<div class="cd-clusters">${memberClusters.map(cl => `<span class="cd-cluster">${escHtml(cl.label)}</span>`).join("")}</div>`
+      : "";
+
+    return `
+      ${renderTeamRail(rec, teamPeople, fam, kind)}
+      <section class="cd-ledger">
+        <div class="cd-ledger-head">
+          <span class="cd-h">${escHtml(kind)} read</span>
+        </div>
+        <div class="cd-quick">${current}${explore}</div>
+        <div class="cd-section-stack">
+          ${renderSection("current read", aboutRows, true)}
+          ${renderSection("routes / asks", routeRows)}
+          ${renderSection("evidence", evidenceRows)}
+          ${renderSection(kind === "project" ? "contributors" : "members", renderTeamPeople(rec.record_id, kind))}
+          ${renderSection("links", renderLinkList(links))}
+          ${renderSection("guild", guild)}
+        </div>
+      </section>
+    `;
   }
 
   function renderDetail(rec) {
-    const isTeam = (rec.kind || "team") !== "person" && !rec.role_class;
-    const editUrl = buildEditPRUrl
-      ? buildEditPRUrl({ recordType: isTeam ? "team" : "person", recordId: rec.record_id })
-      : `https://github.com/dmarzzz/shape-rotator-os/blob/main/cohort-data/${isTeam ? "teams" : "people"}/${rec.record_id}.md`;
-    const shapeFam = Number(rec.shape_fam ?? rec.shape ?? 0) || 0;
-    const shapeKind = isTeam ? teamKind(rec) : "person";
-    const linksRow = renderDetailLinks(rec.links || {});
-
-    if (isTeam) {
-      const teamPeople = people.filter(p => p.team === rec.record_id);
-      const memberClusters = (cohort.clusters || []).filter(cl =>
-        Array.isArray(cl.teams) && cl.teams.includes(rec.record_id)
-      );
-      detailHost.innerHTML = `
-        <header class="cd-bar">
-          <a class="cd-back" href="#" aria-label="back to grid"><span aria-hidden="true">←</span> back</a>
-          <div class="cd-tag">
-            <span>${escHtml(rec.record_id.toUpperCase())}</span>
-            <span class="cd-sep">·</span>
-            <span class="cd-kind cd-kind-${escHtml(shapeKind)}">${escHtml(shapeKind)}</span>
-          </div>
-          <a class="cd-edit" href="${escAttr(editUrl)}" target="_blank" rel="noopener noreferrer">edit on github →</a>
-        </header>
-        <section class="cd-hero">
-          <div class="cd-shape"><canvas data-shape-fam="${shapeFam}" data-shape-kind="${escAttr(shapeKind)}" data-shape-seed="${escAttr(rec.record_id)}"></canvas></div>
-          <div class="cd-hero-text">
-            <h2 class="cd-name">${escHtml(rec.name || rec.record_id)}</h2>
-            ${rec.focus ? `<p class="cd-focus">${escHtml(rec.focus)}</p>` : ""}
-            <div class="cd-meta">
-              ${rec.domain ? `<span><span class="cd-k">domain</span> ${escHtml(rec.domain)}</span><span class="cd-sep">·</span>` : ""}
-              ${rec.geo ? `<span><span class="cd-k">geo</span> ${escHtml(rec.geo)}</span><span class="cd-sep">·</span>` : ""}
-              <span><span class="cd-k">${shapeKind === "project" ? "contributors" : "team"}</span> ${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</span>
-            </div>
-          </div>
-        </section>
-        <div class="cd-grid">
-          ${linksRow ? `<section class="cd-section"><h3 class="cd-h">links</h3>${linksRow}</section>` : ""}
-          ${teamPeople.length ? `
-            <section class="cd-section">
-              <h3 class="cd-h">${shapeKind === "project" ? "contributors" : "members"} <span class="cd-h-aux">— ${teamPeople.length}</span></h3>
-              <ul class="cd-people"></ul>
-            </section>
-          ` : ""}
-          ${memberClusters.length ? `
-            <section class="cd-section">
-              <h3 class="cd-h">synergy clusters</h3>
-              <div class="cd-clusters">${memberClusters.map(cl => `<span class="cd-cluster">${escHtml(cl.label)}</span>`).join("")}</div>
-            </section>
-          ` : ""}
+    const kind = recordKind(rec);
+    const editUrl = recordSourceUrl(rec, kind);
+    const shapeKind = kind === "person" ? "person" : teamKind(rec);
+    const fam = shapeFamily(rec, kind);
+    detailHost.innerHTML = `
+      <header class="cd-bar">
+        <a class="cd-back" href="#" aria-label="back to grid"><span aria-hidden="true">&lt;-</span> back</a>
+        <div class="cd-tag">
+          <span>${escHtml(String(rec.record_id || "").toUpperCase())}</span>
+          <span class="cd-sep">/</span>
+          <span class="cd-kind cd-kind-${escAttr(shapeKind)}">${escHtml(shapeKind)}</span>
         </div>
-      `;
-      // Mount member sub-cards using the same renderCohortCard primitive so
-      // they look identical to the grid cards. Clicking a member jumps to
-      // their own detail via the same hash routing.
-      const peopleHost = detailHost.querySelector(".cd-people");
-      if (peopleHost) {
-        for (const p of teamPeople) {
-          try {
-            const card = renderCohortCard(p, {
-              onClick: () => { location.hash = `#${encodeURIComponent(p.record_id)}`; },
-            });
-            if (card instanceof Node) {
-              const li = document.createElement("li");
-              li.appendChild(card);
-              peopleHost.appendChild(li);
-            }
-          } catch (e) { console.warn("[cohort] member card render failed:", p.record_id, e); }
-        }
-      }
-    } else {
-      // Person detail.
-      const team = rec.team ? teams.find(t => t.record_id === rec.team) : null;
-      const datesLine = (rec.dates_start || rec.dates_end)
-        ? `${escHtml(rec.dates_start || "—")} → ${escHtml(rec.dates_end || "—")}`
-        : "—";
-      detailHost.innerHTML = `
-        <header class="cd-bar">
-          <a class="cd-back" href="#" aria-label="back to grid"><span aria-hidden="true">←</span> back</a>
-          <div class="cd-tag">
-            <span>${escHtml(rec.record_id.toUpperCase())}</span>
-            <span class="cd-sep">·</span>
-            <span class="cd-kind cd-kind-person">${escHtml(rec.role_class || "person")}</span>
-          </div>
-          <a class="cd-edit" href="${escAttr(editUrl)}" target="_blank" rel="noopener noreferrer">edit on github →</a>
-        </header>
-        <section class="cd-hero">
-          <div class="cd-shape"><canvas data-shape-fam="${shapeFam}" data-shape-kind="person" data-shape-seed="${escAttr(rec.record_id)}"></canvas></div>
-          <div class="cd-hero-text">
-            <h2 class="cd-name">${escHtml(rec.name || rec.record_id)}</h2>
-            ${rec.role ? `<p class="cd-focus">${escHtml(rec.role)}</p>` : ""}
-            <div class="cd-meta">
-              ${team ? `<span><span class="cd-k">team</span> <a class="cd-team-link" href="#${encodeURIComponent(team.record_id)}">${escHtml(team.name || team.record_id)}</a></span><span class="cd-sep">·</span>` : ""}
-              ${rec.geo ? `<span><span class="cd-k">geo</span> ${escHtml(rec.geo)}</span><span class="cd-sep">·</span>` : ""}
-              <span><span class="cd-k">dates</span> ${datesLine}</span>
-            </div>
-          </div>
-        </section>
-        <div class="cd-grid">
-          ${rec.bio ? `<section class="cd-section"><h3 class="cd-h">about</h3><p class="cd-bio">${escHtml(rec.bio)}</p></section>` : ""}
-          ${linksRow ? `<section class="cd-section"><h3 class="cd-h">links</h3>${linksRow}</section>` : ""}
-        </div>
-      `;
-    }
+        <a class="cd-edit" href="${escAttr(editUrl)}" target="_blank" rel="noopener noreferrer">edit on github -&gt;</a>
+      </header>
+      <article class="cd-dossier cd-dossier-${escAttr(kind)}">
+        ${kind === "person"
+          ? renderPersonDetail(rec, editUrl, fam)
+          : renderTeamDetail(rec, editUrl, fam, shapeKind)}
+      </article>
+    `;
 
-    // Wire back link — clearing the hash returns to grid.
     detailHost.querySelector(".cd-back")?.addEventListener("click", (e) => {
       e.preventDefault();
       location.hash = "";
@@ -256,17 +475,15 @@ function parseDetailHash() {
     const rec = id ? findRecord(id) : null;
     state.detail = rec ? rec.record_id : null;
     if (rec) {
-      // Showing detail: hide the filter chips + grid, show the detail host.
-      filterRows.forEach(el => el.hidden = true);
+      toolbar.hidden = true;
       grid.hidden = true;
       detailHost.hidden = false;
       renderDetail(rec);
       window.scrollTo({ top: 0, behavior: "auto" });
     } else {
-      // Showing grid: hide detail, show chips + grid.
       detailHost.hidden = true;
       detailHost.innerHTML = "";
-      filterRows.forEach(el => el.hidden = false);
+      toolbar.hidden = false;
       grid.hidden = false;
       renderGrid();
     }
@@ -276,7 +493,7 @@ function parseDetailHash() {
     btn.addEventListener("click", () => {
       if (btn.dataset.kind === state.kind) return;
       state.kind = btn.dataset.kind;
-      state.membership = activeChipSet()[0].id;
+      state.membership = DEFAULT_MEMBERSHIP;
       for (const b of mount.querySelectorAll(".cohort-chip[data-kind]")) {
         b.setAttribute("aria-selected", String(b.dataset.kind === state.kind));
       }
@@ -284,12 +501,11 @@ function parseDetailHash() {
     });
   }
 
-  // Counts strip — kept for parity with the previous version.
   const countsEl = document.getElementById("cohort-counts");
   if (countsEl) {
     const teamWord = teams.length === 1 ? "team" : "teams";
     const personWord = people.length === 1 ? "person" : "people";
-    countsEl.textContent = `${teams.length} ${teamWord} · ${people.length} ${personWord}`;
+    countsEl.textContent = `${teams.length} ${teamWord} / ${people.length} ${personWord}`;
     countsEl.hidden = false;
   }
 

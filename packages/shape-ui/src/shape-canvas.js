@@ -382,7 +382,10 @@ void main() {
   float grain = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
   col += (grain - 0.5) * 0.018;
 
-  outColor = vec4(col, 1.0);
+  // The shared overlay has a transparent canvas; keep the specimen and
+  // halo visible, but do not paint the whole placeholder rectangle.
+  float alpha = clamp(max(inside, halo * 1.35), 0.0, 1.0);
+  outColor = vec4(col, alpha);
 }`;
 
 // ── shared GL program (per <canvas> we still need a fresh context, but
