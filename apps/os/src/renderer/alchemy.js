@@ -72,6 +72,8 @@ const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
 // once that integration lands; rather than rip out the code and re-write it
 // from git history, the surfaces are simply unwired. See the "feed off"
 // section below this constant for the disabled hooks.
+// `collab` is hidden from the rail and represented as a Constellation
+// sub-view, but remains routeable as a saved-mode/external-jump alias.
 const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "intel", "collab", "calendar", "profile", "onboarding", "program", "asks", "context"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 
@@ -183,7 +185,12 @@ export function mount(container) {
 
   try {
     const saved = localStorage.getItem(ALCHEMY_LS_KEY);
-    if (saved && ALCHEMY_MODES.includes(saved)) state.mode = saved;
+    if (saved === "collab") {
+      state.mode = "constellation";
+      state.constellationMode = "collab";
+    } else if (saved && ALCHEMY_MODES.includes(saved)) {
+      state.mode = saved;
+    }
     // Migrations:
     if (saved === "specimens") { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
     if (saved === "legend")    { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
@@ -350,8 +357,9 @@ async function loadCohort() {
 
 function syncRailSelection() {
   if (!state.rail) return;
+  const activeMode = state.mode === "collab" ? "constellation" : state.mode;
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
-    btn.setAttribute("aria-selected", btn.dataset.alchMode === state.mode ? "true" : "false");
+    btn.setAttribute("aria-selected", btn.dataset.alchMode === activeMode ? "true" : "false");
   }
 }
 
@@ -427,7 +435,10 @@ function render() {
     else if (state.mode === "pulse") renderPulse();
     else if (state.mode === "constellation") renderConstellation();
     else if (state.mode === "intel") renderIntel(state.canvas);
-    else if (state.mode === "collab") renderCollab();
+    else if (state.mode === "collab") {
+      state.constellationMode = "collab";
+      renderCollab();
+    }
     else if (state.mode === "calendar") renderCalendar();
     else if (state.mode === "profile") renderProfile();
     else if (state.mode === "onboarding") renderOnboarding();
@@ -446,7 +457,10 @@ function render() {
       if (state.mode === "profile") wireProfileForm();
       // Kick a feed refresh on entry; the timer keeps it warm in background.
       if (state.mode === "feed") refreshFeed({ source: "mode-enter" });
-      if (state.mode === "constellation") wireConstellationHover();
+      if (state.mode === "constellation") {
+        if (state.constellationMode === "collab") wireCollab();
+        else wireConstellationHover();
+      }
       if (state.mode === "intel") wireIntel(state.canvas);
       if (state.mode === "collab") wireCollab();
       if (state.mode === "calendar") wireCalendar();
@@ -750,16 +764,19 @@ function computeMembraneData() {
 // Public hook used by membrane/index.js.
 window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   if (!ALCHEMY_MODES.includes(mode)) return;
-  state.mode = mode;
+  state.mode = mode === "collab" ? "constellation" : mode;
   // Optional: land on a specific constellation sub-view (clusters /
-  // dependencies / journey). Used by the cohort panel's view cards.
+  // dependencies / journey / collab). Used by the cohort panel's view cards.
+  if (mode === "collab") {
+    state.constellationMode = "collab";
+  }
   if (mode === "constellation" && opts && opts.constellationMode) {
     state.constellationMode = opts.constellationMode;
   }
   if (mode === "asks" && opts && opts.openComposer) {
     state.openAskComposer = true;
   }
-  try { localStorage.setItem(ALCHEMY_LS_KEY, mode); } catch {}
+  try { localStorage.setItem(ALCHEMY_LS_KEY, mode === "collab" ? "collab" : state.mode); } catch {}
   syncRailSelection();
   render();
 };
@@ -1267,20 +1284,7 @@ function renderJourney() {
 
   state.canvas.innerHTML = `
     <div class="alch-constellation">
-      <nav class="alch-const-modes" role="tablist" aria-label="constellation view">
-        <button class="alch-const-mode-btn" data-const-mode="clusters" aria-selected="false" type="button">
-          <span class="acm-glyph" aria-hidden="true">◑</span><span class="acm-label">clusters</span>
-          <span class="acm-hint">shared cluster membership</span>
-        </button>
-        <button class="alch-const-mode-btn" data-const-mode="dependencies" aria-selected="false" type="button">
-          <span class="acm-glyph" aria-hidden="true">↬</span><span class="acm-label">dependencies</span>
-          <span class="acm-hint">team-asserted edges</span>
-        </button>
-        <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="true" type="button">
-          <span class="acm-glyph" aria-hidden="true">⌁</span><span class="acm-label">journey</span>
-          <span class="acm-hint">pmf maturity spectrum</span>
-        </button>
-      </nav>
+      ${constellationModeNavHtml("journey")}
       ${filterBar}
       <div class="alch-constellation-stage alch-journey-stage">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
@@ -1390,11 +1394,37 @@ function constFrameLine(team, deg) {
     + (frame ? `<br/>${escHtml(frame)}` : "");
 }
 
+function constellationModeNavHtml(active) {
+  return `
+    <nav class="alch-const-modes" role="tablist" aria-label="constellation view">
+      <button class="alch-const-mode-btn" data-const-mode="clusters" aria-selected="${active === "clusters"}" type="button">
+        <span class="acm-glyph" aria-hidden="true">◑</span><span class="acm-label">clusters</span>
+        <span class="acm-hint">shared cluster membership</span>
+      </button>
+      <button class="alch-const-mode-btn" data-const-mode="dependencies" aria-selected="${active === "dependencies"}" type="button">
+        <span class="acm-glyph" aria-hidden="true">↬</span><span class="acm-label">dependencies</span>
+        <span class="acm-hint">team-asserted edges</span>
+      </button>
+      <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="${active === "journey"}" type="button">
+        <span class="acm-glyph" aria-hidden="true">⌁</span><span class="acm-label">journey</span>
+        <span class="acm-hint">pmf maturity spectrum</span>
+      </button>
+      <button class="alch-const-mode-btn" data-const-mode="collab" aria-selected="${active === "collab"}" type="button">
+        <span class="acm-glyph" aria-hidden="true">⇄</span><span class="acm-label">collab board</span>
+        <span class="acm-hint">matrix · intros · convergence</span>
+      </button>
+    </nav>
+  `;
+}
+
 function renderConstellation() {
   const teams = state.cohort.teams;
   const clusters = state.cohort.clusters;
   const mode = state.constellationMode || "clusters";
 
+  // Collab Board is a peer Constellation view alongside clusters,
+  // dependencies, and journey.
+  if (mode === "collab") { renderCollab(); return; }
   // Journey sub-tab renders a PMF scatterplot instead of the map.
   if (mode === "journey") { renderJourney(); return; }
 
@@ -1472,20 +1502,7 @@ function renderConstellation() {
 
   state.canvas.innerHTML = `
     <div class="alch-constellation">
-      <nav class="alch-const-modes" role="tablist" aria-label="constellation edge source">
-        <button class="alch-const-mode-btn" data-const-mode="clusters" aria-selected="${mode === "clusters"}" type="button">
-          <span class="acm-glyph" aria-hidden="true">◑</span><span class="acm-label">clusters</span>
-          <span class="acm-hint">shared cluster membership</span>
-        </button>
-        <button class="alch-const-mode-btn" data-const-mode="dependencies" aria-selected="${mode === "dependencies"}" type="button">
-          <span class="acm-glyph" aria-hidden="true">↬</span><span class="acm-label">dependencies</span>
-          <span class="acm-hint">team-asserted edges</span>
-        </button>
-        <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="${mode === "journey"}" type="button">
-          <span class="acm-glyph" aria-hidden="true">⌁</span><span class="acm-label">journey</span>
-          <span class="acm-hint">pmf maturity spectrum</span>
-        </button>
-      </nav>
+      ${constellationModeNavHtml(mode)}
       <div class="ac-layout-toggle" role="group" aria-label="map layout">
         <button class="ac-layout-btn" data-const-layout="wells" aria-selected="${layout === "wells"}" type="button">⬡ wells</button>
         <button class="ac-layout-btn" data-const-layout="circle" aria-selected="${layout === "circle"}" type="button">◯ circle</button>
@@ -1831,6 +1848,7 @@ function closeDetail() {
 
 // ─── constellation hover ─────────────────────────────────────────────
 function wireConstellationHover() {
+  wireConstellationModeNav();
   const stage = state.canvas.querySelector(".alch-constellation-stage");
   if (stage) {
     const groups = stage.querySelectorAll(".ac-node-group");
@@ -1865,16 +1883,6 @@ function wireConstellationHover() {
       node.addEventListener("click", () => openDrawer(rid));
     }
   }
-  // Mode-toggle nav: switches the edge source between cluster-membership
-  // and team-asserted dependencies. State persists for the session.
-  for (const btn of state.canvas.querySelectorAll(".alch-const-mode-btn[data-const-mode]")) {
-    btn.addEventListener("click", () => {
-      const next = btn.dataset.constMode;
-      if (next === state.constellationMode) return;
-      state.constellationMode = next;
-      render();
-    });
-  }
   // Layout toggle: cluster-grouped wells ↔ single ring (the original view).
   for (const btn of state.canvas.querySelectorAll(".ac-layout-btn[data-const-layout]")) {
     btn.addEventListener("click", () => {
@@ -1908,6 +1916,23 @@ function wireConstellationHover() {
       if (!jf) return;
       const b = btn.dataset.jbottleneck;
       jf.bottleneck = jf.bottleneck === b ? null : b;
+      render();
+    });
+  }
+}
+
+function wireConstellationModeNav() {
+  const modes = new Set(["clusters", "dependencies", "journey", "collab"]);
+  for (const btn of state.canvas.querySelectorAll(".alch-const-mode-btn[data-const-mode]")) {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.constMode;
+      if (!modes.has(next)) return;
+      if (state.mode === "constellation" && next === state.constellationMode) return;
+      if (state.mode === "collab" && next === "collab") return;
+      state.mode = "constellation";
+      state.constellationMode = next;
+      try { localStorage.setItem(ALCHEMY_LS_KEY, next === "collab" ? "collab" : "constellation"); } catch {}
+      syncRailSelection();
       render();
     });
   }
@@ -3274,7 +3299,12 @@ function renderCollab() {
   const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
   const clusters = state.cohort?.clusters || [];
   if (!teams.length) {
-    state.canvas.innerHTML = `<header class="alch-cb-head"><h2 class="alch-cb-title">collaboration board</h2></header><p class="alch-callout">no team data yet.</p>`;
+    state.canvas.innerHTML = `
+      <div class="alch-collab">
+        ${constellationModeNavHtml("collab")}
+        <header class="alch-cb-head"><h2 class="alch-cb-title">collaboration board</h2></header>
+        <p class="alch-callout">no team data yet.</p>
+      </div>`;
     return;
   }
   const m = buildCollabModel(teams, clusters);
@@ -3350,6 +3380,7 @@ function renderCollab() {
 
   state.canvas.innerHTML = `
     <div class="alch-collab">
+      ${constellationModeNavHtml("collab")}
       <header class="alch-cb-head">
         <h2 class="alch-cb-title">collaboration board</h2>
         <p class="alch-cb-sub">who depends on whom, who can unblock whom, where the cohort over-concentrates — all from teams' own declared dependencies, seeking, offering &amp; skill areas.</p>
@@ -3368,6 +3399,7 @@ function renderCollab() {
 }
 
 function wireCollab() {
+  wireConstellationModeNav();
   for (const el of state.canvas.querySelectorAll("[data-collab-cohort-open]")) {
     const activate = (event) => {
       event?.preventDefault?.();
