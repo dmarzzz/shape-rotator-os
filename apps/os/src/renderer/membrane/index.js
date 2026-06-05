@@ -39,10 +39,7 @@ const PANEL_TEMPLATES = {
       { key: 'edges', val: '—', dataKey: 'edgeCount' },
     ],
     inline: (data) => renderSelfInline(data),
-    actions: [
-      { label: 'edit profile →', mode: 'profile' },
-      { label: 'onboarding →',   mode: 'onboarding' },
-    ],
+    actions: [],
   },
   cohort: {
     eyebrow: 'the constellation',
@@ -563,18 +560,27 @@ export function mountMembrane(container, opts = {}) {
       <aside class="membrane-panel" data-active-blob="self">
         <div class="membrane-panel-content"></div>
         <footer class="membrane-panel-foot">
+          <div class="membrane-foot-left">
+            <div class="membrane-blob-dots" role="tablist" aria-label="blobs">
+              ${BLOB_IDS.map((id) => `
+                <button type="button" class="membrane-blob-dot" data-blob-jump="${id}" aria-label="${BLOB_PROFILES[id].label}">
+                  <span class="mbd-label">${BLOB_PROFILES[id].label}</span>
+                </button>
+              `).join('')}
+              <button type="button" class="membrane-blob-dot membrane-footer-dot" data-footer-mode="profile" aria-label="edit profile">
+                <span class="mbd-label">edit profile</span>
+              </button>
+              <button type="button" class="membrane-blob-dot membrane-footer-dot" data-footer-mode="onboarding" aria-label="onboarding">
+                <span class="mbd-label">onboarding</span>
+              </button>
+            </div>
+            <div class="membrane-field-row" data-membrane-field-row></div>
+          </div>
           <button type="button" class="membrane-sound-toggle" data-membrane-sound aria-pressed="false">
             <span class="mst-glyph" aria-hidden="true">⌒</span>
             <span class="mst-label">hum</span>
             <span class="mst-state">off</span>
           </button>
-          <div class="membrane-blob-dots" role="tablist" aria-label="blobs">
-            ${BLOB_IDS.map((id) => `
-              <button type="button" class="membrane-blob-dot" data-blob-jump="${id}" aria-label="${BLOB_PROFILES[id].label}">
-                <span class="mbd-label">${BLOB_PROFILES[id].label}</span>
-              </button>
-            `).join('')}
-          </div>
         </footer>
       </aside>
     </div>
@@ -761,7 +767,8 @@ export function mountMembrane(container, opts = {}) {
   foldBtn.innerHTML = '<span aria-hidden="true">⊹</span><span class="mef-label">enter the field</span>';
   foldBtn.addEventListener('click', () => setFolded(true));
   const panelFoot = panel.querySelector('.membrane-panel-foot');
-  (panelFoot || panel).appendChild(foldBtn);
+  const fieldRow = panel.querySelector('[data-membrane-field-row]');
+  (fieldRow || panelFoot || panel).prepend(foldBtn);
 
   const scene = createMembraneScene(canvas, {
     onActiveChange(id) {
@@ -789,6 +796,15 @@ export function mountMembrane(container, opts = {}) {
     sound.setEnabled(next);
     soundToggle.setAttribute('aria-pressed', String(next));
     soundState.textContent = next ? 'on' : 'off';
+  });
+  container.querySelectorAll('[data-footer-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.footerMode;
+      if (!mode) return;
+      if (typeof window.__srwkAlchemyJump === 'function') {
+        window.__srwkAlchemyJump(mode);
+      }
+    });
   });
 
   dots.forEach((dot) => {
