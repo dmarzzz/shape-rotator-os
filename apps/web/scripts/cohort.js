@@ -362,10 +362,6 @@ function compactPills(items) {
   mount.innerHTML = `
     <section class="cohort-browse">
       <div class="cohort-toolbar">
-        <nav class="cohort-filter cohort-filter-kind" role="tablist" aria-label="filter by kind">
-          <button class="cohort-chip" data-kind="works" type="button" aria-selected="true">teams &amp; projects <span class="cohort-chip-count">${teams.length}</span></button>
-          <button class="cohort-chip" data-kind="people" type="button" aria-selected="false">individuals <span class="cohort-chip-count">${people.length}</span></button>
-        </nav>
         <nav class="cohort-filter cohort-filter-membership" role="tablist" aria-label="filter by membership"></nav>
       </div>
       <div id="cohort-grid" class="cohort-grid"></div>
@@ -376,6 +372,7 @@ function compactPills(items) {
   const membershipNav = mount.querySelector(".cohort-filter-membership");
   const grid = mount.querySelector("#cohort-grid");
   const detailHost = mount.querySelector("#cohort-detail");
+  const countsEl = document.getElementById("cohort-counts");
 
   function activeChipSet() {
     return state.kind === "people" ? PERSON_CHIPS : TEAM_CHIPS;
@@ -521,6 +518,33 @@ function compactPills(items) {
       try { mountShapesIn(mount); }
       catch (e) { console.warn("[cohort] shape mount failed:", e); }
     });
+  }
+
+  function renderKindFilter() {
+    if (!countsEl) return;
+    countsEl.innerHTML = `
+      <button class="cohort-kind-count" data-kind="works" type="button" role="tab" aria-selected="${state.kind === "works"}"><span>${teams.length}</span> teams &amp; projects</button>
+      <span class="cohort-kind-sep" aria-hidden="true">/</span>
+      <button class="cohort-kind-count" data-kind="people" type="button" role="tab" aria-selected="${state.kind === "people"}"><span>${people.length}</span> individuals</button>
+    `;
+    countsEl.hidden = false;
+    for (const btn of countsEl.querySelectorAll("button[data-kind]")) {
+      btn.addEventListener("click", () => {
+        const nextKind = btn.dataset.kind;
+        const changed = nextKind !== state.kind;
+        if (!changed && !state.detail) return;
+        if (changed) {
+          state.kind = nextKind;
+          state.membership = DEFAULT_MEMBERSHIP;
+        }
+        renderKindFilter();
+        if (location.hash) {
+          location.hash = "";
+          return;
+        }
+        renderGrid();
+      });
+    }
   }
 
   function renderPersonRail(rec, team, fam) {
@@ -764,25 +788,7 @@ function compactPills(items) {
     }
   }
 
-  for (const btn of mount.querySelectorAll(".cohort-chip[data-kind]")) {
-    btn.addEventListener("click", () => {
-      if (btn.dataset.kind === state.kind) return;
-      state.kind = btn.dataset.kind;
-      state.membership = DEFAULT_MEMBERSHIP;
-      for (const b of mount.querySelectorAll(".cohort-chip[data-kind]")) {
-        b.setAttribute("aria-selected", String(b.dataset.kind === state.kind));
-      }
-      renderGrid();
-    });
-  }
-
-  const countsEl = document.getElementById("cohort-counts");
-  if (countsEl) {
-    const teamWord = teams.length === 1 ? "team" : "teams";
-    const personWord = people.length === 1 ? "person" : "people";
-    countsEl.textContent = `${teams.length} ${teamWord} / ${people.length} ${personWord}`;
-    countsEl.hidden = false;
-  }
+  renderKindFilter();
 
   window.addEventListener("hashchange", syncFromHash);
   syncFromHash();

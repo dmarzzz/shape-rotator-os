@@ -109,6 +109,39 @@ body .alch-shape-overlay { display: block !important; }
 
 /* subtle inline metadata strip — counts, ranges, etc. — sits under the title */
 .page-meta { margin: calc(var(--space-6) * -1) 0 var(--space-6); font-family: var(--font-mono); font-size: var(--t-11); font-feature-settings: var(--num-feat); color: var(--ink-4); letter-spacing: var(--track-caps); text-transform: uppercase; }
+.cohort-kind-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.cohort-kind-filter[hidden] { display: none; }
+.cohort-kind-count {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-feature-settings: var(--num-feat);
+  letter-spacing: inherit;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  cursor: pointer;
+  transition: color var(--dur-base) var(--ease);
+}
+.cohort-kind-count span {
+  color: currentColor;
+}
+.cohort-kind-count[aria-selected="true"] {
+  color: var(--ink-1);
+}
+.cohort-kind-count:hover {
+  color: #d05332;
+}
+.cohort-kind-sep {
+  color: var(--ink-4);
+  opacity: 0.55;
+}
 
 .cohort-browse[hidden],
 .cohort-grid[hidden],
