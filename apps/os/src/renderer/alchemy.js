@@ -7718,7 +7718,7 @@ function renderCollab() {
   });
   const inspectorHtml = selected ? collabInspectorHtmlForSelection(selected, m) : collabInspectorDefaultHtml(m);
   const inspector = `<aside class="cb-inspector" data-collab-inspector aria-live="polite">${inspectorHtml}</aside>`;
-  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div>${inspector}`;
+  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div><div class="cb-matrix-side"><div class="cb-matrix-key">${collabLegendHtml()}</div>${inspector}</div>`;
   const matrix = `
     <section class="alch-cb-section cb-matrix-section">
       <div class="alch-cb-sechead"><h3>Adjacency matrix</h3>

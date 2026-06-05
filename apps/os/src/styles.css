@@ -10931,12 +10931,64 @@ button.cb-cell:disabled { cursor: default; }
   max-height: none;
 }
 
+.alch-collab .cb-matrix-side {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 128px auto;
+  border-left: 1px solid var(--cb-preview-grid);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.006)),
+    rgba(18, 14, 16, 0.78);
+}
+
+.alch-collab .cb-matrix-key {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--cb-preview-grid);
+  background: var(--cb-preview-panel-2);
+}
+
+.alch-collab .cb-matrix-key .cb-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  margin-left: 0;
+  justify-content: stretch;
+  font-size: 8px;
+  letter-spacing: 0.07em;
+}
+
+.alch-collab .cb-matrix-key .cb-legend span {
+  min-height: 26px;
+  padding: 5px 6px;
+  border: 1px solid rgba(var(--ink-rgb), 0.085);
+  border-radius: 5px;
+  background: rgba(var(--ink-rgb), 0.018);
+}
+
+.alch-collab .cb-matrix-key .cb-legend b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alch-collab .cb-matrix-key .cb-legend span[data-desc]::after {
+  top: calc(100% + 6px);
+  left: 0;
+  right: auto;
+  z-index: 40;
+  max-width: 250px;
+}
+
 .alch-collab .cb-inspector {
   min-width: 0;
-  /* Align inspector content with the matrix BODY (below the 128px sticky
-     column-header band), so the panel reads as part of the board, not floating
-     above it. The inspector scrolls internally if its content is taller. */
-  padding-top: 128px;
+  border-left: 0;
+  background: transparent;
+  padding-top: 16px;
   overflow: auto;
 }
 
@@ -12383,8 +12435,22 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
     grid-template-columns: minmax(0, 1fr);
     max-height: none;
   }
-  .alch-collab .cb-inspector {
+  .alch-collab .cb-matrix-side {
+    grid-template-rows: auto auto;
     border-left: 0;
+    border-top: 1px solid var(--cb-preview-grid);
+  }
+  .alch-collab .cb-matrix-key {
+    padding: 10px 12px;
+  }
+  .alch-collab .cb-matrix-key .cb-legend {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .alch-collab .cb-matrix-key .cb-legend span {
+    flex: 1 1 128px;
+  }
+  .alch-collab .cb-inspector {
     border-top: 1px solid var(--cb-preview-grid);
     padding-top: 16px;
   }
