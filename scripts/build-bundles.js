@@ -360,14 +360,17 @@ function buildPersonTimeline({ people, teams, asks, events, calendar }) {
     }
 
     for (const ask of asks) {
-      if (String(ask.author || "").toLowerCase() !== String(person.record_id || "").toLowerCase()) continue;
+      const author = String(ask.author || "").toLowerCase();
+      const personAuthored = author === String(person.record_id || "").toLowerCase();
+      const teamAuthored = team && author === String(team.record_id || "").toLowerCase();
+      if (!personAuthored && !teamAuthored) continue;
       items.push({
         date: isoDate(ask.posted_at) || start,
         type: "ask",
-        title: compactText(`${ask.verb || "ask"} ${ask.topic || ""}`, 96),
+        title: compactText(`${teamAuthored ? "team " : ""}${ask.verb || "ask"} ${ask.topic || ""}`, 96),
         detail: ask.status ? `status: ${ask.status}` : "",
         href: recordSourceUrl("ask", ask.record_id),
-        source: "ask",
+        source: teamAuthored ? (team.name || team.record_id) : "ask",
       });
     }
 

@@ -274,6 +274,19 @@ function quickLink(label, href, external = true) {
   return `<a class="cd-quick-link" href="${escAttr(href)}"${attrs}>${escHtml(label)}</a>`;
 }
 
+function teamQuickLink(team) {
+  if (!team) return "";
+  const kind = teamKind(team);
+  return `
+    <a class="cd-quick-link cd-team-token" href="#${escAttr(encodeURIComponent(team.record_id))}">
+      <span class="cd-mini-shape" aria-hidden="true">
+        <canvas data-shape-fam="${escAttr(shapeFamily(team, "team"))}" data-shape-kind="${escAttr(kind)}" data-shape-seed="${escAttr(team.record_id)}"></canvas>
+      </span>
+      <span>${escHtml(team.name || team.record_id)}</span>
+    </a>
+  `;
+}
+
 function renderQuickRow(label, items) {
   const html = items.filter(Boolean).join("");
   if (!html) return "";
@@ -573,9 +586,10 @@ function compactPills(items) {
       asArray(rec.recurring_themes).slice(0, 4).map(value => quickText("", value))
     );
     const teamContext = team ? renderQuickRow("team context", [
-      quickLink(team.name || team.record_id, `#${encodeURIComponent(team.record_id)}`, false),
+      teamQuickLink(team),
       quickText("focus", team.focus),
     ]) : "";
+    const bioSection = renderSection("about / bio", renderProse(rec.bio_md), true);
     const currentRows = [
       renderRow("now", rec.now),
       renderRow("weekly intention", rec.weekly_intention),
@@ -600,10 +614,10 @@ function compactPills(items) {
         <div class="cd-ledger-head">
           <span class="cd-h">individual read</span>
         </div>
+        ${bioSection ? `<div class="cd-section-stack cd-priority-stack">${bioSection}</div>` : ""}
         <div class="cd-quick">${explore}${askMeAbout}${themes}${teamContext}</div>
         <div class="cd-section-stack">
-          ${renderSection("about / bio", renderProse(rec.bio_md), true)}
-          ${renderSection("current read", currentRows, !rec.bio_md)}
+          ${renderSection("current read", currentRows, !bioSection)}
           ${renderSection("working with", workingRows)}
           ${renderSection("proof / prior work", proofRead)}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems))}
