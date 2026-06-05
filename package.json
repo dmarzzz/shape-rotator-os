@@ -14,6 +14,7 @@
     "check:cohort": "node scripts/build-bundles.js --check",
     "build:ics": "node scripts/build-ics.js",
     "check:ics": "node scripts/build-ics.js --check",
+    "check:calendar-transcripts": "node scripts/check-calendar-transcript-matches.mjs",
     "test": "node --test scripts/build-ics.test.js",
     "publish:cohort": "node scripts/publish-bundles.js",
     "publish:cohort:dry": "node scripts/publish-bundles.js --dry-run",
