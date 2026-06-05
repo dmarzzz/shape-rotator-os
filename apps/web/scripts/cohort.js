@@ -347,7 +347,10 @@ function compactPills(items) {
 }
 
 (async function init() {
-  const r = await fetch("/cohort-surface.json").catch(() => null);
+  const surfaceUrl = new URL("/cohort-surface.json", location.origin);
+  const previewVersion = new URLSearchParams(location.search).get("v");
+  if (previewVersion) surfaceUrl.searchParams.set("v", previewVersion);
+  const r = await fetch(`${surfaceUrl.pathname}${surfaceUrl.search}`).catch(() => null);
   const cohort = r && r.ok ? await r.json() : null;
   const mount = document.getElementById("mount");
   if (!cohort) { mount.innerHTML = '<p class="page-empty">cohort data unavailable</p>'; return; }
@@ -541,12 +544,15 @@ function compactPills(items) {
     `;
   }
 
-  function renderTeamRail(rec, teamPeople, fam, kind) {
+  function renderTeamRail(rec, teamPeople, fam, kind, memberClusters = []) {
     const memberLinks = teamPeople.map(person => `
       <span class="cd-rail-member">
         <a href="#${escAttr(encodeURIComponent(person.record_id))}">${escHtml(person.name || person.record_id)}</a>${person.role ? ` <em>(${escHtml(person.role)})</em>` : ""}
       </span>
     `).join("");
+    const guild = memberClusters.length
+      ? `<span class="cd-rail-clusters">${memberClusters.map(cl => `<span class="cd-rail-cluster">${escHtml(cl.label)}</span>`).join("")}</span>`
+      : "";
     return `
       <aside class="cd-rail">
         <div class="cd-shape"><canvas data-shape-fam="${fam}" data-shape-kind="${escAttr(kind)}" data-shape-seed="${escAttr(rec.record_id)}"></canvas></div>
@@ -557,6 +563,7 @@ function compactPills(items) {
           <div class="cd-rail-list">
             ${rec.domain ? `<div><span>domain</span>${escHtml(domainLabel(rec.domain))}</div>` : ""}
             ${rec.geo ? `<div><span>geo</span>${escHtml(rec.geo)}</div>` : ""}
+            ${guild ? `<div><span>guild</span>${guild}</div>` : ""}
             ${memberLinks ? `<div><span>${kind === "project" ? "contributors" : "members"}</span><span class="cd-rail-members">${memberLinks}</span></div>` : ""}
             ${rec.membership ? `<div><span>status</span>${escHtml(labelize(rec.membership))}</div>` : ""}
           </div>
@@ -632,6 +639,7 @@ function compactPills(items) {
     const memberClusters = (cohort.clusters || []).filter(cl =>
       Array.isArray(cl.teams) && cl.teams.includes(rec.record_id)
     );
+    const timelineItems = cohort.team_timeline?.[rec.record_id] || [];
     const links = rec.links || {};
     const journey = journeySummary(rec);
     const nextMove = renderQuickRow("next move", [
@@ -686,12 +694,9 @@ function compactPills(items) {
       renderRow("evidence notes", journey.evidenceNotes),
       renderRow("next milestone", journey.next),
     ] : [];
-    const guild = memberClusters.length
-      ? `<div class="cd-clusters">${memberClusters.map(cl => `<span class="cd-cluster">${escHtml(cl.label)}</span>`).join("")}</div>`
-      : "";
 
     return `
-      ${renderTeamRail(rec, teamPeople, fam, kind)}
+      ${renderTeamRail(rec, teamPeople, fam, kind, memberClusters)}
       <section class="cd-ledger">
         <div class="cd-section-stack">
           ${renderSection("current read", aboutRows, true)}
@@ -703,7 +708,7 @@ function compactPills(items) {
         <div class="cd-section-stack">
           ${renderSection("trajectory", trajectoryRows)}
           ${renderSection("evidence", evidenceRows)}
-          ${renderSection("guild", guild)}
+          ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems))}
         </div>
       </section>
     `;

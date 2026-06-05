@@ -158,6 +158,11 @@ function compactText(value, max = 180) {
   return s.length > max ? `${s.slice(0, max - 1).trim()}…` : s;
 }
 
+function asArray(value) {
+  if (Array.isArray(value)) return value.filter(v => v != null && String(v).trim() !== "");
+  return value == null || String(value).trim() === "" ? [] : [value];
+}
+
 function textIncludesAny(text, aliases) {
   const hay = String(text || "").toLowerCase();
   return aliases.some(alias => alias && hay.includes(String(alias).toLowerCase()));
@@ -241,6 +246,28 @@ function personAliases(person, team) {
     add(team.name);
   }
   return { direct, any: Array.from(aliases) };
+}
+
+function teamAliases(team, members = []) {
+  const directAliases = new Set();
+  const memberAliases = new Set();
+  const add = (set, v) => {
+    const s = String(v || "").trim();
+    if (s.length >= 3) set.add(s.toLowerCase());
+  };
+  add(directAliases, team.record_id);
+  add(directAliases, String(team.record_id || "").replace(/[-_]+/g, " "));
+  add(directAliases, team.name);
+  for (const v of Object.values(team.links || {})) add(directAliases, v);
+  for (const member of members) {
+    add(memberAliases, member.record_id);
+    add(memberAliases, String(member.record_id || "").replace(/[-_]+/g, " "));
+    add(memberAliases, member.name);
+  }
+  return {
+    direct: Array.from(directAliases),
+    any: Array.from(new Set([...directAliases, ...memberAliases])),
+  };
 }
 
 function calendarBlocks(calendar) {
@@ -445,6 +472,136 @@ function buildPersonTimeline({ people, teams, asks, events, calendar }) {
   return timeline;
 }
 
+function buildTeamTimeline({ teams, people, asks, events, calendar }) {
+  const peopleByTeam = new Map();
+  for (const person of people) {
+    const teamIds = [person.team, ...asArray(person.secondary_teams)].filter(Boolean);
+    for (const teamId of teamIds) {
+      if (!peopleByTeam.has(teamId)) peopleByTeam.set(teamId, []);
+      peopleByTeam.get(teamId).push(person);
+    }
+  }
+  const calBlocks = calendarBlocks(calendar);
+  const transcriptMatches = loadCalendarTranscriptMatches();
+  const timeline = {};
+
+  for (const team of teams) {
+    const members = peopleByTeam.get(team.record_id) || [];
+    const memberById = new Map(members.map(member => [String(member.record_id || "").toLowerCase(), member]));
+    const aliases = teamAliases(team, members);
+    const items = [];
+
+    for (const [field, title, type, limit] of [
+      ["now", "current work", "profile", 1],
+      ["weekly_goals", "weekly goals", "profile", 2],
+      ["monthly_milestones", "milestones", "profile", 2],
+      ["graduation_target", "graduation target", "profile", 1],
+      ["seeking", "seeking", "ask", 3],
+      ["offering", "offering", "offer", 3],
+      ["traction", "traction", "evidence", 1],
+      ["prior_shipping", "prior shipping", "evidence", 3],
+      ["paper_basis", "research basis", "evidence", 2],
+    ]) {
+      const values = Array.isArray(team[field]) ? team[field] : (team[field] ? [team[field]] : []);
+      for (const value of values.slice(0, limit)) {
+        items.push({
+          date: "",
+          type,
+          title,
+          detail: compactText(value),
+          href: recordSourceUrl("team", team.record_id),
+          source: "team record",
+        });
+      }
+    }
+
+    for (const ask of asks) {
+      const author = String(ask.author || "").toLowerCase();
+      const teamAuthored = author === String(team.record_id || "").toLowerCase();
+      const member = memberById.get(author);
+      if (!teamAuthored && !member) continue;
+      items.push({
+        date: isoDate(ask.posted_at),
+        type: "ask",
+        title: compactText(`${member ? `${member.name || member.record_id}: ` : ""}${ask.verb || "ask"} ${ask.topic || ""}`, 96),
+        detail: ask.status ? `status: ${ask.status}` : "",
+        href: recordSourceUrl("ask", ask.record_id),
+        source: teamAuthored ? (team.name || team.record_id) : (member.name || member.record_id),
+      });
+    }
+
+    for (const event of events) {
+      const text = `${event.title || ""} ${event.subtitle || ""}`;
+      if (!textIncludesAny(text, aliases.any)) continue;
+      items.push({
+        date: isoDate(event.date || event.range_start),
+        type: "event",
+        title: event.title || "program event",
+        detail: compactText(event.subtitle || ""),
+        href: recordSourceUrl("event", event.record_id),
+        source: "event",
+      });
+    }
+
+    const calendarItems = [];
+    for (const block of calBlocks) {
+      if (!textIncludesAny(`${block.title} ${block.detail}`, aliases.any)) continue;
+      const calendarTitle = /[a-z]/i.test(String(block.title || ""))
+        ? block.title
+        : "calendar mention";
+      calendarItems.push({
+        date: block.date,
+        type: /\bonboarding\b/i.test(`${block.title} ${block.detail}`) ? "onboarding" : "calendar",
+        title: compactText(calendarTitle, 96),
+        detail: compactText(block.detail, 170),
+        href: "/calendar",
+        source: block.column || block.tab,
+      });
+    }
+    items.push(...calendarItems.slice(0, 8));
+
+    const transcriptItems = [];
+    for (const match of transcriptMatches) {
+      for (const source of Array.isArray(match.sources) ? match.sources : []) {
+        const relPath = source.path;
+        const fp = path.join(REPO_ROOT, relPath);
+        if (!fs.existsSync(fp)) continue;
+        const text = fs.readFileSync(fp, "utf8");
+        const sourceText = `${source.label || ""} ${relPath || ""} ${match.section || ""}`;
+        const directHit = textIncludesAny(text, aliases.direct) || textIncludesAny(sourceText, aliases.direct);
+        const anyHit = directHit || textIncludesAny(text, aliases.any) || textIncludesAny(sourceText, aliases.any);
+        if (!anyHit) continue;
+        const sourceNamed = textIncludesAny(sourceText, aliases.direct);
+        transcriptItems.push({
+          _priority: sourceNamed ? 3 : (directHit ? 2 : 1),
+          date: match.date,
+          type: "transcript",
+          title: sourceNamed ? "team source transcript" : (directHit ? "team mentioned in transcript" : "member context in transcript"),
+          detail: compactText(`${match.section || "session"} · ${source.label || path.basename(relPath)}`, 150),
+          href: githubBlobUrl(relPath),
+          source: source.role === "notes" ? "notes" : "transcript",
+        });
+      }
+    }
+    transcriptItems.sort((a, b) => {
+      if (a._priority !== b._priority) return b._priority - a._priority;
+      return String(a.date || "").localeCompare(String(b.date || ""));
+    });
+    const seenTranscriptSources = new Set();
+    const uniqueTranscriptItems = transcriptItems.filter(item => {
+      const key = item.href || `${item.date || ""}|${item.title || ""}|${item.detail || ""}`;
+      if (seenTranscriptSources.has(key)) return false;
+      seenTranscriptSources.add(key);
+      return true;
+    });
+    items.push(...uniqueTranscriptItems.slice(0, 6).map(({ _priority, ...item }) => item));
+
+    timeline[team.record_id] = sortTimeline(items).slice(0, 28);
+  }
+
+  return timeline;
+}
+
 function build() {
   const schema = readSchema();
   if (!schema || schema.schema_version !== 1) {
@@ -488,6 +645,7 @@ function build() {
     asks,
     calendar,
     person_timeline: buildPersonTimeline({ people, teams, asks, events, calendar }),
+    team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar }),
     cohort_vocab,
   };
   return out;
