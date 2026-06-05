@@ -7673,14 +7673,20 @@ function renderCollab() {
         ${lensButton("deps", "dependencies", m.deps.size)}
         ${lensButton("needs", "seek / offer", m.seekOffer.length)}
       </div>
-      <label class="cb-sort-control">
-        <span>sort by</span>
-        <select data-collab-sort aria-label="sort collab board rows">
-          ${sortOption("cluster", "cluster")}
-          ${sortOption("intro", "intro potential")}
-          ${sortOption("dependency", "dependency pressure")}
-        </select>
-      </label>
+      <div class="cb-control-actions">
+        <button class="cb-intake-open" type="button" data-collab-intake-open>
+          <span class="cb-intake-open-mark" aria-hidden="true">+</span>
+          <span>add seek / offer</span>
+        </button>
+        <label class="cb-sort-control">
+          <span>sort by</span>
+          <select data-collab-sort aria-label="sort collab board rows">
+            ${sortOption("cluster", "cluster")}
+            ${sortOption("intro", "intro potential")}
+            ${sortOption("dependency", "dependency pressure")}
+          </select>
+        </label>
+      </div>
     </div>`;
 
   // The standalone keystones section was removed: it rendered as a lone
@@ -7736,7 +7742,7 @@ function renderCollab() {
   const intros = [...introByPair.values()].sort((a, b) => b.score - a.score).slice(0, 12);
   const introCards = intros.map(s => {
     const chips = s.shared.slice(0, 5).map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("");
-    return `<article class="cb-intro" data-collab-cohort-open="${escAttr(s.offerer)}" role="link" tabindex="0" title="${escAttr(`open ${s.offererName || s.offerer} on the cohort page`)}">
+    return `<article class="cb-intro" data-collab-cohort-open="${escAttr(s.offerer)}" role="link" tabindex="0" title="${escAttr(`open ${s.offererName || s.offerer} profile`)}">
       <div class="cb-intro-flow">
         <div class="cb-intro-side"><span class="cb-intro-role">needs</span><span class="cb-intro-team">${escHtml(s.seekerName)}</span>${s.seeking ? `<span class="cb-intro-text">${escHtml(s.seeking)}</span>` : ""}</div>
         <div class="cb-intro-arrow" aria-hidden="true">→</div>
@@ -7795,6 +7801,11 @@ function wireCollab() {
       event?.stopPropagation?.();
       const rid = el.getAttribute("data-collab-cohort-open");
       if (!rid) return;
+      const cohortIndex = buildCohortIndex(state.cohort);
+      if (cohortIndex.teamById.has(rid) || cohortIndex.personById.has(rid)) {
+        openDetail(rid);
+        return;
+      }
       try { window.api?.openExternal?.(cohortRecordUrl(rid)); } catch {}
     };
     el.addEventListener("click", activate);
@@ -7811,6 +7822,25 @@ function wireCollab() {
 function wireCollab() {
   const collabRoot = state.canvas.querySelector(".alch-collab");
   wireCollabCohortLinks(state.canvas);
+  for (const btn of state.canvas.querySelectorAll("[data-collab-intake-open]")) {
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      try {
+        openCollabIntakeModal();
+      } catch (error) {
+        console.error("[collab-intake] failed to open:", error);
+        setCollabInspectorHtml(`
+          <div class="cb-inspector-hero">
+            <div class="cb-inspector-identity">
+              <div class="cb-inspector-kicker">collab intake</div>
+              <h4 class="cb-inspector-title">intake failed</h4>
+              <p class="cb-inspector-copy">${escHtml(error?.message || String(error))}</p>
+            </div>
+          </div>
+        `);
+      }
+    });
+  }
   for (const btn of state.canvas.querySelectorAll("[data-collab-lens]")) {
     btn.addEventListener("click", () => {
       const next = btn.getAttribute("data-collab-lens") || "all";

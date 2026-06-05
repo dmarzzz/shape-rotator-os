@@ -176,7 +176,7 @@ async function wireAppUpdateChip() {
   const chip = document.getElementById("fg-version-chip");
   if (!chip) return;
   let info = null;
-  try { info = await window.api.getAppInfo?.(); } catch {}
+  try { info = await window.api?.getAppInfo?.(); } catch {}
   if (info) {
     chip.textContent = `v${info.version}${info.isPackaged ? "" : "·dev"}`;
     chip.title = info.isPackaged
@@ -259,7 +259,7 @@ async function checkForUpdate({ showSpinner } = {}) {
   const chip = document.getElementById("fg-version-chip");
   if (showSpinner) setUpdateIcon("checking");
   try {
-    const r = await window.api.checkAppUpdate?.();
+    const r = await window.api?.checkAppUpdate?.();
     if (chip && r?.current) chip.dataset.current = r.current;
     // Couldn't get info about the latest release (no response, or a failure
     // that isn't the deliberate dev-mode disable) → globe-off.
@@ -309,12 +309,12 @@ async function onUpdateIconClick() {
     if (chip?.dataset.canAutoUpdate === "1") {
       // Windows / AppImage: download in the background; electron-updater
       // installs on next quit. Confirm with the checkmark.
-      const dl = await window.api.applyAppUpdate?.();
+      const dl = await window.api?.applyAppUpdate?.();
       setUpdateIcon(dl?.ok ? "ok" : "available");
     } else {
       // macOS / .deb: download to ~/Downloads and reveal in the file
       // manager so the user runs the installer themselves.
-      const res = await window.api.downloadAndRevealUpdate?.();
+      const res = await window.api?.downloadAndRevealUpdate?.();
       setUpdateIcon(res?.ok ? "" : "available");
     }
   } catch {
@@ -324,8 +324,8 @@ async function onUpdateIconClick() {
 
 
 async function boot() {
-  const env = await window.api.env();
-  srwk.serverUrl = env.serverUrl;
+  const env = await (window.api?.env?.() ?? Promise.resolve({}));
+  if (env?.serverUrl) srwk.serverUrl = env.serverUrl;
 
   srwk.spriteTex = makeSpriteTex();
   srwk.haloTex = makeHaloTex();
