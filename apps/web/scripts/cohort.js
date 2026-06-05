@@ -172,6 +172,25 @@ function renderHtmlRow(label, html) {
   `;
 }
 
+function renderProse(md) {
+  const raw = String(md || "").trim();
+  if (!raw) return "";
+  const blocks = raw.split(/\n{2,}/).map(block => block.trim()).filter(Boolean);
+  if (!blocks.length) return "";
+  return `
+    <div class="cd-prose">
+      ${blocks.map(block => {
+        const lines = block.split(/\n/).map(line => line.trim()).filter(Boolean);
+        const isList = lines.length > 1 && lines.every(line => /^[-*]\s+/.test(line));
+        if (isList) {
+          return `<ul>${lines.map(line => `<li>${escHtml(line.replace(/^[-*]\s+/, ""))}</li>`).join("")}</ul>`;
+        }
+        return `<p>${escHtml(lines.join(" "))}</p>`;
+      }).join("")}
+    </div>
+  `;
+}
+
 function renderSection(title, body, open = false) {
   const cleaned = asArray(body).join("");
   if (!cleaned.trim()) return "";
@@ -366,9 +385,6 @@ function compactPills(items) {
       }
       rows.push({ label: teamKind(rec) === "project" ? "contributors" : "team", items: visible });
     }
-    if (!isPerson && !isBlank(rec.now)) {
-      rows.push({ label: "now", items: [`<span>${escHtml(rec.now)}</span>`] });
-    }
     const links = surfaceLinkAnchors(rec.links || {});
     if (links.length) rows.push({ label: "links", items: links.slice(0, 4) });
     if (!rows.length) return "";
@@ -538,21 +554,24 @@ function compactPills(items) {
     const currentRows = [
       renderRow("now", rec.now),
       renderRow("weekly intention", rec.weekly_intention),
-      renderRow("contributes", rec.contribute_interests),
+    ];
+    const workingRows = [
       renderRow("comm style", rec.comm_style),
       renderRow("availability", rec.availability_pref),
-    ];
-    const routeRows = [
-      secondary.length ? renderHtmlRow("also contributes", secondary.map(t => `<a class="cd-text-link" href="#${escAttr(encodeURIComponent(t.record_id))}">${escHtml(t.name || t.record_id)}</a>`).join(" ")) : "",
-      renderRow("best contexts", rec.best_contexts),
       renderRow("working style", rec.working_style),
+      renderRow("best contexts", rec.best_contexts),
+      renderRow("contributes", rec.contribute_interests),
       renderRow("seeking", rec.seeking),
       renderRow("offering", rec.offering),
     ];
-    const evidenceRows = [
+    const routeRows = [
+      secondary.length ? renderHtmlRow("also contributes", secondary.map(t => `<a class="cd-text-link" href="#${escAttr(encodeURIComponent(t.record_id))}">${escHtml(t.name || t.record_id)}</a>`).join(" ")) : "",
+    ];
+    const proofRows = [
       renderRow("prior work", rec.prior_work),
       renderRow("making signature", rec.making_signature?.note),
       renderRow("built domain", rec.making_signature?.built_domain),
+      renderRow("evidence shape", rec.making_signature?.shape),
     ];
 
     return `
@@ -563,10 +582,12 @@ function compactPills(items) {
         </div>
         <div class="cd-quick">${explore}${askMeAbout}${themes}${teamContext}</div>
         <div class="cd-section-stack">
-          ${renderSection("current read", currentRows, true)}
+          ${renderSection("about / bio", renderProse(rec.bio_md), true)}
+          ${renderSection("current read", currentRows, !rec.bio_md)}
+          ${renderSection("working with", workingRows)}
+          ${renderSection("proof / prior work", proofRows)}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems))}
           ${renderSection("routes / asks", routeRows)}
-          ${renderSection("evidence", evidenceRows)}
         </div>
       </section>
     `;

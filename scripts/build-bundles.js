@@ -58,13 +58,23 @@ function pickSurface(obj, whitelist) {
   return out;
 }
 
+function extractPublicPersonBio(body) {
+  const raw = String(body || "").trim();
+  if (!raw) return "";
+  const lines = raw.split("\n");
+  const start = lines.findIndex(line => /^##\s+(about|bio)\s*$/i.test(line.trim()));
+  if (start < 0) return raw;
+  const end = lines.findIndex((line, index) => index > start && /^##\s+/.test(line.trim()));
+  return lines.slice(start + 1, end < 0 ? undefined : end).join("\n").trim();
+}
+
 function loadDir(dir, recordType, surfaceFields) {
   if (!fs.existsSync(dir)) return [];
   const files = fs.readdirSync(dir).filter(f => f.endsWith(".md"));
   const records = [];
   for (const f of files) {
     const fp = path.join(dir, f);
-    const { frontmatter } = parseMarkdown(fp);
+    const { frontmatter, body } = parseMarkdown(fp);
     if (!frontmatter) {
       console.warn(`[build-bundles] skipping ${fp} — no frontmatter`);
       continue;
@@ -77,7 +87,12 @@ function loadDir(dir, recordType, surfaceFields) {
       console.warn(`[build-bundles] skipping ${fp} — no record_id`);
       continue;
     }
-    records.push(pickSurface(frontmatter, surfaceFields));
+    const surface = pickSurface(frontmatter, surfaceFields);
+    if (recordType === "person") {
+      const bio = extractPublicPersonBio(body);
+      if (bio) surface.bio_md = bio;
+    }
+    records.push(surface);
   }
   // Stable order by record_id.
   records.sort((a, b) => String(a.record_id).localeCompare(String(b.record_id)));

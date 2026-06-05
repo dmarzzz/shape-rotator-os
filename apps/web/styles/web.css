@@ -966,6 +966,25 @@ body.links-page-body .hero-tagline {
   gap: var(--space-3);
   padding: 0 0 var(--space-4);
 }
+.cd-prose {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 78ch;
+  color: var(--ink-2);
+  font-size: var(--t-14);
+  line-height: var(--lh-relaxed);
+}
+.cd-prose p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.cd-prose ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.cd-prose li { padding-left: var(--space-1); }
 .cd-row {
   padding-block: var(--space-2);
   border-top: 1px dashed rgba(241, 236, 231, 0.075);
