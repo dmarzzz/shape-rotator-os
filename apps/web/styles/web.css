@@ -930,6 +930,36 @@ body.links-page-body .hero-tagline {
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
 }
+.cd-team-quick .cd-quick-row {
+  grid-template-columns: 104px minmax(0, 1fr);
+  min-height: 0;
+  padding-block: var(--space-2);
+}
+.cd-team-quick .cd-quick-v {
+  gap: var(--space-3);
+}
+.cd-team-quick .cd-quick-link,
+.cd-team-quick .cd-pill,
+.cd-team-quick .cd-quick-text {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.cd-team-quick .cd-quick-link {
+  border-bottom: 1px solid rgba(241, 236, 231, 0.22);
+}
+.cd-team-quick .cd-quick-link:hover {
+  background: transparent;
+  border-bottom-color: rgba(208, 83, 50, 0.65);
+}
+.cd-team-quick .cd-pill {
+  color: var(--ink-2);
+}
+.cd-team-quick .cd-quick-text {
+  max-width: 72ch;
+}
 .cd-section-stack {
   display: grid;
   gap: var(--space-2);

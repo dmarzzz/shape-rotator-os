@@ -191,6 +191,39 @@ function renderProse(md) {
   `;
 }
 
+function compactSentenceList(value, limit = 2) {
+  const values = asArray(value)
+    .map(item => String(item || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, limit);
+  if (!values.length) return "";
+  if (values.length === 1) return values[0];
+  return `${values.slice(0, -1).join(", ")} and ${values[values.length - 1]}`;
+}
+
+function sentenceText(value) {
+  const s = String(value || "").replace(/\s+/g, " ").trim();
+  return s && /[.!?]$/.test(s) ? s : (s ? `${s}.` : "");
+}
+
+function renderProofRead(rec) {
+  const prior = compactSentenceList(rec.prior_work, 2);
+  const signature = rec.making_signature && typeof rec.making_signature === "object" ? rec.making_signature : null;
+  const builtDomain = compactSentenceList(signature?.built_domain, 3);
+  const sentences = [];
+  if (prior) {
+    sentences.push(`Public proof points include ${prior}.`);
+  }
+  if (signature?.note || builtDomain || signature?.shape) {
+    const parts = [];
+    if (builtDomain) parts.push(`${builtDomain} work`);
+    if (signature?.shape) parts.push(`${signature.shape} making pattern`);
+    const read = parts.length ? `The making signature points to ${parts.join(" with a ")}` : "The making signature is present";
+    sentences.push(signature?.note ? `${read}: ${sentenceText(signature.note)}` : `${read}.`);
+  }
+  return renderProse(sentences.join("\n\n"));
+}
+
 function renderSection(title, body, open = false) {
   const cleaned = asArray(body).join("");
   if (!cleaned.trim()) return "";
@@ -567,12 +600,7 @@ function compactPills(items) {
     const routeRows = [
       secondary.length ? renderHtmlRow("also contributes", secondary.map(t => `<a class="cd-text-link" href="#${escAttr(encodeURIComponent(t.record_id))}">${escHtml(t.name || t.record_id)}</a>`).join(" ")) : "",
     ];
-    const proofRows = [
-      renderRow("prior work", rec.prior_work),
-      renderRow("making signature", rec.making_signature?.note),
-      renderRow("built domain", rec.making_signature?.built_domain),
-      renderRow("evidence shape", rec.making_signature?.shape),
-    ];
+    const proofRead = renderProofRead(rec);
 
     return `
       ${renderPersonRail(rec, team, fam)}
@@ -585,7 +613,7 @@ function compactPills(items) {
           ${renderSection("about / bio", renderProse(rec.bio_md), true)}
           ${renderSection("current read", currentRows, !rec.bio_md)}
           ${renderSection("working with", workingRows)}
-          ${renderSection("proof / prior work", proofRows)}
+          ${renderSection("proof / prior work", proofRead)}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems))}
           ${renderSection("routes / asks", routeRows)}
         </div>
@@ -617,12 +645,6 @@ function compactPills(items) {
     );
     const links = rec.links || {};
     const journey = journeySummary(rec);
-    const current = renderQuickRow("current", [
-      pill("status", labelize(rec.membership || "visiting")),
-      pill(kind === "project" ? "contributors" : "members", `${teamPeople.length}`),
-      pill("domain", rec.domain ? domainLabel(rec.domain) : ""),
-      pill("geo", rec.geo),
-    ]);
     const nextMove = renderQuickRow("next move", [
       quickText("", rec.now || journey?.next),
     ]);
@@ -688,7 +710,7 @@ function compactPills(items) {
         <div class="cd-ledger-head">
           <span class="cd-h">${escHtml(kind)} read</span>
         </div>
-        <div class="cd-quick">${current}${nextMove}${needs}${provides}${proof}${trajectory}${explore}</div>
+        <div class="cd-quick cd-team-quick">${nextMove}${needs}${provides}${proof}${trajectory}${explore}</div>
         <div class="cd-section-stack">
           ${renderSection("current read", aboutRows, true)}
           ${renderSection("routes / asks", routeRows)}
