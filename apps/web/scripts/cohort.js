@@ -488,9 +488,14 @@ function compactPills(items) {
     if (!chipSet.some(c => c.id === state.membership)) state.membership = DEFAULT_MEMBERSHIP;
     const source = state.kind === "people" ? people : teams;
     const counts = new Map(chipSet.map(c => [c.id, source.filter(c.match).length]));
-    membershipNav.innerHTML = chipSet.map(chip => `
-      <button class="cohort-chip cohort-chip-membership" data-membership="${escAttr(chip.id)}" type="button" aria-selected="${chip.id === state.membership}">${escHtml(chip.label)} <span class="cohort-chip-count">${counts.get(chip.id) || 0}</span></button>
-    `).join("");
+    membershipNav.innerHTML = chipSet.map(chip => {
+      const count = chip.id === "all"
+        ? ""
+        : ` <span class="cohort-chip-count">${counts.get(chip.id) || 0}</span>`;
+      return `
+        <button class="cohort-chip cohort-chip-membership" data-membership="${escAttr(chip.id)}" type="button" role="tab" aria-selected="${chip.id === state.membership}">${escHtml(chip.label)}${count}</button>
+      `;
+    }).join("");
     for (const btn of membershipNav.querySelectorAll(".cohort-chip[data-membership]")) {
       btn.addEventListener("click", () => {
         if (btn.dataset.membership === state.membership) return;
@@ -762,6 +767,12 @@ function compactPills(items) {
     const rec = id ? findRecord(id) : null;
     state.detail = rec ? rec.record_id : null;
     if (rec) {
+      const detailKind = recordKind(rec) === "person" ? "people" : "works";
+      if (state.kind !== detailKind) {
+        state.kind = detailKind;
+        state.membership = DEFAULT_MEMBERSHIP;
+        renderKindFilter();
+      }
       pageHead?.classList.add("is-detail");
       browse.hidden = true;
       detailHost.hidden = false;
