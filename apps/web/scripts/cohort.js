@@ -319,6 +319,10 @@ function quickText(label, value) {
   return `<span class="cd-quick-text">${label ? `<span>${escHtml(label)}</span>` : ""}${escHtml(values.join(" · "))}</span>`;
 }
 
+function collabBoardHref(recordId) {
+  return `/#collab:${encodeURIComponent(recordId || "")}`;
+}
+
 function prettyLinkLabel(key) {
   const labels = {
     github: "GitHub",
@@ -542,6 +546,11 @@ function compactPills(items) {
   }
 
   function renderTeamRail(rec, teamPeople, fam, kind) {
+    const memberLinks = teamPeople.map(person => `
+      <span class="cd-rail-member">
+        <a href="#${escAttr(encodeURIComponent(person.record_id))}">${escHtml(person.name || person.record_id)}</a>${person.role ? ` <em>(${escHtml(person.role)})</em>` : ""}
+      </span>
+    `).join("");
     return `
       <aside class="cd-rail">
         <div class="cd-shape"><canvas data-shape-fam="${fam}" data-shape-kind="${escAttr(kind)}" data-shape-seed="${escAttr(rec.record_id)}"></canvas></div>
@@ -552,7 +561,7 @@ function compactPills(items) {
           <div class="cd-rail-list">
             ${rec.domain ? `<div><span>domain</span>${escHtml(domainLabel(rec.domain))}</div>` : ""}
             ${rec.geo ? `<div><span>geo</span>${escHtml(rec.geo)}</div>` : ""}
-            <div><span>${kind === "project" ? "contributors" : "team"}</span>${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</div>
+            ${memberLinks ? `<div><span>${kind === "project" ? "contributors" : "members"}</span><span class="cd-rail-members">${memberLinks}</span></div>` : ""}
             ${rec.membership ? `<div><span>status</span>${escHtml(labelize(rec.membership))}</div>` : ""}
           </div>
         </div>
@@ -621,23 +630,6 @@ function compactPills(items) {
     `;
   }
 
-  function renderTeamPeople(teamId, kind) {
-    const teamPeople = people.filter(p => p.team === teamId);
-    if (!teamPeople.length) return "";
-    return `
-      <ul class="cd-people">
-        ${teamPeople.map(p => `
-          <li>
-            <a class="cd-person-link" href="#${escAttr(encodeURIComponent(p.record_id))}">
-              <span class="adp-name">${escHtml(p.name || p.record_id)}</span>
-              ${p.role ? `<span class="adp-role">${escHtml(p.role)}</span>` : ""}
-            </a>
-          </li>
-        `).join("")}
-      </ul>
-    `;
-  }
-
   function renderTeamDetail(rec, editUrl, fam, kind) {
     const teamPeople = people.filter(p => p.team === rec.record_id);
     const memberClusters = (cohort.clusters || []).filter(cl =>
@@ -666,6 +658,9 @@ function compactPills(items) {
       pill("bottleneck", journey.bottleneck),
       quickText("next", journey.next),
     ]) : "";
+    const collab = renderQuickRow("routes / asks", [
+      quickLink(`${rec.name || rec.record_id} on collab board`, collabBoardHref(rec.record_id), false),
+    ]);
     const explore = renderQuickRow("explore", [
       quickLink("GitHub", linkForKey(links, "github")),
       quickLink("Repo", linkForKey(links, "repo")),
@@ -678,12 +673,6 @@ function compactPills(items) {
     const aboutRows = [
       renderRow("focus", rec.focus),
       renderRow("current work", rec.now),
-      renderRow(kind === "project" ? "contributors" : "members", `${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}`),
-    ];
-    const routeRows = [
-      renderRow("dependencies", rec.dependencies),
-      renderRow("skill areas", rec.skill_areas),
-      renderRow("success dimensions", rec.success_dimensions),
     ];
     const evidenceRows = [
       renderRow("traction", rec.traction),
@@ -710,13 +699,11 @@ function compactPills(items) {
         <div class="cd-ledger-head">
           <span class="cd-h">${escHtml(kind)} read</span>
         </div>
-        <div class="cd-quick cd-team-quick">${nextMove}${needs}${provides}${proof}${trajectory}${explore}</div>
+        <div class="cd-quick cd-team-quick">${nextMove}${needs}${provides}${proof}${trajectory}${collab}${explore}</div>
         <div class="cd-section-stack">
           ${renderSection("current read", aboutRows, true)}
-          ${renderSection("routes / asks", routeRows)}
           ${renderSection("trajectory", trajectoryRows)}
           ${renderSection("evidence", evidenceRows)}
-          ${renderSection(kind === "project" ? "contributors" : "members", renderTeamPeople(rec.record_id, kind))}
           ${renderSection("links", renderLinkList(links))}
           ${renderSection("guild", guild)}
         </div>

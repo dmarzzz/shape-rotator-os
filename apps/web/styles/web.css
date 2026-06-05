@@ -834,6 +834,23 @@ body.links-page-body .hero-tagline {
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
 }
+.cd-rail-list .cd-rail-members {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--ink-2);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.cd-rail-list .cd-rail-member {
+  display: inline;
+  color: var(--ink-2);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.cd-rail-member em {
+  color: var(--ink-4);
+  font-style: normal;
+}
 .cd-rail-list a,
 .cd-text-link {
   color: var(--ink-1);
