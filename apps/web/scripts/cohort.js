@@ -481,6 +481,7 @@ function compactPills(items) {
           <h2 class="cd-name">${escHtml(rec.name || rec.record_id)}</h2>
           ${rec.role ? `<p class="cd-focus">${escHtml(rec.role)}</p>` : ""}
           <div class="cd-rail-list">
+            <div><span>status</span>${escHtml(labelize(rec.role_class || "person"))}</div>
             ${team ? `<div><span>team</span><a href="#${escAttr(encodeURIComponent(team.record_id))}">${escHtml(team.name || team.record_id)}</a></div>` : ""}
             ${rec.geo ? `<div><span>geo</span>${escHtml(rec.geo)}</div>` : ""}
             ${rec.domain ? `<div><span>domain</span>${escHtml(domainLabel(rec.domain))}</div>` : ""}
@@ -524,12 +525,6 @@ function compactPills(items) {
       quickLink("availability", "/availability", false),
       quickLink("source", editUrl),
     ]);
-    const route = renderQuickRow("route", [
-      pill("status", labelize(rec.role_class || "person")),
-      pill("role", rec.role),
-      pill("domain", rec.domain ? domainLabel(rec.domain) : ""),
-      pill("geo", rec.geo),
-    ]);
     const askMeAbout = renderQuickRow("ask me about",
       asArray(rec.go_to_them_for).slice(0, 4).map(value => quickText("", value))
     );
@@ -566,7 +561,7 @@ function compactPills(items) {
         <div class="cd-ledger-head">
           <span class="cd-h">individual read</span>
         </div>
-        <div class="cd-quick">${explore}${route}${askMeAbout}${themes}${teamContext}</div>
+        <div class="cd-quick">${explore}${askMeAbout}${themes}${teamContext}</div>
         <div class="cd-section-stack">
           ${renderSection("current read", currentRows, true)}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems))}
