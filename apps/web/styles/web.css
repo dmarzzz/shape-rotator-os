@@ -874,22 +874,6 @@ body.links-page-body .hero-tagline {
   letter-spacing: 0;
   text-transform: none;
 }
-.cd-rail-list .cd-rail-clusters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  color: var(--ink-2);
-  letter-spacing: 0;
-  text-transform: none;
-}
-.cd-rail-list .cd-rail-cluster {
-  padding: 2px 6px;
-  border: 1px solid rgba(241, 236, 231, 0.13);
-  border-radius: var(--r-sm);
-  color: var(--ink-3);
-  letter-spacing: var(--track-caps);
-  text-transform: lowercase;
-}
 .cd-rail-list .cd-rail-member {
   display: inline;
   color: var(--ink-2);

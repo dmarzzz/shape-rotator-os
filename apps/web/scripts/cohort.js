@@ -568,15 +568,12 @@ function compactPills(items) {
     `;
   }
 
-  function renderTeamRail(rec, teamPeople, fam, kind, memberClusters = []) {
+  function renderTeamRail(rec, teamPeople, fam, kind) {
     const memberLinks = teamPeople.map(person => `
       <span class="cd-rail-member">
         <a href="#${escAttr(encodeURIComponent(person.record_id))}">${escHtml(person.name || person.record_id)}</a>${person.role ? ` <em>(${escHtml(person.role)})</em>` : ""}
       </span>
     `).join("");
-    const guild = memberClusters.length
-      ? `<span class="cd-rail-clusters">${memberClusters.map(cl => `<span class="cd-rail-cluster">${escHtml(cl.label)}</span>`).join("")}</span>`
-      : "";
     return `
       <aside class="cd-rail">
         <div class="cd-shape"><canvas data-shape-fam="${fam}" data-shape-kind="${escAttr(kind)}" data-shape-seed="${escAttr(rec.record_id)}"></canvas></div>
@@ -587,7 +584,6 @@ function compactPills(items) {
           <div class="cd-rail-list">
             ${rec.domain ? `<div><span>domain</span>${escHtml(domainLabel(rec.domain))}</div>` : ""}
             ${rec.geo ? `<div><span>geo</span>${escHtml(rec.geo)}</div>` : ""}
-            ${guild ? `<div><span>guild</span>${guild}</div>` : ""}
             ${memberLinks ? `<div><span>${kind === "project" ? "contributors" : "members"}</span><span class="cd-rail-members">${memberLinks}</span></div>` : ""}
             ${rec.membership ? `<div><span>status</span>${escHtml(labelize(rec.membership))}</div>` : ""}
           </div>
@@ -675,11 +671,9 @@ function compactPills(items) {
     const provides = renderQuickRow("provides",
       asArray(rec.offering).slice(0, 2).map(value => quickText("", value))
     );
-    const proof = renderQuickRow("proof", [
-      quickText("traction", rec.traction),
-      quickText("shipping", firstValue(rec.prior_shipping)),
-      quickText("paper", firstValue(rec.paper_basis)),
-    ]);
+    const guild = renderQuickRow("guild",
+      memberClusters.map(cl => quickText("", cl.label))
+    );
     const trajectory = journey ? renderQuickRow("trajectory", [
       pill("stage", `${journey.stage} ${journey.stageLabel}`),
       pill("evidence", `${journey.evidence}/5${journey.evidenceLabel ? ` ${journey.evidenceLabel}` : ""}`),
@@ -699,10 +693,6 @@ function compactPills(items) {
       quickLink("Deck", linkForKey(links, "deck")),
       quickLink("source", editUrl),
     ]);
-    const aboutRows = [
-      renderRow("focus", rec.focus),
-      renderRow("current work", rec.now),
-    ];
     const evidenceRows = [
       renderRow("traction", rec.traction),
       renderRow("paper basis", rec.paper_basis),
@@ -720,15 +710,12 @@ function compactPills(items) {
     ] : [];
 
     return `
-      ${renderTeamRail(rec, teamPeople, fam, kind, memberClusters)}
+      ${renderTeamRail(rec, teamPeople, fam, kind)}
       <section class="cd-ledger">
-        <div class="cd-section-stack">
-          ${renderSection("current read", aboutRows, true)}
-        </div>
         <div class="cd-ledger-head">
           <span class="cd-h">${escHtml(kind)} read</span>
         </div>
-        <div class="cd-quick cd-team-quick">${nextMove}${needs}${provides}${proof}${trajectory}${collab}${explore}</div>
+        <div class="cd-quick cd-team-quick">${nextMove}${needs}${provides}${guild}${trajectory}${collab}${explore}</div>
         <div class="cd-section-stack">
           ${renderSection("trajectory", trajectoryRows)}
           ${renderSection("evidence", evidenceRows)}
