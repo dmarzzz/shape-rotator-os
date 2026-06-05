@@ -14277,6 +14277,74 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   max-width: 74ch;
 }
 
+.alch-cv-raw-map {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(245, 240, 232, 0.10);
+}
+
+.alch-cv-raw-map-status {
+  margin: 0;
+  color: rgba(235, 238, 250, 0.72);
+  font: 700 11px/1.35 var(--sr-font-mono, var(--mono, monospace));
+  text-transform: uppercase;
+}
+
+.alch-cv-rel-row {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.alch-cv-rel-row strong {
+  color: rgba(235, 238, 250, 0.44);
+  font: 700 10px/1.8 var(--sr-font-mono, var(--mono, monospace));
+  text-transform: uppercase;
+}
+
+.alch-cv-rel-row > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.alch-cv-rel-row p {
+  margin: 0;
+  color: rgba(235, 238, 250, 0.68);
+  font: 400 13px/1.5 var(--sr-font-sans, var(--sans, system-ui, sans-serif));
+}
+
+.alch-cv-rel-chip,
+.alch-cv-rel-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 5px 8px;
+  border: 1px solid rgba(235, 238, 250, 0.12);
+  border-radius: 7px;
+  background: rgba(235, 238, 250, 0.04);
+  color: rgba(235, 238, 250, 0.76);
+  font: 700 11px/1.2 var(--sr-font-mono, var(--mono, monospace));
+}
+
+.alch-cv-rel-chip {
+  cursor: pointer;
+}
+
+.alch-cv-rel-chip:hover {
+  border-color: rgba(193, 168, 114, 0.52);
+  background: rgba(193, 168, 114, 0.12);
+}
+
+.alch-cv-rel-chip span {
+  color: rgba(193, 168, 114, 0.92);
+  font-weight: 800;
+}
+
 .alch-cv-raw-text {
   overflow: auto;
   max-height: min(62vh, 760px);
