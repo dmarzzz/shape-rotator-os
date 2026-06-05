@@ -11390,37 +11390,67 @@ button.cb-cell:disabled { cursor: default; }
 
 .cb-team-route-rail {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
-  margin-top: 12px;
+  margin-top: 11px;
+  padding: 8px 0 0;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
 }
 
-.cb-team-route-rail span {
-  min-width: 0;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 6px;
-  padding: 7px 6px 6px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.006)),
-    rgba(var(--ink-rgb), 0.018);
+.cb-team-route-label {
   color: var(--alchemy-ink-mute);
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: 8px;
   font-weight: 800;
-  letter-spacing: 0.08em;
-  line-height: 1.18;
-  text-align: center;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
-.cb-team-route-rail strong {
-  display: block;
-  margin-bottom: 2px;
-  color: var(--alchemy-oxide-bright);
-  font-size: 14px;
-  letter-spacing: 0;
+.cb-team-route-summary {
+  display: grid;
+  gap: 4px;
+}
+
+.cb-team-route-summary span {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "count label"
+    "count detail";
+  column-gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.cb-team-route-summary strong {
+  grid-area: count;
+  color: color-mix(in srgb, var(--alchemy-oxide-bright) 72%, var(--alchemy-ink-mute));
+  font-family: var(--font-mono);
+  font-size: 13px;
   line-height: 1;
-  text-transform: none;
+}
+
+.cb-team-route-summary em {
+  grid-area: label;
+  color: var(--alchemy-paper-warm);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.cb-team-route-summary small {
+  grid-area: detail;
+  overflow: hidden;
+  color: var(--alchemy-ink-mute);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cb-inspector-meta {
