@@ -361,15 +361,13 @@ function compactPills(items) {
 
   mount.innerHTML = `
     <section class="cohort-browse">
-      <div class="cohort-toolbar">
-        <nav class="cohort-filter cohort-filter-membership" role="tablist" aria-label="filter by membership"></nav>
-      </div>
       <div id="cohort-grid" class="cohort-grid"></div>
     </section>
     <div id="cohort-detail" class="cohort-detail" hidden></div>
   `;
   const browse = mount.querySelector(".cohort-browse");
-  const membershipNav = mount.querySelector(".cohort-filter-membership");
+  const pageHead = document.querySelector(".cohort-page-head");
+  const membershipNav = document.getElementById("cohort-membership-filter");
   const grid = mount.querySelector("#cohort-grid");
   const detailHost = mount.querySelector("#cohort-detail");
   const countsEl = document.getElementById("cohort-counts");
@@ -486,6 +484,7 @@ function compactPills(items) {
 
   function renderGrid() {
     const chipSet = activeChipSet();
+    if (!membershipNav) return;
     if (!chipSet.some(c => c.id === state.membership)) state.membership = DEFAULT_MEMBERSHIP;
     const source = state.kind === "people" ? people : teams;
     const counts = new Map(chipSet.map(c => [c.id, source.filter(c.match).length]));
@@ -763,11 +762,13 @@ function compactPills(items) {
     const rec = id ? findRecord(id) : null;
     state.detail = rec ? rec.record_id : null;
     if (rec) {
+      pageHead?.classList.add("is-detail");
       browse.hidden = true;
       detailHost.hidden = false;
       renderDetail(rec);
       window.scrollTo({ top: 0, behavior: "auto" });
     } else {
+      pageHead?.classList.remove("is-detail");
       detailHost.hidden = true;
       detailHost.innerHTML = "";
       browse.hidden = false;

@@ -109,6 +109,17 @@ body .alch-shape-overlay { display: block !important; }
 
 /* subtle inline metadata strip — counts, ranges, etc. — sits under the title */
 .page-meta { margin: calc(var(--space-6) * -1) 0 var(--space-6); font-family: var(--font-mono); font-size: var(--t-11); font-feature-settings: var(--num-feat); color: var(--ink-4); letter-spacing: var(--track-caps); text-transform: uppercase; }
+.cohort-page-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-4) var(--space-6);
+  margin-bottom: var(--space-6);
+}
+.cohort-title-stack { min-width: 0; }
+.cohort-page-head .page-title { margin-bottom: 2px; }
+.cohort-page-head .page-meta { margin: 0; }
+.cohort-page-head.is-detail .cohort-filter-membership { display: none; }
 .cohort-kind-filter {
   display: flex;
   flex-wrap: wrap;
@@ -150,14 +161,6 @@ body .alch-shape-overlay { display: block !important; }
   display: grid;
   gap: var(--space-4);
   padding-top: var(--space-1);
-}
-.cohort-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: var(--space-2) var(--space-4);
-  margin: 0;
 }
 .cohort-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
 .cohort-filter-membership { justify-content: flex-end; margin-left: auto; }
@@ -432,7 +435,7 @@ body.layout--wide .page--calendar { max-width: none; }
   body.layout--wide .site-header,
   body.layout--wide .page,
   body.layout--wide .site-footer { max-width: 100%; padding-inline: var(--space-4); }
-  .cohort-toolbar { justify-content: flex-start; }
+  .cohort-page-head { grid-template-columns: 1fr; align-items: start; }
   .cohort-filter-membership { justify-content: flex-start; margin-left: 0; }
   .cohort-grid { grid-template-columns: minmax(0, 1fr); }
   .site-nav-links { flex-wrap: wrap; }
