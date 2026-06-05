@@ -58,6 +58,8 @@ const Cosmos = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode()
 import * as Atlas from "./atlas.js";
 import * as Easel from "./easel.js";
 import * as Alchemy from "./alchemy.js";
+import * as Tabs from "./tabs.js";
+import * as Find from "./find.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
 import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.js";
 
@@ -189,374 +191,137 @@ async function wireAppUpdateChip() {
   } else {
     chip.textContent = "v?";
   }
-  chip.addEventListener("click", () => toggleUpdatePanel(chip));
+  chip.addEventListener("click", () => onVersionClick());
 }
 
-// ── inline update panel — replaces the two native confirm() dialogs ─
-// Single panel, anchored under the chip. State machine:
-//
-//   idle        → "check for updates" (the chip was clicked while we
-//                 don't yet know if an update exists)
-//   checking    → "checking…" with a spinner glyph
-//   up-to-date  → "you're on the latest" with a dismiss
-//   error       → diagnostic line + dismiss
-//   available   → versions + [download] [later]
-//   downloading → versions + % bar
-//   downloaded  → versions + [install + restart] [install on next quit]
-//   restarting  → "restarting…" (terminal — the app is about to die)
-//
-// Dismiss on outside click or Escape. Latest known check result is
-// memoized on the chip element so re-opening the panel doesn't re-fire
-// the network call.
-let _updatePanelEl = null;
-let _updatePanelOff = null;     // unsubscribe handle for fg:update-progress
-let _updatePanelState = null;   // { phase, current, latest, percent, detail }
+// ── inline update icon — replaces the old update popup ──────────────
+// A small icon slot sits to the right of the version stamp
+// (#fg-update-icon). It is empty until something happens:
+//   ""         → empty resting state (a reserved gap, no glyph)
+//   checking   → spinner, while we ask main for a newer build
+//   ok         → checkmark confirmation ("you're on the latest"); auto-clears
+//   available  → download icon — a newer build exists; click to fetch it
+// Clicking the version stamp runs a check; clicking the download icon
+// fetches/applies the update for the user's platform. No popup, no text.
+const UPDATE_ICON_SVG = {
+  // Genuinely-animated loaders built from self-animating SVG (SMIL — part
+  // of the SVG standard, no library / license needed). The motion lives in
+  // the <animate>/<animateTransform> tags, so these run on their own with
+  // no CSS animation.
+  //
+  // "checking" — a twinkling constellation: three large 4-point stars pop
+  // in and out in a staggered sequence (scale + opacity), reads as
+  // shimmering. Stars are sized + spread to fill the canvas. The whole
+  // group also fades in once over 0.5s when the icon first appears.
+  checking: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><g opacity="0"><animate attributeName="opacity" values="0;1" dur="0.5s" begin="0s" fill="freeze"/><g transform="translate(7,7)"><path d="M0,-5 L1.4,-1.4 L5,0 L1.4,1.4 L0,5 L-1.4,1.4 L-5,0 L-1.4,-1.4 Z"><animateTransform attributeName="transform" type="scale" values="0.15;1;0.15" dur="1.5s" begin="0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.15;1;0.15" dur="1.5s" begin="0s" repeatCount="indefinite"/></path></g><g transform="translate(17.5,9)"><path d="M0,-4.2 L1.2,-1.2 L4.2,0 L1.2,1.2 L0,4.2 L-1.2,1.2 L-4.2,0 L-1.2,-1.2 Z"><animateTransform attributeName="transform" type="scale" values="0.15;1;0.15" dur="1.5s" begin="0.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.15;1;0.15" dur="1.5s" begin="0.5s" repeatCount="indefinite"/></path></g><g transform="translate(11.5,17)"><path d="M0,-4.6 L1.3,-1.3 L4.6,0 L1.3,1.3 L0,4.6 L-1.3,1.3 L-4.6,0 L-1.3,-1.3 Z"><animateTransform attributeName="transform" type="scale" values="0.15;1;0.15" dur="1.5s" begin="1s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.15;1;0.15" dur="1.5s" begin="1s" repeatCount="indefinite"/></path></g></g></svg>`,
+  ok:        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`,
+  available: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>`,
+  // Lucide "globe-off" — shown when we can't reach the update server / get
+  // info about the latest release.
+  offline:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.114 4.462A14.5 14.5 0 0 1 12 2a10 10 0 0 1 9.313 13.643"/><path d="M15.557 15.556A14.5 14.5 0 0 1 12 22 10 10 0 0 1 4.929 4.929"/><path d="M15.892 10.234A14.5 14.5 0 0 0 12 2a10 10 0 0 0-3.643.687"/><path d="M17.656 12H22"/><path d="M19.071 19.071A10 10 0 0 1 12 22 14.5 14.5 0 0 1 8.44 8.45"/><path d="M2 12h10"/><path d="m2 2 20 20"/></svg>`,
+};
+const UPDATE_ICON_TITLE = {
+  checking:  "checking for updates…",
+  ok:        "you're on the latest build",
+  available: "update available — click to download",
+  offline:   "couldn't reach the update server",
+};
+let _okIconClearTimer = null;
 
-function toggleUpdatePanel(chip) {
-  if (_updatePanelEl) { closeUpdatePanel(); return; }
-  openUpdatePanel(chip);
-}
-
-function openUpdatePanel(chip) {
-  const panel = document.createElement("div");
-  panel.className = "fg-update-panel";
-  panel.setAttribute("role", "dialog");
-  panel.setAttribute("aria-label", "app update");
-  document.body.appendChild(panel);
-  _updatePanelEl = panel;
-
-  // anchor: pop upward from the chip's left edge. The chip lives at
-  // fixed bottom-left of the window (since v0.1.16); the panel sits
-  // immediately above it. We use fixed coords so the chip's position
-  // is the only thing that matters — works regardless of which tab
-  // is active or what's mounted in the main grid area.
-  const rect = chip.getBoundingClientRect();
-  const gap = 8;
-  panel.style.left = `${Math.round(rect.left)}px`;
-  panel.style.bottom = `${Math.round(window.innerHeight - rect.top + gap)}px`;
-  // Explicitly null out any stale top/right from earlier builds so
-  // CSS doesn't anchor the panel both ways.
-  panel.style.top = "auto";
-  panel.style.right = "auto";
-
-  // seed state from whatever the chip last knew. If we've never checked
-  // (or the previous check said "available"), start in the right phase
-  // immediately so the user sees something useful on the first click.
-  const known = chip.dataset.update === "available"
-    ? { phase: "available", current: chip.dataset.current || "?", latest: chip.dataset.latest || "?" }
-    : { phase: "idle",      current: chip.dataset.current || "?", latest: null };
-  setUpdateState(known);
-
-  // outside-click dismissal — defer one tick so the click that opened us
-  // doesn't immediately close us.
-  setTimeout(() => {
-    document.addEventListener("mousedown", _onUpdatePanelOutsideClick, true);
-    document.addEventListener("keydown",   _onUpdatePanelKeydown);
-  }, 0);
-
-  // wire progress stream. Each call returns its own unsubscribe so we
-  // don't leak listeners across open/close cycles.
-  if (window.api?.onUpdateProgress && !_updatePanelOff) {
-    _updatePanelOff = window.api.onUpdateProgress((p) => {
-      if (!_updatePanelState || _updatePanelState.phase !== "downloading") return;
-      setUpdateState({ ..._updatePanelState, percent: Math.max(0, Math.min(100, p.percent || 0)) });
-    });
+// Paint the icon slot. Passing "" (or an unknown state) returns it to the
+// empty resting state — the element stays in the layout (reserved width)
+// so the version number doesn't shift as the glyph comes and goes.
+function setUpdateIcon(state) {
+  const icon = document.getElementById("fg-update-icon");
+  if (!icon) return;
+  if (_okIconClearTimer) { clearTimeout(_okIconClearTimer); _okIconClearTimer = null; }
+  icon.classList.remove("fading");   // cancel any in-progress fade-out
+  const svg = UPDATE_ICON_SVG[state];
+  icon.dataset.state = svg ? state : "";
+  icon.innerHTML = svg || "";
+  if (svg) icon.title = UPDATE_ICON_TITLE[state] || "";
+  else icon.removeAttribute("title");
+  // The "up to date" checkmark is a transient confirmation: hold it for 3s,
+  // then fade it out over 1s (the .fading class drives the CSS transition),
+  // then return to the empty resting state.
+  if (state === "ok") {
+    _okIconClearTimer = setTimeout(() => {
+      icon.classList.add("fading");
+      _okIconClearTimer = setTimeout(() => setUpdateIcon(""), 1000);
+    }, 3000);
   }
-
-  // if we were already "available", let the user act immediately;
-  // otherwise kick off a check.
-  if (known.phase !== "available") runUpdateCheck(chip);
 }
 
-function closeUpdatePanel() {
-  document.removeEventListener("mousedown", _onUpdatePanelOutsideClick, true);
-  document.removeEventListener("keydown",   _onUpdatePanelKeydown);
-  if (_updatePanelOff) { try { _updatePanelOff(); } catch {} _updatePanelOff = null; }
-  if (_updatePanelEl) { _updatePanelEl.remove(); _updatePanelEl = null; }
-  _updatePanelState = null;
-}
-
-function _onUpdatePanelOutsideClick(e) {
-  if (!_updatePanelEl) return;
+// Ask main whether a newer build exists, driving the icon slot. Shared by
+// the manual click (showSpinner → spinner + checkmark feedback) and the
+// silent boot/refresh check (no spinner → only lights up on an actual hit).
+async function checkForUpdate({ showSpinner } = {}) {
   const chip = document.getElementById("fg-version-chip");
-  if (_updatePanelEl.contains(e.target)) return;
-  if (chip && chip.contains(e.target)) return;
-  closeUpdatePanel();
-}
-function _onUpdatePanelKeydown(e) {
-  if (e.key === "Escape") closeUpdatePanel();
-}
-
-function setUpdateState(next) {
-  _updatePanelState = next;
-  renderUpdatePanel(next);
-}
-
-function renderUpdatePanel(st) {
-  if (!_updatePanelEl) return;
-  const chip = document.getElementById("fg-version-chip");
-  const current = st.current || "?";
-  const latest  = st.latest  || "—";
-
-  const versionRow = `
-    <div class="fg-up-versions">
-      <div class="fg-up-vcol"><span class="fg-up-vlbl">current</span><span class="fg-up-vval">v${escapeHtml(current)}</span></div>
-      <div class="fg-up-arrow" aria-hidden="true">→</div>
-      <div class="fg-up-vcol"><span class="fg-up-vlbl">latest</span><span class="fg-up-vval">v${escapeHtml(latest)}</span></div>
-    </div>`;
-
-  let body = "";
-  let actions = "";
-
-  switch (st.phase) {
-    case "checking":
-      body = `<div class="fg-up-line">checking for updates…</div>`;
-      break;
-    case "up-to-date":
-      body = `<div class="fg-up-line">you're on the latest build.</div>`;
-      actions = `<button type="button" class="fg-up-btn" data-act="close">dismiss</button>`;
-      break;
-    case "error":
-      body = `<div class="fg-up-line fg-up-err">${escapeHtml(st.detail || "update flow failed.")}</div>`;
-      actions = `<button type="button" class="fg-up-btn" data-act="close">dismiss</button>`;
-      break;
-    case "dev":
-      body = `<div class="fg-up-line">${escapeHtml(st.detail || "auto-update disabled in dev.")}</div>`;
-      actions = `<button type="button" class="fg-up-btn" data-act="close">dismiss</button>`;
-      break;
-    case "available": {
-      // Two install paths depending on what the OS+packaging supports:
-      //
-      //   seamless  — Windows NSIS + Linux AppImage. electron-updater
-      //               downloads in-place, then quitAndInstall does the
-      //               swap. One click → app restarts on the new version.
-      //
-      //   manual    — macOS dmg + Linux .deb. We download to
-      //               ~/Downloads/ and hand the user off to the OS's
-      //               normal install affordance (Finder mounts the dmg,
-      //               or the file manager reveals the .deb).
-      //
-      // The chip's data-can-auto-update flag is set at boot time from
-      // fg:get-app-info → process.platform / process.env.APPIMAGE.
-      const seamless = chip?.dataset?.canAutoUpdate === "1";
-      if (seamless) {
-        body = `<div class="fg-up-line">a newer build is available. one click → app restarts on the new version.</div>`;
-        actions = `
-          <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="download-seamless">download + install</button>
-          <button type="button" class="fg-up-btn" data-act="close">later</button>`;
-      } else {
-        body = `<div class="fg-up-line">a newer build is available. we'll download it for you and open the installer.</div>`;
-        actions = `
-          <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="download">download + open installer</button>
-          <button type="button" class="fg-up-btn" data-act="close">later</button>`;
-      }
-      break;
-    }
-    case "downloading": {
-      const pct = Math.round(st.percent || 0);
-      body = `
-        <div class="fg-up-line">downloading v${escapeHtml(st.latest || "?")}…</div>
-        <div class="fg-up-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
-          <div class="fg-up-bar-fill" style="width:${pct}%"></div>
-        </div>
-        <div class="fg-up-pct">${pct}%</div>`;
-      break;
-    }
-    case "downloaded-manual": {
-      // Platform-specific instructions for the part we can't automate.
-      const plat = (navigator.platform || "").toLowerCase();
-      const isMac = plat.includes("mac");
-      const isWin = plat.includes("win");
-      const filename = st.path ? st.path.split(/[\\/]/).pop() : "the installer";
-      let steps = "";
-      if (isMac) {
-        steps = `
-          <ol class="fg-up-steps">
-            <li>the dmg should already be open in a Finder window.</li>
-            <li>drag <strong>Shape Rotator OS</strong> to <code>/Applications</code>, replacing the existing copy.</li>
-            <li>quit this app (you'll relaunch the new one).</li>
-            <li>in Terminal, run <code>xattr -cr "/Applications/Shape Rotator OS.app"</code> to clear macOS quarantine.</li>
-            <li>open the new app from /Applications.</li>
-          </ol>
-          <div class="fg-up-aux">the xattr step is needed because we're unsigned. one-time per upgrade.</div>`;
-      } else if (isWin) {
-        steps = `
-          <ol class="fg-up-steps">
-            <li>the NSIS installer should already be running.</li>
-            <li>click through it — UAC may prompt to authorize.</li>
-            <li>relaunch from the start menu when it's done.</li>
-          </ol>`;
-      } else {
-        steps = `
-          <ol class="fg-up-steps">
-            <li>your file manager just opened on <code>${escapeHtml(filename)}</code>.</li>
-            <li>install it with:
-              <pre class="fg-up-pre">sudo dpkg -i ~/Downloads/${escapeHtml(filename)}</pre>
-            </li>
-            <li>relaunch with <code>shape-rotator-os</code>.</li>
-          </ol>`;
-      }
-      body = `<div class="fg-up-line">downloaded · ready to install.</div>${steps}`;
-      actions = `
-        <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="reopen-installer">reopen installer</button>
-        <button type="button" class="fg-up-btn" data-act="close">close</button>`;
-      break;
-    }
-    case "downloaded":
-      body = `<div class="fg-up-line">download complete.</div>`;
-      actions = `
-        <button type="button" class="fg-up-btn fg-up-btn-primary" data-act="restart">install + restart</button>
-        <button type="button" class="fg-up-btn" data-act="defer">install on next quit</button>`;
-      break;
-    case "restarting":
-      body = `<div class="fg-up-line">restarting…</div>`;
-      break;
-    case "idle":
-    default:
-      body = `<div class="fg-up-line">check for updates.</div>`;
-      actions = `<button type="button" class="fg-up-btn fg-up-btn-primary" data-act="check">check now</button>`;
-      break;
-  }
-
-  _updatePanelEl.innerHTML = `
-    <header class="fg-up-head">
-      <span class="fg-up-title">app update</span>
-      <button type="button" class="fg-up-close" data-act="close" aria-label="close">×</button>
-    </header>
-    ${versionRow}
-    <div class="fg-up-body">${body}</div>
-    ${actions ? `<div class="fg-up-actions">${actions}</div>` : ""}
-  `;
-
-  _updatePanelEl.querySelectorAll("[data-act]").forEach((b) => {
-    b.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      const act = b.getAttribute("data-act");
-      if (act === "close")              return closeUpdatePanel();
-      if (act === "check")              return runUpdateCheck(chip);
-      if (act === "download-seamless")  return runUpdateDownload(chip);
-      if (act === "download")           return runDownloadAndReveal();
-      if (act === "restart")            return runUpdateRestart();
-      if (act === "reopen-installer")   return runReopenInstaller();
-      if (act === "open-release")       return runOpenReleasePage(); // legacy fallback
-      if (act === "defer")              return closeUpdatePanel();
-    });
-  });
-}
-
-async function runUpdateCheck(chip) {
-  setUpdateState({ ..._updatePanelState, phase: "checking" });
+  if (showSpinner) setUpdateIcon("checking");
   try {
     const r = await window.api.checkAppUpdate?.();
-    if (!r) { setUpdateState({ ..._updatePanelState, phase: "error", detail: "no response from updater." }); return; }
-    if (!r.ok && r.reason === "dev_mode") {
-      setUpdateState({ ..._updatePanelState, phase: "dev", current: r.current || _updatePanelState.current, detail: r.detail });
+    if (chip && r?.current) chip.dataset.current = r.current;
+    // Couldn't get info about the latest release (no response, or a failure
+    // that isn't the deliberate dev-mode disable) → globe-off.
+    if (!r || (!r.ok && r.reason !== "dev_mode")) {
+      if (chip) chip.removeAttribute("data-update");
+      if (showSpinner) setUpdateIcon("offline");
       return;
     }
-    if (!r.ok) {
-      setUpdateState({ ..._updatePanelState, phase: "error", current: r.current || _updatePanelState.current, detail: r.detail || r.reason });
-      return;
+    if (r.ok && r.available) {
+      if (chip) {
+        chip.dataset.update = "available";
+        chip.dataset.latest = r.latest || "";
+        chip.title = `update available · v${r.latest} (you have v${r.current || chip.dataset.current || "?"})`;
+      }
+      setUpdateIcon("available");
+    } else {
+      if (chip) chip.removeAttribute("data-update");
+      // Up to date (or dev mode) — show the confirmation checkmark only when
+      // the user actively asked.
+      if (showSpinner) setUpdateIcon("ok");
     }
-    const current = r.current || _updatePanelState.current;
-    if (chip) chip.dataset.current = current;
-    if (!r.available) {
-      if (chip) { chip.removeAttribute("data-update"); chip.title = `up to date · v${current}`; }
-      setUpdateState({ ..._updatePanelState, phase: "up-to-date", current, latest: r.latest || current });
-      return;
-    }
-    if (chip) {
-      chip.dataset.update = "available";
-      chip.dataset.latest = r.latest || "";
-      chip.title = `update available · v${r.latest} (you have v${current})`;
-    }
-    setUpdateState({ ..._updatePanelState, phase: "available", current, latest: r.latest });
-  } catch (e) {
-    setUpdateState({ ..._updatePanelState, phase: "error", detail: e?.message || String(e) });
+  } catch {
+    // Network / updater threw — can't reach the release info; show globe-off
+    // on a manual check, stay silent (empty) on the boot check.
+    if (chip) chip.removeAttribute("data-update");
+    if (showSpinner) setUpdateIcon("offline");
   }
 }
 
-async function runUpdateDownload(chip) {
-  setUpdateState({ ..._updatePanelState, phase: "downloading", percent: 0 });
+// Version stamp clicked. If we already know an update is waiting, go
+// straight to the download; otherwise run a check with visible feedback.
+function onVersionClick() {
+  const icon = document.getElementById("fg-update-icon");
+  // If an update is already known, a click goes straight to the download.
+  if (icon?.dataset.state === "available") { onUpdateIconClick(); return; }
+  checkForUpdate({ showSpinner: true });
+}
+
+// Icon slot clicked. Download icon → fetch/apply the update for this
+// platform; anything else behaves like a version-stamp click (re-check).
+async function onUpdateIconClick() {
+  const icon = document.getElementById("fg-update-icon");
+  const chip = document.getElementById("fg-version-chip");
+  if (icon?.dataset.state !== "available") { checkForUpdate({ showSpinner: true }); return; }
+  setUpdateIcon("checking");
   try {
-    const dl = await window.api.applyAppUpdate?.();
-    if (!dl?.ok) {
-      setUpdateState({ ..._updatePanelState, phase: "error", detail: dl?.detail || dl?.reason || "download failed." });
-      return;
+    if (chip?.dataset.canAutoUpdate === "1") {
+      // Windows / AppImage: download in the background; electron-updater
+      // installs on next quit. Confirm with the checkmark.
+      const dl = await window.api.applyAppUpdate?.();
+      setUpdateIcon(dl?.ok ? "ok" : "available");
+    } else {
+      // macOS / .deb: download to ~/Downloads and reveal in the file
+      // manager so the user runs the installer themselves.
+      const res = await window.api.downloadAndRevealUpdate?.();
+      setUpdateIcon(res?.ok ? "" : "available");
     }
-    if (chip) chip.title = `v${_updatePanelState.latest} downloaded · install on next quit (or click chip)`;
-    setUpdateState({ ..._updatePanelState, phase: "downloaded", percent: 100 });
-  } catch (e) {
-    setUpdateState({ ..._updatePanelState, phase: "error", detail: e?.message || String(e) });
+  } catch {
+    setUpdateIcon("available");
   }
 }
 
-async function runUpdateRestart() {
-  setUpdateState({ ..._updatePanelState, phase: "restarting" });
-  try { await window.api.applyUpdateAndRestart?.(); }
-  catch (e) { setUpdateState({ ..._updatePanelState, phase: "error", detail: e?.message || String(e) }); }
-}
-
-// Open the GitHub releases page in the user's default browser so they
-// can grab the latest .dmg manually. Legacy fallback — kept for if the
-// auto-download path errors out and we need to drop the user on the
-// canonical page.
-function runOpenReleasePage() {
-  const url = "https://github.com/dmarzzz/shape-rotator-os/releases/latest";
-  try { window.api?.openExternal?.(url); } catch {}
-  closeUpdatePanel();
-}
-
-// Download the latest release for the user's platform straight into
-// ~/Downloads/ and hand them off to the OS's normal install affordance:
-//   macOS    — shell.openPath(.dmg) mounts the dmg in Finder; user
-//              drags + xattr -cr
-//   Windows  — shell.openPath(.exe) launches the NSIS installer; UAC
-//   Linux    — showItemInFolder(.deb); user runs `sudo dpkg -i`
-//
-// We mirror electron-updater's progress event protocol on
-// "fg:update-progress" so the existing downloading/% bar UI lights up
-// without a separate render path.
-async function runDownloadAndReveal() {
-  const baseState = _updatePanelState || {};
-  setUpdateState({ ...baseState, phase: "downloading", percent: 0 });
-  // Mirror progress events into local state. The handler is wired by
-  // openUpdatePanel(), so we only need to make sure we're in downloading
-  // phase when events arrive (handler short-circuits otherwise).
-  try {
-    const res = await window.api.downloadAndRevealUpdate?.();
-    if (!res?.ok) {
-      setUpdateState({ ..._updatePanelState, phase: "error", detail: res?.detail || res?.reason || "download failed." });
-      return;
-    }
-    setUpdateState({
-      ..._updatePanelState,
-      phase: "downloaded-manual",
-      path: res.path,
-      latest: res.version || _updatePanelState.latest,
-    });
-  } catch (e) {
-    setUpdateState({ ..._updatePanelState, phase: "error", detail: e?.message || String(e) });
-  }
-}
-
-// User clicked "reopen installer" from the downloaded-manual phase.
-// The file is already on disk — just re-trigger the open/reveal step.
-async function runReopenInstaller() {
-  const path = _updatePanelState?.path;
-  if (!path) return;
-  try {
-    const res = await window.api?.openDownloadedInstaller?.(path);
-    if (!res?.ok) {
-      setUpdateState({ ..._updatePanelState, phase: "error", detail: res?.detail || res?.reason || "could not reopen installer." });
-    }
-  } catch (e) {
-    setUpdateState({ ..._updatePanelState, phase: "error", detail: e?.message || String(e) });
-  }
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
 
 async function boot() {
   const env = await window.api.env();
@@ -647,6 +412,52 @@ async function boot() {
   // returns reason: "dev_mode").
   wireAppUpdateChip();
 
+  // Park the profile link + version stamp together in a footer row that
+  // overlays the bottom of the left side panel (profile on the left,
+  // version right-aligned to the panel edge). Mounted at body level and
+  // sized to the panel in CSS — keeping it OUT of #sidebar avoids that
+  // element's backdrop-filter clipping the fixed strip.
+  try {
+    const pill = document.getElementById("identity-pill");
+    const ver  = document.getElementById("fg-version-chip");
+    if (pill && ver && !document.getElementById("fg-footer-row")) {
+      const row = document.createElement("div");
+      row.id = "fg-footer-row";
+      row.className = "fg-footer-row";
+      document.body.appendChild(row);
+      row.appendChild(pill);
+
+      // Update status icon — empty at rest; shows a spinner while checking,
+      // a checkmark when up to date, or a download glyph when an update is
+      // available (see setUpdateIcon). Same Lucide line set as the side
+      // panel's page icons. Click → check / download.
+      const updIcon = document.createElement("button");
+      updIcon.id = "fg-update-icon";
+      updIcon.className = "fg-update-icon";
+      updIcon.type = "button";
+      updIcon.dataset.state = "";   // empty resting state (collapsed)
+      updIcon.setAttribute("aria-label", "update status");
+      updIcon.addEventListener("click", () => onUpdateIconClick());
+
+      // Group the version + icon, right-aligned to the panel edge. The icon
+      // sits to the RIGHT of the version in a permanently reserved slot (it
+      // keeps its width even when empty), so the version's position is fixed
+      // and never shifts when the icon's glyph appears.
+      const cluster = document.createElement("div");
+      cluster.className = "fg-footer-vcluster";
+      cluster.appendChild(ver);
+      cluster.appendChild(updIcon);
+      row.appendChild(cluster);
+    }
+  } catch (e) {
+    console.warn("[boot] footer row assembly failed:", e?.message || e);
+  }
+
+  // Check for a newer build automatically on launch / refresh (previously
+  // this only ran when the version stamp was clicked). Silent — it only
+  // lights up the download icon if something's actually available.
+  checkForUpdate({ showSpinner: false });
+
   // Wire tabs + search-overlay FIRST so the UI is navigable even if the
   // swf-node graph fetch fails. Previously a `Failed to fetch` from
   // loadGraph would halt boot before wireTabs ran, leaving the user
@@ -667,7 +478,10 @@ async function boot() {
   });
   wireMetricsTab();
   wireTabs();
+  Tabs.init();
+  Find.init();
   wireAppsGrid();
+  initNavHistory();
   wireAtlasOfflinePanel();
 
   setStatus("composing graph…");
@@ -6038,6 +5852,47 @@ function wireTabs() {
     try { localStorage.setItem(TAB_LS_KEY, t); } catch {}
   });
 
+  // Primary-nav (left side panel) — top-level category buttons switch the
+  // active tab, same semantics as the (now retired) top tab-bar. The
+  // operating-system sub-pages are handled separately below.
+  const primaryNav = document.getElementById("primary-nav");
+  if (primaryNav) {
+    primaryNav.addEventListener("click", (e) => {
+      const btn = e.target.closest(".nav-cat[data-tab]");
+      if (!btn) return;
+      const t = btn.dataset.tab;
+      if (!TOP_TABS.has(t)) return;
+      if (t === "apps" && document.body.dataset.activeTab === "apps" && document.body.dataset.appsView) {
+        delete document.body.dataset.appsView;
+        try { localStorage.removeItem(APPS_LS_KEY); } catch {}
+        Alchemy.closeMembraneMenu();
+        applyActiveTab("apps");
+        return;
+      }
+      Alchemy.closeMembraneMenu();
+      morphActiveTab(t, () => applyActiveTab(t));
+      try { localStorage.setItem(TAB_LS_KEY, t); } catch {}
+    });
+
+    // Operating-system sub-pages (the rail) live in the persistent nav, so
+    // they can be clicked from any tab. The per-button mode switch + render
+    // is wired inside alchemy.js once mounted; here we only ensure the
+    // operating-system tab is the visible one. If alchemy hasn't mounted
+    // yet (e.g. the app launched on another tab), persist the requested
+    // mode first so the lazy mount lands on the right page.
+    const ALCHEMY_MODE_LS_KEY = "srwk:alchemy_mode"; // mirrors alchemy.js
+    primaryNav.addEventListener("click", (e) => {
+      const railBtn = e.target.closest(".alchemy-rail-btn[data-alch-mode]");
+      if (!railBtn) return;
+      if (document.body.dataset.activeTab !== "alchemy") {
+        const mode = railBtn.dataset.alchMode;
+        if (mode) { try { localStorage.setItem(ALCHEMY_MODE_LS_KEY, mode); } catch {} }
+        morphActiveTab("alchemy", () => applyActiveTab("alchemy"));
+        try { localStorage.setItem(TAB_LS_KEY, "alchemy"); } catch {}
+      }
+    });
+  }
+
   // Network sub-tab nav (network / metrics). Switches in-place — no
   // morph, since both sub-views share the same grid cell anyway.
   const subBar = document.getElementById("network-subtabs");
@@ -6112,6 +5967,126 @@ function setNetworkSub(sub) {
   }
 }
 
+// ─── mouse back/forward history ───────────────────────────────────────────
+// The app is a single-page surface, so the browser's own back/forward stack
+// is empty and the mouse's 4th/5th buttons do nothing. We give them a real
+// history by snapshotting the user's "location" — the active top tab plus its
+// sub-state (apps sub-view, network sub-tab, alchemy rail mode) — and walking
+// that stack on the back/forward buttons, just like a browser.
+//
+// We learn about navigation by *observing* the DOM attributes the existing
+// nav code already writes (data-active-tab / data-apps-view / data-net-sub /
+// data-alch-mode-current), rather than hooking each nav call site. That keeps
+// this self-contained: any code path that moves the user gets recorded.
+const NAV_ALCH_LS_KEY = "srwk:alchemy_mode"; // mirrors alchemy.js ALCHEMY_LS_KEY
+const navHist = { stack: [], index: -1, last: null, restoring: false };
+
+function navSnapshot() {
+  const b = document.body;
+  let alchMode = document.getElementById("alchemy-view")?.dataset.alchModeCurrent || "";
+  if (!alchMode) {
+    try { alchMode = localStorage.getItem(NAV_ALCH_LS_KEY) || "membrane"; } catch { alchMode = "membrane"; }
+  }
+  return {
+    tab: b.dataset.activeTab || "alchemy",
+    appsView: b.dataset.appsView || "",
+    netSub: b.dataset.netSub || "network",
+    alchMode,
+  };
+}
+
+function navSameLoc(a, b) {
+  return !!a && !!b && a.tab === b.tab && a.appsView === b.appsView
+    && a.netSub === b.netSub && a.alchMode === b.alchMode;
+}
+
+// Replay a snapshot through the same entry points the UI uses, so mounts /
+// persistence / aria state all stay consistent. Guarded by `restoring` so the
+// MutationObserver doesn't record our own replay as a new history entry.
+function navApplyLocation(snap) {
+  navHist.restoring = true;
+  if (snap.tab === "apps") {
+    if (snap.appsView) {
+      document.body.dataset.appsView = snap.appsView;
+      try { localStorage.setItem(APPS_LS_KEY, snap.appsView); } catch {}
+    } else {
+      delete document.body.dataset.appsView;
+      try { localStorage.removeItem(APPS_LS_KEY); } catch {}
+    }
+  }
+  if (snap.tab === "network") {
+    document.body.dataset.netSub = snap.netSub;
+    try { localStorage.setItem(NET_SUB_LS_KEY, snap.netSub); } catch {}
+  }
+  // applyActiveTab runs the per-tab mount logic; call it for same-tab sub-view
+  // changes (e.g. apps grid ⇄ atlas) too, since only the sub-state differs.
+  if (document.body.dataset.activeTab !== snap.tab) {
+    morphActiveTab(snap.tab, () => applyActiveTab(snap.tab));
+    try { localStorage.setItem(TAB_LS_KEY, snap.tab); } catch {}
+  } else {
+    applyActiveTab(snap.tab);
+  }
+  if (snap.tab === "network") setNetworkSub(snap.netSub);
+  // Alchemy rail mode lives inside alchemy.js; the rail button's own click
+  // handler is the canonical way to switch it (sets state + persists + repaints).
+  if (snap.tab === "alchemy" && snap.alchMode) {
+    try { localStorage.setItem(NAV_ALCH_LS_KEY, snap.alchMode); } catch {}
+    const cur = document.getElementById("alchemy-view")?.dataset.alchModeCurrent;
+    if (cur !== snap.alchMode) {
+      const sel = `.alchemy-rail-btn[data-alch-mode="${(window.CSS?.escape ? CSS.escape(snap.alchMode) : snap.alchMode)}"]`;
+      document.querySelector(sel)?.click();
+    }
+  }
+  navHist.last = snap;
+  // All observed attributes are written synchronously above, so the observer's
+  // microtask sees restoring=true; this rAF clears it for the next real nav.
+  requestAnimationFrame(() => { navHist.restoring = false; });
+}
+
+function navRecord() {
+  const snap = navSnapshot();
+  if (navSameLoc(snap, navHist.last)) return;
+  navHist.stack = navHist.stack.slice(0, navHist.index + 1); // drop forward entries
+  navHist.stack.push(snap);
+  navHist.index = navHist.stack.length - 1;
+  navHist.last = snap;
+}
+
+function navGoBack() {
+  if (navHist.index <= 0) return;
+  navHist.index -= 1;
+  navApplyLocation(navHist.stack[navHist.index]);
+}
+function navGoForward() {
+  if (navHist.index >= navHist.stack.length - 1) return;
+  navHist.index += 1;
+  navApplyLocation(navHist.stack[navHist.index]);
+}
+
+function initNavHistory() {
+  navHist.last = navSnapshot();
+  navHist.stack = [navHist.last];
+  navHist.index = 0;
+  const obs = new MutationObserver(() => { if (!navHist.restoring) navRecord(); });
+  obs.observe(document.body, {
+    attributes: true,
+    attributeFilter: ["data-active-tab", "data-apps-view", "data-net-sub"],
+  });
+  const alch = document.getElementById("alchemy-view");
+  if (alch) obs.observe(alch, { attributes: true, attributeFilter: ["data-alch-mode-current"] });
+
+  // Mouse buttons: 3 = back, 4 = forward (Chromium's X1/X2 mapping). Capture
+  // phase + preventDefault so we win over any inner handler and suppress the
+  // (empty) default browser navigation.
+  const onAux = (e) => {
+    if (e.button === 3) { e.preventDefault(); e.stopPropagation(); navGoBack(); }
+    else if (e.button === 4) { e.preventDefault(); e.stopPropagation(); navGoForward(); }
+  };
+  window.addEventListener("mouseup", onAux, true);
+  window.addEventListener("mousedown", (e) => { if (e.button === 3 || e.button === 4) e.preventDefault(); }, true);
+  window.addEventListener("auxclick", (e) => { if (e.button === 3 || e.button === 4) e.preventDefault(); }, true);
+}
+
 // Register the visualizer's app-specific keyboard shortcuts and command-
 // palette entries. Called from boot() before subscribeEvents so the palette
 // and `?` overlay are immediately functional.
@@ -6154,6 +6129,7 @@ function registerVisualizerShortcutsAndCommands() {
   // into the profile editor after they claim a record).
   window.__srwkGoTab = goTab;
   window.__srwkOpenApp = openApp;
+  window.__srwkSetNetSub = setNetworkSub;  // used by the tab system (tabs.js)
 
   registerKeyboardShortcuts([
     {
@@ -6333,7 +6309,7 @@ function applyActiveTab(tab) {
   if (!TOP_TABS.has(tab)) tab = "alchemy";
   if (tab !== "alchemy") Alchemy.closeMembraneMenu();
   document.body.dataset.activeTab = tab;
-  for (const btn of document.querySelectorAll("#tab-bar .tab-btn")) {
+  for (const btn of document.querySelectorAll("#tab-bar .tab-btn, #primary-nav .nav-cat")) {
     btn.setAttribute("aria-selected", btn.dataset.tab === tab ? "true" : "false");
   }
   // Stale: experimental tab archived 2026-05-09. Variables retained as

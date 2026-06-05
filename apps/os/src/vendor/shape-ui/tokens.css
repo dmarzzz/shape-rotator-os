@@ -93,7 +93,7 @@
   /* numerics — JetBrains Mono supports tnum + zero; the Geist-specific
    * ss01/cv11 axes are no-ops on this family, so drop them. */
   --num-feat: "tnum" 1, "zero" 1;
-  --sidebar-w: 340px;
+  --sidebar-w: 320px;
   /* spacing — 4px grid */
   --space-1: 4px;
   --space-2: 8px;

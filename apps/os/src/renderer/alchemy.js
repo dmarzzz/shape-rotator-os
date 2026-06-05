@@ -50,6 +50,7 @@ import { getIdentity } from "./identity.js";
 import {
   askAgeLabel, askIsCurrent, askIsOpen, askStatus, askTopic, asksWithStatus,
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
+  askVerbVars, askVerbIconSvg,
 } from "./asks.js";
 // Membrane mode — 2026-05 redesign. Pressurized-membrane object that replaces
 // the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
@@ -178,7 +179,9 @@ export function mount(container) {
   if (state.mounted) return;
   state.container = container;
   state.canvas = document.getElementById("alchemy-canvas");
-  state.rail = container.querySelector(".alchemy-rail");
+  // The rail now lives in the persistent #primary-nav (2026-06), outside
+  // this view's container — find it globally rather than within `container`.
+  state.rail = document.querySelector(".alchemy-rail");
   if (!state.canvas || !state.rail) return;
 
   try {
@@ -260,7 +263,7 @@ export function mount(container) {
   document.addEventListener("click", (e) => {
     if (!isMembraneShellOpen()) return;
     if (e.target.closest(".alchemy-rail")) return;
-    if (e.target.closest('#tab-bar .tab-btn[data-tab="alchemy"]')) return;
+    if (e.target.closest('.nav-cat[data-tab="alchemy"]')) return;
     setMembraneMenuOpen(false);
   });
   document.addEventListener("keydown", (e) => {
@@ -275,7 +278,7 @@ export function mount(container) {
     state.canvas.innerHTML = `<p class="alch-callout"><strong>cohort data unavailable</strong><br/>${escHtml(err.message || String(err))}</p>`;
   });
   state.unsubscribe = subscribeToCohortChanges(() => {
-    loadCohort().then(render).catch(() => {});
+    loadCohort().then(() => render({ instant: true })).catch(() => {});
   });
   state.mounted = true;
 }
@@ -286,7 +289,56 @@ export function setActive(v) {
 
 export function notifyDataChanged() {
   if (!state.mounted) return;
-  loadCohort().then(render).catch(() => {});
+  loadCohort().then(() => render({ instant: true })).catch(() => {});
+}
+
+// ─── tab-system bridge ────────────────────────────────────────────────
+// The tab manager (tabs.js) drives the OS into a specific location and
+// reads back the current one. A "location" inside the OS tab is just a
+// mode plus an optional open record-detail id.
+export function getLocation() {
+  return { mode: state.mode, recordId: state.detailRecordId || null };
+}
+
+// Apply a location: set the mode (and optionally open a record detail),
+// persist it the same way the in-app handlers do, then repaint. Safe to
+// call before mount — it primes localStorage so the lazy mount lands here.
+export function applyLocation(loc = {}) {
+  const mode = ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode;
+  if (loc.recordId) {
+    state.mode = mode;
+    state.detailReturnMode = mode;
+    state.detailRecordId = String(loc.recordId);
+    try {
+      localStorage.setItem(ALCHEMY_LS_KEY, mode);
+      localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: state.detailRecordId, returnMode: mode }));
+    } catch {}
+  } else {
+    state.mode = mode;
+    state.detailRecordId = null;
+    state.detailReturnMode = null;
+    try {
+      localStorage.setItem(ALCHEMY_LS_KEY, mode);
+      localStorage.removeItem(DETAIL_LS_KEY);
+    } catch {}
+  }
+  if (state.mounted) {
+    syncRailSelection();
+    render({ instant: !!loc.instant });
+  }
+}
+
+// Human-readable title for a record id (team or person), for tab labels.
+export function getRecordTitle(recordId) {
+  if (!recordId) return null;
+  try {
+    const idx = buildCohortIndex(state.cohort);
+    const team = idx.teamById.get(String(recordId));
+    if (team) return team.name || String(recordId);
+    const person = idx.personById.get(String(recordId));
+    if (person) return person.name || String(recordId);
+  } catch {}
+  return String(recordId);
 }
 
 // Cross-module bridge — identity.js (and any future caller) can route
@@ -367,7 +419,7 @@ function syncMembraneMenuChrome() {
   if (!state.container) return;
   const open = isMembraneHome() && state.menuOpen;
   state.container.dataset.alchMenu = open ? "open" : "closed";
-  const tab = document.querySelector('#tab-bar .tab-btn[data-tab="alchemy"]');
+  const tab = document.querySelector('.nav-cat[data-tab="alchemy"]');
   if (tab) {
     tab.setAttribute("aria-expanded", open ? "true" : "false");
   }
@@ -390,19 +442,19 @@ export function closeMembraneMenu() {
   return true;
 }
 
-function render() {
+function render(opts = {}) {
   if (!state.canvas || !state.cohort) return;
   // Reflect current mode on the alchemy-view container so scoped CSS
   // (membrane.css especially) can target the right surface.
   if (state.container) {
     state.container.dataset.alchModeCurrent = state.mode;
+    // Mirror the open record-detail id so the tab system can observe
+    // navigation changes via a MutationObserver (no event plumbing).
+    state.container.dataset.alchDetail = state.detailRecordId || "";
     if (!isMembraneHome()) state.menuOpen = false;
     syncMembraneMenuChrome();
   }
-  // Cross-fade: leave → swap → enter. Total ~440ms.
   const canvas = state.canvas;
-  canvas.classList.remove("is-entering");
-  canvas.classList.add("is-leaving");
   // Tear down every active shape-shader controller before the innerHTML
   // rewrite — each one owns a WebGL2 context, and browsers cap us to
   // ~16. Leaving them alive across renders would silently exhaust the
@@ -414,54 +466,69 @@ function render() {
     try { state.membraneController.destroy(); } catch {}
     state.membraneController = null;
   }
+  // Instant path — no cross-fade. Used for tab switches + data refreshes so
+  // they feel immediate (browser-like) instead of a "reload".
+  if (opts.instant) {
+    canvas.classList.remove("is-leaving", "is-entering");
+    renderModeContent();
+    return;
+  }
+  // Animated cross-fade: leave → swap → enter (~440ms total).
+  canvas.classList.remove("is-entering");
+  canvas.classList.add("is-leaving");
   setTimeout(() => {
     canvas.classList.add("is-entering");
     canvas.classList.remove("is-leaving");
-    // Detail page takes precedence over mode — opened by clicking a card,
-    // closed by the back button (which clears state.detailRecordId).
-    if (state.detailRecordId) {
-      renderDetail(state.detailRecordId);
-    } else if (state.mode === "membrane") renderMembrane();
-    else if (state.mode === "feed") renderFeed();
-    else if (state.mode === "shapes") renderShapes();
-    else if (state.mode === "pulse") renderPulse();
-    else if (state.mode === "constellation") renderConstellation();
-    else if (state.mode === "intel") renderIntel(state.canvas);
-    else if (state.mode === "collab") renderCollab();
-    else if (state.mode === "calendar") renderCalendar();
-    else if (state.mode === "profile") renderProfile();
-    else if (state.mode === "onboarding") renderOnboarding();
-    else if (state.mode === "program") renderProgram();
-    else if (state.mode === "asks") renderAsks();
-    else if (state.mode === "context") renderContextVault();
-    // atlas — sub-mode disabled to avoid collision with top-level atlas tab.
-    // Index cards for the staggered entrance.
-    const cards = canvas.querySelectorAll(".alch-card, .alch-legend-card, .alch-feed-item");
-    cards.forEach((c, i) => c.style.setProperty("--alch-i", String(i)));
+    renderModeContent();
     requestAnimationFrame(() => canvas.classList.remove("is-entering"));
-    // Wire up post-render interactions per mode.
-    if (!state.detailRecordId) {
-      if (state.mode === "shapes") wireShapeCardClicks();
-      if (state.mode === "feed") wireFeedInteractions();
-      if (state.mode === "profile") wireProfileForm();
-      // Kick a feed refresh on entry; the timer keeps it warm in background.
-      if (state.mode === "feed") refreshFeed({ source: "mode-enter" });
-      if (state.mode === "constellation") wireConstellationHover();
-      if (state.mode === "intel") wireIntel(state.canvas);
-      if (state.mode === "collab") wireCollab();
-      if (state.mode === "calendar") wireCalendar();
-      if (state.mode === "onboarding") wireOnboarding();
-      if (state.mode === "program") wireProgram();
-      if (state.mode === "asks") wireAsks();
-      if (state.mode === "context") wireContextVault();
-      // atlas wire skipped — see ALCHEMY_MODES comment.
-    }
-    // Mount shape shaders LAST — every <canvas data-shape-fam> emitted
-    // by the renderers above gets one WebGL2 context here. Controllers
-    // are tracked in state.shapeControllers so the next render can
-    // .destroy() them all in one shot.
-    mountAllShapes();
   }, 220);
+}
+
+// The actual content swap — mode dispatch + per-mode wiring + WebGL mount.
+// Split out of render() so it can run either inside the cross-fade or
+// synchronously (instant) for tab switches.
+function renderModeContent() {
+  const canvas = state.canvas;
+  if (!canvas) return;
+  // Detail page takes precedence over mode — opened by clicking a card,
+  // closed by the back button (which clears state.detailRecordId).
+  if (state.detailRecordId) {
+    renderDetail(state.detailRecordId);
+  } else if (state.mode === "membrane") renderMembrane();
+  else if (state.mode === "feed") renderFeed();
+  else if (state.mode === "shapes") renderShapes();
+  else if (state.mode === "pulse") renderPulse();
+  else if (state.mode === "constellation") renderConstellation();
+  else if (state.mode === "intel") renderIntel(state.canvas);
+  else if (state.mode === "collab") renderCollab();
+  else if (state.mode === "calendar") renderCalendar();
+  else if (state.mode === "profile") renderProfile();
+  else if (state.mode === "onboarding") renderOnboarding();
+  else if (state.mode === "program") renderProgram();
+  else if (state.mode === "asks") renderAsks();
+  else if (state.mode === "context") renderContextVault();
+  // Index cards for the staggered entrance.
+  const cards = canvas.querySelectorAll(".alch-card, .alch-legend-card, .alch-feed-item");
+  cards.forEach((c, i) => c.style.setProperty("--alch-i", String(i)));
+  // Wire up post-render interactions per mode.
+  if (!state.detailRecordId) {
+    if (state.mode === "shapes") wireShapeCardClicks();
+    if (state.mode === "feed") wireFeedInteractions();
+    if (state.mode === "profile") wireProfileForm();
+    // Kick a feed refresh on entry; the timer keeps it warm in background.
+    if (state.mode === "feed") refreshFeed({ source: "mode-enter" });
+    if (state.mode === "constellation") wireConstellationHover();
+    if (state.mode === "intel") wireIntel(state.canvas);
+    if (state.mode === "collab") wireCollab();
+    if (state.mode === "calendar") wireCalendar();
+    if (state.mode === "onboarding") wireOnboarding();
+    if (state.mode === "program") wireProgram();
+    if (state.mode === "asks") wireAsks();
+    if (state.mode === "context") wireContextVault();
+  }
+  // Mount shape shaders LAST — every <canvas data-shape-fam> emitted by the
+  // renderers above gets one WebGL2 context here.
+  mountAllShapes();
 }
 
 function destroyAllShapes() {
@@ -1269,15 +1336,15 @@ function renderJourney() {
     <div class="alch-constellation">
       <nav class="alch-const-modes" role="tablist" aria-label="constellation view">
         <button class="alch-const-mode-btn" data-const-mode="clusters" aria-selected="false" type="button">
-          <span class="acm-glyph" aria-hidden="true">◑</span><span class="acm-label">clusters</span>
+          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></span><span class="acm-label">clusters</span>
           <span class="acm-hint">shared cluster membership</span>
         </button>
         <button class="alch-const-mode-btn" data-const-mode="dependencies" aria-selected="false" type="button">
-          <span class="acm-glyph" aria-hidden="true">↬</span><span class="acm-label">dependencies</span>
+          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></svg></span><span class="acm-label">dependencies</span>
           <span class="acm-hint">team-asserted edges</span>
         </button>
         <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="true" type="button">
-          <span class="acm-glyph" aria-hidden="true">⌁</span><span class="acm-label">journey</span>
+          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg></span><span class="acm-label">journey</span>
           <span class="acm-hint">pmf maturity spectrum</span>
         </button>
       </nav>
@@ -1474,21 +1541,21 @@ function renderConstellation() {
     <div class="alch-constellation">
       <nav class="alch-const-modes" role="tablist" aria-label="constellation edge source">
         <button class="alch-const-mode-btn" data-const-mode="clusters" aria-selected="${mode === "clusters"}" type="button">
-          <span class="acm-glyph" aria-hidden="true">◑</span><span class="acm-label">clusters</span>
+          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></span><span class="acm-label">clusters</span>
           <span class="acm-hint">shared cluster membership</span>
         </button>
         <button class="alch-const-mode-btn" data-const-mode="dependencies" aria-selected="${mode === "dependencies"}" type="button">
-          <span class="acm-glyph" aria-hidden="true">↬</span><span class="acm-label">dependencies</span>
+          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></svg></span><span class="acm-label">dependencies</span>
           <span class="acm-hint">team-asserted edges</span>
         </button>
         <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="${mode === "journey"}" type="button">
-          <span class="acm-glyph" aria-hidden="true">⌁</span><span class="acm-label">journey</span>
+          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg></span><span class="acm-label">journey</span>
           <span class="acm-hint">pmf maturity spectrum</span>
         </button>
       </nav>
       <div class="ac-layout-toggle" role="group" aria-label="map layout">
-        <button class="ac-layout-btn" data-const-layout="wells" aria-selected="${layout === "wells"}" type="button">⬡ wells</button>
-        <button class="ac-layout-btn" data-const-layout="circle" aria-selected="${layout === "circle"}" type="button">◯ circle</button>
+        <button class="ac-layout-btn" data-const-layout="wells" aria-selected="${layout === "wells"}" type="button"><span class="acl-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.536 11.293a1 1 0 0 0 0 1.414l2.376 2.377a1 1 0 0 0 1.414 0l2.377-2.377a1 1 0 0 0 0-1.414l-2.377-2.377a1 1 0 0 0-1.414 0z"/><path d="M2.297 11.293a1 1 0 0 0 0 1.414l2.377 2.377a1 1 0 0 0 1.414 0l2.377-2.377a1 1 0 0 0 0-1.414L6.088 8.916a1 1 0 0 0-1.414 0z"/><path d="M8.916 17.912a1 1 0 0 0 0 1.415l2.377 2.376a1 1 0 0 0 1.414 0l2.377-2.376a1 1 0 0 0 0-1.415l-2.377-2.376a1 1 0 0 0-1.414 0z"/><path d="M8.916 4.674a1 1 0 0 0 0 1.414l2.377 2.376a1 1 0 0 0 1.414 0l2.377-2.376a1 1 0 0 0 0-1.414l-2.377-2.377a1 1 0 0 0-1.414 0z"/></svg></span>wells</button>
+        <button class="ac-layout-btn" data-const-layout="circle" aria-selected="${layout === "circle"}" type="button"><span class="acl-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></span>circle</button>
       </div>
       <div class="alch-constellation-stage">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
@@ -2174,7 +2241,7 @@ function renderCalAvailability() {
           <button id="cal-export-png" class="cal-action" type="button">export png</button>
           <button id="cal-export-pdf" class="cal-action" type="button">export pdf</button>
           <button class="alch-feed-btn cal-avail-edit" type="button" data-cal-go-profile="1" title="edit your dates_start, dates_end, absences in your person record">
-            <span aria-hidden="true">✎</span><span>edit my availability</span>
+            <span class="alch-edit-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg></span><span>edit my availability</span>
           </button>
         </div>
       </header>
@@ -3131,7 +3198,7 @@ function renderProgramPage(current) {
       <header class="alch-prog-page-head">
         <h2 class="alch-prog-page-title">${escHtml(current.title || current.record_id)}</h2>
         <button class="alch-feed-btn alch-prog-edit" type="button" data-edit-path="${escAttr(editPath)}" title="opens github's web editor (PR-only)">
-          <span aria-hidden="true">✎</span>
+          <span class="alch-edit-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg></span>
           <span>edit this page</span>
         </button>
       </header>
@@ -3420,6 +3487,7 @@ function renderAsks() {
     const verb = String(a.verb || "ask").trim();
     const verbGlyph = Array.from(verb)[0] || "·";
     const verbLabel = Array.from(verb).slice(1).join("").trim() || verb;
+    const verbVars = askVerbVars(verbGlyph);
     const statusBadge = status === "claimed" ? `<span class="alch-asks-status alch-asks-status-claimed">claimed</span>`
                       : status === "done"    ? `<span class="alch-asks-status alch-asks-status-done">done</span>`
                       : a._expired           ? `<span class="alch-asks-status alch-asks-status-fading">fading</span>`
@@ -3448,7 +3516,7 @@ function renderAsks() {
     return `
       <details class="alch-asks-card" data-expired="${a._expired ? "1" : "0"}" data-asks-record="${escAttr(a.record_id)}">
         <summary class="alch-asks-summary">
-          <span class="alch-asks-verb" title="${escAttr(verb)}" aria-label="${escAttr(verbLabel)}">${escHtml(verbGlyph)}</span>
+          <span class="alch-asks-verb${verbVars ? " has-verb-color" : ""}"${verbVars ? ` style="${verbVars}"` : ""} title="${escAttr(verb)}" aria-label="${escAttr(verbLabel)}">${askVerbIconSvg(verbGlyph) || escHtml(verbGlyph)}</span>
           <span class="alch-asks-body">
             <span class="alch-asks-topic" title="${escAttr(topic)}">${escHtml(topic)}</span>
             <span class="alch-asks-meta">
@@ -3500,11 +3568,16 @@ function renderAsks() {
     "📣 looking for",
     "🪛 help me debug",
   ];
-  const askVerbPills = ASK_VERB_OPTIONS.map((v, i) => `
-    <button class="alch-asks-verb-pill" type="button" data-asks-verb="${escAttr(v)}" aria-pressed="${i === 0 ? "true" : "false"}">
-      ${escHtml(v)}
-    </button>
-  `).join("");
+  const askVerbPills = ASK_VERB_OPTIONS.map((v, i) => {
+    const glyph = Array.from(v)[0] || "";
+    const label = Array.from(v).slice(1).join("").trim() || v;
+    const icon = askVerbIconSvg(glyph);
+    const vars = askVerbVars(glyph);
+    return `
+    <button class="alch-asks-verb-pill${vars ? " has-verb-color" : ""}"${vars ? ` style="${vars}"` : ""} type="button" data-asks-verb="${escAttr(v)}" aria-pressed="${i === 0 ? "true" : "false"}">
+      ${icon ? `<span class="alch-asks-verb-pill-icon" aria-hidden="true">${icon}</span>` : ""}<span class="alch-asks-verb-pill-label">${escHtml(label)}</span>
+    </button>`;
+  }).join("");
   const openComposer = state.openAskComposer === true;
   state.openAskComposer = false;
 
@@ -5158,7 +5231,7 @@ function renderTeamDetail(team) {
       <div class="plate-class">class: ${escHtml(klass)} <span class="pc-sep">//</span> order: ${escHtml(order)}${team.is_mentor ? ` <span class="pc-sep">//</span> mentor` : ""}</div>
 
       <section class="alch-detail-hero plate-hero">
-        <div class="alch-detail-shape">${s ? `<canvas data-shape-fam="${s.fam}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</div>
+        <div class="alch-detail-shape">${s ? `<canvas data-shape-fam="${s.fam}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-scale="1.3" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</div>
         <div class="alch-detail-hero-text">
           <h2 class="alch-detail-name">${escHtml(team.name)}</h2>
           <p class="alch-detail-focus">${escHtml(team.focus || "—")}</p>
@@ -5283,7 +5356,7 @@ function renderPersonDetail(person) {
     </header>
 
     <section class="alch-detail-hero">
-      <div class="alch-detail-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-seed="${escAttr(recordId)}"></canvas></div>
+      <div class="alch-detail-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.3" data-shape-seed="${escAttr(recordId)}"></canvas></div>
       <div class="alch-detail-hero-text">
         <h2 class="alch-detail-name">${escHtml(person.name || recordId)}</h2>
         <p class="alch-detail-focus">${escHtml(person.role || "—")}</p>
@@ -6371,7 +6444,9 @@ function renderProfile() {
           title="switch to ${themeNext} mode"
           aria-label="switch to ${themeNext} mode"
         >
-          <span class="alch-theme-toggle-icon" aria-hidden="true">${themeNow === "light" ? "☾" : "☀"}</span>
+          <span class="alch-theme-toggle-icon" aria-hidden="true">${themeNow === "light"
+            ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>`
+            : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v1"/><path d="M12 20v1"/><path d="M3 12h1"/><path d="M20 12h1"/><path d="m18.364 5.636-.707.707"/><path d="m6.343 17.657-.707.707"/><path d="m5.636 5.636.707.707"/><path d="m17.657 17.657.707.707"/></svg>`}</span>
           <span class="alch-theme-toggle-label">${themeNext} mode</span>
         </button>
       </div>
@@ -6585,8 +6660,7 @@ function wireProfileForm() {
   const themeBtn = state.canvas.querySelector("#alch-theme-toggle");
   if (themeBtn) {
     themeBtn.addEventListener("click", () => {
-      const next = toggleTheme();
-      toast(`switched to ${next} mode`);
+      toggleTheme();
       renderProfile();
       wireProfileForm();
     });

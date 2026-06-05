@@ -58,22 +58,35 @@ html, body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-:root { --tab-bar-h: 40px; }
+:root { --tab-bar-h: 35px; --nav-w: 280px; --content-top-h: 35px; }
+/* App shell (2026-06): a persistent left navigation (#primary-nav) in the
+   `nav` column and the content in `main`. The (now empty) window bar spans
+   both columns up top. Below it, the right column gets a persistent strip
+   (`ctop` → #content-top) that's present on every tab — reserved for a
+   future row of tabs. Every top-level view used to span the full width
+   (`grid-area: sidebar / sidebar / main / main`); they're now pinned to
+   `main` so both the nav column and the top strip stay clear on every tab. */
 body {
   display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
-  grid-template-rows: var(--tab-bar-h) 1fr;
+  grid-template-columns: var(--nav-w) 1fr;
+  grid-template-rows: var(--tab-bar-h) var(--content-top-h) 1fr;
   grid-template-areas:
     "tabbar tabbar"
-    "sidebar main";
+    "nav    ctop"
+    "nav    main";
 }
 body[data-sidebar="hidden"] { grid-template-columns: 0 1fr; }
 body[data-sidebar="hidden"] #sidebar { display: none; }
 
 #tab-bar { grid-area: tabbar; }
-#sidebar { grid-area: sidebar; }
+#primary-nav { grid-area: nav; }
+#content-top { grid-area: ctop; }
+#sidebar { grid-area: nav; }
 #graph   { grid-area: main; }
-#network-view { grid-area: sidebar / sidebar / main / main; }
+#network-view { grid-area: main; }
+/* These two have no explicit placement; pin them to the content column so
+   they don't auto-flow into the nav column. */
+.apps-grid, .links-view { grid-area: main; }
 
 /* ─── tab-bar (graph | network) ───────────────────────────────────────── */
 .tab-bar {
@@ -190,6 +203,8 @@ body[data-active-tab="search"]      #graph,
 body[data-active-tab="metrics"]     #graph,
 body[data-active-tab="atlas"]       #graph,
 body[data-active-tab="alchemy"]     #graph,
+body[data-active-tab="apps"]        #graph,
+body[data-active-tab="links"]       #graph,
 body[data-active-tab="experimental"][data-experimental-mode="cartography"] #graph,
 body[data-active-tab="experimental"][data-experimental-mode="cosmos"]      #graph {
   visibility: hidden;
@@ -229,7 +244,7 @@ body[data-active-tab="experimental"][data-experimental-mode="cosmos"]      #grap
    Sits at the top of the network tab content, overlaying both the
    .net-header and .metrics-header in their respective sub-views. */
 .network-subtabs {
-  grid-area: sidebar / sidebar / main / main;
+  grid-area: main;
   align-self: start;
   justify-self: stretch;
   position: relative;
@@ -346,7 +361,7 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
   padding: 26px 30px 22px;
   max-width: 560px; width: 100%;
   max-height: 86vh; overflow: auto;
-  color: rgba(245,240,233,0.92);
+  color: rgba(var(--ink-rgb),0.92);
   font-family: var(--font-mono);
   box-shadow:
     inset 0 0 0 1px rgba(255,255,255,0.04),
@@ -379,7 +394,7 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
   font-size: 8px; letter-spacing: 0.24em; text-transform: uppercase;
 }
 .enroll-issuer { color: #ff7a3d; }
-.enroll-doc { color: rgba(245,240,233,0.42); }
+.enroll-doc { color: rgba(var(--ink-rgb),0.42); }
 
 /* All .im-* rules scoped under .enroll so they outrank the later
    editorial/theme .im-* layers (single-class) in this stylesheet. */
@@ -387,25 +402,25 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
 .enroll .im-title {
   margin: 0 0 9px 0;
   font-family: 'Inter Display','Inter',sans-serif; font-style: italic; font-weight: 500;
-  font-size: 26px; letter-spacing: -0.01em; color: rgba(245,240,233,0.97);
+  font-size: 26px; letter-spacing: -0.01em; color: rgba(var(--ink-rgb),0.97);
 }
 .enroll .im-sub {
   margin: 0; font-size: 11.5px; line-height: 1.6;
-  color: rgba(245,240,233,0.6);
+  color: rgba(var(--ink-rgb),0.6);
 }
 .enroll .im-sub strong { color: #ff7a3d; font-weight: 600; }
-.enroll .im-current-kind { color: rgba(245,240,233,0.4); }
+.enroll .im-current-kind { color: rgba(var(--ink-rgb),0.4); }
 .enroll .im-current-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 
 .enroll .im-section { position: relative; z-index: 2; }
 .enroll .im-section + .im-section {
   margin-top: 20px; padding-top: 20px;
-  border-top: 1px solid rgba(245,240,233,0.08);
+  border-top: 1px solid rgba(var(--ink-rgb),0.08);
 }
 .enroll .im-h {
   margin: 0 0 13px 0; display: flex; align-items: baseline; gap: 9px;
   font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
-  color: rgba(245,240,233,0.6); font-weight: normal;
+  color: rgba(var(--ink-rgb),0.6); font-weight: normal;
 }
 .enroll .im-h-no {
   font-size: 9px; letter-spacing: 0.1em; color: #ff7a3d;
@@ -417,12 +432,12 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
 }
 .enroll .im-row > span {
   font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
-  color: rgba(245,240,233,0.5);
+  color: rgba(var(--ink-rgb),0.5);
 }
 .enroll .im-row select {
   background: rgba(0,0,0,0.4);
-  color: rgba(245,240,233,0.94);
-  border: 1px solid rgba(245,240,233,0.16);
+  color: rgba(var(--ink-rgb),0.94);
+  border: 1px solid rgba(var(--ink-rgb),0.16);
   border-radius: 5px; padding: 9px 11px;
   font-family: var(--font-mono); font-size: 12px; outline: none;
   transition: border-color 160ms ease, box-shadow 160ms ease;
@@ -432,9 +447,9 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
 .enroll .im-create-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .enroll .im-btn {
   -webkit-app-region: no-drag;
-  background: rgba(245,240,233,0.04);
-  color: rgba(245,240,233,0.85);
-  border: 1px solid rgba(245,240,233,0.18);
+  background: rgba(var(--ink-rgb),0.04);
+  color: rgba(var(--ink-rgb),0.85);
+  border: 1px solid rgba(var(--ink-rgb),0.18);
   border-radius: 6px; padding: 8px 14px;
   font-family: var(--font-mono);
   font-size: 10.5px; letter-spacing: 0.14em; text-transform: lowercase;
@@ -448,21 +463,21 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
 .enroll .im-foot {
   position: relative; z-index: 2;
   margin-top: 22px; padding-top: 16px;
-  border-top: 1px solid rgba(245,240,233,0.08);
+  border-top: 1px solid rgba(var(--ink-rgb),0.08);
   display: flex; justify-content: space-between; align-items: center;
 }
 .enroll .im-skip {
   background: transparent; border: none;
-  color: rgba(245,240,233,0.45);
+  color: rgba(var(--ink-rgb),0.45);
   font-family: var(--font-mono); font-size: 10.5px;
   letter-spacing: 0.14em; text-transform: lowercase; cursor: pointer; padding: 4px 6px;
   transition: color 160ms ease;
 }
-.enroll .im-skip:hover { color: rgba(245,240,233,0.85); }
+.enroll .im-skip:hover { color: rgba(var(--ink-rgb),0.85); }
 .enroll .im-resync {
   background: transparent;
-  border: 1px solid rgba(245,240,233,0.16);
-  color: rgba(245,240,233,0.7);
+  border: 1px solid rgba(var(--ink-rgb),0.16);
+  color: rgba(var(--ink-rgb),0.7);
   font-family: var(--font-mono); font-size: 9.5px;
   letter-spacing: 0.14em; text-transform: lowercase; cursor: pointer;
   padding: 7px 12px; border-radius: 999px;
@@ -635,7 +650,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   color: rgba(var(--ink-rgb), 0.55);
 }
 #metrics-view {
-  grid-area: sidebar / sidebar / main / main;
+  grid-area: main;
   position: relative;
   z-index: 3;
   background: radial-gradient(ellipse 120% 90% at 50% -20%, #2C2728 0%, #231F20 65%, #1A1719 100%);
@@ -986,7 +1001,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 }
 .detail .d-dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-  background: #fff;
+  background: var(--ink-hi);
 }
 .detail .d-cid {
   display: grid; grid-template-columns: 70px 1fr; gap: 6px 12px;
@@ -1117,7 +1132,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 }
 .peer-row .p-dot {
   width: 10px; height: 10px; border-radius: 50%;
-  background: #fff;
+  background: var(--ink-hi);
   box-shadow: 0 0 10px 1px rgba(255, 255, 255, 0.4);
 }
 .peer-row .p-mid { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -1204,7 +1219,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 }
 .peers-self-row .p-dot {
   width: 10px; height: 10px; border-radius: 50%;
-  background: #fff;
+  background: var(--ink-hi);
   box-shadow: 0 0 10px 1px rgba(255, 255, 255, 0.4);
 }
 .peers-self-row .p-mid { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -1423,10 +1438,10 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 .incoming-toast.fade { opacity: 0; }
 .incoming-toast[hidden] { display: none; }
 .incoming-toast .t-dot {
-  width: 10px; height: 10px; border-radius: 50%; background: #fff;
+  width: 10px; height: 10px; border-radius: 50%; background: var(--ink-hi);
   box-shadow: 0 0 12px 2px rgba(255,255,255,0.5);
 }
-.incoming-toast strong { color: #fff; font-weight: 500; text-shadow: 0 0 8px var(--aura-strong); }
+.incoming-toast strong { color: var(--ink-hi); font-weight: 500; text-shadow: 0 0 8px var(--aura-strong); }
 
 .status {
   position: absolute; bottom: 18px; left: 22px; z-index: 5;
@@ -2360,7 +2375,7 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 }
 .net-peer-card .npc-dot {
   width: 12px; height: 12px; border-radius: 50%;
-  background: #fff;
+  background: var(--ink-hi);
   box-shadow: 0 0 12px 1px rgba(255, 255, 255, 0.4);
 }
 .net-peer-card .npc-mid { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -4727,7 +4742,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: lowercase;
-  color: var(--ink-1, rgba(235, 238, 250, 0.94));
+  color: var(--ink-1, rgba(var(--ink-rgb), 0.94));
   cursor: pointer;
   user-select: none;
   -webkit-app-region: no-drag;
@@ -4747,199 +4762,6 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
 .fg-version-chip[data-update="available"]::after {
   content: " · update";
   opacity: 0.85;
-}
-
-/* ── inline app-update panel ────────────────────────────────────────
- * Anchored under #fg-version-chip via fixed positioning (top/right set
- * inline at open time). Reuses the dark-glass + hairline-inset
- * vocabulary from .peers-panel — same surface tone, same 1px inset
- * border, same mono micro-label uppercase head. The two phases
- * (available → downloading → downloaded) swap inner content; the shell
- * stays put so the panel doesn't jump under the cursor.
- *
- * No animations beyond a 90ms fade-in. No gradient borders. The
- * progress bar is a single hairline rule with a solid fill; no
- * shimmer, no stripes — the % readout below it is the actual signal.
- * Match-the-rest, don't invent a new visual language. */
-.fg-update-panel {
-  position: fixed;
-  z-index: 60;
-  min-width: 260px;
-  max-width: 320px;
-  background: rgba(var(--overlay-rgb), 0.94);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--ink-rgb), 0.14),
-    0 18px 40px rgba(0, 0, 0, 0.55);
-  border-radius: var(--r-sm);
-  padding: 10px 12px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  font-family: var(--font-mono);
-  font-feature-settings: var(--num-feat);
-  color: var(--ink-2);
-  -webkit-app-region: no-drag;
-  user-select: none;
-  animation: fg-up-in 90ms var(--ease-out, ease-out);
-}
-@keyframes fg-up-in {
-  from { opacity: 0; transform: translateY(-2px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.fg-update-panel .fg-up-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--hairline);
-  padding-bottom: 8px;
-}
-.fg-update-panel .fg-up-title {
-  font-size: 9.5px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-.fg-update-panel .fg-up-close {
-  background: transparent;
-  border: 0;
-  color: var(--ink-3);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 4px;
-}
-.fg-update-panel .fg-up-close:hover { color: var(--ink-1); }
-
-.fg-update-panel .fg-up-versions {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: end;
-  gap: 10px;
-}
-.fg-update-panel .fg-up-vcol {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.fg-update-panel .fg-up-vlbl {
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-4);
-}
-.fg-update-panel .fg-up-vval {
-  font-size: var(--t-13);
-  color: var(--ink-1);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.fg-update-panel .fg-up-arrow {
-  color: var(--ink-4);
-  font-size: var(--t-13);
-  padding-bottom: 1px;
-}
-
-.fg-update-panel .fg-up-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.fg-update-panel .fg-up-line {
-  font-size: var(--t-11);
-  letter-spacing: 0.02em;
-  color: var(--ink-2);
-}
-.fg-update-panel .fg-up-err { color: var(--c-error); }
-
-.fg-update-panel .fg-up-bar {
-  height: 2px;
-  background: var(--hairline);
-  overflow: hidden;
-}
-.fg-update-panel .fg-up-bar-fill {
-  height: 100%;
-  width: 0%;
-  background: var(--ink-1);
-  transition: width 180ms var(--ease, ease);
-}
-.fg-update-panel .fg-up-pct {
-  font-size: var(--t-11);
-  color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-  text-align: right;
-}
-.fg-update-panel .fg-up-steps {
-  margin: 6px 0 0 0;
-  padding-left: 18px;
-  font-size: var(--t-11);
-  color: var(--ink-2);
-  line-height: 1.55;
-}
-.fg-update-panel .fg-up-steps li { margin-bottom: 4px; }
-.fg-update-panel .fg-up-steps code,
-.fg-update-panel .fg-up-aux code {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  background: rgba(var(--ink-rgb), 0.06);
-  padding: 1px 5px;
-  border-radius: 2px;
-}
-.fg-update-panel .fg-up-pre {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  background: rgba(var(--ink-rgb), 0.04);
-  border: 1px solid var(--hairline);
-  border-radius: 3px;
-  padding: 6px 8px;
-  margin: 4px 0 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--ink-1);
-}
-.fg-update-panel .fg-up-aux {
-  margin-top: 8px;
-  font-size: 10.5px;
-  color: var(--ink-3);
-  font-style: italic;
-}
-
-.fg-update-panel .fg-up-actions {
-  display: flex;
-  gap: 6px;
-  padding-top: 2px;
-}
-.fg-update-panel .fg-up-btn {
-  flex: 1;
-  background: transparent;
-  border: 1px solid var(--hairline);
-  color: var(--ink-2);
-  font-family: var(--font-mono);
-  font-size: var(--t-11);
-  letter-spacing: 0.10em;
-  text-transform: lowercase;
-  padding: 7px 10px;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
-  transition: color 160ms var(--ease, ease), border-color 160ms var(--ease, ease), background 160ms var(--ease, ease);
-}
-.fg-update-panel .fg-up-btn:hover {
-  color: var(--ink-1);
-  border-color: rgba(var(--ink-rgb), 0.22);
-  background: rgba(var(--ink-rgb), 0.04);
-}
-.fg-update-panel .fg-up-btn-primary {
-  color: var(--ink-1);
-  border-color: rgba(var(--ink-rgb), 0.22);
-}
-.fg-update-panel .fg-up-btn-primary:hover {
-  background: rgba(var(--ink-rgb), 0.08);
-  border-color: rgba(var(--ink-rgb), 0.32);
 }
 
 /* glass surfaces: one less border tone */
@@ -5453,7 +5275,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
  * <canvas> itself takes the full stage. Captions and hover popovers
  * are absolutely positioned over the canvas. */
 #cartography-view {
-  grid-area: sidebar / sidebar / main / main;
+  grid-area: main;
   position: relative;
   z-index: 3;
   background:
@@ -5544,7 +5366,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
  * #cosmos-stage. Caption + hover panel reuse the cartography editorial
  * voice (lowercase mono, accent-tagged, glass-blurred panel). */
 #cosmos-view {
-  grid-area: sidebar / sidebar / main / main;
+  grid-area: main;
   position: relative;
   z-index: 3;
   background:
@@ -5686,7 +5508,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
  *   .atlas-hover          — bottom-left HTML overlay. A single line
  *                            naming the place under the cursor. */
 #atlas-view {
-  grid-area: sidebar / sidebar / main / main;
+  grid-area: main;
   position: relative;
   z-index: 3;
   /* Deep ink frame outside the paper — gives the whole composition a
@@ -6345,7 +6167,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   --cal-oxide:     #8F220E;
 }
 .alchemy-view, #alchemy-view {
-  grid-area: sidebar / sidebar / main / main;
+  grid-area: main;
   position: relative;
   z-index: 3;
   display: flex; flex-direction: column;
@@ -6393,12 +6215,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alchemy-stage {
   flex: 1;
   display: grid;
-  /* Rail column 320px (was 220 → 280 → 320). Each bump was needed:
-   * 220 clipped "constellation" + "program info". 280 helped the
-   * column itself but a later rail rule (width: 220) kept the rail
-   * narrower inside it. 320 gives the rail full breathing room +
-   * a small buffer for future longer labels. */
-  grid-template-columns: 320px 1fr;
+  /* Single column — the rail moved out to the persistent #primary-nav
+     (2026-06). The stage is now just the canvas. */
+  grid-template-columns: 1fr;
   min-height: 0;
   position: relative; z-index: 1;
 }
@@ -8063,7 +7882,7 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   backdrop-filter: none; -webkit-backdrop-filter: none;
   box-shadow: none;
   padding: 0 28px 0 88px;
-  height: 52px;
+  height: var(--tab-bar-h);
 }
 #tab-bar .tab-btn {
   color: var(--ed-ink-3);
@@ -8138,13 +7957,108 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 }
 .identity-pill .ip-glyph { display: none; }
 
+/* ── lower-left footer row: profile + version on one line ────────
+ * #fg-footer-row is a fixed bottom-left flex strip (built in boot.js)
+ * holding the profile link on the left and the version stamp + status
+ * icon right-aligned to the panel edge. The profile is stripped of its
+ * pill outline — plain clickable label + avatar, no border / background. */
+.fg-footer-row {
+  /* Floats at body level (NOT inside #sidebar — its backdrop-filter would
+   * trap & clip the strip). Sized to the visible nav rail so it stays
+   * inside the panel. */
+  position: fixed;
+  left: 0;
+  bottom: 16px;             /* equal to the left inset below */
+  width: 270px;             /* match the visible nav rail (.alchemy-rail) */
+  box-sizing: border-box;
+  padding: 0 2px 0 16px;    /* left/bottom inset 16px for the profile; minimal
+                               2px right inset so the version+icon cluster sits
+                               as close to the panel edge as possible */
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+/* Version + status icon, right-aligned as a unit. The icon is the LEFT
+ * child, so when it appears the cluster grows leftward and the version's
+ * right edge stays pinned to the row's right inset — the version never
+ * moves when the icon spawns. */
+.fg-footer-vcluster {
+  margin-left: auto;
+  margin-right: -4px;       /* nudge the cluster 4px further toward the edge */
+  display: flex;
+  align-items: center;
+  gap: 3px;                 /* version sits 2px further left; icon stays pinned right */
+}
+/* When the side panel is collapsed, the footer goes with it. */
+body[data-sidebar="hidden"] .fg-footer-row { display: none; }
+.identity-pill {
+  position: static;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  max-width: 240px;
+  text-transform: none;     /* show the name as-is, not all caps */
+  letter-spacing: 0.04em;
+}
+.identity-pill:hover { background: transparent; border-color: transparent; box-shadow: none; }
+
 /* ── version chip — editorial-pass overrides ─────────────────────
- * The chip lives at fixed bottom-left now (see canonical rule above);
- * here we just tighten the colours to the editorial palette without
- * fighting the canonical positioning.  */
-.fg-version-chip { color: var(--ed-ink-1, #f5f3ee); }
-.fg-version-chip:hover { color: var(--ed-ink-1, #f5f3ee); }
+ * The chip lives at fixed bottom-left now (see canonical rule above).
+ * Here we drop the pill outline (border / radius / glass background)
+ * so the version reads as a quiet floating stamp, and grey the text. */
+.fg-version-chip {
+  position: static;
+  left: auto;
+  bottom: auto;
+  margin: 0;                /* right-alignment is handled by .fg-footer-vcluster */
+  color: var(--ed-ink-3, #6e695e);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 6px 0;
+  font-size: 9.5px;
+}
+.fg-version-chip:hover { color: var(--ed-ink-2, #b8b4ab); background: transparent; border-color: transparent; }
 .fg-version-chip[data-update="available"] { color: var(--sr-red, #8f220e); text-shadow: none; border-color: var(--sr-red, #8f220e); }
+
+/* Update status icon — a small box sitting just RIGHT of the version number
+ * inside the right-aligned .fg-footer-vcluster. Same Lucide line set as the
+ * side-panel page icons, smaller. The slot keeps its width even when empty
+ * (a permanently reserved slot), so the version's right edge never shifts
+ * when a glyph appears. States via data-state:
+ *   (empty)   → reserved slot, no glyph
+ *   checking  → spinner (animated), set while a check is in flight
+ *   ok        → checkmark, transient "you're on the latest" confirmation
+ *   available → download icon, a newer build is ready to fetch */
+.fg-update-icon {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-hi);              /* all states render white */
+  cursor: pointer;
+  line-height: 0;
+  transition: color 200ms var(--ease, ease);
+}
+.fg-update-icon svg { width: 12px; height: 12px; display: block; }
+.fg-update-icon:hover { color: var(--ink-hi); }
+.fg-update-icon[data-state="ok"] { cursor: default; }
+/* Checkmark fade-out: JS adds .fading after a 3s hold; opacity eases to 0
+ * over 1s before the slot is cleared. */
+.fg-update-icon.fading { opacity: 0; transition: opacity 1s ease; }
+/* The checking loaders self-animate via SMIL inside the SVG — no CSS
+ * animation needed here. */
+.fg-update-icon[data-state^="checking"] { cursor: default; }
 
 /* ── alchemy host ─────────────────────────────────────────────────── */
 .alchemy-view, #alchemy-view {
@@ -8255,7 +8169,7 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-detail-edit { color: var(--ed-ink-3); border-bottom-color: var(--ed-rule); font-family: var(--ed-mono); letter-spacing: 0.22em; }
 .alch-detail-edit:hover { color: var(--ed-ink-1); border-bottom-color: var(--ed-ink-1); }
 .alch-detail-hero { border-bottom: 1px solid var(--ed-rule); padding-bottom: 40px; margin-bottom: 40px; gap: 48px; }
-.alch-detail-shape { background: var(--ed-bg-0); border: 1px solid var(--ed-rule); padding: 32px; }
+.alch-detail-shape { background: transparent; border: none; padding: 32px; }
 .alch-detail-name {
   font-family: var(--ed-display);
   font-size: 56px;
@@ -8447,12 +8361,16 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 :root {
   /* `--ink-rgb` is the **single** RGB triple used by every alpha-based
    * hairline, faint background, and muted text in this file. About 366
-   * places used to hardcode `rgba(241, 236, 231, α)` or
-   * `rgba(245, 243, 238, α)` — both light cream — assuming a dark
+   * places used to hardcode `rgba(var(--ink-rgb), α)` or
+   * `rgba(var(--ink-rgb), α)` — both light cream — assuming a dark
    * surface. They are all now `rgba(var(--ink-rgb), α)`, so flipping
    * this one triple in `[data-theme="light"]` re-inverts every
    * alpha-based ink-on-surface relationship throughout the app. */
   --ink-rgb:        245, 243, 238;   /* warm cream — dark mode default */
+  /* Solid high-emphasis foreground — replaces literal #fff at the few
+   * sites that need it (active tab + nav label, toolbar icons, live dots).
+   * Pure white in dark; warm near-black in light, so they flip. */
+  --ink-hi:         #FFFFFF;
   /* `--overlay-rgb` is the matching triple for translucent overlay
    * backgrounds (modals, popovers, toolbars, badges) that hardcoded
    * `rgba(8, 6, 22, α)` and near variants. ~49 sites. Flipping it in
@@ -8720,33 +8638,13 @@ html, body { background: var(--ed-bg-0); }
   white-space: nowrap;
 }
 
-/* Hover: expand the row to 56px, swap label to big italic Iowan,
-   grow the numeral. Other items dim further to make the focus pop. */
+/* Hover: brighten the hovered row only — no size change, no layout
+   shift. Other rows are left untouched (no fade). */
 .alchemy-rail-btn:hover {
-  height: 56px;
-  padding-top: 14px;
-  padding-bottom: 14px;
   opacity: var(--ed-op-loud);
 }
 .alchemy-rail-btn:hover .ar-num {
-  font-size: 28px;
   opacity: var(--ed-op-loud);
-}
-.alchemy-rail-btn:hover .ar-label {
-  font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 24px;
-  letter-spacing: -0.02em;
-  text-transform: lowercase;
-}
-
-/* When ANY rail btn is hovered, dim the non-hovered ones further
-   for that focus-burst effect. */
-.alchemy-rail:has(.alchemy-rail-btn:hover) .alchemy-rail-btn:not(:hover) {
-  opacity: var(--ed-op-faint);
-}
-.alchemy-rail:has(.alchemy-rail-btn:hover) .alchemy-rail-btn:not(:hover) .ar-num {
-  opacity: 0.20;
 }
 
 /* Active state: medium-emphasis but ALWAYS visible — the user always
@@ -10840,15 +10738,15 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
    The rail was a wisp of numerals before. Push width, type size, and
    row padding so it reads as primary navigation, not metadata. */
 .alchemy-rail {
-  flex: 0 0 280px !important;
+  flex: 0 0 270px !important;
   padding: 36px 20px 36px 28px !important;
 }
 .alchemy-rail-btn {
-  padding: 14px 14px 14px 0 !important;
+  padding: 9px 14px 9px 0 !important;
   gap: 16px !important;
   display: grid !important;
-  grid-template-columns: 38px 1fr !important;
-  align-items: baseline !important;
+  grid-template-columns: 19px 1fr !important;
+  align-items: center !important;
 }
 .alchemy-rail-btn .ar-num {
   font-family: var(--sr-font-mono);
@@ -10858,6 +10756,21 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   opacity: 0.50;
 }
 .alchemy-rail-btn[aria-selected="true"] .ar-num { opacity: 0.85; color: var(--sr-red); }
+/* Page icons are inline Lucide SVGs (ISC). They inherit the row color via
+   currentColor, so the active row's icon picks up --sr-red like the old
+   numeral did. Center the glyph in its 38px column against the label. */
+.alchemy-rail-btn .ar-num {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  line-height: 0;
+}
+.alchemy-rail-btn .ar-num svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  stroke: currentColor;
+}
 .alchemy-rail-btn .ar-label {
   font-family: var(--sr-font-mono);
   font-size: 14px !important;
@@ -10875,6 +10788,195 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   text-transform: lowercase;
   opacity: 0.50;
   margin-top: 4px;
+}
+
+/* ── primary-nav — persistent left navigation (2026-06) ────────────────
+   Top-level categories (operating system / apps / network / links) switch
+   the active tab. The operating-system pages are nested beneath their
+   category as an always-expanded, indented sub-list (the rail). */
+.primary-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 28px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.18);
+  border-right: 1px solid var(--hairline, rgba(var(--ink-rgb), 0.08));
+}
+/* Persistent right-column top strip — always present (every tab), reserved
+   for a future row of tabs. Empty for now; just the band + hairline. */
+.content-top {
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  box-sizing: border-box;
+  background: var(--ed-bg-0, #0c0a09);
+  border-bottom: 1px solid var(--ed-rule, rgba(var(--ink-rgb), 0.10));
+  /* Grid item in the 1fr column (shared with `main`). Without this it keeps
+     `min-width: auto` and the tab strip's intrinsic width forces the whole
+     column — and the page content — wider. Pinning to 0 lets the strip's own
+     overflow-x scroll handle the excess instead. */
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ── browser-style OS tabs (live in #content-top) ─────────────────────── */
+.os-tabs {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+  padding: 0 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
+  scrollbar-width: none;
+}
+.os-tabs::-webkit-scrollbar { display: none; }
+.os-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  /* Floor width set to comfortably fit the "constellation" tab (icon + label +
+     close); any shorter label gets this same width. Max is 1.5× the floor so
+     widths barely change when switching pages. */
+  min-width: 168px;
+  max-width: 252px;
+  height: 100%;
+  padding: 0 8px 0 12px;
+  border-right: 1px solid var(--ed-rule, rgba(var(--ink-rgb), 0.08));
+  font-family: var(--sr-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  color: rgba(var(--ink-rgb), 0.55);
+  cursor: default;
+  user-select: none;
+  position: relative;
+}
+.os-tab:hover { color: rgba(var(--ink-rgb), 0.85); background: rgba(var(--ink-rgb), 0.03); }
+.os-tab.is-active { color: var(--ink-hi); background: rgba(var(--ink-rgb), 0.06); }
+.os-tab.is-active::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: var(--sr-red);
+}
+.os-tab-icon { flex: 0 0 auto; display: inline-flex; align-items: center; opacity: 0.85; }
+.os-tab-icon svg { width: 14px; height: 14px; display: block; }
+.os-tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
+.os-tab-close {
+  flex: 0 0 auto;
+  width: 16px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: transparent;
+  color: inherit; opacity: 0.5; font-size: 14px; line-height: 1; cursor: pointer;
+}
+/* Hover the × → just turn it white, no box/background. */
+.os-tab-close:hover { opacity: 1; color: var(--ink-hi); background: transparent; }
+.os-tab-new {
+  flex: 0 0 auto;
+  width: 30px; height: 100%;
+  border: 0; background: transparent;
+  color: rgba(var(--ink-rgb), 0.55); font-size: 16px; line-height: 1; cursor: pointer;
+}
+.os-tab-new:hover { color: var(--ink-hi); background: rgba(var(--ink-rgb), 0.05); }
+
+/* "Open in new tab" context menu */
+.os-tab-ctxmenu {
+  position: fixed; z-index: 9999;
+  background: var(--ed-bg-0, #100e0b);
+  border: 1px solid var(--ed-rule, rgba(var(--ink-rgb), 0.16));
+  border-radius: 6px; padding: 4px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+.os-tab-ctxitem {
+  display: block; width: 100%;
+  padding: 7px 14px;
+  border: 0; background: transparent;
+  font-family: var(--sr-font-mono); font-size: 12px;
+  color: rgba(var(--ink-rgb), 0.85); text-align: left; white-space: nowrap;
+  border-radius: 4px; cursor: pointer;
+}
+.os-tab-ctxitem:hover { background: rgba(var(--ink-rgb), 0.08); color: var(--ink-hi); }
+
+/* Blank (new) tab — covers the content column until the user navigates. */
+.blank-tab {
+  grid-area: main;
+  display: none;
+  align-items: center; justify-content: center;
+  background: var(--ed-bg-0, #0c0a09);
+  z-index: 5;
+}
+body[data-blank] .blank-tab { display: flex; }
+.blank-tab-hint {
+  font-family: var(--sr-font-mono); font-size: 12px;
+  letter-spacing: 0.12em; text-transform: lowercase;
+  color: rgba(var(--ink-rgb), 0.32);
+}
+
+/* The OS view's own header band is now replaced by #content-top, so hide it
+   to avoid a double band in the right column. */
+.alchemy-header { display: none !important; }
+/* Top-level category row — uppercase to read as a section above the
+   lowercase sub-pages. */
+.nav-cat {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 19px 6px;
+  background: none;
+  border: 0;
+  font-family: var(--sr-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: left;
+  color: rgba(var(--ink-rgb), 0.82);
+  cursor: pointer;
+  transition: color 160ms ease, text-shadow 160ms ease;
+}
+.nav-cat:hover { color: rgba(var(--ink-rgb), 0.98); }
+/* Active category — bright + a soft gaussian glow (no left edge line). */
+body[data-active-tab="alchemy"] .nav-cat[data-tab="alchemy"],
+body[data-active-tab="apps"]    .nav-cat[data-tab="apps"],
+body[data-active-tab="network"] .nav-cat[data-tab="network"],
+body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
+  color: var(--ink-hi);
+  text-shadow: 0 0 8px rgba(var(--ink-rgb), 0.50);
+}
+/* The rail (operating-system sub-pages) nested under its category —
+   reset the old stage-column sizing and indent it as a sub-list. */
+.primary-nav .alchemy-rail {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  box-sizing: border-box;
+  padding: 4px 16px 14px 40px !important;
+  border-right: 0 !important;
+  gap: 4px !important;
+  /* The rail is now nested inside the dock, not a standalone column — drop
+     its own surface so it shares the dock background seamlessly (the old
+     `.alchemy-rail { background: var(--ed-bg-0) }` made it a different
+     shade from the APPS/NETWORK/LINKS area below it). */
+  background: transparent;
+}
+/* Tighten the sub-page rows so items like "profile" and "cohort"
+   sit closer together vertically. */
+.primary-nav .alchemy-rail-btn {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+/* Sub-pages — brighter so they read easily; the active one brightens
+   fully and gets the same soft glow as the active category. */
+.primary-nav .alchemy-rail-btn .ar-label { color: rgba(var(--ink-rgb), 0.80) !important; }
+.primary-nav .alchemy-rail-btn .ar-num   { opacity: 0.72 !important; }
+.primary-nav .alchemy-rail-btn[aria-selected="true"] .ar-label {
+  color: var(--ink-hi) !important;
+}
+.primary-nav .alchemy-rail-btn[aria-selected="true"] .ar-num {
+  opacity: 1 !important;
 }
 
 /* ── headings — Space Grotesk italic carries the editorial tone ── */
@@ -10994,7 +11096,9 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   background: transparent;
   transition: background 200ms ease;
 }
-.alchemy-rail-btn[aria-selected="true"]::before { background: var(--sr-red); }
+/* Red active edge retired 2026-06 — active state is now a soft glow
+   (see .primary-nav rules). Keep the ::before element but never paint it. */
+.alchemy-rail-btn[aria-selected="true"]::before { background: transparent; }
 
 /* ── this-week dateline — confirms the app knows the date ─────────── */
 .cal-tw-dateline {
@@ -11604,7 +11708,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 
 /* ─── easel app (apps → easel) · screen/window → NDI projection ──────── */
 #easel-view {
-  grid-area: sidebar / sidebar / main / main;
+  grid-area: main;
   position: relative; z-index: 3;
   display: flex; flex-direction: column;
   background: radial-gradient(ellipse 110% 90% at 50% 50%, #100c08 0%, #050402 70%, #010101 100%);
@@ -11906,7 +12010,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   padding: 1px 4px 1px 3px;
   border-radius: 3px;
   background: #d63a30;
-  color: #fff;
+  color: #FFFFFF;
   font-family: var(--sr-font-mono);
   font-size: 7.5px; font-weight: 700;
   letter-spacing: 0.10em;
@@ -11943,7 +12047,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .ews-card .ews-live-dot {
   width: 4px; height: 4px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--ink-hi);
   animation: easel-live-pulse 1.4s ease-in-out infinite;
 }
 .ews-card .ews-meta {
@@ -12001,7 +12105,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   padding: 2px 7px 2px 6px;
   border-radius: 4px;
   background: #e0463a;
-  color: #fff;
+  color: #FFFFFF;
   font-family: var(--sr-font-mono);
   font-size: 10px; font-weight: 700;
   letter-spacing: 0.14em;
@@ -12010,7 +12114,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .evi-live-dot {
   width: 6px; height: 6px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--ink-hi);
   animation: easel-live-pulse 1.4s ease-in-out infinite;
 }
 .evi-meta-row {
@@ -12581,47 +12685,59 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
    * border, hairline, and muted text site via rgba(var(--ink-rgb), α).
    * Flipping this one value swings the ~366 ink-on-surface hairlines
    * from "light on dark" to "dark on light." */
-  --ink-rgb:        27, 20, 17;
+  --ink-rgb:        26, 26, 26;   /* neutral near-black — zero-saturation ink */
+  --ink-hi:         #1A1A1A;   /* near-black — high-emphasis ink on paper */
+  /* Base ink ramp (--ink-1..4 + aura) is declared in tokens.css as literal
+   * warm cream and is NOT alpha-driven by --ink-rgb, so it can't flip on
+   * its own. Re-point it at --ink-rgb here (now dark) so the ~79 sites that
+   * read --ink-1..4 directly become dark ink on paper. Dark mode keeps the
+   * tokens.css cream values untouched. */
+  --ink-1:    rgba(var(--ink-rgb), 0.94);
+  --ink-2:    rgba(var(--ink-rgb), 0.74);
+  --ink-3:    rgba(var(--ink-rgb), 0.52);
+  --ink-4:    rgba(var(--ink-rgb), 0.32);
+  --aura:        rgba(var(--ink-rgb), 0.20);
+  --aura-strong: rgba(var(--ink-rgb), 0.32);
   /* Matching overlay triple — flips modals/popovers/toolbars from
    * near-black to paper so text on them stays readable when --ink-rgb
    * is also dark. */
-  --overlay-rgb:    245, 240, 234;
+  --overlay-rgb:    245, 245, 245;
 
-  /* alchemy palette */
-  --alchemy-paper-warm:   #1B1411;
-  --alchemy-charcoal:     #F5F0EA;
-  --alchemy-charcoal-2:   #EAE3DA;
+  /* alchemy palette — neutral (zero-saturation) paper + ink */
+  --alchemy-paper-warm:   #1A1A1A;
+  --alchemy-charcoal:     #F4F4F4;
+  --alchemy-charcoal-2:   #E7E7E7;
   --alchemy-rule:         rgba(var(--ink-rgb), 0.14);
   --alchemy-rule-warm:    rgba(143, 34, 14, 0.55);
   --alchemy-ink-mute:     rgba(var(--ink-rgb), 0.62);
 
   /* editorial palette — body bg, tab bar, sidebar, alchemy rail */
-  --ed-bg-0:        #F5F0EA;
-  --ed-bg-well:     #EFEAE2;
-  --ed-bg-1:        #FAF6F0;
+  --ed-bg-0:        #F4F4F4;
+  --ed-bg-well:     #ECECEC;
+  --ed-bg-1:        #F9F9F9;
   --ed-bg-2:        #FFFFFF;
-  --ed-ink-1:       #1B1411;
-  --ed-ink-2:       #3B3631;
-  --ed-ink-3:       #6E695E;
-  --ed-ink-4:       #A39E94;
+  --ed-ink-1:       #1A1A1A;
+  --ed-ink-2:       #383838;
+  --ed-ink-3:       #6A6A6A;
+  --ed-ink-4:       #9E9E9E;
   --ed-rule:        rgba(var(--ink-rgb), 0.10);
   --ed-rule-2:      rgba(var(--ink-rgb), 0.20);
   --ed-rule-3:      rgba(var(--ink-rgb), 0.34);
 
   /* legacy aliases — used by titlebar / footer-meta / search inputs */
-  --light-1:        #1B1411;
-  --light-2:        #3B3631;
-  --light-3:        #6E695E;
-  --light-4:        #A39E94;
-  --paper-1:        #1B1411;
+  --light-1:        #1A1A1A;
+  --light-2:        #383838;
+  --light-3:        #6A6A6A;
+  --light-4:        #9E9E9E;
+  --paper-1:        #1A1A1A;
   --hairline:       rgba(var(--ink-rgb), 0.16);
 
   /* Shape Rotator brand tokens — keep oxide on both modes; --sr-paper
    * and --sr-ink swap so any rule using them gets the right contrast. */
-  --sr-paper:       #F5F0EA;
-  --sr-cream:       #FAF6F0;
-  --sr-ink:         #1B1411;
-  --sr-charcoal:    #1B1411;
+  --sr-paper:       #F4F4F4;
+  --sr-cream:       #F9F9F9;
+  --sr-ink:         #1A1A1A;
+  --sr-charcoal:    #1A1A1A;
 
   /* Status / accent neons retuned slightly so they don't glow on paper.
    * The dark-mode values were chosen for visibility on near-black; on
@@ -12640,8 +12756,8 @@ html[data-theme="light"], html[data-theme="light"] body {
   background: radial-gradient(
     ellipse 110% 70% at 50% -10%,
     #FFFFFF 0%,
-    #F8F4EE 60%,
-    #EDE7DD 100%
+    #F6F6F6 60%,
+    #EAEAEA 100%
   );
   color: var(--ed-ink-2);
 }
@@ -12649,8 +12765,8 @@ html[data-theme="light"] #network-view {
   background: radial-gradient(
     ellipse 110% 70% at 50% -10%,
     #FFFFFF 0%,
-    #F8F4EE 60%,
-    #EDE7DD 100%
+    #F6F6F6 60%,
+    #EAEAEA 100%
   );
 }
 
@@ -12671,18 +12787,19 @@ html[data-theme="light"] #tab-bar.tab-bar {
   border-bottom: 1px solid var(--ed-rule);
 }
 html[data-theme="light"] .alchemy-rail {
-  background: var(--ed-bg-0);
-  border-right: 1px solid var(--ed-rule);
+  background: transparent;
+  border-right: 0;
 }
 html[data-theme="light"] .alchemy-view,
 html[data-theme="light"] #alchemy-view,
 html[data-theme="light"] #network-view,
-html[data-theme="light"] #metrics-view {
+html[data-theme="light"] #metrics-view,
+html[data-theme="light"] #graph {
   background: radial-gradient(
     ellipse 130% 90% at 50% -5%,
     #FFFFFF 0%,
-    #F8F4EE 60%,
-    #ECE5DA 100%
+    #F6F6F6 60%,
+    #E9E9E9 100%
   );
   color: var(--ed-ink-2);
 }
@@ -12695,7 +12812,7 @@ html[data-theme="light"] .identity-modal,
 html[data-theme="light"] .fork-prompt,
 html[data-theme="light"] .alch-onb-modal,
 html[data-theme="light"] .history-modal {
-  background: linear-gradient(180deg, #FFFFFF 0%, #F4EFE6 100%);
+  background: linear-gradient(180deg, #FFFFFF 0%, #F2F2F2 100%);
   color: var(--ed-ink-2);
   border-color: rgba(var(--ink-rgb), 0.16);
 }
@@ -12706,6 +12823,108 @@ html[data-theme="light"] .identity-modal-backdrop {
 }
 html[data-theme="light"] #tab-bar.tab-bar {
   background: linear-gradient(180deg, #FFFFFF 0%, var(--ed-bg-0) 100%);
+}
+
+/* Cohort specimen cards (.alch-card + membership / role variants) are the
+ * one surface the token flip can't reach: cohort-card.css layers 4–5 paint
+ * them with LITERAL dark linear-gradients (#15120e…, #1a130e…) instead of
+ * the --ed-bg-* vars, so flipping --ed-bg-1 to paper leaves the cards dark
+ * while their ink (--ed-ink-1) flips to dark → dark-on-dark, unreadable.
+ * Re-skin the gradients to paper here; the html[data-theme] prefix gives
+ * the higher specificity needed to beat the layer-4/5 base rules. */
+html[data-theme="light"] .alch-card {
+  /* Flat fill, NOT a gradient — a white-top/grey-bottom gradient made the
+     grid look like alternating row backgrounds (you compare the grey bottom
+     of one row against the white top of the next). One flat color per card
+     keeps every card identical. */
+  background: #FFFFFF;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.10);
+}
+html[data-theme="light"] .alch-card:hover {
+  background: #F7F7F7;
+  border-top-color: rgba(var(--ink-rgb), 0.22);
+}
+/* Cohort teams + cohort-member portraits carry the SAME flat card fill as
+ * every other card — the only formal-cohort cue is the oxide top hairline. */
+html[data-theme="light"] .alch-card-membership-cohort,
+html[data-theme="light"] .alch-card-role-cohort-member {
+  border-top: 1px solid rgba(180, 58, 25, 0.55);
+  background: #FFFFFF;
+}
+html[data-theme="light"] .alch-card-membership-cohort:hover,
+html[data-theme="light"] .alch-card-role-cohort-member:hover {
+  border-top-color: rgba(180, 58, 25, 0.85);
+  background: #F7F7F7;
+}
+
+/* ── Chrome surfaces — left dock + top tab strip ──────────────────────
+ * The dock (#primary-nav) and a few panels paint themselves with literal
+ * `rgba(0,0,0,α)` washes — fine over near-black, but over paper they read
+ * as a cool, muddy grey that fights the warm content. Re-skin the visible
+ * chrome as clean warm paper with a clear hierarchy: the dock sits one
+ * step DOWN from the content (a recessed well) and is separated by a
+ * hairline, the way a real light-mode app rail reads. */
+html[data-theme="light"] .primary-nav {
+  background: #ECECEC;
+  border-right: 1px solid rgba(var(--ink-rgb), 0.12);
+}
+html[data-theme="light"] .content-top {
+  background: #F9F9F9;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
+}
+/* Active tab — paper "page" sitting flush over the content, oxide underline. */
+html[data-theme="light"] .os-tab.is-active {
+  background: #FFFFFF;
+}
+html[data-theme="light"] .os-tab:hover {
+  background: rgba(var(--ink-rgb), 0.04);
+}
+/* Active nav category gets a soft paper glow instead of the white one,
+ * which is invisible on a light rail. */
+html[data-theme="light"] body[data-active-tab="alchemy"] .nav-cat[data-tab="alchemy"],
+html[data-theme="light"] body[data-active-tab="apps"]    .nav-cat[data-tab="apps"],
+html[data-theme="light"] body[data-active-tab="network"] .nav-cat[data-tab="network"],
+html[data-theme="light"] body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
+  text-shadow: none;
+}
+html[data-theme="light"] .primary-nav .alchemy-rail-btn[aria-selected="true"] .ar-label {
+  text-shadow: none;
+}
+
+/* Recessed wells — form inputs, selects, and the PR diff/patch panels —
+ * use a heavy `rgba(0,0,0,0.3–0.4)` fill that reads right as a recess on
+ * near-black but turns into an ugly dark-grey box on paper. A light well
+ * is the inverse idiom: near-white surface, faint inset hairline. */
+html[data-theme="light"] .enroll .im-row select,
+html[data-theme="light"] .alch-pf-row input,
+html[data-theme="light"] .alch-pf-row select,
+html[data-theme="light"] .alch-pf-target-select,
+html[data-theme="light"] .aspr-diff,
+html[data-theme="light"] .aspr-patch-pre,
+html[data-theme="light"] .alch-onb-inline-patch,
+html[data-theme="light"] .alch-cv-preview pre {
+  background: rgba(var(--ink-rgb), 0.04);
+  border-color: rgba(var(--ink-rgb), 0.12);
+}
+/* Context-vault error message — light-pink text on a red wash reads on
+ * dark, but vanishes on paper. Use dark oxide text in light mode. */
+html[data-theme="light"] .alch-cv-error {
+  color: #8F220E;
+  background: rgba(143, 34, 14, 0.10);
+}
+/* Calendar gantt scroll area hardcodes a near-black (#0b0a08); flip to the
+ * neutral paper surface so the calendar page reads as light too. */
+html[data-theme="light"] .cal-scroll {
+  background: var(--ed-bg-1);
+}
+
+/* Collaboration-board adjacency matrix — its sticky header row reads
+ * `var(--alchemy-bg, #231F20)`, but --alchemy-bg is never defined, so it
+ * ALWAYS used the hardcoded dark fallback (stayed a dark band in light
+ * mode). Flip it to the paper surface; the labels already use flipping
+ * ink tokens (--alchemy-paper-warm / --alchemy-ink-mute). */
+html[data-theme="light"] .cb-headrow {
+  background: var(--alchemy-charcoal);
 }
 
 /* Smooth transition so the flip is satisfying instead of jarring. */
@@ -12742,12 +12961,29 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   --gbg-1:         #161314;
   --gbg-2:         #1C1819;
   --gbg-3:         #231F20;
-  --ghairline:        rgba(241, 236, 231, 0.06);
-  --ghairline-strong: rgba(241, 236, 231, 0.12);
+  --ghairline:        rgba(var(--ink-rgb), 0.06);
+  --ghairline-strong: rgba(var(--ink-rgb), 0.12);
   --goxide:        #B0432C;
   --goxide-hi:     #D9583C;
   --goxide-soft:   rgba(176, 67, 44, 0.5);
   --gok:           #6FA37A;
+}
+
+/* Light-mode flip for the glance/swarm palette. These tokens feed the
+ * network "glance" view AND the apps-view swarm panel (swarm-panel-card,
+ * swarm-query, swarm-settings…). Defined dark above; invert the paper/bg
+ * ramps here so both surfaces become light. Oxide + peer hues + ok-green
+ * are brand/data colors — kept identical in both modes. */
+:root[data-theme="light"] {
+  --gpaper:        #1A1A1A;   /* was brightest ink → now darkest */
+  --gpaper-dim:    #383838;
+  --gpaper-soft:   #6A6A6A;
+  --gpaper-faint:  #8E8E8E;
+  --gpaper-ghost:  #B4B4B4;
+  --gbg-0:         #FFFFFF;   /* was darkest bg → now lightest paper */
+  --gbg-1:         #F7F7F7;
+  --gbg-2:         #EDEDED;
+  --gbg-3:         #E4E4E4;
 }
 
 /* mode toggle in subtab strip · HIDDEN in this build (v0.2.12+):
@@ -13086,7 +13322,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   border-radius: 999px;
   font-size: 13px;
   color: var(--gpaper-dim);
-  background: rgba(241, 236, 231, 0.02);
+  background: rgba(var(--ink-rgb), 0.02);
   transition: all 0.18s ease;
 }
 .glance-topic .ct {
@@ -13455,7 +13691,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .swarm-panel[hidden] { display: none; }
 .swarm-panel-backdrop {
   position: absolute; inset: 0;
-  background: rgba(15, 13, 14, 0.78);
+  background: rgba(var(--overlay-rgb), 0.78);
   backdrop-filter: blur(6px);
 }
 .swarm-panel-card {
@@ -13463,7 +13699,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   width: min(960px, calc(100vw - 64px));
   height: min(720px, calc(100vh - 96px));
   background: var(--gbg-1, #161314);
-  border: 1px solid var(--ghairline-strong, rgba(241,236,231,0.12));
+  border: 1px solid var(--ghairline-strong, rgba(var(--ink-rgb),0.12));
   border-radius: 4px;
   display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 4px 14px rgba(143,34,14,0.18);
@@ -13481,7 +13717,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   gap: 18px;
   align-items: center;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--ghairline, rgba(241,236,231,0.06));
+  border-bottom: 1px solid var(--ghairline, rgba(var(--ink-rgb),0.06));
 }
 .swarm-mark {
   display: inline-flex; align-items: center; gap: 10px;
@@ -13517,7 +13753,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .swarm-head-actions { display: inline-flex; gap: 6px; }
 .swarm-icon-btn {
   appearance: none; background: transparent;
-  border: 1px solid var(--ghairline-strong, rgba(241,236,231,0.12));
+  border: 1px solid var(--ghairline-strong, rgba(var(--ink-rgb),0.12));
   color: var(--gpaper-dim, #C8C2BD);
   width: 28px; height: 28px;
   border-radius: 4px;
@@ -13535,7 +13771,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 /* form / input row */
 .swarm-form {
   padding: 16px 18px;
-  border-bottom: 1px solid var(--ghairline, rgba(241,236,231,0.06));
+  border-bottom: 1px solid var(--ghairline, rgba(var(--ink-rgb),0.06));
 }
 .swarm-input-row {
   display: grid;
@@ -13545,7 +13781,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 }
 .swarm-query {
   background: var(--gbg-2, #1C1819);
-  border: 1px solid var(--ghairline-strong, rgba(241,236,231,0.12));
+  border: 1px solid var(--ghairline-strong, rgba(var(--ink-rgb),0.12));
   color: var(--gpaper, #F1ECE7);
   padding: 10px 14px;
   font-family: 'Space Grotesk', system-ui, sans-serif;
@@ -13558,7 +13794,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .swarm-query:focus { border-color: var(--goxide, #B0432C); }
 .swarm-model {
   background: var(--gbg-2, #1C1819);
-  border: 1px solid var(--ghairline-strong, rgba(241,236,231,0.12));
+  border: 1px solid var(--ghairline-strong, rgba(var(--ink-rgb),0.12));
   color: var(--gpaper, #F1ECE7);
   padding: 10px 12px;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -13594,13 +13830,13 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .swarm-start-btn:disabled {
   background: transparent;
   color: var(--gpaper-faint, #5D5957);
-  border-color: var(--ghairline-strong, rgba(241,236,231,0.12));
+  border-color: var(--ghairline-strong, rgba(var(--ink-rgb),0.12));
   cursor: not-allowed;
 }
 .swarm-stop-btn {
   background: transparent;
   color: var(--gpaper-dim, #C8C2BD);
-  border-color: var(--ghairline-strong, rgba(241,236,231,0.12));
+  border-color: var(--ghairline-strong, rgba(var(--ink-rgb),0.12));
 }
 .swarm-stop-btn:hover { color: var(--err, #C84A37); border-color: var(--err, #C84A37); }
 
@@ -13647,7 +13883,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .swarm-trace-line.is-info   { color: var(--ok,  #6FA37A); }
 .swarm-trace-line.is-divider {
   margin: 8px 0;
-  border-top: 1px dashed var(--ghairline-strong, rgba(241,236,231,0.12));
+  border-top: 1px dashed var(--ghairline-strong, rgba(var(--ink-rgb),0.12));
   height: 0;
   padding: 0;
 }
@@ -13656,7 +13892,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .swarm-settings {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(15, 13, 14, 0.88);
+  background: rgba(var(--overlay-rgb), 0.88);
   backdrop-filter: blur(2px);
   z-index: 10;
   animation: swarm-fade-in 160ms ease both;
@@ -13665,7 +13901,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .swarm-settings-card {
   width: min(560px, calc(100% - 64px));
   background: var(--gbg-1, #161314);
-  border: 1px solid var(--ghairline-strong, rgba(241,236,231,0.12));
+  border: 1px solid var(--ghairline-strong, rgba(var(--ink-rgb),0.12));
   border-radius: 4px;
   padding: 22px 24px;
   box-shadow: 0 12px 36px rgba(0,0,0,0.6);
@@ -13686,7 +13922,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .swarm-settings-input {
   width: 100%;
   background: var(--gbg-2, #1C1819);
-  border: 1px solid var(--ghairline-strong, rgba(241,236,231,0.12));
+  border: 1px solid var(--ghairline-strong, rgba(var(--ink-rgb),0.12));
   color: var(--gpaper, #F1ECE7);
   padding: 9px 12px;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -13744,13 +13980,13 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   gap: 32px;
   align-items: flex-start;
   padding-bottom: 18px;
-  border-bottom: 1px solid rgba(245, 240, 232, 0.08);
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
 }
 
 .alch-cv-kicker,
 .alch-cv-eyebrow {
   margin: 0 0 7px;
-  color: rgba(235, 238, 250, 0.38);
+  color: rgba(var(--ink-rgb), 0.38);
   font: 700 11px/1.1 var(--mono);
   letter-spacing: 0;
   text-transform: lowercase;
@@ -13759,21 +13995,21 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-head h2 {
   margin: 0;
   max-width: 760px;
-  color: #f5f0e8;
+  color: rgb(var(--ink-rgb));
   font: 560 clamp(22px, 2.2vw, 31px)/1.08 var(--sans);
 }
 
 .alch-cv-head p {
   max-width: 720px;
   margin: 10px 0 0;
-  color: rgba(235, 238, 250, 0.64);
+  color: rgba(var(--ink-rgb), 0.64);
   font: 400 14px/1.5 var(--sans);
 }
 
 .alch-cv-release {
   display: block;
   margin-top: 13px;
-  color: rgba(235, 238, 250, 0.34);
+  color: rgba(var(--ink-rgb), 0.34);
   font-family: var(--sr-font-mono, var(--mono, monospace));
   font-size: 10px;
   font-weight: 560;
@@ -13796,7 +14032,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 
 .alch-cv-release-note::before {
   content: " / ";
-  color: rgba(235, 238, 250, 0.24);
+  color: rgba(var(--ink-rgb), 0.24);
 }
 
 .alch-cv-head-actions {
@@ -13822,7 +14058,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   padding: 0;
   border: 0;
   background: transparent;
-  color: rgba(235, 238, 250, 0.46);
+  color: rgba(var(--ink-rgb), 0.46);
   font: 500 12px/1.35 var(--mono);
 }
 
@@ -13850,12 +14086,12 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   min-height: 0;
   max-height: calc(100vh - var(--tab-bar-h, 40px) - 76px);
   padding: 14px 24px 12px 0;
-  border-right: 1px solid rgba(245, 240, 232, 0.08);
+  border-right: 1px solid rgba(var(--ink-rgb), 0.08);
 }
 
 .alch-cv-sidebar h3 {
   margin: 0 0 14px;
-  color: rgba(245, 240, 232, 0.48);
+  color: rgba(var(--ink-rgb), 0.48);
   font: 700 11px/1.1 var(--mono);
   letter-spacing: 0;
   text-transform: uppercase;
@@ -13871,10 +14107,10 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-mode button {
   min-width: 0;
   padding: 8px 9px;
-  border: 1px solid rgba(245, 240, 232, 0.10);
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
   border-radius: 999px;
   background: transparent;
-  color: rgba(235, 238, 250, 0.50);
+  color: rgba(var(--ink-rgb), 0.50);
   cursor: pointer;
   font-family: var(--sr-font-mono, var(--mono, monospace));
   font-size: 10px;
@@ -13888,11 +14124,11 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-mode button.is-selected {
   border-color: rgba(193, 168, 114, 0.36);
   background: rgba(193, 168, 114, 0.08);
-  color: rgba(245, 240, 232, 0.88);
+  color: rgba(var(--ink-rgb), 0.88);
 }
 
 .alch-cv-mode span {
-  color: rgba(235, 238, 250, 0.36);
+  color: rgba(var(--ink-rgb), 0.36);
 }
 
 .alch-cv-roots {
@@ -13909,7 +14145,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   grid-template-columns: 9px minmax(0, 1fr);
   gap: 8px;
   align-items: start;
-  color: rgba(235, 238, 250, 0.72);
+  color: rgba(var(--ink-rgb), 0.72);
   font: 500 12px/1.25 var(--sans);
 }
 
@@ -13930,7 +14166,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-root code {
   grid-column: 2;
   overflow: hidden;
-  color: rgba(235, 238, 250, 0.42);
+  color: rgba(var(--ink-rgb), 0.42);
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -13954,32 +14190,32 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   min-height: 54px;
   padding: 10px 10px 10px 18px;
   border: 1px solid transparent;
-  border-left: 1px solid rgba(235, 238, 250, 0.10);
+  border-left: 1px solid rgba(var(--ink-rgb), 0.10);
   border-radius: 0 7px 7px 0;
   background: transparent;
-  color: rgba(235, 238, 250, 0.66);
+  color: rgba(var(--ink-rgb), 0.66);
   text-align: left;
   cursor: pointer;
   transition: background 180ms ease, border-color 180ms ease, color 180ms ease, padding-left 180ms ease;
 }
 
 .alch-cv-source:hover {
-  border-left-color: rgba(245, 240, 232, 0.26);
-  background: rgba(245, 240, 232, 0.035);
-  color: rgba(245, 240, 232, 0.90);
+  border-left-color: rgba(var(--ink-rgb), 0.26);
+  background: rgba(var(--ink-rgb), 0.035);
+  color: rgba(var(--ink-rgb), 0.90);
 }
 
 .alch-cv-source.is-selected {
   padding-left: 20px;
   border-left-color: #c1a872;
-  background: linear-gradient(90deg, rgba(193, 168, 114, 0.13), rgba(245, 240, 232, 0.035) 62%, transparent);
-  color: #f5f0e8;
+  background: linear-gradient(90deg, rgba(193, 168, 114, 0.13), rgba(var(--ink-rgb), 0.035) 62%, transparent);
+  color: rgb(var(--ink-rgb));
 }
 
 .alch-cv-source strong {
   display: block;
   overflow-wrap: anywhere;
-  color: #f5f0e8;
+  color: rgb(var(--ink-rgb));
   font: 460 14px/1.25 var(--sans);
 }
 
@@ -14005,7 +14241,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-source-dek {
   display: -webkit-box;
   overflow: hidden;
-  color: rgba(235, 238, 250, 0.66);
+  color: rgba(var(--ink-rgb), 0.66);
   font: 400 12px/1.35 var(--sans);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -14013,7 +14249,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 
 .alch-cv-source-kind,
 .alch-cv-source-meta {
-  color: rgba(235, 238, 250, 0.38);
+  color: rgba(var(--ink-rgb), 0.38);
   font: 500 10px/1.2 var(--mono);
   letter-spacing: 0;
   text-transform: lowercase;
@@ -14028,9 +14264,9 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-source-tags span,
 .alch-cv-speakers span {
   padding: 4px 6px;
-  border: 1px solid rgba(235, 238, 250, 0.12);
-  background: rgba(235, 238, 250, 0.05);
-  color: rgba(235, 238, 250, 0.70);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  background: rgba(var(--ink-rgb), 0.05);
+  color: rgba(var(--ink-rgb), 0.70);
   font: 600 10px/1 var(--mono);
 }
 
@@ -14065,17 +14301,17 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   gap: 10px;
   max-width: 160px;
   padding: 6px 10px;
-  border: 1px solid rgba(245, 240, 232, 0.13);
+  border: 1px solid rgba(var(--ink-rgb), 0.13);
   border-radius: 999px;
-  background: rgba(245, 240, 232, 0.035);
-  color: rgba(245, 240, 232, 0.88);
+  background: rgba(var(--ink-rgb), 0.035);
+  color: rgba(var(--ink-rgb), 0.88);
   cursor: pointer;
   transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 
 .alch-cv-md-action:hover {
-  border-color: rgba(245, 240, 232, 0.30);
-  background: rgba(245, 240, 232, 0.075);
+  border-color: rgba(var(--ink-rgb), 0.30);
+  background: rgba(var(--ink-rgb), 0.075);
   transform: translateY(-1px);
 }
 
@@ -14100,14 +14336,14 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-detail h3,
 .alch-cv-empty-detail h3 {
   margin: 0;
-  color: #f5f0e8;
+  color: rgb(var(--ink-rgb));
   font: 650 24px/1.08 var(--sans);
 }
 
 .alch-cv-dek {
   max-width: 72ch;
   margin: 10px 0 0;
-  color: rgba(235, 238, 250, 0.72);
+  color: rgba(var(--ink-rgb), 0.72);
   font: 400 14px/1.5 var(--sans);
 }
 
@@ -14131,7 +14367,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 
 .alch-cv-article-md .alch-prog-h1 {
   margin: 0 0 16px;
-  color: #f5f0e8;
+  color: rgb(var(--ink-rgb));
   font-size: clamp(24px, 2vw, 31px);
   font-weight: 520;
   line-height: 1.16;
@@ -14139,7 +14375,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 
 .alch-cv-article-md .alch-prog-h2 {
   margin: 34px 0 12px;
-  color: rgba(245, 240, 232, 0.90);
+  color: rgba(var(--ink-rgb), 0.90);
   font-size: 19px;
   font-weight: 560;
   line-height: 1.24;
@@ -14147,7 +14383,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 
 .alch-cv-article-md .alch-prog-h3 {
   margin: 26px 0 10px;
-  color: rgba(245, 240, 232, 0.84);
+  color: rgba(var(--ink-rgb), 0.84);
   font-size: 16px;
   font-weight: 560;
   line-height: 1.35;
@@ -14156,7 +14392,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-article-md .alch-prog-p,
 .alch-cv-article-md .alch-prog-ul,
 .alch-cv-article-md .alch-prog-ol {
-  color: rgba(235, 238, 250, 0.74);
+  color: rgba(var(--ink-rgb), 0.74);
   font-size: 15px;
   line-height: 1.72;
 }
@@ -14174,40 +14410,40 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   margin: 16px 0 18px;
   padding: 0 0 0 15px;
   border-left: 1px solid rgba(193, 168, 114, 0.45);
-  color: rgba(245, 240, 232, 0.74);
+  color: rgba(var(--ink-rgb), 0.74);
   font: 420 15px/1.68 var(--sans);
 }
 
 .alch-md-table-wrap {
   overflow-x: auto;
   margin: 18px 0 22px;
-  border-top: 1px solid rgba(245, 240, 232, 0.10);
-  border-bottom: 1px solid rgba(245, 240, 232, 0.10);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.10);
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
 }
 
 .alch-md-table {
   width: 100%;
   border-collapse: collapse;
-  color: rgba(235, 238, 250, 0.72);
+  color: rgba(var(--ink-rgb), 0.72);
   font: 400 13px/1.5 var(--sans);
 }
 
 .alch-md-table th,
 .alch-md-table td {
   padding: 9px 10px;
-  border-bottom: 1px solid rgba(245, 240, 232, 0.07);
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.07);
   text-align: left;
   vertical-align: top;
 }
 
 .alch-md-table th {
-  color: rgba(245, 240, 232, 0.78);
+  color: rgba(var(--ink-rgb), 0.78);
   font-weight: 650;
 }
 
 .alch-cv-reader-kicker {
   margin: 0;
-  color: rgba(235, 238, 250, 0.42);
+  color: rgba(var(--ink-rgb), 0.42);
   font-family: var(--sr-font-mono, var(--mono, monospace));
   font-size: 11px;
   font-weight: 560;
@@ -14219,7 +14455,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-reader h1 {
   max-width: 30ch;
   margin: 0;
-  color: #f5f0e8;
+  color: rgb(var(--ink-rgb));
   font-family: var(--sr-font-sans, var(--sans, system-ui, sans-serif));
   font-size: clamp(23px, 1.9vw, 30px);
   font-weight: 500;
@@ -14230,7 +14466,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-reader-lede {
   max-width: 62ch;
   margin: 0 0 6px;
-  color: rgba(245, 240, 232, 0.78);
+  color: rgba(var(--ink-rgb), 0.78);
   font-family: var(--sr-font-sans, var(--sans, system-ui, sans-serif));
   font-size: 16px;
   font-weight: 420;
@@ -14241,12 +14477,12 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   display: grid;
   gap: 8px;
   padding-top: 16px;
-  border-top: 1px solid rgba(245, 240, 232, 0.075);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.075);
 }
 
 .alch-cv-reader-section h3 {
   margin: 0;
-  color: rgba(245, 240, 232, 0.88);
+  color: rgba(var(--ink-rgb), 0.88);
   font-family: var(--sr-font-sans, var(--sans, system-ui, sans-serif));
   font-size: 18px;
   font-weight: 540;
@@ -14257,7 +14493,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-reader-section p {
   max-width: 68ch;
   margin: 0;
-  color: rgba(235, 238, 250, 0.72);
+  color: rgba(var(--ink-rgb), 0.72);
   font-family: var(--sr-font-sans, var(--sans, system-ui, sans-serif));
   font-size: 15px;
   font-weight: 400;
@@ -14265,7 +14501,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 }
 
 .alch-cv-reader-takeaway {
-  border-color: rgba(245, 240, 232, 0.16);
+  border-color: rgba(var(--ink-rgb), 0.16);
   padding-bottom: 2px;
 }
 
@@ -14282,9 +14518,9 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   max-height: min(62vh, 760px);
   margin: 0;
   padding: 18px 0 26px;
-  border-top: 1px solid rgba(245, 240, 232, 0.08);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
   background: transparent;
-  color: rgba(235, 238, 250, 0.68);
+  color: rgba(var(--ink-rgb), 0.68);
   font-family: var(--sr-font-mono, var(--mono, monospace));
   font-size: 12px;
   font-weight: 500;
@@ -14300,7 +14536,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 }
 
 .alch-cv-stats span {
-  color: rgba(235, 238, 250, 0.56);
+  color: rgba(var(--ink-rgb), 0.56);
   font: 600 11px/1.2 var(--mono);
 }
 
@@ -14309,7 +14545,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .alch-cv-promote h4 {
   width: 100%;
   margin: 0 0 8px;
-  color: rgba(235, 238, 250, 0.66);
+  color: rgba(var(--ink-rgb), 0.66);
   font: 700 11px/1.1 var(--mono);
   letter-spacing: 0;
   text-transform: uppercase;
@@ -14321,7 +14557,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   gap: 8px;
   margin: 0;
   padding-left: 18px;
-  color: rgba(235, 238, 250, 0.76);
+  color: rgba(var(--ink-rgb), 0.76);
   font: 400 14px/1.45 var(--sans);
 }
 
@@ -14330,22 +14566,22 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   overflow: auto;
   margin: 0;
   padding: 14px;
-  border: 1px solid rgba(235, 238, 250, 0.10);
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
   background: rgba(2, 4, 11, 0.66);
-  color: rgba(235, 238, 250, 0.72);
+  color: rgba(var(--ink-rgb), 0.72);
   font: 500 12px/1.5 var(--mono);
   white-space: pre-wrap;
 }
 
 .alch-cv-muted,
 .alch-cv-empty-detail p {
-  color: rgba(235, 238, 250, 0.58);
+  color: rgba(var(--ink-rgb), 0.58);
   font: 400 14px/1.5 var(--sans);
 }
 
 .alch-cv-result {
   padding-top: 8px;
-  border-top: 1px solid rgba(235, 238, 250, 0.10);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.10);
 }
 
 @media (max-width: 720px) {
@@ -14365,6 +14601,107 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
     padding-right: 0;
     padding-bottom: 22px;
     border-right: 0;
-    border-bottom: 1px solid rgba(245, 240, 232, 0.08);
+    border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
   }
+}
+
+/* ── Lucide page icons (2026-06) ──────────────────────────────────────
+   Inline Lucide SVGs that replaced the legacy emoji/ascii glyphs in
+   page content (constellation tabs, profile theme/edit, search, swarm,
+   atlas-offline actions, identity issuer). Same set as the side-panel
+   rail. Each SVG carries no width/height attribute and inherits color
+   via currentColor, so it's sized + tinted here to match the text it
+   stood in. The original spans' opacity/color rules still apply. */
+/* .alch-const-mode-btn is a flex row with align-items:baseline (fine for
+   the old text glyph). An inline-flex SVG baselines from its bottom edge,
+   so center just the glyph item against the label. */
+.acm-glyph { display: inline-flex; align-items: center; align-self: center; }
+.acm-glyph svg { width: 15px; height: 15px; display: block; }
+
+/* .ac-layout-btn is plain inline (not flex) — middle-align the glyph to the text. */
+.acl-glyph { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 5px; }
+.acl-glyph svg { width: 13px; height: 13px; display: block; }
+
+.alch-theme-toggle-icon { display: inline-flex; align-items: center; }
+.alch-theme-toggle-icon svg { width: 14px; height: 14px; display: block; }
+
+.alch-edit-glyph { display: inline-flex; align-items: center; }
+.alch-edit-glyph svg { width: 13px; height: 13px; display: block; }
+
+.atlas-search-toggle .ast-glyph { display: inline-flex; align-items: center; }
+.atlas-search-toggle .ast-glyph svg { width: 14px; height: 14px; display: block; }
+
+.search-input-glyph { display: inline-flex; align-items: center; }
+.search-input-glyph svg { width: 18px; height: 18px; display: block; }
+
+.swarm-mark-glyph { display: inline-flex; align-items: center; }
+.swarm-mark-glyph svg { width: 14px; height: 14px; display: block; }
+
+.swarm-icon-btn svg { width: 15px; height: 15px; display: block; }
+
+.ao-btn-glyph { display: inline-flex; align-items: center; }
+.ao-btn-glyph svg { width: 14px; height: 14px; display: block; }
+
+.enroll-issuer, .crewid-issuer { display: inline-flex; align-items: center; gap: 6px; }
+.issuer-glyph { width: 13px; height: 13px; display: block; }
+
+/* asks · verb icons — emoji in the stored `verb` value is mapped to a
+   Lucide icon at display time (askVerbIconSvg). The verb hue (--verb-color)
+   colors the *container* (card circle + pill); the icon renders white on
+   top for high contrast. Card badge is a 26px circle; pills are icon+label
+   rows. Colors are deep/saturated so white stays legible. */
+.alch-asks-verb-svg { width: 14px; height: 14px; display: block; color: #fff; }
+.alch-asks-verb-pill { display: inline-flex; align-items: center; gap: 6px; }
+.alch-asks-verb-pill-icon { display: inline-flex; align-items: center; }
+.alch-asks-verb-pill-icon svg { width: 13px; height: 13px; display: block; }
+
+/* Card circle — solid verb color, white icon. */
+.alch-asks-verb.has-verb-color {
+  background: var(--verb-color);
+  border-color: var(--verb-color);
+  opacity: 1;
+}
+/* Pill — verb color fill, white label + icon. Unselected slightly muted so
+   the chosen (aria-pressed) pill reads as active via a white ring. */
+.alch-asks-verb-pill.has-verb-color {
+  background: var(--verb-color);
+  border-color: var(--verb-color);
+  color: #fff;
+  opacity: 0.68;
+}
+.alch-asks-verb-pill.has-verb-color .alch-asks-verb-pill-label { color: #fff; }
+.alch-asks-verb-pill.has-verb-color:hover,
+.alch-asks-verb-pill.has-verb-color:focus-visible {
+  border-color: var(--verb-color);
+  opacity: 0.9;
+}
+.alch-asks-verb-pill.has-verb-color[aria-pressed="true"] {
+  background: var(--verb-color);
+  border-color: #fff;
+  color: #fff;
+  opacity: 1;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+/* Light mode: soft pastel fill + black icon/label (pastels are too light
+   for a white icon). Uses the --verb-color-light var emitted alongside the
+   dark one. Selection ring flips to dark so it shows on the pastel. */
+html[data-theme="light"] .alch-asks-verb-svg { color: #161616; }
+html[data-theme="light"] .alch-asks-verb.has-verb-color {
+  background: var(--verb-color-light);
+  border-color: var(--verb-color-light);
+}
+html[data-theme="light"] .alch-asks-verb-pill.has-verb-color {
+  background: var(--verb-color-light);
+  border-color: var(--verb-color-light);
+  color: #161616;
+  opacity: 0.85;
+}
+html[data-theme="light"] .alch-asks-verb-pill.has-verb-color .alch-asks-verb-pill-label { color: #161616; }
+html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"] {
+  background: var(--verb-color-light);
+  border-color: #161616;
+  color: #161616;
+  opacity: 1;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
 }

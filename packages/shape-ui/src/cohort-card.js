@@ -58,13 +58,6 @@ export function teamCardHtml(t, idx, ctx = {}) {
   ].filter(Boolean).join(" ");
   const m = Number(t.members_count) || 0;
   const kind = teamKind(t);
-  // Short, lowercase label shown in the tag row so the cohort/visiting bucket
-  // is legible without relying on the (subtle) card tint alone.
-  const MEMBERSHIP_LABELS = {
-    cohort: "cohort",
-    visiting: "visiting",
-  };
-  const membershipLabel = MEMBERSHIP_LABELS[membership] || membership;
   // People whose primary `team` or `secondary_teams` includes this record.
   const allPeople = Array.isArray(ctx.people) ? ctx.people : [];
   const teamPeople = allPeople.filter(p =>
@@ -80,20 +73,9 @@ export function teamCardHtml(t, idx, ctx = {}) {
     : "";
   return `
     <article class="${cardCls}" data-record-id="${escHtml(t.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(t.name)} — open detail">
-      <div class="alch-card-tag">
-        <span class="ct-id">SHAPE-${displayId(idx)}</span>
-        <span class="ct-sep">·</span>
-        <span class="ct-kind ct-kind-${escHtml(kind)}">${escHtml(kind)}</span>
-        <span class="ct-sep">·</span>
-        <span class="ct-membership ct-membership-${escAttr(membership)}">${escHtml(membershipLabel)}</span>
-        <span class="ct-sep">·</span>
-        <span>${escHtml(s ? s.name : domainLabel(t.domain))}</span>
-        <span class="ct-sep">·</span>
-        <span>${escHtml(domainLabel(t.domain))}</span>
-        ${t.is_mentor ? `<span class="ct-sep">·</span><span>mentor</span>` : ""}
-      </div>
-      <div class="alch-card-shape"><canvas data-shape-fam="${s ? s.fam : 0}" data-shape-kind="${escAttr(kind)}" data-shape-seed="${escAttr(t.record_id)}"></canvas></div>
+      <div class="alch-card-shape"><canvas data-shape-fam="${s ? s.fam : 0}" data-shape-kind="${escAttr(kind)}" data-shape-scale="1.1" data-shape-seed="${escAttr(t.record_id)}"></canvas></div>
       <div class="alch-card-name">${escHtml(t.name)}</div>
+      <div class="alch-card-domain">${escHtml(domainLabel(t.domain))}</div>
       <div class="alch-card-rule"></div>
       <div class="alch-card-meta">
         <div class="alch-card-meta-row"><span class="cm-k">focus</span><span class="cm-v">${escHtml(t.focus)}</span></div>
@@ -139,7 +121,7 @@ export function personCardHtml(p, idx) {
         <span class="ct-sep">·</span>
         <span>${escHtml(domainLabel(p.domain))}</span>
       </div>
-      <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-seed="${escAttr(p.record_id)}"></canvas></div>
+      <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.1" data-shape-seed="${escAttr(p.record_id)}"></canvas></div>
       <div class="alch-card-name">${escHtml(p.name)}</div>
       <div class="alch-card-rule"></div>
       <div class="alch-card-meta">

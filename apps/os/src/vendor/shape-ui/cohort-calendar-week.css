@@ -265,7 +265,7 @@
   border-radius: 999px;
   overflow: hidden;
   flex: 0 0 auto;
-  background: rgba(245, 243, 238, 0.02);
+  background: rgba(var(--ink-rgb), 0.02);
 }
 .cal-dateline-nav .cdn-btn {
   appearance: none; background: transparent; border: 0;
@@ -748,7 +748,7 @@
 .cal-day-pill:hover { opacity: 0.9; }
 .cal-day-pill[aria-selected="true"] {
   opacity: 1;
-  background: linear-gradient(180deg, rgba(245, 243, 238, 0.025) 0%, rgba(245, 243, 238, 0) 100%);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.025) 0%, rgba(var(--ink-rgb), 0) 100%);
 }
 .cal-day-pill.is-today {
   /* faint warm wash always present on today's pill so users can find it

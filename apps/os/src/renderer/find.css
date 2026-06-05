@@ -1,0 +1,265 @@
+/* ─── find.css — global search overlay (⌘/Ctrl+F) + new-tab launcher ────────
+ *
+ * Loaded after styles.css so it wins the cascade. All selectors are scoped
+ * under .os-find / .os-find-blank so nothing leaks into the rest of the app.
+ */
+
+:root {
+  --find-bg:      var(--ed-bg-0, #100e0b);
+  --find-rule:    var(--ed-rule, rgba(var(--ink-rgb), 0.14));
+  --find-ink:     rgba(var(--ink-rgb), 0.92);
+  --find-ink-dim: rgba(var(--ink-rgb), 0.50);
+  --find-accent:  var(--sr-red, #b43a19);
+  --find-mono:    var(--sr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+}
+
+/* ─── drop-down overlay (top-right) ───────────────────────────────────────── */
+.os-find {
+  position: fixed;
+  /* Flush under the tab strip: top edge == bottom of #content-top
+     (#tab-bar height + #content-top height). */
+  top: calc(var(--tab-bar-h) + var(--content-top-h));
+  right: 12px;
+  z-index: 10000;
+  width: 266px;                 /* 0.7× the previous 380px */
+  max-width: calc(100vw - 24px);
+  display: flex;
+  flex-direction: column;
+  background: var(--find-bg);
+  border: 1px solid var(--find-rule);
+  border-radius: 0;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  /* hidden state: tucked up under the tab strip */
+  transform: translateY(-12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1), opacity 140ms ease;
+}
+.os-find[data-open="true"] {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.os-find-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--find-rule);
+}
+.os-find-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--find-ink-dim);
+}
+.os-find-icon svg { width: 15px; height: 15px; display: block; }
+
+.os-find-input,
+.os-find-blank-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  color: var(--find-ink);
+  font-family: var(--find-mono);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+.os-find-input::placeholder,
+.os-find-blank-input::placeholder { color: var(--find-ink-dim); }
+/* Kill the global keyboard focus ring on our inputs — the bar itself is the
+   focus affordance, and we never want the accent/red ring here. */
+.os-find-input:focus,
+.os-find-input:focus-visible,
+.os-find-blank-input:focus,
+.os-find-blank-input:focus-visible { outline: none; box-shadow: none; }
+
+.os-find-counter {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--find-ink-dim);
+  font-family: var(--find-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.os-find-counter:hover { color: var(--find-ink); }
+.os-find-counter.zero { color: var(--find-accent); }
+
+/* prev / next match cycle buttons (page scope) */
+.os-find-prev,
+.os-find-next {
+  flex: 0 0 auto;
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: transparent;
+  color: var(--find-ink-dim);
+  font-size: 15px; line-height: 1; cursor: pointer;
+}
+.os-find-prev:hover,
+.os-find-next:hover { color: var(--find-ink); }
+
+/* scope toggle — a compact two-segment switch */
+.os-find-scope {
+  display: flex;
+  gap: 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--find-rule);
+}
+.os-find-scope-btn {
+  flex: 0 0 auto;
+  border: 1px solid var(--find-rule);
+  background: transparent;
+  color: var(--find-ink-dim);
+  font-family: var(--find-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  padding: 4px 12px;
+  border-radius: 0;
+  cursor: pointer;
+}
+.os-find-scope-btn + .os-find-scope-btn { border-left: 0; }
+.os-find-scope-btn:hover { color: var(--find-ink); }
+.os-find-scope-btn[aria-selected="true"] {
+  color: var(--find-ink);
+  background: rgba(var(--ink-rgb), 0.08);
+}
+
+/* In page scope there are no list results; hide the panel. */
+.os-find[data-scope="page"] .os-find-results { display: none; }
+/* In global scope the match cycle controls are meaningless. */
+.os-find[data-scope="global"] .os-find-counter,
+.os-find[data-scope="global"] .os-find-prev,
+.os-find[data-scope="global"] .os-find-next { display: none; }
+
+/* ─── results list (shared) ───────────────────────────────────────────────── */
+.os-find-results,
+.os-find-blank-results {
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+  padding: 5px;
+}
+.os-find-empty {
+  margin: 0;
+  padding: 14px 10px;
+  text-align: center;
+  font-family: var(--find-mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--find-ink-dim);
+}
+.os-find-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+}
+.os-find-result.is-active { background: rgba(var(--ink-rgb), 0.07); }
+.ofr-type {
+  flex: 0 0 auto;
+  width: 58px;
+  font-family: var(--find-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--find-ink-dim);
+}
+.ofr-type[data-type="project"] { color: #E6B97A; }
+.ofr-type[data-type="team"]    { color: var(--find-accent); }
+.ofr-type[data-type="person"]  { color: #8FEAF2; }
+.ofr-type[data-type="page"],
+.ofr-type[data-type="section"] { color: #C28BFF; }
+.ofr-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ofr-title {
+  font-family: var(--find-mono);
+  font-size: 12.5px;
+  color: var(--find-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ofr-sub {
+  font-family: var(--find-mono);
+  font-size: 10.5px;
+  color: var(--find-ink-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ─── find-in-page highlight ──────────────────────────────────────────────── */
+mark.os-find-hl {
+  background: rgba(230, 185, 122, 0.32);
+  color: inherit;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(230, 185, 122, 0.45);
+}
+mark.os-find-hl.is-current {
+  background: var(--find-accent);
+  color: var(--ink-hi);
+  box-shadow: 0 0 0 2px rgba(180, 58, 25, 0.6);
+}
+
+/* ─── new-tab launcher ────────────────────────────────────────────────────── */
+.os-find-blank {
+  width: min(560px, 86%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.os-find-blank-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: rgba(var(--ink-rgb), 0.03);
+  border: 1px solid var(--find-rule);
+  border-radius: 7px;
+}
+.os-find-blank-bar:focus-within {
+  border-color: rgba(var(--ink-rgb), 0.28);
+  background: rgba(var(--ink-rgb), 0.05);
+}
+.os-find-blank-bar .os-find-input,
+.os-find-blank-input { font-size: 15px; }
+.os-find-blank-bar .os-find-icon svg { width: 17px; height: 17px; }
+.os-find-blank-results {
+  background: var(--find-bg);
+  border: 1px solid var(--find-rule);
+  border-radius: 7px;
+  max-height: min(46vh, 380px);
+}
+/* Don't show the empty-state placeholder card on a fresh blank tab. */
+.os-find-blank-results:not(:has(.os-find-result)) { display: none; }
+
+/* Anchor the launcher a little above centre and let results grow downward.
+   Top-anchoring keeps the search bar fixed in place whether or not there are
+   results below it. */
+body[data-blank] .blank-tab {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  padding-top: 20vh;
+}
+
+/* A blank (new) tab must be truly empty. The cohort shape renderer mounts a
+   single body-level <canvas.alch-shape-overlay> at position:fixed / z-index:5
+   — the same layer as the blank-tab overlay — so it paints the animated
+   shapes on top of the empty tab. It only self-hides on non-alchemy tabs
+   (.alchemy-only), but a blank tab keeps data-active-tab="alchemy", so hide
+   it explicitly here. */
+body[data-blank] .alch-shape-overlay { display: none !important; }

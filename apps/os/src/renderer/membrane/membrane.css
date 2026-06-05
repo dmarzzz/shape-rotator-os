@@ -22,7 +22,7 @@
   /* Card is translucent so atmosphere reads through — not a black slab. */
   --membrane-card-bg: rgba(22, 20, 25, 0.52);
   --membrane-card-top: rgba(36, 30, 36, 0.62);
-  --membrane-rule: rgba(241, 236, 231, 0.08);
+  --membrane-rule: rgba(var(--ink-rgb), 0.08);
 }
 
 .membrane-host {
@@ -246,14 +246,14 @@
   min-height: 0;
   padding: 40px 44px 28px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(241, 236, 231, 0.10) transparent;
+  scrollbar-color: rgba(var(--ink-rgb), 0.10) transparent;
 }
 
 .membrane-panel-content::-webkit-scrollbar {
   width: 6px;
 }
 .membrane-panel-content::-webkit-scrollbar-thumb {
-  background: rgba(241, 236, 231, 0.10);
+  background: rgba(var(--ink-rgb), 0.10);
   border-radius: 3px;
 }
 
@@ -473,7 +473,7 @@
 }
 
 .membrane-event-row:hover {
-  background: rgba(241, 236, 231, 0.02);
+  background: rgba(var(--ink-rgb), 0.02);
 }
 
 .membrane-event-date {
@@ -1113,7 +1113,7 @@
     linear-gradient(180deg, rgba(8, 8, 10, 0.90) 0%, rgba(0, 0, 0, 0.76) 100%);
   border-right: 1px solid rgba(255, 122, 61, 0.18);
   box-shadow:
-    inset -1px 0 0 rgba(241, 236, 231, 0.04),
+    inset -1px 0 0 rgba(var(--ink-rgb), 0.04),
     22px 0 70px -22px rgba(255, 122, 61, 0.42),
     36px 0 90px -30px rgba(0, 0, 0, 0.90);
   backdrop-filter: blur(16px) saturate(1.15);
@@ -1135,7 +1135,7 @@
   right: clamp(330px, 31vw, 480px);
 }
 .alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail-btn {
-  color: rgba(241, 236, 231, 0.58);
+  color: rgba(var(--ink-rgb), 0.58);
 }
 .alchemy-view[data-alch-mode-current="membrane"] .alchemy-rail-btn[aria-selected="true"] {
   color: var(--membrane-mist);
@@ -1338,7 +1338,7 @@
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 10px; letter-spacing: 0.08em; text-transform: lowercase; cursor: pointer;
   padding: 7px 13px; border-radius: 6px;
-  color: var(--membrane-mist); background: rgba(241,236,231,0.04);
+  color: var(--membrane-mist); background: rgba(var(--ink-rgb),0.04);
   border: 1px solid rgba(255,122,61,0.3);
   transition: background 160ms ease, border-color 160ms ease;
 }
@@ -1444,7 +1444,9 @@
 /* the strike CTA reuses .crewid-claim; just center its text block */
 .seal-strike { justify-content: center; text-align: center; }
 .seal-strike .cc-text { align-items: center; }
-.seal-strike .cc-glyph { animation: seal-glyph-spin 14s linear infinite; }
+/* stamp icon replaces the old ◇ diamond — a stamp has a fixed orientation,
+   so the 360° spin is dropped (it read as broken). Button keeps its pulse. */
+.seal-strike .cc-glyph { animation: none; }
 @keyframes seal-glyph-spin { to { transform: rotate(360deg); } }
 
 /* ─── THE FIELD — folded full-bleed world ────────────────────────────── */
@@ -1482,3 +1484,21 @@
   transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 .membrane-enter-field:hover { color: var(--membrane-ember); border-color: var(--membrane-ember); background: rgba(255,122,61,0.08); }
+
+/* ── membrane · Lucide icon sizing (2026-06) ─────────────────────────
+   The membrane panels were on emoji/ascii glyphs; they now use the same
+   inline Lucide set as the rest of the app. The membrane stays dark in
+   every theme, so verb icons stay white even when the app is in light
+   mode (a black icon would vanish on the deep verb color). */
+.membrane-ask-verb .alch-asks-verb-svg { width: 12px; height: 12px; }
+.membrane-ask-verb.has-verb-color {
+  background: var(--verb-color);
+  border-color: var(--verb-color);
+  opacity: 1;
+}
+html[data-theme="light"] .membrane-ask-verb .alch-asks-verb-svg { color: #fff; }
+
+.crewid-claim .cc-glyph svg { width: 22px; height: 22px; display: block; }
+.mst-glyph svg { width: 14px; height: 14px; display: block; }
+.mef-glyph { display: inline-flex; align-items: center; }
+.mef-glyph svg { width: 13px; height: 13px; display: block; }
