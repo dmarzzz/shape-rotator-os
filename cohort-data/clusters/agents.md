@@ -5,8 +5,8 @@ schema_version: 1
 
 name: agents
 label: agent runtime
-teams: [jjhub, contexto, bitrouter, conclave]
-description: Agent runtime stack — JJHub harness, Contexto context engine, Bitrouter routing, Conclave skills runtime. Composable; workshop candidate.
+teams: [jjhub, contexto, bitrouter, conclave, elizaos]
+description: Agent runtime stack — JJHub harness, Contexto context engine, Bitrouter routing, Conclave skills runtime, and elizaOS runtime/plugin substrate. Composable; workshop candidate.
 ---
 
 ## about

@@ -3,7 +3,7 @@
  * build-bundles.js — markdown source of truth → cohort surface JSON.
  *
  * Phase 1 implementation per docs/SHAPE-ROTATOR-OS-SPEC.md §4.4 §6:
- * reads cohort-data/{teams,people,clusters}/*.md, applies the surface-
+ * reads cohort-data/{teams,people,clusters,dependencies}/*.md, applies the surface-
  * fields whitelist from cohort-data/schema.yml, writes
  * apps/os/src/cohort-surface.json. The depth side (encrypted
  * raw markdown bytes per §3.1) lands once swf-node bundle handling is
@@ -120,6 +120,18 @@ function loadProgramDir(dir, surfaceFields) {
   return records;
 }
 
+function loadJsonArray(file, label) {
+  if (!fs.existsSync(file)) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (Array.isArray(parsed)) return parsed;
+    console.warn(`[build-bundles] ${label} should be an array; got ${typeof parsed}`);
+  } catch (e) {
+    console.warn(`[build-bundles] ${label} present but unreadable: ${e.message}`);
+  }
+  return [];
+}
+
 function build() {
   const schema = readSchema();
   if (!schema || schema.schema_version !== 1) {
@@ -129,9 +141,10 @@ function build() {
   const teams    = loadDir(path.join(COHORT_DIR, "teams"),    "team",    schema.teams?.surface_fields    || []);
   const people   = loadDir(path.join(COHORT_DIR, "people"),   "person",  schema.people?.surface_fields   || []);
   const clusters = loadDir(path.join(COHORT_DIR, "clusters"), "cluster", schema.clusters?.surface_fields || []);
-  const program  = loadProgramDir(path.join(COHORT_DIR, "program"),      schema.program?.surface_fields  || []);
-  const events   = loadDir(path.join(COHORT_DIR, "events"),   "event",   schema.events?.surface_fields   || []);
-  const asks     = loadDir(path.join(COHORT_DIR, "asks"),     "ask",     schema.asks?.surface_fields     || []);
+  const dependencies = loadDir(path.join(COHORT_DIR, "dependencies"), "dependency", schema.dependencies?.surface_fields || []);
+  const program      = loadProgramDir(path.join(COHORT_DIR, "program"),      schema.program?.surface_fields  || []);
+  const events       = loadDir(path.join(COHORT_DIR, "events"),   "event",   schema.events?.surface_fields   || []);
+  const asks         = loadDir(path.join(COHORT_DIR, "asks"),     "ask",     schema.asks?.surface_fields     || []);
 
   // Calendar snapshot. cohort-data/calendar.json is the bot-managed mirror
   // of the live Phala upstream (see scripts/sync-calendar.js + the
@@ -146,6 +159,11 @@ function build() {
     catch (e) { console.warn(`[build-bundles] calendar.json present but unreadable: ${e.message}`); }
   }
 
+  // Public transcript-derived context for constellation inspectors. These cues
+  // do not create graph edges; they are source snippets shown after a selected
+  // team/line/ecosystem so the renderer does not own transcript facts as code.
+  const constellation_cues = loadJsonArray(path.join(COHORT_DIR, "constellation-cues.json"), "constellation-cues.json");
+
   // Cohort-wide controlled vocab + UI configuration the renderer needs at
   // boot. Shipped alongside records so the atlas / constellation / asks UIs
   // have a stable filter set even when offline.
@@ -158,11 +176,13 @@ function build() {
     teams,
     people,
     clusters,
+    dependencies,
     program,
     events,
     asks,
     calendar,
     cohort_vocab,
+    constellation_cues,
   };
   return out;
 }
@@ -202,7 +222,7 @@ function main() {
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
   fs.writeFileSync(OUT_PATH, json);
   const calTabs = built.calendar?.tabs ? Object.keys(built.calendar.tabs).length : 0;
-  console.log(`[build-bundles] wrote ${OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
+  console.log(`[build-bundles] wrote ${OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.dependencies.length} dependencies, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.constellation_cues.length} constellation cues, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
 }
 
 main();

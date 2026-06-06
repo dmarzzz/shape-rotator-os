@@ -5,8 +5,8 @@ schema_version: 1
 
 name: regulated
 label: healthcare / regulated
-teams: [prova, abra, signalstack]
-description: Compliance-driven enterprise as a shared GTM target buyer — Prova EHR pilot, Abra SOC2/SOX, SignalStack privacy NGOs/journalists.
+teams: [prova, abra, signalstack, enclave]
+description: Compliance-driven enterprise as a shared GTM target buyer — Prova EHR pilot, Abra SOC2/SOX, SignalStack privacy NGOs/journalists, and Enclave medical data sharing.
 ---
 
 ## about

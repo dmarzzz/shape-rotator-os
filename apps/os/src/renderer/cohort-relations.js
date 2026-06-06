@@ -65,21 +65,156 @@ export function buildCohortIndex(cohort = {}) {
   };
 }
 
-export function constellationIndegree(teams = []) {
+const DEP_RELATION_LABELS = {
+  depends_on: "depends on",
+  unblocks: "unblocks",
+  pairs_with: "pairs with",
+  shares_substrate: "shared substrate",
+  complements: "complements",
+  declared: "declared link",
+};
+const DEP_STATUS_LABELS = {
+  declared: "declared",
+  exploring: "exploring",
+  active: "active",
+  blocked: "blocked",
+  resolved: "resolved",
+  legacy: "profile-declared",
+  unknown: "unknown",
+};
+const DEP_CONFIDENCE_LABELS = {
+  low: "candidate signal",
+  medium: "source-backed",
+  high: "verified signal",
+  unknown: "ungraded signal",
+};
+
+function relationText(value) {
+  if (value == null) return "";
+  if (Array.isArray(value)) return value.map(relationText).filter(Boolean).join(" · ");
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? "" : value.toISOString().slice(0, 10);
+  if (typeof value === "object") return "";
+  return String(value).replace(/\s+/g, " ").trim();
+}
+
+function relationList(value) {
+  if (Array.isArray(value)) return value.map(relationText).filter(Boolean);
+  const text = relationText(value);
+  if (!text) return [];
+  return text.split(/\s*[,;]\s*|\n+/).map(item => item.trim()).filter(Boolean);
+}
+
+function relationDateText(value) {
+  const text = relationText(value);
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(text);
+  return match ? match[1] : text;
+}
+
+export function dependencySafeToken(value) {
+  return String(value || "unknown").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "unknown";
+}
+
+export function dependencyPairKey(from, to) {
+  return `${String(from || "").trim()}>${String(to || "").trim()}`;
+}
+
+function depLabel(map, key, fallback = "unknown") {
+  const normalized = dependencySafeToken(key).replace(/-/g, "_");
+  return map[normalized] || String(key || fallback).replace(/_/g, " ");
+}
+
+function normalizeDependencyRecord(record, have) {
+  if (!record || record.record_type !== "dependency") return null;
+  const from = relationText(record.source);
+  const to = relationText(record.target);
+  if (!from || !to || from === to || !have.has(from) || !have.has(to)) return null;
+  const relation = dependencySafeToken(record.relation || "declared").replace(/-/g, "_");
+  const status = dependencySafeToken(record.status || "declared").replace(/-/g, "_");
+  const confidence = dependencySafeToken(record.confidence || "unknown").replace(/-/g, "_");
+  return {
+    id: record.record_id || dependencyPairKey(from, to),
+    record_id: record.record_id || "",
+    from,
+    to,
+    normalized: true,
+    source_kind: "dependency_record",
+    relation,
+    relation_label: depLabel(DEP_RELATION_LABELS, relation, "declared link"),
+    status,
+    status_label: depLabel(DEP_STATUS_LABELS, status, "declared"),
+    confidence,
+    confidence_label: depLabel(DEP_CONFIDENCE_LABELS, confidence, "ungraded signal"),
+    reason: relationText(record.reason),
+    evidence: relationList(record.evidence),
+    next_action: relationText(record.next_action),
+    owner: relationText(record.owner),
+    updated_at: relationDateText(record.updated_at),
+  };
+}
+
+function legacyDependencyEdge(team, dependencyId) {
+  const from = team.record_id;
+  const to = String(dependencyId || "").trim();
+  return {
+    id: `legacy:${dependencyPairKey(from, to)}`,
+    record_id: "",
+    from,
+    to,
+    normalized: false,
+    source_kind: "team_dependencies",
+    relation: "declared",
+    relation_label: "declared link",
+    status: "legacy",
+    status_label: "profile-declared",
+    confidence: "unknown",
+    confidence_label: "ungraded signal",
+    reason: "",
+    evidence: [],
+    next_action: "",
+    owner: "",
+    updated_at: "",
+  };
+}
+
+export function constellationDependencyEdges(teams = [], byRecordId, dependencyRecords = []) {
   const list = Array.isArray(teams) ? teams : [];
-  const have = new Set(list.map(t => t.record_id));
-  const ind = new Map(list.map(t => [t.record_id, 0]));
+  const have = byRecordId || new Map(list.filter(team => team?.record_id).map(team => [team.record_id, team]));
+  const edges = [];
+  const seen = new Set();
+  for (const record of (Array.isArray(dependencyRecords) ? dependencyRecords : [])) {
+    const edge = normalizeDependencyRecord(record, have);
+    if (!edge) continue;
+    const key = dependencyPairKey(edge.from, edge.to);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    edges.push(edge);
+  }
   for (const team of list) {
-    for (const dep of (Array.isArray(team.dependencies) ? team.dependencies : [])) {
-      if (dep !== team.record_id && have.has(dep)) ind.set(dep, ind.get(dep) + 1);
+    for (const dependencyId of (Array.isArray(team?.dependencies) ? team.dependencies : [])) {
+      if (!have.has(dependencyId) || dependencyId === team.record_id) continue;
+      const key = dependencyPairKey(team.record_id, dependencyId);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      edges.push(legacyDependencyEdge(team, dependencyId));
     }
+  }
+  return edges;
+}
+
+export function constellationIndegree(teams = [], dependencyRecords = []) {
+  const list = Array.isArray(teams) ? teams : [];
+  const have = new Map(list.map(t => [t.record_id, t]));
+  const ind = new Map(list.map(t => [t.record_id, 0]));
+  for (const edge of constellationDependencyEdges(list, have, dependencyRecords)) {
+    if (edge.to !== edge.from && have.has(edge.to)) ind.set(edge.to, (ind.get(edge.to) || 0) + 1);
   }
   return ind;
 }
 
-export function constellationModel(teams = [], clusters = []) {
+export function constellationModel(teams = [], clusters = [], dependencyRecords = []) {
   const list = Array.isArray(teams) ? teams : [];
   const byRecordId = new Map(list.map(team => [team.record_id, team]));
+  const edges = constellationDependencyEdges(list, byRecordId, dependencyRecords);
   const primary = new Map();
   const wellsDef = [];
   for (const cluster of (Array.isArray(clusters) ? clusters : [])) {
@@ -93,8 +228,8 @@ export function constellationModel(teams = [], clusters = []) {
     });
   }
   const orphans = list.filter(team => !primary.has(team.record_id)).map(team => team.record_id);
-  if (orphans.length) wellsDef.push({ id: "_other", label: "other", members: orphans });
-  return { byRecordId, wellsDef, indegree: constellationIndegree(list) };
+  if (orphans.length) wellsDef.push({ id: "_other", label: "unclustered", members: orphans });
+  return { byRecordId, wellsDef, edges, indegree: constellationIndegree(list, dependencyRecords) };
 }
 
 const COLLAB_STOP = new Set(("a an and the to of for with in on at or be is are am was were we our us you your yours i me my mine they them their it its this that these those as by from into about over under more most less few many much can could should would will may might want wants wanted need needs needed looking look able build building built make making made get gets help helps using use used via across other others team teams project projects cohort people person folks who whom what when where why how do does done also like just very real new use").split(/\s+/));
@@ -120,8 +255,8 @@ export function collabAffKey(a, b) {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
-export function buildCollabModel(teams = [], clusters = []) {
-  const base = constellationModel(teams, clusters);
+export function buildCollabModel(teams = [], clusters = [], dependencyRecords = []) {
+  const base = constellationModel(teams, clusters, dependencyRecords);
   const ordered = [];
   for (const well of base.wellsDef) {
     const members = well.members.slice().sort((a, b) => (base.indegree.get(b) || 0) - (base.indegree.get(a) || 0));
@@ -143,12 +278,8 @@ export function buildCollabModel(teams = [], clusters = []) {
     offerSet.set(rid, offers);
   }
 
-  const deps = new Set();
-  for (const { rid, team } of ordered) {
-    for (const dep of (team.dependencies || [])) {
-      if (base.byRecordId.has(dep) && dep !== rid) deps.add(`${rid}>${dep}`);
-    }
-  }
+  const depByPair = new Map(base.edges.map(edge => [dependencyPairKey(edge.from, edge.to), edge]));
+  const deps = new Set(depByPair.keys());
 
   const seekOffer = [];
   const soByPair = new Map();
@@ -203,7 +334,7 @@ export function buildCollabModel(teams = [], clusters = []) {
     .map(([skill, names]) => ({ skill, teams: names, count: names.length }))
     .sort((a, b) => b.count - a.count || a.skill.localeCompare(b.skill));
 
-  return { ordered, deps, seekOffer, soByPair, aff, convergence, indegree: base.indegree };
+  return { ordered, deps, depByPair, seekOffer, soByPair, aff, convergence, indegree: base.indegree };
 }
 
 export function aggregateSkillAreas(cohort = {}) {

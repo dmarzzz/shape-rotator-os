@@ -55,6 +55,7 @@ const RECORD_DIRS = [
   { prefix: "cohort-data/teams/",    record_type: "team",    list_key: "teams" },
   { prefix: "cohort-data/people/",   record_type: "person",  list_key: "people" },
   { prefix: "cohort-data/clusters/", record_type: "cluster", list_key: "clusters" },
+  { prefix: "cohort-data/dependencies/", record_type: "dependency", list_key: "dependencies" },
   { prefix: "cohort-data/events/",   record_type: "event",   list_key: "events" },
   { prefix: "cohort-data/asks/",     record_type: "ask",     list_key: "asks" },
 ];
@@ -124,11 +125,13 @@ function _writeSurfaceLs(surface) {
       teams: surface.teams || [],
       people: surface.people || [],
       clusters: surface.clusters || [],
+      dependencies: surface.dependencies || [],
       program: surface.program || [],
       events: surface.events || [],
       asks: surface.asks || [],
       cohort_vocab: surface.cohort_vocab || {},
       calendar: surface.calendar || null,
+      constellation_cues: surface.constellation_cues || [],
     };
     localStorage.setItem(SURFACE_LS_KEY, JSON.stringify(payload));
   } catch {
@@ -137,18 +140,39 @@ function _writeSurfaceLs(surface) {
 }
 
 function emptyShape() {
-  return { teams: [], people: [], clusters: [], program: [], events: [], asks: [], cohort_vocab: {}, calendar: null };
+  return { teams: [], people: [], clusters: [], dependencies: [], program: [], events: [], asks: [], cohort_vocab: {}, calendar: null, constellation_cues: [] };
+}
+
+// Drop records that repeat a record_id (keeps the first), so a duplicate in
+// the source data can't desync the views — e.g. the map keys by record_id and
+// would render N-1 nodes while a raw-array view rendered N, and provenance
+// lists would double-count. Warns loudly so the data bug stays visible.
+function dedupById(list, kind) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  const dups = [];
+  for (const rec of list) {
+    const id = rec && rec.record_id;
+    if (id && seen.has(id)) { dups.push(id); continue; }
+    if (id) seen.add(id);
+    out.push(rec);
+  }
+  if (dups.length) console.warn(`[cohort] dropped ${dups.length} duplicate ${kind} record_id(s): ${dups.join(", ")}`);
+  return out;
 }
 
 function normalize(data) {
   return {
-    teams:        Array.isArray(data?.teams)    ? data.teams    : [],
-    people:       Array.isArray(data?.people)   ? data.people   : [],
-    clusters:     Array.isArray(data?.clusters) ? data.clusters : [],
+    teams:        dedupById(data?.teams, "team"),
+    people:       dedupById(data?.people, "person"),
+    clusters:     dedupById(data?.clusters, "cluster"),
+    dependencies: dedupById(data?.dependencies, "dependency"),
     program:      Array.isArray(data?.program)  ? data.program  : [],
     events:       Array.isArray(data?.events)   ? data.events   : [],
     asks:         Array.isArray(data?.asks)     ? data.asks     : [],
     cohort_vocab: (data?.cohort_vocab && typeof data.cohort_vocab === "object") ? data.cohort_vocab : {},
+    constellation_cues: Array.isArray(data?.constellation_cues) ? data.constellation_cues : [],
     // Pre-baked calendar bundle from the GH `cohort-data/program/calendar.json`
     // path or the fixture's `calendar` field. The renderer's `loadCalendar()`
     // tries the live Phala URL first and falls back to this. Previously this
@@ -243,6 +267,15 @@ async function loadFromGithub() {
     }
   } catch (e) {
     console.warn("[cohort-source] calendar.json fetch/parse failed:", e?.message || e);
+  }
+
+  try {
+    const cueRaw = await fetchRaw("cohort-data/constellation-cues.json");
+    const cues = JSON.parse(cueRaw);
+    out.constellation_cues = Array.isArray(cues) ? cues : [];
+  } catch (e) {
+    console.warn("[cohort-source] constellation-cues.json fetch/parse failed:", e?.message || e);
+    out.constellation_cues = [];
   }
 
   const normalized = normalize(out);
@@ -567,7 +600,13 @@ function signatureOf(grouped) {
   const teamSig = (arr) => arr.map(r =>
     `${r.record_id}:${r.name || ""}:${(r.now || "").length}:${(r.weekly_goals || "").length}`
   ).sort().join("|");
-  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${sig(grouped.clusters)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}`;
+  const depSig = (arr) => arr.map(r =>
+    `${r.record_id}:${r.source || ""}:${r.target || ""}:${r.relation || ""}:${r.status || ""}:${(r.reason || "").length}:${(r.next_action || "").length}`
+  ).sort().join("|");
+  const cueSig = (arr) => arr.map(c =>
+    `${(c?.label || "").length}:${(c?.source || "").length}:${(c?.excerpt || "").length}`
+  ).sort().join("|");
+  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${sig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}`;
 }
 
 // Dev preview override. Setting `localStorage.setItem("srfg:cohort_source", "local")`

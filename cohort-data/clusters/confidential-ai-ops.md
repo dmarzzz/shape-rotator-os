@@ -4,9 +4,9 @@ record_type: cluster
 schema_version: 1
 
 name: confidential-ai-ops
-label: attestable LLM agents inside TEEs
-teams: [prova, dealproof, signalstack, conclave]
-description: Four teams run LLM agents (Claude, Llama, Mistral) inside Intel TDX or dstack TEEs with remote attestation. Prova targets healthcare prior-auth; DealProof targets negotiation; SignalStack targets privacy comms; Conclave targets confidential dataset evaluation. All share the "agent inside enclave" primitive and could benefit from unified attestation/logging infrastructure.
+label: attestable AI inside TEEs
+teams: [prova, dealproof, signalstack, conclave, trustless-tee, tvee-rl]
+description: Teams working on attestable AI or confidential execution workflows. Prova targets healthcare prior-auth; DealProof targets negotiation; SignalStack targets privacy comms; Conclave targets confidential dataset evaluation; Trustless TEE and TvEE RL sit on the trusted-execution and attested workflow side of the same primitive. All could benefit from shared attestation, logging, and enclave-operating patterns.
 ---
 
 ## about
