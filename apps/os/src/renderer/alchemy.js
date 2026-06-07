@@ -4033,14 +4033,16 @@ function contextMiniHash(s) {
 function contextSkillBlock(skillAreas) {
   const skills = (skillAreas || []).map(s => String(s).trim()).filter(Boolean);
   return skills.length
-    ? "skill_areas:\n" + skills.map(s => `  - ${s}`).join("\n")
+    ? "skill_areas:\n" + skills.map(s => `  - ${quoteYaml(s)}`).join("\n")
     : "skill_areas: []";
 }
 
 function contextAuthorSlug() {
+  const people = state.cohort?.people || [];
   const me = state.profile?.user || {};
-  const gh = String(me.github || "").toLowerCase();
-  return me.record_id || (gh ? gh : "your-slug");
+  const askIdentity = { identity: getIdentity(), profileUser: me, people };
+  const myPerson = resolveAskIdentityPerson(askIdentity);
+  return myPerson?.record_id || "your-slug";
 }
 
 function contextSelectedDigest(source) {
@@ -4181,10 +4183,18 @@ function renderContextVaultDetail(selected) {
         <div>
           <span class="alch-cv-eyebrow">reader draft · markdown</span>
         </div>
-        <button class="alch-cv-md-action" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">
-          <span class="alch-cv-md-action-label">copy .md</span>
-          <span class="alch-cv-md-action-file">${escHtml(selectedMdFile)}</span>
-        </button>
+        <div class="alch-cv-detail-actions">
+          <button class="alch-cv-md-action" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">
+            <span class="alch-cv-md-action-label">copy .md</span>
+            <span class="alch-cv-md-action-file">${escHtml(selectedMdFile)}</span>
+          </button>
+          <button class="alch-cv-md-action" type="button" data-cv-promote="ask" data-cv-source-id="${escAttr(selected.id)}" title="open an ask PR for this article">
+            <span class="alch-cv-md-action-label">ask PR</span>
+          </button>
+          <button class="alch-cv-md-action" type="button" data-cv-promote="program" data-cv-source-id="${escAttr(selected.id)}" title="open a program PR for this article">
+            <span class="alch-cv-md-action-label">program PR</span>
+          </button>
+        </div>
       </header>
       ${renderContextReaderHtml(selected)}
       <div class="alch-cv-result" data-cv-result hidden></div>
@@ -4281,6 +4291,9 @@ function flashCopyButton(btn, ok = true) {
 function buildContextAskMarkdown(source) {
   const todayIso = new Date().toISOString().slice(0, 10);
   const author = contextAuthorSlug();
+  if (author === "your-slug") {
+    return { error: "claim your cohort profile before promoting this article as an ask." };
+  }
   const title = contextArticleTitle(source);
   const topic = `Draft Shape Rotator article: ${title}`;
   const recordId = `${author}-${todayIso}-context-${contextMiniHash(source.id + topic)}`;
@@ -4291,7 +4304,7 @@ record_id: ${recordId}
 record_type: ask
 schema_version: 1
 posted_at: ${todayIso}
-author: ${author}
+author: ${quoteYaml(author)}
 verb: "🔬 brain on"
 topic: ${yamlScalar(topic, 2)}
 ${contextSkillBlock(source.skill_areas)}
@@ -4487,6 +4500,13 @@ function wireContextVaultDetailActions(root = state.canvas) {
       const draft = btn.dataset.cvPromote === "program"
         ? buildContextProgramMarkdown(source)
         : buildContextAskMarkdown(source);
+      if (draft.error) {
+        if (result) {
+          result.hidden = false;
+          result.innerHTML = `<p class="alch-onb-inline-line alch-onb-inline-err">${escHtml(draft.error)}</p>`;
+        }
+        return;
+      }
       const launched = await launchPRFlow({ kind: "new", path: draft.path, value: draft.markdown });
       if (result) {
         result.hidden = false;
