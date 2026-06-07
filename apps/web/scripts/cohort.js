@@ -27,7 +27,12 @@ const state = {
 // browser back button works without extra wiring. Format: #<record_id>.
 function parseDetailHash() {
   const h = (typeof location !== "undefined" ? location.hash : "") || "";
-  return h.startsWith("#") ? decodeURIComponent(h.slice(1)) || null : null;
+  if (!h.startsWith("#")) return null;
+  try {
+    return decodeURIComponent(h.slice(1)) || null;
+  } catch {
+    return null;
+  }
 }
 
 (async function init() {
