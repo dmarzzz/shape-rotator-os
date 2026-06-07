@@ -6,6 +6,7 @@ on:
       - "apps/os/**"
       - "cohort-data/**"
       - "scripts/build-bundles.js"
+      - "scripts/check-calendar-transcript-matches.mjs"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/os-pr-checks.yml"
@@ -32,6 +33,9 @@ jobs:
 
       - name: cohort bundle is current
         run: npm run check:cohort
+
+      - name: calendar transcript matches are valid
+        run: npm run check:calendar-transcripts
 
       - name: cohort-facing intel safety
         run: npm --workspace @shape-rotator/os run check:intel
