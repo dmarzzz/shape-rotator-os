@@ -1,6 +1,7 @@
 import { fetchLatestRelease } from "./nav.js";
 
 const REPO = "dmarzzz/shape-rotator-os";
+const LATEST_RELEASE_URL = `https://github.com/${REPO}/releases/latest`;
 // Asset names follow electron-builder's productName/output template. The
 // project rename to "Shape Rotator OS" (commit 229b990) changed the prefix
 // from "ShapeRotatorFieldGuide-" to "ShapeRotatorOS-"; keep this aligned
@@ -51,7 +52,14 @@ async function detectPlatform() {
   const rel = await fetchLatestRelease().catch(() => null);
   const version = (rel?.tag_name || "").replace(/^v/, "");
   if (!version) {
-    document.querySelector("[data-install-target]").textContent = "release unavailable";
+    document.querySelectorAll("[data-platform-list] [data-asset]").forEach((a) => {
+      a.href = LATEST_RELEASE_URL;
+      a.textContent = "open latest release";
+    });
+    const ctaTarget = document.querySelector("[data-install-target]");
+    const ctaPrimary = document.querySelector("[data-install-primary]");
+    if (ctaTarget) ctaTarget.textContent = "open latest release";
+    if (ctaPrimary) ctaPrimary.setAttribute("href", LATEST_RELEASE_URL);
     return;
   }
   // Fill the all-platforms matrix
