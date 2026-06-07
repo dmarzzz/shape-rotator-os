@@ -57,6 +57,11 @@
   cursor: pointer;
 }
 .alch-card.is-clickable:active { transform: translateY(0); }
+.alch-card.is-clickable:focus,
+.alch-card.is-clickable:focus-visible {
+  outline: 1px solid rgba(208, 83, 50, 0.82);
+  outline-offset: 3px;
+}
 .alch-card-tag {
   display: flex; gap: 8px; align-items: center;
   font-family: var(--font-mono); font-size: 9.5px;
