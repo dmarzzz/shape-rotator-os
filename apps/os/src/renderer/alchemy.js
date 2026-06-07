@@ -140,6 +140,7 @@ const state = {
   cohortTimelineLoading: false,
   cohortTimelineError: "",
   constellationTimelineIdx: null,  // selected snapshot index within cohortTimeline.snapshots
+  constellationShowDelta: false,
   constellationDrawerRecordId: null,
   profile: null,       // local-only: { user, editor state, ... }
   programPage: null,   // active program-handbook page slug (overview | success | rules | schedule)
@@ -404,6 +405,13 @@ function activeConstellationSnapshot() {
 
 function activeConstellationCohort() {
   return activeConstellationSnapshot()?.surface || state.cohort;
+}
+
+function previousConstellationSnapshot() {
+  const snapshots = constellationSnapshots();
+  const idx = ensureConstellationTimelineIdx();
+  if (idx == null || idx <= 0) return null;
+  return snapshots[idx - 1] || null;
 }
 
 function activeDetailCohort() {
@@ -1469,7 +1477,129 @@ function snapshotEventCount(snapshot) {
   return state.cohortTimeline.events.filter((event) => event?.snapshot_id === id).length;
 }
 
-function renderConstellationTimelineControls({ compact = false } = {}) {
+function timelineEventProvenance(event) {
+  const kind = String(event?.source_kind || event?.source_id || "").toLowerCase();
+  if (kind.includes("transcript")) return { className: "is-inferred", label: "inferred · transcript", source: "transcripts" };
+  if (kind.includes("router")) return { className: "is-inferred", label: "inferred · router", source: "router" };
+  if (!kind || kind.includes("git") || kind.includes("cohort")) return { className: "is-self", label: "self-declared", source: "cohort-data" };
+  return { className: "is-unclassified", label: "unclassified", source: kind };
+}
+
+function teamNameMap(surface) {
+  return new Map((surface?.teams || []).filter(t => t?.record_id).map(t => [t.record_id, t.name || t.record_id]));
+}
+
+function dependencyEdgeMap(surface) {
+  const names = teamNameMap(surface);
+  const out = new Map();
+  for (const team of (surface?.teams || [])) {
+    if (!team?.record_id) continue;
+    for (const dep of (Array.isArray(team.dependencies) ? team.dependencies : [])) {
+      if (!dep || dep === team.record_id || !names.has(dep)) continue;
+      const key = `${team.record_id}>${dep}`;
+      out.set(key, {
+        key,
+        kind: "dependency",
+        from: team.record_id,
+        to: dep,
+        fromName: names.get(team.record_id) || team.record_id,
+        toName: names.get(dep) || dep,
+        directed: true,
+        provenance: { className: "is-self", label: "self-declared", source: "cohort-data" },
+      });
+    }
+  }
+  return out;
+}
+
+function clusterEdgeMap(surface) {
+  const names = teamNameMap(surface);
+  const out = new Map();
+  for (const cluster of (surface?.clusters || [])) {
+    const present = (Array.isArray(cluster?.teams) ? cluster.teams : []).filter(id => names.has(id));
+    for (let i = 0; i < present.length; i++) {
+      for (let j = i + 1; j < present.length; j++) {
+        const a = present[i], b = present[j];
+        const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+        if (out.has(key)) continue;
+        out.set(key, {
+          key,
+          kind: "cluster",
+          from: a,
+          to: b,
+          fromName: names.get(a) || a,
+          toName: names.get(b) || b,
+          cluster: cluster.record_id || cluster.name || "cluster",
+          clusterLabel: cluster.label || cluster.name || "cluster",
+          directed: false,
+          provenance: { className: "is-self", label: "self-declared cluster", source: "cohort-data" },
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function addedEdges(beforeMap, afterMap) {
+  return [...afterMap.entries()]
+    .filter(([key]) => !beforeMap.has(key))
+    .map(([, edge]) => edge);
+}
+
+function selectedTimelineEvents() {
+  const active = activeConstellationSnapshot();
+  const id = active?.id;
+  if (!id || !Array.isArray(state.cohortTimeline?.events)) return [];
+  return state.cohortTimeline.events.filter(event => event?.snapshot_id === id);
+}
+
+function inferredTimelineEvents(events) {
+  return (events || [])
+    .filter((event) => timelineEventProvenance(event).className === "is-inferred")
+    .slice(0, 24);
+}
+
+function constellationSnapshotDelta() {
+  const active = activeConstellationSnapshot();
+  const previous = previousConstellationSnapshot();
+  const currentSurface = active?.surface || state.cohort || {};
+  const previousSurface = previous?.surface || { teams: [], people: [], clusters: [] };
+  const dependencyAdded = addedEdges(dependencyEdgeMap(previousSurface), dependencyEdgeMap(currentSurface));
+  const clusterAdded = addedEdges(clusterEdgeMap(previousSurface), clusterEdgeMap(currentSurface));
+  const events = selectedTimelineEvents();
+  return {
+    active,
+    previous,
+    currentSurface,
+    dependencyAdded,
+    clusterAdded,
+    inferredEvents: inferredTimelineEvents(events),
+    events,
+  };
+}
+
+function constellationDeltaCount(delta = constellationSnapshotDelta()) {
+  return (delta.dependencyAdded?.length || 0) + (delta.clusterAdded?.length || 0) + (delta.inferredEvents?.length || 0);
+}
+
+function constellationEdgePath(edge, pos, extraClass = "") {
+  const a = pos.get(edge.from), b = pos.get(edge.to);
+  if (!a || !b) return "";
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx / dist, uy = dy / dist;
+  const sx = a.x + ux * (a.r + 2), sy = a.y + uy * (a.r + 2);
+  const ex = b.x - ux * (b.r + (edge.directed ? 7 : 3)), ey = b.y - uy * (b.r + (edge.directed ? 7 : 3));
+  const bend = 12 + Math.min(48, dist * 0.12);
+  const qx = (sx + ex) / 2 - uy * bend, qy = (sy + ey) / 2 + ux * bend;
+  const cls = edge.directed
+    ? `ac-edge ac-edge-dependency ${extraClass}`.trim()
+    : `ac-edge ac-edge-${edge.cluster || "x"} ${extraClass}`.trim();
+  const marker = edge.directed ? ` marker-end="url(#ac-arrow)"` : "";
+  return `<path class="${cls}" data-a="${escHtml(edge.from)}" data-b="${escHtml(edge.to)}" d="M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${qx.toFixed(1)} ${qy.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}"${marker}/>`;
+}
+
+function renderConstellationTimelineControls({ compact = false, allowDelta = false } = {}) {
   const snapshots = constellationSnapshots();
   if (!snapshots.length) {
     const status = state.cohortTimelineLoading
@@ -1494,6 +1624,8 @@ function renderConstellationTimelineControls({ compact = false } = {}) {
   const label = active?.label || active?.id || "snapshot";
   const date = timelineSnapshotDate(active);
   const commit = active?.source_commit_short ? ` · ${active.source_commit_short}` : "";
+  const delta = allowDelta ? constellationSnapshotDelta() : null;
+  const deltaCount = delta ? constellationDeltaCount(delta) : 0;
   const ticks = snapshots.map((snapshot, i) => {
     const selected = i === idx;
     const tickLabel = snapshot.label || snapshot.id;
@@ -1516,6 +1648,13 @@ function renderConstellationTimelineControls({ compact = false } = {}) {
       <div class="ac-timeline-ticks" style="--ac-timeline-count:${snapshots.length}">
         ${ticks}
       </div>
+      ${allowDelta ? `
+        <div class="ac-timeline-actions">
+          <button class="ac-timeline-delta-toggle" data-const-delta-toggle type="button" aria-pressed="${state.constellationShowDelta ? "true" : "false"}">
+            <span>show changes</span><strong>${deltaCount}</strong>
+          </button>
+          <span class="ac-timeline-boundary">off by default · self-declared unless marked inferred</span>
+        </div>` : ""}
     </div>`;
 }
 
@@ -1557,6 +1696,69 @@ function wireConstellationTimelineControls(root = state.canvas) {
   for (const tick of root.querySelectorAll("[data-const-timeline-idx]")) {
     tick.addEventListener("click", () => setConstellationTimelineIdx(tick.dataset.constTimelineIdx));
   }
+  for (const btn of root.querySelectorAll("[data-const-delta-toggle]")) {
+    btn.addEventListener("click", () => {
+      state.constellationShowDelta = !state.constellationShowDelta;
+      render();
+    });
+  }
+}
+
+function renderConstellationDeltaLedger(delta) {
+  if (!state.constellationShowDelta || !delta) return "";
+  const currentLabel = delta.active?.label || delta.active?.id || "current snapshot";
+  const previousLabel = delta.previous?.label || delta.previous?.id || "empty baseline";
+  const edgeRow = (edge) => {
+    const arrow = edge.directed ? "->" : "<->";
+    const title = `${edge.fromName} ${arrow} ${edge.toName}`;
+    const kind = edge.directed ? "new dependency" : "new cluster connection";
+    const detail = edge.directed
+      ? `present in ${currentLabel}; absent from ${previousLabel}`
+      : `${edge.clusterLabel || "cluster"} membership creates this pair`;
+    return `
+      <article class="ac-delta-card ${edge.provenance?.className || "is-self"}">
+        <div class="ac-delta-card-head">
+          <span class="ac-delta-badge ${edge.provenance?.className || "is-self"}">${escHtml(edge.provenance?.label || "self-declared")}</span>
+          <span>${escHtml(kind)}</span>
+        </div>
+        <div class="ac-delta-card-title">${escHtml(title)}</div>
+        <div class="ac-delta-card-meta">${escHtml(detail)} · source: ${escHtml(edge.provenance?.source || "cohort-data")}</div>
+      </article>`;
+  };
+  const eventRow = (event) => {
+    const provenance = timelineEventProvenance(event);
+    const recordName = event?.record_name || event?.record_id || "record";
+    const summary = event?.summary || event?.subject || `${event?.action || "updated"} ${recordName}`;
+    return `
+      <article class="ac-delta-card ${provenance.className}">
+        <div class="ac-delta-card-head">
+          <span class="ac-delta-badge ${provenance.className}">${escHtml(provenance.label)}</span>
+          <span>${escHtml(event?.record_type || event?.collection || "context")}</span>
+        </div>
+        <div class="ac-delta-card-title">${escHtml(recordName)}</div>
+        <div class="ac-delta-card-meta">${escHtml(summary)} · source: ${escHtml(event?.source_id || provenance.source)}</div>
+      </article>`;
+  };
+  const rows = [
+    ...(delta.dependencyAdded || []).map(edgeRow),
+    ...(delta.clusterAdded || []).map(edgeRow),
+    ...(delta.inferredEvents || []).map(eventRow),
+  ];
+  const empty = rows.length ? "" : `
+    <div class="ac-delta-empty">
+      no new dependency, cluster, transcript, or router-derived evidence between ${escHtml(previousLabel)} and ${escHtml(currentLabel)}.
+    </div>`;
+  return `
+    <section class="ac-delta-ledger" aria-label="timeline connection changes">
+      <header class="ac-delta-head">
+        <h3>changes since previous snapshot</h3>
+        <span>${escHtml(previousLabel)} -> ${escHtml(currentLabel)}</span>
+      </header>
+      <div class="ac-delta-grid">
+        ${rows.join("")}
+        ${empty}
+      </div>
+    </section>`;
 }
 
 function renderConstellation() {
@@ -1574,6 +1776,14 @@ function renderConstellation() {
   const { wells, pos } = layout === "circle"
     ? placeConstellationCircle(model, W, H)
     : placeConstellation(model, W, H);
+  const delta = state.constellationShowDelta ? constellationSnapshotDelta() : null;
+  const deltaTouched = new Set();
+  if (delta) {
+    for (const edge of [...delta.dependencyAdded, ...delta.clusterAdded]) {
+      deltaTouched.add(edge.from);
+      deltaTouched.add(edge.to);
+    }
+  }
 
   // Cluster well backdrops (soft dashed ellipse + label) behind everything.
   const wellMarkup = wells.map(w => `
@@ -1623,18 +1833,28 @@ function renderConstellation() {
     return `<path class="${cls}" data-a="${escHtml(e.from)}" data-b="${escHtml(e.to)}"`
       + ` d="M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${qx.toFixed(1)} ${qy.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}"${marker}/>`;
   }).join("");
+  const deltaEdgeMarkup = delta ? [
+    ...delta.dependencyAdded.map(edge => constellationEdgePath(edge, pos, `ac-edge-new ac-edge-new-dependency ${edge.provenance.className}`)),
+    ...delta.clusterAdded.map(edge => constellationEdgePath(edge, pos, `ac-edge-new ac-edge-new-cluster ${edge.provenance.className}`)),
+  ].join("") : "";
 
   // Draw small→large so keystones sit on top of the pile.
-  const nodeMarkup = [...pos.values()].sort((p, q) => p.r - q.r).map(({ team, x, y, r }) => `
-    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}" data-record-id="${escHtml(team.record_id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
-      <circle class="ac-node-shape ${team.is_mentor ? "ac-node-mentor" : ""}" r="${r.toFixed(1)}"/>
-      <text class="ac-node-label" y="${(r + 13).toFixed(1)}" text-anchor="middle">${escHtml(team.name)}</text>
-    </g>`).join("");
+  const nodeMarkup = [...pos.values()].sort((p, q) => p.r - q.r).map(({ team, x, y, r }) => {
+    const deltaClass = delta && deltaTouched.size
+      ? (deltaTouched.has(team.record_id) ? "is-delta-touched" : "is-delta-quiet")
+      : "";
+    return `
+      <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)} ${deltaClass}" data-record-id="${escHtml(team.record_id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+        <circle class="ac-node-shape ${team.is_mentor ? "ac-node-mentor" : ""}" r="${r.toFixed(1)}"/>
+        <text class="ac-node-label" y="${(r + 13).toFixed(1)}" text-anchor="middle">${escHtml(team.name)}</text>
+      </g>`;
+  }).join("");
 
   const legend =
     CONST_DOMAIN_KEYS.map(k => `<span class="acl-item"><span class="acl-dot acl-dot-${k}"></span>${escHtml(CONST_DOMAIN_LABEL[k])}</span>`).join("")
     + `<span class="acl-item"><span class="acl-size"></span>larger = more teams depend on it</span>`
-    + (mode === "dependencies" ? `<span class="acl-item"><span class="acl-swatch acl-swatch-dependency"></span>declared dependency →</span>` : "");
+    + (mode === "dependencies" ? `<span class="acl-item"><span class="acl-swatch acl-swatch-dependency"></span>declared dependency →</span>` : "")
+    + (delta ? `<span class="acl-item"><span class="acl-swatch acl-swatch-new-dep"></span>new dependency</span><span class="acl-item"><span class="acl-swatch acl-swatch-new-cluster"></span>new cluster connection</span>` : "");
 
   const calloutBody = mode === "clusters"
     ? `Teams grouped into their <strong>cohort cluster</strong> wells; lines join teams that share a cluster. Color = domain, size = how many teams declare a dependency on them. Hover a node for its frame; click to open the full card. Mentor teams render hollow.`
@@ -1668,14 +1888,15 @@ function renderConstellation() {
             </marker>
           </defs>
           <g class="ac-wells">${wellMarkup}</g>
-          <g class="ac-edges">${edgeMarkup}</g>
+          <g class="ac-edges">${edgeMarkup}${deltaEdgeMarkup}</g>
           <g class="ac-nodes">${nodeMarkup}</g>
         </svg>
       </div>
       <div class="alch-constellation-legend">${legend}</div>
       <div class="ac-hoverline" data-ac-hoverline aria-live="polite"></div>
       <p class="alch-callout"><strong>cohort map · v0.4</strong><br/>${calloutBody}</p>
-      ${renderConstellationTimelineControls()}
+      ${renderConstellationTimelineControls({ allowDelta: true })}
+      ${renderConstellationDeltaLedger(delta)}
     </div>
   `;
 }
