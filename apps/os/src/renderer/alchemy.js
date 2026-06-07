@@ -41,6 +41,7 @@ import {
   contextSourceById as findContextSourceById,
 } from "./context-vault-model.js";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
+import { getCohortTimeline } from "./cohort-timeline.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
 import { enrichPeople } from "./gh-user.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
@@ -62,6 +63,7 @@ const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
 const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
+const CONSTELLATION_TIMELINE_LS_KEY = "srwk:constellation_timeline_idx_v1";
 // `atlas` was here as an alchemy sub-mode but collides with the top-level
 // atlas tab (the swf-node wall-map). Renderer (renderAtlas / wireAtlas) is
 // kept in place so the view can be promoted to a top tab later under a
@@ -134,6 +136,11 @@ const state = {
   detailReturnMode: null,   // remembered so the back button knows where to land
   shapeControllers: [],     // active shader-canvas controllers — destroyed before each re-render so GL contexts don't leak
   cohort: null,        // { teams, clusters, people, program, asks, cohort_vocab } from cohort-source
+  cohortTimeline: null,         // generated timeline read model; snapshots carry public cohort surfaces
+  cohortTimelineLoading: false,
+  cohortTimelineError: "",
+  constellationTimelineIdx: null,  // selected snapshot index within cohortTimeline.snapshots
+  constellationDrawerRecordId: null,
   profile: null,       // local-only: { user, editor state, ... }
   programPage: null,   // active program-handbook page slug (overview | success | rules | schedule)
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
@@ -207,6 +214,11 @@ export function mount(container) {
       state.mode = "membrane";
       localStorage.setItem(MEMBRANE_INTRO_LS_KEY, "1");
     }
+    const timelineIdxRaw = localStorage.getItem(CONSTELLATION_TIMELINE_LS_KEY);
+    if (timelineIdxRaw != null && timelineIdxRaw !== "") {
+      const timelineIdx = Number(timelineIdxRaw);
+      if (Number.isFinite(timelineIdx)) state.constellationTimelineIdx = timelineIdx;
+    }
   } catch {}
   // Detail page state — if a record was open at last reload, restore it
   // so the user lands back where they were instead of on the grid.
@@ -274,6 +286,9 @@ export function mount(container) {
     console.error("[alchemy] cohort load failed:", err);
     state.canvas.innerHTML = `<p class="alch-callout"><strong>cohort data unavailable</strong><br/>${escHtml(err.message || String(err))}</p>`;
   });
+  loadCohortTimeline().then(() => {
+    if (state.mounted && (state.mode === "constellation" || state.detailReturnMode === "constellation")) render();
+  }).catch(() => {});
   state.unsubscribe = subscribeToCohortChanges(() => {
     loadCohort().then(render).catch(() => {});
   });
@@ -346,6 +361,53 @@ async function loadCohort() {
       },
     });
   }
+}
+
+async function loadCohortTimeline() {
+  if (state.cohortTimeline || state.cohortTimelineLoading) return;
+  state.cohortTimelineLoading = true;
+  try {
+    state.cohortTimeline = await getCohortTimeline();
+    state.cohortTimelineError = "";
+    ensureConstellationTimelineIdx();
+  } catch (err) {
+    console.warn("[alchemy] cohort timeline load failed:", err?.message || err);
+    state.cohortTimelineError = err?.message || String(err);
+  } finally {
+    state.cohortTimelineLoading = false;
+  }
+}
+
+function constellationSnapshots() {
+  return Array.isArray(state.cohortTimeline?.snapshots) ? state.cohortTimeline.snapshots : [];
+}
+
+function ensureConstellationTimelineIdx() {
+  const snapshots = constellationSnapshots();
+  if (!snapshots.length) {
+    state.constellationTimelineIdx = null;
+    return null;
+  }
+  let idx = Number.isFinite(state.constellationTimelineIdx)
+    ? Math.round(state.constellationTimelineIdx)
+    : snapshots.length - 1;
+  idx = Math.max(0, Math.min(snapshots.length - 1, idx));
+  state.constellationTimelineIdx = idx;
+  return idx;
+}
+
+function activeConstellationSnapshot() {
+  const snapshots = constellationSnapshots();
+  const idx = ensureConstellationTimelineIdx();
+  return idx == null ? null : snapshots[idx];
+}
+
+function activeConstellationCohort() {
+  return activeConstellationSnapshot()?.surface || state.cohort;
+}
+
+function activeDetailCohort() {
+  return state.detailReturnMode === "constellation" ? activeConstellationCohort() : state.cohort;
 }
 
 function syncRailSelection() {
@@ -455,6 +517,8 @@ function render() {
       if (state.mode === "asks") wireAsks();
       if (state.mode === "context") wireContextVault();
       // atlas wire skipped — see ALCHEMY_MODES comment.
+    } else if (state.detailReturnMode === "constellation") {
+      wireConstellationTimelineControls();
     }
     // Mount shape shaders LAST — every <canvas data-shape-fam> emitted
     // by the renderers above gets one WebGL2 context here. Controllers
@@ -1170,7 +1234,8 @@ function journeyDetailSection(rec) {
 }
 
 function renderJourney() {
-  const all = state.cohort.teams || [];
+  const cohort = activeConstellationCohort();
+  const all = cohort.teams || [];
   // Filters (persist for the session). side = include the off-track stage-0
   // "side project" column; bottleneck = isolate one bottleneck.
   const jf = state.journeyFilters || (state.journeyFilters = { teams: true, projects: true, side: true, bottleneck: null });
@@ -1297,6 +1362,7 @@ function renderJourney() {
       <div class="alch-constellation-legend">${legend}</div>
       <p class="alch-callout"><strong>journey · v0.1</strong><br/>
       Every cohort team and project placed on a startup-maturity spectrum — <strong>stage</strong> (idea → scale fit) across, <strong>evidence quality</strong> (vibes → repeatable pull) up. Dot size is market upside; dot color is the primary bottleneck. Initial placement defaults every company to <em>idea / vibes</em> — update each as evidence is collected, via <strong>profile → edit → team / project</strong>.</p>
+      ${renderConstellationTimelineControls()}
     </div>
   `;
 }
@@ -1390,9 +1456,113 @@ function constFrameLine(team, deg) {
     + (frame ? `<br/>${escHtml(frame)}` : "");
 }
 
+function timelineSnapshotDate(snapshot) {
+  const iso = snapshot?.as_of || snapshot?.committed_at;
+  const d = iso ? new Date(iso) : null;
+  if (!d || !Number.isFinite(d.getTime())) return "date unknown";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function snapshotEventCount(snapshot) {
+  const id = snapshot?.id;
+  if (!id || !Array.isArray(state.cohortTimeline?.events)) return 0;
+  return state.cohortTimeline.events.filter((event) => event?.snapshot_id === id).length;
+}
+
+function renderConstellationTimelineControls({ compact = false } = {}) {
+  const snapshots = constellationSnapshots();
+  if (!snapshots.length) {
+    const status = state.cohortTimelineLoading
+      ? "timeline loading"
+      : state.cohortTimelineError
+        ? "timeline unavailable"
+        : "timeline pending";
+    const detail = state.cohortTimelineError || "using current cohort surface";
+    return `
+      <div class="ac-timeline ${compact ? "is-compact " : ""}is-disabled" data-ac-timeline>
+        <div class="ac-timeline-head">
+          <span class="ac-timeline-label">${escHtml(status)}</span>
+          <span class="ac-timeline-meta">${escHtml(detail)}</span>
+        </div>
+      </div>`;
+  }
+
+  const idx = ensureConstellationTimelineIdx();
+  const active = snapshots[idx] || snapshots[snapshots.length - 1];
+  const counts = active?.counts || {};
+  const changeCount = snapshotEventCount(active);
+  const label = active?.label || active?.id || "snapshot";
+  const date = timelineSnapshotDate(active);
+  const commit = active?.source_commit_short ? ` · ${active.source_commit_short}` : "";
+  const ticks = snapshots.map((snapshot, i) => {
+    const selected = i === idx;
+    const tickLabel = snapshot.label || snapshot.id;
+    return `
+      <button class="ac-timeline-tick${selected ? " is-active" : ""}" data-const-timeline-idx="${i}" type="button" aria-current="${selected ? "true" : "false"}" title="${escAttr(tickLabel)} · ${escAttr(timelineSnapshotDate(snapshot))}">
+        <span class="act-dot" aria-hidden="true"></span>
+        <span class="act-label">${escHtml(tickLabel)}</span>
+      </button>`;
+  }).join("");
+
+  return `
+    <div class="ac-timeline${compact ? " is-compact" : ""}" data-ac-timeline>
+      <div class="ac-timeline-head">
+        <span class="ac-timeline-label">${escHtml(label)}</span>
+        <span class="ac-timeline-meta">
+          ${escHtml(date + commit)} · ${Number(counts.teams) || 0} teams · ${Number(counts.people) || 0} people · ${changeCount} ${changeCount === 1 ? "change" : "changes"}
+        </span>
+      </div>
+      <input class="ac-timeline-range" data-const-timeline-range type="range" min="0" max="${Math.max(0, snapshots.length - 1)}" value="${idx}" step="1" aria-label="cohort timeline snapshot">
+      <div class="ac-timeline-ticks" style="--ac-timeline-count:${snapshots.length}">
+        ${ticks}
+      </div>
+    </div>`;
+}
+
+function setConstellationTimelineIdx(rawIdx) {
+  const snapshots = constellationSnapshots();
+  if (!snapshots.length) return;
+  const next = Math.round(Number(rawIdx));
+  if (!Number.isFinite(next)) return;
+  const idx = Math.max(0, Math.min(snapshots.length - 1, next));
+  state.constellationTimelineIdx = idx;
+  try { localStorage.setItem(CONSTELLATION_TIMELINE_LS_KEY, String(idx)); } catch {}
+
+  if (state.detailRecordId && state.detailReturnMode === "constellation") {
+    render();
+    return;
+  }
+  if (state.mode === "constellation") {
+    renderConstellation();
+    wireConstellationHover();
+    if (state.constellationDrawerRecordId) openDrawer(state.constellationDrawerRecordId);
+  }
+}
+
+function wireConstellationTimelineControls(root = state.canvas) {
+  if (!root) return;
+  const range = root.querySelector("[data-const-timeline-range]");
+  if (range) {
+    range.addEventListener("input", () => {
+      const snapshots = constellationSnapshots();
+      if (!snapshots.length) return;
+      const next = Math.round(Number(range.value));
+      if (!Number.isFinite(next)) return;
+      const idx = Math.max(0, Math.min(snapshots.length - 1, next));
+      state.constellationTimelineIdx = idx;
+      try { localStorage.setItem(CONSTELLATION_TIMELINE_LS_KEY, String(idx)); } catch {}
+    });
+    range.addEventListener("change", () => setConstellationTimelineIdx(range.value));
+  }
+  for (const tick of root.querySelectorAll("[data-const-timeline-idx]")) {
+    tick.addEventListener("click", () => setConstellationTimelineIdx(tick.dataset.constTimelineIdx));
+  }
+}
+
 function renderConstellation() {
-  const teams = state.cohort.teams;
-  const clusters = state.cohort.clusters;
+  const cohort = activeConstellationCohort();
+  const teams = cohort.teams || [];
+  const clusters = cohort.clusters || [];
   const mode = state.constellationMode || "clusters";
 
   // Journey sub-tab renders a PMF scatterplot instead of the map.
@@ -1505,6 +1675,7 @@ function renderConstellation() {
       <div class="alch-constellation-legend">${legend}</div>
       <div class="ac-hoverline" data-ac-hoverline aria-live="polite"></div>
       <p class="alch-callout"><strong>cohort map · v0.4</strong><br/>${calloutBody}</p>
+      ${renderConstellationTimelineControls()}
     </div>
   `;
 }
@@ -1838,7 +2009,7 @@ function wireConstellationHover() {
     // FIXED-HEIGHT line — never the callout, whose reflow used to shrink the
     // flex stage, move the node out from under the cursor, and flicker.
     const hoverEl = state.canvas.querySelector("[data-ac-hoverline]");
-    const cohortIndex = buildCohortIndex(state.cohort);
+    const cohortIndex = buildCohortIndex(activeConstellationCohort());
     const teamById = cohortIndex.teamById;
     const indeg = constellationIndegree(cohortIndex.teams);
     for (const g of groups) {
@@ -1911,6 +2082,7 @@ function wireConstellationHover() {
       render();
     });
   }
+  wireConstellationTimelineControls();
 }
 function setConstellationHover(stage, recordId, on) {
   if (!on) {
@@ -5094,18 +5266,40 @@ function announceExport(r) {
 // synergy clusters. Entered by clicking a card; back button returns to
 // the previous mode (typically shapes).
 function renderDetail(recordId) {
-  const cohortIndex = buildCohortIndex(state.cohort);
+  const cohortIndex = buildCohortIndex(activeDetailCohort());
   const team = cohortIndex.teamById.get(recordId);
   if (team) return renderTeamDetail(team);
   const person = cohortIndex.personById.get(recordId);
   if (person) return renderPersonDetail(person);
+  if (state.detailReturnMode === "constellation") return renderTimelineMissingDetail(recordId);
   // Record vanished (e.g. cohort republished, slug changed). Bail out
   // back to the grid rather than showing an empty page.
   closeDetail();
 }
 
+function renderTimelineMissingDetail(recordId) {
+  const snapshot = activeConstellationSnapshot();
+  const label = snapshot?.label || "selected snapshot";
+  state.canvas.innerHTML = `
+    <header class="alch-detail-bar">
+      <button class="alch-detail-back" type="button" id="alch-detail-back" aria-label="back to constellation">
+        <span aria-hidden="true">←</span>
+        <span>back</span>
+      </button>
+      <div class="alch-detail-bar-tag">
+        <span>${escHtml(String(recordId || "").toUpperCase())}</span>
+        <span class="ct-sep">·</span>
+        <span>${escHtml(label)}</span>
+      </div>
+    </header>
+    ${renderConstellationTimelineControls({ compact: true })}
+    <p class="alch-callout"><strong>not declared at this snapshot</strong><br/>This record is absent from the public cohort surface for ${escHtml(label)}.</p>
+  `;
+  state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
+}
+
 function renderTeamDetail(team) {
-  const cohortIndex = buildCohortIndex(state.cohort);
+  const cohortIndex = buildCohortIndex(activeDetailCohort());
   const recordId = team.record_id;
   const s = shapeForTeam(team);
   const kind = teamKind(team);
@@ -5145,6 +5339,7 @@ function renderTeamDetail(team) {
       </div>
       <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
     </header>
+    ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
 
     <article class="cohort-plate is-revealing" data-tier="${escAttr(tier.key)}" data-kind="${escAttr(kind)}" id="cohort-plate">
       <div class="plate-foil" aria-hidden="true"></div>
@@ -5252,7 +5447,7 @@ function wirePlateFoil(plate) {
 }
 
 function renderPersonDetail(person) {
-  const cohortIndex = buildCohortIndex(state.cohort);
+  const cohortIndex = buildCohortIndex(activeDetailCohort());
   const recordId = person.record_id;
   const fam = Math.abs(hashStr(recordId || "_")) % 6;
   const team = cohortIndex.teamForPerson(person);
@@ -5281,6 +5476,7 @@ function renderPersonDetail(person) {
       </div>
       <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
     </header>
+    ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
 
     <section class="alch-detail-hero">
       <div class="alch-detail-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-seed="${escAttr(recordId)}"></canvas></div>
@@ -5401,9 +5597,14 @@ function renderDetailLinks(L) {
 // ─── drawer (specimen detail) ────────────────────────────────────────
 function openDrawer(recordId) {
   if (!state.cohort) return;
-  const cohortIndex = buildCohortIndex(state.cohort);
+  const cohort = state.mode === "constellation" ? activeConstellationCohort() : state.cohort;
+  const cohortIndex = buildCohortIndex(cohort);
   const team = cohortIndex.teamById.get(recordId);
-  if (!team) return;
+  if (!team) {
+    if (state.mode === "constellation") closeDrawer();
+    return;
+  }
+  if (state.mode === "constellation") state.constellationDrawerRecordId = String(recordId);
 
   const { backdrop, drawer, body } = ensureDrawer();
   const s = shapeForTeam(team);
@@ -5453,6 +5654,10 @@ function openDrawer(recordId) {
   ];
   if (team.is_mentor) {
     tagBits.push(`<span>·</span>`, `<span>mentor</span>`);
+  }
+  if (state.mode === "constellation") {
+    const snap = activeConstellationSnapshot();
+    if (snap?.label) tagBits.push(`<span>·</span>`, `<span>${escHtml(snap.label)}</span>`);
   }
 
   body.innerHTML = `
@@ -5510,6 +5715,7 @@ function openDrawer(recordId) {
 }
 
 function closeDrawer() {
+  state.constellationDrawerRecordId = null;
   const backdrop = document.querySelector(".alch-drawer-backdrop");
   const drawer = document.querySelector(".alch-drawer");
   if (backdrop) backdrop.classList.remove("is-open");
