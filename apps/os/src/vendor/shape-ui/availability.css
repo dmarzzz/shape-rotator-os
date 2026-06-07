@@ -4,10 +4,13 @@
  * Consumer apps must already have tokens.css applied to :root. */
 
 .avail {
+  --avail-name-col: 220px;
+  --avail-slot-min: 28px;
   display: grid;
-  grid-template-columns: minmax(140px, 220px) 1fr;
+  grid-template-columns: minmax(140px, var(--avail-name-col)) 1fr;
   column-gap: var(--space-3);
   row-gap: 0;
+  min-width: calc(var(--avail-name-col) + var(--space-3) + (var(--avail-slots, 1) * var(--avail-slot-min)));
   font-family: var(--font-mono);
   font-size: var(--t-11);
   font-feature-settings: var(--num-feat);
@@ -31,7 +34,7 @@
 .avail-header-cols {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-columns: var(--avail-slot-min);
   align-items: end;
   color: var(--ink-3);
   letter-spacing: var(--track-caps);
@@ -80,7 +83,7 @@
 .avail-cells {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-columns: var(--avail-slot-min);
   align-items: stretch;
   border-bottom: 1px solid var(--hairline);
 }

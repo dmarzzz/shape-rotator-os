@@ -23,6 +23,8 @@
   gap: 6px;
   padding: 32px var(--cal-page-px) 8px;
   border-bottom: 1px solid var(--ed-rule);
+  box-sizing: border-box;
+  min-width: 0;
 }
 .cal-page-title-row {
   display: flex; justify-content: space-between; align-items: baseline;
@@ -67,6 +69,8 @@
   color: var(--ed-ink-1);
   opacity: 0.9;
   display: flex; align-items: center; gap: 10px;
+  box-sizing: border-box;
+  min-width: 0;
 }
 .cal-stale .cs-glyph { color: var(--alchemy-oxide-bright, #B43A19); opacity: 0.7; }
 .cal-stale .cs-retry {
@@ -95,9 +99,12 @@
  * Owns the page padding + max-width so each inner sub-view stays
  * markup-light: they only render their own body content. */
 .cal-canvas {
+  width: 100%;
   padding: 0 var(--cal-page-px) 48px;
   max-width: 1480px;
+  min-width: 0;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 .cal-week, .cal-presence, .cal-day-view {
   /* inner sub-view sections — padding lives on .cal-canvas now */
@@ -128,6 +135,7 @@
   border-bottom: 1px solid var(--ed-rule);
   flex-wrap: wrap;
   row-gap: 14px;
+  min-width: 0;
 }
 
 /* ── subtabs (day / week / presence) — now living inside the rail ───── */
@@ -347,6 +355,8 @@
  * standard calendar-app pattern (GCal, Outlook, Cal.com all do this on
  * narrow viewports) and degrades gracefully to scroll. */
 .cal-grid-scroller {
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   /* nicer momentum scroll on touchpads + the day rail stays anchored at

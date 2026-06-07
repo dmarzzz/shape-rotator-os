@@ -214,6 +214,7 @@ export function renderAvailabilityMatrix({
   const root = el("div", "avail");
   root.setAttribute("role", "grid");
   root.setAttribute("aria-label", "Cohort availability matrix");
+  root.style.setProperty("--avail-slots", String(cells.length));
 
   // Header row — spacer (above names) + column ticks (months / week-starts)
   const header = el("div", "avail-header");

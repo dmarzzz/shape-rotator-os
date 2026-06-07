@@ -606,13 +606,16 @@ export function renderWeekView({
   const recurring = parseRecurring(rows);
 
   const isLive    = source === "live";
+  const isSnapshot = source === "snapshot";
   const isBundled = source === "bundled";
   const isStale   = isBundled; // any non-live source is "stale"; refine later if we add a third tier
-  const syncStateClass = isLive ? "is-live" : isBundled ? "is-bundled" : "is-unknown";
+  const syncStateClass = isLive || isSnapshot ? "is-live" : isBundled ? "is-bundled" : "is-unknown";
   const syncLabel = (() => {
     if (source == null) return "no calendar data yet";
     const stamp = fmtSyncStamp(data?.last_refresh) || "—";
-    return isLive ? `synced live · ${stamp}` : `bundled snapshot · ${stamp}`;
+    if (isLive) return `synced live · ${stamp}`;
+    if (isSnapshot) return `web snapshot · ${stamp}`;
+    return `bundled snapshot · ${stamp}`;
   })();
 
   // ── scrubber dots — labeled 1..10, phase-tinted, with current selection ─
@@ -836,17 +839,26 @@ export function attachWeekViewBehavior(root, { onWeekChange, scrollToToday = tru
     ? isMobile
     : () => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
 
-  // ── auto-scroll to today on mobile ───────────────────────────────────
-  // Only on initial mount of the week view. Lets the sticky dateline stay
-  // at the top, then scrolls so the today card sits just under it.
-  if (scrollToToday && mobile()) {
+  // ── auto-scroll to today ─────────────────────────────────────────────
+  // On desktop, the week grid is a horizontal scroller; center today's
+  // column so a Friday/Saturday/Sunday "today" is not mounted offscreen.
+  // On mobile, also move the page vertically so today's card sits just
+  // under the sticky dateline.
+  if (scrollToToday) {
     requestAnimationFrame(() => {
       const today = root.querySelector(".cal-day.is-today");
       const dateline = root.querySelector(".cal-dateline");
       if (!today) return;
-      const datelineH = dateline ? dateline.getBoundingClientRect().height : 0;
-      const y = today.getBoundingClientRect().top + (window.pageYOffset || 0) - datelineH - 8;
-      window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
+      const scroller = root.querySelector(".cal-grid-scroller");
+      if (scroller) {
+        const left = today.offsetLeft - Math.max(0, (scroller.clientWidth - today.offsetWidth) / 2);
+        scroller.scrollTo({ left: Math.max(0, left), behavior: "auto" });
+      }
+      if (mobile()) {
+        const datelineH = dateline ? dateline.getBoundingClientRect().height : 0;
+        const y = today.getBoundingClientRect().top + (window.pageYOffset || 0) - datelineH - 8;
+        window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
+      }
     });
   }
 
@@ -947,14 +959,14 @@ export function renderSkeletonWeek() {
     </div>`;
 }
 
-// Convenience: try the live URL first, fall back to the supplied bundle.
+// Convenience: try the requested calendar URL first, fall back to the supplied bundle.
 // Returns { data, source, bundledStamp }.
-export async function loadCalendar({ bundled = null, fetchOpts = {} } = {}) {
+export async function loadCalendar({ bundled = null, fetchOpts = {}, url = CALENDAR_URL, source = "live" } = {}) {
   try {
-    const r = await fetch(CALENDAR_URL, { cache: "no-store", ...fetchOpts });
+    const r = await fetch(url, { cache: "no-store", ...fetchOpts });
     if (!r.ok) throw new Error("http " + r.status);
     const data = await r.json();
-    return { data, source: "live", bundledStamp: null };
+    return { data, source, bundledStamp: null };
   } catch (e) {
     if (bundled) {
       return { data: bundled, source: "bundled", bundledStamp: fmtSyncStamp(bundled.last_refresh) };

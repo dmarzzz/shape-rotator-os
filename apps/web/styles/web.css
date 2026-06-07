@@ -37,6 +37,7 @@ a:focus-visible, summary:focus-visible, .install-cta:focus-visible {
 .site-header, .page, .site-footer {
   width: 100%;
   max-width: 680px;
+  min-width: 0;
   margin: 0 auto;
   padding-inline: var(--space-6);
 }
@@ -104,7 +105,7 @@ body .alch-shape-overlay { display: block !important; }
 /* page content containers — used by cohort/calendar/availability/profile pages */
 .page-eyebrow { margin: 0 0 var(--space-3); font-family: var(--font-mono); font-size: var(--t-11); font-weight: 500; text-transform: uppercase; letter-spacing: var(--track-caps-loose); color: var(--ink-3); }
 .page-title { margin: 0 0 var(--space-6); font-family: var(--font-sans); font-size: var(--t-24); font-weight: 500; line-height: var(--lh-tight); letter-spacing: var(--track-tight); color: var(--ink-1); text-transform: lowercase; }
-.page-mount { min-height: 200px; }
+.page-mount { min-height: 200px; min-width: 0; }
 .page-empty { font-family: var(--font-mono); font-size: var(--t-12); color: var(--ink-4); }
 
 /* subtle inline metadata strip — counts, ranges, etc. — sits under the title */
@@ -161,14 +162,24 @@ body .alch-shape-overlay { display: block !important; }
  * cohort-calendar-week.css `--cal-page-px` token, so zero the .page
  * padding to avoid double-inset. The page-mount stretches edge-to-edge. */
 .page--calendar { padding-inline: 0; padding-block: 0; }
-body.layout--wide .page--calendar { max-width: none; }
-.page--calendar .page-mount { min-height: 480px; }
+body.layout--wide .page--calendar { max-width: none; min-width: 0; }
+.page--calendar .page-mount { min-height: 480px; min-width: 0; }
 
 /* availability — sticky header on top so cohorts large enough to scroll
  * keep their column labels visible. The availability.css inside shape-ui
  * already sticks the header to top:0; the scroll container here is what
  * supplies the scroll context + a soft cap on height. */
-.availability-wrap { width: 100%; max-height: 70vh; overflow: auto; border: 1px solid var(--hairline); border-radius: var(--r-md); padding: var(--space-3); background: var(--water); }
+.availability-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  padding: var(--space-3);
+  background: var(--water);
+}
 
 .profile-picker { display: grid; gap: var(--space-3); margin-bottom: var(--space-5); padding-bottom: var(--space-5); border-bottom: 1px solid var(--hairline); }
 .profile-picker-row { display: grid; grid-template-columns: 100px 1fr; align-items: center; gap: var(--space-3); font-family: var(--font-mono); font-size: var(--t-11); text-transform: uppercase; letter-spacing: var(--track-caps); color: var(--ink-3); }
@@ -591,5 +602,11 @@ body.links-page-body .hero-tagline {
 }
 
 .cal-export { margin: var(--space-5) 0 0; font-family: var(--font-mono); font-size: var(--t-11); color: var(--ink-3); display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.page--calendar .cal-export {
+  width: 100%;
+  max-width: 1480px;
+  margin-inline: auto;
+  padding-inline: var(--cal-page-px, var(--space-6));
+}
 .cal-export a { color: var(--ink-2); }
 .cal-export a:hover { color: var(--ink-1); }

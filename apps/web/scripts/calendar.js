@@ -7,11 +7,12 @@ import {
   renderCohortCalendar,
 } from "@shape-rotator/shape-ui";
 
-// Web cohort calendar — mirrors the Electron renderCalendar() flow:
-// seed with the bundled snapshot from cohort-surface.json so first paint is
-// instant, then kick off a live Phala fetch in the background and re-render
-// when it resolves. If the fetch fails, the bundled snapshot stays and the
-// renderer surfaces the "may be stale" banner.
+// Web cohort calendar — seed with the bundled snapshot from
+// cohort-surface.json so first paint is instant, then refresh from the
+// same-origin deployed calendar.json. The live Phala endpoint does not send
+// browser CORS headers, so web avoids that doomed cross-origin fetch while
+// Electron can still use the live endpoint through shape-ui's default loader.
+const WEB_CALENDAR_URL = "/calendar.json";
 
 const state = {
   cohort: null,
@@ -118,7 +119,7 @@ function wire() {
 
 async function runLiveFetch() {
   const bundled = state.cohort?.calendar || null;
-  const res = await loadCalendar({ bundled });
+  const res = await loadCalendar({ bundled, url: WEB_CALENDAR_URL, source: "snapshot" });
   if (res.data) {
     state.data = res.data;
     state.source = res.source;
