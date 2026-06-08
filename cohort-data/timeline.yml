@@ -1,0 +1,47 @@
+schema_version: 1
+timezone: America/New_York
+program_start: 2026-05-18
+base_ref: HEAD
+
+# Canonical source for the public cohort timeline today. This intentionally
+# excludes OS/app code changes: only people and team/project declarations under
+# cohort-data are projected into the timeline event log.
+sources:
+  - id: cohort-data-github
+    kind: git
+    status: active
+    description: Public self-declared people and team/project records committed to GitHub main.
+    paths:
+      - cohort-data/people
+      - cohort-data/teams
+    record_types:
+      - person
+      - team
+  - id: teleport-router
+    kind: router
+    status: planned
+    description: Future routed notes and durable team-memory entries.
+  - id: transcripts
+    kind: transcript
+    status: planned
+    description: Future public-safe transcript-derived activity and evidence.
+
+# Snapshots are read models over Git history. Each as_of resolves to the latest
+# commit at or before that timestamp; ref resolves directly. Run the generator
+# on main for the official timeline artifact.
+snapshots:
+  - id: program-start
+    label: Program start
+    as_of: 2026-05-18T00:00:00-04:00
+  - id: week-01
+    label: Week 1
+    as_of: 2026-05-25T00:00:00-04:00
+  - id: week-02
+    label: Week 2
+    as_of: 2026-06-01T00:00:00-04:00
+  - id: week-03
+    label: Week 3
+    as_of: 2026-06-08T00:00:00-04:00
+  - id: latest
+    label: Latest committed state
+    ref: HEAD
