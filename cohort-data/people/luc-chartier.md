@@ -17,6 +17,28 @@ links:
   website: tuvalugpt.tv
   linkedin: null
 dietary_restrictions:
+now: "Building TvEE RL's attested reinforcement-learning workflow and tuvalugpt demo surface."
+skill_areas:
+  - tee
+  - reinforcement-learning
+  - modern-ml
+  - research-to-product
+go_to_them_for:
+  - attested RL workflows
+  - VLM/RL implementation
+  - Qwen/Tinker ecosystem context
+  - ML demo shaping
+recurring_themes:
+  - verifiable ML workflows
+  - high-volume building
+  - research-to-demo translation
+best_contexts:
+  - attested ML workflow review
+  - RL/VLM implementation questions
+  - demo-first ML product work
+prior_work:
+  - Qwen 2.5-VL contribution to Tinker
+  - tuvalugpt.tv
 working_style: "Inferred from the team record: high-volume building plus hands-on modern-ML work (VLM/RL, Tinker/Qwen ecosystem)"
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---

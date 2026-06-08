@@ -17,6 +17,31 @@ links:
   website: qendresa.dev
   linkedin: null
 dietary_restrictions:
+now: "Building AgentEval, a pre-deployment evaluation system for commerce AI agents."
+skill_areas:
+  - ai-evaluation
+  - commerce-ai
+  - full-stack-engineering
+  - agentic-workflows
+go_to_them_for:
+  - pre-deployment agent evaluation
+  - commerce AI workflows
+  - solo-founder shipping discipline
+  - full-stack product execution
+recurring_themes:
+  - agent reliability before launch
+  - evaluation as product surface
+  - practical commerce workflows
+working_style: "Solo founder/engineer with enough startup reps to push evaluation from abstract metric into an operational product."
+best_contexts:
+  - eval harness design
+  - commerce-agent testing
+  - Virtuals / 60days builder context
+prior_work:
+  - Jiga
+  - Butler Hospitality
+  - AgentEval
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

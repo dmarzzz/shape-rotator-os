@@ -12,11 +12,17 @@ email: null
 dates_start: 2026-05-25
 dates_end: 2026-07-18
 links:
-  github: null
-  x: null
+  github: RonTuretzky
+  x: RonTuretzky
   website: null
   linkedin: null
 dietary_restrictions:
+now: shipping confidential LLM inference inside Signal with TEE attestation
+skill_areas:
+  - tee
+  - dstack
+  - attestation
+  - agentic
 go_to_them_for:
   - private agent messaging
   - TEE/LLM integration
@@ -27,7 +33,15 @@ recurring_themes:
   - privacy constraints
   - agent usefulness inside chat
   - sparse-source review needed
-working_style: Unobserved directly
+working_style: "product-surface-first TEE builder: put private inference inside existing messenger behavior before asking users to learn a new app"
+best_contexts:
+  - TEE attestation architecture reviews
+  - privacy-sensitive AI product flows
+  - Signal-native workflow and bot design
+prior_work:
+  - SigStack — private AI services on Signal, powered by TEEs
+  - public sigstack repo across Rust, Docker, web, and attestation surfaces
+  - Lightblocks / IC3-adjacent TEE and oracle lineage
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

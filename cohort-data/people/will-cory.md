@@ -20,6 +20,12 @@ contribute_interests: "Help with agent orchestrations"
 availability_pref: null
 weekly_intention: "bring the vibes learn about others projects"
 dietary_restrictions: "none"
+now: "Building around JJHub, Smithers, Tevm, and agentic coding workflows."
+skill_areas:
+  - agentic-workflows
+  - developer-tools
+  - evm-internals
+  - durable-workflows
 go_to_them_for:
   - agentic coding systems
   - developer workflow experiments
@@ -30,6 +36,17 @@ recurring_themes:
   - AI coding tools
   - developer flow
   - strong public repo signal with process ambiguity
+working_style: "High-context open-source builder; most valuable where repo-scale tests, agentic workflow, and EVM internals meet."
+best_contexts:
+  - agentic CI and review loops
+  - Smithers/JJHub workflow design
+  - EVM tooling context
+prior_work:
+  - Tevm
+  - Smithers
+  - JJHub
+  - Guillotine
+  - Burns
 enrichment_source: dossier-derived  # facilitator read; edit freely
 making_signature:
   class: underplayed-depth

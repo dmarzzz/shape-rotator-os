@@ -41,6 +41,18 @@ seeking:
 offering:
   - formal-verification office hours · bounded model checking primer
   - regulated-rollouts (SOX, healthcare compliance) perspective
+journey:
+  stage: 3
+  evidence_quality: 2
+  market_upside: 4
+  primary_bottleneck: Solution Quality
+  company_type: Infra
+  confidence: Low
+  icp: TEE and confidential-data teams that need formal verification or registry-grade proof of deployment properties
+  problem: TEE database and agent infrastructure claims are hard to trust without inspectable verification artifacts
+  solution: a formal-verification registry and proof workflow for dstack/TEE Postgres-style deployments
+  evidence_notes: strong operator background and shipped enterprise blockchain history; current cohort artifact is still at spec/registry stage
+  next_milestone: validate the registry spec against TeeSQL or another live TEE database project
 ---
 
 ## about

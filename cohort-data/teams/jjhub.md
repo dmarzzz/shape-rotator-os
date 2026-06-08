@@ -42,6 +42,18 @@ seeking:
 offering:
   - live demo sessions on jjhub + Smithers integration
   - EVM internals + agentic-workflow consultation
+journey:
+  stage: 4
+  evidence_quality: 3
+  market_upside: 4
+  primary_bottleneck: ICP Clarity
+  company_type: AI
+  confidence: Medium
+  icp: developers using agentic coding systems who need durable workflows, review loops, and CI-grade orchestration
+  problem: coding agents can produce useful work but struggle with durable workflow state, review discipline, and repo-scale orchestration
+  solution: JJHub and Smithers as an agentic coding platform with durable workflow primitives
+  evidence_notes: Tevm grant, Smithers HN signal, large public repo activity, and related EVM tooling show high builder credibility; target product boundary still needs concentration
+  next_milestone: get one cohort team using Smithers/JJHub for a real agentic CI or review loop
 making_signature:
   built_domain: [agentic, systems]
   shape: deep

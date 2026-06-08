@@ -17,6 +17,30 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Co-building TvEE RL: attested reinforcement-learning workflows with Stanford Scaling Intelligence Lab context."
+skill_areas:
+  - reinforcement-learning
+  - ai-evaluation
+  - tee
+  - research-to-product
+go_to_them_for:
+  - RL workflow framing
+  - evaluation design
+  - Stanford Scaling Intelligence Lab context
+  - TvEE RL research direction
+recurring_themes:
+  - verifiable ML evaluation
+  - research discipline
+  - attested learning workflows
+working_style: "Research-oriented ML cofounder; strongest current read is TvEE RL plus Scaling Intelligence Lab affiliation."
+best_contexts:
+  - RL/evaluation review
+  - attested ML research direction
+  - direct evidence collection
+prior_work:
+  - Stanford Scaling Intelligence Lab affiliation
+  - TvEE RL cofounding
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

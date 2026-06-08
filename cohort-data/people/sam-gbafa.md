@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Open-sourcing TinyCloud's delegation model and user-owned cloud architecture."
+skill_areas:
+  - tee
+  - did-auth
+  - threshold-crypto
+  - agentic-workflows
 go_to_them_for:
   - user-owned cloud strategy
   - DID/capability architecture
@@ -27,6 +33,16 @@ recurring_themes:
   - lineage-aware systems building
   - high-commitment founder energy
   - architecture as social substrate
+working_style: "AI-first infrastructure founder who builds his own tools, then folds them back into the product thesis."
+best_contexts:
+  - user-owned cloud strategy
+  - agent delegation architecture
+  - d/acc and decentralized identity context
+prior_work:
+  - SpruceID
+  - OpenAI
+  - edge-city-bot
+  - TinyCloud Node
 enrichment_source: dossier-derived  # facilitator read; edit freely
 making_signature:
   class: underplayed-depth

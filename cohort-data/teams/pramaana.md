@@ -53,6 +53,18 @@ offering:
   - workshop on post-quantum identity + Sybil resistance for dApps
   - cryptographic design sprint pairing
   - Pramaana SDK as identity layer for cohort tools
+journey:
+  stage: 5
+  evidence_quality: 4
+  market_upside: 4
+  primary_bottleneck: GTM
+  company_type: Protocol
+  confidence: Medium
+  icp: dApps and identity protocols that need post-quantum enrollment, Sybil resistance, or PALC-style anonymous credentials
+  problem: crypto identity systems need stronger privacy and post-quantum readiness without making integration impossible
+  solution: Pramaana SDK and PALC enrollment flow backed by ML-KEM tests and multichain registry work
+  evidence_notes: hackathon win, live platform, test suite, and paper-to-product arc are strong; next risk is external adoption
+  next_milestone: integrate Pramaana identity into one other cohort tool or dApp flow
 ---
 
 ## about

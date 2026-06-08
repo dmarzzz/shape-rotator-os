@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Building Conclave's ML and AI layer: embeddings, clustering, and agentic pre-checks before LLM inference."
+skill_areas:
+  - embeddings
+  - clustering
+  - agentic-workflows
+  - ml-infrastructure
 go_to_them_for:
   - NDAI frameworks
   - skills runtime design
@@ -28,6 +34,13 @@ recurring_themes:
   - coordination primitives
   - framework-to-tool translation
 working_style: Under-observed
+best_contexts:
+  - Conclave ML architecture
+  - pre-LLM inference checks
+  - embeddings and clustering design
+prior_work:
+  - Conclave cofounding
+  - embeddings, clustering, and agentic pre-check work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 making_signature:
   class: latent

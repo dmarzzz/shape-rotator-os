@@ -45,6 +45,18 @@ offering:
   - free TeeSQL service to cohort teams during the accelerator
   - open-source connection-layer attestation code
   - CVM provider market analysis sharing
+journey:
+  stage: 4
+  evidence_quality: 3
+  market_upside: 4
+  primary_bottleneck: Technical Risk
+  company_type: Infra
+  confidence: Medium
+  icp: teams that need confidential SQL with inspectable TEE deployment and RA-TLS connection guarantees
+  problem: confidential applications need normal database ergonomics without silently losing the attestation and deployment guarantees
+  solution: TEE Postgres on dstack plus RA-TLS proxy and open-source attestation connection tooling
+  evidence_notes: multiple supporting repos, current beta direction, and clear cohort demand from other Flashbots-X projects; hardening remains the near-term risk
+  next_milestone: onboard one cohort team to the TeeSQL beta and document the full attested connection path
 making_signature:
   built_domain: [systems, agentic]
   shape: broad

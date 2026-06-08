@@ -14,6 +14,26 @@ links:
   website: "https://quasimatt.com"
   linkedin: "mattvanommeren"
 dietary_restrictions:
+now: "Building Shake Social, an iOS relationship-tracking app meant to feel lightweight and fun."
+skill_areas:
+  - consumer-apps
+  - product-design
+  - social-ux
+  - ios
+go_to_them_for:
+  - consumer social gestures
+  - relationship-tracking UX
+  - lightweight iOS product feel
+recurring_themes:
+  - IRL connection
+  - fun as product mechanic
+  - relationship memory
+best_contexts:
+  - social app critique
+  - event/community UX
+  - consumer-product polish
+prior_work:
+  - Shake Social iOS app
 working_style: By his own account, a consumer-app builder focused on a fun, relationship-tracking iOS product
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---

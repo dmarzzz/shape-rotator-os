@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Co-building Crossroads, a Liquefaction-based wallet for policy-constrained cross-chain signing."
+skill_areas:
+  - cross-chain
+  - wallet-infrastructure
+  - policy-constrained-signing
+  - crypto-routing
 go_to_them_for:
   - wallet infrastructure review
   - crypto routing questions
@@ -25,6 +31,13 @@ recurring_themes:
   - wallet mechanics
   - sparse-source profile
   - project-context inference
+working_style: "Implementation-side wallet builder; strongest current read comes through Crossroads project context rather than a large standalone profile."
+best_contexts:
+  - key custody and signing flows
+  - cross-chain wallet mechanics
+  - direct evidence collection
+prior_work:
+  - Crossroads prototype and Cornell Tech wallet work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

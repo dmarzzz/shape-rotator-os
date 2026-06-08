@@ -41,6 +41,18 @@ seeking:
 offering:
   - live demo-day visuals for cohort teams (voice → transcript → stage)
   - design + storytelling consultation
+journey:
+  stage: 4
+  evidence_quality: 3
+  market_upside: 4
+  primary_bottleneck: Solution Quality
+  company_type: AI
+  confidence: Medium
+  icp: performers, creative venues, and demo teams that need live generative staging tied to human input
+  problem: live AI visuals often feel generic because they do not ingest the actual voice, context, or ritual of the room
+  solution: a generative stage system that turns live voice/transcript/context into responsive visual performance
+  evidence_notes: hardware installs, Anthropic HQ exhibition, Florent residency, and repo surface show real creative deployment; repeatable product package remains open
+  next_milestone: run the cohort voice/transcript demo and identify the smallest repeatable stage-kit product
 making_signature:
   built_domain: [data]
   shape: deep

@@ -28,6 +28,12 @@ availability_pref: |
   Currently open. Prefer async by default, with calls for high-context collaboration or anything that benefits from rapid back-and-forth.
 weekly_intention: "Improve my personal feed and build a better system prompt for filtering information."
 dietary_restrictions: none
+now: "Improving an agentic personal feed and fundraising engine while co-building TinyCloud's user-owned cloud surface."
+skill_areas:
+  - tee
+  - agentic-workflows
+  - did-auth
+  - physical-digital-systems
 go_to_them_for:
   - user-owned cloud architecture
   - DID/auth capability systems
@@ -38,6 +44,15 @@ recurring_themes:
   - deep infrastructure
   - capability-based access
   - implementation discipline
+working_style: "Cross-domain builder comfortable moving between systems software, agent workflows, spatial design, and physical installations."
+best_contexts:
+  - agent workflow design
+  - applied AI interfaces
+  - physical/digital experience prototypes
+prior_work:
+  - TinyCloud cofounding
+  - music venue and live-sound operations
+  - coffee shop and spatial/installation work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

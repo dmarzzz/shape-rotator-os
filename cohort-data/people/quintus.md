@@ -24,6 +24,27 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: working on Trustless TEE and the trust-root assumptions under confidential-compute systems
+skill_areas:
+  - tee
+  - attestation
+  - mechanism-design
+go_to_them_for:
+  - TEE trust-root assumptions
+  - remote-attestation threat modeling
+  - Ethereum execution and priority-update questions
+recurring_themes:
+  - secure open verified silicon
+  - trust minimization below the application layer
+  - sequencing and latency in execution systems
+working_style: "Trust-minimization specialist focused below the application layer, especially where TEE systems inherit hardware-vendor assumptions."
+best_contexts:
+  - remote-attestation threat modeling
+  - trust-root mechanism design
+  - Ethereum execution-system questions
+prior_work:
+  - Trustless TEE
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about

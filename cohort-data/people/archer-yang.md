@@ -17,6 +17,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: "Building BitRouter's technical core, including x402 and MPP payment integrations for P2P model routing."
+skill_areas:
+  - p2p-networks
+  - agent-payment-rails
+  - crypto-infrastructure
+  - model-routing
 go_to_them_for:
   - P2P model routing
   - agent payment rails
@@ -28,6 +34,13 @@ recurring_themes:
   - infrastructure before interface
   - technical completeness seeking GTM
 working_style: "Inferred only from the commit trace: steady daily cadence, primary authorship of the hard payment-rails work"
+best_contexts:
+  - BitRouter protocol review
+  - x402 / MPP payment rails
+  - agent routing infrastructure
+prior_work:
+  - bitrouter/bitrouter codebase
+  - x402 and MPP payment integrations
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

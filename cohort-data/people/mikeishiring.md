@@ -19,6 +19,27 @@ availability_pref: null
 weekly_intention: "Trial Centaur"
 now: "Flashbots X-adjacent product exploration"
 dietary_restrictions: null
+skill_areas:
+  - product-feedback
+  - crypto-product
+  - nontechnical-framing
+  - go-to-market
+go_to_them_for:
+  - live-fire feedback from a nontechnical perspective
+  - product framing
+  - rough agent/crypto idea testing
+recurring_themes:
+  - fast external reaction
+  - crypto product sense
+  - vibes-to-user-language translation
+working_style: "Direct feedback partner: useful when a technical idea needs to be tested against nontechnical comprehension quickly."
+best_contexts:
+  - early product critique
+  - demo reaction
+  - Centaur / Flashbots X-adjacent exploration
+prior_work:
+  - Flashbots X orbit
+  - Centaur trial
 ---
 
 ## bio

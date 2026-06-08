@@ -21,6 +21,12 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: writing Abra's formal-verification registry spec for TEE-backed compliance proofs
+skill_areas:
+  - formal-verification
+  - tee
+  - dstack
+  - attestation
 go_to_them_for:
   - formal verification
   - TEE-backed compliance
@@ -31,6 +37,15 @@ recurring_themes:
   - compliance as infrastructure
   - specific technical primitives
   - consulting-to-product translation
+working_style: compliance-first systems thinker; starts from the proof consumer and works backward to the technical artifact
+best_contexts:
+  - formal verification and assurance design
+  - enterprise compliance workflows
+  - translating regulated requirements into product primitives
+prior_work:
+  - Abra — formally verified application platform
+  - compliance technology background
+  - verified SailPoint-style access-proof concept for SOX workflows
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

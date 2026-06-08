@@ -43,6 +43,18 @@ offering:
   - share wallet UX + cross-chain UX feedback
   - document TEE/oracle and signing-committee approaches for other infra teams
   - asset-movement patterns for teams prototyping cross-chain flows
+journey:
+  stage: 3
+  evidence_quality: 2
+  market_upside: 4
+  primary_bottleneck: Technical Risk
+  company_type: Protocol
+  confidence: Low
+  icp: wallet and cross-chain teams that need policy-constrained signing without encumbering user keys
+  problem: cross-chain asset movement creates signing, custody, and key-encumbrance risks that are hard to express safely in UX
+  solution: a Liquefaction-inspired wallet prototype with signing committee and cross-chain flow experiments
+  evidence_notes: working prototype and paper-author collaboration are strong research signals; product boundary and user path still need sharpening
+  next_milestone: demonstrate one policy-constrained signing flow that a real wallet user can understand
 ---
 
 ## about

@@ -17,6 +17,12 @@ links:
   website: sainak.dev
   linkedin: null
 dietary_restrictions:
+now: "Co-building JJHub's agent runtime and developer-tooling surface."
+skill_areas:
+  - agentic-workflows
+  - developer-tools
+  - agent-runtime
+  - ai-coding
 go_to_them_for:
   - agentic coding workflows
   - developer tooling
@@ -27,6 +33,14 @@ recurring_themes:
   - agent-assisted shipping
   - tooling over theory
   - recursive coding systems
+working_style: "Developer-tooling builder; useful where agentic coding needs to become a concrete workflow rather than a demo."
+best_contexts:
+  - agent runtime review
+  - JJHub workflow critique
+  - AI coding product feedback
+prior_work:
+  - JJHub cofounding
+  - agent runtime work
 enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 

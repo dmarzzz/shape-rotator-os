@@ -17,6 +17,29 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
+now: building AlphaI as an agentic trading OS for AI-native funds and serious traders
+skill_areas:
+  - agentic
+  - mev
+  - mechanism-design
+  - bd-gtm
+go_to_them_for:
+  - agentic trading systems
+  - quant-finance product framing
+  - crypto market thesis and trader workflows
+recurring_themes:
+  - AI-native funds
+  - systematic trading infrastructure
+  - productizing quant workflows
+working_style: market-thesis-led founder; connects trading operations to product and buyer language
+best_contexts:
+  - trading workflow discovery
+  - product strategy for finance users
+  - AI agent tooling for systematic operators
+prior_work:
+  - AlphaI — agentic trading OS
+  - Equarion Capital crypto AUM and live trading models
+enrichment_source: dossier-derived  # facilitator read; edit freely
 ---
 
 ## about
