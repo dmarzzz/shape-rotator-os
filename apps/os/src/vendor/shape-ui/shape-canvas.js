@@ -84,7 +84,8 @@ const vec3 K_MUSTARD = vec3(1.00, 0.82, 0.12);
 const vec3 K_BURNT   = vec3(1.00, 0.55, 0.15);
 const vec3 K_GREEN   = vec3(0.28, 0.85, 0.55);
 const vec3 K_INK     = vec3(0.04, 0.04, 0.05);
-const vec3 K_PAPER   = vec3(0.137, 0.121, 0.125);  /* warm charcoal canvas (matches --abyss #231F20) */
+uniform vec3 K_PAPER;  /* card backdrop — set per-frame from the app theme: warm charcoal (dark) or warm paper (light) */
+const vec3 K_CANVAS = vec3(0.137, 0.121, 0.125);  /* shape interior — always charcoal so the additive colour layers stay vivid on either theme */
 vec3 kandinsky(float t) {
   float h = fract(t);
   if (h < 0.166) return K_CRIMSON;
@@ -361,7 +362,7 @@ void main() {
   // board because the dark background absorbs more than paper did.
   // The per-family specimen mark goes between accents and rim so it
   // reads above hash-noise but never competes with the rim itself.
-  vec3 interior = K_PAPER;
+  vec3 interior = K_CANVAS;
   interior += frac * 1.10;                          // fractal — louder
   interior  = mix(interior, peakC, peak * 0.55);    // rainbow centre glow
   interior += sparkC * spark * 1.10;                // sparkles
@@ -435,8 +436,18 @@ function buildProgram(gl) {
       rotationPhase: gl.getUniformLocation(prog, "u_rotationPhase"),
       aspect:        gl.getUniformLocation(prog, "u_aspect"),
       scale:         gl.getUniformLocation(prog, "u_scale"),
+      paper:         gl.getUniformLocation(prog, "K_PAPER"),
     },
   };
+}
+
+// Canvas base color follows the app theme. Read straight from the DOM so this
+// vendored module stays decoupled from the app's theme.js; set as the K_PAPER
+// uniform each frame so a light/dark toggle takes effect without a remount.
+function paperRGB() {
+  return document.documentElement.dataset.theme === "light"
+    ? [0.957, 0.937, 0.902]   // #F4EFE6 warm paper
+    : [0.137, 0.121, 0.125];  // #231F20 warm charcoal
 }
 
 // ── hash helpers ────────────────────────────────────────────────────────
@@ -516,6 +527,7 @@ export function mountShape(canvas, opts = {}) {
     gl.uniform1f(prog.uniforms.rotationPhase, rotationPhase);
     gl.uniform1f(prog.uniforms.aspect, canvas.width / canvas.height);
     gl.uniform1f(prog.uniforms.scale, opts.scale != null ? +opts.scale : 1.0);
+    gl.uniform3fv(prog.uniforms.paper, paperRGB());
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     raf = requestAnimationFrame(frame);
   }
@@ -667,6 +679,7 @@ function mountSharedOverlay(overlay) {
     gl.scissor(0, 0, overlay.width, overlay.height);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(prog.prog);
+    const paper = paperRGB();
 
     for (const p of placeholderList()) {
       if (!p.el.isConnected) continue;
@@ -697,6 +710,7 @@ function mountSharedOverlay(overlay) {
       gl.uniform1f(prog.uniforms.rotationPhase, 0);
       gl.uniform1f(prog.uniforms.aspect, w / h);
       gl.uniform1f(prog.uniforms.scale, p.scale);
+      gl.uniform3fv(prog.uniforms.paper, paper);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
     raf = requestAnimationFrame(frame);

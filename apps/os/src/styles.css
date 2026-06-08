@@ -15744,6 +15744,33 @@ html[data-theme="light"] .cb-headrow {
   background: var(--alchemy-charcoal);
 }
 
+/* Cohort specimen cards (.alch-card) — layers 4/5 of cohort-card.css hardcode
+ * warm-charcoal gradients (#15120e…) that ignore the themed --ed vars, so the
+ * card body stays dark under the (now paper) shape canvas. Re-skin to paper;
+ * the oxide cohort hairline is kept since it reads on both themes. */
+html[data-theme="light"] .alch-card {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F4EFE6 100%);
+  border-top-color: rgba(var(--ink-rgb), 0.10);
+}
+html[data-theme="light"] .alch-card:hover {
+  background: linear-gradient(180deg, #FFFFFF 0%, #EFE8DD 100%);
+  border-top-color: rgba(var(--ink-rgb), 0.22);
+}
+html[data-theme="light"] .alch-card-membership-cohort {
+  background: linear-gradient(180deg, #FCF7F1 0%, #F3EADF 100%);
+}
+html[data-theme="light"] .alch-card-membership-cohort:hover {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F1E6D9 100%);
+}
+
+/* Collab board adjacency matrix — the sticky column-header row hardcodes a
+ * charcoal fallback (var(--alchemy-bg) is undefined), so it stays dark while
+ * its label text flips to dark ink: an unreadable dark-on-dark band. Flip the
+ * header to paper in light mode (dark mode keeps the #231F20 fallback). */
+html[data-theme="light"] .cb-headrow {
+  background: var(--ed-bg-1);
+}
+
 /* Smooth transition so the flip is satisfying instead of jarring. */
 html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   transition: background-color 220ms ease, color 220ms ease;
