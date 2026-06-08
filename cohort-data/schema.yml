@@ -137,7 +137,10 @@ teams:
     - now                   # one-line "this week we're..." — Sivers/now-page pattern at team scope; refresh Monday
     - prior_shipping        # list[string] — factual public outcomes (hackathon entries, papers, products). One per line.
     - skill_areas           # list[controlled vocab] — see schema.cohort_vocab.skill_areas below. Aggregated across the team for filtering.
-    - dependencies          # list[string] — other team record_ids this project depends on, unblocks, or pairs naturally with. Seeds the connection graph.
+    - dependencies          # list[string] — other team record_ids this project has a declared relationship with. Seeds the connection graph.
+                            # Legacy shorthand. Prefer dependency records under
+                            # cohort-data/dependencies/ when the relationship
+                            # needs reason/status/evidence/next action.
     - seeking               # list[string] — what the team wants help with from the cohort.
     - offering              # list[string] — what the team would happily share/help others with.
     # PMF journey — one optional nested object placing this team/project on the
@@ -156,6 +159,21 @@ teams:
     #     confidence: Low | Medium | High
     #     icp, problem, solution, evidence_notes, next_milestone   # free text
     - journey
+
+dependencies:
+  surface_fields:
+    - record_id
+    - record_type
+    - source          # team record_id that declares the relationship
+    - target          # team record_id the source links to, depends on, can be paired with, or is unblocked by
+    - relation        # depends_on | unblocks | pairs_with | shares_substrate | complements
+    - status          # declared | exploring | active | blocked | resolved
+    - confidence      # low | medium | high — confidence in the public relationship record, not product quality
+    - reason          # one-line human-readable reason; must be grounded in source-visible team fields
+    - evidence        # list[string] — public source facts supporting the relationship
+    - next_action     # optional concrete next action if known
+    - owner           # optional person/team record_id responsible for moving it forward
+    - updated_at      # YYYY-MM-DD — last source-data update for this relationship
 
 clusters:
   surface_fields:
