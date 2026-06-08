@@ -9652,6 +9652,7 @@ function renderTeamDetail(team) {
       <div class="alch-detail-grid">
         <section class="alch-detail-section">
           <h3 class="alch-detail-h">about</h3>
+          ${team.now ? `<div class="alch-detail-row"><span class="adr-k">now</span><span class="adr-v alch-detail-now">${escHtml(team.now)}</span></div>` : ""}
           <div class="alch-detail-row"><span class="adr-k">contributors</span><span class="adr-v">${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</span></div>
           ${team.traction ? `<div class="alch-detail-row"><span class="adr-k">traction</span><span class="adr-v">${escHtml(team.traction)}</span></div>` : ""}
         </section>
@@ -9670,6 +9671,18 @@ function renderTeamDetail(team) {
             </div>
           </section>
         ` : ""}
+
+        ${renderDetailSection("coordination", [
+          { key: "depends on", value: renderDependencyLinks(team.dependencies) },
+          { key: "seeking", value: detailList(team.seeking) },
+          { key: "offering", value: detailList(team.offering) },
+        ])}
+
+        ${renderDetailSection("capability", [
+          { key: "skills", value: detailChips(team.skill_areas) },
+          { key: "shipped", value: detailList(team.prior_shipping) },
+          { key: "success", value: detailChips(team.success_dimensions, { muted: true }) },
+        ])}
 
         <section class="alch-detail-section">
           <h3 class="alch-detail-h">links</h3>
@@ -9807,6 +9820,23 @@ function renderPersonDetail(person) {
           <div class="alch-detail-row"><span class="adr-v">${escHtml(person.dietary_restrictions)}</span></div>
         </section>
       ` : ""}
+
+      ${renderDetailSection("current work", [
+        { key: "now", value: person.now ? `<span class="alch-detail-now">${escHtml(person.now)}</span>` : "" },
+        { key: "skills", value: detailChips(person.skill_areas || person.skills) },
+      ])}
+
+      ${renderDetailSection("collaboration", [
+        { key: "ask about", value: detailList(person.go_to_them_for || person.offering) },
+        { key: "best in", value: detailList(person.best_contexts) },
+        { key: "seeking", value: detailList(person.seeking) },
+        { key: "style", value: person.working_style ? escHtml(person.working_style) : "" },
+      ])}
+
+      ${renderDetailSection("throughlines", [
+        { key: "themes", value: detailList(person.recurring_themes) },
+        { key: "prior work", value: detailList(person.prior_work) },
+      ])}
 
       <section class="alch-detail-section">
         <h3 class="alch-detail-h">links</h3>
