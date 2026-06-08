@@ -531,6 +531,9 @@ export function closeMembraneMenu() {
 
 function render(opts = {}) {
   if (!state.canvas || !state.cohort) return;
+  // Monotonic render guard — a delayed cross-fade swap must not overwrite a
+  // newer view if the user switched tabs during the 220ms timeout.
+  const renderSeq = ++state.renderSeq;
   // Reflect current mode on the alchemy-view container so scoped CSS
   // (membrane.css especially) can target the right surface.
   if (state.container) {
