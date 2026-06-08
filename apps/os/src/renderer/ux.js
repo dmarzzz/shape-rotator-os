@@ -74,6 +74,16 @@ export function toast(opts) {
   const msg = String(o.message || "");
   if (!msg) return;
   const host = ensureToastHost();
+  const title = String(o.title || "");
+  const duplicateKey = `${kind}\n${title}\n${msg}`;
+  const duplicate = Array.from(host.children).find((child) =>
+    child?.dataset?.toastKey === duplicateKey && !child.classList.contains("leaving")
+  );
+  if (duplicate) {
+    return {
+      dismiss: () => duplicate.querySelector(".ux-toast-close")?.click(),
+    };
+  }
 
   // cap stack
   while (host.children.length >= TOAST_MAX_STACK) {
@@ -83,6 +93,7 @@ export function toast(opts) {
   const el = document.createElement("div");
   el.className = `ux-toast ux-toast-${kind}`;
   el.setAttribute("role", "status");
+  el.dataset.toastKey = duplicateKey;
   el.innerHTML = `
     <span class="ux-toast-icon" aria-hidden="true">${TOAST_ICON[kind] || TOAST_ICON.info}</span>
     <div class="ux-toast-body">
