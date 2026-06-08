@@ -1,7 +1,7 @@
 import { createMembraneScene, SLOT_OFFSETS } from './scene.js';
 import { createSoundDirector } from './sound.js';
 import { BLOB_IDS, BLOB_PROFILES } from './blob.js';
-import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAuthor } from '../asks.js';
+import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAuthor, askVerbIconSvg, askVerbVars } from '../asks.js';
 
 function up(s) { return String(s ?? '').toUpperCase(); }
 
@@ -171,6 +171,7 @@ function renderAsksInline(data) {
     const ago = askAgeLabel(a);
     const verb = a.verb || 'ask';
     const verbGlyph = Array.from(String(verb).trim())[0] || '·';
+    const verbVars = askVerbVars(verbGlyph);
     const status = askStatus(a);
     const statusBadge = status === 'open' && a._expired
       ? '<span class="membrane-ask-status membrane-ask-status-fading">fading</span>'
@@ -185,7 +186,7 @@ function renderAsksInline(data) {
       <li class="membrane-ask-item" data-expired="${a._expired ? '1' : '0'}">
         <details class="membrane-ask-row">
           <summary class="membrane-ask-summary">
-            <span class="membrane-ask-verb" title="${escHtml(verb)}">${escHtml(verbGlyph)}</span>
+            <span class="membrane-ask-verb${verbVars ? ' has-verb-color' : ''}"${verbVars ? ` style="${verbVars}"` : ''} title="${escHtml(verb)}">${askVerbIconSvg(verbGlyph) || escHtml(verbGlyph)}</span>
             <span class="membrane-ask-body">
               <span class="membrane-ask-title">${escHtml(title)}</span>
               <span class="membrane-ask-meta">
@@ -294,7 +295,7 @@ function renderSelfCard(data, tpl) {
     .map((a) => `<button type="button" class="crewid-action" data-jump-mode="${a.mode}">${a.label}</button>`).join('');
   const claimCta = claimed ? '' : `
     <button type="button" class="crewid-claim seal-strike" data-crewid-claim="1">
-      <span class="cc-glyph" aria-hidden="true">◇</span>
+      <span class="cc-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 13V8.5C14 7 15 7 15 5a3 3 0 0 0-6 0c0 2 1 2 1 3.5V13"/><path d="M20 15.5a2.5 2.5 0 0 0-2.5-2.5h-11A2.5 2.5 0 0 0 4 15.5V17a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1z"/><path d="M5 22h14"/></svg></span>
       <span class="cc-text">
         <span class="cc-title">strike your seal</span>
         <span class="cc-sub">identify · cross the threshold →</span>
@@ -312,7 +313,7 @@ function renderSelfCard(data, tpl) {
       <div class="crewid-scan" aria-hidden="true"></div>
 
       <div class="crewid-band">
-        <span class="crewid-issuer">⬡ shape rotator · alchemy</span>
+        <span class="crewid-issuer"><svg class="issuer-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg> shape rotator · alchemy</span>
         <span class="crewid-doc">${claimed ? 'sealed' : 'unsealed'}</span>
       </div>
 
@@ -430,22 +431,22 @@ const COHORT_VIEWS = [
   {
     nav: 'const', mode: 'clusters',
     title: 'clusters', desc: 'teams grouped by shared synergy',
-    glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="9" cy="9.5" r="4.6"/><circle cx="15" cy="9.5" r="4.6"/><circle cx="12" cy="15" r="4.6"/></svg>',
+    glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg>',
   },
   {
     nav: 'const', mode: 'dependencies',
     title: 'dependencies', desc: 'who relies on whom',
-    glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6.5 11.5 17M18 6.5 12.5 17"/><circle cx="5" cy="5" r="2.1"/><circle cx="19" cy="5" r="2.1"/><circle cx="12" cy="19" r="2.1"/></svg>',
+    glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></svg>',
   },
   {
     nav: 'const', mode: 'journey',
     title: 'journey', desc: 'every team’s PMF arc',
-    glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M4 20h16"/><path d="M4 20Q9 7 20 4.5"/><circle cx="9" cy="13.4" r="1.1" fill="currentColor" stroke="none"/><circle cx="13.5" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="18" cy="5.6" r="1.1" fill="currentColor" stroke="none"/></svg>',
+    glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg>',
   },
   {
     nav: 'shapes',
     title: 'the full cohort', desc: 'every team + project, up close',
-    glyph: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="6" cy="6" r="1.5"/><circle cx="12" cy="6" r="1.5"/><circle cx="18" cy="6" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/><circle cx="6" cy="18" r="1.5"/><circle cx="12" cy="18" r="1.5"/><circle cx="18" cy="18" r="1.5"/></svg>',
+    glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>',
   },
 ];
 
@@ -564,7 +565,7 @@ export function mountMembrane(container, opts = {}) {
         <div class="membrane-panel-content"></div>
         <footer class="membrane-panel-foot">
           <button type="button" class="membrane-sound-toggle" data-membrane-sound aria-pressed="false">
-            <span class="mst-glyph" aria-hidden="true">⌒</span>
+            <span class="mst-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg></span>
             <span class="mst-label">hum</span>
             <span class="mst-state">off</span>
           </button>
@@ -758,7 +759,7 @@ export function mountMembrane(container, opts = {}) {
   foldBtn.className = 'membrane-enter-field';
   foldBtn.type = 'button';
   foldBtn.setAttribute('aria-label', 'enter the field — fold the panel away');
-  foldBtn.innerHTML = '<span aria-hidden="true">⊹</span><span class="mef-label">enter the field</span>';
+  foldBtn.innerHTML = '<span class="mef-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></span><span class="mef-label">enter the field</span>';
   foldBtn.addEventListener('click', () => setFolded(true));
   const panelFoot = panel.querySelector('.membrane-panel-foot');
   (panelFoot || panel).appendChild(foldBtn);

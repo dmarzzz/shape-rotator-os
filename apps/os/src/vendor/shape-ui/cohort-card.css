@@ -104,6 +104,13 @@
   letter-spacing: -0.014em; font-weight: 500;
   color: var(--alchemy-paper-warm);
 }
+/* Domain label, moved out of the old top tag row to sit under the name. */
+.alch-card-domain {
+  margin-top: -8px;
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: 0.20em; text-transform: uppercase;
+  color: var(--alchemy-ink-mute);
+}
 .alch-card-rule { height: 1px; background: var(--alchemy-rule-warm); width: 28px; }
 .alch-card-meta { display: flex; flex-direction: column; gap: 5px; }
 .alch-card-meta-row {
