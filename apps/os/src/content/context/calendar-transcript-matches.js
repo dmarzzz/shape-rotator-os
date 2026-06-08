@@ -140,6 +140,32 @@ export const CALENDAR_TRANSCRIPT_MATCHES = [
     ],
   },
   {
+    date: "2026-05-26",
+    title_contains: ["Lecture", "Defining Product Market Fit", "Gil Rosen"],
+    section: "gil rosen product market fit lecture",
+    confidence: "medium",
+    sources: [
+      {
+        role: "transcript",
+        label: "gil pmf lecture segment",
+        path: "apps/os/src/content/context/raw-scripts/May 26, wikigen, crossroads.txt",
+      },
+    ],
+  },
+  {
+    date: "2026-05-27",
+    title_contains: ["Onboarding for teleport router", "q&a"],
+    section: "teleport router onboarding",
+    confidence: "medium",
+    sources: [
+      {
+        role: "redacted transcript",
+        label: "teleport router onboarding redacted excerpt",
+        path: "apps/os/src/content/context/raw-scripts/Teleport Router Onboarding Privacy Boundaries May 27 Redacted Transcript.txt",
+      },
+    ],
+  },
+  {
     date: "2026-05-27",
     title_contains: ["Ideal Customer Profiling", "User Interviews"],
     section: "ideal customer profiling",
@@ -149,6 +175,19 @@ export const CALENDAR_TRANSCRIPT_MATCHES = [
         role: "transcript",
         label: "icp user interviews",
         path: "apps/os/src/content/context/raw-scripts/Ideal Customer Profiling User Interviews Transcript from Albiona.txt",
+      },
+    ],
+  },
+  {
+    date: "2026-05-28",
+    title_contains: ["Agentic Tooling workshops/clinic"],
+    section: "agentic tooling clinic",
+    confidence: "medium",
+    sources: [
+      {
+        role: "redacted transcript",
+        label: "agentic tooling workshop redacted excerpt",
+        path: "apps/os/src/content/context/raw-scripts/Agentic Tooling Workshop May 28 Redacted Transcript.txt",
       },
     ],
   },

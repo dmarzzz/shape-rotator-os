@@ -1,0 +1,48 @@
+# Teleport Router Onboarding & Privacy Boundaries (May 27, Redacted)
+
+record_id: teleport-router-onboarding-privacy-redacted
+source_format: redacted transcript excerpt
+segments: excerpted
+speakers: Andrew Miller, James Barnes, Tina Z, General Room Talk, Gonzo Gelso
+review_status: reviewed-redacted
+submit_recommendation: include redacted excerpt only
+calendar_matches: [2026-05-27 teleport-router-onboarding]
+related_teams: [teleport-router]
+related_people: [andrew-miller, james-barnes, gonzo-gelso]
+utility: Router onboarding, self-intro notebooks, Matrix account linking, Hermes context routing, and privacy-boundary review.
+content_boundary: Excerpted from a longer room transcript and lightly cleaned for readability. Team-specific PMF/product feedback, private customer/company examples, pricing/fundraising/investor material, internal operating details, and personal/private boundary text were removed.
+redactions: team-specific PMF/product feedback; private customer/company examples; pricing/fundraising/investor material; internal operating details; personal/private boundary text
+
+----- BEGIN TRANSCRIPT -----
+
+[0:04] Andrew Miller (room-mic): I did not hit ship it at the last step.
+
+[0:11] James Barnes (cohort): I think this could be part of onboarding.
+
+[0:16] Andrew Miller (room-mic): The interesting thing is that it put a bunch of privacy boundaries into the self-introduction. That raises a question: if the notebook publishes my privacy boundaries, is it teaching other people about them rather than keeping them as a private meta-note? I had to clean the first draft because it listed individual topics I did not want to talk about.
+
+[0:46] James Barnes (cohort): I made that prompt quickly. We probably do not want to publish a person's privacy boundaries onto the notebook, or maybe we do. That is the question before we all link our work contexts together.
+
+[redacted 1:31-4:16: team-specific PMF/product feedback and private project assessment before the router demo.]
+
+[4:17] Andrew Miller (room-mic): Let me show an example. The thing James shipped is a prompt that does not only use your current session. It asks your agent to crawl your projects and propose a self-introduction. You review it, clean it up, and publish it into the notebook.
+
+[5:52] James Barnes (cohort): The pipeline has a few stages. First, attach this to everyone's agents. Second, make Matrix a useful interface for accessing what people publish into the notebook. The organization can push raw entries into the bot-notes channel, create newsletter-style summaries, and let the router comment when entries are relevant to someone else.
+
+[8:45] James Barnes (cohort): The entries are available to the search tool. You can message the Shape Router and ask it about the notebook. It can also start commenting on people's posts when they are relevant.
+
+[9:51] James Barnes (cohort): You can link your Matrix account to your router account by messaging the bot and sending the code back to your agent. The stack is the router server, the Hermes agent making connections, and the Matrix server as the cohort interface.
+
+[11:42] James Barnes (cohort): It is a simple REST API, so you should be able to consume the feed in the Shape Rotator OS version.
+
+[11:48] Tina Z (guest): How active are people in the Matrix server? I have heard people were hesitant about onboarding to the router. Were you getting that feedback?
+
+[12:35] James Barnes (cohort): I have not gotten that feedback. I think people did not understand what it was, so onboarding sessions are valuable. We had a small one yesterday, and we have another one tomorrow.
+
+[13:26] James Barnes (cohort): Getting people onboarded and getting the auto-commenting running is what I am pushing toward. The bot should start useful conversations consistently.
+
+[13:54] James Barnes (cohort): We could encourage lightweight feedback, like emoji responses, and the Hermes agent can consume that and self-edit.
+
+[redacted 14:06-end: private enterprise/customer examples, detailed product strategy, internal company workflows, pricing/fundraising/investor discussion, and non-public operating details.]
+
+----- END TRANSCRIPT -----
