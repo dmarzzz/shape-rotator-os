@@ -1024,6 +1024,9 @@ function computeMembraneData() {
       });
     };
     if (myTeam) {
+      // Relationship graph edges (#226) — declaration dropped during the mega-merge; restored.
+      const teamById = cohortIndex.teamById;
+      const graphEdges = constellationDependencyEdges(teams, teamById, c.dependencies || []);
       // Teammates
       for (const p of cohortIndex.primaryPeopleByTeam.get(myTeam.record_id) || []) add(p, 'teammate', myTeam);
       // Relationship target members.
