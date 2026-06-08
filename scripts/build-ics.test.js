@@ -29,8 +29,14 @@ const REAL = JSON.parse(
 
 const parse = (ics) => ical.parseICS(ics);
 const events = (parsed) => Object.values(parsed).filter((v) => v.type === "VEVENT");
+const dateKey = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
 const onDate = (parsed, yyyy_mm_dd) =>
-  events(parsed).filter((e) => e.start.toISOString().slice(0, 10) === yyyy_mm_dd);
+  events(parsed).filter((e) => dateKey(e.start) === yyyy_mm_dd);
 
 test("real calendar.json → a feed node-ical parses as a valid VCALENDAR", () => {
   const parsed = parse(generateIcs(REAL));
@@ -49,8 +55,8 @@ test("known cells land on the correct day as all-day events", () => {
   // RFC 5545 all-day DTEND is exclusive → exactly one day after DTSTART.
   assert.equal(Math.round((mon[0].end - mon[0].start) / 86400000), 1);
 
-  // IC3 Blockchain Camp is the Monday of week 3 (Jun 1 2026 = Monday).
-  assert.match(onDate(parsed, "2026-06-01")[0].description, /IC3 Blockchain Camp/);
+  // Week 3 Monday (Jun 1 2026 = Monday).
+  assert.equal(onDate(parsed, "2026-06-01")[0].description, "15:30–16:00 tea on roof");
 
   // Sat column, +5 from Monday (May 30 2026 = Saturday). Only the day-cell
   // ("Convent") is emitted — the half-marathon note in the Notes column is
