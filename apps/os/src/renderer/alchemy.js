@@ -42,6 +42,7 @@ import {
   contextSourceById as findContextSourceById,
 } from "./context-vault-model.js";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
+import { getCohortTimeline } from "./cohort-timeline.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
 import { enrichPeople } from "./gh-user.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
@@ -68,6 +69,7 @@ const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem 
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
 const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
+const CONSTELLATION_TIMELINE_LS_KEY = "srwk:constellation_timeline_idx_v1";
 // `atlas` was here as an alchemy sub-mode but collides with the top-level
 // atlas tab (the swf-node wall-map). Renderer (renderAtlas / wireAtlas) is
 // kept in place so the view can be promoted to a top tab later under a
@@ -142,6 +144,12 @@ const state = {
   detailReturnMode: null,   // remembered so the back button knows where to land
   shapeControllers: [],     // active shader-canvas controllers — destroyed before each re-render so GL contexts don't leak
   cohort: null,        // { teams, clusters, people, program, asks, cohort_vocab } from cohort-source
+  cohortTimeline: null,         // generated timeline read model; snapshots carry public cohort surfaces
+  cohortTimelineLoading: false,
+  cohortTimelineError: "",
+  constellationTimelineIdx: null,  // selected snapshot index within cohortTimeline.snapshots
+  constellationShowDelta: false,
+  constellationDrawerRecordId: null,
   profile: null,       // local-only: { user, editor state, ... }
   programPage: null,   // active program-handbook page slug (overview | success | rules | schedule)
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
@@ -226,6 +234,11 @@ export function mount(container) {
       state.mode = "membrane";
       localStorage.setItem(MEMBRANE_INTRO_LS_KEY, "1");
     }
+    const timelineIdxRaw = localStorage.getItem(CONSTELLATION_TIMELINE_LS_KEY);
+    if (timelineIdxRaw != null && timelineIdxRaw !== "") {
+      const timelineIdx = Number(timelineIdxRaw);
+      if (Number.isFinite(timelineIdx)) state.constellationTimelineIdx = timelineIdx;
+    }
   } catch {}
   // Detail page state — if a record was open at last reload, restore it
   // so the user lands back where they were instead of on the grid.
@@ -293,6 +306,9 @@ export function mount(container) {
     console.error("[alchemy] cohort load failed:", err);
     state.canvas.innerHTML = `<p class="alch-callout"><strong>cohort data unavailable</strong><br/>${escHtml(err.message || String(err))}</p>`;
   });
+  loadCohortTimeline().then(() => {
+    if (state.mounted && (state.mode === "constellation" || state.detailReturnMode === "constellation")) render();
+  }).catch(() => {});
   state.unsubscribe = subscribeToCohortChanges(() => {
     loadCohort().then(() => render({ instant: true })).catch(() => {});
   });
@@ -414,6 +430,60 @@ async function loadCohort() {
       },
     });
   }
+}
+
+async function loadCohortTimeline() {
+  if (state.cohortTimeline || state.cohortTimelineLoading) return;
+  state.cohortTimelineLoading = true;
+  try {
+    state.cohortTimeline = await getCohortTimeline();
+    state.cohortTimelineError = "";
+    ensureConstellationTimelineIdx();
+  } catch (err) {
+    console.warn("[alchemy] cohort timeline load failed:", err?.message || err);
+    state.cohortTimelineError = err?.message || String(err);
+  } finally {
+    state.cohortTimelineLoading = false;
+  }
+}
+
+function constellationSnapshots() {
+  return Array.isArray(state.cohortTimeline?.snapshots) ? state.cohortTimeline.snapshots : [];
+}
+
+function ensureConstellationTimelineIdx() {
+  const snapshots = constellationSnapshots();
+  if (!snapshots.length) {
+    state.constellationTimelineIdx = null;
+    return null;
+  }
+  let idx = Number.isFinite(state.constellationTimelineIdx)
+    ? Math.round(state.constellationTimelineIdx)
+    : snapshots.length - 1;
+  idx = Math.max(0, Math.min(snapshots.length - 1, idx));
+  state.constellationTimelineIdx = idx;
+  return idx;
+}
+
+function activeConstellationSnapshot() {
+  const snapshots = constellationSnapshots();
+  const idx = ensureConstellationTimelineIdx();
+  return idx == null ? null : snapshots[idx];
+}
+
+function activeConstellationCohort() {
+  return activeConstellationSnapshot()?.surface || state.cohort;
+}
+
+function previousConstellationSnapshot() {
+  const snapshots = constellationSnapshots();
+  const idx = ensureConstellationTimelineIdx();
+  if (idx == null || idx <= 0) return null;
+  return snapshots[idx - 1] || null;
+}
+
+function activeDetailCohort() {
+  return state.detailReturnMode === "constellation" ? activeConstellationCohort() : state.cohort;
 }
 
 function syncRailSelection() {
@@ -4118,7 +4188,8 @@ function constellationInspectorHtml(selection, ctx) {
 }
 
 function renderJourney() {
-  const all = state.cohort.teams || [];
+  const cohort = activeConstellationCohort();
+  const all = cohort.teams || [];
   // Filters (persist for the session). side = include the off-track stage-0
   // "side project" column; bottleneck = isolate one bottleneck.
   const jf = state.journeyFilters || (state.journeyFilters = { teams: true, projects: true, side: true, bottleneck: null });
@@ -4626,6 +4697,303 @@ function constellationModeNavHtml(active) {
   `;
 }
 
+function timelineSnapshotDate(snapshot) {
+  const iso = snapshot?.as_of || snapshot?.committed_at;
+  const d = iso ? new Date(iso) : null;
+  if (!d || !Number.isFinite(d.getTime())) return "date unknown";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function snapshotEventCount(snapshot) {
+  const id = snapshot?.id;
+  if (!id || !Array.isArray(state.cohortTimeline?.events)) return 0;
+  return state.cohortTimeline.events.filter((event) => event?.snapshot_id === id).length;
+}
+
+function timelineEventProvenance(event) {
+  const kind = String(event?.source_kind || event?.source_id || "").toLowerCase();
+  if (kind.includes("transcript")) return { className: "is-inferred", label: "inferred · transcript", source: "transcripts" };
+  if (kind.includes("router")) return { className: "is-inferred", label: "inferred · router", source: "router" };
+  if (!kind || kind.includes("git") || kind.includes("cohort")) return { className: "is-self", label: "self-declared", source: "cohort-data" };
+  return { className: "is-unclassified", label: "unclassified", source: kind };
+}
+
+function teamNameMap(surface) {
+  return new Map((surface?.teams || []).filter(t => t?.record_id).map(t => [t.record_id, t.name || t.record_id]));
+}
+
+function dependencyEdgeMap(surface) {
+  const names = teamNameMap(surface);
+  const out = new Map();
+  for (const team of (surface?.teams || [])) {
+    if (!team?.record_id) continue;
+    for (const dep of (Array.isArray(team.dependencies) ? team.dependencies : [])) {
+      if (!dep || dep === team.record_id || !names.has(dep)) continue;
+      const key = `${team.record_id}>${dep}`;
+      out.set(key, {
+        key,
+        kind: "dependency",
+        from: team.record_id,
+        to: dep,
+        fromName: names.get(team.record_id) || team.record_id,
+        toName: names.get(dep) || dep,
+        directed: true,
+        provenance: { className: "is-self", label: "self-declared", source: "cohort-data" },
+      });
+    }
+  }
+  return out;
+}
+
+function clusterEdgeMap(surface) {
+  const names = teamNameMap(surface);
+  const out = new Map();
+  for (const cluster of (surface?.clusters || [])) {
+    const present = (Array.isArray(cluster?.teams) ? cluster.teams : []).filter(id => names.has(id));
+    for (let i = 0; i < present.length; i++) {
+      for (let j = i + 1; j < present.length; j++) {
+        const a = present[i], b = present[j];
+        const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+        if (out.has(key)) continue;
+        out.set(key, {
+          key,
+          kind: "cluster",
+          from: a,
+          to: b,
+          fromName: names.get(a) || a,
+          toName: names.get(b) || b,
+          cluster: cluster.record_id || cluster.name || "cluster",
+          clusterLabel: cluster.label || cluster.name || "cluster",
+          directed: false,
+          provenance: { className: "is-self", label: "self-declared cluster", source: "cohort-data" },
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function addedEdges(beforeMap, afterMap) {
+  return [...afterMap.entries()]
+    .filter(([key]) => !beforeMap.has(key))
+    .map(([, edge]) => edge);
+}
+
+function selectedTimelineEvents() {
+  const active = activeConstellationSnapshot();
+  const id = active?.id;
+  if (!id || !Array.isArray(state.cohortTimeline?.events)) return [];
+  return state.cohortTimeline.events.filter(event => event?.snapshot_id === id);
+}
+
+function inferredTimelineEvents(events) {
+  return (events || [])
+    .filter((event) => timelineEventProvenance(event).className === "is-inferred")
+    .slice(0, 24);
+}
+
+function constellationSnapshotDelta() {
+  const active = activeConstellationSnapshot();
+  const previous = previousConstellationSnapshot();
+  const currentSurface = active?.surface || state.cohort || {};
+  const previousSurface = previous?.surface || { teams: [], people: [], clusters: [] };
+  const dependencyAdded = addedEdges(dependencyEdgeMap(previousSurface), dependencyEdgeMap(currentSurface));
+  const clusterAdded = addedEdges(clusterEdgeMap(previousSurface), clusterEdgeMap(currentSurface));
+  const events = selectedTimelineEvents();
+  return {
+    active,
+    previous,
+    currentSurface,
+    dependencyAdded,
+    clusterAdded,
+    inferredEvents: inferredTimelineEvents(events),
+    events,
+  };
+}
+
+function constellationDeltaCount(delta = constellationSnapshotDelta()) {
+  return (delta.dependencyAdded?.length || 0) + (delta.clusterAdded?.length || 0) + (delta.inferredEvents?.length || 0);
+}
+
+function constellationEdgePath(edge, pos, extraClass = "") {
+  const a = pos.get(edge.from), b = pos.get(edge.to);
+  if (!a || !b) return "";
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx / dist, uy = dy / dist;
+  const sx = a.x + ux * (a.r + 2), sy = a.y + uy * (a.r + 2);
+  const ex = b.x - ux * (b.r + (edge.directed ? 7 : 3)), ey = b.y - uy * (b.r + (edge.directed ? 7 : 3));
+  const bend = 12 + Math.min(48, dist * 0.12);
+  const qx = (sx + ex) / 2 - uy * bend, qy = (sy + ey) / 2 + ux * bend;
+  const cls = edge.directed
+    ? `ac-edge ac-edge-dependency ${extraClass}`.trim()
+    : `ac-edge ac-edge-${edge.cluster || "x"} ${extraClass}`.trim();
+  const marker = edge.directed ? ` marker-end="url(#ac-arrow)"` : "";
+  return `<path class="${cls}" data-a="${escHtml(edge.from)}" data-b="${escHtml(edge.to)}" d="M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${qx.toFixed(1)} ${qy.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}"${marker}/>`;
+}
+
+function renderConstellationTimelineControls({ compact = false, allowDelta = false } = {}) {
+  const snapshots = constellationSnapshots();
+  if (!snapshots.length) {
+    const status = state.cohortTimelineLoading
+      ? "timeline loading"
+      : state.cohortTimelineError
+        ? "timeline unavailable"
+        : "timeline pending";
+    const detail = state.cohortTimelineError || "using current cohort surface";
+    return `
+      <div class="ac-timeline ${compact ? "is-compact " : ""}is-disabled" data-ac-timeline>
+        <div class="ac-timeline-head">
+          <span class="ac-timeline-label">${escHtml(status)}</span>
+          <span class="ac-timeline-meta">${escHtml(detail)}</span>
+        </div>
+      </div>`;
+  }
+
+  const idx = ensureConstellationTimelineIdx();
+  const active = snapshots[idx] || snapshots[snapshots.length - 1];
+  const counts = active?.counts || {};
+  const changeCount = snapshotEventCount(active);
+  const label = active?.label || active?.id || "snapshot";
+  const date = timelineSnapshotDate(active);
+  const commit = active?.source_commit_short ? ` · ${active.source_commit_short}` : "";
+  const delta = allowDelta ? constellationSnapshotDelta() : null;
+  const deltaCount = delta ? constellationDeltaCount(delta) : 0;
+  const ticks = snapshots.map((snapshot, i) => {
+    const selected = i === idx;
+    const tickLabel = snapshot.label || snapshot.id;
+    return `
+      <button class="ac-timeline-tick${selected ? " is-active" : ""}" data-const-timeline-idx="${i}" type="button" aria-current="${selected ? "true" : "false"}" title="${escAttr(tickLabel)} · ${escAttr(timelineSnapshotDate(snapshot))}">
+        <span class="act-dot" aria-hidden="true"></span>
+        <span class="act-label">${escHtml(tickLabel)}</span>
+      </button>`;
+  }).join("");
+
+  return `
+    <div class="ac-timeline${compact ? " is-compact" : ""}" data-ac-timeline>
+      <div class="ac-timeline-head">
+        <span class="ac-timeline-label">${escHtml(label)}</span>
+        <span class="ac-timeline-meta">
+          ${escHtml(date + commit)} · ${Number(counts.teams) || 0} teams · ${Number(counts.people) || 0} people · ${changeCount} ${changeCount === 1 ? "change" : "changes"}
+        </span>
+      </div>
+      <input class="ac-timeline-range" data-const-timeline-range type="range" min="0" max="${Math.max(0, snapshots.length - 1)}" value="${idx}" step="1" aria-label="cohort timeline snapshot">
+      <div class="ac-timeline-ticks" style="--ac-timeline-count:${snapshots.length}">
+        ${ticks}
+      </div>
+      ${allowDelta ? `
+        <div class="ac-timeline-actions">
+          <button class="ac-timeline-delta-toggle" data-const-delta-toggle type="button" aria-pressed="${state.constellationShowDelta ? "true" : "false"}">
+            <span>show changes</span><strong>${deltaCount}</strong>
+          </button>
+          <span class="ac-timeline-boundary">off by default · self-declared unless marked inferred</span>
+        </div>` : ""}
+    </div>`;
+}
+
+function setConstellationTimelineIdx(rawIdx) {
+  const snapshots = constellationSnapshots();
+  if (!snapshots.length) return;
+  const next = Math.round(Number(rawIdx));
+  if (!Number.isFinite(next)) return;
+  const idx = Math.max(0, Math.min(snapshots.length - 1, next));
+  state.constellationTimelineIdx = idx;
+  try { localStorage.setItem(CONSTELLATION_TIMELINE_LS_KEY, String(idx)); } catch {}
+
+  if (state.detailRecordId && state.detailReturnMode === "constellation") {
+    render();
+    return;
+  }
+  if (state.mode === "constellation") {
+    renderConstellation();
+    wireConstellationHover();
+    if (state.constellationDrawerRecordId) openDrawer(state.constellationDrawerRecordId);
+  }
+}
+
+function wireConstellationTimelineControls(root = state.canvas) {
+  if (!root) return;
+  const range = root.querySelector("[data-const-timeline-range]");
+  if (range) {
+    range.addEventListener("input", () => {
+      const snapshots = constellationSnapshots();
+      if (!snapshots.length) return;
+      const next = Math.round(Number(range.value));
+      if (!Number.isFinite(next)) return;
+      const idx = Math.max(0, Math.min(snapshots.length - 1, next));
+      state.constellationTimelineIdx = idx;
+      try { localStorage.setItem(CONSTELLATION_TIMELINE_LS_KEY, String(idx)); } catch {}
+    });
+    range.addEventListener("change", () => setConstellationTimelineIdx(range.value));
+  }
+  for (const tick of root.querySelectorAll("[data-const-timeline-idx]")) {
+    tick.addEventListener("click", () => setConstellationTimelineIdx(tick.dataset.constTimelineIdx));
+  }
+  for (const btn of root.querySelectorAll("[data-const-delta-toggle]")) {
+    btn.addEventListener("click", () => {
+      state.constellationShowDelta = !state.constellationShowDelta;
+      render();
+    });
+  }
+}
+
+function renderConstellationDeltaLedger(delta) {
+  if (!state.constellationShowDelta || !delta) return "";
+  const currentLabel = delta.active?.label || delta.active?.id || "current snapshot";
+  const previousLabel = delta.previous?.label || delta.previous?.id || "empty baseline";
+  const edgeRow = (edge) => {
+    const arrow = edge.directed ? "->" : "<->";
+    const title = `${edge.fromName} ${arrow} ${edge.toName}`;
+    const kind = edge.directed ? "new dependency" : "new cluster connection";
+    const detail = edge.directed
+      ? `present in ${currentLabel}; absent from ${previousLabel}`
+      : `${edge.clusterLabel || "cluster"} membership creates this pair`;
+    return `
+      <article class="ac-delta-card ${edge.provenance?.className || "is-self"}">
+        <div class="ac-delta-card-head">
+          <span class="ac-delta-badge ${edge.provenance?.className || "is-self"}">${escHtml(edge.provenance?.label || "self-declared")}</span>
+          <span>${escHtml(kind)}</span>
+        </div>
+        <div class="ac-delta-card-title">${escHtml(title)}</div>
+        <div class="ac-delta-card-meta">${escHtml(detail)} · source: ${escHtml(edge.provenance?.source || "cohort-data")}</div>
+      </article>`;
+  };
+  const eventRow = (event) => {
+    const provenance = timelineEventProvenance(event);
+    const recordName = event?.record_name || event?.record_id || "record";
+    const summary = event?.summary || event?.subject || `${event?.action || "updated"} ${recordName}`;
+    return `
+      <article class="ac-delta-card ${provenance.className}">
+        <div class="ac-delta-card-head">
+          <span class="ac-delta-badge ${provenance.className}">${escHtml(provenance.label)}</span>
+          <span>${escHtml(event?.record_type || event?.collection || "context")}</span>
+        </div>
+        <div class="ac-delta-card-title">${escHtml(recordName)}</div>
+        <div class="ac-delta-card-meta">${escHtml(summary)} · source: ${escHtml(event?.source_id || provenance.source)}</div>
+      </article>`;
+  };
+  const rows = [
+    ...(delta.dependencyAdded || []).map(edgeRow),
+    ...(delta.clusterAdded || []).map(edgeRow),
+    ...(delta.inferredEvents || []).map(eventRow),
+  ];
+  const empty = rows.length ? "" : `
+    <div class="ac-delta-empty">
+      no new dependency, cluster, transcript, or router-derived evidence between ${escHtml(previousLabel)} and ${escHtml(currentLabel)}.
+    </div>`;
+  return `
+    <section class="ac-delta-ledger" aria-label="timeline connection changes">
+      <header class="ac-delta-head">
+        <h3>changes since previous snapshot</h3>
+        <span>${escHtml(previousLabel)} -> ${escHtml(currentLabel)}</span>
+      </header>
+      <div class="ac-delta-grid">
+        ${rows.join("")}
+        ${empty}
+      </div>
+    </section>`;
+}
+
 function renderConstellation() {
   const teams = state.cohort.teams || [];
   const people = state.cohort.people || [];
@@ -4764,6 +5132,10 @@ function renderConstellation() {
     return `<path class="${cls}" data-a="${escAttr(e.from)}" data-b="${escAttr(e.to)}" data-dep-id="${escAttr(e.id || "")}" aria-hidden="true" d="${escAttr(d)}" marker-end="url(#ac-arrow)"/>`
       + `<path class="ac-edge-hit" data-a="${escAttr(e.from)}" data-b="${escAttr(e.to)}" data-dep-id="${escAttr(e.id || "")}" role="button" tabindex="0" aria-label="${escAttr(aria)}" d="${escAttr(d)}"/>`;
   }).join("");
+  const deltaEdgeMarkup = delta ? [
+    ...delta.dependencyAdded.map(edge => constellationEdgePath(edge, pos, `ac-edge-new ac-edge-new-dependency ${edge.provenance.className}`)),
+    ...delta.clusterAdded.map(edge => constellationEdgePath(edge, pos, `ac-edge-new ac-edge-new-cluster ${edge.provenance.className}`)),
+  ].join("") : "";
 
   // Draw small→large so keystones sit on top of the pile. Node color is always
   // domain (one coding across every lens). Under the relationships lens, nodes
@@ -9175,18 +9547,40 @@ function announceExport(r) {
 // synergy clusters. Entered by clicking a card; back button returns to
 // the previous mode (typically shapes).
 function renderDetail(recordId) {
-  const cohortIndex = buildCohortIndex(state.cohort);
+  const cohortIndex = buildCohortIndex(activeDetailCohort());
   const team = cohortIndex.teamById.get(recordId);
   if (team) return renderTeamDetail(team);
   const person = cohortIndex.personById.get(recordId);
   if (person) return renderPersonDetail(person);
+  if (state.detailReturnMode === "constellation") return renderTimelineMissingDetail(recordId);
   // Record vanished (e.g. cohort republished, slug changed). Bail out
   // back to the grid rather than showing an empty page.
   closeDetail();
 }
 
+function renderTimelineMissingDetail(recordId) {
+  const snapshot = activeConstellationSnapshot();
+  const label = snapshot?.label || "selected snapshot";
+  state.canvas.innerHTML = `
+    <header class="alch-detail-bar">
+      <button class="alch-detail-back" type="button" id="alch-detail-back" aria-label="back to constellation">
+        <span aria-hidden="true">←</span>
+        <span>back</span>
+      </button>
+      <div class="alch-detail-bar-tag">
+        <span>${escHtml(String(recordId || "").toUpperCase())}</span>
+        <span class="ct-sep">·</span>
+        <span>${escHtml(label)}</span>
+      </div>
+    </header>
+    ${renderConstellationTimelineControls({ compact: true })}
+    <p class="alch-callout"><strong>not declared at this snapshot</strong><br/>This record is absent from the public cohort surface for ${escHtml(label)}.</p>
+  `;
+  state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
+}
+
 function renderTeamDetail(team) {
-  const cohortIndex = buildCohortIndex(state.cohort);
+  const cohortIndex = buildCohortIndex(activeDetailCohort());
   const recordId = team.record_id;
   const s = shapeForTeam(team);
   const kind = teamKind(team);
@@ -9226,6 +9620,7 @@ function renderTeamDetail(team) {
       </div>
       <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
     </header>
+    ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
 
     <article class="cohort-plate is-revealing" data-tier="${escAttr(tier.key)}" data-kind="${escAttr(kind)}" id="cohort-plate">
       <div class="plate-foil" aria-hidden="true"></div>
@@ -9333,7 +9728,7 @@ function wirePlateFoil(plate) {
 }
 
 function renderPersonDetail(person) {
-  const cohortIndex = buildCohortIndex(state.cohort);
+  const cohortIndex = buildCohortIndex(activeDetailCohort());
   const recordId = person.record_id;
   const fam = Math.abs(hashStr(recordId || "_")) % 6;
   const team = cohortIndex.teamForPerson(person);
@@ -9362,6 +9757,7 @@ function renderPersonDetail(person) {
       </div>
       <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
     </header>
+    ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
 
     <section class="alch-detail-hero">
       <div class="alch-detail-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.3" data-shape-seed="${escAttr(recordId)}"></canvas></div>
@@ -9482,9 +9878,14 @@ function renderDetailLinks(L) {
 // ─── drawer (specimen detail) ────────────────────────────────────────
 function openDrawer(recordId) {
   if (!state.cohort) return;
-  const cohortIndex = buildCohortIndex(state.cohort);
+  const cohort = state.mode === "constellation" ? activeConstellationCohort() : state.cohort;
+  const cohortIndex = buildCohortIndex(cohort);
   const team = cohortIndex.teamById.get(recordId);
-  if (!team) return;
+  if (!team) {
+    if (state.mode === "constellation") closeDrawer();
+    return;
+  }
+  if (state.mode === "constellation") state.constellationDrawerRecordId = String(recordId);
 
   const { backdrop, drawer, body } = ensureDrawer();
   const s = shapeForTeam(team);
@@ -9534,6 +9935,10 @@ function openDrawer(recordId) {
   ];
   if (team.is_mentor) {
     tagBits.push(`<span>·</span>`, `<span>mentor</span>`);
+  }
+  if (state.mode === "constellation") {
+    const snap = activeConstellationSnapshot();
+    if (snap?.label) tagBits.push(`<span>·</span>`, `<span>${escHtml(snap.label)}</span>`);
   }
 
   // Editorial section header — italic-serif title + terse lowercase sub-label,
@@ -9628,6 +10033,7 @@ function openDrawer(recordId) {
 }
 
 function closeDrawer() {
+  state.constellationDrawerRecordId = null;
   const backdrop = document.querySelector(".alch-drawer-backdrop");
   const drawer = document.querySelector(".alch-drawer");
   if (backdrop) backdrop.classList.remove("is-open");
