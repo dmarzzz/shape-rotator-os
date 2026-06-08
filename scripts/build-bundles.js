@@ -19,6 +19,7 @@
 
 const fs   = require("node:fs");
 const path = require("node:path");
+const vm   = require("node:vm");
 const yaml = require("js-yaml");
 
 const REPO_ROOT  = path.resolve(__dirname, "..");
@@ -57,13 +58,23 @@ function pickSurface(obj, whitelist) {
   return out;
 }
 
+function extractPublicPersonBio(body) {
+  const raw = String(body || "").trim();
+  if (!raw) return "";
+  const lines = raw.split("\n");
+  const start = lines.findIndex(line => /^##\s+(about|bio)\s*$/i.test(line.trim()));
+  if (start < 0) return raw;
+  const end = lines.findIndex((line, index) => index > start && /^##\s+/.test(line.trim()));
+  return lines.slice(start + 1, end < 0 ? undefined : end).join("\n").trim();
+}
+
 function loadDir(dir, recordType, surfaceFields) {
   if (!fs.existsSync(dir)) return [];
   const files = fs.readdirSync(dir).filter(f => f.endsWith(".md"));
   const records = [];
   for (const f of files) {
     const fp = path.join(dir, f);
-    const { frontmatter } = parseMarkdown(fp);
+    const { frontmatter, body } = parseMarkdown(fp);
     if (!frontmatter) {
       console.warn(`[build-bundles] skipping ${fp} — no frontmatter`);
       continue;
@@ -76,7 +87,12 @@ function loadDir(dir, recordType, surfaceFields) {
       console.warn(`[build-bundles] skipping ${fp} — no record_id`);
       continue;
     }
-    records.push(pickSurface(frontmatter, surfaceFields));
+    const surface = pickSurface(frontmatter, surfaceFields);
+    if (recordType === "person") {
+      const bio = extractPublicPersonBio(body);
+      if (bio) surface.bio_md = bio;
+    }
+    records.push(surface);
   }
   // Stable order by record_id.
   records.sort((a, b) => String(a.record_id).localeCompare(String(b.record_id)));
@@ -118,6 +134,472 @@ function loadProgramDir(dir, surfaceFields) {
     return String(a.record_id).localeCompare(String(b.record_id));
   });
   return records;
+}
+
+function githubBlobUrl(relPath) {
+  return `https://github.com/dmarzzz/shape-rotator-os/blob/main/${String(relPath || "").replace(/\\/g, "/")}`;
+}
+
+function recordSourceUrl(recordType, recordId) {
+  const folder = recordType === "person" ? "people"
+    : recordType === "team" ? "teams"
+    : recordType === "ask" ? "asks"
+    : recordType === "event" ? "events"
+    : `${recordType || "record"}s`;
+  return githubBlobUrl(`cohort-data/${folder}/${recordId}.md`);
+}
+
+function firstLine(value) {
+  return String(value || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0] || "";
+}
+
+function compactText(value, max = 180) {
+  const s = String(value || "").replace(/\s+/g, " ").trim();
+  return s.length > max ? `${s.slice(0, max - 1).trim()}…` : s;
+}
+
+function asArray(value) {
+  if (Array.isArray(value)) return value.filter(v => v != null && String(v).trim() !== "");
+  return value == null || String(value).trim() === "" ? [] : [value];
+}
+
+function textIncludesAny(text, aliases) {
+  const hay = String(text || "").toLowerCase();
+  return aliases.some(alias => alias && hay.includes(String(alias).toLowerCase()));
+}
+
+function isoDate(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const s = String(value || "");
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+  return m ? m[1] : "";
+}
+
+const MONTH_NUM = {
+  jan: 1, january: 1,
+  feb: 2, february: 2,
+  mar: 3, march: 3,
+  apr: 4, april: 4,
+  may: 5,
+  jun: 6, june: 6,
+  jul: 7, july: 7,
+  aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10,
+  nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+
+function monthDayToIso(month, day, year = 2026) {
+  const n = MONTH_NUM[String(month || "").toLowerCase()];
+  const d = Number(day);
+  if (!n || !Number.isFinite(d)) return "";
+  return `${year}-${String(n).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+function parseMonthDay(text) {
+  const m = /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})\b/i.exec(String(text || ""));
+  return m ? monthDayToIso(m[1], m[2]) : "";
+}
+
+function addDays(iso, days) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function loadCalendarTranscriptMatches() {
+  const p = path.join(REPO_ROOT, "apps", "os", "src", "content", "context", "calendar-transcript-matches.js");
+  if (!fs.existsSync(p)) return [];
+  const raw = fs.readFileSync(p, "utf8")
+    .replace(/export\s+const\s+CALENDAR_TRANSCRIPT_MATCHES\s*=/, "module.exports =");
+  const sandbox = { module: { exports: [] }, exports: {} };
+  try {
+    vm.runInNewContext(raw, sandbox, { filename: p, timeout: 1000 });
+    return Array.isArray(sandbox.module.exports) ? sandbox.module.exports : [];
+  } catch (e) {
+    console.warn(`[build-bundles] transcript match load failed: ${e.message}`);
+    return [];
+  }
+}
+
+function personAliases(person, team) {
+  const aliases = new Set();
+  const add = (v) => {
+    const s = String(v || "").trim();
+    if (s.length >= 3) aliases.add(s.toLowerCase());
+  };
+  add(person.record_id);
+  add(String(person.record_id || "").replace(/[-_]+/g, " "));
+  add(person.name);
+  for (const part of String(person.name || "").split(/\s+/)) {
+    if (part.length >= 4) add(part);
+  }
+  for (const v of Object.values(person.links || {})) add(v);
+  const direct = Array.from(aliases);
+  if (team) {
+    add(team.record_id);
+    add(team.name);
+  }
+  return { direct, any: Array.from(aliases) };
+}
+
+function teamAliases(team, members = []) {
+  const directAliases = new Set();
+  const memberAliases = new Set();
+  const add = (set, v) => {
+    const s = String(v || "").trim();
+    if (s.length >= 3) set.add(s.toLowerCase());
+  };
+  add(directAliases, team.record_id);
+  add(directAliases, String(team.record_id || "").replace(/[-_]+/g, " "));
+  add(directAliases, team.name);
+  for (const v of Object.values(team.links || {})) add(directAliases, v);
+  for (const member of members) {
+    add(memberAliases, member.record_id);
+    add(memberAliases, String(member.record_id || "").replace(/[-_]+/g, " "));
+    add(memberAliases, member.name);
+  }
+  return {
+    direct: Array.from(directAliases),
+    any: Array.from(new Set([...directAliases, ...memberAliases])),
+  };
+}
+
+function calendarBlocks(calendar) {
+  const blocks = [];
+  const tabs = calendar?.tabs && typeof calendar.tabs === "object" ? calendar.tabs : {};
+  for (const [tab, rows] of Object.entries(tabs)) {
+    if (!Array.isArray(rows) || !rows.length) continue;
+    const header = rows[0] || [];
+    for (const row of rows.slice(1)) {
+      if (!Array.isArray(row)) continue;
+      const rowStart = parseMonthDay(row[1] || "");
+      for (let i = 0; i < row.length; i++) {
+        const text = String(row[i] || "").trim();
+        if (!text) continue;
+        const headerLabel = String(header[i] || "");
+        const dayOffset = i >= 2 && i <= 8 ? i - 2 : 0;
+        const inferredDate = parseMonthDay(text) || (rowStart ? addDays(rowStart, dayOffset) : "");
+        blocks.push({
+          date: inferredDate,
+          title: firstLine(text) || headerLabel || tab,
+          detail: compactText(text),
+          tab,
+          column: headerLabel,
+        });
+      }
+    }
+  }
+  return blocks;
+}
+
+function sortTimeline(items) {
+  return items
+    .filter(item => item && (item.title || item.detail))
+    .sort((a, b) => {
+      const ad = a.date || "9999-99-99";
+      const bd = b.date || "9999-99-99";
+      if (ad !== bd) return ad.localeCompare(bd);
+      return String(a.type || "").localeCompare(String(b.type || ""));
+    });
+}
+
+function buildPersonTimeline({ people, teams, asks, events, calendar }) {
+  const teamById = new Map(teams.map(t => [t.record_id, t]));
+  const calBlocks = calendarBlocks(calendar);
+  const transcriptMatches = loadCalendarTranscriptMatches();
+  const timeline = {};
+
+  for (const person of people) {
+    const team = person.team ? teamById.get(person.team) : null;
+    const aliases = personAliases(person, team);
+    const items = [];
+    const start = isoDate(person.dates_start);
+    const end = isoDate(person.dates_end);
+
+    if (start || end) {
+      items.push({
+        date: start || end,
+        type: "onboarding",
+        title: "cohort window",
+        detail: `${start || "open"} to ${end || "open"}`,
+        href: "/calendar",
+        source: "calendar",
+      });
+    }
+
+    for (const absence of Array.isArray(person.absences) ? person.absences : []) {
+      const a = isoDate(absence?.start);
+      const b = isoDate(absence?.end);
+      items.push({
+        date: a || b || start,
+        type: "availability",
+        title: "availability note",
+        detail: `${a || "open"} to ${b || "open"}${absence?.note ? ` — ${absence.note}` : ""}`,
+        href: "/availability",
+        source: "person record",
+      });
+    }
+
+    for (const [field, title] of [
+      ["now", "current work"],
+      ["weekly_intention", "weekly intention"],
+      ["seeking", "seeking"],
+      ["offering", "offering"],
+      ["contribute_interests", "can contribute"],
+    ]) {
+      const values = Array.isArray(person[field]) ? person[field] : (person[field] ? [person[field]] : []);
+      for (const value of values.slice(0, 3)) {
+        items.push({
+          date: start,
+          type: "profile",
+          title,
+          detail: compactText(value),
+          href: recordSourceUrl("person", person.record_id),
+          source: "person record",
+        });
+      }
+    }
+
+    if (team) {
+      for (const [field, title] of [
+        ["now", "team current work"],
+        ["seeking", "team seeking"],
+        ["offering", "team offering"],
+      ]) {
+        const values = Array.isArray(team[field]) ? team[field] : (team[field] ? [team[field]] : []);
+        for (const value of values.slice(0, field === "now" ? 1 : 2)) {
+          items.push({
+            date: start,
+            type: "team",
+            title,
+            detail: compactText(value),
+            href: `#${encodeURIComponent(team.record_id)}`,
+            source: team.name || team.record_id,
+          });
+        }
+      }
+    }
+
+    for (const ask of asks) {
+      const author = String(ask.author || "").toLowerCase();
+      const personAuthored = author === String(person.record_id || "").toLowerCase();
+      const teamAuthored = team && author === String(team.record_id || "").toLowerCase();
+      if (!personAuthored && !teamAuthored) continue;
+      items.push({
+        date: isoDate(ask.posted_at) || start,
+        type: "ask",
+        title: compactText(`${teamAuthored ? "team " : ""}${ask.verb || "ask"} ${ask.topic || ""}`, 96),
+        detail: ask.status ? `status: ${ask.status}` : "",
+        href: recordSourceUrl("ask", ask.record_id),
+        source: teamAuthored ? (team.name || team.record_id) : "ask",
+      });
+    }
+
+    for (const event of events) {
+      const text = `${event.title || ""} ${event.subtitle || ""}`;
+      const isRelevant = textIncludesAny(text, aliases.any)
+        || (/\bonboarding\b/i.test(text) && start && isoDate(event.range_start || event.date) <= start);
+      if (!isRelevant) continue;
+      items.push({
+        date: isoDate(event.date || event.range_start) || start,
+        type: "event",
+        title: event.title || "program event",
+        detail: compactText(event.subtitle || ""),
+        href: recordSourceUrl("event", event.record_id),
+        source: "event",
+      });
+    }
+
+    const calendarItems = [];
+    for (const block of calBlocks) {
+      if (!textIncludesAny(`${block.title} ${block.detail}`, aliases.any)) continue;
+      calendarItems.push({
+        date: block.date || start,
+        type: /\bonboarding\b/i.test(`${block.title} ${block.detail}`) ? "onboarding" : "calendar",
+        title: compactText(block.title, 96),
+        detail: compactText(block.detail, 170),
+        href: "/calendar",
+        source: block.column || block.tab,
+      });
+    }
+    items.push(...calendarItems.slice(0, 8));
+
+    const transcriptItems = [];
+    for (const match of transcriptMatches) {
+      for (const source of Array.isArray(match.sources) ? match.sources : []) {
+        const relPath = source.path;
+        const fp = path.join(REPO_ROOT, relPath);
+        if (!fs.existsSync(fp)) continue;
+        const text = fs.readFileSync(fp, "utf8");
+        const sourceText = `${source.label || ""} ${relPath || ""} ${match.section || ""}`;
+        const directHit = textIncludesAny(text, aliases.direct) || textIncludesAny(sourceText, aliases.direct);
+        const anyHit = directHit || textIncludesAny(text, aliases.any) || textIncludesAny(sourceText, aliases.any);
+        if (!anyHit) continue;
+        const sourceNamed = textIncludesAny(sourceText, aliases.direct);
+        transcriptItems.push({
+          _priority: sourceNamed ? 3 : (directHit ? 2 : 1),
+          date: match.date || start,
+          type: "transcript",
+          title: sourceNamed ? "speaker/source transcript" : (directHit ? "mentioned in transcript" : "team context in transcript"),
+          detail: compactText(`${match.section || "session"} · ${source.label || path.basename(relPath)}`, 150),
+          href: githubBlobUrl(relPath),
+          source: source.role === "notes" ? "notes" : "transcript",
+        });
+      }
+    }
+    transcriptItems.sort((a, b) => {
+      if (a._priority !== b._priority) return b._priority - a._priority;
+      return String(a.date || "").localeCompare(String(b.date || ""));
+    });
+    const seenTranscriptSources = new Set();
+    const uniqueTranscriptItems = transcriptItems.filter(item => {
+      const key = item.href || `${item.date || ""}|${item.title || ""}|${item.detail || ""}`;
+      if (seenTranscriptSources.has(key)) return false;
+      seenTranscriptSources.add(key);
+      return true;
+    });
+    items.push(...uniqueTranscriptItems.slice(0, 6).map(({ _priority, ...item }) => item));
+
+    timeline[person.record_id] = sortTimeline(items).slice(0, 28);
+  }
+
+  return timeline;
+}
+
+function buildTeamTimeline({ teams, people, asks, events, calendar }) {
+  const peopleByTeam = new Map();
+  for (const person of people) {
+    const teamIds = [person.team, ...asArray(person.secondary_teams)].filter(Boolean);
+    for (const teamId of teamIds) {
+      if (!peopleByTeam.has(teamId)) peopleByTeam.set(teamId, []);
+      peopleByTeam.get(teamId).push(person);
+    }
+  }
+  const calBlocks = calendarBlocks(calendar);
+  const transcriptMatches = loadCalendarTranscriptMatches();
+  const timeline = {};
+
+  for (const team of teams) {
+    const members = peopleByTeam.get(team.record_id) || [];
+    const memberById = new Map(members.map(member => [String(member.record_id || "").toLowerCase(), member]));
+    const aliases = teamAliases(team, members);
+    const items = [];
+
+    for (const [field, title, type, limit] of [
+      ["now", "current work", "profile", 1],
+      ["weekly_goals", "weekly goals", "profile", 2],
+      ["monthly_milestones", "milestones", "profile", 2],
+      ["graduation_target", "graduation target", "profile", 1],
+      ["seeking", "seeking", "ask", 3],
+      ["offering", "offering", "offer", 3],
+      ["traction", "traction", "evidence", 1],
+      ["prior_shipping", "prior shipping", "evidence", 3],
+      ["paper_basis", "research basis", "evidence", 2],
+    ]) {
+      const values = Array.isArray(team[field]) ? team[field] : (team[field] ? [team[field]] : []);
+      for (const value of values.slice(0, limit)) {
+        items.push({
+          date: "",
+          type,
+          title,
+          detail: compactText(value),
+          href: recordSourceUrl("team", team.record_id),
+          source: "team record",
+        });
+      }
+    }
+
+    for (const ask of asks) {
+      const author = String(ask.author || "").toLowerCase();
+      const teamAuthored = author === String(team.record_id || "").toLowerCase();
+      const member = memberById.get(author);
+      if (!teamAuthored && !member) continue;
+      items.push({
+        date: isoDate(ask.posted_at),
+        type: "ask",
+        title: compactText(`${member ? `${member.name || member.record_id}: ` : ""}${ask.verb || "ask"} ${ask.topic || ""}`, 96),
+        detail: ask.status ? `status: ${ask.status}` : "",
+        href: recordSourceUrl("ask", ask.record_id),
+        source: teamAuthored ? (team.name || team.record_id) : (member.name || member.record_id),
+      });
+    }
+
+    for (const event of events) {
+      const text = `${event.title || ""} ${event.subtitle || ""}`;
+      if (!textIncludesAny(text, aliases.any)) continue;
+      items.push({
+        date: isoDate(event.date || event.range_start),
+        type: "event",
+        title: event.title || "program event",
+        detail: compactText(event.subtitle || ""),
+        href: recordSourceUrl("event", event.record_id),
+        source: "event",
+      });
+    }
+
+    const calendarItems = [];
+    for (const block of calBlocks) {
+      if (!textIncludesAny(`${block.title} ${block.detail}`, aliases.any)) continue;
+      const calendarTitle = /[a-z]/i.test(String(block.title || ""))
+        ? block.title
+        : "calendar mention";
+      calendarItems.push({
+        date: block.date,
+        type: /\bonboarding\b/i.test(`${block.title} ${block.detail}`) ? "onboarding" : "calendar",
+        title: compactText(calendarTitle, 96),
+        detail: compactText(block.detail, 170),
+        href: "/calendar",
+        source: block.column || block.tab,
+      });
+    }
+    items.push(...calendarItems.slice(0, 8));
+
+    const transcriptItems = [];
+    for (const match of transcriptMatches) {
+      for (const source of Array.isArray(match.sources) ? match.sources : []) {
+        const relPath = source.path;
+        const fp = path.join(REPO_ROOT, relPath);
+        if (!fs.existsSync(fp)) continue;
+        const text = fs.readFileSync(fp, "utf8");
+        const sourceText = `${source.label || ""} ${relPath || ""} ${match.section || ""}`;
+        const directHit = textIncludesAny(text, aliases.direct) || textIncludesAny(sourceText, aliases.direct);
+        const anyHit = directHit || textIncludesAny(text, aliases.any) || textIncludesAny(sourceText, aliases.any);
+        if (!anyHit) continue;
+        const sourceNamed = textIncludesAny(sourceText, aliases.direct);
+        transcriptItems.push({
+          _priority: sourceNamed ? 3 : (directHit ? 2 : 1),
+          date: match.date,
+          type: "transcript",
+          title: sourceNamed ? "team source transcript" : (directHit ? "team mentioned in transcript" : "member context in transcript"),
+          detail: compactText(`${match.section || "session"} · ${source.label || path.basename(relPath)}`, 150),
+          href: githubBlobUrl(relPath),
+          source: source.role === "notes" ? "notes" : "transcript",
+        });
+      }
+    }
+    transcriptItems.sort((a, b) => {
+      if (a._priority !== b._priority) return b._priority - a._priority;
+      return String(a.date || "").localeCompare(String(b.date || ""));
+    });
+    const seenTranscriptSources = new Set();
+    const uniqueTranscriptItems = transcriptItems.filter(item => {
+      const key = item.href || `${item.date || ""}|${item.title || ""}|${item.detail || ""}`;
+      if (seenTranscriptSources.has(key)) return false;
+      seenTranscriptSources.add(key);
+      return true;
+    });
+    items.push(...uniqueTranscriptItems.slice(0, 6).map(({ _priority, ...item }) => item));
+
+    timeline[team.record_id] = sortTimeline(items).slice(0, 28);
+  }
+
+  return timeline;
 }
 
 function build() {
@@ -162,6 +644,8 @@ function build() {
     events,
     asks,
     calendar,
+    person_timeline: buildPersonTimeline({ people, teams, asks, events, calendar }),
+    team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar }),
     cohort_vocab,
   };
   return out;
