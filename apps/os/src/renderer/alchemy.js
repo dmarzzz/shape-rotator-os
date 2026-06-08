@@ -5135,6 +5135,9 @@ function renderConstellation() {
     return `<path class="${cls}" data-a="${escAttr(e.from)}" data-b="${escAttr(e.to)}" data-dep-id="${escAttr(e.id || "")}" aria-hidden="true" d="${escAttr(d)}" marker-end="url(#ac-arrow)"/>`
       + `<path class="ac-edge-hit" data-a="${escAttr(e.from)}" data-b="${escAttr(e.to)}" data-dep-id="${escAttr(e.id || "")}" role="button" tabindex="0" aria-label="${escAttr(aria)}" d="${escAttr(d)}"/>`;
   }).join("");
+  // Timeline "show changes" overlay (#238): snapshot delta vs the previous
+  // timeline step. Declaration dropped during the mega-merge; restored.
+  const delta = state.constellationShowDelta ? constellationSnapshotDelta() : null;
   const deltaEdgeMarkup = delta ? [
     ...delta.dependencyAdded.map(edge => constellationEdgePath(edge, pos, `ac-edge-new ac-edge-new-dependency ${edge.provenance.className}`)),
     ...delta.clusterAdded.map(edge => constellationEdgePath(edge, pos, `ac-edge-new ac-edge-new-cluster ${edge.provenance.className}`)),
