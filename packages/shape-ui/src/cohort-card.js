@@ -144,11 +144,21 @@ function htmlToElement(html) {
   return wrap.firstElementChild;
 }
 
+function isNestedCardControl(event, card) {
+  const target = event?.target;
+  if (!(target instanceof Element) || target === card) return false;
+  return !!target.closest("a, button, input, select, textarea, [data-no-card-click]");
+}
+
 function attachOnClick(el, onClick) {
   if (!el || typeof onClick !== "function") return el;
-  el.addEventListener("click", (e) => onClick(e, el));
+  el.addEventListener("click", (e) => {
+    if (isNestedCardControl(e, el)) return;
+    onClick(e, el);
+  });
   el.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
+      if (isNestedCardControl(e, el) || e.target !== el) return;
       e.preventDefault();
       onClick(e, el);
     }
