@@ -35,9 +35,7 @@ const PANEL_TEMPLATES = {
     copy: '',
     // Avatar pinned to the top-right of the card, same row as the title.
     headAccessory: (data) => renderAvatar(data?.profile || {}),
-    stats: [
-      { key: 'edges', val: '—', dataKey: 'edgeCount' },
-    ],
+    stats: [],
     inline: (data) => renderSelfInline(data),
     actions: [
       { label: 'edit profile →', mode: 'profile' },
@@ -91,6 +89,51 @@ function escHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
+}
+
+function isLinkBoundary(ch) {
+  return !ch || !/[a-z0-9_-]/i.test(ch);
+}
+
+function renderEntityLink(entity, label) {
+  return `<a class="membrane-entity-link" href="#${escHtml(entity.id)}" data-jump-profile="${escHtml(entity.id)}" data-jump-kind="${escHtml(entity.kind || '')}">${escHtml(label)}</a>`;
+}
+
+function renderLinkedText(text, entities = []) {
+  const source = String(text || '');
+  const options = [];
+  const seen = new Set();
+
+  for (const entity of Array.isArray(entities) ? entities : []) {
+    if (!entity?.id) continue;
+    for (const label of [entity.label, entity.name, entity.id]) {
+      const clean = String(label || '').trim();
+      const key = clean.toLowerCase();
+      if (clean.length < 3 || seen.has(key)) continue;
+      seen.add(key);
+      options.push({ entity, label: clean, lower: key });
+    }
+  }
+  options.sort((a, b) => b.label.length - a.label.length);
+
+  let out = '';
+  let i = 0;
+  let last = 0;
+  const lower = source.toLowerCase();
+  while (i < source.length) {
+    const match = options.find((opt) =>
+      lower.startsWith(opt.lower, i)
+      && isLinkBoundary(source[i - 1])
+      && isLinkBoundary(source[i + opt.label.length])
+    );
+    if (!match) { i += 1; continue; }
+    out += escHtml(source.slice(last, i));
+    out += renderEntityLink(match.entity, source.slice(i, i + match.label.length));
+    i += match.label.length;
+    last = i;
+  }
+  out += escHtml(source.slice(last));
+  return out;
 }
 
 const WD = ['sun','mon','tue','wed','thu','fri','sat'];
@@ -340,9 +383,51 @@ function renderSelfCard(data, tpl) {
     </article>`;
 }
 
+function renderNetworkSection(data, connections = []) {
+  const edgeCount = String(data?.edgeCount ?? connections.length ?? 0);
+  const edgeSource = data?.edgeCountSource || (connections.length ? 'resolved self graph' : 'cohort graph');
+  const connectionCount = connections.length;
+  const tip = connectionCount > 0
+    ? `${edgeCount} membrane edge${Number(edgeCount) === 1 ? '' : 's'}; ${connectionCount} named connection${connectionCount === 1 ? '' : 's'} available. source: ${edgeSource}.`
+    : `${edgeCount} membrane edge${Number(edgeCount) === 1 ? '' : 's'}; no named connections resolved yet. source: ${edgeSource}.`;
+  const countLabel = `${edgeCount} · ${connectionCount} connection${connectionCount === 1 ? '' : 's'}`;
+
+  const ordered = [...connections].sort((a, b) => {
+    const order = { 'teammate': 0, 'depends on': 1, 'depended by': 2 };
+    return (order[a.edgeType] ?? 9) - (order[b.edgeType] ?? 9);
+  });
+
+  const connectionRows = ordered.slice(0, 24).map((c) => `
+    <li class="membrane-event-row membrane-connection-row"
+        data-jump-profile="${escHtml(c.record_id)}"
+        data-jump-kind="${escHtml(c.kind)}"
+        tabindex="0" role="button"
+        aria-label="open ${escHtml(c.name)} in cohort view">
+      <span class="membrane-event-date">${escHtml(c.edgeType)}</span>
+      <span class="membrane-event-title">${escHtml(c.name)}</span>
+      <span class="membrane-event-meta">${escHtml(c.team || c.role || '')}</span>
+    </li>`).join('');
+
+  const body = connectionCount === 0
+    ? `<p class="membrane-network-empty">no named connections yet — once this profile resolves to teammates, dependencies, or a shared cluster, named records appear here.</p>`
+    : `<ul class="membrane-event-list" role="list">${connectionRows}</ul>`;
+
+  return `
+    <details class="membrane-network">
+      <summary class="membrane-network-summary">
+        <span class="membrane-network-title">edges</span>
+        <span class="membrane-network-count" data-tip="${escHtml(tip)}">${escHtml(countLabel)}</span>
+      </summary>
+      <div class="membrane-network-detail">
+        ${body}
+      </div>
+    </details>`;
+}
+
 function renderSelfInline(data) {
   const profile = data?.profile || {};
   const connections = Array.isArray(data?.connections) ? data.connections : [];
+  const read = data?.read || null;
 
   const team = profile.team || (profile.kind === 'team' ? profile.record_id : '') || '';
   const role = profile.role || profile.title || '';
@@ -376,42 +461,15 @@ function renderSelfInline(data) {
       ${truncatedBio ? `<p class="membrane-bio-line">${escHtml(truncatedBio)}</p>` : ''}
     </section>` : '';
 
-  if (connections.length === 0) {
-    return identityBlock + `
-      <section class="membrane-section">
-        <header class="membrane-section-head">
-          <h3 class="membrane-section-title">connections</h3>
-          <span class="membrane-section-count">0</span>
-        </header>
-        <p class="membrane-empty">no edges yet — once you join a team and declare dependencies, your constellation lights up.</p>
-      </section>`;
-  }
-
-  // Group connections by edgeType so similar relationships cluster.
-  const ordered = [...connections].sort((a, b) => {
-    const order = { 'teammate': 0, 'depends on': 1, 'depended by': 2 };
-    return (order[a.edgeType] ?? 9) - (order[b.edgeType] ?? 9);
-  });
-
-  const connectionRows = ordered.slice(0, 24).map((c) => `
-    <li class="membrane-event-row membrane-connection-row"
-        data-jump-profile="${escHtml(c.record_id)}"
-        data-jump-kind="${escHtml(c.kind)}"
-        tabindex="0" role="button"
-        aria-label="open ${escHtml(c.name)} in cohort view">
-      <span class="membrane-event-date">${escHtml(c.edgeType)}</span>
-      <span class="membrane-event-title">${escHtml(c.name)}</span>
-      <span class="membrane-event-meta">${escHtml(c.team || c.role || '')}</span>
-    </li>`).join('');
-
-  return identityBlock + `
-    <section class="membrane-section">
+  const readBlock = read?.text ? `
+    <section class="membrane-section membrane-section-system">
       <header class="membrane-section-head">
-        <h3 class="membrane-section-title">connections</h3>
-        <span class="membrane-section-count">${connections.length}</span>
+        <h3 class="membrane-section-title"${read.sourceDetail ? ` title="${escHtml(read.sourceDetail)}"` : ''}>system read</h3>
       </header>
-      <ul class="membrane-event-list" role="list">${connectionRows}</ul>
-    </section>`;
+      <p class="membrane-system-line${read.tone === 'uncalibrated' ? ' is-uncalibrated' : ''}">${renderLinkedText(read.text, read.entities)}</p>
+    </section>` : '';
+
+  return renderNetworkSection(data, connections) + identityBlock + readBlock;
 }
 
 // Cohort panel = a set of lenses onto the network. Each is a real card
@@ -503,6 +561,9 @@ function renderPanelInner(template, data = {}) {
   const title = typeof template.title === 'function' ? template.title(data) : template.title;
   const accessory = template.headAccessory ? template.headAccessory(data) : '';
   const actionsHtml = renderActionList(template);
+  const statsHtml = Array.isArray(template.stats) && template.stats.length
+    ? `<ul class="membrane-panel-list" role="list">${renderStatList(template, data)}</ul>`
+    : '';
   return `
     <header class="membrane-panel-head${accessory ? ' membrane-panel-head--with-accessory' : ''}">
       <div class="membrane-panel-head-text">
@@ -512,7 +573,7 @@ function renderPanelInner(template, data = {}) {
       ${accessory}
     </header>
     ${template.copy ? `<p class="membrane-panel-note">${template.copy}</p>` : ''}
-    <ul class="membrane-panel-list" role="list">${renderStatList(template, data)}</ul>
+    ${statsHtml}
     ${inlineHtml}
     ${actionsHtml ? `<ul class="membrane-panel-actions" role="list">${actionsHtml}</ul>` : ''}
   `;
@@ -717,7 +778,8 @@ export function mountMembrane(container, opts = {}) {
     // Connection rows: click jumps to that peer's detail page in the
     // legacy cohort (shapes) view.
     panelContent.querySelectorAll('[data-jump-profile]').forEach((row) => {
-      const fire = () => {
+      const fire = (ev) => {
+        ev?.preventDefault?.();
         const id = row.dataset.jumpProfile;
         if (!id) return;
         if (typeof window.__srwkAlchemyShowRecord === 'function') {
@@ -726,7 +788,7 @@ export function mountMembrane(container, opts = {}) {
       };
       row.addEventListener('click', fire);
       row.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); fire(); }
+        if (ev.key === 'Enter' || ev.key === ' ') { fire(ev); }
       });
     });
     dots.forEach((d) => {

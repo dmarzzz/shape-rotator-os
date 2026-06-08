@@ -736,6 +736,138 @@
   max-width: 52ch;
 }
 
+.membrane-section-system {
+  padding-top: 2px;
+}
+
+.membrane-system-line {
+  margin: 0;
+  max-width: none;
+  width: 100%;
+  color: var(--membrane-mist);
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+.membrane-system-line.is-uncalibrated {
+  color: var(--membrane-mist-mid);
+}
+
+.membrane-system-line.is-uncalibrated .membrane-entity-link {
+  color: color-mix(in srgb, var(--membrane-ember) 62%, var(--membrane-mist-mid));
+  border-bottom-color: rgba(255, 122, 61, 0.22);
+}
+
+.membrane-system-line.is-uncalibrated .membrane-entity-link:hover,
+.membrane-system-line.is-uncalibrated .membrane-entity-link:focus-visible {
+  color: var(--membrane-mist);
+  border-bottom-color: rgba(255, 122, 61, 0.58);
+}
+
+.membrane-entity-link {
+  color: var(--membrane-ember);
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 122, 61, 0.36);
+  -webkit-app-region: no-drag;
+  transition: color 180ms ease, border-color 180ms ease, text-shadow 180ms ease;
+}
+
+.membrane-entity-link:hover,
+.membrane-entity-link:focus-visible {
+  color: var(--membrane-mist);
+  border-color: rgba(255, 122, 61, 0.72);
+  outline: none;
+  text-shadow: 0 0 12px rgba(255, 122, 61, 0.24);
+}
+
+.membrane-network {
+  border-top: 0;
+  border-bottom: 1px solid var(--membrane-rule);
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  -webkit-app-region: no-drag;
+}
+
+.membrane-network-summary {
+  align-items: baseline;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  list-style: none;
+  outline: none;
+  padding: 11px 0;
+}
+
+.membrane-network-summary::-webkit-details-marker {
+  display: none;
+}
+
+.membrane-network-summary:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 34%, transparent);
+  outline-offset: 5px;
+}
+
+.membrane-network-title {
+  color: var(--membrane-mist-mid);
+  text-transform: uppercase;
+}
+
+.membrane-network-count {
+  color: var(--membrane-ember);
+  position: relative;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.membrane-network-count::after {
+  background:
+    linear-gradient(180deg, rgba(25, 18, 20, 0.98), rgba(10, 8, 10, 0.98));
+  border: 1px solid rgba(255, 122, 61, 0.34);
+  border-radius: 8px;
+  bottom: calc(100% + 10px);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.44), 0 0 18px rgba(255, 122, 61, 0.14);
+  color: var(--membrane-mist-mid);
+  content: attr(data-tip);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  left: auto;
+  letter-spacing: 0.01em;
+  line-height: 1.45;
+  opacity: 0;
+  padding: 10px 12px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  text-align: left;
+  text-transform: none;
+  transform: translateY(4px);
+  transition: opacity 180ms ease, transform 180ms ease;
+  white-space: normal;
+  width: min(310px, 72vw);
+  z-index: 8;
+}
+
+.membrane-network-summary:hover .membrane-network-count::after,
+.membrane-network-summary:focus-visible .membrane-network-count::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.membrane-network-detail {
+  padding: 0 0 14px;
+}
+
+.membrane-network-empty {
+  color: var(--membrane-mist-mid);
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.6;
+  margin: 0;
+}
+
 /* Identity hero — big avatar on left, name/handle/team stack on right.
    The avatar is the visual anchor of the self panel. */
 .membrane-section-identity {
