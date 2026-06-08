@@ -22,7 +22,7 @@ import {
   // Extracted into shape-ui so the sibling web app can render the same
   // cohort surface. The Electron renderer keeps the same call sites —
   // only the implementations moved.
-  escHtml, escAttr, normalizeLinkHref,
+  escHtml, escAttr, normalizeLinkHref, normalizeGithubAccount,
   buildEditPRUrl,
   teamCardHtml, personCardHtml,
   buildCalendarRows, drawCalendar,
@@ -994,8 +994,9 @@ function computeMembraneData() {
   // cohort record (rich fields), fall back to the identity claim (just
   // name + kind + record_id), fall back to editor-state user.
   const ghHandle = myRecord?.links?.github || myRecord?.gh_handle || myRecord?.handle || editorHandle || '';
-  const avatarUrl = ghHandle
-    ? `https://github.com/${encodeURIComponent(ghHandle)}.png?size=256`
+  const ghAccount = normalizeGithubAccount(ghHandle);
+  const avatarUrl = ghAccount
+    ? `https://github.com/${encodeURIComponent(ghAccount)}.png?size=256`
     : null;
 
   const profileForPanel = myRecord ? {
@@ -1004,7 +1005,7 @@ function computeMembraneData() {
     team: myRecord.team || (myRecord.kind === 'team' ? myRecord.record_id : ''),
     role: myRecord.role || myRecord.title || '',
     role_class: myRecord.role_class,
-    handle: ghHandle,
+    handle: ghAccount || ghHandle,
     bio: myRecord.bio || myRecord.description || myRecord.about || '',
     kind: myRecord.kind || (cohortIndex.teamById.has(myRecord.record_id) ? 'team' : 'person'),
     links: myRecord.links || {},
@@ -9737,7 +9738,7 @@ async function refreshFeed({ source = "auto", force = false } = {}) {
   const userHandles = [];
   const seenHandles = new Set();
   for (const p of state.cohort?.people || []) {
-    const gh = String(p?.links?.github || "").trim();
+    const gh = normalizeGithubAccount(p?.links?.github || p?.github || p?.gh_handle);
     if (!gh) continue;
     const lower = gh.toLowerCase();
     if (seenHandles.has(lower)) continue;
@@ -10650,7 +10651,8 @@ function renderSubmitBlock(p) {
 }
 
 function profileSlug(profile) {
-  const src = (profile?.user?.github || profile?.user?.name || "").toString();
+  const account = normalizeGithubAccount(profile?.user?.github);
+  const src = (account || profile?.user?.name || "").toString();
   return src.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 // Slug for an in-flight ADD form. Prefers values from the form itself
@@ -10660,8 +10662,9 @@ function profileSlug(profile) {
 function draftSlug(p) {
   const d = p?.editDraft || {};
   const isPerson = p?.editKind === "person";
+  const account = isPerson ? normalizeGithubAccount(d?.links?.github || p?.user?.github) : null;
   const src = isPerson
-    ? (d?.links?.github || d?.name || p?.user?.github || p?.user?.name || "")
+    ? (account || d?.name || p?.user?.name || "")
     : (d?.name || "");
   return String(src).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
@@ -10890,8 +10893,9 @@ ${bodyContent}`;
 // that the form mutates in place.
 function buildPersonMarkdown(draft, slug, body = null) {
   const links = draft.links || {};
+  const githubAccount = normalizeGithubAccount(links.github);
   const lp = [];
-  if (links.github)   lp.push(`  github: ${quoteYaml(links.github)}`);
+  if (githubAccount || links.github) lp.push(`  github: ${quoteYaml(githubAccount || links.github)}`);
   if (links.x)        lp.push(`  x: ${quoteYaml(links.x)}`);
   if (links.website)  lp.push(`  website: ${quoteYaml(links.website)}`);
   if (links.linkedin) lp.push(`  linkedin: ${quoteYaml(links.linkedin)}`);

@@ -17,6 +17,8 @@ async function importRendererModule(relPath) {
 
 const relations = await importRendererModule("apps/os/src/renderer/cohort-relations.js");
 const contextVault = await importRendererModule("apps/os/src/renderer/context-vault-model.js");
+const shapeEscape = await importRendererModule("packages/shape-ui/src/escape.js");
+const vendoredEscape = await importRendererModule("apps/os/src/vendor/shape-ui/escape.js");
 
 test("buildCohortIndex maps local team, person, secondary team, and cluster joins", () => {
   const cohort = {
@@ -152,6 +154,22 @@ test("aggregateSkillAreas normalizes and dedupes team and person skill tags", ()
   assert.deepEqual(byTag.get("protocol"), { tag: "protocol", teams: ["alpha", "beta"], people: [], size: 2 });
   assert.ok(model.edges.some(edge => edge.a === "protocol" && edge.b === "tee" && edge.weight === 1));
   assert.ok(model.edges.some(edge => edge.a === "protocol" && edge.b === "research" && edge.weight === 1));
+});
+
+test("normalizeGithubAccount canonicalizes profile handles in shared and vendored helpers", () => {
+  for (const helper of [shapeEscape, vendoredEscape]) {
+    assert.equal(helper.normalizeGithubAccount("@cnode"), "cnode");
+    assert.equal(helper.normalizeGithubAccount("https://github.com/CNode?tab=repositories"), "CNode");
+    assert.equal(helper.normalizeGithubAccount("github.com/orgs/teleport"), "teleport");
+    assert.equal(helper.normalizeGithubAccount("not github.com/cnode"), null);
+  }
+});
+
+test("normalizeLinkHref keeps github account links absolute and handle-safe", () => {
+  for (const helper of [shapeEscape, vendoredEscape]) {
+    assert.equal(helper.normalizeLinkHref("github", "@cnode"), "https://github.com/cnode");
+    assert.equal(helper.normalizeLinkHref("github", "github.com/cnode"), "https://github.com/cnode");
+  }
 });
 
 test("context vault helpers resolve raw scripts by id, path, basename, and pending path", () => {

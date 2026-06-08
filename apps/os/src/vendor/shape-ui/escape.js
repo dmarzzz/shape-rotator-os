@@ -31,9 +31,11 @@ export function normalizeLinkHref(key, value) {
   if (!raw) return null;
   if (/^https?:\/\//i.test(raw)) return raw;
   if (/^mailto:/i.test(raw)) return raw;
+  const hosted = raw.replace(/^\/+/, "");
+  if (/^(?:www\.)?github\.com\//i.test(hosted)) return `https://${hosted}`;
   const k = String(key || "").toLowerCase();
   if (k === "github") {
-    return `https://github.com/${raw.replace(/^\/+/, "")}`;
+    return `https://github.com/${raw.replace(/^\/+/, "").replace(/^@+/, "")}`;
   }
   if (k === "repo") {
     // Same shape as github, but the OS renderer only accepts owner/repo.
@@ -52,4 +54,32 @@ export function normalizeLinkHref(key, value) {
   // website / demo / deck / article / slides / alt / generic — assume
   // hostname or path; HTTPS is the only sensible default in 2026.
   return `https://${raw.replace(/^\/+/, "")}`;
+}
+
+export function normalizeGithubAccount(value) {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw || /^null$/i.test(raw)) return null;
+
+  const account = (candidate) => {
+    const s = String(candidate || "").trim().replace(/^@+/, "").split(/[/?#]/)[0];
+    return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(s) ? s : null;
+  };
+
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    if (/(^|\.)github\.com$/i.test(url.hostname)) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      const first = parts[0]?.toLowerCase();
+      return account(first === "orgs" || first === "users" ? parts[1] : parts[0]);
+    }
+  } catch {}
+
+  const hosted = raw.replace(/^\/+/, "");
+  if (/^(?:www\.)?github\.com\//i.test(hosted)) {
+    const path = hosted.replace(/^(?:www\.)?github\.com\/+/i, "");
+    return account(path);
+  }
+
+  return account(raw);
 }
