@@ -201,6 +201,53 @@ function renderEventBlock(blockText, sources = []) {
   return `<div class="cal-event-row">${timeHtml}<span class="cal-event-title">${titleHtml}</span></div>${extras.join("")}${bulletsHtml}`;
 }
 
+// Infer a coarse category from event text so cards can be color-coded the way
+// the cohort week-timetable reads (office hours / salon / weekly / coordination
+// / demo review / hacking / self-organized). Pure heuristic over the existing
+// calendar cell text — no schema change, no new event data required.
+const CAL_CATEGORIES = [
+  { key: "review",  label: "Demo Review",     re: /demo review|product review|internal .*review/i },
+  { key: "demo",    label: "Demo Night",      re: /demo night|showcase|demo day/i },
+  { key: "oh",      label: "Office Hour",     re: /office hour|pmf check|\bcheck[ -]?point|\b1:1/i },
+  { key: "salon",   label: "Salon",           re: /salon/i },
+  { key: "weekly",  label: "SR Weekly",       re: /\bweekly\b|what did you do/i },
+  { key: "coord",   label: "Coordination",    re: /coordinat|attribution/i },
+  { key: "hack",    label: "Hacking",         re: /\bhack|hackathon|open jam|\bfinals\b|submission|build night/i },
+  { key: "anarchy", label: "Self-organized",  re: /anarchy|self-organ|no .*program|protected build|team-led/i },
+];
+function eventCategory(text) {
+  const t = String(text || "");
+  const tbc = /\btbc\b|to be confirmed|\(tbc\)/i.test(t);
+  for (const c of CAL_CATEGORIES) if (c.re.test(t)) return { key: c.key, label: c.label, tbc };
+  return { key: "default", label: "", tbc };
+}
+
+// Wrap one event block in a color-coded card with a category chip (+ TBC pill).
+function renderEventCard(blockText, sources = []) {
+  const cat = eventCategory(blockText);
+  const chip = (cat.label || cat.tbc)
+    ? `<div class="cev-cat">${cat.label ? escHtml(cat.label) : ""}${cat.tbc ? `<span class="cev-tbc">TBC</span>` : ""}</div>`
+    : "";
+  return `<div class="cal-event ev-${cat.key}${cat.tbc ? " is-tbc" : ""}" data-cat="${escAttr(cat.key)}">${chip}${renderEventBlock(blockText, sources)}</div>`;
+}
+
+// Ordered category legend for the week-view key bar.
+const CAL_CATEGORY_LEGEND = [
+  { key: "oh",      label: "Office Hours" },
+  { key: "salon",   label: "Salon" },
+  { key: "weekly",  label: "Weekly / Self-organized" },
+  { key: "coord",   label: "Coordination" },
+  { key: "review",  label: "Demo Review" },
+  { key: "hack",    label: "Hacking" },
+  { key: "demo",    label: "Demo Night" },
+];
+function renderCalendarKeyBar() {
+  const keys = CAL_CATEGORY_LEGEND.map(c =>
+    `<span class="cal-key" data-cat="${escAttr(c.key)}"><span class="cal-key-dot"></span>${escHtml(c.label)}</span>`
+  ).join("");
+  return `<div class="cal-keybar" role="list" aria-label="event categories">${keys}<span class="cal-key cal-key--tbc"><span class="cal-key-dot"></span>TBC (tentative)</span></div>`;
+}
+
 // Parse one week's row from the Phala tab structure. Returns:
 //   { dateRange, theme, weekStartMs, days: [{ name, date, isToday, isEmpty, blocks[], anchors[] }] }
 export function parseWeekRow(row, weekIdx, eventsByDayMs = new Map()) {
@@ -648,7 +695,7 @@ export function renderWeekView({
       </div>`).join("");
     const blockRows = d.blocks.map(b => {
       const sources = transcriptSourcesForBlock(transcriptMatches, dayIso(d.dayMs), b);
-      return `<div class="cal-event">${renderEventBlock(b, sources)}</div>`;
+      return renderEventCard(b, sources);
     }).join("");
     return `
       <article class="cal-day ${d.isToday ? "is-today" : ""} ${d.isEmpty ? "is-empty" : ""}"
@@ -788,6 +835,7 @@ export function renderWeekView({
             <h2 class="cwh-display"><em>week ${ordinal(safeWeekIdx + 1)} of ten</em></h2>
             <span class="cwh-range">${escHtml(week.dateRange || "—")}</span>
           </header>
+          ${renderCalendarKeyBar()}
           <div class="cal-grid-scroller">
             <div class="cal-grid" role="list" ${todayColAttr}>
               ${dayCells}

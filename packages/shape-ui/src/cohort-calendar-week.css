@@ -1315,3 +1315,87 @@
   cursor: default;
 }
 .cal-skeleton .cal-week { pointer-events: none; }
+
+/* ── Color-coded event cards + category key (cohort week-timetable design) ──
+ * Layered AFTER the .cal-event reset above and scoped to the week grid, so
+ * week-view events read as distinct, category-tinted cards while the day view
+ * keeps its agenda flow. Category hues read on the dark calendar stage. */
+.cal-week .cal-grid {
+  --cat-oh: #d98a5c;
+  --cat-salon: #c9a8d8;
+  --cat-weekly: #a8c79f;
+  --cat-coord: #e3c77f;
+  --cat-review: #f3b174;
+  --cat-hack: #9fb8d8;
+  --cat-demo: #e07a4e;
+  --cat-default: var(--ed-ink-4);
+}
+.cal-week .cal-event {
+  --cat: var(--cat-default);
+  display: block;
+  position: relative;
+  padding: 8px 9px 9px 11px;
+  margin-bottom: 7px;
+  background: rgba(var(--ink-rgb), 0.035);
+  border: 1px solid var(--ed-rule);
+  border-left: 4px solid var(--cat);
+  border-radius: 9px;
+}
+.cal-week .cal-event + .cal-event { padding-top: 8px; margin-top: 0; border-top: 1px solid var(--ed-rule); }
+.cal-week .cal-event[data-cat="oh"]      { --cat: var(--cat-oh); }
+.cal-week .cal-event[data-cat="salon"]   { --cat: var(--cat-salon); }
+.cal-week .cal-event[data-cat="weekly"]  { --cat: var(--cat-weekly); }
+.cal-week .cal-event[data-cat="coord"]   { --cat: var(--cat-coord); }
+.cal-week .cal-event[data-cat="review"]  { --cat: var(--cat-review); }
+.cal-week .cal-event[data-cat="hack"]    { --cat: var(--cat-hack); }
+.cal-week .cal-event[data-cat="anarchy"] { --cat: var(--cat-weekly); }
+.cal-week .cal-event[data-cat="demo"]    { --cat: var(--cat-demo); background: linear-gradient(180deg, rgba(224,122,78,0.18), rgba(var(--ink-rgb),0.02)); }
+.cal-week .cal-event.is-tbc { border-style: dashed; border-left-style: solid; }
+.cev-cat {
+  font-family: var(--ed-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--cat);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.cev-tbc {
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: #161311;
+  background: var(--cat-coord, #e3c77f);
+  font-weight: 700;
+}
+.cal-keybar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 15px;
+  padding: 12px 0 14px;
+  margin: 0;
+}
+.cal-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--ed-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--ed-ink-3);
+  text-transform: lowercase;
+}
+.cal-key-dot { width: 10px; height: 10px; border-radius: 3px; background: var(--ed-ink-4); flex: none; }
+.cal-key[data-cat="oh"]     .cal-key-dot { background: #d98a5c; }
+.cal-key[data-cat="salon"]  .cal-key-dot { background: #c9a8d8; }
+.cal-key[data-cat="weekly"] .cal-key-dot { background: #a8c79f; }
+.cal-key[data-cat="coord"]  .cal-key-dot { background: #e3c77f; }
+.cal-key[data-cat="review"] .cal-key-dot { background: #f3b174; }
+.cal-key[data-cat="hack"]   .cal-key-dot { background: #9fb8d8; }
+.cal-key[data-cat="demo"]   .cal-key-dot { background: #e07a4e; }
+.cal-key--tbc .cal-key-dot { background: transparent; border: 1.5px dashed var(--cat-coord, #e3c77f); }
