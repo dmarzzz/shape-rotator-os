@@ -1327,6 +1327,7 @@ function renderShapes() {
       const nextChipSet = next === "people" ? PERSON_ROLE_CHIPS : TEAM_MEMBERSHIP_CHIPS;
       state.shapesMembershipFilter = nextChipSet[0].id;
       renderShapes();
+      wireShapeCardClicks();   // renderShapes() rebinds chips, not card→openDetail; re-wire after filter switch
     });
   }
   // Wire the membership chips.
@@ -1336,6 +1337,7 @@ function renderShapes() {
       if (next === state.shapesMembershipFilter) return;
       state.shapesMembershipFilter = next;
       renderShapes();
+      wireShapeCardClicks();   // re-wire cards after membership-filter switch (see note above)
     });
   }
   // Wire the dossier export button.
