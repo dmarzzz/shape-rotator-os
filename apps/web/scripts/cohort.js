@@ -770,6 +770,33 @@ function compactPills(items) {
       e.preventDefault();
       location.hash = "";
     });
+    const editToggle = detailHost.querySelector("[data-edit-toggle]");
+    const editPanel = detailHost.querySelector("[data-edit-panel]");
+    let editController = null;
+    editToggle?.addEventListener("click", () => {
+      if (!editPanel) return;
+      if (!editPanel.hidden) {
+        editController?.destroy?.();
+        editController = null;
+        editPanel.hidden = true;
+        editPanel.innerHTML = "";
+        editToggle.textContent = "edit details";
+        return;
+      }
+      editPanel.hidden = false;
+      editPanel.innerHTML = `<h3 class="cd-h">edit ${escHtml(isTeam ? shapeKind : "person")}</h3>`;
+      const formMount = document.createElement("div");
+      formMount.className = "cd-edit-form";
+      editPanel.appendChild(formMount);
+      editController = renderProfileForm({
+        recordType,
+        recordId: rec.record_id,
+        initialData: rec,
+        container: formMount,
+      });
+      editToggle.textContent = "hide editor";
+      try { editPanel.scrollIntoView({ block: "start", behavior: "smooth" }); } catch {}
+    });
 
     requestAnimationFrame(() => {
       try { mountShapesIn(mount); }
