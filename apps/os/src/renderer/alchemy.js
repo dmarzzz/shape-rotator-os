@@ -4308,8 +4308,78 @@ function contextRawScriptMeta(source) {
   const bits = [];
   if (source?.date) bits.push(source.date);
   if (source?.line_count) bits.push(`${source.line_count} lines`);
+  if (source?.review_status) bits.push(source.review_status.replace(/-/g, " "));
   if (source?.source_kind) bits.push(source.source_kind.replace(/-/g, " "));
   return bits.join(" · ");
+}
+
+function contextList(value) {
+  if (Array.isArray(value)) return value.map(v => String(v || "").trim()).filter(Boolean);
+  if (!value) return [];
+  return String(value).split(",").map(v => v.trim()).filter(Boolean);
+}
+
+function contextTeamRecord(id) {
+  return (state.cohort?.teams || []).find(team => team?.record_id === id) || null;
+}
+
+function contextPersonRecord(id) {
+  return (state.cohort?.people || []).find(person => person?.record_id === id) || null;
+}
+
+function contextTeamKind(id) {
+  const team = contextTeamRecord(id);
+  return team?.kind === "project" ? "project" : "team";
+}
+
+function renderContextRecordChip({ kind, id, label }) {
+  if (!id) return "";
+  return `
+    <button class="alch-cv-rel-chip" type="button"
+            data-cv-record-kind="${escAttr(kind)}"
+            data-cv-record-id="${escAttr(id)}">
+      <span>${escHtml(kind)}</span>${escHtml(label || id)}
+    </button>
+  `;
+}
+
+function renderContextRawMap(source) {
+  if (!source) return "";
+  const teams = contextList(source.related_teams);
+  const people = contextList(source.related_people);
+  const calendar = contextList(source.calendar_matches);
+  const utility = source.utility || "";
+  const boundary = source.content_boundary || source.import_boundary || "";
+  if (!teams.length && !people.length && !calendar.length && !utility && !boundary) return "";
+
+  const teamChips = teams.map(id => {
+    const team = contextTeamRecord(id);
+    return renderContextRecordChip({
+      kind: contextTeamKind(id),
+      id,
+      label: team?.name || id,
+    });
+  }).join("");
+  const personChips = people.map(id => {
+    const person = contextPersonRecord(id);
+    return renderContextRecordChip({
+      kind: "person",
+      id,
+      label: person?.name || id,
+    });
+  }).join("");
+  const calendarTags = calendar.map(match => `<span class="alch-cv-rel-tag">${escHtml(match)}</span>`).join("");
+
+  return `
+    <section class="alch-cv-raw-map" aria-label="transcript review map">
+      ${source.submit_recommendation ? `<p class="alch-cv-raw-map-status">${escHtml(source.submit_recommendation)}</p>` : ""}
+      ${calendarTags ? `<div class="alch-cv-rel-row"><strong>calendar</strong><div>${calendarTags}</div></div>` : ""}
+      ${teamChips ? `<div class="alch-cv-rel-row"><strong>teams</strong><div>${teamChips}</div></div>` : ""}
+      ${personChips ? `<div class="alch-cv-rel-row"><strong>people</strong><div>${personChips}</div></div>` : ""}
+      ${utility ? `<div class="alch-cv-rel-row"><strong>useful for</strong><p>${escHtml(utility)}</p></div>` : ""}
+      ${boundary ? `<div class="alch-cv-rel-row"><strong>boundary</strong><p>${escHtml(boundary)}</p></div>` : ""}
+    </section>
+  `;
 }
 
 function renderContextVaultRawDetail(selected) {
@@ -4344,6 +4414,7 @@ function renderContextVaultRawDetail(selected) {
       <article class="alch-cv-reader alch-cv-raw-reader">
         <p class="alch-cv-reader-kicker">${escHtml(contextRawScriptMeta(selected) || "source transcript")}</p>
         <h1>${escHtml(title)}</h1>
+        ${renderContextRawMap(selected)}
       </article>
       <pre class="alch-cv-raw-text">${escHtml(displayText)}</pre>
       <div class="alch-cv-result" data-cv-result hidden></div>
@@ -4548,6 +4619,16 @@ function wireContextVaultDetailActions(root = state.canvas) {
   for (const btn of root.querySelectorAll("[data-cv-reveal-source]")) {
     btn.addEventListener("click", async () => {
       if (window.api?.revealContextVaultSource) await window.api.revealContextVaultSource(btn.dataset.cvRevealSource);
+    });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-record-id]")) {
+    btn.addEventListener("click", () => {
+      if (typeof window.__srwkOpenProfile !== "function") return;
+      window.__srwkOpenProfile({
+        kind: btn.dataset.cvRecordKind || "person",
+        record_id: btn.dataset.cvRecordId,
+        mode: "edit",
+      });
     });
   }
   for (const btn of root.querySelectorAll("[data-cv-copy-article]")) {

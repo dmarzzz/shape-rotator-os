@@ -581,6 +581,43 @@ function inferSourceKind(filePath, root) {
   return "manual";
 }
 
+const TRANSCRIPT_HEADER_LIST_FIELDS = new Set([
+  "speakers",
+  "calendar_matches",
+  "related_teams",
+  "related_people",
+]);
+
+function parseTranscriptHeaderList(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+  const inner = raw.startsWith("[") && raw.endsWith("]")
+    ? raw.slice(1, -1)
+    : raw;
+  return inner
+    .split(",")
+    .map(item => item.trim().replace(/^['"]|['"]$/g, ""))
+    .filter(Boolean);
+}
+
+function parseTranscriptHeaderMetadata(text) {
+  const raw = String(text || "");
+  const header = raw.split(/^-{5}\s*BEGIN TRANSCRIPT\s*-{5}/mi)[0] || "";
+  const metadata = {};
+  const titleLine = header.split(/\r?\n/).find(line => /^#\s+/.test(line.trim()));
+  if (titleLine) metadata.header_title = titleLine.replace(/^#\s+/, "").trim();
+  for (const line of header.split(/\r?\n/)) {
+    const match = /^([A-Za-z0-9_-]+):\s*(.*?)\s*$/.exec(line.trim());
+    if (!match) continue;
+    const key = match[1];
+    const value = match[2] || "";
+    metadata[key] = TRANSCRIPT_HEADER_LIST_FIELDS.has(key)
+      ? parseTranscriptHeaderList(value)
+      : value;
+  }
+  return metadata;
+}
+
 function scanTranscriptFile(filePath, root) {
   let stat;
   try { stat = fs.statSync(filePath); }
@@ -592,16 +629,18 @@ function scanTranscriptFile(filePath, root) {
   try { raw = fs.readFileSync(filePath, "utf8").slice(0, maxBytes); }
   catch { return null; }
   const lines = raw.split(/\r?\n/);
+  const header = parseTranscriptHeaderMetadata(raw);
   const title = transcriptTitle(filePath);
   const date = inferTranscriptDate(path.basename(filePath), raw, stat.mtimeMs);
   const skills = inferSkillAreas(`${title}\n${raw}`);
-  const speakers = inferSpeakers(raw);
+  const speakers = Array.isArray(header.speakers) && header.speakers.length ? header.speakers : inferSpeakers(raw);
   const excerptLines = meaningfulLines(raw, 10);
   const signals = inferSignals(raw);
   const id = hashShort(`${filePath}:${stat.size}:${Math.round(stat.mtimeMs)}`);
   const sourceKind = inferSourceKind(filePath, root);
   return {
     id,
+    record_id: header.record_id || null,
     article_title: null,
     article_angle: null,
     article_slug: null,
@@ -617,6 +656,17 @@ function scanTranscriptFile(filePath, root) {
     line_count: lines.length,
     char_count: raw.length,
     mtime: new Date(stat.mtimeMs).toISOString(),
+    source_format: header.source_format || null,
+    segments: Number(header.segments) || null,
+    review_status: header.review_status || null,
+    submit_recommendation: header.submit_recommendation || null,
+    calendar_matches: header.calendar_matches || [],
+    related_teams: header.related_teams || [],
+    related_people: header.related_people || [],
+    utility: header.utility || null,
+    import_boundary: header.import_boundary || null,
+    content_boundary: header.content_boundary || header.import_boundary || null,
+    redactions: header.redactions || null,
     speakers,
     skill_areas: skills,
     signals,
@@ -674,6 +724,15 @@ function writeContextVaultRawBundle(rawScripts = []) {
     lines.push(`date: ${source.date || ""}`);
     lines.push(`lines: ${source.line_count || 0}`);
     lines.push(`path: ${source.path || ""}`);
+    if (source.record_id) lines.push(`record_id: ${source.record_id}`);
+    if (source.review_status) lines.push(`review_status: ${source.review_status}`);
+    if (source.submit_recommendation) lines.push(`submit_recommendation: ${source.submit_recommendation}`);
+    if (source.calendar_matches?.length) lines.push(`calendar_matches: [${source.calendar_matches.join(", ")}]`);
+    if (source.related_teams?.length) lines.push(`related_teams: [${source.related_teams.join(", ")}]`);
+    if (source.related_people?.length) lines.push(`related_people: [${source.related_people.join(", ")}]`);
+    if (source.utility) lines.push(`utility: ${source.utility}`);
+    if (source.content_boundary) lines.push(`content_boundary: ${source.content_boundary}`);
+    if (source.redactions) lines.push(`redactions: ${source.redactions}`);
     lines.push("");
     lines.push("----- BEGIN TRANSCRIPT -----");
     lines.push(raw.text || "");
