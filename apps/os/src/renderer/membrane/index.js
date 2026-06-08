@@ -76,11 +76,11 @@ const PANEL_TEMPLATES = {
     title: 'asks',
     copy: 'each open ask is a bubbling point of pressure on the surface. fresh asks rise sharp; expiring asks sink back into the membrane.',
     stats: [
-      { key: 'open',  val: '—', dataKey: 'openAskCount' },
+      { key: 'open',  val: '—', dataKey: 'openAskCount', details: (data) => renderAsksInline(data), open: true },
       { key: 'mine',  val: '—', dataKey: 'myAskCount' },
       { key: 'ask', label: 'post ask', mode: 'asks', opts: { openComposer: true } },
     ],
-    inline: (data) => renderAsksInline(data),
+    inline: null,
     actions: [],
   },
 };
@@ -155,13 +155,9 @@ function renderAsksInline(data) {
   const open = asks.filter(askIsOpen);
   if (open.length === 0) {
     return `
-      <section class="membrane-section">
-        <header class="membrane-section-head">
-          <h3 class="membrane-section-title">requests</h3>
-          <span class="membrane-section-count">0</span>
-        </header>
+      <div class="membrane-open-asks">
         <p class="membrane-empty">no open asks. things are quiet.</p>
-      </section>`;
+      </div>`;
   }
   const rows = open.slice(0, 24).map((a) => {
     const title = askTopic(a) || 'untitled ask';
@@ -201,13 +197,9 @@ function renderAsksInline(data) {
       </li>`;
   }).join('');
   return `
-    <section class="membrane-section">
-      <header class="membrane-section-head">
-        <h3 class="membrane-section-title">requests</h3>
-        <span class="membrane-section-count">${open.length}</span>
-      </header>
+    <div class="membrane-open-asks">
       <ul class="membrane-ask-list" role="list">${rows}</ul>
-    </section>`;
+    </div>`;
 }
 
 // Tiny stable string hash for deterministic sigils (local; no crypto).
@@ -470,6 +462,22 @@ function renderCohortViews() {
 
 function renderStatList(template, data = {}) {
   return template.stats.map((s) => {
+    const v = s.dataKey && data[s.dataKey] != null ? data[s.dataKey] : s.val;
+    if (typeof s.details === 'function') {
+      return `
+        <li class="membrane-panel-list-details">
+          <details class="mpl-details"${s.open ? ' open' : ''}>
+            <summary class="mpl-details-summary">
+              <span class="mpl-key">${escHtml(s.key)}</span>
+              <span class="mpl-detail-meta">
+                <span class="mpl-val">${escHtml(v)}</span>
+                <span class="mpl-caret" aria-hidden="true"></span>
+              </span>
+            </summary>
+            ${s.details(data)}
+          </details>
+        </li>`;
+    }
     if (s.mode) {
       const opts = s.opts ? ` data-jump-opts="${escHtml(JSON.stringify(s.opts))}"` : '';
       return `
@@ -480,7 +488,6 @@ function renderStatList(template, data = {}) {
           </button>
         </li>`;
     }
-    const v = s.dataKey && data[s.dataKey] != null ? data[s.dataKey] : s.val;
     return `<li><span class="mpl-key">${escHtml(s.key)}</span><span class="mpl-val">${escHtml(v)}</span></li>`;
   }).join('');
 }

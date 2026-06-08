@@ -338,6 +338,63 @@
   padding: 0;
 }
 
+.membrane-panel-list li.membrane-panel-list-details {
+  align-items: stretch;
+  border-bottom: 0;
+  display: block;
+  padding: 0;
+}
+
+.mpl-details {
+  border-bottom: 1px solid var(--membrane-rule);
+}
+
+.mpl-details-summary {
+  align-items: baseline;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  outline: none;
+  padding: 11px 0;
+  -webkit-app-region: no-drag;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.mpl-details-summary::-webkit-details-marker {
+  display: none;
+}
+
+.mpl-details-summary:hover,
+.mpl-details-summary:focus-visible {
+  background: rgba(255, 122, 61, 0.035);
+  outline: none;
+  transform: translateX(3px);
+}
+
+.mpl-detail-meta {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.mpl-caret::before {
+  color: var(--membrane-mist-mid);
+  content: "›";
+  display: inline-block;
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0.62;
+  transform-origin: center;
+  transition: color 180ms ease, opacity 180ms ease, transform 180ms ease;
+}
+
+.mpl-details[open] .mpl-caret::before {
+  color: var(--membrane-ember);
+  opacity: 0.82;
+  transform: rotate(90deg);
+}
+
 .mpl-action {
   appearance: none;
   align-items: baseline;
@@ -508,9 +565,13 @@
 .membrane-ask-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0 2px;
   display: flex;
   flex-direction: column;
+}
+
+.membrane-open-asks {
+  padding: 0 0 7px;
 }
 
 .membrane-ask-item {
