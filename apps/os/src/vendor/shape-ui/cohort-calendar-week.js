@@ -241,6 +241,166 @@ const CAL_CATEGORY_LEGEND = [
   { key: "hack",    label: "Hacking" },
   { key: "demo",    label: "Demo Night" },
 ];
+// Category → hex, mirrors the CSS palette so the PNG export matches the
+// on-screen color-coding.
+const CAL_CAT_HEX = {
+  oh: "#d98a5c", salon: "#c9a8d8", weekly: "#a8c79f", coord: "#e3c77f",
+  review: "#f3b174", hack: "#9fb8d8", demo: "#e07a4e", anarchy: "#a8c79f",
+  default: "#8f817a",
+};
+
+// One-tap, mobile-optimized PNG of the current week: a tall portrait card
+// (1080px wide) with days stacked vertically and color-coded event blocks —
+// shaped to drop straight into a phone screenshot / story. Pure canvas-2D, no
+// deps; works in both the Electron renderer and the web OS. Triggers a
+// download (and the Electron save dialog when available).
+export function exportWeekPng({ data, weekIdx = 0 } = {}) {
+  const tab = data?.tabs?.[PRIMARY_TAB] || [];
+  const safeWeekIdx = Math.max(0, Math.min(WEEK_COUNT - 1, weekIdx | 0));
+  const week = parseWeekRow(tab[2 + safeWeekIdx] || [], safeWeekIdx);
+  const days = week.days.filter(d => !d.isEmpty);
+
+  const S = 2;                         // retina scale
+  const W = 1080;                      // mobile portrait width
+  const PAD = 48;
+  const COL = W - PAD * 2;
+  const measure = document.createElement("canvas").getContext("2d");
+  const wrap = (text, font, maxW) => {
+    measure.font = font;
+    const words = String(text).split(/\s+/);
+    const lines = []; let line = "";
+    for (const w of words) {
+      const t = line ? line + " " + w : w;
+      if (measure.measureText(t).width > maxW && line) { lines.push(line); line = w; }
+      else line = t;
+    }
+    if (line) lines.push(line);
+    return lines;
+  };
+  const firstLine = (block) => {
+    const raw = (block.split("\n")[0] || "").trim();
+    const { time, rest } = splitLeadingTime(raw);
+    return { time: time || "", title: (rest || (time ? "" : raw)) };
+  };
+
+  // ── measure pass: compute total height ───────────────────────────────
+  const TITLE_FONT = `600 27px "JetBrains Mono", ui-monospace, monospace`;
+  const TIME_FONT  = `600 18px "JetBrains Mono", ui-monospace, monospace`;
+  const CAT_FONT   = `700 15px "JetBrains Mono", ui-monospace, monospace`;
+  let H = 0;
+  H += 196;                            // header
+  const layout = [];
+  for (const d of days) {
+    layout.push({ kind: "dayhead", d });
+    H += 64;
+    for (const block of d.blocks) {
+      const { time, title } = firstLine(block);
+      const cat = eventCategory(block);
+      const titleLines = wrap(title || time, TITLE_FONT, COL - 52);
+      const cardH = 22 /*chip*/ + (time ? 26 : 4) + titleLines.length * 34 + 26;
+      layout.push({ kind: "event", time, title, titleLines, cat, cardH });
+      H += cardH + 12;
+    }
+    H += 12;
+  }
+  H += 96;                             // footer
+
+  const cnv = document.createElement("canvas");
+  cnv.width = W * S; cnv.height = H * S;
+  const ctx = cnv.getContext("2d");
+  ctx.scale(S, S);
+
+  // background — warm radial, same family as the app stage
+  const bg = ctx.createRadialGradient(W * 0.2, 0, 80, W / 2, H / 2, Math.max(W, H));
+  bg.addColorStop(0, "#2b1c16"); bg.addColorStop(0.5, "#19130f"); bg.addColorStop(1, "#0d0b0a");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+  // ── header ───────────────────────────────────────────────────────────
+  let y = 70;
+  ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+  ctx.fillStyle = "#f3b174"; ctx.font = `700 16px "JetBrains Mono", ui-monospace, monospace`;
+  ctx.fillText(`SHAPE ROTATOR · WEEK ${safeWeekIdx + 1} OF 10`, PAD, y);
+  y += 50;
+  ctx.fillStyle = "#f0e7df"; ctx.font = `italic 52px "Iowan Old Style", "Hoefler Text", Georgia, serif`;
+  ctx.fillText(week.theme ? week.theme.replace(/\b\w/g, c => c.toUpperCase()).slice(0, 26) : `Week ${safeWeekIdx + 1}`, PAD, y);
+  y += 36;
+  ctx.fillStyle = "#bcaea5"; ctx.font = `400 19px "JetBrains Mono", ui-monospace, monospace`;
+  ctx.fillText((week.dateRange || "").toUpperCase(), PAD, y);
+  y += 60;
+
+  // ── days + events ────────────────────────────────────────────────────
+  for (const item of layout) {
+    if (item.kind === "dayhead") {
+      ctx.fillStyle = "#43332e"; ctx.fillRect(PAD, y + 6, COL, 1);
+      ctx.fillStyle = "#f3b174"; ctx.font = `700 17px "JetBrains Mono", ui-monospace, monospace`;
+      ctx.fillText((DAY_NAMES_FULL[item.d.name] || item.d.name).toUpperCase(), PAD, y + 36);
+      ctx.fillStyle = "#8f817a"; ctx.textAlign = "right";
+      ctx.fillText(String(item.d.date).toUpperCase(), W - PAD, y + 36);
+      ctx.textAlign = "left";
+      y += 64;
+      continue;
+    }
+    const hex = CAL_CAT_HEX[item.cat.key] || CAL_CAT_HEX.default;
+    const x = PAD, cw = COL, ch = item.cardH;
+    // card
+    ctx.fillStyle = "rgba(255,255,255,0.04)";
+    roundRect(ctx, x, y, cw, ch, 14); ctx.fill();
+    ctx.fillStyle = hex; roundRect(ctx, x, y, 6, ch, 3); ctx.fill();
+    let ty = y + 26;
+    const tx = x + 22;
+    // category chip
+    const chipText = (item.cat.label || (item.cat.tbc ? "" : "")).toUpperCase();
+    if (chipText || item.cat.tbc) {
+      ctx.font = CAT_FONT; ctx.fillStyle = hex;
+      ctx.fillText(chipText, tx, ty);
+      if (item.cat.tbc) {
+        const cw2 = chipText ? ctx.measureText(chipText).width + 14 : 0;
+        ctx.fillStyle = "#e3c77f"; roundRect(ctx, tx + cw2, ty - 13, 42, 18, 9); ctx.fill();
+        ctx.fillStyle = "#161311"; ctx.font = `700 12px "JetBrains Mono", ui-monospace, monospace`;
+        ctx.fillText("TBC", tx + cw2 + 8, ty + 1);
+      }
+      ty += 28;
+    }
+    if (item.time) {
+      ctx.font = TIME_FONT; ctx.fillStyle = "#f0e7df";
+      ctx.fillText(item.time, tx, ty); ty += 26;
+    }
+    ctx.font = TITLE_FONT; ctx.fillStyle = "#f0e7df";
+    for (const ln of item.titleLines) { ctx.fillText(ln, tx, ty); ty += 34; }
+    y += ch + 12;
+  }
+
+  // ── footer ───────────────────────────────────────────────────────────
+  y += 24;
+  ctx.fillStyle = "#8f817a"; ctx.font = `400 15px "JetBrains Mono", ui-monospace, monospace`;
+  ctx.textAlign = "center";
+  ctx.fillText("SHAPE ROTATOR · COHORT CALENDAR · TENTATIVE — CONFIRM IN ANNOUNCEMENTS", W / 2, y);
+
+  const dataUrl = cnv.toDataURL("image/png");
+  const stamp = (week.dateRange || `week-${safeWeekIdx + 1}`).replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  const filename = `shape-rotator-week-${safeWeekIdx + 1}-${stamp}`;
+  if (typeof window !== "undefined" && window.api?.exportCalendar) {
+    window.api.exportCalendar({ format: "png", dataUrl, filename }).catch(() => fallbackDownload(dataUrl, filename));
+  } else {
+    fallbackDownload(dataUrl, filename);
+  }
+}
+function fallbackDownload(dataUrl, filename) {
+  const a = document.createElement("a");
+  a.href = dataUrl; a.download = `${filename}.png`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function roundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
 function renderCalendarKeyBar() {
   const keys = CAL_CATEGORY_LEGEND.map(c =>
     `<span class="cal-key" data-cat="${escAttr(c.key)}"><span class="cal-key-dot"></span>${escHtml(c.label)}</span>`
@@ -832,8 +992,13 @@ export function renderWeekView({
       ${sub === "week" ? `
         <section class="cal-week" data-cal-view="week" data-phase="${escAttr(phase)}">
           <header class="cal-week-heading">
-            <h2 class="cwh-display"><em>week ${ordinal(safeWeekIdx + 1)} of ten</em></h2>
-            <span class="cwh-range">${escHtml(week.dateRange || "—")}</span>
+            <div class="cwh-titles">
+              <h2 class="cwh-display"><em>week ${ordinal(safeWeekIdx + 1)} of ten</em></h2>
+              <span class="cwh-range">${escHtml(week.dateRange || "—")}</span>
+            </div>
+            <button class="cal-png-btn" type="button" data-cal-png="${safeWeekIdx}" aria-label="save this week as a PNG">
+              <span class="cpb-glyph" aria-hidden="true">⤓</span> save png
+            </button>
           </header>
           ${renderCalendarKeyBar()}
           <div class="cal-grid-scroller">

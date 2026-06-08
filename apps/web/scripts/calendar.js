@@ -5,6 +5,7 @@ import {
   currentWeekIdx,
   attachWeekViewBehavior,
   renderCohortCalendar,
+  exportWeekPng,
 } from "@shape-rotator/shape-ui";
 
 // Web cohort calendar — seed with the bundled snapshot from
@@ -103,6 +104,12 @@ function wire() {
     const retry = e.target.closest?.("[data-cal-retry]");
     if (retry) {
       runLiveFetch(); // re-attempt; renderer flips badge when it resolves
+      return;
+    }
+    const png = e.target.closest?.("[data-cal-png]");
+    if (png) {
+      try { exportWeekPng({ data: state.data, weekIdx: state.weekIdx }); }
+      catch (err) { console.warn("[calendar] png export failed", err); }
       return;
     }
   });

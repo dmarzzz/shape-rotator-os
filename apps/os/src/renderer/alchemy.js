@@ -31,6 +31,7 @@ import {
   currentWeekIdx as calendarCurrentWeekIdx,
   parseWeekRow as calendarParseWeekRow,
   attachWeekViewBehavior as attachCalendarMobileBehavior,
+  exportWeekPng as exportCalendarWeekPng,
 } from "@shape-rotator/shape-ui";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey,
@@ -6614,6 +6615,15 @@ function wireCalendar() {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       openCalendarTranscript(btn.dataset.calTranscriptPath);
+    });
+  }
+
+  // save-png: export the visible week as a mobile-optimized portrait PNG.
+  const weekPngBtn = state.canvas.querySelector("[data-cal-png]");
+  if (weekPngBtn) {
+    weekPngBtn.addEventListener("click", () => {
+      try { exportCalendarWeekPng({ data: cal.data, weekIdx: cal.weekIdx }); }
+      catch (e) { console.warn("[calendar] png export failed", e); }
     });
   }
 

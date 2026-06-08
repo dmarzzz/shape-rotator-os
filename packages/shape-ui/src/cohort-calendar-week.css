@@ -1399,3 +1399,30 @@
 .cal-key[data-cat="hack"]   .cal-key-dot { background: #9fb8d8; }
 .cal-key[data-cat="demo"]   .cal-key-dot { background: #e07a4e; }
 .cal-key--tbc .cal-key-dot { background: transparent; border: 1.5px dashed var(--cat-coord, #e3c77f); }
+
+/* save-png button (week view) */
+.cal-week-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.cwh-titles { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cal-png-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--ed-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ed-ink-1);
+  background: rgba(var(--ink-rgb), 0.05);
+  border: 1px solid var(--ed-rule-2, var(--ed-rule));
+  border-radius: 999px;
+  padding: 9px 15px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.cal-png-btn:hover { border-color: var(--alchemy-oxide-bright, #f3b174); background: rgba(var(--ink-rgb), 0.09); }
+.cal-png-btn:active { transform: translateY(1px); }
+.cpb-glyph { font-size: 14px; line-height: 1; }
+@media (max-width: 560px) {
+  .cal-png-btn { font-size: 12px; padding: 11px 18px; }
+}
