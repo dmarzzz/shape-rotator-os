@@ -48,7 +48,12 @@ const state = {
 
 function parseDetailHash() {
   const h = (typeof location !== "undefined" ? location.hash : "") || "";
-  return h.startsWith("#") ? decodeURIComponent(h.slice(1)) || null : null;
+  if (!h.startsWith("#")) return null;
+  try {
+    return decodeURIComponent(h.slice(1)) || null;
+  } catch {
+    return null;
+  }
 }
 
 function hashString(s) {
