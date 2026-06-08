@@ -602,6 +602,18 @@ function buildTeamTimeline({ teams, people, asks, events, calendar }) {
   return timeline;
 }
 
+function loadJsonArray(file, label) {
+  if (!fs.existsSync(file)) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (Array.isArray(parsed)) return parsed;
+    console.warn(`[build-bundles] ${label} should be an array; got ${typeof parsed}`);
+  } catch (e) {
+    console.warn(`[build-bundles] ${label} present but unreadable: ${e.message}`);
+  }
+  return [];
+}
+
 function build() {
   const schema = readSchema();
   if (!schema || schema.schema_version !== 1) {
