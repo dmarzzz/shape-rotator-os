@@ -915,6 +915,11 @@ function computeMembraneData() {
   const cohortIndex = buildCohortIndex(c);
   const teams = cohortIndex.teams;
   const people = cohortIndex.people;
+  // #226 relationship graph — declarations dropped during the mega-merge; restored
+  // at function scope so both the if(myTeam) block and allEdges below can see them.
+  const teamById = cohortIndex.teamById;
+  const graphEdges = constellationDependencyEdges(teams, teamById, c.dependencies || []);
+  const allEdges = graphEdges.length;
   const events = Array.isArray(c.events) ? c.events : [];
   const asks = asksWithStatus(c.asks);
 
@@ -1024,9 +1029,6 @@ function computeMembraneData() {
       });
     };
     if (myTeam) {
-      // Relationship graph edges (#226) — declaration dropped during the mega-merge; restored.
-      const teamById = cohortIndex.teamById;
-      const graphEdges = constellationDependencyEdges(teams, teamById, c.dependencies || []);
       // Teammates
       for (const p of cohortIndex.primaryPeopleByTeam.get(myTeam.record_id) || []) add(p, 'teammate', myTeam);
       // Relationship target members.
@@ -4282,6 +4284,8 @@ function renderJourney() {
   }).join("");
   const axisTitleX = `<text class="ac-jaxis-title" x="${(PAD_L + plotW / 2).toFixed(1)}" y="${(H - 16).toFixed(1)}" text-anchor="middle">stage →</text>`;
   const axisTitleY = `<text class="ac-jaxis-title" transform="translate(18,${(PAD_T + plotH / 2).toFixed(1)}) rotate(-90)" text-anchor="middle">evidence quality →</text>`;
+  // #226 journey-assessed set — declaration dropped during the mega-merge; restored.
+  const assessedTeams = teams.filter(t => journeyAssessed(t));
   const assessedShown = assessedTeams.length;
   const cellBuckets = new Map();
   for (const t of teams) {
@@ -5006,10 +5010,9 @@ function renderConstellation() {
   const clusters = state.cohort.clusters || [];
   const mode = state.constellationMode === "wells" ? "map" : (state.constellationMode || "map");
 
-  // Collab Board is a peer Constellation view alongside clusters,
-  // dependencies, and journey.
+  // Journey sub-view renders a PMF scatterplot instead of the map.
+  // Collab Board is a peer Constellation sub-view (#216).
   if (mode === "collab") { renderCollab(); return; }
-  // Journey sub-tab renders a PMF scatterplot instead of the map.
   if (mode === "journey") { renderJourney(); return; }
   if (mode === "stack") { renderProductStack(); return; }
 
@@ -5138,13 +5141,6 @@ function renderConstellation() {
     return `<path class="${cls}" data-a="${escAttr(e.from)}" data-b="${escAttr(e.to)}" data-dep-id="${escAttr(e.id || "")}" aria-hidden="true" d="${escAttr(d)}" marker-end="url(#ac-arrow)"/>`
       + `<path class="ac-edge-hit" data-a="${escAttr(e.from)}" data-b="${escAttr(e.to)}" data-dep-id="${escAttr(e.id || "")}" role="button" tabindex="0" aria-label="${escAttr(aria)}" d="${escAttr(d)}"/>`;
   }).join("");
-  // Timeline "show changes" overlay (#238): snapshot delta vs the previous
-  // timeline step. Declaration dropped during the mega-merge; restored.
-  const delta = state.constellationShowDelta ? constellationSnapshotDelta() : null;
-  const deltaEdgeMarkup = delta ? [
-    ...delta.dependencyAdded.map(edge => constellationEdgePath(edge, pos, `ac-edge-new ac-edge-new-dependency ${edge.provenance.className}`)),
-    ...delta.clusterAdded.map(edge => constellationEdgePath(edge, pos, `ac-edge-new ac-edge-new-cluster ${edge.provenance.className}`)),
-  ].join("") : "";
 
   // Draw small→large so keystones sit on top of the pile. Node color is always
   // domain (one coding across every lens). Under the relationships lens, nodes
@@ -5199,24 +5195,34 @@ function renderConstellation() {
     <div class="acl-line-note">Solid = a relationship record with type, status, evidence, or next action. Dotted = a project profile mention that needs confirmation.</div>`;
 
   state.canvas.innerHTML = `
-    <div class="alch-constellation">
-      <nav class="alch-const-modes" role="tablist" aria-label="constellation edge source">
-        <button class="alch-const-mode-btn" data-const-mode="clusters" aria-selected="${mode === "clusters"}" type="button">
-          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></span><span class="acm-label">clusters</span>
-          <span class="acm-hint">shared cluster membership</span>
-        </button>
-        <button class="alch-const-mode-btn" data-const-mode="dependencies" aria-selected="${mode === "dependencies"}" type="button">
-          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></svg></span><span class="acm-label">dependencies</span>
-          <span class="acm-hint">team-asserted edges</span>
-        </button>
-        <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="${mode === "journey"}" type="button">
-          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg></span><span class="acm-label">journey</span>
-          <span class="acm-hint">pmf maturity spectrum</span>
-        </button>
-      </nav>
-      <div class="ac-layout-toggle" role="group" aria-label="map layout">
-        <button class="ac-layout-btn" data-const-layout="wells" aria-selected="${layout === "wells"}" type="button"><span class="acl-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.536 11.293a1 1 0 0 0 0 1.414l2.376 2.377a1 1 0 0 0 1.414 0l2.377-2.377a1 1 0 0 0 0-1.414l-2.377-2.377a1 1 0 0 0-1.414 0z"/><path d="M2.297 11.293a1 1 0 0 0 0 1.414l2.377 2.377a1 1 0 0 0 1.414 0l2.377-2.377a1 1 0 0 0 0-1.414L6.088 8.916a1 1 0 0 0-1.414 0z"/><path d="M8.916 17.912a1 1 0 0 0 0 1.415l2.377 2.376a1 1 0 0 0 1.414 0l2.377-2.376a1 1 0 0 0 0-1.415l-2.377-2.376a1 1 0 0 0-1.414 0z"/><path d="M8.916 4.674a1 1 0 0 0 0 1.414l2.377 2.376a1 1 0 0 0 1.414 0l2.377-2.376a1 1 0 0 0 0-1.414l-2.377-2.377a1 1 0 0 0-1.414 0z"/></svg></span>wells</button>
-        <button class="ac-layout-btn" data-const-layout="circle" aria-selected="${layout === "circle"}" type="button"><span class="acl-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></span>circle</button>
+    <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
+      <div class="alch-const-topbar">${constellationNav(viewMode)}</div>
+      ${viewMode === "map" || viewMode === "ring" ? `
+        <div class="ac-map-control-stack">
+          ${viewMode === "map" ? constellationNetworkScopeRow("projects", { projects: teams.length, people: people.length }) : ""}
+          ${constellationMapLayoutRow(viewMode)}
+          ${viewMode === "map" ? `
+            ${constellationLensRow(lens, { edges: coverage.edges, meaningMissing: coverage.meaningMissing, ...relationshipBreakdown })}
+          ` : ""}
+        </div>` : ""}
+      <div class="alch-const-workbench">
+        <div class="alch-const-main">
+          <div class="alch-constellation-legend">${legend}</div>
+          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-lens="${activeLens}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "constellation relationship graph")}">
+            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <marker id="ac-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z"/>
+                </marker>
+              </defs>
+              <g class="ac-wells">${viewMode === "ring" ? ringMarkup : wellMarkup}</g>
+              <g class="ac-edges">${edgeMarkup}</g>
+              <g class="ac-nodes">${nodeMarkup}</g>
+            </svg>
+            <div class="ac-tip" hidden></div>
+          </div>
+        </div>
+        ${constellationInspectorShell(inspectorCtx)}
       </div>
     </div>
   `;
