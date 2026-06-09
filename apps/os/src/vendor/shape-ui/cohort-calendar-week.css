@@ -10,10 +10,15 @@
   --cal-day-min-h:     220px;
   --cal-grid-gap:      1px;
   --cal-page-px:       40px;
-  --cal-day-col-w:     220px;  /* per-day min width in week view — sized so the
-                                   shortest event titles ("project intros",
-                                   "tea on roof") render on one line, longer
-                                   ones wrap cleanly to two */
+  --cal-day-col-w:     168px;  /* per-day SCROLL FLOOR in week view. On desktop
+                                   the 7 columns fit-and-stretch to fill the
+                                   canvas (see .cal-grid); this floor only sets
+                                   the min column width below which the grid
+                                   starts to scroll horizontally. 7 * 168px
+                                   (≈1176px) sits under the content width of a
+                                   1280px laptop (≈1200px) so the whole week is
+                                   visible there and wider, and only genuinely
+                                   narrow / tablet widths scroll. */
 }
 
 /* ── page head ───────────────────────────────────────────────────────── */
@@ -372,13 +377,20 @@
 }
 .cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(var(--cal-day-col-w), 1fr));
+  /* minmax(0, 1fr) lets the 7 columns fit AND stretch to fill the canvas on
+   * desktop, so the whole week is visible without horizontal scroll. The
+   * scroll floor lives on min-width below, not on the column track — keeping
+   * those two concerns separate is what stops the grid from always
+   * overflowing its 1480px canvas (the old 7 * 220px = 1540px always did). */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--cal-grid-gap);
   background: var(--ed-rule-2);
   border: 1px solid var(--ed-rule-2);
-  /* without an explicit min-width, the grid would shrink-to-fit the
-   * scroller; force it to be at least 7 * col-w so the scroller actually
-   * has something to scroll */
+  /* Floor the grid at 7 * the per-day scroll floor (≈1176px). Because that
+   * total is narrower than the 1480px canvas, the grid fits-and-fills on
+   * desktop and only overflows into a horizontal scroll once the viewport
+   * is narrower than the floor — at which point columns hold their readable
+   * min width instead of cramming to one char per line. */
   min-width: calc(7 * var(--cal-day-col-w));
 }
 
