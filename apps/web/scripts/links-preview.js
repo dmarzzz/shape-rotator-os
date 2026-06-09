@@ -72,6 +72,19 @@ async function embeddedHtml(url) {
   doc.querySelectorAll("[target]").forEach((el) => el.removeAttribute("target"));
   linkifyBareUrls(doc);
 
+  // Embedded one-pagers (onboard / school site) center a hero with
+  // `min-height: 100vh`, which fills the short preview iframe edge-to-edge so
+  // the panel reads as blank until you scroll. Neutralize viewport-locked
+  // heights so the document flows from the top and the real content is visible
+  // immediately. Appended last so it wins the cascade.
+  const fit = doc.createElement("style");
+  fit.id = "sr-preview-fit";
+  fit.textContent =
+    "html,body{height:auto!important;min-height:0!important}" +
+    "body{display:block!important}" +
+    "body>*{min-height:0!important}";
+  doc.head.appendChild(fit);
+
   const srcdoc = `<!doctype html>\n${doc.documentElement.outerHTML}`;
   embeddedCache.set(url, srcdoc);
   return srcdoc;
