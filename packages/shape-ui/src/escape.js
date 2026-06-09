@@ -33,6 +33,7 @@ export function normalizeLinkHref(key, value) {
   if (/^mailto:/i.test(raw)) return raw;
   const hosted = raw.replace(/^\/+/, "");
   if (/^(?:www\.)?github\.com\//i.test(hosted)) return `https://${hosted}`;
+  if (/^(?:www\.)?(?:x|twitter)\.com\//i.test(hosted)) return `https://${hosted}`;
   const k = String(key || "").toLowerCase();
   if (k === "github") {
     return `https://github.com/${raw.replace(/^\/+/, "").replace(/^@+/, "")}`;
@@ -82,4 +83,19 @@ export function normalizeGithubAccount(value) {
   }
 
   return account(raw);
+}
+
+export function normalizeGithubRepo(value) {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const bare = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/.exec(raw);
+  if (bare) return `${bare[1]}/${bare[2]}`;
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    if (!/(^|\.)github\.com$/i.test(url.hostname)) return null;
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (parts.length >= 2 && parts[0] !== "orgs") return `${parts[0]}/${parts[1]}`;
+  } catch {}
+  return null;
 }

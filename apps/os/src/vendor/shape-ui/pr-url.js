@@ -28,6 +28,12 @@ function folderFor(recordType) {
   return s + "s";
 }
 
+export function buildRecordPath({ recordType, recordId }) {
+  const folder = folderFor(recordType);
+  const safeId = encodeURIComponent(String(recordId ?? ""));
+  return `cohort-data/${folder}/${safeId}.md`;
+}
+
 // Build the GitHub /edit/ URL for an existing cohort-data record file.
 // Returns: https://github.com/{repo}/edit/{branch}/cohort-data/{folder}/{recordId}.md?quick_pull=1
 export function buildEditPRUrl({
@@ -36,7 +42,20 @@ export function buildEditPRUrl({
   repo = "dmarzzz/shape-rotator-os",
   branch = "main",
 }) {
-  const folder = folderFor(recordType);
-  const safeId = encodeURIComponent(String(recordId ?? ""));
-  return `https://github.com/${repo}/edit/${branch}/cohort-data/${folder}/${safeId}.md?quick_pull=1`;
+  return `https://github.com/${repo}/edit/${branch}/${buildRecordPath({ recordType, recordId })}?quick_pull=1`;
+}
+
+// Build the GitHub /new/ URL with a filename and optional prefilled file
+// contents. Used by structured editors that generate the markdown before
+// handing the user off to GitHub's commit/PR flow.
+export function buildNewPRUrl({
+  path,
+  value,
+  repo = "dmarzzz/shape-rotator-os",
+  branch = "main",
+}) {
+  const safePath = encodeURIComponent(String(path ?? ""));
+  let url = `https://github.com/${repo}/new/${branch}?filename=${safePath}&quick_pull=1`;
+  if (value != null) url += `&value=${encodeURIComponent(String(value))}`;
+  return url;
 }

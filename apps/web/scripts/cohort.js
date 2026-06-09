@@ -4,6 +4,7 @@ import {
   escAttr,
   normalizeLinkHref,
   buildEditPRUrl,
+  renderProfileForm,
   shapeForTeam,
   domainLabel,
 } from "@shape-rotator/shape-ui";
@@ -751,6 +752,7 @@ function compactPills(items) {
 
   function renderDetail(rec) {
     const kind = recordKind(rec);
+    const recordType = kind === "person" ? "person" : "team";
     const editUrl = recordSourceUrl(rec, kind);
     const shapeKind = kind === "person" ? "person" : teamKind(rec);
     const fam = shapeFamily(rec, kind);
@@ -762,13 +764,17 @@ function compactPills(items) {
           <span class="cd-sep">/</span>
           <span class="cd-kind cd-kind-${escAttr(shapeKind)}">${escHtml(shapeKind)}</span>
         </div>
-        <a class="cd-edit" href="${escAttr(editUrl)}" target="_blank" rel="noopener noreferrer">edit on github -&gt;</a>
+        <div class="cd-actions">
+          <button class="cd-edit" type="button" data-edit-toggle>edit details</button>
+          <a class="cd-edit cd-edit-raw" href="${escAttr(editUrl)}" target="_blank" rel="noopener noreferrer">raw github</a>
+        </div>
       </header>
       <article class="cd-dossier cd-dossier-${escAttr(kind)}">
         ${kind === "person"
           ? renderPersonDetail(rec, editUrl, fam)
           : renderTeamDetail(rec, editUrl, fam, shapeKind)}
       </article>
+      <section class="cd-section cd-edit-panel" data-edit-panel hidden></section>
     `;
 
     detailHost.querySelector(".cd-back")?.addEventListener("click", (e) => {
@@ -789,7 +795,7 @@ function compactPills(items) {
         return;
       }
       editPanel.hidden = false;
-      editPanel.innerHTML = `<h3 class="cd-h">edit ${escHtml(isTeam ? shapeKind : "person")}</h3>`;
+      editPanel.innerHTML = `<h3 class="cd-h">edit ${escHtml(recordType === "team" ? shapeKind : "person")}</h3>`;
       const formMount = document.createElement("div");
       formMount.className = "cd-edit-form";
       editPanel.appendChild(formMount);

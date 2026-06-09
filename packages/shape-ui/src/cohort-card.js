@@ -12,7 +12,7 @@
 // Both styles share the same markup. The HTML-string form is the
 // "implementation"; the element form wraps it via a detached div.
 
-import { escHtml, escAttr } from "./escape.js";
+import { escHtml, escAttr, normalizeGithubRepo, normalizeLinkHref } from "./escape.js";
 import { shapeForTeam, domainLabel } from "./index.js";
 
 // Display id "SHAPE-NN" / "PERSON-NN" from index. Kept module-local
@@ -33,7 +33,29 @@ function hashStr(s) {
 
 function teamKind(t) { return (t && t.kind) || "team"; }
 
-const GH_REPO_RE = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/;
+function compactGithubLabel(value) {
+  const raw = String(value || "").trim().replace(/^@+/, "");
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    if (/(^|\.)github\.com$/i.test(url.hostname)) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      return parts[0] || raw;
+    }
+  } catch {}
+  return raw.replace(/^(?:www\.)?github\.com\/+/i, "");
+}
+
+function compactXLabel(value) {
+  const raw = String(value || "").trim().replace(/^@+/, "");
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    if (/(^|\.)(?:x|twitter)\.com$/i.test(url.hostname)) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      return parts[0] ? `@${parts[0]}` : raw;
+    }
+  } catch {}
+  return raw ? `@${raw.replace(/^(?:www\.)?(?:x|twitter)\.com\/+/i, "").replace(/^@+/, "")}` : raw;
+}
 
 // ── HTML-string renderers ──────────────────────────────────────────────
 
@@ -41,14 +63,27 @@ export function teamCardHtml(t, idx, ctx = {}) {
   const s = shapeForTeam(t);
   const links = [];
   const gh   = t?.links?.github;
-  const repo = t?.links?.repo;
+  const repoRaw = t?.links?.repo;
+  const repo = normalizeGithubRepo(repoRaw);
   const x    = t?.links?.x;
-  if (repo && GH_REPO_RE.test(repo)) {
-    links.push(`<div class="alch-card-meta-row"><span class="cm-k">repo</span><span class="cm-v"><a href="https://github.com/${escHtml(repo)}" data-external class="alch-card-repo-link">${escHtml(repo)}</a></span></div>`);
+  if (repo) {
+    links.push(`<div class="alch-card-meta-row"><span class="cm-k">repo</span><span class="cm-v"><a href="https://github.com/${escAttr(repo)}" data-external class="alch-card-repo-link">${escHtml(repo)}</a></span></div>`);
+  } else if (repoRaw) {
+    const href = normalizeLinkHref("repo", repoRaw);
+    const label = String(repoRaw).replace(/^https?:\/\//i, "");
+    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">repo</span><span class="cm-v"><a href="${escAttr(href)}" data-external class="alch-card-repo-link">${escHtml(label)}</a></span></div>`);
   }
-  if (gh) links.push(`<div class="alch-card-meta-row"><span class="cm-k">github</span><span class="cm-v"><a href="https://github.com/${escHtml(gh)}" data-external>${escHtml(gh)}</a></span></div>`);
-  if (x)  links.push(`<div class="alch-card-meta-row"><span class="cm-k">x</span><span class="cm-v"><a href="https://x.com/${escHtml(x)}" data-external>@${escHtml(x)}</a></span></div>`);
-  if (!gh && !x && !repo) links.push(`<div class="alch-card-meta-row"><span class="cm-k">links</span><span class="cm-v" style="opacity:0.55">— not yet submitted</span></div>`);
+  if (gh) {
+    const href = normalizeLinkHref("github", gh);
+    const label = compactGithubLabel(gh);
+    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">github</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
+  }
+  if (x) {
+    const href = normalizeLinkHref("x", x);
+    const label = compactXLabel(x);
+    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">x</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
+  }
+  if (!gh && !x && !repoRaw) links.push(`<div class="alch-card-meta-row"><span class="cm-k">links</span><span class="cm-v" style="opacity:0.55">— not yet submitted</span></div>`);
   const membership = t.membership || "visiting";
   const cardCls = [
     "alch-card",
@@ -98,9 +133,21 @@ export function personCardHtml(p, idx) {
   const x  = p?.links?.x;
   const w  = p?.links?.website;
   const li = p?.links?.linkedin;
-  if (gh) links.push(`<div class="alch-card-meta-row"><span class="cm-k">github</span><span class="cm-v"><a href="https://github.com/${escHtml(gh)}" data-external>${escHtml(gh)}</a></span></div>`);
-  if (x)  links.push(`<div class="alch-card-meta-row"><span class="cm-k">x</span><span class="cm-v"><a href="https://x.com/${escHtml(x.replace(/^@/, ""))}" data-external>@${escHtml(x.replace(/^@/, ""))}</a></span></div>`);
-  if (w)  links.push(`<div class="alch-card-meta-row"><span class="cm-k">site</span><span class="cm-v"><a href="${escHtml(w.startsWith("http") ? w : `https://${w}`)}" data-external>${escHtml(w.replace(/^https?:\/\//, ""))}</a></span></div>`);
+  if (gh) {
+    const href = normalizeLinkHref("github", gh);
+    const label = compactGithubLabel(gh);
+    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">github</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
+  }
+  if (x) {
+    const href = normalizeLinkHref("x", x);
+    const label = compactXLabel(x);
+    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">x</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
+  }
+  if (w) {
+    const href = normalizeLinkHref("website", w);
+    const label = String(w).replace(/^https?:\/\//i, "");
+    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">site</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
+  }
   if (li) links.push(`<div class="alch-card-meta-row"><span class="cm-k">linkedin</span><span class="cm-v"><a href="https://linkedin.com/in/${escHtml(li)}" data-external>${escHtml(li)}</a></span></div>`);
   if (!gh && !x && !w && !li) links.push(`<div class="alch-card-meta-row"><span class="cm-k">links</span><span class="cm-v" style="opacity:0.55">— not yet submitted</span></div>`);
   const roleClass = p.role_class || "visiting-scholar";

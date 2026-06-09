@@ -128,8 +128,14 @@ export {
 // Shared cohort surface — extracted from Shape Rotator OS alchemy view
 // so the sibling web app can render the same cards, calendar, and
 // edit/PR launcher without reimplementing.
-export { escHtml, escAttr, normalizeLinkHref, normalizeGithubAccount } from "./escape.js";
-export { buildEditPRUrl } from "./pr-url.js";
+export {
+  escHtml,
+  escAttr,
+  normalizeLinkHref,
+  normalizeGithubAccount,
+  normalizeGithubRepo,
+} from "./escape.js";
+export { buildEditPRUrl, buildNewPRUrl, buildRecordPath } from "./pr-url.js";
 export {
   renderTeamCard,
   renderPersonCard,
@@ -158,4 +164,4 @@ export {
   exportWeekPng,
   openEventDetail,
 } from "./cohort-calendar-week.js";
-export { renderProfileForm } from "./profile-form.js";
+export { renderProfileForm, prepareProfilePR } from "./profile-form.js";

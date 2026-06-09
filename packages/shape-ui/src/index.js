@@ -128,7 +128,13 @@ export {
 // Shared cohort surface — extracted from Shape Rotator OS alchemy view
 // so the sibling web app can render the same cards, calendar, and
 // edit/PR launcher without reimplementing.
-export { escHtml, escAttr, normalizeLinkHref } from "./escape.js";
+export {
+  escHtml,
+  escAttr,
+  normalizeLinkHref,
+  normalizeGithubAccount,
+  normalizeGithubRepo,
+} from "./escape.js";
 export { buildEditPRUrl, buildNewPRUrl, buildRecordPath } from "./pr-url.js";
 export {
   renderTeamCard,

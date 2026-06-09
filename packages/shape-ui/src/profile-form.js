@@ -5,7 +5,7 @@
 // record, preserves the existing prose body, and then opens GitHub's web
 // PR flow with the updated file prefilled.
 
-import { escHtml, escAttr } from "./escape.js";
+import { escHtml, escAttr, normalizeGithubAccount } from "./escape.js";
 import { buildEditPRUrl, buildNewPRUrl, buildRecordPath } from "./pr-url.js";
 
 const DOMAIN_OPTIONS = ["crypto", "tee", "ai", "app-ux", "bd-gtm", "design"];
@@ -126,7 +126,7 @@ function quoteYaml(value) {
   const s = String(value);
   const lowered = s.toLowerCase();
   const reserved = new Set(["null", "true", "false", "yes", "no", "on", "off"]);
-  if (/^[A-Za-z0-9._/@+-]+$/.test(s) && !reserved.has(lowered)) return s;
+  if (/^[A-Za-z0-9][A-Za-z0-9._/@+-]*$/.test(s) && !reserved.has(lowered)) return s;
   return JSON.stringify(s);
 }
 
@@ -192,6 +192,8 @@ function markdownBody(body, fallbackHeading, fallbackText) {
 
 function buildTeamMarkdown(draft, slug, body = null) {
   const links = cleanObject(draft.links || {}, ["github", "repo", "x", "website", "demo", "deck"]);
+  const githubAccount = normalizeGithubAccount(links.github);
+  if (githubAccount) links.github = githubAccount;
   const lines = [
     yamlField("record_id", slug),
     yamlField("record_type", "team"),
@@ -240,6 +242,8 @@ function buildTeamMarkdown(draft, slug, body = null) {
 
 function buildPersonMarkdown(draft, slug, body = null) {
   const links = cleanObject(draft.links || {}, ["github", "x", "website", "linkedin"]);
+  const githubAccount = normalizeGithubAccount(links.github);
+  if (githubAccount) links.github = githubAccount;
   const lines = [
     yamlField("record_id", slug),
     yamlField("record_type", "person"),
