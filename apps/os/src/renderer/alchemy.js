@@ -34,7 +34,7 @@ import {
   exportWeekPng as exportCalendarWeekPng,
 } from "@shape-rotator/shape-ui";
 import {
-  aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey,
+  aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
   dependencyPairKey, dependencySafeToken,
   constellationDependencyEdges, constellationIndegree, constellationModel, teamKind, teamsOfKind,
 } from "./cohort-relations.js";
@@ -7626,17 +7626,843 @@ function currentAskContext() {
 // 'shared_papers' scores are NOT used — affinity is recomputed from shared
 // skill_areas (+ self-declared pair_with), and intros from public
 // seeking↔offering term overlap, shown as chips so every match is legible.
-function collabCell(R, C, ri, ci, m) {
+const COLLAB_INTAKE_DRAFT_LS_KEY = "srwk:collab_intake_draft_v1";
+const COLLAB_LENSES = new Set(["all", "deps", "needs"]);
+const COLLAB_TEAM_FILTERS = new Set(["all", "needs", "offers"]);
+const COLLAB_SORTS = new Set(["cluster", "intro", "dependency"]);
+
+function normalizeCollabControls() {
+  if (!COLLAB_LENSES.has(state.collabLens)) state.collabLens = "all";
+  if (!COLLAB_TEAM_FILTERS.has(state.collabTeamFilter)) state.collabTeamFilter = "all";
+  if (!COLLAB_SORTS.has(state.collabSort)) state.collabSort = "cluster";
+  if (state.collabTeamFilter !== "all" && state.collabLens !== "all") state.collabLens = "all";
+}
+
+function collabPairData(R, C, dep, so, af) {
+  return {
+    fromRid: R.rid,
+    toRid: C.rid,
+    fromName: R.team.name,
+    toName: C.team.name,
+    fromCluster: R.clusterLabel,
+    toCluster: C.clusterLabel,
+    dep: !!dep,
+    seek: so ? {
+      seeking: so.seeking,
+      offering: so.offering,
+      shared: so.shared || [],
+      score: so.score || 0,
+    } : null,
+    affinity: af ? {
+      shared: af.shared || [],
+      endorsed: !!af.endorsed,
+      score: af.score || 0,
+    } : null,
+  };
+}
+
+function collabPairFromIds(fromRid, toRid, m = collabCurrentModel()) {
+  if (!fromRid || !toRid || fromRid === toRid) return null;
+  const byRid = new Map((m?.ordered || []).map(o => [o.rid, o]));
+  const R = byRid.get(fromRid);
+  const C = byRid.get(toRid);
+  if (!R || !C) return null;
+  const dep = m.depByPair?.get(dependencyPairKey(R.rid, C.rid)) || m.deps?.has(dependencyPairKey(R.rid, C.rid));
+  const so = m.soByPair.get(dependencyPairKey(R.rid, C.rid));
+  const af = m.aff.get(collabAffKey(R.rid, C.rid));
+  if (!dep && !so && !af) return null;
+  return collabPairData(R, C, dep, so, af);
+}
+
+function collabVisibleOrder(m, filter = "all", sort = "cluster") {
+  const teamHas = (o) => {
+    if (filter === "needs") return collabHasText(o.team.seeking);
+    if (filter === "offers") return collabHasText(o.team.offering);
+    return true;
+  };
+  const kMap = new Map((m.keystones || []).map(k => [k.rid, k]));
+  const intro = new Map();
+  for (const s of m.seekOffer || []) {
+    const add = (rid, score) => {
+      const cur = intro.get(rid) || { count: 0, score: 0 };
+      cur.count += 1;
+      cur.score += score || 0;
+      intro.set(rid, cur);
+    };
+    add(s.seeker, s.score);
+    add(s.offerer, s.score);
+  }
+  const clusterCmp = (a, b) =>
+    (a.clusterRank ?? 99) - (b.clusterRank ?? 99)
+    || (m.indegree.get(b.rid) || 0) - (m.indegree.get(a.rid) || 0)
+    || String(a.team.name || a.rid).localeCompare(String(b.team.name || b.rid));
+  const depPressure = (o) => {
+    const k = kMap.get(o.rid);
+    return ((k?.inbound?.length || 0) * 2) + (k?.outbound?.length || 0);
+  };
+  const introPotential = (o) => intro.get(o.rid)?.score || 0;
+  const out = (m.ordered || []).filter(teamHas);
+  if (sort === "intro") {
+    return out.sort((a, b) =>
+      introPotential(b) - introPotential(a)
+      || (intro.get(b.rid)?.count || 0) - (intro.get(a.rid)?.count || 0)
+      || clusterCmp(a, b));
+  }
+  if (sort === "dependency") {
+    return out.sort((a, b) =>
+      depPressure(b) - depPressure(a)
+      || (kMap.get(b.rid)?.inbound?.length || 0) - (kMap.get(a.rid)?.inbound?.length || 0)
+      || clusterCmp(a, b));
+  }
+  return out.sort(clusterCmp);
+}
+
+function collabPeopleForTeam(rid) {
+  return (state.cohort?.people || []).filter(p =>
+    p.team === rid || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(rid))
+  );
+}
+
+function collabCurrentModel() {
+  const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
+  return buildCollabModel(teams, state.cohort?.clusters || [], state.cohort?.dependencies || []);
+}
+
+function collabTeamByRecordId(rid, m = collabCurrentModel()) {
+  return m?.byRecordId?.get(String(rid || "")) || null;
+}
+
+function collabTeamLinkItems(team) {
+  const L = team?.links || {};
+  const links = [];
+  const seen = new Set();
+  const add = (label, href, display = label) => {
+    if (!href) return;
+    const key = `${label}:${href}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    links.push({ label, href, display });
+  };
+  const displayUrl = (v) => String(v || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  if (L.github) add("github", normalizeLinkHref("github", L.github), String(L.github).replace(/^https?:\/\/github\.com\//, ""));
+  if (L.x) {
+    const handle = String(L.x).replace(/^@/, "").replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//, "");
+    add("x", normalizeLinkHref("x", handle), `@${handle}`);
+  }
+  if (L.website) add("website", normalizeLinkHref("website", L.website), displayUrl(L.website));
+  if (L.repo) {
+    const repo = String(L.repo).trim();
+    const href = GH_REPO_RE.test(repo) ? `https://github.com/${repo}` : normalizeLinkHref("website", repo);
+    add("repo", href, displayUrl(repo).replace(/^github\.com\//, ""));
+  }
+  if (L.demo) add("demo", normalizeLinkHref("demo", L.demo), displayUrl(L.demo));
+  if (L.deck) add("deck", normalizeLinkHref("deck", L.deck), displayUrl(L.deck));
+  if (L.slides) add("slides", normalizeLinkHref("slides", L.slides), displayUrl(L.slides));
+  return links;
+}
+
+function collabTeamLinksSectionHtml(team) {
+  const items = collabTeamLinkItems(team);
+  if (!items.length) return "";
+  return collabInspectorSection("links", `<div class="cb-link-row-inline">${items.map(item => `
+    <a class="cb-link-inline" href="${escAttr(item.href)}" data-external title="${escAttr(item.display)}">${escHtml(item.label)}</a>
+  `).join("")}</div>`, "is-links");
+}
+
+function collabTeamMini(team, role = "") {
+  if (!team) return "";
+  return `<button type="button" class="cb-inspector-team" data-collab-cohort-open="${escAttr(team.record_id)}" title="open ${escAttr(team.name || team.record_id)} profile">
+    <span>${escHtml(team.name || team.record_id)}</span>
+    ${role ? `<small>${escHtml(role)}</small>` : ""}
+  </button>`;
+}
+
+function collabRouteRows(items) {
+  const rows = (items || [])
+    .filter(item => item && item.team)
+    .map(item => `<button type="button" class="cb-route-row" data-collab-cohort-open="${escAttr(item.team.record_id)}" title="open ${escAttr(item.team.name || item.team.record_id)} profile">
+      <span>
+        <strong>${escHtml(item.team.name || item.team.record_id)}</strong>
+        ${item.note ? `<small>${escHtml(item.note)}</small>` : ""}
+      </span>
+      ${item.badge ? `<em>${escHtml(item.badge)}</em>` : ""}
+    </button>`)
+    .join("");
+  return rows ? `<div class="cb-route-list">${rows}</div>` : "";
+}
+
+function collabMembersHtml(rid) {
+  const people = collabPeopleForTeam(rid);
+  if (!people.length) return `<p class="cb-inspector-empty">no member records linked yet.</p>`;
+  return `<div class="cb-inspector-members">${people.slice(0, 6).map(p => `
+    <button type="button" class="cb-inspector-person" data-person="${escAttr(p.record_id)}" title="open ${escAttr(p.name || p.record_id)}">
+      <span>${escHtml(p.name || p.record_id)}</span>
+      ${p.role ? `<small>${escHtml(p.role)}</small>` : ""}
+    </button>
+  `).join("")}${people.length > 6 ? `<span class="cb-inspector-more">+${people.length - 6} more</span>` : ""}</div>`;
+}
+
+function collabTextList(values, empty = "not declared", max = 4) {
+  const arr = (Array.isArray(values) ? values : [values]).map(v => String(v || "").trim()).filter(Boolean);
+  if (!arr.length) return `<p class="cb-inspector-empty">${escHtml(empty)}</p>`;
+  return `<ul class="cb-inspector-list">${arr.slice(0, max).map(v => `<li>${escHtml(v)}</li>`).join("")}${arr.length > max ? `<li class="is-more">+${arr.length - max} more</li>` : ""}</ul>`;
+}
+
+function collabInspectorSection(title, body, className = "") {
+  return `<section class="cb-inspector-section${className ? ` ${escAttr(className)}` : ""}"><h4>${escHtml(title)}</h4>${body}</section>`;
+}
+
+function collabSignalHtml(team) {
+  return collabInspectorSection("needs / offers", `
+    <div class="cb-signal-grid">
+      <div class="cb-signal-card">
+        <span>seeking</span>
+        ${collabTextList(team.seeking, "nothing declared", 3)}
+      </div>
+      <div class="cb-signal-card">
+        <span>offering</span>
+        ${collabTextList(team.offering, "nothing declared", 3)}
+      </div>
+    </div>
+  `, "is-signal");
+}
+
+function collabNetworkHtml(groups) {
+  const html = groups
+    .filter(group => group && group.body)
+    .map(group => `<details class="cb-network-group">
+      <summary><span>${escHtml(group.label)}</span>${Number.isFinite(group.count) ? `<em>${group.count}</em>` : ""}</summary>
+      <div class="cb-network-body">${group.body}</div>
+    </details>`)
+    .join("");
+  return html ? collabInspectorSection("routes", `<div class="cb-network-grid">${html}</div>`, "is-network") : "";
+}
+
+function collabTeamMetaInlineHtml(team, memberCount) {
+  const rows = [
+    memberCount ? ["team", `${memberCount} ${memberCount === 1 ? "person" : "people"}`] : null,
+    team.geo ? ["geo", team.geo] : null,
+  ].filter(Boolean);
+  if (!rows.length) return "";
+  return `<div class="cb-team-meta-row">${rows.map(([label, value]) => `<span><em>${escHtml(label)}</em>${escHtml(value)}</span>`).join("")}</div>`;
+}
+
+function collabTeamRouteRailHtml({ outbound, inbound, getsHelpFrom, givesHelpTo }) {
+  const needs = outbound.length + getsHelpFrom.length;
+  const helps = inbound.length + givesHelpTo.length;
+  return `<div class="cb-team-route-rail">
+    <span>route balance</span>
+    <p><strong>${needs}</strong> needs support · <strong>${helps}</strong> can support</p>
+  </div>`;
+}
+
+function collabLegendHtml() {
+  return `
+    <div class="cb-legend" aria-label="collab board legend">
+      <span tabindex="0" data-desc="This row team relies on the column team to do its work."><i class="cb-legend-mark dep"></i><b>dependency</b></span>
+      <span tabindex="0" data-desc="The row team is seeking something the column team has offered."><i class="cb-legend-mark so"></i><b>seek / offer</b></span>
+      <span tabindex="0" data-desc="How strong a seek/offer match is."><i class="cb-legend-mark so-scale"></i><b>match strength</b></span>
+      <span tabindex="0" data-desc="A team many others depend on."><i class="cb-legend-mark key"></i><b>keystone</b></span>
+    </div>`;
+}
+
+function collabInspectorPills(items) {
+  const html = items
+    .filter(item => item && item.label && item.value !== null && item.value !== undefined && item.value !== "")
+    .map(item => `<span class="cb-inspector-pill"><strong>${escHtml(String(item.value))}</strong>${escHtml(item.label)}</span>`)
+    .join("");
+  return html ? `<div class="cb-inspector-pills">${html}</div>` : "";
+}
+
+function collabInspectorDefaultHtml(m) {
+  const top = (m.keystones || []).slice(0, 3).map(k => collabTeamMini(k.team, `${k.inbound.length} inbound`)).join("");
+  return `
+    <div class="cb-inspector-hero">
+      <div class="cb-inspector-identity">
+        <div class="cb-inspector-kicker">collab context</div>
+        <h4 class="cb-inspector-title">select a signal</h4>
+        <p class="cb-inspector-copy">Click a row, column, cluster band, or cell to inspect who is involved, why the connection exists, and where to route next.</p>
+      </div>
+    </div>
+    ${collabInspectorPills([
+      { value: m.seekOffer.length, label: "seek/offers" },
+      { value: m.deps.size, label: "dependencies" },
+    ])}
+    ${top ? collabInspectorSection("keystones", `<div class="cb-inspector-stack">${top}</div>`) : ""}
+  `;
+}
+
+function collabJourneyCompactHtml(team) {
+  const j = journeyFor(team);
+  if (!j || j.stage <= 0) return "";
+  const segs = [];
+  for (let s = 1; s <= 8; s++) {
+    const on = s <= j.stage ? " is-on" : "";
+    const cur = s === j.stage ? " is-cur" : "";
+    segs.push(`<i class="${on}${cur}" title="${escAttr(`${s} · ${JOURNEY_STAGE_LABELS[s] || ""}`)}"></i>`);
+  }
+  const dots = (val) => Array.from({ length: 5 }).map((_, i) => `<i class="${i < val ? "is-on" : ""}"></i>`).join("");
+  return collabInspectorSection("pmf · journey", `
+    <div class="cb-journey-mini">
+      <div class="cb-journey-head"><strong>${escHtml(JOURNEY_STAGE_LABELS[j.stage] || "—")}</strong><span>stage ${j.stage} / 8</span></div>
+      <div class="cb-journey-track">${segs.join("")}</div>
+      <div class="cb-journey-meters">
+        <span>evidence <em>${dots(j.evidence_quality)}</em></span>
+        <span>upside <em>${dots(j.market_upside)}</em></span>
+      </div>
+    </div>
+  `, "is-journey");
+}
+
+function collabCredentialsHtml(team) {
+  const papers = Array.isArray(team.paper_basis) ? team.paper_basis : (team.paper_basis ? [team.paper_basis] : []);
+  if (!papers.length) return "";
+  return collabInspectorSection("credentials", `<ul class="cb-inspector-list">${papers.slice(0, 3).map(p => `<li>${escHtml(p)}</li>`).join("")}</ul>`, "is-cred");
+}
+
+function collabTeamInspectorHtml(rid, m = collabCurrentModel()) {
+  const team = collabTeamByRecordId(rid, m);
+  if (!team) return collabInspectorDefaultHtml(m);
+  const row = m.ordered.find(o => o.rid === rid);
+  const inbound = ((m.keystones || []).find(k => k.rid === rid)?.inbound || []).map(id => collabTeamByRecordId(id, m)).filter(Boolean);
+  const outbound = ((m.keystones || []).find(k => k.rid === rid)?.outbound || []).map(id => collabTeamByRecordId(id, m)).filter(Boolean);
+  const getsHelpFrom = m.seekOffer.filter(s => s.seeker === rid).slice(0, 3);
+  const givesHelpTo = m.seekOffer.filter(s => s.offerer === rid).slice(0, 3);
+  const meta = row?.clusterLabel || domainLabel(team.domain) || "team";
+  const people = collabPeopleForTeam(rid);
+  const memberCount = people.length || Number(team.members_count) || 0;
+
+  return `
+    <div class="cb-team-detail">
+      <div class="cb-inspector-hero is-link is-team" data-collab-cohort-open="${escAttr(rid)}" role="link" tabindex="0" title="open ${escAttr(team.name || rid)} profile">
+        <div class="cb-inspector-identity">
+          <div class="cb-inspector-kicker">${escHtml(meta || "team")}</div>
+          <h4 class="cb-inspector-title">${escHtml(team.name || rid)}</h4>
+          ${team.focus ? `<p class="cb-inspector-copy">${escHtml(team.focus)}</p>` : ""}
+          ${collabTeamMetaInlineHtml(team, memberCount)}
+        </div>
+      </div>
+      ${collabTeamRouteRailHtml({ outbound, inbound, getsHelpFrom, givesHelpTo })}
+      ${collabJourneyCompactHtml(team)}
+      ${collabSignalHtml(team)}
+      ${collabNetworkHtml([
+        outbound.length ? { label: "depends on", count: outbound.length, body: collabRouteRows(outbound.slice(0, 4).map(t => ({ team: t, note: "declared dependency", badge: "needs" }))) } : null,
+        inbound.length ? { label: "needed by", count: inbound.length, body: collabRouteRows(inbound.slice(0, 4).map(t => ({ team: t, note: "depends on this team", badge: "needed" }))) } : null,
+        getsHelpFrom.length ? { label: "gets help from", count: getsHelpFrom.length, body: collabRouteRows(getsHelpFrom.map(s => ({ team: collabTeamByRecordId(s.offerer, m), note: s.shared.slice(0, 2).join(" · ") || "declared offer match", badge: "offers" }))) } : null,
+        givesHelpTo.length ? { label: "gives help to", count: givesHelpTo.length, body: collabRouteRows(givesHelpTo.map(s => ({ team: collabTeamByRecordId(s.seeker, m), note: s.shared.slice(0, 2).join(" · ") || "declared ask match", badge: "seeks" }))) } : null,
+      ])}
+      ${collabInspectorSection("who to talk to", collabMembersHtml(rid), "is-members")}
+      ${collabCredentialsHtml(team)}
+      ${collabTeamLinksSectionHtml(team)}
+    </div>
+  `;
+}
+
+function collabConnRow(label, bodyHtml, sourceNote) {
+  return `<div class="cb-evidence-row" title="${escAttr(sourceNote)}"><span>${escHtml(label)}</span><p>${bodyHtml}</p></div>`;
+}
+
+function collabPairTeamCard(team, name, role, signal) {
+  const signalHtml = signal && signal.text
+    ? `<span class="cb-pair-team-signal"><em>${escHtml(signal.label)}</em>${escHtml(signal.text)}</span>`
+    : "";
+  if (!team) {
+    return `<div class="cb-pair-team is-empty"><span class="cb-pair-team-role">${escHtml(role)}</span><span class="cb-pair-team-name">${escHtml(name)}</span>${signalHtml}</div>`;
+  }
+  const meta = [domainLabel(team.domain), team.geo].filter(Boolean).join(" · ");
+  return `<button type="button" class="cb-pair-team" data-collab-cohort-open="${escAttr(team.record_id)}" title="open ${escAttr(name)} profile">
+    <span class="cb-pair-team-role">${escHtml(role)}</span>
+    <span class="cb-pair-team-name">${escHtml(name)}</span>
+    ${meta ? `<span class="cb-pair-team-meta">${escHtml(meta)}</span>` : ""}
+    ${team.focus ? `<span class="cb-pair-team-focus">${escHtml(team.focus)}</span>` : ""}
+    ${signalHtml}
+  </button>`;
+}
+
+function collabRouteRead(pair, leftName, rightName) {
+  const shared = [...new Set([...(pair?.seek?.shared || []), ...(pair?.affinity?.shared || [])])].slice(0, 3);
+  const sharedText = shared.length ? ` around ${shared.join(", ")}` : "";
+  if (pair?.dep && pair?.seek) {
+    return { label: "unblock route", source: "Declared dependency plus seek/offer overlap.", body: `${leftName} already depends on ${rightName}; the matching offer makes this an unblock conversation${sharedText}.` };
+  }
+  if (pair?.seek) {
+    return { label: "intro route", source: "Declared seeking matched against declared offering and skill areas.", body: `${leftName} is seeking something ${rightName} can provide${sharedText}; route this as a targeted intro.` };
+  }
+  if (pair?.dep) {
+    return { label: "dependency route", source: "Declared dependency only.", body: `${leftName} depends on ${rightName}; route this as an unblock check before it becomes a hidden bottleneck.` };
+  }
+  if (pair?.affinity) {
+    return { label: "shared-skill context", source: "Shared public skill areas.", body: `No explicit ask is declared yet, but both teams share collaboration surface${sharedText}.` };
+  }
+  return null;
+}
+
+function collabPairInspectorHtml(pair, m = collabCurrentModel()) {
+  const left = collabTeamByRecordId(pair?.fromRid, m);
+  const right = collabTeamByRecordId(pair?.toRid, m);
+  const leftName = pair?.fromName || left?.name || "team A";
+  const rightName = pair?.toName || right?.name || "team B";
+  const sharedTerms = [...new Set([...(pair?.seek?.shared || []), ...(pair?.affinity?.shared || [])])].slice(0, 8);
+  const directional = !!(pair?.dep || pair?.seek);
+  const leftSignal = pair?.seek ? { label: "seeking", text: pair.seek.seeking || "not specified" } : null;
+  const rightSignal = pair?.seek ? { label: "offering", text: pair.seek.offering || "not specified" } : null;
+  const routeRead = collabRouteRead(pair, leftName, rightName);
+  const rows = [];
+  if (routeRead) rows.push(collabConnRow(routeRead.label, escHtml(routeRead.body), routeRead.source));
+  if (pair?.dep) rows.push(collabConnRow("dependency", `${escHtml(leftName)} depends on ${escHtml(rightName)}.`, `From ${leftName}'s declared dependencies.`));
+  if (pair?.affinity) {
+    const body = sharedTerms.length
+      ? `<div class="cb-inspector-chips">${sharedTerms.map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("")}</div>`
+      : (pair.affinity.endorsed ? "Both teams named this as a pairing." : "Both list overlapping skill areas.");
+    rows.push(collabConnRow("shared skills", body, "Skill areas both teams list publicly."));
+  }
+  return `
+    <div class="cb-inspector-hero is-pair">
+      <div class="cb-inspector-identity">
+        <h4 class="cb-inspector-title">${escHtml(leftName)} ${directional ? "&rarr;" : "&harr;"} ${escHtml(rightName)}</h4>
+      </div>
+    </div>
+    <section class="cb-inspector-section">
+      <div class="cb-pair-teams">
+        ${collabPairTeamCard(left, leftName, directional ? "needs help" : "shared focus", leftSignal)}
+        <span class="cb-pair-arrow" aria-hidden="true">${directional ? "&rarr;" : "&harr;"}</span>
+        ${collabPairTeamCard(right, rightName, directional ? "can help" : "shared focus", rightSignal)}
+      </div>
+    </section>
+    ${rows.length ? `<section class="cb-inspector-section"><div class="cb-evidence-list">${rows.join("")}</div></section>` : ""}
+  `;
+}
+
+function collabClusterSignalList(group, field) {
+  const rows = group
+    .map(o => ({ team: o.team, values: (Array.isArray(o.team?.[field]) ? o.team[field] : [o.team?.[field]]).map(v => String(v || "").trim()).filter(Boolean) }))
+    .filter(o => o.values.length)
+    .slice(0, 4);
+  if (!rows.length) return `<p class="cb-inspector-empty">not declared</p>`;
+  return `<div class="cb-cluster-signal-list">${rows.map(o => `
+    <button type="button" class="cb-cluster-signal" data-collab-cohort-open="${escAttr(o.team.record_id)}">
+      <span>${escHtml(o.team.name || o.team.record_id)}</span>
+      <p>${escHtml(o.values[0])}</p>
+    </button>
+  `).join("")}</div>`;
+}
+
+function collabClusterSignalsHtml(group) {
+  return collabInspectorSection("cluster signals", `
+    <div class="cb-signal-grid cb-signal-grid-vertical">
+      <div class="cb-signal-card">
+        <span>needs</span>
+        ${collabClusterSignalList(group, "seeking")}
+      </div>
+      <div class="cb-signal-card">
+        <span>offers</span>
+        ${collabClusterSignalList(group, "offering")}
+      </div>
+    </div>
+  `, "is-signal");
+}
+
+function collabClusterInspectorHtml(clusterId, m = collabCurrentModel()) {
+  const group = m.ordered.filter(o => o.clusterId === clusterId);
+  if (!group.length) return collabInspectorDefaultHtml(m);
+  const label = group[0].clusterLabel;
+  const groupIds = new Set(group.map(o => o.rid));
+  const teams = group.slice(0, 8).map(o => collabTeamMini(o.team, `${(o.team.skill_areas || []).slice(0, 2).join(" · ") || domainLabel(o.team.domain)}`)).join("");
+  const needCount = group.filter(o => collabHasText(o.team.seeking)).length;
+  const offerCount = group.filter(o => collabHasText(o.team.offering)).length;
+  const deps = [...m.deps].filter(edge => group.some(o => edge.startsWith(o.rid + ">") || edge.endsWith(">" + o.rid))).length;
+  const intros = m.seekOffer
+    .filter(s => groupIds.has(s.seeker) || groupIds.has(s.offerer))
+    .slice(0, 3)
+    .map(s => `<div class="cb-evidence-row">
+      <span>${groupIds.has(s.seeker) ? "needs route" : "can help"}</span>
+      <p><strong>${escHtml(s.seekerName)}</strong> to <strong>${escHtml(s.offererName)}</strong><br/>${escHtml((s.shared || []).slice(0, 3).join(" · ") || "declared seek/offer overlap")}</p>
+    </div>`)
+    .join("");
+  return `
+    <div class="cb-inspector-hero">
+      <div class="cb-inspector-identity">
+        <div class="cb-inspector-kicker">cluster</div>
+        <h4 class="cb-inspector-title">${escHtml(label)}</h4>
+        <p class="cb-inspector-copy">A working group inferred from public focus, skills, needs, and offers.</p>
+      </div>
+    </div>
+    ${collabInspectorPills([
+      { value: group.length, label: "teams" },
+      { value: needCount, label: "with needs" },
+      { value: offerCount, label: "with offers" },
+      { value: deps, label: "edges" },
+    ])}
+    ${collabInspectorSection("teams", `<div class="cb-inspector-stack">${teams}</div>`)}
+    ${collabClusterSignalsHtml(group)}
+    ${intros ? collabInspectorSection("top routes", `<div class="cb-evidence-list">${intros}</div>`, "is-evidence") : ""}
+  `;
+}
+
+function collabSameSelection(a, b) {
+  if (!a || !b || a.type !== b.type) return false;
+  if (a.type === "team") return a.rid === b.rid;
+  if (a.type === "cluster") return a.id === b.id;
+  if (a.type === "pair") return a.fromRid === b.fromRid && a.toRid === b.toRid;
+  return false;
+}
+
+function collabSelectionVisible(selection, ordered, m) {
+  if (!selection || !selection.type) return null;
+  const visible = new Set((ordered || []).map(o => o.rid));
+  if (selection.type === "team") {
+    const rid = String(selection.rid || "");
+    return visible.has(rid) ? { type: "team", rid } : null;
+  }
+  if (selection.type === "cluster") {
+    const id = String(selection.id || "");
+    return ordered.some(o => o.clusterId === id) ? { type: "cluster", id } : null;
+  }
+  if (selection.type === "pair") {
+    const fromRid = String(selection.fromRid || "");
+    const toRid = String(selection.toRid || "");
+    if (!visible.has(fromRid) || !visible.has(toRid)) return null;
+    const pair = collabPairFromIds(fromRid, toRid, m);
+    if (!pair) return null;
+    const lens = COLLAB_LENSES.has(state.collabLens) ? state.collabLens : "all";
+    if (lens === "deps" && !pair.dep) return null;
+    if (lens === "needs" && !pair.seek) return null;
+    return { type: "pair", fromRid, toRid };
+  }
+  return null;
+}
+
+function collabCurrentVisibleOrder(m = collabCurrentModel()) {
+  normalizeCollabControls();
+  return collabVisibleOrder(m, state.collabTeamFilter || "all", state.collabSort || "cluster");
+}
+
+function collabInspectorHtmlForSelection(selection, m = collabCurrentModel()) {
+  if (!selection) return collabInspectorDefaultHtml(m);
+  if (selection.type === "team") return collabTeamInspectorHtml(selection.rid, m);
+  if (selection.type === "cluster") return collabClusterInspectorHtml(selection.id, m);
+  if (selection.type === "pair") {
+    const pair = collabPairFromIds(selection.fromRid, selection.toRid, m);
+    return pair ? collabPairInspectorHtml(pair, m) : collabInspectorDefaultHtml(m);
+  }
+  return collabInspectorDefaultHtml(m);
+}
+
+function collabIntakeDraft() {
+  try {
+    const raw = localStorage.getItem(COLLAB_INTAKE_DRAFT_LS_KEY);
+    return raw ? JSON.parse(raw) || {} : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCollabIntakeDraft(values) {
+  try { localStorage.setItem(COLLAB_INTAKE_DRAFT_LS_KEY, JSON.stringify(values || {})); } catch {}
+}
+
+function clearCollabIntakeDraft() {
+  try { localStorage.removeItem(COLLAB_INTAKE_DRAFT_LS_KEY); } catch {}
+}
+
+function collabIntakeList(raw) {
+  return String(raw || "")
+    .split(/\n|;/)
+    .map(s => s.trim().replace(/^[-*]\s*/, ""))
+    .filter(Boolean);
+}
+
+function collabIntakeDateValue(value) {
+  const raw = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+}
+
+function collabIntakeControl(form, name) {
+  return form?.elements?.namedItem?.(name) || form?.querySelector?.(`[name="${cssAttr(name)}"]`) || null;
+}
+
+function collabIntakeFormValues(form) {
+  return {
+    teamRid: String(collabIntakeControl(form, "team")?.value || "").trim(),
+    teamOther: String(collabIntakeControl(form, "team_other")?.value || "").trim(),
+    seeking: String(collabIntakeControl(form, "seeking")?.value || "").trim(),
+    offering: String(collabIntakeControl(form, "offering")?.value || "").trim(),
+    timing: collabIntakeDateValue(collabIntakeControl(form, "timing")?.value || ""),
+    contact: String(collabIntakeControl(form, "contact")?.value || "").trim(),
+  };
+}
+
+function collabIntakeMarkdown(fields, { authorSlug, todayIso, team }) {
+  const teamLabel = team?.name || fields.teamOther || fields.teamRid || "unlisted team";
+  const teamLine = team
+    ? `${teamLabel} (${team.record_id})`
+    : `${teamLabel}${fields.teamRid ? ` (${fields.teamRid})` : ""}`;
+  const recordId = `${authorSlug}-${todayIso}-collab-${hashStr([teamLine, fields.seeking, fields.offering].join("|")).toString(36).replace("-", "").slice(0, 5)}`;
+  const topic = `collab board update - ${teamLabel}`;
+  const skillsBlock = "skill_areas: []";
+  return {
+    recordId,
+    markdown: `---
+record_id: ${recordId}
+record_type: ask
+schema_version: 1
+posted_at: ${todayIso}
+author: ${quoteYaml(authorSlug)}
+verb: ${quoteYaml("update collab board")}
+topic: ${yamlScalar(topic, 2)}
+${skillsBlock}
+status: open
+---
+## Collab board update
+
+team: ${teamLine}
+timing: ${fields.timing || "not specified"}
+
+### seeking
+${fields.seeking || "not specified"}
+
+### offering
+${fields.offering || "not specified"}
+
+### routing / contact
+${fields.contact || "not specified"}
+`,
+  };
+}
+
+function openCollabIntakeModal() {
+  const existing = document.querySelector("[data-collab-intake-modal]");
+  if (existing) {
+    existing.querySelector("[name='seeking'], [name='team']")?.focus?.();
+    return;
+  }
+  const m = collabCurrentModel();
+  const teams = (m.ordered || [])
+    .map(o => o.team)
+    .filter(t => t && t.record_id)
+    .slice()
+    .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)));
+  const draft = collabIntakeDraft();
+  const selectedRid = draft.teamRid || (state.collabSelection?.type === "team" ? state.collabSelection.rid : "");
+  const teamOptions = [
+    `<option value=""${selectedRid ? "" : " selected"}>select company / project</option>`,
+    ...teams.map(team => `<option value="${escAttr(team.record_id)}"${team.record_id === selectedRid ? " selected" : ""}>${escHtml(team.name || team.record_id)}</option>`),
+  ].join("");
+  const overlay = document.createElement("div");
+  overlay.className = "cb-intake-backdrop";
+  overlay.dataset.collabIntakeModal = "1";
+  overlay.innerHTML = `
+    <form class="cb-intake-modal" data-collab-intake-form autocomplete="off">
+      <header class="cb-intake-head">
+        <div>
+          <p class="cb-intake-kicker">collab board intake</p>
+          <h3 class="cb-intake-title">add seek / offer</h3>
+        </div>
+        <button class="cb-intake-close" type="button" data-collab-intake-close aria-label="close">×</button>
+      </header>
+      <div class="cb-intake-grid">
+        <label class="cb-intake-field">
+          <span>which company?</span>
+          <select name="team" class="cb-intake-input">${teamOptions}</select>
+        </label>
+        <label class="cb-intake-field">
+          <span>if not listed</span>
+          <input name="team_other" class="cb-intake-input" value="${escAttr(draft.teamOther || "")}" placeholder="company / project name" />
+        </label>
+        <label class="cb-intake-field is-wide">
+          <span>what are you seeking?</span>
+          <textarea name="seeking" rows="3" class="cb-intake-input" placeholder="customer intros, TEE review, design partner, infra unblock...">${escHtml(draft.seeking || "")}</textarea>
+        </label>
+        <label class="cb-intake-field is-wide">
+          <span>what can you offer?</span>
+          <textarea name="offering" rows="3" class="cb-intake-input" placeholder="audit time, dataset access, wallet UX feedback, dstack deployment help...">${escHtml(draft.offering || "")}</textarea>
+        </label>
+        <label class="cb-intake-field cb-intake-date-field">
+          <span>target date</span>
+          <input type="date" name="timing" class="cb-intake-input cb-intake-date-input" value="${escAttr(collabIntakeDateValue(draft.timing))}" />
+        </label>
+        <label class="cb-intake-field is-wide">
+          <span>routing / contact</span>
+          <input name="contact" class="cb-intake-input" value="${escAttr(draft.contact || "")}" placeholder="@handle, matrix room, or who should make the intro" />
+        </label>
+      </div>
+      <footer class="cb-intake-foot">
+        <button class="cb-intake-submit" type="submit">submit update</button>
+        <button class="cb-intake-secondary" type="button" data-collab-intake-clear>clear draft</button>
+        <p class="cb-intake-note">reviewable board update</p>
+      </footer>
+      <div class="cb-intake-result" data-collab-intake-result hidden></div>
+    </form>
+  `;
+  const close = () => {
+    document.removeEventListener("keydown", onKey, true);
+    overlay.remove();
+  };
+  const onKey = (event) => {
+    if (event.key === "Escape") close();
+  };
+  overlay.addEventListener("mousedown", (event) => {
+    if (event.target === overlay) close();
+  });
+  overlay.querySelector("[data-collab-intake-close]")?.addEventListener("click", close);
+  const form = overlay.querySelector("[data-collab-intake-form]");
+  form?.addEventListener("input", () => saveCollabIntakeDraft(collabIntakeFormValues(form)));
+  form?.addEventListener("change", () => saveCollabIntakeDraft(collabIntakeFormValues(form)));
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitCollabIntake(form);
+  });
+  overlay.querySelector("[data-collab-intake-clear]")?.addEventListener("click", () => {
+    clearCollabIntakeDraft();
+    close();
+    openCollabIntakeModal();
+  });
+  document.addEventListener("keydown", onKey, true);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => collabIntakeControl(form, "team")?.focus?.());
+}
+
+async function submitCollabIntake(form) {
+  const result = form?.querySelector("[data-collab-intake-result]");
+  if (!form || !result) return;
+  const fields = collabIntakeFormValues(form);
+  const team = fields.teamRid ? collabTeamByRecordId(fields.teamRid) : null;
+  const teamLabel = team?.name || fields.teamOther || fields.teamRid;
+  if (!teamLabel) {
+    result.hidden = false;
+    result.dataset.kind = "error";
+    result.innerHTML = `<span class="alch-onb-inline-tag">missing</span> choose a company or type one in.`;
+    return;
+  }
+  if (!fields.seeking && !fields.offering) {
+    result.hidden = false;
+    result.dataset.kind = "error";
+    result.innerHTML = `<span class="alch-onb-inline-tag">missing</span> add a seek or an offer.`;
+    return;
+  }
+  saveCollabIntakeDraft(fields);
+  const { authorSlug } = currentAskContext();
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const { recordId, markdown } = collabIntakeMarkdown(fields, { authorSlug, todayIso, team });
+  const filename = `cohort-data/asks/${recordId}.md`;
+  result.hidden = false;
+  result.dataset.kind = "info";
+  result.innerHTML = `<span class="alch-onb-inline-tag">preparing</span> building collab-board update...`;
+  const launched = await launchPRFlow({ kind: "new", path: filename, value: markdown });
+  if (!launched.ok) {
+    result.dataset.kind = "error";
+    result.innerHTML = `
+      <p class="alch-onb-inline-line"><span class="alch-onb-inline-tag">fork first</span> create your fork, then click submit again. this draft is saved locally.</p>
+      <details class="alch-asks-compose-preview">
+        <summary>preview update</summary>
+        <pre class="alch-onb-inline-patch">${escHtml(markdown)}</pre>
+      </details>
+    `;
+    return;
+  }
+  result.dataset.kind = "success";
+  result.innerHTML = `
+    <p class="alch-onb-inline-line"><span class="alch-onb-inline-tag">github ready</span> review the prefilled update, commit the new file, then open the PR.</p>
+    <details class="alch-asks-compose-preview" open>
+      <summary>preview update</summary>
+      <pre class="alch-onb-inline-patch">${escHtml(markdown)}</pre>
+    </details>
+    <div class="alch-onb-inline-row">
+      <a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>open github editor</a>
+    </div>
+  `;
+  wireExternalLinks(result);
+}
+
+function cssAttr(value) {
+  const raw = String(value || "");
+  if (globalThis.CSS && typeof CSS.escape === "function") return CSS.escape(raw);
+  return raw.replace(/["\\]/g, "\\$&");
+}
+
+function syncCollabSelectionDom() {
+  const root = state.canvas?.querySelector(".alch-collab");
+  if (!root) return;
+  root.querySelectorAll(".is-selected").forEach(n => n.classList.remove("is-selected"));
+  const selection = state.collabSelection;
+  if (!selection) return;
+  if (selection.type === "team") {
+    root.querySelectorAll(`.cb-grid [data-collab-open="${cssAttr(selection.rid)}"]`).forEach(n => n.classList.add("is-selected"));
+  } else if (selection.type === "cluster") {
+    root.querySelectorAll(`[data-collab-cluster="${cssAttr(selection.id)}"]`).forEach(n => n.classList.add("is-selected"));
+  } else if (selection.type === "pair") {
+    root.querySelectorAll(`[data-collab-pair-from="${cssAttr(selection.fromRid)}"][data-collab-pair-to="${cssAttr(selection.toRid)}"]`).forEach(n => n.classList.add("is-selected"));
+  }
+}
+
+function setCollabInspectorHtml(html) {
+  const panel = state.canvas.querySelector("[data-collab-inspector]");
+  if (!panel) return;
+  panel.innerHTML = html;
+  wireCollabCohortLinks(panel);
+  wirePersonLinks(panel);
+  wireExternalLinks(panel);
+}
+
+function setCollabSelection(selection) {
+  const m = collabCurrentModel();
+  const visibleSelection = collabSelectionVisible(selection, collabCurrentVisibleOrder(m), m);
+  state.collabSelection = visibleSelection;
+  syncCollabSelectionDom();
+  setCollabInspectorHtml(collabInspectorHtmlForSelection(visibleSelection, m));
+}
+
+function clearCollabSelection() {
+  state.collabSelection = null;
+  syncCollabSelectionDom();
+  setCollabInspectorHtml(collabInspectorDefaultHtml(collabCurrentModel()));
+}
+
+function previewCollabInspector(selection) {
+  if (state.collabSelection) return;
+  const m = collabCurrentModel();
+  const visibleSelection = collabSelectionVisible(selection, collabCurrentVisibleOrder(m), m);
+  setCollabInspectorHtml(collabInspectorHtmlForSelection(visibleSelection, m));
+}
+
+function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = null) {
   if (R.rid === C.rid) return `<div class="cb-cell cb-diag" data-row="${ri}" data-col="${ci}" aria-hidden="true"></div>`;
   const dep = m.depByPair?.get(dependencyPairKey(R.rid, C.rid));
-  const so = m.soByPair.get(R.rid + ">" + C.rid);
-  const af = m.aff.get(collabAffKey(R.rid, C.rid));
-  let cls = "cb-cell", mark = "", title = "", has = false;
-  if (af) { cls += " has-aff"; has = true; mark = "·"; title = `${R.team.name} ↔ ${C.team.name} — shares ${af.shared.join(", ") || "interests"}${af.endorsed ? " · endorsed pairing" : ""}`; }
-  if (so) { cls += " has-so s" + Math.min(4, so.score); has = true; mark = "◆"; title = `${R.team.name} seeks → ${C.team.name} offers — ${so.shared.join(", ")}`; }
-  if (dep) { cls += " has-dep"; has = true; mark = "▲"; title = `${R.team.name} ${dep.relation_label || "links to"} ${C.team.name}`; }
-  if (!has) return `<div class="cb-cell" data-row="${ri}" data-col="${ci}"></div>`;
-  return `<button type="button" class="${cls}" data-row="${ri}" data-col="${ci}" data-collab-open="${escAttr(C.rid)}" title="${escAttr(title)}"><span class="cb-mark">${mark}</span></button>`;
+  const so = m.soByPair.get(dependencyPairKey(R.rid, C.rid));
+  if (!dep && !so) return `<div class="cb-cell" data-row="${ri}" data-col="${ci}"></div>`;
+
+  let cls = "cb-cell";
+  if (so) cls += " has-so s" + Math.min(4, Math.ceil(so.score));
+  if (dep) cls += " has-dep";
+
+  const lines = [];
+  if (dep) lines.push(`depends on ${C.team.name}`);
+  if (so) lines.push(`seeks -> ${C.team.name} offers: ${so.shared.slice(0, 3).join(", ") || "match"}`);
+  const title = `${R.team.name} -> ${C.team.name}\n${lines.join("\n")}`;
+
+  const active = lens === "all" || (lens === "deps" && dep) || (lens === "needs" && so);
+  if (!active) cls += " is-muted";
+  if (detail && collabSameSelection(selected, { type: "pair", fromRid: R.rid, toRid: C.rid })) cls += " is-selected";
+
+  const actionAttr = detail
+    ? (active ? `data-collab-pair-from="${escAttr(R.rid)}" data-collab-pair-to="${escAttr(C.rid)}"` : `disabled aria-disabled="true"`)
+    : `data-collab-open="${escAttr(C.rid)}"`;
+  return `<button type="button" class="${cls}" data-row="${ri}" data-col="${ci}" ${actionAttr} title="${escAttr(title)}"><span class="cb-mark" aria-hidden="true"></span></button>`;
+}
+
+function collabGroupBand(ordered, colN, selected = null) {
+  const segs = [];
+  for (const o of ordered) {
+    const last = segs[segs.length - 1];
+    if (last && last.id === o.clusterId) last.span += 1;
+    else segs.push({ id: o.clusterId, label: o.clusterLabel, span: 1 });
+  }
+  const cells = segs.map((s) => `
+    <button type="button" class="cb-band-seg${collabSameSelection(selected, { type: "cluster", id: s.id }) ? " is-selected" : ""}" data-collab-cluster="${escAttr(s.id)}" style="grid-column: span ${s.span};" title="${escAttr(`${s.label} · ${s.span} teams · click for context`)}">
+      <span>${escHtml(s.label)}</span>
+    </button>
+  `).join("");
+  return `<div class="cb-row cb-bandrow" style="${colN}"><div class="cb-band-corner" aria-hidden="true"></div>${cells}</div>`;
 }
 
 function renderCollab() {
@@ -7652,7 +8478,10 @@ function renderCollab() {
     return;
   }
   const m = buildCollabModel(teams, clusters, state.cohort?.dependencies || []);
-  const ordered = m.ordered;
+  normalizeCollabControls();
+  const teamFilter = state.collabTeamFilter || "all";
+  const sort = state.collabSort || "cluster";
+  const ordered = collabVisibleOrder(m, teamFilter, sort);
   const N = ordered.length;
   const totalN = m.ordered.length;
   const lens = state.collabLens || "all";
@@ -7706,7 +8535,8 @@ function renderCollab() {
   let headCells = `<div class="cb-corner" aria-hidden="true">needs ↓ · provides →</div>`;
   ordered.forEach((o, ci) => {
     const deg = m.indegree.get(o.rid) || 0;
-    headCells += `<button type="button" class="cb-colhead${deg >= 5 ? " is-key" : ""}" data-col="${ci}" data-collab-open="${escAttr(o.rid)}" title="${escAttr(o.team.name + " — " + deg + " inbound relationships")}"><span>${escHtml(o.team.name)}</span></button>`;
+    const selectedCls = collabSameSelection(selected, { type: "team", rid: o.rid }) ? " is-selected" : "";
+    headCells += `<button type="button" class="cb-colhead${deg >= 5 ? " is-key" : ""}${selectedCls}${quietCls(o.rid)}" data-col="${ci}" data-collab-open="${escAttr(o.rid)}" title="${escAttr(o.team.name + " — " + deg + " inbound relationships")}"><span>${escHtml(o.team.name)}</span></button>`;
   });
   let rows = `<div class="cb-row cb-headrow" style="${colN}">${headCells}</div>`;
   if (sort === "cluster") rows += collabGroupBand(ordered, colN, selected);
@@ -7818,9 +8648,11 @@ function renderCollab() {
     </div>`;
 }
 
-function wireCollab() {
-  wireConstellationModeNav();
-  for (const el of state.canvas.querySelectorAll("[data-collab-cohort-open]")) {
+function wireCollabCohortLinks(root) {
+  if (!root) return;
+  for (const el of root.querySelectorAll("[data-collab-cohort-open]")) {
+    if (el.dataset.collabCohortWired === "1") continue;
+    el.dataset.collabCohortWired = "1";
     const activate = (event) => {
       event?.preventDefault?.();
       event?.stopPropagation?.();

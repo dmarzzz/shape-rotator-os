@@ -287,6 +287,41 @@ export function collabAffKey(a, b) {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
+export function collabHasText(value) {
+  return Array.isArray(value)
+    ? value.some(item => String(item || "").trim())
+    : !!String(value || "").trim();
+}
+
+function collabClusterForTeam(team) {
+  const ownedText = [
+    team.domain,
+    team.focus,
+    team.now,
+    collabText(team.skill_areas),
+  ].map(value => String(value || "").toLowerCase()).join(" · ");
+  return COLLAB_CLUSTER_DEFS.find(def => def.test(team, ownedText)) || COLLAB_OTHER_CLUSTER;
+}
+
+function collabConceptSet(...values) {
+  const text = values.map(collabText).join(" · ");
+  const out = new Set();
+  for (const concept of COLLAB_CONCEPTS) {
+    concept.rx.lastIndex = 0;
+    if (concept.rx.test(text)) out.add(concept.key);
+  }
+  return out;
+}
+
+function collabConceptLabels(keys) {
+  return keys.map(key => COLLAB_CONCEPT_BY_KEY.get(key)?.label || key);
+}
+
+function collabScore(keys, tokenCount = 0, bonus = 0) {
+  const conceptScore = keys.reduce((sum, key) => sum + (COLLAB_CONCEPT_BY_KEY.get(key)?.weight || 1), 0);
+  return conceptScore + Math.min(1.2, tokenCount * 0.3) + bonus;
+}
+
 export function buildCollabModel(teams = [], clusters = [], dependencyRecords = []) {
   const base = constellationModel(teams, clusters, dependencyRecords);
   const ordered = [];
@@ -391,7 +426,77 @@ export function buildCollabModel(teams = [], clusters = [], dependencyRecords = 
     .map(([skill, names]) => ({ skill, teams: names, count: names.length }))
     .sort((a, b) => b.count - a.count || a.skill.localeCompare(b.skill));
 
-  return { ordered, deps, depByPair, seekOffer, soByPair, aff, convergence, indegree: base.indegree };
+  const offerMatches = new Map();
+  for (const s of seekOffer) {
+    const rows = offerMatches.get(s.offerer) || [];
+    rows.push(s);
+    offerMatches.set(s.offerer, rows);
+  }
+  const underusedOffers = ordered
+    .filter(item => collabHasText(item.team.offering))
+    .map(item => {
+      const matches = (offerMatches.get(item.rid) || []).sort((a, b) => b.score - a.score);
+      const skills = Array.isArray(item.team.skill_areas)
+        ? item.team.skill_areas.map(skill => String(skill || "").trim()).filter(Boolean)
+        : [];
+      const offering = Array.isArray(item.team.offering)
+        ? item.team.offering.map(v => String(v || "").trim()).filter(Boolean)[0] || ""
+        : String(item.team.offering || "").trim();
+      return {
+        rid: item.rid,
+        team: item.team,
+        teamName: item.team.name || item.rid,
+        offering,
+        skills,
+        matchCount: matches.length,
+        matches,
+      };
+    })
+    .sort((a, b) =>
+      a.matchCount - b.matchCount
+      || b.skills.length - a.skills.length
+      || String(a.teamName).localeCompare(String(b.teamName)));
+
+  const inbound = new Map();
+  const outbound = new Map();
+  for (const edge of deps) {
+    const [from, to] = edge.split(">");
+    (inbound.get(to) || inbound.set(to, []).get(to)).push(from);
+    (outbound.get(from) || outbound.set(from, []).get(from)).push(to);
+  }
+  const keystones = ordered
+    .map(item => ({
+      ...item,
+      inbound: inbound.get(item.rid) || [],
+      outbound: outbound.get(item.rid) || [],
+    }))
+    .filter(item => item.inbound.length || item.outbound.length)
+    .sort((a, b) =>
+      b.inbound.length - a.inbound.length
+      || b.outbound.length - a.outbound.length
+      || String(a.team.name || a.rid).localeCompare(String(b.team.name || b.rid)));
+  seekOffer.sort((a, b) => b.score - a.score || a.seekerName.localeCompare(b.seekerName));
+  const coverage = {
+    needs: ordered.filter(item => collabHasText(item.team.seeking)).length,
+    offers: ordered.filter(item => collabHasText(item.team.offering)).length,
+    skills: ordered.filter(item => collabHasText(item.team.skill_areas)).length,
+    links: ordered.filter(item => collabHasText(item.team.dependencies) || collabHasText(item.team.pair_with)).length,
+  };
+
+  return {
+    ordered,
+    byRecordId: base.byRecordId,
+    deps,
+    depByPair,
+    seekOffer,
+    soByPair,
+    aff,
+    convergence,
+    underusedOffers,
+    indegree: base.indegree,
+    keystones,
+    coverage,
+  };
 }
 
 export function aggregateSkillAreas(cohort = {}) {
