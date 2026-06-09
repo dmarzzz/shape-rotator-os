@@ -10,10 +10,16 @@
   --cal-day-min-h:     220px;
   --cal-grid-gap:      1px;
   --cal-page-px:       40px;
-  --cal-day-col-w:     220px;  /* per-day min width in week view — sized so the
-                                   shortest event titles ("project intros",
-                                   "tea on roof") render on one line, longer
-                                   ones wrap cleanly to two */
+  --cal-day-col-w:     186px;  /* per-day SCROLL FLOOR in week view. On desktop the
+                                   7 columns fit-and-stretch to fill the canvas
+                                   (.cal-grid uses minmax(0,1fr)); this floor only
+                                   sets the column width below which the grid starts
+                                   to scroll horizontally. 7 * 186 (≈1302px) lowers
+                                   the fit threshold from the old 7*220 (1540px) so
+                                   the full week shows on ~1366px+ content, while
+                                   keeping columns readable (titles still wrap to two
+                                   lines); genuinely narrow widths scroll instead of
+                                   cramming. */
 }
 
 /* ── page head ───────────────────────────────────────────────────────── */
@@ -372,13 +378,18 @@
 }
 .cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(var(--cal-day-col-w), 1fr));
+  /* minmax(0,1fr) lets the 7 columns fit AND stretch to fill the canvas, so
+   * the whole week is visible without horizontal scroll. The scroll threshold
+   * lives on min-width below (not the column track) — conflating the two is
+   * what made the old minmax(220px,1fr) always overflow its 1480px canvas
+   * (7*220 = 1540px) even on wide monitors. */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--cal-grid-gap);
   background: var(--ed-rule-2);
   border: 1px solid var(--ed-rule-2);
-  /* without an explicit min-width, the grid would shrink-to-fit the
-   * scroller; force it to be at least 7 * col-w so the scroller actually
-   * has something to scroll */
+  /* Floor the grid at 7 * the per-day scroll floor (≈1302px). Below that the
+   * grid overflows into a horizontal scroll with columns held at a readable
+   * min; at or above it the week fits and fills. */
   min-width: calc(7 * var(--cal-day-col-w));
 }
 
