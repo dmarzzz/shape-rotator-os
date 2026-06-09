@@ -1,15 +1,13 @@
 name: os-pr-checks
 
 on:
+  # No path filter: this runs on EVERY PR so it can be set as a REQUIRED
+  # status check on main without the classic footgun — a path-filtered
+  # required check never triggers on non-matching PRs (e.g. web-only or
+  # docs), so its status stays pending and blocks the merge forever. The
+  # checks (cohort surface current, intel safety, renderer bundle) are
+  # cheap and pass regardless of which paths a PR touches.
   pull_request:
-    paths:
-      - "apps/os/**"
-      - "cohort-data/**"
-      - "scripts/build-bundles.js"
-      - "scripts/check-calendar-transcript-matches.mjs"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/os-pr-checks.yml"
   workflow_dispatch:
 
 permissions:
