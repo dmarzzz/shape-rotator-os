@@ -156,5 +156,6 @@ export {
   loadCalendar,
   attachWeekViewBehavior,
   exportWeekPng,
+  openEventDetail,
 } from "./cohort-calendar-week.js";
 export { renderProfileForm, prepareProfilePR } from "./profile-form.js";

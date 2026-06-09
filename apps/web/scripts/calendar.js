@@ -6,6 +6,7 @@ import {
   attachWeekViewBehavior,
   renderCohortCalendar,
   exportWeekPng,
+  openEventDetail,
 } from "@shape-rotator/shape-ui";
 
 // Web cohort calendar — seed with the bundled snapshot from
@@ -112,6 +113,8 @@ function wire() {
       catch (err) { console.warn("[calendar] png export failed", err); }
       return;
     }
+    const evCard = e.target.closest?.("[data-cal-event]");
+    if (evCard) { openEventDetail(evCard); return; }
   });
 
   // ← / → / t keyboard nav on the week sub-view.

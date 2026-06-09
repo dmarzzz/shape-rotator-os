@@ -228,7 +228,33 @@ function renderEventCard(blockText, sources = []) {
   const chip = (cat.label || cat.tbc)
     ? `<div class="cev-cat">${cat.label ? escHtml(cat.label) : ""}${cat.tbc ? `<span class="cev-tbc">TBC</span>` : ""}</div>`
     : "";
-  return `<div class="cal-event ev-${cat.key}${cat.tbc ? " is-tbc" : ""}" data-cat="${escAttr(cat.key)}">${chip}${renderEventBlock(blockText, sources)}</div>`;
+  return `<div class="cal-event ev-${cat.key}${cat.tbc ? " is-tbc" : ""}" data-cat="${escAttr(cat.key)}" data-cal-event role="button" tabindex="0" aria-label="open event details">${chip}${renderEventBlock(blockText, sources)}</div>`;
+}
+
+// Open a full-detail popover for a clicked week-view event card. The card
+// already holds the full (CSS-clamped) content, so we clone it into a modal
+// that lifts the clamp — no data plumbing, works in Electron + web.
+export function openEventDetail(cardEl) {
+  if (!cardEl || typeof document === "undefined") return;
+  const dayEl = cardEl.closest(".cal-day");
+  const dow = dayEl?.querySelector(".cdh-name")?.textContent?.trim() || "";
+  const date = dayEl?.querySelector(".cdh-date")?.textContent?.trim() || "";
+  const cat = cardEl.getAttribute("data-cat") || "default";
+  document.querySelector(".cal-event-modal")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "cal-event-modal";
+  overlay.innerHTML =
+    `<div class="cem-panel" data-cat="${escAttr(cat)}" role="dialog" aria-modal="true" aria-label="event details">
+       <button class="cem-close" type="button" aria-label="close">×</button>
+       ${(dow || date) ? `<div class="cem-day">${escHtml(dow)}${date ? ` · ${escHtml(date)}` : ""}</div>` : ""}
+       <div class="cem-body">${cardEl.innerHTML}</div>
+     </div>`;
+  const close = () => { overlay.remove(); document.removeEventListener("keydown", onKey); };
+  function onKey(e) { if (e.key === "Escape") close(); }
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector(".cem-close")?.addEventListener("click", close);
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
 }
 
 // Ordered category legend for the week-view key bar.

@@ -32,6 +32,7 @@ import {
   parseWeekRow as calendarParseWeekRow,
   attachWeekViewBehavior as attachCalendarMobileBehavior,
   exportWeekPng as exportCalendarWeekPng,
+  openEventDetail as openCalendarEventDetail,
 } from "@shape-rotator/shape-ui";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey,
@@ -6615,6 +6616,15 @@ function wireCalendar() {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       openCalendarTranscript(btn.dataset.calTranscriptPath);
+    });
+  }
+
+  // click an event card → full-detail popover
+  for (const card of state.canvas.querySelectorAll("[data-cal-event]")) {
+    const open = () => openCalendarEventDetail(card);
+    card.addEventListener("click", open);
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
     });
   }
 
