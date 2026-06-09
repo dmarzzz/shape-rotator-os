@@ -6550,9 +6550,20 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   opacity: 1;
   stroke-width: 3px;
 }
-.alch-constellation-stage[data-view="map"]:not([data-hover-active="true"]):not([data-selection-active="true"]):not([data-interest-active="true"]) svg .ac-node-group.is-dense-well:not(.is-keystone-label) .ac-node-label,
-.alch-constellation-stage[data-view="map"] svg .ac-node-group.is-dense-well:not(:hover):not(.is-selected):not(.is-related):not(.is-keystone-label):not(.is-selection-core):not(.is-selection-neighbor):not(.is-interest-core) .ac-node-label {
-  opacity: 0;
+.alch-constellation-stage[data-view="map"] svg .ac-node-group.is-secondary-label .ac-node-label {
+  fill: rgba(245,243,238,0.62);
+  opacity: 0.58;
+  font-size: 6.8px;
+  stroke-width: 2.4px;
+}
+.alch-constellation-stage[data-view="map"] svg .ac-node-group.is-secondary-label:hover .ac-node-label,
+.alch-constellation-stage[data-view="map"] svg .ac-node-group.is-secondary-label.is-selected .ac-node-label,
+.alch-constellation-stage[data-view="map"] svg .ac-node-group.is-secondary-label.is-related .ac-node-label,
+.alch-constellation-stage[data-view="map"][data-selection-active="true"] svg .ac-node-group.is-secondary-label.is-selection-core .ac-node-label,
+.alch-constellation-stage[data-view="map"][data-selection-active="true"] svg .ac-node-group.is-secondary-label.is-selection-neighbor .ac-node-label,
+.alch-constellation-stage[data-view="map"][data-interest-active="true"] svg .ac-node-group.is-secondary-label.is-interest-core .ac-node-label {
+  fill: var(--alchemy-paper-warm);
+  opacity: 1;
 }
 .alch-constellation-legend {
   display: flex; flex-wrap: wrap; gap: 10px 18px;
