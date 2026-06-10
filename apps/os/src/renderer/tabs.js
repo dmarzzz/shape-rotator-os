@@ -10,6 +10,7 @@
 //     tab: "alchemy" | "apps" | "network" | "links",
 //     mode?,        // OS sub-page when tab === "alchemy"
 //     constellationMode?, // Constellation sub-view, e.g. "map" | "collab"
+//     programPage?, // Program handbook page, e.g. "overview" | "success"
 //     recordId?,    // an open record-detail page (alchemy)
 //     appsView?,    // "atlas" | "easel"
 //     netSub?,      // "network" | "metrics"
@@ -64,6 +65,16 @@ let stripEl = null;
 let menuEl = null;
 
 function uid() { return "t" + Date.now().toString(36) + "_" + (seq++); }
+function requestFrameOrTimeout(fn, timeoutMs = 80) {
+  let done = false;
+  const run = () => {
+    if (done) return;
+    done = true;
+    fn();
+  };
+  try { requestAnimationFrame(run); } catch {}
+  setTimeout(run, timeoutMs);
+}
 
 function normalizeLocation(loc) {
   if (!loc || loc.blank) return loc || { blank: true };
@@ -90,6 +101,7 @@ function readCurrentLocation() {
     const al = Alchemy.getLocation();
     loc.mode = al.mode;
     if (al.constellationMode) loc.constellationMode = al.constellationMode;
+    if (al.programPage) loc.programPage = al.programPage;
     if (al.recordId) loc.recordId = al.recordId;
   } else if (top === "apps") {
     if (document.body.dataset.appsView) loc.appsView = document.body.dataset.appsView;
@@ -124,7 +136,13 @@ function applyLocation(loc) {
       const wasAlchemy = document.body.dataset.activeTab === "alchemy";
       // instant: render synchronously with no cross-fade so the switch is
       // immediate like a browser tab.
-      Alchemy.applyLocation({ mode: loc.mode, constellationMode: loc.constellationMode, recordId: loc.recordId, instant: true });
+      Alchemy.applyLocation({
+        mode: loc.mode,
+        constellationMode: loc.constellationMode,
+        recordId: loc.recordId,
+        programPage: loc.programPage,
+        instant: true,
+      });
       // Only flip the top-level tab if we weren't already on it — avoids a
       // redundant re-render when switching between two OS tabs.
       if (!wasAlchemy && typeof window.__srwkGoTab === "function") window.__srwkGoTab("alchemy");
@@ -143,7 +161,7 @@ function applyLocation(loc) {
     }
   }
   // Release the capture guard once the resulting DOM mutations have settled.
-  requestAnimationFrame(() => requestAnimationFrame(() => { suspendCapture = false; }));
+  requestFrameOrTimeout(() => requestFrameOrTimeout(() => { suspendCapture = false; }));
 }
 
 // ─── tab operations ───────────────────────────────────────────────────────
@@ -257,13 +275,21 @@ function resolveNavTarget(el) {
   if (rail) return { tab: "alchemy", mode: rail.dataset.alchMode };
   const cat = el.closest(".nav-cat[data-tab]");
   if (cat) return { tab: cat.dataset.tab };
+  let alch = null;
+  try { alch = Alchemy.getLocation?.(); } catch {}
+  const alchMode = alch?.mode || currentAlchMode() || "shapes";
+  const alchConstellationMode = alchMode === "constellation" ? (alch?.constellationMode || null) : null;
   const rec = el.closest("[data-record-id]");
   if (rec && rec.dataset.recordId) {
-    return { tab: "alchemy", mode: currentAlchMode() || "shapes", recordId: rec.dataset.recordId };
+    const loc = { tab: "alchemy", mode: alchMode, recordId: rec.dataset.recordId };
+    if (alchConstellationMode) loc.constellationMode = alchConstellationMode;
+    return loc;
   }
   const person = el.closest("[data-person]");
   if (person && person.dataset.person) {
-    return { tab: "alchemy", mode: "shapes", recordId: person.dataset.person };
+    const loc = { tab: "alchemy", mode: alchMode, recordId: person.dataset.person };
+    if (alchConstellationMode) loc.constellationMode = alchConstellationMode;
+    return loc;
   }
   return null;
 }
@@ -422,7 +448,7 @@ export function init() {
     renderStrip();
     const t = tabs.find(x => x.id === activeId) || tabs[0];
     activeId = t.id;
-    requestAnimationFrame(() => applyLocation(t.loc));
+    applyLocation(t.loc);
   } else {
     tabs = [{ id: uid(), loc: readCurrentLocation() }];
     activeId = tabs[0].id;
@@ -435,5 +461,5 @@ export function init() {
   const obs = new MutationObserver(() => captureCurrent());
   obs.observe(document.body, { attributes: true, attributeFilter: ["data-active-tab", "data-apps-view", "data-net-sub"] });
   const av = document.getElementById("alchemy-view");
-  if (av) obs.observe(av, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current", "data-alch-detail"] });
+  if (av) obs.observe(av, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current", "data-alch-program-page", "data-alch-detail"] });
 }

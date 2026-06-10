@@ -6851,9 +6851,9 @@ function renderOnboarding() {
   //                           profile skill. Secondary link offers
   //                           the in-app editor as a fallback.
   //   5. join matrix (human)  link to docs/MATRIX.md
-  //   6. interview            external link (operator-stub)
-  //   B1. hermes              optional second agent (operator-stub)
-  //   B2. bot on matrix       /matrix-bot-setup skill in field-kit
+  //   6. interview            local Router pop-out app
+  //   B1. hermes              optional second agent, not shipped in this build
+  //   B2. bot on matrix       /matrix-bot-setup skill + manual Matrix signup
   //
   // The renderer maps `bonus: true` entries to "B<n>" display numbers
   // and inserts a separator before the first bonus row.
@@ -6923,7 +6923,7 @@ function renderOnboarding() {
     {
       key: "hermes-agent",
       title: "set up a hermes agent",
-      ask: `Hermes is an autonomous second agent that runs alongside your primary local agent — useful for background research, scheduled summaries, etc. <em>links coming once the operator publishes the hermes docs.</em>`,
+      ask: `Hermes is an autonomous second agent concept for background research and scheduled summaries. it is <em>not shipped in this build</em>; treat this as optional until a later build includes a working setup path.`,
       autoComplete: false,
       missingState: "info",
       bonus: true,
@@ -6932,7 +6932,7 @@ function renderOnboarding() {
     {
       key: "agent-on-matrix",
       title: "add your bot to the matrix server",
-      ask: `register your local agent as a bot in the cohort room so it can post + read on your behalf. the field-kit ships a <code>/matrix-bot-setup</code> skill that walks through it once @amiller publishes the homeserver details.`,
+      ask: `register your local agent as a bot in the cohort room so it can post + read on your behalf. use the <code>mtrx.shaperotator.xyz</code> signup code you receive after human Matrix promotion; the field-kit <code>/matrix-bot-setup</code> skill is a wrapper stub, so use the manual path when needed.`,
       autoComplete: false,
       missingState: "info",
       bonus: true,
@@ -7144,17 +7144,16 @@ function showBotMatrixInstructions() {
 }
 
 function showInterviewQuizLinks() {
-  // TODO(operator): drop interview + quiz URLs in. Until then show a
-  // "not yet" rather than dead buttons.
   showOnboardingModal({
-    title: "interview + quiz",
+    title: "interview status",
     body: `
-      <p class="alch-onb-modal-line">two short asks so the cohort has a baseline picture of what each of you brings:</p>
+      <p class="alch-onb-modal-line">the cohort interview is no longer an external form. it runs in the local Router pop-out and drafts an intro for you to review before anything posts.</p>
       <ul class="alch-onb-modal-steps">
-        <li><strong>interview</strong> — 15 minutes, open-ended. <span class="alch-onb-modal-aux">operator will publish the URL.</span></li>
-        <li><strong>quiz</strong> — 10 minutes, multiple choice. <span class="alch-onb-modal-aux">operator will publish the URL.</span></li>
+        <li><strong>open router</strong> from this onboarding row or the Apps grid.</li>
+        <li><strong>answer the intro questions</strong>; Router saves the interview transcript locally and stages the generated intro.</li>
+        <li><strong>review before posting</strong>; no separate quiz URL is configured in this build.</li>
       </ul>
-      <p class="alch-onb-modal-aux">once published, both URLs should open in your browser.</p>
+      <p class="alch-onb-modal-aux">if Router cannot open, use the Apps → Router card and check the local Router connection screen.</p>
     `,
   });
 }
@@ -7163,8 +7162,8 @@ function showHermesInstructions() {
   showOnboardingModal({
     title: "hermes agent setup",
     body: `
-      <p class="alch-onb-modal-line">Hermes docs are not published yet. This step is optional and can wait until the operator posts the setup link.</p>
-      <p class="alch-onb-modal-aux">Once published, this action should open the Hermes setup docs in your browser.</p>
+      <p class="alch-onb-modal-line">Hermes is not available in this build. The earlier Ollama-based proof of concept is held out of the shipped onboarding path.</p>
+      <p class="alch-onb-modal-aux">This bonus step can wait until a later build exposes a working Hermes setup path.</p>
     `,
   });
 }
