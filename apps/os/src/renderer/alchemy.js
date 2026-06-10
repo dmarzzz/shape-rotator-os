@@ -9142,7 +9142,6 @@ function renderCollab() {
   state.canvas.innerHTML = `
     <div class="alch-const-topbar">${constellationNav("collab")}</div>
     <div class="alch-collab">
-      <div class="alch-const-topbar">${constellationNav("collab")}</div>
       <header class="alch-cb-head">
         <h2 class="alch-cb-title">collaboration board</h2>
         <p class="alch-cb-sub">who depends on whom, who can unblock whom, where the cohort over-concentrates — all from teams' own declared dependencies, seeking, offering &amp; skill areas.</p>
