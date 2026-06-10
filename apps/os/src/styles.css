@@ -13140,6 +13140,16 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
 }
 .alch-pf-target label { display: contents; }
 .alch-pf-target-select[disabled] { opacity: 0.55; cursor: default; }
+/* Wide windows: the editor form flows into two columns. Textarea rows
+ * (.alch-pf-row-wide) already span the full row via grid-column 1/-1. */
+@media (min-width: 1240px) {
+  .alch-profile-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 48px;
+    row-gap: 8px;
+  }
+}
 /* "this is me / re-seal as X" — identity claim against the record loaded
  * in the editor. Oxide accent: it changes who you ARE, not the record. */
 .alch-pf-claim {
