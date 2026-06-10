@@ -64,7 +64,7 @@ import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcr
 import { renderIntel, wireIntel } from "./intel/intel.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
-const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack"
+const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "collab"
 const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "people"
 const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "works" | "substrate"
 const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem view: cluster record_id | "all"
@@ -163,7 +163,7 @@ const state = {
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
   openAskComposer: false, // one-shot landing state when membrane sends someone to post
-  constellationMode: "map",   // top-level constellation view: "map" | "ring" | "journey" | "stack"
+  constellationMode: "map",   // top-level constellation view: "map" | "ring" | "journey" | "stack" | "collab"
   constellationScope: "projects", // network entity layer: projects/teams vs people-to-project membership
   constellationLens: "all",   // map line lens: "all" | "relies" | "works" | "substrate" — changes which relationship claim is foregrounded
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
@@ -213,8 +213,13 @@ export function mount(container) {
 
   try {
     const saved = localStorage.getItem(ALCHEMY_LS_KEY);
+    state.constellationMode = constNormalizeConstellationMode(localStorage.getItem(CONST_MODE_LS_KEY));
+    state.constellationScope = constNormalizeNetworkScope(localStorage.getItem(CONST_SCOPE_LS_KEY));
+    state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
+    const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
+    if (savedInterest) state.constInterest = savedInterest;
     if (saved === "collab") {
-      state.mode = "constellation";
+      state.mode = "collab";
       state.constellationMode = "collab";
     } else if (saved && ALCHEMY_MODES.includes(saved)) {
       state.mode = saved;
@@ -232,6 +237,9 @@ export function mount(container) {
     if (FEED_DISABLED && state.mode === "feed") {
       state.mode = "shapes";
       try { localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); } catch {}
+    }
+    if (state.mode === "constellation" && state.constellationMode === "collab") {
+      state.mode = "collab";
     }
     // One-time membrane intro: on this preview branch, first launch lands
     // every user on the membrane mode regardless of prior preference so the
@@ -620,7 +628,11 @@ function renderModeContent() {
       if (state.mode === "profile") wireProfileForm();
       // Kick a feed refresh on entry; the timer keeps it warm in background.
       if (state.mode === "feed") refreshFeed({ source: "mode-enter" });
-      if (state.mode === "constellation") wireConstellationHover();
+      // #248: route collab-mode constellation through the collab wiring.
+      if (state.mode === "constellation") {
+        if (constNormalizeConstellationMode(state.constellationMode) === "collab") wireCollab();
+        else wireConstellationHover();
+      }
       if (state.mode === "intel") wireIntel(state.canvas);
       if (state.mode === "collab") wireCollab();
       if (state.mode === "calendar") wireCalendar();
@@ -1154,22 +1166,23 @@ function computeMembraneData() {
 // Public hook used by membrane/index.js.
 window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   if (!ALCHEMY_MODES.includes(mode)) return;
-  state.mode = mode === "collab" ? "constellation" : mode;
+  state.mode = mode;
   // Optional: land on a specific constellation sub-view (clusters /
   // dependencies / journey / collab). Used by the cohort panel's view cards.
   if (mode === "collab") {
     state.constellationMode = "collab";
   }
   if (mode === "constellation" && opts && opts.constellationMode) {
-    const m = opts.constellationMode;
+    const m = constNormalizeConstellationMode(opts.constellationMode);
     if (m === "circle" || m === "ring") {
       state.constellationMode = "ring";
-    } else if (m === "clusters" || m === "wells" || m === "dependencies" || m === "source") {
-      state.constellationMode = "map";
-      state.constellationLens = constNormalizeConstellationLens(m);
     } else {
-      state.constellationMode = m;   // "journey" | "map" | "ring" | "stack"
+      state.constellationMode = m;   // "journey" | "map" | "ring" | "stack" | "collab"
     }
+    if (["clusters", "wells", "dependencies", "source"].includes(String(opts.constellationMode || "").toLowerCase())) {
+      state.constellationLens = constNormalizeConstellationLens(opts.constellationMode);
+    }
+    if (state.constellationMode === "collab") state.mode = "collab";
     try {
       localStorage.setItem(CONST_MODE_LS_KEY, state.constellationMode);
       localStorage.setItem(CONST_LENS_LS_KEY, state.constellationLens);
@@ -1625,18 +1638,27 @@ function journeyDetailSection(rec) {
 }
 
 // ─── shared constellation chrome ─────────────────────────────────────
-// Three top-level questions:
+// Top-level constellation questions:
 // map = what world is this in and what does this line claim?
 //   map layouts: wells = ecosystem placement; ring = who bridges worlds.
 // journey = where is the product-market-fit journey?
 // stack = where does the project enter the product/market stack?
+// collab = who can unblock whom?
 const CONST_VIEWS = [
   { mode: "map",     glyph: "◉", label: "relationship map", hint: "project wells and evidence-backed connections" },
   { mode: "journey", glyph: "⌁", label: "pmf evidence", hint: "coverage of explicit product-market-fit reads" },
   { mode: "stack",   glyph: "▦", label: "product layer", hint: "where projects enter the product stack" },
+  { mode: "collab",  glyph: "⇄", label: "collab board", hint: "matrix, intros, and convergence" },
 ];
+function constNormalizeConstellationMode(raw) {
+  const mode = String(raw || "").toLowerCase();
+  if (mode === "circle") return "ring";
+  if (mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
+  if (mode === "ring" || mode === "journey" || mode === "stack" || mode === "collab") return mode;
+  return "map";
+}
 function constellationNav(active) {
-  const activeTop = active === "ring" ? "map" : active;
+  const activeTop = constNormalizeConstellationMode(active) === "ring" ? "map" : constNormalizeConstellationMode(active);
   return `
     <nav class="alch-const-modes" role="tablist" aria-label="constellation view">
       ${CONST_VIEWS.map(v => `
@@ -2712,8 +2734,8 @@ function constellationCurrentInspectorContext() {
     .filter(e => teamById.has(e.from) && teamById.has(e.to));
   const model = constellationModel(teams, clusters, state.cohort?.dependencies || []);
   const ctx = constellationInspectorContext(teams, edges, people);
-  const rawMode = state.constellationMode === "wells" ? "map" : state.constellationMode;
-  const mode = rawMode === "ring" || rawMode === "journey" || rawMode === "stack" ? rawMode : "map";
+  const rawMode = constNormalizeConstellationMode(state.constellationMode);
+  const mode = rawMode === "collab" ? "map" : rawMode;
   const base = { ...ctx, clusters, mode, scope: constNormalizeNetworkScope(state.constellationScope), distributionWells: model.wellsDef, lens: mode === "ring" ? "all" : constNormalizeConstellationLens(state.constellationLens), interest: constInterestContext(teams, clusters, edges, state.constInterest) };
   return mode === "stack" ? { ...base, stackModel: constProductStackModel(teams, base) } : base;
 }
@@ -4375,21 +4397,8 @@ function renderJourney() {
     </div>`;
 
   state.canvas.innerHTML = `
-    <div class="alch-constellation">
-      <nav class="alch-const-modes" role="tablist" aria-label="constellation view">
-        <button class="alch-const-mode-btn" data-const-mode="clusters" aria-selected="false" type="button">
-          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg></span><span class="acm-label">clusters</span>
-          <span class="acm-hint">shared cluster membership</span>
-        </button>
-        <button class="alch-const-mode-btn" data-const-mode="dependencies" aria-selected="false" type="button">
-          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></svg></span><span class="acm-label">dependencies</span>
-          <span class="acm-hint">team-asserted edges</span>
-        </button>
-        <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="true" type="button">
-          <span class="acm-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg></span><span class="acm-label">journey</span>
-          <span class="acm-hint">pmf maturity spectrum</span>
-        </button>
-      </nav>
+    <div class="alch-constellation" data-constellation-view="journey">
+      <div class="alch-const-topbar">${constellationNav("journey")}</div>
       ${filterBar}
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
@@ -4703,26 +4712,7 @@ function renderConstellationPeople(teams, people, clusters, edges) {
 }
 
 function constellationModeNavHtml(active) {
-  return `
-    <nav class="alch-const-modes" role="tablist" aria-label="constellation view">
-      <button class="alch-const-mode-btn" data-const-mode="clusters" aria-selected="${active === "clusters"}" type="button">
-        <span class="acm-glyph" aria-hidden="true">◑</span><span class="acm-label">clusters</span>
-        <span class="acm-hint">shared cluster membership</span>
-      </button>
-      <button class="alch-const-mode-btn" data-const-mode="dependencies" aria-selected="${active === "dependencies"}" type="button">
-        <span class="acm-glyph" aria-hidden="true">↬</span><span class="acm-label">dependencies</span>
-        <span class="acm-hint">team-asserted edges</span>
-      </button>
-      <button class="alch-const-mode-btn" data-const-mode="journey" aria-selected="${active === "journey"}" type="button">
-        <span class="acm-glyph" aria-hidden="true">⌁</span><span class="acm-label">journey</span>
-        <span class="acm-hint">pmf maturity spectrum</span>
-      </button>
-      <button class="alch-const-mode-btn" data-const-mode="collab" aria-selected="${active === "collab"}" type="button">
-        <span class="acm-glyph" aria-hidden="true">⇄</span><span class="acm-label">collab board</span>
-        <span class="acm-hint">matrix · intros · convergence</span>
-      </button>
-    </nav>
-  `;
+  return constellationNav(active);
 }
 
 function timelineSnapshotDate(snapshot) {
@@ -5026,7 +5016,7 @@ function renderConstellation() {
   const teams = state.cohort.teams || [];
   const people = state.cohort.people || [];
   const clusters = state.cohort.clusters || [];
-  const mode = state.constellationMode === "wells" ? "map" : (state.constellationMode || "map");
+  const mode = constNormalizeConstellationMode(state.constellationMode);
 
   // Journey sub-view renders a PMF scatterplot instead of the map.
   // Collab Board is a peer Constellation sub-view (#216).
@@ -5591,8 +5581,8 @@ function wireConstellationHover() {
     const teamById = new Map(teams.map(t => [t.record_id, t]));
     const edges = constellationDependencyEdges(teams, undefined, state.cohort?.dependencies || []).filter(e => teamById.has(e.from) && teamById.has(e.to));
     const model = constellationModel(teams, clusters, state.cohort?.dependencies || []);
-    const rawMode = state.constellationMode === "wells" ? "map" : state.constellationMode;
-    const viewMode = rawMode === "ring" || rawMode === "journey" || rawMode === "stack" ? rawMode : "map";
+    const rawMode = constNormalizeConstellationMode(state.constellationMode);
+    const viewMode = rawMode === "collab" ? "map" : rawMode;
     const activeLens = viewMode === "ring" || viewMode === "stack" ? "all" : constNormalizeConstellationLens(state.constellationLens);
     const scope = viewMode === "map" ? constNormalizeNetworkScope(state.constellationScope) : "projects";
     const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, state.cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest) };
@@ -6192,16 +6182,17 @@ function setConstellationEdgeHover(stage, from, to, on) {
 }
 
 function wireConstellationModeNav() {
-  const modes = new Set(["clusters", "dependencies", "journey", "collab"]);
   for (const btn of state.canvas.querySelectorAll(".alch-const-mode-btn[data-const-mode]")) {
     btn.addEventListener("click", () => {
-      const next = btn.dataset.constMode;
-      if (!modes.has(next)) return;
-      if (state.mode === "constellation" && next === state.constellationMode) return;
-      if (state.mode === "collab" && next === "collab") return;
-      state.mode = "constellation";
+      const next = constNormalizeConstellationMode(btn.dataset.constMode);
+      const current = state.mode === "collab" ? "collab" : constNormalizeConstellationMode(state.constellationMode);
+      if ((state.mode === "constellation" || state.mode === "collab") && next === current) return;
+      state.mode = next === "collab" ? "collab" : "constellation";
       state.constellationMode = next;
-      try { localStorage.setItem(ALCHEMY_LS_KEY, next === "collab" ? "collab" : "constellation"); } catch {}
+      try {
+        localStorage.setItem(CONST_MODE_LS_KEY, next);
+        localStorage.setItem(ALCHEMY_LS_KEY, next === "collab" ? "collab" : "constellation");
+      } catch {}
       syncRailSelection();
       render();
     });
