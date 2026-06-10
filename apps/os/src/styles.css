@@ -13131,12 +13131,22 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
 .alch-seal-btn[data-confirming="1"] { color: var(--alchemy-oxide-bright); border-color: currentColor; }
 .alch-seal-btn[data-busy="1"] { cursor: progress; opacity: 0.7; }
 .alch-seal-btnrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* Record-picker row — same 110px label column as .alch-pf-row, with a
+ * third auto column holding the inline claim button. The row renders in
+ * BOTH editor modes (disabled ghost in ADD) so toggling add ↔ edit
+ * never shifts the form rows below. */
+.alch-pf-target {
+  display: grid; grid-template-columns: 110px 1fr auto;
+  gap: 12px; align-items: center;
+}
+.alch-pf-target label { display: contents; }
+.alch-pf-target-select[disabled] { opacity: 0.55; cursor: default; }
 /* "this is me / re-seal as X" — identity claim against the record loaded
  * in the editor. Oxide accent: it changes who you ARE, not the record. */
-.alch-pf-claim-row { margin: 2px 0 4px; }
 .alch-pf-claim {
   color: var(--alchemy-oxide-bright);
   border-color: rgba(180, 58, 25, 0.45);
+  white-space: nowrap;
 }
 .alch-pf-claim:hover {
   color: var(--alchemy-oxide-bright);

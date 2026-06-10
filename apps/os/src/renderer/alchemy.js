@@ -13202,10 +13202,12 @@ function renderProfile() {
   `;
 }
 
-// "this is me" — shown under the editor's record picker whenever the
+// "this is me" — shown beside the editor's record picker whenever the
 // loaded record is NOT the current seal. Claiming/switching identity
 // happens here, against the record you're already looking at, instead
-// of through a second picker in the seal section.
+// of through a second picker in the seal section. Rendered inline in
+// the picker row (not its own line) so its presence never shifts the
+// form rows below.
 function sealClaimHtml(p) {
   if (p.editMode !== "edit" || !p.editTargetId) return "";
   const me = getIdentity();
@@ -13217,25 +13219,40 @@ function sealClaimHtml(p) {
   const nm = rec?.name || p.editTargetId;
   const label = me ? `re-seal as ${nm}` : `this is me — seal as ${nm}`;
   return `
-    <div class="alch-pf-claim-row">
-      <button id="alch-pf-claim-btn" class="alch-seal-btn alch-pf-claim" type="button"
-              title="set your seal on this device to ${escAttr(nm)} (${escAttr(p.editKind)} · ${escAttr(p.editTargetId)})">
-        ${escHtml(label)}
-      </button>
-    </div>
+    <button id="alch-pf-claim-btn" class="alch-seal-btn alch-pf-claim" type="button"
+            title="set your seal on this device to ${escAttr(nm)} (${escAttr(p.editKind)} · ${escAttr(p.editTargetId)})">
+      ${escHtml(label)}
+    </button>
   `;
+}
+
+// The picker label reads "person" for people, "which team/project" for
+// the rest — shared so the ADD-mode ghost row matches EDIT exactly.
+function targetRowLabel(kind) {
+  return kind === "person" ? "person" : `which ${kind}`;
 }
 
 function renderEditorBody(p, teams, people) {
   const fields = (p.editKind === "person") ? PERSON_EDITABLE_FIELDS : teamFieldsFor(p.editKind);
 
-  // ADD mode: blank form, no record-picker. The slug is derived live
-  // from the form (name / github) and previewed in the submit block.
+  // ADD mode: blank form, no record-picker — but the picker ROW still
+  // renders (disabled, "— new <kind> —") so the form rows sit at the
+  // same vertical position in both modes instead of jumping on toggle.
   if (p.editMode === "add") {
     const formHtml = p.editDraft
       ? renderEditorForm(fields, p.editDraft, { teams })
       : `<p class="alch-pf-pick">loading…</p>`;
-    return `${formHtml}${p.editDraft ? renderSubmitBlock(p) : ""}`;
+    return `
+      <div class="alch-pf-target">
+        <label><span>${escHtml(targetRowLabel(p.editKind))}</span>
+          <select class="alch-pf-target-select" disabled aria-disabled="true">
+            <option>— new ${escHtml(p.editKind)} —</option>
+          </select>
+        </label>
+      </div>
+      ${formHtml}
+      ${p.editDraft ? renderSubmitBlock(p) : ""}
+    `;
   }
 
   // EDIT mode: pick an existing record, then edit. Pool is filtered by
@@ -13253,8 +13270,8 @@ function renderEditorBody(p, teams, people) {
         <label><span>person</span>
           <select id="alch-pf-target-select" class="alch-pf-target-select">${opts}</select>
         </label>
+        ${sealClaimHtml(p)}
       </div>
-      ${sealClaimHtml(p)}
       ${formHtml}
       ${p.editDraft ? renderSubmitBlock(p) : ""}
     `;
@@ -13272,8 +13289,8 @@ function renderEditorBody(p, teams, people) {
       <label><span>which ${escHtml(p.editKind)}</span>
         <select id="alch-pf-target-select" class="alch-pf-target-select">${opts}</select>
       </label>
+      ${sealClaimHtml(p)}
     </div>
-    ${sealClaimHtml(p)}
     ${formHtml}
     ${p.editDraft ? renderSubmitBlock(p) : ""}
   `;
