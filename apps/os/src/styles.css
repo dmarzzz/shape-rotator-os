@@ -9253,12 +9253,13 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   display: grid; grid-template-columns: 110px 1fr; gap: 12px;
   align-items: center;
 }
-.alch-pf-row > span {
+.alch-pf-row > span,
+.alch-pf-target label > span {
   font-family: var(--font-mono); font-size: 10px;
   letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--alchemy-ink-mute);
 }
-.alch-pf-row input, .alch-pf-row select {
+.alch-pf-row input, .alch-pf-row select, .alch-pf-target-select {
   background: rgba(0,0,0,0.30);
   color: var(--alchemy-paper-warm);
   border: 1px solid var(--alchemy-rule);
@@ -9268,7 +9269,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   outline: none;
   transition: border-color 160ms var(--ease);
 }
-.alch-pf-row input:focus, .alch-pf-row select:focus { border-color: var(--alchemy-rule-warm); }
+.alch-pf-row input:focus, .alch-pf-row select:focus, .alch-pf-target-select:focus { border-color: var(--alchemy-rule-warm); }
 
 /* Shapes grid → kind filter chips (all / teams / projects) */
 .alch-shapes-filter {
