@@ -10,10 +10,16 @@ const WEB_JOURNAL_DIR = path.join(ROOT, "apps", "web", "workspace", "journal");
 const WEB_ARTICLES_DIR = path.join(WEB_JOURNAL_DIR, "articles");
 const WEB_ROOT = path.join(ROOT, "apps", "web");
 const SITE = "https://os-web.shaperotator.xyz";
-const PUBLIC_VERSION = "v0.0.3";
-const PUBLIC_DATE = "2026-05-29";
+const PUBLIC_VERSION = "v0.0.4";
+const PUBLIC_DATE = "2026-06-10";
 
 const articleRoutes = {
+  "what-thirteen-teams-shipped-last-week": {
+    webSlug: "what-thirteen-teams-shipped-last-week",
+    anchor: "cohort-recap",
+    tags: ["WDYDLW", "cohort standup", "PMF journey"],
+    topicLinks: ["PMF deltas", "Cohort distribution"],
+  },
   "why-llm-agents-need-memory-workflows-and-social-routing": {
     webSlug: "llm-agents-memory-workflows-social-routing",
     anchor: "ai-agents",
@@ -35,6 +41,7 @@ const articleRoutes = {
 };
 
 const articleOrder = [
+  "what-thirteen-teams-shipped-last-week",
   "why-llm-agents-need-memory-workflows-and-social-routing",
   "privacy-is-not-the-product-capability-is-the-product",
   "verifiability-is-becoming-ux-for-ai-infrastructure",

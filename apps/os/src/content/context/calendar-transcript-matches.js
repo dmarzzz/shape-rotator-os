@@ -191,4 +191,17 @@ export const CALENDAR_TRANSCRIPT_MATCHES = [
       },
     ],
   },
+  {
+    date: "2026-06-08",
+    title_contains: ["WDYDLW with Shaw"],
+    section: "wdydlw standup #1 — what thirteen teams shipped",
+    confidence: "high",
+    sources: [
+      {
+        role: "recap",
+        label: "wdydlw standup recap (reconstructed)",
+        path: "apps/os/src/content/context/raw-scripts/WDYDLW Standup Recap June 8 2026.txt",
+      },
+    ],
+  },
 ];

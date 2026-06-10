@@ -18,7 +18,7 @@ links:
   linkedin: kelsen-liu-668b72258
   telegram: kelsenLu
 dietary_restrictions:
-now: "Leading BitRouter's narrative, marketing, and front-of-house while the technical team builds the agent-routing network."
+now: "Repositioned Bitrouter around reliability + cost for coding agents — stars 2× post-Shaw-retweet; working signups one by one toward first paid."
 skill_areas:
   - ai-infrastructure
   - go-to-market

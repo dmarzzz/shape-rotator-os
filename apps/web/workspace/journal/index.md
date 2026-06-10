@@ -1,10 +1,18 @@
 # Shape Rotator Journal
 
-Version: public content v0.0.3
+Version: public content v0.0.4
 
 Use this as a compact retrieval index for Shape Rotator articles.
 
 ## Articles
+
+- What thirteen teams shipped last week
+  - HTML: https://os-web.shaperotator.xyz/workspace/journal/articles/what-thirteen-teams-shipped-last-week
+  - Markdown: https://os-web.shaperotator.xyz/workspace/journal/articles/what-thirteen-teams-shipped-last-week/article.md
+  - Version: v0.0.1
+  - Section: cohort recap
+  - Tags: WDYDLW, cohort standup, PMF journey
+  - Source file: cohort-data/articles/what-thirteen-teams-shipped-last-week.md
 
 - Why LLM agents need memory, workflows, and social routing
   - HTML: https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing

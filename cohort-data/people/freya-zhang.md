@@ -17,7 +17,7 @@ links:
   website: null
   linkedin: null
 dietary_restrictions:
-now: "Operating Daedalus across technical PM work, prediction-market infrastructure, and TradFi-to-crypto translation."
+now: "Backtesting delta-neutral stock-portfolio hedges on Polymarket sports markets — scraping L2/L3 orderbook history toward a demo."
 skill_areas:
   - prediction-markets
   - market-microstructure

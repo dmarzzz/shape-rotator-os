@@ -22,7 +22,7 @@ paper_basis:
   - Anonymous Self-Credentials / SD-JWT
   - Narrowing the Gap between TEEs Threat Model and Deployment Strategies
 traction: Live SDK + protocol · paid pilot with Sparq Gaming · Sam ex-SpruceID
-now: open-sourcing the delegation stack for cohort use
+now: single-message delegation shipped; tinycloud-secrets powers Listen (transcript aggregator) + Tiny Cloud Chats; policy engine finalized — building a personalized feed mined from a user's own transcripts
 success_dimensions:
   - productization
   - research_lineage
@@ -55,11 +55,11 @@ journey:
   primary_bottleneck: ICP Clarity
   company_type: Infra
   confidence: Medium
-  icp: agent builders who need user-owned cloud execution and scoped credential delegation inside TEE-backed infrastructure
+  icp: people with lots of private transcripts who need user-owned aggregation, plus agent builders needing scoped credential delegation on TEE rails
   problem: users and agents need to delegate secrets or cloud actions without giving broad account control to opaque services
   solution: user-owned cloud and tinycloud-secrets for scoped credential delegation on dstack/TEE rails
-  evidence_notes: live SDK/protocol, paid pilot, dstack fork, and shipped related tools show execution; product wedge should narrow around cohort dogfooders
-  next_milestone: get one cohort project using tinycloud-secrets for a real scoped delegation workflow
+  evidence_notes: "live SDK/protocol, paid pilot, dstack fork, and shipped related tools show execution. 2026-06-08 WDYDLW: scoped-delegation milestone effectively met with a live internal consumer (Listen); shipped single-message delegation (major simplification over interactive key exchange), Tiny Cloud Chats (Roman, on RedPill), and a credential/trust-graph policy engine (Patrick); contrast drawn vs Teleport — personal aggregation vs cross-pollination"
+  next_milestone: land the first external user of tinycloud-secrets/Listen — sharpening the ICP around people with lots of private transcripts
 making_signature:
   built_domain: [agentic, systems]
   shape: broad

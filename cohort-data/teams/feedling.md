@@ -19,7 +19,7 @@ links:
 paper_basis: null
 traction: null
 hackathon_note: null
-now: defining the first information-diet intervention that uses delegated watch history without exposing the user's raw feed
+now: exploring a second consumer app — a customizable AI companion with early interest from the Xiaohongshu (RED) community — alongside the info-diet thesis
 success_dimensions:
   - productization
   - collaborative
@@ -48,8 +48,8 @@ journey:
   icp: people who want agency over short-form video consumption without handing their watch history to another platform
   problem: feeds optimize for platform attention while users lack private, actionable control over their own information diet
   solution: TEE-delegated access to watch-history signals that can drive user-owned feed interventions
-  evidence_notes: current app surface gives the product thesis; primary project/member evidence is still sparse in the vault
-  next_milestone: recover or create the first live user thread and define one intervention that can be tested quickly
+  evidence_notes: "current app surface gives the product thesis; primary project/member evidence is still sparse in the vault. 2026-06-08 WDYDLW: expansion toward a customizable AI-companion app with early Xiaohongshu (RED) community pull — one of the room's clearer consumer-traction signals; PMF question shifts to retention and onboarding"
+  next_milestone: convert the RED community interest into the first live user thread and one quickly-testable intervention or onboarding loop
 ---
 
 ## about

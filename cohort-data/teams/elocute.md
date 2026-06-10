@@ -20,7 +20,7 @@ links:
 paper_basis: null
 traction: elocute.fun live · 538 users · 130 power users (24%) · 1,599 sessions · avg score 5.62/10 · 39% 30-day active · articulation-reps post 40k views / 5.25% save / 97% non-followers
 hackathon_note: null
-now: converting live speaking-practice traction into tighter retention loops and user-research-driven product improvements
+now: compressing user feedback into one executable product/UX plan — three research cycles (interview 3, ship, re-interview 3+3) ahead of the ETH Global NY hackathon
 success_dimensions:
   - productization
   - collaborative
@@ -54,7 +54,7 @@ journey:
   icp: people who need repeatable practice for interviews, pitches, meetings, and high-pressure speaking
   problem: people consume information constantly but rarely practice articulating it out loud before it matters
   solution: short speaking reps with AI scoring, content feedback, and targeted next-practice suggestions
-  evidence_notes: live product, user/session counts, power-user rate, and public content traction indicate real demand; monetization and retention depth still need tightening
+  evidence_notes: "live product, user/session counts, power-user rate, and public content traction indicate real demand; monetization and retention depth still need tightening. 2026-06-08 WDYDLW: first structured user-research interview (with LSDan of TeeSQL) plus three designed research cycles — attacking retention via qualitative discovery; 'one real user interview beat five days of speculation'"
   next_milestone: turn active users into a repeatable weekly practice loop with clearer paid conversion signal
 ---
 

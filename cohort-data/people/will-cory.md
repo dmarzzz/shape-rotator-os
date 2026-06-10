@@ -20,7 +20,7 @@ contribute_interests: "Help with agent orchestrations"
 availability_pref: null
 weekly_intention: "bring the vibes learn about others projects"
 dietary_restrictions: "none"
-now: "Building around JJHub, Smithers, Tevm, and agentic coding workflows."
+now: 'Shipped the Smithers UI ("the dots are actually good now") — ~6 organic onboards doubling weekly; positioning toward the Linear of workflow tools.'
 skill_areas:
   - agentic-workflows
   - developer-tools

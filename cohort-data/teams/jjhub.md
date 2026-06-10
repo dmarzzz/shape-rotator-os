@@ -19,8 +19,8 @@ links:
   alt: https://smithers.sh
   repo: https://github.com/roninjin10/smithers
 paper_basis: null
-traction: EF grant for Tevm (441 stars) · Smithers featured on HN · Guillotine (Zig EVM) 168 stars
-now: shipping cohort onboarding for jjhub + smithers
+traction: EF grant for Tevm (441 stars) · Smithers featured on HN · Guillotine (Zig EVM) 168 stars · ~6 organic onboards roughly doubling week-over-week (no marketing) · elizaOS adopted Smithers as its workflow engine
+now: shipped the long-awaited Smithers UI ("the dots are actually good now") — positioning toward "the Linear of workflow tools" while organic onboards double weekly
 success_dimensions:
   - productization
   - collaborative
@@ -52,8 +52,8 @@ journey:
   icp: developers using agentic coding systems who need durable workflows, review loops, and CI-grade orchestration
   problem: coding agents can produce useful work but struggle with durable workflow state, review discipline, and repo-scale orchestration
   solution: JJHub and Smithers as an agentic coding platform with durable workflow primitives
-  evidence_notes: Tevm grant, Smithers HN signal, large public repo activity, and related EVM tooling show high builder credibility; target product boundary still needs concentration
-  next_milestone: get one cohort team using Smithers/JJHub for a real agentic CI or review loop
+  evidence_notes: "Tevm grant, Smithers HN signal, large public repo activity, and related EVM tooling show high builder credibility. 2026-06-08 WDYDLW: product crossed from maintainer-dependent to genuinely usable after pixel-polishing the most-requested feature (~3–4 months of asks); cohort-integration milestone landing through elizaOS (Smithers as Shaw's workflow engine, with GEPA + TUI PRs upstream); ~6 organic onboards doubling w/w; EF-researcher podcast recorded; a non-technical co-founder is being floated"
+  next_milestone: serve a non-self ICP with a clean one-line position ("the Linear of workflow tools") and keep the organic onboard curve doubling
 making_signature:
   built_domain: [agentic, systems]
   shape: deep

@@ -6,6 +6,7 @@ name: dmarz
 team: searxng-wth-frnds
 secondary_teams:
   - dcnet
+  - shape-rotator-os
 role: lead
 role_class: coordinator
 geo: NYC
@@ -19,7 +20,7 @@ links:
   website: dmarz.xyz
   linkedin: null
 dietary_restrictions:
-now: building Shape Rotator OS/field-kit plus searxng-wth-frnds as a local-first privacy-search surface
+now: opened Shape Rotator OS to outside contributions (Teleport Router merged first) — benchmarked private LLM search routed through flashnet
 skill_areas:
   - p2p
   - identity
