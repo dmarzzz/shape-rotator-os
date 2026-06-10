@@ -20144,3 +20144,8 @@ button.alch-quick-link {
 .alchemy-rail-btn.ar-unread { opacity: var(--ed-op-loud); }
 .primary-nav .alchemy-rail-btn.ar-unread .ar-label { color: var(--ink-hi) !important; }
 .primary-nav .alchemy-rail-btn.ar-unread .ar-num   { opacity: 1 !important; }
+
+/* Program tab icons — same stroke-icon language as the rail/view navs. */
+.alch-prog-tab-icon { display: inline-flex; align-items: center; align-self: center; opacity: 0.60; }
+.alch-prog-tab-icon svg { width: 15px; height: 15px; display: block; }
+.alch-prog-tab[aria-selected="true"] .alch-prog-tab-icon { opacity: 1; }
