@@ -13123,7 +13123,7 @@ function renderProfile() {
   const themeNow = getTheme();
   const themeNext = themeNow === "light" ? "dark" : "light";
   state.canvas.innerHTML = `
-    <div class="alch-page-intro">Add or edit a team / project / person record. when swf-node is running, edits land locally and gossip to LAN peers; github PR is the fallback.</div>
+    <div class="alch-page-intro">your seal — who you are on this device — and the cohort record editor. when swf-node is running, edits land locally and gossip to LAN peers; github PR is the fallback.</div>
     <header class="alch-profile-head">
       <div class="alch-profile-head-row">
         <button
@@ -13142,6 +13142,12 @@ function renderProfile() {
       </div>
     </header>
 
+    <!-- your seal — identity summary + re-seal disclosure (merged from
+         the identity-pill popup 2026-06); filled by mountResealInline as
+         another .alch-profile-section. Sits FIRST: a profile page leads
+         with who you are; the record editor follows. -->
+    <section id="alch-reseal-host" aria-label="your seal"></section>
+
     ${forkBannerHtml}
 
     <section class="alch-profile-section">
@@ -13158,11 +13164,6 @@ function renderProfile() {
       <div class="alch-pf-editor" id="alch-pf-editor">${editorBody}</div>
       <div id="alch-submit-pr-result" class="alch-submit-pr-result" hidden></div>
     </section>
-
-    <!-- your seal — identity claim / switch / unclaim / resync (merged
-         from the identity-pill popup 2026-06); filled by mountResealInline
-         as another .alch-profile-section so the page reads as one form. -->
-    <section id="alch-reseal-host" aria-label="your seal"></section>
 
     <p class="alch-callout"><strong>profile · v0.2</strong><br/>
     Submitting opens a PR against this repo. Stewards review + merge → cohort sees the change on next

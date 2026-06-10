@@ -13132,6 +13132,8 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   transition: color 160ms ease, border-color 160ms ease;
 }
 .alch-seal-btn:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); }
+/* "re-seal" disclosure open state — reads like a selected tab. */
+.alch-seal-btn[aria-expanded="true"] { color: var(--ed-ink-1); border-color: var(--ed-ink-1); }
 .alch-seal-btn-quiet { border-color: transparent; color: var(--ed-ink-4); }
 .alch-seal-btn-quiet:hover { border-color: var(--ed-rule-2); color: var(--ed-ink-2); }
 /* "break the seal" mid-confirm + resync busy states */
@@ -13151,7 +13153,6 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   font-family: var(--ed-mono); font-size: 11px; line-height: 1.6;
   color: var(--ed-ink-3);
 }
-.alch-seal-section .alch-pf-pick { margin: 0; font-size: 11px; }
 
 /* ── network + metrics ───────────────────────────────────────────── */
 #network-view, #metrics-view { background: var(--ed-bg-0); color: var(--ed-ink-2); }

@@ -290,9 +290,25 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
   if (inline) {
     // Editorial variant — reads as one more section of the profile page
     // (same heading treatment, row grid, and pill buttons as the editor
-    // above it), not as the ember enrollment terminal.
+    // below it). The summary row leads; the switch-identity pickers hide
+    // behind the "re-seal" disclosure so the page doesn't show a second
+    // record-picker next to the editor's own (they're only expanded by
+    // default when nothing is claimed yet). Creating records is the
+    // editor's job (its "add" tab), so no duplicate "+ new" buttons.
     const label = currentResolved?.label || currentId?.display_name || "";
     const initials = labelInitials(label);
+    const pickersHtml = `
+      <div class="alch-seal-group" data-seal-pickers ${claimed ? "hidden" : ""}>
+        ${claimed ? `<p class="alch-seal-lede">re-seal as another shape</p>` : ""}
+        ${selectRows("alch-pf-row")}
+        <div class="alch-seal-btnrow">
+          <button class="alch-seal-btn alch-seal-btn-quiet alch-seal-resync" data-im-resync type="button"
+                  title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
+            <span class="im-resync-label">re-sync the rolls</span>
+          </button>
+        </div>
+      </div>
+    `;
     host.innerHTML = `
       <h3 class="alch-profile-h">your seal</h3>
       ${claimed ? `
@@ -306,31 +322,14 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
           </div>
           <div class="alch-seal-actions">
             <button class="alch-seal-btn" type="button" data-im-action="edit">edit my record</button>
+            <button class="alch-seal-btn" type="button" data-seal-toggle aria-expanded="false">re-seal</button>
             <button class="alch-seal-btn alch-seal-btn-quiet" type="button" data-im-action="unclaim">break the seal</button>
           </div>
         </div>
       ` : `
-        <p class="alch-seal-empty">no seal yet — pick your record below to tell shape rotator who you are. stored on this device, never broadcast.</p>
+        <p class="alch-seal-empty">no seal yet — pick your record to tell shape rotator who you are. stored on this device, never broadcast. not on the rolls? add yourself with the editor below.</p>
       `}
-
-      <div class="alch-seal-group">
-        <p class="alch-seal-lede">${claimed ? "re-seal as another shape" : "find your shape"}</p>
-        ${selectRows("alch-pf-row")}
-      </div>
-
-      <div class="alch-seal-group">
-        <p class="alch-seal-lede">not on the rolls yet</p>
-        <div class="alch-seal-btnrow">
-          <button class="alch-seal-btn" data-create="person"  type="button">+ new person</button>
-          <button class="alch-seal-btn" data-create="team"    type="button">+ new team</button>
-          <button class="alch-seal-btn" data-create="project" type="button">+ new project</button>
-          <button class="alch-seal-btn alch-seal-btn-quiet alch-seal-resync" data-im-resync type="button"
-                  title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
-            <span class="im-resync-label">re-sync the rolls</span>
-          </button>
-        </div>
-        <p class="alch-pf-pick">opens the editor above with a blank shape — submit a PR to join.</p>
-      </div>
+      ${pickersHtml}
     `;
     // Avatar image: src + error fallback wired here (not in the template)
     // so a 404/offline github swaps in the initials without inline JS.
@@ -343,6 +342,16 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
         const wrap = avatarImg.closest(".alch-seal-avatar");
         if (wrap) wrap.innerHTML = `<span class="alch-seal-initials">${escHtml(initials)}</span>`;
       }, { once: true });
+    }
+    // "re-seal" disclosure — show/hide the switch-identity pickers.
+    const toggleBtn = host.querySelector("[data-seal-toggle]");
+    const pickersEl = host.querySelector("[data-seal-pickers]");
+    if (toggleBtn && pickersEl) {
+      toggleBtn.addEventListener("click", () => {
+        const open = pickersEl.hidden;
+        pickersEl.hidden = !open;
+        toggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      });
     }
   } else {
     host.innerHTML = `
