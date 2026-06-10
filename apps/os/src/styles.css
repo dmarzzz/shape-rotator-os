@@ -6628,6 +6628,14 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   font-style: normal;
   font-weight: 750;
 }
+/* Quiet inline qualifier — lets a key row carry the explanatory nuance that
+   previously lived in a duplicate acl-line-note sentence. */
+.acl-line-key-row small {
+  color: rgba(var(--ink-rgb), 0.55);
+  font-family: var(--font-sans);
+  font-size: 8.5px;
+  text-transform: none;
+}
 .acl-line-key-row.is-typed i {
   border-top: 3px solid rgba(226,207,162,0.96);
   box-shadow: 0 0 12px rgba(226,207,162,0.22);
@@ -7753,6 +7761,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   stroke-width: 2px;
 }
 .alch-constellation-stage svg #ac-arrow path { fill: rgba(193,168,114,0.7); }
+/* Soft marker for profile-mention edges so arrowheads fade in proportion to
+   their dotted ink lines instead of floating orphaned next to nodes. */
+.alch-constellation-stage svg #ac-arrow-soft path { fill: rgba(var(--ink-rgb),0.5); }
 /* Domain palette — 4 categories that must be distinguishable at node size, so
    they are 4 separate HUES (red→amber→orchid→teal), warm-anchored on the brand
    oxide-red for the dominant `tee` domain. (Was a near-monochrome rust ramp.) */
@@ -15141,18 +15152,25 @@ html, body {
   stroke-dasharray: none;
   opacity: 0.96;
 }
+/* Profile-mention (unconfirmed) edges. Stroke alpha COMPOSES with the at-rest
+   group opacity below — keep the product near 0.2: the old 0.20 × 0.42 ≈ 0.08
+   rendered the legend's "dotted" tier invisible, leaving orphaned arrowheads
+   floating next to nodes. Still ink (not brass) and ≈4× lighter than records
+   so ~70 mentions read as lead-texture, never a hairball. */
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
-  stroke: rgba(var(--ink-rgb),0.20);
-  stroke-width: 0.65;
-  stroke-dasharray: 1 7;
-  opacity: 0.44;
+  stroke: rgba(var(--ink-rgb),0.45);
+  stroke-width: 0.8;
+  stroke-dasharray: 2 5;
+  opacity: 0.5;
 }
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-status-active {
   stroke-width: 1.15;
 }
+/* Status never uses dash — dash is reserved for the unconfirmed-mention tier,
+   so "dotted" keeps exactly one meaning on the map. Blocked = red + weight. */
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-status-blocked {
-  stroke: rgba(196,64,37,0.70);
-  stroke-dasharray: 5 3;
+  stroke: rgba(196,64,37,0.78);
+  stroke-width: 1.3;
 }
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-status-resolved {
   opacity: 0.34;
@@ -15173,8 +15191,8 @@ html, body {
   stroke-dasharray: 1 7;
 }
 .alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
-  opacity: 0.42;
-  stroke-width: 0.65;
+  opacity: 0.45;
+  stroke-width: 0.8;
 }
 .alch-constellation-stage[data-view="ring"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency {
   opacity: 0.46;
@@ -15185,8 +15203,8 @@ html, body {
   stroke-width: 1.85;
 }
 .alch-constellation-stage[data-view="ring"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
-  opacity: 0.42;
-  stroke-width: 0.72;
+  opacity: 0.45;
+  stroke-width: 0.8;
 }
 .alch-constellation-stage[data-hover-active="true"] svg .ac-edge.ac-edge-dependency.is-hot {
   stroke-width: 1.9;
@@ -15208,8 +15226,8 @@ html, body {
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy.ac-edge-meaning-collaboration,
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy.ac-edge-meaning-ecosystem,
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy.ac-edge-meaning-unknown {
-  stroke: rgba(var(--ink-rgb),0.20);
-  stroke-dasharray: 1 7;
+  stroke: rgba(var(--ink-rgb),0.45);
+  stroke-dasharray: 2 5;
 }
 .acl-swatch-dependency {
   background: rgba(193,168,114,0.65);

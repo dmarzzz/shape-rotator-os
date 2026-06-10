@@ -4720,8 +4720,12 @@ function constArcPath(cx, cy, r, startAngle, endAngle) {
 // Lay wells out on an adaptive grid (favoring more columns on the wide
 // canvas) so they never overlap regardless of cluster count, then place
 // each well's teams: keystone (highest in-degree) at the centre, the rest
-// on a ring inside the well. Wells are equal circles; size is not allowed to
-// imply project importance because the source model does not provide that.
+// on a ring inside the well. Well radius scales modestly with MEMBERSHIP
+// (sqrt-bounded occupancy) — singleton wells stop spending a grid cell of
+// dead space on one dot, and dense wells gain node/label breathing room.
+// Size still must not imply project importance (the source model does not
+// provide that); member count is already encoded in the well stroke weight,
+// so radius tracking the same honest quantity adds no new claim.
 function placeConstellation(model, W, H) {
   const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const N = Math.max(1, model.wellsDef.length);
@@ -4737,7 +4741,9 @@ function placeConstellation(model, W, H) {
     const rowPad = (cols - rowCount) * cellW / 2;
     const cx = rowPad + col * cellW + cellW / 2;
     const cy = row * cellH + cellH / 2;
-    const wellR = Math.max(58, Math.min(cellW, cellH) * 0.42);
+    const maxWellR = Math.min(cellW, cellH) * 0.46;
+    const occupancy = Math.sqrt(Math.min(w.members.length || 1, 8) / 8);
+    const wellR = Math.max(46, maxWellR * (0.55 + 0.45 * occupancy));
     const nodeLabelGuardY = cy - wellR + Math.min(48, wellR * 0.42);
     wells.push({ id: w.id, label: w.label, members: w.members, cx, cy, r: wellR });
     const ordered = w.members.slice().sort((a, b) => (model.indegree.get(b) || 0) - (model.indegree.get(a) || 0));
@@ -5364,7 +5370,7 @@ function renderConstellation() {
     const cls = `ac-edge ac-edge-dependency ac-edge-meaning-${dependencySafeToken(meaning.key)} ac-edge-source-${e.normalized ? "record" : "legacy"} ac-edge-status-${dependencySafeToken(e.status)}${e.normalized ? " is-source-backed" : " is-profile-link"}${lensMatchClass}${interestClass}`;
     const aria = `${model.byRecordId.get(e.from)?.name || e.from} ${meaning.label}: ${e.relation_label || "links to"} ${model.byRecordId.get(e.to)?.name || e.to}`;
     const d = `M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${qx.toFixed(1)} ${qy.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`;
-    return `<path class="${cls}" data-a="${escAttr(e.from)}" data-b="${escAttr(e.to)}" data-dep-id="${escAttr(e.id || "")}" aria-hidden="true" d="${escAttr(d)}" marker-end="url(#ac-arrow)"/>`
+    return `<path class="${cls}" data-a="${escAttr(e.from)}" data-b="${escAttr(e.to)}" data-dep-id="${escAttr(e.id || "")}" aria-hidden="true" d="${escAttr(d)}" marker-end="url(#${e.normalized ? "ac-arrow" : "ac-arrow-soft"})"/>`
       + `<path class="ac-edge-hit" data-a="${escAttr(e.from)}" data-b="${escAttr(e.to)}" data-dep-id="${escAttr(e.id || "")}" role="button" tabindex="0" aria-label="${escAttr(aria)}" d="${escAttr(d)}"/>`;
   }).join("");
 
@@ -5382,8 +5388,12 @@ function renderConstellation() {
     const sourceClass = `${typedConnected.has(team.record_id) ? " is-source-backed" : ""}${profileLinkConnected.has(team.record_id) ? " is-profile-link" : ""}${unclusteredIds.has(team.record_id) ? " is-unclustered" : ""}${journeyAssessed(team) ? "" : " is-journey-missing"}`;
     const gapCount = profileLinkDegree.get(team.record_id) || 0;
     const typedCount = typedRecordDegree.get(team.record_id) || 0;
+    // Confirmed-record halo: fixed offset so it reads as one clean ring, with
+    // stroke WEIGHT carrying the record count (a 0.35px-per-record radius ramp
+    // was indistinguishable between 1 and 6 records). Exact count stays in the
+    // title + inspector.
     const typedRing = typedCount
-      ? `<circle class="ac-node-record-ring" r="${(r + 2.5 + Math.min(typedCount, 6) * 0.35).toFixed(1)}"><title>${escHtml(`${typedCount} relationship record${typedCount === 1 ? "" : "s"}`)}</title></circle>`
+      ? `<circle class="ac-node-record-ring" r="${(r + 3.2).toFixed(1)}" style="stroke-width:${(0.8 + Math.min(typedCount, 5) * 0.3).toFixed(2)}"><title>${escHtml(`${typedCount} relationship record${typedCount === 1 ? "" : "s"}`)}</title></circle>`
       : "";
     const bridgeRank = bridgeRanks.get(team.record_id);
     const nodeAccentStyle = interestCtx.active && (interestCtx.coreIds.has(team.record_id) || interestCtx.neighborIds.has(team.record_id))
@@ -5393,7 +5403,7 @@ function renderConstellation() {
     const labelAnchor = radialLabel
       ? (Math.cos(angle) > 0.25 ? "start" : (Math.cos(angle) < -0.25 ? "end" : "middle"))
       : "middle";
-    const labelGap = viewMode === "map" ? 17 : 13;
+const labelGap = viewMode === "map" ? 17 : 13;
     // Dense wells: alternate the radial label distance by rank so neighboring
     // secondary labels land on two radii instead of one collision ring.
     const labelOut = viewMode === "map" && wellSize >= 5 && rank > 0 && rank % 2 === 0 ? 13 : 6;
@@ -5416,13 +5426,14 @@ function renderConstellation() {
 
   // Legend is the SAME in every lens — color = domain always. Cluster identity
   // is read from the labeled wells, not the legend, so nothing swaps.
+  // One legend element: the swatch rows carry the nuance inline (the old
+  // acl-line-note sentence restated the same solid/dotted fact a second time).
   const legend = `
     <div class="acl-line-key">
       <strong>Line source</strong>
-      <span class="acl-line-key-row is-typed"><i></i><b>relationship record</b></span>
-      <span class="acl-line-key-row is-profile"><i></i><b>profile mention</b></span>
-    </div>
-    <div class="acl-line-note">Solid = a relationship record with type, status, evidence, or next action. Dotted = a project profile mention that needs confirmation.</div>`;
+      <span class="acl-line-key-row is-typed"><i></i><b>relationship record</b> <small>typed, with status + evidence</small></span>
+      <span class="acl-line-key-row is-profile"><i></i><b>profile mention</b> <small>needs confirmation</small></span>
+    </div>`;
 
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">
@@ -5443,6 +5454,9 @@ function renderConstellation() {
             <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <marker id="ac-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z"/>
+                </marker>
+                <marker id="ac-arrow-soft" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
                   <path d="M0,0 L10,5 L0,10 z"/>
                 </marker>
               </defs>
