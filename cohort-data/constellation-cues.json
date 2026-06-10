@@ -1,72 +1,387 @@
 [
   {
-    "teams": ["conclave"],
-    "clusters": ["agentic-dev-platform", "agents"],
+    "teams": [
+      "conclave"
+    ],
+    "clusters": [
+      "agentic-dev-platform",
+      "agents"
+    ],
     "label": "Conclave project intro",
     "source": "private-vault:project-intros-agents-day3-2026-05-21:95",
     "excerpt": "Conclave is described as a confidential layer for a cohort, deriving signals from participant-local data."
   },
   {
-    "teams": ["teleport-router", "conclave", "contexto"],
-    "clusters": ["agentic-dev-platform", "agents"],
+    "teams": [
+      "teleport-router",
+      "conclave",
+      "contexto"
+    ],
+    "clusters": [
+      "agentic-dev-platform",
+      "agents"
+    ],
     "label": "agentic map discussion",
     "source": "private-vault:shape-rotator-project-map-guests-2026-05-22:990",
     "excerpt": "Conclave, context, and router were called out as having strong synergy around input, configuration, and ingestion."
   },
   {
-    "teams": ["bitrouter", "tinycloud"],
-    "clusters": ["agentic-dev-platform", "confidential-ai-ops"],
+    "teams": [
+      "bitrouter",
+      "tinycloud"
+    ],
+    "clusters": [
+      "agentic-dev-platform",
+      "confidential-ai-ops"
+    ],
     "label": "model-routing need",
     "source": "private-vault:shape-rotator-project-map-guests-2026-05-22:656",
     "excerpt": "Bitrouter was framed as a module for routing through frontier, private, or local inference without coupling to one provider."
   },
   {
-    "teams": ["jjhub"],
-    "clusters": ["agentic-dev-platform"],
+    "teams": [
+      "jjhub"
+    ],
+    "clusters": [
+      "agentic-dev-platform"
+    ],
     "label": "JJHub definition",
     "source": "private-vault:shape-rotator-project-map-guests-2026-05-22:853",
     "excerpt": "JJHub was described as a GitHub-like system with a large AI-built test corpus, still in private alpha."
   },
   {
-    "teams": ["teesql", "tinycloud"],
-    "clusters": ["dstack", "confidential-ai-ops", "local-first-networking"],
+    "teams": [
+      "teesql",
+      "tinycloud"
+    ],
+    "clusters": [
+      "dstack",
+      "confidential-ai-ops",
+      "local-first-networking"
+    ],
     "label": "confidential data stack",
     "source": "private-vault:shape-rotator-project-map-guests-2026-05-22:617",
     "excerpt": "TeeSQL was described as hosting Postgres high-availability clusters inside confidential virtual machines."
   },
   {
-    "teams": ["teesql", "bitrouter", "signalstack", "tinycloud"],
-    "clusters": ["dstack", "confidential-ai-ops", "local-first-networking"],
+    "teams": [
+      "teesql",
+      "bitrouter",
+      "signalstack",
+      "tinycloud"
+    ],
+    "clusters": [
+      "dstack",
+      "confidential-ai-ops",
+      "local-first-networking"
+    ],
     "label": "privacy-stack synergy",
     "source": "private-vault:shape-rotator-project-map-guests-2026-05-22:635",
     "excerpt": "TeeSQL, router, and SignalStack were discussed as complementary pieces of a privacy-oriented stack."
   },
   {
-    "teams": ["signalstack"],
-    "clusters": ["confidential-ai-ops"],
+    "teams": [
+      "signalstack"
+    ],
+    "clusters": [
+      "confidential-ai-ops"
+    ],
     "label": "SignalStack intro",
     "source": "private-vault:project-intros-local-private-first-phil-2026-05-20:986",
     "excerpt": "SignalStack was presented as privacy-preserving AI services for Signal, including translation and group-chat tools."
   },
   {
-    "teams": ["teesql", "dstack"],
-    "clusters": ["dstack", "confidential-ai-ops"],
+    "teams": [
+      "teesql",
+      "dstack"
+    ],
+    "clusters": [
+      "dstack",
+      "confidential-ai-ops"
+    ],
     "label": "TEE substrate discussion",
     "source": "private-vault:tee-dstack-easytee-phala:1271",
     "excerpt": "The TEE discussion notes multiple teams reinventing similar DStack, measurement, and attested TLS pieces."
   },
   {
-    "teams": ["elocute"],
-    "clusters": ["consumer-behavior-apps"],
+    "teams": [
+      "elocute"
+    ],
+    "clusters": [
+      "consumer-behavior-apps"
+    ],
     "label": "Elocute project intro",
     "source": "private-vault:elocute-2026-05-26:68",
     "excerpt": "Elocute was introduced as a private AI speaking-practice system for short articulation sessions and feedback."
   },
   {
-    "teams": ["crossroads", "wikigen"],
-    "clusters": ["market-mechanism-research", "consumer-behavior-apps"],
+    "teams": [
+      "crossroads",
+      "wikigen"
+    ],
+    "clusters": [
+      "market-mechanism-research",
+      "consumer-behavior-apps"
+    ],
     "label": "PMF workshop context",
     "source": "private-vault:wikigen-crossroads-gil-pmf-2026-05-26:743",
     "excerpt": "The PMF workshop emphasized retention, payment, and repeatable customer segments over broad narrative appeal."
+  },
+  {
+    "teams": [
+      "daedalus"
+    ],
+    "label": "prediction-market hedging agent",
+    "source": "private-vault:day1-project-intros-notes-2026-05-19",
+    "excerpt": "Presented an agent that decomposes a portfolio into risk factors, selects matching prediction-market events via simulation, and executes hedges through an RFQ layer with protected order flow discussed for the settlement leg."
+  },
+  {
+    "teams": [
+      "feedling"
+    ],
+    "label": "behavior modulation via agents",
+    "source": "private-vault:day1-project-intros-notes-2026-05-19",
+    "excerpt": "Presented a system treating the user as a black box steered by screen-capture inputs and rubric-scored notifications, with encrypted friend status sharing and attested-enclave upgrade approvals as the privacy backbone."
+  },
+  {
+    "teams": [
+      "etherea"
+    ],
+    "label": "live conversation visualizer",
+    "source": "private-vault:day1-project-intros-notes-2026-05-19",
+    "excerpt": "Presented a real-time speech-to-visual stage system with evidence that live visualization raises audience engagement, plus its inference, compositing, and self-improving shader toolchain."
+  },
+  {
+    "teams": [
+      "shape-rotator-os"
+    ],
+    "label": "cohort calendar bot in TEE",
+    "source": "private-vault:dstack-intro-salon-2026-05-20",
+    "excerpt": "The cohort's Matrix calendar bot was mentioned as one of the dev-mode sub-apps running inside the multiplexed dstack web-host CVM, a candidate for live promotion to attested mode."
+  },
+  {
+    "teams": [
+      "pramaana"
+    ],
+    "label": "Derive-then-destroy quantum-safe identity",
+    "source": "private-vault:project-intros-local-private-first-phil-2026-05-20",
+    "excerpt": "Verified ID data becomes one-time entropy for deterministic post-quantum keys, leaving only an on-chain commitment after the source data is erased."
+  },
+  {
+    "teams": [
+      "tinycloud"
+    ],
+    "label": "Signature-delegated sovereign data spaces",
+    "source": "private-vault:project-intros-local-private-first-phil-2026-05-20",
+    "excerpt": "A user key creates a data space and delegates scoped capabilities down a signed chain so apps, backends, and agents all act under the owner's authority."
+  },
+  {
+    "teams": [
+      "teesql"
+    ],
+    "label": "Dev-proof Postgres inside enclaves",
+    "source": "private-vault:project-intros-local-private-first-phil-2026-05-20",
+    "excerpt": "A high-availability Postgres cluster in confidential VMs uses attestation-gated membership and on-chain control signals so even the operators provably cannot touch raw data."
+  },
+  {
+    "teams": [
+      "signalstack"
+    ],
+    "label": "Enclave AI bots for messengers",
+    "source": "private-vault:project-intros-local-private-first-phil-2026-05-20",
+    "excerpt": "Translation, transcription, and chat bots run inference inside TEEs so adding AI to an encrypted messenger does not reintroduce a plaintext middlebox."
+  },
+  {
+    "teams": [
+      "tinycloud"
+    ],
+    "label": "agent outreach CRM demo",
+    "source": "private-vault:dumb-agent-tricks-2026-05-21",
+    "excerpt": "A kanban-style outreach tool with contact enrichment, email verification, and agent-drafted sends was demoed and offered to cohort teams with outreach needs."
+  },
+  {
+    "teams": [
+      "teesql"
+    ],
+    "label": "coordinator-of-agents cluster workflow",
+    "source": "private-vault:dumb-agent-tricks-2026-05-21",
+    "excerpt": "A coordinator model spawns, monitors, and cross-reviews worker agents across git worktrees for cluster development, including catching hallucinated on-chain spending."
+  },
+  {
+    "teams": [
+      "teleport-router"
+    ],
+    "label": "router as sole MCP",
+    "source": "private-vault:dumb-agent-tricks-2026-05-21",
+    "excerpt": "One presenter noted the cohort's router was the only MCP wired into an otherwise vanilla coding-agent setup, used for routing posts to the shared channel."
+  },
+  {
+    "teams": [
+      "contexto"
+    ],
+    "label": "agent context indexer intro",
+    "source": "private-vault:project-intros-agents-day3-2026-05-21",
+    "excerpt": "Introduced a context engine that clusters agent episodes into a hierarchical mindmap and deterministically re-injects only the currently relevant subtree."
+  },
+  {
+    "teams": [
+      "conclave"
+    ],
+    "label": "confidential cohort signal layer",
+    "source": "private-vault:project-intros-agents-day3-2026-05-21",
+    "excerpt": "Pitched a TEE-backed always-on agent that mines participants' private logs and surfaces only derived signals to cohort organizers."
+  },
+  {
+    "teams": [
+      "teleport-router"
+    ],
+    "label": "ambient work-sharing MCP router",
+    "source": "private-vault:project-intros-agents-day3-2026-05-21",
+    "excerpt": "Demoed an MCP server whose dynamic tool description turns coding sessions into scoped feed posts and surfaces relevant peers' work in-session."
+  },
+  {
+    "teams": [
+      "jjhub"
+    ],
+    "label": "durable React workflow orchestration",
+    "source": "private-vault:project-intros-agents-day3-2026-05-21",
+    "excerpt": "Walked through a durable orchestrator that renders agent workflows as React trees with crash recovery, review loops, and time-travel debugging."
+  },
+  {
+    "teams": [
+      "tinycloud",
+      "teesql"
+    ],
+    "label": "Confidential Postgres complements data substrate",
+    "source": "private-vault:shape-rotator-project-map-guests-2026-05-22",
+    "excerpt": "The data-sovereignty platform stores user-owned data in Postgres but deliberately drew its scope boundary before confidential hosting, making the TEE-hosted high-availability Postgres clusters an immediate, mutually acknowledged complement."
+  },
+  {
+    "teams": [
+      "tinycloud",
+      "bitrouter"
+    ],
+    "label": "Sovereign inference routing module",
+    "source": "private-vault:shape-rotator-project-map-guests-2026-05-22",
+    "excerpt": "The application-layer team identified inference routing as a missing module in its stack, wanting to decouple its agents from any single provider and route progressively toward more private, local, and sovereign models."
+  },
+  {
+    "teams": [
+      "dcnet",
+      "bitrouter"
+    ],
+    "label": "IP anonymization meets model routing",
+    "source": "private-vault:shape-rotator-project-map-guests-2026-05-22",
+    "excerpt": "Offering the network-level IP-anonymization work as an add-on to the inference router was floated as a natural pairing, sharpening the open question of whether the router's edge is cheaper inference, private inference, or both."
+  },
+  {
+    "teams": [
+      "conclave",
+      "contexto",
+      "teleport-router"
+    ],
+    "label": "End-to-end agentic pipeline",
+    "source": "private-vault:shape-rotator-project-map-guests-2026-05-22",
+    "excerpt": "Participants observed these three projects chain naturally into a single end-user product spanning configuration and input, long-horizon context ingestion, and serendipity-surfacing output delivery — the agentic version of the human connector role in a community."
+  },
+  {
+    "teams": [
+      "tinycloud",
+      "teesql",
+      "bitrouter"
+    ],
+    "label": "privacy stack integration synergies",
+    "source": "private-vault:friday-shaw-greg-2026-05-22",
+    "excerpt": "TinyCloud identified TEE-hosted Postgres and model-routing projects as natural complements worth integrating rather than rebuilding in-house, reaffirming its choice to draw clear scope boundaries and lean on cohort neighbors."
+  },
+  {
+    "teams": [
+      "elizaos"
+    ],
+    "label": "agentic OS full-stack demo",
+    "source": "private-vault:friday-shaw-greg-2026-05-22",
+    "excerpt": "Shaw presented an open-source agentic operating system spanning local and cloud models, role-gated multi-user security, cross-platform identity graphs, and continuously learning robotics, all published in one repository designed for others to fork and build businesses on."
+  },
+  {
+    "teams": [
+      "jjhub"
+    ],
+    "label": "workflow engine fit signal",
+    "source": "private-vault:friday-shaw-greg-2026-05-22",
+    "excerpt": "The team doubled down on its agent workflow engine after users loudly demanded fixes when things broke instead of silently churning, reading that frustration as an early product-fit signal, while framing its agent-native code platform as a settlement layer that complements rather than replaces existing hosting."
+  },
+  {
+    "teams": [
+      "elocute"
+    ],
+    "label": "friction as product philosophy",
+    "source": "private-vault:elocute-2026-05-26",
+    "excerpt": "The presenter argued that deliberately adding friction back into a consumer app is the point — private, slightly effortful daily speaking practice builds the habit that frictionless feeds erode."
+  },
+  {
+    "teams": [
+      "elocute"
+    ],
+    "label": "TEE privacy as premium tier",
+    "source": "private-vault:elocute-2026-05-26",
+    "excerpt": "Cohort members suggested that a TEE-backed private mode could be the version users would pay a premium for, given how personal speaking-practice data can get."
+  },
+  {
+    "teams": [
+      "crossroads"
+    ],
+    "label": "policy-encumbered cross-chain exchange",
+    "source": "private-vault:wikigen-crossroads-gil-pmf-2026-05-26",
+    "excerpt": "The Crossroads intro framed a cross-chain exchange where the signing key itself enforces policy, so withdrawals execute only when verified chain state satisfies encoded conditions rather than relying on a bridge operator or validator set."
+  },
+  {
+    "teams": [
+      "crossroads"
+    ],
+    "label": "solver economics reality check",
+    "source": "private-vault:wikigen-crossroads-gil-pmf-2026-05-26",
+    "excerpt": "Mentor feedback pressed the team to validate whether cross-chain swap infrastructure is a viable market right now, citing thin solver margins across the industry and pointing toward agentic payments and coordination as a less crowded direction."
+  },
+  {
+    "teams": [
+      "teleport-router",
+      "feedling"
+    ],
+    "label": "cross-team interview practice",
+    "source": "private-vault:icp-user-interviews-2026-05-27",
+    "excerpt": "The presenter credited time spent supporting another cohort team's user-interview research with building the interviewing muscle and customer empathy he now applies to his own segment decisions."
+  },
+  {
+    "teams": [
+      "etherea",
+      "tinycloud"
+    ],
+    "label": "live demo feedback loop",
+    "source": "private-vault:icp-user-interviews-2026-05-27",
+    "excerpt": "Cohort members workshopped concrete legibility fixes for a voice-driven visual demo, including always-on captions and a seeded opening performance to lower the barrier for first participants."
+  },
+  {
+    "teams": [
+      "teesql"
+    ],
+    "label": "RA-TLS inside database stack",
+    "source": "private-vault:tee-dstack-easytee-phala",
+    "excerpt": "The TeeSQL design already performs an RA-TLS handshake between the CVM and the database leader, making it a natural early adopter for the proposed attested-TLS replacement layer."
+  },
+  {
+    "teams": [
+      "teesql"
+    ],
+    "label": "on-chain CVM cluster membership",
+    "source": "private-vault:tee-dstack-easytee-phala",
+    "excerpt": "A cohort builder demonstrated a cluster-membership contract that distributes shared encryption and WireGuard keys over blockchain messaging so CVMs self-assemble into an authenticated peer network beneath any service-mesh layer."
+  },
+  {
+    "teams": [
+      "elizaos"
+    ],
+    "label": "agent OS as Debian fork",
+    "source": "private-vault:dstack-hangout",
+    "excerpt": "The team is building an agent operating system as a minimal Debian derivative, using Tails as a reference, and was pointed to mkosi to avoid maintaining a full fork."
   }
 ]

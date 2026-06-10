@@ -132,6 +132,7 @@ function _writeSurfaceLs(surface) {
       cohort_vocab: surface.cohort_vocab || {},
       calendar: surface.calendar || null,
       constellation_cues: surface.constellation_cues || [],
+      session_insights: surface.session_insights || [],
     };
     localStorage.setItem(SURFACE_LS_KEY, JSON.stringify(payload));
   } catch {
@@ -140,7 +141,7 @@ function _writeSurfaceLs(surface) {
 }
 
 function emptyShape() {
-  return { teams: [], people: [], clusters: [], dependencies: [], program: [], events: [], asks: [], cohort_vocab: {}, calendar: null, constellation_cues: [] };
+  return { teams: [], people: [], clusters: [], dependencies: [], program: [], events: [], asks: [], cohort_vocab: {}, calendar: null, constellation_cues: [], session_insights: [] };
 }
 
 // Drop records that repeat a record_id (keeps the first), so a duplicate in
@@ -173,6 +174,10 @@ function normalize(data) {
     asks:         Array.isArray(data?.asks)     ? data.asks     : [],
     cohort_vocab: (data?.cohort_vocab && typeof data.cohort_vocab === "object") ? data.cohort_vocab : {},
     constellation_cues: Array.isArray(data?.constellation_cues) ? data.constellation_cues : [],
+    // Distilled session readouts (public-safe, hardcoded via
+    // scripts/ingest-session-readouts.mjs). Not rendered yet — passed
+    // through so a future insights surface needs no data-plane change.
+    session_insights: Array.isArray(data?.session_insights) ? data.session_insights : [],
     // Pre-baked calendar bundle from the GH `cohort-data/program/calendar.json`
     // path or the fixture's `calendar` field. The renderer's `loadCalendar()`
     // tries the live Phala URL first and falls back to this. Previously this
@@ -276,6 +281,15 @@ async function loadFromGithub() {
   } catch (e) {
     console.warn("[cohort-source] constellation-cues.json fetch/parse failed:", e?.message || e);
     out.constellation_cues = [];
+  }
+
+  try {
+    const insightsRaw = await fetchRaw("cohort-data/session-insights.json");
+    const insights = JSON.parse(insightsRaw);
+    out.session_insights = Array.isArray(insights) ? insights : [];
+  } catch (e) {
+    console.warn("[cohort-source] session-insights.json fetch/parse failed:", e?.message || e);
+    out.session_insights = [];
   }
 
   const normalized = normalize(out);

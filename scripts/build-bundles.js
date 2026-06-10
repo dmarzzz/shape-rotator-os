@@ -672,6 +672,12 @@ function build() {
   // team/line/ecosystem so the renderer does not own transcript facts as code.
   const constellation_cues = loadJsonArray(path.join(COHORT_DIR, "constellation-cues.json"), "constellation-cues.json");
 
+  // Distilled per-session readouts hardcoded from private-vault transcripts
+  // via scripts/ingest-session-readouts.mjs. Public-safe by construction —
+  // the raw transcript never enters the repo; vault_id joins back to the
+  // held-private timeline anchors in calendar-transcript-matches.js.
+  const session_insights = loadJsonArray(path.join(COHORT_DIR, "session-insights.json"), "session-insights.json");
+
   // Cohort-wide controlled vocab + UI configuration the renderer needs at
   // boot. Shipped alongside records so the atlas / constellation / asks UIs
   // have a stable filter set even when offline.
@@ -693,6 +699,7 @@ function build() {
     team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar }),
     cohort_vocab,
     constellation_cues,
+    session_insights,
   };
   return out;
 }
@@ -732,7 +739,7 @@ function main() {
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
   fs.writeFileSync(OUT_PATH, json);
   const calTabs = built.calendar?.tabs ? Object.keys(built.calendar.tabs).length : 0;
-  console.log(`[build-bundles] wrote ${OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.dependencies.length} dependencies, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.constellation_cues.length} constellation cues, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
+  console.log(`[build-bundles] wrote ${OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.dependencies.length} dependencies, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.constellation_cues.length} constellation cues, ${built.session_insights.length} session insights, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
 }
 
 main();
