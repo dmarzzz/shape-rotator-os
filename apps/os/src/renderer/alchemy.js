@@ -5185,14 +5185,17 @@ function renderConstellation() {
     const labelAnchor = radialLabel
       ? (Math.cos(angle) > 0.25 ? "start" : (Math.cos(angle) < -0.25 ? "end" : "middle"))
       : "middle";
-    // Stagger alternate secondary labels in dense wells so neighbors on the
-    // ring don't share a baseline and collide (worst at the well's south pole).
-    const labelGap = viewMode === "map" ? (wellSize > 3 && rank > 0 && rank % 2 === 0 ? 24 : 17) : 13;
+    const labelGap = viewMode === "map" ? 17 : 13;
+    // Dense wells: alternate the radial label distance by rank so neighboring
+    // secondary labels land on two radii instead of one collision ring.
+    // (Same mechanism as freddmannen's tree — staggers east/west labels too,
+    // unlike a baseline-gap stagger, and keeps the two renderers cherry-pickable.)
+    const labelOut = viewMode === "map" && wellSize >= 5 && rank > 0 && rank % 2 === 0 ? 13 : 6;
     const labelX = radialLabel
-      ? (Math.cos(angle) > 0.25 ? r + 6 : (Math.cos(angle) < -0.25 ? -r - 6 : 0))
+      ? (Math.cos(angle) > 0.25 ? r + labelOut : (Math.cos(angle) < -0.25 ? -r - labelOut : 0))
       : 0;
     const labelY = radialLabel
-      ? (Math.sin(angle) < -0.25 ? -r - 8 : (Math.sin(angle) > 0.25 ? r + labelGap : 3))
+      ? (Math.sin(angle) < -0.25 ? -r - 8 - (labelOut - 6) : (Math.sin(angle) > 0.25 ? r + labelGap + (labelOut - 6) : 3))
       : r + labelGap;
     const labelLines = constNodeLabelLines(team, viewMode);
     const fullLabel = constText(team.name || team.record_id);
