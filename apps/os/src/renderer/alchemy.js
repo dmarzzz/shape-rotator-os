@@ -83,9 +83,9 @@ const CONSTELLATION_TIMELINE_LS_KEY = "srwk:constellation_timeline_idx_v1";
 // once that integration lands; rather than rip out the code and re-write it
 // from git history, the surfaces are simply unwired. See the "feed off"
 // section below this constant for the disabled hooks.
-// `collab` is hidden from the rail and represented as a Constellation
-// sub-view, but remains routeable as a saved-mode/external-jump alias.
-const ALCHEMY_MODES   = ["membrane", "shapes", "pulse", "constellation", "intel", "collab", "calendar", "profile", "onboarding", "program", "asks", "context"];
+// `collab` is a Constellation sub-view, not a standalone OS mode. Legacy
+// saved locations that still say "collab" are normalized on restore.
+const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "intel", "calendar", "profile", "onboarding", "program", "asks", "context"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 
 const WEEKS_TOTAL = 10;
@@ -219,8 +219,10 @@ export function mount(container) {
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
     if (saved === "collab") {
-      state.mode = "collab";
+      state.mode = "constellation";
       state.constellationMode = "collab";
+      localStorage.setItem(ALCHEMY_LS_KEY, "constellation");
+      localStorage.setItem(CONST_MODE_LS_KEY, "collab");
     } else if (saved && ALCHEMY_MODES.includes(saved)) {
       state.mode = saved;
     }
@@ -231,15 +233,13 @@ export function mount(container) {
     // grid instead of a dead tab. Restore symmetry when the feed comes
     // back as a teleport-router surface.
     if (saved === "feed")      { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
+    if (saved === "pulse")     { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
     // Defensive: if state.mode somehow came in as "feed" from a non-
     // localStorage path while FEED_DISABLED is true, reroute to shapes
     // so we don't try to render a tab that no longer has a rail button.
     if (FEED_DISABLED && state.mode === "feed") {
       state.mode = "shapes";
       try { localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); } catch {}
-    }
-    if (state.mode === "constellation" && state.constellationMode === "collab") {
-      state.mode = "collab";
     }
     // One-time membrane intro: on this preview branch, first launch lands
     // every user on the membrane mode regardless of prior preference so the
@@ -263,13 +263,32 @@ export function mount(container) {
     if (dRaw) {
       const d = JSON.parse(dRaw);
       if (d?.recordId) state.detailRecordId = String(d.recordId);
-      if (d?.returnMode && ALCHEMY_MODES.includes(d.returnMode)) state.detailReturnMode = d.returnMode;
+      if (d?.returnMode === "collab") {
+        state.detailReturnMode = "constellation";
+        state.constellationMode = "collab";
+        localStorage.setItem(CONST_MODE_LS_KEY, "collab");
+        if (state.detailRecordId) {
+          localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: state.detailRecordId, returnMode: "constellation" }));
+        }
+      } else if (d?.returnMode === "pulse") {
+        state.detailReturnMode = "shapes";
+        if (state.detailRecordId) {
+          localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: state.detailRecordId, returnMode: "shapes" }));
+        }
+      } else if (d?.returnMode && ALCHEMY_MODES.includes(d.returnMode)) {
+        state.detailReturnMode = d.returnMode;
+      }
     }
   } catch {}
   loadProfile();
   loadEventsCache();
   if (state.container) {
     state.container.dataset.alchModeCurrent = state.mode;
+    if (state.mode === "constellation") {
+      state.container.dataset.constModeCurrent = constNormalizeConstellationMode(state.constellationMode);
+    } else {
+      delete state.container.dataset.constModeCurrent;
+    }
     syncMembraneMenuChrome();
   }
   // Background feed refresh — interval gated on the feed tab being open
@@ -288,7 +307,7 @@ export function mount(container) {
 
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.addEventListener("click", () => {
-      const next = btn.dataset.alchMode;
+      const next = ALCHEMY_MODES.includes(btn.dataset.alchMode) ? btn.dataset.alchMode : null;
       if (!next) return;
       if (state.mode === "membrane") setMembraneMenuOpen(false);
       // Clicking any rail mode also exits the detail page if it's open.
@@ -345,14 +364,23 @@ export function notifyDataChanged() {
 // reads back the current one. A "location" inside the OS tab is just a
 // mode plus an optional open record-detail id.
 export function getLocation() {
-  return { mode: state.mode, recordId: state.detailRecordId || null };
+  const mode = state.mode === "collab" ? "constellation" : state.mode;
+  const loc = { mode, recordId: state.detailRecordId || null };
+  if (mode === "constellation") loc.constellationMode = constNormalizeConstellationMode(state.constellationMode);
+  return loc;
 }
 
 // Apply a location: set the mode (and optionally open a record detail),
 // persist it the same way the in-app handlers do, then repaint. Safe to
 // call before mount — it primes localStorage so the lazy mount lands here.
 export function applyLocation(loc = {}) {
-  const mode = ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode;
+  const legacyCollab = loc.mode === "collab";
+  const legacyPulse = loc.mode === "pulse";
+  const mode = legacyCollab ? "constellation" : (legacyPulse ? "shapes" : (ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode));
+  if (legacyCollab || (mode === "constellation" && loc.constellationMode)) {
+    state.constellationMode = legacyCollab ? "collab" : constNormalizeConstellationMode(loc.constellationMode);
+    try { localStorage.setItem(CONST_MODE_LS_KEY, state.constellationMode); } catch {}
+  }
   if (loc.recordId) {
     state.mode = mode;
     state.detailReturnMode = mode;
@@ -559,6 +587,11 @@ function render(opts = {}) {
   // (membrane.css especially) can target the right surface.
   if (state.container) {
     state.container.dataset.alchModeCurrent = state.mode;
+    if (state.mode === "constellation") {
+      state.container.dataset.constModeCurrent = constNormalizeConstellationMode(state.constellationMode);
+    } else {
+      delete state.container.dataset.constModeCurrent;
+    }
     // Mirror the open record-detail id so the tab system can observe
     // navigation changes via a MutationObserver (no event plumbing).
     state.container.dataset.alchDetail = state.detailRecordId || "";
@@ -616,7 +649,6 @@ function renderModeContent() {
     else if (state.mode === "pulse") renderPulse();
     else if (state.mode === "constellation") renderConstellation();
     else if (state.mode === "intel") renderIntel(state.canvas);
-    else if (state.mode === "collab") renderCollab();
     else if (state.mode === "calendar") renderCalendar();
     else if (state.mode === "profile") renderProfile();
     else if (state.mode === "onboarding") renderOnboarding();
@@ -633,13 +665,14 @@ function renderModeContent() {
       if (state.mode === "profile") wireProfileForm();
       // Kick a feed refresh on entry; the timer keeps it warm in background.
       if (state.mode === "feed") refreshFeed({ source: "mode-enter" });
-      // #248: route collab-mode constellation through the collab wiring.
       if (state.mode === "constellation") {
-        if (constNormalizeConstellationMode(state.constellationMode) === "collab") wireCollab();
+        if (constNormalizeConstellationMode(state.constellationMode) === "collab") {
+          wireConstellationModeNav();
+          wireCollab();
+        }
         else wireConstellationHover();
       }
       if (state.mode === "intel") wireIntel(state.canvas);
-      if (state.mode === "collab") wireCollab();
       if (state.mode === "calendar") wireCalendar();
       if (state.mode === "onboarding") wireOnboarding();
       if (state.mode === "program") wireProgram();
@@ -1170,13 +1203,21 @@ function computeMembraneData() {
 // "open network →" / "open calendar →" buttons jump into the legacy mode.
 // Public hook used by membrane/index.js.
 window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
+  if (mode === "collab") {
+    state.mode = "constellation";
+    state.constellationMode = "collab";
+    try {
+      localStorage.setItem(ALCHEMY_LS_KEY, "constellation");
+      localStorage.setItem(CONST_MODE_LS_KEY, "collab");
+    } catch {}
+    syncRailSelection();
+    render();
+    return;
+  }
   if (!ALCHEMY_MODES.includes(mode)) return;
   state.mode = mode;
   // Optional: land on a specific constellation sub-view (clusters /
   // dependencies / journey / collab). Used by the cohort panel's view cards.
-  if (mode === "collab") {
-    state.constellationMode = "collab";
-  }
   if (mode === "constellation" && opts && opts.constellationMode) {
     const m = constNormalizeConstellationMode(opts.constellationMode);
     if (m === "circle" || m === "ring") {
@@ -1187,7 +1228,6 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
     if (["clusters", "wells", "dependencies", "source"].includes(String(opts.constellationMode || "").toLowerCase())) {
       state.constellationLens = constNormalizeConstellationLens(opts.constellationMode);
     }
-    if (state.constellationMode === "collab") state.mode = "collab";
     try {
       localStorage.setItem(CONST_MODE_LS_KEY, state.constellationMode);
       localStorage.setItem(CONST_LENS_LS_KEY, state.constellationLens);
@@ -1196,7 +1236,7 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   if (mode === "asks" && opts && opts.openComposer) {
     state.openAskComposer = true;
   }
-  try { localStorage.setItem(ALCHEMY_LS_KEY, mode === "collab" ? "collab" : state.mode); } catch {}
+  try { localStorage.setItem(ALCHEMY_LS_KEY, state.mode); } catch {}
   syncRailSelection();
   render();
 };
@@ -6222,13 +6262,13 @@ function wireConstellationModeNav() {
   for (const btn of state.canvas.querySelectorAll(".alch-const-mode-btn[data-const-mode]")) {
     btn.addEventListener("click", () => {
       const next = constNormalizeConstellationMode(btn.dataset.constMode);
-      const current = state.mode === "collab" ? "collab" : constNormalizeConstellationMode(state.constellationMode);
-      if ((state.mode === "constellation" || state.mode === "collab") && next === current) return;
-      state.mode = next === "collab" ? "collab" : "constellation";
+      const current = constNormalizeConstellationMode(state.constellationMode);
+      if (state.mode === "constellation" && next === current) return;
+      state.mode = "constellation";
       state.constellationMode = next;
       try {
         localStorage.setItem(CONST_MODE_LS_KEY, next);
-        localStorage.setItem(ALCHEMY_LS_KEY, next === "collab" ? "collab" : "constellation");
+        localStorage.setItem(ALCHEMY_LS_KEY, "constellation");
       } catch {}
       syncRailSelection();
       render();
@@ -8954,7 +8994,7 @@ function renderCollab() {
   const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
   const clusters = state.cohort?.clusters || [];
   if (!teams.length) {
-    state.canvas.innerHTML = `<header class="alch-cb-head"><h2 class="alch-cb-title">collaboration board</h2></header><p class="alch-callout">no team data yet.</p>`;
+    state.canvas.innerHTML = `<div class="alch-const-topbar">${constellationNav("collab")}</div><header class="alch-cb-head"><h2 class="alch-cb-title">collaboration board</h2></header><p class="alch-callout">no team data yet.</p>`;
     return;
   }
   const m = buildCollabModel(teams, clusters, state.cohort?.dependencies || []);
@@ -9100,6 +9140,7 @@ function renderCollab() {
     </section>`;
 
   state.canvas.innerHTML = `
+    <div class="alch-const-topbar">${constellationNav("collab")}</div>
     <div class="alch-collab">
       <div class="alch-const-topbar">${constellationNav("collab")}</div>
       <header class="alch-cb-head">

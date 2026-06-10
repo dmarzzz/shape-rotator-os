@@ -335,8 +335,8 @@ function quickText(label, value) {
   return `<span class="cd-quick-text">${label ? `<span>${escHtml(label)}</span>` : ""}${escHtml(values.join(" · "))}</span>`;
 }
 
-function collabBoardHref(recordId) {
-  return `/#collab:${encodeURIComponent(recordId || "")}`;
+function cohortDetailHref(recordId) {
+  return `#${encodeURIComponent(recordId || "")}`;
 }
 
 function prettyLinkLabel(key) {
@@ -706,8 +706,8 @@ function compactPills(items) {
       pill("bottleneck", journey.bottleneck),
       quickText("next", journey.next),
     ]) : "";
-    const collab = renderQuickRow("routes / asks", [
-      quickLink(`${rec.name || rec.record_id} on collab board`, collabBoardHref(rec.record_id), false),
+    const routes = renderQuickRow("routes / asks", [
+      quickLink(`${rec.name || rec.record_id} cohort detail`, cohortDetailHref(rec.record_id), false),
     ]);
     const explore = renderQuickRow("explore", [
       quickLink("GitHub", linkForKey(links, "github")),
@@ -740,7 +740,7 @@ function compactPills(items) {
         <div class="cd-ledger-head">
           <span class="cd-h">${escHtml(kind)} read</span>
         </div>
-        <div class="cd-quick cd-team-quick">${nextMove}${needs}${provides}${guild}${trajectory}${collab}${explore}</div>
+        <div class="cd-quick cd-team-quick">${nextMove}${needs}${provides}${guild}${trajectory}${routes}${explore}</div>
         <div class="cd-section-stack">
           ${renderSection("trajectory", trajectoryRows, false, "stage, proof, next test")}
           ${renderSection("evidence", evidenceRows, false, "traction, paper, shipping")}
