@@ -32,6 +32,9 @@ jobs:
       - name: cohort bundle is current
         run: npm run check:cohort
 
+      - name: cohort web/electron detail parity
+        run: npm run check:cohort-detail-parity
+
       - name: calendar transcript matches are valid
         run: npm run check:calendar-transcripts
 
