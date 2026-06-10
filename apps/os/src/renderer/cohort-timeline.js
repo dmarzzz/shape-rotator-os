@@ -14,13 +14,26 @@ function emptySurface() {
   return { schema_version: 1, teams: [], people: [], clusters: [], program: [], events: [], asks: [], cohort_vocab: {}, calendar: null };
 }
 
+// Last-wins by record_id, matching buildCohortIndex semantics, so snapshot
+// counts can never disagree with the nodes a view actually renders.
+function dedupById(records) {
+  const byId = new Map();
+  const anonymous = [];
+  for (const record of Array.isArray(records) ? records : []) {
+    const id = record?.record_id;
+    if (id) byId.set(id, record);
+    else if (record) anonymous.push(record);
+  }
+  return [...byId.values(), ...anonymous];
+}
+
 function normalizeSurface(surface) {
   const src = surface && typeof surface === "object" ? surface : {};
   return {
     ...emptySurface(),
     ...src,
-    teams: Array.isArray(src.teams) ? src.teams : [],
-    people: Array.isArray(src.people) ? src.people : [],
+    teams: dedupById(src.teams),
+    people: dedupById(src.people),
     clusters: Array.isArray(src.clusters) ? src.clusters : [],
     program: Array.isArray(src.program) ? src.program : [],
     events: Array.isArray(src.events) ? src.events : [],
@@ -35,15 +48,20 @@ function normalizeTimeline(data) {
   const snapshots = Array.isArray(src.snapshots)
     ? src.snapshots
         .filter((snapshot) => snapshot && typeof snapshot === "object" && snapshot.id)
-        .map((snapshot) => ({
-          ...snapshot,
-          surface: normalizeSurface(snapshot.surface),
-          counts: {
-            teams: Number(snapshot.counts?.teams) || 0,
-            people: Number(snapshot.counts?.people) || 0,
-            clusters: Number(snapshot.counts?.clusters) || 0,
-          },
-        }))
+        .map((snapshot) => {
+          const surface = normalizeSurface(snapshot.surface);
+          // Counts are derived from the deduped surface, not trusted from the
+          // artifact — a generator double-emit must not skew the meta line.
+          return {
+            ...snapshot,
+            surface,
+            counts: {
+              teams: surface.teams.length,
+              people: surface.people.length,
+              clusters: surface.clusters.length,
+            },
+          };
+        })
     : [];
   return {
     ...src,

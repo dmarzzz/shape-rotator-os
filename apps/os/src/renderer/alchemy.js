@@ -488,7 +488,12 @@ function activeConstellationSnapshot() {
 }
 
 function activeConstellationCohort() {
-  return activeConstellationSnapshot()?.surface || state.cohort;
+  const snapshots = constellationSnapshots();
+  const idx = ensureConstellationTimelineIdx();
+  // At the newest snapshot, prefer the live surface: the bundled timeline
+  // artifact can lag records merged after it was generated.
+  if (idx == null || idx >= snapshots.length - 1) return state.cohort;
+  return snapshots[idx]?.surface || state.cohort;
 }
 
 function previousConstellationSnapshot() {
@@ -1662,7 +1667,7 @@ function constellationNav(active) {
   return `
     <nav class="alch-const-modes" role="tablist" aria-label="constellation view">
       ${CONST_VIEWS.map(v => `
-        <button class="alch-const-mode-btn" data-const-mode="${v.mode}" aria-selected="${activeTop === v.mode}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
+        <button class="alch-const-mode-btn" data-const-mode="${v.mode}" role="tab" aria-selected="${activeTop === v.mode}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
           <span class="acm-glyph" aria-hidden="true">${v.glyph}</span><span class="acm-label">${v.label}</span>
         </button>`).join("")}
     </nav>`;
@@ -2726,13 +2731,14 @@ function constellationInspectorContext(teams, edges, people = []) {
 }
 
 function constellationCurrentInspectorContext() {
-  const teams = state.cohort?.teams || [];
-  const people = state.cohort?.people || [];
-  const clusters = state.cohort?.clusters || [];
+  const cohort = activeConstellationCohort();
+  const teams = cohort?.teams || [];
+  const people = cohort?.people || [];
+  const clusters = cohort?.clusters || [];
   const teamById = new Map(teams.filter(t => t?.record_id).map(t => [t.record_id, t]));
-  const edges = constellationDependencyEdges(teams, teamById, state.cohort?.dependencies || [])
+  const edges = constellationDependencyEdges(teams, teamById, cohort?.dependencies || [])
     .filter(e => teamById.has(e.from) && teamById.has(e.to));
-  const model = constellationModel(teams, clusters, state.cohort?.dependencies || []);
+  const model = constellationModel(teams, clusters, cohort?.dependencies || []);
   const ctx = constellationInspectorContext(teams, edges, people);
   const rawMode = constNormalizeConstellationMode(state.constellationMode);
   const mode = rawMode === "collab" ? "map" : rawMode;
@@ -3292,8 +3298,12 @@ function constCorridorEdgeScore(edge, ctx) {
 function constTopCorridors(ctx, max = 3) {
   const worldByTeam = constPrimaryWorldByTeam(ctx);
   const teamById = ctx?.teamById || new Map();
+  // The readout answers for the SAME claim the map is showing: corridors are
+  // scored only over lines the active lens keeps (control-as-claim).
+  const lens = constNormalizeConstellationLens(ctx?.lens || "all");
   const rows = new Map();
   for (const edge of (ctx?.edges || [])) {
+    if (!constLensMatchesEdge(edge, lens)) continue;
     if (!teamById.has(edge?.from) || !teamById.has(edge?.to)) continue;
     const fromWorld = worldByTeam.get(edge.from);
     const toWorld = worldByTeam.get(edge.to);
@@ -3341,24 +3351,33 @@ function constLineBasisText(typed, profile) {
 }
 
 function constMapReadout(ctx) {
-  const breakdown = constRelationshipBreakdown(ctx?.edges || []);
+  const lens = constNormalizeConstellationLens(ctx?.lens || "all");
+  const lensSpec = CONST_LENSES.find(l => l.lens === lens) || CONST_LENSES[0];
+  const scoped = lens !== "all";
+  // Counts mirror the corridors: both speak for the lens-filtered map, never
+  // for lines the user has currently filtered away.
+  const lensEdges = (ctx?.edges || []).filter(edge => constLensMatchesEdge(edge, lens));
+  const breakdown = constRelationshipBreakdown(lensEdges);
   const corridors = constTopCorridors(ctx, 3);
   const top = corridors[0] || null;
   const title = top
     ? `${top.a.label} to ${top.b.label}`
-    : "Start with the bright lines";
+    : (scoped ? `No ${lensSpec.label} corridors yet` : "Start with the bright lines");
   const body = top
-    ? `${top.a.label} to ${top.b.label} is the strongest current cross-world corridor from the source bundle. Line mix: ${constLineBasisText(top.typed, top.profile)}.`
-    : "No cross-world corridor is strong enough to headline yet; inspect the relationship rows first.";
-  const caveat = `${breakdown.typed} relationship record${breakdown.typed === 1 ? "" : "s"} and ${breakdown.missing} profile mention${breakdown.missing === 1 ? "" : "s"}. Solid lines have records; dotted lines are leads to verify.`;
-  return { title, body, caveat, corridors, breakdown };
+    ? `${top.a.label} to ${top.b.label} is the strongest ${scoped ? `${lensSpec.label} corridor — ${lensSpec.meaning} —` : "current cross-world corridor"} from the source bundle. Line mix: ${constLineBasisText(top.typed, top.profile)}.`
+    : (scoped
+      ? `No cross-world ${lensSpec.label} lines (${lensSpec.meaning}) connect ecosystems yet. Set lines to all to read every declared corridor.`
+      : "No cross-world corridor is strong enough to headline yet; inspect the relationship rows first.");
+  const caveat = `${breakdown.typed} relationship record${breakdown.typed === 1 ? "" : "s"} and ${breakdown.missing} profile mention${breakdown.missing === 1 ? "" : "s"}${scoped ? ` under the ${lensSpec.label} lens` : ""}. Solid lines have records; dotted lines are leads to verify.`;
+  return { title, body, caveat, corridors, breakdown, lens, lensSpec, scoped };
 }
 
 function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
   const read = constMapReadout(ctx);
+  const kickerText = read.scoped ? `${kicker} · ${read.lensSpec.label} lines` : kicker;
   return `
     <div class="ac-inspector-hero is-generated-readout">
-      <div class="ac-inspector-kicker">${escHtml(kicker)}</div>
+      <div class="ac-inspector-kicker">${escHtml(kickerText)}</div>
       <h3>${escHtml(read.title)}</h3>
       <p>${escHtml(read.body)}</p>
       <div class="ac-inspector-pills">
@@ -3371,10 +3390,22 @@ function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
 
 function constCorridorReadoutHtml(ctx) {
   const corridors = constTopCorridors(ctx, 3);
-  if (!corridors.length) return "";
+  const lens = constNormalizeConstellationLens(ctx?.lens || "all");
+  const lensSpec = CONST_LENSES.find(l => l.lens === lens) || CONST_LENSES[0];
+  const scoped = lens !== "all";
+  if (!corridors.length) {
+    // Under a scoped lens the panel explains itself instead of vanishing —
+    // an empty answer to a narrowed question is still an answer.
+    if (!scoped) return "";
+    return `
+    <section class="ac-inspector-section ac-action-card is-corridor-readout">
+      <h4>top corridors · ${escHtml(lensSpec.label)} lines</h4>
+      <p class="ac-rel-queue-more">No cross-world ${escHtml(lensSpec.label)} corridors yet — ${escHtml(lensSpec.meaning)}. Set lines to all to read every declared corridor.</p>
+    </section>`;
+  }
   return `
     <section class="ac-inspector-section ac-action-card is-corridor-readout">
-      <h4>top corridors</h4>
+      <h4>top corridors${scoped ? ` · ${escHtml(lensSpec.label)} lines` : ""}</h4>
       <div class="ac-action-list">
         ${corridors.map(row => {
           const edge = row.topEdge;
@@ -4422,13 +4453,14 @@ function renderJourney() {
 }
 
 function renderProductStack() {
-  const teams = state.cohort.teams || [];
-  const clusters = state.cohort.clusters || [];
+  const cohort = activeConstellationCohort();
+  const teams = cohort.teams || [];
+  const clusters = cohort.clusters || [];
   const teamById = new Map(teams.filter(t => t?.record_id).map(t => [t.record_id, t]));
-  const edges = constellationDependencyEdges(teams, teamById, state.cohort?.dependencies || [])
+  const edges = constellationDependencyEdges(teams, teamById, cohort?.dependencies || [])
     .filter(e => teamById.has(e.from) && teamById.has(e.to));
   const baseCtx = {
-    ...constellationInspectorContext(teams, edges, state.cohort?.people || []),
+    ...constellationInspectorContext(teams, edges, cohort?.people || []),
     clusters,
     mode: "stack",
     lens: "all",
@@ -5013,9 +5045,10 @@ function renderConstellationDeltaLedger(delta) {
 }
 
 function renderConstellation() {
-  const teams = state.cohort.teams || [];
-  const people = state.cohort.people || [];
-  const clusters = state.cohort.clusters || [];
+  const cohort = activeConstellationCohort();
+  const teams = cohort.teams || [];
+  const people = cohort.people || [];
+  const clusters = cohort.clusters || [];
   const mode = constNormalizeConstellationMode(state.constellationMode);
 
   // Journey sub-view renders a PMF scatterplot instead of the map.
@@ -5030,7 +5063,7 @@ function renderConstellation() {
   const networkScope = viewMode === "map" ? constNormalizeNetworkScope(state.constellationScope) : "projects";
   const activeLens = viewMode === "ring" ? "all" : lens;
   const W = 980, H = 540;
-  const model = constellationModel(teams, clusters, state.cohort?.dependencies || []);
+  const model = constellationModel(teams, clusters, cohort?.dependencies || []);
   const layout = viewMode === "ring" ? placeConstellationRing(model, W, H) : placeConstellation(model, W, H);
   const { wells, ringSegments, pos, ringCenter } = layout;
   const edges = model.edges.filter(e => pos.has(e.from) && pos.has(e.to));
@@ -5041,7 +5074,7 @@ function renderConstellation() {
   const interestCtx = constInterestContext(teams, clusters, edges, state.constInterest);
   const coverage = constConstellationCoverage(teams, edges);
   const relationshipBreakdown = constRelationshipBreakdown(edges);
-  const inspectorCtx = { ...constellationInspectorContext(teams, edges, state.cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope: "projects", interest: interestCtx };
+  const inspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope: "projects", interest: interestCtx };
   const bridgeRanks = viewMode === "ring"
     ? new Map(constBridgeTeamRows(inspectorCtx, 5).map((row, idx) => [row.team.record_id, { row, rank: idx + 1 }]))
     : new Map();
@@ -5176,11 +5209,14 @@ function renderConstellation() {
       ? (Math.cos(angle) > 0.25 ? "start" : (Math.cos(angle) < -0.25 ? "end" : "middle"))
       : "middle";
     const labelGap = viewMode === "map" ? 17 : 13;
+    // Dense wells: alternate the radial label distance by rank so neighboring
+    // secondary labels land on two radii instead of one collision ring.
+    const labelOut = viewMode === "map" && wellSize >= 5 && rank > 0 && rank % 2 === 0 ? 13 : 6;
     const labelX = radialLabel
-      ? (Math.cos(angle) > 0.25 ? r + 6 : (Math.cos(angle) < -0.25 ? -r - 6 : 0))
+      ? (Math.cos(angle) > 0.25 ? r + labelOut : (Math.cos(angle) < -0.25 ? -r - labelOut : 0))
       : 0;
     const labelY = radialLabel
-      ? (Math.sin(angle) < -0.25 ? -r - 8 : (Math.sin(angle) > 0.25 ? r + labelGap : 3))
+      ? (Math.sin(angle) < -0.25 ? -r - 8 - (labelOut - 6) : (Math.sin(angle) > 0.25 ? r + labelGap + (labelOut - 6) : 3))
       : r + labelGap;
     const labelLines = constNodeLabelLines(team, viewMode);
     const fullLabel = constText(team.name || team.record_id);
@@ -5576,21 +5612,22 @@ function wireConstellationHover() {
     // ONE styled floating tooltip serves both the map and the journey scatter
     // (was a fixed hover-line on the map + a separate floating tip on journey).
     const tip = stage.querySelector(".ac-tip");
-    const teams = state.cohort?.teams || [];
-    const clusters = state.cohort?.clusters || [];
+    const cohort = activeConstellationCohort();
+    const teams = cohort?.teams || [];
+    const clusters = cohort?.clusters || [];
     const teamById = new Map(teams.map(t => [t.record_id, t]));
-    const edges = constellationDependencyEdges(teams, undefined, state.cohort?.dependencies || []).filter(e => teamById.has(e.from) && teamById.has(e.to));
-    const model = constellationModel(teams, clusters, state.cohort?.dependencies || []);
+    const edges = constellationDependencyEdges(teams, undefined, cohort?.dependencies || []).filter(e => teamById.has(e.from) && teamById.has(e.to));
+    const model = constellationModel(teams, clusters, cohort?.dependencies || []);
     const rawMode = constNormalizeConstellationMode(state.constellationMode);
     const viewMode = rawMode === "collab" ? "map" : rawMode;
     const activeLens = viewMode === "ring" || viewMode === "stack" ? "all" : constNormalizeConstellationLens(state.constellationLens);
     const scope = viewMode === "map" ? constNormalizeNetworkScope(state.constellationScope) : "projects";
-    const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, state.cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest) };
-    const peopleModel = scope === "people" ? constPeopleNetworkModel(state.cohort?.people || [], teams, 1120, 620) : null;
+    const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest) };
+    const peopleModel = scope === "people" ? constPeopleNetworkModel(cohort?.people || [], teams, 1120, 620) : null;
     const inspectorCtx = viewMode === "stack"
       ? { ...baseInspectorCtx, stackModel: constProductStackModel(teams, baseInspectorCtx) }
       : (peopleModel ? { ...baseInspectorCtx, peopleModel } : baseInspectorCtx);
-    const indeg = constellationIndegree(teams, state.cohort?.dependencies || []);
+    const indeg = constellationIndegree(teams, cohort?.dependencies || []);
     const sourceStatsByRid = new Map();
     for (const edge of edges) {
       for (const rid of [edge.from, edge.to]) {
@@ -5886,8 +5923,8 @@ function wireConstellationHover() {
       });
     }
   }
-  // Layout toggle: cluster-grouped wells ↔ single ring (the original view).
-  for (const btn of state.canvas.querySelectorAll(".ac-layout-btn[data-const-layout]")) {
+  // Graph scope toggle: project network ↔ people network.
+  for (const btn of state.canvas.querySelectorAll(".ac-network-scope-btn[data-const-network-scope]")) {
     btn.addEventListener("click", () => {
       const next = constNormalizeNetworkScope(btn.dataset.constNetworkScope);
       if (next === state.constellationScope) return;
@@ -9064,6 +9101,7 @@ function renderCollab() {
 
   state.canvas.innerHTML = `
     <div class="alch-collab">
+      <div class="alch-const-topbar">${constellationNav("collab")}</div>
       <header class="alch-cb-head">
         <h2 class="alch-cb-title">collaboration board</h2>
         <p class="alch-cb-sub">who depends on whom, who can unblock whom, where the cohort over-concentrates — all from teams' own declared dependencies, seeking, offering &amp; skill areas.</p>
@@ -9107,6 +9145,7 @@ function wireCollabCohortLinks(root) {
 
 function wireCollab() {
   const collabRoot = state.canvas.querySelector(".alch-collab");
+  wireConstellationModeNav();
   wireCollabCohortLinks(state.canvas);
   for (const btn of state.canvas.querySelectorAll("[data-collab-intake-open]")) {
     btn.addEventListener("click", (event) => {
@@ -11158,6 +11197,7 @@ function renderTimelineMissingDetail(recordId) {
     <p class="alch-callout"><strong>not declared at this snapshot</strong><br/>This record is absent from the public cohort surface for ${escHtml(label)}.</p>
   `;
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
+  wireConstellationTimelineControls(state.canvas);
 }
 
 function renderTeamDetail(team) {
@@ -11300,6 +11340,7 @@ function renderTeamDetail(team) {
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
+  if (state.detailReturnMode === "constellation") wireConstellationTimelineControls(state.canvas);
   wirePlateFoil(state.canvas.querySelector(".cohort-plate"));
 }
 
@@ -11429,6 +11470,7 @@ function renderPersonDetail(person) {
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
+  if (state.detailReturnMode === "constellation") wireConstellationTimelineControls(state.canvas);
 }
 
 function wirePersonLinks(root) {
