@@ -13122,13 +13122,13 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
  * record editor above it. The ember "enrollment terminal" look stays
  * exclusive to the first-launch modal. */
 .alch-seal-current {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  padding: 12px 14px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 16px 18px;
   border: 1px solid var(--ed-rule-2);
   background: var(--ed-bg-1);
 }
 .alch-seal-avatar {
-  width: 36px; height: 36px; flex: 0 0 36px;
+  width: 48px; height: 48px; flex: 0 0 48px;
   display: inline-flex; align-items: center; justify-content: center;
   overflow: hidden; border-radius: 50%;
   border: 1px solid var(--ed-rule-2);
@@ -13136,34 +13136,44 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
 }
 .alch-seal-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .alch-seal-initials {
-  font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.08em;
+  font-family: var(--ed-mono); font-size: 14px; letter-spacing: 0.08em;
   color: var(--ed-ink-2);
 }
-.alch-seal-who { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 140px; }
+/* The identity column wraps freely — never truncate who the user is. */
+.alch-seal-who { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 240px; }
 .alch-seal-name {
-  color: var(--ed-ink-1); font-size: 13.5px; letter-spacing: 0.01em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--ed-ink-1); font-size: 16px; letter-spacing: 0.01em;
+  line-height: 1.2;
 }
 .alch-seal-meta {
   font-family: var(--ed-mono); font-size: 9.5px; letter-spacing: 0.14em;
+  text-transform: lowercase;
   color: var(--ed-ink-4);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.alch-seal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.alch-seal-contact {
+  font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: var(--ed-ink-3);
+  overflow-wrap: anywhere;
+}
+.alch-seal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; align-self: center; }
 .alch-seal-btn {
   background: transparent;
-  color: var(--ed-ink-3);
+  color: var(--ed-ink-2);
   border: 1px solid var(--ed-rule-2);
   border-radius: 999px;
-  padding: 6px 13px;
+  padding: 7px 15px;
   font-family: var(--ed-mono); font-size: 10px;
   letter-spacing: 0.16em; text-transform: lowercase;
   cursor: pointer;
-  transition: color 160ms ease, border-color 160ms ease;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
 }
-.alch-seal-btn:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); }
-.alch-seal-btn-quiet { border-color: transparent; color: var(--ed-ink-4); }
-.alch-seal-btn-quiet:hover { border-color: var(--ed-rule-2); color: var(--ed-ink-2); }
+.alch-seal-btn:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); background: rgba(var(--ink-rgb), 0.05); }
+/* "break the seal" — destructive-leaning: oxide on hover/confirm. */
+.alch-seal-btn-danger:hover {
+  color: var(--alchemy-oxide-bright);
+  border-color: var(--alchemy-oxide-bright);
+  background: rgba(180, 58, 25, 0.08);
+}
 /* "break the seal" mid-confirm + resync busy states */
 .alch-seal-btn[data-confirming="1"] { color: var(--alchemy-oxide-bright); border-color: currentColor; }
 .alch-seal-btn[data-busy="1"] { cursor: progress; opacity: 0.7; }
@@ -13179,7 +13189,6 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   color: var(--alchemy-oxide-bright);
   border-color: var(--alchemy-oxide-bright);
 }
-.alch-seal-resync { margin-left: auto; }
 .alch-seal-empty {
   margin: 0;
   font-family: var(--ed-mono); font-size: 11px; line-height: 1.6;

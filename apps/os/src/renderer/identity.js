@@ -297,11 +297,26 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
     const label = currentResolved?.label || currentId?.display_name || "";
     const initials = labelInitials(label);
     const resyncHtml = `
-      <button class="alch-seal-btn alch-seal-btn-quiet alch-seal-resync" data-im-resync type="button"
+      <button class="alch-seal-btn" data-im-resync type="button"
               title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
         <span class="im-resync-label">re-sync the rolls</span>
       </button>
     `;
+    // Contact line — pulled from the full cohort record so the card
+    // answers "is this really me?" at a glance: handle, email, team.
+    let contactHtml = "";
+    if (claimed) {
+      const rec = (pools[currentId.kind] || []).find(r => r.record_id === currentId.record_id) || null;
+      const teamName = rec?.team
+        ? ((pools.team.find(t => t.record_id === rec.team) || pools.project.find(t => t.record_id === rec.team))?.name || rec.team)
+        : null;
+      const bits = [
+        currentResolved?.gh ? `@${currentResolved.gh}` : null,
+        rec?.email || null,
+        teamName,
+      ].filter(Boolean);
+      if (bits.length) contactHtml = `<span class="alch-seal-contact">${bits.map(escHtml).join(" · ")}</span>`;
+    }
     host.innerHTML = `
       <h3 class="alch-profile-h">your seal</h3>
       ${claimed ? `
@@ -311,11 +326,12 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
             : `<span class="alch-seal-initials">${escHtml(initials)}</span>`}</span>
           <div class="alch-seal-who">
             <span class="alch-seal-name">${escHtml(label)}</span>
-            <span class="alch-seal-meta">${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)}${currentResolved?.gh ? ` · @${escHtml(currentResolved.gh)}` : ""}</span>
+            <span class="alch-seal-meta">${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)}</span>
+            ${contactHtml}
           </div>
           <div class="alch-seal-actions">
-            <button class="alch-seal-btn alch-seal-btn-quiet" type="button" data-im-action="unclaim">break the seal</button>
             ${resyncHtml}
+            <button class="alch-seal-btn alch-seal-btn-danger" type="button" data-im-action="unclaim">break the seal</button>
           </div>
         </div>
       ` : `
