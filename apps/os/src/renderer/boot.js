@@ -5979,25 +5979,42 @@ function setNetworkSub(sub) {
 // data-alch-mode-current), rather than hooking each nav call site. That keeps
 // this self-contained: any code path that moves the user gets recorded.
 const NAV_ALCH_LS_KEY = "srwk:alchemy_mode"; // mirrors alchemy.js ALCHEMY_LS_KEY
+const NAV_CONST_MODE_LS_KEY = "srwk:const_mode"; // mirrors alchemy.js CONST_MODE_LS_KEY
 const navHist = { stack: [], index: -1, last: null, restoring: false };
 
 function navSnapshot() {
   const b = document.body;
-  let alchMode = document.getElementById("alchemy-view")?.dataset.alchModeCurrent || "";
+  const alch = document.getElementById("alchemy-view");
+  let alchMode = alch?.dataset.alchModeCurrent || "";
   if (!alchMode) {
     try { alchMode = localStorage.getItem(NAV_ALCH_LS_KEY) || "membrane"; } catch { alchMode = "membrane"; }
   }
+  let constMode = alch?.dataset.constModeCurrent || "";
+  if (!constMode) {
+    try { constMode = localStorage.getItem(NAV_CONST_MODE_LS_KEY) || ""; } catch { constMode = ""; }
+  }
+  if (alchMode === "collab") {
+    alchMode = "constellation";
+    constMode = "collab";
+  }
+  if (alchMode === "pulse") {
+    alchMode = "shapes";
+    constMode = "";
+  }
+  if (alchMode !== "constellation") constMode = "";
   return {
     tab: b.dataset.activeTab || "alchemy",
     appsView: b.dataset.appsView || "",
     netSub: b.dataset.netSub || "network",
     alchMode,
+    constMode,
   };
 }
 
 function navSameLoc(a, b) {
   return !!a && !!b && a.tab === b.tab && a.appsView === b.appsView
-    && a.netSub === b.netSub && a.alchMode === b.alchMode;
+    && a.netSub === b.netSub && a.alchMode === b.alchMode
+    && a.constMode === b.constMode;
 }
 
 // Replay a snapshot through the same entry points the UI uses, so mounts /
@@ -6030,10 +6047,17 @@ function navApplyLocation(snap) {
   // Alchemy rail mode lives inside alchemy.js; the rail button's own click
   // handler is the canonical way to switch it (sets state + persists + repaints).
   if (snap.tab === "alchemy" && snap.alchMode) {
-    try { localStorage.setItem(NAV_ALCH_LS_KEY, snap.alchMode); } catch {}
+    const targetAlchMode = snap.alchMode === "collab" ? "constellation" : (snap.alchMode === "pulse" ? "shapes" : snap.alchMode);
+    const targetConstMode = snap.alchMode === "collab" ? "collab" : (targetAlchMode === "constellation" ? (snap.constMode || "") : "");
+    try {
+      localStorage.setItem(NAV_ALCH_LS_KEY, targetAlchMode);
+      if (targetConstMode) localStorage.setItem(NAV_CONST_MODE_LS_KEY, targetConstMode);
+    } catch {}
     const cur = document.getElementById("alchemy-view")?.dataset.alchModeCurrent;
-    if (cur !== snap.alchMode) {
-      const sel = `.alchemy-rail-btn[data-alch-mode="${(window.CSS?.escape ? CSS.escape(snap.alchMode) : snap.alchMode)}"]`;
+    if (targetAlchMode === "constellation" && targetConstMode && typeof window.__srwkAlchemyJump === "function") {
+      window.__srwkAlchemyJump("constellation", { constellationMode: targetConstMode });
+    } else if (cur !== targetAlchMode) {
+      const sel = `.alchemy-rail-btn[data-alch-mode="${(window.CSS?.escape ? CSS.escape(targetAlchMode) : targetAlchMode)}"]`;
       document.querySelector(sel)?.click();
     }
   }
@@ -6073,7 +6097,7 @@ function initNavHistory() {
     attributeFilter: ["data-active-tab", "data-apps-view", "data-net-sub"],
   });
   const alch = document.getElementById("alchemy-view");
-  if (alch) obs.observe(alch, { attributes: true, attributeFilter: ["data-alch-mode-current"] });
+  if (alch) obs.observe(alch, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current"] });
 
   // Mouse buttons: 3 = back, 4 = forward (Chromium's X1/X2 mapping). Capture
   // phase + preventDefault so we win over any inner handler and suppress the
@@ -6098,9 +6122,11 @@ function registerVisualizerShortcutsAndCommands() {
   // Search is now a panel inside atlas (toggled via openAtlasSearch in
   // boot init). Cmd+/ from anywhere lands on atlas + opens the panel.
   const focusSearchTabInput = () => {
-    if (document.body.dataset.activeTab !== "atlas") {
-      morphActiveTab("atlas", () => applyActiveTab("atlas"));
-      try { localStorage.setItem(TAB_LS_KEY, "atlas"); } catch {}
+    if (document.body.dataset.activeTab !== "apps" || document.body.dataset.appsView !== "atlas") {
+      document.body.dataset.appsView = "atlas";
+      try { localStorage.setItem(APPS_LS_KEY, "atlas"); } catch {}
+      morphActiveTab("apps", () => applyActiveTab("apps"));
+      try { localStorage.setItem(TAB_LS_KEY, "apps"); } catch {}
     }
     setTimeout(() => {
       try { openAtlasSearch(); } catch {}
@@ -6137,7 +6163,7 @@ function registerVisualizerShortcutsAndCommands() {
       items: [
         { keys: ["⌘", "K"],         label: "Open command palette" },
         { keys: ["?"],              label: "Show this overlay" },
-        { keys: ["A"],              label: "Go to Atlas tab" },
+        { keys: ["A"],              label: "Open Atlas app" },
         { keys: ["Y"],              label: "Go to Alchemy tab" },
         { keys: ["N"],              label: "Go to Network tab" },
         { keys: ["M"],              label: "Go to Metrics tab" },
@@ -6174,7 +6200,7 @@ function registerVisualizerShortcutsAndCommands() {
 
   registerCommands([
     { id: "go.atlas", group: "Go to", label: "Go to Atlas", keys: ["A"], hint: "the wall map",
-      keywords: ["tab","atlas","map","cartography","wall","paper","continent","photo"], run: () => goTab("atlas") },
+      keywords: ["app","atlas","map","cartography","wall","paper","continent","photo"], run: () => openApp("atlas") },
     { id: "go.network", group: "Go to", label: "Go to Network", keys: ["N"], hint: "peers + traffic",
       keywords: ["tab","network","peers","traffic"], run: () => goTab("network") },
     { id: "go.search",  group: "Go to", label: "Open Search (inside Atlas)",  keys: ["/"], hint: "router + web",
@@ -6184,7 +6210,7 @@ function registerVisualizerShortcutsAndCommands() {
       run: () => { goTab("network"); setNetworkSub("metrics"); } },
     { id: "go.alchemy", group: "Go to", label: "Go to Alchemy", keys: ["Y"],
       hint: "cohort sandbox",
-      keywords: ["tab","alchemy","cohort","teams","specimens","pulse","constellation","activity","progress"],
+      keywords: ["tab","alchemy","cohort","teams","specimens","constellation","activity","progress"],
       run: () => goTab("alchemy") },
     { id: "go.daybook", group: "Go to", label: "Go to Router",
       hint: "your daily cohort update",
@@ -6194,7 +6220,7 @@ function registerVisualizerShortcutsAndCommands() {
       keys: ["T"], hint: "cinematic replay of the last N days",
       keywords: ["atlas","timelapse","time-lapse","replay","scrub","cinematic","T"],
       run: () => {
-        if (document.body.dataset.activeTab !== "atlas") goTab("atlas");
+        if (document.body.dataset.activeTab !== "apps" || document.body.dataset.appsView !== "atlas") openApp("atlas");
         // dispatch a 'T' keydown after a frame so the atlas module's
         // own listener catches it. simpler than crossing the boundary.
         setTimeout(() => {
@@ -6205,7 +6231,7 @@ function registerVisualizerShortcutsAndCommands() {
       keys: ["⌘","0"],
       keywords: ["atlas","reset","home","view","viewport","zoom"],
       run: () => {
-        if (document.body.dataset.activeTab !== "atlas") goTab("atlas");
+        if (document.body.dataset.activeTab !== "apps" || document.body.dataset.appsView !== "atlas") openApp("atlas");
         setTimeout(() => {
           if (window.__srwk_atlas) window.__srwk_atlas.reset();
         }, 250);
@@ -6277,14 +6303,14 @@ function registerVisualizerShortcutsAndCommands() {
   ]);
 
   // Register single-letter tab shortcuts with input-blocking guard.
-  // Top-level: A / Y / N / M.
+  // Top-level: A opens the Atlas app; Y / N / M switch OS/network views.
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
     const tag = e.target?.tagName?.toUpperCase();
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
     if (e.target?.isContentEditable) return;
     const k = e.key.toLowerCase();
-    if (k === "a") { goTab("atlas"); }
+    if (k === "a") { openApp("atlas"); }
     else if (k === "n") { goTab("network"); setNetworkSub("network"); }
     else if (k === "m") { goTab("network"); setNetworkSub("metrics"); }
     else if (k === "y") { goTab("alchemy"); }
@@ -8840,11 +8866,12 @@ boot().then(() => {
     btn.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
     if (closeBtn) closeBtn.addEventListener("click", close);
 
-    // Auto-close when the tab leaves atlas, so the panel doesn't linger.
+    // Auto-close when the view leaves Atlas, so the panel doesn't linger.
     const obs = new MutationObserver(() => {
-      if (document.body.dataset.activeTab !== "atlas" && !panel.hidden) close();
+      const inAtlas = document.body.dataset.activeTab === "apps" && document.body.dataset.appsView === "atlas";
+      if (!inAtlas && !panel.hidden) close();
     });
-    obs.observe(document.body, { attributes: true, attributeFilter: ["data-active-tab"] });
+    obs.observe(document.body, { attributes: true, attributeFilter: ["data-active-tab", "data-apps-view"] });
   }
 
   if (document.readyState === "loading") {
