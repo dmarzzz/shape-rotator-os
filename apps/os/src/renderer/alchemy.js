@@ -3292,8 +3292,12 @@ function constCorridorEdgeScore(edge, ctx) {
 function constTopCorridors(ctx, max = 3) {
   const worldByTeam = constPrimaryWorldByTeam(ctx);
   const teamById = ctx?.teamById || new Map();
+  // The readout answers for the SAME claim the map is showing: corridors are
+  // scored only over lines the active lens keeps (control-as-claim).
+  const lens = constNormalizeConstellationLens(ctx?.lens || "all");
   const rows = new Map();
   for (const edge of (ctx?.edges || [])) {
+    if (!constLensMatchesEdge(edge, lens)) continue;
     if (!teamById.has(edge?.from) || !teamById.has(edge?.to)) continue;
     const fromWorld = worldByTeam.get(edge.from);
     const toWorld = worldByTeam.get(edge.to);
@@ -3341,24 +3345,33 @@ function constLineBasisText(typed, profile) {
 }
 
 function constMapReadout(ctx) {
-  const breakdown = constRelationshipBreakdown(ctx?.edges || []);
+  const lens = constNormalizeConstellationLens(ctx?.lens || "all");
+  const lensSpec = CONST_LENSES.find(l => l.lens === lens) || CONST_LENSES[0];
+  const scoped = lens !== "all";
+  // Counts mirror the corridors: both speak for the lens-filtered map, never
+  // for lines the user has currently filtered away.
+  const lensEdges = (ctx?.edges || []).filter(edge => constLensMatchesEdge(edge, lens));
+  const breakdown = constRelationshipBreakdown(lensEdges);
   const corridors = constTopCorridors(ctx, 3);
   const top = corridors[0] || null;
   const title = top
     ? `${top.a.label} to ${top.b.label}`
-    : "Start with the bright lines";
+    : (scoped ? `No ${lensSpec.label} corridors yet` : "Start with the bright lines");
   const body = top
-    ? `${top.a.label} to ${top.b.label} is the strongest current cross-world corridor from the source bundle. Line mix: ${constLineBasisText(top.typed, top.profile)}.`
-    : "No cross-world corridor is strong enough to headline yet; inspect the relationship rows first.";
-  const caveat = `${breakdown.typed} relationship record${breakdown.typed === 1 ? "" : "s"} and ${breakdown.missing} profile mention${breakdown.missing === 1 ? "" : "s"}. Solid lines have records; dotted lines are leads to verify.`;
-  return { title, body, caveat, corridors, breakdown };
+    ? `${top.a.label} to ${top.b.label} is the strongest ${scoped ? `${lensSpec.label} corridor — ${lensSpec.meaning} —` : "current cross-world corridor"} from the source bundle. Line mix: ${constLineBasisText(top.typed, top.profile)}.`
+    : (scoped
+      ? `No cross-world ${lensSpec.label} lines (${lensSpec.meaning}) connect ecosystems yet. Set lines to all to read every declared corridor.`
+      : "No cross-world corridor is strong enough to headline yet; inspect the relationship rows first.");
+  const caveat = `${breakdown.typed} relationship record${breakdown.typed === 1 ? "" : "s"} and ${breakdown.missing} profile mention${breakdown.missing === 1 ? "" : "s"}${scoped ? ` under the ${lensSpec.label} lens` : ""}. Solid lines have records; dotted lines are leads to verify.`;
+  return { title, body, caveat, corridors, breakdown, lens, lensSpec, scoped };
 }
 
 function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
   const read = constMapReadout(ctx);
+  const kickerText = read.scoped ? `${kicker} · ${read.lensSpec.label} lines` : kicker;
   return `
     <div class="ac-inspector-hero is-generated-readout">
-      <div class="ac-inspector-kicker">${escHtml(kicker)}</div>
+      <div class="ac-inspector-kicker">${escHtml(kickerText)}</div>
       <h3>${escHtml(read.title)}</h3>
       <p>${escHtml(read.body)}</p>
       <div class="ac-inspector-pills">
@@ -3371,10 +3384,22 @@ function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
 
 function constCorridorReadoutHtml(ctx) {
   const corridors = constTopCorridors(ctx, 3);
-  if (!corridors.length) return "";
+  const lens = constNormalizeConstellationLens(ctx?.lens || "all");
+  const lensSpec = CONST_LENSES.find(l => l.lens === lens) || CONST_LENSES[0];
+  const scoped = lens !== "all";
+  if (!corridors.length) {
+    // Under a scoped lens the panel explains itself instead of vanishing —
+    // an empty answer to a narrowed question is still an answer.
+    if (!scoped) return "";
+    return `
+    <section class="ac-inspector-section ac-action-card is-corridor-readout">
+      <h4>top corridors · ${escHtml(lensSpec.label)} lines</h4>
+      <p class="ac-rel-queue-more">No cross-world ${escHtml(lensSpec.label)} corridors yet — ${escHtml(lensSpec.meaning)}. Set lines to all to read every declared corridor.</p>
+    </section>`;
+  }
   return `
     <section class="ac-inspector-section ac-action-card is-corridor-readout">
-      <h4>top corridors</h4>
+      <h4>top corridors${scoped ? ` · ${escHtml(lensSpec.label)} lines` : ""}</h4>
       <div class="ac-action-list">
         ${corridors.map(row => {
           const edge = row.topEdge;
@@ -5176,11 +5201,14 @@ function renderConstellation() {
       ? (Math.cos(angle) > 0.25 ? "start" : (Math.cos(angle) < -0.25 ? "end" : "middle"))
       : "middle";
     const labelGap = viewMode === "map" ? 17 : 13;
+    // Dense wells: alternate the radial label distance by rank so neighboring
+    // secondary labels land on two radii instead of one collision ring.
+    const labelOut = viewMode === "map" && wellSize >= 5 && rank > 0 && rank % 2 === 0 ? 13 : 6;
     const labelX = radialLabel
-      ? (Math.cos(angle) > 0.25 ? r + 6 : (Math.cos(angle) < -0.25 ? -r - 6 : 0))
+      ? (Math.cos(angle) > 0.25 ? r + labelOut : (Math.cos(angle) < -0.25 ? -r - labelOut : 0))
       : 0;
     const labelY = radialLabel
-      ? (Math.sin(angle) < -0.25 ? -r - 8 : (Math.sin(angle) > 0.25 ? r + labelGap : 3))
+      ? (Math.sin(angle) < -0.25 ? -r - 8 - (labelOut - 6) : (Math.sin(angle) > 0.25 ? r + labelGap + (labelOut - 6) : 3))
       : r + labelGap;
     const labelLines = constNodeLabelLines(team, viewMode);
     const fullLabel = constText(team.name || team.record_id);

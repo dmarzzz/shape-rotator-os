@@ -6551,8 +6551,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   stroke-width: 3px;
 }
 .alch-constellation-stage[data-view="map"] svg .ac-node-group.is-secondary-label .ac-node-label {
-  fill: rgba(245,243,238,0.62);
-  opacity: 0.58;
+  fill: rgba(245,243,238,0.68);
+  opacity: 0.64;
   font-size: 6.8px;
   stroke-width: 2.4px;
 }
