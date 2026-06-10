@@ -3,70 +3,70 @@
     "teams": ["conclave"],
     "clusters": ["agentic-dev-platform", "agents"],
     "label": "Conclave project intro",
-    "source": "raw-scripts/Project Intros Agents Day 3 Transcript_May_21.txt:95",
+    "source": "private-vault:project-intros-agents-day3-2026-05-21:95",
     "excerpt": "Conclave is described as a confidential layer for a cohort, deriving signals from participant-local data."
   },
   {
     "teams": ["teleport-router", "conclave", "contexto"],
     "clusters": ["agentic-dev-platform", "agents"],
     "label": "agentic map discussion",
-    "source": "raw-scripts/Shape Rotator Project Map Guests Transcript_May_22.txt:990",
+    "source": "private-vault:shape-rotator-project-map-guests-2026-05-22:990",
     "excerpt": "Conclave, context, and router were called out as having strong synergy around input, configuration, and ingestion."
   },
   {
     "teams": ["bitrouter", "tinycloud"],
     "clusters": ["agentic-dev-platform", "confidential-ai-ops"],
     "label": "model-routing need",
-    "source": "raw-scripts/Shape Rotator Project Map Guests Transcript_May_22.txt:656",
+    "source": "private-vault:shape-rotator-project-map-guests-2026-05-22:656",
     "excerpt": "Bitrouter was framed as a module for routing through frontier, private, or local inference without coupling to one provider."
   },
   {
     "teams": ["jjhub"],
     "clusters": ["agentic-dev-platform"],
     "label": "JJHub definition",
-    "source": "raw-scripts/Shape Rotator Project Map Guests Transcript_May_22.txt:853",
+    "source": "private-vault:shape-rotator-project-map-guests-2026-05-22:853",
     "excerpt": "JJHub was described as a GitHub-like system with a large AI-built test corpus, still in private alpha."
   },
   {
     "teams": ["teesql", "tinycloud"],
     "clusters": ["dstack", "confidential-ai-ops", "local-first-networking"],
     "label": "confidential data stack",
-    "source": "raw-scripts/Shape Rotator Project Map Guests Transcript_May_22.txt:617",
+    "source": "private-vault:shape-rotator-project-map-guests-2026-05-22:617",
     "excerpt": "TeeSQL was described as hosting Postgres high-availability clusters inside confidential virtual machines."
   },
   {
     "teams": ["teesql", "bitrouter", "signalstack", "tinycloud"],
     "clusters": ["dstack", "confidential-ai-ops", "local-first-networking"],
     "label": "privacy-stack synergy",
-    "source": "raw-scripts/Shape Rotator Project Map Guests Transcript_May_22.txt:635",
+    "source": "private-vault:shape-rotator-project-map-guests-2026-05-22:635",
     "excerpt": "TeeSQL, router, and SignalStack were discussed as complementary pieces of a privacy-oriented stack."
   },
   {
     "teams": ["signalstack"],
     "clusters": ["confidential-ai-ops"],
     "label": "SignalStack intro",
-    "source": "raw-scripts/Project Intros Local Private First Phil Transcript (2)_May_20.txt:986",
+    "source": "private-vault:project-intros-local-private-first-phil-2026-05-20:986",
     "excerpt": "SignalStack was presented as privacy-preserving AI services for Signal, including translation and group-chat tools."
   },
   {
     "teams": ["teesql", "dstack"],
     "clusters": ["dstack", "confidential-ai-ops"],
     "label": "TEE substrate discussion",
-    "source": "raw-scripts/TEE dstack easyTEE Phala Transcript.txt:1271",
+    "source": "private-vault:tee-dstack-easytee-phala:1271",
     "excerpt": "The TEE discussion notes multiple teams reinventing similar DStack, measurement, and attested TLS pieces."
   },
   {
     "teams": ["elocute"],
     "clusters": ["consumer-behavior-apps"],
     "label": "Elocute project intro",
-    "source": "raw-scripts/Elocute Transcript May 26.txt:68",
+    "source": "private-vault:elocute-2026-05-26:68",
     "excerpt": "Elocute was introduced as a private AI speaking-practice system for short articulation sessions and feedback."
   },
   {
     "teams": ["crossroads", "wikigen"],
     "clusters": ["market-mechanism-research", "consumer-behavior-apps"],
     "label": "PMF workshop context",
-    "source": "raw-scripts/May 26, wikigen, crossroads.txt:743",
+    "source": "private-vault:wikigen-crossroads-gil-pmf-2026-05-26:743",
     "excerpt": "The PMF workshop emphasized retention, payment, and repeatable customer segments over broad narrative appeal."
   }
 ]
