@@ -204,29 +204,6 @@ function metricTiles(data) {
   `).join("");
 }
 
-function renderModeSwitch() {
-  const modes = [
-    ["signals", "Signals", "cohort moves"],
-    ["data", "Data", "grounding map"],
-  ];
-  return `
-    <div class="intel-mode-switch" role="tablist" aria-label="Cohort Intel panel">
-      ${modes.map(([mode, label, caption]) => `
-        <button
-          type="button"
-          role="tab"
-          data-intel-panel="${esc(mode)}"
-          aria-selected="${state.panel === mode ? "true" : "false"}"
-          class="${state.panel === mode ? "is-active" : ""}"
-        >
-          <span>${esc(label)}</span>
-          <small>${esc(caption)}</small>
-        </button>
-      `).join("")}
-    </div>
-  `;
-}
-
 function renderTierBadge(tier) {
   return `<span class="intel-signal-tier intel-signal-tier--${esc(tier)}">
     <span></span>${esc(TIER_LABELS[tier] || tier)}
@@ -646,37 +623,43 @@ function renderDataPanel(data, signal) {
   `;
 }
 
+// ─── embedded shell ───────────────────────────────────────────────────
+// Intel renders inside the OS context page (2026-06): the context page
+// owns the header and the articles/transcripts/signals/data view nav;
+// this module renders just the metrics + active panel into a host node.
 function renderShell(container, data) {
   const signals = filteredSignals();
   const signal = selectedSignal(signals);
-  const generatedDate = (data.statusGeneratedAt || data.generatedAt || "").slice(0, 10);
   container.innerHTML = `
-    <section class="intel-panel">
-      <header class="intel-hero">
-        <div>
-          <p class="intel-kicker">Shape Rotator Intelligence Vault</p>
-          <h1>Intel</h1>
-          <p>Cohort-facing moves from public project records and the sanitized relationship map. ${esc(INTEL_SIGNALS.length)} compressed reads; private source provenance stays out of the app bundle.</p>
-        </div>
-        <div class="intel-hero-note">
-          <span>snapshot ${esc(generatedDate || "unknown")}</span>
-          <span>curated preview · cohort-facing</span>
-        </div>
-      </header>
-      ${renderModeSwitch()}
+    <section class="intel-panel intel-panel--embedded">
       <div class="intel-metrics">${metricTiles(data)}</div>
       ${state.panel === "data" ? renderDataPanel(data, signal) : renderSignalsPanel(data, signal, signals)}
     </section>
   `;
 }
 
-export function renderIntel(container) {
+// Host-page hooks — lets the context page keep its view nav in sync when
+// an intel cross-link switches panels (e.g. data → "open signal").
+let embedHooks = null;
+
+export function renderIntelEmbedded(container, panel) {
   if (!container) return;
+  if (panel === "signals" || panel === "data") state.panel = panel;
   renderShell(container, state.data);
 }
 
+// Snapshot meta for the host page's header (date + counts for the nav).
+export function intelSnapshotMeta() {
+  const data = state.data || {};
+  return {
+    generated: (data.statusGeneratedAt || data.generatedAt || "").slice(0, 10),
+    signals: INTEL_SIGNALS.length,
+    entities: (data.entities || []).length,
+  };
+}
+
 function rerender(container, { focusQuery = false } = {}) {
-  renderIntel(container);
+  renderShell(container, state.data);
   wireIntel(container);
   if (focusQuery) {
     const input = container.querySelector(state.panel === "data" ? "[data-intel-data-query]" : "[data-intel-query]");
@@ -685,17 +668,13 @@ function rerender(container, { focusQuery = false } = {}) {
   }
 }
 
-export function wireIntel(container) {
+export function wireIntelEmbedded(container, hooks = null) {
+  if (hooks) embedHooks = hooks;
+  wireIntel(container);
+}
+
+function wireIntel(container) {
   if (!container) return;
-  for (const button of container.querySelectorAll("[data-intel-panel]")) {
-    button.addEventListener("click", () => {
-      state.panel = button.dataset.intelPanel || "signals";
-      if (state.panel === "data") {
-        state.selectedEntityId = selectedSignalEntityIds(selectedSignal(filteredSignals()), state.data)[0] || state.selectedEntityId;
-      }
-      rerender(container);
-    });
-  }
   const query = container.querySelector("[data-intel-query]");
   if (query) {
     query.addEventListener("input", () => {
@@ -744,7 +723,10 @@ export function wireIntel(container) {
     button.addEventListener("click", () => {
       state.selectedSignalId = button.dataset.intelOpenSignal || state.selectedSignalId;
       state.panel = "signals";
-      rerender(container);
+      // Panel jumped — let the host page move its view nav with us. The
+      // host re-renders this module, so skip the local repaint then.
+      if (embedHooks?.onPanelChange) embedHooks.onPanelChange("signals");
+      else rerender(container);
     });
   }
   const reset = container.querySelector("[data-intel-reset]");
