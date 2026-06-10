@@ -5170,6 +5170,7 @@ function renderConstellation() {
       : "";
     const densityClass = viewMode === "map" && wellSize > 1 ? " is-dense-well" : "";
     const keystoneClass = viewMode === "map" && rank === 0 ? " is-keystone-label" : "";
+    const secondaryClass = viewMode === "map" && wellSize > 1 && rank > 0 ? " is-secondary-label" : "";
     const sourceClass = `${typedConnected.has(team.record_id) ? " is-source-backed" : ""}${profileLinkConnected.has(team.record_id) ? " is-profile-link" : ""}${unclusteredIds.has(team.record_id) ? " is-unclustered" : ""}${journeyAssessed(team) ? "" : " is-journey-missing"}`;
     const gapCount = profileLinkDegree.get(team.record_id) || 0;
     const typedCount = typedRecordDegree.get(team.record_id) || 0;
@@ -5180,7 +5181,7 @@ function renderConstellation() {
     const nodeAccentStyle = interestCtx.active && (interestCtx.coreIds.has(team.record_id) || interestCtx.neighborIds.has(team.record_id))
       ? constWellAccentStyle(activeWellAccent)
       : "";
-    const radialLabel = (viewMode === "ring" || (viewMode === "map" && wellSize > 2 && rank > 0)) && typeof angle === "number";
+    const radialLabel = (viewMode === "ring" || (viewMode === "map" && wellSize > 1 && rank > 0)) && typeof angle === "number";
     const labelAnchor = radialLabel
       ? (Math.cos(angle) > 0.25 ? "start" : (Math.cos(angle) < -0.25 ? "end" : "middle"))
       : "middle";
@@ -5189,12 +5190,12 @@ function renderConstellation() {
       ? (Math.cos(angle) > 0.25 ? r + 6 : (Math.cos(angle) < -0.25 ? -r - 6 : 0))
       : 0;
     const labelY = radialLabel
-      ? (viewMode === "map" ? (Math.abs(Math.sin(angle)) > 0.25 ? r + labelGap : 3) : (Math.sin(angle) < -0.25 ? -r - 8 : (Math.sin(angle) > 0.25 ? r + labelGap : 3)))
+      ? (Math.sin(angle) < -0.25 ? -r - 8 : (Math.sin(angle) > 0.25 ? r + labelGap : 3))
       : r + labelGap;
     const labelLines = constNodeLabelLines(team, viewMode);
     const fullLabel = constText(team.name || team.record_id);
     return `
-    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${bridgeRank ? " is-bridge-ranked" : ""}" data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}" data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
       <circle class="ac-node-hit" r="${Math.max(18, r + 10).toFixed(1)}"/>
       ${typedRing}
       <circle class="ac-node-shape ${team.is_mentor ? "ac-node-mentor" : ""}" r="${r.toFixed(1)}"/>
