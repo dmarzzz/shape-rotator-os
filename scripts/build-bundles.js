@@ -455,7 +455,9 @@ function buildPersonTimeline({ people, teams, asks, events, calendar }) {
     }
     transcriptItems.sort((a, b) => {
       if (a._priority !== b._priority) return b._priority - a._priority;
-      return String(a.date || "").localeCompare(String(b.date || ""));
+      // newest first within each tier so the slice cap below keeps recent
+      // sessions (e.g. weekly standups) instead of filling with the oldest
+      return String(b.date || "").localeCompare(String(a.date || ""));
     });
     const seenTranscriptSources = new Set();
     const uniqueTranscriptItems = transcriptItems.filter(item => {
@@ -585,7 +587,9 @@ function buildTeamTimeline({ teams, people, asks, events, calendar }) {
     }
     transcriptItems.sort((a, b) => {
       if (a._priority !== b._priority) return b._priority - a._priority;
-      return String(a.date || "").localeCompare(String(b.date || ""));
+      // newest first within each tier so the slice cap below keeps recent
+      // sessions (e.g. weekly standups) instead of filling with the oldest
+      return String(b.date || "").localeCompare(String(a.date || ""));
     });
     const seenTranscriptSources = new Set();
     const uniqueTranscriptItems = transcriptItems.filter(item => {
