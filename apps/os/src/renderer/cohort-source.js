@@ -61,6 +61,35 @@ const RECORD_DIRS = [
 ];
 const PROGRAM_PREFIX = "cohort-data/program/";
 
+const GENERATED_PERSON_READ_FIELDS = [
+  "bio_md",
+  "weekly_intention",
+  "comm_style",
+  "availability_pref",
+  "working_style",
+  "best_contexts",
+  "contribute_interests",
+  "go_to_them_for",
+  "seeking",
+  "offering",
+  "recurring_themes",
+  "prior_work",
+  "making_signature",
+];
+const GENERATED_TEAM_READ_FIELDS = [
+  "journey",
+  "traction",
+  "paper_basis",
+  "prior_shipping",
+  "hackathon_note",
+  "seeking",
+  "offering",
+  "weekly_goals",
+  "monthly_milestones",
+  "graduation_target",
+  "dependencies",
+];
+
 let _cache = null;            // grouped by record_type (baseline merged with sync overlay)
 // The GH-only baseline result, kept separately so sync-overlay refresh
 // ticks can re-merge without paying for a new tree+raw fetch every time.
@@ -187,6 +216,43 @@ function timelineMap(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
+function generatedValuePresent(value) {
+  if (value == null) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return String(value).trim().length > 0;
+}
+
+function cloneGeneratedValue(value) {
+  if (Array.isArray(value) || (value && typeof value === "object")) {
+    try { return JSON.parse(JSON.stringify(value)); } catch { return value; }
+  }
+  return value;
+}
+
+function mergeGeneratedRecordFields(targetRecords, generatedRecords, fields) {
+  if (!Array.isArray(targetRecords) || !Array.isArray(generatedRecords)) return;
+  const generatedById = new Map();
+  for (const record of generatedRecords) {
+    if (record?.record_id) generatedById.set(record.record_id, record);
+  }
+  for (const record of targetRecords) {
+    if (!record?.record_id) continue;
+    const generated = generatedById.get(record.record_id);
+    if (!generated) continue;
+    for (const field of fields) {
+      if (generatedValuePresent(record[field]) || !generatedValuePresent(generated[field])) continue;
+      record[field] = cloneGeneratedValue(generated[field]);
+    }
+  }
+}
+
+function mergeGeneratedReadModels(out, generated) {
+  if (!out || !generated) return;
+  mergeGeneratedRecordFields(out.people, generated.people, GENERATED_PERSON_READ_FIELDS);
+  mergeGeneratedRecordFields(out.teams, generated.teams, GENERATED_TEAM_READ_FIELDS);
+}
+
 function normalize(data) {
   const out = {
     teams:        dedupById(data?.teams, "team"),
@@ -307,14 +373,16 @@ async function loadFromGithub() {
     out.constellation_cues = [];
   }
 
-  // Generated read models that do not live in cohort-data/*.md. The live
-  // markdown builder above cannot reconstruct Git-derived per-record timelines,
-  // so hydrate those maps from the generated surface bundle on main. If GitHub
-  // is unreachable, fall back to the packaged fixture; stale timelines are
-  // better than silently dropping the section.
+  // Generated read models that do not fully live in cohort-data/*.md. The live
+  // markdown builder above cannot reconstruct Git-derived per-record timelines
+  // or every generated profile/team read field, so hydrate those gaps from the
+  // generated surface bundle on main. If GitHub is unreachable, fall back to the
+  // packaged fixture; stale generated reads are better than silently dropping
+  // agreed profile sections.
   try {
     const surfaceRaw = await fetchRaw("apps/os/src/cohort-surface.json");
     const generated = JSON.parse(surfaceRaw);
+    mergeGeneratedReadModels(out, generated);
     const personTimeline = timelineMap(generated?.person_timeline);
     const teamTimeline = timelineMap(generated?.team_timeline);
     if (!Object.keys(personTimeline).length && !Object.keys(teamTimeline).length) {
@@ -325,6 +393,7 @@ async function loadFromGithub() {
   } catch (e) {
     try {
       const fixture = await loadFromFixture();
+      mergeGeneratedReadModels(out, fixture);
       out.person_timeline = timelineMap(fixture?.person_timeline);
       out.team_timeline = timelineMap(fixture?.team_timeline);
     } catch {

@@ -131,6 +131,16 @@ for (const field of ["person_timeline", "team_timeline"]) {
   }
 }
 
+for (const field of [...personFields.filter(field => field !== "person_timeline"), ...teamFields.filter(field => field !== "team_timeline"), ...electronOnlyTeamFields]) {
+  if (!hasToken(cohortSource, field)) {
+    failures.push(`Electron cohort-source data boundary does not hydrate generated read field ${field}`);
+  }
+}
+
+if (!cohortSource.includes("mergeGeneratedReadModels")) {
+  failures.push("Electron cohort-source data boundary does not merge generated profile/team read models");
+}
+
 if (failures.length) {
   console.error("[cohort-detail-parity] failed");
   for (const failure of failures) console.error(`- ${failure}`);
