@@ -13132,21 +13132,23 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   transition: color 160ms ease, border-color 160ms ease;
 }
 .alch-seal-btn:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); }
-/* "re-seal" disclosure open state — reads like a selected tab. */
-.alch-seal-btn[aria-expanded="true"] { color: var(--ed-ink-1); border-color: var(--ed-ink-1); }
 .alch-seal-btn-quiet { border-color: transparent; color: var(--ed-ink-4); }
 .alch-seal-btn-quiet:hover { border-color: var(--ed-rule-2); color: var(--ed-ink-2); }
 /* "break the seal" mid-confirm + resync busy states */
 .alch-seal-btn[data-confirming="1"] { color: var(--alchemy-oxide-bright); border-color: currentColor; }
 .alch-seal-btn[data-busy="1"] { cursor: progress; opacity: 0.7; }
-.alch-seal-group { display: flex; flex-direction: column; gap: 8px; }
-.alch-seal-lede {
-  margin: 4px 0 0 0;
-  font-family: var(--ed-mono); font-size: 10px;
-  letter-spacing: 0.22em; text-transform: uppercase;
-  color: var(--ed-ink-4);
-}
 .alch-seal-btnrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* "this is me / re-seal as X" — identity claim against the record loaded
+ * in the editor. Oxide accent: it changes who you ARE, not the record. */
+.alch-pf-claim-row { margin: 2px 0 4px; }
+.alch-pf-claim {
+  color: var(--alchemy-oxide-bright);
+  border-color: rgba(180, 58, 25, 0.45);
+}
+.alch-pf-claim:hover {
+  color: var(--alchemy-oxide-bright);
+  border-color: var(--alchemy-oxide-bright);
+}
 .alch-seal-resync { margin-left: auto; }
 .alch-seal-empty {
   margin: 0;
@@ -15075,10 +15077,6 @@ html, body {
   margin: 0;
   padding: 0;
   border: 0;
-}
-/* Directory's two chip rows stay stacked (kind first, then membership). */
-.alch-view-controls > .alch-shapes-filter {
-  flex: 0 0 100%;
 }
 /* Collab's lens buttons + actions become one space-between band row. */
 .alch-view-controls > .cb-controls {

@@ -288,26 +288,19 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
   `;
 
   if (inline) {
-    // Editorial variant — reads as one more section of the profile page
-    // (same heading treatment, row grid, and pill buttons as the editor
-    // below it). The summary row leads; the switch-identity pickers hide
-    // behind the "re-seal" disclosure so the page doesn't show a second
-    // record-picker next to the editor's own (they're only expanded by
-    // default when nothing is claimed yet). Creating records is the
-    // editor's job (its "add" tab), so no duplicate "+ new" buttons.
+    // Editorial variant — the seal is a SUMMARY card only. Editing,
+    // switching, and creating records all happen in the record editor on
+    // the same page: its picker plus the "this is me" claim button
+    // (alchemy.js) replaced the duplicate re-seal pickers, "+ new"
+    // buttons, and "edit my record" that used to live here. What's left
+    // is identity state plus its two rare actions.
     const label = currentResolved?.label || currentId?.display_name || "";
     const initials = labelInitials(label);
-    const pickersHtml = `
-      <div class="alch-seal-group" data-seal-pickers ${claimed ? "hidden" : ""}>
-        ${claimed ? `<p class="alch-seal-lede">re-seal as another shape</p>` : ""}
-        ${selectRows("alch-pf-row")}
-        <div class="alch-seal-btnrow">
-          <button class="alch-seal-btn alch-seal-btn-quiet alch-seal-resync" data-im-resync type="button"
-                  title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
-            <span class="im-resync-label">re-sync the rolls</span>
-          </button>
-        </div>
-      </div>
+    const resyncHtml = `
+      <button class="alch-seal-btn alch-seal-btn-quiet alch-seal-resync" data-im-resync type="button"
+              title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
+        <span class="im-resync-label">re-sync the rolls</span>
+      </button>
     `;
     host.innerHTML = `
       <h3 class="alch-profile-h">your seal</h3>
@@ -321,15 +314,14 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
             <span class="alch-seal-meta">${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)}${currentResolved?.gh ? ` · @${escHtml(currentResolved.gh)}` : ""}</span>
           </div>
           <div class="alch-seal-actions">
-            <button class="alch-seal-btn" type="button" data-im-action="edit">edit my record</button>
-            <button class="alch-seal-btn" type="button" data-seal-toggle aria-expanded="false">re-seal</button>
             <button class="alch-seal-btn alch-seal-btn-quiet" type="button" data-im-action="unclaim">break the seal</button>
+            ${resyncHtml}
           </div>
         </div>
       ` : `
-        <p class="alch-seal-empty">no seal yet — pick your record to tell shape rotator who you are. stored on this device, never broadcast. not on the rolls? add yourself with the editor below.</p>
+        <p class="alch-seal-empty">no seal yet — pick your record in the editor below and press <strong>this is me</strong>. stored on this device, never broadcast.</p>
+        <div class="alch-seal-btnrow">${resyncHtml}</div>
       `}
-      ${pickersHtml}
     `;
     // Avatar image: src + error fallback wired here (not in the template)
     // so a 404/offline github swaps in the initials without inline JS.
@@ -342,16 +334,6 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
         const wrap = avatarImg.closest(".alch-seal-avatar");
         if (wrap) wrap.innerHTML = `<span class="alch-seal-initials">${escHtml(initials)}</span>`;
       }, { once: true });
-    }
-    // "re-seal" disclosure — show/hide the switch-identity pickers.
-    const toggleBtn = host.querySelector("[data-seal-toggle]");
-    const pickersEl = host.querySelector("[data-seal-pickers]");
-    if (toggleBtn && pickersEl) {
-      toggleBtn.addEventListener("click", () => {
-        const open = pickersEl.hidden;
-        pickersEl.hidden = !open;
-        toggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
-      });
     }
   } else {
     host.innerHTML = `
@@ -554,7 +536,14 @@ export async function mountResealInline(host) {
   host.classList.add("alch-profile-section", "alch-seal-section");
   host.__resealCleanup = await renderResealCard(host, {
     variant: "inline",
-    repaint: () => { if (host.isConnected) mountResealInline(host); },
+    // Identity changes alter the editor too (its "this is me" claim
+    // button keys off the current seal), so repaint the whole profile
+    // page, not just this card. Falls back to a card-only repaint if
+    // alchemy hasn't registered its navigation hook.
+    repaint: () => {
+      if (typeof window.__srwkGoProfilePage === "function") window.__srwkGoProfilePage();
+      else if (host.isConnected) mountResealInline(host);
+    },
   });
 }
 

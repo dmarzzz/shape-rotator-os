@@ -51,7 +51,7 @@ import { enrichPeople } from "./gh-user.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
-import { getIdentity, mountResealInline } from "./identity.js";
+import { getIdentity, setIdentity, mountResealInline } from "./identity.js";
 import {
   askAgeLabel, askIsCurrent, askIsOpen, askStatus, askTopic, asksWithStatus,
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
@@ -13007,6 +13007,16 @@ function pickFirstTargetIfMissing(p) {
 function loadEditTarget() {
   const p = state.profile;
   const cohort = state.cohort;
+  // Profile-page default: with nothing picked yet, the editor opens on
+  // YOUR record (the seal) — "edit a record" is "edit my record" until
+  // you pick something else. Identity kinds map 1:1 onto editor kinds.
+  if (p.editMode === "edit" && !p.editTargetId) {
+    const me = getIdentity();
+    if (me && (me.kind === "person" || me.kind === "team" || me.kind === "project")) {
+      p.editKind = me.kind;
+      p.editTargetId = me.record_id;
+    }
+  }
   // If the cohort is briefly null (during a refresh / first-paint
   // window), leave whatever draft already exists alone. Previously
   // we wiped editDraft and editBaseline here, which let a single
@@ -13174,6 +13184,30 @@ function renderProfile() {
   `;
 }
 
+// "this is me" — shown under the editor's record picker whenever the
+// loaded record is NOT the current seal. Claiming/switching identity
+// happens here, against the record you're already looking at, instead
+// of through a second picker in the seal section.
+function sealClaimHtml(p) {
+  if (p.editMode !== "edit" || !p.editTargetId) return "";
+  const me = getIdentity();
+  if (me && me.kind === p.editKind && me.record_id === p.editTargetId) return "";
+  const pool = (p.editKind === "person")
+    ? (state.cohort?.people || [])
+    : teamsOfKind(state.cohort?.teams || [], p.editKind);
+  const rec = pool.find(r => r.record_id === p.editTargetId);
+  const nm = rec?.name || p.editTargetId;
+  const label = me ? `re-seal as ${nm}` : `this is me — seal as ${nm}`;
+  return `
+    <div class="alch-pf-claim-row">
+      <button id="alch-pf-claim-btn" class="alch-seal-btn alch-pf-claim" type="button"
+              title="set your seal on this device to ${escAttr(nm)} (${escAttr(p.editKind)} · ${escAttr(p.editTargetId)})">
+        ${escHtml(label)}
+      </button>
+    </div>
+  `;
+}
+
 function renderEditorBody(p, teams, people) {
   const fields = (p.editKind === "person") ? PERSON_EDITABLE_FIELDS : teamFieldsFor(p.editKind);
 
@@ -13202,6 +13236,7 @@ function renderEditorBody(p, teams, people) {
           <select id="alch-pf-target-select" class="alch-pf-target-select">${opts}</select>
         </label>
       </div>
+      ${sealClaimHtml(p)}
       ${formHtml}
       ${p.editDraft ? renderSubmitBlock(p) : ""}
     `;
@@ -13220,6 +13255,7 @@ function renderEditorBody(p, teams, people) {
         <select id="alch-pf-target-select" class="alch-pf-target-select">${opts}</select>
       </label>
     </div>
+    ${sealClaimHtml(p)}
     ${formHtml}
     ${p.editDraft ? renderSubmitBlock(p) : ""}
   `;
@@ -13352,9 +13388,26 @@ function wireExternalLinks(root) {
 }
 
 function wireProfileForm() {
-  // Inline re-seal card at the bottom of the page (async — paints once
-  // the cohort surface resolves; wires its own controls).
+  // Seal summary card at the top of the page (async — paints once the
+  // cohort surface resolves; wires its own controls).
   mountResealInline(state.canvas.querySelector("#alch-reseal-host"));
+
+  // "this is me" — seal as the record currently loaded in the editor.
+  // Re-render so the seal card and this button both reflect the claim.
+  const claimBtn = state.canvas.querySelector("#alch-pf-claim-btn");
+  if (claimBtn) {
+    claimBtn.addEventListener("click", () => {
+      const p = state.profile;
+      if (!p?.editTargetId) return;
+      const pool = (p.editKind === "person")
+        ? (state.cohort?.people || [])
+        : teamsOfKind(state.cohort?.teams || [], p.editKind);
+      const rec = pool.find(r => r.record_id === p.editTargetId);
+      setIdentity({ kind: p.editKind, record_id: p.editTargetId, display_name: rec?.name || p.editTargetId });
+      renderProfile();
+      wireProfileForm();
+    });
+  }
 
   // Light/dark toggle (lives in the profile header).
   const themeBtn = state.canvas.querySelector("#alch-theme-toggle");
