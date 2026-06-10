@@ -51,7 +51,7 @@ import { enrichPeople } from "./gh-user.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
-import { getIdentity } from "./identity.js";
+import { getIdentity, mountResealInline } from "./identity.js";
 import {
   askAgeLabel, askIsCurrent, askIsOpen, askStatus, askTopic, asksWithStatus,
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
@@ -488,6 +488,26 @@ window.__srwkOpenProfile = function openProfileExternal(opts = {}) {
   // Repaint the alchemy canvas. If alchemy isn't mounted yet (very first
   // load before tab switch fires mount), the tab switch will trigger
   // loadCohort + render itself.
+  if (state.mounted) {
+    syncRailSelection();
+    render();
+  }
+};
+
+// Navigation-only sibling of __srwkOpenProfile — opens the profile page
+// WITHOUT touching the editor state, so it shows exactly what the old
+// rail "profile" entry showed. Used by the bottom-left identity pill
+// (the rail entry was removed 2026-06; the pill is the only way in).
+window.__srwkGoProfilePage = function openProfilePage() {
+  if (!state.profile) loadProfile();
+  state.detailRecordId = null;
+  state.detailReturnMode = null;
+  try { localStorage.removeItem(DETAIL_LS_KEY); } catch {}
+  state.mode = "profile";
+  try { localStorage.setItem(ALCHEMY_LS_KEY, "profile"); } catch {}
+  if (typeof window.__srwkGoTab === "function") {
+    window.__srwkGoTab("alchemy");
+  }
   if (state.mounted) {
     syncRailSelection();
     render();
@@ -13144,6 +13164,10 @@ function renderProfile() {
     <code>npm run build:cohort</code>. Updates only touch surface fields (steward-managed fields like class /
     archetype / status are preserved by manual edit in the github editor). The feed auto-tracks every
     team or project's <code>links.repo</code> — fill it in via <strong>edit → team</strong> or <strong>edit → project</strong> to surface activity.</p>
+
+    <!-- re-seal card (claim / switch / unclaim / resync) — merged here
+         from the identity-pill popup 2026-06; filled by mountResealInline. -->
+    <section id="alch-reseal-host" aria-label="your seal"></section>
   `;
 }
 
@@ -13325,6 +13349,10 @@ function wireExternalLinks(root) {
 }
 
 function wireProfileForm() {
+  // Inline re-seal card at the bottom of the page (async — paints once
+  // the cohort surface resolves; wires its own controls).
+  mountResealInline(state.canvas.querySelector("#alch-reseal-host"));
+
   // Light/dark toggle (lives in the profile header).
   const themeBtn = state.canvas.querySelector("#alch-theme-toggle");
   if (themeBtn) {

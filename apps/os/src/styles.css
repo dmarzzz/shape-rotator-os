@@ -350,8 +350,12 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
 }
 @keyframes imFade { from { opacity: 0 } to { opacity: 1 } }
 /* Crew-enrollment terminal — themed like the crew credential (ember on
-   deep void, mono, framed with corner ticks + a one-shot scan reveal). */
-.identity-modal.enroll {
+   deep void, mono, framed with corner ticks + a one-shot scan reveal).
+   .identity-inline is the same card mounted inline at the bottom of the
+   profile page (merged from the pill popup 2026-06) — it rides every
+   .identity-modal frame layer via the shared selector lists. */
+.identity-modal.enroll,
+.identity-inline.enroll {
   position: relative;
   background:
     radial-gradient(120% 80% at 6% -10%, rgba(255,122,61,0.07), transparent 56%),
@@ -370,12 +374,13 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
     0 28px 80px rgba(0,0,0,0.7);
   isolation: isolate;
 }
-.identity-modal.enroll::before, .identity-modal.enroll::after {
+.identity-modal.enroll::before, .identity-modal.enroll::after,
+.identity-inline.enroll::before, .identity-inline.enroll::after {
   content: ""; position: absolute; width: 13px; height: 13px; z-index: 2;
   border: 1px solid rgba(255,122,61,0.5);
 }
-.identity-modal.enroll::before { top: 9px; left: 9px; border-right: 0; border-bottom: 0; }
-.identity-modal.enroll::after { bottom: 9px; right: 9px; border-left: 0; border-top: 0; }
+.identity-modal.enroll::before, .identity-inline.enroll::before { top: 9px; left: 9px; border-right: 0; border-bottom: 0; }
+.identity-modal.enroll::after, .identity-inline.enroll::after { bottom: 9px; right: 9px; border-left: 0; border-top: 0; }
 .enroll-scan {
   position: absolute; left: 0; right: 0; top: 0; height: 36%; z-index: 5;
   pointer-events: none; opacity: 0; border-radius: 12px 12px 0 0;
@@ -485,6 +490,15 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
 }
 .enroll .im-resync:hover { color: #ff7a3d; border-color: rgba(255,122,61,0.45); }
 .enroll .im-resync[data-busy="1"] { cursor: progress; opacity: 0.7; }
+
+/* Inline variant — a section in the profile page's normal flow, so no
+   viewport clamp / inner scroll, and breathing room above the card. */
+.identity-inline.enroll {
+  display: block;
+  margin: 36px 0 0;
+  max-height: none;
+  overflow: visible;
+}
 
 /* Lives inside #tab-bar (a flex row with tabs left, version right).
    Absolute-center within the bar so it doesn't shift when the tab
@@ -13122,7 +13136,8 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
-.identity-modal {
+.identity-modal,
+.identity-inline {
   background: var(--ed-bg-1);
   border: 1px solid var(--ed-rule-2);
   color: var(--ed-ink-2);
@@ -13401,7 +13416,7 @@ html, body { background: var(--ed-bg-0); }
 }
 
 /* ── modals (identity onboarding) — gallery composure ─────────────── */
-.identity-modal { background: var(--ed-bg-1); border: 1px solid var(--ed-rule-2); border-radius: 0; }
+.identity-modal, .identity-inline { background: var(--ed-bg-1); border: 1px solid var(--ed-rule-2); border-radius: 0; }
 .im-title { letter-spacing: -0.025em; font-feature-settings: "liga", "dlig", "swsh"; }
 .im-sub, .im-h { text-transform: lowercase; letter-spacing: 0.18em; }
 .im-row select, .alch-pf-row input, .alch-pf-row select, .alch-pf-target-select {
@@ -13776,7 +13791,8 @@ html, body {
 }
 
 /* ── modal — subtle gradient surface, gradient hairline divider ────── */
-.identity-modal {
+.identity-modal,
+.identity-inline {
   background: linear-gradient(180deg, #18150f 0%, #110f0c 100%);
   border-color: rgba(var(--ink-rgb), 0.14);
 }
@@ -17886,6 +17902,7 @@ html[data-theme="light"] #graph {
  * win source order. Re-skin them as paper gradients in light mode. */
 html[data-theme="light"] .alchemy-canvas .alch-legend-card,
 html[data-theme="light"] .identity-modal,
+html[data-theme="light"] .identity-inline,
 html[data-theme="light"] .fork-prompt,
 html[data-theme="light"] .alch-onb-modal,
 html[data-theme="light"] .history-modal {
