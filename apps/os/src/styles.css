@@ -6267,18 +6267,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   transform: translateY(8px);
 }
 
-/* Stagger child cards into view inside grid containers when the canvas
- * transitions in. Driven by --alch-i set inline per card. */
-.alchemy-canvas .alch-card,
-.alchemy-canvas .alch-legend-card {
-  --alch-i: 0;
-  animation: alchCardIn 360ms var(--ease) both;
-  animation-delay: calc(var(--alch-i) * 28ms);
-}
-@keyframes alchCardIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+/* Card stagger-in removed — pages should render instantly on switch. */
 
 /* ─── specimens grid ─────────────────────────────────────────────────── */
 .alch-specimens {
@@ -6358,9 +6347,24 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   display: flex; flex-direction: column; gap: 8px;
   height: 100%;
 }
-.alchemy-canvas:has(.alch-constellation) {
+.alchemy-canvas:has(.alch-constellation),
+.alchemy-canvas:has(.alch-cohort-page) {
   padding-left: 34px;
   padding-right: 32px;
+}
+/* ── cohort page shell (2026-06) ─────────────────────────────────────
+   Every cohort view renders inside the same shell: page header, then the
+   view nav, then ONE controls band, then content. The header and the
+   first content row land at the same y in every view, so switching views
+   never moves the hero or the filters. */
+.alch-cohort-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.alch-cohort-page > .alch-constellation {
+  height: auto;
+  flex: 1 1 auto;
 }
 .alch-const-workbench {
   display: grid;
@@ -6514,8 +6518,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   stroke-width: 3px;
 }
 .alch-constellation-stage[data-view="map"] svg .ac-node-group.is-secondary-label .ac-node-label {
-  fill: rgba(245,243,238,0.62);
-  opacity: 0.58;
+  fill: rgba(245,243,238,0.68);
+  opacity: 0.64;
   font-size: 6.8px;
   stroke-width: 2.4px;
 }
@@ -7768,19 +7772,6 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 /* map lens row — all / relies / works / shared. Re-weights the same map
    (control-as-claim), so it reads as a claim selector, not a view toggle. */
-.ac-map-control-stack {
-  display: flex;
-  align-items: center;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 9px 22px;
-  margin: 0 0 6px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(var(--ink-rgb),0.06);
-}
-.ac-map-control-stack.is-people-scope {
-  margin-bottom: 10px;
-}
 .ac-network-scope-row,
 .ac-map-layout-row,
 .ac-lens-row {
@@ -8507,16 +8498,14 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-stage[data-selection-active="true"] .ac-stack-team.is-selection-outside {
   opacity: 0.18;
 }
-/* top bar */
-.alch-const-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 @media (max-width: 820px) {
-  .alch-const-topbar { flex-direction: column; }
   .alch-constellation-legend { max-width: 100%; padding-right: 0; }
   .alch-constellation-stage > .ac-distribution-card { position: static; width: auto; margin: 8px; }
 }
 
 @media (max-width: 1180px) {
-  .alchemy-canvas:has(.alch-constellation) {
+  .alchemy-canvas:has(.alch-constellation),
+  .alchemy-canvas:has(.alch-cohort-page) {
     padding-left: 28px;
     padding-right: 28px;
   }
@@ -8946,15 +8935,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 /* ─── collaboration board (ported from dossier Connections) ──────────── */
 .alch-collab { display: flex; flex-direction: column; gap: 26px; }
 
-.alch-cb-head { display: flex; flex-direction: column; gap: 8px; }
 
-.alch-cb-title { font-family: var(--ed-display); font-style: italic; font-size: 26px; color: var(--ed-ink-1); margin: 0; }
-
-.alch-cb-sub { max-width: 82ch; font-size: 12.5px; line-height: 1.6; color: var(--alchemy-ink-mute); margin: 0; }
-
-.alch-cb-stats { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 4px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
-
-.alch-cb-stats strong { color: var(--alchemy-oxide-bright); font-size: 13px; margin-right: 5px; }
+/* Collab's old board header (title/sub/stats) retired 2026-06 — the shared
+   cohort page header + view controls band carry that job now. */
 
 /* ─── journey (PMF spectrum scatterplot) ─────────────────────────────── */
 /* Reuses the constellation stage chrome; the scatter-specific bits (grid,
@@ -9218,9 +9201,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-link-btn:hover { color: var(--alchemy-paper-warm); border-color: var(--alchemy-paper-warm); }
 
 /* ─── profile ────────────────────────────────────────────────────────── */
-.alch-profile-head { margin-bottom: 22px; padding-bottom: 14px; border-bottom: 1px solid var(--alchemy-rule); max-width: 70ch; }
+.alch-profile-head { margin-bottom: 22px; max-width: 70ch; }
 .alch-profile-head-row {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  display: flex; align-items: baseline; justify-content: flex-end; gap: 16px;
   margin-bottom: 6px;
 }
 .alch-profile-title {
@@ -9254,7 +9237,6 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-profile-section {
   display: flex; flex-direction: column; gap: 12px;
   padding: 18px 0; border-top: 1px solid var(--alchemy-rule);
-  max-width: 60ch;
 }
 .alch-profile-section:first-of-type { border-top: 0; padding-top: 0; }
 .alch-profile-h {
@@ -9271,12 +9253,13 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   display: grid; grid-template-columns: 110px 1fr; gap: 12px;
   align-items: center;
 }
-.alch-pf-row > span {
+.alch-pf-row > span,
+.alch-pf-target label > span {
   font-family: var(--font-mono); font-size: 10px;
   letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--alchemy-ink-mute);
 }
-.alch-pf-row input, .alch-pf-row select {
+.alch-pf-row input, .alch-pf-row select, .alch-pf-target-select {
   background: rgba(0,0,0,0.30);
   color: var(--alchemy-paper-warm);
   border: 1px solid var(--alchemy-rule);
@@ -9286,7 +9269,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   outline: none;
   transition: border-color 160ms var(--ease);
 }
-.alch-pf-row input:focus, .alch-pf-row select:focus { border-color: var(--alchemy-rule-warm); }
+.alch-pf-row input:focus, .alch-pf-row select:focus, .alch-pf-target-select:focus { border-color: var(--alchemy-rule-warm); }
 
 /* Shapes grid → kind filter chips (all / teams / projects) */
 .alch-shapes-filter {
@@ -9423,6 +9406,10 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   border: 1px solid var(--alchemy-rule);
   border-radius: 4px;
   padding: 16px 18px;
+  min-width: 0;
+}
+.alch-detail-wide {
+  grid-column: 1 / -1;
 }
 .alch-detail-h {
   font-family: var(--font-mono);
@@ -9431,18 +9418,60 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   margin: 0 0 12px 0;
   font-weight: normal;
 }
+.alch-detail-prose {
+  max-width: 880px;
+  color: var(--alchemy-paper-warm);
+  font-size: 13px;
+  line-height: 1.55;
+  text-wrap: pretty;
+  overflow-wrap: break-word;
+}
+.alch-detail-prose a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--alchemy-rule-warm);
+}
+.alch-detail-prose a:hover {
+  color: var(--alchemy-oxide-bright);
+  border-bottom-color: var(--alchemy-oxide-bright);
+}
+.alch-detail-prose code {
+  color: var(--alchemy-paper-warm);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: rgba(var(--ink-rgb), 0.06);
+  border: 1px solid var(--alchemy-rule);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.alch-detail-prose p {
+  margin: 0;
+}
+.alch-detail-prose p + p,
+.alch-detail-prose ul + p,
+.alch-detail-prose p + ul {
+  margin-top: 10px;
+}
+.alch-detail-prose ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.alch-detail-prose li + li {
+  margin-top: 5px;
+}
 .alch-detail-row {
   display: grid; grid-template-columns: 90px 1fr; gap: 12px;
   font-family: var(--font-mono); font-size: 12px;
   padding: 5px 0;
   align-items: baseline;
+  min-width: 0;
 }
 .alch-detail-row + .alch-detail-row { border-top: 1px dashed var(--alchemy-rule); }
 .alch-detail-row .adr-k {
   font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--alchemy-ink-mute);
 }
-.alch-detail-row .adr-v { color: var(--alchemy-paper-warm); word-break: break-word; }
+.alch-detail-row .adr-v { color: var(--alchemy-paper-warm); min-width: 0; word-break: break-word; }
 .alch-detail-row .adr-v a {
   color: var(--alchemy-paper-warm);
   text-decoration: none;
@@ -9483,6 +9512,90 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .alch-detail-list-compact {
   gap: 5px;
+}
+.alch-timeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.alch-timeline-item {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px dashed var(--alchemy-rule);
+}
+.alch-timeline-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.ati-date,
+.ati-type,
+.ati-source {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+.ati-date {
+  color: var(--alchemy-ink-mute);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.ati-body {
+  min-width: 0;
+}
+.ati-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ati-title {
+  color: var(--alchemy-paper-warm);
+  font-size: 12.5px;
+  line-height: 1.35;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ati-title a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--alchemy-rule-warm);
+}
+.ati-title a:hover {
+  color: var(--alchemy-oxide-bright);
+  border-bottom-color: var(--alchemy-oxide-bright);
+}
+.ati-type {
+  color: var(--alchemy-ink-mute);
+  font-size: 9px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.ati-body p {
+  margin: 5px 0 0;
+  color: var(--alchemy-ink);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.ati-source {
+  display: block;
+  margin-top: 6px;
+  color: var(--alchemy-ink-mute);
+  font-size: 9px;
+}
+.ati-more {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--alchemy-rule);
+  color: var(--alchemy-ink-mute);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 .alch-detail-chips {
   display: flex;
@@ -10798,49 +10911,6 @@ button.cb-cell:disabled { cursor: default; }
 .alch-collab .cb-sort-control select option:checked {
   background-color: #8f220e;
   color: #fff7ef;
-}
-
-.alch-collab .alch-cb-head {
-  gap: 10px;
-}
-
-.alch-collab .alch-cb-title {
-  display: block;
-  font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--cb-preview-text);
-}
-
-.alch-collab .alch-cb-sub {
-  display: block;
-  max-width: 760px;
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.alch-collab .alch-cb-stats {
-  gap: 10px;
-  margin-top: 0;
-  letter-spacing: 0.05em;
-}
-
-.alch-collab .alch-cb-stats span {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  border: 1px solid var(--alchemy-rule);
-  border-radius: 8px;
-  background: linear-gradient(180deg, var(--cb-preview-panel) 0%, var(--cb-preview-panel-2) 100%);
-  padding: 7px 10px;
-}
-
-.alch-collab .alch-cb-stats strong {
-  color: var(--cb-preview-dep);
-  font-family: var(--font-sans);
-  font-size: 19px;
-  letter-spacing: 0;
 }
 
 .alch-collab .alch-cb-section {
@@ -12872,6 +12942,14 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
 .alch-detail-meta { font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.18em; color: var(--ed-ink-3); }
 .alch-detail-meta .adm-k { color: var(--ed-ink-4); }
 .alch-detail-section { background: var(--ed-bg-1); border: 1px solid var(--ed-rule); border-radius: 4px; padding: 24px; }
+.alch-detail-prose { color: var(--ed-ink-1); }
+.alch-detail-prose a { border-bottom-color: var(--ed-rule-2); }
+.alch-detail-prose a:hover { color: var(--ed-ink-1); border-bottom-color: var(--ed-ink-1); }
+.alch-detail-prose code {
+  color: var(--ed-ink-1);
+  background: var(--ed-bg-well);
+  border-color: var(--ed-rule);
+}
 .alch-detail-h {
   font-family: var(--ed-mono);
   font-size: 10px;
@@ -12908,21 +12986,75 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
 .alch-detail-person .adp-name { color: var(--ed-ink-1); }
 .alch-detail-person .adp-role { color: var(--ed-ink-3); }
 .alch-detail-cluster { background: transparent; color: var(--ed-ink-1); border: 1px solid var(--ed-rule-2); }
+.alch-timeline-item { border-top-color: var(--ed-rule); }
+.ati-date,
+.ati-type,
+.ati-source { color: var(--ed-ink-4); }
+.ati-title { color: var(--ed-ink-1); }
+.ati-title a { border-bottom-color: var(--ed-rule-2); }
+.ati-title a:hover { color: var(--ed-ink-1); border-bottom-color: var(--ed-ink-1); }
+.ati-body p { color: var(--ed-ink-2); }
+.ati-more { border-top-color: var(--ed-rule); color: var(--ed-ink-4); }
+
+@media (max-width: 720px) {
+  .alch-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .alch-detail-wide {
+    grid-column: auto;
+  }
+  .alch-detail-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    align-items: start;
+  }
+  .alch-timeline-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .ati-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .ati-type {
+    white-space: normal;
+  }
+}
 
 /* ── profile editor (forms) ──────────────────────────────────────── */
-.alch-pf-modetab, .alch-pf-subtab {
-  background: transparent;
-  color: var(--ed-ink-3);
+/* Mode (add/edit) + kind (team/project/person) render as segmented
+ * controls — one hairline group each, dividers between options, filled
+ * segment for the active choice — side by side on one row. */
+.alch-pf-tabsrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.alch-pf-modetabs, .alch-pf-subtabs {
+  display: inline-flex;
+  width: max-content;
   border: 1px solid var(--ed-rule-2);
-  font-family: var(--ed-mono);
-  letter-spacing: 0.22em;
+  border-radius: 999px;
+  overflow: hidden;
 }
-.alch-pf-modetab:hover, .alch-pf-subtab:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); }
+.alch-pf-modetab, .alch-pf-subtab {
+  appearance: none;
+  background: transparent;
+  color: var(--ed-ink-4);
+  border: 0;
+  margin: 0;
+  padding: 7px 16px;
+  font-family: var(--ed-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+.alch-pf-modetab + .alch-pf-modetab,
+.alch-pf-subtab + .alch-pf-subtab { border-left: 1px solid var(--ed-rule-2); }
+.alch-pf-modetab:hover, .alch-pf-subtab:hover { color: var(--ed-ink-1); }
 .alch-pf-modetab[aria-selected="true"],
 .alch-pf-subtab[aria-selected="true"] {
-  color: var(--ed-ink-1);
-  border-color: var(--ed-ink-1);
-  background: transparent;
+  background: var(--ed-ink-1);
+  color: var(--ed-bg-0);
 }
 .alch-pf-row > span, .alch-pf-target label > span { color: var(--ed-ink-4); letter-spacing: 0.22em; }
 .alch-pf-row input, .alch-pf-row select, .alch-pf-target-select {
@@ -12935,6 +13067,153 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   border-color: var(--ed-ink-1);
 }
 .alch-pf-pick { color: var(--ed-ink-3); }
+
+/* ── profile · "your seal" section ─────────────────────────────────
+ * Inline identity controls (claim / re-seal / strike new / resync),
+ * merged from the identity-pill popup. Styled as one more editorial
+ * profile section — same heading, row grid, and pill buttons as the
+ * record editor above it. The ember "enrollment terminal" look stays
+ * exclusive to the first-launch modal. */
+.alch-seal-current {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 16px 18px;
+  border: 1px solid var(--ed-rule-2);
+  background: var(--ed-bg-1);
+}
+.alch-seal-avatar {
+  width: 48px; height: 48px; flex: 0 0 48px;
+  display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden; border-radius: 50%;
+  border: 1px solid var(--ed-rule-2);
+  background: var(--ed-bg-0);
+}
+.alch-seal-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.alch-seal-initials {
+  font-family: var(--ed-mono); font-size: 14px; letter-spacing: 0.08em;
+  color: var(--ed-ink-2);
+}
+/* The identity column wraps freely — never truncate who the user is. */
+.alch-seal-who { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 240px; }
+.alch-seal-name {
+  color: var(--ed-ink-1); font-size: 16px; letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+.alch-seal-meta {
+  font-family: var(--ed-mono); font-size: 9.5px; letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--ed-ink-4);
+}
+.alch-seal-contact {
+  font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: var(--ed-ink-3);
+  overflow-wrap: anywhere;
+}
+.alch-seal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; align-self: center; }
+.alch-seal-btn {
+  background: transparent;
+  color: var(--ed-ink-2);
+  border: 1px solid var(--ed-rule-2);
+  border-radius: 999px;
+  padding: 7px 15px;
+  font-family: var(--ed-mono); font-size: 10px;
+  letter-spacing: 0.16em; text-transform: lowercase;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.alch-seal-btn:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); background: rgba(var(--ink-rgb), 0.05); }
+/* "break the seal" — destructive-leaning: oxide on hover/confirm. */
+.alch-seal-btn-danger:hover {
+  color: var(--alchemy-oxide-bright);
+  border-color: var(--alchemy-oxide-bright);
+  background: rgba(180, 58, 25, 0.08);
+}
+/* "break the seal" mid-confirm + resync busy states */
+.alch-seal-btn[data-confirming="1"] { color: var(--alchemy-oxide-bright); border-color: currentColor; }
+.alch-seal-btn[data-busy="1"] { cursor: progress; opacity: 0.7; }
+.alch-seal-btnrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* Record-picker row — same 110px label column as .alch-pf-row, with a
+ * third auto column holding the inline claim button. The row renders in
+ * BOTH editor modes (disabled ghost in ADD) so toggling add ↔ edit
+ * never shifts the form rows below. */
+.alch-pf-target {
+  display: grid; grid-template-columns: 110px 1fr auto;
+  gap: 12px; align-items: center;
+}
+.alch-pf-target label { display: contents; }
+.alch-pf-target-select[disabled] { opacity: 0.55; cursor: default; }
+/* Wide windows: the editor form flows into two columns. Textarea rows
+ * (.alch-pf-row-wide) already span the full row via grid-column 1/-1. */
+@media (min-width: 1240px) {
+  .alch-profile-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 48px;
+    row-gap: 8px;
+  }
+}
+/* "this is me / re-seal as X" — identity claim against the record loaded
+ * in the editor. Oxide accent: it changes who you ARE, not the record. */
+.alch-pf-claim {
+  color: var(--alchemy-oxide-bright);
+  border-color: rgba(180, 58, 25, 0.45);
+  white-space: nowrap;
+}
+.alch-pf-claim:hover {
+  color: var(--alchemy-oxide-bright);
+  border-color: var(--alchemy-oxide-bright);
+}
+.alch-seal-empty {
+  margin: 0;
+  font-family: var(--ed-mono); font-size: 11px; line-height: 1.6;
+  color: var(--ed-ink-3);
+}
+
+/* ── profile · submit row (save · local sync / save · open github PR) ──
+ * These buttons had no rules at all and rendered as raw UA buttons.
+ * Editorial pills like the rest of the page: the local-sync path is the
+ * primary CTA (filled ink), github PR the outlined secondary, and a
+ * disabled path recedes instead of shouting. */
+.alch-profile-submit-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.alch-submit-pr-btn {
+  appearance: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent;
+  color: var(--ed-ink-2);
+  border: 1px solid var(--ed-rule-2);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-family: var(--ed-mono); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: lowercase;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+.alch-submit-pr-btn:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); }
+.alch-submit-pr-primary {
+  background: var(--ed-ink-1);
+  color: var(--ed-bg-0);
+  border-color: var(--ed-ink-1);
+}
+.alch-submit-pr-primary:hover { color: var(--ed-bg-0); border-color: var(--ed-ink-1); opacity: 0.88; }
+.alch-submit-pr-btn[disabled] {
+  background: transparent;
+  color: var(--ed-ink-4);
+  border-color: var(--ed-rule-2);
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+.alch-submit-pr-mute { font-size: 9.5px; letter-spacing: 0.08em; opacity: 0.8; }
+.alch-submit-pr-hint {
+  margin: 12px 0 0;
+  font-family: var(--ed-mono);
+  font-size: 11px; line-height: 1.65;
+  color: var(--ed-ink-4);
+}
+.alch-submit-pr-hint code { color: var(--ed-ink-3); }
+.alch-submit-pr-hint strong { color: var(--ed-ink-3); font-weight: 500; }
+
+/* Theme toggle inside the intro strip — keep it on the right edge
+ * without shrinking. */
+.alch-page-intro .alch-theme-toggle { flex: 0 0 auto; }
 
 /* ── network + metrics ───────────────────────────────────────────── */
 #network-view, #metrics-view { background: var(--ed-bg-0); color: var(--ed-ink-2); }
@@ -13113,7 +13392,7 @@ html, body { background: var(--ed-bg-0); }
 .atlas-search-toggle:hover .ast-glyph { opacity: var(--ed-op-loud); }
 
 /* ── alchemy page padding — generous gallery margins ─────────────── */
-.alchemy-canvas { padding: 48px 56px 64px; }
+.alchemy-canvas { padding: 24px 56px 64px; }
 
 /* ── alchemy LEFT RAIL — Linear/Foundation editorial spec ────────── */
 .alchemy-rail {
@@ -13259,7 +13538,10 @@ html, body { background: var(--ed-bg-0); }
   background: var(--ed-bg-well);
   border-radius: 0;
 }
-.im-btn, .alch-pf-modetab, .alch-pf-subtab {
+/* (.alch-pf-modetab/.alch-pf-subtab left this list 2026-06 — they're
+ * square segments inside a rounded group now; a per-button pill radius
+ * would round the selected fill inside the track.) */
+.im-btn {
   border-radius: 999px;
   text-transform: lowercase;
   letter-spacing: 0.16em;
@@ -13427,13 +13709,12 @@ html, body { background: var(--ed-bg-0); }
   margin-left: auto;
 }
 
-/* Second filter row — membership / role_class. Sits below the kind toolbar
- * so the visual hierarchy reads as: pick the entity type (teams vs people),
- * then narrow to a membership bucket. The cohort chip carries the same
- * warm oxide treatment used on cohort cards so the connection is obvious. */
+/* Membership / role_class chips — share the toolbar row with the kind
+ * chips: entity type (teams vs people) first, membership bucket next.
+ * The cohort chip carries the same warm oxide treatment used on cohort
+ * cards so the connection is obvious. */
 .alch-shapes-filter-membership {
-  margin-top: -16px;
-  margin-bottom: 32px;
+  margin: 0;
 }
 .alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"],
 .alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"] {
@@ -13999,7 +14280,7 @@ html, body {
 }
 .alch-onb-sub strong { color: var(--ed-ink-1); opacity: 1; font-weight: 500; }
 .alch-onb-steps {
-  list-style: none; padding: 0; margin: 0 auto 28px;
+  list-style: none; padding: 0; margin: 0 0 28px;
   display: grid; gap: 14px;
   max-width: 84ch;
 }
@@ -14173,7 +14454,7 @@ html, body {
   font-size: 16px;
   letter-spacing: -0.01em;
 }
-.alch-prog-page { margin: 0 auto; max-width: 70ch; }
+.alch-prog-page { margin: 0; max-width: 70ch; }
 .alch-prog-page-head {
   display: flex; align-items: baseline; gap: 16px;
   margin-bottom: 16px;
@@ -14670,13 +14951,83 @@ html, body {
 }
 .alch-atlas-li:hover { color: #c44025; }
 
-/* ── constellation mode toggle ───────────────────────────────────── */
-.alch-const-modes {
+/* ── shared page header (cohort + context) ──────────────────────────
+   One header pattern for the OS's two "understanding" pages: a quiet
+   mono kicker, the page title, a one-line purpose dek that changes per
+   view, and an optional right-side action. The view nav directly below
+   carries the rule line, so the header itself stays rule-free. */
+.alch-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 32px;
+  align-items: flex-start;
+  padding: 2px 0 12px;
+}
+.alch-page-head-text {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+.alch-page-kicker {
+  margin: 0 0 6px;
+  color: rgba(var(--ink-rgb), 0.38);
+  font: 700 11px/1.1 var(--mono);
+  letter-spacing: 0;
+  text-transform: lowercase;
+}
+.alch-page-title {
+  margin: 0;
+  color: rgb(var(--ink-rgb));
+  font: 560 clamp(20px, 2vw, 27px)/1.08 var(--sans);
+}
+.alch-page-dek {
+  max-width: 720px;
+  margin: 7px 0 0;
+  color: rgba(var(--ink-rgb), 0.64);
+  font: 400 13.5px/1.5 var(--sans);
+  /* Reserve two lines so a wrapping dek never moves the view nav — the
+     header occupies the same height on every view. */
+  min-height: 3em;
+}
+.alch-page-head-side {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+  margin-left: auto;
+}
+.alch-page-head-meta {
+  color: rgba(var(--ink-rgb), 0.4);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: lowercase;
+  text-align: right;
+  display: grid;
+  gap: 3px;
+}
+.alch-page-head-meta span {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 820px) {
+  .alch-page-head { flex-direction: column; gap: 10px; }
+  .alch-page-head-side { padding-top: 0; margin-left: 0; justify-content: flex-start; }
+  .alch-page-head-meta { text-align: left; }
+}
+
+/* ── page view nav (cohort + context) ───────────────────────────────── */
+.alch-page-views {
   display: flex; gap: 0;
   margin: 0 0 8px 0;
   border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
 }
-.alch-const-mode-btn {
+.alch-page-view-btn {
   appearance: none;
   background: transparent;
   border: 0;
@@ -14687,37 +15038,79 @@ html, body {
   opacity: 0.45;
   cursor: pointer;
 }
-.alch-const-mode-btn:hover { opacity: 0.85; }
-.alch-const-mode-btn[aria-selected="true"] {
+.alch-page-view-btn:hover { opacity: 0.85; }
+.alch-page-view-btn[aria-selected="true"] {
   opacity: 1;
   border-bottom-color: #c44025;
 }
-.acm-glyph { font-size: 14px; opacity: 0.65; }
-.acm-label {
+.apv-glyph { font-size: 14px; opacity: 0.65; }
+.apv-label {
   font-family: var(--ed-display);
   font-style: italic;
   font-size: 16.5px;
   color: var(--ed-ink-1);
 }
-.alch-const-mode-btn[aria-selected="true"] .acm-label {
+.alch-page-view-btn[aria-selected="true"] .apv-label {
   color: var(--alchemy-paper-warm);
 }
-.acm-hint {
+.apv-hint {
   font-family: var(--ed-mono);
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: lowercase;
   opacity: 0.55;
 }
+.apv-count {
+  align-self: center;
+  color: rgba(var(--ink-rgb), 0.42);
+  font-family: var(--ed-mono);
+  font-size: 10px;
+  line-height: 1;
+}
+.alch-page-view-btn[aria-selected="true"] .apv-count {
+  color: rgba(var(--ink-rgb), 0.62);
+}
+
+/* ── page view controls band ─────────────────────────────────────────
+   The one slot for a view's filters/lenses, directly under the view nav.
+   Each view drops its own rows in; the band owns the rhythm (rule line +
+   spacing) so filters sit at the same y on every view. Wrappers that had
+   their own band styling are neutralized below. */
+.alch-view-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px 22px;
+  margin: 2px 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.06);
+}
+.alch-view-controls > .alch-journey-filters,
+.alch-view-controls > .alch-shapes-filter,
+.alch-view-controls > .alch-shapes-filter-membership {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+/* Collab's lens buttons + actions become one space-between band row. */
+.alch-view-controls > .cb-controls {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
 
 @media (max-width: 1120px) {
-  .alch-const-mode-btn {
+  .alch-page-view-btn {
     flex: 1 1 0;
     justify-content: center;
     padding-left: 10px;
     padding-right: 10px;
   }
-  .acm-hint {
+  .apv-hint,
+  .apv-count {
     display: none;
   }
 }
@@ -14888,12 +15281,12 @@ html, body {
 .alch-prog-title       { font-size: 44px; letter-spacing: -0.02em; line-height: 1.0; margin: 0 0 14px 0; }
 .alch-prog-sub         { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 64ch; margin: 0; opacity: 0.62; }
 
-.alch-prog-tabs        { margin: 24px auto 40px; max-width: 88ch; gap: 0; }
+.alch-prog-tabs        { margin: 24px 0 40px; max-width: 88ch; gap: 0; }
 .alch-prog-tab         { padding: 12px 24px 14px; gap: 12px; }
 .alch-prog-tab-num     { font-size: 11px; letter-spacing: 0.22em; }
 .alch-prog-tab-label   { font-size: 19px; }
 
-.alch-prog-page        { margin: 0 auto; max-width: 80ch; padding: 0 0 96px; }
+.alch-prog-page        { margin: 0; max-width: 80ch; padding: 0 0 96px; }
 .alch-prog-page-head   { margin-bottom: 32px; align-items: baseline; gap: 24px; }
 .alch-prog-page-title  { font-size: 32px; line-height: 1.05; margin: 0; }
 
@@ -14957,7 +15350,7 @@ html, body {
 .alch-onb-title        { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
 .alch-onb-sub          { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 70ch; opacity: 0.62; }
 
-.alch-onb-steps        { margin: 0 auto 36px; max-width: 88ch; gap: 18px; }
+.alch-onb-steps        { margin: 0 0 36px; max-width: 88ch; gap: 18px; }
 .alch-onb-step         {
   grid-template-columns: 56px 1fr 28px;
   gap: 24px;
@@ -14972,7 +15365,7 @@ html, body {
 .alch-onb-done         { font-size: 11px; padding: 6px 14px; letter-spacing: 0.18em; }
 
 /* ── calendar ─────────────────────────────────────────────────────── */
-.cal-page-head         { margin-bottom: 32px; padding-top: 12px; max-width: 88ch; margin-left: auto; margin-right: auto; }
+.cal-page-head         { margin-bottom: 0; }
 .cal-page-title        { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; }
 .cal-page-sub          { font-size: 13px; letter-spacing: 0.18em; }
 
@@ -15578,7 +15971,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .alch-onb-step[data-state="missing"] .alch-onb-step-mark { border-color: var(--sr-red); }
 .alch-prog-tab[aria-selected="true"]      { border-bottom-color: var(--sr-red); }
 .cal-subtab[aria-selected="true"]         { border-bottom-color: var(--sr-red); }
-.alch-const-mode-btn[aria-selected="true"]{ border-bottom-color: var(--sr-red); }
+.alch-page-view-btn[aria-selected="true"]{ border-bottom-color: var(--sr-red); }
 .alch-prog-body a,
 .alch-event-link,
 .alch-asks-action,
@@ -15914,8 +16307,8 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
 .cs-num,
 .cs-hint,
 .cs-label,
-.acm-hint,
-.acm-label {
+.apv-hint,
+.apv-label {
   font-family: var(--sr-font-mono) !important;
 }
 
@@ -18853,74 +19246,8 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   min-height: 100%;
 }
 
-.alch-cv-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 32px;
-  align-items: flex-start;
-  padding-bottom: 18px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
-}
-
-.alch-cv-kicker,
-.alch-cv-eyebrow {
-  margin: 0 0 7px;
-  color: rgba(var(--ink-rgb), 0.38);
-  font: 700 11px/1.1 var(--mono);
-  letter-spacing: 0;
-  text-transform: lowercase;
-}
-
-.alch-cv-head h2 {
-  margin: 0;
-  max-width: 760px;
-  color: rgb(var(--ink-rgb));
-  font: 560 clamp(22px, 2.2vw, 31px)/1.08 var(--sans);
-}
-
-.alch-cv-head p {
-  max-width: 720px;
-  margin: 10px 0 0;
-  color: rgba(var(--ink-rgb), 0.64);
-  font: 400 14px/1.5 var(--sans);
-}
-
-.alch-cv-release {
-  display: block;
-  margin-top: 13px;
-  color: rgba(var(--ink-rgb), 0.34);
-  font-family: var(--sr-font-mono, var(--mono, monospace));
-  font-size: 10px;
-  font-weight: 560;
-  line-height: 1.4;
-  text-transform: lowercase;
-}
-
-.alch-cv-release-version,
-.alch-cv-release-note {
-  display: inline;
-  color: inherit;
-}
-
-.alch-cv-release-note {
-  max-width: min(100%, 560px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.alch-cv-release-note::before {
-  content: " / ";
-  color: rgba(var(--ink-rgb), 0.24);
-}
-
-.alch-cv-head-actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 10px;
-  padding-top: 2px;
-}
-
+/* The context page header now uses the shared .alch-page-head (2026-06);
+   the content-release line lives in the header's side meta. */
 .alch-cv-scan {
   min-height: 30px;
   padding: 7px 12px;
@@ -18929,6 +19256,12 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 
 .alch-cv-scan:hover {
   opacity: 1;
+}
+
+/* Host for the embedded intel module (signals/data views). */
+.alch-cv-intel {
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .alch-cv-message,
@@ -18966,48 +19299,6 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   max-height: calc(100vh - var(--tab-bar-h, 40px) - 76px);
   padding: 14px 24px 12px 0;
   border-right: 1px solid rgba(var(--ink-rgb), 0.08);
-}
-
-.alch-cv-sidebar h3 {
-  margin: 0 0 14px;
-  color: rgba(var(--ink-rgb), 0.48);
-  font: 700 11px/1.1 var(--mono);
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.alch-cv-mode {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin: 0 0 18px;
-}
-
-.alch-cv-mode button {
-  min-width: 0;
-  padding: 8px 9px;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 999px;
-  background: transparent;
-  color: rgba(var(--ink-rgb), 0.50);
-  cursor: pointer;
-  font-family: var(--sr-font-mono, var(--mono, monospace));
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.1;
-  text-transform: uppercase;
-  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-
-.alch-cv-mode button:hover,
-.alch-cv-mode button.is-selected {
-  border-color: rgba(193, 168, 114, 0.36);
-  background: rgba(193, 168, 114, 0.08);
-  color: rgba(var(--ink-rgb), 0.88);
-}
-
-.alch-cv-mode span {
-  color: rgba(var(--ink-rgb), 0.36);
 }
 
 .alch-cv-roots {
@@ -19532,7 +19823,6 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 }
 
 @media (max-width: 720px) {
-  .alch-cv-head,
   .alch-cv-detail-head {
     flex-direction: column;
   }
@@ -19559,11 +19849,11 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
    rail. Each SVG carries no width/height attribute and inherits color
    via currentColor, so it's sized + tinted here to match the text it
    stood in. The original spans' opacity/color rules still apply. */
-/* .alch-const-mode-btn is a flex row with align-items:baseline (fine for
+/* .alch-page-view-btn is a flex row with align-items:baseline (fine for
    the old text glyph). An inline-flex SVG baselines from its bottom edge,
    so center just the glyph item against the label. */
-.acm-glyph { display: inline-flex; align-items: center; align-self: center; }
-.acm-glyph svg { width: 15px; height: 15px; display: block; }
+.apv-glyph { display: inline-flex; align-items: center; align-self: center; }
+.apv-glyph svg { width: 15px; height: 15px; display: block; }
 
 /* .ac-layout-btn is plain inline (not flex) — middle-align the glyph to the text. */
 .acl-glyph { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 5px; }
@@ -19652,3 +19942,382 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   opacity: 1;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
 }
+
+/* Cohort detail dossier parity with the public web profile pages. */
+.alch-detail-dossier {
+  display: grid;
+  grid-template-columns: minmax(230px, 320px) minmax(0, 1fr);
+  min-height: 0;
+  border-top: 1px solid var(--ed-rule, var(--alchemy-rule));
+  border-bottom: 1px solid var(--ed-rule, var(--alchemy-rule));
+}
+.alch-detail-rail {
+  min-width: 0;
+  padding: 28px 28px 28px 0;
+  border-right: 1px solid var(--ed-rule, var(--alchemy-rule));
+}
+.alch-detail-rail .alch-detail-shape {
+  width: min(100%, 220px);
+  margin: 0 0 24px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.alch-rail-read {
+  display: grid;
+  gap: 14px;
+}
+.alch-rail-kicker {
+  font-family: var(--ed-mono, var(--font-mono));
+  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.alch-rail-list {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 11px;
+  color: var(--ed-ink-2, var(--alchemy-ink));
+}
+.alch-rail-list div {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+.alch-rail-list span:first-child {
+  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.alch-rail-members {
+  display: grid;
+  gap: 4px;
+}
+.alch-rail-member {
+  display: block;
+  min-width: 0;
+}
+.alch-rail-member button,
+.alch-rail-list .alch-record-token {
+  appearance: none;
+  border: 0;
+  border-bottom: 1px solid var(--ed-rule-2, var(--alchemy-rule-warm));
+  background: transparent;
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+.alch-rail-member button:hover,
+.alch-rail-list .alch-record-token:hover {
+  border-bottom-color: var(--ed-ink-1, var(--alchemy-oxide-bright));
+}
+.alch-rail-member em {
+  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  font-style: normal;
+}
+.alch-detail-ledger {
+  min-width: 0;
+  padding: 28px 0 32px 32px;
+  display: grid;
+  align-content: start;
+  gap: 22px;
+}
+.alch-ledger-head .alch-detail-h {
+  margin: 0;
+}
+.alch-detail-quick {
+  display: grid;
+  border-top: 1px solid var(--ed-rule, var(--alchemy-rule));
+  border-bottom: 1px solid var(--ed-rule, var(--alchemy-rule));
+}
+.alch-quick-row,
+.alch-detail-row {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 16px;
+  align-items: baseline;
+}
+.alch-quick-row {
+  min-width: 0;
+  min-height: 42px;
+  padding: 10px 0;
+  font-family: var(--ed-mono, var(--font-mono));
+}
+.alch-quick-row + .alch-quick-row {
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
+}
+.alch-quick-k,
+.alch-detail-row .adr-k {
+  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.alch-quick-v {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.alch-quick-link,
+.alch-quick-pill,
+.alch-quick-text {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  max-width: min(100%, 62ch);
+  padding: 3px 8px;
+  border: 1px solid var(--ed-rule-2, var(--alchemy-rule));
+  border-radius: 4px;
+  background: rgba(var(--ink-rgb), 0.018);
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 11px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+button.alch-quick-link {
+  appearance: none;
+  cursor: pointer;
+}
+.alch-quick-link:hover,
+.alch-quick-link:focus-visible {
+  color: var(--ed-ink-1, var(--alchemy-oxide-bright));
+  border-color: var(--ed-ink-1, var(--alchemy-oxide-bright));
+  background: rgba(var(--ink-rgb), 0.045);
+}
+.alch-quick-text {
+  color: var(--ed-ink-2, var(--alchemy-ink));
+  border-color: var(--ed-rule, var(--alchemy-rule));
+}
+.alch-quick-text span,
+.alch-quick-pill span {
+  margin-right: 6px;
+  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.alch-team-token {
+  gap: 7px;
+  padding-left: 3px;
+}
+.alch-mini-shape {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.alch-mini-shape canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.alch-team-quick .alch-quick-row {
+  grid-template-columns: 104px minmax(0, 1fr);
+  min-height: 0;
+  padding: 8px 0;
+}
+.alch-team-quick .alch-quick-link,
+.alch-team-quick .alch-quick-pill,
+.alch-team-quick .alch-quick-text {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.alch-team-quick .alch-quick-link {
+  border-bottom: 1px solid var(--ed-rule-2, var(--alchemy-rule-warm));
+}
+.alch-section-stack {
+  display: grid;
+  gap: 10px;
+}
+.alch-priority-stack {
+  gap: 0;
+}
+.alch-detail-disclosure {
+  border: 0;
+  border-top: 1px solid var(--ed-rule, var(--alchemy-rule));
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 0 0;
+  position: relative;
+}
+.alch-detail-disclosure::before {
+  display: none;
+}
+.alch-detail-disclosure summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 42px;
+  padding: 0 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--ed-ink-2, var(--alchemy-ink));
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10.5px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+}
+.alch-detail-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+.alch-detail-disclosure summary:hover {
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+  background: rgba(var(--ink-rgb), 0.03);
+}
+.alch-section-label {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+.alch-section-preview {
+  min-width: 0;
+  max-width: min(42ch, 60%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: lowercase;
+}
+.alch-section-mark {
+  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  font-size: 12px;
+}
+.alch-section-mark::before {
+  content: "+";
+}
+.alch-detail-disclosure[open] .alch-section-mark::before {
+  content: "-";
+}
+.alch-detail-disclosure[open] .alch-section-mark {
+  color: var(--alchemy-oxide-bright, #d05332);
+}
+.alch-detail-disclosure[open] summary {
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+}
+.alch-section-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 0 16px;
+  animation: alch-section-reveal 170ms var(--ease) both;
+}
+@keyframes alch-section-reveal {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.alch-detail-prose {
+  max-width: 78ch;
+}
+.alch-timeline-item {
+  grid-template-columns: 92px minmax(0, 1fr);
+}
+.alch-timeline-list {
+  padding-bottom: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alch-section-body {
+    animation: none;
+  }
+}
+@media (max-width: 860px) {
+  .alch-detail-dossier {
+    grid-template-columns: 1fr;
+  }
+  .alch-detail-rail {
+    padding-right: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--ed-rule, var(--alchemy-rule));
+  }
+  .alch-detail-ledger {
+    padding-left: 0;
+  }
+}
+@media (max-width: 720px) {
+  .alch-rail-list div,
+  .alch-quick-row,
+  .alch-detail-row,
+  .alch-timeline-item {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+  .alch-section-preview {
+    max-width: 100%;
+  }
+}
+
+/* ─── unified page intro — boxed explainer at the top of each OS page ── */
+/* Doubled class beats later-loading per-page rules (e.g. intel.css) on ties. */
+.alch-page-intro.alch-page-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-sizing: border-box;
+  min-height: 64px;
+  border: 1px solid var(--alchemy-rule);
+  border-radius: 4px;
+  padding: 10px 16px;
+  margin: 0 0 24px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  color: var(--alchemy-ink-mute);
+}
+/* Onboarding content is left-aligned under the intro strip; keep its
+ * closing callout on the same edge instead of the shared centered one.
+ * Same for the profile page (.alch-seal-section marks it) — its form
+ * sections are a left-aligned 60ch column, so a centered callout reads
+ * as floating in dead space. */
+.alchemy-canvas:has(.alch-onb-steps) .alch-callout { margin-left: 0; margin-right: 0; }
+.alchemy-canvas:has(.alch-seal-section) .alch-callout { margin-left: 0; margin-right: 0; max-width: none; }
+/* An intro strip with no text yet keeps its reserved space (same height +
+ * spacing as every other page) but hides the rectangle. Adding text to the
+ * div makes the outline appear automatically. */
+.alch-page-intro.alch-page-intro:empty { border-color: transparent; }
+/* Constellation + cohort-page canvases use narrower padding (34/32; 28/28
+ * under 1180px) for the graph — offset the strip so its edges land at the
+ * same 56px as every other page. */
+.alchemy-canvas:has(.alch-constellation) .alch-page-intro,
+.alchemy-canvas:has(.alch-cohort-page) .alch-page-intro { margin-left: 22px; margin-right: 24px; }
+@media (max-width: 1180px) {
+  .alchemy-canvas:has(.alch-constellation) .alch-page-intro,
+  .alchemy-canvas:has(.alch-cohort-page) .alch-page-intro { margin-left: 28px; margin-right: 28px; }
+}
+/* Membrane is a full-bleed stage with zero canvas padding — give the strip
+ * explicit margins matching the standard page padding, above the scene. */
+.membrane-host .membrane-page-intro { position: relative; z-index: 6; margin: 24px 56px 0; }
+
+/* ── what's new — Slack-style unread on the OS rail ──────────────────
+ * A rail page whose cohort content changed since the user last viewed
+ * it renders at full ink, exactly like a Slack/Discord channel with new
+ * messages. Color only — no badges, no dots, no text. `.ar-unread` is
+ * toggled by alchemy.js (updateRailUnread, fed by whats-new.js) and
+ * settles back once the page is actually viewed. Uses the same theme
+ * vars as the selected state, so light mode is covered for free. */
+.alchemy-rail-btn.ar-unread { opacity: var(--ed-op-loud); }
+.primary-nav .alchemy-rail-btn.ar-unread .ar-label { color: var(--ink-hi) !important; }
+.primary-nav .alchemy-rail-btn.ar-unread .ar-num   { opacity: 1 !important; }
+
+/* Program tab icons — same stroke-icon language as the rail/view navs. */
+.alch-prog-tab-icon { display: inline-flex; align-items: center; align-self: center; opacity: 0.60; }
+.alch-prog-tab-icon svg { width: 15px; height: 15px; display: block; }
+.alch-prog-tab[aria-selected="true"] .alch-prog-tab-icon { opacity: 1; }
