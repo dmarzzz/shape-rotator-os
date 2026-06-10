@@ -272,7 +272,12 @@ const DETECTORS = [
         // with at most a trailing numeric suffix, reads as code, not key
         // material (e.g. getUserByIdV2, my_function_name_2). A real token mixes
         // digits THROUGH the run, so we exclude only the suffix-digit shape.
-        const identifierShaped = /^[A-Za-z][A-Za-z]*([_-]?[A-Za-z]+)*[0-9]{0,3}$/.test(tok);
+        // The separator is mandatory ([_-], not [_-]?): each inter-separator
+        // letter run then groups exactly one way, which keeps the matched
+        // language identical while removing the nested-quantifier ambiguity.
+        // With the optional separator a long mixed token forced catastrophic
+        // backtracking here (ReDoS) — measured ~1.8s at 53 chars, super-linear.
+        const identifierShaped = /^[A-Za-z]+([_-][A-Za-z]+)*[0-9]{0,3}$/.test(tok);
         if (identifierShaped) continue;
         // Raise the entropy floor: genuine random key material sits well above
         // ordinary mixed tokens. 4.0 bits/char keeps real keys, drops prose.
