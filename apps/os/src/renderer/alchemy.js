@@ -1662,7 +1662,7 @@ function constellationNav(active) {
   return `
     <nav class="alch-const-modes" role="tablist" aria-label="constellation view">
       ${CONST_VIEWS.map(v => `
-        <button class="alch-const-mode-btn" data-const-mode="${v.mode}" aria-selected="${activeTop === v.mode}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
+        <button class="alch-const-mode-btn" data-const-mode="${v.mode}" role="tab" aria-selected="${activeTop === v.mode}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
           <span class="acm-glyph" aria-hidden="true">${v.glyph}</span><span class="acm-label">${v.label}</span>
         </button>`).join("")}
     </nav>`;
@@ -5886,8 +5886,8 @@ function wireConstellationHover() {
       });
     }
   }
-  // Layout toggle: cluster-grouped wells ↔ single ring (the original view).
-  for (const btn of state.canvas.querySelectorAll(".ac-layout-btn[data-const-layout]")) {
+  // Graph scope toggle: project network ↔ people network.
+  for (const btn of state.canvas.querySelectorAll(".ac-network-scope-btn[data-const-network-scope]")) {
     btn.addEventListener("click", () => {
       const next = constNormalizeNetworkScope(btn.dataset.constNetworkScope);
       if (next === state.constellationScope) return;
@@ -9064,6 +9064,7 @@ function renderCollab() {
 
   state.canvas.innerHTML = `
     <div class="alch-collab">
+      <div class="alch-const-topbar">${constellationNav("collab")}</div>
       <header class="alch-cb-head">
         <h2 class="alch-cb-title">collaboration board</h2>
         <p class="alch-cb-sub">who depends on whom, who can unblock whom, where the cohort over-concentrates — all from teams' own declared dependencies, seeking, offering &amp; skill areas.</p>
@@ -9107,6 +9108,7 @@ function wireCollabCohortLinks(root) {
 
 function wireCollab() {
   const collabRoot = state.canvas.querySelector(".alch-collab");
+  wireConstellationModeNav();
   wireCollabCohortLinks(state.canvas);
   for (const btn of state.canvas.querySelectorAll("[data-collab-intake-open]")) {
     btn.addEventListener("click", (event) => {
@@ -11158,6 +11160,7 @@ function renderTimelineMissingDetail(recordId) {
     <p class="alch-callout"><strong>not declared at this snapshot</strong><br/>This record is absent from the public cohort surface for ${escHtml(label)}.</p>
   `;
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
+  wireConstellationTimelineControls(state.canvas);
 }
 
 function renderTeamDetail(team) {
@@ -11300,6 +11303,7 @@ function renderTeamDetail(team) {
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
+  if (state.detailReturnMode === "constellation") wireConstellationTimelineControls(state.canvas);
   wirePlateFoil(state.canvas.querySelector(".cohort-plate"));
 }
 
@@ -11429,6 +11433,7 @@ function renderPersonDetail(person) {
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
+  if (state.detailReturnMode === "constellation") wireConstellationTimelineControls(state.canvas);
 }
 
 function wirePersonLinks(root) {
