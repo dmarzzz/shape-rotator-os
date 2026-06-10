@@ -21,7 +21,7 @@ links:
   website: albiona.dev
   linkedin: AlbionaHoti
 dietary_restrictions:
-now: growing Elocute from live traction into a repeatable speaking-practice habit loop
+now: compressing a flood of user conversations into one executable Elocute product plan — three research cycles before the ETH Global NY hackathon
 skill_areas:
   - agentic
   - generative-media

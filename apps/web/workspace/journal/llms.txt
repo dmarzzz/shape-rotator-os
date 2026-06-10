@@ -1,10 +1,13 @@
 # Shape Rotator Journal
 
-Version: public content v0.0.3
+Version: public content v0.0.4
 
 This file lists the current journal articles and their raw Markdown sources for LLM retrieval, copy/paste, and citation.
 
 ## Current articles
+
+- https://os-web.shaperotator.xyz/workspace/journal/articles/what-thirteen-teams-shipped-last-week
+- https://os-web.shaperotator.xyz/workspace/journal/articles/what-thirteen-teams-shipped-last-week/article.md
 
 - https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing
 - https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing/article.md
@@ -17,30 +20,42 @@ This file lists the current journal articles and their raw Markdown sources for 
 
 ## Topic map
 
-- agent infrastructure
+- cohort recap
 - agents
 - agentic-dev-platform
+- confidential-data
+- consumer-behavior-apps
+- market-mechanism-research
+- elocute
 - elizaos
-- jjhub
-- contexto
+- teesql
 - teleport-router
+- feedling
+- daedalus
 - tinycloud
+- contexto
+- jjhub
+- dealproof
+- bitrouter
+- searxng-wth-frnds
+- shape-rotator-os
+- WDYDLW
+- cohort standup
+- PMF journey
+- agent infrastructure
 - LLM agents
 - workflow memory
 - human override
 - privacy and capability
 - dstack
-- confidential-data
 - confidential-ai-ops
 - crypto-id
-- teesql
 - abra
 - conclave
 - etherea
 - signalstack
 - dcnet
 - pramaana
-- bitrouter
 - private AI
 - trust
 - capability

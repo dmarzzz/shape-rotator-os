@@ -18,8 +18,8 @@ links:
   website: https://elizaos.ai
   demo: null
   repo: https://github.com/elizaOS/eliza
-traction: Open-source agent framework with an active plugin ecosystem; runtime + cloud + desktop (Electrobun) + mobile surfaces; 3k+ followers on the elizaOS org.
-now: shipping runtime + cloud + connector improvements across the elizaOS stack
+traction: Open-source agent framework with an active plugin ecosystem; runtime + cloud + desktop (Electrobun) + mobile surfaces; 3k+ followers on the elizaOS org. Now runs cohort infrastructure — Bitrouter for routing (OpenRouter fallback) and Smithers as the workflow engine.
+now: hard pivot to a new agent interface; focus moving from capability to buyer definition and last-mile distribution — MVP scope (cloud, multiplayer, power users) on the table
 success_dimensions:
   - productization
   - collaborative
@@ -47,8 +47,8 @@ journey:
   icp: developers and teams building agentic applications that need a runtime, plugin system, and hosted deployment path
   problem: agent builders repeatedly rebuild runtime, connector, memory, and deployment plumbing before reaching product work
   solution: an open-source agentic fullstack operating system with runtime, cloud, desktop, mobile, and plugin surfaces
-  evidence_notes: mature open-source ecosystem, active plugin/runtime surfaces, and multiple production-facing products; cohort value is integration and focus, not basic validation
-  next_milestone: translate the broad ecosystem into one or two cohort integrations that show concrete downstream pull
+  evidence_notes: "mature open-source ecosystem, active plugin/runtime surfaces, and multiple production-facing products; cohort value is integration and focus, not basic validation. 2026-06-08 WDYDLW: integration milestone landed — swapped OpenRouter→Bitrouter and n8n→Smithers (PRs upstream: GEPA prompt optimization, a TUI), sandboxed tiny-agent on Tinycloud, hosted Eliza Cloud agents; side stunt: agents resolved most open arkworks zkSNARK lemmas; named constraint — 'we don't have a product-creation problem, we have a product-sales problem'"
+  next_milestone: define the buyer and last-mile distribution — scope the MVP (cloud, multiplayer, power users) and test a non-technical co-founder GTM motion
 ---
 
 ## about

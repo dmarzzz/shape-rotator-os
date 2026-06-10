@@ -1,0 +1,226 @@
+What thirteen teams shipped last week — Shape Rotator WDYDLW with Shaw (elizaOS)
+Shape Rotator · What did you get done last week · The Convent, New York · 8 June 2026
+
+Building stopped being the hard part.
+The cohort's first standup at the Shape Rotator accelerator — and the gap between each project's one-line pitch and where its hunt for product–market fit actually stands.
+
+Co-facilitated by Tina (in the room) and Shaw Walters (elizaOS, remote), with Andrew Miller (IC3) there for the first half. The cohort gathered in person at The Convent. Shape Rotator accelerator — run by Flashbots[X] and IC3, with support from The Convent.
+
+A site-vs-room delta for every project, walked member by member, plus the themes that ran through the room.
+
+
+== THE 60-SECOND VERSION ==
+
+The format. The cohort's first "what did you get done" standup — three-minute updates, two minutes of questions — modeled on the accountability email Shaw ran in his a16z days, mixing "what I actually shipped" with "here's the project."
+
+The through-line. AI has made writing code nearly free, so almost every team's real bottleneck is distribution and sales, not building. As Shaw put it: "We don't have a product-creation problem. We have a product-sales problem."
+
+The forcing function. By the end of the week, ship one usable product at the ETH Global NY hackathon and send 100 cold messages to ideal users. Real user contact beats internal speculation.
+
+This post. The standup walked member by member — each person's update(s), with every project's registered pitch on shaperotator.xyz set against where its PMF hunt actually moved: advanced, reframed, or facing a hard truth.
+
+
+== CONTEXT — THE ROOM, AND A NOTE ON THE TRANSCRIPT ==
+
+Shape Rotator is a ten-week NYC accelerator (May 18 – July 18, 2026) that turns cryptography and AI research into products, run by Flashbots[X] and IC3 with support from The Convent. This was the cohort's first WDYDLW standup, held at The Convent. Shaw Walters — founder of elizaOS, an open-source agentic operating system — co-facilitated remotely, framing the format as a riff on the "what did you get done this week" email: honest accountability mixed with a short demo. Tina facilitated from the room, with IC3's Andrew Miller there for the first half; the rest of the cohort joined in person.
+
+Why attributions are reconstructed: most of the cohort was together in the room, captured through a single in-room device, so the auto-transcript collapsed nearly every in-person voice — Tina's facilitation and each member's update alike — under one label, while Shaw (joining remotely) came through cleanly. Who-said-what here is reconstructed by matching each update to its project on the cohort roster; individual lines are attributed at the project level, and uncertain names are flagged in the notes.
+
+Delta legend:
+- Advanced — moved toward its milestone
+- Reframed — pivoted the wedge or ideal customer profile (ICP)
+- Hard truth — a gap surfaced
+- stage 1–7 = the cohort's own PMF-journey scale (1 = idea, 7 = scaling)
+
+
+== AROUND THE ROOM — WHO SHIPPED WHAT, MEMBER BY MEMBER ==
+
+Each builder's update, grouped by person (one person may carry several projects). For each project: the pitch registered on shaperotator.xyz, what the room reported, and the delta on its hunt for product–market fit.
+
+-- Albiona Hoti — Elocute (in the room) --
+Elocute · Consumer · speaking practice · stage 5/7 · bottleneck: Retention
+
+On the site: Live AI speaking-practice app (elocute.fun): 538 users, ~39% 30-day active, strong organic content reach. Next milestone: turn active users into a repeatable weekly practice loop with a clearer paid-conversion signal.
+
+In the room: Ran her first structured user-research interview (with LSDan of TeeSQL), prompted by feedback from Vishesh, and designed three research cycles — interview three users, ship updates, then re-interview those three plus three new ones. The work is compressing a flood of conversations into one executable product/UX plan ahead of the local hackathon; elizaOS pitched in on shipping recent app improvements.
+
+Delta PMF · Advanced. Attacking the retention bottleneck with qualitative discovery rather than more features — "one real user interview beat five days of speculation." The update was about turning feedback into a concrete product plan, not a form-factor change.
+
+-- Shaw Walters — elizaOS (co-facilitator, remote) --
+elizaOS · AI · agent OS · stage 7/7 · bottleneck: GTM
+
+On the site: Mature open-source agentic operating system (runtime, cloud, desktop, mobile, plugins). The open question isn't validation — it's GTM. Next milestone: turn the broad ecosystem into one or two concrete cohort integrations with real downstream pull.
+
+In the room: Hard pivot to a new agent interface (Shaw expected a rival, Hermes, to ship a desktop app, so Eliza reworked its own). Swapped OpenRouter → cohort-mate Bitrouter (OpenRouter kept as fallback); swapped n8n → cohort-mate Smithers as the workflow engine, shipping PRs back to it (GEPA reflective prompt self-optimization, a TUI). Built a sandboxed tiny-agent on Tinycloud; stood up hosted Eliza agents (Eliza Cloud); and ran a side stunt using agents to resolve most of the open lemmas in the arkworks zkSNARK library — by his telling, years of proof work compressed into days, though the top prize stayed out of reach.
+
+Delta PMF · Reframed. The integration milestone the site asked for effectively landed — Eliza now runs on two cohort tools. Shaw named the real constraint out loud: "we don't have a product-creation problem, we have a product-sales problem." Focus moved from capability to a buyer definition and last-mile distribution; an MVP (cloud, multiplayer, power users) and a possible non-technical co-founder are now on the table.
+
+-- LSDan — TeeSQL (in the room) --
+TeeSQL · Infra · confidential DB · stage 4/7 · bottleneck: Technical Risk
+
+On the site: TEE Postgres on dstack, with an RA-TLS proxy and open-source attestation tooling. Next milestone: onboard one cohort team to the beta and document the full attested connection path.
+
+In the room: Product-shape pivot: from a Postgres-specific high-availability cluster to a generalized, attestation-gated mesh that can run any open-source software (Clickhouse, Redis), with a blockchain control plane and host- or dev-proof modes. The team is hunting an ideal customer profile (ICP) off-cohort — European confidential-computing enterprises (e.g., a German firm reducing US-cloud reliance) reached via a web2 enterprise network.
+
+Delta PMF · Reframed. Broadened the surface from one database to any confidential workload, and moved the customer search toward web2 enterprise. Candid self-assessment: "nothing fundamentally defensible yet." The bottleneck is migrating from technical risk toward ICP clarity and a moat.
+
+-- Andrew Miller — IC3 · co-facilitator, first half (in the room) --
+
+Teleport Router · Protocol · routing · stage 3/7 · bottleneck: Solution Quality
+
+On the site: Cross-network routing; public surface is one-time-use delegated posting (teleport.best). Next milestone: land one real cohort use case where another project routes an action through Teleport.
+
+In the room: A new Daybook electron app and the "Day" project — a local daily log of your Claude-Code/Codex sessions — with a cloud-SDK onboarding flow; demoed at the Princeton event. James Barnes PR'd the Teleport Router into Shape Rotator OS — the first merged cohort-project-to-Shape-Rotator-OS contribution.
+
+Delta PMF · Advanced. The "route through Teleport for a real cohort use case" milestone began to land via the Shape OS merge. The product is drifting from delegated posting toward a local-first daily log and a cohort cross-pollination feed.
+
+IC3-camp hackathon project · side project: Andrew's own IC3-camp hackathon project — a "try-before-you-buy" marketplace for proprietary agent skills, where a buyer benchmarks a skill against their own withheld test set and, once it clears the bar, licenses it to run inside a TEE so the skill stays private — won the camp's "funniest project" award.
+
+Feedling · Consumer · feed / companion · stage 2/7 · bottleneck: ICP Clarity
+
+On the site: Information-diet interventions for short-form video, using TEE-delegated watch history (team: sevenfloor, James Barnes, xinyuan). Next milestone: create the first live user thread and define one quickly-testable intervention.
+
+In the room: Andrew updated for the Feedling team. A second consumer app — a customizable AI companion — is showing early signs of interest from the Xiaohongshu (RED) community.
+
+Delta PMF · Reframed. An expansion from the site's "info-diet for short-form video" toward a live AI-companion app with early community pull — alongside Elocute, one of the room's clearer consumer-traction signals. The PMF question shifts to retention and onboarding.
+
+DarkBloom security audit · personal update: Separately, Andrew shared a personal security audit of EigenLayer's DarkBloom — the project turning idle Macs into a decentralized inference network. His read: its Mac remote-attestation doesn't deliver the security it claims. Unrelated to Feedling; it ties back to the cohort's Agentic Organizations salon.
+
+-- Freya Zhang — Daedalus (in the room) --
+Daedalus · Crypto · prediction markets · stage 2/7 · bottleneck: ICP Clarity
+
+On the site: Prediction-market microstructure research grounded in the PROF paper; building an orderbook-ingestion + backtest pipeline. Next milestone: show one backtest or live result that changes a market-making decision.
+
+In the room: Product = using Polymarket + sports events to hedge stock portfolios. The team cited Polymarket's first institutional block trade (FalconX, an AI-compute price index) as evidence of institutionalization, and is scraping Polymarket historical orderbook data (L2/L3) to quantify it; a new demo lands by end of next week.
+
+Delta PMF · Reframed. Shaw's heavy steer de-risked the product from a "make-users-money" bot (fiduciary / broker-dealer exposure) toward a discovery tool for delta-neutral hedges — gated on rigorous correlation backtesting before any app is built. ICP sharpening on the institutionalization signal; the core correlation is still unproven.
+
+-- Sam Gbafa — Tinycloud, with Patrick Messall, Roman Svistel, Hunter Horsfall (in the room) --
+Tinycloud · Infra · user-owned cloud · stage 4/7 · bottleneck: ICP Clarity
+
+On the site: User-owned cloud on dstack TEEs; live SDK + protocol; paid pilot with Sparq Gaming. Next milestone: get one cohort project using tinycloud-secrets for a real scoped-delegation workflow.
+
+In the room: Shipped single-message delegation in the encryption/sign protocol — a major simplification over interactive key exchange. tinycloud-secrets now powers "Listen," a transcript aggregator (Firefly/Granola/…). Shipped Tiny Cloud Chats (by Roman, built on RedPill) for private AI chat, and finalized a policy engine (Patrick) that gates content by credential and trust graph. Building a personalized feed that mines a user's own transcripts into artifacts.
+
+Delta PMF · Advanced. The scoped-delegation milestone effectively met, with a live internal consumer (Listen). Surface expanded toward a consumer feed + policy engine; the customer search is sharpening around "people with lots of private transcripts," with a clear contrast drawn vs. Teleport (personal aggregation vs. cross-pollination).
+
+-- Shashank — Contexto (in the room) --
+Contexto · AI · context engine · stage 3/7 · bottleneck: Solution Quality
+
+On the site: Agent context engine; episode-based memory across runtimes (OpenClaw plugin). Next milestone: instrument one cohort agent workflow end-to-end and show better recovery/continuity.
+
+In the room: A deep dive on coordination topologies — Paradigm's "Centaur" — and a design where user preferences and code logs stay on local edge devices while routing happens through a centralized, privacy-respecting router. Built a personal to-do/journaling agent on Hermes; interviewed executive assistants on LinkedIn (a $200–$5,000/mo personal- and executive-assistant market).
+
+Delta PMF · Reframed. Shaw's hard steer reframes the Contexto wedge from agent-coordination infra toward a mass-market personal assistant — "a market 1,000–1,000,000× bigger." Tina pushed back: agentic executive assistance is a brutally hard product — too personal to get right, with impatient, error-intolerant buyers — from her own experience hiring and firing EAs. The wedge is contested; the near-term move is a personal-assistant PoC plus more discovery.
+
+-- Will Cory — JJHub / Smithers (in the room) --
+JJHub / Smithers · AI · agentic coding · stage 4/7 · bottleneck: ICP Clarity
+
+On the site: Agentic coding platform; Smithers = durable agentic workflows as JSX (hit the HN front page); Tevm has an EF grant. Next milestone: get one cohort team using Smithers for a real agentic CI or review loop.
+
+In the room: Shipped the long-awaited UI ("the dots are actually good now") — pixel-polishing the single most-requested feature for ~3–4 months. Recorded a podcast with an Ethereum Foundation researcher. Reframed positioning: "Smithers could be the Linear of workflow tools" (vs. Zapier / monday.com). The product stabilized from maintainer-dependent to genuinely usable; ~6 organic onboards, roughly doubling week-over-week with no marketing.
+
+Delta PMF · Advanced. The site's cohort-integration milestone is landing through Eliza (Shaw adopted Smithers as his workflow engine). The product crossed from fragile to stable → organic pull. PMF hunt now centers on serving a non-self ICP and a clean one-line position; a non-technical co-founder is being floated.
+
+-- Khrystian Koci — DealProof (in the room) --
+DealProof · Protocol · agent contracts · stage 4/7 · bottleneck: Technical Risk
+
+On the site: TEE + post-quantum dual-agent contracts (Intel DCAP, on-chain escrow); 56 passing tests; Bradford Quantum Hackathon winner. Next milestone: get one cohort team to integrate the dual-attestation contract layer.
+
+In the room: Enhanced the agent-to-agent negotiation app using the Contexto memory engine — CDN deal negotiations now carry memory across rounds (store a hash, recall prior terms). Implemented PiCred (arXiv:2606.03771) for provenance — verifying an agent's code wasn't tampered with — and is introducing the paper's authors to the cohort. Began scoping a product (an API platform inside a CVM) and cold-reached two AI-negotiation companies (e.g., pactum.ai) to find the pain.
+
+Delta PMF · Advanced. From a dual-attestation primitive toward a concrete negotiation product, a provenance integration (PiCred), and first customer-discovery outreach. Now actively cross-pollinating with Contexto (memory) and Tinycloud (provenance).
+
+-- Kelsen Liu — Bitrouter (in the room) --
+Bitrouter · Infra · LLM router · stage 4/7 · bottleneck: ICP Clarity
+
+On the site: P2P LLM router; live at bitrouter.ai; opening up x402-kit and accepting cohort dogfooders; Phala-CTO referral. Next milestone: get a cohort team using x402-kit / Bitrouter inside a real agent workflow.
+
+In the room: Repositioned the site from "open intelligence router" to a sharp pain point: reliability + cost for coding agents. After Shaw retweeted it, GitHub stars doubled. Shipped a feature combining Claude/Codex subscriptions with open-source models for cheaper workflows. Wired in analytics: ~10% of signups activate; zero have paid — now reaching out to non-payers one by one. Supply-side edge: legal, cheap Chinese tokens via the Phala network.
+
+Delta PMF · Hard truth. Sharper positioning plus a real distribution spike (stars 2×) — but the conversion truth surfaced: 0 paid. The PMF hunt pivoted to a supply-side moat (token deals) and a conversion funnel. As Tina put it, it's a red-ocean aggregator game where the edge is cost and grind, not features.
+
+-- dmarz — Shape Rotator OS · Private LLM search (in the room) --
+
+Shape Rotator OS · Infra · coordination · stage 2/7 · bottleneck: product-driven dev
+
+On the site: The cohort's own coordination layer and cohort viewer (dmarzzz/shape-rotator-os). Next milestone: open it to outside contributions and real cohort workflows.
+
+In the room: Re-architected Shape OS for outside contributions and flagged the need for real user stories and product-driven development. James Barnes's Teleport Router PR was the first merged cohort-project-to-Shape-Rotator-OS contribution.
+
+Delta PMF · Advanced. Coordination OS opened to external contributors (first project merged in). Honest read: no PMF, but a working example of cohort coordination.
+
+Private LLM search (searxng-wth-frnds) · Infra · private search · stage 2/7 · bottleneck: Technical Risk
+
+On the site: searxng-wth-frnds — a LAN-first peer search daemon — plus DCNet-style anonymous broadcast. Next milestone: one real cohort workflow using private search, and a minimal anonymity architecture note.
+
+In the room: Private LLM search with metadata privacy via flashnet. Tor exit nodes get blocked fast (Cloudflare/AI bans), so the work explored reputation-gated egress to prevent IP poisoning; a deployed prototype benchmarked 10k queries at median +1.2s latency, p99 ~9s.
+
+Delta PMF · Advanced. Moved from idea → deployed, benchmarked prototype with a clear latency envelope (fine for agentic search, not low-latency). Metadata privacy now routed through flashnet.
+
+
+== PATTERNS — THEMES THAT RAN THROUGH THE ROOM ==
+
+The same handful of ideas surfaced in nearly every update.
+
+01 · Code is commoditized; selling isn't. If an MVP of almost anything can be built in two weeks, the table-stakes part is done. The hard, unsolved part is naming a customer who will actually pay — and most teams admitted they were still guessing at theirs.
+
+02 · Don't be a fiduciary. For the finance-adjacent teams, Shaw drew a bright line: building a bot that makes other people money is a fast path to fiduciary and broker-dealer risk. Build discovery and intelligence tools instead — and back-test the correlation before building the app.
+
+03 · Reach the last mile; sell to normies. Developers and open-source maintainers are the worst customers to sell to. The far larger market is ordinary users who want an agent that just works — so own the end product rather than depending on platforms that can absorb you.
+
+04 · Aim for a six-month moat. Nobody expects a permanent edge when everything is one-shottable. The realistic goal is a defensible six months — bought with cheap supply, private data, real relationships, and speed.
+
+05 · The cohort is the distribution. Eliza now runs on Bitrouter and Smithers; Teleport's router merged into Shape OS; DealProof is wiring in Contexto and py-credits. Tina's pitch for ETH Global: bundle these into one demo and share attribution — collaborative distribution over solo launches.
+
+"Just assume everything can be one-shotted — then build from that world."
+— Shaw Walters, on where the real work now lives
+
+
+== THE WEEK — ONE PRODUCT, ONE HUNDRED MESSAGES ==
+
+The cohort set a single forcing function for the midpoint week: each team ships a concrete, usable product to demo at the ETH Global New York hackathon (turn-in Sunday), and each founder sends 100 cold messages to their ideal users to validate direction. Teams that can't field a full crew were urged to bundle into a shared project and split attribution, and to step up project managers since several members travel that week. The accelerator also floated a half-serious metric — the "Shaw challenge": if Shaw's agents can one-shot 80% of your product, that's your cue to question the moat and find the niche only you can serve.
+
+Cross-reference: Andrew's DarkBloom audit above examines the same Apple-Silicon inference project Eigen Labs presented at the cohort's Agentic Organizations salon. The read: its Mac remote-attestation doesn't deliver the security it claims.
+
+
+== REFERENCE — GLOSSARY ==
+
+WDYDLW — "What did you get done last week" — the recurring accountability standup format.
+PMF — Product–market fit: evidence that a defined customer actually wants and will pay for the product.
+ICP — Ideal customer profile — the specific buyer a team is targeting.
+TEE / CVM — Trusted Execution Environment / Confidential VM: hardware-isolated compute that even the operator can't observe or tamper with.
+Remote attestation / RA-TLS — Cryptographic proof that specific code is running inside a genuine TEE; RA-TLS binds that proof to a network connection.
+dstack — An open framework for deploying confidential containers in TEEs, used across several cohort projects.
+LLM router — Middleware that sends each request to the cheapest/best model; OpenRouter is the incumbent, Bitrouter the cohort entrant.
+Smithers — JJHub's tool for durable agentic workflows written as JSX — an open-source take on workflow automation.
+Scoped delegation — Granting an agent narrow, revocable access to a credential without handing over the whole account (Tinycloud).
+PiCred — A research method (arXiv:2606.03771) for proving an agent's code wasn't tampered with — provenance for agents; integrated by DealProof.
+Delta-neutral hedge — A position built so the trader doesn't lose regardless of market direction — the discovery target for the prediction-market team.
+Centaur — A coordination topology (from Paradigm) for human+agent teams that Contexto studied for routing design.
+One-shot — To recreate a product in a single agent pass; the bar against which moats are now measured.
+x402-kit — Bitrouter's modular SDK for HTTP-native (x402) agent payments.
+DarkBloom — Eigen Labs' project turning idle Macs into a decentralized inference network — audited here for attestation flaws.
+RedPill — The private-AI-chat layer Tinycloud built Tiny Cloud Chats on.
+flashnet — The metadata-privacy network dmarz routes private LLM search through.
+GEPA — A reflective DSPy prompt optimizer (Genetic-Pareto); shipped into Smithers by elizaOS.
+arkworks — The Rust zkSNARK library ecosystem whose proofs elizaOS's agents worked through.
+
+
+== APPENDIX — BASELINES & SOURCES ==
+
+Each project's "On the site" lane is drawn from the cohort's own public profiles — the same data that powers the cohort viewer at shaperotator.xyz / os-web.shaperotator.xyz — including each team's registered focus, ICP, journey stage, primary bottleneck, and next milestone. The "In the room" lane and delta are reconstructed from the 8 June standup transcript.
+
+Externally verified:
+- Program — Shape Rotator Accelerator (run by Flashbots[X] and IC3, with support from The Convent; NYC, May 18 – July 18, 2026); cohort viewer at os-web.shaperotator.xyz, source at github.com/dmarzzz/shape-rotator-os.
+- Project surfaces referenced in the baselines: elizaos.ai, elocute.fun, bitrouter.ai, smithers.sh / jjhub.tech, tinycloud.xyz, teleport.best, getcontexto.com, daedalus-research.com.
+- The prediction-market team's institutionalization signal — Polymarket's first institutional block trade with FalconX (tied to an Nvidia H100 compute index), June 2, 2026 — per CNBC.
+
+Notes:
+- Speaker attribution is reconstructed. The cohort was together in the room at The Convent on a single capture device, so the transcript labeled most in-person voices identically (including Tina's facilitation and each member's update); Shaw, joining remotely, was captured separately. Updates are matched to people and projects by content and the cohort roster.
+- The "funniest project" try-before-you-buy skills demo is Andrew Miller's own IC3-camp hackathon project, not a separate cohort team's update.
+- elizaOS terms were corrected against public sources: the audio's "Japa" is GEPA (a reflective DSPy prompt optimizer), and the proof library is arkworks (the Rust zkSNARK ecosystem). The "$1M grand prize" is Shaw's framing; the specific prize could not be confirmed.
+- DealProof's provenance method is PiCred (arXiv:2606.03771).
+- Journey stages, bottlenecks, customer profiles and milestones in the "On the site" lane are the teams' own self-reported values from the cohort dataset, not an external assessment.
+
+Provenance. Reconstructed from an automatic transcript of the Shape Rotator cohort's first WDYDLW standup, held at The Convent, New York, 8 June 2026 — co-facilitated by Tina (in the room) and Shaw Walters (elizaOS, remote), with Andrew Miller (IC3) for the first half. Baselines are from the cohort's public profiles; external facts were verified against the sources above. Paraphrased and condensed from an auto-transcript; speaker meaning preserved, wording cleaned. Quotations are faithful reconstructions, not verbatim records. Attributions are project-level and reconstructed; uncertain names are flagged in the notes.

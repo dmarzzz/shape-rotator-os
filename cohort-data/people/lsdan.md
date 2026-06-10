@@ -20,7 +20,7 @@ contribute_interests: "Happy to work on anything TEE related, SQL/DB related, wh
 availability_pref: "Never available Sundays."
 weekly_intention: "I want a functioning production ready cluster online this week."
 dietary_restrictions: "low salt, low fat, heart healthy"
-now: "Pushing TeeSQL toward a functioning production-ready confidential Postgres cluster."
+now: "Generalizing TeeSQL into an attestation-gated mesh for any open-source workload — hunting a European confidential-computing enterprise ICP."
 skill_areas:
   - tee
   - confidential-databases

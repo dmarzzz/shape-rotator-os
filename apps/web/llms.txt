@@ -2,7 +2,7 @@
 
 > Public web surface for the Shape Rotator cohort and workspace.
 
-Public content version: v0.0.3
+Public content version: v0.0.4
 
 Important pages:
 
@@ -15,6 +15,7 @@ Important pages:
 
 Journal article sources:
 
+- [What thirteen teams shipped last week](https://os-web.shaperotator.xyz/workspace/journal/articles/what-thirteen-teams-shipped-last-week/article.md)
 - [Why LLM agents need memory, workflows, and social routing](https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing/article.md)
 - [Privacy is not the product; capability is the product](https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability/article.md)
 - [Verifiability is becoming UX for AI infrastructure](https://os-web.shaperotator.xyz/workspace/journal/articles/verifiability-is-becoming-ux-for-ai-infrastructure/article.md)
