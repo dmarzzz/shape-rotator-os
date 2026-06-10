@@ -5403,9 +5403,11 @@ function renderConstellation() {
     const labelAnchor = radialLabel
       ? (Math.cos(angle) > 0.25 ? "start" : (Math.cos(angle) < -0.25 ? "end" : "middle"))
       : "middle";
-const labelGap = viewMode === "map" ? 17 : 13;
+    const labelGap = viewMode === "map" ? 17 : 13;
     // Dense wells: alternate the radial label distance by rank so neighboring
     // secondary labels land on two radii instead of one collision ring.
+    // (Same mechanism as freddmannen's tree — staggers east/west labels too,
+    // unlike a baseline-gap stagger, and keeps the two renderers cherry-pickable.)
     const labelOut = viewMode === "map" && wellSize >= 5 && rank > 0 && rank % 2 === 0 ? 13 : 6;
     const labelX = radialLabel
       ? (Math.cos(angle) > 0.25 ? r + labelOut : (Math.cos(angle) < -0.25 ? -r - labelOut : 0))

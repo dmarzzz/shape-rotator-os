@@ -6420,32 +6420,14 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-stage svg .ac-edge-hit:focus-visible {
   outline: none;
 }
-.alch-constellation-stage[data-hover-active="true"] svg .ac-edge { opacity: 0.12; }
-.alch-constellation-stage[data-hover-active="true"] svg .ac-edge.is-hot { opacity: 1; stroke-width: 1.6; }
-.alch-constellation-stage svg .ac-edge.is-selected { opacity: 1; stroke-width: 2; stroke: rgba(214,189,134,0.98); }
-.alch-constellation-stage svg .ac-edge-source-record {
-  stroke: rgba(193,168,114,0.84);
-}
-.alch-constellation-stage svg .ac-edge-source-legacy {
-  stroke: rgba(193,168,114,0.24);
-  stroke-dasharray: 2 4;
-}
-.alch-constellation-stage svg .ac-edge-status-active {
-  stroke-width: 1.15;
-}
-.alch-constellation-stage svg .ac-edge-status-blocked {
-  stroke: rgba(196,64,37,0.70);
-  stroke-dasharray: 5 3;
-}
-.alch-constellation-stage svg .ac-edge-status-resolved {
-  opacity: 0.44;
-}
-.alch-constellation-stage svg .ac-edge-status-exploring {
-  stroke-dasharray: 7 3 1 3;
-}
-/* Legacy far-tier class is left harmless for old DOM states; hover now shows
-   only direct, one-hop relationships because transitive chains are not proof. */
-.alch-constellation-stage[data-hover-active="true"] svg .ac-edge.is-hot.is-far { opacity: 0.42; stroke-width: 1.1; }
+/* Edge LOOK and edge STATE (stroke / width / dash / opacity per source,
+   status, hover, selection) live in ONE place: the .ac-edge.ac-edge-dependency
+   block near the end of this file. Earlier generations of those rules sat
+   here, fully shadowed by that block's higher specificity, and repeatedly
+   tricked editors into changing dead values (the "brass never showed" bug,
+   the invisible profile-mention tier fixed in #265, and hover/selection dims
+   that never applied). Do not re-add edge styling here — this block only
+   keeps the base contract: transition, cursor, and hit targets. */
 .alch-constellation-stage svg .ac-node-group { cursor: pointer; }
 .alch-constellation-stage svg .ac-node-hit,
 .alch-journey-stage svg .ac-jhit {
@@ -6486,21 +6468,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
    only so the graph does not imply unsupported dependency chains. */
 .alch-constellation-stage[data-hover-active="true"] svg .ac-node-group.is-related.is-far .ac-node-shape { opacity: 0.62; }
 .alch-constellation-stage[data-hover-active="true"] svg .ac-node-group.is-related.is-far .ac-node-label { opacity: 0.5; }
-.alch-constellation-stage[data-selection-active="true"] svg .ac-edge {
-  opacity: 0.055;
-}
-.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.is-selection-edge {
-  opacity: 1;
-  stroke-width: 2.05;
-  stroke: rgba(214,189,134,0.98);
-}
-.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.is-selection-adjacent-edge {
-  opacity: 0.30;
-  stroke-width: 1.05;
-}
-.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.is-selection-outside {
-  opacity: 0.025;
-}
+/* Selection-state EDGE rules moved to the .ac-edge-dependency block at the end
+   of the file — here they silently lost to that block's specificity, so the
+   "everything else recedes" dim never actually applied. Node rules stay here. */
 .alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-core .ac-node-shape,
 .alch-constellation-stage[data-selection-active="true"] svg .ac-jnode.is-selection-core .ac-jdot {
   filter: drop-shadow(0 0 14px rgba(214,189,134,0.44));
@@ -6525,15 +6495,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 /* In the all lens, keep resting edges legible enough to invite inspection
    without letting untyped legacy links dominate the wells. Hover restores them. */
-.alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge { opacity: 0.58; }
-.alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge-source-record {
-  opacity: 0.96;
-  stroke-width: 1.36;
-}
-.alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge-source-legacy {
-  opacity: 0.36;
-  stroke-width: 0.72;
-}
+/* At-rest edge opacity/width per lens also lives in the .ac-edge-dependency
+   block near the end of the file — see the consolidation note above. */
 /* (cluster-membership edge colors removed — cluster grouping now reads from
    the wells, not an O(n²) hairball; dependency arrows are the only edges.) */
 .alch-constellation-stage svg .ac-node-shape { fill: var(--alchemy-oxide); stroke: var(--alchemy-oxide-bright); stroke-width: 0.8; }
@@ -8582,18 +8545,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   opacity: 0.96;
   stroke-width: 1.4;
 }
-.alch-constellation-stage[data-view="ring"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge {
-  opacity: 0.54;
-  stroke-width: 1.04;
-}
-.alch-constellation-stage[data-view="ring"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge-source-record {
-  opacity: 1;
-  stroke-width: 1.58;
-}
-.alch-constellation-stage[data-view="ring"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge-source-legacy {
-  opacity: 0.58;
-  stroke-width: 0.94;
-}
+/* Ring-view at-rest edge weights live in the .ac-edge-dependency block near
+   the end of the file (these older copies were fully shadowed). */
 .alch-constellation-stage[data-view="ring"] svg .ac-ring-segment {
   stroke-width: 1.15;
   opacity: 0.46;
@@ -15197,7 +15150,16 @@ html, body {
   stroke-dasharray: none;
 }
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-meaning-unknown {
-  stroke-dasharray: 1 7;
+  stroke-dasharray: 2 5;
+}
+.alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 0.96;
+  stroke-width: 1.36;
+}
+/* Resolved (archived) records recede at rest; without this the at-rest record
+   rule above out-specifies the base .ac-edge-status-resolved fade. */
+.alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-record.ac-edge-status-resolved {
+  opacity: 0.44;
 }
 .alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
   opacity: 0.45;
@@ -15215,9 +15177,32 @@ html, body {
   opacity: 0.45;
   stroke-width: 0.8;
 }
+/* Hover layer: non-hot edges recede so the touched one-hop context pops.
+   (Ported from the old base-tier rule, which this block out-specified —
+   the dim had silently stopped applying.) */
+.alch-constellation-stage[data-hover-active="true"] svg .ac-edge.ac-edge-dependency:not(.is-hot) {
+  opacity: 0.12;
+}
 .alch-constellation-stage[data-hover-active="true"] svg .ac-edge.ac-edge-dependency.is-hot {
   stroke-width: 1.9;
   opacity: 1;
+}
+/* Selection layer: pinned evidence pops, adjacent context stays readable,
+   everything else recedes. (Same port — these dims were also shadowed.) */
+.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.ac-edge-dependency {
+  opacity: 0.055;
+}
+.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.ac-edge-dependency.is-selection-edge {
+  opacity: 1;
+  stroke-width: 2.05;
+  stroke: rgba(214,189,134,0.98);
+}
+.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.ac-edge-dependency.is-selection-adjacent-edge {
+  opacity: 0.30;
+  stroke-width: 1.05;
+}
+.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.ac-edge-dependency.is-selection-outside {
+  opacity: 0.025;
 }
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.is-selected {
   stroke: rgba(214,189,134,0.98);
