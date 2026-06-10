@@ -118,6 +118,17 @@ function setIntervalVisible(fn, ms) {
   }, ms);
 }
 
+function requestFrameOrTimeout(fn, timeoutMs = 80) {
+  let done = false;
+  const run = () => {
+    if (done) return;
+    done = true;
+    fn();
+  };
+  try { requestAnimationFrame(run); } catch {}
+  setTimeout(run, timeoutMs);
+}
+
 // Shorthand: animate a numeric DOM cell to `n`. We wrap tickNumber so the
 // dozens of "el.textContent = …" call sites flip to the animated path
 // without ceremony. Pass `fmt` for non-trivial formatters (bytes, %).
@@ -5886,7 +5897,10 @@ function wireTabs() {
       if (!railBtn) return;
       if (document.body.dataset.activeTab !== "alchemy") {
         const mode = railBtn.dataset.alchMode;
-        if (mode) { try { localStorage.setItem(ALCHEMY_MODE_LS_KEY, mode); } catch {} }
+        if (mode) {
+          try { Alchemy.applyLocation({ mode, instant: true }); } catch {}
+          try { localStorage.setItem(ALCHEMY_MODE_LS_KEY, mode); } catch {}
+        }
         morphActiveTab("alchemy", () => applyActiveTab("alchemy"));
         try { localStorage.setItem(TAB_LS_KEY, "alchemy"); } catch {}
       }
@@ -5958,7 +5972,7 @@ function setNetworkSub(sub) {
       onMetricsTabDeactivated();
     }
     if (sub === "network") {
-      requestAnimationFrame(() => {
+      requestFrameOrTimeout(() => {
         if (typeof resizeLiveGraph === "function") {
           try { resizeLiveGraph(); } catch {}
         }
@@ -5971,58 +5985,75 @@ function setNetworkSub(sub) {
 // The app is a single-page surface, so the browser's own back/forward stack
 // is empty and the mouse's 4th/5th buttons do nothing. We give them a real
 // history by snapshotting the user's "location" — the active top tab plus its
-// sub-state (apps sub-view, network sub-tab, alchemy rail mode) — and walking
-// that stack on the back/forward buttons, just like a browser.
+// sub-state (apps sub-view, network sub-tab, alchemy rail/detail mode) — and
+// walking that stack on the back/forward buttons, just like a browser.
 //
 // We learn about navigation by *observing* the DOM attributes the existing
 // nav code already writes (data-active-tab / data-apps-view / data-net-sub /
-// data-alch-mode-current), rather than hooking each nav call site. That keeps
-// this self-contained: any code path that moves the user gets recorded.
+// data-alch-mode-current / data-alch-program-page), rather than hooking each
+// nav call site. That keeps this self-contained: any code path that moves the
+// user gets recorded.
 const NAV_ALCH_LS_KEY = "srwk:alchemy_mode"; // mirrors alchemy.js ALCHEMY_LS_KEY
 const NAV_CONST_MODE_LS_KEY = "srwk:const_mode"; // mirrors alchemy.js CONST_MODE_LS_KEY
 const navHist = { stack: [], index: -1, last: null, restoring: false };
 
 function navSnapshot() {
   const b = document.body;
-  const alch = document.getElementById("alchemy-view");
-  let alchMode = alch?.dataset.alchModeCurrent || "";
-  if (!alchMode) {
-    try { alchMode = localStorage.getItem(NAV_ALCH_LS_KEY) || "membrane"; } catch { alchMode = "membrane"; }
-  }
-  let constMode = alch?.dataset.constModeCurrent || "";
-  if (!constMode) {
-    try { constMode = localStorage.getItem(NAV_CONST_MODE_LS_KEY) || ""; } catch { constMode = ""; }
-  }
-  let ctxView = alch?.dataset.contextView || "";
-  if (alchMode === "collab") {
-    alchMode = "constellation";
-    constMode = "collab";
-  }
-  if (alchMode === "pulse") {
-    alchMode = "shapes";
-    constMode = "";
-  }
-  // intel folded into the context page (2026-06).
-  if (alchMode === "intel") {
-    alchMode = "context";
-    ctxView = "signals";
-  }
-  if (alchMode !== "constellation") constMode = "";
-  if (alchMode !== "context") ctxView = "";
-  return {
-    tab: b.dataset.activeTab || "alchemy",
-    appsView: b.dataset.appsView || "",
-    netSub: b.dataset.netSub || "network",
-    alchMode,
-    constMode,
-    ctxView,
+  const tab = TOP_TABS.has(b.dataset.activeTab) ? b.dataset.activeTab : "alchemy";
+  const snap = {
+    tab,
+    appsView: tab === "apps" ? (b.dataset.appsView || "") : "",
+    netSub: tab === "network" ? (b.dataset.netSub || "network") : "network",
+    alchMode: "",
+    constMode: "",
+    ctxView: "",
+    programPage: "",
+    recordId: "",
   };
+  if (tab === "alchemy") {
+    const alch = document.getElementById("alchemy-view");
+    let loc = null;
+    try { loc = Alchemy.getLocation?.(); } catch {}
+    let alchMode = loc?.mode || alch?.dataset.alchModeCurrent || "";
+    if (!alchMode) {
+      try { alchMode = localStorage.getItem(NAV_ALCH_LS_KEY) || "membrane"; } catch { alchMode = "membrane"; }
+    }
+    let constMode = loc?.constellationMode || alch?.dataset.constModeCurrent || "";
+    if (!constMode) {
+      try { constMode = localStorage.getItem(NAV_CONST_MODE_LS_KEY) || ""; } catch { constMode = ""; }
+    }
+    let ctxView = loc?.contextView || alch?.dataset.contextView || "";
+    if (alchMode === "collab") {
+      alchMode = "constellation";
+      constMode = "collab";
+    }
+    if (alchMode === "pulse") {
+      alchMode = "shapes";
+      constMode = "";
+    }
+    if (alchMode === "intel") {
+      alchMode = "context";
+      ctxView = "signals";
+    }
+    if (alchMode !== "constellation") constMode = "";
+    if (alchMode !== "context") ctxView = "";
+    snap.alchMode = alchMode || "membrane";
+    snap.constMode = constMode || "";
+    snap.ctxView = ctxView || "";
+    snap.programPage = snap.alchMode === "program" && loc?.programPage
+      ? String(loc.programPage)
+      : (snap.alchMode === "program" && alch?.dataset.alchProgramPage ? String(alch.dataset.alchProgramPage) : "");
+    snap.recordId = loc?.recordId ? String(loc.recordId) : (alch?.dataset.alchDetail || "");
+  }
+  return snap;
 }
 
 function navSameLoc(a, b) {
   return !!a && !!b && a.tab === b.tab && a.appsView === b.appsView
     && a.netSub === b.netSub && a.alchMode === b.alchMode
-    && a.constMode === b.constMode && (a.ctxView || "") === (b.ctxView || "");
+    && a.constMode === b.constMode
+    && (a.ctxView || "") === (b.ctxView || "")
+    && a.programPage === b.programPage && a.recordId === b.recordId;
 }
 
 // Replay a snapshot through the same entry points the UI uses, so mounts /
@@ -6030,6 +6061,8 @@ function navSameLoc(a, b) {
 // MutationObserver doesn't record our own replay as a new history entry.
 function navApplyLocation(snap) {
   navHist.restoring = true;
+  snap = snap || {};
+  const tab = TOP_TABS.has(snap.tab) ? snap.tab : "alchemy";
   if (snap.tab === "apps") {
     if (snap.appsView) {
       document.body.dataset.appsView = snap.appsView;
@@ -6039,48 +6072,39 @@ function navApplyLocation(snap) {
       try { localStorage.removeItem(APPS_LS_KEY); } catch {}
     }
   }
-  if (snap.tab === "network") {
-    document.body.dataset.netSub = snap.netSub;
-    try { localStorage.setItem(NET_SUB_LS_KEY, snap.netSub); } catch {}
+  if (tab === "network") {
+    const netSub = NET_SUBS.has(snap.netSub) ? snap.netSub : "network";
+    document.body.dataset.netSub = netSub;
+    try { localStorage.setItem(NET_SUB_LS_KEY, netSub); } catch {}
+  }
+  if (tab === "alchemy") {
+    const mode = snap.alchMode === "collab" ? "constellation"
+      : (snap.alchMode === "pulse" ? "shapes"
+      : (snap.alchMode === "intel" ? "context" : (snap.alchMode || "membrane")));
+    const loc = {
+      mode,
+      recordId: snap.recordId || null,
+      instant: true,
+    };
+    if (mode === "constellation" && snap.constMode) loc.constellationMode = snap.constMode;
+    if (mode === "context" && snap.ctxView) loc.contextView = snap.ctxView;
+    if (mode === "program" && snap.programPage) loc.programPage = snap.programPage;
+    try { Alchemy.applyLocation(loc); } catch {}
   }
   // applyActiveTab runs the per-tab mount logic; call it for same-tab sub-view
   // changes (e.g. apps grid ⇄ atlas) too, since only the sub-state differs.
-  if (document.body.dataset.activeTab !== snap.tab) {
-    morphActiveTab(snap.tab, () => applyActiveTab(snap.tab));
-    try { localStorage.setItem(TAB_LS_KEY, snap.tab); } catch {}
+  if (document.body.dataset.activeTab !== tab) {
+    morphActiveTab(tab, () => applyActiveTab(tab));
+    try { localStorage.setItem(TAB_LS_KEY, tab); } catch {}
   } else {
-    applyActiveTab(snap.tab);
+    applyActiveTab(tab);
   }
-  if (snap.tab === "network") setNetworkSub(snap.netSub);
-  // Alchemy rail mode lives inside alchemy.js; the rail button's own click
-  // handler is the canonical way to switch it (sets state + persists + repaints).
-  if (snap.tab === "alchemy" && snap.alchMode) {
-    const targetAlchMode = snap.alchMode === "collab" ? "constellation"
-      : (snap.alchMode === "pulse" ? "shapes"
-      : (snap.alchMode === "intel" ? "context" : snap.alchMode));
-    const targetConstMode = snap.alchMode === "collab" ? "collab" : (targetAlchMode === "constellation" ? (snap.constMode || "") : "");
-    const targetCtxView = snap.alchMode === "intel" ? "signals" : (targetAlchMode === "context" ? (snap.ctxView || "") : "");
-    try {
-      localStorage.setItem(NAV_ALCH_LS_KEY, targetAlchMode);
-      if (targetConstMode) localStorage.setItem(NAV_CONST_MODE_LS_KEY, targetConstMode);
-    } catch {}
-    const cur = document.getElementById("alchemy-view")?.dataset.alchModeCurrent;
-    // Constellation + context views have no dedicated rail buttons (they
-    // live inside the cohort/context pages), so restores route through the
-    // jump API rather than a rail click.
-    if (targetAlchMode === "constellation" && typeof window.__srwkAlchemyJump === "function") {
-      window.__srwkAlchemyJump("constellation", targetConstMode ? { constellationMode: targetConstMode } : undefined);
-    } else if (targetAlchMode === "context" && targetCtxView && typeof window.__srwkAlchemyJump === "function") {
-      window.__srwkAlchemyJump("context", { contextView: targetCtxView });
-    } else if (cur !== targetAlchMode) {
-      const sel = `.alchemy-rail-btn[data-alch-mode="${(window.CSS?.escape ? CSS.escape(targetAlchMode) : targetAlchMode)}"]`;
-      document.querySelector(sel)?.click();
-    }
-  }
-  navHist.last = snap;
+  if (tab === "network") setNetworkSub(NET_SUBS.has(snap.netSub) ? snap.netSub : "network");
+  navHist.last = navSnapshot();
   // All observed attributes are written synchronously above, so the observer's
-  // microtask sees restoring=true; this rAF clears it for the next real nav.
-  requestAnimationFrame(() => { navHist.restoring = false; });
+  // microtask sees restoring=true. Clear in the following microtask so an
+  // immediate user navigation after Back/Forward is still recorded.
+  queueMicrotask(() => { navHist.restoring = false; });
 }
 
 function navRecord() {
@@ -6113,7 +6137,7 @@ function initNavHistory() {
     attributeFilter: ["data-active-tab", "data-apps-view", "data-net-sub"],
   });
   const alch = document.getElementById("alchemy-view");
-  if (alch) obs.observe(alch, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current", "data-context-view"] });
+  if (alch) obs.observe(alch, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current", "data-context-view", "data-alch-program-page", "data-alch-detail"] });
 
   // Mouse buttons: 3 = back, 4 = forward (Chromium's X1/X2 mapping). Capture
   // phase + preventDefault so we win over any inner handler and suppress the
@@ -6125,6 +6149,22 @@ function initNavHistory() {
   window.addEventListener("mouseup", onAux, true);
   window.addEventListener("mousedown", (e) => { if (e.button === 3 || e.button === 4) e.preventDefault(); }, true);
   window.addEventListener("auxclick", (e) => { if (e.button === 3 || e.button === 4) e.preventDefault(); }, true);
+  window.addEventListener("keydown", (e) => {
+    const t = e.target;
+    const tag = t?.tagName?.toUpperCase?.();
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable) return;
+    const back = e.key === "BrowserBack"
+      || (e.altKey && !e.ctrlKey && !e.metaKey && e.key === "ArrowLeft")
+      || (e.metaKey && !e.ctrlKey && e.key === "[");
+    const forward = e.key === "BrowserForward"
+      || (e.altKey && !e.ctrlKey && !e.metaKey && e.key === "ArrowRight")
+      || (e.metaKey && !e.ctrlKey && e.key === "]");
+    if (!back && !forward) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (back) navGoBack();
+    else navGoForward();
+  }, true);
 }
 
 // Register the visualizer's app-specific keyboard shortcuts and command-
@@ -6427,13 +6467,13 @@ function applyActiveTab(tab) {
   // sets body[data-apps-view] and reveals the inner view. Atlas mount /
   // pause logic mirrors what used to live under its own top tab.
   if (tab === "apps" && inAtlasSubview) {
-    requestAnimationFrame(() => {
+    requestFrameOrTimeout(() => {
       const stage = document.getElementById("atlas-stage");
       if (!stage) return;
       try {
         Atlas.mount(stage);
         Atlas.setActive(true);
-        requestAnimationFrame(() => Atlas.notifyDataChanged());
+        requestFrameOrTimeout(() => Atlas.notifyDataChanged());
       } catch (e) {
         console.error("[atlas] mount failed:", e);
       }
@@ -6446,7 +6486,7 @@ function applyActiveTab(tab) {
   // setActive(false) on leave so we stop capturing + broadcasting.
   const inEaselSubview = (tab === "apps" && document.body.dataset.appsView === "easel");
   if (inEaselSubview) {
-    requestAnimationFrame(() => {
+    requestFrameOrTimeout(() => {
       const stage = document.getElementById("easel-stage");
       if (!stage) return;
       try {
@@ -6464,7 +6504,7 @@ function applyActiveTab(tab) {
 
   // Alchemy tab — cohort sandbox. Same lazy-mount pattern as atlas.
   if (tab === "alchemy") {
-    requestAnimationFrame(() => {
+    requestFrameOrTimeout(() => {
       const stage = document.getElementById("alchemy-view");
       if (!stage) return;
       try {
@@ -6477,7 +6517,7 @@ function applyActiveTab(tab) {
         if (launch?.setStatus) launch.setStatus("mounting cohort view", 0.80);
         Alchemy.mount(stage);
         Alchemy.setActive(true);
-        requestAnimationFrame(() => {
+        requestFrameOrTimeout(() => {
           Alchemy.notifyDataChanged();
           if (launch?.ready) {
             launch.setStatus("ready", 1.0);
@@ -6518,6 +6558,10 @@ const searchState = {
   selectedIdx: -1,
   recents: [],
 };
+const SEARCH_POLICIES = new Set(["default", "private_circle", "local_only"]);
+function normalizeSearchPolicy(policy) {
+  return SEARCH_POLICIES.has(policy) ? policy : "default";
+}
 
 function loadRecentSearches() {
   try {
@@ -6597,11 +6641,12 @@ function wireSearchTab() {
   try {
     const saved = JSON.parse(localStorage.getItem(SEARCH_LS_KEY) || "null");
     if (saved && typeof saved === "object") {
-      if (typeof saved.policy === "string") searchState.policy = saved.policy;
+      if (typeof saved.policy === "string") searchState.policy = normalizeSearchPolicy(saved.policy);
       if (typeof saved.topK === "number") searchState.topK = saved.topK;
       if (typeof saved.confirmEgress === "boolean") searchState.confirmEgress = saved.confirmEgress;
     }
   } catch {}
+  searchState.policy = normalizeSearchPolicy(searchState.policy);
   if (policy) policy.value = searchState.policy;
   if (topk) topk.value = String(searchState.topK);
   if (confirm) confirm.checked = !!searchState.confirmEgress;
@@ -6623,7 +6668,8 @@ function wireSearchTab() {
   const submitBtn = document.getElementById("search-submit");
   if (submitBtn) magnetize(submitBtn, { strength: 6, dampen: 0.4 });
   if (policy) policy.addEventListener("change", () => {
-    searchState.policy = policy.value;
+    searchState.policy = normalizeSearchPolicy(policy.value);
+    policy.value = searchState.policy;
     persistSearchPrefs();
   });
   if (topk) topk.addEventListener("change", () => {

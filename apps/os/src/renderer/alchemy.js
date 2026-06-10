@@ -72,6 +72,7 @@ const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem 
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
 const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
+const PROGRAM_PAGE_LS_KEY = "srwk:program_page";
 const COLLAB_INTAKE_DRAFT_LS_KEY = "srwk:collab_intake_draft_v1";
 const CONSTELLATION_TIMELINE_LS_KEY = "srwk:constellation_timeline_idx_v1";
 // `atlas` was here as an alchemy sub-mode but collides with the top-level
@@ -90,7 +91,10 @@ const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "pro
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 
 const WEEKS_TOTAL = 10;
-const WEEK_NOW = 1; // TODO: bump weekly, or derive from a cohort start date.
+function currentProgramWeek() {
+  try { return Math.max(1, Math.min(WEEKS_TOTAL, calendarCurrentWeekIdx() + 1)); }
+  catch { return 1; }
+}
 
 // GitHub event refresh cadence. Each refresh hits api.github.com once
 // per tracked repo + once per cohort github handle — ~35 requests on a
@@ -219,6 +223,8 @@ export function mount(container) {
     state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
+    const savedProgramPage = localStorage.getItem(PROGRAM_PAGE_LS_KEY);
+    if (savedProgramPage) state.programPage = savedProgramPage;
     if (saved === "collab") {
       state.mode = "constellation";
       state.constellationMode = "collab";
@@ -377,13 +383,14 @@ export function notifyDataChanged() {
 
 // ─── tab-system bridge ────────────────────────────────────────────────
 // The tab manager (tabs.js) drives the OS into a specific location and
-// reads back the current one. A "location" inside the OS tab is just a
-// mode plus an optional open record-detail id.
+// reads back the current one. A "location" inside the OS tab is the rail
+// mode plus optional sub-mode/page/detail state.
 export function getLocation() {
   let mode = state.mode === "collab" ? "constellation" : state.mode;
   if (mode === "intel") mode = "context";
   const loc = { mode, recordId: state.detailRecordId || null };
   if (mode === "constellation") loc.constellationMode = constNormalizeConstellationMode(state.constellationMode);
+  if (mode === "program" && state.programPage) loc.programPage = state.programPage;
   if (mode === "context") loc.contextView = contextNormalizeView(state.contextVault.mode);
   return loc;
 }
@@ -399,6 +406,10 @@ export function applyLocation(loc = {}) {
     : (legacyPulse ? "shapes"
     : (legacyIntel ? "context"
     : (ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode)));
+  if (mode === "program" && loc.programPage) {
+    state.programPage = String(loc.programPage);
+    try { localStorage.setItem(PROGRAM_PAGE_LS_KEY, state.programPage); } catch {}
+  }
   if (legacyCollab || (mode === "constellation" && loc.constellationMode)) {
     state.constellationMode = legacyCollab ? "collab" : constNormalizeConstellationMode(loc.constellationMode);
     try { localStorage.setItem(CONST_MODE_LS_KEY, state.constellationMode); } catch {}
@@ -631,6 +642,7 @@ function render(opts = {}) {
     // Mirror the open record-detail id so the tab system can observe
     // navigation changes via a MutationObserver (no event plumbing).
     state.container.dataset.alchDetail = state.detailRecordId || "";
+    if (state.mode !== "program") delete state.container.dataset.alchProgramPage;
     if (!isMembraneHome()) state.menuOpen = false;
     syncMembraneMenuChrome();
   }
@@ -647,8 +659,10 @@ function render(opts = {}) {
     state.membraneController = null;
   }
   // Instant path — no cross-fade. Used for tab switches + data refreshes so
-  // they feel immediate (browser-like) instead of a "reload".
-  if (opts.instant) {
+  // they feel immediate (browser-like) instead of a "reload". Also use it
+  // while hidden: Chromium throttles timers in background Electron windows,
+  // and navigation must not leave state/detail URLs ahead of the painted DOM.
+  if (opts.instant || document.hidden) {
     canvas.classList.remove("is-leaving", "is-entering");
     renderModeContent();
     return;
@@ -1306,6 +1320,7 @@ function displayId(idx) {
 // ─── legend ──────────────────────────────────────────────────────────
 function renderLegend() {
   const teams = state.cohort.teams;
+  const weekNow = currentProgramWeek();
   const counts = new Map();
   for (const t of teams) {
     if (t.is_mentor) continue;
@@ -1337,7 +1352,7 @@ function renderLegend() {
   state.canvas.innerHTML = `
     <div class="alch-legend-intro">
       <h2 class="alch-legend-title">the shape rotator vocabulary</h2>
-      <p class="alch-legend-sub">Six shapes. Every team enters in one and rotates through others over the program. Count is at week ${WEEK_NOW}.</p>
+      <p class="alch-legend-sub">Six shapes. Every team enters in one and rotates through others over the program. Count is at week ${weekNow}.</p>
     </div>
     <div class="alch-legend-grid">${cards}</div>
     <p class="alch-callout"><strong>legend · v0.1</strong><br/>
@@ -1367,6 +1382,7 @@ const PERSON_ROLE_CHIPS = [
 function renderShapes() {
   const allTeams  = state.cohort.teams  || [];
   const allPeople = state.cohort.people || [];
+  const weekNow = currentProgramWeek();
   const nWorks  = allTeams.length;
   const nPeople = allPeople.length;
   // Migrate legacy filter values ("all" | "team" | "project" → "works",
@@ -1430,7 +1446,7 @@ function renderShapes() {
       ${chips}
       ${grid}
       <p class="alch-callout"><strong>cohort directory · v0.2</strong><br/>
-      Each card is a team, project or individual in its current shape (week ${WEEK_NOW}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them). The other views above — relationship map, pmf evidence, product layer, collab board — read these same records from different angles.</p>
+      Each card is a team, project or individual in its current shape (week ${weekNow}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them). The other views above — relationship map, pmf evidence, product layer, collab board — read these same records from different angles.</p>
     </div>
   `;
   // Wire the kind filter chips. Switching sub-tabs resets the membership
@@ -1471,14 +1487,15 @@ function renderShapes() {
 // ─── pulse ───────────────────────────────────────────────────────────
 function renderPulse() {
   const teams = state.cohort.teams;
+  const weekNow = currentProgramWeek();
   const weekHeaders = Array.from({ length: WEEKS_TOTAL }, (_, i) =>
     `<span>w${String(i + 1).padStart(2, "0")}</span>`).join("");
   const rows = teams.map((t, idx) => {
     const bars = Array.from({ length: WEEKS_TOTAL }, (_, i) => {
       const week = i + 1;
       const v = pulseValue(t.record_id || displayId(idx), week);
-      const future = week > WEEK_NOW;
-      const isNow = week === WEEK_NOW;
+      const future = week > weekNow;
+      const isNow = week === weekNow;
       const height = future ? 4 : Math.max(6, Math.round(v * 44));
       const opacity = future ? 0.20 : 1;
       const cls = isNow ? "alch-pulse-bar is-now" : "alch-pulse-bar";
@@ -1504,7 +1521,7 @@ function renderPulse() {
       ${rows}
     </div>
     <p class="alch-callout"><strong>pulse · v0.1</strong><br/>
-    Per-team weekly activity. Bars are seeded-random for now — wire real signals (commits, posts, peer-search hits) by replacing <code>pulseValue()</code>. The cyan bar marks the current cohort week (w${String(WEEK_NOW).padStart(2, "0")}).</p>
+    Per-team weekly activity. Bars are seeded-random for now — wire real signals (commits, posts, peer-search hits) by replacing <code>pulseValue()</code>. The cyan bar marks the current cohort week (w${String(weekNow).padStart(2, "0")}).</p>
   `;
 }
 
@@ -6966,10 +6983,10 @@ function renderOnboarding() {
   //   4. profile              agent-driven via the /shape-rotator-
   //                           profile skill. Secondary link offers
   //                           the in-app editor as a fallback.
-  //   5. join matrix (human)  link to docs/MATRIX.md (operator-stub)
-  //   6. interview            external link (operator-stub)
-  //   B1. hermes              optional second agent (operator-stub)
-  //   B2. bot on matrix       /matrix-bot-setup skill in field-kit
+  //   5. join matrix (human)  link to docs/MATRIX.md
+  //   6. interview            local Router pop-out app
+  //   B1. hermes              optional second agent, not shipped in this build
+  //   B2. bot on matrix       /matrix-bot-setup skill + manual Matrix signup
   //
   // The renderer maps `bonus: true` entries to "B<n>" display numbers
   // and inserts a separator before the first bonus row.
@@ -7022,7 +7039,7 @@ function renderOnboarding() {
     {
       key: "join-matrix",
       title: "join the matrix server (as a human)",
-      ask: `the cohort chats in matrix. the doc covers homeserver, room, and client setup — <em>currently a stub; @amiller will fill in homeserver + room IDs once they're settled</em>.`,
+      ask: `the cohort chats in matrix. the doc covers the <code>mtrx.shaperotator.xyz</code> homeserver, invite-code flow, Element room join, and who to DM if your code is missing or broken.`,
       autoComplete: false,
       missingState: "info",
       action: { kind: "external", url: "https://github.com/dmarzzz/shape-rotator-os/blob/main/docs/MATRIX.md", label: "open matrix join instructions" },
@@ -7039,7 +7056,7 @@ function renderOnboarding() {
     {
       key: "hermes-agent",
       title: "set up a hermes agent",
-      ask: `Hermes is an autonomous second agent that runs alongside your primary local agent — useful for background research, scheduled summaries, etc. <em>links coming once the operator publishes the hermes docs.</em>`,
+      ask: `Hermes is an autonomous second agent concept for background research and scheduled summaries. it is <em>not shipped in this build</em>; treat this as optional until a later build includes a working setup path.`,
       autoComplete: false,
       missingState: "info",
       bonus: true,
@@ -7048,7 +7065,7 @@ function renderOnboarding() {
     {
       key: "agent-on-matrix",
       title: "add your bot to the matrix server",
-      ask: `register your local agent as a bot in the cohort room so it can post + read on your behalf. the field-kit ships a <code>/matrix-bot-setup</code> skill that walks through it once @amiller publishes the homeserver details.`,
+      ask: `register your local agent as a bot in the cohort room so it can post + read on your behalf. use the <code>mtrx.shaperotator.xyz</code> signup code you receive after human Matrix promotion; the field-kit <code>/matrix-bot-setup</code> skill is a wrapper stub, so use the manual path when needed.`,
       autoComplete: false,
       missingState: "info",
       bonus: true,
@@ -7173,15 +7190,15 @@ function renderOnboarding() {
     </header>
     <ol class="alch-onb-steps">${stepHtml}</ol>
     <p class="alch-callout"><strong>onboarding · v0.5</strong><br/>
-    01 + 03 auto-complete (you're in the app, so the local agent + Electron app are running). 02 sets up the field-kit so your agent gets CLI superpowers — voxterm comes bundled. 04 routes your profile through the field-kit's <code>/shape-rotator-profile</code> skill (with the in-app editor as fallback). 05 + 06 are matrix + interview; both link to in-repo stub docs that the operator will fill in. the bonus rows are second-agent (hermes) and adding your bot to matrix — optional, do them later.</p>
+    01 + 03 auto-complete (you're in the app, so the local agent + Electron app are running). 02 sets up the field-kit so your agent gets CLI superpowers — voxterm comes bundled. 04 routes your profile through the field-kit's <code>/shape-rotator-profile</code> skill (with the in-app editor as fallback). 05 opens the live matrix join flow; 06 opens the local interview app/status. the bonus rows are second-agent (hermes) and adding your bot to matrix — optional, do them later.</p>
   `;
 }
 
 // ─── onboarding action modals ───────────────────────────────────────
 // Step 03/04/05 actions don't route inside the app — they show a small
-// modal with instructions or external links. The content is intentionally
-// stub-shaped (TODO placeholders for the operator) so the flow renders
-// today and the values can be dropped in without touching the renderer.
+// modal with instructions or external links. Most current step buttons open
+// docs directly; keep these fallbacks truthful in case the actions are wired
+// back to in-app modals later.
 
 let _onbModalEl = null;
 function showOnboardingModal({ title, body }) {
@@ -7225,55 +7242,51 @@ function closeOnboardingModal() {
 function _onbModalKeydown(e) { if (e.key === "Escape") closeOnboardingModal(); }
 
 function showMatrixInstructions() {
-  // TODO(operator): drop the homeserver URL + room ID + registration
-  // policy in once decided. Until then we render the placeholder with a
-  // clear "not yet" so participants know it's pending, not broken.
   showOnboardingModal({
     title: "join the cohort matrix server",
     body: `
       <p class="alch-onb-modal-line">the cohort talks on matrix. you'll do this once, from your browser.</p>
       <ol class="alch-onb-modal-steps">
-        <li>create an account on the homeserver: <code>TODO_MATRIX_HOMESERVER</code> <span class="alch-onb-modal-aux">(operator will publish the URL)</span></li>
-        <li>verify your email if prompted.</li>
-        <li>join the cohort room: <code>TODO_MATRIX_ROOM</code></li>
-        <li>say hi.</li>
+        <li>open <code>https://mtrx.shaperotator.xyz/join?code=YOUR_CODE</code> with the invite code you received on admission.</li>
+        <li>Element opens on <code>#shape-rotator:mtrx.shaperotator.xyz</code>. Click <strong>Request to join</strong> and paste the code as the reason.</li>
+        <li>complete the approver bot's short haiku captcha in the 1:1 vetting room.</li>
+        <li>save the 10-use signup code the bot DMs you after promotion; that code onboards your agents.</li>
       </ol>
-      <p class="alch-onb-modal-aux">recommended clients: <a href="https://element.io/download" data-external>element</a> (desktop) or <a href="https://app.element.io" data-external>element web</a>. anything matrix-compatible works.</p>
+      <p class="alch-onb-modal-aux">recommended clients: <a href="https://element.io/download" data-external>element</a> (desktop) or <a href="https://app.element.io" data-external>element web</a>. if your code is missing or broken, DM <code>@socrates1024:matrix.org</code>.</p>
     `,
   });
 }
 
 function showBotMatrixInstructions() {
-  // TODO(operator): once the homeserver is settled, fill in the bot
-  // registration token / open-registration policy, and update the
-  // /matrix-bot-setup skill in shape-rotator-field-kit to match.
   showOnboardingModal({
     title: "have your agent join matrix",
     body: `
       <p class="alch-onb-modal-line">register your local agent as a bot in the cohort room so it can post research summaries, ship updates, etc. on your behalf.</p>
       <p class="alch-onb-modal-line"><strong>option A — claude code skill</strong> (recommended):</p>
       <pre class="alch-onb-modal-pre">/matrix-bot-setup</pre>
-      <p class="alch-onb-modal-aux">if the slash command isn't recognized, install the skill first: <code>rotate install-skills</code> (after cloning <a href="https://github.com/dmarzzz/shape-rotator-field-kit" data-external>shape-rotator-field-kit</a>).</p>
+      <p class="alch-onb-modal-aux">if the slash command isn't recognized, install the skill first: <code>rotate install-skills</code> (after cloning <a href="https://github.com/dmarzzz/shape-rotator-field-kit" data-external>shape-rotator-field-kit</a>). the skill is still a wrapper stub; use the manual path when it does not cover your runtime yet.</p>
       <p class="alch-onb-modal-line"><strong>option B — manual</strong>:</p>
-      <pre class="alch-onb-modal-pre">TODO_BOT_SETUP_SCRIPT</pre>
-      <button class="alch-feed-btn" type="button" data-onb-copy="TODO_BOT_SETUP_SCRIPT">copy</button>
-      <p class="alch-onb-modal-aux">operator will publish the script once the homeserver registration + bot policy are settled.</p>
+      <ol class="alch-onb-modal-steps">
+        <li>use the 10-use signup code DMed to you after human promotion.</li>
+        <li>open <code>https://mtrx.shaperotator.xyz/signup?code=YOUR_SIGNUP_CODE</code> and create an <code>@your-bot:mtrx.shaperotator.xyz</code> identity.</li>
+        <li>wire those credentials into your agent; use <a href="https://github.com/mautrix/python" data-external>mautrix-python</a> if you need practical E2EE support.</li>
+      </ol>
+      <p class="alch-onb-modal-aux">see <a href="https://github.com/dmarzzz/shape-rotator-os/blob/main/docs/MATRIX.md" data-external>docs/MATRIX.md</a> for the current operational notes.</p>
     `,
   });
 }
 
 function showInterviewQuizLinks() {
-  // TODO(operator): drop interview + quiz URLs in. Until then show a
-  // "not yet" rather than dead buttons.
   showOnboardingModal({
-    title: "interview + quiz",
+    title: "interview status",
     body: `
-      <p class="alch-onb-modal-line">two short asks so the cohort has a baseline picture of what each of you brings:</p>
+      <p class="alch-onb-modal-line">the cohort interview is no longer an external form. it runs in the local Router pop-out and drafts an intro for you to review before anything posts.</p>
       <ul class="alch-onb-modal-steps">
-        <li><strong>interview</strong> — 15 minutes, open-ended. <span class="alch-onb-modal-aux">operator will publish the URL.</span></li>
-        <li><strong>quiz</strong> — 10 minutes, multiple choice. <span class="alch-onb-modal-aux">operator will publish the URL.</span></li>
+        <li><strong>open router</strong> from this onboarding row or the Apps grid.</li>
+        <li><strong>answer the intro questions</strong>; Router saves the interview transcript locally and stages the generated intro.</li>
+        <li><strong>review before posting</strong>; no separate quiz URL is configured in this build.</li>
       </ul>
-      <p class="alch-onb-modal-aux">once published, both URLs should open in your browser.</p>
+      <p class="alch-onb-modal-aux">if Router cannot open, use the Apps → Router card and check the local Router connection screen.</p>
     `,
   });
 }
@@ -7282,8 +7295,8 @@ function showHermesInstructions() {
   showOnboardingModal({
     title: "hermes agent setup",
     body: `
-      <p class="alch-onb-modal-line">Hermes docs are not published yet. This step is optional and can wait until the operator posts the setup link.</p>
-      <p class="alch-onb-modal-aux">Once published, this action should open the Hermes setup docs in your browser.</p>
+      <p class="alch-onb-modal-line">Hermes is not available in this build. The earlier Ollama-based proof of concept is held out of the shipped onboarding path.</p>
+      <p class="alch-onb-modal-aux">This bonus step can wait until a later build exposes a working Hermes setup path.</p>
     `,
   });
 }
@@ -7653,7 +7666,13 @@ function programPages() {
 function currentProgramPage(pages) {
   const want = state.programPage || pages[0]?.record_id;
   const current = pages.find(p => p.record_id === want) || pages[0] || null;
-  if (current) state.programPage = current.record_id;
+  if (current) {
+    state.programPage = current.record_id;
+    try { localStorage.setItem(PROGRAM_PAGE_LS_KEY, current.record_id); } catch {}
+    if (state.container) state.container.dataset.alchProgramPage = current.record_id;
+  } else if (state.container) {
+    delete state.container.dataset.alchProgramPage;
+  }
   return current;
 }
 
@@ -7734,6 +7753,7 @@ function wireProgramPageActions(root = state.canvas) {
 function selectProgramPage(pageId) {
   if (!pageId) return;
   state.programPage = pageId;
+  try { localStorage.setItem(PROGRAM_PAGE_LS_KEY, state.programPage); } catch {}
   const pages = programPages();
   const current = currentProgramPage(pages);
   if (!current) {
@@ -11344,6 +11364,57 @@ function detailRows(rows) {
     .join("");
 }
 
+function detailInlineMarkdown(text) {
+  const raw = String(text || "");
+  const parts = [];
+  let cursor = 0;
+  const tokenRe = /`([^`\n]+)`|\[([^\]\n]+)\]\((https?:\/\/[^)\s]+|mailto:[^)\s]+|\/[^)\s]*|#[^)\s]*)\)/g;
+  for (const match of raw.matchAll(tokenRe)) {
+    parts.push(escHtml(raw.slice(cursor, match.index)));
+    if (match[1] != null) {
+      parts.push(`<code>${escHtml(match[1])}</code>`);
+    } else {
+      const label = match[2];
+      const href = match[3];
+      const isExternal = /^https?:\/\//i.test(href) || /^mailto:/i.test(href);
+      parts.push(`<a href="${escAttr(href)}"${isExternal ? " data-external" : ""}>${escHtml(label)}</a>`);
+    }
+    cursor = match.index + match[0].length;
+  }
+  parts.push(escHtml(raw.slice(cursor)));
+  return parts.join("");
+}
+
+function detailProse(md) {
+  const raw = String(md || "").trim();
+  if (!raw) return "";
+  const blocks = raw.split(/\n{2,}/).map(block => block.trim()).filter(Boolean);
+  if (!blocks.length) return "";
+  return `
+    <div class="alch-detail-prose">
+      ${blocks.map(block => {
+        const lines = block.split(/\n/).map(line => line.trim()).filter(Boolean);
+        const isList = lines.length > 1 && lines.every(line => /^[-*]\s+/.test(line));
+        if (isList) {
+          return `<ul>${lines.map(line => `<li>${detailInlineMarkdown(line.replace(/^[-*]\s+/, ""))}</li>`).join("")}</ul>`;
+        }
+        return `<p>${detailInlineMarkdown(lines.join(" "))}</p>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderDetailProseSection(title, body, aux = "", extraClass = "") {
+  const html = String(body || "").trim();
+  if (!html) return "";
+  return `
+    <section class="alch-detail-section ${extraClass}">
+      <h3 class="alch-detail-h">${escHtml(title)}${aux ? ` <span class="alch-profile-h-aux">${escHtml(aux)}</span>` : ""}</h3>
+      ${html}
+    </section>
+  `;
+}
+
 function renderDetailSection(title, rows, aux = "") {
   const body = detailRows(rows);
   if (!body) return "";
@@ -11352,6 +11423,277 @@ function renderDetailSection(title, rows, aux = "") {
       <h3 class="alch-detail-h">${escHtml(title)}${aux ? ` <span class="alch-profile-h-aux">${escHtml(aux)}</span>` : ""}</h3>
       ${body}
     </section>
+  `;
+}
+
+function detailHtmlParts(parts) {
+  return (Array.isArray(parts) ? parts : [parts])
+    .map(part => String(part || ""))
+    .filter(part => part.trim())
+    .join("");
+}
+
+function detailLabelize(value) {
+  return String(value || "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function renderDisclosureSection(title, body, open = false, preview = "", extraClass = "") {
+  const cleaned = detailHtmlParts(body);
+  if (!cleaned.trim()) return "";
+  const previewHtml = preview
+    ? `<span class="alch-section-preview"><span aria-hidden="true">/</span> ${escHtml(preview)}</span>`
+    : "";
+  return `
+    <details class="alch-detail-section alch-detail-disclosure ${extraClass}" ${open ? "open" : ""}>
+      <summary>
+        <span class="alch-section-label"><span>${escHtml(title)}</span>${previewHtml}</span>
+        <span class="alch-section-mark" aria-hidden="true"></span>
+      </summary>
+      <div class="alch-section-body">${cleaned}</div>
+    </details>
+  `;
+}
+
+function detailQuickRow(label, items, extraClass = "") {
+  const html = (items || []).filter(Boolean).join("");
+  if (!html) return "";
+  return `
+    <div class="alch-quick-row ${extraClass}">
+      <span class="alch-quick-k">${escHtml(label)}</span>
+      <span class="alch-quick-v">${html}</span>
+    </div>
+  `;
+}
+
+function detailQuickText(label, value) {
+  const values = detailItems(value);
+  if (!values.length) return "";
+  return `<span class="alch-quick-text">${label ? `<span>${escHtml(label)}</span>` : ""}${escHtml(values.join(" · "))}</span>`;
+}
+
+function detailPill(label, value) {
+  if (value == null || String(value).trim() === "") return "";
+  return `<span class="alch-quick-pill"><span>${escHtml(label)}</span>${escHtml(value)}</span>`;
+}
+
+function detailLinkForKey(links, key) {
+  const value = links?.[key];
+  if (!value || !String(value).trim()) return "";
+  return normalizeLinkHref(key, value);
+}
+
+function detailQuickLink(label, href, external = true) {
+  if (!href) return "";
+  const externalAttr = external ? " data-external" : "";
+  return `<a class="alch-quick-link" href="${escAttr(href)}"${externalAttr}>${escHtml(label)}</a>`;
+}
+
+function detailRecordToken(record, fallbackLabel = "") {
+  if (!record?.record_id) return "";
+  return `
+    <button type="button" class="alch-quick-link alch-record-token" data-person="${escAttr(record.record_id)}">
+      <span>${escHtml(fallbackLabel || record.name || record.record_id)}</span>
+    </button>
+  `;
+}
+
+function detailTeamToken(team) {
+  if (!team?.record_id) return "";
+  const s = shapeForTeam(team);
+  return `
+    <button type="button" class="alch-quick-link alch-team-token" data-person="${escAttr(team.record_id)}">
+      <span class="alch-mini-shape" aria-hidden="true">${s ? `<canvas data-shape-fam="${escAttr(s.fam)}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</span>
+      <span>${escHtml(team.name || team.record_id)}</span>
+    </button>
+  `;
+}
+
+function detailTimelinePreview(items = []) {
+  const labels = [...new Set((Array.isArray(items) ? items : [])
+    .map(item => detailLabelize(item?.type || item?.source || ""))
+    .filter(Boolean))]
+    .slice(0, 3);
+  return labels.join(", ");
+}
+
+function compactSentenceList(value, limit = 2) {
+  const values = detailItems(value)
+    .map(item => String(item || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, limit);
+  if (!values.length) return "";
+  if (values.length === 1) return values[0];
+  return `${values.slice(0, -1).join(", ")} and ${values[values.length - 1]}`;
+}
+
+function sentenceText(value) {
+  const s = String(value || "").replace(/\s+/g, " ").trim();
+  return s && /[.!?]$/.test(s) ? s : (s ? `${s}.` : "");
+}
+
+function renderPersonProofRead(person) {
+  const prior = compactSentenceList(person?.prior_work, 2);
+  const signature = person?.making_signature && typeof person.making_signature === "object"
+    ? person.making_signature
+    : null;
+  const builtDomain = compactSentenceList(signature?.built_domain, 3);
+  const sentences = [];
+  if (prior) {
+    sentences.push(`Public proof points include ${prior}.`);
+  }
+  if (signature?.note || builtDomain || signature?.shape) {
+    const parts = [];
+    if (builtDomain) parts.push(`${builtDomain} work`);
+    if (signature?.shape) parts.push(`${signature.shape} making pattern`);
+    const read = parts.length
+      ? `The making signature points to ${parts.join(" with a ")}`
+      : "The making signature is present";
+    sentences.push(signature?.note ? `${read}: ${sentenceText(signature.note)}` : `${read}.`);
+  }
+  return detailProse(sentences.join("\n\n"));
+}
+
+function detailTimelineItems(recordKind, recordId) {
+  const key = recordKind === "person" ? "person_timeline" : "team_timeline";
+  const sources = [activeDetailCohort(), state.cohort].filter(Boolean);
+  for (const source of sources) {
+    const items = source?.[key]?.[recordId];
+    if (Array.isArray(items)) return items;
+  }
+  return [];
+}
+
+function detailTimelineDate(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "current";
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00Z`) : new Date(s);
+  if (!Number.isFinite(d.getTime())) return s;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
+}
+
+function detailTimelineType(raw) {
+  return String(raw || "profile")
+    .replace(/[-_]+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function detailLongDate(raw) {
+  if (!raw) return "—";
+  const d = raw instanceof Date
+    ? raw
+    : (isoToDate(raw) || new Date(raw));
+  if (!Number.isFinite(d.getTime())) return String(raw);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+function detailDateRange(start, end) {
+  return `${escHtml(detailLongDate(start))} → ${escHtml(detailLongDate(end))}`;
+}
+
+function renderTimelineItems(items = []) {
+  const rows = Array.isArray(items) ? items : [];
+  if (!rows.length) return "";
+  return `
+    <ol class="alch-timeline-list">
+      ${rows.map(item => {
+          const href = String(item?.href || "").trim();
+          const title = String(item?.title || item?.type || "timeline item").trim();
+          const isExternal = /^https?:\/\//i.test(href);
+          const titleHtml = href && isExternal
+            ? `<a href="${escAttr(href)}" data-external>${escHtml(title)}</a>`
+            : `<span>${escHtml(title)}</span>`;
+          return `
+            <li class="alch-timeline-item">
+              <time class="ati-date">${escHtml(item?.date ? detailTimelineDate(item.date) : "undated")}</time>
+              <div class="ati-body">
+                <div class="ati-head">
+                  <span class="ati-title">${titleHtml}</span>
+                  ${item?.type ? `<span class="ati-type">${escHtml(detailTimelineType(item.type))}</span>` : ""}
+                </div>
+                ${item?.detail ? `<p>${escHtml(item.detail)}</p>` : ""}
+                ${item?.source ? `<span class="ati-source">${escHtml(item.source)}</span>` : ""}
+              </div>
+            </li>
+          `;
+        }).join("")}
+    </ol>
+  `;
+}
+
+function renderRecordTimeline(recordKind, recordId) {
+  const items = detailTimelineItems(recordKind, recordId);
+  if (!items.length) return "";
+  return renderDisclosureSection(
+    `timeline · ${items.length}`,
+    renderTimelineItems(items),
+    false,
+    detailTimelinePreview(items),
+    "alch-detail-timeline"
+  );
+}
+
+function detailJourneySummary(rec) {
+  const j = journeyFor(rec);
+  return {
+    ...j,
+    stageLabel: JOURNEY_STAGE_LABELS[j.stage] || "",
+    evidenceLabel: JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "",
+    upsideLabel: JOURNEY_UPSIDE_LABELS[j.market_upside] || "",
+  };
+}
+
+function detailMemberRows(people, kind) {
+  const rows = (people || []).map(person => `
+    <span class="alch-rail-member">
+      <button type="button" data-person="${escAttr(person.record_id)}">${escHtml(person.name || person.record_id)}</button>${person.role ? ` <em>(${escHtml(person.role)})</em>` : ""}
+    </span>
+  `).join("");
+  if (!rows) return "";
+  return `<div><span>${kind === "project" ? "contributors" : "members"}</span><span class="alch-rail-members">${rows}</span></div>`;
+}
+
+function renderPersonRail(person, team, fam) {
+  const dates = (person.dates_start || person.dates_end) ? detailDateRange(person.dates_start, person.dates_end) : "";
+  return `
+    <aside class="alch-detail-rail">
+      <div class="alch-detail-shape"><canvas data-shape-fam="${escAttr(fam)}" data-shape-kind="person" data-shape-scale="1.18" data-shape-seed="${escAttr(person.record_id)}"></canvas></div>
+      <div class="alch-rail-read">
+        <span class="alch-rail-kicker">individual</span>
+        <h2 class="alch-detail-name">${escHtml(person.name || person.record_id)}</h2>
+        ${person.role ? `<p class="alch-detail-focus">${escHtml(person.role)}</p>` : ""}
+        <div class="alch-rail-list">
+          <div><span>status</span>${escHtml(detailLabelize(person.role_class || "person"))}</div>
+          ${team ? `<div><span>team</span>${detailRecordToken(team)}</div>` : ""}
+          ${person.geo ? `<div><span>geo</span>${escHtml(person.geo)}</div>` : ""}
+          ${person.domain ? `<div><span>domain</span>${escHtml(domainLabel(person.domain))}</div>` : ""}
+          ${dates ? `<div><span>window</span>${dates}</div>` : ""}
+        </div>
+      </div>
+    </aside>
+  `;
+}
+
+function renderTeamRail(team, teamPeople, fam, kind) {
+  return `
+    <aside class="alch-detail-rail">
+      <div class="alch-detail-shape"><canvas data-shape-fam="${escAttr(fam)}" data-shape-kind="${escAttr(kind)}" data-shape-scale="1.18" data-shape-seed="${escAttr(team.record_id)}"></canvas></div>
+      <div class="alch-rail-read">
+        <span class="alch-rail-kicker">${escHtml(kind)}</span>
+        <h2 class="alch-detail-name">${escHtml(team.name || team.record_id)}</h2>
+        ${team.focus ? `<p class="alch-detail-focus">${escHtml(team.focus)}</p>` : ""}
+        <div class="alch-rail-list">
+          ${team.domain ? `<div><span>domain</span>${escHtml(domainLabel(team.domain))}</div>` : ""}
+          ${team.geo ? `<div><span>geo</span>${escHtml(team.geo)}</div>` : ""}
+          ${detailMemberRows(teamPeople, kind)}
+          ${team.membership ? `<div><span>status</span>${escHtml(detailLabelize(team.membership))}</div>` : ""}
+        </div>
+      </div>
+    </aside>
   `;
 }
 
@@ -11406,27 +11748,63 @@ function renderTeamDetail(team) {
   const recordId = team.record_id;
   const s = shapeForTeam(team);
   const kind = teamKind(team);
-  const m = Number(team.members_count) || 0;
+  const fam = s ? s.fam : Math.abs(hashStr(recordId || "_")) % 6;
   const memberClusters = cohortIndex.clustersByTeam.get(recordId) || [];
-  // People whose `team` field points at this record. For projects this
-  // surfaces who's working on it; for teams, the roster.
   const teamPeople = cohortIndex.primaryPeopleByTeam.get(recordId) || [];
-
-  const linksRow = renderDetailLinks(team.links || {});
   const editUrl = buildEditPRUrl({ recordType: "team", recordId });
-
-  // ── Cohort Plate framing ──
-  const j = journeyFor(team);
-  const tier = tierForStage(j.stage);
-  const allTeams = cohortIndex.teams;
-  const idx = allTeams.findIndex(t => t.record_id === recordId) + 1;
-  const idxStr = `${String(Math.max(1, idx)).padStart(3, "0")}/${String(allTeams.length).padStart(3, "0")}`;
-  // taxonomy "class line" — domain as class, shape as order.
-  const klass = (domainLabel(team.domain) || "—").toLowerCase();
-  const order = (s ? s.name : (team.shape || "—")).toLowerCase();
-  // cohort phase (m1/m2/m3) from the current program week.
-  let phase = "";
-  try { const w = calendarCurrentWeekIdx() + 1; phase = w <= 4 ? "m1" : w <= 9 ? "m2" : "m3"; } catch {}
+  const links = team.links || {};
+  const journey = detailJourneySummary(team);
+  const trajectoryRows = [
+    { key: "stage", value: escHtml(`${journey.stage} ${journey.stageLabel}`.trim()) },
+    { key: "evidence", value: escHtml(`${journey.evidence_quality}/5${journey.evidenceLabel ? ` ${journey.evidenceLabel}` : ""}`) },
+    { key: "upside", value: escHtml(`${journey.market_upside}/5${journey.upsideLabel ? ` ${journey.upsideLabel}` : ""}`) },
+    { key: "bottleneck", value: journey.primary_bottleneck ? escHtml(journey.primary_bottleneck) : "" },
+    { key: "company type", value: journey.company_type ? escHtml(journey.company_type) : "" },
+    { key: "confidence", value: journey.confidence ? escHtml(journey.confidence) : "" },
+    { key: "icp", value: journey.icp ? escHtml(journey.icp) : "" },
+    { key: "problem", value: journey.problem ? escHtml(journey.problem) : "" },
+    { key: "solution", value: journey.solution ? escHtml(journey.solution) : "" },
+    { key: "evidence notes", value: journey.evidence_notes ? escHtml(journey.evidence_notes) : "" },
+    { key: "next milestone", value: journey.next_milestone ? escHtml(journey.next_milestone) : "" },
+    { key: "this week", value: detailList(team.weekly_goals) },
+    { key: "milestones", value: detailList(team.monthly_milestones) },
+    { key: "graduation", value: team.graduation_target ? escHtml(team.graduation_target) : "" },
+  ];
+  const evidenceRows = [
+    { key: "traction", value: team.traction ? escHtml(team.traction) : "" },
+    { key: "paper basis", value: team.paper_basis ? escHtml(team.paper_basis) : "" },
+    { key: "prior shipping", value: detailList(team.prior_shipping) },
+    { key: "hackathon note", value: team.hackathon_note ? escHtml(team.hackathon_note) : "" },
+    { key: "skills", value: detailChips(team.skill_areas) },
+    { key: "success", value: detailChips(team.success_dimensions, { muted: true }) },
+  ];
+  const coordinationRows = [
+    { key: "depends on", value: renderDependencyLinks(team.dependencies) },
+    { key: "seeking", value: detailList(team.seeking) },
+    { key: "offering", value: detailList(team.offering) },
+  ];
+  const nextMove = detailQuickRow("next move", [
+    detailQuickText("", team.now || journey.next_milestone),
+  ]);
+  const needs = detailQuickRow("needs", detailItems(team.seeking).slice(0, 2).map(value => detailQuickText("", value)));
+  const provides = detailQuickRow("provides", detailItems(team.offering).slice(0, 2).map(value => detailQuickText("", value)));
+  const guild = detailQuickRow("guild", memberClusters.map(cl => detailQuickText("", cl.label || cl.name || cl.record_id)));
+  const trajectory = detailQuickRow("trajectory", [
+    detailPill("stage", `${journey.stage} ${journey.stageLabel}`),
+    detailPill("evidence", `${journey.evidence_quality}/5${journey.evidenceLabel ? ` ${journey.evidenceLabel}` : ""}`),
+    detailPill("upside", `${journey.market_upside}/5`),
+    detailPill("bottleneck", journey.primary_bottleneck),
+    detailQuickText("next", journey.next_milestone),
+  ]);
+  const explore = detailQuickRow("explore", [
+    detailQuickLink("GitHub", detailLinkForKey(links, "github")),
+    detailQuickLink("Repo", detailLinkForKey(links, "repo")),
+    detailQuickLink("X", detailLinkForKey(links, "x")),
+    detailQuickLink("Website", detailLinkForKey(links, "website")),
+    detailQuickLink("Demo", detailLinkForKey(links, "demo")),
+    detailQuickLink("Deck", detailLinkForKey(links, "deck")),
+    detailQuickLink("source", editUrl),
+  ]);
 
   state.canvas.innerHTML = `
     <header class="alch-detail-bar">
@@ -11444,100 +11822,23 @@ function renderTeamDetail(team) {
     </header>
     ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
 
-    <article class="cohort-plate is-revealing" data-tier="${escAttr(tier.key)}" data-kind="${escAttr(kind)}" id="cohort-plate">
-      <div class="plate-foil" aria-hidden="true"></div>
-      <div class="plate-scan" aria-hidden="true"></div>
-
-      <div class="plate-band">
-        <span class="pb-desig">${escHtml(team.name)}</span>
-        <span class="pb-meta">designation · ${escHtml(kind)} · idx ${escHtml(idxStr)}${phase ? ` · cohort ${escHtml(phase)}` : ""}</span>
-        <span class="pb-tier" data-tier="${escAttr(tier.key)}">tier · ${escHtml(tier.name)}</span>
-      </div>
-      <div class="plate-class">class: ${escHtml(klass)} <span class="pc-sep">//</span> order: ${escHtml(order)}${team.is_mentor ? ` <span class="pc-sep">//</span> mentor` : ""}</div>
-
-      <section class="alch-detail-hero plate-hero">
-        <div class="alch-detail-shape">${s ? `<canvas data-shape-fam="${s.fam}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-scale="1.3" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</div>
-        <div class="alch-detail-hero-text">
-          <h2 class="alch-detail-name">${escHtml(team.name)}</h2>
-          <p class="alch-detail-focus">${escHtml(team.focus || "—")}</p>
-          <div class="alch-detail-meta">
-            <span><span class="adm-k">domain</span> ${escHtml(domainLabel(team.domain))}</span>
-            <span class="ct-sep">·</span>
-            <span><span class="adm-k">${kind === "project" ? "contributors" : "team"}</span> ${m} ${m === 1 ? "person" : "people"}</span>
-            <span class="ct-sep">·</span>
-            <span><span class="adm-k">geo</span> ${escHtml(team.geo || "—")}</span>
-          </div>
+    <article class="alch-detail-dossier alch-detail-dossier-team">
+      ${renderTeamRail(team, teamPeople, fam, kind)}
+      <section class="alch-detail-ledger">
+        <div class="alch-ledger-head">
+          <span class="alch-detail-h">${escHtml(kind)} read</span>
         </div>
-        <div class="plate-grade-stamp" data-tier="${escAttr(tier.key)}" aria-hidden="true">${escHtml(tier.name)}</div>
+        <div class="alch-detail-quick alch-team-quick">${nextMove}${needs}${provides}${guild}${trajectory}${explore}</div>
+        <div class="alch-section-stack">
+          ${renderDisclosureSection("trajectory", detailRows(trajectoryRows), false, "stage, proof, next test")}
+          ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, "traction, paper, shipping")}
+          ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, "dependencies, seeks, offers")}
+          ${renderRecordTimeline("team", recordId)}
+        </div>
       </section>
-
-      <div class="alch-detail-grid">
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">about</h3>
-          ${team.now ? `<div class="alch-detail-row"><span class="adr-k">now</span><span class="adr-v alch-detail-now">${escHtml(team.now)}</span></div>` : ""}
-          <div class="alch-detail-row"><span class="adr-k">contributors</span><span class="adr-v">${teamPeople.length} ${teamPeople.length === 1 ? "person" : "people"}</span></div>
-          ${team.traction ? `<div class="alch-detail-row"><span class="adr-k">traction</span><span class="adr-v">${escHtml(team.traction)}</span></div>` : ""}
-        </section>
-
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">pmf · journey</h3>
-          ${journeyDetailSection(team)}
-        </section>
-
-        ${(team.paper_basis || team.hackathon_note) ? `
-          <section class="alch-detail-section">
-            <h3 class="alch-detail-h">trophies</h3>
-            <div class="plate-trophies">
-              ${team.hackathon_note ? `<span class="plate-trophy trophy-rare"><span class="ptr-mark">★</span><span class="ptr-body"><span class="ptr-grade">rare</span><span class="ptr-name">${escHtml(team.hackathon_note)}</span></span></span>` : ""}
-              ${team.paper_basis ? `<span class="plate-trophy trophy-notable"><span class="ptr-mark">◆</span><span class="ptr-body"><span class="ptr-grade">notable</span><span class="ptr-name">${escHtml(constText(team.paper_basis))}</span></span></span>` : ""}
-            </div>
-          </section>
-        ` : ""}
-
-        ${renderDetailSection("coordination", [
-          { key: "depends on", value: renderDependencyLinks(team.dependencies) },
-          { key: "seeking", value: detailList(team.seeking) },
-          { key: "offering", value: detailList(team.offering) },
-        ])}
-
-        ${renderDetailSection("capability", [
-          { key: "skills", value: detailChips(team.skill_areas) },
-          { key: "shipped", value: detailList(team.prior_shipping) },
-          { key: "success", value: detailChips(team.success_dimensions, { muted: true }) },
-        ])}
-
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">links</h3>
-          ${linksRow}
-        </section>
-
-        ${teamPeople.length ? `
-          <section class="alch-detail-section">
-            <h3 class="alch-detail-h">${kind === "project" ? "contributors" : "members"} <span class="alch-profile-h-aux">— ${teamPeople.length}</span></h3>
-            <ul class="alch-detail-people">
-              ${teamPeople.map(p => `
-                <li class="alch-detail-person is-clickable" data-person="${escHtml(p.record_id)}" tabindex="0" role="button" aria-label="open ${escHtml(p.name || p.record_id)}">
-                  <span class="adp-name">${escHtml(p.name || p.record_id)}</span>
-                  ${p.role ? `<span class="adp-role">${escHtml(p.role)}</span>` : ""}
-                </li>
-              `).join("")}
-            </ul>
-          </section>
-        ` : ""}
-
-        ${memberClusters.length ? `
-          <section class="alch-detail-section">
-            <h3 class="alch-detail-h">guild <span class="alch-profile-h-aux">— synergy clusters</span></h3>
-            <div class="plate-guild">
-              ${memberClusters.map(cl => `<span class="guild-tag">${escHtml(cl.label)}</span>`).join("")}
-            </div>
-          </section>
-        ` : ""}
-      </div>
     </article>
   `;
 
-  // Wire interactions.
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
@@ -11571,12 +11872,55 @@ function renderPersonDetail(person) {
   const secondary = (Array.isArray(person.secondary_teams) ? person.secondary_teams : [])
     .map(id => cohortIndex.teamById.get(id))
     .filter(Boolean);
-  const linksRow = renderDetailLinks(person.links || {});
   const editUrl = buildEditPRUrl({ recordType: "person", recordId });
-  const datesLine = (person.dates_start || person.dates_end)
-    ? `${escHtml(person.dates_start || "—")} → ${escHtml(person.dates_end || "—")}`
-    : "—";
+  const links = person.links || {};
+  const timelineItems = detailTimelineItems("person", recordId);
   const absences = Array.isArray(person.absences) ? person.absences : [];
+  const bioSection = renderDisclosureSection("about / bio", detailProse(person.bio_md), true, "profile context", "alch-detail-priority");
+  const explore = detailQuickRow("explore", [
+    detailQuickLink("GitHub", detailLinkForKey(links, "github")),
+    detailQuickLink("X", detailLinkForKey(links, "x")),
+    detailQuickLink("Website", detailLinkForKey(links, "website")),
+    detailQuickLink("LinkedIn", detailLinkForKey(links, "linkedin")),
+    detailQuickLink("source", editUrl),
+  ]);
+  const askMeAbout = detailQuickRow(
+    "ask me about",
+    detailItems(person.go_to_them_for).slice(0, 4).map(value => detailQuickText("", value))
+  );
+  const themes = detailQuickRow(
+    "themes",
+    detailItems(person.recurring_themes).slice(0, 4).map(value => detailQuickText("", value))
+  );
+  const teamContext = team ? detailQuickRow("team context", [
+    detailTeamToken(team),
+    detailQuickText("focus", team.focus),
+  ]) : "";
+  const currentRows = [
+    { key: "now", value: person.now ? `<span class="alch-detail-now">${escHtml(person.now)}</span>` : "" },
+    { key: "weekly intention", value: person.weekly_intention ? escHtml(person.weekly_intention) : "" },
+    { key: "skills", value: detailChips(person.skill_areas || person.skills) },
+  ];
+  const workingRows = [
+    { key: "comm style", value: person.comm_style ? escHtml(person.comm_style) : "" },
+    { key: "availability", value: person.availability_pref ? escHtml(person.availability_pref) : "" },
+    { key: "working style", value: person.working_style ? escHtml(person.working_style) : "" },
+    { key: "best contexts", value: detailList(person.best_contexts) },
+    { key: "contributes", value: detailList(person.contribute_interests) },
+    { key: "seeking", value: detailList(person.seeking) },
+    { key: "offering", value: detailList(person.offering) },
+  ];
+  const routeRows = [
+    {
+      key: "also contributes",
+      value: secondary.map(t => `<button type="button" class="alch-detail-inline-link" data-person="${escAttr(t.record_id)}">${escHtml(t.name || t.record_id)}</button>`).join(" "),
+    },
+    {
+      key: "absences",
+      value: absences.map(a => `${detailDateRange(a.start, a.end)}${a.note ? ` <span style="opacity:0.55">(${escHtml(a.note)})</span>` : ""}`).join("<br/>"),
+    },
+    { key: "dietary", value: person.dietary_restrictions ? escHtml(person.dietary_restrictions) : "" },
+  ];
 
   state.canvas.innerHTML = `
     <header class="alch-detail-bar">
@@ -11595,77 +11939,23 @@ function renderPersonDetail(person) {
     </header>
     ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
 
-    <section class="alch-detail-hero">
-      <div class="alch-detail-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.3" data-shape-seed="${escAttr(recordId)}"></canvas></div>
-      <div class="alch-detail-hero-text">
-        <h2 class="alch-detail-name">${escHtml(person.name || recordId)}</h2>
-        <p class="alch-detail-focus">${escHtml(person.role || "—")}</p>
-        <div class="alch-detail-meta">
-          <span><span class="adm-k">team</span> ${team
-            ? `<button type="button" class="alch-card-member" data-person="${escHtml(team.record_id)}">${escHtml(team.name)}</button>`
-            : "—"}</span>
-          <span class="ct-sep">·</span>
-          <span><span class="adm-k">domain</span> ${escHtml(domainLabel(person.domain))}</span>
-          <span class="ct-sep">·</span>
-          <span><span class="adm-k">geo</span> ${escHtml(person.geo || "—")}</span>
+    <article class="alch-detail-dossier alch-detail-dossier-person">
+      ${renderPersonRail(person, team, fam)}
+      <section class="alch-detail-ledger">
+        <div class="alch-ledger-head">
+          <span class="alch-detail-h">individual read</span>
         </div>
-      </div>
-    </section>
-
-    <div class="alch-detail-grid">
-      <section class="alch-detail-section">
-        <h3 class="alch-detail-h">window</h3>
-        <div class="alch-detail-row"><span class="adr-k">dates</span><span class="adr-v">${datesLine}</span></div>
-        ${absences.length ? `
-          <div class="alch-detail-row"><span class="adr-k">absences</span><span class="adr-v">${absences.map(a =>
-            `${escHtml(a.start || "—")} → ${escHtml(a.end || "—")}${a.note ? ` <span style="opacity:0.55">(${escHtml(a.note)})</span>` : ""}`
-          ).join("<br/>")}</span></div>
-        ` : ""}
+        ${bioSection ? `<div class="alch-section-stack alch-priority-stack">${bioSection}</div>` : ""}
+        <div class="alch-detail-quick">${explore}${askMeAbout}${themes}${teamContext}</div>
+        <div class="alch-section-stack">
+          ${renderDisclosureSection("current read", detailRows(currentRows), !bioSection, "now, weekly intention")}
+          ${renderDisclosureSection("working with", detailRows(workingRows), false, "style, availability, seeks")}
+          ${renderDisclosureSection("proof / prior work", renderPersonProofRead(person), false, "shipping, lineage")}
+          ${renderRecordTimeline("person", recordId)}
+          ${renderDisclosureSection("routes / asks", detailRows(routeRows), false, "other teams, logistics")}
+        </div>
       </section>
-
-      ${secondary.length ? `
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">also contributes to</h3>
-          <ul class="alch-detail-people">
-            ${secondary.map(t => `
-              <li class="alch-detail-person is-clickable" data-person="${escHtml(t.record_id)}" tabindex="0" role="button" aria-label="open ${escHtml(t.name)}">
-                <span class="adp-name">${escHtml(t.name)}</span>
-                <span class="adp-role">${escHtml(teamKind(t))}</span>
-              </li>
-            `).join("")}
-          </ul>
-        </section>
-      ` : ""}
-
-      ${person.dietary_restrictions ? `
-        <section class="alch-detail-section">
-          <h3 class="alch-detail-h">dietary</h3>
-          <div class="alch-detail-row"><span class="adr-v">${escHtml(person.dietary_restrictions)}</span></div>
-        </section>
-      ` : ""}
-
-      ${renderDetailSection("current work", [
-        { key: "now", value: person.now ? `<span class="alch-detail-now">${escHtml(person.now)}</span>` : "" },
-        { key: "skills", value: detailChips(person.skill_areas || person.skills) },
-      ])}
-
-      ${renderDetailSection("collaboration", [
-        { key: "ask about", value: detailList(person.go_to_them_for || person.offering) },
-        { key: "best in", value: detailList(person.best_contexts) },
-        { key: "seeking", value: detailList(person.seeking) },
-        { key: "style", value: person.working_style ? escHtml(person.working_style) : "" },
-      ])}
-
-      ${renderDetailSection("throughlines", [
-        { key: "themes", value: detailList(person.recurring_themes) },
-        { key: "prior work", value: detailList(person.prior_work) },
-      ])}
-
-      <section class="alch-detail-section">
-        <h3 class="alch-detail-h">links</h3>
-        ${linksRow}
-      </section>
-    </div>
+    </article>
   `;
 
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
