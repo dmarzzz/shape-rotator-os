@@ -572,25 +572,10 @@ function render(opts = {}) {
     try { state.membraneController.destroy(); } catch {}
     state.membraneController = null;
   }
-  // Instant path — no cross-fade. Used for tab switches + data refreshes so
-  // they feel immediate (browser-like) instead of a "reload".
-  if (opts.instant) {
-    canvas.classList.remove("is-leaving", "is-entering");
-    renderModeContent();
-    return;
-  }
-  // Animated cross-fade: leave → swap → enter (~440ms total).
-  canvas.classList.remove("is-entering");
-  canvas.classList.add("is-leaving");
-  setTimeout(() => {
-    if (renderSeq !== state.renderSeq || canvas !== state.canvas) return;
-    canvas.classList.add("is-entering");
-    canvas.classList.remove("is-leaving");
-    renderModeContent();
-    const clearEntering = () => canvas.classList.remove("is-entering");
-    requestAnimationFrame(clearEntering);
-    setTimeout(clearEntering, 80);
-  }, 220);
+  // Always instant — no cross-fade. Page switches should feel immediate
+  // (browser-like) instead of a "reload".
+  canvas.classList.remove("is-leaving", "is-entering");
+  renderModeContent();
 }
 
 // The actual content swap — mode dispatch + per-mode wiring + WebGL mount.
@@ -1323,11 +1308,11 @@ function renderShapes() {
         <button class="alch-shapes-chip" data-shapes-filter="works"  type="button" aria-selected="${filter === "works"}">teams & projects <span class="ascn">${nWorks}</span></button>
         <button class="alch-shapes-chip" data-shapes-filter="people" type="button" aria-selected="${filter === "people"}">individuals <span class="ascn">${nPeople}</span></button>
       </nav>
+      <nav class="alch-shapes-filter alch-shapes-filter-membership" role="tablist" aria-label="filter by membership">
+        ${membershipChips}
+      </nav>
       <button id="dossier-export-png" class="cal-action" type="button">export dossier (png)</button>
     </div>
-    <nav class="alch-shapes-filter alch-shapes-filter-membership" role="tablist" aria-label="filter by membership">
-      ${membershipChips}
-    </nav>
   `;
   const cardCtx = { people: state.cohort?.people || [] };
   const cards = records.map((r, idx) => {
@@ -1341,6 +1326,7 @@ function renderShapes() {
     ? `<div class="alch-specimens">${cards}</div>`
     : `<p class="alch-pf-pick">${emptyMsg}</p>`;
   state.canvas.innerHTML = `
+    <div class="alch-page-intro"></div>
     ${chips}
     ${grid}
     <p class="alch-callout"><strong>shapes · v0.1</strong><br/>
@@ -4397,6 +4383,7 @@ function renderJourney() {
     </div>`;
 
   state.canvas.innerHTML = `
+    <div class="alch-page-intro"></div>
     <div class="alch-constellation" data-constellation-view="journey">
       <div class="alch-const-topbar">${constellationNav("journey")}</div>
       ${filterBar}
@@ -4440,6 +4427,7 @@ function renderProductStack() {
     .map(k => `<span class="acl-item"><span class="acl-dot acl-dot-${k}"></span>${escHtml(CONST_DOMAIN_LABEL[k])}</span>`)
     .join("");
   state.canvas.innerHTML = `
+    <div class="alch-page-intro"></div>
     <div class="alch-constellation" data-constellation-view="stack">
       <div class="alch-const-topbar">${constellationNav("stack")}</div>
       <div class="alch-const-workbench is-single">
@@ -4688,6 +4676,7 @@ function renderConstellationPeople(teams, people, clusters, edges) {
     </div>
     <div class="acl-line-note">Circles are primary project groups. Lines are inferred from person profiles and should be treated as conversation leads.</div>`;
   state.canvas.innerHTML = `
+    <div class="alch-page-intro"></div>
     <div class="alch-constellation" data-constellation-view="map" data-constellation-scope="people">
       <div class="alch-const-topbar">${constellationNav("map")}</div>
       <div class="ac-map-control-stack is-people-scope">
@@ -5204,6 +5193,7 @@ function renderConstellation() {
     <div class="acl-line-note">Solid = a relationship record with type, status, evidence, or next action. Dotted = a project profile mention that needs confirmation.</div>`;
 
   state.canvas.innerHTML = `
+    <div class="alch-page-intro"></div>
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
       <div class="alch-const-topbar">${constellationNav(viewMode)}</div>
       ${viewMode === "map" || viewMode === "ring" ? `
@@ -6990,14 +6980,13 @@ function renderOnboarding() {
     ? `${coreCount} core step${coreCount === 1 ? "" : "s"} + ${bonusCount} bonus`
     : `${coreCount} step${coreCount === 1 ? "" : "s"}`;
   state.canvas.innerHTML = `
-    <header class="alch-onb-head">
-      <h2 class="alch-onb-title">onboarding</h2>
-      <p class="alch-onb-sub">
+    <div class="alch-page-intro">
+      <span>
         ${me
-          ? `you're <strong>${escHtml(me.name || me.record_id)}</strong>. ${countLabel} to get fully wired into the cohort.`
+          ? `You're <strong>${escHtml(me.name || me.record_id)}</strong>. ${countLabel} to get fully wired into the cohort.`
           : `${countLabel} to get fully wired into the cohort.`}
-      </p>
-    </header>
+      </span>
+    </div>
     <ol class="alch-onb-steps">${stepHtml}</ol>
     <p class="alch-callout"><strong>onboarding · v0.5</strong><br/>
     01 + 03 auto-complete (you're in the app, so the local agent + Electron app are running). 02 sets up the field-kit so your agent gets CLI superpowers — voxterm comes bundled. 04 routes your profile through the field-kit's <code>/shape-rotator-profile</code> skill (with the in-app editor as fallback). 05 + 06 are matrix + interview; both link to in-repo stub docs that the operator will fill in. the bonus rows are second-agent (hermes) and adding your bot to matrix — optional, do them later.</p>
@@ -7533,10 +7522,7 @@ function renderProgram() {
   const tabs = renderProgramTabs(pages, current);
 
   state.canvas.innerHTML = `
-    <header class="alch-prog-head">
-      <h2 class="alch-prog-title">program</h2>
-      <p class="alch-prog-sub">the handbook. edits open a PR on github — stewards merge → next build:cohort ships the change to the cohort.</p>
-    </header>
+    <div class="alch-page-intro">The handbook. edits open a PR on github — stewards merge → next build:cohort ships the change to the cohort.</div>
     <nav class="alch-prog-tabs" role="tablist" aria-label="program section">${tabs}</nav>
     ${renderProgramPage(current)}
   `;
@@ -9064,9 +9050,8 @@ function renderCollab() {
 
   state.canvas.innerHTML = `
     <div class="alch-collab">
+      <div class="alch-page-intro">Who depends on whom, who can unblock whom, where the cohort over-concentrates — all from teams' own declared dependencies, seeking, offering &amp; skill areas.</div>
       <header class="alch-cb-head">
-        <h2 class="alch-cb-title">collaboration board</h2>
-        <p class="alch-cb-sub">who depends on whom, who can unblock whom, where the cohort over-concentrates — all from teams' own declared dependencies, seeking, offering &amp; skill areas.</p>
         ${controlBar}
       </header>
       ${matrix}
@@ -9381,10 +9366,7 @@ function renderAsks() {
   state.openAskComposer = false;
 
   state.canvas.innerHTML = `
-    <header class="alch-asks-head">
-      <h2 class="alch-asks-title">asks</h2>
-    </header>
-
+    <div class="alch-page-intro">Post an ask to the cohort — pair on something, get 30 min with someone, or borrow a brain. open asks stay visible until you close them.</div>
     <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}" data-autofocus="${openComposer ? "1" : "0"}">
       <details class="alch-asks-compose-shell" data-asks-compose-details${openComposer ? " open" : ""}>
         <summary class="alch-asks-compose-head">
@@ -10350,11 +10332,9 @@ function renderContextVault() {
 
   state.canvas.innerHTML = `
     <section class="alch-cv">
+      <div class="alch-page-intro">Reader-facing article drafts plus the transcripts they came from, bundled into the OS for local prompting.</div>
       <header class="alch-cv-head">
         <div>
-          <p class="alch-cv-kicker">local context vault</p>
-          <h2>context library</h2>
-          <p>Reader-facing article drafts plus the transcripts they came from, bundled into the OS for local prompting.</p>
           <div class="alch-cv-release">
             <span class="alch-cv-release-version">content ${escHtml(CONTEXT_CONTENT_VERSION)}</span>
             <span class="alch-cv-release-note">${escHtml(CONTEXT_CONTENT_RELEASE_NOTE)}</span>
@@ -12495,9 +12475,9 @@ function renderProfile() {
   const themeNow = getTheme();
   const themeNext = themeNow === "light" ? "dark" : "light";
   state.canvas.innerHTML = `
+    <div class="alch-page-intro">Add or edit a team / project / person record. when swf-node is running, edits land locally and gossip to LAN peers; github PR is the fallback.</div>
     <header class="alch-profile-head">
       <div class="alch-profile-head-row">
-        <h2 class="alch-profile-title">profile</h2>
         <button
           id="alch-theme-toggle"
           class="alch-theme-toggle"
@@ -12512,9 +12492,6 @@ function renderProfile() {
           <span class="alch-theme-toggle-label">${themeNext} mode</span>
         </button>
       </div>
-      <p class="alch-profile-sub">
-        add or edit a team / project / person record. when swf-node is running, edits land locally and gossip to LAN peers; github PR is the fallback.
-      </p>
     </header>
 
     ${forkBannerHtml}

@@ -652,17 +652,13 @@ function renderShell(container, data) {
   const generatedDate = (data.statusGeneratedAt || data.generatedAt || "").slice(0, 10);
   container.innerHTML = `
     <section class="intel-panel">
-      <header class="intel-hero">
-        <div>
-          <p class="intel-kicker">Shape Rotator Intelligence Vault</p>
-          <h1>Intel</h1>
-          <p>Cohort-facing moves from public project records and the sanitized relationship map. ${esc(INTEL_SIGNALS.length)} compressed reads; private source provenance stays out of the app bundle.</p>
-        </div>
+      <div class="alch-page-intro">
+        <span>Cohort-facing moves from public project records and the sanitized relationship map. ${esc(INTEL_SIGNALS.length)} compressed reads; private source provenance stays out of the app bundle.</span>
         <div class="intel-hero-note">
           <span>snapshot ${esc(generatedDate || "unknown")}</span>
           <span>curated preview · cohort-facing</span>
         </div>
-      </header>
+      </div>
       ${renderModeSwitch()}
       <div class="intel-metrics">${metricTiles(data)}</div>
       ${state.panel === "data" ? renderDataPanel(data, signal) : renderSignalsPanel(data, signal, signals)}

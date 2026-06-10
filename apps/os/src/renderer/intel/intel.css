@@ -12,8 +12,6 @@
   justify-content: space-between;
   gap: 24px;
   align-items: flex-end;
-  border-bottom: 1px solid var(--alchemy-rule, rgba(var(--ink-rgb),0.14));
-  padding-bottom: 14px;
 }
 
 .intel-hero h1 {

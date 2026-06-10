@@ -6267,18 +6267,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   transform: translateY(8px);
 }
 
-/* Stagger child cards into view inside grid containers when the canvas
- * transitions in. Driven by --alch-i set inline per card. */
-.alchemy-canvas .alch-card,
-.alchemy-canvas .alch-legend-card {
-  --alch-i: 0;
-  animation: alchCardIn 360ms var(--ease) both;
-  animation-delay: calc(var(--alch-i) * 28ms);
-}
-@keyframes alchCardIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+/* Card stagger-in removed — pages should render instantly on switch. */
 
 /* ─── specimens grid ─────────────────────────────────────────────────── */
 .alch-specimens {
@@ -9254,9 +9243,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-link-btn:hover { color: var(--alchemy-paper-warm); border-color: var(--alchemy-paper-warm); }
 
 /* ─── profile ────────────────────────────────────────────────────────── */
-.alch-profile-head { margin-bottom: 22px; padding-bottom: 14px; border-bottom: 1px solid var(--alchemy-rule); max-width: 70ch; }
+.alch-profile-head { margin-bottom: 22px; max-width: 70ch; }
 .alch-profile-head-row {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  display: flex; align-items: baseline; justify-content: flex-end; gap: 16px;
   margin-bottom: 6px;
 }
 .alch-profile-title {
@@ -13149,7 +13138,7 @@ html, body { background: var(--ed-bg-0); }
 .atlas-search-toggle:hover .ast-glyph { opacity: var(--ed-op-loud); }
 
 /* ── alchemy page padding — generous gallery margins ─────────────── */
-.alchemy-canvas { padding: 48px 56px 64px; }
+.alchemy-canvas { padding: 24px 56px 64px; }
 
 /* ── alchemy LEFT RAIL — Linear/Foundation editorial spec ────────── */
 .alchemy-rail {
@@ -13463,13 +13452,12 @@ html, body { background: var(--ed-bg-0); }
   margin-left: auto;
 }
 
-/* Second filter row — membership / role_class. Sits below the kind toolbar
- * so the visual hierarchy reads as: pick the entity type (teams vs people),
- * then narrow to a membership bucket. The cohort chip carries the same
- * warm oxide treatment used on cohort cards so the connection is obvious. */
+/* Membership / role_class chips — share the toolbar row with the kind
+ * chips: entity type (teams vs people) first, membership bucket next.
+ * The cohort chip carries the same warm oxide treatment used on cohort
+ * cards so the connection is obvious. */
 .alch-shapes-filter-membership {
-  margin-top: -16px;
-  margin-bottom: 32px;
+  margin: 0;
 }
 .alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"],
 .alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"] {
@@ -14035,7 +14023,7 @@ html, body {
 }
 .alch-onb-sub strong { color: var(--ed-ink-1); opacity: 1; font-weight: 500; }
 .alch-onb-steps {
-  list-style: none; padding: 0; margin: 0 auto 28px;
+  list-style: none; padding: 0; margin: 0 0 28px;
   display: grid; gap: 14px;
   max-width: 84ch;
 }
@@ -14209,7 +14197,7 @@ html, body {
   font-size: 16px;
   letter-spacing: -0.01em;
 }
-.alch-prog-page { margin: 0 auto; max-width: 70ch; }
+.alch-prog-page { margin: 0; max-width: 70ch; }
 .alch-prog-page-head {
   display: flex; align-items: baseline; gap: 16px;
   margin-bottom: 16px;
@@ -14885,12 +14873,12 @@ html, body {
 .alch-prog-title       { font-size: 44px; letter-spacing: -0.02em; line-height: 1.0; margin: 0 0 14px 0; }
 .alch-prog-sub         { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 64ch; margin: 0; opacity: 0.62; }
 
-.alch-prog-tabs        { margin: 24px auto 40px; max-width: 88ch; gap: 0; }
+.alch-prog-tabs        { margin: 24px 0 40px; max-width: 88ch; gap: 0; }
 .alch-prog-tab         { padding: 12px 24px 14px; gap: 12px; }
 .alch-prog-tab-num     { font-size: 11px; letter-spacing: 0.22em; }
 .alch-prog-tab-label   { font-size: 19px; }
 
-.alch-prog-page        { margin: 0 auto; max-width: 80ch; padding: 0 0 96px; }
+.alch-prog-page        { margin: 0; max-width: 80ch; padding: 0 0 96px; }
 .alch-prog-page-head   { margin-bottom: 32px; align-items: baseline; gap: 24px; }
 .alch-prog-page-title  { font-size: 32px; line-height: 1.05; margin: 0; }
 
@@ -14954,7 +14942,7 @@ html, body {
 .alch-onb-title        { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
 .alch-onb-sub          { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 70ch; opacity: 0.62; }
 
-.alch-onb-steps        { margin: 0 auto 36px; max-width: 88ch; gap: 18px; }
+.alch-onb-steps        { margin: 0 0 36px; max-width: 88ch; gap: 18px; }
 .alch-onb-step         {
   grid-template-columns: 56px 1fr 28px;
   gap: 24px;
@@ -14969,7 +14957,7 @@ html, body {
 .alch-onb-done         { font-size: 11px; padding: 6px 14px; letter-spacing: 0.18em; }
 
 /* ── calendar ─────────────────────────────────────────────────────── */
-.cal-page-head         { margin-bottom: 32px; padding-top: 12px; max-width: 88ch; margin-left: auto; margin-right: auto; }
+.cal-page-head         { margin-bottom: 0; }
 .cal-page-title        { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; }
 .cal-page-sub          { font-size: 13px; letter-spacing: 0.18em; }
 
@@ -18855,8 +18843,6 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   justify-content: space-between;
   gap: 32px;
   align-items: flex-start;
-  padding-bottom: 18px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
 }
 
 .alch-cv-kicker,
@@ -19649,3 +19635,36 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   opacity: 1;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
 }
+
+/* ─── unified page intro — boxed explainer at the top of each OS page ── */
+/* Doubled class beats later-loading per-page rules (e.g. intel.css) on ties. */
+.alch-page-intro.alch-page-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-sizing: border-box;
+  min-height: 64px;
+  border: 1px solid var(--alchemy-rule);
+  border-radius: 4px;
+  padding: 10px 16px;
+  margin: 0 0 24px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  color: var(--alchemy-ink-mute);
+}
+/* Onboarding content is left-aligned under the intro strip; keep its
+ * closing callout on the same edge instead of the shared centered one. */
+.alchemy-canvas:has(.alch-onb-steps) .alch-callout { margin-left: 0; margin-right: 0; }
+/* An intro strip with no text yet keeps its reserved space (same height +
+ * spacing as every other page) but hides the rectangle. Adding text to the
+ * div makes the outline appear automatically. */
+.alch-page-intro.alch-page-intro:empty { border-color: transparent; }
+/* Constellation canvas uses narrower padding (34/32) for the graph — offset
+ * the strip so its edges land at the same 56px as every other page. */
+.alchemy-canvas:has(.alch-constellation) .alch-page-intro { margin-left: 22px; margin-right: 24px; }
+/* Membrane is a full-bleed stage with zero canvas padding — give the strip
+ * explicit margins matching the standard page padding, above the scene. */
+.membrane-host .membrane-page-intro { position: relative; z-index: 6; margin: 24px 56px 0; }
