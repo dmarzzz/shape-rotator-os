@@ -4762,15 +4762,9 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   border-color: rgba(var(--ink-rgb), 0.30);
   background: rgba(var(--overlay-rgb), 0.95);
 }
-.fg-version-chip[data-update="available"] {
-  color: var(--neon-cyan);
-  border-color: rgba(90, 240, 255, 0.36);
-  text-shadow: 0 0 8px rgba(90, 240, 255, 0.40);
-}
-.fg-version-chip[data-update="available"]::after {
-  content: " · update";
-  opacity: 0.85;
-}
+/* update-available: the chip itself does NOT change — no recolor, no
+ * appended "· update" text. The download glyph in the adjacent icon
+ * slot (#fg-update-icon) is the only indicator. */
 
 /* glass surfaces: one less border tone */
 .events-panel,
@@ -12776,7 +12770,8 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   font-size: 9.5px;
 }
 .fg-version-chip:hover { color: var(--ed-ink-2, #b8b4ab); background: transparent; border-color: transparent; }
-.fg-version-chip[data-update="available"] { color: var(--sr-red, #8f220e); text-shadow: none; border-color: var(--sr-red, #8f220e); }
+/* update-available intentionally does NOT restyle the chip — the
+ * download glyph in #fg-update-icon is the only indicator. */
 
 /* Update status icon — a small box sitting just RIGHT of the version number
  * inside the right-aligned .fg-footer-vcluster. Same Lucide line set as the
