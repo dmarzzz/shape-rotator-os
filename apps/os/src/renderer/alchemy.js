@@ -1429,8 +1429,8 @@ function renderShapes() {
       ${cohortPageHead("directory", { side: `<button id="dossier-export-png" class="cal-action" type="button">export dossier (png)</button>` })}
       ${chips}
       ${grid}
-      <p class="alch-callout"><strong>shapes · v0.1</strong><br/>
-      Each card is a team, project or individual in its current shape (week ${WEEK_NOW}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them).</p>
+      <p class="alch-callout"><strong>cohort directory · v0.2</strong><br/>
+      Each card is a team, project or individual in its current shape (week ${WEEK_NOW}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them). The other views above — relationship map, pmf evidence, product layer, collab board — read these same records from different angles.</p>
     </div>
   `;
   // Wire the kind filter chips. Switching sub-tabs resets the membership
