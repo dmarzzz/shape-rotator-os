@@ -658,27 +658,12 @@ function render(opts = {}) {
     try { state.membraneController.destroy(); } catch {}
     state.membraneController = null;
   }
-  // Instant path — no cross-fade. Used for tab switches + data refreshes so
-  // they feel immediate (browser-like) instead of a "reload". Also use it
-  // while hidden: Chromium throttles timers in background Electron windows,
-  // and navigation must not leave state/detail URLs ahead of the painted DOM.
-  if (opts.instant || document.hidden) {
-    canvas.classList.remove("is-leaving", "is-entering");
-    renderModeContent();
-    return;
-  }
-  // Animated cross-fade: leave → swap → enter (~440ms total).
-  canvas.classList.remove("is-entering");
-  canvas.classList.add("is-leaving");
-  setTimeout(() => {
-    if (renderSeq !== state.renderSeq || canvas !== state.canvas) return;
-    canvas.classList.add("is-entering");
-    canvas.classList.remove("is-leaving");
-    renderModeContent();
-    const clearEntering = () => canvas.classList.remove("is-entering");
-    requestAnimationFrame(clearEntering);
-    setTimeout(clearEntering, 80);
-  }, 220);
+  // Always instant — no cross-fade. Page switches should feel immediate
+  // (browser-like) instead of a "reload". Also required while hidden:
+  // Chromium throttles timers in background Electron windows, and
+  // navigation must not leave state/detail URLs ahead of the painted DOM.
+  canvas.classList.remove("is-leaving", "is-entering");
+  renderModeContent();
 }
 
 // The actual content swap — mode dispatch + per-mode wiring + WebGL mount.
@@ -1785,31 +1770,31 @@ function constellationNav(active) {
 // One-line purpose statement per cohort view — rendered in the shared page
 // header so every view states what it's for before showing anything.
 const COHORT_VIEW_DEK = {
-  directory: "every team, project, and person in the cohort — the roster.",
-  map: "how the cohort connects — declared relationships across ecosystem wells.",
-  ring: "every relationship line at once — the cohort as one ring.",
-  journey: "where each project sits on the road to product-market fit.",
-  stack: "where each project enters the shared product stack.",
-  collab: "who depends on whom, and the intros worth making.",
+  directory: "Every team, project, and person in the cohort — the roster.",
+  map: "How the cohort connects — declared relationships across ecosystem wells.",
+  ring: "Every relationship line at once — the cohort as one ring.",
+  journey: "Where each project sits on the road to product-market fit.",
+  stack: "Where each project enters the shared product stack.",
+  collab: "Who depends on whom, and the intros worth making.",
 };
 
 // Shared page header — same structure on the cohort and context pages so
 // the OS's two "understanding" surfaces read as one design. `side` is
 // optional per-view meta or actions (kept to one quiet element at rest).
 function pageHeadHtml({ kicker, title, dek, side = "", nav = "" }) {
-  // One block (header + view nav together) so host pages with their own
-  // flex gaps can't change the head→nav rhythm — it reads identically on
-  // the cohort and context pages.
+  // Strip-style header (2026-06 design pass): no kicker/title — the rail
+  // already names the page. The dek (purpose line) sits inside the shared
+  // outlined intro strip with any side action right-aligned; the view nav
+  // follows. One block (strip + nav together) so host pages with their own
+  // flex gaps can't change the head→nav rhythm. kicker/title are accepted
+  // for call-site compatibility but intentionally not rendered. A strip
+  // with no content keeps its reserved height but hides the outline
+  // (see the .alch-page-intro:empty rule), so it must stay whitespace-free.
+  void kicker; void title;
+  const inner = `${dek ? `<span>${escHtml(dek)}</span>` : ""}${side ? `<div class="alch-page-head-side">${side}</div>` : ""}`;
   return `
     <div class="alch-page-headgroup">
-      <header class="alch-page-head">
-        <div class="alch-page-head-text">
-          <p class="alch-page-kicker">${escHtml(kicker)}</p>
-          <h2 class="alch-page-title">${escHtml(title)}</h2>
-          ${dek ? `<p class="alch-page-dek">${escHtml(dek)}</p>` : ""}
-        </div>
-        ${side ? `<div class="alch-page-head-side">${side}</div>` : ""}
-      </header>
+      <div class="alch-page-intro">${inner}</div>
       ${nav}
     </div>`;
 }
@@ -7192,14 +7177,13 @@ function renderOnboarding() {
     ? `${coreCount} core step${coreCount === 1 ? "" : "s"} + ${bonusCount} bonus`
     : `${coreCount} step${coreCount === 1 ? "" : "s"}`;
   state.canvas.innerHTML = `
-    <header class="alch-onb-head">
-      <h2 class="alch-onb-title">onboarding</h2>
-      <p class="alch-onb-sub">
+    <div class="alch-page-intro">
+      <span>
         ${me
-          ? `you're <strong>${escHtml(me.name || me.record_id)}</strong>. ${countLabel} to get fully wired into the cohort.`
+          ? `You're <strong>${escHtml(me.name || me.record_id)}</strong>. ${countLabel} to get fully wired into the cohort.`
           : `${countLabel} to get fully wired into the cohort.`}
-      </p>
-    </header>
+      </span>
+    </div>
     <ol class="alch-onb-steps">${stepHtml}</ol>
     <p class="alch-callout"><strong>onboarding · v0.5</strong><br/>
     01 + 03 auto-complete (you're in the app, so the local agent + Electron app are running). 02 sets up the field-kit so your agent gets CLI superpowers — voxterm comes bundled. 04 routes your profile through the field-kit's <code>/shape-rotator-profile</code> skill (with the in-app editor as fallback). 05 opens the live matrix join flow; 06 opens the local interview app/status. the bonus rows are second-agent (hermes) and adding your bot to matrix — optional, do them later.</p>
@@ -7737,10 +7721,7 @@ function renderProgram() {
   const tabs = renderProgramTabs(pages, current);
 
   state.canvas.innerHTML = `
-    <header class="alch-prog-head">
-      <h2 class="alch-prog-title">program</h2>
-      <p class="alch-prog-sub">the handbook. edits open a PR on github — stewards merge → next build:cohort ships the change to the cohort.</p>
-    </header>
+    <div class="alch-page-intro">The handbook. edits open a PR on github — stewards merge → next build:cohort ships the change to the cohort.</div>
     <nav class="alch-prog-tabs" role="tablist" aria-label="program section">${tabs}</nav>
     ${renderProgramPage(current)}
   `;
@@ -9586,10 +9567,7 @@ function renderAsks() {
   state.openAskComposer = false;
 
   state.canvas.innerHTML = `
-    <header class="alch-asks-head">
-      <h2 class="alch-asks-title">asks</h2>
-    </header>
-
+    <div class="alch-page-intro">Post an ask to the cohort — pair on something, get 30 min with someone, or borrow a brain. open asks stay visible until you close them.</div>
     <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}" data-autofocus="${openComposer ? "1" : "0"}">
       <details class="alch-asks-compose-shell" data-asks-compose-details${openComposer ? " open" : ""}>
         <summary class="alch-asks-compose-head">
@@ -9994,10 +9972,10 @@ function contextNormalizeView(raw) {
 }
 
 const CONTEXT_VIEW_DEK = {
-  articles: "reader-facing drafts distilled from the cohort's context vault.",
-  raw: "the transcripts behind the articles, with review metadata and calendar matches.",
-  signals: "vault-backed reads on cohort moves worth making — grounded, inferred, speculative.",
-  data: "the sanitized entity graph behind the signals — people, projects, surfaces.",
+  articles: "Reader-facing drafts distilled from the cohort's context vault.",
+  raw: "The transcripts behind the articles, with review metadata and calendar matches.",
+  signals: "Vault-backed reads on cohort moves worth making — grounded, inferred, speculative.",
+  data: "The sanitized entity graph behind the signals — people, projects, surfaces.",
 };
 
 const CONTEXT_VIEWS = [
@@ -13040,9 +13018,9 @@ function renderProfile() {
   const themeNow = getTheme();
   const themeNext = themeNow === "light" ? "dark" : "light";
   state.canvas.innerHTML = `
+    <div class="alch-page-intro">Add or edit a team / project / person record. when swf-node is running, edits land locally and gossip to LAN peers; github PR is the fallback.</div>
     <header class="alch-profile-head">
       <div class="alch-profile-head-row">
-        <h2 class="alch-profile-title">profile</h2>
         <button
           id="alch-theme-toggle"
           class="alch-theme-toggle"
@@ -13057,9 +13035,6 @@ function renderProfile() {
           <span class="alch-theme-toggle-label">${themeNext} mode</span>
         </button>
       </div>
-      <p class="alch-profile-sub">
-        add or edit a team / project / person record. when swf-node is running, edits land locally and gossip to LAN peers; github PR is the fallback.
-      </p>
     </header>
 
     ${forkBannerHtml}

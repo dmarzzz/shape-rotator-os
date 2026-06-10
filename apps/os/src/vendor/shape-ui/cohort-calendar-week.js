@@ -990,10 +990,9 @@ export function renderWeekView({
 
   return `
     <header class="cal-page-head">
-      <div class="cal-page-title-row">
-        <h1 class="cal-page-title">cohort <em>calendar</em></h1>
+      <div class="alch-page-intro">
+        <span>The cohort schedule — day, week &amp; full program views, plus presence. synced from the phala calendar.</span>
         <div class="cal-page-sync ${syncStateClass}">
-          <span class="cps-dot" aria-hidden="true">●</span>
           <span class="cps-label">${escHtml(syncLabel)}</span>
         </div>
       </div>
