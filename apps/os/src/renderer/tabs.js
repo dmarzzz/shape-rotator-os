@@ -23,17 +23,21 @@ const TABS_LS_KEY = "srwk:tabs_v1";
 
 const MODE_LABEL = {
   membrane: "membrane", shapes: "cohort",
-  constellation: "constellation", intel: "intel",
+  constellation: "cohort",
   calendar: "calendar", profile: "profile", onboarding: "onboarding",
   program: "program info", asks: "asks", context: "context", icons: "icons",
 };
+
+// Short suffixes for the cohort page's constellation views and the context
+// page's views — tab titles read "cohort · map", "context · intel", etc.
+const CONST_VIEW_LABEL = { map: "map", ring: "map", journey: "journey", stack: "stack", collab: "collab" };
+const CONTEXT_VIEW_LABEL = { raw: "transcripts", signals: "intel", data: "intel data" };
 
 // Inner SVG markup for each page's Lucide icon (matches the left-nav rail).
 const ICON_PATHS = {
   membrane: '<path d="M20.341 6.484A10 10 0 0 1 10.266 21.85"/><path d="M3.659 17.516A10 10 0 0 1 13.74 2.152"/><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/>',
   shapes: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/>',
   constellation: '<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
-  intel: '<path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/>',
   calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
   profile: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   onboarding: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/>',
@@ -85,6 +89,11 @@ function normalizeLocation(loc) {
     const { constellationMode, ...rest } = loc;
     return { ...rest, mode: "shapes" };
   }
+  // Intel folded into the context page (2026-06) — old intel tabs reopen
+  // on context's intel view.
+  if (loc.tab === "alchemy" && loc.mode === "intel") {
+    return { ...loc, mode: "context", contextView: "signals" };
+  }
   return loc;
 }
 
@@ -102,6 +111,7 @@ function readCurrentLocation() {
     loc.mode = al.mode;
     if (al.constellationMode) loc.constellationMode = al.constellationMode;
     if (al.programPage) loc.programPage = al.programPage;
+    if (al.contextView) loc.contextView = al.contextView;
     if (al.recordId) loc.recordId = al.recordId;
   } else if (top === "apps") {
     if (document.body.dataset.appsView) loc.appsView = document.body.dataset.appsView;
@@ -115,7 +125,13 @@ function locTitle(loc) {
   if (!loc || loc.blank) return "new tab";
   if (loc.tab === "alchemy") {
     if (loc.recordId) return Alchemy.getRecordTitle(loc.recordId) || "record";
-    if (loc.mode === "constellation" && loc.constellationMode === "collab") return "collab board";
+    if (loc.mode === "constellation") {
+      const view = CONST_VIEW_LABEL[loc.constellationMode] || "map";
+      return `cohort · ${view}`;
+    }
+    if (loc.mode === "context" && CONTEXT_VIEW_LABEL[loc.contextView]) {
+      return `context · ${CONTEXT_VIEW_LABEL[loc.contextView]}`;
+    }
     return MODE_LABEL[loc.mode] || "operating system";
   }
   if (loc.tab === "apps") return loc.appsView || "apps";
@@ -139,6 +155,7 @@ function applyLocation(loc) {
       Alchemy.applyLocation({
         mode: loc.mode,
         constellationMode: loc.constellationMode,
+        contextView: loc.contextView,
         recordId: loc.recordId,
         programPage: loc.programPage,
         instant: true,
@@ -461,5 +478,5 @@ export function init() {
   const obs = new MutationObserver(() => captureCurrent());
   obs.observe(document.body, { attributes: true, attributeFilter: ["data-active-tab", "data-apps-view", "data-net-sub"] });
   const av = document.getElementById("alchemy-view");
-  if (av) obs.observe(av, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current", "data-alch-program-page", "data-alch-detail"] });
+  if (av) obs.observe(av, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current", "data-context-view", "data-alch-program-page", "data-alch-detail"] });
 }

@@ -6006,20 +6006,23 @@ function navSnapshot() {
     netSub: tab === "network" ? (b.dataset.netSub || "network") : "network",
     alchMode: "",
     constMode: "",
+    ctxView: "",
     programPage: "",
     recordId: "",
   };
   if (tab === "alchemy") {
+    const alch = document.getElementById("alchemy-view");
     let loc = null;
     try { loc = Alchemy.getLocation?.(); } catch {}
-    let alchMode = loc?.mode || "";
+    let alchMode = loc?.mode || alch?.dataset.alchModeCurrent || "";
     if (!alchMode) {
       try { alchMode = localStorage.getItem(NAV_ALCH_LS_KEY) || "membrane"; } catch { alchMode = "membrane"; }
     }
-    let constMode = loc?.constellationMode || "";
+    let constMode = loc?.constellationMode || alch?.dataset.constModeCurrent || "";
     if (!constMode) {
       try { constMode = localStorage.getItem(NAV_CONST_MODE_LS_KEY) || ""; } catch { constMode = ""; }
     }
+    let ctxView = loc?.contextView || alch?.dataset.contextView || "";
     if (alchMode === "collab") {
       alchMode = "constellation";
       constMode = "collab";
@@ -6028,11 +6031,19 @@ function navSnapshot() {
       alchMode = "shapes";
       constMode = "";
     }
+    if (alchMode === "intel") {
+      alchMode = "context";
+      ctxView = "signals";
+    }
     if (alchMode !== "constellation") constMode = "";
+    if (alchMode !== "context") ctxView = "";
     snap.alchMode = alchMode || "membrane";
     snap.constMode = constMode || "";
-    snap.programPage = snap.alchMode === "program" && loc?.programPage ? String(loc.programPage) : "";
-    snap.recordId = loc?.recordId ? String(loc.recordId) : "";
+    snap.ctxView = ctxView || "";
+    snap.programPage = snap.alchMode === "program" && loc?.programPage
+      ? String(loc.programPage)
+      : (snap.alchMode === "program" && alch?.dataset.alchProgramPage ? String(alch.dataset.alchProgramPage) : "");
+    snap.recordId = loc?.recordId ? String(loc.recordId) : (alch?.dataset.alchDetail || "");
   }
   return snap;
 }
@@ -6040,8 +6051,9 @@ function navSnapshot() {
 function navSameLoc(a, b) {
   return !!a && !!b && a.tab === b.tab && a.appsView === b.appsView
     && a.netSub === b.netSub && a.alchMode === b.alchMode
-    && a.constMode === b.constMode && a.programPage === b.programPage
-    && a.recordId === b.recordId;
+    && a.constMode === b.constMode
+    && (a.ctxView || "") === (b.ctxView || "")
+    && a.programPage === b.programPage && a.recordId === b.recordId;
 }
 
 // Replay a snapshot through the same entry points the UI uses, so mounts /
@@ -6066,13 +6078,16 @@ function navApplyLocation(snap) {
     try { localStorage.setItem(NET_SUB_LS_KEY, netSub); } catch {}
   }
   if (tab === "alchemy") {
-    const mode = snap.alchMode || "membrane";
+    const mode = snap.alchMode === "collab" ? "constellation"
+      : (snap.alchMode === "pulse" ? "shapes"
+      : (snap.alchMode === "intel" ? "context" : (snap.alchMode || "membrane")));
     const loc = {
       mode,
       recordId: snap.recordId || null,
       instant: true,
     };
     if (mode === "constellation" && snap.constMode) loc.constellationMode = snap.constMode;
+    if (mode === "context" && snap.ctxView) loc.contextView = snap.ctxView;
     if (mode === "program" && snap.programPage) loc.programPage = snap.programPage;
     try { Alchemy.applyLocation(loc); } catch {}
   }
@@ -6122,7 +6137,7 @@ function initNavHistory() {
     attributeFilter: ["data-active-tab", "data-apps-view", "data-net-sub"],
   });
   const alch = document.getElementById("alchemy-view");
-  if (alch) obs.observe(alch, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current", "data-alch-program-page", "data-alch-detail"] });
+  if (alch) obs.observe(alch, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current", "data-context-view", "data-alch-program-page", "data-alch-detail"] });
 
   // Mouse buttons: 3 = back, 4 = forward (Chromium's X1/X2 mapping). Capture
   // phase + preventDefault so we win over any inner handler and suppress the

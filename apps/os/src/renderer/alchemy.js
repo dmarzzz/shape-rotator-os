@@ -61,9 +61,10 @@ import {
 // "membrane" so the legacy modes stay reachable while we evaluate.
 import { mountMembrane } from "./membrane/index.js";
 import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
-import { renderIntel, wireIntel } from "./intel/intel.js";
+import { renderIntelEmbedded, wireIntelEmbedded, intelSnapshotMeta } from "./intel/intel.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
+const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles" | "raw" | "signals" | "data"
 const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "collab"
 const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "people"
 const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "works" | "substrate"
@@ -86,7 +87,7 @@ const CONSTELLATION_TIMELINE_LS_KEY = "srwk:constellation_timeline_idx_v1";
 // section below this constant for the disabled hooks.
 // `collab` is a Constellation sub-view, not a standalone OS mode. Legacy
 // saved locations that still say "collab" are normalized on restore.
-const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "intel", "calendar", "profile", "onboarding", "program", "asks", "context"];
+const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "profile", "onboarding", "program", "asks", "context"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 
 const WEEKS_TOTAL = 10;
@@ -240,6 +241,16 @@ export function mount(container) {
     // back as a teleport-router surface.
     if (saved === "feed")      { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
     if (saved === "pulse")     { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
+    // Context page view (articles | raw | signals | data) survives reloads.
+    state.contextVault.mode = contextNormalizeView(localStorage.getItem(CONTEXT_VIEW_LS_KEY) || state.contextVault.mode);
+    // intel folded into the context page (2026-06): old intel users land on
+    // the context page's intel view.
+    if (saved === "intel") {
+      state.mode = "context";
+      state.contextVault.mode = "signals";
+      localStorage.setItem(ALCHEMY_LS_KEY, "context");
+      localStorage.setItem(CONTEXT_VIEW_LS_KEY, "signals");
+    }
     // Defensive: if state.mode somehow came in as "feed" from a non-
     // localStorage path while FEED_DISABLED is true, reroute to shapes
     // so we don't try to render a tab that no longer has a rail button.
@@ -280,6 +291,11 @@ export function mount(container) {
         state.detailReturnMode = "shapes";
         if (state.detailRecordId) {
           localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: state.detailRecordId, returnMode: "shapes" }));
+        }
+      } else if (d?.returnMode === "intel") {
+        state.detailReturnMode = "context";
+        if (state.detailRecordId) {
+          localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: state.detailRecordId, returnMode: "context" }));
         }
       } else if (d?.returnMode && ALCHEMY_MODES.includes(d.returnMode)) {
         state.detailReturnMode = d.returnMode;
@@ -370,10 +386,12 @@ export function notifyDataChanged() {
 // reads back the current one. A "location" inside the OS tab is the rail
 // mode plus optional sub-mode/page/detail state.
 export function getLocation() {
-  const mode = state.mode === "collab" ? "constellation" : state.mode;
+  let mode = state.mode === "collab" ? "constellation" : state.mode;
+  if (mode === "intel") mode = "context";
   const loc = { mode, recordId: state.detailRecordId || null };
   if (mode === "constellation") loc.constellationMode = constNormalizeConstellationMode(state.constellationMode);
   if (mode === "program" && state.programPage) loc.programPage = state.programPage;
+  if (mode === "context") loc.contextView = contextNormalizeView(state.contextVault.mode);
   return loc;
 }
 
@@ -383,7 +401,11 @@ export function getLocation() {
 export function applyLocation(loc = {}) {
   const legacyCollab = loc.mode === "collab";
   const legacyPulse = loc.mode === "pulse";
-  const mode = legacyCollab ? "constellation" : (legacyPulse ? "shapes" : (ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode));
+  const legacyIntel = loc.mode === "intel";
+  const mode = legacyCollab ? "constellation"
+    : (legacyPulse ? "shapes"
+    : (legacyIntel ? "context"
+    : (ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode)));
   if (mode === "program" && loc.programPage) {
     state.programPage = String(loc.programPage);
     try { localStorage.setItem(PROGRAM_PAGE_LS_KEY, state.programPage); } catch {}
@@ -391,6 +413,10 @@ export function applyLocation(loc = {}) {
   if (legacyCollab || (mode === "constellation" && loc.constellationMode)) {
     state.constellationMode = legacyCollab ? "collab" : constNormalizeConstellationMode(loc.constellationMode);
     try { localStorage.setItem(CONST_MODE_LS_KEY, state.constellationMode); } catch {}
+  }
+  if (legacyIntel || (mode === "context" && loc.contextView)) {
+    state.contextVault.mode = legacyIntel ? "signals" : contextNormalizeView(loc.contextView);
+    try { localStorage.setItem(CONTEXT_VIEW_LS_KEY, state.contextVault.mode); } catch {}
   }
   if (loc.recordId) {
     state.mode = mode;
@@ -527,7 +553,12 @@ function activeConstellationSnapshot() {
 }
 
 function activeConstellationCohort() {
-  return activeConstellationSnapshot()?.surface || state.cohort;
+  const snapshots = constellationSnapshots();
+  const idx = ensureConstellationTimelineIdx();
+  // At the newest snapshot, prefer the live surface: the bundled timeline
+  // artifact can lag records merged after it was generated.
+  if (idx == null || idx >= snapshots.length - 1) return state.cohort;
+  return snapshots[idx]?.surface || state.cohort;
 }
 
 function previousConstellationSnapshot() {
@@ -543,7 +574,12 @@ function activeDetailCohort() {
 
 function syncRailSelection() {
   if (!state.rail) return;
-  const activeMode = state.mode === "collab" ? "constellation" : state.mode;
+  // Constellation views live inside the cohort page now (2026-06), so the
+  // "shapes" rail entry lights up for both internal modes. Same for intel,
+  // which lives inside the context page.
+  let activeMode = state.mode === "collab" ? "constellation" : state.mode;
+  if (activeMode === "constellation") activeMode = "shapes";
+  if (activeMode === "intel") activeMode = "context";
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.setAttribute("aria-selected", btn.dataset.alchMode === activeMode ? "true" : "false");
   }
@@ -597,6 +633,11 @@ function render(opts = {}) {
       state.container.dataset.constModeCurrent = constNormalizeConstellationMode(state.constellationMode);
     } else {
       delete state.container.dataset.constModeCurrent;
+    }
+    if (state.mode === "context") {
+      state.container.dataset.contextView = contextNormalizeView(state.contextVault.mode);
+    } else {
+      delete state.container.dataset.contextView;
     }
     // Mirror the open record-detail id so the tab system can observe
     // navigation changes via a MutationObserver (no event plumbing).
@@ -657,7 +698,6 @@ function renderModeContent() {
     else if (state.mode === "shapes") renderShapes();
     else if (state.mode === "pulse") renderPulse();
     else if (state.mode === "constellation") renderConstellation();
-    else if (state.mode === "intel") renderIntel(state.canvas);
     else if (state.mode === "calendar") renderCalendar();
     else if (state.mode === "profile") renderProfile();
     else if (state.mode === "onboarding") renderOnboarding();
@@ -681,7 +721,6 @@ function renderModeContent() {
         }
         else wireConstellationHover();
       }
-      if (state.mode === "intel") wireIntel(state.canvas);
       if (state.mode === "calendar") wireCalendar();
       if (state.mode === "onboarding") wireOnboarding();
       if (state.mode === "program") wireProgram();
@@ -1223,8 +1262,14 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
     render();
     return;
   }
+  // intel lives inside the context page now — jump to its view there.
+  if (mode === "intel") { mode = "context"; opts = { ...(opts || {}), contextView: opts?.contextView || "signals" }; }
   if (!ALCHEMY_MODES.includes(mode)) return;
   state.mode = mode;
+  if (mode === "context" && opts && opts.contextView) {
+    state.contextVault.mode = contextNormalizeView(opts.contextView);
+    try { localStorage.setItem(CONTEXT_VIEW_LS_KEY, state.contextVault.mode); } catch {}
+  }
   // Optional: land on a specific constellation sub-view (clusters /
   // dependencies / journey / collab). Used by the cohort panel's view cards.
   if (mode === "constellation" && opts && opts.constellationMode) {
@@ -1379,7 +1424,6 @@ function renderShapes() {
         <button class="alch-shapes-chip" data-shapes-filter="works"  type="button" aria-selected="${filter === "works"}">teams & projects <span class="ascn">${nWorks}</span></button>
         <button class="alch-shapes-chip" data-shapes-filter="people" type="button" aria-selected="${filter === "people"}">individuals <span class="ascn">${nPeople}</span></button>
       </nav>
-      <button id="dossier-export-png" class="cal-action" type="button">export dossier (png)</button>
     </div>
     <nav class="alch-shapes-filter alch-shapes-filter-membership" role="tablist" aria-label="filter by membership">
       ${membershipChips}
@@ -1397,10 +1441,13 @@ function renderShapes() {
     ? `<div class="alch-specimens">${cards}</div>`
     : `<p class="alch-pf-pick">${emptyMsg}</p>`;
   state.canvas.innerHTML = `
-    ${chips}
-    ${grid}
-    <p class="alch-callout"><strong>shapes · v0.1</strong><br/>
-    Each card is a team, project or individual in its current shape (week ${weekNow}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them).</p>
+    <div class="alch-cohort-page">
+      ${cohortPageHead("directory", { side: `<button id="dossier-export-png" class="cal-action" type="button">export dossier (png)</button>` })}
+      ${chips}
+      ${grid}
+      <p class="alch-callout"><strong>cohort directory · v0.2</strong><br/>
+      Each card is a team, project or individual in its current shape (week ${weekNow}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them). The other views above — relationship map, pmf evidence, product layer, collab board — read these same records from different angles.</p>
+    </div>
   `;
   // Wire the kind filter chips. Switching sub-tabs resets the membership
   // chip to the new tab's default (cohort / cohort-member).
@@ -1428,6 +1475,10 @@ function renderShapes() {
   // Wire the dossier export button.
   const dossierBtn = document.getElementById("dossier-export-png");
   if (dossierBtn) dossierBtn.addEventListener("click", exportDossier);
+  // Wire the cohort view nav (directory ↔ constellation views). Wired here
+  // rather than in renderModeContent because renderShapes re-renders itself
+  // on filter-chip clicks and the nav must survive those repaints.
+  wireConstellationModeNav();
 }
 
 // teamCardHtml / personCardHtml live in @shape-rotator/shape-ui now.
@@ -1701,7 +1752,11 @@ function journeyDetailSection(rec) {
 // journey = where is the product-market-fit journey?
 // stack = where does the project enter the product/market stack?
 // collab = who can unblock whom?
+// The cohort page's views. "directory" is the roster grid (shapes mode);
+// the rest are the constellation perspectives on the same records. One
+// page, five ways of understanding the cohort.
 const CONST_VIEWS = [
+  { mode: "directory", glyph: "▤", label: "directory", hint: "every team, project & person — the roster" },
   { mode: "map",     glyph: "◉", label: "relationship map", hint: "project wells and evidence-backed connections" },
   { mode: "journey", glyph: "⌁", label: "pmf evidence", hint: "coverage of explicit product-market-fit reads" },
   { mode: "stack",   glyph: "▦", label: "product layer", hint: "where projects enter the product stack" },
@@ -1715,14 +1770,54 @@ function constNormalizeConstellationMode(raw) {
   return "map";
 }
 function constellationNav(active) {
-  const activeTop = constNormalizeConstellationMode(active) === "ring" ? "map" : constNormalizeConstellationMode(active);
+  const activeTop = active === "directory"
+    ? "directory"
+    : (constNormalizeConstellationMode(active) === "ring" ? "map" : constNormalizeConstellationMode(active));
   return `
-    <nav class="alch-const-modes" role="tablist" aria-label="constellation view">
+    <nav class="alch-page-views" role="tablist" aria-label="cohort view">
       ${CONST_VIEWS.map(v => `
-        <button class="alch-const-mode-btn" data-const-mode="${v.mode}" aria-selected="${activeTop === v.mode}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
-          <span class="acm-glyph" aria-hidden="true">${v.glyph}</span><span class="acm-label">${v.label}</span>
+        <button class="alch-page-view-btn" data-const-mode="${v.mode}" role="tab" aria-selected="${activeTop === v.mode}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
+          <span class="apv-glyph" aria-hidden="true">${v.glyph}</span><span class="apv-label">${v.label}</span>
         </button>`).join("")}
     </nav>`;
+}
+
+// One-line purpose statement per cohort view — rendered in the shared page
+// header so every view states what it's for before showing anything.
+const COHORT_VIEW_DEK = {
+  directory: "every team, project, and person in the cohort — the roster.",
+  map: "how the cohort connects — declared relationships across ecosystem wells.",
+  ring: "every relationship line at once — the cohort as one ring.",
+  journey: "where each project sits on the road to product-market fit.",
+  stack: "where each project enters the shared product stack.",
+  collab: "who depends on whom, and the intros worth making.",
+};
+
+// Shared page header — same structure on the cohort and context pages so
+// the OS's two "understanding" surfaces read as one design. `side` is
+// optional per-view meta or actions (kept to one quiet element at rest).
+function pageHeadHtml({ kicker, title, dek, extra = "", side = "", nav = "" }) {
+  return `
+    <header class="alch-page-head">
+      <div class="alch-page-head-text">
+        <p class="alch-page-kicker">${escHtml(kicker)}</p>
+        <h2 class="alch-page-title">${escHtml(title)}</h2>
+        ${dek ? `<p class="alch-page-dek">${escHtml(dek)}</p>` : ""}
+        ${extra}
+      </div>
+      ${side ? `<div class="alch-page-head-side">${side}</div>` : ""}
+    </header>
+    ${nav}`;
+}
+
+function cohortPageHead(view, { side = "" } = {}) {
+  return pageHeadHtml({
+    kicker: "shape rotator cohort",
+    title: "cohort",
+    dek: COHORT_VIEW_DEK[view] || COHORT_VIEW_DEK.directory,
+    side,
+    nav: constellationNav(view),
+  });
 }
 
 const CONST_MAP_LAYOUTS = [
@@ -2783,13 +2878,14 @@ function constellationInspectorContext(teams, edges, people = []) {
 }
 
 function constellationCurrentInspectorContext() {
-  const teams = state.cohort?.teams || [];
-  const people = state.cohort?.people || [];
-  const clusters = state.cohort?.clusters || [];
+  const cohort = activeConstellationCohort();
+  const teams = cohort?.teams || [];
+  const people = cohort?.people || [];
+  const clusters = cohort?.clusters || [];
   const teamById = new Map(teams.filter(t => t?.record_id).map(t => [t.record_id, t]));
-  const edges = constellationDependencyEdges(teams, teamById, state.cohort?.dependencies || [])
+  const edges = constellationDependencyEdges(teams, teamById, cohort?.dependencies || [])
     .filter(e => teamById.has(e.from) && teamById.has(e.to));
-  const model = constellationModel(teams, clusters, state.cohort?.dependencies || []);
+  const model = constellationModel(teams, clusters, cohort?.dependencies || []);
   const ctx = constellationInspectorContext(teams, edges, people);
   const rawMode = constNormalizeConstellationMode(state.constellationMode);
   const mode = rawMode === "collab" ? "map" : rawMode;
@@ -3349,8 +3445,12 @@ function constCorridorEdgeScore(edge, ctx) {
 function constTopCorridors(ctx, max = 3) {
   const worldByTeam = constPrimaryWorldByTeam(ctx);
   const teamById = ctx?.teamById || new Map();
+  // The readout answers for the SAME claim the map is showing: corridors are
+  // scored only over lines the active lens keeps (control-as-claim).
+  const lens = constNormalizeConstellationLens(ctx?.lens || "all");
   const rows = new Map();
   for (const edge of (ctx?.edges || [])) {
+    if (!constLensMatchesEdge(edge, lens)) continue;
     if (!teamById.has(edge?.from) || !teamById.has(edge?.to)) continue;
     const fromWorld = worldByTeam.get(edge.from);
     const toWorld = worldByTeam.get(edge.to);
@@ -3398,24 +3498,33 @@ function constLineBasisText(typed, profile) {
 }
 
 function constMapReadout(ctx) {
-  const breakdown = constRelationshipBreakdown(ctx?.edges || []);
+  const lens = constNormalizeConstellationLens(ctx?.lens || "all");
+  const lensSpec = CONST_LENSES.find(l => l.lens === lens) || CONST_LENSES[0];
+  const scoped = lens !== "all";
+  // Counts mirror the corridors: both speak for the lens-filtered map, never
+  // for lines the user has currently filtered away.
+  const lensEdges = (ctx?.edges || []).filter(edge => constLensMatchesEdge(edge, lens));
+  const breakdown = constRelationshipBreakdown(lensEdges);
   const corridors = constTopCorridors(ctx, 3);
   const top = corridors[0] || null;
   const title = top
     ? `${top.a.label} to ${top.b.label}`
-    : "Start with the bright lines";
+    : (scoped ? `No ${lensSpec.label} corridors yet` : "Start with the bright lines");
   const body = top
-    ? `${top.a.label} to ${top.b.label} is the strongest current cross-world corridor from the source bundle. Line mix: ${constLineBasisText(top.typed, top.profile)}.`
-    : "No cross-world corridor is strong enough to headline yet; inspect the relationship rows first.";
-  const caveat = `${breakdown.typed} relationship record${breakdown.typed === 1 ? "" : "s"} and ${breakdown.missing} profile mention${breakdown.missing === 1 ? "" : "s"}. Solid lines have records; dotted lines are leads to verify.`;
-  return { title, body, caveat, corridors, breakdown };
+    ? `${top.a.label} to ${top.b.label} is the strongest ${scoped ? `${lensSpec.label} corridor — ${lensSpec.meaning} —` : "current cross-world corridor"} from the source bundle. Line mix: ${constLineBasisText(top.typed, top.profile)}.`
+    : (scoped
+      ? `No cross-world ${lensSpec.label} lines (${lensSpec.meaning}) connect ecosystems yet. Set lines to all to read every declared corridor.`
+      : "No cross-world corridor is strong enough to headline yet; inspect the relationship rows first.");
+  const caveat = `${breakdown.typed} relationship record${breakdown.typed === 1 ? "" : "s"} and ${breakdown.missing} profile mention${breakdown.missing === 1 ? "" : "s"}${scoped ? ` under the ${lensSpec.label} lens` : ""}. Solid lines have records; dotted lines are leads to verify.`;
+  return { title, body, caveat, corridors, breakdown, lens, lensSpec, scoped };
 }
 
 function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
   const read = constMapReadout(ctx);
+  const kickerText = read.scoped ? `${kicker} · ${read.lensSpec.label} lines` : kicker;
   return `
     <div class="ac-inspector-hero is-generated-readout">
-      <div class="ac-inspector-kicker">${escHtml(kicker)}</div>
+      <div class="ac-inspector-kicker">${escHtml(kickerText)}</div>
       <h3>${escHtml(read.title)}</h3>
       <p>${escHtml(read.body)}</p>
       <div class="ac-inspector-pills">
@@ -3428,10 +3537,22 @@ function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
 
 function constCorridorReadoutHtml(ctx) {
   const corridors = constTopCorridors(ctx, 3);
-  if (!corridors.length) return "";
+  const lens = constNormalizeConstellationLens(ctx?.lens || "all");
+  const lensSpec = CONST_LENSES.find(l => l.lens === lens) || CONST_LENSES[0];
+  const scoped = lens !== "all";
+  if (!corridors.length) {
+    // Under a scoped lens the panel explains itself instead of vanishing —
+    // an empty answer to a narrowed question is still an answer.
+    if (!scoped) return "";
+    return `
+    <section class="ac-inspector-section ac-action-card is-corridor-readout">
+      <h4>top corridors · ${escHtml(lensSpec.label)} lines</h4>
+      <p class="ac-rel-queue-more">No cross-world ${escHtml(lensSpec.label)} corridors yet — ${escHtml(lensSpec.meaning)}. Set lines to all to read every declared corridor.</p>
+    </section>`;
+  }
   return `
     <section class="ac-inspector-section ac-action-card is-corridor-readout">
-      <h4>top corridors</h4>
+      <h4>top corridors${scoped ? ` · ${escHtml(lensSpec.label)} lines` : ""}</h4>
       <div class="ac-action-list">
         ${corridors.map(row => {
           const edge = row.topEdge;
@@ -4455,7 +4576,7 @@ function renderJourney() {
 
   state.canvas.innerHTML = `
     <div class="alch-constellation" data-constellation-view="journey">
-      <div class="alch-const-topbar">${constellationNav("journey")}</div>
+      ${cohortPageHead("journey")}
       ${filterBar}
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
@@ -4479,13 +4600,14 @@ function renderJourney() {
 }
 
 function renderProductStack() {
-  const teams = state.cohort.teams || [];
-  const clusters = state.cohort.clusters || [];
+  const cohort = activeConstellationCohort();
+  const teams = cohort.teams || [];
+  const clusters = cohort.clusters || [];
   const teamById = new Map(teams.filter(t => t?.record_id).map(t => [t.record_id, t]));
-  const edges = constellationDependencyEdges(teams, teamById, state.cohort?.dependencies || [])
+  const edges = constellationDependencyEdges(teams, teamById, cohort?.dependencies || [])
     .filter(e => teamById.has(e.from) && teamById.has(e.to));
   const baseCtx = {
-    ...constellationInspectorContext(teams, edges, state.cohort?.people || []),
+    ...constellationInspectorContext(teams, edges, cohort?.people || []),
     clusters,
     mode: "stack",
     lens: "all",
@@ -4498,7 +4620,7 @@ function renderProductStack() {
     .join("");
   state.canvas.innerHTML = `
     <div class="alch-constellation" data-constellation-view="stack">
-      <div class="alch-const-topbar">${constellationNav("stack")}</div>
+      ${cohortPageHead("stack")}
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
           ${constStackReadoutHtml(inspectorCtx)}
@@ -4746,7 +4868,7 @@ function renderConstellationPeople(teams, people, clusters, edges) {
     <div class="acl-line-note">Circles are primary project groups. Lines are inferred from person profiles and should be treated as conversation leads.</div>`;
   state.canvas.innerHTML = `
     <div class="alch-constellation" data-constellation-view="map" data-constellation-scope="people">
-      <div class="alch-const-topbar">${constellationNav("map")}</div>
+      ${cohortPageHead("map")}
       <div class="ac-map-control-stack is-people-scope">
         ${constellationNetworkScopeRow("people", { projects: teams.length, people: people.length })}
       </div>
@@ -4766,10 +4888,6 @@ function renderConstellationPeople(teams, people, clusters, edges) {
       </div>
     </div>`;
   markConstellationSelection(state.constSelection);
-}
-
-function constellationModeNavHtml(active) {
-  return constellationNav(active);
 }
 
 function timelineSnapshotDate(snapshot) {
@@ -5070,9 +5188,10 @@ function renderConstellationDeltaLedger(delta) {
 }
 
 function renderConstellation() {
-  const teams = state.cohort.teams || [];
-  const people = state.cohort.people || [];
-  const clusters = state.cohort.clusters || [];
+  const cohort = activeConstellationCohort();
+  const teams = cohort.teams || [];
+  const people = cohort.people || [];
+  const clusters = cohort.clusters || [];
   const mode = constNormalizeConstellationMode(state.constellationMode);
 
   // Journey sub-view renders a PMF scatterplot instead of the map.
@@ -5087,7 +5206,7 @@ function renderConstellation() {
   const networkScope = viewMode === "map" ? constNormalizeNetworkScope(state.constellationScope) : "projects";
   const activeLens = viewMode === "ring" ? "all" : lens;
   const W = 980, H = 540;
-  const model = constellationModel(teams, clusters, state.cohort?.dependencies || []);
+  const model = constellationModel(teams, clusters, cohort?.dependencies || []);
   const layout = viewMode === "ring" ? placeConstellationRing(model, W, H) : placeConstellation(model, W, H);
   const { wells, ringSegments, pos, ringCenter } = layout;
   const edges = model.edges.filter(e => pos.has(e.from) && pos.has(e.to));
@@ -5098,7 +5217,7 @@ function renderConstellation() {
   const interestCtx = constInterestContext(teams, clusters, edges, state.constInterest);
   const coverage = constConstellationCoverage(teams, edges);
   const relationshipBreakdown = constRelationshipBreakdown(edges);
-  const inspectorCtx = { ...constellationInspectorContext(teams, edges, state.cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope: "projects", interest: interestCtx };
+  const inspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope: "projects", interest: interestCtx };
   const bridgeRanks = viewMode === "ring"
     ? new Map(constBridgeTeamRows(inspectorCtx, 5).map((row, idx) => [row.team.record_id, { row, rank: idx + 1 }]))
     : new Map();
@@ -5233,11 +5352,14 @@ function renderConstellation() {
       ? (Math.cos(angle) > 0.25 ? "start" : (Math.cos(angle) < -0.25 ? "end" : "middle"))
       : "middle";
     const labelGap = viewMode === "map" ? 17 : 13;
+    // Dense wells: alternate the radial label distance by rank so neighboring
+    // secondary labels land on two radii instead of one collision ring.
+    const labelOut = viewMode === "map" && wellSize >= 5 && rank > 0 && rank % 2 === 0 ? 13 : 6;
     const labelX = radialLabel
-      ? (Math.cos(angle) > 0.25 ? r + 6 : (Math.cos(angle) < -0.25 ? -r - 6 : 0))
+      ? (Math.cos(angle) > 0.25 ? r + labelOut : (Math.cos(angle) < -0.25 ? -r - labelOut : 0))
       : 0;
     const labelY = radialLabel
-      ? (Math.sin(angle) < -0.25 ? -r - 8 : (Math.sin(angle) > 0.25 ? r + labelGap : 3))
+      ? (Math.sin(angle) < -0.25 ? -r - 8 - (labelOut - 6) : (Math.sin(angle) > 0.25 ? r + labelGap + (labelOut - 6) : 3))
       : r + labelGap;
     const labelLines = constNodeLabelLines(team, viewMode);
     const fullLabel = constText(team.name || team.record_id);
@@ -5262,7 +5384,7 @@ function renderConstellation() {
 
   state.canvas.innerHTML = `
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
-      <div class="alch-const-topbar">${constellationNav(viewMode)}</div>
+      ${cohortPageHead(viewMode)}
       ${viewMode === "map" || viewMode === "ring" ? `
         <div class="ac-map-control-stack">
           ${viewMode === "map" ? constellationNetworkScopeRow("projects", { projects: teams.length, people: people.length }) : ""}
@@ -5633,21 +5755,22 @@ function wireConstellationHover() {
     // ONE styled floating tooltip serves both the map and the journey scatter
     // (was a fixed hover-line on the map + a separate floating tip on journey).
     const tip = stage.querySelector(".ac-tip");
-    const teams = state.cohort?.teams || [];
-    const clusters = state.cohort?.clusters || [];
+    const cohort = activeConstellationCohort();
+    const teams = cohort?.teams || [];
+    const clusters = cohort?.clusters || [];
     const teamById = new Map(teams.map(t => [t.record_id, t]));
-    const edges = constellationDependencyEdges(teams, undefined, state.cohort?.dependencies || []).filter(e => teamById.has(e.from) && teamById.has(e.to));
-    const model = constellationModel(teams, clusters, state.cohort?.dependencies || []);
+    const edges = constellationDependencyEdges(teams, undefined, cohort?.dependencies || []).filter(e => teamById.has(e.from) && teamById.has(e.to));
+    const model = constellationModel(teams, clusters, cohort?.dependencies || []);
     const rawMode = constNormalizeConstellationMode(state.constellationMode);
     const viewMode = rawMode === "collab" ? "map" : rawMode;
     const activeLens = viewMode === "ring" || viewMode === "stack" ? "all" : constNormalizeConstellationLens(state.constellationLens);
     const scope = viewMode === "map" ? constNormalizeNetworkScope(state.constellationScope) : "projects";
-    const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, state.cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest) };
-    const peopleModel = scope === "people" ? constPeopleNetworkModel(state.cohort?.people || [], teams, 1120, 620) : null;
+    const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest) };
+    const peopleModel = scope === "people" ? constPeopleNetworkModel(cohort?.people || [], teams, 1120, 620) : null;
     const inspectorCtx = viewMode === "stack"
       ? { ...baseInspectorCtx, stackModel: constProductStackModel(teams, baseInspectorCtx) }
       : (peopleModel ? { ...baseInspectorCtx, peopleModel } : baseInspectorCtx);
-    const indeg = constellationIndegree(teams, state.cohort?.dependencies || []);
+    const indeg = constellationIndegree(teams, cohort?.dependencies || []);
     const sourceStatsByRid = new Map();
     for (const edge of edges) {
       for (const rid of [edge.from, edge.to]) {
@@ -5943,8 +6066,8 @@ function wireConstellationHover() {
       });
     }
   }
-  // Layout toggle: cluster-grouped wells ↔ single ring (the original view).
-  for (const btn of state.canvas.querySelectorAll(".ac-layout-btn[data-const-layout]")) {
+  // Graph scope toggle: project network ↔ people network.
+  for (const btn of state.canvas.querySelectorAll(".ac-network-scope-btn[data-const-network-scope]")) {
     btn.addEventListener("click", () => {
       const next = constNormalizeNetworkScope(btn.dataset.constNetworkScope);
       if (next === state.constellationScope) return;
@@ -6239,8 +6362,18 @@ function setConstellationEdgeHover(stage, from, to, on) {
 }
 
 function wireConstellationModeNav() {
-  for (const btn of state.canvas.querySelectorAll(".alch-const-mode-btn[data-const-mode]")) {
+  for (const btn of state.canvas.querySelectorAll(".alch-page-view-btn[data-const-mode]")) {
     btn.addEventListener("click", () => {
+      // "directory" is the roster grid — internally the shapes mode. The
+      // other views are constellation sub-views. Same page, one nav.
+      if (btn.dataset.constMode === "directory") {
+        if (state.mode === "shapes") return;
+        state.mode = "shapes";
+        try { localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); } catch {}
+        syncRailSelection();
+        render();
+        return;
+      }
       const next = constNormalizeConstellationMode(btn.dataset.constMode);
       const current = constNormalizeConstellationMode(state.constellationMode);
       if (state.mode === "constellation" && next === current) return;
@@ -8977,7 +9110,7 @@ function renderCollab() {
   const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
   const clusters = state.cohort?.clusters || [];
   if (!teams.length) {
-    state.canvas.innerHTML = `<div class="alch-const-topbar">${constellationNav("collab")}</div><header class="alch-cb-head"><h2 class="alch-cb-title">collaboration board</h2></header><p class="alch-callout">no team data yet.</p>`;
+    state.canvas.innerHTML = `${cohortPageHead("collab")}<p class="alch-callout">no team data yet.</p>`;
     return;
   }
   const m = buildCollabModel(teams, clusters, state.cohort?.dependencies || []);
@@ -9123,11 +9256,9 @@ function renderCollab() {
     </section>`;
 
   state.canvas.innerHTML = `
-    <div class="alch-const-topbar">${constellationNav("collab")}</div>
+    ${cohortPageHead("collab")}
     <div class="alch-collab">
       <header class="alch-cb-head">
-        <h2 class="alch-cb-title">collaboration board</h2>
-        <p class="alch-cb-sub">who depends on whom, who can unblock whom, where the cohort over-concentrates — all from teams' own declared dependencies, seeking, offering &amp; skill areas.</p>
         ${controlBar}
       </header>
       ${matrix}
@@ -9168,6 +9299,7 @@ function wireCollabCohortLinks(root) {
 
 function wireCollab() {
   const collabRoot = state.canvas.querySelector(".alch-collab");
+  wireConstellationModeNav();
   wireCollabCohortLinks(state.canvas);
   for (const btn of state.canvas.querySelectorAll("[data-collab-intake-open]")) {
     btn.addEventListener("click", (event) => {
@@ -9840,10 +9972,50 @@ async function selectContextSource(sourceId) {
   render();
 }
 
+// The context page's views. Articles + transcripts come from the local
+// vault; signals + data are the bundled intel module (folded in 2026-06).
+function contextNormalizeView(raw) {
+  const v = String(raw || "").toLowerCase();
+  if (v === "transcripts") return "raw";
+  if (v === "intel") return "signals";
+  return (v === "articles" || v === "raw" || v === "signals" || v === "data") ? v : "articles";
+}
+
+const CONTEXT_VIEW_DEK = {
+  articles: "reader-facing drafts distilled from the cohort's context vault.",
+  raw: "the transcripts behind the articles, with review metadata and calendar matches.",
+  signals: "vault-backed reads on cohort moves worth making — grounded, inferred, speculative.",
+  data: "the sanitized entity graph behind the signals — people, projects, surfaces.",
+};
+
+const CONTEXT_VIEWS = [
+  { view: "articles", glyph: "¶", label: "articles", hint: "reader-facing drafts from the vault" },
+  { view: "raw",      glyph: "≡", label: "transcripts", hint: "raw source transcripts with review metadata" },
+  { view: "signals",  glyph: "✦", label: "signals", hint: "vault-backed reads on cohort moves" },
+  { view: "data",     glyph: "◫", label: "data", hint: "sanitized entity graph behind the signals" },
+];
+
+function contextViewNav(active, counts = {}) {
+  return `
+    <nav class="alch-page-views" role="tablist" aria-label="context view">
+      ${CONTEXT_VIEWS.map(v => {
+        const n = counts[v.view];
+        return `
+        <button class="alch-page-view-btn" data-cv-mode="${v.view}" role="tab" aria-selected="${active === v.view}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
+          <span class="apv-glyph" aria-hidden="true">${v.glyph}</span><span class="apv-label">${v.label}</span>${Number.isFinite(n) ? `<span class="apv-count">${n}</span>` : ""}
+        </button>`;
+      }).join("")}
+    </nav>`;
+}
+
 function setContextVaultMode(mode) {
-  const nextMode = mode === "raw" ? "raw" : "articles";
+  const nextMode = contextNormalizeView(mode);
   if (state.contextVault.mode === nextMode) return;
   state.contextVault.mode = nextMode;
+  try { localStorage.setItem(CONTEXT_VIEW_LS_KEY, nextMode); } catch {}
+  // Mirror onto the container so the tab system captures the view switch
+  // (this repaint path skips the full render()).
+  if (state.container && state.mode === "context") state.container.dataset.contextView = nextMode;
   renderContextVault();
   wireContextVault();
 }
@@ -10373,14 +10545,42 @@ This page was drafted from Context Vault. Private inputs stay local; publish onl
 
 function renderContextVault() {
   const cv = state.contextVault;
-  if (!cv.loaded && !cv.loading) {
+  const view = contextNormalizeView(cv.mode);
+  cv.mode = view;
+  if ((view === "articles" || view === "raw") && !cv.loaded && !cv.loading) {
     // Fire after the current render stack so the loading state can paint.
     setTimeout(() => loadContextVault({ scan: false }), 0);
   }
   const manifest = cv.manifest || null;
   const sources = manifest?.sources || [];
   const rawScripts = manifest?.raw_scripts || [];
-  const mode = cv.mode === "raw" ? "raw" : "articles";
+  const intelMeta = intelSnapshotMeta();
+  const nav = contextViewNav(view, {
+    articles: cv.loaded ? sources.length : undefined,
+    raw: cv.loaded ? rawScripts.length : undefined,
+    signals: intelMeta.signals,
+    data: intelMeta.entities,
+  });
+
+  // Intel views — the embedded signals/data module renders below the same
+  // page header the vault views use.
+  if (view === "signals" || view === "data") {
+    const side = `
+      <div class="alch-page-head-meta">
+        <span>snapshot ${escHtml(intelMeta.generated || "unknown")}</span>
+        <span>curated preview · cohort-facing</span>
+      </div>`;
+    state.canvas.innerHTML = `
+      <section class="alch-cv">
+        ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK[view], side, nav })}
+        <div class="alch-cv-intel"></div>
+      </section>
+    `;
+    renderIntelEmbedded(state.canvas.querySelector(".alch-cv-intel"), view);
+    return;
+  }
+
+  const mode = view === "raw" ? "raw" : "articles";
   const pendingRaw = resolvePendingContextRawScript();
   const selected = contextSourceById(cv.selectedId) || sources[0] || null;
   const selectedRaw = pendingRaw || contextRawScriptById(cv.selectedRawId) || rawScripts[0] || null;
@@ -10409,31 +10609,19 @@ function renderContextVault() {
     }).join("");
   const detail = mode === "raw" ? renderContextVaultRawDetail(selectedRaw) : renderContextVaultDetail(selected);
 
+  const releaseLine = `
+    <div class="alch-cv-release">
+      <span class="alch-cv-release-version">content ${escHtml(CONTEXT_CONTENT_VERSION)}</span>
+      <span class="alch-cv-release-note">${escHtml(CONTEXT_CONTENT_RELEASE_NOTE)}</span>
+    </div>`;
+  const refreshBtn = `<button class="alch-feed-btn alch-cv-scan" type="button" ${cv.loading ? "disabled" : ""}>${cv.loading ? "refreshing..." : "refresh article index"}</button>`;
   state.canvas.innerHTML = `
     <section class="alch-cv">
-      <header class="alch-cv-head">
-        <div>
-          <p class="alch-cv-kicker">local context vault</p>
-          <h2>context library</h2>
-          <p>Reader-facing article drafts plus the transcripts they came from, bundled into the OS for local prompting.</p>
-          <div class="alch-cv-release">
-            <span class="alch-cv-release-version">content ${escHtml(CONTEXT_CONTENT_VERSION)}</span>
-            <span class="alch-cv-release-note">${escHtml(CONTEXT_CONTENT_RELEASE_NOTE)}</span>
-          </div>
-        </div>
-        <div class="alch-cv-head-actions">
-          <button class="alch-feed-btn alch-cv-scan" type="button" ${cv.loading ? "disabled" : ""}>${cv.loading ? "refreshing..." : "refresh article index"}</button>
-        </div>
-      </header>
+      ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK[view], extra: releaseLine, side: refreshBtn, nav })}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
       <div class="alch-cv-layout">
         <aside class="alch-cv-sidebar">
-          <div class="alch-cv-mode">
-            <button class="${mode === "articles" ? "is-selected" : ""}" type="button" data-cv-mode="articles">articles <span>${sources.length}</span></button>
-            <button class="${mode === "raw" ? "is-selected" : ""}" type="button" data-cv-mode="raw">transcripts <span>${rawScripts.length}</span></button>
-          </div>
-          <h3>${mode === "raw" ? "transcripts" : "articles"}</h3>
           <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">refresh to load ${mode === "raw" ? "transcripts" : "articles"}.</p>`}</div>
         </aside>
         ${detail}
@@ -10458,6 +10646,17 @@ function wireContextVault() {
   }
   for (const btn of state.canvas.querySelectorAll("[data-cv-raw-source]")) {
     btn.addEventListener("click", () => selectContextRawScript(btn.dataset.cvRawSource));
+  }
+  // Embedded intel (signals/data views) wires its own internals; the page
+  // nav stays in sync when an intel cross-link jumps data → signals.
+  const intelHost = state.canvas.querySelector(".alch-cv-intel");
+  if (intelHost) {
+    wireIntelEmbedded(intelHost, {
+      onPanelChange: (panel) => {
+        const next = panel === "data" ? "data" : "signals";
+        if (state.contextVault.mode !== next) setContextVaultMode(next);
+      },
+    });
   }
   wireContextVaultDetailActions(state.canvas);
 }
@@ -11541,6 +11740,7 @@ function renderTimelineMissingDetail(recordId) {
     <p class="alch-callout"><strong>not declared at this snapshot</strong><br/>This record is absent from the public cohort surface for ${escHtml(label)}.</p>
   `;
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
+  wireConstellationTimelineControls(state.canvas);
 }
 
 function renderTeamDetail(team) {
@@ -11642,6 +11842,8 @@ function renderTeamDetail(team) {
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
+  if (state.detailReturnMode === "constellation") wireConstellationTimelineControls(state.canvas);
+  wirePlateFoil(state.canvas.querySelector(".cohort-plate"));
 }
 
 // Cursor-tracked foil glint: update --mx/--my (0..100%) as the pointer
@@ -11759,6 +11961,7 @@ function renderPersonDetail(person) {
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
+  if (state.detailReturnMode === "constellation") wireConstellationTimelineControls(state.canvas);
 }
 
 function wirePersonLinks(root) {
