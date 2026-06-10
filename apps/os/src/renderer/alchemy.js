@@ -44,7 +44,7 @@ import {
   contextSourceById as findContextSourceById,
 } from "./context-vault-model.js";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
-import { unreadModes, markModeSeen } from "./whats-new.js";
+import { unreadModes, markModeSeen, fingerprintItems, unreadForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
 import { enrichPeople } from "./gh-user.js";
@@ -360,6 +360,7 @@ export function mount(container) {
     }
   });
   syncRailSelection();
+  startContextAutoRefresh();
   loadCohort().then(render).catch(err => {
     console.error("[alchemy] cohort load failed:", err);
     state.canvas.innerHTML = `<p class="alch-callout"><strong>cohort data unavailable</strong><br/>${escHtml(err.message || String(err))}</p>`;
@@ -583,6 +584,7 @@ function activeDetailCohort() {
 function updateRailUnread() {
   if (!state.rail || !state.cohort) return;
   const unread = unreadModes(state.cohort);
+  if (unreadForFingerprints("context", contextVaultFingerprints())) unread.add("context");
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.classList.toggle("ar-unread", unread.has(btn.dataset.alchMode));
   }
@@ -735,7 +737,10 @@ function renderModeContent() {
     // reading it — settle its unread color. Guarded so a background data
     // refresh (subscription re-render while the user is on another tab or
     // the window is hidden) never marks content seen the user hasn't seen.
-    if (state.active && !document.hidden) markModeSeen(state.mode, state.cohort);
+    if (state.active && !document.hidden) {
+      markModeSeen(state.mode, state.cohort);
+      if (state.mode === "context") markFingerprintsSeen("context", contextVaultFingerprints());
+    }
     updateRailUnread();
   } catch (err) {
     console.error(`[alchemy] render failed for ${renderLabel}:`, err);
@@ -1763,11 +1768,11 @@ function journeyDetailSection(rec) {
 // the rest are the constellation perspectives on the same records. One
 // page, five ways of understanding the cohort.
 const CONST_VIEWS = [
-  { mode: "directory", glyph: "▤", label: "directory", hint: "every team, project & person — the roster" },
-  { mode: "map",     glyph: "◉", label: "relationship map", hint: "project wells and evidence-backed connections" },
-  { mode: "journey", glyph: "⌁", label: "pmf evidence", hint: "coverage of explicit product-market-fit reads" },
-  { mode: "stack",   glyph: "▦", label: "product layer", hint: "where projects enter the product stack" },
-  { mode: "collab",  glyph: "⇄", label: "collab board", hint: "matrix, intros, and convergence" },
+  { mode: "directory", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', label: "directory", hint: "every team, project & person — the roster" },
+  { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "relationship map", hint: "project wells and evidence-backed connections" },
+  { mode: "journey", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>', label: "pmf evidence", hint: "coverage of explicit product-market-fit reads" },
+  { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>', label: "product layer", hint: "where projects enter the product stack" },
+  { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "matrix, intros, and convergence" },
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
@@ -9964,6 +9969,59 @@ async function loadContextVault({ scan = false } = {}) {
   render();
 }
 
+// ── context vault auto-refresh ──────────────────────────────────────
+// The article index rebuilds itself — shortly after boot and every few
+// minutes after that — so new vault content flows into the OS without
+// anyone pressing a button. Changes surface through the what's-new rail
+// state; if the user is already on the context page the fresh index
+// just paints in.
+const CONTEXT_SCAN_INTERVAL_MS = 5 * 60 * 1000;
+let contextScanTimer = null;
+
+function contextVaultFingerprints() {
+  const m = state.contextVault?.manifest;
+  if (!m) return [];
+  return fingerprintItems([...(m.sources || []), ...(m.raw_scripts || [])]);
+}
+
+async function autoRefreshContextVault() {
+  if (!contextVaultAvailable()) return;
+  const cv = state.contextVault;
+  if (cv.loading || cv.scanInFlight) return;
+  cv.scanInFlight = true;
+  try {
+    const res = await window.api.scanContextVault();
+    if (res?.ok && res.manifest) {
+      const beforeFp = contextVaultFingerprints().join("|");
+      cv.manifest = res.manifest;
+      cv.roots = res.roots || res.manifest?.roots || [];
+      cv.loaded = true;
+      cv.error = "";
+      if (!cv.selectedId && res.manifest?.sources?.length) {
+        cv.selectedId = res.manifest.sources[0].id;
+      }
+      if (contextVaultFingerprints().join("|") !== beforeFp) {
+        resolvePendingContextRawScript();
+        // On the context page right now → the fresh index paints in and
+        // counts as seen (renderModeContent stamps it). Anywhere else →
+        // the rail lights up instead.
+        if (state.mounted && state.mode === "context" && !state.detailRecordId && state.active && !document.hidden) {
+          render();
+        } else {
+          updateRailUnread();
+        }
+      }
+    }
+  } catch { /* transient scan failure — the stored manifest keeps serving; next tick retries */ }
+  finally { cv.scanInFlight = false; }
+}
+
+function startContextAutoRefresh() {
+  if (contextScanTimer) return;
+  setTimeout(autoRefreshContextVault, 5000);
+  contextScanTimer = setInterval(autoRefreshContextVault, CONTEXT_SCAN_INTERVAL_MS);
+}
+
 async function selectContextSource(sourceId) {
   if (!sourceId) return;
   if (state.contextVault.selectedId === sourceId) return;
@@ -10625,8 +10683,7 @@ function renderContextVault() {
     <div class="alch-page-head-meta">
       <span>content ${escHtml(CONTEXT_CONTENT_VERSION)}</span>
       <span title="${escAttr(CONTEXT_CONTENT_RELEASE_NOTE)}">${escHtml(CONTEXT_CONTENT_RELEASE_NOTE)}</span>
-    </div>
-    <button class="alch-feed-btn alch-cv-scan" type="button" ${cv.loading ? "disabled" : ""}>${cv.loading ? "refreshing..." : "refresh article index"}</button>`;
+    </div>`;
   state.canvas.innerHTML = `
     <section class="alch-cv">
       ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK[view], side: vaultSide, nav })}
@@ -10646,10 +10703,6 @@ function renderContextVault() {
 }
 
 function wireContextVault() {
-  const scan = state.canvas.querySelector(".alch-cv-scan");
-  if (scan) {
-    scan.addEventListener("click", () => loadContextVault({ scan: true }));
-  }
   for (const btn of state.canvas.querySelectorAll("[data-cv-mode]")) {
     btn.addEventListener("click", () => setContextVaultMode(btn.dataset.cvMode));
   }
