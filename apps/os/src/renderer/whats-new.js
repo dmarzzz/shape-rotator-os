@@ -126,3 +126,44 @@ export function markModeSeen(mode, surface) {
   seen[mode] = cur;
   saveSeen(seen);
 }
+
+// ── generic fingerprint channels ─────────────────────────────────────
+// For content that doesn't live on the cohort surface (e.g. the context
+// vault's article index). Callers build fingerprints with
+// fingerprintItems() and use the same prime-silently / unread / seen
+// semantics as the surface modes above.
+
+/** `id:hash` fingerprints for an arbitrary list of records. */
+export function fingerprintItems(items) {
+  const out = [];
+  for (const r of (items || [])) {
+    const id = r?.record_id || r?.id;
+    if (id) out.push(`${id}:${fnv1a(stableStringify(r))}`);
+  }
+  return out.sort();
+}
+
+/** Anything in `fps` the user hasn't seen for `mode`? Primes silently on first sight. */
+export function unreadForFingerprints(mode, fps) {
+  if (!Array.isArray(fps) || !fps.length) return false;
+  const cur = [...fps].sort();
+  const seen = loadSeen();
+  if (!Array.isArray(seen[mode])) {
+    seen[mode] = cur;
+    saveSeen(seen);
+    return false;
+  }
+  const prevSet = new Set(seen[mode]);
+  return cur.some(fp => !prevSet.has(fp));
+}
+
+/** The user is looking at `mode` right now — its current content is seen. */
+export function markFingerprintsSeen(mode, fps) {
+  if (!Array.isArray(fps) || !fps.length) return;
+  const cur = [...fps].sort();
+  const seen = loadSeen();
+  const prev = Array.isArray(seen[mode]) ? seen[mode] : null;
+  if (prev && prev.length === cur.length && prev.join("|") === cur.join("|")) return;
+  seen[mode] = cur;
+  saveSeen(seen);
+}
