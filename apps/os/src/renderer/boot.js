@@ -5993,6 +5993,7 @@ function navSnapshot() {
   if (!constMode) {
     try { constMode = localStorage.getItem(NAV_CONST_MODE_LS_KEY) || ""; } catch { constMode = ""; }
   }
+  let ctxView = alch?.dataset.contextView || "";
   if (alchMode === "collab") {
     alchMode = "constellation";
     constMode = "collab";
@@ -6001,20 +6002,27 @@ function navSnapshot() {
     alchMode = "shapes";
     constMode = "";
   }
+  // intel folded into the context page (2026-06).
+  if (alchMode === "intel") {
+    alchMode = "context";
+    ctxView = "signals";
+  }
   if (alchMode !== "constellation") constMode = "";
+  if (alchMode !== "context") ctxView = "";
   return {
     tab: b.dataset.activeTab || "alchemy",
     appsView: b.dataset.appsView || "",
     netSub: b.dataset.netSub || "network",
     alchMode,
     constMode,
+    ctxView,
   };
 }
 
 function navSameLoc(a, b) {
   return !!a && !!b && a.tab === b.tab && a.appsView === b.appsView
     && a.netSub === b.netSub && a.alchMode === b.alchMode
-    && a.constMode === b.constMode;
+    && a.constMode === b.constMode && (a.ctxView || "") === (b.ctxView || "");
 }
 
 // Replay a snapshot through the same entry points the UI uses, so mounts /
@@ -6047,15 +6055,23 @@ function navApplyLocation(snap) {
   // Alchemy rail mode lives inside alchemy.js; the rail button's own click
   // handler is the canonical way to switch it (sets state + persists + repaints).
   if (snap.tab === "alchemy" && snap.alchMode) {
-    const targetAlchMode = snap.alchMode === "collab" ? "constellation" : (snap.alchMode === "pulse" ? "shapes" : snap.alchMode);
+    const targetAlchMode = snap.alchMode === "collab" ? "constellation"
+      : (snap.alchMode === "pulse" ? "shapes"
+      : (snap.alchMode === "intel" ? "context" : snap.alchMode));
     const targetConstMode = snap.alchMode === "collab" ? "collab" : (targetAlchMode === "constellation" ? (snap.constMode || "") : "");
+    const targetCtxView = snap.alchMode === "intel" ? "signals" : (targetAlchMode === "context" ? (snap.ctxView || "") : "");
     try {
       localStorage.setItem(NAV_ALCH_LS_KEY, targetAlchMode);
       if (targetConstMode) localStorage.setItem(NAV_CONST_MODE_LS_KEY, targetConstMode);
     } catch {}
     const cur = document.getElementById("alchemy-view")?.dataset.alchModeCurrent;
-    if (targetAlchMode === "constellation" && targetConstMode && typeof window.__srwkAlchemyJump === "function") {
-      window.__srwkAlchemyJump("constellation", { constellationMode: targetConstMode });
+    // Constellation + context views have no dedicated rail buttons (they
+    // live inside the cohort/context pages), so restores route through the
+    // jump API rather than a rail click.
+    if (targetAlchMode === "constellation" && typeof window.__srwkAlchemyJump === "function") {
+      window.__srwkAlchemyJump("constellation", targetConstMode ? { constellationMode: targetConstMode } : undefined);
+    } else if (targetAlchMode === "context" && targetCtxView && typeof window.__srwkAlchemyJump === "function") {
+      window.__srwkAlchemyJump("context", { contextView: targetCtxView });
     } else if (cur !== targetAlchMode) {
       const sel = `.alchemy-rail-btn[data-alch-mode="${(window.CSS?.escape ? CSS.escape(targetAlchMode) : targetAlchMode)}"]`;
       document.querySelector(sel)?.click();
@@ -6097,7 +6113,7 @@ function initNavHistory() {
     attributeFilter: ["data-active-tab", "data-apps-view", "data-net-sub"],
   });
   const alch = document.getElementById("alchemy-view");
-  if (alch) obs.observe(alch, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current"] });
+  if (alch) obs.observe(alch, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current", "data-context-view"] });
 
   // Mouse buttons: 3 = back, 4 = forward (Chromium's X1/X2 mapping). Capture
   // phase + preventDefault so we win over any inner handler and suppress the
