@@ -44,6 +44,7 @@ import {
   contextSourceById as findContextSourceById,
 } from "./context-vault-model.js";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
+import { unreadModes, markModeSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
 import { enrichPeople } from "./gh-user.js";
@@ -494,6 +495,10 @@ window.__srwkOpenProfile = function openProfileExternal(opts = {}) {
 
 async function loadCohort() {
   state.cohort = await getCohortSurface();
+  // What's-new: repaint the rail's unread (color-only) state against the
+  // fresh surface — covers both the initial load and refresh ticks that
+  // land while the user is elsewhere.
+  updateRailUnread();
   // Enrich person records from GitHub: name / geo / website / x are
   // filled in (when empty) from api.github.com/users/<handle>. Cached
   // 24h in localStorage so this is one API call per person per day
@@ -570,6 +575,17 @@ function previousConstellationSnapshot() {
 
 function activeDetailCohort() {
   return state.detailReturnMode === "constellation" ? activeConstellationCohort() : state.cohort;
+}
+
+// What's-new: Slack-style unread on the rail. A mode whose cohort
+// content changed since the user last viewed it gets `.ar-unread` —
+// the row renders at full ink (color only; no text, no dots).
+function updateRailUnread() {
+  if (!state.rail || !state.cohort) return;
+  const unread = unreadModes(state.cohort);
+  for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
+    btn.classList.toggle("ar-unread", unread.has(btn.dataset.alchMode));
+  }
 }
 
 function syncRailSelection() {
@@ -715,6 +731,12 @@ function renderModeContent() {
     // Mount shape shaders LAST — every <canvas data-shape-fam> emitted by the
     // renderers above gets one WebGL2 context here.
     mountAllShapes();
+    // What's-new: painting a mode while the OS tab is in front counts as
+    // reading it — settle its unread color. Guarded so a background data
+    // refresh (subscription re-render while the user is on another tab or
+    // the window is hidden) never marks content seen the user hasn't seen.
+    if (state.active && !document.hidden) markModeSeen(state.mode, state.cohort);
+    updateRailUnread();
   } catch (err) {
     console.error(`[alchemy] render failed for ${renderLabel}:`, err);
     canvas.innerHTML = `<p class="alch-callout"><strong>${escHtml(renderLabel)} failed to render</strong><br/>${escHtml(err?.message || String(err))}</p>`;

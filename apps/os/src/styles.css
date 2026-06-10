@@ -20133,3 +20133,14 @@ button.alch-quick-link {
 /* Membrane is a full-bleed stage with zero canvas padding — give the strip
  * explicit margins matching the standard page padding, above the scene. */
 .membrane-host .membrane-page-intro { position: relative; z-index: 6; margin: 24px 56px 0; }
+
+/* ── what's new — Slack-style unread on the OS rail ──────────────────
+ * A rail page whose cohort content changed since the user last viewed
+ * it renders at full ink, exactly like a Slack/Discord channel with new
+ * messages. Color only — no badges, no dots, no text. `.ar-unread` is
+ * toggled by alchemy.js (updateRailUnread, fed by whats-new.js) and
+ * settles back once the page is actually viewed. Uses the same theme
+ * vars as the selected state, so light mode is covered for free. */
+.alchemy-rail-btn.ar-unread { opacity: var(--ed-op-loud); }
+.primary-nav .alchemy-rail-btn.ar-unread .ar-label { color: var(--ink-hi) !important; }
+.primary-nav .alchemy-rail-btn.ar-unread .ar-num   { opacity: 1 !important; }
