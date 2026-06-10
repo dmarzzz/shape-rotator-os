@@ -9237,7 +9237,6 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-profile-section {
   display: flex; flex-direction: column; gap: 12px;
   padding: 18px 0; border-top: 1px solid var(--alchemy-rule);
-  max-width: 60ch;
 }
 .alch-profile-section:first-of-type { border-top: 0; padding-top: 0; }
 .alch-profile-h {
@@ -13194,7 +13193,6 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
 .alch-submit-pr-mute { font-size: 9.5px; letter-spacing: 0.08em; opacity: 0.8; }
 .alch-submit-pr-hint {
   margin: 12px 0 0;
-  max-width: 60ch;
   font-family: var(--ed-mono);
   font-size: 11px; line-height: 1.65;
   color: var(--ed-ink-4);
@@ -20279,7 +20277,7 @@ button.alch-quick-link {
  * sections are a left-aligned 60ch column, so a centered callout reads
  * as floating in dead space. */
 .alchemy-canvas:has(.alch-onb-steps) .alch-callout { margin-left: 0; margin-right: 0; }
-.alchemy-canvas:has(.alch-seal-section) .alch-callout { margin-left: 0; margin-right: 0; max-width: 60ch; }
+.alchemy-canvas:has(.alch-seal-section) .alch-callout { margin-left: 0; margin-right: 0; max-width: none; }
 /* An intro strip with no text yet keeps its reserved space (same height +
  * spacing as every other page) but hides the rectangle. Adding text to the
  * div makes the outline appear automatically. */
