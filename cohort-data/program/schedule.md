@@ -56,10 +56,10 @@ after midterm, it becomes very clear which projects will graduate as-is, which w
 - for projects clearly in the for-profit track, road-show practice + investor curation starts in week 8
 - for commons-track projects, grant matching + distribution-partnership scoping ramps
 
-### weeks 9-10 — road show + graduation (jul 13 → jul 18)
-**curated, structured, mostly behind-the-scenes.** for-profit-track teams are in arranged 3-5 investor meetings per project. commons-track teams have non-profit grant applications mid-submission. coordination tooling is in partnership negotiation for distribution channels.
+### weeks 9-10 — road show + graduation (jul 13 → jul 25)
+**curated, structured, mostly behind-the-scenes.** for-profit-track teams are in arranged 3-5 investor meetings per project. commons-track teams have non-profit grant applications mid-submission. coordination tooling is in partnership negotiation for distribution channels. week 9 is pitch practice, VC intros, and internal dry-run work; week 10 is convergence, final product polish, partner feedback, and the final public slot.
 
-- **fri jul 18** — **graduation.** less external-facing than midterm. ~50% of the ceremony is individual growth + cross-project contribution recognition. all-star projects presented in clusters (commercial-viability vs. growth vs. commons), with different talk shapes per cluster. awards distributed.
+- **thu jul 23 or fri jul 24** — **final demo day #2 + graduation.** less external-facing than midterm. ~50% of the ceremony is individual growth + cross-project contribution recognition. all-star projects presented in clusters (commercial-viability vs. growth vs. commons), with different talk shapes per cluster. awards distributed.
 
 ## weekly rituals (recurring)
 

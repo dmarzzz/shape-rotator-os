@@ -7,28 +7,12 @@
   color: var(--alchemy-paper-warm, #f2ede4);
 }
 
-.intel-hero {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: flex-end;
-}
-
-.intel-hero h1 {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: clamp(32px, 5vw, 58px);
-  line-height: 0.95;
-  letter-spacing: 0;
-  color: var(--alchemy-paper-warm, #f2ede4);
-}
-
-.intel-hero p {
-  margin: 8px 0 0;
-  max-width: 720px;
-  color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.66));
-  font-size: 14px;
-  line-height: 1.5;
+/* Embedded in the OS context page (2026-06): the page header + view nav
+   above the host own the hero's old job, so the panel starts straight at
+   the metric tiles. */
+.intel-panel--embedded {
+  height: auto;
+  min-height: 480px;
 }
 
 .intel-kicker,
@@ -36,11 +20,9 @@
 .intel-card-meta,
 .intel-card footer span,
 .intel-list-head,
-.intel-hero-note,
 .intel-status,
 .intel-pill,
 .intel-neighbor-type,
-.intel-mode-switch,
 .intel-data-stat-grid span,
 .intel-repo-row span,
 .intel-related-signals span,
@@ -56,62 +38,10 @@
   font-size: 10px;
 }
 
-.intel-hero-note {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-end;
-  color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.55));
-  font-size: 9px;
-  white-space: nowrap;
-}
-
 .intel-metrics {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
-}
-
-.intel-mode-switch {
-  align-self: flex-start;
-  display: inline-grid;
-  grid-template-columns: repeat(2, minmax(138px, 1fr));
-  gap: 4px;
-  border: 1px solid var(--alchemy-rule, rgba(var(--ink-rgb),0.14));
-  border-radius: 8px;
-  background: rgba(0,0,0,0.16);
-  padding: 4px;
-}
-
-.intel-mode-switch button {
-  appearance: none;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.58));
-  cursor: pointer;
-  padding: 8px 11px;
-  text-align: left;
-}
-
-.intel-mode-switch button:hover,
-.intel-mode-switch button.is-active {
-  border-color: rgba(216,106,74,0.46);
-  background: rgba(216,106,74,0.10);
-  color: var(--alchemy-paper-warm, #f2ede4);
-}
-
-.intel-mode-switch span {
-  display: block;
-  font-size: 10px;
-}
-
-.intel-mode-switch small {
-  display: block;
-  margin-top: 4px;
-  color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.52));
-  font-size: 8px;
-  letter-spacing: 0.12em;
 }
 
 .intel-metric {
@@ -1019,7 +949,6 @@
  * track, search input, code chips, reasoning chain, brief fields, data-stat
  * cells) read as muddy grey panels on paper. The α is tuned for darkening
  * near-black; on paper a recess wants a faint INK wash instead. */
-html[data-theme="light"] .intel-mode-switch,
 html[data-theme="light"] .intel-search input,
 html[data-theme="light"] .intel-path-row code,
 html[data-theme="light"] .intel-chain,

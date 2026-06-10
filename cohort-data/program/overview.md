@@ -8,7 +8,7 @@ order: 1
 
 ## what is shape rotator
 
-a 10-week program turning cryptography and AI research into products people can use. NYC-based, May 18 – July 18, 2026. cohort 01: ~30-50 builders across 15 invited teams + visitors, anchored at the convent.
+a 10-week program turning cryptography and AI research into products people can use. NYC-based, May 18 – July 25, 2026. cohort 01: ~30-50 builders across 15 invited teams + visitors, anchored at the convent.
 
 run jointly by **IC3 × Flashbots × the convent × blockchain builders fund**.
 
@@ -27,7 +27,7 @@ weeks 1-2     onboarding · rolling arrivals · define your own success criteria
 week 3        IC3 hackathon (princeton) · tale of two cities
 week 4        midterm — ETH NY demo day (thu jun 11, external-facing)
 weeks 5-8     sprint mode · recombination · projects pivot or consolidate
-weeks 9-10    road shows · distribution work · graduation (jul 18)
+weeks 9-10    road shows · distribution work · final demo + graduation (jul 23-24)
 ```
 
 ## what we're optimizing for
