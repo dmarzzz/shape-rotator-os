@@ -1403,15 +1403,15 @@ function renderShapes() {
   `).join("");
 
   const chips = `
-    <div class="alch-shapes-toolbar">
+    <div class="alch-view-controls">
       <nav class="alch-shapes-filter" role="tablist" aria-label="filter by kind">
         <button class="alch-shapes-chip" data-shapes-filter="works"  type="button" aria-selected="${filter === "works"}">teams & projects <span class="ascn">${nWorks}</span></button>
         <button class="alch-shapes-chip" data-shapes-filter="people" type="button" aria-selected="${filter === "people"}">individuals <span class="ascn">${nPeople}</span></button>
       </nav>
+      <nav class="alch-shapes-filter alch-shapes-filter-membership" role="tablist" aria-label="filter by membership">
+        ${membershipChips}
+      </nav>
     </div>
-    <nav class="alch-shapes-filter alch-shapes-filter-membership" role="tablist" aria-label="filter by membership">
-      ${membershipChips}
-    </nav>
   `;
   const cardCtx = { people: state.cohort?.people || [] };
   const cards = records.map((r, idx) => {
@@ -1425,7 +1425,7 @@ function renderShapes() {
     ? `<div class="alch-specimens">${cards}</div>`
     : `<p class="alch-pf-pick">${emptyMsg}</p>`;
   state.canvas.innerHTML = `
-    <div class="alch-cohort-page">
+    <div class="alch-cohort-page" data-cohort-view="directory">
       ${cohortPageHead("directory", { side: `<button id="dossier-export-png" class="cal-action" type="button">export dossier (png)</button>` })}
       ${chips}
       ${grid}
@@ -1779,18 +1779,22 @@ const COHORT_VIEW_DEK = {
 // Shared page header — same structure on the cohort and context pages so
 // the OS's two "understanding" surfaces read as one design. `side` is
 // optional per-view meta or actions (kept to one quiet element at rest).
-function pageHeadHtml({ kicker, title, dek, extra = "", side = "", nav = "" }) {
+function pageHeadHtml({ kicker, title, dek, side = "", nav = "" }) {
+  // One block (header + view nav together) so host pages with their own
+  // flex gaps can't change the head→nav rhythm — it reads identically on
+  // the cohort and context pages.
   return `
-    <header class="alch-page-head">
-      <div class="alch-page-head-text">
-        <p class="alch-page-kicker">${escHtml(kicker)}</p>
-        <h2 class="alch-page-title">${escHtml(title)}</h2>
-        ${dek ? `<p class="alch-page-dek">${escHtml(dek)}</p>` : ""}
-        ${extra}
-      </div>
-      ${side ? `<div class="alch-page-head-side">${side}</div>` : ""}
-    </header>
-    ${nav}`;
+    <div class="alch-page-headgroup">
+      <header class="alch-page-head">
+        <div class="alch-page-head-text">
+          <p class="alch-page-kicker">${escHtml(kicker)}</p>
+          <h2 class="alch-page-title">${escHtml(title)}</h2>
+          ${dek ? `<p class="alch-page-dek">${escHtml(dek)}</p>` : ""}
+        </div>
+        ${side ? `<div class="alch-page-head-side">${side}</div>` : ""}
+      </header>
+      ${nav}
+    </div>`;
 }
 
 function cohortPageHead(view, { side = "" } = {}) {
@@ -4558,9 +4562,10 @@ function renderJourney() {
     </div>`;
 
   state.canvas.innerHTML = `
+    <div class="alch-cohort-page" data-cohort-view="journey">
+    ${cohortPageHead("journey")}
+    <div class="alch-view-controls">${filterBar}</div>
     <div class="alch-constellation" data-constellation-view="journey">
-      ${cohortPageHead("journey")}
-      ${filterBar}
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
           ${constJourneyReadoutHtml(teams, all)}
@@ -4578,6 +4583,7 @@ function renderJourney() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   `;
 }
@@ -4602,8 +4608,9 @@ function renderProductStack() {
     .map(k => `<span class="acl-item"><span class="acl-dot acl-dot-${k}"></span>${escHtml(CONST_DOMAIN_LABEL[k])}</span>`)
     .join("");
   state.canvas.innerHTML = `
+    <div class="alch-cohort-page" data-cohort-view="stack">
+    ${cohortPageHead("stack")}
     <div class="alch-constellation" data-constellation-view="stack">
-      ${cohortPageHead("stack")}
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
           ${constStackReadoutHtml(inspectorCtx)}
@@ -4614,6 +4621,7 @@ function renderProductStack() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   `;
   markConstellationSelection(state.constSelection);
@@ -4850,24 +4858,26 @@ function renderConstellationPeople(teams, people, clusters, edges) {
     </div>
     <div class="acl-line-note">Circles are primary project groups. Lines are inferred from person profiles and should be treated as conversation leads.</div>`;
   state.canvas.innerHTML = `
-    <div class="alch-constellation" data-constellation-view="map" data-constellation-scope="people">
+    <div class="alch-cohort-page" data-cohort-view="map">
       ${cohortPageHead("map")}
-      <div class="ac-map-control-stack is-people-scope">
+      <div class="alch-view-controls">
         ${constellationNetworkScopeRow("people", { projects: teams.length, people: people.length })}
       </div>
-      <div class="alch-const-workbench">
-        <div class="alch-const-main">
-          <div class="alch-constellation-legend is-line-confidence">${legend}</div>
-          <div class="alch-constellation-stage ac-people-stage" data-view="people" data-lens="people" tabindex="0" aria-label="people connected to projects">
-            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
-              <g class="ac-person-wells">${groupMarkup}</g>
-              <g class="ac-person-links">${edgeMarkup}</g>
-              <g class="ac-people-nodes">${peopleMarkup}</g>
-            </svg>
-            <div class="ac-tip" hidden></div>
+      <div class="alch-constellation" data-constellation-view="map" data-constellation-scope="people">
+        <div class="alch-const-workbench">
+          <div class="alch-const-main">
+            <div class="alch-constellation-legend is-line-confidence">${legend}</div>
+            <div class="alch-constellation-stage ac-people-stage" data-view="people" data-lens="people" tabindex="0" aria-label="people connected to projects">
+              <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+                <g class="ac-person-wells">${groupMarkup}</g>
+                <g class="ac-person-links">${edgeMarkup}</g>
+                <g class="ac-people-nodes">${peopleMarkup}</g>
+              </svg>
+              <div class="ac-tip" hidden></div>
+            </div>
           </div>
+          ${constellationInspectorShell(inspectorCtx)}
         </div>
-        ${constellationInspectorShell(inspectorCtx)}
       </div>
     </div>`;
   markConstellationSelection(state.constSelection);
@@ -5366,16 +5376,17 @@ function renderConstellation() {
     <div class="acl-line-note">Solid = a relationship record with type, status, evidence, or next action. Dotted = a project profile mention that needs confirmation.</div>`;
 
   state.canvas.innerHTML = `
+    <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">
+    ${cohortPageHead(viewMode)}
+    ${viewMode === "map" || viewMode === "ring" ? `
+      <div class="alch-view-controls">
+        ${viewMode === "map" ? constellationNetworkScopeRow("projects", { projects: teams.length, people: people.length }) : ""}
+        ${constellationMapLayoutRow(viewMode)}
+        ${viewMode === "map" ? `
+          ${constellationLensRow(lens, { edges: coverage.edges, meaningMissing: coverage.meaningMissing, ...relationshipBreakdown })}
+        ` : ""}
+      </div>` : ""}
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
-      ${cohortPageHead(viewMode)}
-      ${viewMode === "map" || viewMode === "ring" ? `
-        <div class="ac-map-control-stack">
-          ${viewMode === "map" ? constellationNetworkScopeRow("projects", { projects: teams.length, people: people.length }) : ""}
-          ${constellationMapLayoutRow(viewMode)}
-          ${viewMode === "map" ? `
-            ${constellationLensRow(lens, { edges: coverage.edges, meaningMissing: coverage.meaningMissing, ...relationshipBreakdown })}
-          ` : ""}
-        </div>` : ""}
       <div class="alch-const-workbench">
         <div class="alch-const-main">
           <div class="alch-constellation-legend">${legend}</div>
@@ -5395,6 +5406,7 @@ function renderConstellation() {
         </div>
         ${constellationInspectorShell(inspectorCtx)}
       </div>
+    </div>
     </div>
   `;
 }
@@ -9090,7 +9102,7 @@ function renderCollab() {
   const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
   const clusters = state.cohort?.clusters || [];
   if (!teams.length) {
-    state.canvas.innerHTML = `${cohortPageHead("collab")}<p class="alch-callout">no team data yet.</p>`;
+    state.canvas.innerHTML = `<div class="alch-cohort-page" data-cohort-view="collab">${cohortPageHead("collab")}<p class="alch-callout">no team data yet.</p></div>`;
     return;
   }
   const m = buildCollabModel(teams, clusters, state.cohort?.dependencies || []);
@@ -9236,16 +9248,16 @@ function renderCollab() {
     </section>`;
 
   state.canvas.innerHTML = `
+    <div class="alch-cohort-page" data-cohort-view="collab">
     ${cohortPageHead("collab")}
+    <div class="alch-view-controls">${controlBar}</div>
     <div class="alch-collab">
-      <header class="alch-cb-head">
-        ${controlBar}
-      </header>
       ${matrix}
       ${introSection}
       ${underusedSection}
       ${convSection}
       <p class="alch-callout"><strong>collaboration board · v0.1</strong><br/>Self-asserted only — affinities are shared <code>skill_areas</code>, intros are <code>seeking</code>↔<code>offering</code> term overlaps. No inferred or private scoring.</p>
+    </div>
     </div>`;
 }
 
@@ -10589,15 +10601,15 @@ function renderContextVault() {
     }).join("");
   const detail = mode === "raw" ? renderContextVaultRawDetail(selectedRaw) : renderContextVaultDetail(selected);
 
-  const releaseLine = `
-    <div class="alch-cv-release">
-      <span class="alch-cv-release-version">content ${escHtml(CONTEXT_CONTENT_VERSION)}</span>
-      <span class="alch-cv-release-note">${escHtml(CONTEXT_CONTENT_RELEASE_NOTE)}</span>
-    </div>`;
-  const refreshBtn = `<button class="alch-feed-btn alch-cv-scan" type="button" ${cv.loading ? "disabled" : ""}>${cv.loading ? "refreshing..." : "refresh article index"}</button>`;
+  const vaultSide = `
+    <div class="alch-page-head-meta">
+      <span>content ${escHtml(CONTEXT_CONTENT_VERSION)}</span>
+      <span title="${escAttr(CONTEXT_CONTENT_RELEASE_NOTE)}">${escHtml(CONTEXT_CONTENT_RELEASE_NOTE)}</span>
+    </div>
+    <button class="alch-feed-btn alch-cv-scan" type="button" ${cv.loading ? "disabled" : ""}>${cv.loading ? "refreshing..." : "refresh article index"}</button>`;
   state.canvas.innerHTML = `
     <section class="alch-cv">
-      ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK[view], extra: releaseLine, side: refreshBtn, nav })}
+      ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK[view], side: vaultSide, nav })}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
       <div class="alch-cv-layout">
