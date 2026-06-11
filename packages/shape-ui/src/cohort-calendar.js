@@ -379,12 +379,16 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
     ctx.fillStyle = grad;
     ctx.fillRect(x - 6, CAL_HEADER_H - 18, CAL_DAY_W + 12, gridH + 18);
     const xc = x + CAL_DAY_W / 2;
-    ctx.strokeStyle = "rgba(196, 64, 37, 0.85)";
+    // Today line in ink (white on dark, dark on paper) — the red puck above
+    // already carries the accent; a red line through the bars read as alarm.
+    ctx.strokeStyle = CAL_INK_1;
+    ctx.globalAlpha = 0.85;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(xc, CAL_HEADER_H - 6);
     ctx.lineTo(xc, CAL_HEADER_H + gridH);
     ctx.stroke();
+    ctx.globalAlpha = 1;
     ctx.fillStyle = CAL_OXIDE;
     const puckW = 50;
     const puckH = 16;
