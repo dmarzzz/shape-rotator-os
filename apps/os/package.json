@@ -65,7 +65,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "freddmannen",
+        "owner": "dmarzzz",
         "repo": "shape-rotator-os",
         "releaseType": "release"
       }
