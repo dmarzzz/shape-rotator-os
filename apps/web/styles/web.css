@@ -330,7 +330,7 @@ body .alch-shape-overlay { display: block !important; }
   line-height: 1.35;
 }
 .cic-route-line > span {
-  color: rgba(245, 243, 238, 0.24);
+  color: rgba(245, 243, 238, 0.48);
   font-size: 9.5px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -935,6 +935,22 @@ body.links-page-body .hero-tagline {
   justify-self: center;
 }
 .cd-shape canvas { display: block; width: 100%; height: 100%; }
+/* Sigil continuity, grid → dossier (see syncFromHashTransitioned in
+ * cohort.js). The rail hero carries the name statically; the opened
+ * card's canvas is tagged at click time. */
+.cd-rail .cd-shape canvas { view-transition-name: sr-sigil; }
+::view-transition-group(sr-sigil),
+::view-transition-old(sr-sigil),
+::view-transition-new(sr-sigil) {
+  animation-duration: 300ms;
+  animation-timing-function: var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+::view-transition-old(sr-sigil),
+::view-transition-new(sr-sigil) {
+  height: 100%;
+}
+::view-transition-old(root) { animation-duration: 140ms; }
+::view-transition-new(root) { animation-duration: 220ms; }
 .cd-rail-kicker,
 .cd-h {
   font-family: var(--font-mono);
@@ -1106,18 +1122,82 @@ body.links-page-body .hero-tagline {
 }
 .cd-team-token:hover canvas,
 .cd-team-token:focus-visible canvas {
-  filter: drop-shadow(0 0 8px rgba(139, 216, 209, 0.34));
+  filter: drop-shadow(0 0 8px rgba(208, 83, 50, 0.34));
   transform: scale(1.08);
 }
+/* The rail's team token carries the mini sigil (it absorbed the old
+ * "team context" quick row) — reset the chip chrome to the rail's quiet
+ * underlined-link voice and size the shape to the rail's type scale. */
+.cd-rail-list .cd-team-token {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(241, 236, 231, 0.24);
+  background: transparent;
+  gap: 6px;
+}
+.cd-rail-list .cd-team-token .cd-mini-shape { width: 15px; }
 .cd-pill {
   gap: var(--space-2);
   color: var(--ink-2);
 }
 .cd-pill span,
 .cd-quick-text span {
-  color: var(--ink-4);
+  color: var(--ink-3);
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
+  /* Labels are atomic — only the value text may wrap (no "FOCU S"). */
+  white-space: nowrap;
+}
+/* ask-me-about chips with matching timeline provenance carry a hover/
+ * focus evidence layer (the matched entry: date — title). The oxide
+ * corner tick marks which chips have it; chips without a match render
+ * plain, so nothing looks layered that isn't. */
+.cd-evidence-chip {
+  position: relative;
+}
+.cd-evidence-chip::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-top: 1px solid #d05332;
+  border-right: 1px solid #d05332;
+  opacity: 0.65;
+}
+.cd-evidence-chip::after {
+  content: "evidence · " attr(data-evidence);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 12;
+  width: max-content;
+  max-width: min(46ch, 70vw);
+  padding: 5px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm, 4px);
+  background: var(--paper-2, var(--paper-1, #221d1a));
+  color: var(--ink-2);
+  font-size: var(--t-11, 10.5px);
+  line-height: 1.45;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--dur-fast, 120ms) var(--ease, ease-out),
+              transform var(--dur-fast, 120ms) var(--ease, ease-out);
+}
+.cd-evidence-chip:hover::after,
+.cd-evidence-chip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+  /* enter slower than exit */
+  transition-duration: var(--dur-base, 220ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cd-evidence-chip::after { transition: none; }
 }
 .cd-team-quick .cd-quick-row {
   grid-template-columns: 104px minmax(0, 1fr);
@@ -1126,6 +1206,15 @@ body.links-page-body .hero-tagline {
 }
 .cd-team-quick .cd-quick-v {
   gap: var(--space-3);
+}
+/* Multi-item values: short pills share a line; prose items each own a
+ * full row (two long items flowing inline made a ragged fake column). */
+.cd-team-quick .cd-quick-v {
+  column-gap: 16px;
+  row-gap: 5px;
+}
+.cd-team-quick .cd-quick-text {
+  flex: 1 1 100%;
 }
 .cd-team-quick .cd-quick-link,
 .cd-team-quick .cd-pill,
@@ -1189,15 +1278,36 @@ body.links-page-body .hero-tagline {
 }
 .cd-section summary .cd-section-preview {
   min-width: 0;
-  max-width: min(42ch, 60%);
+  max-width: min(52ch, 68%);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: rgba(241, 236, 231, 0.46);
+  /* Previews carry actual record content (now-line, latest timeline
+   * entry, traction snippet) — readable ink, content keeps its case. */
+  color: rgba(241, 236, 231, 0.55);
   font-weight: 400;
   letter-spacing: 0;
-  text-transform: lowercase;
+  text-transform: none;
 }
+/* Flat section — the dossier's default block: hairline + small label,
+ * content simply visible; nothing suggests clicking. */
+.cd-section-flat {
+  border: 0;
+  border-top: 1px solid rgba(241, 236, 231, 0.08);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-4) 0 var(--space-2);
+}
+.cd-flat-label {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.cd-section-flat .cd-section-body { animation: none; }
+
 .cd-section-mark {
   color: rgba(241, 236, 231, 0.46);
   font-size: var(--t-12);
@@ -1209,8 +1319,10 @@ body.links-page-body .hero-tagline {
 .cd-section[open] summary {
   color: var(--ink-1);
 }
+/* Open section: the body below owns the content — a preview restating it
+ * would be a duplicate role in the same frame. */
 .cd-section[open] .cd-section-preview {
-  color: rgba(245, 243, 238, 0.52);
+  display: none;
 }
 .cd-section-body {
   display: grid;

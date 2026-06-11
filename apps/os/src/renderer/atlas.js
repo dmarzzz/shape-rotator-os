@@ -633,8 +633,12 @@ export function mount(container) {
   } catch { state.lastSeenAt = 0; }
   state.diffMountedAt = performance.now();
   // beforeunload — capture the moment before reload so the next mount
-  // has an honest "since last visit" frame of reference.
-  state._onBeforeUnload = () => persistLastSeenNow();
+  // has an honest "since last visit" frame of reference. Only when the
+  // atlas is the active view: if the user left the tab earlier, that
+  // moment was already persisted on setActive(false), and stamping
+  // "now" here would mark pages that arrived since — which the user
+  // never saw — as seen.
+  state._onBeforeUnload = () => { if (state.active) persistLastSeenNow(); };
   window.addEventListener("beforeunload", state._onBeforeUnload);
 
   // ── resize ──────────────────────────────────────────────────────────

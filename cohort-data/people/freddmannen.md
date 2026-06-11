@@ -3,7 +3,7 @@ record_id: freddmannen
 record_type: person
 schema_version: 1
 name: "Fredster"
-team: null
+team: shape-rotator-os
 role: "ai psychotherapist"
 role_class: visiting-scholar
 geo: "SWE"

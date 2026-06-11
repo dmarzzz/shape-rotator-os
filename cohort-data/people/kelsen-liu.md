@@ -10,7 +10,7 @@ geo: NYC
 domain: ai
 email: sl9639@nyu.edu
 dates_start: 2026-05-18
-dates_end: 2026-07-18
+dates_end: 2026-07-25
 links:
   github: SPIKESPIGEL404
   x: kelrouter
@@ -18,7 +18,7 @@ links:
   linkedin: kelsen-liu-668b72258
   telegram: kelsenLu
 dietary_restrictions:
-now: "Leading BitRouter's narrative, marketing, and front-of-house while the technical team builds the agent-routing network."
+now: "Repositioned Bitrouter around reliability + cost for coding agents — stars 2× post-Shaw-retweet; working signups one by one toward first paid."
 skill_areas:
   - ai-infrastructure
   - go-to-market

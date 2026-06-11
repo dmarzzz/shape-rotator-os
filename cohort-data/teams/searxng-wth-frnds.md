@@ -21,9 +21,9 @@ links:
   demo: null
   deck: null
 paper_basis: null
-traction: null
+traction: deployed private-LLM-search prototype benchmarked at 10k queries — median +1.2s latency, p99 ~9s
 hackathon_note: null
-now: turning SearXNG into a LAN-first local search surface for trusted peers
+now: private LLM search with metadata privacy via flashnet — exploring reputation-gated egress to dodge Tor-exit blocking and IP poisoning
 success_dimensions:
   - productization
   - collaborative
@@ -52,8 +52,8 @@ journey:
   icp: small trusted groups that need private shared search without a hosted search backend
   problem: useful group search often leaks private queries, sources, or social context into centralized infrastructure
   solution: a LAN-first peer search daemon built around SearXNG and trusted local peers
-  evidence_notes: public repository and coordinator source profile establish the product direction; cohort dogfooding still needs sharper user stories
-  next_milestone: get one cohort workflow using the LAN search surface for real retrieval
+  evidence_notes: "public repository and coordinator source profile establish the product direction. 2026-06-08 WDYDLW: idea → deployed, benchmarked prototype — 10k queries at median +1.2s, p99 ~9s (fine for agentic search, not low-latency); Tor exits get blocked fast (Cloudflare/AI bans), so exploring reputation-gated egress against IP poisoning; metadata privacy routed through flashnet"
+  next_milestone: one real cohort workflow using private search, plus a minimal anonymity architecture note for the reputation-gated egress design
 making_signature:
   built_domain: [data]
   shape: deep

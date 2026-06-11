@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-progress:elizaos:elizaos-eliza:2026-06-08",
+  "artifact_kind": "github_progress_weekly_summary",
+  "record_type": "team",
+  "record_id": "elizaos",
+  "date": "2026-06-08",
+  "week_start": "2026-06-08",
+  "program_week": 4,
+  "title": "elizaOS/eliza: 122 commits",
+  "summary": "fix, maintenance, feature, other — fix(ui): only resolve relative paths in fetchWithCsrf; fix(ui): unbrick remote-mode startup on mobile; chore(deps): bump hashicorp/setup-terraform from 3 to 4",
+  "source_kind": "github_git_transport",
+  "source_url": "https://github.com/elizaOS/eliza",
+  "source_repo": "elizaOS/eliza",
+  "source_transform": "commit-metadata-weekly-distillation",
+  "confidence": "medium",
+  "review_status": "generated",
+  "surface_recommendation": "promote_candidate",
+  "consider": [
+    "110 human-authored commits observed in the week.",
+    "110 non-bot, non-admin commits remain after basic filtering.",
+    "Feature-labeled movement is present.",
+    "Fix/stabilization movement is present.",
+    "Topic surface: ui, runtime, data."
+  ],
+  "do_not_consider": [
+    "12 bot/generated commits should not count as product momentum."
+  ],
+  "review_questions": [
+    "Is this the team's real project repo for this period?",
+    "Do the example commit subjects describe product/research movement rather than generated churn?",
+    "Would this card add information not already captured by profile, transcript, or calendar timeline items?"
+  ],
+  "verbatim": false,
+  "generated_at": "2026-06-11T15:07:02.145Z",
+  "evidence": {
+    "commit_count": 122,
+    "human_commit_count": 110,
+    "bot_commit_count": 12,
+    "admin_commit_count": 0,
+    "useful_commit_count": 110,
+    "categories": [
+      {
+        "key": "fix",
+        "count": 55
+      },
+      {
+        "key": "maintenance",
+        "count": 19
+      },
+      {
+        "key": "feature",
+        "count": 18
+      },
+      {
+        "key": "other",
+        "count": 16
+      }
+    ],
+    "topics": [
+      {
+        "key": "ui",
+        "count": 22
+      },
+      {
+        "key": "runtime",
+        "count": 13
+      },
+      {
+        "key": "data",
+        "count": 10
+      },
+      {
+        "key": "ops",
+        "count": 10
+      }
+    ],
+    "authors": [
+      {
+        "key": "NubsCarson",
+        "count": 54
+      },
+      {
+        "key": "Stan",
+        "count": 27
+      },
+      {
+        "key": "dependabot[bot]",
+        "count": 12
+      },
+      {
+        "key": "dexploarer",
+        "count": 12
+      }
+    ],
+    "examples": [
+      "fix(ui): only resolve relative paths in fetchWithCsrf",
+      "fix(ui): unbrick remote-mode startup on mobile",
+      "chore(deps): bump hashicorp/setup-terraform from 3 to 4"
+    ]
+  }
+}

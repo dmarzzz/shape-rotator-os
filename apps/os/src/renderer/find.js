@@ -87,7 +87,7 @@ function buildCatalog() {
       });
     }
   }
-  // OS pages (left rail) — lets you launch straight to calendar/intel/etc.
+  // OS pages (left rail) — lets you launch straight to calendar/context/etc.
   document.querySelectorAll(".alchemy-rail-btn[data-alch-mode]").forEach((btn) => {
     const mode = btn.dataset.alchMode;
     const label = btn.querySelector(".ar-label")?.textContent?.trim() || mode;
@@ -98,6 +98,24 @@ function buildCatalog() {
       nav: () => { window.__srwkGoTab?.("alchemy"); window.__srwkAlchemyJump?.(mode); },
     });
   });
+  // In-page views folded into the cohort + context pages (2026-06). They no
+  // longer have rail buttons, so list them here to keep "constellation",
+  // "collab board", and "intel" launchable from search.
+  const FOLDED_VIEWS = [
+    { title: "constellation", sub: "cohort · relationship map", hay: "constellation map shared edges relationships cohort", jump: ["constellation", { constellationMode: "map" }] },
+    { title: "pmf evidence", sub: "cohort · journey view", hay: "journey pmf evidence product market fit cohort", jump: ["constellation", { constellationMode: "journey" }] },
+    { title: "product layer", sub: "cohort · stack view", hay: "stack product layer cohort", jump: ["constellation", { constellationMode: "stack" }] },
+    { title: "collab board", sub: "cohort · seek ↔ offer · intros", hay: "collab board collaboration intros seek offer matrix cohort", jump: ["constellation", { constellationMode: "collab" }] },
+    { title: "intel signals", sub: "context · vault-backed cohort moves", hay: "intel signals vault moves reads context", jump: ["context", { contextView: "signals" }] },
+    { title: "intel data", sub: "context · sanitized entity graph", hay: "intel data entities graph grounding context", jump: ["context", { contextView: "data" }] },
+  ];
+  for (const v of FOLDED_VIEWS) {
+    items.push({
+      type: "page", title: v.title, sub: v.sub,
+      hay: `${v.title} ${v.sub} ${v.hay}`.toLowerCase(),
+      nav: () => { window.__srwkGoTab?.("alchemy"); window.__srwkAlchemyJump?.(v.jump[0], v.jump[1]); },
+    });
+  }
   // Top-level sections (operating system / apps / network / links).
   document.querySelectorAll(".nav-cat[data-tab]").forEach((btn) => {
     const tab = btn.dataset.tab;
@@ -314,6 +332,16 @@ function setScope(next) {
 
 // ─── overlay open/close ──────────────────────────────────────────────────────
 let overlayList = null;
+
+// Open the overlay with a query prefilled — the quick dial's search rail
+// hands off here. Exported alongside init(); same overlay, same catalog.
+export function openWithQuery(query) {
+  openOverlay();
+  if (inputEl && query != null && String(query).trim()) {
+    inputEl.value = String(query);
+    inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+}
 
 function openOverlay() {
   if (!overlayEl) return;

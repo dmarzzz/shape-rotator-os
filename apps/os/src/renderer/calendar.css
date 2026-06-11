@@ -1,0 +1,532 @@
+/* calendar — one-view timeline page (2026-06 redesign).
+ * Markup from renderer/calendar.js. Google-Calendar-shaped week: days as
+ * columns left→right, vertical hour axis, time-positioned event blocks.
+ * Scoped under .c2 (class prefix kept from the page's "calendar2" trial)
+ * so nothing collides with the legacy .cal-* rules still used by the
+ * presence gantt. Reuses the editorial-cook tokens (--ed-*) + oxide
+ * accent so the page reads as native to the OS. */
+
+.c2 {
+  --c2-hour-h: 52px;     /* vertical height of one hour */
+  --c2-gutter-w: 64px;   /* hour-label column width */
+  --c2-col-min: 124px;   /* day-column scroll floor on narrow widths */
+  /* No page-local horizontal padding — .alchemy-canvas owns the side
+   * gutters (24px 56px 64px), same as every other page. Unified. */
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 24px;
+  box-sizing: border-box;
+  font-family: var(--ed-mono);
+}
+
+/* ── masthead — week strip (← 1 2 … 10 →), centered. The calendar /
+ * presence tabs above it use the app-wide .alch-page-views component
+ * (styles.css) — no page-local tab styling here. ─────────────────────── */
+.c2-masthead {
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 2px 12px;
+  margin: 0 0 14px;
+}
+
+/* presence view — the availability gantt (styled by the legacy .cal-*
+ * rules in cohort-calendar-week.css / styles.css; just give it room) */
+.c2-presence { min-width: 0; padding-top: 14px; }
+
+/* gantt legend — above the table (the canvas draws one at its very
+ * bottom too, but on a 2000px+ chart nobody ever scrolls to it) */
+.cal-avail-legend {
+  display: flex; flex-wrap: wrap; gap: 6px 22px;
+  align-items: center;
+  min-height: 32px; /* baseline-aligns with the pill buttons on the right */
+}
+.cav-key {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--ed-mono); font-size: 10px;
+  letter-spacing: 0.08em; text-transform: lowercase;
+  color: var(--ed-ink-2);
+}
+.cav-key em { font-style: normal; color: var(--ed-ink-3); }
+.cav-sw { width: 28px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
+.cav-sw-present {
+  background: linear-gradient(180deg, #e0905c, #c9703e);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.cav-sw-absent {
+  background:
+    repeating-linear-gradient(-45deg,
+      rgba(245, 243, 238, 0.55) 0 1.2px, transparent 1.2px 5px),
+    var(--cal-abs-base, #1A1719);
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
+}
+
+/* gantt freeze panes — sticky canvases holding copies of the main
+ * canvas's name column / date header. The compositor pins them, so
+ * scrolling never flickers (see mountGanttFreezePanes in alchemy.js;
+ * the negative flow margins live inline in the markup). */
+.cal-gantt-wrap { position: relative; }
+.cal-gantt-wrap > canvas { display: block; }
+.cal-gantt-left,
+.cal-gantt-top,
+.cal-gantt-corner {
+  position: sticky;
+  pointer-events: none;
+}
+.cal-gantt-left   { left: 0; z-index: 2; }
+.cal-gantt-top    { top: 0; z-index: 3; }
+.cal-gantt-corner { top: 0; left: 0; z-index: 4; }
+/* soft seam shadows, only once the relevant axis is actually scrolled */
+.cal-gantt-wrap.is-scrolled-x .cal-gantt-left {
+  box-shadow: 14px 0 18px -14px rgba(0, 0, 0, 0.85);
+}
+.cal-gantt-wrap.is-scrolled-y .cal-gantt-top {
+  box-shadow: 0 14px 18px -14px rgba(0, 0, 0, 0.85);
+}
+
+/* focus ring for the row(s) a dossier's "availability" jump came for —
+ * DOM overlay above the freeze panes (the ring marks the name too); the
+ * gantt itself is canvas. Settles into a quiet persistent marker. */
+.cal-focus-row {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  z-index: 5;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--alchemy-oxide-bright, #d05332) 70%, transparent);
+  border-radius: 2px;
+  background: rgba(180, 58, 25, 0.07);
+  animation: cal-focus-in var(--dur-base, 220ms) var(--ease-out, ease-out) both;
+}
+@keyframes cal-focus-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-focus-row { animation: none; }
+}
+
+.c2-scrub { display: flex; align-items: center; gap: 5px; }
+.c2-scrub-dot {
+  appearance: none; cursor: pointer;
+  width: 22px; height: 22px;
+  border: 1px solid var(--ed-rule-2); border-radius: 50%;
+  background: transparent;
+  color: var(--ed-ink-3);
+  font-family: var(--ed-mono); font-size: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+.c2-scrub-dot:hover { color: var(--ed-ink-1); border-color: var(--ed-rule-3); }
+/* the week containing today — white outline, always visible */
+.c2-scrub-dot.is-now {
+  border-color: var(--ed-ink-1);
+  color: var(--ed-ink-1);
+}
+/* the week being viewed — filled */
+.c2-scrub-dot[aria-selected="true"] {
+  background: var(--alchemy-oxide, #8F220E);
+  border-color: var(--alchemy-oxide-bright, #B43A19);
+  color: #f5f3ee;
+}
+.c2-scrub-dot.is-now[aria-selected="true"] { border-color: var(--ed-ink-1); }
+
+.c2-scrub-arrow {
+  appearance: none; cursor: pointer;
+  width: 32px; height: 44px; padding: 0;
+  border: 1px solid transparent; border-radius: 22px;
+  background: transparent;
+  color: var(--ed-ink-3);
+  font-family: var(--ed-mono); font-size: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.c2-scrub-arrow:hover:not(:disabled) { color: var(--ed-ink-1); border-color: var(--ed-rule-3); }
+.c2-scrub-arrow:disabled { opacity: 0.3; cursor: default; }
+
+/* ── stale banner / loading ─────────────────────────────────────────── */
+.c2-stale {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 12px;
+  padding: 9px 13px;
+  border-top: 1px solid rgba(180, 58, 25, 0.55);
+  background: linear-gradient(180deg, rgba(143,34,14,0.10), rgba(143,34,14,0.02));
+  font-size: 11px; letter-spacing: 0.04em;
+  color: var(--ed-ink-1);
+}
+.c2-stale > span:first-child { color: var(--alchemy-oxide-bright, #B43A19); opacity: 0.7; }
+.c2-retry {
+  appearance: none; background: transparent; border: 0; cursor: pointer;
+  font: inherit; color: var(--ed-ink-1);
+  border-bottom: 1px solid var(--ed-rule-3);
+  padding: 0 0 1px;
+}
+.c2-retry:hover { color: var(--alchemy-oxide-bright, #B43A19); border-bottom-color: var(--alchemy-oxide-bright, #B43A19); }
+.c2-loading {
+  padding: 64px 0; text-align: center;
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ed-ink-3);
+}
+
+/* ── board — shared column template keeps header / all-day / grid aligned */
+.c2-board {
+  border: 1px solid var(--ed-rule-2);
+  border-radius: 4px;
+  background: var(--ed-bg-1);
+  overflow-x: auto;
+}
+.c2-row,
+.c2-grid {
+  display: grid;
+  grid-template-columns: var(--c2-gutter-w) repeat(7, minmax(var(--c2-col-min), 1fr));
+  min-width: calc(var(--c2-gutter-w) + 7 * var(--c2-col-min));
+}
+.c2-gutter-cell {
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ed-ink-4);
+  display: flex; align-items: center; justify-content: flex-end;
+  padding: 0 10px 0 0;
+  border-right: 1px solid var(--ed-rule);
+  box-sizing: border-box;
+}
+
+/* ── day headers ────────────────────────────────────────────────────── */
+/* Quiet by default, today lifts to full warm white — no badge, no accent
+ * color, contrast alone carries the highlight. */
+.c2-daysbar { border-bottom: 1px solid var(--ed-rule-2); }
+.c2-dayhead {
+  display: flex; align-items: baseline; gap: 9px;
+  padding: 13px 14px 11px;
+  border-left: 1px solid var(--ed-rule);
+  min-width: 0;
+}
+.c2-dayhead:first-of-type { border-left: 0; }
+.c2-dh-name {
+  font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--ed-ink-4);
+  transition: color 180ms ease;
+}
+.c2-dh-num {
+  font-family: var(--ed-display); font-style: italic;
+  font-size: 22px; line-height: 1;
+  color: var(--ed-ink-3);
+  transition: color 180ms ease;
+}
+.c2-dayhead.is-today .c2-dh-name { color: var(--ed-ink-2); }
+.c2-dayhead.is-today .c2-dh-num  { color: var(--ed-ink-1); }
+
+/* ── all-day lane ───────────────────────────────────────────────────── */
+.c2-allday { border-bottom: 1px solid var(--ed-rule-2); }
+.c2-allday .c2-gutter-cell { padding-top: 6px; padding-bottom: 6px; align-items: flex-start; }
+.c2-allday-cell {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 6px 6px;
+  border-left: 1px solid var(--ed-rule);
+  min-width: 0;
+}
+.c2-allday-cell:first-of-type { border-left: 0; }
+.c2-chip {
+  --c2-acc: #8f817a; /* category rules below override */
+  appearance: none; cursor: pointer; text-align: left;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: color-mix(in srgb, var(--c2-acc) 18%, var(--ed-bg-2));
+  border: 1px solid color-mix(in srgb, var(--c2-acc) 36%, transparent);
+  border-left: 3px solid var(--c2-acc);
+  border-radius: 3px;
+  color: var(--ed-ink-1);
+  font-family: var(--ed-mono); font-size: 10px;
+  padding: 3px 8px 3px 7px;
+  min-width: 0; max-width: 100%;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.c2-chip:hover {
+  background: color-mix(in srgb, var(--c2-acc) 28%, var(--ed-bg-2));
+  border-color: color-mix(in srgb, var(--c2-acc) 60%, transparent);
+  border-left-color: var(--c2-acc);
+}
+/* tinted bg + left bar carry the category — the dot is redundant here */
+.c2-chip .c2-chip-dot { display: none; }
+.c2-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c2-chip-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--c2-acc, #8f817a);
+  flex: 0 0 auto;
+}
+
+/* ── time grid ──────────────────────────────────────────────────────── */
+.c2-scroll {
+  /* Self-contained vertical scroller so day headers stay pinned — sized
+   * against the viewport minus the OS chrome + page masthead above.
+   * Fixed (not max-) height so a short hour window stretches to fill it. */
+  height: calc(100vh - 320px);
+  min-height: 380px;
+  overflow-y: auto;
+}
+.c2-grid {
+  position: relative;
+  /* --c2-units = active hours + collapsed gaps (0.6 each). Floor of
+   * --c2-hour-h per unit; min-height stretches short windows to fill the
+   * scroller, which scales every unit (and event, all %-based)
+   * proportionally taller — the board always reads full. */
+  height: calc(var(--c2-hour-h) * var(--c2-units, 14));
+  min-height: 100%;
+}
+.c2-hours {
+  position: relative;
+  border-right: 1px solid var(--ed-rule);
+}
+.c2-hour {
+  position: absolute; right: 10px;
+  transform: translateY(-50%);
+  font-size: 9px; letter-spacing: 0.06em;
+  color: var(--ed-ink-4);
+  background: var(--ed-bg-1);
+  padding: 1px 0;
+  z-index: 1;
+}
+/* edge labels hug inward instead of clipping against the scroller */
+.c2-hour.is-first { transform: translateY(2px); }
+.c2-hour.is-last  { transform: translateY(calc(-100% - 2px)); }
+.c2-col {
+  position: relative;
+  border-left: 1px solid var(--ed-rule);
+}
+.c2-col:first-of-type { border-left: 0; }
+.c2-col.is-weekend { background-color: rgba(var(--ink-rgb), 0.018); }
+.c2-col.is-today { background-color: rgba(var(--ink-rgb), 0.035); }
+
+/* hour hairlines — DOM-positioned (the axis is non-linear, so a repeating
+ * background can't draw them) */
+.c2-rules {
+  position: absolute; top: 0; bottom: 0;
+  left: var(--c2-gutter-w); right: 0;
+  pointer-events: none;
+}
+.c2-line {
+  position: absolute; left: 0; right: 0;
+  border-top: 1px solid var(--ed-rule);
+}
+
+/* collapsed event-free stretches — thin hatched band with a time label */
+.c2-skips { position: absolute; inset: 0; pointer-events: none; }
+.c2-skip {
+  position: absolute; left: 0; right: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: repeating-linear-gradient(-45deg,
+    rgba(var(--ink-rgb), 0.028) 0 5px, transparent 5px 11px);
+  border-top: 1px dashed var(--ed-rule-2);
+  border-bottom: 1px dashed var(--ed-rule-2);
+}
+.c2-skip-label {
+  font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ed-ink-4);
+  background: var(--ed-bg-1);
+  border: 1px solid var(--ed-rule);
+  border-radius: 9px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+
+/* ── open-time tiles — fill whatever the day doesn't schedule ───────── */
+.c2-free {
+  position: absolute; left: 2px; right: 4px;
+  box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  margin: 1px 0;
+  background: rgba(var(--ink-rgb), 0.03);
+  border: 1px dashed rgba(var(--ink-rgb), 0.10);
+  border-radius: 3px;
+  pointer-events: none;
+}
+.c2-free-label {
+  font-family: var(--ed-display); font-style: italic;
+  font-size: 12px; letter-spacing: 0.04em;
+  color: var(--ed-ink-4);
+}
+
+/* ── events ─────────────────────────────────────────────────────────── */
+/* The card adapts to its RENDERED height (container query), not the event
+ * duration — gap compression can make a 30-minute event a large block, and
+ * a large block should show everything: full title + detail bullets. */
+.c2-ev {
+  --c2-acc: #8f817a;
+  appearance: none; text-align: left; cursor: pointer;
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+  min-height: 20px;
+  margin: 0; padding: 0;
+  container-type: size;
+  background: color-mix(in srgb, var(--c2-acc) 16%, var(--ed-bg-2));
+  border: 1px solid color-mix(in srgb, var(--c2-acc) 32%, transparent);
+  border-left: 3px solid var(--c2-acc);
+  border-radius: 3px;
+  color: var(--ed-ink-1);
+  font-family: var(--ed-mono);
+  transition: border-color 140ms ease, background 140ms ease;
+  z-index: 1;
+}
+.c2-ev:hover, .c2-ev:focus-visible {
+  background: color-mix(in srgb, var(--c2-acc) 26%, var(--ed-bg-2));
+  border-color: color-mix(in srgb, var(--c2-acc) 60%, transparent);
+  border-left-color: var(--c2-acc);
+  z-index: 3;
+}
+.c2-ev-in {
+  display: flex; flex-direction: column; gap: 3px;
+  width: 100%; height: 100%;
+  padding: 5px 8px 5px 9px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.c2-ev-time {
+  font-size: 9px; letter-spacing: 0.04em;
+  color: var(--ed-ink-2);
+  white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px;
+  flex: 0 0 auto;
+}
+.c2-ev-title {
+  font-size: 11px; font-weight: 500; line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  flex: 0 0 auto;
+}
+.c2-ev-body {
+  display: none;
+  flex-direction: column; gap: 3px;
+  font-size: 10px; line-height: 1.45;
+  color: var(--ed-ink-2);
+  overflow: hidden;
+  margin-top: 2px;
+}
+.c2-ev-body i { font-style: normal; display: block; }
+.c2-ev-body i::before { content: "– "; color: var(--ed-ink-3); }
+.c2-ev-more { color: var(--ed-ink-3); }
+.c2-ev-more::before { content: "" !important; }
+/* sliver cards: one line, time + title side by side */
+@container (max-height: 38px) {
+  .c2-ev-in { flex-direction: row; align-items: baseline; gap: 6px; padding-top: 2px; padding-bottom: 2px; }
+  .c2-ev-title { display: block; white-space: nowrap; text-overflow: ellipsis; }
+  .c2-ev-body { display: none; }
+}
+/* tall cards: full title + detail bullets inline */
+@container (min-height: 96px) {
+  .c2-ev-title { -webkit-line-clamp: 5; font-size: 12px; }
+  .c2-ev-body { display: flex; }
+}
+.c2-ev.is-tbc { border-style: dashed; border-left-style: solid; }
+.c2-ev-tbc {
+  font-style: normal;
+  font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: #161311;
+  background: #e3c77f;
+  border-radius: 2px;
+  padding: 1px 4px;
+}
+
+/* category accents — same palette as the legacy week view. Scoped to the
+ * c2 page + modal so the legacy calendar's data-cat cards are untouched. */
+.c2 [data-cat="oh"],      .c2-modal-panel[data-cat="oh"]      { --c2-acc: #d98a5c; }
+.c2 [data-cat="salon"],   .c2-modal-panel[data-cat="salon"]   { --c2-acc: #c9a8d8; }
+.c2 [data-cat="weekly"],  .c2-modal-panel[data-cat="weekly"]  { --c2-acc: #a8c79f; }
+.c2 [data-cat="coord"],   .c2-modal-panel[data-cat="coord"]   { --c2-acc: #e3c77f; }
+.c2 [data-cat="review"],  .c2-modal-panel[data-cat="review"]  { --c2-acc: #f3b174; }
+.c2 [data-cat="hack"],    .c2-modal-panel[data-cat="hack"]    { --c2-acc: #9fb8d8; }
+.c2 [data-cat="demo"],    .c2-modal-panel[data-cat="demo"]    { --c2-acc: #e07a4e; }
+.c2 [data-cat="anarchy"], .c2-modal-panel[data-cat="anarchy"] { --c2-acc: #a8c79f; }
+
+/* ── now line ───────────────────────────────────────────────────────── */
+.c2-now {
+  position: absolute; left: 0; right: 0; height: 0;
+  border-top: 1.5px solid var(--alchemy-oxide-bright, #B43A19);
+  z-index: 4;
+  pointer-events: none;
+}
+.c2-now-dot {
+  position: absolute; left: -4px; top: -4.5px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--alchemy-oxide-bright, #B43A19);
+}
+
+/* ── footer — legend + recurring + source ───────────────────────────── */
+.c2-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.c2-key { display: flex; flex-wrap: wrap; gap: 5px 16px; }
+.c2-key-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 9.5px; letter-spacing: 0.08em; text-transform: lowercase;
+  color: var(--ed-ink-3);
+}
+.c2-recur {
+  display: flex; flex-wrap: wrap; gap: 5px 14px; align-items: baseline;
+  border-top: 1px solid var(--ed-rule);
+  padding-top: 10px;
+}
+.c2-recur-h {
+  font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ed-ink-4);
+}
+.c2-recur-item { font-size: 10px; color: var(--ed-ink-3); }
+.c2-source {
+  display: flex; gap: 8px; align-items: baseline;
+  font-size: 9.5px; letter-spacing: 0.06em;
+  color: var(--ed-ink-4);
+}
+.c2-source a { color: var(--ed-ink-3); text-decoration: none; border-bottom: 1px solid var(--ed-rule-2); }
+.c2-source a:hover { color: var(--alchemy-oxide-bright, #B43A19); border-bottom-color: var(--alchemy-oxide-bright, #B43A19); }
+
+/* ── event modal ────────────────────────────────────────────────────── */
+.c2-modal {
+  position: fixed; inset: 0; z-index: 80;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+.c2-modal-panel {
+  --c2-acc: #8f817a;
+  position: relative;
+  width: min(440px, calc(100vw - 48px));
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  background: var(--ed-bg-1);
+  border: 1px solid var(--ed-rule-2);
+  border-left: 3px solid var(--c2-acc);
+  border-radius: 4px;
+  padding: 20px 22px 22px;
+  font-family: var(--ed-mono);
+  color: var(--ed-ink-2);
+}
+.c2-modal-close {
+  appearance: none; cursor: pointer;
+  position: absolute; top: 8px; right: 10px;
+  background: transparent; border: 0;
+  color: var(--ed-ink-3); font-size: 18px; line-height: 1;
+}
+.c2-modal-close:hover { color: var(--ed-ink-1); }
+.c2-modal-when {
+  font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ed-ink-3);
+  margin-bottom: 8px;
+}
+.c2-modal-cat {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ed-ink-3);
+  margin-bottom: 8px;
+}
+.c2-modal-title {
+  font-family: var(--ed-display); font-weight: 400;
+  font-size: 24px; line-height: 1.15;
+  color: var(--ed-ink-1);
+  margin: 0 0 12px;
+  text-transform: lowercase;
+}
+.c2-modal-details {
+  margin: 0; padding: 0 0 0 16px;
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: 11.5px; line-height: 1.5;
+}
+
+/* ── narrow widths ──────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .c2 { padding: 0 0 24px; }
+  .c2-masthead { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .c2-scroll { height: calc(100vh - 380px); }
+}

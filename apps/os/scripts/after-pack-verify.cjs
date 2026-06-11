@@ -38,13 +38,16 @@ exports.default = async function afterPack(context) {
   const asar = require("@electron/asar");
   const { appOutDir, packager, electronPlatformName, arch } = context;
   const productName = packager.appInfo.productFilename;
+  const resourcesDir = (electronPlatformName === "darwin" || electronPlatformName === "mas")
+    ? path.join(appOutDir, `${productName}.app`, "Contents", "Resources")
+    : path.join(appOutDir, "resources");
 
   // Locate the packed app.asar for this platform.
   let asarPath;
   if (electronPlatformName === "darwin" || electronPlatformName === "mas") {
-    asarPath = path.join(appOutDir, `${productName}.app`, "Contents", "Resources", "app.asar");
+    asarPath = path.join(resourcesDir, "app.asar");
   } else {
-    asarPath = path.join(appOutDir, "resources", "app.asar");
+    asarPath = path.join(resourcesDir, "app.asar");
   }
 
   // Normalized set of in-asar file paths (no leading slash, forward slashes).
@@ -120,6 +123,17 @@ exports.default = async function afterPack(context) {
     "src/router/index.html", "src/router/app.js", "src/router/preload.js"];
   for (const f of MUST_EXIST) {
     if (!entries.has(f)) problems.push(`required runtime file missing from asar: ${f}`);
+  }
+
+  // Extra resources live next to app.asar, not inside it. The committed
+  // article bodies are required at runtime in packaged builds.
+  const articlesDir = path.join(resourcesDir, "cohort-data", "articles");
+  let articleCount = 0;
+  try {
+    articleCount = fs.readdirSync(articlesDir).filter((name) => name.endsWith(".md")).length;
+  } catch {}
+  if (!articleCount) {
+    problems.push(`committed context article markdown missing from extraResources: ${articlesDir}`);
   }
 
   if (problems.length) {

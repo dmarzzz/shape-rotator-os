@@ -6,20 +6,21 @@ name: dmarz
 team: searxng-wth-frnds
 secondary_teams:
   - dcnet
+  - shape-rotator-os
 role: lead
 role_class: coordinator
 geo: NYC
 domain: bd-gtm
 email: dmarz@flashbots.net
 dates_start: 2026-05-18
-dates_end: 2026-07-18
+dates_end: 2026-07-25
 links:
   github: dmarzzz
   x: DistributedMarz
   website: dmarz.xyz
   linkedin: null
 dietary_restrictions:
-now: building Shape Rotator OS/field-kit plus searxng-wth-frnds as a local-first privacy-search surface
+now: opened Shape Rotator OS to outside contributions (Teleport Router merged first) — benchmarked private LLM search routed through flashnet
 skill_areas:
   - p2p
   - identity

@@ -8,7 +8,7 @@ membership: cohort
 # surface fields (visible to all participants)
 name: Teleport Router
 focus: cross-network routing
-members_count: 2
+members_count: 3
 geo: null
 domain: crypto
 shape: meridian
@@ -21,9 +21,9 @@ links:
   demo: null
   deck: null
 paper_basis: null
-traction: null
+traction: first merged cohort-project-to-Shape-Rotator-OS contribution (PR by James Barnes) · Daybook demoed at the Princeton event
 hackathon_note: null
-now: turning one-time delegated posting into a clearer cross-network routing and attestation primitive
+now: shipping Daybook + the "Day" local daily log of Claude-Code/Codex sessions with a cloud-SDK onboarding flow; router merged into Shape Rotator OS
 success_dimensions:
   - productization
   - research_lineage
@@ -57,8 +57,8 @@ journey:
   icp: builders who need temporary delegated control across social or network surfaces without giving away account custody
   problem: routing actions across accounts/networks often requires either full custody transfer or brittle manual coordination
   solution: one-time-use delegated posting and attestation-verified routing primitives
-  evidence_notes: public surface and repo establish the delegation direction; cohort still needs a concrete integration target
-  next_milestone: land one real cohort use case where another project delegates or routes an action through Teleport
+  evidence_notes: "public surface and repo establish the delegation direction. 2026-06-08 WDYDLW: the cohort-use-case milestone began landing via the Shape Rotator OS merge (first cohort-project contribution); product drifting from delegated posting toward a local-first daily log and a cohort cross-pollination feed"
+  next_milestone: turn the Shape Rotator OS integration into a recurring routed workflow and put the Day(book) daily log in first users' hands
 making_signature:
   built_domain: [agentic]
   shape: broad

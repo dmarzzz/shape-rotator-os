@@ -2,12 +2,12 @@
 /**
  * build-cohort-timeline.js - canonical Git-backed cohort timeline read model.
  *
- * Projects public self-declared people/team data from cohort-data history into:
+ * Projects public self-declared cohort records from cohort-data history into:
  *   1. point-in-time snapshots for week/map reconstruction, and
  *   2. record-level field-change events for the canonical timeline log.
  *
  * This intentionally ignores OS/app code changes. A commit is relevant only
- * when it changes cohort-data/people or cohort-data/teams. Future sources
+ * when it changes a supported cohort-data record collection. Future sources
  * (Teleport Router, transcript evidence) should append to the same event
  * shape with their own source_id instead of creating a parallel timeline.
  *
@@ -28,22 +28,19 @@ const CONFIG_PATH = path.join(COHORT_DIR, "timeline.yml");
 const SCHEMA_PATH = path.join(COHORT_DIR, "schema.yml");
 const OUT_PATH = path.join(REPO_ROOT, "apps", "os", "src", "cohort-timeline.json");
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
-const SNAPSHOT_SOURCE_PATHS = [
-  "cohort-data/people",
-  "cohort-data/teams",
-  "cohort-data/clusters",
-];
-
-const SNAPSHOT_COLLECTIONS = [
+const COHORT_RECORD_COLLECTIONS = [
   { key: "teams", dir: "teams", recordType: "team" },
   { key: "people", dir: "people", recordType: "person" },
   { key: "clusters", dir: "clusters", recordType: "cluster" },
+  { key: "dependencies", dir: "dependencies", recordType: "dependency" },
 ];
 
-const EVENT_COLLECTIONS = [
-  { key: "teams", dir: "teams", recordType: "team", sourceId: "cohort-data-github" },
-  { key: "people", dir: "people", recordType: "person", sourceId: "cohort-data-github" },
-];
+const SNAPSHOT_SOURCE_PATHS = COHORT_RECORD_COLLECTIONS.map((spec) => `cohort-data/${spec.dir}`);
+const SNAPSHOT_COLLECTIONS = COHORT_RECORD_COLLECTIONS;
+const EVENT_COLLECTIONS = COHORT_RECORD_COLLECTIONS.map((spec) => ({
+  ...spec,
+  sourceId: "cohort-data-github",
+}));
 
 function rel(file) {
   return path.relative(REPO_ROOT, file).replace(/\\/g, "/");
@@ -357,6 +354,7 @@ function eventSummary(action, record, changes) {
 }
 
 function buildEvents(schema, baseRef) {
+  const eventPaths = EVENT_COLLECTIONS.map((spec) => `cohort-data/${spec.dir}`);
   const log = git([
     "log",
     "--reverse",
@@ -367,8 +365,7 @@ function buildEvents(schema, baseRef) {
     "--format=%H%x1f%P%x1f%ct%x1f%an%x1f%ae%x1f%s",
     baseRef,
     "--",
-    "cohort-data/people",
-    "cohort-data/teams",
+    ...eventPaths,
   ]);
   const commits = [];
   let current = null;
@@ -473,11 +470,7 @@ function buildSnapshots(config, schema, baseRef) {
       source_commit: resolved.commit,
       source_commit_short: resolved.commit.slice(0, 7),
       committed_at: info.committed_at,
-      counts: {
-        teams: surface.teams.length,
-        people: surface.people.length,
-        clusters: surface.clusters.length,
-      },
+      counts: Object.fromEntries(SNAPSHOT_COLLECTIONS.map((spec) => [spec.key, (surface[spec.key] || []).length])),
       surface,
     };
   });
@@ -514,7 +507,7 @@ function build() {
       canonical_source: "cohort-data-github",
       repo_url: repoUrl,
       base_ref: baseRef,
-      included_paths: ["cohort-data/people", "cohort-data/teams"],
+      included_paths: SNAPSHOT_SOURCE_PATHS,
       ignored: ["OS/app code changes", "schema-only changes", "unmerged PRs", "dirty working-tree edits"],
       public_surface_only: true,
     },

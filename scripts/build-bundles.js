@@ -227,6 +227,44 @@ function loadCalendarTranscriptMatches() {
   }
 }
 
+// Evaluate one calendar-matched transcript source against a record's
+// aliases. Bundled sources scan the transcript text on disk; held-private
+// sources (raw transcripts removed from the public repo per the content
+// policy) use the mention snapshot baked into calendar-transcript-matches.js
+// when the file left the repo, keyed by record_id.
+function transcriptSourceHit(match, source, aliases, recordId) {
+  const relPath = source.path;
+  const heldPrivately = !relPath && source.held === "private-vault";
+  let text = "";
+  if (relPath) {
+    const fp = path.join(REPO_ROOT, relPath);
+    if (!fs.existsSync(fp)) return null;
+    text = fs.readFileSync(fp, "utf8");
+  } else if (!heldPrivately) {
+    return null;
+  }
+  const sourceText = `${source.label || ""} ${relPath || ""} ${match.section || ""}`;
+  const textDirect = heldPrivately
+    ? (source.mentions_direct || []).includes(recordId)
+    : textIncludesAny(text, aliases.direct);
+  const directHit = textDirect || textIncludesAny(sourceText, aliases.direct);
+  const textAny = heldPrivately
+    ? (source.mentions_any || []).includes(recordId)
+    : textIncludesAny(text, aliases.any);
+  const anyHit = directHit || textAny || textIncludesAny(sourceText, aliases.any);
+  if (!anyHit) return null;
+  const baseLabel = source.label || (relPath ? path.basename(relPath) : "transcript");
+  return {
+    directHit,
+    sourceNamed: textIncludesAny(sourceText, aliases.direct),
+    heldPrivately,
+    detail: compactText(`${match.section || "session"} · ${baseLabel}${heldPrivately ? " · held privately" : ""}`, 150),
+    href: relPath ? githubBlobUrl(relPath) : "",
+    dedupKey: relPath ? githubBlobUrl(relPath) : `vault:${source.vault_id || baseLabel}`,
+    vaultId: heldPrivately ? String(source.vault_id || "") : "",
+  };
+}
+
 function personAliases(person, team) {
   const aliases = new Set();
   const add = (v) => {
@@ -433,38 +471,34 @@ function buildPersonTimeline({ people, teams, asks, events, calendar }) {
     const transcriptItems = [];
     for (const match of transcriptMatches) {
       for (const source of Array.isArray(match.sources) ? match.sources : []) {
-        const relPath = source.path;
-        const fp = path.join(REPO_ROOT, relPath);
-        if (!fs.existsSync(fp)) continue;
-        const text = fs.readFileSync(fp, "utf8");
-        const sourceText = `${source.label || ""} ${relPath || ""} ${match.section || ""}`;
-        const directHit = textIncludesAny(text, aliases.direct) || textIncludesAny(sourceText, aliases.direct);
-        const anyHit = directHit || textIncludesAny(text, aliases.any) || textIncludesAny(sourceText, aliases.any);
-        if (!anyHit) continue;
-        const sourceNamed = textIncludesAny(sourceText, aliases.direct);
+        const hit = transcriptSourceHit(match, source, aliases, person.record_id);
+        if (!hit) continue;
         transcriptItems.push({
-          _priority: sourceNamed ? 3 : (directHit ? 2 : 1),
+          _priority: hit.sourceNamed ? 3 : (hit.directHit ? 2 : 1),
+          _dedup: hit.dedupKey,
           date: match.date || start,
           type: "transcript",
-          title: sourceNamed ? "speaker/source transcript" : (directHit ? "mentioned in transcript" : "team context in transcript"),
-          detail: compactText(`${match.section || "session"} · ${source.label || path.basename(relPath)}`, 150),
-          href: githubBlobUrl(relPath),
+          title: hit.sourceNamed ? "speaker/source transcript" : (hit.directHit ? "mentioned in transcript" : "team context in transcript"),
+          detail: hit.detail,
+          ...(hit.href ? { href: hit.href } : { vault_id: hit.vaultId }),
           source: source.role === "notes" ? "notes" : "transcript",
         });
       }
     }
     transcriptItems.sort((a, b) => {
       if (a._priority !== b._priority) return b._priority - a._priority;
-      return String(a.date || "").localeCompare(String(b.date || ""));
+      // newest first within each tier so the slice cap below keeps recent
+      // sessions (e.g. weekly standups) instead of filling with the oldest
+      return String(b.date || "").localeCompare(String(a.date || ""));
     });
     const seenTranscriptSources = new Set();
     const uniqueTranscriptItems = transcriptItems.filter(item => {
-      const key = item.href || `${item.date || ""}|${item.title || ""}|${item.detail || ""}`;
+      const key = item._dedup || item.href || `${item.date || ""}|${item.title || ""}|${item.detail || ""}`;
       if (seenTranscriptSources.has(key)) return false;
       seenTranscriptSources.add(key);
       return true;
     });
-    items.push(...uniqueTranscriptItems.slice(0, 6).map(({ _priority, ...item }) => item));
+    items.push(...uniqueTranscriptItems.slice(0, 6).map(({ _priority, _dedup, ...item }) => item));
 
     timeline[person.record_id] = sortTimeline(items).slice(0, 28);
   }
@@ -472,7 +506,7 @@ function buildPersonTimeline({ people, teams, asks, events, calendar }) {
   return timeline;
 }
 
-function buildTeamTimeline({ teams, people, asks, events, calendar }) {
+function buildTeamTimeline({ teams, people, asks, events, calendar, githubProgressArtifacts = [] }) {
   const peopleByTeam = new Map();
   for (const person of people) {
     const teamIds = [person.team, ...asArray(person.secondary_teams)].filter(Boolean);
@@ -484,6 +518,13 @@ function buildTeamTimeline({ teams, people, asks, events, calendar }) {
   const calBlocks = calendarBlocks(calendar);
   const transcriptMatches = loadCalendarTranscriptMatches();
   const timeline = {};
+  const githubArtifactsByTeam = new Map();
+  for (const artifact of githubProgressArtifacts) {
+    const teamId = String(artifact.record_id || "").trim();
+    if (!teamId) continue;
+    if (!githubArtifactsByTeam.has(teamId)) githubArtifactsByTeam.set(teamId, []);
+    githubArtifactsByTeam.get(teamId).push(artifact);
+  }
 
   for (const team of teams) {
     const members = peopleByTeam.get(team.record_id) || [];
@@ -563,38 +604,48 @@ function buildTeamTimeline({ teams, people, asks, events, calendar }) {
     const transcriptItems = [];
     for (const match of transcriptMatches) {
       for (const source of Array.isArray(match.sources) ? match.sources : []) {
-        const relPath = source.path;
-        const fp = path.join(REPO_ROOT, relPath);
-        if (!fs.existsSync(fp)) continue;
-        const text = fs.readFileSync(fp, "utf8");
-        const sourceText = `${source.label || ""} ${relPath || ""} ${match.section || ""}`;
-        const directHit = textIncludesAny(text, aliases.direct) || textIncludesAny(sourceText, aliases.direct);
-        const anyHit = directHit || textIncludesAny(text, aliases.any) || textIncludesAny(sourceText, aliases.any);
-        if (!anyHit) continue;
-        const sourceNamed = textIncludesAny(sourceText, aliases.direct);
+        const hit = transcriptSourceHit(match, source, aliases, team.record_id);
+        if (!hit) continue;
         transcriptItems.push({
-          _priority: sourceNamed ? 3 : (directHit ? 2 : 1),
+          _priority: hit.sourceNamed ? 3 : (hit.directHit ? 2 : 1),
+          _dedup: hit.dedupKey,
           date: match.date,
           type: "transcript",
-          title: sourceNamed ? "team source transcript" : (directHit ? "team mentioned in transcript" : "member context in transcript"),
-          detail: compactText(`${match.section || "session"} · ${source.label || path.basename(relPath)}`, 150),
-          href: githubBlobUrl(relPath),
+          title: hit.sourceNamed ? "team source transcript" : (hit.directHit ? "team mentioned in transcript" : "member context in transcript"),
+          detail: hit.detail,
+          ...(hit.href ? { href: hit.href } : { vault_id: hit.vaultId }),
           source: source.role === "notes" ? "notes" : "transcript",
         });
       }
     }
     transcriptItems.sort((a, b) => {
       if (a._priority !== b._priority) return b._priority - a._priority;
-      return String(a.date || "").localeCompare(String(b.date || ""));
+      // newest first within each tier so the slice cap below keeps recent
+      // sessions (e.g. weekly standups) instead of filling with the oldest
+      return String(b.date || "").localeCompare(String(a.date || ""));
     });
     const seenTranscriptSources = new Set();
     const uniqueTranscriptItems = transcriptItems.filter(item => {
-      const key = item.href || `${item.date || ""}|${item.title || ""}|${item.detail || ""}`;
+      const key = item._dedup || item.href || `${item.date || ""}|${item.title || ""}|${item.detail || ""}`;
       if (seenTranscriptSources.has(key)) return false;
       seenTranscriptSources.add(key);
       return true;
     });
-    items.push(...uniqueTranscriptItems.slice(0, 6).map(({ _priority, ...item }) => item));
+    items.push(...uniqueTranscriptItems.slice(0, 6).map(({ _priority, _dedup, ...item }) => item));
+
+    for (const artifact of githubArtifactsByTeam.get(team.record_id) || []) {
+      const repo = artifact.source_repo || artifact.evidence?.repo || "github repo";
+      const count = artifact.evidence?.commit_count;
+      const title = artifact.title || `${repo}${Number.isFinite(count) ? `: ${count} commit${count === 1 ? "" : "s"}` : ""}`;
+      items.push({
+        date: isoDate(artifact.date || artifact.week_start),
+        type: "github progress",
+        title: compactText(title, 110),
+        detail: compactText(artifact.summary || artifact.detail || "", 220),
+        href: artifact.source_url || artifact.evidence?.url || "",
+        source: "github distillation",
+      });
+    }
 
     timeline[team.record_id] = sortTimeline(items).slice(0, 28);
   }
@@ -614,6 +665,47 @@ function loadJsonArray(file, label) {
   return [];
 }
 
+function listJsonFilesRecursive(dir) {
+  if (!fs.existsSync(dir)) return [];
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...listJsonFilesRecursive(full));
+    } else if (entry.isFile() && entry.name.endsWith(".json") && entry.name !== "manifest.json") {
+      out.push(full);
+    }
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
+function loadGithubProgressArtifacts() {
+  const root = path.join(COHORT_DIR, "artifacts", "github-progress");
+  const files = listJsonFilesRecursive(root);
+  const out = [];
+  for (const file of files) {
+    let artifact;
+    try {
+      artifact = JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch (e) {
+      console.warn(`[build-bundles] github progress artifact unreadable ${file}: ${e.message}`);
+      continue;
+    }
+    if (artifact?.artifact_kind !== "github_progress_weekly_summary") continue;
+    if (artifact?.review_status !== "reviewed") continue;
+    if (artifact?.record_type !== "team" || !artifact?.record_id) {
+      console.warn(`[build-bundles] github progress artifact missing team record_id: ${file}`);
+      continue;
+    }
+    out.push(artifact);
+  }
+  return out.sort((a, b) => {
+    const ad = isoDate(a.date || a.week_start);
+    const bd = isoDate(b.date || b.week_start);
+    if (ad !== bd) return ad.localeCompare(bd);
+    return String(a.artifact_id || "").localeCompare(String(b.artifact_id || ""));
+  });
+}
 function build() {
   const schema = readSchema();
   if (!schema || schema.schema_version !== 1) {
@@ -646,6 +738,13 @@ function build() {
   // team/line/ecosystem so the renderer does not own transcript facts as code.
   const constellation_cues = loadJsonArray(path.join(COHORT_DIR, "constellation-cues.json"), "constellation-cues.json");
 
+  // Distilled per-session readouts hardcoded from private-vault transcripts
+  // via scripts/ingest-session-readouts.mjs. Public-safe by construction —
+  // the raw transcript never enters the repo; vault_id joins back to the
+  // held-private timeline anchors in calendar-transcript-matches.js.
+  const session_insights = loadJsonArray(path.join(COHORT_DIR, "session-insights.json"), "session-insights.json");
+  const github_progress_artifacts = loadGithubProgressArtifacts();
+
   // Cohort-wide controlled vocab + UI configuration the renderer needs at
   // boot. Shipped alongside records so the atlas / constellation / asks UIs
   // have a stable filter set even when offline.
@@ -664,9 +763,10 @@ function build() {
     asks,
     calendar,
     person_timeline: buildPersonTimeline({ people, teams, asks, events, calendar }),
-    team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar }),
+    team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar, githubProgressArtifacts: github_progress_artifacts }),
     cohort_vocab,
     constellation_cues,
+    session_insights,
   };
   return out;
 }
@@ -706,7 +806,7 @@ function main() {
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
   fs.writeFileSync(OUT_PATH, json);
   const calTabs = built.calendar?.tabs ? Object.keys(built.calendar.tabs).length : 0;
-  console.log(`[build-bundles] wrote ${OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.dependencies.length} dependencies, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.constellation_cues.length} constellation cues, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
+  console.log(`[build-bundles] wrote ${OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.dependencies.length} dependencies, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.constellation_cues.length} constellation cues, ${built.session_insights.length} session insights, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
 }
 
 main();

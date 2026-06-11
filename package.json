@@ -12,9 +12,11 @@
     "os:dev": "npm --workspace @shape-rotator/os run dev",
     "build:cohort": "node scripts/build-bundles.js",
     "check:cohort": "node scripts/build-bundles.js --check",
+    "check:cohort-detail-parity": "node scripts/check-cohort-detail-parity.mjs",
     "build:ics": "node scripts/build-ics.js",
     "check:ics": "node scripts/build-ics.js --check",
     "check:calendar-transcripts": "node scripts/check-calendar-transcript-matches.mjs",
+    "ingest:readouts": "node scripts/ingest-session-readouts.mjs",
     "build:web-journal": "node scripts/build-web-journal.js",
     "test": "node --test scripts/build-ics.test.js",
     "publish:cohort": "node scripts/publish-bundles.js",
@@ -23,7 +25,9 @@
     "test:models": "node --test scripts/test-model-helpers.mjs",
     "keys:gen": "node scripts/keys-gen.js",
     "vendor:web": "node scripts/build-ics.js && rm -rf apps/web/shape-ui && cp -R packages/shape-ui apps/web/shape-ui && cp apps/os/src/cohort-surface.json apps/web/cohort-surface.json && cp cohort-data/calendar.json apps/web/calendar.json && cp cohort-data/calendar.ics apps/web/calendar.ics",
-    "deploy:web": "npm run vendor:web && cd apps/web && vercel deploy --prod --yes"
+    "deploy:web": "npm run vendor:web && cd apps/web && vercel deploy --prod --yes",
+    "audit:github-progress": "node scripts/check-github-progress.mjs",
+    "review:github-progress": "node scripts/promote-github-progress-artifacts.mjs"
   },
   "devDependencies": {
     "js-yaml": "^4.1.1",
