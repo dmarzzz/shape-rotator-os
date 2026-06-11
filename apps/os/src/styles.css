@@ -13624,21 +13624,19 @@ html, body { background: var(--ed-bg-0); }
  * bump text contrast everywhere it was below readable.
  * ═══════════════════════════════════════════════════════════════════ */
 
-/* Page-level warm radial wash — espresso, not near-black (2026-06
-   restyle back toward the original field-guide warmth): the page is the
-   dark layer of a two-step warm elevation, with the specimen panels
-   sitting visibly lighter on top. */
+/* Page-level radial wash — back to near-black (2026-06-11): the espresso
+   page wash from the warm-elevation pass read as flat gray at laptop
+   brightness; the page returns to the deep near-black field while the
+   panels keep their warm elevation on top. */
 html, body {
-  background: radial-gradient(ellipse 140% 100% at 50% -10%, #2c2728 0%, #231f20 55%, #1a1718 100%);
+  background: radial-gradient(ellipse 140% 100% at 50% -10%, #1a1612 0%, #0e0c0a 55%, #08070a 100%);
 }
 
 /* Alchemy stage + network/metrics stages get the same gradient so the
-   chrome backdrop is unified across views. The June-5 design sits on the
-   warm charcoal (--abyss family); the warmth comes from the oxide washes
-   on the panels, not from a brown page. */
+   chrome backdrop is unified across views. */
 .alchemy-view, #alchemy-view,
 #network-view, #metrics-view {
-  background: radial-gradient(ellipse 130% 90% at 50% -5%, #2a2526 0%, #221e1f 60%, #1b1819 100%);
+  background: radial-gradient(ellipse 130% 90% at 50% -5%, #16130f 0%, #0d0c0a 60%, #0a0908 100%);
 }
 
 /* ── back / edit-on-github / pill actions — proper readable chips ── */
