@@ -263,6 +263,71 @@ function setUpdateIcon(state) {
   }
 }
 
+// Live download readout. While an update downloads, electron-updater (or the
+// manual mac/.deb path) emits "download-progress" → "fg:update-progress"; we
+// paint a progress ring with the running % beside it, replacing the "checking"
+// spinner. The ring DOM is built once on entry, then only the arc offset + the
+// number update per event — no DOM churn at ~20 events/sec, and the arc eases
+// between values via a CSS transition on stroke-dashoffset. p = { percent,
+// bytesPerSecond, transferred, total } — any field may be absent (the manual
+// path omits bytesPerSecond).
+const _RING_C = 56.549;   // circumference of an r=9 circle (2·π·9)
+function setDownloadProgress(p) {
+  const icon = document.getElementById("fg-update-icon");
+  if (!icon) return;
+  if (_okIconClearTimer) { clearTimeout(_okIconClearTimer); _okIconClearTimer = null; }
+  icon.classList.remove("fading");
+  const pct = Math.max(0, Math.min(100, Math.round(p?.percent || 0)));
+  if (icon.dataset.state !== "downloading") {
+    icon.dataset.state = "downloading";
+    icon.innerHTML =
+      `<svg class="fg-ring" viewBox="0 0 24 24" fill="none" aria-hidden="true">` +
+        `<circle class="fg-ring-track" cx="12" cy="12" r="9"/>` +
+        `<circle class="fg-ring-arc" cx="12" cy="12" r="9" stroke-linecap="round"` +
+          ` stroke-dasharray="${_RING_C}" stroke-dashoffset="${_RING_C}"` +
+          ` transform="rotate(-90 12 12)"/>` +
+      `</svg><span class="fg-update-pct">0%</span>`;
+  }
+  const arc = icon.querySelector(".fg-ring-arc");
+  const txt = icon.querySelector(".fg-update-pct");
+  if (arc) arc.setAttribute("stroke-dashoffset", String(_RING_C * (1 - pct / 100)));
+  if (txt) txt.textContent = `${pct}%`;
+  // Exact size + speed live in the tooltip so the slot stays a clean readout.
+  const mb = (b) => (b / 1048576).toFixed(0);
+  const size  = p?.total ? ` · ${mb(p.transferred || 0)}/${mb(p.total)} MB` : "";
+  const speed = p?.bytesPerSecond ? ` · ${mb(p.bytesPerSecond)} MB/s` : "";
+  icon.title = `downloading update… ${pct}%${size}${speed}`;
+}
+
+// Persistent post-download state — unlike "ok" (a transient checkmark) this
+// stays put until the user finishes, because finishing needs an action that
+// differs by platform:
+//   restart (win / AppImage / signed-mac — canAutoUpdate) — electron-updater
+//           staged the installer. Click = install silently + relaunch now; it
+//           also auto-installs on the next quit, so there's never a file step.
+//   manual  (unsigned-mac / .deb)                          — the installer was
+//           downloaded to ~/Downloads and opened. Click = open it again.
+let _updateReady = null;   // { mode, path } while a staged update is waiting
+function setUpdateReady(mode, ctx) {
+  const icon = document.getElementById("fg-update-icon");
+  if (!icon) return;
+  if (_okIconClearTimer) { clearTimeout(_okIconClearTimer); _okIconClearTimer = null; }
+  icon.classList.remove("fading");
+  _updateReady = { mode, path: ctx?.path || null };
+  icon.dataset.state = "ready";
+  const glyph = mode === "restart"
+    ? `<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>` // rotate-cw
+    : `<path d="M20 6 9 17l-5-5"/>`;                                                          // check
+  const label = mode === "restart" ? "install & restart" : "open installer";
+  icon.innerHTML =
+    `<svg class="fg-ready-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor"` +
+      ` stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${glyph}</svg>` +
+    `<span class="fg-update-pct fg-ready-label">${label}</span>`;
+  icon.title = mode === "restart"
+    ? "update downloaded — click to install & relaunch now (or it installs automatically next time you quit)"
+    : "installer downloaded to your Downloads — click to open & finish";
+}
+
 // Ask main whether a newer build exists, driving the icon slot. Shared by
 // the manual click (showSpinner → spinner + checkmark feedback) and the
 // silent boot/refresh check (no spinner → only lights up on an actual hit).
@@ -304,8 +369,10 @@ async function checkForUpdate({ showSpinner } = {}) {
 // straight to the download; otherwise run a check with visible feedback.
 function onVersionClick() {
   const icon = document.getElementById("fg-update-icon");
-  // If an update is already known, a click goes straight to the download.
-  if (icon?.dataset.state === "available") { onUpdateIconClick(); return; }
+  // A known update (waiting to download, or downloaded & waiting to finish) →
+  // run the icon's action; otherwise re-check with visible feedback.
+  const st = icon?.dataset.state;
+  if (st === "available" || st === "ready") { onUpdateIconClick(); return; }
   checkForUpdate({ showSpinner: true });
 }
 
@@ -314,22 +381,44 @@ function onVersionClick() {
 async function onUpdateIconClick() {
   const icon = document.getElementById("fg-update-icon");
   const chip = document.getElementById("fg-version-chip");
-  if (icon?.dataset.state !== "available") { checkForUpdate({ showSpinner: true }); return; }
+  const state = icon?.dataset.state;
+  // A staged update is waiting — a click finishes it (platform-specific):
+  // restart now, or re-open the downloaded installer.
+  if (state === "ready" && _updateReady) {
+    try {
+      if (_updateReady.mode === "restart") await window.api?.applyUpdateAndRestart?.();
+      else await window.api?.openDownloadedInstaller?.(_updateReady.path);
+    } catch {}
+    return;
+  }
+  if (state === "downloading") return;                                  // mid-download: ignore clicks
+  if (state !== "available") { checkForUpdate({ showSpinner: true }); return; }
   setUpdateIcon("checking");
+  // Subscribe to the live download-progress stream so the ring fills (spinner →
+  // 0% → … → 100% → "update ready") instead of a frozen spinner for the ~275 MB
+  // pull. unsub() detaches the listener in finally so repeated downloads don't
+  // stack handlers. Both paths below stream it — main.js forwards
+  // "fg:update-progress" for electron-updater AND the manual mac/.deb download.
+  let unsub = null;
   try {
+    unsub = window.api?.onUpdateProgress?.((p) => setDownloadProgress(p)) || null;
     if (chip?.dataset.canAutoUpdate === "1") {
-      // Windows / AppImage: download in the background; electron-updater
-      // installs on next quit. Confirm with the checkmark.
+      // Windows / AppImage / signed-mac: electron-updater stages the installer;
+      // it applies on quit. Land on the persistent "update ready" state.
       const dl = await window.api?.applyAppUpdate?.();
-      setUpdateIcon(dl?.ok ? "ok" : "available");
+      if (dl?.ok) setUpdateReady("restart");
+      else setUpdateIcon("available");
     } else {
-      // macOS / .deb: download to ~/Downloads and reveal in the file
-      // manager so the user runs the installer themselves.
+      // unsigned-mac / .deb: download to ~/Downloads and open/reveal it; the
+      // user runs the installer. Land on the persistent "open installer" state.
       const res = await window.api?.downloadAndRevealUpdate?.();
-      setUpdateIcon(res?.ok ? "" : "available");
+      if (res?.ok) setUpdateReady("manual", { path: res.path });
+      else setUpdateIcon("available");
     }
   } catch {
     setUpdateIcon("available");
+  } finally {
+    if (unsub) { try { unsub(); } catch {} }
   }
 }
 

@@ -1755,7 +1755,10 @@ ipcMain.handle("fg:apply-update-and-restart", async () => {
   if (!app.isPackaged) return { ok: false, reason: "dev_mode" };
   try {
     const { autoUpdater } = require("electron-updater");
-    autoUpdater.quitAndInstall(false, true);
+    // isSilent=true → install with no NSIS wizard (the same seamless swap the
+    // autoInstallOnAppQuit path already does); isForceRunAfter=true → relaunch
+    // when the install finishes. One click: install + reopen, no file, no UI.
+    autoUpdater.quitAndInstall(true, true);
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: "install_failed", detail: e.message };
