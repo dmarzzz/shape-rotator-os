@@ -308,56 +308,6 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── the search rail — liquid glass pouring out from behind the FAB ── */
-
-#quick-dial .qd-search {
-  position: absolute;
-  right: 42px; /* tucked behind the FAB's left half — it emerges from it */
-  bottom: 20px;
-  height: 44px;
-  width: 0;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(48, 42, 48, 0.62) 0%, rgba(24, 21, 26, 0.58) 100%);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
-  backdrop-filter: blur(18px) saturate(1.4);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    0 0 0 1px rgba(var(--qd-ember-rgb), 0.10),
-    0 0 24px rgba(var(--qd-ember-rgb), 0.12),
-    0 14px 40px -12px rgba(0, 0, 0, 0.7);
-  opacity: 0;
-  pointer-events: none;
-  transition: width 380ms var(--qd-expo), opacity 180ms var(--qd-smooth);
-}
-#quick-dial[data-state="search"] .qd-search {
-  width: min(420px, calc(100vw - 120px));
-  opacity: 1;
-  pointer-events: auto;
-}
-#quick-dial .qd-search input {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  padding: 0 20px 0 22px;
-  background: transparent;
-  border: 0;
-  outline: none;
-  color: var(--qd-mist);
-  caret-color: var(--qd-ember);
-  font-family: var(--qd-mono);
-  font-size: 13px;
-  letter-spacing: 0.04em;
-}
-#quick-dial .qd-search input::placeholder {
-  color: var(--qd-mist-dim);
-  letter-spacing: 0.10em;
-  text-transform: lowercase;
-}
-
 /* ── micro-composer — the membrane panel, miniature, liquid glass ───── */
 
 #quick-dial .qd-composer {
