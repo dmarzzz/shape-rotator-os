@@ -15310,6 +15310,22 @@ html, body {
   outline: none;
 }
 
+/* Directory's export action — a real button, not a floating label.
+   Same quiet outline material as the sort control; the ID selector
+   outranks the segment rules, so hover is restated here. */
+.alch-view-controls > #dossier-export-png {
+  min-height: 28px;
+  padding: 4px 14px;
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
+  border-radius: 14px;
+  background: linear-gradient(rgba(var(--ink-rgb), 0.045), rgba(var(--ink-rgb), 0.02));
+}
+.alch-view-controls > #dossier-export-png:hover {
+  color: var(--alchemy-paper-warm);
+  border-color: rgba(217, 83, 54, 0.36);
+  background: linear-gradient(rgba(var(--ink-rgb), 0.07), rgba(var(--ink-rgb), 0.035));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .alch-view-controls .ac-network-scope-btn,
   .alch-view-controls .ac-map-layout-btn,
