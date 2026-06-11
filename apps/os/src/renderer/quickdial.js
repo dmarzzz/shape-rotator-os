@@ -209,9 +209,6 @@ export function mountQuickDial() {
     <svg class="qd-ink" aria-hidden="true"></svg>
     <div class="qd-layer"></div>
     <div class="qd-caption" aria-live="polite"></div>
-    <div class="qd-search" role="search">
-      <input type="text" placeholder="search the os…" aria-label="search the os" maxlength="120" />
-    </div>
     <form class="qd-composer" novalidate hidden></form>
     <button class="qd-fab" type="button" title="ask / seek / offer (Ctrl+Shift+A)"
             aria-label="quick ask, seek, or offer" aria-expanded="false" aria-haspopup="menu">
@@ -237,8 +234,6 @@ export function mountQuickDial() {
   const layer = root.querySelector(".qd-layer");
   const caption = root.querySelector(".qd-caption");
   const composer = root.querySelector(".qd-composer");
-  const searchBox = root.querySelector(".qd-search");
-  const searchInput = searchBox.querySelector("input");
   const fab = root.querySelector(".qd-fab");
   const fabRing = root.querySelector(".qd-fab-ring");
 
@@ -335,7 +330,7 @@ export function mountQuickDial() {
   }
 
   function currentOptions() {
-    if (uiState === "rest" || uiState === "composing" || uiState === "search") return [];
+    if (uiState === "rest" || uiState === "composing") return [];
     if (ctrl.state.path.length > 0) return ctrl.visibleChildren();
     return uiState === "browse" ? ringOneLocal() : [];
   }
@@ -574,7 +569,7 @@ export function mountQuickDial() {
   }
 
   function updateCaption() {
-    if (uiState === "rest" || uiState === "composing" || uiState === "search") {
+    if (uiState === "rest" || uiState === "composing") {
       caption.textContent = "";
       return;
     }
@@ -682,17 +677,16 @@ export function mountQuickDial() {
     try { localStorage.setItem(SEEN_LS_KEY, "1"); } catch {}
   }
 
-  function closeAll() {
+  function closeAll({ restoreFocus = true } = {}) {
     const hadFocus = root.contains(document.activeElement);
     composingLeaf = null;
     composer.hidden = true;
     composer.innerHTML = "";
-    searchInput.value = "";
     staleGeometry = false;
     root.classList.remove("qd-kbd");
     ctrl.reset();
     setState("rest");
-    if (hadFocus) fab.focus({ preventScroll: true });
+    if (restoreFocus && hadFocus) fab.focus({ preventScroll: true });
   }
 
   function closeComposer() {
@@ -709,12 +703,13 @@ export function mountQuickDial() {
     setState("browse");
   }
 
-  // The search rail: a glass field morphs out from behind the FAB,
-  // leftward. Enter hands the query to the find overlay (Ctrl+F's home).
+  // Search belongs to the global find overlay. Earlier quickdial builds
+  // mounted a second bottom-right glass input; when empty it read as a
+  // stray capsule attached to the FAB. Route directly to the real search
+  // surface instead, then bow the dial out.
   function openSearch() {
-    ctrl.reset();
-    setState("search");
-    requestAnimationFrame(() => searchInput.focus());
+    closeAll({ restoreFocus: false });
+    try { openFindWithQuery(""); } catch {}
   }
 
   function routeLeaf(leaf) {
@@ -1298,7 +1293,7 @@ status: open
       return;
     }
     // Number keys select the nth visible option (tap path, keyboard-only).
-    // Gated to fan states so typing digits in search/composer never selects.
+    // Gated to fan states so typing digits in the composer never selects.
     if ((uiState === "browse" || uiState === "drawing") && /^[1-9]$/.test(e.key)) {
       const opts = currentOptions();
       const node = opts[Number(e.key) - 1]?.node;
@@ -1318,17 +1313,6 @@ status: open
     if (uiState === "composing") staleGeometry = true;
     else if (uiState !== "rest") closeAll();
   });
-
-  // Search rail: Enter hands the query to the find overlay; the dial
-  // bows out. (Esc and scrim-press are handled by the global paths.)
-  searchInput.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    const q = searchInput.value.trim();
-    closeAll();
-    try { openFindWithQuery(q); } catch {}
-  });
-  searchInput.addEventListener("pointerdown", (e) => e.stopPropagation());
 
   // The house hover: the same magnetic pull the tab-bar buttons have
   // (motion.js). The outer button takes the inline transform; the inner
