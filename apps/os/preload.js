@@ -20,13 +20,15 @@ contextBridge.exposeInMainWorld("api", {
   checkAppUpdate:        ()       => ipcRenderer.invoke("fg:check-update"),
   applyAppUpdate:        ()       => ipcRenderer.invoke("fg:apply-update"),
   applyUpdateAndRestart: ()       => ipcRenderer.invoke("fg:apply-update-and-restart"),
-  // Manual-install path for unsigned mac builds: streams the platform's
-  // release asset to ~/Downloads/ and opens it (mac: shell.openPath →
-  // dmg mounts; linux/windows: reveals in Finder/Explorer). Returns
-  // { ok, path, version } so the renderer can show "downloaded · drag
-  // to /Applications" with the file path the user just got.
+  // Manual-install path for unsigned builds: streams the platform's release
+  // asset to ~/Downloads/. linux reveals it; mac leaves it in place for
+  // installMacUpdate to swap in (no Finder window). Returns { ok, path, version }.
   downloadAndRevealUpdate: () => ipcRenderer.invoke("fg:download-and-reveal-update"),
   openDownloadedInstaller: (path) => ipcRenderer.invoke("shell:openDownloadedInstaller", path),
+  // Unsigned-mac in-place update: mounts the downloaded dmg, swaps the .app over
+  // the installed bundle, de-quarantines + relaunches (best-effort; the renderer
+  // falls back to openDownloadedInstaller on { ok:false }).
+  installMacUpdate: (path) => ipcRenderer.invoke("fg:install-mac-update", path),
   getAppInfo:            ()       => ipcRenderer.invoke("fg:get-app-info"),
   // Streams electron-updater's `download-progress` events (forwarded from
   // main.js → "fg:update-progress") into the renderer so the inline update

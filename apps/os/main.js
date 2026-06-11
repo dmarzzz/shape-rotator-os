@@ -1659,7 +1659,10 @@ ipcMain.handle("fg:apply-update-and-restart", async () => {
   if (!app.isPackaged) return { ok: false, reason: "dev_mode" };
   try {
     const { autoUpdater } = require("electron-updater");
-    autoUpdater.quitAndInstall(false, true);
+    // isSilent=true → install with no NSIS wizard (the same seamless swap the
+    // autoInstallOnAppQuit path already does); isForceRunAfter=true → relaunch
+    // when the install finishes. One click: install + reopen, no file, no UI.
+    autoUpdater.quitAndInstall(true, true);
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: "install_failed", detail: e.message };
@@ -1814,28 +1817,123 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
 
   await fsp.rename(partial, dest);
 
-  // 3) reveal / open. Platform-specific because the right next step
-  // differs:
-  //   macOS  — openPath(.dmg) mounts the dmg and pops the standard
-  //            "drag .app to /Applications" Finder window. User drags
-  //            + runs xattr -cr (see renderer copy).
-  //   Windows — openPath(.exe) launches the NSIS installer. UAC
-  //            prompts; installer walks through; done.
-  //   Linux  — showItemInFolder(.deb). We can't sudo dpkg from inside
-  //            the app, so the user runs it themselves. The renderer
-  //            shows the shell snippet.
+  // 3) reveal / open — platform-specific, and on mac DEFERRED to the user's
+  //    explicit "install & restart" click:
+  //   macOS  — leave the dmg in place; fg:install-mac-update swaps it in and
+  //            relaunches on click (and falls back to opening this dmg if the
+  //            swap can't run). No Finder window now.
+  //   Windows — openPath(.exe) launches NSIS. (Unused on win — it self-updates
+  //            via electron-updater — but kept for completeness.)
+  //   Linux  — showItemInFolder(.deb). We can't sudo dpkg from inside the app,
+  //            so the user runs it themselves.
   try {
-    if (process.platform === "darwin" || process.platform === "win32") {
-      await shell.openPath(dest);
-    } else {
-      shell.showItemInFolder(dest);
-    }
+    if (process.platform === "linux") shell.showItemInFolder(dest);
+    else if (process.platform === "win32") await shell.openPath(dest);
   } catch (e) {
     // The file is downloaded successfully even if open fails — surface
     // the path so the renderer can show "your installer is at <path>".
     return { ok: true, path: dest, version, openFailed: e.message };
   }
   return { ok: true, path: dest, version };
+});
+
+// ─── macOS in-place auto-update (unsigned) ───────────────────────────
+// macOS won't let electron-updater self-replace an UNSIGNED app, so the usual
+// path makes the user drag the .app out of a dmg + xattr it. This gets unsigned
+// mac as close to the Windows one-click flow as the OS allows: a detached
+// helper waits for us to quit, swaps the freshly-downloaded .app over the
+// installed bundle, strips the quarantine flag (so Gatekeeper doesn't cry
+// "damaged"), and relaunches. Every step is best-effort with a hard fallback to
+// "just open the dmg", and the old bundle is moved aside (NOT deleted) until the
+// new copy is confirmed in place — a mid-swap failure can never leave the user
+// app-less. NOTE: unverified on real macOS hardware (authored on Windows) —
+// smoke-test on a Mac before tagging a release.
+const MAC_UPDATE_HELPER = [
+  "#!/bin/bash",
+  'PID="$1"; DMG="$2"; MOUNT="$3"; SRC="$4"; DEST="$5"; LOG="$6"',
+  'exec >>"$LOG" 2>&1',
+  'echo "[updater] start pid=$PID dest=$DEST"',
+  "n=0",
+  'while kill -0 "$PID" 2>/dev/null; do',
+  "  sleep 0.4",
+  "  n=$((n+1))",
+  '  if [ "$n" -gt 150 ]; then',
+  '    echo "[updater] timeout waiting for exit; opening dmg"',
+  '    hdiutil detach "$MOUNT" -quiet 2>/dev/null',
+  '    open "$DMG"; rm -f "$0"; exit 0',
+  "  fi",
+  "done",
+  "OK=0",
+  'BAK="${DEST}.bak.$$"',
+  'if [ -d "$SRC" ] && mv "$DEST" "$BAK" 2>/dev/null; then',
+  '  if ditto "$SRC" "$DEST" 2>/dev/null; then',
+  '    xattr -dr com.apple.quarantine "$DEST" 2>/dev/null',
+  '    rm -rf "$BAK" 2>/dev/null',
+  '    OK=1; echo "[updater] swap ok"',
+  "  else",
+  '    echo "[updater] ditto failed; restoring old bundle"',
+  '    rm -rf "$DEST" 2>/dev/null',
+  '    mv "$BAK" "$DEST" 2>/dev/null',
+  "  fi",
+  "else",
+  '  echo "[updater] precondition failed (src missing or mv blocked)"',
+  "fi",
+  'hdiutil detach "$MOUNT" -quiet 2>/dev/null',
+  'if [ "$OK" = "1" ]; then open "$DEST"; else open "$DMG"; fi',
+  'rm -f "$0"',
+  "",
+].join("\n");
+
+ipcMain.handle("fg:install-mac-update", async (_e, dmgPath) => {
+  if (process.platform !== "darwin") return { ok: false, reason: "not_mac" };
+  if (!app.isPackaged) return { ok: false, reason: "dev_mode" };
+  const os = require("node:os");
+  const cp = require("node:child_process");
+  try {
+    // dmg must be the asset we just streamed into ~/Downloads.
+    const downloads = path.resolve(app.getPath("downloads"));
+    const dmg = path.resolve(String(dmgPath || ""));
+    const rel = path.relative(downloads, dmg);
+    if (!dmg.toLowerCase().endsWith(".dmg") || !rel || rel.startsWith("..") ||
+        path.isAbsolute(rel) || !fs.existsSync(dmg)) {
+      return { ok: false, reason: "bad_dmg" };
+    }
+    // resolve the installed bundle from our own exec path:
+    // /…/Shape Rotator OS.app/Contents/MacOS/Shape Rotator OS → /…/Shape Rotator OS.app
+    const exe = process.execPath;
+    const idx = exe.indexOf(".app/Contents/MacOS/");
+    if (idx === -1) return { ok: false, reason: "not_bundled" };
+    const dest = exe.slice(0, idx + 4);
+    const appName = path.basename(dest);
+    // mount the dmg read-only at a private mountpoint.
+    const mount = path.join(os.tmpdir(), `sros-mnt-${process.pid}-${Date.now()}`);
+    fs.mkdirSync(mount, { recursive: true });
+    try {
+      cp.execFileSync("hdiutil",
+        ["attach", dmg, "-nobrowse", "-noverify", "-mountpoint", mount],
+        { stdio: "ignore" });
+    } catch (e) {
+      return { ok: false, reason: "mount_failed", detail: e.message };
+    }
+    const src = path.join(mount, appName);
+    if (!fs.existsSync(src)) {
+      try { cp.execFileSync("hdiutil", ["detach", mount, "-quiet"], { stdio: "ignore" }); } catch {}
+      return { ok: false, reason: "no_app_in_dmg" };
+    }
+    // write the detached swap helper and launch it; it waits for us to quit.
+    const log = path.join(os.tmpdir(), "sros-mac-update.log");
+    const scriptPath = path.join(os.tmpdir(), `sros-mac-update-${Date.now()}.sh`);
+    fs.writeFileSync(scriptPath, MAC_UPDATE_HELPER, { mode: 0o755 });
+    const child = cp.spawn("/bin/bash",
+      [scriptPath, String(process.pid), dmg, mount, src, dest, log],
+      { detached: true, stdio: "ignore" });
+    child.unref();
+    // give the helper a tick to start watching our PID, then quit so it can swap.
+    setTimeout(() => { try { app.quit(); } catch {} }, 300);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: "install_failed", detail: e.message };
+  }
 });
 
 // ─── calendar export — PNG / PDF ────────────────────────────────────
