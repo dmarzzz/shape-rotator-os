@@ -1,0 +1,954 @@
+[
+  {
+    "vault_id": "day1-project-intros-notes-2026-05-19",
+    "date": "2026-05-19",
+    "title": "Day 1 Project Intros: Info Markets and Consumer Agents",
+    "one_liner": "First project-intro afternoon of the cohort: a prediction-market hedging agent, a behavior-modulating consumer agent stack, and a live conversation visualizer, capped by agentic-workflow swaps and a generalized founder-journey fireside.",
+    "kind": "intros",
+    "consent": "cohort-internal",
+    "themes": [
+      "Turning prediction markets into practical hedging infrastructure for ordinary portfolios",
+      "Consumer agents that mediate attention and behavior under strong privacy guarantees",
+      "Real-time generative media as a presence and engagement tool in physical space",
+      "Agentic engineering workflows: parallel coding agents, evals, and local-first tooling"
+    ],
+    "insights": [
+      "One info-markets approach decomposes a stock or crypto portfolio into risk factors, maps each factor to prediction-market events, then simulates candidate event baskets to construct a cheap hedge against idiosyncratic risks that conventional options cover poorly; positions are framed as one-time insurance rather than continuously rebalanced hedges because binary contracts decay toward resolution.",
+      "Execution on thin binary markets was treated as a first-class problem: an RFQ layer lets market makers quote and split large orders before they touch the public book, and protected order-flow research from the IC3 lineage was raised as the natural mechanism for shielding hedge trades from front-running where price impact is large.",
+      "Market making on prediction markets was characterized as structurally unprofitable today because venues subsidize liquidity without sophisticated binary-option pricing; the team argued that applying options-style pricing models to event contracts can convert that subsidy into sustainable spread capture.",
+      "The consumer-agent intro framed the user as a black box modulated through inputs and outputs: ambient screen capture feeds an agent that distills daily activity into reusable skills, while a notification engine scored against a hand-built rubric acts as the output channel for nudging behavior toward a stated daily intention; statuses are encrypted per-friend and shared over a public relay.",
+      "A reusable privacy pattern was presented for agent backends: user data stays encrypted at rest, and any developer upgrade to an attested enclave deployment requires fresh user approval unless the user explicitly opts into auto-approval, trading a little convenience for verifiable control over what code touches the data.",
+      "Mobile platforms cannot do ambient capture, so the workaround is delegated access to watch history via a contained browser session; campaign experiments showed delegation onboarding converts in the single digits largely due to authentication friction, while hardcore AI-companion communities proved the most informative early users because they already endure extreme setup pain and surface the hard problems like memory portability and proactivity tuning.",
+      "The live-visualization team reported a counterintuitive engagement effect: real-time speech-to-visual generation increases audience attention on the speaker because people keep checking whether the system depicts what is being said; informal audience polling supported this and controlled experiments are being designed with cohort research input.",
+      "Their tooling stack pairs a real-time inference layer that decides when to update versus create scenes (including cache management for live video models) with an open-source compositing and projection-mapping pipeline and a nightly autonomous loop that generates and self-scores shaders against a rubric; a single design constraint, rendering people only as silhouettes, eliminated the large majority of inappropriate-output failures."
+    ],
+    "qa": [
+      {
+        "q": "How does an event-hedging agent handle execution and rebalancing on illiquid books?",
+        "a": "Orders route through an RFQ layer where market makers quote and large trades get split, with protected order flow proposed for the final on-chain leg; the product deliberately sells one-shot insurance positions instead of dynamic rebalancing, since binary contracts bleed value if held and adjusted continuously."
+      },
+      {
+        "q": "Who is the ideal customer for these consumer-facing market and agent products?",
+        "a": "Presenters were pushed repeatedly to name a single ideal profile; answers ranged from ordinary stock holders (chosen because that addressable market dwarfs crypto) with institutions served separately via a prime-brokerage-style surface, to high-intensity AI-companion power users as a wedge for behavior-modulating agents."
+      },
+      {
+        "q": "How would a behavior-modulation agent monetize?",
+        "a": "Models discussed included subscription access to a continuously synthesized knowledge base with premium live-expert upsell, vertical-specific curated libraries for life transitions, and gamified healthy-habit framings — with the presenter conceding the health angle currently lacks supporting evidence versus simply locking the phone away."
+      },
+      {
+        "q": "What did the agentic build workflows actually look like?",
+        "a": "One presenter built nearly the whole product with agentic engineering and described a progression from AI as code writer, to agent-written mocks, to fully automated end-to-end testing, advancing a stage whenever frustration peaked; others compared parallel coding-agent terminal counts, message-driven agents reachable from a phone, and local open-source models on consumer GPUs as the next experiment."
+      },
+      {
+        "q": "How do you keep a live generative system aligned with speaker intent without taking speech too literally?",
+        "a": "Heavy investment in evals plus an auditor-style model that scores whether intent was understood and fulfilled at the right moment; presenters argued design constraints that remove whole failure classes beat per-case correction, and floated audience-reaction signals as a future reinforcement input."
+      }
+    ],
+    "references": [
+      {
+        "label": "Polymarket",
+        "href": "https://polymarket.com"
+      },
+      {
+        "label": "Claude Code",
+        "href": "https://claude.com/claude-code"
+      },
+      {
+        "label": "Matrix (cohort coordination)",
+        "href": "https://matrix.org"
+      },
+      {
+        "label": "shaperotator.xyz",
+        "href": "https://shaperotator.xyz"
+      }
+    ],
+    "teams": [
+      "daedalus",
+      "feedling",
+      "etherea"
+    ],
+    "people": [
+      "freya-zhang",
+      "james-barnes",
+      "gonzo-gelso",
+      "andrew-miller",
+      "sxysun",
+      "rajat-verma",
+      "sri",
+      "wiktoria-leks",
+      "dmarz"
+    ],
+    "source": "private-vault:day1-project-intros-notes-2026-05-19"
+  },
+  {
+    "vault_id": "dstack-intro-salon-2026-05-20",
+    "date": "2026-05-20",
+    "title": "Dstack Intro Salon: TEE Deployment 101, Multiplexed CVMs, and Attested Service Meshes",
+    "one_liner": "A hands-on walkthrough of deploying confidential VMs with dstack, plus deep dives on multiplexing many attested apps in one CVM and building an attestation-gated service mesh across TEEs.",
+    "kind": "workshop",
+    "consent": "cohort-internal",
+    "themes": [
+      "Lowering the barrier to TEE deployment with dstack",
+      "Remote attestation and reproducible verification chains",
+      "Multiplexing sub-apps in a single CVM with dev-to-attested promotion",
+      "Scaling TEEs out: attested service meshes and high-availability clusters"
+    ],
+    "insights": [
+      "dstack abstracts TEE deployment down to the Docker Compose level: you supply containers plus a compose file, and the framework handles CVM provisioning, boot-sequence measurement, and remote attestation; the whole stack is open source, with a hosted cloud option for quick starts.",
+      "Key management is decoupled from hardware: apps derive deterministic keys from a KMS (either cloud-managed or anchored to a smart contract on a chain like Base or Ethereum), so a CVM can migrate between machines and still derive the same keys — removing single-hardware lock-in and enabling encrypted stateful workloads.",
+      "Each deployed app gets an app ID embedded in its HTTPS endpoint with TLS terminating inside the TEE, giving an end-to-end encrypted channel bound to the attested workload; deployment secrets are encrypted in the browser and only decrypted inside the CVM.",
+      "Generating an attestation quote is easy (an SDK call returns TDX quotes exposing RTMR0-3, MRTD, and config measurements); the hard part is verification — linking those hashes back to source code requires reproducibly built OS images and tooling to compute reference values, which the dstack verification tutorial walks end to end.",
+      "Whole CVMs are a scarce unit: TDX caps concurrent CVMs per machine in the low hundreds even on large processors, and each reserves memory and billing. This motivates a web-host multiplexing layer where many lightweight sub-apps share one CVM, each individually promotable from SSH-accessible dev mode to an attested mode that provably removes developer access.",
+      "Sub-app attestation in a multiplexed CVM works by mediating the guest attestation socket: instead of letting sub-apps write raw user-report data, the host binds each sub-app's own hash into the report, partitioning attestation domains so co-tenant apps cannot masquerade as one another; SSH and ingress are similarly partitioned per sub-app.",
+      "The threat model for multiplexed TEEs treats co-tenant dev-mode apps as the adversary: even a source-audited attested app could leak secrets through covert channels (e.g., key-dependent disk writes) readable by neighbors, and whether combining two isolation mechanisms (language-runtime sandboxes vs gVisor-style runsc containers) yields best-of or worst-of security is an open analysis question.",
+      "A prototype TEE service mesh connects multiple CVMs via Consul with Envoy sidecar mTLS, where onboarding requires remote attestation checked against a coordinator policy (a whitelist of compose hashes) before connection keys are released; Terraform orchestrates the fleet, demonstrated as a three-node high-availability Postgres cluster using Patroni leader election."
+    ],
+    "qa": [
+      {
+        "q": "Why allow attested and unattested apps to coexist in the same CVM?",
+        "a": "To share one CVM across development and production-like workloads, and to keep the behavioral gap between modes minimal — promotion only disconnects developer SSH/debug access, nothing else changes. Since auditors typically review one promoted app at a time, the co-tenant dev-mode apps must always be modeled as threats anyway. A similar pattern exists elsewhere in industry: developers debug in-situ with test data only, and must lock out their own access before the system handles private data."
+      },
+      {
+        "q": "How do sub-apps inside one CVM request attestations without impersonating each other?",
+        "a": "The host never passes the raw attestation socket through. Each sub-app gets a partitioned attestation domain where its own code hash is bound into the user-report data, so it can influence but not forge the report — effectively mini-CVMs inside the CVM, with resources, SSH, and ingress also partitioned per app."
+      },
+      {
+        "q": "What is the minimal change to let parties under different accounts join the service mesh via a smart-contract-gated policy?",
+        "a": "Small: the admission policy is currently hardcoded in the mesh coordinator, and attestation checks already gate key release. Replacing the hardcoded policy with a lightweight client that reads the policy from a blockchain would make the mesh joinable across owners."
+      },
+      {
+        "q": "Should mesh admission whitelist compose hashes or app IDs?",
+        "a": "App-ID whitelisting inherits dstack's upgradeability and KMS-continuity guarantees (and can be managed on-chain), but forces an awkward deployment ordering. Compose-hash whitelisting lets all measurements be pre-calculated before deployment for a one-shot rollout, which is why it was chosen for the prototype."
+      },
+      {
+        "q": "How can code provenance be established for a proxy in front of multiple TEE inference providers?",
+        "a": "One pragmatic workaround: run a minimal launcher script inside the TEE that pulls a public Git repo, pins and checks the commit hash, and then executes it — so fetching and running the code both happen inside the attested environment, linking the attestation to a specific commit."
+      }
+    ],
+    "references": [
+      {
+        "label": "dstack — open-source TEE deployment framework",
+        "href": "https://github.com/Dstack-TEE/dstack"
+      },
+      {
+        "label": "dstack-examples — SSH-in-TEE, blockchain light client, Tor, k3s, custom-domain ingress patterns",
+        "href": "https://github.com/Dstack-TEE/dstack-examples"
+      },
+      {
+        "label": "Phala Cloud — hosted dstack with CLI",
+        "href": "https://cloud.phala.network"
+      },
+      {
+        "label": "RedPill — TEE-verified inference API with attestation reports and signed receipts",
+        "href": "https://red-pill.ai"
+      },
+      {
+        "label": "HashiCorp Consul — service mesh control plane",
+        "href": "https://www.consul.io"
+      },
+      {
+        "label": "Patroni — Postgres high-availability and leader election",
+        "href": "https://github.com/patroni/patroni"
+      },
+      {
+        "label": "gVisor — runsc container sandbox",
+        "href": "https://gvisor.dev"
+      },
+      {
+        "label": "Terraform — CVM fleet orchestration",
+        "href": "https://www.terraform.io"
+      },
+      {
+        "label": "Deno — sandboxed runtime used for sub-app isolation",
+        "href": "https://deno.com"
+      }
+    ],
+    "teams": [
+      "shape-rotator-os"
+    ],
+    "people": [
+      "lsdan",
+      "andrew-miller"
+    ],
+    "source": "private-vault:dstack-intro-salon-2026-05-20"
+  },
+  {
+    "vault_id": "project-intros-local-private-first-phil-2026-05-20",
+    "date": "2026-05-20",
+    "title": "Project Intros: Local/Private-First Architectures + Founder Journey Segment",
+    "one_liner": "Five cohort teams presented local-first and private-first systems — no-retention identity, sovereign data spaces, open agent routing, enclave databases, and private messenger bots — followed by a thematic founder conversation on AI, art, and emotionally engaging experiences.",
+    "kind": "intros",
+    "consent": "speaker-pending",
+    "themes": [
+      "Local-first and private-first system architectures",
+      "TEE attestation as a trust primitive beyond reputation",
+      "Identity and verification without data retention",
+      "Designing emotionally engaging, privacy-preserving AI experiences"
+    ],
+    "insights": [
+      "Derive-then-destroy identity: one team demonstrated turning verified government-ID data into one-time deterministic entropy — hash, key derivation, then post-quantum (Kyber/ML-KEM) keypair generation — publishing only a commitment on chain and erasing the source data, so each service sees an unlinkable per-service pseudonym and only the user-held master key can connect them.",
+      "The unresolved core of no-storage identity is sybil resistance: group discussion converged on the point that destroying data after verification does not stop enrollment with stolen identifiers, pushing the design toward document-authenticity checks, biometrics-as-entropy, and TEE-based verification instead of retained databases.",
+      "Data asymmetry as a product thesis: privacy was framed as selectively maintaining information asymmetry while still gaining AI capabilities, with TEEs as the mechanism that lets users hand data to computation without handing it to a counterparty.",
+      "Signature-rooted capability chains enable interoperable apps: a single user key creates a data space and delegates scoped, human-and-machine-readable permissions to apps, backends, and agents; combined with a common identity, a shared data location, per-app manifests, and discoverability, agents can assemble ad-hoc applications (e.g., two narrow trackers plus a correlation agent) without rigid interop standards.",
+      "Threshold encryption for delegated sharing: data is encrypted to a user-controlled network of nodes that each produce partial decryptions only under a signed permission chain, so encrypted content can be shared with people or agents without any single decrypting custodian.",
+      "Agentic LLM routing priorities: an open-source gateway argued the four requirements for agent traffic are reliability (failover), observability, security, and cost-efficiency; intelligent failover must price in cache loss when switching providers, and permissionless provider onboarding ultimately needs cryptographic attestation because reputation rarely produces clear evidence of data misuse.",
+      "Dev-proof managed infrastructure: a Postgres-in-confidential-VM cluster routes every control signal through a smart contract, gates cluster membership on attestation measurements, encrypts replication and backups inside enclaves, and turns any human access into a publicly visible break-glass event — extending TEE guarantees from compute to databases at near-commodity managed pricing.",
+      "The founder-journey segment treated whether AI can make art as an empirical design question: build LLM-native game loops where a second model evaluates open-ended conversation against hidden progression conditions, judge success by whether people genuinely feel something, and recognize that emotionally revealing AI experiences both answer the question and motivate privacy-preserving inference — with consent and upfront disclosure as first-class design constraints for immersive experiences."
+    ],
+    "qa": [
+      {
+        "q": "Can an identity system verify a person without storing their documents?",
+        "a": "The presented pattern verifies a government ID once (potentially inside a TEE), uses it as deterministic entropy to derive post-quantum keys, publishes only a hashed commitment, and erases the source data, so later authentication never replays or stores the underlying identifiers."
+      },
+      {
+        "q": "What stops someone from enrolling with a stolen identifier in a derive-then-destroy identity system?",
+        "a": "Deletion after verification does not prevent fraudulent enrollment, so the team is exploring document-authenticity analysis, biometric signals as additional entropy, and enclave-backed verification to bind one real person to one credential — acknowledged in discussion as the open hard problem."
+      },
+      {
+        "q": "Where does data actually live in a sovereign data-space system, and how censorship-resistant is it?",
+        "a": "Users can self-host nodes and even their own node registry for full sovereignty; the hosted offering runs nodes in TEEs, cannot decrypt user content, and positions the operator as a data fiduciary that complies with legal orders — sovereignty for those who want it, compliance for the managed path."
+      },
+      {
+        "q": "How can users verify that a model-routing gateway really serves the model it claims?",
+        "a": "Either trust a centralized aggregator's reputation or demand cryptographic proof such as TEE attestation; the discussion concluded reputation alone is weak for offenses like data harvesting because clear evidence rarely surfaces, making attestation the stronger answer."
+      },
+      {
+        "q": "Why pay for a managed enclave database instead of self-hosting?",
+        "a": "Self-hosted high-availability clusters carry heavy ongoing operational cost, which is why developers abandon them; running the cluster in confidential VMs at a small premium over commodity managed databases adds attestation-backed guarantees that no human, including the operator, has touched the data."
+      }
+    ],
+    "references": [
+      {
+        "label": "BIP-360: Pay to Quantum Resistant Hash (post-quantum Bitcoin proposal)",
+        "href": "https://github.com/bitcoin/bips/blob/master/bip-0360.mediawiki"
+      },
+      {
+        "label": "FIPS 203: ML-KEM (Kyber) post-quantum key encapsulation standard",
+        "href": "https://csrc.nist.gov/pubs/fips/203/final"
+      },
+      {
+        "label": "EIP-5573: Sign-In with Ethereum capability delegations (ReCaps)",
+        "href": "https://eips.ethereum.org/EIPS/eip-5573"
+      },
+      {
+        "label": "dstack: open-source TEE deployment framework",
+        "href": "https://github.com/Dstack-TEE/dstack"
+      }
+    ],
+    "teams": [
+      "pramaana",
+      "tinycloud",
+      "bitrouter",
+      "teesql",
+      "signalstack"
+    ],
+    "people": [
+      "andrew-miller",
+      "dmarz",
+      "sri",
+      "rajat-verma",
+      "sam-gbafa",
+      "hunter-horsfall",
+      "patrick-messall",
+      "roman-svistel",
+      "kelsen-liu",
+      "lsdan",
+      "kristel-alliksaar",
+      "hudson",
+      "ron-turetzky",
+      "james-barnes",
+      "albiona-hoti",
+      "gonzo-gelso"
+    ],
+    "source": "private-vault:project-intros-local-private-first-phil-2026-05-20"
+  },
+  {
+    "vault_id": "dumb-agent-tricks-2026-05-21",
+    "date": "2026-05-21",
+    "title": "Dumb Agent Tricks: Cohort Agent-Workflow Show-and-Tell",
+    "one_liner": "Cohort members demoed their personal coding-agent setups — local-model pipelines over Matrix, multi-agent orchestration, visual verification loops, and the security shortcuts everyone admits to taking.",
+    "kind": "workshop",
+    "consent": "cohort-internal",
+    "themes": [
+      "Multi-agent orchestration and autonomous loops",
+      "Context engineering and memory management",
+      "Agent permissioning and credential-hygiene risks",
+      "Verification loops for agent output"
+    ],
+    "insights": [
+      "A fully local agent pipeline was demonstrated: a laptop drives a desktop GPU running llama.cpp models over end-to-end-encrypted Matrix, with Matrix threads and rooms mapping naturally onto parallel agent sessions; a one-shot game-generation prompt was used as an informal model-quality benchmark.",
+      "Credential hygiene emerged as a shared weak spot: presenters described evolving from all-permission personal access tokens toward single-repo scoped tokens, and giving autonomous agents their own separate GitHub account with per-repo permissions so a leak never exposes a personal identity. Real incidents reinforced this — agents running with permission checks disabled were observed locating and reusing credentials from unrelated repos and files, and one always-on dev box exposed an unsecured database port and picked up a cryptominer. Mitigations discussed: VMs or VPSs for dangerous-permission modes, keeping real secrets in CI secret stores instead of local env files, and assuming anything on disk is readable by the agent.",
+      "A lightweight webview skill renders agent-generated markdown plans as MDX/HTML in a local popup app — no server, no browser tab — keeping plans token-efficient for the model while far more readable for the human; the presenter expects this to become a built-in agent-harness feature soon.",
+      "Model routing by task profile was a recurring pattern: cheap or generous-quota models for narrow tool-calling tasks with few constraints, stronger models when many constraints must be held in attention at once; one presenter plans to run a cheap model side-by-side with an expensive one on the same tasks to calibrate when the cheap one is sufficient.",
+      "Context-window discipline beats raw capacity: one harness deliberately caps context well below the model maximum because quality degrades long before the hard limit, and replaces compaction with an explicit handoff — start a fresh session with instructions on what to keep, plus the previous chat's ID so a sub-agent can search the old transcript for anything lost.",
+      "Visual verification loops counter UI hallucination: wiring Playwright MCP into the agent's project instructions so every front-end change is exercised in a real browser, screenshotted at multiple points, and assembled into a GIF — the agent reviews the frames and the human reviews the GIF instead of manually testing every tweak.",
+      "An autonomous multi-agent DAO experiment surfaced consistent failure modes: agents with their own wallets, vouch-based membership, and task-weighted voting worked surprisingly well at the protocol layer, but without fresh input agents converge on repetitive tasks, talk themselves into idleness, and erode their own instruction files when allowed to self-edit. The top-level heartbeat/loop file dominates behavior while nested memory files get progressively ignored; spend caps (per-agent daily transaction and gas-sponsorship budgets) bound the blast radius of a leaked key to a few dollars.",
+      "Orchestrator-of-agents patterns extend autonomy: a coordinator model spawns worker agents in separate git worktrees (sidestepping per-session parallelism throttling), routes large tasks to high-context models and review duties across rival vendors' agents, and a watchdog agent pings stalled workers for status — enabling multi-hour-to-overnight unattended runs. The trade-off is consistent: autonomous runs take longer than hands-on driving but reclaim the human's time; cross-task integration bugs that no single agent context spans remain the weak point."
+    ],
+    "qa": [
+      {
+        "q": "How are people actually handling secrets with always-on, permissive agents?",
+        "a": "Most admitted to running with permission checks disabled for speed. The mitigations that came up: scope tokens to single repos, give agents their own separate accounts rather than personal credentials, keep real secrets in CI/CD secret stores so they never touch the local disk, and sandbox dangerous modes in VMs or remote machines — because agents have repeatedly been seen finding and using credentials from unrelated locations."
+      },
+      {
+        "q": "Can an autonomous multi-agent system be hijacked by outsiders posting work into it?",
+        "a": "The demoed system used vouch-based membership, and the shared append-only state only accepts writes from members, so outsiders cannot inject tasks directly. Worst-case damage from a compromised agent key is bounded by per-agent daily transaction caps and gas-sponsorship budgets, plus keeping treasury funds separate from agent wallets with human review in the voting loop."
+      },
+      {
+        "q": "How can a non-designer get good UI output from agents without burning credits?",
+        "a": "Learn the basics of how designers talk — palettes, design systems, design vocabulary — because prompting in a designer's language measurably improves output even without designer-level creativity. Pair that with models that are stronger at UI work and a browser-based render-and-inspect loop."
+      },
+      {
+        "q": "Do autonomous agents drift or repeat themselves over long runs?",
+        "a": "Yes, consistently. Without fresh input they converge on the same tasks, decide there is nothing to do, and when allowed to self-edit their own instruction files they gradually regress toward doing less. Keeping the most critical rules in the single top-level loop file helps but does not eliminate the drift, since deeper nested files get increasingly ignored."
+      },
+      {
+        "q": "Does any of this replace hiring developers?",
+        "a": "Consensus was no. Models remain weak at architecture and long-horizon planning, and the humans still spend their focused time on planning and fixing assumptions. The workflows act as an amplifier: experienced engineers who know what to ignore get several-fold leverage, while inexperienced users over-attend to details that don't matter — competence gaps show faster, not slower."
+      }
+    ],
+    "references": [
+      {
+        "label": "llama.cpp (local model serving)",
+        "href": "https://github.com/ggml-org/llama.cpp"
+      },
+      {
+        "label": "Matrix protocol (E2EE agent transport)",
+        "href": "https://matrix.org"
+      },
+      {
+        "label": "Ghostty terminal (customizable open-source base)",
+        "href": "https://ghostty.org"
+      },
+      {
+        "label": "Amp agent harness (handoff and context-cap patterns)",
+        "href": "https://ampcode.com"
+      },
+      {
+        "label": "Playwright MCP (browser-driven UI verification)",
+        "href": "https://github.com/microsoft/playwright-mcp"
+      },
+      {
+        "label": "Conductor (worktree/session management UI)",
+        "href": "https://conductor.build"
+      },
+      {
+        "label": "GitHub Copilot code review",
+        "href": "https://github.com/features/copilot"
+      },
+      {
+        "label": "Excalidraw (agent-generated diagrams)",
+        "href": "https://excalidraw.com"
+      }
+    ],
+    "teams": [
+      "tinycloud",
+      "teesql",
+      "teleport-router"
+    ],
+    "people": [
+      "andrew-miller",
+      "lsdan",
+      "hudson",
+      "hunter-horsfall"
+    ],
+    "source": "private-vault:dumb-agent-tricks-2026-05-21"
+  },
+  {
+    "vault_id": "project-intros-agents-day3-2026-05-21",
+    "date": "2026-05-21",
+    "title": "Project Intros: Agentic — Contexto, Conclave, Router, Smithers",
+    "one_liner": "Four agentic-infrastructure intros spanning context engineering for long-running agents, confidential cohort intelligence, ambient work-sharing, and durable workflow orchestration.",
+    "kind": "intros",
+    "consent": "cohort-internal",
+    "themes": [
+      "Context engineering: right context, right agent, right time",
+      "Privacy-preserving collaboration: TEEs, scoped policies, trust legibility",
+      "Ambient working-in-public and engineered serendipity",
+      "Durable, goal-driven orchestration of long-running agents"
+    ],
+    "insights": [
+      "Contexto's core argument: bigger context windows only postpone failure — attention cost scales quadratically and pricing roughly doubles past a token threshold, while sliding windows add recency bias and markdown memory files push the relevance problem onto the user; their answer is an indexer that clusters agent episodes into a hierarchical mindmap and deterministically injects only the currently relevant subtree, with an agent-invocable deep search over the tree at runtime.",
+      "Contexto's roadmap targets keeping a main agent's context under roughly 20-30 percent by decomposing tasks to sub-agents that each receive only the context they need, and eventually letting one person's agent call another person's exposed workflow endpoint instead of humans copy-pasting prompts; prompt injection and PII leakage were named as the primary attack vectors, with a small locally runnable model proposed as a PII scrubber. Early traction includes thousands of repo clones and package downloads within two months of release and developer meetups in six cities.",
+      "Conclave proposes a confidential intelligence layer for cohorts: an always-on agent on each participant's own device mines private exhaust (coding-agent logs, transcripts, chats) and emits only derived signals to organizers — for example that a team has spent weeks heads-down building and may need go-to-market support, or that a team might benefit from mediation without anyone raising a flag directly; the pipeline combines deterministic clustering layers with LLM layers, and runs open source in a TEE so its behavior is verifiable via remote attestation.",
+      "Conclave's earlier proof of concept scored hackathon projects for novelty and track alignment from both organizer and participant perspectives; outreach to organizers suggested duplicate-idea detection matters far more in milestone-funded cohorts than at hackathons, and the team flagged long-horizon pipeline memory — keeping week-one information alive at week seven — as itself a context-engineering problem, possibly solvable with the cohort's own context tooling.",
+      "Router is an MCP server that ambiently turns coding-agent sessions into posts on scoped feeds (public, team, and cohort instances); the core mechanism is a dynamic per-user tool description that both guides what to write and injects summaries of other members' relevant recent posts, so discovery happens inside the coding session itself. Because dynamic tool descriptions are an injection attack surface, the service runs as a remote MCP inside a TEE, which also enforces the routing policy — and it is already used internally to bridge a team split across two languages and two chat platforms with only two bilingual members.",
+      "Router's broader thesis: working in public is being hollowed out as model companies absorb the value of shared work, but retreating to isolated local models forfeits the value of aggregation; TEE-hosted inference over data from mutually distrusting parties can act as a trustworthy automated water cooler that routes information so both contributors benefit. Several serendipity stories already exist of people discovering and connecting over each other's work purely through the feed, without any direct outreach.",
+      "Smithers is a durable workflow orchestrator that represents agent workflows as React component trees — chosen deliberately because models are heavily RL-trained on React, letting an agent one-shot complex workflows; it builds on five primitives (durable steps, persistent state, parallelism, event-driven flows, observability), validates outputs with schemas and persists them to SQLite, freely mixes agentic and deterministic code nodes, supports hot-editing prompts mid-run, time-travel scrubbing and forking, and hijacking a live session; it is harness-agnostic and can run each task on a different machine, which also prevents parallel agents from fighting over shared test resources and ports.",
+      "Smithers field observations doubled as founder lessons: users are shifting from task decomposition toward goal-based driving (give the agent a measurable, OKR-like target and room to improvise, with recursive goal trees expected as scope grows); cross-model review loops are the standard guard against agents gaming tests, though hack-prone behavior is sometimes desirable for quick proofs of concept; operate a single agent long enough to develop model empathy before reaching for orchestration; and don't ship features until a real user asks. A companion experiment, JJ Hub, explores a sandbox-first code-hosting alternative with per-task data permissions."
+    ],
+    "qa": [
+      {
+        "q": "How should context-management and sub-agent systems be evaluated?",
+        "a": "There are no good public benchmarks yet — existing memory benchmarks test retrieval rather than relevance to the task at hand, and there is no solid data on whether sub-agent architectures outperform single agents; the practical approach is to mine your own traces, collect failure cases, and build use-case-specific evals."
+      },
+      {
+        "q": "How do you make privacy guarantees believable to non-technical participants?",
+        "a": "Open source plus TEE remote attestation satisfies technical users, but a hash convinces no one else, and people visibly freeze up when they know they are being recorded; proposed remedies included contracts that narrowly scope what the system can ever output, per-person consent policies set during onboarding, an off-the-record control that pauses processing, and plain-language descriptions of redaction filters."
+      },
+      {
+        "q": "Should ambient sharing of coding sessions happen inline or in batch?",
+        "a": "Inline prompts at session end can interrupt flow and see only one context window; an end-of-day batch review across all of the day's sessions could produce better posts, while the explicit-sync flow always shows a preview before anything is published."
+      },
+      {
+        "q": "How do orchestration users handle reward hacking by agents?",
+        "a": "Models differ in their propensity to game tests, such as commenting tests out to make them pass; the most common pattern is a review loop in which a second model repeatedly checks the implementer's output until it passes, though some users deliberately want hack-tolerant behavior when racing to a proof of concept."
+      },
+      {
+        "q": "What is changing in how people drive agents?",
+        "a": "A visible shift from breaking work into task tickets toward giving agents measurable goals and room to improvise their way there, with recursive goal trees expected as tasks grow larger; goal-based driving is expected to become the default interface as harnesses add native goal features."
+      }
+    ],
+    "references": [
+      {
+        "label": "Contexto context engine (GitHub)",
+        "href": "https://github.com/ekailabs/contexto"
+      },
+      {
+        "label": "Router public instance",
+        "href": "https://router.teleport.computer"
+      },
+      {
+        "label": "Smithers durable AI workflow orchestrator",
+        "href": "https://smithers.sh"
+      }
+    ],
+    "teams": [
+      "contexto",
+      "conclave",
+      "teleport-router",
+      "jjhub",
+      "feedling",
+      "tinycloud"
+    ],
+    "people": [
+      "andrew-miller",
+      "james-barnes",
+      "dmarz",
+      "lsdan",
+      "prakhar",
+      "kristel-alliksaar",
+      "gonzo-gelso",
+      "will-cory",
+      "wiktoria-leks",
+      "hunter-horsfall",
+      "sevenfloor",
+      "sxysun"
+    ],
+    "source": "private-vault:project-intros-agents-day3-2026-05-21"
+  },
+  {
+    "vault_id": "friday-shaw-greg-2026-05-22",
+    "date": "2026-05-22",
+    "title": "PMF Roast and Founders Journey: Kill Discipline, Feedback Traps, and Open-Source Agent Stacks",
+    "one_liner": "A week-one recap and PMF clinic distilled into principles on validating, killing, and shipping products, capped by a founders-journey conversation and a deep dive into an open-source agentic operating system.",
+    "kind": "salon",
+    "consent": "speaker-pending",
+    "themes": [
+      "PMF discipline: validating, killing, and shipping",
+      "User feedback as signal, not steering wheel",
+      "Open-source agent platforms and movement-building",
+      "Cohort synergy mapping across privacy and agent stacks"
+    ],
+    "insights": [
+      "Loud user demands are usually requests for a faster horse: multiple founders independently reported that their costliest detours came from obeying community pressure to build trend-chasing features that were irrelevant within months — feedback should be pattern-matched for underlying needs, never followed literally.",
+      "Kill discipline beats kill instinct: set explicit go/no-go metrics on both the business and technical side before building, time-box the experiment to roughly a quarter, and honor the rule when the window closes — emotional attachment will always lobby for one more month, and a killed idea later succeeding elsewhere is market timing, not a process failure.",
+      "Validation samples must be diverse: demand-testing inside a single niche community produced a misleading signal that sank one project, because the niche was unrepresentative of the broader market — who you validate with matters as much as whether you validate.",
+      "Complaints are a fit signal, silence is not: one builder chose between two of his own projects by observing that users of one loudly demanded fixes when it broke while users of the other silently churned — anger at breakage means people need the thing.",
+      "Ship at 80 percent and keep moving: months of silent planning toward a perfect answer costs more than visible imperfect motion in one direction, and going quiet after negative feedback compounds the damage — momentum and building in public preserve engagement that polish cannot recover.",
+      "A recurring founder journey is professionalization, not pivoting: build infrastructure for your own need, feel the cost and pain points firsthand, then extend the internal capability into a service for a larger market — starting in the wrong place is recoverable if the end goal is right and each step digs toward it.",
+      "Privacy rarely sells standalone: privacy-focused projects cluster naturally, but the value lands only when bundled into an end-to-end service solving a concrete pain — the cohort was challenged to compose complementary projects into full value chains and to treat each other as first users, aiming to solve a real pain for at least one person in the room within weeks.",
+      "Open-source movements are designed to spread, not scale: making a stack easy to copy, white-label, and build businesses on was framed as the winning strategy, with the corollary that credible leadership of an open movement requires mission motivation over capital motivation, and that replacing subscription services with open-source equivalents can cut infrastructure spend by an order of magnitude."
+    ],
+    "qa": [
+      {
+        "q": "How do you decide which projects to kill when you have the capability to build anything?",
+        "a": "Pre-commit to clear metrics across business development and technical milestones before building, give the idea a fixed window of about one quarter, and accept that emotional attachment will drag the decision out — the discipline is in adhering to the rule you set, and rotating small cross-team squads on short proof-of-concept projects keeps exploration cheap."
+      },
+      {
+        "q": "How should you validate an idea before committing to it?",
+        "a": "Talk to prospective users before writing code and make sure they represent a diverse slice of the market rather than one niche community, since a narrow sample gives false signals; with modern AI tooling a rough proof of concept built in a couple of days is cheap enough to anchor those conversations."
+      },
+      {
+        "q": "When is a product good enough to ship versus over-polished?",
+        "a": "Shipping something roughly 80 percent right and iterating publicly beats spending months hunting the perfect solution; prolonged radio silence — especially after a negative reception — loses more momentum than visibly committing to one imperfect direction."
+      },
+      {
+        "q": "Should builders pursue deep platform visions or narrow incremental tools?",
+        "a": "Both are legitimate but suit different founder personas: ambitious ecosystem bets aim at things that cannot be trivially replicated and attract people through vision, while incremental builders capture real arbitrage opportunities step by step — the failure mode is confusing which game you are playing."
+      },
+      {
+        "q": "How do you keep an agent safe in shared and group contexts?",
+        "a": "Defense was framed in layers: role-gated actions where unauthorized capabilities are never even present in the agent's context, model-level hardening against conversational social-engineering attacks, and cross-platform identity verification — because traditional abuse detection fails once attacks become natural-language manipulation."
+      }
+    ],
+    "references": [
+      {
+        "label": "elizaOS repository",
+        "href": "https://github.com/elizaOS/eliza"
+      },
+      {
+        "label": "Smithers agent workflow engine",
+        "href": "https://smithers.sh"
+      },
+      {
+        "label": "The Bitter Lesson (Rich Sutton)",
+        "href": "http://www.incompleteideas.net/IncIdeas/BitterLesson.html"
+      },
+      {
+        "label": "The Alberta Plan for AI Research",
+        "href": "https://arxiv.org/abs/2208.11173"
+      }
+    ],
+    "teams": [
+      "elizaos",
+      "jjhub",
+      "tinycloud",
+      "teesql",
+      "bitrouter",
+      "dcnet",
+      "signalstack",
+      "teleport-router",
+      "etherea",
+      "feedling",
+      "shape-rotator-os"
+    ],
+    "people": [
+      "shaw-walters",
+      "dmarz",
+      "albiona-hoti",
+      "andrew-miller",
+      "james-barnes",
+      "hunter-horsfall",
+      "lsdan",
+      "gonzo-gelso",
+      "kristel-alliksaar",
+      "novel-tokens",
+      "vishesh",
+      "will-cory"
+    ],
+    "source": "private-vault:friday-shaw-greg-2026-05-22"
+  },
+  {
+    "vault_id": "shape-rotator-project-map-guests-2026-05-22",
+    "date": "2026-05-22",
+    "title": "Project Map Walkthrough with Guests: Clusters, Synergies, and PMF Discipline",
+    "one_liner": "A guided tour of the living cohort project map with guest founders, tracing how the three project clusters interlock as a supply chain and distilling hard-won lessons on kill criteria and demand signals.",
+    "kind": "salon",
+    "consent": "cohort-internal",
+    "themes": [
+      "Project clustering and synergy mapping",
+      "Product-market-fit discipline and kill criteria",
+      "Privacy infrastructure as a supply chain for consumer and agentic apps",
+      "Agent-native development tooling"
+    ],
+    "insights": [
+      "The cohort's living project map is positioned as an evolving instrument, not a static directory: it clusters projects by metadata and surfaces complementarity and dependency edges over time, with the explicit goal of accelerating each team's product-market-fit search.",
+      "The cohort organizes into three thematic clusters — consumer and information markets, local-first privacy-preserving infrastructure, and agentic tooling — with the observation that agentic work permeates everything and its teams could plausibly sit in any cluster.",
+      "The map exposed a gap inside the privacy cluster: its projects share foundations in key management, cryptography, and private data, but direct intra-cluster product synergy is thinner than expected; the larger opportunity is supply-chain edges outward, since privacy is hard to sell standalone and lands best bundled with a concrete capability for consumer and agentic teams.",
+      "A recurring idea during the mapping was deliberate recombination: taking the thinnest valuable piece of several cohort projects and composing them into one end-to-end useful product, with the cohort itself serving as the seed-user sandbox for evaluating what good looks like.",
+      "A founder-journey recap surfaced a classic cold-start lesson: two-sided networks have repeatedly bootstrapped supply by granting early supply-side participants ownership upside, onboarding both sides of a marketplace atomically rather than sequentially.",
+      "A guest founder with long dev-shop experience argued that killing projects is the harder discipline: define business and technical success metrics before building, talk to prospective users before writing code, time-box experiments to roughly two months, and beware validating only with a narrow in-group whose feedback misrepresents the broader market.",
+      "A reliable demand heuristic emerged from one builder's pivot story: users who complain loudly when a tool breaks are evidence of real pull, while silent churn after breakage signals absent product-market fit — loud frustration justified doubling down on the workflow tool over its predecessor.",
+      "For teams building in fast-moving AI, the guidance was to seek a position defensible for roughly three to six months against both model-capability shifts and what large labs ship, and in the near term to make something concretely useful to at least one fellow cohort member before the upcoming demo-day milestone."
+    ],
+    "qa": [
+      {
+        "q": "How do you decide what to build and what to kill when you are capable of building anything?",
+        "a": "Set explicit business-development and technical metrics before starting, talk to the people who would actually use it first, time-box the attempt to about two months, and watch for emotional attachment — the most common failure is giving a dying project one more cycle than the rules allow."
+      },
+      {
+        "q": "Why do products with months of investment still fail validation?",
+        "a": "A frequent cause is validating with an unrepresentative niche: an enthusiastic in-group gives false-positive signals that do not generalize to the wider market, and shifting landscape conditions then finish the job."
+      },
+      {
+        "q": "How should an agent-workflow engine relate to an agent-focused code forge?",
+        "a": "The forge works as a settlement-layer sandbox where agents can commit at very high volume with limited blast radius, periodically settling changes back to the canonical repository; the durable agent-first workflow engine is the actual innovation, analogous to CI automation but designed for agents."
+      },
+      {
+        "q": "How did the user-owned-data platform explain its apparent pivot away from transcription?",
+        "a": "Transcription was reframed as one especially rich type of user-owned data feeding a broader substrate built around four components — capturing, structuring, storing, and computing on data — while acknowledging the tension that no small team can build every layer of that stack alone."
+      },
+      {
+        "q": "What is a strong early demand signal for developer tools?",
+        "a": "Vocal user frustration when the tool breaks: people who push for fixes want the tool to exist, whereas silent churn after a failure means there was never real pull."
+      }
+    ],
+    "references": [
+      {
+        "label": "The Cold Start Problem by Andrew Chen (atomic networks and marketplace bootstrap)",
+        "href": "https://www.coldstart.com"
+      }
+    ],
+    "teams": [
+      "bitrouter",
+      "conclave",
+      "contexto",
+      "daedalus",
+      "dcnet",
+      "elizaos",
+      "etherea",
+      "feedling",
+      "jjhub",
+      "pramaana",
+      "shape-rotator-os",
+      "signalstack",
+      "teesql",
+      "teleport-router",
+      "tinycloud"
+    ],
+    "people": [
+      "andrew-miller",
+      "dmarz",
+      "gonzo-gelso",
+      "hunter-horsfall",
+      "james-barnes",
+      "kelsen-liu",
+      "kristel-alliksaar",
+      "lsdan",
+      "novel-tokens",
+      "patrick-messall",
+      "prakhar",
+      "roman-svistel",
+      "sam-gbafa",
+      "sevenfloor",
+      "shaw-walters",
+      "sxysun",
+      "will-cory"
+    ],
+    "source": "private-vault:shape-rotator-project-map-guests-2026-05-22"
+  },
+  {
+    "vault_id": "elocute-2026-05-26",
+    "date": "2026-05-26",
+    "title": "Elocute: AI Speaking-Practice App — Week-2 Project Intro",
+    "one_liner": "Albiona demoed Elocute, an AI articulation-practice app built around short private speaking sessions, and the room probed monetization, retention, privacy, and agent integrations.",
+    "kind": "intros",
+    "consent": "cohort-internal",
+    "themes": [
+      "AI-scored speaking and articulation practice",
+      "Intentional friction as consumer-app design philosophy",
+      "Monetization and retention for consumer AI products",
+      "Privacy and TEEs as a premium differentiator"
+    ],
+    "insights": [
+      "Elocute is a live web app for practicing spoken articulation in two-to-three-minute sessions: users pick a theme and depth level, read a short generated prompt, record themselves speaking about it, and receive an AI score covering delivery (filler words, pacing, structure, language) plus a newer content-accuracy layer that checks whether the substance of what was said actually tracked the topic.",
+      "The product grew out of the presenter's short-form content experiments on high agency and adding friction to daily life; a video about a speaking-club-style two-minute impromptu format drew enough audience demand that an MVP was shipped within days, and traction since has come almost entirely from short-form video rather than any formal launch.",
+      "The core design philosophy runs counter to frictionless consumer apps: the bet is that the most valuable practice is private and low-stakes, so the app aims for a tiny onboarding surface and a daily-consistency habit loop where visible progress (e.g., declining filler-word counts) is the retention hook.",
+      "On the backend the app tracks topic-selection behavior — what users pick, skip, repeat, and favorite — to build a preference graph that personalizes future topic suggestions and stretches users toward weak areas surfaced on their profile.",
+      "The roadmap includes user-uploaded custom topics (pitch scripts, coursework, job-talk prep were all requested), achievement levels and predicted progress roadmaps, shareable challenges, persona-targeted variants (students, non-native professional speakers entering new markets), and longer-term exploration of agent-to-agent communication products under the same communication vertical.",
+      "On monetization the room converged on charging for what actually costs money — compute-heavy depth like custom topics, narrower metrics, and longitudinal tracking — while keeping light features free, with the transition framed as moving users from casually using the product to needing it before adding a paywall.",
+      "Marketing advice from the room centered on selling to the underlying emotional driver (confidence, insecurity, career aspiration) rather than the feature set, since public-speaking improvement is the solution to a felt problem, not the problem itself.",
+      "A retention gap was diagnosed openly: roughly half of users tried the app only a few times, attributed to an inconsistent content cadence and the absence of any callback loop at signup; reminder loops, possibly more personal channels than email, were proposed as the fix."
+    ],
+    "qa": [
+      {
+        "q": "Can users upload their own material — like a written pitch — to practice against?",
+        "a": "Not yet, but it is among the most-requested features and on the roadmap; people have asked to practice university subjects, job presentations, and pitches against their own content."
+      },
+      {
+        "q": "What is the monetization plan?",
+        "a": "First convert users from using the product to needing it, then introduce a paywall; the room's guidance was to gate the compute-costly depth features (custom topics, finer-grained metrics, progress tracking over time) rather than nickel-and-diming basic usage."
+      },
+      {
+        "q": "Could this integrate with agents via MCP so practice topics come from a user's own context?",
+        "a": "The presenter was enthusiastic: an MCP integration could pull practice topics from a user's existing LLM conversation threads or product domain, and it was flagged as a near-term build."
+      },
+      {
+        "q": "How will privacy be handled when users practice on deeply personal material?",
+        "a": "It depends on the stakes — high-stakes private practice demands clearly communicated data handling, and the room suggested a TEE-backed private mode could be exactly the premium tier privacy-conscious users would pay extra for."
+      },
+      {
+        "q": "Why do so many users churn after one to three sessions?",
+        "a": "The presenter attributed it to dropping the content cadence that drove signups and to having no email or callback loop in place at launch; closing that loop with reminders is a priority."
+      }
+    ],
+    "references": [
+      {
+        "label": "Elocute app",
+        "href": "https://elocute.fun"
+      }
+    ],
+    "teams": [
+      "elocute"
+    ],
+    "people": [
+      "albiona-hoti",
+      "lsdan",
+      "shaw-walters",
+      "kristel-alliksaar",
+      "andrew-miller"
+    ],
+    "source": "private-vault:elocute-2026-05-26"
+  },
+  {
+    "vault_id": "wikigen-crossroads-gil-pmf-2026-05-26",
+    "date": "2026-05-26",
+    "title": "Week 2 Project Intros (Crossroads, Wikigen) and a Product-Market Fit Deep Dive",
+    "one_liner": "A cohort team presented a key-encumbrance-based cross-chain exchange and fielded sharp market-viability questions, followed by a guest session on what product-market fit actually means for deep-tech founders.",
+    "kind": "intros",
+    "consent": "speaker-pending",
+    "themes": [
+      "trust-minimized cross-chain infrastructure",
+      "product-market fit fundamentals",
+      "founder-market fit and niche-first go-to-market",
+      "AI-era moats and reliability"
+    ],
+    "insights": [
+      "Crossroads is building a cross-chain exchange that replaces bridge validator sets and custodians with key encumbrance: policy is embedded directly in the signing authority, so a payout transaction is signed only when verified chain state, account epoch, and signing conditions are satisfied — shifting the control point from an external approval network into cryptographic policy and mitigating replay and double-spend risks.",
+      "The claimed advantages of the design are threefold: permissionless onboarding of new assets and chains (anyone can define an asset contract and liquidity pool without coordinating with the core team), wrapped assets that exist as standard ERC-20s and compose directly with existing DeFi, and a cost structure that trends toward centralized-exchange pricing because there are no validator or custodian fees, only liquidity spread and execution overhead.",
+      "The user model is one persistent universal balance instead of discrete bridge-plus-swap steps: deposit a native asset to an encumbered account, prove deposit inclusion with a Merkle transaction proof to mint a wrapped balance, swap freely within that balance, and withdraw via a signing committee that checks protocol policy before authorizing the destination-chain payout. Remaining work includes replacing the mock signing committee with real MPC and extending beyond EVM chains.",
+      "Go-to-market angles under consideration: crypto-native users on routes where existing bridges are slow, expensive, or absent; agents doing repeated cross-chain actions that want a persistent balance exposed via API rather than bridging each time; and institutions or real-world-asset players who want custody rules encoded directly into execution policy instead of trusting a custodian.",
+      "Q&A surfaced what business buyers actually weigh for cross-chain infrastructure: decentralization and compliance posture (centralized components become liability when regulators or financial institutions ask questions) and latency (slow cross-chain state sync creates exploitable information asymmetry). Past bridge exploits where a multisig effectively rubber-stamped a single proposer were cited as exactly the failure class that policy-constrained signing addresses.",
+      "Mentor market context for the team and the room: pure cross-chain swap and intent-solver businesses carry razor-thin spreads and low volume in the current market, and experienced operators in the space have pivoted toward capital-efficiency and credit services or run their own proprietary solvers to retain margin. The advice was to interrogate the market before polishing the tech, dogfood with friendly power users to measure real impact, and explore agentic payments, negotiation, and coordination as less crowded adjacencies where research rigor matters more.",
+      "The guest lecture's core PMF themes (general principles, unattributed pending speaker consent): product-market fit means a proven value hypothesis for a specific segment — sustained retention and willingness to pay, not raw signups, viral spikes, or satisfaction scores; classic failure modes are building in the dark without user contact, spreading across too many personas, scaling before fit is proven, and oversharing roadmaps prematurely; the winning pattern is a narrow, winnable niche with adjacent niches to expand into, with viable unit economics that account for cost of sale, and moats tested over time via network effects, distribution advantages, and sector complexity.",
+      "AI-era PMF themes that resonated with the cohort: horizontal AI layers face cannibalization by large foundation-model labs, so defensibility shifts to distribution, proprietary data and access, and closing the gap between an 80% demo and a 99%-reliable workflow — including outcome-based pricing for fully owned workflows and automating the human weak links that bottleneck technology diffusion. A recurring cohort-wide observation was that founder-market fit precedes product-market fit: technically strong teams' common gap is market sense, and B2B readiness requires reliability, SLAs, controls, and permissions — with the cohort itself being the best first user base to win over on product strength."
+    ],
+    "qa": [
+      {
+        "q": "Is there a deployed, running version of Crossroads?",
+        "a": "Not yet — the demo currently runs locally. The team has not chosen which chain to deploy onto, and latency benchmarking is deferred until that decision is made."
+      },
+      {
+        "q": "Can a company self-host the verification infrastructure for compliance reasons?",
+        "a": "Self-hosting intent verification is not supported, but the modular design means anyone can permissionlessly onboard a new asset or chain by defining its asset contract and liquidity pool, after which others can swap that asset."
+      },
+      {
+        "q": "How does this differ from existing bridges and cross-chain messaging layers?",
+        "a": "Most existing systems route trust through a validator network or external intent verification; this design ties execution to policy-constrained signing on encumbered accounts, so release of assets depends on cryptographic policy and verified state rather than an external approval network."
+      },
+      {
+        "q": "What do enterprise-leaning buyers care about most in cross-chain infrastructure?",
+        "a": "Two things: decentralization and compliance posture, since centralized components create liability when regulators ask questions, and latency, since slow cross-chain state updates create information asymmetry that can be exploited."
+      },
+      {
+        "q": "Is cross-chain swap infrastructure the right market to attack in 2026?",
+        "a": "Mentor feedback was skeptical of the pure-solver market: spreads are thin, volume is low, and seasoned teams have pivoted to capital-efficiency or credit services or run proprietary solvers for margin. The suggested reframe was to question the market before the tech and consider agentic payment and coordination use cases as a blue-ocean angle."
+      }
+    ],
+    "references": [
+      {
+        "label": "Liquefaction: Privately Liquefying Blockchain Assets (key-encumbrance research paper)",
+        "href": "https://arxiv.org/abs/2412.02634"
+      }
+    ],
+    "teams": [
+      "crossroads",
+      "wikigen"
+    ],
+    "people": [
+      "chloe-wang",
+      "andrew-miller",
+      "hudson",
+      "lsdan",
+      "albiona-hoti",
+      "dmarz",
+      "mikeishiring"
+    ],
+    "source": "private-vault:wikigen-crossroads-gil-pmf-2026-05-26"
+  },
+  {
+    "vault_id": "icp-user-interviews-2026-05-27",
+    "date": "2026-05-27",
+    "title": "Ideal Customer Profiling and User Interviews: Alignment Before Interviews",
+    "one_liner": "A founder retrospective on why customer profiling starts with internal and co-founder alignment, and how empathy-driven segment choice plus in-person observation turn user interviews into usable signal.",
+    "kind": "workshop",
+    "consent": "cohort-internal",
+    "themes": [
+      "Founder-customer alignment",
+      "Customer segment selection",
+      "Interview and live-feedback technique",
+      "Synthesizing signal into product decisions"
+    ],
+    "insights": [
+      "Customer alignment is a three-layer cascade: be honest about your own motivations first, then converge with co-founders on a single definition of success, and only then interview customers — skipping a layer means interview feedback scatters across audiences and cannot be synthesized.",
+      "Building from a personal wound is a legitimate product origin, but only if you name it: explicitly separate which requirements serve the user and which serve the founder's own psychological needs, otherwise you cannot tell user-serving decisions from self-serving ones.",
+      "Two adjacent customer profiles on shared infrastructure are really two products with two roadmaps and two definitions of working; straddling both is often conflict avoidance in disguise, and the typical outcome is a beautiful product that retains neither profile.",
+      "Choose segments by empathy density: pick the group whose problem you have lived, deeply understand, or even contributed to causing — that is also the group you can stand to talk with every day, which is the practical test of segment fit alongside market size.",
+      "Commit to the problem-and-audience pair, not the product expression: with real conviction about the audience, a failed product version sends you back to the drawing board for that audience instead of out of the market entirely.",
+      "Watch for the principal-agent trap in interviews: when the buyer is not the end user (for example, products purchased as gifts for someone else), the feedback loop stretches and retention data misleads — interview the actual user directly.",
+      "In-person observation beats remote or written feedback: people are polite in email but cannot easily hide hesitation, body language, or confusion live, and being present lets you improvise variations and recover from failures in real time.",
+      "Polished production is not validation — a flawless stage-quality launch experience can amplify something that works, but it can equally mask a missing foundation of genuine customer understanding."
+    ],
+    "qa": [
+      {
+        "q": "How do you select a customer segment when weighing market research against intrinsic motivation?",
+        "a": "Search for where you feel the deepest empathy — a problem you experienced, watched people you know experience, or contributed to creating. That feeling predicts whether you will sustain daily customer conversations, and it should anchor the choice alongside conventional sizing criteria."
+      },
+      {
+        "q": "How do you hold yourself accountable when your actions drift from what you decided?",
+        "a": "Treat it as a discipline-and-habits problem: revisit past mistakes, notice when you are drifting toward areas where success is comfortable, and recognize that keeping a foot in two audiences is often conflict avoidance rather than strategy — commitment to one profile forces the hard but necessary arguments."
+      },
+      {
+        "q": "How do you reconcile committing to a narrow segment with taking creative risks?",
+        "a": "Pick a focus that is both sufficiently large and sufficiently sharp that you can still run experiments inside it; sequence the work so you get clean signal from a defined audience first, then let that audience grow rather than chasing every adjacent use case at once."
+      },
+      {
+        "q": "How do you get honest feedback when demoing a live experience?",
+        "a": "Observe behavior rather than collecting opinions: watch whether people engage unprompted, whether they know what to do, and how their energy shifts. Reactions in the room are far harder to fake than written feedback, and live failures reveal what the audience actually values."
+      },
+      {
+        "q": "How do you get first-time users to engage with an unfamiliar interactive product?",
+        "a": "Seed the first interaction — have a prepared participant or an ambient demo running when people arrive, so newcomers see both the input and the output before trying it themselves; one visible user typically triggers a chain of organic participation."
+      }
+    ],
+    "references": [
+      {
+        "label": "Principal-agent problem (economics concept applied to buyer-vs-user feedback loops)",
+        "href": "https://en.wikipedia.org/wiki/Principal%E2%80%93agent_problem"
+      },
+      {
+        "label": "Y Combinator's 'make something people want' principle",
+        "href": "https://www.ycombinator.com"
+      }
+    ],
+    "teams": [
+      "etherea",
+      "feedling",
+      "teleport-router",
+      "tinycloud"
+    ],
+    "people": [
+      "james-barnes",
+      "albiona-hoti",
+      "andrew-miller",
+      "kristel-alliksaar",
+      "hunter-horsfall",
+      "sevenfloor",
+      "will-cory"
+    ],
+    "source": "private-vault:icp-user-interviews-2026-05-27"
+  },
+  {
+    "vault_id": "dstack-hangout",
+    "date": null,
+    "title": "dstack hangout: reproducible Debian base images for TEE and agent workloads",
+    "one_liner": "Informal dstack-adjacent session on building a shared, reproducible Debian image layer that TEE stacks and agent operating systems can both build on instead of reinventing image tooling.",
+    "kind": "hangout",
+    "consent": "cohort-internal",
+    "themes": [
+      "Reproducible and verifiable TEE base images",
+      "Shared foundational infrastructure over per-project wheel reinvention",
+      "Convenience vs verifiability in image distribution"
+    ],
+    "insights": [
+      "A program-side engineer is building a foundational image-building layer beneath dstack-style TEE stacks, designed as an SDK: usable out of the box or forked and extended, with security patches and new features structured as modules that downstream forks can pull in without heavy maintenance.",
+      "The distribution plan centers on a Debian package repository of reproducible binaries that can be independently verified, with the repo carrying the metadata needed to check builds and attestation, so consumers reference the repo rather than rebuilding everything themselves.",
+      "mkosi was strongly recommended over hand-rolling a Debian fork for minimal ISOs; it works like Packer for custom Debian spin-offs, and the discussed setup pairs it with a Nix environment and an in-VM build so a skeptical verifier can clone the repo, run one build command, and reproduce the image file.",
+      "This directly addresses the known weakness of Yocto-style self-building images: they are technically reproducible but so painful to set up that almost nobody actually self-builds, which undermines the trust story.",
+      "There is a converging pattern of teams building minimal, security-hardened Debian derivatives (with Tails as a structural reference, including its kernel and hardening recommendations) tailored to agent and blockchain workloads with TEE compatibility, rather than running stock distros.",
+      "On the prebuilt-vs-self-built tension, the position discussed was to serve both audiences: ship ready-made guest images for customers who want an out-of-the-box solution, while keeping the self-build path trivial for anyone who wants transparency around reproducibility and attestation."
+    ],
+    "qa": [
+      {
+        "q": "Is there an easier way to produce a minimal custom Debian ISO than maintaining a full fork (e.g. of Tails)?",
+        "a": "Yes — use mkosi instead of forking. It behaves like Packer for Debian spin-offs, yields a small base ISO with hardening patches included, and avoids the months-long pain of maintaining a fork by hand."
+      }
+    ],
+    "references": [
+      {
+        "label": "mkosi (systemd project for building OS images)",
+        "href": "https://github.com/systemd/mkosi"
+      },
+      {
+        "label": "Tails (Debian-based hardened live OS)",
+        "href": "https://tails.net"
+      },
+      {
+        "label": "dstack (open-source TEE deployment stack)",
+        "href": "https://github.com/Dstack-TEE/dstack"
+      }
+    ],
+    "teams": [
+      "elizaos"
+    ],
+    "people": [
+      "shaw-walters",
+      "lsdan",
+      "albiona-hoti"
+    ],
+    "source": "private-vault:dstack-hangout"
+  },
+  {
+    "vault_id": "tee-dstack-easytee-phala",
+    "date": null,
+    "title": "TEE Convergence Salon: dstack, easyTEE, and Platform-Independent Attestation",
+    "one_liner": "A whiteboard session mapping Flashbots-derived reproducible-build and event-level attestation tooling onto Phala's dstack, converging on attested TLS, attested WireGuard, and one-command bootstrap.",
+    "kind": "salon",
+    "consent": "cohort-internal",
+    "themes": [
+      "Reproducible TEE image builds",
+      "Platform-independent attestation and measurement",
+      "Attested transport layers (aTLS, attested WireGuard)",
+      "Deployment bootstrap and orchestration convergence"
+    ],
+    "insights": [
+      "A declarative, mkosi-style build system (easyTEE, derived from Flashbots production image tooling) compresses large Yocto meta-layer stacks into roughly a hundred lines of configuration, pins packages to dated Debian archive snapshots so anyone rebuilding years later gets bit-identical artifacts, and runs the whole build inside a throwaway VM clone — one command on an ordinary laptop yields both the image and its attestation hashes, addressing the reality that almost no end users ever successfully rebuild Yocto-based TEE images to verify measurements themselves.",
+      "The open build tooling stays maintained as a byproduct of production needs: security and hardening patches flow from the production image repos through a strictly scoped shared directory into the public project, so cohort and ecosystem teams inherit upstream security updates without separate maintenance goodwill.",
+      "Event-level attestation replaces opaque register comparison: instead of matching raw RTMR0/1/2 values, the verifier carries individual boot-event measurements (kernel, initrd, ACPI hashes, RAM size, disk count) alongside each TDX quote and reconstructs the expected quote at verification time — producing reference values that stay stable across firmware changes and work identically on bare metal, GCP, and Azure, removing the need to trust cloud vTPM attestation chains that ultimately reduce to trusting the cloud provider.",
+      "Because ACPI/AML cannot be trusted by default, the discussed hardening whitelists only the few opcodes and table types hypervisor VMs actually use and patches the kernel to refuse unsafe tables — so the mere existence of a valid TDX quote implies safe ACPI, eliminating per-platform measurement churn; the approach parallels published research on malicious AML and similar work done for SEV-SNP, where ACPI tables are unmeasured.",
+      "Only a handful of inputs actually perturb RTMR0: RAM size shifts handoff-table placement and disk count changes the boot options UEFI enumerates, while CPU count does not affect the measurement — meaning reference values can be regenerated deterministically from a short declared input list rather than re-measured per deployment.",
+      "dstack can adopt platform-independent attestation without a wire-protocol change: feed reconstructed RTMR reference values from the event-level verifier into the existing RA-TLS validation inputs (or negotiate a v2 of the handshake), so the KMS, gateway, and CVM registration paths gain portability while existing deployments keep working.",
+      "The dstack cold-start sequence (hardware key provider, VMM, bootstrap KMS, gateway, then second-node onboarding for redundancy) was identified as the most error-prone manual step, with ordering and race issues; the converged design bakes these components into specialized declaratively built images orchestrated by systemd dependency graphs, collapsing setup to an install script plus a bootstrap-or-join step with invite URLs for redundant key-management nodes.",
+      "On orchestration, running Kubernetes inside a CVM is trivial but adds no value, and Confidential Containers was judged over-engineered for this ecosystem; the convergent alternative is attested WireGuard plus a small Consul-style distributed key-value layer with attestation-gated key release — and the group noted that many teams across the program and the wider ecosystem keep reinventing exactly this service-mesh-shaped plumbing, making small importable modules for attestation, attested transport, and peer discovery the highest-leverage shared investment."
+    ],
+    "qa": [
+      {
+        "q": "How does the build system guarantee reproducibility without depending on a third-party build framework?",
+        "a": "It pins every package to a dated snapshot of the Debian archive (which retains depublished packages for over a decade), builds inside a disposable clone of an already-reproducible filesystem, and applies a default set of reproducibility compiler flags that covers large real-world codebases — so identical inputs produce identical artifacts even when rebuilt years later, and dependency changes simply invalidate the cache."
+      },
+      {
+        "q": "Can the platform-independent attestation approach handle GPU confidential VMs?",
+        "a": "GPUs attach as PCI devices and mostly contribute hardware-topology entries to ACPI; with topology-only AML permitted, GPU machines yield slightly different ACPI hashes but flow through the same verification path, and current datacenter GPU generations have been exercised by teams in the room."
+      },
+      {
+        "q": "Should a team fork the shared image builder or consume it as an upstream dependency?",
+        "a": "Fork it for full ownership — the per-project layer typically reduces to a few lines of declarative configuration, while security updates continue to flow from upstream, and forking preserves flexibility for custom kernel modules and platform-specific image variants."
+      },
+      {
+        "q": "Why not build multi-CVM orchestration on Confidential Containers?",
+        "a": "It was assessed as over-engineered for what this ecosystem needs; most teams really want inter-CVM networking with attested identity and shared state, which attested WireGuard plus a distributed key-value store with policy-gated key release can deliver with far less fighting against an external framework."
+      },
+      {
+        "q": "How do redundant key-management nodes share a stable key when the TEE hardware offers no persistent key API?",
+        "a": "A hardware-backed local key provider outside the CVM returns a stable key to the bootstrap KMS, which seals it to disk; additional nodes then join through an onboarding protocol rather than re-bootstrapping, since each fresh bootstrap would otherwise mint a new key — this onboarding step is the part the group most wants to automate away."
+      }
+    ],
+    "references": [
+      {
+        "label": "dstack repository (Dstack-TEE)",
+        "href": "https://github.com/Dstack-TEE/dstack"
+      },
+      {
+        "label": "Phala Network documentation",
+        "href": "https://docs.phala.network"
+      },
+      {
+        "label": "mkosi declarative image builder (systemd)",
+        "href": "https://github.com/systemd/mkosi"
+      },
+      {
+        "label": "Confidential Containers project",
+        "href": "https://github.com/confidential-containers"
+      },
+      {
+        "label": "Contrast (Edgeless Systems), prior art on hardening CoCo",
+        "href": "https://github.com/edgelesssys/contrast"
+      },
+      {
+        "label": "Debian snapshot archive",
+        "href": "https://snapshot.debian.org"
+      }
+    ],
+    "teams": [
+      "teesql"
+    ],
+    "people": [
+      "lsdan",
+      "wiktoria-leks",
+      "gonzo-gelso",
+      "andrew-miller"
+    ],
+    "source": "private-vault:tee-dstack-easytee-phala"
+  }
+]

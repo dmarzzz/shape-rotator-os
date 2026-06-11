@@ -164,6 +164,7 @@ function _writeSurfaceLs(surface) {
       cohort_vocab: surface.cohort_vocab || {},
       calendar: surface.calendar || null,
       constellation_cues: surface.constellation_cues || [],
+      session_insights: surface.session_insights || [],
       person_timeline: surface.person_timeline || {},
       team_timeline: surface.team_timeline || {},
       _generated_at: surface._generated_at || null,
@@ -188,6 +189,7 @@ function emptyShape() {
     cohort_vocab: {},
     calendar: null,
     constellation_cues: [],
+    session_insights: [],
     person_timeline: {},
     team_timeline: {},
   };
@@ -264,6 +266,10 @@ function normalize(data) {
     asks:         Array.isArray(data?.asks)     ? data.asks     : [],
     cohort_vocab: (data?.cohort_vocab && typeof data.cohort_vocab === "object") ? data.cohort_vocab : {},
     constellation_cues: Array.isArray(data?.constellation_cues) ? data.constellation_cues : [],
+    // Distilled session readouts (public-safe, hardcoded via
+    // scripts/ingest-session-readouts.mjs). Not rendered yet — passed
+    // through so a future insights surface needs no data-plane change.
+    session_insights: Array.isArray(data?.session_insights) ? data.session_insights : [],
     person_timeline: timelineMap(data?.person_timeline),
     team_timeline: timelineMap(data?.team_timeline),
     // Pre-baked calendar bundle from the GH `cohort-data/program/calendar.json`
@@ -371,6 +377,15 @@ async function loadFromGithub() {
   } catch (e) {
     console.warn("[cohort-source] constellation-cues.json fetch/parse failed:", e?.message || e);
     out.constellation_cues = [];
+  }
+
+  try {
+    const insightsRaw = await fetchRaw("cohort-data/session-insights.json");
+    const insights = JSON.parse(insightsRaw);
+    out.session_insights = Array.isArray(insights) ? insights : [];
+  } catch (e) {
+    console.warn("[cohort-source] session-insights.json fetch/parse failed:", e?.message || e);
+    out.session_insights = [];
   }
 
   // Generated read models that do not fully live in cohort-data/*.md. The live

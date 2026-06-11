@@ -2293,6 +2293,9 @@ function constTranscriptCueKey(cue) {
 function constSourceCueHref(source) {
   const raw = constText(source);
   if (!raw) return "";
+  // private-vault citations reference raw transcripts held outside the
+  // public repo — provenance label only, never a public link.
+  if (/^private-vault:/i.test(raw)) return "";
   if (/^https?:\/\//i.test(raw)) return raw;
   const match = raw.match(/^(.*?)(?::(\d+))?$/);
   const pathPart = (match?.[1] || raw).replace(/\\/g, "/").replace(/^\/+/, "");

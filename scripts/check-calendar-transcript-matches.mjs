@@ -73,6 +73,7 @@ const blocksByDate = calendarBlocksByDate();
 assert.ok(Array.isArray(CALENDAR_TRANSCRIPT_MATCHES), "CALENDAR_TRANSCRIPT_MATCHES must be an array");
 
 const seenPaths = new Set();
+const seenVaultIds = new Set();
 for (const [index, match] of CALENDAR_TRANSCRIPT_MATCHES.entries()) {
   assert.match(match?.date || "", /^\d{4}-\d{2}-\d{2}$/, `match ${index} must have an ISO date`);
   const fragments = Array.isArray(match.title_contains)
@@ -90,7 +91,26 @@ for (const [index, match] of CALENDAR_TRANSCRIPT_MATCHES.entries()) {
   assert.ok(Array.isArray(match.sources) && match.sources.length, `match ${index} must have sources`);
 
   for (const [sourceIndex, source] of match.sources.entries()) {
-    assert.ok(source?.path, `match ${index} source ${sourceIndex} must have a path`);
+    const where = `match ${index} source ${sourceIndex}`;
+    if (source?.held) {
+      // Held-private source: the raw transcript lives outside the public
+      // repo; only the timeline anchor + mention snapshot are committed.
+      assert.equal(source.held, "private-vault", `${where} held must be "private-vault"`);
+      assert.ok(!source.path, `${where} must not carry a path when held privately`);
+      assert.match(source.vault_id || "", /^[a-z0-9][a-z0-9-]*$/, `${where} must have a kebab-case vault_id`);
+      assert.ok(source.label, `${where} must keep a label`);
+      for (const key of ["mentions_direct", "mentions_any"]) {
+        const list = source[key];
+        if (list == null) continue;
+        assert.ok(Array.isArray(list), `${where} ${key} must be an array`);
+        for (const id of list) {
+          assert.match(String(id), /^[a-z0-9][a-z0-9-]*$/, `${where} ${key} entries must be record_id slugs`);
+        }
+      }
+      seenVaultIds.add(source.vault_id);
+      continue;
+    }
+    assert.ok(source?.path, `${where} must have a path or be held privately`);
     const absPath = path.resolve(ROOT, source.path);
     const relToRaw = path.relative(RAW_ROOT, absPath);
     assert.ok(!relToRaw.startsWith("..") && !path.isAbsolute(relToRaw), `${source.path} must stay under raw-scripts`);
@@ -100,4 +120,4 @@ for (const [index, match] of CALENDAR_TRANSCRIPT_MATCHES.entries()) {
   }
 }
 
-console.log(`calendar transcript matches ok (${CALENDAR_TRANSCRIPT_MATCHES.length} matches, ${seenPaths.size} unique sources)`);
+console.log(`calendar transcript matches ok (${CALENDAR_TRANSCRIPT_MATCHES.length} matches, ${seenPaths.size} bundled sources, ${seenVaultIds.size} held privately)`);
