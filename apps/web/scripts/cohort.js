@@ -7,6 +7,8 @@ import {
   renderProfileForm,
   shapeForTeam,
   domainLabel,
+  cohortRosterForTeam,
+  compactCohortLinkItems,
 } from "@shape-rotator/shape-ui";
 
 const TEAM_CHIPS = [
@@ -378,24 +380,6 @@ function cohortDetailHref(recordId) {
   return `#${encodeURIComponent(recordId || "")}`;
 }
 
-function prettyLinkLabel(key) {
-  const labels = {
-    github: "GitHub",
-    repo: "Repo",
-    repository: "Repo",
-    website: "Website",
-    site: "Website",
-    demo: "Demo",
-    docs: "Docs",
-    deck: "Deck",
-    linkedin: "LinkedIn",
-    x: "X",
-    twitter: "X",
-  };
-  const k = String(key || "").toLowerCase();
-  return labels[k] || labelize(k || "link").replace(/\b\w/g, c => c.toUpperCase());
-}
-
 function compactPills(items) {
   const rows = asArray(items)
     .map(item => String(item || "").trim())
@@ -442,20 +426,12 @@ function compactPills(items) {
   }
 
   function teamPeopleFor(teamId) {
-    return people.filter(p =>
-      p.team === teamId || asArray(p.secondary_teams).includes(teamId)
-    );
+    return cohortRosterForTeam(people, teamId);
   }
 
   function surfaceLinkAnchors(links = {}) {
-    return Object.entries(links || {})
-      .filter(([, value]) => !isBlank(value))
-      .map(([key, value]) => {
-        const href = normalizeLinkHref(key, value);
-        const label = prettyLinkLabel(key);
-        if (!href) return `<span>${escHtml(label)}</span>`;
-        return `<a href="${escAttr(href)}" target="_blank" rel="noopener noreferrer">${escHtml(label)}</a>`;
-      });
+    return compactCohortLinkItems({ links })
+      .map(item => `<a href="${escAttr(item.href)}" target="_blank" rel="noopener noreferrer" title="${escAttr(item.display)}">${escHtml(item.label)}</a>`);
   }
 
   function renderSurfaceRoutes(rec, isPerson, team, members) {
@@ -498,7 +474,9 @@ function compactPills(items) {
     const members = isPerson ? [] : teamPeopleFor(rec.record_id);
     const title = rec.name || rec.record_id;
     const subtitle = isPerson
-      ? (rec.role || team?.name || labelize(rec.role_class || "individual"))
+      ? (team && rec.role
+        ? `${team.name || team.record_id} · ${rec.role}`
+        : (team?.name || rec.role || labelize(rec.role_class || "individual")))
       : (rec.focus || rec.record_id);
     const tags = isPerson
       ? [idLabel, labelize(rec.role_class || rec.role || "individual"), rec.domain ? domainLabel(rec.domain) : "", rec.geo].filter(Boolean)
@@ -647,7 +625,7 @@ function compactPills(items) {
           <div class="cd-rail-list">
             ${rec.domain ? `<div><span>domain</span>${escHtml(domainLabel(rec.domain))}</div>` : ""}
             ${rec.geo ? `<div><span>geo</span>${escHtml(rec.geo)}</div>` : ""}
-            ${memberLinks ? `<div><span>${kind === "project" ? "contributors" : "members"}</span><span class="cd-rail-members">${memberLinks}</span></div>` : ""}
+            ${memberLinks ? `<div><span>${kind === "project" ? "contributors" : "team"}</span><span class="cd-rail-members">${memberLinks}</span></div>` : ""}
             ${rec.membership ? `<div><span>status</span>${escHtml(labelize(rec.membership))}</div>` : ""}
           </div>
         </div>
@@ -716,7 +694,7 @@ function compactPills(items) {
   }
 
   function renderTeamDetail(rec, editUrl, fam, kind) {
-    const teamPeople = people.filter(p => p.team === rec.record_id);
+    const teamPeople = teamPeopleFor(rec.record_id);
     const memberClusters = (cohort.clusters || []).filter(cl =>
       Array.isArray(cl.teams) && cl.teams.includes(rec.record_id)
     );
@@ -799,8 +777,6 @@ function compactPills(items) {
         <a class="cd-back" href="#" aria-label="back to grid"><span aria-hidden="true">&lt;-</span> back</a>
         <div class="cd-tag">
           <span>${escHtml(String(rec.record_id || "").toUpperCase())}</span>
-          <span class="cd-sep">/</span>
-          <span class="cd-kind cd-kind-${escAttr(shapeKind)}">${escHtml(shapeKind)}</span>
         </div>
         <div class="cd-actions">
           <button class="cd-edit" type="button" data-edit-toggle>edit details</button>
