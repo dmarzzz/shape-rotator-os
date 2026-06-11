@@ -12678,7 +12678,6 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   white-space: nowrap;
   color: var(--ink-hi);
 }
-.fg-ready-label { letter-spacing: 0.06em; }
 /* The arc snaps instead of easing when the user prefers reduced motion. */
 @media (prefers-reduced-motion: reduce) { .fg-ring-arc { transition: none; } }
 
