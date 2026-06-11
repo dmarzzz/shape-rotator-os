@@ -1284,6 +1284,7 @@ function computeMembraneData() {
 // Public hook used by membrane/index.js.
 window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   if (mode === "collab") {
+    clearDetailForNavigation();
     state.mode = "constellation";
     state.constellationMode = "collab";
     try {
@@ -1297,6 +1298,7 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   // intel lives inside the context page now — jump to its view there.
   if (mode === "intel") { mode = "context"; opts = { ...(opts || {}), contextView: opts?.contextView || "signals" }; }
   if (!ALCHEMY_MODES.includes(mode)) return;
+  clearDetailForNavigation();
   state.mode = mode;
   if (mode === "context" && opts && opts.contextView) {
     state.contextVault.mode = contextNormalizeView(opts.contextView);
@@ -1332,16 +1334,7 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
 // their profile in the cohort surface (shapes mode with detail page).
 window.__srwkAlchemyShowRecord = function showRecordFromMembrane(recordId, returnMode = 'shapes') {
   if (!recordId) return;
-  if (!ALCHEMY_MODES.includes(returnMode)) returnMode = 'shapes';
-  state.mode = returnMode;
-  state.detailRecordId = String(recordId);
-  state.detailReturnMode = returnMode;
-  try {
-    localStorage.setItem(ALCHEMY_LS_KEY, returnMode);
-    localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: String(recordId), returnMode }));
-  } catch {}
-  syncRailSelection();
-  render();
+  openDetail(recordId, returnMode);
 };
 
 // Display id "SHAPE-NN" from the team's index in the array.
@@ -5151,7 +5144,10 @@ function setConstellationTimelineIdx(rawIdx) {
   if (state.mode === "constellation") {
     renderConstellation();
     wireConstellationHover();
-    if (state.constellationDrawerRecordId) openDrawer(state.constellationDrawerRecordId);
+    if (state.constellationDrawerRecordId) {
+      state.constellationDrawerRecordId = null;
+      closeDrawer();
+    }
   }
 }
 
@@ -5772,13 +5768,32 @@ function wireShapeCardClicks() {
   wireExternalLinks(state.canvas);
 }
 
-function openDetail(recordId) {
+function normalizeDetailReturnMode(mode) {
+  if (mode === "collab") return "constellation";
+  if (mode === "pulse") return "shapes";
+  if (mode === "intel") return "context";
+  return ALCHEMY_MODES.includes(mode) ? mode : "shapes";
+}
+
+function clearDetailForNavigation() {
+  closeDrawer();
+  state.detailRecordId = null;
+  state.detailReturnMode = null;
+  try { localStorage.removeItem(DETAIL_LS_KEY); } catch {}
+}
+
+function openDetail(recordId, returnMode = state.mode || "shapes") {
   if (!recordId) return;
+  const mode = normalizeDetailReturnMode(returnMode);
+  closeDrawer();
+  state.mode = mode;
   state.detailRecordId = String(recordId);
-  // Remember where to land on back — usually shapes, but if user opened
-  // the detail from a different mode (future entry points) honor that.
-  state.detailReturnMode = state.mode || "shapes";
+  // Remember where to land on back. Constellation sub-views keep their
+  // own state in state.constellationMode, so restoring "constellation"
+  // returns to map/journey/stack/collab rather than the generic cohort grid.
+  state.detailReturnMode = mode;
   try {
+    localStorage.setItem(ALCHEMY_LS_KEY, mode);
     localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({
       recordId: state.detailRecordId,
       returnMode: state.detailReturnMode,
@@ -5810,6 +5825,7 @@ function openDetail(recordId) {
 }
 
 function closeDetail() {
+  closeDrawer();
   state.detailRecordId = null;
   if (state.detailReturnMode) state.mode = state.detailReturnMode;
   state.detailReturnMode = null;
@@ -5970,7 +5986,7 @@ function wireConstellationHover() {
       item.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
       item.addEventListener("click", (e) => {
         e.preventDefault();
-        if (rid) openDrawer(rid);
+        if (rid) openDetail(rid, "constellation");
       });
       item.addEventListener("focus", () => {
         const t = teamById.get(rid);
@@ -5989,7 +6005,7 @@ function wireConstellationHover() {
       item.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        if (rid) openDrawer(rid);
+        if (rid) openDetail(rid, "constellation");
       });
     }
     // Dependency paths: hover identifies the line; click pins the full evidence
@@ -6041,7 +6057,7 @@ function wireConstellationHover() {
       node.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
       node.addEventListener("click", (e) => {
         e.preventDefault();
-        if (rid) openDrawer(rid);
+        if (rid) openDetail(rid, "constellation");
       });
       node.addEventListener("focus", () => {
         showJourneyTip(stage, tip, teamById.get(rid));
@@ -6050,7 +6066,7 @@ function wireConstellationHover() {
       node.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        if (rid) openDrawer(rid);
+        if (rid) openDetail(rid, "constellation");
       });
     }
     for (const node of stage.querySelectorAll(".ac-person-node[data-person-id]")) {
@@ -6240,8 +6256,7 @@ function wireConstellationHover() {
       const openTarget = e.target.closest("[data-const-open-record]");
       if (openTarget) {
         const rid = openTarget.getAttribute("data-const-open-record");
-        if (rid && constellationCurrentInspectorContext().personById?.has(rid)) openDetail(rid);
-        else if (rid) openDrawer(rid);
+        if (rid) openDetail(rid, "constellation");
         return;
       }
       const personTarget = e.target.closest("[data-const-person]");
@@ -9488,7 +9503,7 @@ function wireCollab() {
         if (collabSameSelection(state.collabSelection, next)) clearCollabSelection();
         else setCollabSelection(next);
       } else {
-        openDrawer(rid);
+        openDetail(rid, "constellation");
       }
     };
     el.addEventListener("click", activate);
