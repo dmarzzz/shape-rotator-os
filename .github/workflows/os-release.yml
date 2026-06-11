@@ -227,29 +227,44 @@ jobs:
             echo "::notice::macOS build will be SIGNED + NOTARIZED"
           fi
 
+      # Publish to whichever repo is running this workflow. The owner in
+      # package.json is only a default for local/manual builds — forks
+      # (e.g. freddmannen's, which ships its own update channel) publish
+      # to themselves without having to patch the config after every
+      # upstream sync. The baked app-update.yml follows this too, so each
+      # channel's auto-updater points at its own releases. Done by editing
+      # the runner's package.json: electron-builder 26 rejects array-index
+      # CLI overrides (--config.publish.0.owner), so the flag form is not
+      # an option.
+      - name: point publish at this repo
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = 'apps/os/package.json';
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            j.build.publish[0].owner = process.env.PUB_OWNER;
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+            console.log('publish owner →', j.build.publish[0].owner);
+          "
+        env:
+          PUB_OWNER: ${{ github.repository_owner }}
+
       - name: build (${{ matrix.platform }})
         shell: bash
         run: |
           set -euo pipefail
-          # Publish to whichever repo is running this workflow. The owner in
-          # package.json is only a default for local/manual builds — forks
-          # (e.g. freddmannen's, which ships its own update channel) publish
-          # to themselves without having to patch the config after every
-          # upstream sync. The baked app-update.yml follows this too, so
-          # each channel's auto-updater points at its own releases.
-          OWNER_FLAG="--config.publish.0.owner=${{ github.repository_owner }}"
           if [ "${{ matrix.platform }}" = "mac" ] && [ "${{ steps.mac-sign-prep.outputs.macos_sign }}" = "1" ]; then
             echo "→ macOS build: SIGNED + NOTARIZED"
             npm run dist:mac --workspace @shape-rotator/os -- \
               --config.mac.notarize=true \
-              --config.extraMetadata.signed=true \
-              "$OWNER_FLAG"
+              --config.extraMetadata.signed=true
           elif [ "${{ matrix.platform }}" = "mac" ]; then
             echo "→ macOS build: UNSIGNED"
             export CSC_IDENTITY_AUTO_DISCOVERY=false
-            npm run dist:mac --workspace @shape-rotator/os -- "$OWNER_FLAG"
+            npm run dist:mac --workspace @shape-rotator/os
           else
-            npm run dist:${{ matrix.platform }} --workspace @shape-rotator/os -- "$OWNER_FLAG"
+            npm run dist:${{ matrix.platform }} --workspace @shape-rotator/os
           fi
         env:
           # electron-builder uses GH_TOKEN to upload artifacts to the
