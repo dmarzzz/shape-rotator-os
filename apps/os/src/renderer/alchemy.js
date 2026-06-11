@@ -415,8 +415,8 @@ export function applyLocation(loc = {}) {
     state.programPage = String(loc.programPage);
     try { localStorage.setItem(PROGRAM_PAGE_LS_KEY, state.programPage); } catch {}
   }
-  if (legacyCollab || (mode === "constellation" && loc.constellationMode)) {
-    state.constellationMode = legacyCollab ? "collab" : constNormalizeConstellationMode(loc.constellationMode);
+  if (legacyCollab || mode === "constellation") {
+    state.constellationMode = legacyCollab ? "collab" : constNormalizeConstellationMode(loc.constellationMode || "map");
     try { localStorage.setItem(CONST_MODE_LS_KEY, state.constellationMode); } catch {}
   }
   if (legacyIntel || (mode === "context" && loc.contextView)) {
