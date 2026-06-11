@@ -25,6 +25,7 @@ import {
   escHtml, escAttr, normalizeLinkHref, normalizeGithubAccount,
   buildEditPRUrl,
   teamCardHtml, personCardHtml,
+  cohortRosterForTeam, cohortRosterSummary, compactCohortLinkItems,
   buildCalendarRows, drawCalendar,
   renderWeekView as renderCalendarWeekView,
   loadCalendar as loadCalendarData,
@@ -1461,9 +1462,9 @@ function renderShapes() {
       </nav>
     </div>
   `;
-  const cardCtx = { people: state.cohort?.people || [] };
+  const cardCtx = { people: state.cohort?.people || [], teams: state.cohort?.teams || [] };
   const cards = records.map((r, idx) => {
-    if (r._kind === "person") return personCardHtml(r, idx);
+    if (r._kind === "person") return personCardHtml(r, idx, cardCtx);
     return teamCardHtml(r, idx, cardCtx);
   }).join("");
   const emptyMsg = filter === "people"
@@ -7996,9 +7997,7 @@ function collabVisibleOrder(m, filter = "all", sort = "cluster") {
 }
 
 function collabPeopleForTeam(rid) {
-  return (state.cohort?.people || []).filter(p =>
-    p.team === rid || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(rid))
-  );
+  return cohortRosterForTeam(state.cohort?.people || [], rid);
 }
 
 function collabCurrentModel() {
@@ -8021,31 +8020,7 @@ function collabTeamLinksSectionHtml(team) {
 }
 
 function collabTeamLinkItems(team) {
-  const L = team?.links || {};
-  const links = [], seen = new Set();
-  const add = (label, href, display = label) => {
-    if (!href) return;
-    const key = `${label}:${href}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    links.push({ label, href, display });
-  };
-  const displayUrl = (v) => String(v || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
-  if (L.github) add("github", normalizeLinkHref("github", L.github), String(L.github).replace(/^https?:\/\/github\.com\//, ""));
-  if (L.x) {
-    const handle = String(L.x).replace(/^@/, "").replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//, "");
-    add("x", normalizeLinkHref("x", handle), `@${handle}`);
-  }
-  if (L.website) add("website", normalizeLinkHref("website", L.website), displayUrl(L.website));
-  if (L.repo) {
-    const repo = String(L.repo).trim();
-    const href = GH_REPO_RE.test(repo) ? `https://github.com/${repo}` : normalizeLinkHref("website", repo);
-    add("repo", href, displayUrl(repo).replace(/^github\.com\//, ""));
-  }
-  if (L.demo) add("demo", normalizeLinkHref("demo", L.demo), displayUrl(L.demo));
-  if (L.deck) add("deck", normalizeLinkHref("deck", L.deck), displayUrl(L.deck));
-  if (L.slides) add("slides", normalizeLinkHref("slides", L.slides), displayUrl(L.slides));
-  return links;
+  return compactCohortLinkItems(team);
 }
 
 function collabTeamMark(team, className = "cb-inspector-mark") {
@@ -8136,9 +8111,18 @@ function collabNetworkHtml(groups) {
   return html ? collabInspectorSection("routes", `<div class="cb-network-grid">${html}</div>`, "is-network") : "";
 }
 
-function collabTeamMetaInlineHtml(team, memberCount) {
+function collabTeamMetaInlineHtml(team, people = []) {
+  const roster = cohortRosterSummary({
+    kind: teamKind(team),
+    roster: people,
+    declaredCount: team.members_count,
+    maxNames: 2,
+  });
+  const rosterValue = roster.hasNames && roster.count <= 2
+    ? roster.visible.map(p => p.name || p.record_id).join(" · ")
+    : roster.fallback;
   const rows = [
-    memberCount ? ["team", `${memberCount} ${memberCount === 1 ? "person" : "people"}`] : null,
+    roster.count ? [roster.label, rosterValue] : null,
     team.geo ? ["geo", team.geo] : null,
   ].filter(Boolean);
   if (!rows.length) return "";
@@ -8193,7 +8177,7 @@ function collabTeamInspectorHtml(rid, m = collabCurrentModel()) {
   const meta = row?.clusterLabel || domainLabel(team.domain) || "team";
 
   const people = collabPeopleForTeam(rid);
-  const memberCount = people.length || Number(team.members_count) || 0;
+  const showPeopleSection = people.length > 2 || people.some(person => person.role);
 
   return `
     <div class="cb-team-detail">
@@ -8202,7 +8186,7 @@ function collabTeamInspectorHtml(rid, m = collabCurrentModel()) {
           <div class="cb-inspector-kicker">${escHtml(meta || "team")}</div>
           <h4 class="cb-inspector-title">${escHtml(team.name || rid)}</h4>
           ${team.focus ? `<p class="cb-inspector-copy">${escHtml(team.focus)}</p>` : ""}
-          ${collabTeamMetaInlineHtml(team, memberCount)}
+          ${collabTeamMetaInlineHtml(team, people)}
         </div>
       </div>
       ${collabTeamRouteRailHtml({ outbound, inbound, getsHelpFrom, givesHelpTo })}
@@ -8214,7 +8198,7 @@ function collabTeamInspectorHtml(rid, m = collabCurrentModel()) {
         getsHelpFrom.length ? { label: "gets help from", count: getsHelpFrom.length, body: collabRouteRows(getsHelpFrom.map(s => ({ team: collabTeamByRecordId(s.offerer, m), note: s.shared.slice(0, 2).join(" · ") || "declared offer match", badge: "offers" }))) } : null,
         givesHelpTo.length ? { label: "gives help to", count: givesHelpTo.length, body: collabRouteRows(givesHelpTo.map(s => ({ team: collabTeamByRecordId(s.seeker, m), note: s.shared.slice(0, 2).join(" · ") || "declared ask match", badge: "seeks" }))) } : null,
       ])}
-      ${collabInspectorSection("who to talk to", collabMembersHtml(rid), "is-members")}
+      ${showPeopleSection ? collabInspectorSection("who to talk to", collabMembersHtml(rid), "is-members") : ""}
       ${collabCredentialsHtml(team)}
       ${collabTeamLinksSectionHtml(team)}
     </div>
@@ -11090,8 +11074,9 @@ async function exportDossier() {
     return String(a.name).localeCompare(String(b.name));
   });
 
-  // Group people by team id so each card can list members inline.
-  const peopleByTeam = new Map(cohortIndex.primaryPeopleByTeam);
+  // Group people by team id so each card can list the same roster the detail
+  // surfaces use, including declared secondary contributors.
+  const peopleByTeam = new Map(cohortIndex.peopleByTeam);
   // Sort each team's members: lead first, then alpha.
   for (const arr of peopleByTeam.values()) {
     arr.sort((a, b) => {
@@ -11256,38 +11241,31 @@ function drawDossierCard(ctx, team, members, x, y, w, h) {
   }
   ctx.globalAlpha = 1;
 
-  // ── Meta strip (GEO · #CONTRIBUTORS) at bottom-left ───────────────
-  // Two columns (LEAD column was retired with the lead field). The full
-  // contributor list still renders below as the ROSTER row.
+  // ── Meta strip (GEO · roster) at bottom-left ──────────────────────
+  // Roster names own the membership fact; counts are fallback only.
   const colGeoX        = x + 20;
   const colMembersX    = x + 220;
   const colGeoW        = (colMembersX - colGeoX) - 10;
   const colMembersW    = (x + w - 20) - colMembersX;
+  const roster = cohortRosterSummary({
+    kind: teamKind(team),
+    roster: members,
+    declaredCount: team.members_count,
+    maxNames: 4,
+  });
+  const rosterText = roster.hasNames
+    ? `${roster.visible.map(m => m.name || m.record_id).join("  ·  ")}${roster.overflow ? `  · +${roster.overflow}` : ""}`
+    : roster.fallback;
 
   ctx.font = `500 9.5px "JetBrains Mono", ui-monospace, monospace`;
   ctx.fillStyle = CAL_INK_1;
   ctx.globalAlpha = 0.42;
   ctx.fillText("GEO",          colGeoX,     y + h - 70);
-  ctx.fillText("CONTRIBUTORS", colMembersX, y + h - 70);
+  ctx.fillText(roster.label.toUpperCase(), colMembersX, y + h - 70);
   ctx.globalAlpha = 0.88;
   ctx.font = `500 12px "JetBrains Mono", ui-monospace, monospace`;
   ctx.fillText(truncateText(ctx, team.geo || "—", colGeoW), colGeoX, y + h - 52);
-  ctx.fillText(truncateText(ctx, String(members.length || team.members_count || 0), colMembersW), colMembersX, y + h - 52);
-
-  // ── Member chips ───────────────────────────────────────────────────
-  if (members.length) {
-    ctx.font = `400 10px "JetBrains Mono", ui-monospace, monospace`;
-    ctx.fillStyle = CAL_INK_1;
-    ctx.globalAlpha = 0.42;
-    ctx.fillText("ROSTER", x + 20, y + h - 28);
-    ctx.globalAlpha = 0.85;
-    ctx.font = `italic 12px "Iowan Old Style", Georgia, serif`;
-    const rosterX = x + 70;
-    const rosterW = (x + w - 20) - rosterX;
-    const names = members.slice(0, 5).map(m => m.name || m.record_id).join("  ·  ");
-    const suffix = members.length > 5 ? `  · +${members.length - 5}` : "";
-    ctx.fillText(truncateText(ctx, names + suffix, rosterW), rosterX, y + h - 28);
-  }
+  ctx.fillText(truncateText(ctx, rosterText, colMembersW), colMembersX, y + h - 52);
   ctx.globalAlpha = 1;
 }
 
@@ -11768,7 +11746,7 @@ function detailMemberRows(people, kind) {
     </span>
   `).join("");
   if (!rows) return "";
-  return `<div><span>${kind === "project" ? "contributors" : "members"}</span><span class="alch-rail-members">${rows}</span></div>`;
+  return `<div><span>${kind === "project" ? "contributors" : "team"}</span><span class="alch-rail-members">${rows}</span></div>`;
 }
 
 function renderPersonRail(person, team, fam) {
@@ -11864,7 +11842,7 @@ function renderTeamDetail(team) {
   const kind = teamKind(team);
   const fam = s ? s.fam : Math.abs(hashStr(recordId || "_")) % 6;
   const memberClusters = cohortIndex.clustersByTeam.get(recordId) || [];
-  const teamPeople = cohortIndex.primaryPeopleByTeam.get(recordId) || [];
+  const teamPeople = cohortIndex.peopleByTeam.get(recordId) || [];
   const editUrl = buildEditPRUrl({ recordType: "team", recordId });
   const links = team.links || {};
   const journey = detailJourneySummary(team);
@@ -11928,8 +11906,6 @@ function renderTeamDetail(team) {
       </button>
       <div class="alch-detail-bar-tag">
         <span>${escHtml(team.record_id.toUpperCase())}</span>
-        <span class="ct-sep">·</span>
-        <span class="ct-kind ct-kind-${escHtml(kind)}">${escHtml(kind)}</span>
         ${team.is_mentor ? `<span class="ct-sep">·</span><span>mentor</span>` : ""}
       </div>
       <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
@@ -12044,10 +12020,6 @@ function renderPersonDetail(person) {
       </button>
       <div class="alch-detail-bar-tag">
         <span>${escHtml(recordId.toUpperCase())}</span>
-        <span class="ct-sep">·</span>
-        <span class="ct-kind ct-kind-person">individual</span>
-        <span class="ct-sep">·</span>
-        <span>${escHtml(domainLabel(person.domain))}</span>
       </div>
       <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
     </header>
@@ -12098,39 +12070,13 @@ function wirePersonLinks(root) {
 }
 
 function renderDetailLinks(L) {
-  const LINK_LABELS = {
-    website: "website", demo: "demo", deck: "deck", repo: "repo",
-    article: "article", slides: "slides", alt: "alt site",
-    linkedin: "linkedin",
-  };
-  const rows = [];
-  if (L.repo && GH_REPO_RE.test(String(L.repo))) {
-    rows.push(`<div class="alch-detail-row"><span class="adr-k">repo</span><span class="adr-v"><a href="https://github.com/${escHtml(L.repo)}" data-external class="alch-card-repo-link">${escHtml(L.repo)}</a></span></div>`);
+  const items = compactCohortLinkItems({ links: L || {} });
+  if (!items.length) {
+    return `<div class="alch-detail-row"><span class="adr-k">links</span><span class="adr-v" style="opacity:0.55">— not yet submitted</span></div>`;
   }
-  if (L.github) {
-    const gh = String(L.github);
-    const url = normalizeLinkHref("github", gh);
-    rows.push(`<div class="alch-detail-row"><span class="adr-k">github</span><span class="adr-v"><a href="${escAttr(url)}" data-external>${escHtml(gh)}</a></span></div>`);
-  }
-  if (L.x) {
-    const handle = String(L.x).replace(/^@/, "");
-    rows.push(`<div class="alch-detail-row"><span class="adr-k">x</span><span class="adr-v"><a href="${escAttr(normalizeLinkHref("x", handle))}" data-external>@${escHtml(handle)}</a></span></div>`);
-  }
-  for (const k of Object.keys(L)) {
-    if (k === "github" || k === "x" || k === "repo") continue;
-    const v = L[k];
-    if (!v) continue;
-    const label = LINK_LABELS[k] || k;
-    const display = (typeof v === "string") ? v.replace(/^https?:\/\//, "") : String(v);
-    const href = normalizeLinkHref(k, v);
-    if (href) {
-      rows.push(`<div class="alch-detail-row"><span class="adr-k">${escHtml(label)}</span><span class="adr-v"><a href="${escAttr(href)}" data-external>${escHtml(display)}</a></span></div>`);
-    } else {
-      rows.push(`<div class="alch-detail-row"><span class="adr-k">${escHtml(label)}</span><span class="adr-v">${escHtml(display)}</span></div>`);
-    }
-  }
-  if (rows.length === 0) rows.push(`<div class="alch-detail-row"><span class="adr-k">links</span><span class="adr-v" style="opacity:0.55">— not yet submitted</span></div>`);
-  return rows.join("");
+  return `<div class="alch-detail-row"><span class="adr-k">links</span><span class="adr-v">${items.map(item =>
+    `<a href="${escAttr(item.href)}" data-external title="${escAttr(item.display)}">${escHtml(item.label)}</a>`
+  ).join(" · ")}</span></div>`;
 }
 
 // ─── drawer (specimen detail) ────────────────────────────────────────
@@ -12148,40 +12094,15 @@ function openDrawer(recordId) {
   const { backdrop, drawer, body } = ensureDrawer();
   const s = shapeForTeam(team);
   const dest = s ? SHAPE_BY_KEY[s.rotates_to] : null;
-  const m = Number(team.members_count) || 0;
-
   // Find which clusters this team belongs to
   const memberClusters = cohortIndex.clustersByTeam.get(recordId) || [];
 
-  // Render every available link key with a sensible label; github + x
-  // get full URL prefixes, the rest are passed through.
-  const LINK_LABELS = {
-    website: "website", demo: "demo", deck: "deck", repo: "repo",
-    article: "article", slides: "slides", alt: "alt site",
-  };
   const linksRow = (() => {
-    const rows = [];
-    const L = team.links || {};
-    if (L.github) {
-      // Treat as github user/org if no slash; as path otherwise.
-      const gh = String(L.github);
-      const url = gh.startsWith("http") ? gh : `https://github.com/${gh}`;
-      rows.push(`<div class="alch-drawer-row"><span class="dr-k">github</span><span class="dr-v"><a href="${escHtml(url)}" data-external>${escHtml(gh)}</a></span></div>`);
-    }
-    if (L.x) {
-      const handle = String(L.x).replace(/^@/, "");
-      rows.push(`<div class="alch-drawer-row"><span class="dr-k">x</span><span class="dr-v"><a href="https://x.com/${escHtml(handle)}" data-external>@${escHtml(handle)}</a></span></div>`);
-    }
-    for (const k of Object.keys(L)) {
-      if (k === "github" || k === "x") continue;
-      const v = L[k];
-      if (!v) continue;
-      const label = LINK_LABELS[k] || k;
-      const display = (typeof v === "string") ? v.replace(/^https?:\/\//, "") : String(v);
-      rows.push(`<div class="alch-drawer-row"><span class="dr-k">${escHtml(label)}</span><span class="dr-v"><a href="${escHtml(v)}" data-external>${escHtml(display)}</a></span></div>`);
-    }
-    if (rows.length === 0) rows.push(`<div class="alch-drawer-row"><span class="dr-k">links</span><span class="dr-v muted">— not yet submitted</span></div>`);
-    return rows.join("");
+    const items = compactCohortLinkItems(team);
+    if (!items.length) return `<div class="alch-drawer-row"><span class="dr-k">links</span><span class="dr-v muted">— not yet submitted</span></div>`;
+    return `<div class="alch-drawer-row"><span class="dr-k">links</span><span class="dr-v">${items.map(item =>
+      `<a href="${escAttr(item.href)}" data-external title="${escAttr(item.display)}">${escHtml(item.label)}</a>`
+    ).join(" · ")}</span></div>`;
   })();
 
   const tagBits = [
@@ -12207,8 +12128,7 @@ function openDrawer(recordId) {
   // Roster — primary contributors (person.team) + anyone who lists this team in
   // secondary_teams. Rendered as gold-accent person chips (people read
   // differently from teams/clusters — the collab shape-grammar).
-  const roster = (state.cohort.people || []).filter(p =>
-    p.team === team.record_id || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(team.record_id)));
+  const roster = cohortRosterForTeam(cohort.people || [], team.record_id);
   const crewChips = roster.map(p => {
     const role = p.role || (p.team === team.record_id ? "" : "contributor");
     return `<span class="alch-drawer-person"><span class="dp-name">${escHtml(p.name || p.record_id)}</span>${role ? `<span class="dp-role">${escHtml(role)}</span>` : ""}</span>`;
@@ -12229,9 +12149,8 @@ function openDrawer(recordId) {
     <div class="alch-drawer-shape">${s ? shapeSvgByFam(s.fam, hashStr(team.record_id)) : ""}</div>
     <div class="alch-drawer-rule"></div>
     <section class="alch-drawer-section">
-      ${sechead("about", "focus · size · geo")}
+      ${sechead("about", "focus · geo")}
       <div class="alch-drawer-row"><span class="dr-k">focus</span><span class="dr-v">${escHtml(team.focus || "—")}</span></div>
-      <div class="alch-drawer-row"><span class="dr-k">team</span><span class="dr-v">${m} ${m === 1 ? "person" : "people"}</span></div>
       <div class="alch-drawer-row"><span class="dr-k">geo</span><span class="dr-v">${escHtml(team.geo || "—")}</span></div>
       ${team.traction ? `<div class="alch-drawer-row"><span class="dr-k">traction</span><span class="dr-v">${escHtml(team.traction)}</span></div>` : ""}
     </section>

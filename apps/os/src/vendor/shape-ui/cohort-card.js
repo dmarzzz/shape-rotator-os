@@ -1,6 +1,6 @@
 // cohort-card.js — shared renderer for the cohort "specimen" cards used
 // across the alchemy view and the sibling web app. Each card shows a
-// shape glyph plus the surface fields (focus, lead, links, members).
+// shape glyph plus the surface fields (focus, roster, links, geography).
 //
 // Two API styles are exported:
 //   - renderTeamCard / renderPersonCard / renderCohortCard
@@ -33,6 +33,56 @@ function hashStr(s) {
 
 function teamKind(t) { return (t && t.kind) || "team"; }
 
+function asArray(value) {
+  return Array.isArray(value) ? value : (value == null || value === "" ? [] : [value]);
+}
+
+function personDisplayName(person) {
+  return person?.name || person?.record_id || "";
+}
+
+export function cohortRosterForTeam(people = [], teamId, opts = {}) {
+  const includeSecondary = opts.includeSecondary !== false;
+  const seen = new Set();
+  const roster = [];
+  for (const person of Array.isArray(people) ? people : []) {
+    if (!person || !teamId) continue;
+    const isPrimary = person.team === teamId;
+    const isSecondary = includeSecondary && asArray(person.secondary_teams).includes(teamId);
+    if (!isPrimary && !isSecondary) continue;
+    const id = person.record_id || personDisplayName(person);
+    if (id && seen.has(id)) continue;
+    if (id) seen.add(id);
+    roster.push({ ...person, _membershipRole: isPrimary ? "primary" : "secondary" });
+  }
+  return roster.sort((a, b) => {
+    const ap = a._membershipRole === "primary" ? 0 : 1;
+    const bp = b._membershipRole === "primary" ? 0 : 1;
+    if (ap !== bp) return ap - bp;
+    const al = String(a.role || "").toLowerCase() === "lead" ? 0 : 1;
+    const bl = String(b.role || "").toLowerCase() === "lead" ? 0 : 1;
+    if (al !== bl) return al - bl;
+    return String(personDisplayName(a)).localeCompare(String(personDisplayName(b)));
+  });
+}
+
+export function cohortRosterSummary({ kind = "team", roster = [], declaredCount = 0, maxNames = 5 } = {}) {
+  const label = kind === "project" ? "contributors" : "team";
+  const people = Array.isArray(roster) ? roster.filter(personDisplayName) : [];
+  const count = people.length || Number(declaredCount) || 0;
+  const visible = people.slice(0, Math.max(1, maxNames | 0));
+  const overflow = Math.max(0, count - visible.length);
+  return {
+    label,
+    count,
+    people,
+    visible,
+    overflow,
+    hasNames: visible.length > 0,
+    fallback: count ? `${count} ${count === 1 ? "person" : "people"}` : "—",
+  };
+}
+
 function compactGithubLabel(value) {
   const raw = String(value || "").trim().replace(/^@+/, "");
   try {
@@ -57,33 +107,60 @@ function compactXLabel(value) {
   return raw ? `@${raw.replace(/^(?:www\.)?(?:x|twitter)\.com\/+/i, "").replace(/^@+/, "")}` : raw;
 }
 
+function displayUrl(value) {
+  return String(value || "").trim().replace(/^https?:\/\//i, "").replace(/\/$/, "");
+}
+
+export function compactCohortLinkItems(record = {}) {
+  const links = record?.links || {};
+  const out = [];
+  const seen = new Set();
+  const add = (label, href, display = label) => {
+    if (!href) return;
+    const key = `${label}:${href}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ label, href, display });
+  };
+
+  if (links.github) {
+    const href = normalizeLinkHref("github", links.github);
+    add("github", href, compactGithubLabel(links.github));
+  }
+  if (links.repo) {
+    const repo = normalizeGithubRepo(links.repo);
+    if (repo) add("repo", `https://github.com/${repo}`, repo);
+    else add("repo", normalizeLinkHref("repo", links.repo), displayUrl(links.repo));
+  }
+  if (links.x) {
+    const href = normalizeLinkHref("x", links.x);
+    add("x", href, compactXLabel(links.x));
+  }
+  if (links.website) add("site", normalizeLinkHref("website", links.website), displayUrl(links.website));
+  if (links.demo) add("demo", normalizeLinkHref("demo", links.demo), displayUrl(links.demo));
+  if (links.deck) add("deck", normalizeLinkHref("deck", links.deck), displayUrl(links.deck));
+  if (links.slides) add("slides", normalizeLinkHref("slides", links.slides), displayUrl(links.slides));
+  if (links.linkedin) {
+    const account = String(links.linkedin).trim().replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, "").replace(/\/$/, "");
+    add("linkedin", account ? `https://linkedin.com/in/${account}` : "", account);
+  }
+  return out;
+}
+
+function compactLinksRow(record) {
+  const items = compactCohortLinkItems(record);
+  if (!items.length) {
+    return `<div class="alch-card-meta-row"><span class="cm-k">links</span><span class="cm-v" style="opacity:0.55">— not yet submitted</span></div>`;
+  }
+  return `<div class="alch-card-meta-row alch-card-links-row"><span class="cm-k">links</span><span class="cm-v">${items.map(item =>
+    `<a href="${escAttr(item.href)}" data-external title="${escAttr(item.display)}">${escHtml(item.label)}</a>`
+  ).join('<span class="acm-sep">·</span>')}</span></div>`;
+}
+
 // ── HTML-string renderers ──────────────────────────────────────────────
 
 export function teamCardHtml(t, idx, ctx = {}) {
   const s = shapeForTeam(t);
-  const links = [];
-  const gh   = t?.links?.github;
-  const repoRaw = t?.links?.repo;
-  const repo = normalizeGithubRepo(repoRaw);
-  const x    = t?.links?.x;
-  if (repo) {
-    links.push(`<div class="alch-card-meta-row"><span class="cm-k">repo</span><span class="cm-v"><a href="https://github.com/${escAttr(repo)}" data-external class="alch-card-repo-link">${escHtml(repo)}</a></span></div>`);
-  } else if (repoRaw) {
-    const href = normalizeLinkHref("repo", repoRaw);
-    const label = String(repoRaw).replace(/^https?:\/\//i, "");
-    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">repo</span><span class="cm-v"><a href="${escAttr(href)}" data-external class="alch-card-repo-link">${escHtml(label)}</a></span></div>`);
-  }
-  if (gh) {
-    const href = normalizeLinkHref("github", gh);
-    const label = compactGithubLabel(gh);
-    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">github</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
-  }
-  if (x) {
-    const href = normalizeLinkHref("x", x);
-    const label = compactXLabel(x);
-    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">x</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
-  }
-  if (!gh && !x && !repoRaw) links.push(`<div class="alch-card-meta-row"><span class="cm-k">links</span><span class="cm-v" style="opacity:0.55">— not yet submitted</span></div>`);
   const membership = t.membership || "visiting";
   const cardCls = [
     "alch-card",
@@ -93,19 +170,18 @@ export function teamCardHtml(t, idx, ctx = {}) {
   ].filter(Boolean).join(" ");
   const m = Number(t.members_count) || 0;
   const kind = teamKind(t);
-  // People whose primary `team` or `secondary_teams` includes this record.
   const allPeople = Array.isArray(ctx.people) ? ctx.people : [];
-  const teamPeople = allPeople.filter(p =>
-    p.team === t.record_id || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(t.record_id))
-  );
-  const membersRow = teamPeople.length
-    ? `<div class="alch-card-meta-row alch-card-members-row">
-         <span class="cm-k">${kind === "project" ? "contributors" : "members"}</span>
-         <span class="cm-v">${teamPeople.map(p =>
-           `<button type="button" class="alch-card-member" data-person="${escHtml(p.record_id)}">${escHtml(p.name || p.record_id)}</button>`
-         ).join('<span class="acm-sep">·</span>')}</span>
-       </div>`
-    : "";
+  const roster = cohortRosterSummary({
+    kind,
+    roster: cohortRosterForTeam(allPeople, t.record_id),
+    declaredCount: m,
+    maxNames: 5,
+  });
+  const rosterValue = roster.hasNames
+    ? `${roster.visible.map(p =>
+        `<button type="button" class="alch-card-member" data-person="${escAttr(p.record_id)}">${escHtml(personDisplayName(p))}</button>`
+      ).join('<span class="acm-sep">·</span>')}${roster.overflow ? `<span class="acm-sep">·</span><span class="alch-card-member-more">+${roster.overflow}</span>` : ""}`
+    : escHtml(roster.fallback);
   return `
     <article class="${cardCls}" data-record-id="${escHtml(t.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(t.name)} — open detail">
       <div class="alch-card-shape"><canvas data-shape-fam="${s ? s.fam : 0}" data-shape-kind="${escAttr(kind)}" data-shape-scale="1.1" data-shape-seed="${escAttr(t.record_id)}"></canvas></div>
@@ -114,53 +190,39 @@ export function teamCardHtml(t, idx, ctx = {}) {
       <div class="alch-card-rule"></div>
       <div class="alch-card-meta">
         <div class="alch-card-meta-row"><span class="cm-k">focus</span><span class="cm-v">${escHtml(t.focus)}</span></div>
-        <div class="alch-card-meta-row"><span class="cm-k">${kind === "project" ? "contributors" : "team"}</span><span class="cm-v">${m} ${m === 1 ? "person" : "people"}</span></div>
+        <div class="alch-card-meta-row alch-card-members-row"><span class="cm-k">${escHtml(roster.label)}</span><span class="cm-v">${rosterValue}</span></div>
         <div class="alch-card-meta-row"><span class="cm-k">geo</span><span class="cm-v">${escHtml(t.geo)}</span></div>
-        ${membersRow}
-        ${links.join("")}
+        ${compactLinksRow(t)}
       </div>
     </article>`;
 }
 
-export function personCardHtml(p, idx) {
+export function personCardHtml(p, idx, ctx = {}) {
   // People don't have a shape vocabulary — derive a fam from their
   // record_id hash purely so the per-family rotation/symmetry/specimen
   // varies between individuals. The shader sees u_kind=2 and overrides
   // the silhouette to a circle medallion regardless.
   const fam = Math.abs(hashStr(p.record_id || "_")) % 6;
-  const links = [];
-  const gh = p?.links?.github;
-  const x  = p?.links?.x;
-  const w  = p?.links?.website;
-  const li = p?.links?.linkedin;
-  if (gh) {
-    const href = normalizeLinkHref("github", gh);
-    const label = compactGithubLabel(gh);
-    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">github</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
-  }
-  if (x) {
-    const href = normalizeLinkHref("x", x);
-    const label = compactXLabel(x);
-    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">x</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
-  }
-  if (w) {
-    const href = normalizeLinkHref("website", w);
-    const label = String(w).replace(/^https?:\/\//i, "");
-    if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">site</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
-  }
-  if (li) links.push(`<div class="alch-card-meta-row"><span class="cm-k">linkedin</span><span class="cm-v"><a href="https://linkedin.com/in/${escHtml(li)}" data-external>${escHtml(li)}</a></span></div>`);
-  if (!gh && !x && !w && !li) links.push(`<div class="alch-card-meta-row"><span class="cm-k">links</span><span class="cm-v" style="opacity:0.55">— not yet submitted</span></div>`);
   const roleClass = p.role_class || "visiting-scholar";
+  const teamById = ctx.teamById instanceof Map
+    ? ctx.teamById
+    : new Map((Array.isArray(ctx.teams) ? ctx.teams : []).filter(t => t?.record_id).map(t => [t.record_id, t]));
+  const team = p.team ? teamById.get(p.team) : null;
+  const teamLabel = team?.name || p.team || "";
+  const role = p.role || "";
+  const teamRoleValue = teamLabel && role
+    ? `${teamLabel} · ${role}`
+    : (teamLabel || role || "—");
+  const teamRoleLabel = teamLabel ? "team" : "role";
   return `
     <article class="alch-card is-clickable alch-card-person alch-card-role-${escAttr(roleClass)}" data-record-id="${escHtml(p.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(p.name)} — open profile">
       <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.1" data-shape-seed="${escAttr(p.record_id)}"></canvas></div>
       <div class="alch-card-name">${escHtml(p.name)}</div>
       <div class="alch-card-rule"></div>
       <div class="alch-card-meta">
-        <div class="alch-card-meta-row"><span class="cm-k">role</span><span class="cm-v">${escHtml(p.role || "—")}</span></div>
-        <div class="alch-card-meta-row"><span class="cm-k">team</span><span class="cm-v">${escHtml(p.team || "—")}</span></div>
+        <div class="alch-card-meta-row"><span class="cm-k">${escHtml(teamRoleLabel)}</span><span class="cm-v">${escHtml(teamRoleValue)}</span></div>
         <div class="alch-card-meta-row"><span class="cm-k">geo</span><span class="cm-v">${escHtml(p.geo || "—")}</span></div>
-        ${links.join("")}
+        ${compactLinksRow(p)}
       </div>
     </article>`;
 }
@@ -207,7 +269,7 @@ export function renderTeamCard(team, options = {}) {
 
 export function renderPersonCard(person, options = {}) {
   const idx = Number.isFinite(options.idx) ? options.idx : 0;
-  const el = htmlToElement(personCardHtml(person, idx));
+  const el = htmlToElement(personCardHtml(person, idx, { teams: options.teams || [], teamById: options.teamById }));
   return attachOnClick(el, options.onClick);
 }
 
