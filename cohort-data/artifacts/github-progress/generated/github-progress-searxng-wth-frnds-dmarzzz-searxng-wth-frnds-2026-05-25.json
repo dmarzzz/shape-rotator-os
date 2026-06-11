@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-progress:searxng-wth-frnds:dmarzzz-searxng-wth-frnds:2026-05-25",
+  "artifact_kind": "github_progress_weekly_summary",
+  "record_type": "team",
+  "record_id": "searxng-wth-frnds",
+  "date": "2026-05-25",
+  "week_start": "2026-05-25",
+  "program_week": 2,
+  "title": "dmarzzz/searxng-wth-frnds: 1 commit",
+  "summary": "fix — fix(community_full): embed metrics schema so daemon survives incomplete _MEI extraction",
+  "source_kind": "github_git_transport",
+  "source_url": "https://github.com/dmarzzz/searxng-wth-frnds",
+  "source_repo": "dmarzzz/searxng-wth-frnds",
+  "source_transform": "commit-metadata-weekly-distillation",
+  "confidence": "medium",
+  "review_status": "generated",
+  "surface_recommendation": "promote_candidate",
+  "consider": [
+    "1 human-authored commit observed in the week.",
+    "1 non-bot, non-admin commit remain after basic filtering.",
+    "Fix/stabilization movement is present.",
+    "Topic surface: data, runtime."
+  ],
+  "do_not_consider": [],
+  "review_questions": [
+    "Is this the team's real project repo for this period?",
+    "Do the example commit subjects describe product/research movement rather than generated churn?",
+    "Would this card add information not already captured by profile, transcript, or calendar timeline items?"
+  ],
+  "verbatim": false,
+  "generated_at": "2026-06-11T15:07:02.145Z",
+  "evidence": {
+    "commit_count": 1,
+    "human_commit_count": 1,
+    "bot_commit_count": 0,
+    "admin_commit_count": 0,
+    "useful_commit_count": 1,
+    "categories": [
+      {
+        "key": "fix",
+        "count": 1
+      }
+    ],
+    "topics": [
+      {
+        "key": "data",
+        "count": 1
+      },
+      {
+        "key": "runtime",
+        "count": 1
+      }
+    ],
+    "authors": [
+      {
+        "key": "dmarzzz",
+        "count": 1
+      }
+    ],
+    "examples": [
+      "fix(community_full): embed metrics schema so daemon survives incomplete _MEI extraction"
+    ]
+  }
+}
