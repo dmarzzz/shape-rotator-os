@@ -612,13 +612,12 @@ export function mountMembrane(container, opts = {}) {
       <canvas class="membrane-canvas"></canvas>
       <svg class="throne-orbital" aria-hidden="true" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
         <defs>
-          <!-- Horizontal ellipse so the name orbits left↔right around the orb's
-               middle (not top↔bottom). The word scrolls along it via the
-               startOffset animation added in setOrbitalForBlob(). -->
-          <path id="throne-orbital-path" d="M 8,200 a 192,76 0 1,1 384,0 a 192,76 0 1,1 -384,0" />
+          <!-- Upper arc only. The prior full repeated ellipse drew a dark
+               text-stroke band through the orb's middle on short labels. -->
+          <path id="throne-orbital-path" d="M 52,216 A 148,92 0 0 1 348,216" />
         </defs>
         <text>
-          <textPath href="#throne-orbital-path" startOffset="0%" data-orbital-text></textPath>
+          <textPath href="#throne-orbital-path" startOffset="50%" text-anchor="middle" data-orbital-text></textPath>
         </text>
       </svg>
       <div class="membrane-sat-labels" aria-hidden="true">
@@ -718,22 +717,7 @@ export function mountMembrane(container, opts = {}) {
     const tpl = ORBITAL_LABELS[id];
     if (!tpl) return;
     const name = blobName(id);
-    // Repeat the name around the ellipse with a separator so the big word
-    // fills the ring; reps scale to the name length.
-    const unit = `${name}  ·  `;
-    const reps = Math.max(4, Math.ceil(40 / unit.length));
-    orbitalText.textContent = unit.repeat(reps);
-    // (Re)attach the scroll animation — setting textContent wipes children.
-    // Scrolling startOffset negative drags the word leftward around the
-    // horizontal ellipse → it orbits left↔right across the orb's front.
-    const NS = 'http://www.w3.org/2000/svg';
-    const anim = document.createElementNS(NS, 'animate');
-    anim.setAttribute('attributeName', 'startOffset');
-    anim.setAttribute('from', '0%');
-    anim.setAttribute('to', '-100%');
-    anim.setAttribute('dur', '52s');
-    anim.setAttribute('repeatCount', 'indefinite');
-    orbitalText.appendChild(anim);
+    orbitalText.textContent = name.length > 18 ? `${name.slice(0, 17)}...` : name;
     orbital.classList.add('is-visible');
   }
 

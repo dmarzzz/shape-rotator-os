@@ -77,9 +77,10 @@
   mix-blend-mode: screen;
 }
 
-/* Orbital ring text — tiny mono caps tracing an arc around the throne
+/* Orbital label — mono caps tracing the upper arc around the throne
    blob. Positioned via CSS vars set in JS based on throne slot's
-   screen-space center. Slowly rotates (~80s/revolution) for "alive". */
+   screen-space center. Kept to a single arc so it never paints a band
+   through the orb's middle. */
 .throne-orbital {
   position: absolute;
   right: calc(var(--throne-right, 200px) - var(--orbital-radius, 200px));
@@ -103,11 +104,11 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   fill: rgba(245, 240, 233, 0.95);
-  /* Dark outline drawn UNDER the fill so the word stays legible when it
-     orbits across the bright wet-glass highlight on the orb. */
+  /* Dark outline drawn UNDER the fill so the word stays legible over the
+     bright wet-glass highlight without becoming a filled capsule. */
   paint-order: stroke;
-  stroke: rgba(6, 5, 14, 0.92);
-  stroke-width: 4.5px;
+  stroke: rgba(6, 5, 14, 0.84);
+  stroke-width: 3px;
   stroke-linejoin: round;
   filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.55));
 }
