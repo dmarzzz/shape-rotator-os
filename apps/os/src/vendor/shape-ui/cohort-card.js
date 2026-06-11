@@ -151,23 +151,8 @@ export function personCardHtml(p, idx) {
   if (li) links.push(`<div class="alch-card-meta-row"><span class="cm-k">linkedin</span><span class="cm-v"><a href="https://linkedin.com/in/${escHtml(li)}" data-external>${escHtml(li)}</a></span></div>`);
   if (!gh && !x && !w && !li) links.push(`<div class="alch-card-meta-row"><span class="cm-k">links</span><span class="cm-v" style="opacity:0.55">— not yet submitted</span></div>`);
   const roleClass = p.role_class || "visiting-scholar";
-  const ROLE_LABELS = {
-    "cohort-member": "cohort member",
-    "visiting-scholar": "visiting scholar",
-    "coordinator": "coordinator",
-  };
-  const roleLabel = ROLE_LABELS[roleClass] || roleClass;
   return `
     <article class="alch-card is-clickable alch-card-person alch-card-role-${escAttr(roleClass)}" data-record-id="${escHtml(p.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(p.name)} — open profile">
-      <div class="alch-card-tag">
-        <span class="ct-id">PERSON-${displayId(idx)}</span>
-        <span class="ct-sep">·</span>
-        <span class="ct-kind ct-kind-person">individual</span>
-        <span class="ct-sep">·</span>
-        <span class="ct-role-class ct-role-class-${escAttr(roleClass)}">${escHtml(roleLabel)}</span>
-        <span class="ct-sep">·</span>
-        <span>${escHtml(domainLabel(p.domain))}</span>
-      </div>
       <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.1" data-shape-seed="${escAttr(p.record_id)}"></canvas></div>
       <div class="alch-card-name">${escHtml(p.name)}</div>
       <div class="alch-card-rule"></div>

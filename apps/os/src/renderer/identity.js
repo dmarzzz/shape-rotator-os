@@ -95,11 +95,13 @@ export async function resolveIdentityLabel() {
   };
 }
 
-// ─── top-right pill ──────────────────────────────────────────────────
-// The pill sits in #tab-bar between the search button and the version
-// footer. Click → jump to alchemy/profile/edit on the user's record.
-// (alchemy.js exposes a window-level helper `__srwkOpenProfile(id)`
-// so we can route without importing it and creating a cycle.)
+// ─── identity pill ───────────────────────────────────────────────────
+// Mounted into #tab-bar, then relocated by boot.js into the footer row
+// overlaying the bottom of the left side panel. Click → open the profile
+// page (alchemy mode "profile"), which hosts the inline re-seal card.
+// (alchemy.js exposes window-level helpers `__srwkGoProfilePage()` /
+// `__srwkOpenProfile(id)` so we can route without importing it and
+// creating a cycle.)
 
 let _pillEl = null;
 
@@ -109,7 +111,7 @@ export function mountIdentityPill(tabBar) {
   pill.id = "identity-pill";
   pill.className = "identity-pill";
   pill.type = "button";
-  pill.title = "your profile — click to edit";
+  pill.title = "your profile — click to open";
   pill.innerHTML = `
     <span class="ip-avatar" aria-hidden="true"><span class="ip-glyph">◐</span></span>
     <span class="ip-label">claim profile</span>
@@ -144,7 +146,7 @@ async function paintIdentityPill() {
   _pillEl.dataset.state = "claimed";
   _pillEl.dataset.kind = resolved?.kind || id.kind;
   labelEl.textContent = resolved?.label || id.display_name;
-  _pillEl.title = `you: ${id.kind} · ${id.record_id}${resolved?.gh ? ` · @${resolved.gh}` : ""}\nclick to edit your record`;
+  _pillEl.title = `you: ${id.kind} · ${id.record_id}${resolved?.gh ? ` · @${resolved.gh}` : ""}\nclick to open your profile`;
   // Avatar: github profile image when we have a handle, else two-letter
   // initial fallback derived from the display label (helps when a record
   // has no github yet — most still get a meaningful glyph).
@@ -175,12 +177,18 @@ function labelInitials(label) {
   return parts.map(p => p[0]).join("").toUpperCase() || s[0].toUpperCase();
 }
 
-// Click on the pill: always open the identity modal. When already
-// claimed, the modal shows the current claim + lets the user switch
-// to a different record, edit their current record, or unclaim. When
-// unclaimed it's the first-launch flow.
+// Click on the pill: open the profile page. The re-seal controls that
+// used to live in a popup here are now rendered inline at the bottom of
+// that page (mountResealInline, called by alchemy's renderProfile). The
+// modal survives only as the automatic first-launch onboarding flow.
 function openIdentityFlow() {
-  showOnboardingModal();
+  if (typeof window.__srwkGoProfilePage === "function") {
+    window.__srwkGoProfilePage();
+  } else {
+    // alchemy hasn't registered its navigation hook yet (very early
+    // boot) — fall back to the modal so the click still does something.
+    showOnboardingModal();
+  }
 }
 
 // ─── onboarding modal ────────────────────────────────────────────────
@@ -200,15 +208,47 @@ export async function maybeShowOnboarding() {
 
 async function showOnboardingModal(cohortHint) {
   if (_modalEl) return; // already open
+  const overlay = document.createElement("div");
+  overlay.className = "identity-modal-backdrop";
+  _modalEl = overlay; // claim the slot before the await so a second call can't double-open
+  const card = document.createElement("div");
+  card.className = "identity-modal enroll";
+  card.setAttribute("role", "dialog");
+  card.setAttribute("aria-labelledby", "im-title");
+  overlay.appendChild(card);
+
+  let cleanup = () => {};
+  const close = () => {
+    try { cleanup(); } catch {}
+    overlay.remove();
+    _modalEl = null;
+  };
+  cleanup = await renderResealCard(card, { variant: "modal", cohortHint, close });
+  document.body.appendChild(overlay);
+
+  // Click outside the card → close (treat as skip).
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+}
+
+// ─── re-seal card (shared by modal + profile page) ──────────────────
+// Renders the claim / re-seal / strike-new / resync controls into `host`
+// and wires them. Two variants:
+//   "modal"  — the first-launch onboarding popup. Actions close the
+//              overlay (via the `close` hook); a skip/close button is
+//              present in the footer.
+//   "inline" — the section at the bottom of the profile page (merged
+//              from the pill popup 2026-06). No skip button; actions
+//              repaint the card in place (via `repaint`) or hand off to
+//              the editor on the same page via __srwkOpenProfile.
+// Returns a cleanup fn (drops the cohort-change subscription).
+async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
+  const inline = variant === "inline";
   const cohort = cohortHint || (await getCohortSurface().catch(() => null));
-  const teams    = cohort?.teams    || [];
-  const projects = teams.filter(t => (t.kind || "team") === "project");
-  const teamsOnly = teams.filter(t => (t.kind || "team") === "team");
-  const people   = cohort?.people   || [];
-  const pickerSources = {
-    person: people,
-    team: teamsOnly,
-    project: projects,
+  const teams = cohort?.teams || [];
+  const pools = {
+    person:  cohort?.people || [],
+    team:    teams.filter(t => (t.kind || "team") === "team"),
+    project: teams.filter(t => (t.kind || "team") === "project"),
   };
 
   const currentId = getIdentity();
@@ -223,126 +263,199 @@ async function showOnboardingModal(cohortHint) {
     return `<option value="${escAttr(r.record_id)}" ${isCurrent ? "selected" : ""}>${escHtml(r.name || r.record_id)}${kind === "person" && r.team ? ` · ${escHtml(r.team)}` : ""}</option>`;
   }).join("");
 
-  const overlay = document.createElement("div");
-  overlay.className = "identity-modal-backdrop";
-  overlay.innerHTML = `
-    <div class="identity-modal enroll" role="dialog" aria-labelledby="im-title">
-      <div class="enroll-scan" aria-hidden="true"></div>
-      <div class="enroll-band">
-        <span class="enroll-issuer"><svg class="issuer-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg> shape rotator · alchemy</span>
-        <span class="enroll-doc">${claimed ? "re-seal" : "the threshold"}</span>
-      </div>
-
-      <header class="im-head">
-        <h2 id="im-title" class="im-title">
-          ${claimed ? "re-seal" : "identify yourself"}
-        </h2>
-        <p class="im-sub">
-          ${claimed
-            ? `sealed as <strong>${escHtml(currentResolved?.label || currentId.display_name)}</strong> <span class="im-current-kind">(${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)})</span>. choose another shape to re-seal, or use the controls below.`
-            : "strike your seal to cross into the cohort. your shape, your record — stored on this device, never broadcast."}
-        </p>
-        ${claimed ? `
-          <div class="im-current-actions">
-            <button class="im-btn im-current-edit"    type="button" data-im-action="edit">edit my record →</button>
-            <button class="im-btn im-current-unclaim" type="button" data-im-action="unclaim">break the seal</button>
-          </div>
-        ` : ""}
-      </header>
-
-      <section class="im-section">
-        <h3 class="im-h"><span class="im-h-no">01</span> ${claimed ? "re-seal as another shape" : "find your shape"}</h3>
-        <label class="im-row"><span>person</span>
-          <select id="im-person">
-            <option value="">— you —</option>
-            ${optHtml(people, "person")}
-          </select>
-        </label>
-        <label class="im-row"><span>team</span>
-          <select id="im-team">
-            <option value="">— your team —</option>
-            ${optHtml(teamsOnly, "team")}
-          </select>
-        </label>
-        <label class="im-row"><span>project</span>
-          <select id="im-project">
-            <option value="">— your project —</option>
-            ${optHtml(projects, "project")}
-          </select>
-        </label>
-      </section>
-
-      <section class="im-section">
-        <h3 class="im-h"><span class="im-h-no">02</span> ${claimed ? "or strike a new shape" : "not on the rolls yet"}</h3>
-        <p class="im-sub" style="margin:0 0 12px 0">opens the editor with a blank shape — submit a PR to join.</p>
-        <div class="im-create-row">
-          <button class="im-btn im-create" data-create="person"  type="button">+ new person</button>
-          <button class="im-btn im-create" data-create="team"    type="button">+ new team</button>
-          <button class="im-btn im-create" data-create="project" type="button">+ new project</button>
-        </div>
-      </section>
-
-      <footer class="im-foot">
-        <button class="im-resync" id="im-resync" type="button"
-                title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
-          <span class="im-resync-label">re-sync the rolls</span>
-        </button>
-        <button class="im-skip" id="im-skip" type="button">${claimed ? "close" : "not yet →"}</button>
-      </footer>
-    </div>
+  // Record pickers — shared between both variants; only the row class
+  // differs (modal keeps the ember .im-row grid, inline rides the same
+  // .alch-pf-row grid the editor above it uses).
+  const selectRows = (rowCls) => `
+    <label class="${rowCls}"><span>person</span>
+      <select data-im-pick="person">
+        <option value="">— you —</option>
+        ${optHtml(pools.person, "person")}
+      </select>
+    </label>
+    <label class="${rowCls}"><span>team</span>
+      <select data-im-pick="team">
+        <option value="">— your team —</option>
+        ${optHtml(pools.team, "team")}
+      </select>
+    </label>
+    <label class="${rowCls}"><span>project</span>
+      <select data-im-pick="project">
+        <option value="">— your project —</option>
+        ${optHtml(pools.project, "project")}
+      </select>
+    </label>
   `;
-  document.body.appendChild(overlay);
-  _modalEl = overlay;
+
+  if (inline) {
+    // Editorial variant — the seal is a SUMMARY card only. Editing,
+    // switching, and creating records all happen in the record editor on
+    // the same page: its picker plus the "this is me" claim button
+    // (alchemy.js) replaced the duplicate re-seal pickers, "+ new"
+    // buttons, and "edit my record" that used to live here. What's left
+    // is identity state plus its two rare actions.
+    const label = currentResolved?.label || currentId?.display_name || "";
+    const initials = labelInitials(label);
+    const resyncHtml = `
+      <button class="alch-seal-btn" data-im-resync type="button"
+              title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
+        <span class="im-resync-label">re-sync the rolls</span>
+      </button>
+    `;
+    // Contact line — pulled from the full cohort record so the card
+    // answers "is this really me?" at a glance: handle, email, team.
+    let contactHtml = "";
+    if (claimed) {
+      const rec = (pools[currentId.kind] || []).find(r => r.record_id === currentId.record_id) || null;
+      const teamName = rec?.team
+        ? ((pools.team.find(t => t.record_id === rec.team) || pools.project.find(t => t.record_id === rec.team))?.name || rec.team)
+        : null;
+      const bits = [
+        currentResolved?.gh ? `@${currentResolved.gh}` : null,
+        rec?.email || null,
+        teamName,
+      ].filter(Boolean);
+      if (bits.length) contactHtml = `<span class="alch-seal-contact">${bits.map(escHtml).join(" · ")}</span>`;
+    }
+    host.innerHTML = `
+      <h3 class="alch-profile-h">your seal</h3>
+      ${claimed ? `
+        <div class="alch-seal-current">
+          <span class="alch-seal-avatar" aria-hidden="true">${currentResolved?.avatar
+            ? `<img class="alch-seal-avatar-img" alt="" />`
+            : `<span class="alch-seal-initials">${escHtml(initials)}</span>`}</span>
+          <div class="alch-seal-who">
+            <span class="alch-seal-name">${escHtml(label)}</span>
+            <span class="alch-seal-meta">${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)}</span>
+            ${contactHtml}
+          </div>
+          <div class="alch-seal-actions">
+            ${resyncHtml}
+            <button class="alch-seal-btn alch-seal-btn-danger" type="button" data-im-action="unclaim">break the seal</button>
+          </div>
+        </div>
+      ` : `
+        <p class="alch-seal-empty">no seal yet — pick your record in the editor below and press <strong>this is me</strong>. stored on this device, never broadcast.</p>
+        <div class="alch-seal-btnrow">${resyncHtml}</div>
+      `}
+    `;
+    // Avatar image: src + error fallback wired here (not in the template)
+    // so a 404/offline github swaps in the initials without inline JS.
+    const avatarImg = host.querySelector(".alch-seal-avatar-img");
+    if (avatarImg && currentResolved?.avatar) {
+      avatarImg.referrerPolicy = "no-referrer";
+      avatarImg.loading = "lazy";
+      avatarImg.src = currentResolved.avatar;
+      avatarImg.addEventListener("error", () => {
+        const wrap = avatarImg.closest(".alch-seal-avatar");
+        if (wrap) wrap.innerHTML = `<span class="alch-seal-initials">${escHtml(initials)}</span>`;
+      }, { once: true });
+    }
+  } else {
+    host.innerHTML = `
+    <div class="enroll-scan" aria-hidden="true"></div>
+    <div class="enroll-band">
+      <span class="enroll-issuer"><svg class="issuer-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg> shape rotator · alchemy</span>
+      <span class="enroll-doc">${claimed ? "re-seal" : "the threshold"}</span>
+    </div>
+
+    <header class="im-head">
+      <h2 id="im-title" class="im-title">
+        ${claimed ? "re-seal" : "identify yourself"}
+      </h2>
+      <p class="im-sub">
+        ${claimed
+          ? `sealed as <strong>${escHtml(currentResolved?.label || currentId.display_name)}</strong> <span class="im-current-kind">(${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)})</span>. choose another shape to re-seal, or use the controls below.`
+          : "strike your seal to cross into the cohort. your shape, your record — stored on this device, never broadcast."}
+      </p>
+      ${claimed ? `
+        <div class="im-current-actions">
+          <button class="im-btn im-current-edit"    type="button" data-im-action="edit">edit my record →</button>
+          <button class="im-btn im-current-unclaim" type="button" data-im-action="unclaim">break the seal</button>
+        </div>
+      ` : ""}
+    </header>
+
+    <section class="im-section">
+      <h3 class="im-h"><span class="im-h-no">01</span> ${claimed ? "re-seal as another shape" : "find your shape"}</h3>
+      ${selectRows("im-row")}
+    </section>
+
+    <section class="im-section">
+      <h3 class="im-h"><span class="im-h-no">02</span> ${claimed ? "or strike a new shape" : "not on the rolls yet"}</h3>
+      <p class="im-sub" style="margin:0 0 12px 0">opens the editor with a blank shape — submit a PR to join.</p>
+      <div class="im-create-row">
+        <button class="im-btn im-create" data-create="person"  type="button">+ new person</button>
+        <button class="im-btn im-create" data-create="team"    type="button">+ new team</button>
+        <button class="im-btn im-create" data-create="project" type="button">+ new project</button>
+      </div>
+    </section>
+
+    <footer class="im-foot">
+      <button class="im-resync" data-im-resync type="button"
+              title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
+        <span class="im-resync-label">re-sync the rolls</span>
+      </button>
+      <button class="im-skip" data-im-skip type="button">${claimed ? "close" : "not yet →"}</button>
+    </footer>
+  `;
+  }
 
   // Re-populate the person/team/project dropdowns when the cohort
   // surface refreshes. On a cold first-launch the LS cache or fixture
   // can be sparse (or missing the user entirely) before the GitHub
-  // tree fetch lands; without this subscription, the modal opens with
+  // tree fetch lands; without this subscription, the card opens with
   // a half-empty dropdown, the user shrugs and dismisses, and never
   // claims. The subscription gives the dropdown a chance to fill in.
-  const _refreshSelects = async () => {
+  const refreshSelects = async () => {
     try {
       const fresh = await getCohortSurface();
-      const freshTeams    = fresh?.teams    || [];
-      const freshProjects = freshTeams.filter(t => (t.kind || "team") === "project");
-      const freshTeamsOnly = freshTeams.filter(t => (t.kind || "team") === "team");
-      const freshPeople   = fresh?.people   || [];
-      pickerSources.person = freshPeople;
-      pickerSources.team = freshTeamsOnly;
-      pickerSources.project = freshProjects;
-      const personSel  = overlay.querySelector("#im-person");
-      const teamSel    = overlay.querySelector("#im-team");
-      const projectSel = overlay.querySelector("#im-project");
-      if (personSel) personSel.innerHTML = `<option value="">— pick yourself —</option>${optHtml(freshPeople, "person")}`;
-      if (teamSel)   teamSel.innerHTML   = `<option value="">— pick a team —</option>${optHtml(freshTeamsOnly, "team")}`;
-      if (projectSel && freshProjects.length) {
-        projectSel.innerHTML = `<option value="">— pick a project —</option>${optHtml(freshProjects, "project")}`;
+      const freshTeams = fresh?.teams || [];
+      pools.person  = fresh?.people || [];
+      pools.team    = freshTeams.filter(t => (t.kind || "team") === "team");
+      pools.project = freshTeams.filter(t => (t.kind || "team") === "project");
+      const personSel  = host.querySelector('select[data-im-pick="person"]');
+      const teamSel    = host.querySelector('select[data-im-pick="team"]');
+      const projectSel = host.querySelector('select[data-im-pick="project"]');
+      if (personSel) personSel.innerHTML = `<option value="">— pick yourself —</option>${optHtml(pools.person, "person")}`;
+      if (teamSel)   teamSel.innerHTML   = `<option value="">— pick a team —</option>${optHtml(pools.team, "team")}`;
+      if (projectSel && pools.project.length) {
+        projectSel.innerHTML = `<option value="">— pick a project —</option>${optHtml(pools.project, "project")}`;
       }
     } catch {}
   };
-  const _unsubscribe = subscribeToCohortChanges(() => { _refreshSelects(); });
+  const unsubscribe = subscribeToCohortChanges(() => {
+    // Inline cards die by DOM replacement (the profile page re-renders
+    // its canvas), not by an explicit close — drop the subscription the
+    // first time it fires against a detached host.
+    if (!host.isConnected) { try { unsubscribe(); } catch {} return; }
+    refreshSelects();
+  });
+  const cleanup = () => { try { unsubscribe(); } catch {} };
 
-  const close = () => {
-    try { _unsubscribe(); } catch {}
-    overlay.remove();
-    _modalEl = null;
+  // Hand off to the editor (same page when inline). Inline: the profile
+  // page re-renders with the record loaded, so scroll back up to it.
+  const goEditor = (opts) => {
+    if (!inline && typeof close === "function") close();
+    if (typeof window.__srwkOpenProfile === "function") window.__srwkOpenProfile(opts);
+    if (inline) {
+      try { document.getElementById("alchemy-canvas")?.scrollTo({ top: 0 }); } catch {}
+    }
   };
 
   // Current-claim quick actions (only present when claimed).
-  for (const btn of overlay.querySelectorAll("[data-im-action]")) {
+  for (const btn of host.querySelectorAll("[data-im-action]")) {
     btn.addEventListener("click", () => {
       const a = btn.dataset.imAction;
       if (a === "edit") {
-        close();
-        if (typeof window.__srwkOpenProfile === "function") {
-          window.__srwkOpenProfile({ kind: currentId.kind, record_id: currentId.record_id, mode: "edit" });
-        }
+        goEditor({ kind: currentId.kind, record_id: currentId.record_id, mode: "edit" });
       } else if (a === "unclaim") {
         // Confirm-in-place — flips the button to "really clear?" so an
         // accidental click doesn't drop the user's saved identity.
         if (btn.dataset.confirming === "1") {
           clearIdentity();
-          close();
+          if (inline) { if (typeof repaint === "function") repaint(); }
+          else if (typeof close === "function") close();
         } else {
           btn.dataset.confirming = "1";
           btn.textContent = "really clear? · click again";
@@ -353,55 +466,57 @@ async function showOnboardingModal(cohortHint) {
 
   // Pickers: claim by record. On first claim we drop the user into their
   // editor so they can verify the record. On a SWITCH (already claimed,
-  // picking a different record) we just close — the user is mid-task and
-  // doesn't want to be yanked into a form. Picking the SAME record is a
-  // no-op close.
-  const wirePick = (selId, kind) => {
-    const sel = overlay.querySelector(`#${selId}`);
+  // picking a different record) the modal just closes / the inline card
+  // repaints — the user is mid-task and doesn't want to be yanked into a
+  // form. Picking the SAME record is a no-op close.
+  const wirePick = (kind) => {
+    const sel = host.querySelector(`select[data-im-pick="${kind}"]`);
     if (!sel) return;
     sel.addEventListener("change", () => {
       const id = sel.value;
       if (!id) return;
-      const source = pickerSources[kind] || [];
-      const rec = source.find(r => r.record_id === id);
+      const rec = (pools[kind] || []).find(r => r.record_id === id);
       if (!rec) return;
       const isSame = claimed
         && currentId.kind === kind
         && currentId.record_id === rec.record_id;
-      if (isSame) { close(); return; }
-      setIdentity({ kind, record_id: rec.record_id, display_name: rec.name || rec.record_id });
-      close();
-      if (!claimed && typeof window.__srwkOpenProfile === "function") {
-        // First claim → land in the editor so they can verify their record.
-        window.__srwkOpenProfile({ kind, record_id: rec.record_id, mode: "edit" });
+      if (isSame) {
+        if (!inline && typeof close === "function") close();
+        return;
       }
-      // Switch case: do nothing more. The top-right pill repaints via
-      // the onIdentityChanged listener; the user stays where they were.
+      setIdentity({ kind, record_id: rec.record_id, display_name: rec.name || rec.record_id });
+      if (!claimed) {
+        // First claim → land in the editor so they can verify their record.
+        goEditor({ kind, record_id: rec.record_id, mode: "edit" });
+        return;
+      }
+      // Switch case: the bottom-left pill repaints via the
+      // onIdentityChanged listener; the user stays where they were.
+      if (inline) { if (typeof repaint === "function") repaint(); }
+      else if (typeof close === "function") close();
     });
   };
-  wirePick("im-person",  "person");
-  wirePick("im-team",    "team");
-  wirePick("im-project", "project");
+  wirePick("person");
+  wirePick("team");
+  wirePick("project");
 
   // Create paths: route to alchemy/profile/add — they can claim after PR merges.
-  for (const btn of overlay.querySelectorAll(".im-create[data-create]")) {
+  for (const btn of host.querySelectorAll("[data-create]")) {
     btn.addEventListener("click", () => {
-      const kind = btn.dataset.create;
-      close();
-      if (typeof window.__srwkOpenProfile === "function") {
-        window.__srwkOpenProfile({ kind, mode: "add" });
-      }
+      goEditor({ kind: btn.dataset.create, mode: "add" });
     });
   }
 
-  overlay.querySelector("#im-skip")?.addEventListener("click", close);
+  host.querySelector("[data-im-skip]")?.addEventListener("click", () => {
+    if (typeof close === "function") close();
+  });
 
   // Manual github resync. Background refresh is throttled to once per
   // hour (the cohort 60 req/hr unauth GH budget is the constraint on a
   // LAN where multiple cohort members share an IP — see cohort-source.js).
   // This button bypasses the throttle so a user can pull fresh data
   // immediately after a PR merges.
-  const resyncBtn = overlay.querySelector("#im-resync");
+  const resyncBtn = host.querySelector("[data-im-resync]");
   resyncBtn?.addEventListener("click", async () => {
     if (resyncBtn.dataset.busy === "1") return;
     resyncBtn.dataset.busy = "1";
@@ -411,7 +526,7 @@ async function showOnboardingModal(cohortHint) {
     try {
       await refreshCohortFromGithub();
       if (labelEl) labelEl.textContent = "synced";
-      _refreshSelects(); // dropdowns in this modal reflect the newest cohort
+      refreshSelects(); // dropdowns in this card reflect the newest cohort
     } catch (e) {
       if (labelEl) labelEl.textContent = "resync failed";
       console.warn("[identity] manual cohort resync failed:", e?.message || e);
@@ -424,8 +539,28 @@ async function showOnboardingModal(cohortHint) {
     }
   });
 
-  // Click outside the card → close (treat as skip).
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  return cleanup;
+}
+
+// ─── inline re-seal section on the profile page ──────────────────────
+// Called by alchemy's profile renderer with the host <section>. Repaints
+// in place on claim / switch / unclaim; cleans up the previous render's
+// subscription when remounted into the same host.
+export async function mountResealInline(host) {
+  if (!host) return;
+  try { if (typeof host.__resealCleanup === "function") host.__resealCleanup(); } catch {}
+  host.classList.add("alch-profile-section", "alch-seal-section");
+  host.__resealCleanup = await renderResealCard(host, {
+    variant: "inline",
+    // Identity changes alter the editor too (its "this is me" claim
+    // button keys off the current seal), so repaint the whole profile
+    // page, not just this card. Falls back to a card-only repaint if
+    // alchemy hasn't registered its navigation hook.
+    repaint: () => {
+      if (typeof window.__srwkGoProfilePage === "function") window.__srwkGoProfilePage();
+      else if (host.isConnected) mountResealInline(host);
+    },
+  });
 }
 
 function escHtml(s) {
