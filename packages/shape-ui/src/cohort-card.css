@@ -182,7 +182,11 @@
  * ceiling; enter slower than exit with a short intent delay. */
 .alch-card-now {
   position: absolute;
-  left: 10px; right: 10px; top: 10px;
+  /* Clear of the 112px sigil column: the shape shader paints on a
+   * body-level overlay canvas ABOVE card content, so glass that
+   * intersects the sigil rect gets punched through. The strip sits over
+   * the title text only (known info while reading the now-line). */
+  left: 140px; right: 10px; top: 10px;
   padding: 8px 10px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
