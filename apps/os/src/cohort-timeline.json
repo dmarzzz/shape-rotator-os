@@ -7,8 +7,10 @@
     "repo_url": "https://github.com/dmarzzz/shape-rotator-os.git",
     "base_ref": "HEAD",
     "included_paths": [
+      "cohort-data/teams",
       "cohort-data/people",
-      "cohort-data/teams"
+      "cohort-data/clusters",
+      "cohort-data/dependencies"
     ],
     "ignored": [
       "OS/app code changes",
@@ -23,14 +25,18 @@
       "id": "cohort-data-github",
       "kind": "git",
       "status": "active",
-      "description": "Public self-declared people and team/project records committed to GitHub main.",
+      "description": "Public self-declared cohort records committed to GitHub main.",
       "paths": [
         "cohort-data/people",
-        "cohort-data/teams"
+        "cohort-data/teams",
+        "cohort-data/clusters",
+        "cohort-data/dependencies"
       ],
       "record_types": [
         "person",
-        "team"
+        "team",
+        "cluster",
+        "dependency"
       ]
     },
     {
@@ -59,7 +65,8 @@
       "counts": {
         "teams": 23,
         "people": 48,
-        "clusters": 9
+        "clusters": 9,
+        "dependencies": 0
       },
       "surface": {
         "schema_version": 1,
@@ -2015,6 +2022,7 @@
             "description": "Compliance-driven enterprise as a shared GTM target buyer — Prova EHR pilot, Abra SOC2/SOX, SignalStack privacy NGOs/journalists."
           }
         ],
+        "dependencies": [],
         "cohort_vocab": {
           "skill_areas": [
             "tee",
@@ -2055,7 +2063,8 @@
       "counts": {
         "teams": 26,
         "people": 52,
-        "clusters": 9
+        "clusters": 9,
+        "dependencies": 0
       },
       "surface": {
         "schema_version": 1,
@@ -4371,6 +4380,7 @@
             "description": "Compliance-driven enterprise as a shared GTM target buyer — Prova EHR pilot, Abra SOC2/SOX, SignalStack privacy NGOs/journalists."
           }
         ],
+        "dependencies": [],
         "cohort_vocab": {
           "skill_areas": [
             "tee",
@@ -4411,7 +4421,8 @@
       "counts": {
         "teams": 26,
         "people": 54,
-        "clusters": 9
+        "clusters": 9,
+        "dependencies": 0
       },
       "surface": {
         "schema_version": 1,
@@ -7318,6 +7329,7 @@
             "description": "Compliance-driven enterprise as a shared GTM target buyer — Prova EHR pilot, Abra SOC2/SOX, SignalStack privacy NGOs/journalists."
           }
         ],
+        "dependencies": [],
         "cohort_vocab": {
           "skill_areas": [
             "tee",
@@ -7358,7 +7370,8 @@
       "counts": {
         "teams": 26,
         "people": 54,
-        "clusters": 12
+        "clusters": 12,
+        "dependencies": 9
       },
       "surface": {
         "schema_version": 1,
@@ -10305,6 +10318,174 @@
             "description": "Compliance-driven enterprise as a shared GTM target buyer — Prova EHR pilot, Abra SOC2/SOX, SignalStack privacy NGOs/journalists, and Enclave medical data sharing."
           }
         ],
+        "dependencies": [
+          {
+            "record_id": "abra-teesql",
+            "record_type": "dependency",
+            "source": "abra",
+            "target": "teesql",
+            "relation": "depends_on",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Abra is building a formal-verification registry around dstack TEE Postgres and explicitly asks for TEE Postgres beta access; TeeSQL is the cohort team offering TEE Postgres service and onboarding.",
+            "evidence": [
+              "Abra focus: formal verification · dstack TEE Postgres",
+              "Abra seeking: TEE Postgres beta access for the verification registry",
+              "TeeSQL focus: TEE Postgres on dstack",
+              "TeeSQL offering: free TeeSQL service to cohort teams during the accelerator"
+            ],
+            "next_action": "Confirm whether Abra's verification registry should use TeeSQL beta access or only compare implementation patterns.",
+            "updated_at": "2026-06-05T00:00:00.000Z"
+          },
+          {
+            "record_id": "bitrouter-jjhub",
+            "record_type": "dependency",
+            "source": "bitrouter",
+            "target": "jjhub",
+            "relation": "pairs_with",
+            "status": "exploring",
+            "confidence": "low",
+            "reason": "Bitrouter is opening an agentic payment/LLM-routing toolkit and asks for feedback from projects in agent harnesses; JJHub is the cohort's agentic coding platform and is seeking DX feedback from teams building with LLM-as-primitive.",
+            "evidence": [
+              "Bitrouter focus: P2P LLM router",
+              "Bitrouter seeking: feedback on projects in agent harnesses or LLM routing",
+              "Bitrouter offering: workshop on agentic payment with x402/MPP",
+              "JJHub focus: agentic coding platform",
+              "JJHub seeking: DX feedback from teams building with LLM-as-primitive"
+            ],
+            "next_action": "Confirm whether JJHub is a real dogfooding path for Bitrouter's LLM routing or only an adjacent agentic-dev project.",
+            "updated_at": "2026-06-05T00:00:00.000Z"
+          },
+          {
+            "record_id": "contexto-jjhub",
+            "record_type": "dependency",
+            "source": "contexto",
+            "target": "jjhub",
+            "relation": "pairs_with",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Contexto is looking for long-running agent dogfooders and observability pairs; JJHub is shipping an agentic coding platform and seeking cohort teams to dogfood Smithers for agentic CI.",
+            "evidence": [
+              "Contexto focus: agent context engine",
+              "Contexto seeking: long-running agent dogfooders for context-collapse stress-testing",
+              "JJHub focus: agentic coding platform",
+              "JJHub seeking: cohort teams willing to dogfood Smithers for agentic CI",
+              "Shared skill areas: agentic, agent-runtime, durable-workflows"
+            ],
+            "next_action": "Test whether JJHub/Smithers creates the long-running agent traces Contexto needs for context-collapse and observability work.",
+            "updated_at": "2026-06-05T00:00:00.000Z"
+          },
+          {
+            "record_id": "pramaana-crossroads",
+            "record_type": "dependency",
+            "source": "pramaana",
+            "target": "crossroads",
+            "relation": "complements",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Pramaana offers a post-quantum identity layer and SDK for cohort tools; Crossroads is building a wallet and asks for cross-chain/policy-constrained signing feedback. The public records support product complementarity around identity and wallet flows.",
+            "evidence": [
+              "Pramaana focus: lattice / PQ crypto, ZK proofs",
+              "Pramaana offering: Pramaana SDK as identity layer for cohort tools",
+              "Crossroads focus: Liquefaction-built wallet",
+              "Crossroads offering: share wallet UX + cross-chain UX feedback",
+              "Shared skill areas: identity, tee"
+            ],
+            "next_action": "Confirm whether Crossroads needs Pramaana identity primitives in wallet flows, or whether the relationship is only design/crypto feedback.",
+            "updated_at": "2026-06-05T00:00:00.000Z"
+          },
+          {
+            "record_id": "prova-conclave",
+            "record_type": "dependency",
+            "source": "prova",
+            "target": "conclave",
+            "relation": "pairs_with",
+            "status": "exploring",
+            "confidence": "low",
+            "reason": "Conclave is factoring a reusable TEE-agent skill framework while Prova is building a healthcare AI agent and offering a trust API for other cohort teams.",
+            "evidence": [
+              "Conclave now: factoring the skill framework into a reusable module for other TEE-agent projects",
+              "Conclave seeking: cohort projects to test multi-party skill workflows",
+              "Prova offering: prova trust-api as free attestation layer for other cohort teams",
+              "Shared skill areas: tee, dstack, agentic"
+            ],
+            "next_action": "Test whether Conclave's reusable skill runtime needs Prova's attestation layer, or whether the relationship is only conceptual overlap.",
+            "updated_at": "2026-06-03T00:00:00.000Z"
+          },
+          {
+            "record_id": "prova-dealproof",
+            "record_type": "dependency",
+            "source": "prova",
+            "target": "dealproof",
+            "relation": "complements",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Both projects expose dual-attestation / contract-layer primitives for agent workflows, and DealProof's weekly goal names ProvaTrust attestation-layer complementarity as a conversation to pursue.",
+            "evidence": [
+              "DealProof weekly_goals: connect with Justin (ProvaTrust) on attestation layer complementarity",
+              "Prova offering: dual-attestation library — open-sourced for cohort reuse",
+              "DealProof offering: open-source dual-attestation library as cohort module",
+              "Shared skill areas: tee, dstack, attestation, agentic"
+            ],
+            "next_action": "Confirm whether the shared attestation primitive is one reusable module or two complementary APIs.",
+            "updated_at": "2026-06-03T00:00:00.000Z"
+          },
+          {
+            "record_id": "prova-signalstack",
+            "record_type": "dependency",
+            "source": "prova",
+            "target": "signalstack",
+            "relation": "shares_substrate",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Prova and SignalStack are both shipping TEE-backed AI workflows and both ask for comparison around deployment patterns and attestation UX.",
+            "evidence": [
+              "Prova seeking: cohort teams shipping LLM inference in TEEs to compare deployment patterns",
+              "SignalStack seeking: cohort teams comparing TEE deployment patterns + attestation UX",
+              "SignalStack offering: open-source attestation verification SDK for cohort",
+              "Shared skill areas: tee, dstack, agentic, attestation"
+            ],
+            "next_action": "Compare deployment and attestation UX paths before either team standardizes its cohort-facing library.",
+            "updated_at": "2026-06-03T00:00:00.000Z"
+          },
+          {
+            "record_id": "prova-teesql",
+            "record_type": "dependency",
+            "source": "prova",
+            "target": "teesql",
+            "relation": "shares_substrate",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Prova is hardening TEE attestation for a healthcare AI agent while TeeSQL is onboarding cohort teams to confidential SQL on dstack; the public source supports shared TEE substrate, not a confirmed product dependency.",
+            "evidence": [
+              "Prova now: hardening the dual-attestation library for cohort reuse",
+              "Prova seeking: cohort teams shipping LLM inference in TEEs to compare deployment patterns",
+              "TeeSQL offering: free TeeSQL service to cohort teams during the accelerator",
+              "Shared skill areas: tee, dstack, attestation"
+            ],
+            "next_action": "Confirm whether Prova's EHR pilot needs confidential SQL storage or only attestation-layer comparison.",
+            "updated_at": "2026-06-03T00:00:00.000Z"
+          },
+          {
+            "record_id": "tinycloud-teesql",
+            "record_type": "dependency",
+            "source": "tinycloud",
+            "target": "teesql",
+            "relation": "shares_substrate",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Tinycloud and TeeSQL both operate around dstack TEEs, scoped delegation, confidential infrastructure, and cohort-facing services, but the current public records support substrate overlap rather than a confirmed product dependency.",
+            "evidence": [
+              "Tinycloud focus: user-owned cloud, dstack TEEs",
+              "Tinycloud offering: tinycloud-secrets for cohort teams",
+              "TeeSQL focus: TEE Postgres on dstack",
+              "TeeSQL offering: open-source connection-layer attestation code",
+              "Shared skill areas: tee, dstack, attestation"
+            ],
+            "next_action": "Determine whether Tinycloud secrets/delegation and TeeSQL confidential storage should integrate, or whether this remains a deployment-pattern comparison.",
+            "updated_at": "2026-06-05T00:00:00.000Z"
+          }
+        ],
         "cohort_vocab": {
           "skill_areas": [
             "tee",
@@ -10339,13 +10520,14 @@
       "as_of": null,
       "ref": "HEAD",
       "resolved_by": "ref",
-      "source_commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "source_commit_short": "2b4cce0",
-      "committed_at": "2026-06-11T11:27:38.000Z",
+      "source_commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "source_commit_short": "ff49679",
+      "committed_at": "2026-06-11T11:30:27.000Z",
       "counts": {
         "teams": 26,
         "people": 51,
-        "clusters": 12
+        "clusters": 12,
+        "dependencies": 9
       },
       "surface": {
         "schema_version": 1,
@@ -14665,6 +14847,174 @@
             "description": "Compliance-driven enterprise as a shared GTM target buyer — Prova EHR pilot, Abra SOC2/SOX, SignalStack privacy NGOs/journalists, and Enclave medical data sharing."
           }
         ],
+        "dependencies": [
+          {
+            "record_id": "abra-teesql",
+            "record_type": "dependency",
+            "source": "abra",
+            "target": "teesql",
+            "relation": "depends_on",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Abra is building a formal-verification registry around dstack TEE Postgres and explicitly asks for TEE Postgres beta access; TeeSQL is the cohort team offering TEE Postgres service and onboarding.",
+            "evidence": [
+              "Abra focus: formal verification · dstack TEE Postgres",
+              "Abra seeking: TEE Postgres beta access for the verification registry",
+              "TeeSQL focus: TEE Postgres on dstack",
+              "TeeSQL offering: free TeeSQL service to cohort teams during the accelerator"
+            ],
+            "next_action": "Confirm whether Abra's verification registry should use TeeSQL beta access or only compare implementation patterns.",
+            "updated_at": "2026-06-05T00:00:00.000Z"
+          },
+          {
+            "record_id": "bitrouter-jjhub",
+            "record_type": "dependency",
+            "source": "bitrouter",
+            "target": "jjhub",
+            "relation": "pairs_with",
+            "status": "exploring",
+            "confidence": "low",
+            "reason": "Bitrouter is opening an agentic payment/LLM-routing toolkit and asks for feedback from projects in agent harnesses; JJHub is the cohort's agentic coding platform and is seeking DX feedback from teams building with LLM-as-primitive.",
+            "evidence": [
+              "Bitrouter focus: P2P LLM router",
+              "Bitrouter seeking: feedback on projects in agent harnesses or LLM routing",
+              "Bitrouter offering: workshop on agentic payment with x402/MPP",
+              "JJHub focus: agentic coding platform",
+              "JJHub seeking: DX feedback from teams building with LLM-as-primitive"
+            ],
+            "next_action": "Confirm whether JJHub is a real dogfooding path for Bitrouter's LLM routing or only an adjacent agentic-dev project.",
+            "updated_at": "2026-06-05T00:00:00.000Z"
+          },
+          {
+            "record_id": "contexto-jjhub",
+            "record_type": "dependency",
+            "source": "contexto",
+            "target": "jjhub",
+            "relation": "pairs_with",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Contexto is looking for long-running agent dogfooders and observability pairs; JJHub is shipping an agentic coding platform and seeking cohort teams to dogfood Smithers for agentic CI.",
+            "evidence": [
+              "Contexto focus: agent context engine",
+              "Contexto seeking: long-running agent dogfooders for context-collapse stress-testing",
+              "JJHub focus: agentic coding platform",
+              "JJHub seeking: cohort teams willing to dogfood Smithers for agentic CI",
+              "Shared skill areas: agentic, agent-runtime, durable-workflows"
+            ],
+            "next_action": "Test whether JJHub/Smithers creates the long-running agent traces Contexto needs for context-collapse and observability work.",
+            "updated_at": "2026-06-05T00:00:00.000Z"
+          },
+          {
+            "record_id": "pramaana-crossroads",
+            "record_type": "dependency",
+            "source": "pramaana",
+            "target": "crossroads",
+            "relation": "complements",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Pramaana offers a post-quantum identity layer and SDK for cohort tools; Crossroads is building a wallet and asks for cross-chain/policy-constrained signing feedback. The public records support product complementarity around identity and wallet flows.",
+            "evidence": [
+              "Pramaana focus: lattice / PQ crypto, ZK proofs",
+              "Pramaana offering: Pramaana SDK as identity layer for cohort tools",
+              "Crossroads focus: Liquefaction-built wallet",
+              "Crossroads offering: share wallet UX + cross-chain UX feedback",
+              "Shared skill areas: identity, tee"
+            ],
+            "next_action": "Confirm whether Crossroads needs Pramaana identity primitives in wallet flows, or whether the relationship is only design/crypto feedback.",
+            "updated_at": "2026-06-05T00:00:00.000Z"
+          },
+          {
+            "record_id": "prova-conclave",
+            "record_type": "dependency",
+            "source": "prova",
+            "target": "conclave",
+            "relation": "pairs_with",
+            "status": "exploring",
+            "confidence": "low",
+            "reason": "Conclave is factoring a reusable TEE-agent skill framework while Prova is building a healthcare AI agent and offering a trust API for other cohort teams.",
+            "evidence": [
+              "Conclave now: factoring the skill framework into a reusable module for other TEE-agent projects",
+              "Conclave seeking: cohort projects to test multi-party skill workflows",
+              "Prova offering: prova trust-api as free attestation layer for other cohort teams",
+              "Shared skill areas: tee, dstack, agentic"
+            ],
+            "next_action": "Test whether Conclave's reusable skill runtime needs Prova's attestation layer, or whether the relationship is only conceptual overlap.",
+            "updated_at": "2026-06-03T00:00:00.000Z"
+          },
+          {
+            "record_id": "prova-dealproof",
+            "record_type": "dependency",
+            "source": "prova",
+            "target": "dealproof",
+            "relation": "complements",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Both projects expose dual-attestation / contract-layer primitives for agent workflows, and DealProof's weekly goal names ProvaTrust attestation-layer complementarity as a conversation to pursue.",
+            "evidence": [
+              "DealProof weekly_goals: connect with Justin (ProvaTrust) on attestation layer complementarity",
+              "Prova offering: dual-attestation library — open-sourced for cohort reuse",
+              "DealProof offering: open-source dual-attestation library as cohort module",
+              "Shared skill areas: tee, dstack, attestation, agentic"
+            ],
+            "next_action": "Confirm whether the shared attestation primitive is one reusable module or two complementary APIs.",
+            "updated_at": "2026-06-03T00:00:00.000Z"
+          },
+          {
+            "record_id": "prova-signalstack",
+            "record_type": "dependency",
+            "source": "prova",
+            "target": "signalstack",
+            "relation": "shares_substrate",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Prova and SignalStack are both shipping TEE-backed AI workflows and both ask for comparison around deployment patterns and attestation UX.",
+            "evidence": [
+              "Prova seeking: cohort teams shipping LLM inference in TEEs to compare deployment patterns",
+              "SignalStack seeking: cohort teams comparing TEE deployment patterns + attestation UX",
+              "SignalStack offering: open-source attestation verification SDK for cohort",
+              "Shared skill areas: tee, dstack, agentic, attestation"
+            ],
+            "next_action": "Compare deployment and attestation UX paths before either team standardizes its cohort-facing library.",
+            "updated_at": "2026-06-03T00:00:00.000Z"
+          },
+          {
+            "record_id": "prova-teesql",
+            "record_type": "dependency",
+            "source": "prova",
+            "target": "teesql",
+            "relation": "shares_substrate",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Prova is hardening TEE attestation for a healthcare AI agent while TeeSQL is onboarding cohort teams to confidential SQL on dstack; the public source supports shared TEE substrate, not a confirmed product dependency.",
+            "evidence": [
+              "Prova now: hardening the dual-attestation library for cohort reuse",
+              "Prova seeking: cohort teams shipping LLM inference in TEEs to compare deployment patterns",
+              "TeeSQL offering: free TeeSQL service to cohort teams during the accelerator",
+              "Shared skill areas: tee, dstack, attestation"
+            ],
+            "next_action": "Confirm whether Prova's EHR pilot needs confidential SQL storage or only attestation-layer comparison.",
+            "updated_at": "2026-06-03T00:00:00.000Z"
+          },
+          {
+            "record_id": "tinycloud-teesql",
+            "record_type": "dependency",
+            "source": "tinycloud",
+            "target": "teesql",
+            "relation": "shares_substrate",
+            "status": "exploring",
+            "confidence": "medium",
+            "reason": "Tinycloud and TeeSQL both operate around dstack TEEs, scoped delegation, confidential infrastructure, and cohort-facing services, but the current public records support substrate overlap rather than a confirmed product dependency.",
+            "evidence": [
+              "Tinycloud focus: user-owned cloud, dstack TEEs",
+              "Tinycloud offering: tinycloud-secrets for cohort teams",
+              "TeeSQL focus: TEE Postgres on dstack",
+              "TeeSQL offering: open-source connection-layer attestation code",
+              "Shared skill areas: tee, dstack, attestation"
+            ],
+            "next_action": "Determine whether Tinycloud secrets/delegation and TeeSQL confidential storage should integrate, or whether this remains a deployment-pattern comparison.",
+            "updated_at": "2026-06-05T00:00:00.000Z"
+          }
+        ],
         "cohort_vocab": {
           "skill_areas": [
             "tee",
@@ -14695,6 +15045,293 @@
     }
   ],
   "events": [
+    {
+      "id": "ctl_3c2859b794f9c85b",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-05-09T20:31:42.000Z",
+      "commit": "7c5d2e6474c95aab642b6324c34c0d29990bba85",
+      "commit_short": "7c5d2e6",
+      "author_name": "dmarzzz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "feat: initial public release of shape-rotator-field-guide",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "agents",
+      "record_name": "agents",
+      "path": "cohort-data/clusters/agents.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created agents",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "Agent runtime stack — JJHub harness, Contexto context engine, Bitrouter routing, Conclave skills runtime. Composable; workshop candidate."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "agent runtime"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "agents"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "agents"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "jjhub",
+            "contexto",
+            "bitrouter",
+            "conclave"
+          ]
+        }
+      ],
+      "snapshot_id": "program-start"
+    },
+    {
+      "id": "ctl_69934222647ee4b0",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-05-09T20:31:42.000Z",
+      "commit": "7c5d2e6474c95aab642b6324c34c0d29990bba85",
+      "commit_short": "7c5d2e6",
+      "author_name": "dmarzzz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "feat: initial public release of shape-rotator-field-guide",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "crypto-id",
+      "record_name": "crypto-id",
+      "path": "cohort-data/clusters/crypto-id.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created crypto-id",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "Crypto + identity research axis — Pramaana lattice/ASC, Crossroads Liquefaction, WikiGen bio-cryptography. Could share an IC3 mentor pairing."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "crypto / identity research"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "crypto-id"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "crypto-id"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "pramaana",
+            "crossroads",
+            "wikigen"
+          ]
+        }
+      ],
+      "snapshot_id": "program-start"
+    },
+    {
+      "id": "ctl_688a45f6aaba464c",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-05-09T20:31:42.000Z",
+      "commit": "7c5d2e6474c95aab642b6324c34c0d29990bba85",
+      "commit_short": "7c5d2e6",
+      "author_name": "dmarzzz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "feat: initial public release of shape-rotator-field-guide",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "dstack",
+      "record_name": "dstack",
+      "path": "cohort-data/clusters/dstack.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created dstack",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "TEE Postgres axis — TeeSQL builds it, Abra integrates, Tinycloud + Conclave deploy."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "dstack / TEE-postgres"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "dstack"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "dstack"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "teesql",
+            "abra",
+            "tinycloud",
+            "conclave"
+          ]
+        }
+      ],
+      "snapshot_id": "program-start"
+    },
+    {
+      "id": "ctl_ddd7b273241378db",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-05-09T20:31:42.000Z",
+      "commit": "7c5d2e6474c95aab642b6324c34c0d29990bba85",
+      "commit_short": "7c5d2e6",
+      "author_name": "dmarzzz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "feat: initial public release of shape-rotator-field-guide",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "ndai",
+      "record_name": "ndai",
+      "path": "cohort-data/clusters/ndai.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created ndai",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "Three teams share the NDAI paper — Conclave framework, Prova sandbox marketplace, DealProof dual-agent. Risk of stepping on each other; DealProof flagged Prova as collaboration target."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "NDAI lineage"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "ndai"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "ndai"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "conclave",
+            "prova",
+            "dealproof"
+          ]
+        }
+      ],
+      "snapshot_id": "program-start"
+    },
+    {
+      "id": "ctl_433c12424f773417",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-05-09T20:31:42.000Z",
+      "commit": "7c5d2e6474c95aab642b6324c34c0d29990bba85",
+      "commit_short": "7c5d2e6",
+      "author_name": "dmarzzz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "feat: initial public release of shape-rotator-field-guide",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "regulated",
+      "record_name": "regulated",
+      "path": "cohort-data/clusters/regulated.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created regulated",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "Compliance-driven enterprise as a shared GTM target buyer — Prova EHR pilot, Abra SOC2/SOX, SignalStack privacy NGOs/journalists."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "healthcare / regulated"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "regulated"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "regulated"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "prova",
+            "abra",
+            "signalstack"
+          ]
+        }
+      ],
+      "snapshot_id": "program-start"
+    },
     {
       "id": "ctl_f40fd0bf161a5760",
       "source_id": "cohort-data-github",
@@ -21631,6 +22268,236 @@
           "before_hash": "c7089ffe79fb814179e1819f04471344e880b3eea700b974793dea3683d016b9",
           "after_hash": "ba24ee827f12a14a9772400d6bdc2c95b59b6a0170eb32556ac8ed4c5c29b6c8",
           "public_value_included": false
+        }
+      ],
+      "snapshot_id": "program-start"
+    },
+    {
+      "id": "ctl_b8321070aa77f57b",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-05-16T22:23:49.000Z",
+      "commit": "8b615d81ecb7f06cbde494770e4e140895bf2251",
+      "commit_short": "8b615d8",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "feat: cohort enrichment + onboarding/program/asks surfaces (#13)",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "agentic-dev-platform",
+      "record_name": "agentic-dev-platform",
+      "path": "cohort-data/clusters/agentic-dev-platform.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created agentic-dev-platform",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "Layers of agentic dev infra — JJHub is a jj-native forge for agent-generated code; Contexto manages memory/context for long-running agent processes; Bitrouter routes inference across agents. Together — a complete stack for building AI-native dev teams. Workshop candidate — \"building with the agentic forge\"."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "agentic coding + memory infrastructure"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "agentic-dev-platform"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "agentic-dev-platform"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "jjhub",
+            "contexto",
+            "bitrouter"
+          ]
+        }
+      ],
+      "snapshot_id": "program-start"
+    },
+    {
+      "id": "ctl_905dd2006921ae54",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-05-16T22:23:49.000Z",
+      "commit": "8b615d81ecb7f06cbde494770e4e140895bf2251",
+      "commit_short": "8b615d8",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "feat: cohort enrichment + onboarding/program/asks surfaces (#13)",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "confidential-ai-ops",
+      "record_name": "confidential-ai-ops",
+      "path": "cohort-data/clusters/confidential-ai-ops.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created confidential-ai-ops",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "Four teams run LLM agents (Claude, Llama, Mistral) inside Intel TDX or dstack TEEs with remote attestation. Prova targets healthcare prior-auth; DealProof targets negotiation; SignalStack targets privacy comms; Conclave targets confidential dataset evaluation. All share the \"agent inside enclave\" primitive and could benefit from unified attestation/logging infrastructure."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "attestable LLM agents inside TEEs"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "confidential-ai-ops"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "confidential-ai-ops"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "prova",
+            "dealproof",
+            "signalstack",
+            "conclave"
+          ]
+        }
+      ],
+      "snapshot_id": "program-start"
+    },
+    {
+      "id": "ctl_c384d24b8a09d520",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-05-16T22:23:49.000Z",
+      "commit": "8b615d81ecb7f06cbde494770e4e140895bf2251",
+      "commit_short": "8b615d8",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "feat: cohort enrichment + onboarding/program/asks surfaces (#13)",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "confidential-data",
+      "record_name": "confidential-data",
+      "path": "cohort-data/clusters/confidential-data.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created confidential-data",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "Marketplaces where data buyers + sellers transact inside TEEs without revealing raw data. Prova provides TLSNotary-backed data integrity; DealProof adds dual-agent negotiation; TeeSQL + Tinycloud provide the storage and delegation primitives. Shared vertical surface — healthcare/research dataset procurement, confidential vendor negotiations."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "data procurement + attestation"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "confidential-data"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "confidential-data"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "prova",
+            "dealproof",
+            "teesql",
+            "tinycloud"
+          ]
+        }
+      ],
+      "snapshot_id": "program-start"
+    },
+    {
+      "id": "ctl_c002b78a638ee0c0",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-05-16T22:23:49.000Z",
+      "commit": "8b615d81ecb7f06cbde494770e4e140895bf2251",
+      "commit_short": "8b615d8",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "feat: cohort enrichment + onboarding/program/asks surfaces (#13)",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "realtime-creative",
+      "record_name": "realtime-creative",
+      "path": "cohort-data/clusters/realtime-creative.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created realtime-creative",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "Three teams converge on a runtime — capture voice/context, process via agents (Contexto memory), output live generatives (Etherea). Tinycloud provides the sovereign data backbone. Natural demo-day artifact — accelerator uses this for live pitch backdrops and agent-assisted curation."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "voice-to-output generative stage"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "realtime-creative"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "realtime-creative"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "etherea",
+            "tinycloud",
+            "contexto"
+          ]
         }
       ],
       "snapshot_id": "program-start"
@@ -33587,6 +34454,1064 @@
       "snapshot_id": "week-02"
     },
     {
+      "id": "ctl_83d18b6790a20393",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "agents",
+      "record_name": "agents",
+      "path": "cohort-data/clusters/agents.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "updated",
+      "summary": "Updated agents: description, teams",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": "Agent runtime stack — JJHub harness, Contexto context engine, Bitrouter routing, Conclave skills runtime. Composable; workshop candidate.",
+          "after": "Agent runtime stack — JJHub harness, Contexto context engine, Bitrouter routing, Conclave skills runtime, and elizaOS runtime/plugin substrate. Composable; workshop candidate."
+        },
+        {
+          "field": "teams",
+          "before": [
+            "jjhub",
+            "contexto",
+            "bitrouter",
+            "conclave"
+          ],
+          "after": [
+            "jjhub",
+            "contexto",
+            "bitrouter",
+            "conclave",
+            "elizaos"
+          ]
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_744001549d655a16",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "confidential-ai-ops",
+      "record_name": "confidential-ai-ops",
+      "path": "cohort-data/clusters/confidential-ai-ops.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "updated",
+      "summary": "Updated confidential-ai-ops: description, label, teams",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": "Four teams run LLM agents (Claude, Llama, Mistral) inside Intel TDX or dstack TEEs with remote attestation. Prova targets healthcare prior-auth; DealProof targets negotiation; SignalStack targets privacy comms; Conclave targets confidential dataset evaluation. All share the \"agent inside enclave\" primitive and could benefit from unified attestation/logging infrastructure.",
+          "after": "Teams working on attestable AI or confidential execution workflows. Prova targets healthcare prior-auth; DealProof targets negotiation; SignalStack targets privacy comms; Conclave targets confidential dataset evaluation; Trustless TEE and TvEE RL sit on the trusted-execution and attested workflow side of the same primitive. All could benefit from shared attestation, logging, and enclave-operating patterns."
+        },
+        {
+          "field": "label",
+          "before": "attestable LLM agents inside TEEs",
+          "after": "attestable AI inside TEEs"
+        },
+        {
+          "field": "teams",
+          "before": [
+            "prova",
+            "dealproof",
+            "signalstack",
+            "conclave"
+          ],
+          "after": [
+            "prova",
+            "dealproof",
+            "signalstack",
+            "conclave",
+            "trustless-tee",
+            "tvee-rl"
+          ]
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_51eb01ba11b78d1e",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "consumer-behavior-apps",
+      "record_name": "consumer-behavior-apps",
+      "path": "cohort-data/clusters/consumer-behavior-apps.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created consumer-behavior-apps",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "Consumer-facing applications that turn user behavior into feedback loops: Elocute for speaking practice with scored feedback, Feedling for information-diet interventions around short-form video, and Shake as a social app surface."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "consumer behavior + feedback apps"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "consumer-behavior-apps"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "consumer-behavior-apps"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "elocute",
+            "feedling",
+            "shake"
+          ]
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_9facf23dbffad08e",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "local-first-networking",
+      "record_name": "local-first-networking",
+      "path": "cohort-data/clusters/local-first-networking.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created local-first-networking",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "Peer, local-first, and cross-network primitives: DCNet explores dining-cryptographer-style anonymity, searxng-wth-frnds is a LAN-first peer search daemon, and Teleport Router works on cross-network routing."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "local-first / peer networking"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "local-first-networking"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "local-first-networking"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "dcnet",
+            "searxng-wth-frnds",
+            "teleport-router"
+          ]
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_59b8e3842b6e661a",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "market-mechanism-research",
+      "record_name": "market-mechanism-research",
+      "path": "cohort-data/clusters/market-mechanism-research.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created market-mechanism-research",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": null,
+          "after": "Market and mechanism-design work spanning prediction market microstructure, routing, and Liquefaction-style crypto research. Daedalus is the focal market-microstructure project; Crossroads and Bitrouter are adjacent mechanism and routing substrates."
+        },
+        {
+          "field": "label",
+          "before": null,
+          "after": "markets / mechanism research"
+        },
+        {
+          "field": "name",
+          "before": null,
+          "after": "market-mechanism-research"
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "market-mechanism-research"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "cluster"
+        },
+        {
+          "field": "teams",
+          "before": null,
+          "after": [
+            "daedalus",
+            "crossroads",
+            "bitrouter"
+          ]
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_466045b439cfafc6",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "clusters",
+      "record_type": "cluster",
+      "record_id": "regulated",
+      "record_name": "regulated",
+      "path": "cohort-data/clusters/regulated.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "updated",
+      "summary": "Updated regulated: description, teams",
+      "changed_fields": [
+        {
+          "field": "description",
+          "before": "Compliance-driven enterprise as a shared GTM target buyer — Prova EHR pilot, Abra SOC2/SOX, SignalStack privacy NGOs/journalists.",
+          "after": "Compliance-driven enterprise as a shared GTM target buyer — Prova EHR pilot, Abra SOC2/SOX, SignalStack privacy NGOs/journalists, and Enclave medical data sharing."
+        },
+        {
+          "field": "teams",
+          "before": [
+            "prova",
+            "abra",
+            "signalstack"
+          ],
+          "after": [
+            "prova",
+            "abra",
+            "signalstack",
+            "enclave"
+          ]
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_25bb9212e11bc9d4",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "dependencies",
+      "record_type": "dependency",
+      "record_id": "abra-teesql",
+      "record_name": "abra-teesql",
+      "path": "cohort-data/dependencies/abra-teesql.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created abra-teesql",
+      "changed_fields": [
+        {
+          "field": "confidence",
+          "before": null,
+          "after": "medium"
+        },
+        {
+          "field": "evidence",
+          "before": null,
+          "after": [
+            "Abra focus: formal verification · dstack TEE Postgres",
+            "Abra seeking: TEE Postgres beta access for the verification registry",
+            "TeeSQL focus: TEE Postgres on dstack",
+            "TeeSQL offering: free TeeSQL service to cohort teams during the accelerator"
+          ]
+        },
+        {
+          "field": "next_action",
+          "before": null,
+          "after": "Confirm whether Abra's verification registry should use TeeSQL beta access or only compare implementation patterns."
+        },
+        {
+          "field": "reason",
+          "before": null,
+          "after": "Abra is building a formal-verification registry around dstack TEE Postgres and explicitly asks for TEE Postgres beta access; TeeSQL is the cohort team offering TEE Postgres service and onboarding."
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "abra-teesql"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "dependency"
+        },
+        {
+          "field": "relation",
+          "before": null,
+          "after": "depends_on"
+        },
+        {
+          "field": "source",
+          "before": null,
+          "after": "abra"
+        },
+        {
+          "field": "status",
+          "before": null,
+          "after": "exploring"
+        },
+        {
+          "field": "target",
+          "before": null,
+          "after": "teesql"
+        },
+        {
+          "field": "updated_at",
+          "before": null,
+          "after": "2026-06-05T00:00:00.000Z"
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_8fc59c8b2ec886fe",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "dependencies",
+      "record_type": "dependency",
+      "record_id": "bitrouter-jjhub",
+      "record_name": "bitrouter-jjhub",
+      "path": "cohort-data/dependencies/bitrouter-jjhub.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created bitrouter-jjhub",
+      "changed_fields": [
+        {
+          "field": "confidence",
+          "before": null,
+          "after": "low"
+        },
+        {
+          "field": "evidence",
+          "before": null,
+          "after": [
+            "Bitrouter focus: P2P LLM router",
+            "Bitrouter seeking: feedback on projects in agent harnesses or LLM routing",
+            "Bitrouter offering: workshop on agentic payment with x402/MPP",
+            "JJHub focus: agentic coding platform",
+            "JJHub seeking: DX feedback from teams building with LLM-as-primitive"
+          ]
+        },
+        {
+          "field": "next_action",
+          "before": null,
+          "after": "Confirm whether JJHub is a real dogfooding path for Bitrouter's LLM routing or only an adjacent agentic-dev project."
+        },
+        {
+          "field": "reason",
+          "before": null,
+          "after": "Bitrouter is opening an agentic payment/LLM-routing toolkit and asks for feedback from projects in agent harnesses; JJHub is the cohort's agentic coding platform and is seeking DX feedback from teams building with LLM-as-primitive."
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "bitrouter-jjhub"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "dependency"
+        },
+        {
+          "field": "relation",
+          "before": null,
+          "after": "pairs_with"
+        },
+        {
+          "field": "source",
+          "before": null,
+          "after": "bitrouter"
+        },
+        {
+          "field": "status",
+          "before": null,
+          "after": "exploring"
+        },
+        {
+          "field": "target",
+          "before": null,
+          "after": "jjhub"
+        },
+        {
+          "field": "updated_at",
+          "before": null,
+          "after": "2026-06-05T00:00:00.000Z"
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_2a400b17e8753cbd",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "dependencies",
+      "record_type": "dependency",
+      "record_id": "contexto-jjhub",
+      "record_name": "contexto-jjhub",
+      "path": "cohort-data/dependencies/contexto-jjhub.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created contexto-jjhub",
+      "changed_fields": [
+        {
+          "field": "confidence",
+          "before": null,
+          "after": "medium"
+        },
+        {
+          "field": "evidence",
+          "before": null,
+          "after": [
+            "Contexto focus: agent context engine",
+            "Contexto seeking: long-running agent dogfooders for context-collapse stress-testing",
+            "JJHub focus: agentic coding platform",
+            "JJHub seeking: cohort teams willing to dogfood Smithers for agentic CI",
+            "Shared skill areas: agentic, agent-runtime, durable-workflows"
+          ]
+        },
+        {
+          "field": "next_action",
+          "before": null,
+          "after": "Test whether JJHub/Smithers creates the long-running agent traces Contexto needs for context-collapse and observability work."
+        },
+        {
+          "field": "reason",
+          "before": null,
+          "after": "Contexto is looking for long-running agent dogfooders and observability pairs; JJHub is shipping an agentic coding platform and seeking cohort teams to dogfood Smithers for agentic CI."
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "contexto-jjhub"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "dependency"
+        },
+        {
+          "field": "relation",
+          "before": null,
+          "after": "pairs_with"
+        },
+        {
+          "field": "source",
+          "before": null,
+          "after": "contexto"
+        },
+        {
+          "field": "status",
+          "before": null,
+          "after": "exploring"
+        },
+        {
+          "field": "target",
+          "before": null,
+          "after": "jjhub"
+        },
+        {
+          "field": "updated_at",
+          "before": null,
+          "after": "2026-06-05T00:00:00.000Z"
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_84be2edcf9a170c6",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "dependencies",
+      "record_type": "dependency",
+      "record_id": "pramaana-crossroads",
+      "record_name": "pramaana-crossroads",
+      "path": "cohort-data/dependencies/pramaana-crossroads.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created pramaana-crossroads",
+      "changed_fields": [
+        {
+          "field": "confidence",
+          "before": null,
+          "after": "medium"
+        },
+        {
+          "field": "evidence",
+          "before": null,
+          "after": [
+            "Pramaana focus: lattice / PQ crypto, ZK proofs",
+            "Pramaana offering: Pramaana SDK as identity layer for cohort tools",
+            "Crossroads focus: Liquefaction-built wallet",
+            "Crossroads offering: share wallet UX + cross-chain UX feedback",
+            "Shared skill areas: identity, tee"
+          ]
+        },
+        {
+          "field": "next_action",
+          "before": null,
+          "after": "Confirm whether Crossroads needs Pramaana identity primitives in wallet flows, or whether the relationship is only design/crypto feedback."
+        },
+        {
+          "field": "reason",
+          "before": null,
+          "after": "Pramaana offers a post-quantum identity layer and SDK for cohort tools; Crossroads is building a wallet and asks for cross-chain/policy-constrained signing feedback. The public records support product complementarity around identity and wallet flows."
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "pramaana-crossroads"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "dependency"
+        },
+        {
+          "field": "relation",
+          "before": null,
+          "after": "complements"
+        },
+        {
+          "field": "source",
+          "before": null,
+          "after": "pramaana"
+        },
+        {
+          "field": "status",
+          "before": null,
+          "after": "exploring"
+        },
+        {
+          "field": "target",
+          "before": null,
+          "after": "crossroads"
+        },
+        {
+          "field": "updated_at",
+          "before": null,
+          "after": "2026-06-05T00:00:00.000Z"
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_372f9ad6991f7acc",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "dependencies",
+      "record_type": "dependency",
+      "record_id": "prova-conclave",
+      "record_name": "prova-conclave",
+      "path": "cohort-data/dependencies/prova-conclave.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created prova-conclave",
+      "changed_fields": [
+        {
+          "field": "confidence",
+          "before": null,
+          "after": "low"
+        },
+        {
+          "field": "evidence",
+          "before": null,
+          "after": [
+            "Conclave now: factoring the skill framework into a reusable module for other TEE-agent projects",
+            "Conclave seeking: cohort projects to test multi-party skill workflows",
+            "Prova offering: prova trust-api as free attestation layer for other cohort teams",
+            "Shared skill areas: tee, dstack, agentic"
+          ]
+        },
+        {
+          "field": "next_action",
+          "before": null,
+          "after": "Test whether Conclave's reusable skill runtime needs Prova's attestation layer, or whether the relationship is only conceptual overlap."
+        },
+        {
+          "field": "reason",
+          "before": null,
+          "after": "Conclave is factoring a reusable TEE-agent skill framework while Prova is building a healthcare AI agent and offering a trust API for other cohort teams."
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "prova-conclave"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "dependency"
+        },
+        {
+          "field": "relation",
+          "before": null,
+          "after": "pairs_with"
+        },
+        {
+          "field": "source",
+          "before": null,
+          "after": "prova"
+        },
+        {
+          "field": "status",
+          "before": null,
+          "after": "exploring"
+        },
+        {
+          "field": "target",
+          "before": null,
+          "after": "conclave"
+        },
+        {
+          "field": "updated_at",
+          "before": null,
+          "after": "2026-06-03T00:00:00.000Z"
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_9907e016d4a573c3",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "dependencies",
+      "record_type": "dependency",
+      "record_id": "prova-dealproof",
+      "record_name": "prova-dealproof",
+      "path": "cohort-data/dependencies/prova-dealproof.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created prova-dealproof",
+      "changed_fields": [
+        {
+          "field": "confidence",
+          "before": null,
+          "after": "medium"
+        },
+        {
+          "field": "evidence",
+          "before": null,
+          "after": [
+            "DealProof weekly_goals: connect with Justin (ProvaTrust) on attestation layer complementarity",
+            "Prova offering: dual-attestation library — open-sourced for cohort reuse",
+            "DealProof offering: open-source dual-attestation library as cohort module",
+            "Shared skill areas: tee, dstack, attestation, agentic"
+          ]
+        },
+        {
+          "field": "next_action",
+          "before": null,
+          "after": "Confirm whether the shared attestation primitive is one reusable module or two complementary APIs."
+        },
+        {
+          "field": "reason",
+          "before": null,
+          "after": "Both projects expose dual-attestation / contract-layer primitives for agent workflows, and DealProof's weekly goal names ProvaTrust attestation-layer complementarity as a conversation to pursue."
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "prova-dealproof"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "dependency"
+        },
+        {
+          "field": "relation",
+          "before": null,
+          "after": "complements"
+        },
+        {
+          "field": "source",
+          "before": null,
+          "after": "prova"
+        },
+        {
+          "field": "status",
+          "before": null,
+          "after": "exploring"
+        },
+        {
+          "field": "target",
+          "before": null,
+          "after": "dealproof"
+        },
+        {
+          "field": "updated_at",
+          "before": null,
+          "after": "2026-06-03T00:00:00.000Z"
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_6c858d7cf5414ebc",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "dependencies",
+      "record_type": "dependency",
+      "record_id": "prova-signalstack",
+      "record_name": "prova-signalstack",
+      "path": "cohort-data/dependencies/prova-signalstack.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created prova-signalstack",
+      "changed_fields": [
+        {
+          "field": "confidence",
+          "before": null,
+          "after": "medium"
+        },
+        {
+          "field": "evidence",
+          "before": null,
+          "after": [
+            "Prova seeking: cohort teams shipping LLM inference in TEEs to compare deployment patterns",
+            "SignalStack seeking: cohort teams comparing TEE deployment patterns + attestation UX",
+            "SignalStack offering: open-source attestation verification SDK for cohort",
+            "Shared skill areas: tee, dstack, agentic, attestation"
+          ]
+        },
+        {
+          "field": "next_action",
+          "before": null,
+          "after": "Compare deployment and attestation UX paths before either team standardizes its cohort-facing library."
+        },
+        {
+          "field": "reason",
+          "before": null,
+          "after": "Prova and SignalStack are both shipping TEE-backed AI workflows and both ask for comparison around deployment patterns and attestation UX."
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "prova-signalstack"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "dependency"
+        },
+        {
+          "field": "relation",
+          "before": null,
+          "after": "shares_substrate"
+        },
+        {
+          "field": "source",
+          "before": null,
+          "after": "prova"
+        },
+        {
+          "field": "status",
+          "before": null,
+          "after": "exploring"
+        },
+        {
+          "field": "target",
+          "before": null,
+          "after": "signalstack"
+        },
+        {
+          "field": "updated_at",
+          "before": null,
+          "after": "2026-06-03T00:00:00.000Z"
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_91827f860d2ee7d2",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "dependencies",
+      "record_type": "dependency",
+      "record_id": "prova-teesql",
+      "record_name": "prova-teesql",
+      "path": "cohort-data/dependencies/prova-teesql.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created prova-teesql",
+      "changed_fields": [
+        {
+          "field": "confidence",
+          "before": null,
+          "after": "medium"
+        },
+        {
+          "field": "evidence",
+          "before": null,
+          "after": [
+            "Prova now: hardening the dual-attestation library for cohort reuse",
+            "Prova seeking: cohort teams shipping LLM inference in TEEs to compare deployment patterns",
+            "TeeSQL offering: free TeeSQL service to cohort teams during the accelerator",
+            "Shared skill areas: tee, dstack, attestation"
+          ]
+        },
+        {
+          "field": "next_action",
+          "before": null,
+          "after": "Confirm whether Prova's EHR pilot needs confidential SQL storage or only attestation-layer comparison."
+        },
+        {
+          "field": "reason",
+          "before": null,
+          "after": "Prova is hardening TEE attestation for a healthcare AI agent while TeeSQL is onboarding cohort teams to confidential SQL on dstack; the public source supports shared TEE substrate, not a confirmed product dependency."
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "prova-teesql"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "dependency"
+        },
+        {
+          "field": "relation",
+          "before": null,
+          "after": "shares_substrate"
+        },
+        {
+          "field": "source",
+          "before": null,
+          "after": "prova"
+        },
+        {
+          "field": "status",
+          "before": null,
+          "after": "exploring"
+        },
+        {
+          "field": "target",
+          "before": null,
+          "after": "teesql"
+        },
+        {
+          "field": "updated_at",
+          "before": null,
+          "after": "2026-06-03T00:00:00.000Z"
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
+      "id": "ctl_578800da5c441024",
+      "source_id": "cohort-data-github",
+      "source_kind": "git",
+      "committed_at": "2026-06-08T22:34:10.000Z",
+      "commit": "4a653efbd5cfe3b5f9da323f5de179421f8687e6",
+      "commit_short": "4a653ef",
+      "author_name": "dmarz",
+      "author_email": "22778355+dmarzzz@users.noreply.github.com",
+      "subject": "Merge pull request #241 from dmarzzz/integration/mega-2026-06-08",
+      "collection": "dependencies",
+      "record_type": "dependency",
+      "record_id": "tinycloud-teesql",
+      "record_name": "tinycloud-teesql",
+      "path": "cohort-data/dependencies/tinycloud-teesql.md",
+      "previous_path": null,
+      "duplicate_of_path": null,
+      "action": "created",
+      "summary": "Created tinycloud-teesql",
+      "changed_fields": [
+        {
+          "field": "confidence",
+          "before": null,
+          "after": "medium"
+        },
+        {
+          "field": "evidence",
+          "before": null,
+          "after": [
+            "Tinycloud focus: user-owned cloud, dstack TEEs",
+            "Tinycloud offering: tinycloud-secrets for cohort teams",
+            "TeeSQL focus: TEE Postgres on dstack",
+            "TeeSQL offering: open-source connection-layer attestation code",
+            "Shared skill areas: tee, dstack, attestation"
+          ]
+        },
+        {
+          "field": "next_action",
+          "before": null,
+          "after": "Determine whether Tinycloud secrets/delegation and TeeSQL confidential storage should integrate, or whether this remains a deployment-pattern comparison."
+        },
+        {
+          "field": "reason",
+          "before": null,
+          "after": "Tinycloud and TeeSQL both operate around dstack TEEs, scoped delegation, confidential infrastructure, and cohort-facing services, but the current public records support substrate overlap rather than a confirmed product dependency."
+        },
+        {
+          "field": "record_id",
+          "before": null,
+          "after": "tinycloud-teesql"
+        },
+        {
+          "field": "record_type",
+          "before": null,
+          "after": "dependency"
+        },
+        {
+          "field": "relation",
+          "before": null,
+          "after": "shares_substrate"
+        },
+        {
+          "field": "source",
+          "before": null,
+          "after": "tinycloud"
+        },
+        {
+          "field": "status",
+          "before": null,
+          "after": "exploring"
+        },
+        {
+          "field": "target",
+          "before": null,
+          "after": "teesql"
+        },
+        {
+          "field": "updated_at",
+          "before": null,
+          "after": "2026-06-05T00:00:00.000Z"
+        }
+      ],
+      "snapshot_id": "latest"
+    },
+    {
       "id": "ctl_0de86e3141ee71b1",
       "source_id": "cohort-data-github",
       "source_kind": "git",
@@ -40263,14 +42188,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_7a6ee5e8355b6653",
+      "id": "ctl_f5d465cc70411458",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "people",
       "record_type": "person",
@@ -40291,14 +42216,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_37ab60a38f9ebf19",
+      "id": "ctl_67a68071b5448556",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "people",
       "record_type": "person",
@@ -40319,14 +42244,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_65909b1bf4d1f74a",
+      "id": "ctl_d1a65c59fd9d06ef",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "people",
       "record_type": "person",
@@ -40422,14 +42347,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_3b3166a3b2433d4e",
+      "id": "ctl_ea23949e03284eb7",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "people",
       "record_type": "person",
@@ -40474,14 +42399,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_0becdfceac4b923e",
+      "id": "ctl_55a24a5e737e9459",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "people",
       "record_type": "person",
@@ -40502,14 +42427,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_41729115951b1f1f",
+      "id": "ctl_b93aa59c334b3f2e",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "people",
       "record_type": "person",
@@ -40605,14 +42530,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_a5c9911a2868acfe",
+      "id": "ctl_763ba600e29db327",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "people",
       "record_type": "person",
@@ -40633,14 +42558,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_487b62d3b0602c76",
+      "id": "ctl_5ddcae875d518f3d",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "people",
       "record_type": "person",
@@ -40661,14 +42586,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_dbee06e38a101f94",
+      "id": "ctl_8e8734bd15a0b6c4",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "teams",
       "record_type": "team",
@@ -40689,14 +42614,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_432924190cdf1a2a",
+      "id": "ctl_b2f7c6da8f6dd0bf",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "teams",
       "record_type": "team",
@@ -40717,14 +42642,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_be98eb4b091a04a4",
+      "id": "ctl_78886de0dc54cd2b",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "teams",
       "record_type": "team",
@@ -40745,14 +42670,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_be6762329c9b81d6",
+      "id": "ctl_efe3139eaee6fe82",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "teams",
       "record_type": "team",
@@ -40773,14 +42698,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_278b5a91e323bdbc",
+      "id": "ctl_812fb0538ee99790",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "teams",
       "record_type": "team",
@@ -40801,14 +42726,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_f178d58d5b99a90d",
+      "id": "ctl_ac523fad32e89237",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "teams",
       "record_type": "team",
@@ -40829,14 +42754,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_b20d0598af554c82",
+      "id": "ctl_d746bad0edc23218",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "teams",
       "record_type": "team",
@@ -40875,14 +42800,14 @@
       "snapshot_id": "latest"
     },
     {
-      "id": "ctl_8f2a29e087e41ffe",
+      "id": "ctl_3a9e8ac8f7101ea2",
       "source_id": "cohort-data-github",
       "source_kind": "git",
-      "committed_at": "2026-06-11T11:27:38.000Z",
-      "commit": "2b4cce015cb1cb723a20034c315337a1b8875ca3",
-      "commit_short": "2b4cce0",
+      "committed_at": "2026-06-11T11:30:27.000Z",
+      "commit": "ff49679f159a31f78aab9c3d10998085e36c6294",
+      "commit_short": "ff49679",
       "author_name": "Mikeishiring",
-      "author_email": "mikeishiring@users.noreply.github.com",
+      "author_email": "michaelwilliamsonthego@gmail.com",
       "subject": "fix cohort data drift",
       "collection": "teams",
       "record_type": "team",

@@ -20,6 +20,46 @@ const contextVault = await importRendererModule("apps/os/src/renderer/context-va
 const shapeEscape = await importRendererModule("packages/shape-ui/src/escape.js");
 const vendoredEscape = await importRendererModule("apps/os/src/vendor/shape-ui/escape.js");
 
+test("cohort timeline source boundary covers snapshot collections that drive insights", async () => {
+  const timeline = JSON.parse(await readFile(path.join(ROOT, "apps/os/src/cohort-timeline.json"), "utf8"));
+  const collectionPaths = new Map([
+    ["teams", "cohort-data/teams"],
+    ["people", "cohort-data/people"],
+    ["clusters", "cohort-data/clusters"],
+    ["dependencies", "cohort-data/dependencies"],
+  ]);
+  const recordTypes = new Map([
+    ["teams", "team"],
+    ["people", "person"],
+    ["clusters", "cluster"],
+    ["dependencies", "dependency"],
+  ]);
+  const source = (timeline.sources || []).find((item) => item.id === "cohort-data-github") || {};
+  const sourcePaths = new Set(source.paths || []);
+  const sourceRecordTypes = new Set(source.record_types || []);
+  const boundaryPaths = new Set(timeline.source_boundary?.included_paths || []);
+  const eventCollections = new Set((timeline.events || []).map((event) => event.collection).filter(Boolean));
+  const snapshotCollections = new Set();
+
+  for (const snapshot of (timeline.snapshots || [])) {
+    const surface = snapshot.surface || {};
+    for (const collection of collectionPaths.keys()) {
+      if (Array.isArray(surface[collection]) && surface[collection].length) snapshotCollections.add(collection);
+    }
+  }
+
+  for (const collection of snapshotCollections) {
+    const pathName = collectionPaths.get(collection);
+    assert.ok(sourcePaths.has(pathName), `${pathName} is missing from cohort-data-github source paths`);
+    assert.ok(
+      sourceRecordTypes.has(recordTypes.get(collection)),
+      `${collection} record type is missing from cohort-data-github source record_types`,
+    );
+    assert.ok(boundaryPaths.has(pathName), `${pathName} is missing from timeline source_boundary.included_paths`);
+    assert.ok(eventCollections.has(collection), `${collection} snapshots exist but no ${collection} events are present`);
+  }
+});
+
 test("buildCohortIndex maps local team, person, secondary team, and cluster joins", () => {
   const cohort = {
     teams: [
