@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-progress:shape-rotator-os:dmarzzz-shape-rotator-os:2026-06-01",
+  "artifact_kind": "github_progress_weekly_summary",
+  "record_type": "team",
+  "record_id": "shape-rotator-os",
+  "date": "2026-06-01",
+  "week_start": "2026-06-01",
+  "program_week": 3,
+  "title": "dmarzzz/shape-rotator-os: 129 commits",
+  "summary": "maintenance, feature, other, fix — Add Constellation timeline delta overlay; Mirror shape overlay alpha fix to OS vendor; Run calendar transcript check in PR CI",
+  "source_kind": "github_git_transport",
+  "source_url": "https://github.com/dmarzzz/shape-rotator-os",
+  "source_repo": "dmarzzz/shape-rotator-os",
+  "source_transform": "commit-metadata-weekly-distillation",
+  "confidence": "medium",
+  "review_status": "generated",
+  "surface_recommendation": "hold",
+  "consider": [
+    "46 human-authored commits observed in the week.",
+    "Feature-labeled movement is present.",
+    "Fix/stabilization movement is present.",
+    "Topic surface: ops, agent, data."
+  ],
+  "do_not_consider": [
+    "83 bot/generated commits should not count as product momentum.",
+    "83 cohort-admin/profile/calendar commits should not count as project progress.",
+    "No non-bot, non-admin commits remain after basic filtering."
+  ],
+  "review_questions": [
+    "Is this the team's real project repo for this period?",
+    "Do the example commit subjects describe product/research movement rather than generated churn?",
+    "Would this card add information not already captured by profile, transcript, or calendar timeline items?"
+  ],
+  "verbatim": false,
+  "generated_at": "2026-06-11T15:07:02.145Z",
+  "evidence": {
+    "commit_count": 129,
+    "human_commit_count": 46,
+    "bot_commit_count": 83,
+    "admin_commit_count": 83,
+    "useful_commit_count": 0,
+    "categories": [
+      {
+        "key": "maintenance",
+        "count": 83
+      },
+      {
+        "key": "feature",
+        "count": 16
+      },
+      {
+        "key": "other",
+        "count": 16
+      },
+      {
+        "key": "fix",
+        "count": 9
+      }
+    ],
+    "topics": [
+      {
+        "key": "ops",
+        "count": 87
+      },
+      {
+        "key": "agent",
+        "count": 5
+      },
+      {
+        "key": "data",
+        "count": 5
+      },
+      {
+        "key": "ui",
+        "count": 1
+      }
+    ],
+    "authors": [
+      {
+        "key": "github-actions[bot]",
+        "count": 83
+      },
+      {
+        "key": "Mikeishiring",
+        "count": 31
+      },
+      {
+        "key": "N0V3LT0K3NS",
+        "count": 9
+      },
+      {
+        "key": "Andrew Miller",
+        "count": 2
+      }
+    ],
+    "examples": [
+      "Add Constellation timeline delta overlay",
+      "Mirror shape overlay alpha fix to OS vendor",
+      "Run calendar transcript check in PR CI"
+    ]
+  }
+}

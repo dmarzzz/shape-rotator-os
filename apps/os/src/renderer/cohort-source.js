@@ -98,10 +98,10 @@ export function getSyncState() { return _syncState; }
 // no GH-commit-ts API calls block boot. The background refresh that
 // fires right after will replace the snapshot when it lands and
 // notify subscribers so views repaint with fresh data.
-// Bumped to v3 in v0.2.7: the v2 snapshot can carry a stale May-22
-// calendar bundle, so users may see outdated week-2 agenda copy even after
-// the shipped fixture and live calendar source have moved forward.
-const SURFACE_LS_KEY = "srfg:cohort_surface_v3";
+// Bumped to v5 in 2026-06: v4 snapshots may carry source-owned fields hydrated
+// from a stale generated surface. Record fields now come from live markdown;
+// generated surfaces only provide timeline maps or full offline fixtures.
+const SURFACE_LS_KEY = "srfg:cohort_surface_v5";
 // Surface snapshots can grow to ~200KB (50 people × ~3KB each plus other
 // kinds). localStorage is bounded at ~5MB per origin so this fits, but
 // we still guard against quota errors on write — a write failure just
@@ -112,7 +112,10 @@ function _readSurfaceLs() {
     if (!raw) return null;
     const v = JSON.parse(raw);
     if (!v || typeof v !== "object") return null;
-    return normalize(v);
+    const surface = normalize(v);
+    if (typeof v._source === "string") surface._storedSource = v._source;
+    if (typeof v._saved_at === "string") surface._storedAt = v._saved_at;
+    return surface;
   } catch { return null; }
 }
 function _writeSurfaceLs(surface) {
@@ -132,6 +135,12 @@ function _writeSurfaceLs(surface) {
       cohort_vocab: surface.cohort_vocab || {},
       calendar: surface.calendar || null,
       constellation_cues: surface.constellation_cues || [],
+      session_insights: surface.session_insights || [],
+      person_timeline: surface.person_timeline || {},
+      team_timeline: surface.team_timeline || {},
+      _generated_at: surface._generated_at || null,
+      _source: surface._source || surface._storedSource || null,
+      _saved_at: new Date().toISOString(),
     };
     localStorage.setItem(SURFACE_LS_KEY, JSON.stringify(payload));
   } catch {
@@ -140,7 +149,21 @@ function _writeSurfaceLs(surface) {
 }
 
 function emptyShape() {
-  return { teams: [], people: [], clusters: [], dependencies: [], program: [], events: [], asks: [], cohort_vocab: {}, calendar: null, constellation_cues: [] };
+  return {
+    teams: [],
+    people: [],
+    clusters: [],
+    dependencies: [],
+    program: [],
+    events: [],
+    asks: [],
+    cohort_vocab: {},
+    calendar: null,
+    constellation_cues: [],
+    session_insights: [],
+    person_timeline: {},
+    team_timeline: {},
+  };
 }
 
 // Drop records that repeat a record_id (keeps the first), so a duplicate in
@@ -162,8 +185,12 @@ function dedupById(list, kind) {
   return out;
 }
 
+function timelineMap(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
 function normalize(data) {
-  return {
+  const out = {
     teams:        dedupById(data?.teams, "team"),
     people:       dedupById(data?.people, "person"),
     clusters:     dedupById(data?.clusters, "cluster"),
@@ -173,6 +200,12 @@ function normalize(data) {
     asks:         Array.isArray(data?.asks)     ? data.asks     : [],
     cohort_vocab: (data?.cohort_vocab && typeof data.cohort_vocab === "object") ? data.cohort_vocab : {},
     constellation_cues: Array.isArray(data?.constellation_cues) ? data.constellation_cues : [],
+    // Distilled session readouts (public-safe, hardcoded via
+    // scripts/ingest-session-readouts.mjs). Not rendered yet — passed
+    // through so a future insights surface needs no data-plane change.
+    session_insights: Array.isArray(data?.session_insights) ? data.session_insights : [],
+    person_timeline: timelineMap(data?.person_timeline),
+    team_timeline: timelineMap(data?.team_timeline),
     // Pre-baked calendar bundle from the GH `cohort-data/program/calendar.json`
     // path or the fixture's `calendar` field. The renderer's `loadCalendar()`
     // tries the live Phala URL first and falls back to this. Previously this
@@ -181,6 +214,8 @@ function normalize(data) {
     // blank entirely if that fetch failed or was slow). Pass it through.
     calendar:     (data?.calendar && typeof data.calendar === "object") ? data.calendar : null,
   };
+  if (typeof data?._generated_at === "string") out._generated_at = data._generated_at;
+  return out;
 }
 
 // In-browser equivalent of scripts/build-bundles.js: enumerate the
@@ -222,7 +257,9 @@ async function loadFromGithub() {
     const files = paths.filter(p => p.startsWith(spec.prefix) && p.endsWith(".md"));
     const whitelist = schema[spec.list_key]?.surface_fields || [];
     const records = await Promise.all(files.map(p => loadRecord(p, spec.record_type, whitelist)));
-    const filtered = records.filter(Boolean);
+    const filtered = records
+      .filter(Boolean)
+      .sort((a, b) => String(a.record_id).localeCompare(String(b.record_id)));
     out[spec.list_key] = filtered;
     // Build the record_id → { path, sha } map. Keyed off filtered records
     // so we only carry shas for entries that actually made it through the
@@ -278,6 +315,39 @@ async function loadFromGithub() {
     out.constellation_cues = [];
   }
 
+  try {
+    const insightsRaw = await fetchRaw("cohort-data/session-insights.json");
+    const insights = JSON.parse(insightsRaw);
+    out.session_insights = Array.isArray(insights) ? insights : [];
+  } catch (e) {
+    console.warn("[cohort-source] session-insights.json fetch/parse failed:", e?.message || e);
+    out.session_insights = [];
+  }
+
+  // Generated read models that do not fully live in cohort-data/*.md. The live
+  // markdown builder above cannot reconstruct Git-derived per-record timelines,
+  // so hydrate those maps from the generated surface bundle on main. If GitHub
+  // is unreachable, fall back to the packaged fixture.
+  try {
+    const surfaceRaw = await fetchRaw("apps/os/src/cohort-surface.json");
+    const generated = JSON.parse(surfaceRaw);
+    const personTimeline = timelineMap(generated?.person_timeline);
+    const teamTimeline = timelineMap(generated?.team_timeline);
+    if (!Object.keys(personTimeline).length && !Object.keys(teamTimeline).length) {
+      throw new Error("generated surface did not include timeline maps");
+    }
+    out.person_timeline = personTimeline;
+    out.team_timeline = teamTimeline;
+  } catch (e) {
+    try {
+      const fixture = await loadFromFixture();
+      out.person_timeline = timelineMap(fixture?.person_timeline);
+      out.team_timeline = timelineMap(fixture?.team_timeline);
+    } catch {
+      console.warn("[cohort-source] generated timeline maps unavailable:", e?.message || e);
+    }
+  }
+
   const normalized = normalize(out);
   // Attach the sha map. Not part of the schema-shaped surface so callers
   // that iterate `normalized` lists stay unaffected.
@@ -309,14 +379,29 @@ function pickSurface(obj, whitelist) {
   return out;
 }
 
+function extractPublicPersonBio(body) {
+  const raw = String(body || "").trim();
+  if (!raw) return "";
+  const lines = raw.split("\n");
+  const start = lines.findIndex(line => /^##\s+(about|bio)\s*$/i.test(line.trim()));
+  if (start < 0) return raw;
+  const end = lines.findIndex((line, index) => index > start && /^##\s+/.test(line.trim()));
+  return lines.slice(start + 1, end < 0 ? undefined : end).join("\n").trim();
+}
+
 async function loadRecord(repoPath, expectedType, whitelist) {
   try {
     const text = await fetchRaw(repoPath);
-    const { frontmatter } = parseMarkdown(text);
+    const { frontmatter, body } = parseMarkdown(text);
     if (!frontmatter) return null;
     if (frontmatter.record_type !== expectedType) return null;
     if (!frontmatter.record_id) return null;
-    return pickSurface(frontmatter, whitelist);
+    const surface = pickSurface(frontmatter, whitelist);
+    if (expectedType === "person") {
+      const bio = extractPublicPersonBio(body);
+      if (bio) surface.bio_md = bio;
+    }
+    return surface;
   } catch (e) {
     console.warn(`[cohort-source] skip ${repoPath}:`, e?.message || e);
     return null;
@@ -578,35 +663,38 @@ async function mergeSyncOverBaseline(baseline, overlay) {
 // by the refresh loop to skip re-render when GitHub returned identical
 // data (the usual case between merges).
 function signatureOf(grouped) {
-  const sig = (arr) => arr.map(r => r.record_id).sort().join("|");
+  const hash = (value) => {
+    const s = String(value ?? "");
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(36);
+  };
+  const fp = (...parts) => hash(parts.map(p => String(p ?? "")).join("\0"));
+  const recordSig = (arr) => arr.map(r => `${r?.record_id || ""}:${fp(JSON.stringify(r || {}))}`).sort().join("|");
+  const arraySig = (arr) => arr.map(r => fp(JSON.stringify(r || {}))).sort().join("|");
   // Program-page edits are full-body markdown swaps, not record_id churn —
-  // hash a coarse fingerprint of (id + body length) so a content-only change
-  // still trips the refresh notifier.
-  const progSig = (arr) => arr.map(r => `${r.record_id}:${(r.body_md || "").length}`).sort().join("|");
-  // Asks churn fast (5-day expiry) — include status in the signature so the
-  // wall re-renders on claim/close.
-  const askSig = (arr) => arr.map(r => `${r.record_id}:${r.status || "open"}`).sort().join("|");
-  // Events are updated by date/title edits — include both in the signature
-  // so a date-shift on an existing record_id trips the refresh.
-  const eventSig = (arr) => arr.map(r => `${r.record_id}:${r.date || ""}:${r.range_start || ""}:${r.range_end || ""}:${r.title || ""}`).sort().join("|");
-  // People + teams can flip between sync and GH baseline content via the
-  // GitHub-commit-ts tiebreaker (Phase 5+) without the record_id set
-  // changing. Mix a coarse content fingerprint (name + a couple of
-  // free-text fields + length-ish proxies) into the signature so a
-  // tiebreaker-driven content swap correctly fires the refresh notifier.
-  const personSig = (arr) => arr.map(r =>
-    `${r.record_id}:${r.name || ""}:${(r.now || "").length}:${r.role || ""}:${r.team || ""}`
-  ).sort().join("|");
-  const teamSig = (arr) => arr.map(r =>
-    `${r.record_id}:${r.name || ""}:${(r.now || "").length}:${(r.weekly_goals || "").length}`
-  ).sort().join("|");
-  const depSig = (arr) => arr.map(r =>
-    `${r.record_id}:${r.source || ""}:${r.target || ""}:${r.relation || ""}:${r.status || ""}:${(r.reason || "").length}:${(r.next_action || "").length}`
-  ).sort().join("|");
-  const cueSig = (arr) => arr.map(c =>
-    `${(c?.label || "").length}:${(c?.source || "").length}:${(c?.excerpt || "").length}`
-  ).sort().join("|");
-  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${sig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}`;
+  // hash the content so even same-length text edits trip the refresh notifier.
+  // Use full public-record fingerprints for entity lists. Many rendered
+  // insights are driven by fields other than record_id (cluster teams, legacy
+  // dependencies, seek/offer chips, journey fields), so coarse signatures can
+  // leave an updated cache on screen with no subscriber re-render.
+  const personSig = recordSig;
+  const teamSig = recordSig;
+  const clusterSig = recordSig;
+  const depSig = recordSig;
+  const progSig = recordSig;
+  const askSig = recordSig;
+  const eventSig = recordSig;
+  const cueSig = arraySig;
+  const insightSig = arraySig;
+  const timelineSig = (map) => Object.entries(map || {})
+    .map(([id, items]) => `${id}:${Array.isArray(items) ? items.length : 0}:${fp(JSON.stringify(items || []))}`)
+    .sort()
+    .join("|");
+  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
 }
 
 // Dev preview override. Setting `localStorage.setItem("srfg:cohort_source", "local")`
@@ -716,12 +804,22 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
           _baselineFetchedAt = now;
         } catch (e) {
           console.warn("[cohort-source] github unreachable; reusing prior baseline:", e?.message || e);
-          // Keep the prior baseline if we have one; otherwise fall through
-          // to the bundled fixture so first-launch isn't blank.
-          if (!baseline && (!_cache || _cache._source === "empty-bootstrap")) {
+          // Keep a prior GitHub baseline if we have one; otherwise fall
+          // through to the bundled fixture so first-launch or old fixture
+          // snapshots don't stay stale forever while GitHub is blocked.
+          if (!baseline) {
             try {
-              baseline = await loadFromFixture();
-              baseline._source = "fixture";
+              const fixture = await loadFromFixture();
+              const cacheSource = String(_cache?._storedSource || _cache?._source || "");
+              const cacheWasGithub = cacheSource.includes("github");
+              const cacheGenerated = Date.parse(_cache?._generated_at || "");
+              const fixtureGenerated = Date.parse(fixture?._generated_at || "");
+              const fixtureIsNewer = Number.isFinite(fixtureGenerated)
+                && (!Number.isFinite(cacheGenerated) || fixtureGenerated > cacheGenerated);
+              if (!_cache || _cache._source === "empty-bootstrap" || (!cacheWasGithub && (!Number.isFinite(cacheGenerated) || fixtureIsNewer))) {
+                baseline = fixture;
+                baseline._source = "fixture";
+              }
             } catch { baseline = null; }
           }
         }

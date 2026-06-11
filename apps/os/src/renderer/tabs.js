@@ -9,6 +9,8 @@
 //   location = {
 //     tab: "alchemy" | "apps" | "network" | "links",
 //     mode?,        // OS sub-page when tab === "alchemy"
+//     constellationMode?, // Constellation sub-view, e.g. "map" | "collab"
+//     programPage?, // Program handbook page, e.g. "overview" | "success"
 //     recordId?,    // an open record-detail page (alchemy)
 //     appsView?,    // "atlas" | "easel"
 //     netSub?,      // "network" | "metrics"
@@ -20,19 +22,22 @@ import * as Alchemy from "./alchemy.js";
 const TABS_LS_KEY = "srwk:tabs_v1";
 
 const MODE_LABEL = {
-  membrane: "membrane", shapes: "cohort", pulse: "pulse",
-  constellation: "constellation", intel: "intel", collab: "collab board",
+  membrane: "membrane", shapes: "cohort",
+  constellation: "cohort",
   calendar: "calendar", profile: "profile", onboarding: "onboarding",
   program: "program info", asks: "asks", context: "context", icons: "icons",
 };
+
+// Short suffixes for the cohort page's constellation views and the context
+// page's views — tab titles read "cohort · map", "context · intel", etc.
+const CONST_VIEW_LABEL = { map: "map", ring: "map", journey: "journey", stack: "stack", collab: "collab" };
+const CONTEXT_VIEW_LABEL = { raw: "transcripts", signals: "intel", data: "intel data" };
 
 // Inner SVG markup for each page's Lucide icon (matches the left-nav rail).
 const ICON_PATHS = {
   membrane: '<path d="M20.341 6.484A10 10 0 0 1 10.266 21.85"/><path d="M3.659 17.516A10 10 0 0 1 13.74 2.152"/><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/>',
   shapes: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/>',
   constellation: '<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
-  intel: '<path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/>',
-  collab: '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
   calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
   profile: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   onboarding: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/>',
@@ -46,7 +51,7 @@ const ICON_PATHS = {
 
 function iconKey(loc) {
   if (!loc || loc.blank) return null;
-  if (loc.tab === "alchemy") return loc.mode || null;
+  if (loc.tab === "alchemy") return loc.mode === "collab" ? "constellation" : (loc.mode || null);
   return loc.tab; // apps | network | links
 }
 function iconSVG(loc) {
@@ -64,6 +69,38 @@ let stripEl = null;
 let menuEl = null;
 
 function uid() { return "t" + Date.now().toString(36) + "_" + (seq++); }
+function requestFrameOrTimeout(fn, timeoutMs = 80) {
+  let done = false;
+  const run = () => {
+    if (done) return;
+    done = true;
+    fn();
+  };
+  try { requestAnimationFrame(run); } catch {}
+  setTimeout(run, timeoutMs);
+}
+
+function normalizeLocation(loc) {
+  if (!loc || loc.blank) return loc || { blank: true };
+  if (loc.tab === "alchemy" && loc.mode === "collab") {
+    return { ...loc, mode: "constellation", constellationMode: "collab" };
+  }
+  if (loc.tab === "alchemy" && loc.mode === "pulse") {
+    const { constellationMode, ...rest } = loc;
+    return { ...rest, mode: "shapes" };
+  }
+  // Intel folded into the context page (2026-06) — old intel tabs reopen
+  // on context's intel view.
+  if (loc.tab === "alchemy" && loc.mode === "intel") {
+    return { ...loc, mode: "context", contextView: "signals" };
+  }
+  // calendar2 graduated to THE calendar (2026-06) — old trial tabs reopen
+  // on the calendar page.
+  if (loc.tab === "alchemy" && loc.mode === "calendar2") {
+    return { ...loc, mode: "calendar" };
+  }
+  return loc;
+}
 
 // ─── location helpers ─────────────────────────────────────────────────────
 function currentAlchMode() {
@@ -77,6 +114,9 @@ function readCurrentLocation() {
   if (top === "alchemy") {
     const al = Alchemy.getLocation();
     loc.mode = al.mode;
+    if (al.constellationMode) loc.constellationMode = al.constellationMode;
+    if (al.programPage) loc.programPage = al.programPage;
+    if (al.contextView) loc.contextView = al.contextView;
     if (al.recordId) loc.recordId = al.recordId;
   } else if (top === "apps") {
     if (document.body.dataset.appsView) loc.appsView = document.body.dataset.appsView;
@@ -90,6 +130,13 @@ function locTitle(loc) {
   if (!loc || loc.blank) return "new tab";
   if (loc.tab === "alchemy") {
     if (loc.recordId) return Alchemy.getRecordTitle(loc.recordId) || "record";
+    if (loc.mode === "constellation") {
+      const view = CONST_VIEW_LABEL[loc.constellationMode] || "map";
+      return `cohort · ${view}`;
+    }
+    if (loc.mode === "context" && CONTEXT_VIEW_LABEL[loc.contextView]) {
+      return `context · ${CONTEXT_VIEW_LABEL[loc.contextView]}`;
+    }
     return MODE_LABEL[loc.mode] || "operating system";
   }
   if (loc.tab === "apps") return loc.appsView || "apps";
@@ -100,6 +147,7 @@ function locTitle(loc) {
 
 // Drive the whole app to a location.
 function applyLocation(loc) {
+  loc = normalizeLocation(loc);
   suspendCapture = true;
   if (!loc || loc.blank) {
     document.body.dataset.blank = "1";
@@ -109,7 +157,14 @@ function applyLocation(loc) {
       const wasAlchemy = document.body.dataset.activeTab === "alchemy";
       // instant: render synchronously with no cross-fade so the switch is
       // immediate like a browser tab.
-      Alchemy.applyLocation({ mode: loc.mode, recordId: loc.recordId, instant: true });
+      Alchemy.applyLocation({
+        mode: loc.mode,
+        constellationMode: loc.constellationMode,
+        contextView: loc.contextView,
+        recordId: loc.recordId,
+        programPage: loc.programPage,
+        instant: true,
+      });
       // Only flip the top-level tab if we weren't already on it — avoids a
       // redundant re-render when switching between two OS tabs.
       if (!wasAlchemy && typeof window.__srwkGoTab === "function") window.__srwkGoTab("alchemy");
@@ -128,7 +183,7 @@ function applyLocation(loc) {
     }
   }
   // Release the capture guard once the resulting DOM mutations have settled.
-  requestAnimationFrame(() => requestAnimationFrame(() => { suspendCapture = false; }));
+  requestFrameOrTimeout(() => requestFrameOrTimeout(() => { suspendCapture = false; }));
 }
 
 // ─── tab operations ───────────────────────────────────────────────────────
@@ -142,7 +197,7 @@ function activate(id) {
 }
 
 function newTab(loc, opts = {}) {
-  const t = { id: uid(), loc: loc || { blank: true } };
+  const t = { id: uid(), loc: normalizeLocation(loc || { blank: true }) };
   if (opts.after) {
     const i = tabs.findIndex(x => x.id === activeId);
     tabs.splice(i < 0 ? tabs.length : i + 1, 0, t);
@@ -189,7 +244,7 @@ function captureCurrent() {
   const t = tabs.find(x => x.id === activeId);
   if (!t) return;
   if (document.body.dataset.blank) delete document.body.dataset.blank;
-  t.loc = readCurrentLocation();
+  t.loc = normalizeLocation(readCurrentLocation());
   renderStrip();
   save();
 }
@@ -242,13 +297,21 @@ function resolveNavTarget(el) {
   if (rail) return { tab: "alchemy", mode: rail.dataset.alchMode };
   const cat = el.closest(".nav-cat[data-tab]");
   if (cat) return { tab: cat.dataset.tab };
+  let alch = null;
+  try { alch = Alchemy.getLocation?.(); } catch {}
+  const alchMode = alch?.mode || currentAlchMode() || "shapes";
+  const alchConstellationMode = alchMode === "constellation" ? (alch?.constellationMode || null) : null;
   const rec = el.closest("[data-record-id]");
   if (rec && rec.dataset.recordId) {
-    return { tab: "alchemy", mode: currentAlchMode() || "shapes", recordId: rec.dataset.recordId };
+    const loc = { tab: "alchemy", mode: alchMode, recordId: rec.dataset.recordId };
+    if (alchConstellationMode) loc.constellationMode = alchConstellationMode;
+    return loc;
   }
   const person = el.closest("[data-person]");
   if (person && person.dataset.person) {
-    return { tab: "alchemy", mode: "shapes", recordId: person.dataset.person };
+    const loc = { tab: "alchemy", mode: alchMode, recordId: person.dataset.person };
+    if (alchConstellationMode) loc.constellationMode = alchConstellationMode;
+    return loc;
   }
   return null;
 }
@@ -391,7 +454,7 @@ function restore() {
     if (!raw) return false;
     const data = JSON.parse(raw);
     if (!data || !Array.isArray(data.tabs) || !data.tabs.length) return false;
-    tabs = data.tabs.map(t => ({ id: t.id || uid(), loc: t.loc || { blank: true } }));
+    tabs = data.tabs.map(t => ({ id: t.id || uid(), loc: normalizeLocation(t.loc || { blank: true }) }));
     activeId = (data.activeId && tabs.some(t => t.id === data.activeId)) ? data.activeId : tabs[0].id;
     return true;
   } catch { return false; }
@@ -407,7 +470,7 @@ export function init() {
     renderStrip();
     const t = tabs.find(x => x.id === activeId) || tabs[0];
     activeId = t.id;
-    requestAnimationFrame(() => applyLocation(t.loc));
+    applyLocation(t.loc);
   } else {
     tabs = [{ id: uid(), loc: readCurrentLocation() }];
     activeId = tabs[0].id;
@@ -420,5 +483,5 @@ export function init() {
   const obs = new MutationObserver(() => captureCurrent());
   obs.observe(document.body, { attributes: true, attributeFilter: ["data-active-tab", "data-apps-view", "data-net-sub"] });
   const av = document.getElementById("alchemy-view");
-  if (av) obs.observe(av, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-alch-detail"] });
+  if (av) obs.observe(av, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current", "data-context-view", "data-alch-program-page", "data-alch-detail"] });
 }

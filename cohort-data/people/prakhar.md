@@ -10,7 +10,7 @@ geo: NYC
 domain: ai
 email: null
 dates_start: 2026-05-17
-dates_end: 2026-07-18
+dates_end: 2026-07-25
 links:
   github: prakhar728
   x: "@prakharojha4"

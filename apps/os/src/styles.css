@@ -4762,15 +4762,9 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   border-color: rgba(var(--ink-rgb), 0.30);
   background: rgba(var(--overlay-rgb), 0.95);
 }
-.fg-version-chip[data-update="available"] {
-  color: var(--neon-cyan);
-  border-color: rgba(90, 240, 255, 0.36);
-  text-shadow: 0 0 8px rgba(90, 240, 255, 0.40);
-}
-.fg-version-chip[data-update="available"]::after {
-  content: " · update";
-  opacity: 0.85;
-}
+/* update-available: the chip itself does NOT change — no recolor, no
+ * appended "· update" text. The download glyph in the adjacent icon
+ * slot (#fg-update-icon) is the only indicator. */
 
 /* glass surfaces: one less border tone */
 .events-panel,
@@ -6267,18 +6261,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   transform: translateY(8px);
 }
 
-/* Stagger child cards into view inside grid containers when the canvas
- * transitions in. Driven by --alch-i set inline per card. */
-.alchemy-canvas .alch-card,
-.alchemy-canvas .alch-legend-card {
-  --alch-i: 0;
-  animation: alchCardIn 360ms var(--ease) both;
-  animation-delay: calc(var(--alch-i) * 28ms);
-}
-@keyframes alchCardIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+/* Card stagger-in removed — pages should render instantly on switch. */
 
 /* ─── specimens grid ─────────────────────────────────────────────────── */
 .alch-specimens {
@@ -6358,9 +6341,21 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   display: flex; flex-direction: column; gap: 8px;
   height: 100%;
 }
-.alchemy-canvas:has(.alch-constellation) {
-  padding-left: 34px;
-  padding-right: 32px;
+/* Cohort/constellation no longer narrows the canvas gutters (2026-06) —
+   every page shares .alchemy-canvas's standard side padding. Unified. */
+/* ── cohort page shell (2026-06) ─────────────────────────────────────
+   Every cohort view renders inside the same shell: page header, then the
+   view nav, then ONE controls band, then content. The header and the
+   first content row land at the same y in every view, so switching views
+   never moves the hero or the filters. */
+.alch-cohort-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.alch-cohort-page > .alch-constellation {
+  height: auto;
+  flex: 1 1 auto;
 }
 .alch-const-workbench {
   display: grid;
@@ -6416,32 +6411,14 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-stage svg .ac-edge-hit:focus-visible {
   outline: none;
 }
-.alch-constellation-stage[data-hover-active="true"] svg .ac-edge { opacity: 0.12; }
-.alch-constellation-stage[data-hover-active="true"] svg .ac-edge.is-hot { opacity: 1; stroke-width: 1.6; }
-.alch-constellation-stage svg .ac-edge.is-selected { opacity: 1; stroke-width: 2; stroke: rgba(214,189,134,0.98); }
-.alch-constellation-stage svg .ac-edge-source-record {
-  stroke: rgba(193,168,114,0.84);
-}
-.alch-constellation-stage svg .ac-edge-source-legacy {
-  stroke: rgba(193,168,114,0.24);
-  stroke-dasharray: 2 4;
-}
-.alch-constellation-stage svg .ac-edge-status-active {
-  stroke-width: 1.15;
-}
-.alch-constellation-stage svg .ac-edge-status-blocked {
-  stroke: rgba(196,64,37,0.70);
-  stroke-dasharray: 5 3;
-}
-.alch-constellation-stage svg .ac-edge-status-resolved {
-  opacity: 0.44;
-}
-.alch-constellation-stage svg .ac-edge-status-exploring {
-  stroke-dasharray: 7 3 1 3;
-}
-/* Legacy far-tier class is left harmless for old DOM states; hover now shows
-   only direct, one-hop relationships because transitive chains are not proof. */
-.alch-constellation-stage[data-hover-active="true"] svg .ac-edge.is-hot.is-far { opacity: 0.42; stroke-width: 1.1; }
+/* Edge LOOK and edge STATE (stroke / width / dash / opacity per source,
+   status, hover, selection) live in ONE place: the .ac-edge.ac-edge-dependency
+   block near the end of this file. Earlier generations of those rules sat
+   here, fully shadowed by that block's higher specificity, and repeatedly
+   tricked editors into changing dead values (the "brass never showed" bug,
+   the invisible profile-mention tier fixed in #265, and hover/selection dims
+   that never applied). Do not re-add edge styling here — this block only
+   keeps the base contract: transition, cursor, and hit targets. */
 .alch-constellation-stage svg .ac-node-group { cursor: pointer; }
 .alch-constellation-stage svg .ac-node-hit,
 .alch-journey-stage svg .ac-jhit {
@@ -6482,21 +6459,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
    only so the graph does not imply unsupported dependency chains. */
 .alch-constellation-stage[data-hover-active="true"] svg .ac-node-group.is-related.is-far .ac-node-shape { opacity: 0.62; }
 .alch-constellation-stage[data-hover-active="true"] svg .ac-node-group.is-related.is-far .ac-node-label { opacity: 0.5; }
-.alch-constellation-stage[data-selection-active="true"] svg .ac-edge {
-  opacity: 0.055;
-}
-.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.is-selection-edge {
-  opacity: 1;
-  stroke-width: 2.05;
-  stroke: rgba(214,189,134,0.98);
-}
-.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.is-selection-adjacent-edge {
-  opacity: 0.30;
-  stroke-width: 1.05;
-}
-.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.is-selection-outside {
-  opacity: 0.025;
-}
+/* Selection-state EDGE rules moved to the .ac-edge-dependency block at the end
+   of the file — here they silently lost to that block's specificity, so the
+   "everything else recedes" dim never actually applied. Node rules stay here. */
 .alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-core .ac-node-shape,
 .alch-constellation-stage[data-selection-active="true"] svg .ac-jnode.is-selection-core .ac-jdot {
   filter: drop-shadow(0 0 14px rgba(214,189,134,0.44));
@@ -6515,21 +6480,19 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-neighbor .ac-node-shape {
   stroke-width: 1.35;
 }
-.alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-outside,
-.alch-constellation-stage[data-selection-active="true"] svg .ac-jnode.is-selection-outside {
+.alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-outside {
   opacity: 0.12;
+}
+/* PMF scatter: outside-dots stay readable — the scatter has no selection
+ * edges to carry the story, so a 0.12 ghost field reads as a broken page.
+ * The selected dot pops via is-selection-core; the rest recede gently. */
+.alch-constellation-stage[data-selection-active="true"] svg .ac-jnode.is-selection-outside {
+  opacity: 0.45;
 }
 /* In the all lens, keep resting edges legible enough to invite inspection
    without letting untyped legacy links dominate the wells. Hover restores them. */
-.alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge { opacity: 0.58; }
-.alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge-source-record {
-  opacity: 0.96;
-  stroke-width: 1.36;
-}
-.alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge-source-legacy {
-  opacity: 0.36;
-  stroke-width: 0.72;
-}
+/* At-rest edge opacity/width per lens also lives in the .ac-edge-dependency
+   block near the end of the file — see the consolidation note above. */
 /* (cluster-membership edge colors removed — cluster grouping now reads from
    the wells, not an O(n²) hairball; dependency arrows are the only edges.) */
 .alch-constellation-stage svg .ac-node-shape { fill: var(--alchemy-oxide); stroke: var(--alchemy-oxide-bright); stroke-width: 0.8; }
@@ -6623,6 +6586,14 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   color: var(--alchemy-oxide-bright);
   font-style: normal;
   font-weight: 750;
+}
+/* Quiet inline qualifier — lets a key row carry the explanatory nuance that
+   previously lived in a duplicate acl-line-note sentence. */
+.acl-line-key-row small {
+  color: rgba(var(--ink-rgb), 0.55);
+  font-family: var(--font-sans);
+  font-size: 8.5px;
+  text-transform: none;
 }
 .acl-line-key-row.is-typed i {
   border-top: 3px solid rgba(226,207,162,0.96);
@@ -7749,6 +7720,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   stroke-width: 2px;
 }
 .alch-constellation-stage svg #ac-arrow path { fill: rgba(193,168,114,0.7); }
+/* Soft marker for profile-mention edges so arrowheads fade in proportion to
+   their dotted ink lines instead of floating orphaned next to nodes. */
+.alch-constellation-stage svg #ac-arrow-soft path { fill: rgba(var(--ink-rgb),0.5); }
 /* Domain palette — 4 categories that must be distinguishable at node size, so
    they are 4 separate HUES (red→amber→orchid→teal), warm-anchored on the brand
    oxide-red for the dominant `tee` domain. (Was a near-monochrome rust ramp.) */
@@ -7794,19 +7768,6 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 /* map lens row — all / relies / works / shared. Re-weights the same map
    (control-as-claim), so it reads as a claim selector, not a view toggle. */
-.ac-map-control-stack {
-  display: flex;
-  align-items: center;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 9px 22px;
-  margin: 0 0 6px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(var(--ink-rgb),0.06);
-}
-.ac-map-control-stack.is-people-scope {
-  margin-bottom: 10px;
-}
 .ac-network-scope-row,
 .ac-map-layout-row,
 .ac-lens-row {
@@ -7852,14 +7813,14 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-network-scope-btn:hover {
   color: var(--alchemy-paper-warm);
 }
-.ac-network-scope-btn[aria-selected="true"] {
+.ac-network-scope-btn[aria-checked="true"] {
   border-color: var(--alchemy-oxide-bright);
   color: var(--alchemy-paper-warm);
 }
-.ac-network-scope-btn[aria-selected="true"] strong {
+.ac-network-scope-btn[aria-checked="true"] strong {
   font-weight: 900;
 }
-.ac-network-scope-btn[aria-selected="true"] em {
+.ac-network-scope-btn[aria-checked="true"] em {
   color: var(--alchemy-oxide-bright);
 }
 .ac-map-layout-btn {
@@ -7883,7 +7844,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-map-layout-btn:hover {
   color: var(--alchemy-paper-warm);
 }
-.ac-map-layout-btn[aria-selected="true"] {
+.ac-map-layout-btn[aria-checked="true"] {
   border-color: rgba(214,189,134,0.82);
   background: transparent;
   color: var(--alchemy-paper-warm);
@@ -7904,15 +7865,15 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   letter-spacing: 0.08em;
 }
 .ac-lens-btn:hover { color: var(--alchemy-paper-warm); }
-.ac-lens-btn[aria-selected="true"] { border-color: var(--alchemy-oxide-bright); color: var(--alchemy-oxide-bright); background: transparent; font-weight: 800; }
-.ac-lens-btn[aria-selected="true"] em { color: var(--alchemy-paper-warm); }
+.ac-lens-btn[aria-checked="true"] { border-color: var(--alchemy-oxide-bright); color: var(--alchemy-oxide-bright); background: transparent; font-weight: 800; }
+.ac-lens-btn[aria-checked="true"] em { color: var(--alchemy-paper-warm); }
 .ac-lens-btn.is-empty {
   color: rgba(var(--ink-rgb),0.56);
 }
 .ac-lens-btn.is-empty em {
   color: rgba(var(--ink-rgb),0.58);
 }
-.ac-lens-btn.is-empty[aria-selected="true"] {
+.ac-lens-btn.is-empty[aria-checked="true"] {
   border-color: rgba(193,168,114,0.46);
   background: transparent;
   color: var(--alchemy-paper-warm);
@@ -8533,19 +8494,12 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-stage[data-selection-active="true"] .ac-stack-team.is-selection-outside {
   opacity: 0.18;
 }
-/* top bar */
-.alch-const-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 @media (max-width: 820px) {
-  .alch-const-topbar { flex-direction: column; }
   .alch-constellation-legend { max-width: 100%; padding-right: 0; }
   .alch-constellation-stage > .ac-distribution-card { position: static; width: auto; margin: 8px; }
 }
 
 @media (max-width: 1180px) {
-  .alchemy-canvas:has(.alch-constellation) {
-    padding-left: 28px;
-    padding-right: 28px;
-  }
   .alch-const-workbench { grid-template-columns: 1fr; }
   .ac-inspector { position: relative; top: auto; max-height: none; }
 }
@@ -8582,18 +8536,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   opacity: 0.96;
   stroke-width: 1.4;
 }
-.alch-constellation-stage[data-view="ring"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge {
-  opacity: 0.54;
-  stroke-width: 1.04;
-}
-.alch-constellation-stage[data-view="ring"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge-source-record {
-  opacity: 1;
-  stroke-width: 1.58;
-}
-.alch-constellation-stage[data-view="ring"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge-source-legacy {
-  opacity: 0.58;
-  stroke-width: 0.94;
-}
+/* Ring-view at-rest edge weights live in the .ac-edge-dependency block near
+   the end of the file (these older copies were fully shadowed). */
 .alch-constellation-stage[data-view="ring"] svg .ac-ring-segment {
   stroke-width: 1.15;
   opacity: 0.46;
@@ -8982,15 +8926,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 /* ─── collaboration board (ported from dossier Connections) ──────────── */
 .alch-collab { display: flex; flex-direction: column; gap: 26px; }
 
-.alch-cb-head { display: flex; flex-direction: column; gap: 8px; }
 
-.alch-cb-title { font-family: var(--ed-display); font-style: italic; font-size: 26px; color: var(--ed-ink-1); margin: 0; }
-
-.alch-cb-sub { max-width: 82ch; font-size: 12.5px; line-height: 1.6; color: var(--alchemy-ink-mute); margin: 0; }
-
-.alch-cb-stats { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 4px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
-
-.alch-cb-stats strong { color: var(--alchemy-oxide-bright); font-size: 13px; margin-right: 5px; }
+/* Collab's old board header (title/sub/stats) retired 2026-06 — the shared
+   cohort page header + view controls band carry that job now. */
 
 /* ─── journey (PMF spectrum scatterplot) ─────────────────────────────── */
 /* Reuses the constellation stage chrome; the scatter-specific bits (grid,
@@ -9254,9 +9192,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-link-btn:hover { color: var(--alchemy-paper-warm); border-color: var(--alchemy-paper-warm); }
 
 /* ─── profile ────────────────────────────────────────────────────────── */
-.alch-profile-head { margin-bottom: 22px; padding-bottom: 14px; border-bottom: 1px solid var(--alchemy-rule); max-width: 70ch; }
+.alch-profile-head { margin-bottom: 22px; max-width: 70ch; }
 .alch-profile-head-row {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  display: flex; align-items: baseline; justify-content: flex-end; gap: 16px;
   margin-bottom: 6px;
 }
 .alch-profile-title {
@@ -9290,7 +9228,6 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-profile-section {
   display: flex; flex-direction: column; gap: 12px;
   padding: 18px 0; border-top: 1px solid var(--alchemy-rule);
-  max-width: 60ch;
 }
 .alch-profile-section:first-of-type { border-top: 0; padding-top: 0; }
 .alch-profile-h {
@@ -9307,12 +9244,13 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   display: grid; grid-template-columns: 110px 1fr; gap: 12px;
   align-items: center;
 }
-.alch-pf-row > span {
+.alch-pf-row > span,
+.alch-pf-target label > span {
   font-family: var(--font-mono); font-size: 10px;
   letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--alchemy-ink-mute);
 }
-.alch-pf-row input, .alch-pf-row select {
+.alch-pf-row input, .alch-pf-row select, .alch-pf-target-select {
   background: rgba(0,0,0,0.30);
   color: var(--alchemy-paper-warm);
   border: 1px solid var(--alchemy-rule);
@@ -9322,7 +9260,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   outline: none;
   transition: border-color 160ms var(--ease);
 }
-.alch-pf-row input:focus, .alch-pf-row select:focus { border-color: var(--alchemy-rule-warm); }
+.alch-pf-row input:focus, .alch-pf-row select:focus, .alch-pf-target-select:focus { border-color: var(--alchemy-rule-warm); }
 
 /* Shapes grid → kind filter chips (all / teams / projects) */
 .alch-shapes-filter {
@@ -9459,6 +9397,10 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   border: 1px solid var(--alchemy-rule);
   border-radius: 4px;
   padding: 16px 18px;
+  min-width: 0;
+}
+.alch-detail-wide {
+  grid-column: 1 / -1;
 }
 .alch-detail-h {
   font-family: var(--font-mono);
@@ -9467,18 +9409,60 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   margin: 0 0 12px 0;
   font-weight: normal;
 }
+.alch-detail-prose {
+  max-width: 880px;
+  color: var(--alchemy-paper-warm);
+  font-size: 13px;
+  line-height: 1.55;
+  text-wrap: pretty;
+  overflow-wrap: break-word;
+}
+.alch-detail-prose a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--alchemy-rule-warm);
+}
+.alch-detail-prose a:hover {
+  color: var(--alchemy-oxide-bright);
+  border-bottom-color: var(--alchemy-oxide-bright);
+}
+.alch-detail-prose code {
+  color: var(--alchemy-paper-warm);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: rgba(var(--ink-rgb), 0.06);
+  border: 1px solid var(--alchemy-rule);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.alch-detail-prose p {
+  margin: 0;
+}
+.alch-detail-prose p + p,
+.alch-detail-prose ul + p,
+.alch-detail-prose p + ul {
+  margin-top: 10px;
+}
+.alch-detail-prose ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.alch-detail-prose li + li {
+  margin-top: 5px;
+}
 .alch-detail-row {
   display: grid; grid-template-columns: 90px 1fr; gap: 12px;
   font-family: var(--font-mono); font-size: 12px;
   padding: 5px 0;
   align-items: baseline;
+  min-width: 0;
 }
 .alch-detail-row + .alch-detail-row { border-top: 1px dashed var(--alchemy-rule); }
 .alch-detail-row .adr-k {
   font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--alchemy-ink-mute);
 }
-.alch-detail-row .adr-v { color: var(--alchemy-paper-warm); word-break: break-word; }
+.alch-detail-row .adr-v { color: var(--alchemy-paper-warm); min-width: 0; word-break: break-word; }
 .alch-detail-row .adr-v a {
   color: var(--alchemy-paper-warm);
   text-decoration: none;
@@ -9519,6 +9503,90 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .alch-detail-list-compact {
   gap: 5px;
+}
+.alch-timeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.alch-timeline-item {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px dashed var(--alchemy-rule);
+}
+.alch-timeline-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.ati-date,
+.ati-type,
+.ati-source {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+.ati-date {
+  color: var(--alchemy-ink-mute);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.ati-body {
+  min-width: 0;
+}
+.ati-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ati-title {
+  color: var(--alchemy-paper-warm);
+  font-size: 12.5px;
+  line-height: 1.35;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ati-title a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--alchemy-rule-warm);
+}
+.ati-title a:hover {
+  color: var(--alchemy-oxide-bright);
+  border-bottom-color: var(--alchemy-oxide-bright);
+}
+.ati-type {
+  color: var(--alchemy-ink-mute);
+  font-size: 9px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.ati-body p {
+  margin: 5px 0 0;
+  color: var(--alchemy-ink);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.ati-source {
+  display: block;
+  margin-top: 6px;
+  color: var(--alchemy-ink-mute);
+  font-size: 9px;
+}
+.ati-more {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--alchemy-rule);
+  color: var(--alchemy-ink-mute);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 .alch-detail-chips {
   display: flex;
@@ -9682,9 +9750,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   isolation: isolate;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 30px;
-  padding: 6px 11px 6px 8px;
+  gap: 7px;
+  min-height: 26px;
+  padding: 5px 10px 5px 7px;
   border: 1px solid color-mix(in srgb, var(--alchemy-oxide) 58%, rgba(var(--ink-rgb), 0.18));
   border-radius: 6px;
   background:
@@ -10836,49 +10904,6 @@ button.cb-cell:disabled { cursor: default; }
   color: #fff7ef;
 }
 
-.alch-collab .alch-cb-head {
-  gap: 10px;
-}
-
-.alch-collab .alch-cb-title {
-  display: block;
-  font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--cb-preview-text);
-}
-
-.alch-collab .alch-cb-sub {
-  display: block;
-  max-width: 760px;
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.alch-collab .alch-cb-stats {
-  gap: 10px;
-  margin-top: 0;
-  letter-spacing: 0.05em;
-}
-
-.alch-collab .alch-cb-stats span {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  border: 1px solid var(--alchemy-rule);
-  border-radius: 8px;
-  background: linear-gradient(180deg, var(--cb-preview-panel) 0%, var(--cb-preview-panel-2) 100%);
-  padding: 7px 10px;
-}
-
-.alch-collab .alch-cb-stats strong {
-  color: var(--cb-preview-dep);
-  font-family: var(--font-sans);
-  font-size: 19px;
-  letter-spacing: 0;
-}
-
 .alch-collab .alch-cb-section {
   border: 1px solid var(--alchemy-rule);
   border-radius: 12px;
@@ -11716,160 +11741,6 @@ button.cb-cell:disabled { cursor: default; }
   height: 18px;
   overflow: visible;
 }
-.alch-drawer-tag {
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-  font-family: var(--font-mono); font-size: 10px;
-  letter-spacing: 0.20em; text-transform: uppercase;
-  color: var(--alchemy-ink-mute);
-}
-.alch-drawer-tag .dt-id { color: var(--alchemy-oxide-bright); }
-.alch-drawer-close {
-  background: transparent; border: 1px solid var(--alchemy-rule);
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono); font-size: 10px;
-  letter-spacing: 0.18em; text-transform: uppercase;
-  padding: 4px 10px; border-radius: 999px;
-  cursor: pointer;
-  transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
-}
-.alch-drawer-close:hover {
-  color: var(--alchemy-oxide-bright);
-  border-color: var(--alchemy-rule-warm);
-  background: rgba(143,34,14,0.06);
-}
-.alch-drawer-body {
-  flex: 1; min-height: 0; overflow-y: auto;
-  padding: 22px 28px 32px;
-  display: flex; flex-direction: column; gap: 18px;
-}
-.alch-drawer-name {
-  font-family: var(--ed-display); font-style: italic;
-  font-size: 30px; line-height: 1.08; letter-spacing: -0.01em; font-weight: 500;
-  color: var(--ed-ink-1);
-}
-.alch-drawer-shape {
-  height: 140px;
-  display: grid; place-items: center;
-  border: 1px solid var(--alchemy-rule);
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(143,34,14,0.06), rgba(var(--ink-rgb), 0.005));
-}
-.alch-drawer-shape svg {
-  width: 80%; height: 100%;
-  animation: alchTilt 11s ease-in-out infinite, alchBreathe 9.5s ease-in-out infinite;
-  transform-origin: center;
-}
-.alch-drawer-shape svg .as-fill { fill: var(--alchemy-oxide); }
-.alch-drawer-shape svg .as-stroke { stroke: var(--alchemy-oxide-bright); fill: none; stroke-width: 1; }
-.alch-drawer-shape svg .as-mute { stroke: rgba(var(--ink-rgb), 0.18); fill: none; stroke-width: 0.6; }
-.alch-drawer-rule { height: 1px; background: var(--alchemy-rule-warm); width: 32px; }
-.alch-drawer-section {
-  display: flex; flex-direction: column; gap: 8px;
-}
-/* Section header — editorial italic-serif + underline rule, matching the
-   collab board's .alch-cb-sechead, with an optional terse lowercase sub-label. */
-.alch-drawer-sechead {
-  display: flex; align-items: baseline; gap: 12px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10); padding-bottom: 6px; margin-bottom: 2px;
-}
-.alch-drawer-section h4 {
-  font-family: var(--ed-display); font-style: italic;
-  font-size: 15px; letter-spacing: 0; text-transform: none;
-  color: var(--ed-ink-1);
-  margin: 0;
-  font-weight: normal;
-}
-.alch-drawer-sechead .dr-sub {
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.14em;
-  text-transform: lowercase; color: var(--alchemy-ink-mute);
-}
-.alch-drawer-row {
-  display: grid; grid-template-columns: 100px 1fr; gap: 12px;
-  font-family: var(--font-mono); font-size: 11.5px;
-  letter-spacing: 0.04em;
-}
-.alch-drawer-row .dr-k {
-  color: var(--alchemy-ink-mute); text-transform: uppercase; letter-spacing: 0.16em;
-  font-size: 10px; padding-top: 2px;
-}
-.alch-drawer-row .dr-v { color: var(--alchemy-paper-warm); }
-.alch-drawer-row .dr-v.muted { color: rgba(var(--ink-rgb), 0.40); font-style: italic; }
-.alch-drawer-row .dr-v a { color: var(--alchemy-paper-warm); border-bottom: 1px solid var(--alchemy-rule-warm); text-decoration: none; }
-.alch-drawer-row .dr-v a:hover { color: var(--alchemy-oxide-bright); border-color: var(--alchemy-oxide-bright); }
-.alch-drawer-clusters {
-  display: flex; flex-wrap: wrap; gap: 8px;
-}
-/* Cluster chip — a quiet labelled pill. Cluster identity is the LABEL (matching
-   the map, where cluster = the labeled well, never a color), so no per-cluster
-   hue here — that old hardcoded-by-record_id palette left most chips grey. */
-.alch-drawer-cluster {
-  display: inline-flex; align-items: center;
-  font-family: var(--font-mono); font-size: 9.5px;
-  letter-spacing: 0.12em; text-transform: lowercase;
-  padding: 4px 11px;
-  border-radius: 999px;
-  background: rgba(var(--ink-rgb), 0.04);
-  color: var(--alchemy-paper-warm);
-  border: 1px solid var(--alchemy-rule);
-}
-.alch-drawer-successes {
-  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;
-}
-.alch-drawer-success {
-  display: inline-flex; align-items: center;
-  border-radius: 4px; padding: 4px 8px;
-  border: 1px solid rgba(193,168,114,0.28);
-  background: rgba(193,168,114,0.08);
-  color: rgba(226,207,162,0.95);
-  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.alch-drawer-cluster-cards {
-  display: flex; flex-direction: column; gap: 8px;
-}
-.alch-drawer-cluster-cards .alch-drawer-cluster {
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 4px;
-  border-radius: 5px;
-  padding: 8px 10px;
-  text-transform: none;
-  letter-spacing: 0;
-}
-.alch-drawer-cluster-cards .alch-drawer-cluster span {
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.alch-drawer-cluster-cards .alch-drawer-cluster em {
-  font-style: normal;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-sans);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-/* Roster — the team's people as warm gold-accent chips (the collab board's
-   people shape-grammar: a person reads differently from a team or a cluster). */
-.alch-drawer-people { display: flex; flex-wrap: wrap; gap: 8px; }
-.alch-drawer-person {
-  display: inline-flex; align-items: baseline; gap: 7px;
-  padding: 5px 11px 5px 9px;
-  border-radius: 7px;
-  background: rgba(193,168,114,0.07);
-  border: 1px solid rgba(193,168,114,0.22);
-  border-left: 2px solid rgba(193,168,114,0.7);
-}
-.alch-drawer-person .dp-name {
-  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.02em;
-  color: var(--alchemy-paper-warm);
-}
-.alch-drawer-person .dp-role {
-  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.14em;
-  text-transform: uppercase; color: rgba(193,168,114,0.85);
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
  * THE COOK — deep editorial, gallery-grade.
  *
@@ -12742,7 +12613,8 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   font-size: 9.5px;
 }
 .fg-version-chip:hover { color: var(--ed-ink-2, #b8b4ab); background: transparent; border-color: transparent; }
-.fg-version-chip[data-update="available"] { color: var(--sr-red, #8f220e); text-shadow: none; border-color: var(--sr-red, #8f220e); }
+/* update-available intentionally does NOT restyle the chip — the
+ * download glyph in #fg-update-icon is the only indicator. */
 
 /* Update status icon — a small box sitting just RIGHT of the version number
  * inside the right-aligned .fg-footer-vcluster. Same Lucide line set as the
@@ -12750,9 +12622,11 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
  * (a permanently reserved slot), so the version's right edge never shifts
  * when a glyph appears. States via data-state:
  *   (empty)   → reserved slot, no glyph
- *   checking  → spinner (animated), set while a check is in flight
- *   ok        → checkmark, transient "you're on the latest" confirmation
- *   available → download icon, a newer build is ready to fetch */
+ *   checking    → spinner (animated), set while a check is in flight
+ *   downloading → progress ring + live "NN%" while the update downloads
+ *   ready       → persistent post-download CTA (restart, or open installer)
+ *   ok          → checkmark, transient "you're on the latest" confirmation
+ *   available   → download icon, a newer build is ready to fetch */
 .fg-update-icon {
   -webkit-app-region: no-drag;
   display: inline-flex;
@@ -12778,6 +12652,34 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
 /* The checking loaders self-animate via SMIL inside the SVG — no CSS
  * animation needed here. */
 .fg-update-icon[data-state^="checking"] { cursor: default; }
+/* downloading + ready → both drop the fixed 12px and widen to fit ring+number
+ * or glyph+label. Because the cluster is right-pinned (.fg-footer-vcluster),
+ * the version number eases a few px left while one of these shows, then snaps
+ * back to its reserved-slot position once cleared. */
+.fg-update-icon[data-state="downloading"],
+.fg-update-icon[data-state="ready"] { width: auto; gap: 4px; }
+.fg-update-icon[data-state="downloading"] { cursor: default; }
+.fg-update-icon[data-state="ready"] { cursor: pointer; }
+/* progress ring — faint full track + a sweeping arc that eases between values.
+ * Overrides the base 12px svg sizing (higher specificity via svg.fg-ring). */
+.fg-update-icon svg.fg-ring { width: 14px; height: 14px; }
+.fg-ring-track { stroke: currentColor; stroke-width: 2.5; opacity: 0.22; }
+.fg-ring-arc { stroke: currentColor; stroke-width: 2.5; transition: stroke-dashoffset 180ms var(--ease, linear); }
+.fg-update-icon svg.fg-ready-glyph { width: 12px; height: 12px; }
+/* numeric % / ready label — mono, tabular so the digits don't jitter. */
+.fg-update-pct {
+  font-family: var(--font-mono, "SF Mono", Menlo, ui-monospace, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--ink-hi);
+}
+/* The arc snaps instead of easing when the user prefers reduced motion. */
+@media (prefers-reduced-motion: reduce) { .fg-ring-arc { transition: none; } }
 
 /* ── alchemy host ─────────────────────────────────────────────────── */
 .alchemy-view, #alchemy-view {
@@ -12908,6 +12810,14 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
 .alch-detail-meta { font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.18em; color: var(--ed-ink-3); }
 .alch-detail-meta .adm-k { color: var(--ed-ink-4); }
 .alch-detail-section { background: var(--ed-bg-1); border: 1px solid var(--ed-rule); border-radius: 4px; padding: 24px; }
+.alch-detail-prose { color: var(--ed-ink-1); }
+.alch-detail-prose a { border-bottom-color: var(--ed-rule-2); }
+.alch-detail-prose a:hover { color: var(--ed-ink-1); border-bottom-color: var(--ed-ink-1); }
+.alch-detail-prose code {
+  color: var(--ed-ink-1);
+  background: var(--ed-bg-well);
+  border-color: var(--ed-rule);
+}
 .alch-detail-h {
   font-family: var(--ed-mono);
   font-size: 10px;
@@ -12944,21 +12854,75 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
 .alch-detail-person .adp-name { color: var(--ed-ink-1); }
 .alch-detail-person .adp-role { color: var(--ed-ink-3); }
 .alch-detail-cluster { background: transparent; color: var(--ed-ink-1); border: 1px solid var(--ed-rule-2); }
+.alch-timeline-item { border-top-color: var(--ed-rule); }
+.ati-date,
+.ati-type,
+.ati-source { color: var(--ed-ink-4); }
+.ati-title { color: var(--ed-ink-1); }
+.ati-title a { border-bottom-color: var(--ed-rule-2); }
+.ati-title a:hover { color: var(--ed-ink-1); border-bottom-color: var(--ed-ink-1); }
+.ati-body p { color: var(--ed-ink-2); }
+.ati-more { border-top-color: var(--ed-rule); color: var(--ed-ink-4); }
+
+@media (max-width: 720px) {
+  .alch-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .alch-detail-wide {
+    grid-column: auto;
+  }
+  .alch-detail-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    align-items: start;
+  }
+  .alch-timeline-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .ati-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .ati-type {
+    white-space: normal;
+  }
+}
 
 /* ── profile editor (forms) ──────────────────────────────────────── */
-.alch-pf-modetab, .alch-pf-subtab {
-  background: transparent;
-  color: var(--ed-ink-3);
+/* Mode (add/edit) + kind (team/project/person) render as segmented
+ * controls — one hairline group each, dividers between options, filled
+ * segment for the active choice — side by side on one row. */
+.alch-pf-tabsrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.alch-pf-modetabs, .alch-pf-subtabs {
+  display: inline-flex;
+  width: max-content;
   border: 1px solid var(--ed-rule-2);
-  font-family: var(--ed-mono);
-  letter-spacing: 0.22em;
+  border-radius: 999px;
+  overflow: hidden;
 }
-.alch-pf-modetab:hover, .alch-pf-subtab:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); }
+.alch-pf-modetab, .alch-pf-subtab {
+  appearance: none;
+  background: transparent;
+  color: var(--ed-ink-4);
+  border: 0;
+  margin: 0;
+  padding: 7px 16px;
+  font-family: var(--ed-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+.alch-pf-modetab + .alch-pf-modetab,
+.alch-pf-subtab + .alch-pf-subtab { border-left: 1px solid var(--ed-rule-2); }
+.alch-pf-modetab:hover, .alch-pf-subtab:hover { color: var(--ed-ink-1); }
 .alch-pf-modetab[aria-selected="true"],
 .alch-pf-subtab[aria-selected="true"] {
-  color: var(--ed-ink-1);
-  border-color: var(--ed-ink-1);
-  background: transparent;
+  background: var(--ed-ink-1);
+  color: var(--ed-bg-0);
 }
 .alch-pf-row > span, .alch-pf-target label > span { color: var(--ed-ink-4); letter-spacing: 0.22em; }
 .alch-pf-row input, .alch-pf-row select, .alch-pf-target-select {
@@ -12971,6 +12935,153 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   border-color: var(--ed-ink-1);
 }
 .alch-pf-pick { color: var(--ed-ink-3); }
+
+/* ── profile · "your seal" section ─────────────────────────────────
+ * Inline identity controls (claim / re-seal / strike new / resync),
+ * merged from the identity-pill popup. Styled as one more editorial
+ * profile section — same heading, row grid, and pill buttons as the
+ * record editor above it. The ember "enrollment terminal" look stays
+ * exclusive to the first-launch modal. */
+.alch-seal-current {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 16px 18px;
+  border: 1px solid var(--ed-rule-2);
+  background: var(--ed-bg-1);
+}
+.alch-seal-avatar {
+  width: 48px; height: 48px; flex: 0 0 48px;
+  display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden; border-radius: 50%;
+  border: 1px solid var(--ed-rule-2);
+  background: var(--ed-bg-0);
+}
+.alch-seal-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.alch-seal-initials {
+  font-family: var(--ed-mono); font-size: 14px; letter-spacing: 0.08em;
+  color: var(--ed-ink-2);
+}
+/* The identity column wraps freely — never truncate who the user is. */
+.alch-seal-who { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 240px; }
+.alch-seal-name {
+  color: var(--ed-ink-1); font-size: 16px; letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+.alch-seal-meta {
+  font-family: var(--ed-mono); font-size: 9.5px; letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--ed-ink-4);
+}
+.alch-seal-contact {
+  font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: var(--ed-ink-3);
+  overflow-wrap: anywhere;
+}
+.alch-seal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; align-self: center; }
+.alch-seal-btn {
+  background: transparent;
+  color: var(--ed-ink-2);
+  border: 1px solid var(--ed-rule-2);
+  border-radius: 999px;
+  padding: 7px 15px;
+  font-family: var(--ed-mono); font-size: 10px;
+  letter-spacing: 0.16em; text-transform: lowercase;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.alch-seal-btn:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); background: rgba(var(--ink-rgb), 0.05); }
+/* "break the seal" — destructive-leaning: oxide on hover/confirm. */
+.alch-seal-btn-danger:hover {
+  color: var(--alchemy-oxide-bright);
+  border-color: var(--alchemy-oxide-bright);
+  background: rgba(180, 58, 25, 0.08);
+}
+/* "break the seal" mid-confirm + resync busy states */
+.alch-seal-btn[data-confirming="1"] { color: var(--alchemy-oxide-bright); border-color: currentColor; }
+.alch-seal-btn[data-busy="1"] { cursor: progress; opacity: 0.7; }
+.alch-seal-btnrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* Record-picker row — same 110px label column as .alch-pf-row, with a
+ * third auto column holding the inline claim button. The row renders in
+ * BOTH editor modes (disabled ghost in ADD) so toggling add ↔ edit
+ * never shifts the form rows below. */
+.alch-pf-target {
+  display: grid; grid-template-columns: 110px 1fr auto;
+  gap: 12px; align-items: center;
+}
+.alch-pf-target label { display: contents; }
+.alch-pf-target-select[disabled] { opacity: 0.55; cursor: default; }
+/* Wide windows: the editor form flows into two columns. Textarea rows
+ * (.alch-pf-row-wide) already span the full row via grid-column 1/-1. */
+@media (min-width: 1240px) {
+  .alch-profile-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 48px;
+    row-gap: 8px;
+  }
+}
+/* "this is me / re-seal as X" — identity claim against the record loaded
+ * in the editor. Oxide accent: it changes who you ARE, not the record. */
+.alch-pf-claim {
+  color: var(--alchemy-oxide-bright);
+  border-color: rgba(180, 58, 25, 0.45);
+  white-space: nowrap;
+}
+.alch-pf-claim:hover {
+  color: var(--alchemy-oxide-bright);
+  border-color: var(--alchemy-oxide-bright);
+}
+.alch-seal-empty {
+  margin: 0;
+  font-family: var(--ed-mono); font-size: 11px; line-height: 1.6;
+  color: var(--ed-ink-3);
+}
+
+/* ── profile · submit row (save · local sync / save · open github PR) ──
+ * These buttons had no rules at all and rendered as raw UA buttons.
+ * Editorial pills like the rest of the page: the local-sync path is the
+ * primary CTA (filled ink), github PR the outlined secondary, and a
+ * disabled path recedes instead of shouting. */
+.alch-profile-submit-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.alch-submit-pr-btn {
+  appearance: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent;
+  color: var(--ed-ink-2);
+  border: 1px solid var(--ed-rule-2);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-family: var(--ed-mono); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: lowercase;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+.alch-submit-pr-btn:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); }
+.alch-submit-pr-primary {
+  background: var(--ed-ink-1);
+  color: var(--ed-bg-0);
+  border-color: var(--ed-ink-1);
+}
+.alch-submit-pr-primary:hover { color: var(--ed-bg-0); border-color: var(--ed-ink-1); opacity: 0.88; }
+.alch-submit-pr-btn[disabled] {
+  background: transparent;
+  color: var(--ed-ink-4);
+  border-color: var(--ed-rule-2);
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+.alch-submit-pr-mute { font-size: 9.5px; letter-spacing: 0.08em; opacity: 0.8; }
+.alch-submit-pr-hint {
+  margin: 12px 0 0;
+  font-family: var(--ed-mono);
+  font-size: 11px; line-height: 1.65;
+  color: var(--ed-ink-4);
+}
+.alch-submit-pr-hint code { color: var(--ed-ink-3); }
+.alch-submit-pr-hint strong { color: var(--ed-ink-3); font-weight: 500; }
+
+/* Theme toggle inside the intro strip — keep it on the right edge
+ * without shrinking. */
+.alch-page-intro .alch-theme-toggle { flex: 0 0 auto; }
 
 /* ── network + metrics ───────────────────────────────────────────── */
 #network-view, #metrics-view { background: var(--ed-bg-0); color: var(--ed-ink-2); }
@@ -13149,7 +13260,7 @@ html, body { background: var(--ed-bg-0); }
 .atlas-search-toggle:hover .ast-glyph { opacity: var(--ed-op-loud); }
 
 /* ── alchemy page padding — generous gallery margins ─────────────── */
-.alchemy-canvas { padding: 48px 56px 64px; }
+.alchemy-canvas { padding: 24px 56px 64px; }
 
 /* ── alchemy LEFT RAIL — Linear/Foundation editorial spec ────────── */
 .alchemy-rail {
@@ -13295,7 +13406,10 @@ html, body { background: var(--ed-bg-0); }
   background: var(--ed-bg-well);
   border-radius: 0;
 }
-.im-btn, .alch-pf-modetab, .alch-pf-subtab {
+/* (.alch-pf-modetab/.alch-pf-subtab left this list 2026-06 — they're
+ * square segments inside a rounded group now; a per-button pill radius
+ * would round the selected fill inside the track.) */
+.im-btn {
   border-radius: 999px;
   text-transform: lowercase;
   letter-spacing: 0.16em;
@@ -13463,13 +13577,12 @@ html, body { background: var(--ed-bg-0); }
   margin-left: auto;
 }
 
-/* Second filter row — membership / role_class. Sits below the kind toolbar
- * so the visual hierarchy reads as: pick the entity type (teams vs people),
- * then narrow to a membership bucket. The cohort chip carries the same
- * warm oxide treatment used on cohort cards so the connection is obvious. */
+/* Membership / role_class chips — share the toolbar row with the kind
+ * chips: entity type (teams vs people) first, membership bucket next.
+ * The cohort chip carries the same warm oxide treatment used on cohort
+ * cards so the connection is obvious. */
 .alch-shapes-filter-membership {
-  margin-top: -16px;
-  margin-bottom: 32px;
+  margin: 0;
 }
 .alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"],
 .alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"] {
@@ -13510,9 +13623,10 @@ html, body { background: var(--ed-bg-0); }
  * bump text contrast everywhere it was below readable.
  * ═══════════════════════════════════════════════════════════════════ */
 
-/* Page-level warm radial wash — slightly brighter at the top centre,
-   fades to near-black at the corners. Gives the whole stage depth
-   without changing the read of the editorial dark theme. */
+/* Page-level radial wash — back to near-black (2026-06-11): the espresso
+   page wash from the warm-elevation pass read as flat gray at laptop
+   brightness; the page returns to the deep near-black field while the
+   panels keep their warm elevation on top. */
 html, body {
   background: radial-gradient(ellipse 140% 100% at 50% -10%, #1a1612 0%, #0e0c0a 55%, #08070a 100%);
 }
@@ -13890,7 +14004,28 @@ html, body {
 }
 .cal-avail-head > div:first-child { display: flex; flex-direction: column; gap: 4px; }
 .cal-avail-head .cal-page-actions { margin-left: auto; }
-.cal-avail-edit { margin-left: 4px; }
+/* Same pill treatment as .cal-action so the presence-head buttons read as
+   one family (was an unstyled native button — white box). */
+.cal-avail-edit {
+  margin-left: 4px;
+  appearance: none;
+  display: inline-flex; align-items: center; gap: 7px;
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.08), rgba(var(--ink-rgb), 0.02));
+  color: var(--ed-ink-1);
+  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-family: var(--ed-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  cursor: pointer;
+}
+.cal-avail-edit:hover {
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.16), rgba(var(--ink-rgb), 0.06));
+  border-color: rgba(var(--ink-rgb), 0.40);
+  box-shadow: 0 0 0 3px rgba(var(--ink-rgb), 0.06);
+}
 
 @media (max-width: 880px) {
   .cal-tw-wrap { grid-template-columns: 1fr; }
@@ -13904,7 +14039,10 @@ html, body {
 .cal-section-presence { max-width: none; }
 .cal-section-presence .cal-scroll {
   overflow-x: auto;
-  overflow-y: hidden;
+  /* The gantt is taller than the .cal-scroll max-height cap — overflow-y
+     must scroll, not hide, or every row below the fold (later teams) is
+     unreachable. */
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 .cal-section-head {
@@ -14035,7 +14173,7 @@ html, body {
 }
 .alch-onb-sub strong { color: var(--ed-ink-1); opacity: 1; font-weight: 500; }
 .alch-onb-steps {
-  list-style: none; padding: 0; margin: 0 auto 28px;
+  list-style: none; padding: 0; margin: 0 0 28px;
   display: grid; gap: 14px;
   max-width: 84ch;
 }
@@ -14188,7 +14326,7 @@ html, body {
   border-bottom: 2px solid transparent;
   padding: 10px 16px 12px 16px;
   color: var(--ed-ink-1);
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: pointer;
   display: inline-flex; gap: 10px; align-items: baseline;
 }
@@ -14197,19 +14335,24 @@ html, body {
   opacity: 1;
   border-bottom-color: #c44025;
 }
+.alch-prog-tab[aria-selected="true"] .alch-prog-tab-label {
+  color: var(--alchemy-paper-warm);
+}
 .alch-prog-tab-num {
   font-family: var(--ed-mono);
   font-size: 10px;
   letter-spacing: 0.22em;
   opacity: 0.60;
 }
+/* Mirrors .apv-label (context/cohort view tabs) so the program tabs use
+ * the identical font treatment — same family, style, size, spacing. */
 .alch-prog-tab-label {
   font-family: var(--ed-display);
   font-style: italic;
-  font-size: 16px;
-  letter-spacing: -0.01em;
+  font-size: 16.5px;
+  color: var(--ed-ink-1);
 }
-.alch-prog-page { margin: 0 auto; max-width: 70ch; }
+.alch-prog-page { margin: 0; max-width: 70ch; }
 .alch-prog-page-head {
   display: flex; align-items: baseline; gap: 16px;
   margin-bottom: 16px;
@@ -14336,10 +14479,11 @@ html, body {
 
 /* ── asks board ──────────────────────────────────────────────────── */
 /* Stack the asks header (title + subtitle + post button) vertically so the
-   button never gets jammed into a narrow grid auto-column. Centered with
-   matching width to the section list below. */
+   button never gets jammed into a narrow grid auto-column. Left-aligned to
+   the canvas gutter (2026-06) so every page shares the same content edge;
+   the max-width still caps the line length for readability. */
 .alch-asks-head {
-  margin: 0 auto 20px;
+  margin: 0 0 20px;
   max-width: 80ch;
   display: flex; flex-direction: column;
   gap: 10px;
@@ -14364,7 +14508,7 @@ html, body {
   opacity: 0.62;
   margin: 0;
 }
-.alch-asks-section { max-width: 84ch; margin: 18px auto; }
+.alch-asks-section { max-width: 84ch; margin: 18px 0; }
 .alch-asks-section-head {
   display: flex; align-items: baseline; gap: 12px;
   padding-bottom: 8px;
@@ -14706,13 +14850,83 @@ html, body {
 }
 .alch-atlas-li:hover { color: #c44025; }
 
-/* ── constellation mode toggle ───────────────────────────────────── */
-.alch-const-modes {
+/* ── shared page header (cohort + context) ──────────────────────────
+   One header pattern for the OS's two "understanding" pages: a quiet
+   mono kicker, the page title, a one-line purpose dek that changes per
+   view, and an optional right-side action. The view nav directly below
+   carries the rule line, so the header itself stays rule-free. */
+.alch-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 32px;
+  align-items: flex-start;
+  padding: 2px 0 12px;
+}
+.alch-page-head-text {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+.alch-page-kicker {
+  margin: 0 0 6px;
+  color: rgba(var(--ink-rgb), 0.38);
+  font: 700 11px/1.1 var(--mono);
+  letter-spacing: 0;
+  text-transform: lowercase;
+}
+.alch-page-title {
+  margin: 0;
+  color: rgb(var(--ink-rgb));
+  font: 560 clamp(20px, 2vw, 27px)/1.08 var(--sans);
+}
+.alch-page-dek {
+  max-width: 720px;
+  margin: 7px 0 0;
+  color: rgba(var(--ink-rgb), 0.64);
+  font: 400 13.5px/1.5 var(--sans);
+  /* Reserve two lines so a wrapping dek never moves the view nav — the
+     header occupies the same height on every view. */
+  min-height: 3em;
+}
+.alch-page-head-side {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+  margin-left: auto;
+}
+.alch-page-head-meta {
+  color: rgba(var(--ink-rgb), 0.4);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: lowercase;
+  text-align: right;
+  display: grid;
+  gap: 3px;
+}
+.alch-page-head-meta span {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 820px) {
+  .alch-page-head { flex-direction: column; gap: 10px; }
+  .alch-page-head-side { padding-top: 0; margin-left: 0; justify-content: flex-start; }
+  .alch-page-head-meta { text-align: left; }
+}
+
+/* ── page view nav (cohort + context) ───────────────────────────────── */
+.alch-page-views {
   display: flex; gap: 0;
   margin: 0 0 8px 0;
   border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
 }
-.alch-const-mode-btn {
+.alch-page-view-btn {
   appearance: none;
   background: transparent;
   border: 0;
@@ -14723,37 +14937,581 @@ html, body {
   opacity: 0.45;
   cursor: pointer;
 }
-.alch-const-mode-btn:hover { opacity: 0.85; }
-.alch-const-mode-btn[aria-selected="true"] {
+.alch-page-view-btn:hover { opacity: 0.85; }
+.alch-page-view-btn[aria-selected="true"] {
   opacity: 1;
   border-bottom-color: #c44025;
 }
-.acm-glyph { font-size: 14px; opacity: 0.65; }
-.acm-label {
+.apv-glyph { font-size: 14px; opacity: 0.65; }
+.apv-label {
   font-family: var(--ed-display);
   font-style: italic;
   font-size: 16.5px;
   color: var(--ed-ink-1);
 }
-.alch-const-mode-btn[aria-selected="true"] .acm-label {
+.alch-page-view-btn[aria-selected="true"] .apv-label {
   color: var(--alchemy-paper-warm);
 }
-.acm-hint {
+.apv-hint {
   font-family: var(--ed-mono);
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: lowercase;
   opacity: 0.55;
 }
+.apv-count {
+  align-self: center;
+  color: rgba(var(--ink-rgb), 0.42);
+  font-family: var(--ed-mono);
+  font-size: 10px;
+  line-height: 1;
+}
+.alch-page-view-btn[aria-selected="true"] .apv-count {
+  color: rgba(var(--ink-rgb), 0.62);
+}
+
+/* ── page view controls band ─────────────────────────────────────────
+   The one slot for a view's filters/lenses, directly under the view nav.
+   Each view drops its own rows in; the band owns the rhythm (rule line +
+   spacing) so filters sit at the same y on every view. Wrappers that had
+   their own band styling are neutralized below. */
+.alch-view-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px 22px;
+  margin: 2px 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.06);
+}
+.alch-view-controls > .alch-journey-filters,
+.alch-view-controls > .alch-shapes-filter,
+.alch-view-controls > .alch-shapes-filter-membership {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+/* Directory's export action shares the band row with the filter chips —
+ * same chip styling, pushed to the right edge. */
+.alch-view-controls > #dossier-export-png { margin-left: auto; }
+/* Cross-view selection chip — the visible owner of "something is selected".
+ * Sits last in the controls row on every cohort view; clicking clears
+ * (same effect as the Escape shortcut, but discoverable). Oxide-warm so
+ * it reads as kin to the cohort-membership accent, not a filter. */
+.ac-selection-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  min-height: 28px;
+  padding: 4px 12px 4px 14px;
+  background: linear-gradient(
+    color-mix(in srgb, var(--alchemy-oxide-bright) 12%, transparent),
+    color-mix(in srgb, var(--alchemy-oxide-bright) 6%, transparent));
+  border: 1px solid color-mix(in srgb, var(--alchemy-oxide-hot) 45%, transparent);
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.16);
+  color: var(--ed-ink-1);
+  font-family: var(--ed-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  cursor: pointer;
+  transition: background 160ms ease-out, border-color 160ms ease-out;
+}
+.ac-selection-chip span { opacity: 0.6; letter-spacing: 0.18em; }
+.ac-selection-chip strong { font-weight: 500; text-transform: none; letter-spacing: 0.02em; }
+.ac-selection-chip i { font-style: normal; opacity: 0.7; font-size: 12px; line-height: 1; }
+.ac-selection-chip:hover,
+.ac-selection-chip:focus-visible {
+  background: color-mix(in srgb, var(--alchemy-oxide-bright) 18%, transparent);
+  border-color: var(--alchemy-oxide-hot);
+}
+.ac-selection-chip:hover i { opacity: 1; }
+/* Selected-entity readouts (journey/stack) — second-click hint line. */
+.ac-readout-hint {
+  margin: 8px 0 0;
+  font-family: var(--ed-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: rgba(var(--ink-rgb), 0.45);
+}
+.ac-main-readout.is-selected-readout {
+  border-left: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 55%, transparent);
+}
+/* Collab's lens buttons + actions become one space-between band row. */
+.alch-view-controls > .cb-controls {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+/* ── Cohort control band — hairline segmented rails ───────────────
+   One material across all five views (directory, map, journey, stack,
+   collab). Each filter group sits in a quiet rail: faint alpha fill,
+   hairline border — same surface language as the cards below. The
+   active option is a softly lifted thumb; the oxide underline (shared
+   with the view tabs) is the real active signal. Group labels
+   (graph / layout / lines / include) sit inside the rail's left edge
+   as field prefixes. Oxide stays reserved: membership tier, counts,
+   the live dot, and the one action button. */
+
+.alch-view-controls {
+  gap: 8px 12px;
+  margin: 6px 0 18px;
+  padding-bottom: 12px;
+}
+
+/* The rails — every button group becomes one quiet trough: a faint
+   wash and a hairline, nothing carved. */
+.alch-view-controls .ac-network-scope-row,
+.alch-view-controls .ac-map-layout-row,
+.alch-view-controls .ac-lens-row,
+.alch-view-controls .alch-journey-filters,
+.alch-view-controls .alch-shapes-filter,
+.alch-view-controls .cb-lenses {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0;
+  padding: 2px;
+  min-width: 0;
+  border: 1px solid rgba(var(--ink-rgb), 0.07);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.06));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
+}
+
+/* Etched field prefixes — sit inside the rail's left edge */
+.alch-view-controls .ac-network-scope-row > span,
+.alch-view-controls .ac-map-layout-row > span,
+.alch-view-controls .ac-lens-row > span,
+.alch-view-controls .ajf-label {
+  padding: 0 6px 0 10px;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 7.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(var(--ink-rgb), 0.40);
+}
+
+/* Segments — one structure for every filter/lens/toggle button */
+.alch-view-controls .ac-network-scope-btn,
+.alch-view-controls .ac-map-layout-btn,
+.alch-view-controls .ac-lens-btn,
+.alch-view-controls .ajf-toggle,
+.alch-view-controls .alch-shapes-chip,
+.alch-view-controls .cb-lens {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 3px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  line-height: 1;
+  color: rgba(var(--ink-rgb), 0.62);
+  opacity: 1;
+  text-decoration: none;
+  transform: none;
+  box-shadow: none;
+  cursor: pointer;
+  transition:
+    color 150ms ease-out,
+    background 150ms ease-out,
+    box-shadow 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+/* Scope buttons wrap labels in <strong>; weight follows button state */
+.alch-view-controls .ac-network-scope-btn strong {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+/* Hint <em> text is too verbose for a compact rail */
+.alch-view-controls .ac-network-scope-btn em { display: none; }
+
+/* Hover — proto-thumb: a faint version of the raised state so the glass
+   reads as responsive before commit */
+.alch-view-controls .ac-network-scope-btn:hover,
+.alch-view-controls .ac-map-layout-btn:hover,
+.alch-view-controls .ac-lens-btn:hover,
+.alch-view-controls .ajf-toggle:hover,
+.alch-view-controls .alch-shapes-chip:hover,
+.alch-view-controls .cb-lens:hover {
+  color: var(--alchemy-paper-warm);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.07), rgba(var(--ink-rgb), 0.035));
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transform: none;
+}
+/* Press — glass gives slightly */
+.alch-view-controls .ac-network-scope-btn:active,
+.alch-view-controls .ac-map-layout-btn:active,
+.alch-view-controls .ac-lens-btn:active,
+.alch-view-controls .ajf-toggle:active,
+.alch-view-controls .alch-shapes-chip:active,
+.alch-view-controls .cb-lens:active {
+  transform: scale(0.97);
+}
+/* Designed focus — oxide ring hugging the segment */
+.alch-view-controls .ac-network-scope-btn:focus-visible,
+.alch-view-controls .ac-map-layout-btn:focus-visible,
+.alch-view-controls .ac-lens-btn:focus-visible,
+.alch-view-controls .ajf-toggle:focus-visible,
+.alch-view-controls .alch-shapes-chip:focus-visible,
+.alch-view-controls .cb-lens:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright);
+  outline-offset: 1px;
+}
+
+/* The active thumb — shared across aria-selected / aria-pressed / .is-on.
+   A soft lift, nothing more: faint top-lit fill and a hairline ring.
+   The micro oxide underline (::after) is the signature — the same
+   "active = oxide underline" the view tabs above carry, scaled down
+   to thumb size. */
+.alch-view-controls .ac-network-scope-btn[aria-checked="true"],
+.alch-view-controls .ac-map-layout-btn[aria-checked="true"],
+.alch-view-controls .ac-lens-btn[aria-checked="true"],
+.alch-view-controls .ajf-toggle.is-on,
+.alch-view-controls .alch-shapes-chip[aria-selected="true"],
+.alch-view-controls .cb-lens[aria-pressed="true"] {
+  color: var(--alchemy-paper-warm);
+  font-weight: 600;
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.13), rgba(var(--ink-rgb), 0.065));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(var(--ink-rgb), 0.10),
+    0 1px 2px rgba(0, 0, 0, 0.20);
+  text-decoration: none;
+  opacity: 1;
+}
+/* (ajf-toggle excluded — its multi-select state dot already carries the
+   oxide signal; tick + dot would double-mark one 26px thumb) */
+.alch-view-controls .ac-network-scope-btn[aria-checked="true"]::after,
+.alch-view-controls .ac-map-layout-btn[aria-checked="true"]::after,
+.alch-view-controls .ac-lens-btn[aria-checked="true"]::after,
+.alch-view-controls .alch-shapes-chip[aria-selected="true"]::after,
+.alch-view-controls .cb-lens[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 10px;
+  height: 1.5px;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  background: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 4px rgba(217, 83, 54, 0.45);
+}
+
+/* PMF toggles are multi-select — keep the state dot, drop the strikethrough */
+.alch-view-controls .ajf-toggle:not(.is-on) {
+  opacity: 1;
+  text-decoration: none;
+  color: rgba(var(--ink-rgb), 0.46);
+}
+.alch-view-controls .ajf-toggle::before {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.26);
+  transition: background 150ms ease-out, box-shadow 150ms ease-out;
+}
+.alch-view-controls .ajf-toggle.is-on::before {
+  background: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 5px rgba(217, 83, 54, 0.55);
+}
+
+/* Empty lens — brass-tinted thumb keeps "no data of this type" distinct
+   from merely inactive; its tick goes brass too */
+.alch-view-controls .ac-lens-btn.is-empty { color: rgba(var(--ink-rgb), 0.36); }
+.alch-view-controls .ac-lens-btn.is-empty[aria-checked="true"] {
+  color: rgba(var(--ink-rgb), 0.62);
+  background: linear-gradient(rgba(193, 168, 114, 0.11), rgba(193, 168, 114, 0.06));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(193, 168, 114, 0.20),
+    0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.alch-view-controls .ac-lens-btn.is-empty[aria-checked="true"]::after {
+  background: rgba(193, 168, 114, 0.85);
+  box-shadow: 0 0 5px rgba(193, 168, 114, 0.45);
+}
+
+/* Counts — quiet at rest, oxide-lit on the active thumb */
+.alch-view-controls .alch-shapes-chip .ascn,
+.alch-view-controls .cb-lens strong {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  opacity: 0.55;
+}
+.alch-view-controls .alch-shapes-chip[aria-selected="true"] .ascn,
+.alch-view-controls .cb-lens[aria-pressed="true"] strong {
+  color: color-mix(in srgb, var(--alchemy-oxide-bright) 72%, var(--alchemy-paper-warm));
+  opacity: 1;
+}
+
+/* Cohort membership thumb — the one oxide-tinted segment (tier signal,
+   matches the warm tint on cohort cards); its tick reads paper-on-oxide */
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"],
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"] {
+  color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, var(--alchemy-paper-warm));
+  background: linear-gradient(180deg, rgba(180, 58, 25, 0.22), rgba(180, 58, 25, 0.10));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px rgba(180, 58, 25, 0.26),
+    0 1px 2px rgba(0, 0, 0, 0.20);
+}
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"]::after,
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"]::after {
+  background: color-mix(in srgb, var(--alchemy-oxide-bright) 45%, var(--alchemy-paper-warm));
+  box-shadow: 0 0 6px rgba(217, 83, 54, 0.55);
+}
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"]:hover,
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"]:hover {
+  color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, var(--alchemy-paper-warm));
+  background: rgba(180, 58, 25, 0.10);
+}
+
+/* Collab actions — harmonize the sort select with the rail material;
+   the intake button keeps its own action treatment (it commits, the
+   rails only re-scope) but shares the band height. */
+.alch-view-controls .cb-sort-control select {
+  min-height: 28px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
+  background: linear-gradient(rgba(var(--ink-rgb), 0.05), rgba(var(--ink-rgb), 0.025));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
+  padding: 0 24px 0 12px;
+  font-family: var(--ed-mono, var(--font-mono));
+}
+.alch-view-controls .cb-sort-control select:hover,
+.alch-view-controls .cb-sort-control select:focus {
+  border-color: rgba(217, 83, 54, 0.36);
+  outline: none;
+}
+
+/* Directory's export action — a real button, not a floating label.
+   Same quiet outline material as the sort control; the ID selector
+   outranks the segment rules, so hover is restated here. */
+.alch-view-controls > #dossier-export-png {
+  min-height: 28px;
+  padding: 4px 14px;
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
+  border-radius: 14px;
+  background: linear-gradient(rgba(var(--ink-rgb), 0.045), rgba(var(--ink-rgb), 0.02));
+}
+.alch-view-controls > #dossier-export-png:hover {
+  color: var(--alchemy-paper-warm);
+  border-color: rgba(217, 83, 54, 0.36);
+  background: linear-gradient(rgba(var(--ink-rgb), 0.07), rgba(var(--ink-rgb), 0.035));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alch-view-controls .ac-network-scope-btn,
+  .alch-view-controls .ac-map-layout-btn,
+  .alch-view-controls .ac-lens-btn,
+  .alch-view-controls .ajf-toggle,
+  .alch-view-controls .alch-shapes-chip,
+  .alch-view-controls .cb-lens {
+    transition: none;
+  }
+  .alch-view-controls .ac-network-scope-btn:active,
+  .alch-view-controls .ac-map-layout-btn:active,
+  .alch-view-controls .ac-lens-btn:active,
+  .alch-view-controls .ajf-toggle:active,
+  .alch-view-controls .alch-shapes-chip:active,
+  .alch-view-controls .cb-lens:active {
+    transform: none;
+  }
+}
+
+/* ── legend → canvas isolation ────────────────────────────────────
+   Legends are keys, not captions. Every entry carries its count, its
+   swatch mirrors the real mark style exactly, and hovering/focusing an
+   entry isolates that mark type on the canvas below — the mapping is
+   demonstrated, not explained. Pure CSS via :has() so the behavior
+   survives the renderer's innerHTML rebuilds. */
+
+/* Key entries are live: subtle lift on hover, designed focus ring */
+.acl-line-key-row[data-legend-link],
+.acl-line-key-row[data-legend-edge],
+.alch-constellation-legend .acl-item[data-legend-domain],
+.cb-legend span[data-legend-cell] {
+  border-radius: 6px;
+  transition: color 140ms ease-out;
+}
+.acl-line-key-row[data-legend-link]:hover,
+.acl-line-key-row[data-legend-edge]:hover,
+.alch-constellation-legend .acl-item[data-legend-domain]:hover {
+  color: var(--alchemy-paper-warm);
+}
+.acl-line-key-row[data-legend-link]:focus-visible,
+.acl-line-key-row[data-legend-edge]:focus-visible,
+.alch-constellation-legend .acl-item[data-legend-domain]:focus-visible,
+.cb-legend span[data-legend-cell]:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright);
+  outline-offset: 2px;
+}
+
+/* Stack legend counts — same oxide voice as the line-key <em> counts */
+.alch-constellation-legend .acl-item .acl-count {
+  margin-left: 5px;
+  color: var(--alchemy-oxide-bright);
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* People-map swatches now mirror the actual stroke styles (the old key
+   showed profile overlap as ink-dotted and shared context as teal-dashed
+   — exactly swapped relative to the canvas) */
+.alch-constellation-legend.is-line-confidence .acl-line-key-row.is-typed i {
+  border-top: 2px solid rgba(226, 207, 162, 0.72);
+  box-shadow: none;
+}
+.alch-constellation-legend.is-line-confidence .acl-line-key-row.is-profile i {
+  border-top: 1px dashed rgba(79, 163, 160, 0.75);
+}
+.alch-constellation-legend.is-line-confidence .acl-line-key-row.is-shared i {
+  border-top: 1px dotted rgba(var(--ink-rgb), 0.55);
+}
+
+/* Projects map — hover "relationship record" → mentions recede; hover
+   "profile mention" → records recede and the faint mention tier surfaces */
+.alch-const-main:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
+.alch-const-main:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.06;
+}
+.alch-const-main:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
+.alch-const-main:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 1;
+  stroke-width: 1.9;
+}
+.alch-const-main:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
+.alch-const-main:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 0.07;
+}
+.alch-const-main:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
+.alch-const-main:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.95;
+  stroke: rgba(var(--ink-rgb), 0.70);
+  stroke-width: 1.05;
+}
+
+/* People map — each key row isolates its link kind */
+.alch-const-main:has([data-legend-link="same-team"]:hover) .ac-people-stage svg .ac-person-link:not(.is-same-team),
+.alch-const-main:has([data-legend-link="same-team"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-same-team) {
+  opacity: 0.05;
+}
+.alch-const-main:has([data-legend-link="same-team"]:hover) .ac-people-stage svg .ac-person-link.is-same-team,
+.alch-const-main:has([data-legend-link="same-team"]:focus-visible) .ac-people-stage svg .ac-person-link.is-same-team {
+  opacity: 1;
+  stroke-width: 1.6;
+}
+.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link:not(.is-secondary-overlap):not(.is-pair-with),
+.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-secondary-overlap):not(.is-pair-with) {
+  opacity: 0.05;
+}
+.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link.is-secondary-overlap,
+.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link.is-pair-with,
+.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link.is-secondary-overlap,
+.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link.is-pair-with {
+  opacity: 1;
+  stroke-width: 1.5;
+}
+.alch-const-main:has([data-legend-link="shared-context"]:hover) .ac-people-stage svg .ac-person-link:not(.is-shared-context),
+.alch-const-main:has([data-legend-link="shared-context"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-shared-context) {
+  opacity: 0.05;
+}
+.alch-const-main:has([data-legend-link="shared-context"]:hover) .ac-people-stage svg .ac-person-link.is-shared-context,
+.alch-const-main:has([data-legend-link="shared-context"]:focus-visible) .ac-people-stage svg .ac-person-link.is-shared-context {
+  opacity: 1;
+  stroke: rgba(var(--ink-rgb), 0.62);
+  stroke-width: 1.3;
+}
+
+/* Product layer — hover a domain key → other domains' tiles recede */
+.alch-const-main:has(.acl-item[data-legend-domain="tee"]:hover) .ac-stack-team:not(.ac-stack-domain-tee),
+.alch-const-main:has(.acl-item[data-legend-domain="tee"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-tee),
+.alch-const-main:has(.acl-item[data-legend-domain="ai"]:hover) .ac-stack-team:not(.ac-stack-domain-ai),
+.alch-const-main:has(.acl-item[data-legend-domain="ai"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-ai),
+.alch-const-main:has(.acl-item[data-legend-domain="crypto"]:hover) .ac-stack-team:not(.ac-stack-domain-crypto),
+.alch-const-main:has(.acl-item[data-legend-domain="crypto"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-crypto),
+.alch-const-main:has(.acl-item[data-legend-domain="app-ux"]:hover) .ac-stack-team:not(.ac-stack-domain-app-ux),
+.alch-const-main:has(.acl-item[data-legend-domain="app-ux"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-app-ux) {
+  opacity: 0.22;
+}
+.alch-const-main .ac-stack-team {
+  transition: opacity 160ms ease-out;
+}
+
+/* Collab matrix — the key teaches by demonstration: dependency / seek-offer
+   isolate their cells; match strength dims the weak tier so the ramp reads;
+   keystone surfaces the dense columns */
+.cb-matrix-section:has([data-legend-cell="dep"]:hover) .cb-cell.has-so:not(.has-dep),
+.cb-matrix-section:has([data-legend-cell="dep"]:focus-within) .cb-cell.has-so:not(.has-dep) {
+  opacity: 0.14;
+}
+.cb-matrix-section:has([data-legend-cell="so"]:hover) .cb-cell.has-dep:not(.has-so),
+.cb-matrix-section:has([data-legend-cell="so"]:focus-within) .cb-cell.has-dep:not(.has-so) {
+  opacity: 0.14;
+}
+.cb-matrix-section:has([data-legend-cell="scale"]:hover) .cb-cell.has-so.s1,
+.cb-matrix-section:has([data-legend-cell="scale"]:hover) .cb-cell.has-so.s2,
+.cb-matrix-section:has([data-legend-cell="scale"]:focus-within) .cb-cell.has-so.s1,
+.cb-matrix-section:has([data-legend-cell="scale"]:focus-within) .cb-cell.has-so.s2 {
+  opacity: 0.22;
+}
+.cb-matrix-section:has([data-legend-cell="key"]:hover) .cb-colhead:not(.is-key),
+.cb-matrix-section:has([data-legend-cell="key"]:focus-within) .cb-colhead:not(.is-key) {
+  opacity: 0.30;
+}
+.cb-matrix-section:has([data-legend-cell="key"]:hover) .cb-colhead.is-key,
+.cb-matrix-section:has([data-legend-cell="key"]:focus-within) .cb-colhead.is-key {
+  color: var(--alchemy-paper-warm);
+}
+.cb-matrix-section .cb-cell,
+.cb-matrix-section .cb-colhead {
+  transition: opacity 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alch-const-main .ac-stack-team,
+  .cb-matrix-section .cb-cell,
+  .cb-matrix-section .cb-colhead {
+    transition: none;
+  }
+}
 
 @media (max-width: 1120px) {
-  .alch-const-mode-btn {
+  .alch-page-view-btn {
     flex: 1 1 0;
     justify-content: center;
     padding-left: 10px;
     padding-right: 10px;
   }
-  .acm-hint {
+  .apv-hint,
+  .apv-count {
     display: none;
   }
 }
@@ -14776,18 +15534,25 @@ html, body {
   stroke-dasharray: none;
   opacity: 0.96;
 }
+/* Profile-mention (unconfirmed) edges. Stroke alpha COMPOSES with the at-rest
+   group opacity below — keep the product near 0.2: the old 0.20 × 0.42 ≈ 0.08
+   rendered the legend's "dotted" tier invisible, leaving orphaned arrowheads
+   floating next to nodes. Still ink (not brass) and ≈4× lighter than records
+   so ~70 mentions read as lead-texture, never a hairball. */
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
-  stroke: rgba(var(--ink-rgb),0.20);
-  stroke-width: 0.65;
-  stroke-dasharray: 1 7;
-  opacity: 0.44;
+  stroke: rgba(var(--ink-rgb),0.45);
+  stroke-width: 0.8;
+  stroke-dasharray: 2 5;
+  opacity: 0.5;
 }
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-status-active {
   stroke-width: 1.15;
 }
+/* Status never uses dash — dash is reserved for the unconfirmed-mention tier,
+   so "dotted" keeps exactly one meaning on the map. Blocked = red + weight. */
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-status-blocked {
-  stroke: rgba(196,64,37,0.70);
-  stroke-dasharray: 5 3;
+  stroke: rgba(196,64,37,0.78);
+  stroke-width: 1.3;
 }
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-status-resolved {
   opacity: 0.34;
@@ -14805,11 +15570,20 @@ html, body {
   stroke-dasharray: none;
 }
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-meaning-unknown {
-  stroke-dasharray: 1 7;
+  stroke-dasharray: 2 5;
+}
+.alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 0.96;
+  stroke-width: 1.36;
+}
+/* Resolved (archived) records recede at rest; without this the at-rest record
+   rule above out-specifies the base .ac-edge-status-resolved fade. */
+.alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-record.ac-edge-status-resolved {
+  opacity: 0.44;
 }
 .alch-constellation-stage[data-lens="all"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
-  opacity: 0.42;
-  stroke-width: 0.65;
+  opacity: 0.45;
+  stroke-width: 0.8;
 }
 .alch-constellation-stage[data-view="ring"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency {
   opacity: 0.46;
@@ -14820,12 +15594,35 @@ html, body {
   stroke-width: 1.85;
 }
 .alch-constellation-stage[data-view="ring"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
-  opacity: 0.42;
-  stroke-width: 0.72;
+  opacity: 0.45;
+  stroke-width: 0.8;
+}
+/* Hover layer: non-hot edges recede so the touched one-hop context pops.
+   (Ported from the old base-tier rule, which this block out-specified —
+   the dim had silently stopped applying.) */
+.alch-constellation-stage[data-hover-active="true"] svg .ac-edge.ac-edge-dependency:not(.is-hot) {
+  opacity: 0.12;
 }
 .alch-constellation-stage[data-hover-active="true"] svg .ac-edge.ac-edge-dependency.is-hot {
   stroke-width: 1.9;
   opacity: 1;
+}
+/* Selection layer: pinned evidence pops, adjacent context stays readable,
+   everything else recedes. (Same port — these dims were also shadowed.) */
+.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.ac-edge-dependency {
+  opacity: 0.055;
+}
+.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.ac-edge-dependency.is-selection-edge {
+  opacity: 1;
+  stroke-width: 2.05;
+  stroke: rgba(214,189,134,0.98);
+}
+.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.ac-edge-dependency.is-selection-adjacent-edge {
+  opacity: 0.30;
+  stroke-width: 1.05;
+}
+.alch-constellation-stage[data-selection-active="true"] svg .ac-edge.ac-edge-dependency.is-selection-outside {
+  opacity: 0.025;
 }
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.is-selected {
   stroke: rgba(214,189,134,0.98);
@@ -14843,8 +15640,8 @@ html, body {
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy.ac-edge-meaning-collaboration,
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy.ac-edge-meaning-ecosystem,
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy.ac-edge-meaning-unknown {
-  stroke: rgba(var(--ink-rgb),0.20);
-  stroke-dasharray: 1 7;
+  stroke: rgba(var(--ink-rgb),0.45);
+  stroke-dasharray: 2 5;
 }
 .acl-swatch-dependency {
   background: rgba(193,168,114,0.65);
@@ -14885,12 +15682,15 @@ html, body {
 .alch-prog-title       { font-size: 44px; letter-spacing: -0.02em; line-height: 1.0; margin: 0 0 14px 0; }
 .alch-prog-sub         { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 64ch; margin: 0; opacity: 0.62; }
 
-.alch-prog-tabs        { margin: 24px auto 40px; max-width: 88ch; gap: 0; }
-.alch-prog-tab         { padding: 12px 24px 14px; gap: 12px; }
-.alch-prog-tab-num     { font-size: 11px; letter-spacing: 0.22em; }
-.alch-prog-tab-label   { font-size: 19px; }
+/* Tab metrics mirror .alch-page-view-btn / .apv-label exactly so the
+ * program tabs land at the same y and row height as the context/cohort
+ * view tabs — switching rail pages must not move the tab row. */
+.alch-prog-tabs        { margin: 0 0 40px; max-width: 88ch; gap: 0; }
+.alch-prog-tab         { padding: 6px 17px 9px; gap: 8px; }
+.alch-prog-tab-num     { font-size: 10px; letter-spacing: 0.22em; }
+.alch-prog-tab-label   { font-size: 16.5px; }
 
-.alch-prog-page        { margin: 0 auto; max-width: 80ch; padding: 0 0 96px; }
+.alch-prog-page        { margin: 0; max-width: 80ch; padding: 0 0 96px; }
 .alch-prog-page-head   { margin-bottom: 32px; align-items: baseline; gap: 24px; }
 .alch-prog-page-title  { font-size: 32px; line-height: 1.05; margin: 0; }
 
@@ -14926,12 +15726,12 @@ html, body {
 .alch-prog-page-foot   { margin-top: 40px; padding-top: 16px; font-size: 11px; }
 
 /* ── asks ─────────────────────────────────────────────────────────── */
-.alch-asks-head        { margin: 0 auto 18px; max-width: 88ch; padding-top: 12px; gap: 10px; }
+.alch-asks-head        { margin: 0 0 18px; max-width: 88ch; padding-top: 12px; gap: 10px; }
 .alch-asks-title       { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
 .alch-asks-sub         { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 70ch; margin: 0; opacity: 0.62; }
 .alch-asks-head-actions { margin-top: 10px; }
 
-.alch-asks-section     { max-width: 88ch; margin: 18px auto; }
+.alch-asks-section     { max-width: 88ch; margin: 18px 0; }
 .alch-asks-section-head { padding-bottom: 8px; margin-bottom: 10px; gap: 10px; }
 .alch-asks-section-title { font-size: 14px; line-height: 1.20; }
 .alch-asks-section-count { font-size: 11px; letter-spacing: 0.22em; }
@@ -14954,7 +15754,7 @@ html, body {
 .alch-onb-title        { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
 .alch-onb-sub          { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 70ch; opacity: 0.62; }
 
-.alch-onb-steps        { margin: 0 auto 36px; max-width: 88ch; gap: 18px; }
+.alch-onb-steps        { margin: 0 0 36px; max-width: 88ch; gap: 18px; }
 .alch-onb-step         {
   grid-template-columns: 56px 1fr 28px;
   gap: 24px;
@@ -14969,7 +15769,7 @@ html, body {
 .alch-onb-done         { font-size: 11px; padding: 6px 14px; letter-spacing: 0.18em; }
 
 /* ── calendar ─────────────────────────────────────────────────────── */
-.cal-page-head         { margin-bottom: 32px; padding-top: 12px; max-width: 88ch; margin-left: auto; margin-right: auto; }
+.cal-page-head         { margin-bottom: 0; }
 .cal-page-title        { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; }
 .cal-page-sub          { font-size: 13px; letter-spacing: 0.18em; }
 
@@ -15174,7 +15974,7 @@ html, body {
 /* ── asks compose form ────────────────────────────────────────────── */
 .alch-asks-compose {
   max-width: 88ch;
-  margin: 10px auto 24px;
+  margin: 0 0 24px;
   padding: 0;
   background: rgba(var(--ink-rgb), 0.025);
   border: 1px solid rgba(var(--ink-rgb), 0.16);
@@ -15575,7 +16375,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .alch-onb-step[data-state="missing"] .alch-onb-step-mark { border-color: var(--sr-red); }
 .alch-prog-tab[aria-selected="true"]      { border-bottom-color: var(--sr-red); }
 .cal-subtab[aria-selected="true"]         { border-bottom-color: var(--sr-red); }
-.alch-const-mode-btn[aria-selected="true"]{ border-bottom-color: var(--sr-red); }
+.alch-page-view-btn[aria-selected="true"]{ border-bottom-color: var(--sr-red); }
 .alch-prog-body a,
 .alch-event-link,
 .alch-asks-action,
@@ -15850,7 +16650,6 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
 .cal-tw-h-label,
 .cal-sched-h-label,
 .cal-event-title,
-.alch-prog-tab-label,
 .cal-subtab .cs-label,
 .alch-feed-loading-title {
   font-family: var(--sr-font-sans) !important;
@@ -15911,8 +16710,8 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
 .cs-num,
 .cs-hint,
 .cs-label,
-.acm-hint,
-.acm-label {
+.apv-hint,
+.apv-label {
   font-family: var(--sr-font-mono) !important;
 }
 
@@ -17782,17 +18581,39 @@ html[data-theme="light"] .cb-headrow {
  * the oxide cohort hairline is kept since it reads on both themes. */
 html[data-theme="light"] .alch-card {
   background: linear-gradient(180deg, #FFFFFF 0%, #F4EFE6 100%);
-  border-top-color: rgba(var(--ink-rgb), 0.10);
+  border-color: rgba(var(--ink-rgb), 0.12);
 }
 html[data-theme="light"] .alch-card:hover {
   background: linear-gradient(180deg, #FFFFFF 0%, #EFE8DD 100%);
-  border-top-color: rgba(var(--ink-rgb), 0.22);
+  border-color: rgba(var(--ink-rgb), 0.24);
 }
 html[data-theme="light"] .alch-card-membership-cohort {
   background: linear-gradient(180deg, #FCF7F1 0%, #F3EADF 100%);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 36%, transparent);
 }
 html[data-theme="light"] .alch-card-membership-cohort:hover {
   background: linear-gradient(180deg, #FFFFFF 0%, #F1E6D9 100%);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, transparent);
+}
+/* Dossier panel — same paper treatment as the cards in light mode. */
+html[data-theme="light"] .alch-detail-dossier {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F6F1E9 100%);
+  border-color: rgba(var(--ink-rgb), 0.12);
+  box-shadow: none;
+}
+/* Hover-peek anchors + popovers — flip the cream/white alphas (invisible
+ * on paper) to dark-ink alphas, and swap the dark glass veil for a near-
+ * white paper veil so the about/now previews read in light mode. */
+html[data-theme="light"] .alch-card-peek {
+  color: rgba(var(--ink-rgb), 0.62);
+  background: rgba(var(--ink-rgb), 0.04);
+  border-color: rgba(var(--ink-rgb), 0.14);
+}
+html[data-theme="light"] .alch-card-peek-layer {
+  background: color-mix(in srgb, #FFFFFF 95%, transparent);
+  border-color: rgba(var(--ink-rgb), 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 8px 26px rgba(60, 40, 30, 0.16);
+  color: var(--ed-ink-1);
 }
 
 /* Collab board adjacency matrix — the sticky column-header row hardcodes a
@@ -18850,74 +19671,8 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   min-height: 100%;
 }
 
-.alch-cv-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 32px;
-  align-items: flex-start;
-  padding-bottom: 18px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
-}
-
-.alch-cv-kicker,
-.alch-cv-eyebrow {
-  margin: 0 0 7px;
-  color: rgba(var(--ink-rgb), 0.38);
-  font: 700 11px/1.1 var(--mono);
-  letter-spacing: 0;
-  text-transform: lowercase;
-}
-
-.alch-cv-head h2 {
-  margin: 0;
-  max-width: 760px;
-  color: rgb(var(--ink-rgb));
-  font: 560 clamp(22px, 2.2vw, 31px)/1.08 var(--sans);
-}
-
-.alch-cv-head p {
-  max-width: 720px;
-  margin: 10px 0 0;
-  color: rgba(var(--ink-rgb), 0.64);
-  font: 400 14px/1.5 var(--sans);
-}
-
-.alch-cv-release {
-  display: block;
-  margin-top: 13px;
-  color: rgba(var(--ink-rgb), 0.34);
-  font-family: var(--sr-font-mono, var(--mono, monospace));
-  font-size: 10px;
-  font-weight: 560;
-  line-height: 1.4;
-  text-transform: lowercase;
-}
-
-.alch-cv-release-version,
-.alch-cv-release-note {
-  display: inline;
-  color: inherit;
-}
-
-.alch-cv-release-note {
-  max-width: min(100%, 560px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.alch-cv-release-note::before {
-  content: " / ";
-  color: rgba(var(--ink-rgb), 0.24);
-}
-
-.alch-cv-head-actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 10px;
-  padding-top: 2px;
-}
-
+/* The context page header now uses the shared .alch-page-head (2026-06);
+   the content-release line lives in the header's side meta. */
 .alch-cv-scan {
   min-height: 30px;
   padding: 7px 12px;
@@ -18926,6 +19681,12 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 
 .alch-cv-scan:hover {
   opacity: 1;
+}
+
+/* Host for the embedded intel module (signals/data views). */
+.alch-cv-intel {
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .alch-cv-message,
@@ -18963,48 +19724,6 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   max-height: calc(100vh - var(--tab-bar-h, 40px) - 76px);
   padding: 14px 24px 12px 0;
   border-right: 1px solid rgba(var(--ink-rgb), 0.08);
-}
-
-.alch-cv-sidebar h3 {
-  margin: 0 0 14px;
-  color: rgba(var(--ink-rgb), 0.48);
-  font: 700 11px/1.1 var(--mono);
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.alch-cv-mode {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin: 0 0 18px;
-}
-
-.alch-cv-mode button {
-  min-width: 0;
-  padding: 8px 9px;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 999px;
-  background: transparent;
-  color: rgba(var(--ink-rgb), 0.50);
-  cursor: pointer;
-  font-family: var(--sr-font-mono, var(--mono, monospace));
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.1;
-  text-transform: uppercase;
-  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-
-.alch-cv-mode button:hover,
-.alch-cv-mode button.is-selected {
-  border-color: rgba(193, 168, 114, 0.36);
-  background: rgba(193, 168, 114, 0.08);
-  color: rgba(var(--ink-rgb), 0.88);
-}
-
-.alch-cv-mode span {
-  color: rgba(var(--ink-rgb), 0.36);
 }
 
 .alch-cv-roots {
@@ -19529,7 +20248,6 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 }
 
 @media (max-width: 720px) {
-  .alch-cv-head,
   .alch-cv-detail-head {
     flex-direction: column;
   }
@@ -19556,11 +20274,11 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
    rail. Each SVG carries no width/height attribute and inherits color
    via currentColor, so it's sized + tinted here to match the text it
    stood in. The original spans' opacity/color rules still apply. */
-/* .alch-const-mode-btn is a flex row with align-items:baseline (fine for
+/* .alch-page-view-btn is a flex row with align-items:baseline (fine for
    the old text glyph). An inline-flex SVG baselines from its bottom edge,
    so center just the glyph item against the label. */
-.acm-glyph { display: inline-flex; align-items: center; align-self: center; }
-.acm-glyph svg { width: 15px; height: 15px; display: block; }
+.apv-glyph { display: inline-flex; align-items: center; align-self: center; }
+.apv-glyph svg { width: 15px; height: 15px; display: block; }
 
 /* .ac-layout-btn is plain inline (not flex) — middle-align the glyph to the text. */
 .acl-glyph { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 5px; }
@@ -19649,3 +20367,664 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   opacity: 1;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
 }
+
+/* Cohort detail dossier parity with the public web profile pages. */
+.alch-detail-dossier {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+  min-height: 0;
+  /* June-5 web dossier recipe (a0114d97), verbatim: translucent warm
+   * base + diagonal oxide wash + cream sheen, scanline texture overlay,
+   * rail inset. */
+  border: 1px solid rgba(241, 236, 231, 0.18);
+  border-radius: 8px;
+  overflow: hidden;
+  background:
+    linear-gradient(112deg, rgba(180, 58, 25, 0.16), rgba(180, 58, 25, 0.03) 31%, transparent 54%),
+    linear-gradient(180deg, rgba(247, 241, 236, 0.045), rgba(247, 241, 236, 0.008)),
+    rgba(28, 25, 25, 0.94);
+  padding: 0;
+}
+.alch-detail-dossier::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035), transparent 14%, transparent 86%, rgba(255, 255, 255, 0.018)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 9px);
+  opacity: 0.34;
+}
+.alch-detail-rail,
+.alch-detail-ledger {
+  position: relative;
+  z-index: 1;
+}
+/* Rail type — June-5 values: 36px/500 lowercase upright name, 16px
+ * focus line; the sigil above is the hero at up to 260px, centered. */
+.alch-detail-rail .alch-detail-name {
+  font-size: 36px;
+  font-weight: 500;
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  line-height: 1.2;
+  margin: 8px 0;
+}
+.alch-detail-rail .alch-detail-focus {
+  font-style: normal;
+  font-size: 16px;
+  line-height: 1.35;
+  color: rgba(var(--ink-rgb), 0.74);
+  margin: 0 0 16px;
+}
+.alch-detail-rail .alch-detail-shape {
+  width: min(100%, 260px);
+  justify-self: center;
+  margin: 0 0 16px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.alch-detail-rail .alch-rail-read { display: grid; gap: 8px; }
+/* Reading sizes: prose at a comfortable 13.5/1.7. */
+.alch-detail-prose,
+.alch-detail-prose p {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: rgba(var(--ink-rgb), 0.78);
+}
+.alch-detail-ledger .alch-section-stack { gap: 18px; }
+.alch-detail-flat { padding: 18px 0 10px; }
+.alch-detail-ledger .alch-quick-row { min-height: 42px; padding: 12px 0; }
+/* Directory grid — the original shows three generous columns, not a
+ * five-up dense pack. Rows stretch so card heights match per row.
+ * The min track is width-relative: 26% keeps laptop windows at 3-up
+ * (a fixed 360px floor used to collapse them to two stretched slabs),
+ * the 280px floor lets small windows keep 2-up, and the 440px cap
+ * re-admits 4-up only on ultrawide. */
+.alch-specimens {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(280px, 26%, 440px), 1fr));
+  gap: 22px;
+  align-items: stretch;
+}
+
+/* ══ Liquid glass chrome (2026-06) ═══════════════════════════════════
+ * Glass is reserved for CHROME — the floating controls bar, inspector,
+ * readouts, tooltips — surfaces that hover over scrolling content and
+ * have something to refract. Content panels (cards, dossier) stay
+ * material so the blur stays purposeful. */
+:root {
+  --lg-bg:        rgba(40, 35, 36, 0.60);
+  --lg-bg-strong: rgba(38, 33, 34, 0.72);
+  --lg-border:    rgba(241, 236, 231, 0.13);
+  --lg-specular:  inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lg-shadow:    0 8px 28px rgba(0, 0, 0, 0.26);
+  --lg-blur:      blur(16px) saturate(1.25);
+}
+:root[data-theme="light"] {
+  --lg-bg:        rgba(255, 255, 255, 0.52);
+  --lg-bg-strong: rgba(255, 255, 255, 0.74);
+  --lg-border:    rgba(27, 20, 17, 0.13);
+  --lg-specular:  inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --lg-shadow:    0 8px 28px rgba(31, 26, 22, 0.12);
+}
+/* The view controls float as a glass bar and stay pinned while the grid
+ * or stage scrolls underneath — the one place blur earns its keep on
+ * the directory. */
+.alch-view-controls {
+  position: sticky;
+  top: 2px;
+  z-index: 6;
+  padding: 6px 10px;
+  margin: 2px 0 16px;
+  border: 1px solid var(--lg-border);
+  border-bottom: 1px solid var(--lg-border);
+  border-radius: 11px;
+  background: var(--lg-bg);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-specular), 0 4px 14px rgba(0, 0, 0, 0.16);
+}
+/* Inspector + generated/selected readouts share one glass panel family —
+ * consistent box language across map, journey, stack, and people. */
+.ac-inspector,
+.ac-main-readout {
+  border: 1px solid var(--lg-border);
+  border-radius: 12px;
+  background:
+    linear-gradient(112deg, rgba(180, 58, 25, 0.10), transparent 52%),
+    var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+/* Floating tooltips are pure glass. */
+.alch-constellation-stage .ac-tip {
+  border: 1px solid var(--lg-border);
+  border-radius: 10px;
+  background: var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+/* Every constellation stage sits in the same material panel as the
+ * dossier — one box language across all cohort views. */
+.alch-constellation-stage {
+  border: 1px solid rgba(241, 236, 231, 0.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(112deg, rgba(180, 58, 25, 0.06), transparent 50%),
+    rgba(28, 25, 25, 0.45);
+}
+html[data-theme="light"] .alch-constellation-stage {
+  border-color: rgba(27, 20, 17, 0.12);
+  background: linear-gradient(180deg, #FFFFFF 0%, #F6F1E9 100%);
+}
+.alch-detail-rail {
+  min-width: 0;
+  padding: 20px;
+  border-right: 1px solid rgba(241, 236, 231, 0.11);
+  background: linear-gradient(180deg, rgba(13, 12, 10, 0.42), rgba(13, 12, 10, 0.14));
+}
+.alch-detail-rail .alch-detail-shape {
+  width: min(100%, 220px);
+  margin: 0 0 24px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+/* Sigil continuity, grid → dossier. The rail hero canvas carries the
+ * view-transition-name statically; openDetail() tags the clicked card's
+ * canvas with the same name and wraps the re-render in
+ * document.startViewTransition (forward only — back stays instant;
+ * reduced-motion guarded at the call site). Old snapshot leaves faster
+ * than the new frame arrives, per the house asymmetric timing. */
+.alch-detail-rail .alch-detail-shape canvas { view-transition-name: sr-sigil; }
+::view-transition-group(sr-sigil),
+::view-transition-old(sr-sigil),
+::view-transition-new(sr-sigil) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+::view-transition-old(sr-sigil),
+::view-transition-new(sr-sigil) {
+  height: 100%;
+}
+::view-transition-old(root) { animation-duration: 140ms; }
+::view-transition-new(root) { animation-duration: 220ms; }
+.alch-rail-read {
+  display: grid;
+  gap: 14px;
+}
+.alch-rail-kicker {
+  font-family: var(--ed-mono, var(--font-mono));
+  /* Caption ink routed through --ink-rgb (flips with theme) at an alpha
+   * that clears AA on both substrates — --ed-ink-4 sat at ~1.6:1. */
+  color: rgba(var(--ink-rgb), 0.58);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.alch-rail-list {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 11px;
+  color: var(--ed-ink-2, var(--alchemy-ink));
+}
+.alch-rail-list div {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+.alch-rail-list span:first-child {
+  color: rgba(var(--ink-rgb), 0.58);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.alch-rail-members {
+  display: grid;
+  gap: 4px;
+}
+.alch-rail-member {
+  display: block;
+  min-width: 0;
+}
+.alch-rail-member button,
+.alch-rail-list .alch-record-token,
+.alch-rail-list .alch-team-token {
+  appearance: none;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--ed-rule-2, var(--alchemy-rule-warm));
+  background: transparent;
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+.alch-rail-member button:hover,
+.alch-rail-list .alch-record-token:hover,
+.alch-rail-list .alch-team-token:hover {
+  border-bottom-color: var(--ed-ink-1, var(--alchemy-oxide-bright));
+}
+/* The rail's team token carries the mini sigil (it absorbed the old
+ * "team context" quick row) — size the shape to the rail's type scale. */
+.alch-rail-list .alch-team-token { gap: 6px; padding-left: 0; }
+.alch-rail-list .alch-team-token .alch-mini-shape { width: 15px; height: 15px; }
+.alch-rail-member em {
+  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  font-style: normal;
+}
+.alch-detail-ledger {
+  min-width: 0;
+  padding: 20px 24px 28px;
+  display: grid;
+  align-content: start;
+  gap: 20px;
+}
+.alch-ledger-head .alch-detail-h {
+  margin: 0;
+}
+.alch-detail-quick {
+  display: grid;
+  border-top: 1px solid var(--ed-rule, var(--alchemy-rule));
+  border-bottom: 1px solid var(--ed-rule, var(--alchemy-rule));
+}
+.alch-quick-row,
+.alch-detail-row {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 16px;
+  align-items: baseline;
+}
+.alch-quick-row {
+  min-width: 0;
+  min-height: 42px;
+  padding: 10px 0;
+  font-family: var(--ed-mono, var(--font-mono));
+}
+.alch-quick-row + .alch-quick-row {
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
+}
+.alch-quick-k,
+.alch-detail-row .adr-k {
+  color: rgba(var(--ink-rgb), 0.58);
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.alch-quick-v {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.alch-quick-link,
+.alch-quick-pill,
+.alch-quick-text {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  max-width: min(100%, 62ch);
+  padding: 3px 8px;
+  border: 1px solid rgba(var(--ink-rgb), 0.16);
+  border-radius: 4px;
+  background: rgba(var(--ink-rgb), 0.018);
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 12px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+button.alch-quick-link {
+  appearance: none;
+  cursor: pointer;
+}
+.alch-quick-link:hover,
+.alch-quick-link:focus-visible {
+  color: var(--alchemy-oxide-hot, #d05332);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 55%, transparent);
+  background: rgba(180, 58, 25, 0.08);
+}
+.alch-quick-text {
+  color: var(--ed-ink-2, var(--alchemy-ink));
+  border-color: rgba(var(--ink-rgb), 0.11);
+}
+/* ask-me-about chips with matching timeline provenance carry a hover/
+ * focus evidence layer (the matched entry: date — title). The oxide
+ * corner tick marks which chips have it; chips without a match render
+ * plain, so nothing looks layered that isn't. */
+.alch-evidence-chip {
+  position: relative;
+}
+.alch-evidence-chip::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-top: 1px solid var(--alchemy-oxide-bright, #d05332);
+  border-right: 1px solid var(--alchemy-oxide-bright, #d05332);
+  opacity: 0.65;
+}
+.alch-evidence-chip::after {
+  content: "evidence · " attr(data-evidence);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 12;
+  width: max-content;
+  max-width: min(46ch, 70vw);
+  padding: 5px 9px;
+  border: 1px solid rgba(var(--ink-rgb), 0.22);
+  border-radius: 4px;
+  background: var(--ed-bg-1, #221d1a);
+  color: var(--ed-ink-2, var(--alchemy-ink));
+  font-size: 10.5px;
+  line-height: 1.45;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--dur-fast, 120ms) var(--ease-out, ease-out),
+              transform var(--dur-fast, 120ms) var(--ease-out, ease-out);
+}
+.alch-evidence-chip:hover::after,
+.alch-evidence-chip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+  /* enter slower than exit */
+  transition-duration: var(--dur-base, 220ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .alch-evidence-chip::after { transition: none; }
+}
+.alch-quick-text span,
+.alch-quick-pill span {
+  margin-right: 6px;
+  color: rgba(var(--ink-rgb), 0.58);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  /* The pill's overflow-wrap:anywhere may not break the LABEL mid-word
+   * ("FOCU S") — labels are atomic; only the value text wraps. */
+  white-space: nowrap;
+}
+.alch-team-token {
+  gap: 7px;
+  padding-left: 3px;
+}
+.alch-mini-shape {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.alch-mini-shape canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.alch-team-quick .alch-quick-row {
+  grid-template-columns: 104px minmax(0, 1fr);
+  min-height: 0;
+  padding: 8px 0;
+}
+/* Multi-item values: short pills (stage / evidence / upside…) share a
+ * line; prose items each own a full row. Two long items flowing inline
+ * produced a ragged fake second column (the "provides" rows). */
+.alch-team-quick .alch-quick-v {
+  column-gap: 16px;
+  row-gap: 5px;
+}
+.alch-team-quick .alch-quick-text {
+  flex: 1 1 100%;
+  max-width: 72ch;
+}
+.alch-team-quick .alch-quick-link,
+.alch-team-quick .alch-quick-pill,
+.alch-team-quick .alch-quick-text {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.alch-team-quick .alch-quick-link {
+  border-bottom: 1px solid var(--ed-rule-2, var(--alchemy-rule-warm));
+}
+.alch-section-stack {
+  display: grid;
+  gap: 10px;
+}
+.alch-priority-stack {
+  gap: 0;
+}
+/* Flat section — the dossier's default block (2026-06 restyle): same
+ * hairline + small-label language as the disclosure, but content simply
+ * visible. Nothing about it suggests clicking. */
+.alch-detail-flat {
+  border: 0;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
+  border-radius: 0;
+  background: transparent;
+  padding: 16px 0 6px;
+  position: relative;
+}
+.alch-detail-flat::before {
+  display: none; /* the section-generation gradient hairline would double the border-top */
+}
+.alch-flat-label {
+  margin: 0 0 12px;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10.5px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: rgba(var(--ink-rgb), 0.58);
+}
+.alch-detail-flat .alch-section-body {
+  animation: none;
+}
+
+.alch-detail-disclosure {
+  border: 0;
+  border-top: 1px solid var(--ed-rule, var(--alchemy-rule));
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 0 0;
+  position: relative;
+}
+.alch-detail-disclosure::before {
+  display: none;
+}
+.alch-detail-disclosure summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 42px;
+  padding: 0 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--ed-ink-2, var(--alchemy-ink));
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10.5px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+}
+.alch-detail-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+.alch-detail-disclosure summary:hover {
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+  background: rgba(var(--ink-rgb), 0.03);
+}
+.alch-section-label {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+.alch-section-preview {
+  min-width: 0;
+  max-width: min(52ch, 68%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Previews now carry actual record content (the now-line, latest
+   * timeline entry, traction snippet) — they must be readable, not
+   * marginalia. --ed-ink-4 measured ~1.6:1 on the dark substrate. */
+  color: rgba(var(--ink-rgb), 0.55);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+/* Open section: the body below owns the content — a preview restating it
+ * would be a duplicate role in the same frame. */
+.alch-detail-disclosure[open] .alch-section-preview {
+  display: none;
+}
+.alch-section-mark {
+  color: rgba(var(--ink-rgb), 0.5);
+  font-size: 12px;
+}
+.alch-section-mark::before {
+  content: "+";
+}
+.alch-detail-disclosure[open] .alch-section-mark::before {
+  content: "-";
+}
+.alch-detail-disclosure[open] .alch-section-mark {
+  color: var(--alchemy-oxide-bright, #d05332);
+}
+.alch-detail-disclosure[open] summary {
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+}
+.alch-section-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 0 16px;
+  animation: alch-section-reveal 170ms var(--ease) both;
+}
+@keyframes alch-section-reveal {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.alch-detail-prose {
+  max-width: 78ch;
+}
+.alch-timeline-item {
+  grid-template-columns: 92px minmax(0, 1fr);
+}
+.alch-timeline-list {
+  padding-bottom: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alch-section-body {
+    animation: none;
+  }
+}
+@media (max-width: 860px) {
+  .alch-detail-dossier {
+    grid-template-columns: 1fr;
+  }
+  .alch-detail-rail {
+    padding-right: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--ed-rule, var(--alchemy-rule));
+  }
+  .alch-detail-ledger {
+    padding-left: 0;
+  }
+}
+@media (max-width: 720px) {
+  .alch-rail-list div,
+  .alch-quick-row,
+  .alch-detail-row,
+  .alch-timeline-item {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+  .alch-section-preview {
+    max-width: 100%;
+  }
+}
+
+/* ─── unified page intro — floating top-right action slot ──────────── */
+/* The boxed explainer text was removed (2026-06) as clutter; the row now
+ * only renders on pages with a functional element to keep top-right
+ * (theme toggle, per-view side actions). It floats out of the flow so it
+ * adds no height — every page's content starts at the same y (the
+ * canvas's 24px top padding). top/right match the standard canvas
+ * padding (24px top; 56px right — cohort/constellation canvases reach
+ * the same 56px via narrower padding + the old strip margin). */
+/* Doubled class beats later-loading per-page rules (e.g. intel.css) on ties. */
+.alch-page-intro.alch-page-intro {
+  position: absolute;
+  top: 24px;
+  right: 56px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  box-sizing: border-box;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  color: var(--alchemy-ink-mute);
+}
+/* Onboarding content is left-aligned under the intro strip; keep its
+ * closing callout on the same edge instead of the shared centered one.
+ * Same for the profile page (.alch-seal-section marks it) — its form
+ * sections are a left-aligned 60ch column, so a centered callout reads
+ * as floating in dead space. */
+.alchemy-canvas:has(.alch-onb-steps) .alch-callout { margin-left: 0; margin-right: 0; }
+.alchemy-canvas:has(.alch-seal-section) .alch-callout { margin-left: 0; margin-right: 0; max-width: none; }
+
+/* ── what's new — numbered unread badges on the OS rail ──────────────
+ * A rail page whose content changed since the user last viewed it gets
+ * a small numbered circle in the gutter LEFT of its icon — the count of
+ * new/changed records. The icon and label stay exactly where they are:
+ * the badge is absolutely positioned into the rail's 40px left padding.
+ * `.ar-unread` + the badge element are managed by alchemy.js
+ * (updateRailUnread, fed by whats-new.js) and clear once the page is
+ * actually viewed. overflow must be visible so the badge can escape the
+ * button box into the gutter (base rule clips it). */
+.primary-nav .alchemy-rail-btn { overflow: visible !important; }
+.alchemy-rail-btn .ar-unread-badge {
+  position: absolute;
+  left: -26px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--ink-hi);
+  color: var(--ed-bg-0);
+  font-family: var(--sr-font-mono);
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 13px;
+  text-align: center;
+}
+
+/* Program tab icons — same stroke-icon language as the rail/view navs. */
+.alch-prog-tab-icon { display: inline-flex; align-items: center; align-self: center; opacity: 0.60; }
+.alch-prog-tab-icon svg { width: 15px; height: 15px; display: block; }
+.alch-prog-tab[aria-selected="true"] .alch-prog-tab-icon { opacity: 1; }

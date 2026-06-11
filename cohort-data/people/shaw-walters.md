@@ -5,6 +5,7 @@ schema_version: 1
 name: "Shaw Walters"
 team: elizaos
 role: "lead"
+role_class: visiting-scholar
 geo: "SF / Bay Area"
 domain: ai
 email: developer@elizalabs.ai
@@ -14,7 +15,7 @@ links:
   website: https://elizaos.ai
   linkedin: null
 weekly_intention: "Ship elizaOS improvements across runtime, cloud, and local agent surfaces."
-now: "Building elizaOS — an agentic fullstack operating system."
+now: "Pivoting Eliza's agent interface and moving focus from capability to buyer definition + last-mile distribution — Eliza now runs on Bitrouter and Smithers."
 skill_areas:
   - agentic
   - agent-runtime

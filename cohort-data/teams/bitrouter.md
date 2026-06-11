@@ -18,8 +18,8 @@ links:
   website: https://bitrouter.ai/
 paper_basis:
   - Persistent BitTorrent Trackers on dstack (mesh topology pattern)
-traction: Launched · Hang Yin (Phala CTO) referral
-now: opening up x402-kit + accepting cohort dogfooders
+traction: Launched · Hang Yin (Phala CTO) referral · GitHub stars 2× after Shaw retweet · ~10% signup activation, 0 paid (conversion is the fight)
+now: repositioned around reliability + cost for coding agents; shipped Claude/Codex-subscription + open-model mixing — working non-payers one by one toward first paid
 success_dimensions:
   - productization
   - collaborative
@@ -45,14 +45,14 @@ journey:
   stage: 4
   evidence_quality: 3
   market_upside: 4
-  primary_bottleneck: ICP Clarity
+  primary_bottleneck: GTM
   company_type: Infra
   confidence: Medium
-  icp: agent and LLM-router builders who need peer routing, payment, and gateway primitives
+  icp: coding-agent builders and power users who need reliability + cost on LLM routing — not locked to one hosted provider
   problem: agentic systems need routing and payment rails that are not locked to one hosted provider
   solution: a P2P LLM router plus x402-kit for agent-native payments and gateway composition
-  evidence_notes: live bitrouter.ai surface, public x402-kit direction, and Phala CTO referral; best ICP still needs narrowing through dogfooders
-  next_milestone: get cohort teams using x402-kit or Bitrouter as part of a real agent workflow
+  evidence_notes: "live bitrouter.ai surface, public x402-kit direction, and Phala CTO referral. 2026-06-08 WDYDLW: hard truth — distribution spike (stars 2× after Shaw retweet) but 0 paid of ~10% activated signups; repositioned to reliability + cost for coding agents; supply-side moat forming via legal, cheap Chinese tokens through the Phala network; red-ocean aggregator game where the edge is cost and grind"
+  next_milestone: convert the first paying user from the activated cohort and prove the supply-side cost edge inside a real agent workflow
 making_signature:
   built_domain: [systems]
   shape: deep

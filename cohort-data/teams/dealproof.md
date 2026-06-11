@@ -23,7 +23,7 @@ paper_basis:
   - Props for ML Security
 traction: Working Intel DCAP prototype · contributed to Quantinuum's guppylang
 hackathon_note: Bradford Quantum Hackathon 2025 winner
-now: open-sourcing the dual-attestation primitive as a standalone cohort module
+now: negotiation app carries memory across rounds via Contexto; implementing PiCred provenance (arXiv:2606.03771); scoping a CVM API platform + first AI-negotiation outreach
 graduation_target: "DealProof v2 live: ephemeral key generation inside TEE at boot, reproducible Docker builds with MRENCLAVE published on-chain, co-signing session parameters flow end-to-end. Agent-agnostic SDK drafted. At least one serious pilot conversation initiated with an enterprise or crypto-native counterparty."
 monthly_milestones: |
   June: ephemeral keys at TEE boot, reproducible Docker build, MRENCLAVE on-chain, co-signing API spec
@@ -48,6 +48,8 @@ dependencies:
   - prova
   - conclave
   - signalstack
+  - contexto
+  - tinycloud
 seeking:
   - cohort teams to integrate dual-attestation contract layer
   - feedback on DCAP verification UX for non-TEE-native developers
@@ -65,8 +67,8 @@ journey:
   icp: agent builders who need verifiable AI-to-AI contracts with on-chain escrow
   problem: there's no trustworthy primitive for two autonomous agents to transact with attestable terms
   solution: dual-agent attestation layer (Intel DCAP) with on-chain escrow and a standalone open-source library
-  evidence_notes: working DCAP prototype with 56 passing tests; Bradford Quantum Hackathon 2025 winner; validated in demos but no external integrators yet
-  next_milestone: get one cohort team to integrate the dual-attestation contract layer in production
+  evidence_notes: "working DCAP prototype with 56 passing tests; Bradford Quantum Hackathon 2025 winner; validated in demos but no external integrators yet. 2026-06-08 WDYDLW: integrated Contexto memory into CDN deal negotiations (hash + recall of prior terms); PiCred provenance (arXiv:2606.03771) underway with the paper's authors being introduced to the cohort; cold-reached two AI-negotiation companies (e.g. pactum.ai) to find the pain"
+  next_milestone: turn the negotiation product + PiCred provenance into a CVM API-platform PoC and land the first external discovery conversation
 making_signature:
   built_domain: [data]
   shape: broad

@@ -24,7 +24,7 @@ paper_basis:
   - PROF — Protected Order Flow in a Profit-Seeking World (arXiv 2510.15205)
 traction: Cornell Tech / ex-Aptos / Jane Street
 hackathon_note: null
-now: building the orderbook ingestion + backtest evaluation pipeline
+now: scraping Polymarket L2/L3 orderbook history to backtest delta-neutral stock-portfolio hedges — new demo targeted by end of next week
 success_dimensions:
   - research_lineage
   - productization
@@ -53,9 +53,9 @@ journey:
   confidence: Low
   icp: systematic prediction-market traders and infrastructure builders who need protected order-flow evaluation
   problem: prediction-market liquidity and execution quality are constrained by toxic flow, latency, and weak microstructure tooling
-  solution: an orderbook ingestion and backtest pipeline grounded in protected order flow research
-  evidence_notes: PROF paper and market-data pipeline direction are credible; customer/user pull is not yet proven in the app surface
-  next_milestone: show one backtest or live-trading result that changes a market-making decision
+  solution: a discovery tool for delta-neutral hedges (Polymarket + sports events vs stock portfolios) — intelligence, not execution; gated on rigorous correlation backtesting before any app is built
+  evidence_notes: "PROF paper and market-data pipeline direction are credible; customer/user pull is not yet proven. 2026-06-08 WDYDLW: de-risked from a make-users-money bot (fiduciary/broker-dealer exposure) toward hedge discovery per Shaw's steer; institutionalization signal — Polymarket's first institutional block trade (FalconX, June 2, 2026); the core correlation is still unproven"
+  next_milestone: show one correlation backtest that validates (or kills) the delta-neutral hedge thesis — demo targeted by 2026-06-19
 ---
 
 ## about

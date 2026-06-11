@@ -115,7 +115,10 @@ const CONTEXT_VAULT_MANIFEST = path.join(CONTEXT_VAULT_DIR, "manifest.json");
 const CONTEXT_VAULT_ARTICLE_INDEX = path.join(CONTEXT_VAULT_DIR, "shape-rotator-article-index.md");
 const CONTEXT_VAULT_RAW_BUNDLE = path.join(CONTEXT_VAULT_DIR, "shape-rotator-transcripts.md");
 const CONTEXT_VAULT_CORPUS = CONTEXT_VAULT_ARTICLE_INDEX;
-const COHORT_ARTICLES_DIR = path.resolve(__dirname, "..", "..", "cohort-data", "articles");
+const REPO_COHORT_ARTICLES_DIR = path.resolve(__dirname, "..", "..", "cohort-data", "articles");
+const PACKAGED_COHORT_ARTICLES_DIR = process.resourcesPath
+  ? path.join(process.resourcesPath, "cohort-data", "articles")
+  : null;
 
 // If a `wall_prefs.json` survived from before the rename (either from this
 // install or copied over by migrateLegacyUserData()), promote it to the new
@@ -464,16 +467,34 @@ function parseSimpleFrontmatter(text) {
   return { frontmatter, body: m[2] || "" };
 }
 
+function cohortArticleDirs() {
+  const seen = new Set();
+  return [PACKAGED_COHORT_ARTICLES_DIR, REPO_COHORT_ARTICLES_DIR].filter((dir) => {
+    if (!dir) return false;
+    const key = path.resolve(dir);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    try {
+      return fs.statSync(dir).isDirectory()
+        && fs.readdirSync(dir).some(name => name.endsWith(".md"));
+    } catch {
+      return false;
+    }
+  });
+}
+
 function readCommittedArticles() {
+  const articlesDir = cohortArticleDirs()[0];
+  if (!articlesDir) return [];
   let files;
   try {
-    files = fs.readdirSync(COHORT_ARTICLES_DIR).filter(name => name.endsWith(".md")).sort();
+    files = fs.readdirSync(articlesDir).filter(name => name.endsWith(".md")).sort();
   } catch {
     return [];
   }
   const articles = [];
   for (const file of files) {
-    const filePath = path.join(COHORT_ARTICLES_DIR, file);
+    const filePath = path.join(articlesDir, file);
     let raw;
     try { raw = fs.readFileSync(filePath, "utf8"); }
     catch { continue; }
@@ -700,13 +721,73 @@ function readContextVaultSourceText(filePath, maxBytes = 2_000_000) {
   }
 }
 
+function existingRawScripts(rawScripts = []) {
+  const next = [];
+  let changed = false;
+  for (const source of Array.isArray(rawScripts) ? rawScripts : []) {
+    const filePath = source?.path;
+    if (!filePath) {
+      changed = true;
+      continue;
+    }
+    try {
+      const stat = fs.statSync(filePath);
+      if (!stat.isFile()) {
+        changed = true;
+        continue;
+      }
+      next.push(source);
+    } catch {
+      changed = true;
+    }
+  }
+  return { rawScripts: next, changed };
+}
+
+function rawScriptFingerprint(rawScripts = []) {
+  const parts = [];
+  for (const source of Array.isArray(rawScripts) ? rawScripts : []) {
+    const filePath = source?.path || "";
+    let statSize = source?.size_bytes || 0;
+    let statMtime = source?.mtime || "";
+    try {
+      const stat = fs.statSync(filePath);
+      statSize = stat.size;
+      statMtime = Math.round(stat.mtimeMs);
+    } catch {}
+    parts.push(JSON.stringify({
+      id: source?.id || "",
+      title: source?.title || "",
+      path: filePath,
+      source_kind: source?.source_kind || "",
+      date: source?.date || "",
+      record_id: source?.record_id || "",
+      review_status: source?.review_status || "",
+      submit_recommendation: source?.submit_recommendation || "",
+      line_count: source?.line_count || 0,
+      size_bytes: source?.size_bytes || 0,
+      stat_size: statSize,
+      stat_mtime: statMtime,
+    }));
+  }
+  return hashShort(parts.sort().join("\n"));
+}
+
+function removeContextVaultRawBundle() {
+  try {
+    if (fs.existsSync(CONTEXT_VAULT_RAW_BUNDLE)) fs.unlinkSync(CONTEXT_VAULT_RAW_BUNDLE);
+  } catch {}
+}
+
 function writeContextVaultRawBundle(rawScripts = []) {
   const generatedAt = new Date().toISOString();
+  const sourceFingerprint = rawScriptFingerprint(rawScripts);
   const lines = [
     "---",
     'title: "Shape Rotator Transcripts"',
     `generated_at: ${JSON.stringify(generatedAt)}`,
     `transcript_count: ${rawScripts.length}`,
+    `source_fingerprint: ${JSON.stringify(sourceFingerprint)}`,
     'kind: "transcript-bundle"',
     "---",
     "",
@@ -748,10 +829,30 @@ function writeContextVaultRawBundle(rawScripts = []) {
     kind: "transcript-bundle",
     generated_at: generatedAt,
     transcript_count: rawScripts.length,
+    source_fingerprint: sourceFingerprint,
     line_count: body.split(/\r?\n/).length,
     char_count: body.length,
     size_bytes: Buffer.byteLength(body, "utf8"),
   };
+}
+
+function normalizeContextVaultRawBundle(rawScripts = [], rawBundle = null) {
+  if (!rawScripts.length) {
+    const hadFile = fs.existsSync(CONTEXT_VAULT_RAW_BUNDLE);
+    removeContextVaultRawBundle();
+    return { raw_bundle: null, changed: !!rawBundle || hadFile };
+  }
+  const sourceFingerprint = rawScriptFingerprint(rawScripts);
+  if (
+    !rawBundle
+    || rawBundle.kind !== "transcript-bundle"
+    || rawBundle.path !== CONTEXT_VAULT_RAW_BUNDLE
+    || rawBundle.source_fingerprint !== sourceFingerprint
+    || !fs.existsSync(rawBundle.path || "")
+  ) {
+    return { raw_bundle: writeContextVaultRawBundle(rawScripts), changed: true };
+  }
+  return { raw_bundle: rawBundle, changed: false };
 }
 
 function writeContextVaultCorpus(sources = []) {
@@ -839,7 +940,8 @@ function normalizeContextVaultManifest(manifest) {
   const currentRoots = contextVaultRoots();
   const currentRootMap = new Map(currentRoots.map(root => [root.key, root]));
   const existingRoots = Array.isArray(manifest.roots) ? manifest.roots : [];
-  const rawScripts = Array.isArray(manifest.raw_scripts) ? manifest.raw_scripts : [];
+  const rawScriptState = existingRawScripts(manifest.raw_scripts);
+  const rawScripts = rawScriptState.rawScripts;
   const roots = existingRoots.map(root => {
     const current = currentRootMap.get(root.key);
     return current ? { ...root, ...current, exists: fs.existsSync(current.path) } : root;
@@ -853,13 +955,14 @@ function normalizeContextVaultManifest(manifest) {
     const sources = mergeCommittedArticles(buildArticleEntries(manifest.sources));
     const totals = contextVaultTotals(sources, rawScripts);
     const corpus = writeContextVaultCorpus(sources);
-    const raw_bundle = rawScripts.length ? writeContextVaultRawBundle(rawScripts) : manifest.raw_bundle || null;
+    const rawBundleState = normalizeContextVaultRawBundle(rawScripts, manifest.raw_bundle || null);
+    const raw_bundle = rawBundleState.raw_bundle;
     const next = { ...manifest, schema_version: 2, roots, totals, corpus, raw_bundle, sources, raw_scripts: rawScripts };
     try { writeJSON(CONTEXT_VAULT_MANIFEST, next); } catch {}
     return next;
   }
   const rootMap = new Map(roots.map(root => [root.key, root]));
-  let changed = false;
+  let changed = rawScriptState.changed;
   if (JSON.stringify(existingRoots) !== JSON.stringify(roots)) changed = true;
   const normalizedSources = manifest.sources.map((source, index) => {
     if (source.entry_kind === "article") {
@@ -930,19 +1033,9 @@ function normalizeContextVaultManifest(manifest) {
     corpus = writeContextVaultCorpus(sources);
     changed = true;
   }
-  let raw_bundle = manifest.raw_bundle || null;
-  if (
-    rawScripts.length
-    && (
-      !raw_bundle
-      || raw_bundle.kind !== "transcript-bundle"
-      || raw_bundle.path !== CONTEXT_VAULT_RAW_BUNDLE
-      || !fs.existsSync(raw_bundle.path || "")
-    )
-  ) {
-    raw_bundle = writeContextVaultRawBundle(rawScripts);
-    changed = true;
-  }
+  const rawBundleState = normalizeContextVaultRawBundle(rawScripts, manifest.raw_bundle || null);
+  const raw_bundle = rawBundleState.raw_bundle;
+  if (rawBundleState.changed) changed = true;
   if (!changed) return manifest;
   const next = { ...manifest, totals, corpus, raw_bundle, sources, raw_scripts: rawScripts };
   try { writeJSON(CONTEXT_VAULT_MANIFEST, next); } catch {}
@@ -974,7 +1067,8 @@ function buildContextVaultManifest() {
   sources.sort((a, b) => String(b.date || b.mtime).localeCompare(String(a.date || a.mtime)));
   const articles = mergeCommittedArticles(buildArticleEntries(sources));
   const corpus = writeContextVaultCorpus(articles);
-  const rawBundle = writeContextVaultRawBundle(sources);
+  const rawBundle = sources.length ? writeContextVaultRawBundle(sources) : null;
+  if (!sources.length) removeContextVaultRawBundle();
   const manifest = {
     schema_version: 2,
     scanned_at: new Date().toISOString(),
@@ -1169,11 +1263,13 @@ ipcMain.handle("context-vault:read-source", async (_e, sourceId) => {
 ipcMain.handle("context-vault:read-raw-bundle", async () => {
   try {
     const manifest = readContextVaultManifest();
-    const bundlePath = manifest?.raw_bundle?.path || CONTEXT_VAULT_RAW_BUNDLE;
-    if (!fs.existsSync(bundlePath)) {
-      const rawBundle = writeContextVaultRawBundle(manifest?.raw_scripts || []);
-      if (!fs.existsSync(rawBundle.path)) return { ok: false, error: "raw_bundle_not_found" };
+    const rawScripts = Array.isArray(manifest?.raw_scripts) ? manifest.raw_scripts : [];
+    if (!rawScripts.length) {
+      removeContextVaultRawBundle();
+      return { ok: false, error: "raw_bundle_not_available" };
     }
+    const bundlePath = manifest?.raw_bundle?.path;
+    if (!bundlePath || !fs.existsSync(bundlePath)) return { ok: false, error: "raw_bundle_not_found" };
     const raw = fs.readFileSync(bundlePath, "utf8");
     return {
       ok: true,
@@ -1594,6 +1690,16 @@ function initAutoUpdater() {
     const { autoUpdater } = require("electron-updater");
     autoUpdater.autoDownload = false;          // wait for explicit user click
     autoUpdater.autoInstallOnAppQuit = true;   // apply on next quit if downloaded
+    // electron-updater auto-enables allowPrerelease when the CURRENT version
+    // carries a prerelease tag — and its GitHub provider then locks updates
+    // to the same custom channel ("rc" only ever sees "rc"), so rc users
+    // could never reach a stable release (every v0.3.0-rc.x install was
+    // walled off from v0.3.1 this way). This project gates releases with
+    // GitHub's "Latest" marker instead of updater channels, so force the
+    // stable resolution path everywhere. The singleton means this covers
+    // the IPC handlers' require() calls too, but they re-assert it anyway
+    // in case a check fires before init.
+    autoUpdater.allowPrerelease = false;
     autoUpdater.on("error", (err) => process.stderr.write(`[viz:warn] updater error: ${err && err.message}\n`));
     autoUpdater.on("update-available", (info) => process.stderr.write(`[viz:log] update available: ${info && info.version}\n`));
     autoUpdater.on("update-not-available", () => process.stderr.write(`[viz:log] no update available\n`));
@@ -1635,6 +1741,7 @@ ipcMain.handle("fg:check-update", async () => {
   }
   try {
     const { autoUpdater } = require("electron-updater");
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
     const result = await autoUpdater.checkForUpdates();
     const latest = result?.updateInfo?.version || null;
     const available = !!latest && latest !== app.getVersion();
@@ -1648,6 +1755,7 @@ ipcMain.handle("fg:apply-update", async () => {
   if (!app.isPackaged) return { ok: false, reason: "dev_mode" };
   try {
     const { autoUpdater } = require("electron-updater");
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
     await autoUpdater.downloadUpdate();
     return { ok: true, detail: "downloaded · will install on next quit (or click 'install + restart' to apply now)" };
   } catch (e) {
@@ -1659,7 +1767,11 @@ ipcMain.handle("fg:apply-update-and-restart", async () => {
   if (!app.isPackaged) return { ok: false, reason: "dev_mode" };
   try {
     const { autoUpdater } = require("electron-updater");
-    autoUpdater.quitAndInstall(false, true);
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
+    // isSilent=true → install with no NSIS wizard (the same seamless swap the
+    // autoInstallOnAppQuit path already does); isForceRunAfter=true → relaunch
+    // when the install finishes. One click: install + reopen, no file, no UI.
+    autoUpdater.quitAndInstall(true, true);
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: "install_failed", detail: e.message };
@@ -1740,6 +1852,20 @@ function platformAssetName(version) {
   return null;
 }
 
+function releaseAssetBasename(value) {
+  return String(value || "").split(/[\\/]/).pop();
+}
+
+function updateInfoAsset(updateInfo, assetName) {
+  const files = Array.isArray(updateInfo?.files) ? updateInfo.files : [];
+  const match = files.find((file) => releaseAssetBasename(file?.url) === assetName);
+  if (match?.sha512) return match;
+  if (releaseAssetBasename(updateInfo?.path) === assetName && updateInfo?.sha512) {
+    return { url: updateInfo.path, sha512: updateInfo.sha512, size: updateInfo.size };
+  }
+  return null;
+}
+
 ipcMain.handle("fg:download-and-reveal-update", async () => {
   if (!app.isPackaged) return { ok: false, reason: "dev_mode", detail: "no asset to download in dev." };
   const https = require("node:https");
@@ -1751,10 +1877,13 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
   //    in turn points at objects.githubusercontent.com. None of that
   //    counts against the api.github.com 60/hr budget.
   let version;
+  let updateInfo = null;
   try {
     const { autoUpdater } = require("electron-updater");
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
     const result = await autoUpdater.checkForUpdates();
-    version = String(result?.updateInfo?.version || "").replace(/^v/, "");
+    updateInfo = result?.updateInfo || null;
+    version = String(updateInfo?.version || "").replace(/^v/, "");
   } catch (e) {
     return { ok: false, reason: "check_failed", detail: `couldn't resolve latest version: ${e.message}` };
   }
@@ -1762,6 +1891,10 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
 
   const assetName = platformAssetName(version);
   if (!assetName) return { ok: false, reason: "no_asset", detail: `no platform asset for ${process.platform}/${process.arch}` };
+  const expectedAsset = updateInfoAsset(updateInfo, assetName);
+  if (!expectedAsset?.sha512) {
+    return { ok: false, reason: "missing_checksum", detail: `update feed has no sha512 for ${assetName}` };
+  }
   // github.com/.../releases/download/ is a redirect to objects.githubusercontent.com.
   // Not rate-limited. The followingGet loop below already handles 30x chains.
   const downloadUrl = `https://github.com/dmarzzz/shape-rotator-os/releases/download/v${version}/${assetName}`;
@@ -1772,47 +1905,76 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
   const dest = path.join(downloads, assetName);
   const partial = `${dest}.part`;
 
-  await new Promise((resolve, reject) => {
-    const write = fs.createWriteStream(partial);
-    const win = BrowserWindow.getAllWindows()[0];
-    const followingGet = (url, depth) => {
-      if (depth > 5) return reject(new Error("too many redirects"));
-      https.get(url, { headers: { "User-Agent": "shape-rotator-os" } }, (res) => {
-        if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
-          res.resume();
-          return followingGet(res.headers.location, depth + 1);
-        }
-        if (res.statusCode !== 200) {
-          res.resume();
-          return reject(new Error(`download returned HTTP ${res.statusCode}`));
-        }
-        const total = parseInt(res.headers["content-length"] || "0", 10) || 0;
-        let got = 0;
-        let lastEmit = 0;
-        res.on("data", (chunk) => {
-          got += chunk.length;
-          // Emit at most ~20 progress events/sec to avoid flooding IPC.
-          const now = Date.now();
-          if (now - lastEmit > 50 || got === total) {
-            lastEmit = now;
-            const percent = total ? (got / total) * 100 : 0;
-            try {
-              if (win && !win.isDestroyed()) {
-                win.webContents.send("fg:update-progress", { percent, transferred: got, total });
-              }
-            } catch {}
+  let downloadResult;
+  try {
+    downloadResult = await new Promise((resolve, reject) => {
+      const write = fs.createWriteStream(partial);
+      const hasher = crypto.createHash("sha512");
+      const win = BrowserWindow.getAllWindows()[0];
+      const rejectDownload = (err) => {
+        try { write.destroy(); } catch {}
+        reject(err);
+      };
+      const followingGet = (url, depth) => {
+        if (depth > 5) return rejectDownload(new Error("too many redirects"));
+        https.get(url, { headers: { "User-Agent": "shape-rotator-os" } }, (res) => {
+          if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
+            const nextUrl = res.headers.location ? new URL(res.headers.location, url).toString() : null;
+            res.resume();
+            if (!nextUrl) return rejectDownload(new Error(`redirect from ${url} had no Location header`));
+            return followingGet(nextUrl, depth + 1);
           }
-        });
-        res.pipe(write);
-        write.on("finish", () => resolve());
-        write.on("error", reject);
-        res.on("error", reject);
-      }).on("error", reject);
-    };
-    followingGet(downloadUrl, 0);
-  });
+          if (res.statusCode !== 200) {
+            res.resume();
+            return rejectDownload(new Error(`download returned HTTP ${res.statusCode}`));
+          }
+          const total = parseInt(res.headers["content-length"] || "0", 10) || 0;
+          let got = 0;
+          let lastEmit = 0;
+          res.on("data", (chunk) => {
+            got += chunk.length;
+            hasher.update(chunk);
+            // Emit at most ~20 progress events/sec to avoid flooding IPC.
+            const now = Date.now();
+            if (now - lastEmit > 50 || got === total) {
+              lastEmit = now;
+              const percent = total ? (got / total) * 100 : 0;
+              try {
+                if (win && !win.isDestroyed()) {
+                  win.webContents.send("fg:update-progress", { percent, transferred: got, total });
+                }
+              } catch {}
+            }
+          });
+          res.pipe(write);
+          write.on("finish", () => {
+            const actualSha512 = hasher.digest("base64");
+            const expectedSize = Number(expectedAsset.size || 0);
+            if (expectedSize && got !== expectedSize) {
+              return reject(new Error(`download size mismatch for ${assetName}: got ${got}, expected ${expectedSize}`));
+            }
+            if (actualSha512 !== expectedAsset.sha512) {
+              return reject(new Error(`download checksum mismatch for ${assetName}`));
+            }
+            resolve({ bytes: got, sha512: actualSha512 });
+          });
+          write.on("error", reject);
+          res.on("error", reject);
+        }).on("error", rejectDownload);
+      };
+      followingGet(downloadUrl, 0);
+    });
+  } catch (e) {
+    try { await fsp.rm(partial, { force: true }); } catch {}
+    return { ok: false, reason: "download_failed", detail: e.message };
+  }
 
-  await fsp.rename(partial, dest);
+  try {
+    await fsp.rename(partial, dest);
+  } catch (e) {
+    try { await fsp.rm(partial, { force: true }); } catch {}
+    return { ok: false, reason: "download_failed", detail: e.message };
+  }
 
   // 3) reveal / open. Platform-specific because the right next step
   // differs:
@@ -1835,7 +1997,7 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
     // the path so the renderer can show "your installer is at <path>".
     return { ok: true, path: dest, version, openFailed: e.message };
   }
-  return { ok: true, path: dest, version };
+  return { ok: true, path: dest, version, bytes: downloadResult.bytes };
 });
 
 // ─── calendar export — PNG / PDF ────────────────────────────────────

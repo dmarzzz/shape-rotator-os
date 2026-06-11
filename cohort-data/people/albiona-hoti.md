@@ -10,7 +10,7 @@ geo: NYC
 domain: ai
 email: hello@albiona.dev
 dates_start: 2026-05-18
-dates_end: 2026-07-18
+dates_end: 2026-07-25
 absences:
   - start: 2026-06-11
     end: 2026-06-17
@@ -21,7 +21,7 @@ links:
   website: albiona.dev
   linkedin: AlbionaHoti
 dietary_restrictions:
-now: growing Elocute from live traction into a repeatable speaking-practice habit loop
+now: compressing a flood of user conversations into one executable Elocute product plan — three research cycles before the ETH Global NY hackathon
 skill_areas:
   - agentic
   - generative-media

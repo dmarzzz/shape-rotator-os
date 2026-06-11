@@ -159,7 +159,7 @@ Anything named across the four sessions, with provenance. URLs only when stated 
 
 ## why this article exists
 
-Four cohort projects are converging on the same architecture from four different starting points, none of them using each other's vocabulary, and the cohort has roughly three weeks before the midterm to either agree on a shared substrate or ship four parallel ones. The success rubric rewards collaborative contribution retroactively, but retroactive only works if the cross-project moves happen on the record. This is the prompt: name the convergence, surface the shared primitive, and build the integration before the optics deadline forces you into separate booths.
+Four cohort projects are converging on the same architecture from four different starting points, none of them using each other's vocabulary, and the cohort has roughly three weeks before the June 14 demo night to either agree on a shared substrate or ship four parallel ones. The success rubric rewards collaborative contribution retroactively, but retroactive only works if the cross-project moves happen on the record. This is the prompt: name the convergence, surface the shared primitive, and build the integration before the public checkpoint forces you into separate booths.
 
 ---
 

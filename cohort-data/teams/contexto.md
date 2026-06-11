@@ -7,7 +7,7 @@ membership: cohort
 
 name: Contexto
 focus: agent context engine
-members_count: 2
+members_count: 1
 geo: ET
 domain: ai
 shape: prism
@@ -21,7 +21,7 @@ links:
 paper_basis:
   - NDAI Agreements (conceptual alignment)
 traction: Prototype shipped · Shashank PhD Toronto · 237+ citations on PoS decentralization
-now: instrumenting episode-based memory across multiple agent runtimes
+now: testing a mass-market personal-assistant wedge — personal to-do/journaling agent built on Hermes, plus executive-assistant discovery interviews ($200–$5,000/mo market)
 success_dimensions:
   - productization
   - collaborative
@@ -47,14 +47,14 @@ journey:
   stage: 3
   evidence_quality: 2
   market_upside: 4
-  primary_bottleneck: Solution Quality
+  primary_bottleneck: ICP Clarity
   company_type: AI
   confidence: Low
-  icp: long-running agent builders who need memory, episode retrieval, and context observability across runtimes
+  icp: long-running agent builders who need memory, episode retrieval, and context observability across runtimes — with a contested reframe toward mass-market personal-assistant users
   problem: agents lose task continuity when context collapses, moves across tools, or becomes impossible to inspect
   solution: an episode-based context engine that instruments memory and retrieval across agent runtimes
-  evidence_notes: working prototype and OpenClaw/plugin direction are present; repeated external use still needs proof
-  next_milestone: instrument one cohort agent workflow end to end and show better recovery or continuity
+  evidence_notes: "working prototype and OpenClaw/plugin direction are present; repeated external use still needs proof. 2026-06-08 WDYDLW: Shaw's steer reframes the wedge from agent-coordination infra toward a mass-market personal assistant ('a market 1,000–1,000,000× bigger'); Tina's counter — agentic EA is brutally hard, too personal, with impatient error-intolerant buyers; the wedge is contested. DealProof adopted the memory engine for negotiation rounds"
+  next_milestone: ship a personal-assistant PoC and run enough executive-assistant discovery interviews to settle the contested wedge
 making_signature:
   built_domain: [agentic]
   shape: deep

@@ -12,7 +12,7 @@ geo: NYC
 domain: crypto
 email: socrates1024@gmail.com
 dates_start: 2026-05-18
-dates_end: 2026-07-18
+dates_end: 2026-07-25
 absences:
   - start: 2026-05-30
     end: 2026-06-07
@@ -31,7 +31,7 @@ skill_areas:
   - attestation
   - agent-runtime
   - agentic
-now: cohort matrix infra · hermes/contexto integration · openfeedling self-host
+now: daybook + "day" local session log · teleport-router merged into shape rotator os · feedling AI-companion exploration
 dietary_restrictions:
 go_to_them_for:
   - TEE / dstack / attestation infrastructure

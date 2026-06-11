@@ -10,7 +10,7 @@ geo: "UK (GMT+1)"
 domain: tee
 email: kristian.koci@feeltech.co.uk
 dates_start: 2026-05-18
-dates_end: 2026-07-18
+dates_end: 2026-07-25
 links:
   github: kkoci
   x: kkoci80
@@ -21,7 +21,7 @@ comm_style: |
 availability_pref: |
   No meetings on weekends.
 weekly_intention: "Redeploy to Phala, get intel_verified=True on a real TDX quote, then scope the Automata on-chain DCAP integration."
-now: "Solving the trust problem for AI-to-AI data deals, at IC3 NYC."
+now: "Wiring Contexto memory + PiCred provenance into DealProof negotiations; scoping a CVM API platform and first AI-negotiation outreach."
 skill_areas:
   - tee
   - dstack

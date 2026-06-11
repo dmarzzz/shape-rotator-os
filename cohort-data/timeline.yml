@@ -4,19 +4,23 @@ program_start: 2026-05-18
 base_ref: HEAD
 
 # Canonical source for the public cohort timeline today. This intentionally
-# excludes OS/app code changes: only people and team/project declarations under
-# cohort-data are projected into the timeline event log.
+# excludes OS/app code changes: only public people, team/project, cluster, and
+# dependency declarations under cohort-data are projected into the timeline log.
 sources:
   - id: cohort-data-github
     kind: git
     status: active
-    description: Public self-declared people and team/project records committed to GitHub main.
+    description: Public self-declared cohort records committed to GitHub main.
     paths:
       - cohort-data/people
       - cohort-data/teams
+      - cohort-data/clusters
+      - cohort-data/dependencies
     record_types:
       - person
       - team
+      - cluster
+      - dependency
   - id: teleport-router
     kind: router
     status: planned

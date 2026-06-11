@@ -35,8 +35,8 @@ what "failing the class" looks like is something we'll define publicly. it is no
 
 graduation isn't the only checkpoint, and it may not be the loudest one.
 
-- **midterm — ETH NY demo day, thu jun 11.** external-facing. this is where the cohort goes public for the first time. by this point most projects can already show significant progress; SWAT-analyses are credible. *optics matter most here.*
-- **graduation — fri jul 18.** more curated, more internal. ~50% of the ceremony is **individual growth + cross-project contribution**, not project demos. for-profit-track projects shift into investor road shows the week prior; commons-track projects shift into grant matching + distribution partnerships.
+- **midterm — ETH NY / Shape Rotator demo night, sun jun 14.** external-facing. this is where the cohort goes public for the first time. by this point most projects can already show significant progress; SWAT-analyses are credible. *optics matter most here.*
+- **final demo day #2 + graduation — thu jul 23 or fri jul 24.** more curated, more internal. ~50% of the ceremony is **individual growth + cross-project contribution**, not project demos. for-profit-track projects shift into investor road shows the week prior; commons-track projects shift into grant matching + distribution partnerships.
 
 between the two, expect a meaningful number of pivots, mergers, and project drop-offs. that's the design, not a failure mode.
 

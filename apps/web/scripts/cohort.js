@@ -7,6 +7,8 @@ import {
   renderProfileForm,
   shapeForTeam,
   domainLabel,
+  cohortRosterForTeam,
+  compactCohortLinkItems,
 } from "@shape-rotator/shape-ui";
 
 const TEAM_CHIPS = [
@@ -230,6 +232,40 @@ function renderProofRead(rec) {
   return renderProse(sentences.join("\n\n"));
 }
 
+// Flat section — same hairline + label language as the disclosure, but
+// the content is simply visible. The dossier reads top to bottom; only
+// the long tail (timeline) stays collapsible. Mirrors the Electron app.
+// The team's positioning as prose (first-mock lesson: lead the dossier
+// with a read, not labeled rows): problem → what they're building → who
+// for. The lifted fields leave the assessment disclosure so no fact has
+// two owners on the page.
+function teamPositioningProse(journey) {
+  if (!journey) return "";
+  const clause = (value) => String(value || "").replace(/\s+/g, " ").trim().replace(/\.\s*$/, "");
+  // Lowercase a leading sentence-case word so the clause splices mid-
+  // sentence; leave acronyms ("TEE…") alone.
+  const splice = (value) => /^[A-Z][a-z]/.test(value) ? value[0].toLowerCase() + value.slice(1) : value;
+  const problem = sentenceText(journey.problem);
+  const solution = clause(journey.solution);
+  const icp = clause(journey.icp);
+  const sentences = [];
+  if (problem) sentences.push(problem);
+  if (solution) sentences.push(`Building ${splice(solution)}.`);
+  if (icp) sentences.push(`For ${splice(icp)}.`);
+  return renderProse(sentences.join(" "));
+}
+
+function renderFlatSection(title, body, extraClass = "") {
+  const cleaned = asArray(body).join("");
+  if (!cleaned.trim()) return "";
+  return `
+    <section class="cd-section cd-section-flat ${extraClass}">
+      <div class="cd-flat-label">${escHtml(title)}</div>
+      <div class="cd-section-body">${cleaned}</div>
+    </section>
+  `;
+}
+
 function renderSection(title, body, open = false, preview = "") {
   const cleaned = asArray(body).join("");
   if (!cleaned.trim()) return "";
@@ -247,8 +283,33 @@ function renderSection(title, body, open = false, preview = "") {
   `;
 }
 
+// Collapsed-section previews carry CONTENT, not schema: the summary line
+// replaces uncertainty with the actual signal. Empty in → empty out so
+// callers can fall back to a schema hint. Mirrors the Electron renderer.
+function previewSnippet(value, max = 64) {
+  const first = Array.isArray(value)
+    ? value.find(v => v != null && String(v).trim())
+    : value;
+  const s = String(first || "").replace(/\s+/g, " ").trim();
+  if (!s) return "";
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
+}
+
 function timelinePreview(items = []) {
-  const labels = [...new Set(asArray(items)
+  const rows = asArray(items);
+  // Lead with the most recent entry — "what happened last" is the signal;
+  // a list of type labels restated schema.
+  const dated = rows
+    .filter(item => item && item.date)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const latest = dated[0] || rows[rows.length - 1];
+  if (latest) {
+    const title = previewSnippet(latest.title || labelize(latest.type || ""), 48);
+    if (title) {
+      return latest.date ? `${dateText(latest.date)} — ${title}` : title;
+    }
+  }
+  const labels = [...new Set(rows
     .map(item => labelize(item.type || item.source || ""))
     .filter(Boolean))]
     .slice(0, 3);
@@ -335,26 +396,64 @@ function quickText(label, value) {
   return `<span class="cd-quick-text">${label ? `<span>${escHtml(label)}</span>` : ""}${escHtml(values.join(" · "))}</span>`;
 }
 
-function collabBoardHref(recordId) {
-  return `/#collab:${encodeURIComponent(recordId || "")}`;
+// Most recent timeline entry whose title/detail shares a substantive word
+// with the chip text — the hover layer's "where has this actually shown
+// up" provenance. Only event/transcript/calendar entries count: profile,
+// team, onboarding, and availability entries restate the record itself,
+// so matching them would be circular. Empty when nothing matches (no
+// dead hover affordances).
+const EVIDENCE_TYPES = new Set(["event", "transcript", "calendar"]);
+// Filler that appears on both sides of almost every record — matching on
+// these words produces noise, not provenance.
+const EVIDENCE_STOPWORDS = new Set(["context", "cohort", "project", "projects", "issues", "notes", "weekly"]);
+// Generated phrasing in timeline entries; never evidence of a topic.
+const EVIDENCE_BOILERPLATE = /\b(mentioned in transcript|team context in transcript|held privately)\b/gi;
+
+// Clause around the first matched word — evidence must show the matched
+// region, not the field's (often junk) opening ("Tue May 19:").
+function matchSnippet(text, words, max = 56) {
+  const s = String(text || "").replace(EVIDENCE_BOILERPLATE, " ").replace(/\s+/g, " ").trim();
+  const lower = s.toLowerCase();
+  let idx = -1;
+  for (const w of words) {
+    // Word-start boundary always; short words also need a word END so
+    // "defi" can't claim "defining" (longer words keep prefix matching —
+    // "agent" → "agentic", "market" → "markets").
+    const pattern = new RegExp(`(?<![a-z0-9])${w}${w.length <= 4 ? "(?![a-z0-9])" : ""}`);
+    const m = pattern.exec(lower);
+    if (m && (idx < 0 || m.index < idx)) idx = m.index;
+  }
+  if (idx < 0) return "";
+  let start = Math.max(0, idx - 18);
+  while (start > 0 && /\S/.test(s[start - 1])) start--;
+  const clause = s.slice(start);
+  const clipped = clause.length > max ? `${clause.slice(0, max - 1).trimEnd()}…` : clause;
+  return (start > 0 ? "…" : "") + clipped;
 }
 
-function prettyLinkLabel(key) {
-  const labels = {
-    github: "GitHub",
-    repo: "Repo",
-    repository: "Repo",
-    website: "Website",
-    site: "Website",
-    demo: "Demo",
-    docs: "Docs",
-    deck: "Deck",
-    linkedin: "LinkedIn",
-    x: "X",
-    twitter: "X",
-  };
-  const k = String(key || "").toLowerCase();
-  return labels[k] || labelize(k || "link").replace(/\b\w/g, c => c.toUpperCase());
+function evidenceFor(text, timelineItems) {
+  const words = String(text || "").toLowerCase().split(/[^a-z0-9]+/)
+    .filter(w => w.length > 3 && !EVIDENCE_STOPWORDS.has(w));
+  if (!words.length) return "";
+  const dated = asArray(timelineItems)
+    .filter(item => EVIDENCE_TYPES.has(String(item?.type || "").toLowerCase()))
+    .sort((a, b) => String(b?.date || "").localeCompare(String(a?.date || "")));
+  for (const item of dated) {
+    const snippet = matchSnippet(item?.title, words) || matchSnippet(item?.detail, words);
+    if (snippet) {
+      return item.date ? `${dateText(item.date)} — ${snippet}` : snippet;
+    }
+  }
+  return "";
+}
+
+// Ask-me-about chip with an optional hover/focus evidence layer (the
+// matched timeline entry). Falls back to the plain chip when no evidence
+// matches — nothing should look layered that isn't.
+function quickChip(value, evidence) {
+  if (!String(value || "").trim()) return "";
+  if (!evidence) return quickText("", value);
+  return `<span class="cd-quick-text cd-evidence-chip" tabindex="0" data-evidence="${escAttr(evidence)}" aria-label="${escAttr(`${value} — evidence: ${evidence}`)}">${escHtml(value)}</span>`;
 }
 
 function compactPills(items) {
@@ -403,20 +502,12 @@ function compactPills(items) {
   }
 
   function teamPeopleFor(teamId) {
-    return people.filter(p =>
-      p.team === teamId || asArray(p.secondary_teams).includes(teamId)
-    );
+    return cohortRosterForTeam(people, teamId);
   }
 
   function surfaceLinkAnchors(links = {}) {
-    return Object.entries(links || {})
-      .filter(([, value]) => !isBlank(value))
-      .map(([key, value]) => {
-        const href = normalizeLinkHref(key, value);
-        const label = prettyLinkLabel(key);
-        if (!href) return `<span>${escHtml(label)}</span>`;
-        return `<a href="${escAttr(href)}" target="_blank" rel="noopener noreferrer">${escHtml(label)}</a>`;
-      });
+    return compactCohortLinkItems({ links })
+      .map(item => `<a href="${escAttr(item.href)}" target="_blank" rel="noopener noreferrer" title="${escAttr(item.display)}">${escHtml(item.label)}</a>`);
   }
 
   function renderSurfaceRoutes(rec, isPerson, team, members) {
@@ -428,12 +519,11 @@ function compactPills(items) {
       });
     }
     if (!isPerson && members.length) {
-      const visible = members.slice(0, 2).map(member =>
+      // Full roster, always — a "+N" stub hid teammates behind a click and
+      // implied a single owner. The names ARE the team signal.
+      const visible = members.map(member =>
         `<a href="#${escAttr(encodeURIComponent(member.record_id))}">${escHtml(member.name || member.record_id)}</a>`
       );
-      if (members.length > visible.length) {
-        visible.push(`<a href="#${escAttr(encodeURIComponent(rec.record_id))}">+${members.length - visible.length}</a>`);
-      }
       rows.push({ label: teamKind(rec) === "project" ? "contributors" : "team", items: visible });
     }
     const links = surfaceLinkAnchors(rec.links || {});
@@ -460,7 +550,9 @@ function compactPills(items) {
     const members = isPerson ? [] : teamPeopleFor(rec.record_id);
     const title = rec.name || rec.record_id;
     const subtitle = isPerson
-      ? (rec.role || team?.name || labelize(rec.role_class || "individual"))
+      ? (team && rec.role
+        ? `${team.name || team.record_id} · ${rec.role}`
+        : (team?.name || rec.role || labelize(rec.role_class || "individual")))
       : (rec.focus || rec.record_id);
     const tags = isPerson
       ? [idLabel, labelize(rec.role_class || rec.role || "individual"), rec.domain ? domainLabel(rec.domain) : "", rec.geo].filter(Boolean)
@@ -583,7 +675,7 @@ function compactPills(items) {
           ${rec.role ? `<p class="cd-focus">${escHtml(rec.role)}</p>` : ""}
           <div class="cd-rail-list">
             <div><span>status</span>${escHtml(labelize(rec.role_class || "person"))}</div>
-            ${team ? `<div><span>team</span><a href="#${escAttr(encodeURIComponent(team.record_id))}">${escHtml(team.name || team.record_id)}</a></div>` : ""}
+            ${team ? `<div><span>team</span>${teamQuickLink(team)}</div>` : ""}
             ${rec.geo ? `<div><span>geo</span>${escHtml(rec.geo)}</div>` : ""}
             ${rec.domain ? `<div><span>domain</span>${escHtml(domainLabel(rec.domain))}</div>` : ""}
             ${dates ? `<div><span>window</span>${escHtml(dates)}</div>` : ""}
@@ -609,7 +701,7 @@ function compactPills(items) {
           <div class="cd-rail-list">
             ${rec.domain ? `<div><span>domain</span>${escHtml(domainLabel(rec.domain))}</div>` : ""}
             ${rec.geo ? `<div><span>geo</span>${escHtml(rec.geo)}</div>` : ""}
-            ${memberLinks ? `<div><span>${kind === "project" ? "contributors" : "members"}</span><span class="cd-rail-members">${memberLinks}</span></div>` : ""}
+            ${memberLinks ? `<div><span>${kind === "project" ? "contributors" : "team"}</span><span class="cd-rail-members">${memberLinks}</span></div>` : ""}
             ${rec.membership ? `<div><span>status</span>${escHtml(labelize(rec.membership))}</div>` : ""}
           </div>
         </div>
@@ -632,21 +724,26 @@ function compactPills(items) {
       quickLink("source", editUrl),
     ]);
     const askMeAbout = renderQuickRow("ask me about",
-      asArray(rec.go_to_them_for).slice(0, 4).map(value => quickText("", value))
+      asArray(rec.go_to_them_for).slice(0, 4)
+        .map(value => quickChip(value, evidenceFor(value, timelineItems)))
     );
     const themes = renderQuickRow("themes",
       asArray(rec.recurring_themes).slice(0, 4).map(value => quickText("", value))
     );
+    // Quick band = the one-frame read (first-mock lesson): what they're
+    // doing now, how to engage, what to route to them, and where their
+    // work sits — everything else is opt-in below.
+    const nowRow = renderQuickRow("now", [quickText("", rec.now)]);
+    // Team context rides in the read: the rail token answers "which team",
+    // this row answers "what that team is building" without a click — the
+    // focus pill is the new information.
     const teamContext = team ? renderQuickRow("team context", [
       teamQuickLink(team),
-      quickText("focus", team.focus),
+      team.focus ? pill("focus", team.focus) : "",
     ]) : "";
-    const bioSection = renderSection("about / bio", renderProse(rec.bio_md), true, "profile context");
-    const currentRows = [
-      renderRow("now", rec.now),
-      renderRow("weekly intention", rec.weekly_intention),
-    ];
+    const bioSection = renderFlatSection("about / bio", renderProse(rec.bio_md));
     const workingRows = [
+      renderRow("weekly intention", rec.weekly_intention),
       renderRow("comm style", rec.comm_style),
       renderRow("availability", rec.availability_pref),
       renderRow("working style", rec.working_style),
@@ -659,6 +756,12 @@ function compactPills(items) {
       secondary.length ? renderHtmlRow("also contributes", secondary.map(t => `<a class="cd-text-link" href="#${escAttr(encodeURIComponent(t.record_id))}">${escHtml(t.name || t.record_id)}</a>`).join(" ")) : "",
     ];
     const proofRead = renderProofRead(rec);
+    // Collapsed-section previews carry the strongest fact behind each fold.
+    const workingPreview = previewSnippet(rec.working_style || rec.comm_style || rec.weekly_intention || rec.best_contexts);
+    const proofPreview = previewSnippet(rec.prior_work || rec.making_signature?.note);
+    const routesPreview = secondary.length
+      ? `also contributes: ${previewSnippet(secondary[0].name || secondary[0].record_id, 40)}`
+      : "";
 
     return `
       ${renderPersonRail(rec, team, fam)}
@@ -667,20 +770,19 @@ function compactPills(items) {
           <span class="cd-h">individual read</span>
         </div>
         ${bioSection ? `<div class="cd-section-stack cd-priority-stack">${bioSection}</div>` : ""}
-        <div class="cd-quick">${explore}${askMeAbout}${themes}${teamContext}</div>
+        <div class="cd-quick">${nowRow}${explore}${askMeAbout}${themes}${teamContext}</div>
         <div class="cd-section-stack">
-          ${renderSection("current read", currentRows, !bioSection, "now, weekly intention")}
-          ${renderSection("working with", workingRows, false, "style, availability, seeks")}
-          ${renderSection("proof / prior work", proofRead, false, "shipping, lineage")}
+          ${renderSection("working with", workingRows, false, workingPreview)}
+          ${renderSection("proof / prior work", proofRead, false, proofPreview)}
+          ${renderSection("routes / asks", routeRows, false, routesPreview)}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems), false, timelinePreview(timelineItems))}
-          ${renderSection("routes / asks", routeRows, false, "other teams, asks")}
         </div>
       </section>
     `;
   }
 
   function renderTeamDetail(rec, editUrl, fam, kind) {
-    const teamPeople = people.filter(p => p.team === rec.record_id);
+    const teamPeople = teamPeopleFor(rec.record_id);
     const memberClusters = (cohort.clusters || []).filter(cl =>
       Array.isArray(cl.teams) && cl.teams.includes(rec.record_id)
     );
@@ -690,12 +792,12 @@ function compactPills(items) {
     const nextMove = renderQuickRow("next move", [
       quickText("", rec.now || journey?.next),
     ]);
-    const needs = renderQuickRow("needs",
-      asArray(rec.seeking).slice(0, 2).map(value => quickText("", value))
-    );
-    const provides = renderQuickRow("provides",
-      asArray(rec.offering).slice(0, 2).map(value => quickText("", value))
-    );
+    // (needs / provides quick rows retired — the flat "coordination" block
+    // shows the full seeking/offering lists in the same frame.)
+    const coordinationRows = [
+      renderRow("seeking", rec.seeking),
+      renderRow("offering", rec.offering),
+    ];
     const guild = renderQuickRow("guild",
       memberClusters.map(cl => quickText("", cl.label))
     );
@@ -706,10 +808,11 @@ function compactPills(items) {
       pill("bottleneck", journey.bottleneck),
       quickText("next", journey.next),
     ]) : "";
-    const collab = renderQuickRow("routes / asks", [
-      quickLink(`${rec.name || rec.record_id} on collab board`, collabBoardHref(rec.record_id), false),
-    ]);
+    // (The old "routes / asks" quick row linked to this same page — a
+    // self-link is a control with no consequence; dropped.)
     const explore = renderQuickRow("explore", [
+      quickLink("calendar", "/calendar", false),
+      quickLink("availability", "/availability", false),
       quickLink("GitHub", linkForKey(links, "github")),
       quickLink("Repo", linkForKey(links, "repo")),
       quickLink("X", linkForKey(links, "x")),
@@ -724,15 +827,28 @@ function compactPills(items) {
       renderRow("prior shipping", rec.prior_shipping),
       renderRow("hackathon note", rec.hackathon_note),
     ];
-    const trajectoryRows = journey ? [
+    // Stage / evidence / upside / bottleneck / next milestone live in the
+    // always-visible "trajectory" quick row; icp / problem / solution live
+    // in the "about / positioning" prose up top. This disclosure keeps the
+    // program's assessment and the declared plan.
+    const assessmentRows = journey ? [
       renderRow("company type", journey.companyType),
       renderRow("confidence", journey.confidence),
-      renderRow("icp", journey.icp),
-      renderRow("problem", journey.problem),
-      renderRow("solution", journey.solution),
       renderRow("evidence notes", journey.evidenceNotes),
-      renderRow("next milestone", journey.next),
+      renderRow("this week", rec.weekly_goals),
+      renderRow("milestones", rec.monthly_milestones),
+      renderRow("graduation", rec.graduation_target),
     ] : [];
+    const readSection = renderFlatSection("about / positioning", teamPositioningProse(journey));
+    const assessmentPreview = [
+      journey?.companyType,
+      journey?.confidence ? `${journey.confidence} confidence` : "",
+    ].filter(Boolean).join(" · ") || previewSnippet(journey?.evidenceNotes);
+    const evidencePreview = previewSnippet(rec.traction || rec.paper_basis);
+    const seekingFirst = asArray(rec.seeking)[0];
+    const coordinationPreview = seekingFirst
+      ? `seeking ${previewSnippet(seekingFirst, 52)}`
+      : previewSnippet(rec.offering);
 
     return `
       ${renderTeamRail(rec, teamPeople, fam, kind)}
@@ -740,10 +856,12 @@ function compactPills(items) {
         <div class="cd-ledger-head">
           <span class="cd-h">${escHtml(kind)} read</span>
         </div>
-        <div class="cd-quick cd-team-quick">${nextMove}${needs}${provides}${guild}${trajectory}${collab}${explore}</div>
+        ${readSection ? `<div class="cd-section-stack cd-priority-stack">${readSection}</div>` : ""}
+        <div class="cd-quick cd-team-quick">${nextMove}${guild}${trajectory}${explore}</div>
         <div class="cd-section-stack">
-          ${renderSection("trajectory", trajectoryRows, false, "stage, proof, next test")}
-          ${renderSection("evidence", evidenceRows, false, "traction, paper, shipping")}
+          ${renderSection("assessment / plan", assessmentRows, false, assessmentPreview)}
+          ${renderSection("evidence", evidenceRows, false, evidencePreview)}
+          ${renderSection("coordination", coordinationRows, false, coordinationPreview)}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems), false, timelinePreview(timelineItems))}
         </div>
       </section>
@@ -761,8 +879,6 @@ function compactPills(items) {
         <a class="cd-back" href="#" aria-label="back to grid"><span aria-hidden="true">&lt;-</span> back</a>
         <div class="cd-tag">
           <span>${escHtml(String(rec.record_id || "").toUpperCase())}</span>
-          <span class="cd-sep">/</span>
-          <span class="cd-kind cd-kind-${escAttr(shapeKind)}">${escHtml(shapeKind)}</span>
         </div>
         <div class="cd-actions">
           <button class="cd-edit" type="button" data-edit-toggle>edit details</button>
@@ -842,6 +958,28 @@ function compactPills(items) {
 
   renderKindFilter();
 
-  window.addEventListener("hashchange", syncFromHash);
+  // Sigil continuity, grid → dossier: tag the opened record's card canvas
+  // and let a same-document view transition morph it into the rail hero
+  // (which carries the matching view-transition-name statically in CSS).
+  // Forward only — back to the grid stays instant. Progressive: browsers
+  // without startViewTransition (or with reduced motion) swap directly.
+  function syncFromHashTransitioned() {
+    const id = parseDetailHash();
+    const reduceMotion = typeof matchMedia === "function"
+      && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (id && !reduceMotion && typeof document.startViewTransition === "function") {
+      try {
+        const cardCanvas = document.querySelector(
+          `.cohort-item-card[data-record-id="${CSS.escape(id)}"] canvas`
+        );
+        if (cardCanvas) cardCanvas.style.viewTransitionName = "sr-sigil";
+      } catch {}
+      document.startViewTransition(syncFromHash);
+      return;
+    }
+    syncFromHash();
+  }
+
+  window.addEventListener("hashchange", syncFromHashTransitioned);
   syncFromHash();
 })();

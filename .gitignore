@@ -21,6 +21,9 @@ data/
 
 # logs / scratch
 *.log
+tmp/github-progress-audit.json
+tmp/github-progress-audit.md
+tmp/github-progress-cache/
 .DS_Store
 .vscode/
 .idea/

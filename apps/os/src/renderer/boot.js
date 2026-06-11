@@ -60,6 +60,7 @@ import * as Easel from "./easel.js";
 import * as Alchemy from "./alchemy.js";
 import * as Tabs from "./tabs.js";
 import * as Find from "./find.js";
+import { mountQuickDial } from "./quickdial.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
 import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.js";
 
@@ -116,6 +117,17 @@ function setIntervalVisible(fn, ms) {
     if (document.hidden) return;
     try { fn(); } catch (e) { console.error("[setIntervalVisible]", e); }
   }, ms);
+}
+
+function requestFrameOrTimeout(fn, timeoutMs = 80) {
+  let done = false;
+  const run = () => {
+    if (done) return;
+    done = true;
+    fn();
+  };
+  try { requestAnimationFrame(run); } catch {}
+  setTimeout(run, timeoutMs);
 }
 
 // Shorthand: animate a numeric DOM cell to `n`. We wrap tickNumber so the
@@ -252,6 +264,71 @@ function setUpdateIcon(state) {
   }
 }
 
+// Live download readout. While an update downloads, electron-updater (or the
+// manual mac/.deb path) emits "download-progress" → "fg:update-progress"; we
+// paint a progress ring with the running % beside it, replacing the "checking"
+// spinner. The ring DOM is built once on entry, then only the arc offset + the
+// number update per event — no DOM churn at ~20 events/sec, and the arc eases
+// between values via a CSS transition on stroke-dashoffset. p = { percent,
+// bytesPerSecond, transferred, total } — any field may be absent (the manual
+// path omits bytesPerSecond).
+const _RING_C = 56.549;   // circumference of an r=9 circle (2·π·9)
+function setDownloadProgress(p) {
+  const icon = document.getElementById("fg-update-icon");
+  if (!icon) return;
+  if (_okIconClearTimer) { clearTimeout(_okIconClearTimer); _okIconClearTimer = null; }
+  icon.classList.remove("fading");
+  const pct = Math.max(0, Math.min(100, Math.round(p?.percent || 0)));
+  if (icon.dataset.state !== "downloading") {
+    icon.dataset.state = "downloading";
+    icon.innerHTML =
+      `<svg class="fg-ring" viewBox="0 0 24 24" fill="none" aria-hidden="true">` +
+        `<circle class="fg-ring-track" cx="12" cy="12" r="9"/>` +
+        `<circle class="fg-ring-arc" cx="12" cy="12" r="9" stroke-linecap="round"` +
+          ` stroke-dasharray="${_RING_C}" stroke-dashoffset="${_RING_C}"` +
+          ` transform="rotate(-90 12 12)"/>` +
+      `</svg><span class="fg-update-pct">0%</span>`;
+  }
+  const arc = icon.querySelector(".fg-ring-arc");
+  const txt = icon.querySelector(".fg-update-pct");
+  if (arc) arc.setAttribute("stroke-dashoffset", String(_RING_C * (1 - pct / 100)));
+  if (txt) txt.textContent = `${pct}%`;
+  // Exact size + speed live in the tooltip so the slot stays a clean readout.
+  const mb = (b) => (b / 1048576).toFixed(0);
+  const size  = p?.total ? ` · ${mb(p.transferred || 0)}/${mb(p.total)} MB` : "";
+  const speed = p?.bytesPerSecond ? ` · ${mb(p.bytesPerSecond)} MB/s` : "";
+  icon.title = `downloading update… ${pct}%${size}${speed}`;
+}
+
+// Persistent post-download state — unlike "ok" (a transient checkmark) this
+// stays put until the user finishes, because finishing needs an action that
+// differs by platform:
+//   restart (win / AppImage / signed-mac — canAutoUpdate) — electron-updater
+//           staged the installer. Click = install silently + relaunch now; it
+//           also auto-installs on the next quit, so there's never a file step.
+//   manual  (unsigned-mac / .deb)                          — the installer was
+//           downloaded to ~/Downloads and opened. Click = open it again.
+let _updateReady = null;   // { mode, path } while a staged update is waiting
+function setUpdateReady(mode, ctx) {
+  const icon = document.getElementById("fg-update-icon");
+  if (!icon) return;
+  if (_okIconClearTimer) { clearTimeout(_okIconClearTimer); _okIconClearTimer = null; }
+  icon.classList.remove("fading");
+  _updateReady = { mode, path: ctx?.path || null };
+  icon.dataset.state = "ready";
+  const glyph = mode === "restart"
+    ? `<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>` // rotate-cw
+    : `<path d="M20 6 9 17l-5-5"/>`;                                                          // check
+  // Icon-only (matches the rest of the update indicator) — the action label
+  // lives in the tooltip below, not next to the glyph.
+  icon.innerHTML =
+    `<svg class="fg-ready-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor"` +
+      ` stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${glyph}</svg>`;
+  icon.title = mode === "restart"
+    ? "update downloaded — click to install & relaunch now (or it installs automatically next time you quit)"
+    : "installer downloaded to your Downloads — click to open & finish";
+}
+
 // Ask main whether a newer build exists, driving the icon slot. Shared by
 // the manual click (showSpinner → spinner + checkmark feedback) and the
 // silent boot/refresh check (no spinner → only lights up on an actual hit).
@@ -293,8 +370,10 @@ async function checkForUpdate({ showSpinner } = {}) {
 // straight to the download; otherwise run a check with visible feedback.
 function onVersionClick() {
   const icon = document.getElementById("fg-update-icon");
-  // If an update is already known, a click goes straight to the download.
-  if (icon?.dataset.state === "available") { onUpdateIconClick(); return; }
+  // A known update (waiting to download, or downloaded & waiting to finish) →
+  // run the icon's action; otherwise re-check with visible feedback.
+  const st = icon?.dataset.state;
+  if (st === "available" || st === "ready") { onUpdateIconClick(); return; }
   checkForUpdate({ showSpinner: true });
 }
 
@@ -303,22 +382,44 @@ function onVersionClick() {
 async function onUpdateIconClick() {
   const icon = document.getElementById("fg-update-icon");
   const chip = document.getElementById("fg-version-chip");
-  if (icon?.dataset.state !== "available") { checkForUpdate({ showSpinner: true }); return; }
+  const state = icon?.dataset.state;
+  // A staged update is waiting — a click finishes it (platform-specific):
+  // restart now, or re-open the downloaded installer.
+  if (state === "ready" && _updateReady) {
+    try {
+      if (_updateReady.mode === "restart") await window.api?.applyUpdateAndRestart?.();
+      else await window.api?.openDownloadedInstaller?.(_updateReady.path);
+    } catch {}
+    return;
+  }
+  if (state === "downloading") return;                                  // mid-download: ignore clicks
+  if (state !== "available") { checkForUpdate({ showSpinner: true }); return; }
   setUpdateIcon("checking");
+  // Subscribe to the live download-progress stream so the ring fills (spinner →
+  // 0% → … → 100% → "update ready") instead of a frozen spinner for the ~275 MB
+  // pull. unsub() detaches the listener in finally so repeated downloads don't
+  // stack handlers. Both paths below stream it — main.js forwards
+  // "fg:update-progress" for electron-updater AND the manual mac/.deb download.
+  let unsub = null;
   try {
+    unsub = window.api?.onUpdateProgress?.((p) => setDownloadProgress(p)) || null;
     if (chip?.dataset.canAutoUpdate === "1") {
-      // Windows / AppImage: download in the background; electron-updater
-      // installs on next quit. Confirm with the checkmark.
+      // Windows / AppImage / signed-mac: electron-updater stages the installer;
+      // it applies on quit. Land on the persistent "update ready" state.
       const dl = await window.api?.applyAppUpdate?.();
-      setUpdateIcon(dl?.ok ? "ok" : "available");
+      if (dl?.ok) setUpdateReady("restart");
+      else setUpdateIcon("available");
     } else {
-      // macOS / .deb: download to ~/Downloads and reveal in the file
-      // manager so the user runs the installer themselves.
+      // unsigned-mac / .deb: download to ~/Downloads and open/reveal it; the
+      // user runs the installer. Land on the persistent "open installer" state.
       const res = await window.api?.downloadAndRevealUpdate?.();
-      setUpdateIcon(res?.ok ? "" : "available");
+      if (res?.ok) setUpdateReady("manual", { path: res.path });
+      else setUpdateIcon("available");
     }
   } catch {
     setUpdateIcon("available");
+  } finally {
+    if (unsub) { try { unsub(); } catch {} }
   }
 }
 
@@ -390,6 +491,7 @@ async function boot() {
   mountConnectionIndicator({ serverUrl: srwk.serverUrl });
   setConnectionState({ state: "connecting", serverUrl: srwk.serverUrl });
   mountSyncChip();
+  mountQuickDial();
   wireGlobalKeyboard();
   registerVisualizerShortcutsAndCommands();
 
@@ -5886,7 +5988,10 @@ function wireTabs() {
       if (!railBtn) return;
       if (document.body.dataset.activeTab !== "alchemy") {
         const mode = railBtn.dataset.alchMode;
-        if (mode) { try { localStorage.setItem(ALCHEMY_MODE_LS_KEY, mode); } catch {} }
+        if (mode) {
+          try { Alchemy.applyLocation({ mode, instant: true }); } catch {}
+          try { localStorage.setItem(ALCHEMY_MODE_LS_KEY, mode); } catch {}
+        }
         morphActiveTab("alchemy", () => applyActiveTab("alchemy"));
         try { localStorage.setItem(TAB_LS_KEY, "alchemy"); } catch {}
       }
@@ -5958,7 +6063,7 @@ function setNetworkSub(sub) {
       onMetricsTabDeactivated();
     }
     if (sub === "network") {
-      requestAnimationFrame(() => {
+      requestFrameOrTimeout(() => {
         if (typeof resizeLiveGraph === "function") {
           try { resizeLiveGraph(); } catch {}
         }
@@ -5971,33 +6076,75 @@ function setNetworkSub(sub) {
 // The app is a single-page surface, so the browser's own back/forward stack
 // is empty and the mouse's 4th/5th buttons do nothing. We give them a real
 // history by snapshotting the user's "location" — the active top tab plus its
-// sub-state (apps sub-view, network sub-tab, alchemy rail mode) — and walking
-// that stack on the back/forward buttons, just like a browser.
+// sub-state (apps sub-view, network sub-tab, alchemy rail/detail mode) — and
+// walking that stack on the back/forward buttons, just like a browser.
 //
 // We learn about navigation by *observing* the DOM attributes the existing
 // nav code already writes (data-active-tab / data-apps-view / data-net-sub /
-// data-alch-mode-current), rather than hooking each nav call site. That keeps
-// this self-contained: any code path that moves the user gets recorded.
+// data-alch-mode-current / data-alch-program-page), rather than hooking each
+// nav call site. That keeps this self-contained: any code path that moves the
+// user gets recorded.
 const NAV_ALCH_LS_KEY = "srwk:alchemy_mode"; // mirrors alchemy.js ALCHEMY_LS_KEY
+const NAV_CONST_MODE_LS_KEY = "srwk:const_mode"; // mirrors alchemy.js CONST_MODE_LS_KEY
 const navHist = { stack: [], index: -1, last: null, restoring: false };
 
 function navSnapshot() {
   const b = document.body;
-  let alchMode = document.getElementById("alchemy-view")?.dataset.alchModeCurrent || "";
-  if (!alchMode) {
-    try { alchMode = localStorage.getItem(NAV_ALCH_LS_KEY) || "membrane"; } catch { alchMode = "membrane"; }
-  }
-  return {
-    tab: b.dataset.activeTab || "alchemy",
-    appsView: b.dataset.appsView || "",
-    netSub: b.dataset.netSub || "network",
-    alchMode,
+  const tab = TOP_TABS.has(b.dataset.activeTab) ? b.dataset.activeTab : "alchemy";
+  const snap = {
+    tab,
+    appsView: tab === "apps" ? (b.dataset.appsView || "") : "",
+    netSub: tab === "network" ? (b.dataset.netSub || "network") : "network",
+    alchMode: "",
+    constMode: "",
+    ctxView: "",
+    programPage: "",
+    recordId: "",
   };
+  if (tab === "alchemy") {
+    const alch = document.getElementById("alchemy-view");
+    let loc = null;
+    try { loc = Alchemy.getLocation?.(); } catch {}
+    let alchMode = loc?.mode || alch?.dataset.alchModeCurrent || "";
+    if (!alchMode) {
+      try { alchMode = localStorage.getItem(NAV_ALCH_LS_KEY) || "membrane"; } catch { alchMode = "membrane"; }
+    }
+    let constMode = loc?.constellationMode || alch?.dataset.constModeCurrent || "";
+    if (!constMode) {
+      try { constMode = localStorage.getItem(NAV_CONST_MODE_LS_KEY) || ""; } catch { constMode = ""; }
+    }
+    let ctxView = loc?.contextView || alch?.dataset.contextView || "";
+    if (alchMode === "collab") {
+      alchMode = "constellation";
+      constMode = "collab";
+    }
+    if (alchMode === "pulse") {
+      alchMode = "shapes";
+      constMode = "";
+    }
+    if (alchMode === "intel") {
+      alchMode = "context";
+      ctxView = "signals";
+    }
+    if (alchMode !== "constellation") constMode = "";
+    if (alchMode !== "context") ctxView = "";
+    snap.alchMode = alchMode || "membrane";
+    snap.constMode = constMode || "";
+    snap.ctxView = ctxView || "";
+    snap.programPage = snap.alchMode === "program" && loc?.programPage
+      ? String(loc.programPage)
+      : (snap.alchMode === "program" && alch?.dataset.alchProgramPage ? String(alch.dataset.alchProgramPage) : "");
+    snap.recordId = loc?.recordId ? String(loc.recordId) : (alch?.dataset.alchDetail || "");
+  }
+  return snap;
 }
 
 function navSameLoc(a, b) {
   return !!a && !!b && a.tab === b.tab && a.appsView === b.appsView
-    && a.netSub === b.netSub && a.alchMode === b.alchMode;
+    && a.netSub === b.netSub && a.alchMode === b.alchMode
+    && a.constMode === b.constMode
+    && (a.ctxView || "") === (b.ctxView || "")
+    && a.programPage === b.programPage && a.recordId === b.recordId;
 }
 
 // Replay a snapshot through the same entry points the UI uses, so mounts /
@@ -6005,6 +6152,8 @@ function navSameLoc(a, b) {
 // MutationObserver doesn't record our own replay as a new history entry.
 function navApplyLocation(snap) {
   navHist.restoring = true;
+  snap = snap || {};
+  const tab = TOP_TABS.has(snap.tab) ? snap.tab : "alchemy";
   if (snap.tab === "apps") {
     if (snap.appsView) {
       document.body.dataset.appsView = snap.appsView;
@@ -6014,33 +6163,39 @@ function navApplyLocation(snap) {
       try { localStorage.removeItem(APPS_LS_KEY); } catch {}
     }
   }
-  if (snap.tab === "network") {
-    document.body.dataset.netSub = snap.netSub;
-    try { localStorage.setItem(NET_SUB_LS_KEY, snap.netSub); } catch {}
+  if (tab === "network") {
+    const netSub = NET_SUBS.has(snap.netSub) ? snap.netSub : "network";
+    document.body.dataset.netSub = netSub;
+    try { localStorage.setItem(NET_SUB_LS_KEY, netSub); } catch {}
+  }
+  if (tab === "alchemy") {
+    const mode = snap.alchMode === "collab" ? "constellation"
+      : (snap.alchMode === "pulse" ? "shapes"
+      : (snap.alchMode === "intel" ? "context" : (snap.alchMode || "membrane")));
+    const loc = {
+      mode,
+      recordId: snap.recordId || null,
+      instant: true,
+    };
+    if (mode === "constellation" && snap.constMode) loc.constellationMode = snap.constMode;
+    if (mode === "context" && snap.ctxView) loc.contextView = snap.ctxView;
+    if (mode === "program" && snap.programPage) loc.programPage = snap.programPage;
+    try { Alchemy.applyLocation(loc); } catch {}
   }
   // applyActiveTab runs the per-tab mount logic; call it for same-tab sub-view
   // changes (e.g. apps grid ⇄ atlas) too, since only the sub-state differs.
-  if (document.body.dataset.activeTab !== snap.tab) {
-    morphActiveTab(snap.tab, () => applyActiveTab(snap.tab));
-    try { localStorage.setItem(TAB_LS_KEY, snap.tab); } catch {}
+  if (document.body.dataset.activeTab !== tab) {
+    morphActiveTab(tab, () => applyActiveTab(tab));
+    try { localStorage.setItem(TAB_LS_KEY, tab); } catch {}
   } else {
-    applyActiveTab(snap.tab);
+    applyActiveTab(tab);
   }
-  if (snap.tab === "network") setNetworkSub(snap.netSub);
-  // Alchemy rail mode lives inside alchemy.js; the rail button's own click
-  // handler is the canonical way to switch it (sets state + persists + repaints).
-  if (snap.tab === "alchemy" && snap.alchMode) {
-    try { localStorage.setItem(NAV_ALCH_LS_KEY, snap.alchMode); } catch {}
-    const cur = document.getElementById("alchemy-view")?.dataset.alchModeCurrent;
-    if (cur !== snap.alchMode) {
-      const sel = `.alchemy-rail-btn[data-alch-mode="${(window.CSS?.escape ? CSS.escape(snap.alchMode) : snap.alchMode)}"]`;
-      document.querySelector(sel)?.click();
-    }
-  }
-  navHist.last = snap;
+  if (tab === "network") setNetworkSub(NET_SUBS.has(snap.netSub) ? snap.netSub : "network");
+  navHist.last = navSnapshot();
   // All observed attributes are written synchronously above, so the observer's
-  // microtask sees restoring=true; this rAF clears it for the next real nav.
-  requestAnimationFrame(() => { navHist.restoring = false; });
+  // microtask sees restoring=true. Clear in the following microtask so an
+  // immediate user navigation after Back/Forward is still recorded.
+  queueMicrotask(() => { navHist.restoring = false; });
 }
 
 function navRecord() {
@@ -6073,7 +6228,7 @@ function initNavHistory() {
     attributeFilter: ["data-active-tab", "data-apps-view", "data-net-sub"],
   });
   const alch = document.getElementById("alchemy-view");
-  if (alch) obs.observe(alch, { attributes: true, attributeFilter: ["data-alch-mode-current"] });
+  if (alch) obs.observe(alch, { attributes: true, attributeFilter: ["data-alch-mode-current", "data-const-mode-current", "data-context-view", "data-alch-program-page", "data-alch-detail"] });
 
   // Mouse buttons: 3 = back, 4 = forward (Chromium's X1/X2 mapping). Capture
   // phase + preventDefault so we win over any inner handler and suppress the
@@ -6085,6 +6240,22 @@ function initNavHistory() {
   window.addEventListener("mouseup", onAux, true);
   window.addEventListener("mousedown", (e) => { if (e.button === 3 || e.button === 4) e.preventDefault(); }, true);
   window.addEventListener("auxclick", (e) => { if (e.button === 3 || e.button === 4) e.preventDefault(); }, true);
+  window.addEventListener("keydown", (e) => {
+    const t = e.target;
+    const tag = t?.tagName?.toUpperCase?.();
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable) return;
+    const back = e.key === "BrowserBack"
+      || (e.altKey && !e.ctrlKey && !e.metaKey && e.key === "ArrowLeft")
+      || (e.metaKey && !e.ctrlKey && e.key === "[");
+    const forward = e.key === "BrowserForward"
+      || (e.altKey && !e.ctrlKey && !e.metaKey && e.key === "ArrowRight")
+      || (e.metaKey && !e.ctrlKey && e.key === "]");
+    if (!back && !forward) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (back) navGoBack();
+    else navGoForward();
+  }, true);
 }
 
 // Register the visualizer's app-specific keyboard shortcuts and command-
@@ -6098,9 +6269,11 @@ function registerVisualizerShortcutsAndCommands() {
   // Search is now a panel inside atlas (toggled via openAtlasSearch in
   // boot init). Cmd+/ from anywhere lands on atlas + opens the panel.
   const focusSearchTabInput = () => {
-    if (document.body.dataset.activeTab !== "atlas") {
-      morphActiveTab("atlas", () => applyActiveTab("atlas"));
-      try { localStorage.setItem(TAB_LS_KEY, "atlas"); } catch {}
+    if (document.body.dataset.activeTab !== "apps" || document.body.dataset.appsView !== "atlas") {
+      document.body.dataset.appsView = "atlas";
+      try { localStorage.setItem(APPS_LS_KEY, "atlas"); } catch {}
+      morphActiveTab("apps", () => applyActiveTab("apps"));
+      try { localStorage.setItem(TAB_LS_KEY, "apps"); } catch {}
     }
     setTimeout(() => {
       try { openAtlasSearch(); } catch {}
@@ -6137,7 +6310,7 @@ function registerVisualizerShortcutsAndCommands() {
       items: [
         { keys: ["⌘", "K"],         label: "Open command palette" },
         { keys: ["?"],              label: "Show this overlay" },
-        { keys: ["A"],              label: "Go to Atlas tab" },
+        { keys: ["A"],              label: "Open Atlas app" },
         { keys: ["Y"],              label: "Go to Alchemy tab" },
         { keys: ["N"],              label: "Go to Network tab" },
         { keys: ["M"],              label: "Go to Metrics tab" },
@@ -6174,7 +6347,7 @@ function registerVisualizerShortcutsAndCommands() {
 
   registerCommands([
     { id: "go.atlas", group: "Go to", label: "Go to Atlas", keys: ["A"], hint: "the wall map",
-      keywords: ["tab","atlas","map","cartography","wall","paper","continent","photo"], run: () => goTab("atlas") },
+      keywords: ["app","atlas","map","cartography","wall","paper","continent","photo"], run: () => openApp("atlas") },
     { id: "go.network", group: "Go to", label: "Go to Network", keys: ["N"], hint: "peers + traffic",
       keywords: ["tab","network","peers","traffic"], run: () => goTab("network") },
     { id: "go.search",  group: "Go to", label: "Open Search (inside Atlas)",  keys: ["/"], hint: "router + web",
@@ -6184,7 +6357,7 @@ function registerVisualizerShortcutsAndCommands() {
       run: () => { goTab("network"); setNetworkSub("metrics"); } },
     { id: "go.alchemy", group: "Go to", label: "Go to Alchemy", keys: ["Y"],
       hint: "cohort sandbox",
-      keywords: ["tab","alchemy","cohort","teams","specimens","pulse","constellation","activity","progress"],
+      keywords: ["tab","alchemy","cohort","teams","specimens","constellation","activity","progress"],
       run: () => goTab("alchemy") },
     { id: "go.daybook", group: "Go to", label: "Go to Router",
       hint: "your daily cohort update",
@@ -6194,7 +6367,7 @@ function registerVisualizerShortcutsAndCommands() {
       keys: ["T"], hint: "cinematic replay of the last N days",
       keywords: ["atlas","timelapse","time-lapse","replay","scrub","cinematic","T"],
       run: () => {
-        if (document.body.dataset.activeTab !== "atlas") goTab("atlas");
+        if (document.body.dataset.activeTab !== "apps" || document.body.dataset.appsView !== "atlas") openApp("atlas");
         // dispatch a 'T' keydown after a frame so the atlas module's
         // own listener catches it. simpler than crossing the boundary.
         setTimeout(() => {
@@ -6205,7 +6378,7 @@ function registerVisualizerShortcutsAndCommands() {
       keys: ["⌘","0"],
       keywords: ["atlas","reset","home","view","viewport","zoom"],
       run: () => {
-        if (document.body.dataset.activeTab !== "atlas") goTab("atlas");
+        if (document.body.dataset.activeTab !== "apps" || document.body.dataset.appsView !== "atlas") openApp("atlas");
         setTimeout(() => {
           if (window.__srwk_atlas) window.__srwk_atlas.reset();
         }, 250);
@@ -6277,14 +6450,14 @@ function registerVisualizerShortcutsAndCommands() {
   ]);
 
   // Register single-letter tab shortcuts with input-blocking guard.
-  // Top-level: A / Y / N / M.
+  // Top-level: A opens the Atlas app; Y / N / M switch OS/network views.
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
     const tag = e.target?.tagName?.toUpperCase();
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
     if (e.target?.isContentEditable) return;
     const k = e.key.toLowerCase();
-    if (k === "a") { goTab("atlas"); }
+    if (k === "a") { openApp("atlas"); }
     else if (k === "n") { goTab("network"); setNetworkSub("network"); }
     else if (k === "m") { goTab("network"); setNetworkSub("metrics"); }
     else if (k === "y") { goTab("alchemy"); }
@@ -6385,13 +6558,13 @@ function applyActiveTab(tab) {
   // sets body[data-apps-view] and reveals the inner view. Atlas mount /
   // pause logic mirrors what used to live under its own top tab.
   if (tab === "apps" && inAtlasSubview) {
-    requestAnimationFrame(() => {
+    requestFrameOrTimeout(() => {
       const stage = document.getElementById("atlas-stage");
       if (!stage) return;
       try {
         Atlas.mount(stage);
         Atlas.setActive(true);
-        requestAnimationFrame(() => Atlas.notifyDataChanged());
+        requestFrameOrTimeout(() => Atlas.notifyDataChanged());
       } catch (e) {
         console.error("[atlas] mount failed:", e);
       }
@@ -6404,7 +6577,7 @@ function applyActiveTab(tab) {
   // setActive(false) on leave so we stop capturing + broadcasting.
   const inEaselSubview = (tab === "apps" && document.body.dataset.appsView === "easel");
   if (inEaselSubview) {
-    requestAnimationFrame(() => {
+    requestFrameOrTimeout(() => {
       const stage = document.getElementById("easel-stage");
       if (!stage) return;
       try {
@@ -6422,7 +6595,7 @@ function applyActiveTab(tab) {
 
   // Alchemy tab — cohort sandbox. Same lazy-mount pattern as atlas.
   if (tab === "alchemy") {
-    requestAnimationFrame(() => {
+    requestFrameOrTimeout(() => {
       const stage = document.getElementById("alchemy-view");
       if (!stage) return;
       try {
@@ -6435,7 +6608,7 @@ function applyActiveTab(tab) {
         if (launch?.setStatus) launch.setStatus("mounting cohort view", 0.80);
         Alchemy.mount(stage);
         Alchemy.setActive(true);
-        requestAnimationFrame(() => {
+        requestFrameOrTimeout(() => {
           Alchemy.notifyDataChanged();
           if (launch?.ready) {
             launch.setStatus("ready", 1.0);
@@ -6476,6 +6649,10 @@ const searchState = {
   selectedIdx: -1,
   recents: [],
 };
+const SEARCH_POLICIES = new Set(["default", "private_circle", "local_only"]);
+function normalizeSearchPolicy(policy) {
+  return SEARCH_POLICIES.has(policy) ? policy : "default";
+}
 
 function loadRecentSearches() {
   try {
@@ -6555,11 +6732,12 @@ function wireSearchTab() {
   try {
     const saved = JSON.parse(localStorage.getItem(SEARCH_LS_KEY) || "null");
     if (saved && typeof saved === "object") {
-      if (typeof saved.policy === "string") searchState.policy = saved.policy;
+      if (typeof saved.policy === "string") searchState.policy = normalizeSearchPolicy(saved.policy);
       if (typeof saved.topK === "number") searchState.topK = saved.topK;
       if (typeof saved.confirmEgress === "boolean") searchState.confirmEgress = saved.confirmEgress;
     }
   } catch {}
+  searchState.policy = normalizeSearchPolicy(searchState.policy);
   if (policy) policy.value = searchState.policy;
   if (topk) topk.value = String(searchState.topK);
   if (confirm) confirm.checked = !!searchState.confirmEgress;
@@ -6581,7 +6759,8 @@ function wireSearchTab() {
   const submitBtn = document.getElementById("search-submit");
   if (submitBtn) magnetize(submitBtn, { strength: 6, dampen: 0.4 });
   if (policy) policy.addEventListener("change", () => {
-    searchState.policy = policy.value;
+    searchState.policy = normalizeSearchPolicy(policy.value);
+    policy.value = searchState.policy;
     persistSearchPrefs();
   });
   if (topk) topk.addEventListener("change", () => {
@@ -8840,11 +9019,12 @@ boot().then(() => {
     btn.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
     if (closeBtn) closeBtn.addEventListener("click", close);
 
-    // Auto-close when the tab leaves atlas, so the panel doesn't linger.
+    // Auto-close when the view leaves Atlas, so the panel doesn't linger.
     const obs = new MutationObserver(() => {
-      if (document.body.dataset.activeTab !== "atlas" && !panel.hidden) close();
+      const inAtlas = document.body.dataset.activeTab === "apps" && document.body.dataset.appsView === "atlas";
+      if (!inAtlas && !panel.hidden) close();
     });
-    obs.observe(document.body, { attributes: true, attributeFilter: ["data-active-tab"] });
+    obs.observe(document.body, { attributes: true, attributeFilter: ["data-active-tab", "data-apps-view"] });
   }
 
   if (document.readyState === "loading") {
