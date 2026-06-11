@@ -61,35 +61,6 @@ const RECORD_DIRS = [
 ];
 const PROGRAM_PREFIX = "cohort-data/program/";
 
-const GENERATED_PERSON_READ_FIELDS = [
-  "bio_md",
-  "weekly_intention",
-  "comm_style",
-  "availability_pref",
-  "working_style",
-  "best_contexts",
-  "contribute_interests",
-  "go_to_them_for",
-  "seeking",
-  "offering",
-  "recurring_themes",
-  "prior_work",
-  "making_signature",
-];
-const GENERATED_TEAM_READ_FIELDS = [
-  "journey",
-  "traction",
-  "paper_basis",
-  "prior_shipping",
-  "hackathon_note",
-  "seeking",
-  "offering",
-  "weekly_goals",
-  "monthly_milestones",
-  "graduation_target",
-  "dependencies",
-];
-
 let _cache = null;            // grouped by record_type (baseline merged with sync overlay)
 // The GH-only baseline result, kept separately so sync-overlay refresh
 // ticks can re-merge without paying for a new tree+raw fetch every time.
@@ -127,10 +98,10 @@ export function getSyncState() { return _syncState; }
 // no GH-commit-ts API calls block boot. The background refresh that
 // fires right after will replace the snapshot when it lands and
 // notify subscribers so views repaint with fresh data.
-// Bumped to v4 in v0.3.x: v3 snapshots can carry stale Program-page copy
-// and, when GitHub is rate-limited/unreachable, used to outrank the newer
-// bundled fixture indefinitely.
-const SURFACE_LS_KEY = "srfg:cohort_surface_v4";
+// Bumped to v5 in 2026-06: v4 snapshots may carry source-owned fields hydrated
+// from a stale generated surface. Record fields now come from live markdown;
+// generated surfaces only provide timeline maps or full offline fixtures.
+const SURFACE_LS_KEY = "srfg:cohort_surface_v5";
 // Surface snapshots can grow to ~200KB (50 people × ~3KB each plus other
 // kinds). localStorage is bounded at ~5MB per origin so this fits, but
 // we still guard against quota errors on write — a write failure just
@@ -218,43 +189,6 @@ function timelineMap(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
-function generatedValuePresent(value) {
-  if (value == null) return false;
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === "object") return Object.keys(value).length > 0;
-  return String(value).trim().length > 0;
-}
-
-function cloneGeneratedValue(value) {
-  if (Array.isArray(value) || (value && typeof value === "object")) {
-    try { return JSON.parse(JSON.stringify(value)); } catch { return value; }
-  }
-  return value;
-}
-
-function mergeGeneratedRecordFields(targetRecords, generatedRecords, fields) {
-  if (!Array.isArray(targetRecords) || !Array.isArray(generatedRecords)) return;
-  const generatedById = new Map();
-  for (const record of generatedRecords) {
-    if (record?.record_id) generatedById.set(record.record_id, record);
-  }
-  for (const record of targetRecords) {
-    if (!record?.record_id) continue;
-    const generated = generatedById.get(record.record_id);
-    if (!generated) continue;
-    for (const field of fields) {
-      if (generatedValuePresent(record[field]) || !generatedValuePresent(generated[field])) continue;
-      record[field] = cloneGeneratedValue(generated[field]);
-    }
-  }
-}
-
-function mergeGeneratedReadModels(out, generated) {
-  if (!out || !generated) return;
-  mergeGeneratedRecordFields(out.people, generated.people, GENERATED_PERSON_READ_FIELDS);
-  mergeGeneratedRecordFields(out.teams, generated.teams, GENERATED_TEAM_READ_FIELDS);
-}
-
 function normalize(data) {
   const out = {
     teams:        dedupById(data?.teams, "team"),
@@ -323,7 +257,9 @@ async function loadFromGithub() {
     const files = paths.filter(p => p.startsWith(spec.prefix) && p.endsWith(".md"));
     const whitelist = schema[spec.list_key]?.surface_fields || [];
     const records = await Promise.all(files.map(p => loadRecord(p, spec.record_type, whitelist)));
-    const filtered = records.filter(Boolean);
+    const filtered = records
+      .filter(Boolean)
+      .sort((a, b) => String(a.record_id).localeCompare(String(b.record_id)));
     out[spec.list_key] = filtered;
     // Build the record_id → { path, sha } map. Keyed off filtered records
     // so we only carry shas for entries that actually made it through the
@@ -389,15 +325,12 @@ async function loadFromGithub() {
   }
 
   // Generated read models that do not fully live in cohort-data/*.md. The live
-  // markdown builder above cannot reconstruct Git-derived per-record timelines
-  // or every generated profile/team read field, so hydrate those gaps from the
-  // generated surface bundle on main. If GitHub is unreachable, fall back to the
-  // packaged fixture; stale generated reads are better than silently dropping
-  // agreed profile sections.
+  // markdown builder above cannot reconstruct Git-derived per-record timelines,
+  // so hydrate those maps from the generated surface bundle on main. If GitHub
+  // is unreachable, fall back to the packaged fixture.
   try {
     const surfaceRaw = await fetchRaw("apps/os/src/cohort-surface.json");
     const generated = JSON.parse(surfaceRaw);
-    mergeGeneratedReadModels(out, generated);
     const personTimeline = timelineMap(generated?.person_timeline);
     const teamTimeline = timelineMap(generated?.team_timeline);
     if (!Object.keys(personTimeline).length && !Object.keys(teamTimeline).length) {
@@ -408,7 +341,6 @@ async function loadFromGithub() {
   } catch (e) {
     try {
       const fixture = await loadFromFixture();
-      mergeGeneratedReadModels(out, fixture);
       out.person_timeline = timelineMap(fixture?.person_timeline);
       out.team_timeline = timelineMap(fixture?.team_timeline);
     } catch {
@@ -447,14 +379,29 @@ function pickSurface(obj, whitelist) {
   return out;
 }
 
+function extractPublicPersonBio(body) {
+  const raw = String(body || "").trim();
+  if (!raw) return "";
+  const lines = raw.split("\n");
+  const start = lines.findIndex(line => /^##\s+(about|bio)\s*$/i.test(line.trim()));
+  if (start < 0) return raw;
+  const end = lines.findIndex((line, index) => index > start && /^##\s+/.test(line.trim()));
+  return lines.slice(start + 1, end < 0 ? undefined : end).join("\n").trim();
+}
+
 async function loadRecord(repoPath, expectedType, whitelist) {
   try {
     const text = await fetchRaw(repoPath);
-    const { frontmatter } = parseMarkdown(text);
+    const { frontmatter, body } = parseMarkdown(text);
     if (!frontmatter) return null;
     if (frontmatter.record_type !== expectedType) return null;
     if (!frontmatter.record_id) return null;
-    return pickSurface(frontmatter, whitelist);
+    const surface = pickSurface(frontmatter, whitelist);
+    if (expectedType === "person") {
+      const bio = extractPublicPersonBio(body);
+      if (bio) surface.bio_md = bio;
+    }
+    return surface;
   } catch (e) {
     console.warn(`[cohort-source] skip ${repoPath}:`, e?.message || e);
     return null;
@@ -726,41 +673,28 @@ function signatureOf(grouped) {
     return (h >>> 0).toString(36);
   };
   const fp = (...parts) => hash(parts.map(p => String(p ?? "")).join("\0"));
-  const sig = (arr) => arr.map(r => r.record_id).sort().join("|");
+  const recordSig = (arr) => arr.map(r => `${r?.record_id || ""}:${fp(JSON.stringify(r || {}))}`).sort().join("|");
+  const arraySig = (arr) => arr.map(r => fp(JSON.stringify(r || {}))).sort().join("|");
   // Program-page edits are full-body markdown swaps, not record_id churn —
   // hash the content so even same-length text edits trip the refresh notifier.
-  const progSig = (arr) => arr.map(r => `${r.record_id}:${fp(r.title, r.order, r.body_md)}`).sort().join("|");
-  // Asks churn fast (5-day expiry) — include status in the signature so the
-  // wall re-renders on claim/close.
-  const askSig = (arr) => arr.map(r => `${r.record_id}:${r.status || "open"}`).sort().join("|");
-  // Events are updated by date/title edits — include both in the signature
-  // so a date-shift on an existing record_id trips the refresh.
-  const eventSig = (arr) => arr.map(r => `${r.record_id}:${r.date || ""}:${r.range_start || ""}:${r.range_end || ""}:${r.title || ""}`).sort().join("|");
-  // People + teams can flip between sync and GH baseline content via the
-  // GitHub-commit-ts tiebreaker (Phase 5+) without the record_id set
-  // changing. Mix a coarse content fingerprint (name + a couple of
-  // free-text fields + length-ish proxies) into the signature so a
-  // tiebreaker-driven content swap correctly fires the refresh notifier.
-  const personSig = (arr) => arr.map(r =>
-    `${r.record_id}:${fp(r.name, r.now, r.role, r.team, r.bio_md, r.weekly_intention, r.comm_style, r.availability_pref)}`
-  ).sort().join("|");
-  const teamSig = (arr) => arr.map(r =>
-    `${r.record_id}:${fp(r.name, r.now, r.focus, r.traction, r.weekly_goals, r.monthly_milestones, r.graduation_target)}`
-  ).sort().join("|");
-  const depSig = (arr) => arr.map(r =>
-    `${r.record_id}:${r.source || ""}:${r.target || ""}:${r.relation || ""}:${r.status || ""}:${(r.reason || "").length}:${(r.next_action || "").length}`
-  ).sort().join("|");
-  const cueSig = (arr) => arr.map(c =>
-    fp(c?.label, c?.source, c?.excerpt)
-  ).sort().join("|");
-  const insightSig = (arr) => arr.map(r =>
-    `${r?.vault_id || r?.record_id || r?.title || ""}:${fp(JSON.stringify(r || {}))}`
-  ).sort().join("|");
+  // Use full public-record fingerprints for entity lists. Many rendered
+  // insights are driven by fields other than record_id (cluster teams, legacy
+  // dependencies, seek/offer chips, journey fields), so coarse signatures can
+  // leave an updated cache on screen with no subscriber re-render.
+  const personSig = recordSig;
+  const teamSig = recordSig;
+  const clusterSig = recordSig;
+  const depSig = recordSig;
+  const progSig = recordSig;
+  const askSig = recordSig;
+  const eventSig = recordSig;
+  const cueSig = arraySig;
+  const insightSig = arraySig;
   const timelineSig = (map) => Object.entries(map || {})
     .map(([id, items]) => `${id}:${Array.isArray(items) ? items.length : 0}:${fp(JSON.stringify(items || []))}`)
     .sort()
     .join("|");
-  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${sig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
+  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
 }
 
 // Dev preview override. Setting `localStorage.setItem("srfg:cohort_source", "local")`

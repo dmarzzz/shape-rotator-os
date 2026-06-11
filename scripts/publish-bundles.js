@@ -3,7 +3,7 @@
  * publish-bundles.js — markdown source of truth → signed cohort.surface
  * bundles POSTed to swf-node.
  *
- * For each record under cohort-data/{teams,people,clusters}/*.md:
+ * For each record under cohort-data/{teams,people,clusters,dependencies}/*.md:
  *   1. Parse frontmatter
  *   2. Extract surface fields per cohort-data/schema.yml
  *   3. GET /bundles?kind=cohort.surface&record_id=<id> to find current max version
@@ -125,6 +125,16 @@ function pickSurface(obj, whitelist) {
   return out;
 }
 
+function extractPublicPersonBio(body) {
+  const raw = String(body || "").trim();
+  if (!raw) return "";
+  const lines = raw.split("\n");
+  const start = lines.findIndex(line => /^##\s+(about|bio)\s*$/i.test(line.trim()));
+  if (start < 0) return raw;
+  const end = lines.findIndex((line, index) => index > start && /^##\s+/.test(line.trim()));
+  return lines.slice(start + 1, end < 0 ? undefined : end).join("\n").trim();
+}
+
 function loadAllRecords() {
   const schema = readSchema();
   if (schema.schema_version !== 1) {
@@ -132,18 +142,23 @@ function loadAllRecords() {
   }
   const out = []; // [{ kind: "cohort.surface", record_id, payload }]
   for (const [type, dir, sf] of [
-    ["team",    "teams",    schema.teams?.surface_fields    || []],
-    ["person",  "people",   schema.people?.surface_fields   || []],
-    ["cluster", "clusters", schema.clusters?.surface_fields || []],
+    ["team",       "teams",        schema.teams?.surface_fields        || []],
+    ["person",     "people",       schema.people?.surface_fields       || []],
+    ["cluster",    "clusters",     schema.clusters?.surface_fields     || []],
+    ["dependency", "dependencies", schema.dependencies?.surface_fields || []],
   ]) {
     const d = path.join(COHORT_DIR, dir);
     if (!fs.existsSync(d)) continue;
     for (const f of fs.readdirSync(d)) {
       if (!f.endsWith(".md")) continue;
       const fp = path.join(d, f);
-      const { frontmatter } = parseMarkdown(fp);
+      const { frontmatter, body } = parseMarkdown(fp);
       if (!frontmatter || frontmatter.record_type !== type || !frontmatter.record_id) continue;
       const payload = pickSurface(frontmatter, sf);
+      if (type === "person") {
+        const bio = extractPublicPersonBio(body);
+        if (bio) payload.bio_md = bio;
+      }
       out.push({ record_id: frontmatter.record_id, payload, _file: fp });
     }
   }
