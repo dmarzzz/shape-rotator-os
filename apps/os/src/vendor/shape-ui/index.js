@@ -142,6 +142,9 @@ export {
   renderCohortCard,
   teamCardHtml,
   personCardHtml,
+  cohortRosterForTeam,
+  cohortRosterSummary,
+  compactCohortLinkItems,
 } from "./cohort-card.js";
 export {
   buildCalendarRows,
