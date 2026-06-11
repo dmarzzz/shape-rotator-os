@@ -1,7 +1,7 @@
 {
   "name": "@shape-rotator/os",
   "productName": "Shape Rotator OS",
-  "version": "0.3.0-rc.8",
+  "version": "0.3.1",
   "private": true,
   "main": "main.js",
   "type": "commonjs",
@@ -65,7 +65,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "dmarzzz",
+        "owner": "freddmannen",
         "repo": "shape-rotator-os",
         "releaseType": "release"
       }
