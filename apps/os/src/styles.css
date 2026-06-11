@@ -6341,11 +6341,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   display: flex; flex-direction: column; gap: 8px;
   height: 100%;
 }
-.alchemy-canvas:has(.alch-constellation),
-.alchemy-canvas:has(.alch-cohort-page) {
-  padding-left: 34px;
-  padding-right: 32px;
-}
+/* Cohort/constellation no longer narrows the canvas gutters (2026-06) —
+   every page shares .alchemy-canvas's standard side padding. Unified. */
 /* ── cohort page shell (2026-06) ─────────────────────────────────────
    Every cohort view renders inside the same shell: page header, then the
    view nav, then ONE controls band, then content. The header and the
@@ -8503,11 +8500,6 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 
 @media (max-width: 1180px) {
-  .alchemy-canvas:has(.alch-constellation),
-  .alchemy-canvas:has(.alch-cohort-page) {
-    padding-left: 28px;
-    padding-right: 28px;
-  }
   .alch-const-workbench { grid-template-columns: 1fr; }
   .ac-inspector { position: relative; top: auto; max-height: none; }
 }
@@ -13632,9 +13624,10 @@ html, body { background: var(--ed-bg-0); }
  * bump text contrast everywhere it was below readable.
  * ═══════════════════════════════════════════════════════════════════ */
 
-/* Page-level warm radial wash — slightly brighter at the top centre,
-   fades to near-black at the corners. Gives the whole stage depth
-   without changing the read of the editorial dark theme. */
+/* Page-level radial wash — back to near-black (2026-06-11): the espresso
+   page wash from the warm-elevation pass read as flat gray at laptop
+   brightness; the page returns to the deep near-black field while the
+   panels keep their warm elevation on top. */
 html, body {
   background: radial-gradient(ellipse 140% 100% at 50% -10%, #1a1612 0%, #0e0c0a 55%, #08070a 100%);
 }
@@ -14012,7 +14005,28 @@ html, body {
 }
 .cal-avail-head > div:first-child { display: flex; flex-direction: column; gap: 4px; }
 .cal-avail-head .cal-page-actions { margin-left: auto; }
-.cal-avail-edit { margin-left: 4px; }
+/* Same pill treatment as .cal-action so the presence-head buttons read as
+   one family (was an unstyled native button — white box). */
+.cal-avail-edit {
+  margin-left: 4px;
+  appearance: none;
+  display: inline-flex; align-items: center; gap: 7px;
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.08), rgba(var(--ink-rgb), 0.02));
+  color: var(--ed-ink-1);
+  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-family: var(--ed-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  cursor: pointer;
+}
+.cal-avail-edit:hover {
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.16), rgba(var(--ink-rgb), 0.06));
+  border-color: rgba(var(--ink-rgb), 0.40);
+  box-shadow: 0 0 0 3px rgba(var(--ink-rgb), 0.06);
+}
 
 @media (max-width: 880px) {
   .cal-tw-wrap { grid-template-columns: 1fr; }
@@ -14026,7 +14040,10 @@ html, body {
 .cal-section-presence { max-width: none; }
 .cal-section-presence .cal-scroll {
   overflow-x: auto;
-  overflow-y: hidden;
+  /* The gantt is taller than the .cal-scroll max-height cap — overflow-y
+     must scroll, not hide, or every row below the fold (later teams) is
+     unreachable. */
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 .cal-section-head {
@@ -14310,7 +14327,7 @@ html, body {
   border-bottom: 2px solid transparent;
   padding: 10px 16px 12px 16px;
   color: var(--ed-ink-1);
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: pointer;
   display: inline-flex; gap: 10px; align-items: baseline;
 }
@@ -14319,17 +14336,22 @@ html, body {
   opacity: 1;
   border-bottom-color: #c44025;
 }
+.alch-prog-tab[aria-selected="true"] .alch-prog-tab-label {
+  color: var(--alchemy-paper-warm);
+}
 .alch-prog-tab-num {
   font-family: var(--ed-mono);
   font-size: 10px;
   letter-spacing: 0.22em;
   opacity: 0.60;
 }
+/* Mirrors .apv-label (context/cohort view tabs) so the program tabs use
+ * the identical font treatment — same family, style, size, spacing. */
 .alch-prog-tab-label {
   font-family: var(--ed-display);
   font-style: italic;
-  font-size: 16px;
-  letter-spacing: -0.01em;
+  font-size: 16.5px;
+  color: var(--ed-ink-1);
 }
 .alch-prog-page { margin: 0; max-width: 70ch; }
 .alch-prog-page-head {
@@ -14458,10 +14480,11 @@ html, body {
 
 /* ── asks board ──────────────────────────────────────────────────── */
 /* Stack the asks header (title + subtitle + post button) vertically so the
-   button never gets jammed into a narrow grid auto-column. Centered with
-   matching width to the section list below. */
+   button never gets jammed into a narrow grid auto-column. Left-aligned to
+   the canvas gutter (2026-06) so every page shares the same content edge;
+   the max-width still caps the line length for readability. */
 .alch-asks-head {
-  margin: 0 auto 20px;
+  margin: 0 0 20px;
   max-width: 80ch;
   display: flex; flex-direction: column;
   gap: 10px;
@@ -14486,7 +14509,7 @@ html, body {
   opacity: 0.62;
   margin: 0;
 }
-.alch-asks-section { max-width: 84ch; margin: 18px auto; }
+.alch-asks-section { max-width: 84ch; margin: 18px 0; }
 .alch-asks-section-head {
   display: flex; align-items: baseline; gap: 12px;
   padding-bottom: 8px;
@@ -14969,6 +14992,9 @@ html, body {
   padding: 0;
   border: 0;
 }
+/* Directory's export action shares the band row with the filter chips —
+ * same chip styling, pushed to the right edge. */
+.alch-view-controls > #dossier-export-png { margin-left: auto; }
 /* Cross-view selection chip — the visible owner of "something is selected".
  * Sits last in the controls row on every cohort view; clicking clears
  * (same effect as the Escape shortcut, but discoverable). Oxide-warm so
@@ -15650,10 +15676,13 @@ html, body {
 .alch-prog-title       { font-size: 44px; letter-spacing: -0.02em; line-height: 1.0; margin: 0 0 14px 0; }
 .alch-prog-sub         { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 64ch; margin: 0; opacity: 0.62; }
 
-.alch-prog-tabs        { margin: 24px 0 40px; max-width: 88ch; gap: 0; }
-.alch-prog-tab         { padding: 12px 24px 14px; gap: 12px; }
-.alch-prog-tab-num     { font-size: 11px; letter-spacing: 0.22em; }
-.alch-prog-tab-label   { font-size: 19px; }
+/* Tab metrics mirror .alch-page-view-btn / .apv-label exactly so the
+ * program tabs land at the same y and row height as the context/cohort
+ * view tabs — switching rail pages must not move the tab row. */
+.alch-prog-tabs        { margin: 0 0 40px; max-width: 88ch; gap: 0; }
+.alch-prog-tab         { padding: 6px 17px 9px; gap: 8px; }
+.alch-prog-tab-num     { font-size: 10px; letter-spacing: 0.22em; }
+.alch-prog-tab-label   { font-size: 16.5px; }
 
 .alch-prog-page        { margin: 0; max-width: 80ch; padding: 0 0 96px; }
 .alch-prog-page-head   { margin-bottom: 32px; align-items: baseline; gap: 24px; }
@@ -15691,12 +15720,12 @@ html, body {
 .alch-prog-page-foot   { margin-top: 40px; padding-top: 16px; font-size: 11px; }
 
 /* ── asks ─────────────────────────────────────────────────────────── */
-.alch-asks-head        { margin: 0 auto 18px; max-width: 88ch; padding-top: 12px; gap: 10px; }
+.alch-asks-head        { margin: 0 0 18px; max-width: 88ch; padding-top: 12px; gap: 10px; }
 .alch-asks-title       { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
 .alch-asks-sub         { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 70ch; margin: 0; opacity: 0.62; }
 .alch-asks-head-actions { margin-top: 10px; }
 
-.alch-asks-section     { max-width: 88ch; margin: 18px auto; }
+.alch-asks-section     { max-width: 88ch; margin: 18px 0; }
 .alch-asks-section-head { padding-bottom: 8px; margin-bottom: 10px; gap: 10px; }
 .alch-asks-section-title { font-size: 14px; line-height: 1.20; }
 .alch-asks-section-count { font-size: 11px; letter-spacing: 0.22em; }
@@ -15939,7 +15968,7 @@ html, body {
 /* ── asks compose form ────────────────────────────────────────────── */
 .alch-asks-compose {
   max-width: 88ch;
-  margin: 10px auto 24px;
+  margin: 0 0 24px;
   padding: 0;
   background: rgba(var(--ink-rgb), 0.025);
   border: 1px solid rgba(var(--ink-rgb), 0.16);
@@ -16615,7 +16644,6 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
 .cal-tw-h-label,
 .cal-sched-h-label,
 .cal-event-title,
-.alch-prog-tab-label,
 .cal-subtab .cs-label,
 .alch-feed-loading-title {
   font-family: var(--sr-font-sans) !important;
@@ -18547,17 +18575,28 @@ html[data-theme="light"] .cb-headrow {
  * the oxide cohort hairline is kept since it reads on both themes. */
 html[data-theme="light"] .alch-card {
   background: linear-gradient(180deg, #FFFFFF 0%, #F4EFE6 100%);
-  border-top-color: rgba(var(--ink-rgb), 0.10);
+  border-color: rgba(var(--ink-rgb), 0.12);
 }
 html[data-theme="light"] .alch-card:hover {
   background: linear-gradient(180deg, #FFFFFF 0%, #EFE8DD 100%);
-  border-top-color: rgba(var(--ink-rgb), 0.22);
+  border-color: rgba(var(--ink-rgb), 0.24);
 }
 html[data-theme="light"] .alch-card-membership-cohort {
   background: linear-gradient(180deg, #FCF7F1 0%, #F3EADF 100%);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 36%, transparent);
 }
 html[data-theme="light"] .alch-card-membership-cohort:hover {
   background: linear-gradient(180deg, #FFFFFF 0%, #F1E6D9 100%);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, transparent);
+}
+/* Dossier panel — same paper treatment as the cards in light mode. */
+html[data-theme="light"] .alch-detail-dossier {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F6F1E9 100%);
+  border-color: rgba(var(--ink-rgb), 0.12);
+  box-shadow: none;
+}
+html[data-theme="light"] .alch-card-now {
+  background: color-mix(in srgb, #FFFFFF 95%, transparent);
 }
 
 /* Collab board adjacency matrix — the sticky column-header row hardcodes a
@@ -20314,16 +20353,158 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
 
 /* Cohort detail dossier parity with the public web profile pages. */
 .alch-detail-dossier {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(230px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
   min-height: 0;
-  border-top: 1px solid var(--ed-rule, var(--alchemy-rule));
-  border-bottom: 1px solid var(--ed-rule, var(--alchemy-rule));
+  /* June-5 web dossier recipe (a0114d97), verbatim: translucent warm
+   * base + diagonal oxide wash + cream sheen, scanline texture overlay,
+   * rail inset. */
+  border: 1px solid rgba(241, 236, 231, 0.18);
+  border-radius: 8px;
+  overflow: hidden;
+  background:
+    linear-gradient(112deg, rgba(180, 58, 25, 0.16), rgba(180, 58, 25, 0.03) 31%, transparent 54%),
+    linear-gradient(180deg, rgba(247, 241, 236, 0.045), rgba(247, 241, 236, 0.008)),
+    rgba(28, 25, 25, 0.94);
+  padding: 0;
+}
+.alch-detail-dossier::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035), transparent 14%, transparent 86%, rgba(255, 255, 255, 0.018)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 9px);
+  opacity: 0.34;
+}
+.alch-detail-rail,
+.alch-detail-ledger {
+  position: relative;
+  z-index: 1;
+}
+/* Rail type — June-5 values: 36px/500 lowercase upright name, 16px
+ * focus line; the sigil above is the hero at up to 260px, centered. */
+.alch-detail-rail .alch-detail-name {
+  font-size: 36px;
+  font-weight: 500;
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  line-height: 1.2;
+  margin: 8px 0;
+}
+.alch-detail-rail .alch-detail-focus {
+  font-style: normal;
+  font-size: 16px;
+  line-height: 1.35;
+  color: rgba(var(--ink-rgb), 0.74);
+  margin: 0 0 16px;
+}
+.alch-detail-rail .alch-detail-shape {
+  width: min(100%, 260px);
+  justify-self: center;
+  margin: 0 0 16px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.alch-detail-rail .alch-rail-read { display: grid; gap: 8px; }
+/* Reading sizes: prose at a comfortable 13.5/1.7. */
+.alch-detail-prose,
+.alch-detail-prose p {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: rgba(var(--ink-rgb), 0.78);
+}
+.alch-detail-ledger .alch-section-stack { gap: 18px; }
+.alch-detail-flat { padding: 18px 0 10px; }
+.alch-detail-ledger .alch-quick-row { min-height: 42px; padding: 12px 0; }
+/* Directory grid — the original shows three generous columns, not a
+ * five-up dense pack. Rows stretch so card heights match per row. */
+.alch-specimens {
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 22px;
+  align-items: stretch;
+}
+
+/* ══ Liquid glass chrome (2026-06) ═══════════════════════════════════
+ * Glass is reserved for CHROME — the floating controls bar, inspector,
+ * readouts, tooltips — surfaces that hover over scrolling content and
+ * have something to refract. Content panels (cards, dossier) stay
+ * material so the blur stays purposeful. */
+:root {
+  --lg-bg:        rgba(40, 35, 36, 0.60);
+  --lg-bg-strong: rgba(38, 33, 34, 0.72);
+  --lg-border:    rgba(241, 236, 231, 0.13);
+  --lg-specular:  inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lg-shadow:    0 8px 28px rgba(0, 0, 0, 0.26);
+  --lg-blur:      blur(16px) saturate(1.25);
+}
+:root[data-theme="light"] {
+  --lg-bg:        rgba(255, 255, 255, 0.52);
+  --lg-bg-strong: rgba(255, 255, 255, 0.74);
+  --lg-border:    rgba(27, 20, 17, 0.13);
+  --lg-specular:  inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --lg-shadow:    0 8px 28px rgba(31, 26, 22, 0.12);
+}
+/* The view controls float as a glass bar and stay pinned while the grid
+ * or stage scrolls underneath — the one place blur earns its keep on
+ * the directory. */
+.alch-view-controls {
+  position: sticky;
+  top: 2px;
+  z-index: 6;
+  padding: 9px 14px;
+  margin: 2px 0 16px;
+  border: 1px solid var(--lg-border);
+  border-bottom: 1px solid var(--lg-border);
+  border-radius: 12px;
+  background: var(--lg-bg);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+/* Inspector + generated/selected readouts share one glass panel family —
+ * consistent box language across map, journey, stack, and people. */
+.ac-inspector,
+.ac-main-readout {
+  border: 1px solid var(--lg-border);
+  border-radius: 12px;
+  background:
+    linear-gradient(112deg, rgba(180, 58, 25, 0.10), transparent 52%),
+    var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+/* Floating tooltips are pure glass. */
+.alch-constellation-stage .ac-tip {
+  border: 1px solid var(--lg-border);
+  border-radius: 10px;
+  background: var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+/* Every constellation stage sits in the same material panel as the
+ * dossier — one box language across all cohort views. */
+.alch-constellation-stage {
+  border: 1px solid rgba(241, 236, 231, 0.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(112deg, rgba(180, 58, 25, 0.06), transparent 50%),
+    rgba(28, 25, 25, 0.45);
+}
+html[data-theme="light"] .alch-constellation-stage {
+  border-color: rgba(27, 20, 17, 0.12);
+  background: linear-gradient(180deg, #FFFFFF 0%, #F6F1E9 100%);
 }
 .alch-detail-rail {
   min-width: 0;
-  padding: 28px 28px 28px 0;
-  border-right: 1px solid var(--ed-rule, var(--alchemy-rule));
+  padding: 20px;
+  border-right: 1px solid rgba(241, 236, 231, 0.11);
+  background: linear-gradient(180deg, rgba(13, 12, 10, 0.42), rgba(13, 12, 10, 0.14));
 }
 .alch-detail-rail .alch-detail-shape {
   width: min(100%, 220px);
@@ -20421,10 +20602,10 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
 }
 .alch-detail-ledger {
   min-width: 0;
-  padding: 28px 0 32px 32px;
+  padding: 20px 24px 28px;
   display: grid;
   align-content: start;
-  gap: 22px;
+  gap: 20px;
 }
 .alch-ledger-head .alch-detail-h {
   margin: 0;
@@ -20472,13 +20653,13 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   min-height: 24px;
   max-width: min(100%, 62ch);
   padding: 3px 8px;
-  border: 1px solid var(--ed-rule-2, var(--alchemy-rule));
+  border: 1px solid rgba(var(--ink-rgb), 0.16);
   border-radius: 4px;
   background: rgba(var(--ink-rgb), 0.018);
   color: var(--ed-ink-1, var(--alchemy-paper-warm));
   font-family: var(--ed-mono, var(--font-mono));
-  font-size: 11px;
-  line-height: 1.3;
+  font-size: 12px;
+  line-height: 1.25;
   overflow-wrap: anywhere;
   text-decoration: none;
 }
@@ -20488,13 +20669,13 @@ button.alch-quick-link {
 }
 .alch-quick-link:hover,
 .alch-quick-link:focus-visible {
-  color: var(--ed-ink-1, var(--alchemy-oxide-bright));
-  border-color: var(--ed-ink-1, var(--alchemy-oxide-bright));
-  background: rgba(var(--ink-rgb), 0.045);
+  color: var(--alchemy-oxide-hot, #d05332);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 55%, transparent);
+  background: rgba(180, 58, 25, 0.08);
 }
 .alch-quick-text {
   color: var(--ed-ink-2, var(--alchemy-ink));
-  border-color: var(--ed-rule, var(--alchemy-rule));
+  border-color: rgba(var(--ink-rgb), 0.11);
 }
 .alch-quick-text span,
 .alch-quick-pill span {
@@ -20526,6 +20707,17 @@ button.alch-quick-link {
   min-height: 0;
   padding: 8px 0;
 }
+/* Multi-item values: short pills (stage / evidence / upside…) share a
+ * line; prose items each own a full row. Two long items flowing inline
+ * produced a ragged fake second column (the "provides" rows). */
+.alch-team-quick .alch-quick-v {
+  column-gap: 16px;
+  row-gap: 5px;
+}
+.alch-team-quick .alch-quick-text {
+  flex: 1 1 100%;
+  max-width: 72ch;
+}
 .alch-team-quick .alch-quick-link,
 .alch-team-quick .alch-quick-pill,
 .alch-team-quick .alch-quick-text {
@@ -20545,6 +20737,32 @@ button.alch-quick-link {
 .alch-priority-stack {
   gap: 0;
 }
+/* Flat section — the dossier's default block (2026-06 restyle): same
+ * hairline + small-label language as the disclosure, but content simply
+ * visible. Nothing about it suggests clicking. */
+.alch-detail-flat {
+  border: 0;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
+  border-radius: 0;
+  background: transparent;
+  padding: 16px 0 6px;
+  position: relative;
+}
+.alch-detail-flat::before {
+  display: none; /* the section-generation gradient hairline would double the border-top */
+}
+.alch-flat-label {
+  margin: 0 0 12px;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10.5px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: rgba(var(--ink-rgb), 0.58);
+}
+.alch-detail-flat .alch-section-body {
+  animation: none;
+}
+
 .alch-detail-disclosure {
   border: 0;
   border-top: 1px solid var(--ed-rule, var(--alchemy-rule));
@@ -20672,19 +20890,26 @@ button.alch-quick-link {
   }
 }
 
-/* ─── unified page intro — boxed explainer at the top of each OS page ── */
+/* ─── unified page intro — floating top-right action slot ──────────── */
+/* The boxed explainer text was removed (2026-06) as clutter; the row now
+ * only renders on pages with a functional element to keep top-right
+ * (theme toggle, per-view side actions). It floats out of the flow so it
+ * adds no height — every page's content starts at the same y (the
+ * canvas's 24px top padding). top/right match the standard canvas
+ * padding (24px top; 56px right — cohort/constellation canvases reach
+ * the same 56px via narrower padding + the old strip margin). */
 /* Doubled class beats later-loading per-page rules (e.g. intel.css) on ties. */
 .alch-page-intro.alch-page-intro {
+  position: absolute;
+  top: 24px;
+  right: 56px;
+  z-index: 5;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   box-sizing: border-box;
-  min-height: 64px;
-  border: 1px solid var(--alchemy-rule);
-  border-radius: 4px;
-  padding: 10px 16px;
-  margin: 0 0 24px;
+  margin: 0;
   font-family: var(--font-sans);
   font-size: 13px;
   letter-spacing: 0.01em;
@@ -20698,33 +20923,36 @@ button.alch-quick-link {
  * as floating in dead space. */
 .alchemy-canvas:has(.alch-onb-steps) .alch-callout { margin-left: 0; margin-right: 0; }
 .alchemy-canvas:has(.alch-seal-section) .alch-callout { margin-left: 0; margin-right: 0; max-width: none; }
-/* An intro strip with no text yet keeps its reserved space (same height +
- * spacing as every other page) but hides the rectangle. Adding text to the
- * div makes the outline appear automatically. */
-.alch-page-intro.alch-page-intro:empty { border-color: transparent; }
-/* Constellation + cohort-page canvases use narrower padding (34/32; 28/28
- * under 1180px) for the graph — offset the strip so its edges land at the
- * same 56px as every other page. */
-.alchemy-canvas:has(.alch-constellation) .alch-page-intro,
-.alchemy-canvas:has(.alch-cohort-page) .alch-page-intro { margin-left: 22px; margin-right: 24px; }
-@media (max-width: 1180px) {
-  .alchemy-canvas:has(.alch-constellation) .alch-page-intro,
-  .alchemy-canvas:has(.alch-cohort-page) .alch-page-intro { margin-left: 28px; margin-right: 28px; }
-}
-/* Membrane is a full-bleed stage with zero canvas padding — give the strip
- * explicit margins matching the standard page padding, above the scene. */
-.membrane-host .membrane-page-intro { position: relative; z-index: 6; margin: 24px 56px 0; }
 
-/* ── what's new — Slack-style unread on the OS rail ──────────────────
- * A rail page whose cohort content changed since the user last viewed
- * it renders at full ink, exactly like a Slack/Discord channel with new
- * messages. Color only — no badges, no dots, no text. `.ar-unread` is
- * toggled by alchemy.js (updateRailUnread, fed by whats-new.js) and
- * settles back once the page is actually viewed. Uses the same theme
- * vars as the selected state, so light mode is covered for free. */
-.alchemy-rail-btn.ar-unread { opacity: var(--ed-op-loud); }
-.primary-nav .alchemy-rail-btn.ar-unread .ar-label { color: var(--ink-hi) !important; }
-.primary-nav .alchemy-rail-btn.ar-unread .ar-num   { opacity: 1 !important; }
+/* ── what's new — numbered unread badges on the OS rail ──────────────
+ * A rail page whose content changed since the user last viewed it gets
+ * a small numbered circle in the gutter LEFT of its icon — the count of
+ * new/changed records. The icon and label stay exactly where they are:
+ * the badge is absolutely positioned into the rail's 40px left padding.
+ * `.ar-unread` + the badge element are managed by alchemy.js
+ * (updateRailUnread, fed by whats-new.js) and clear once the page is
+ * actually viewed. overflow must be visible so the badge can escape the
+ * button box into the gutter (base rule clips it). */
+.primary-nav .alchemy-rail-btn { overflow: visible !important; }
+.alchemy-rail-btn .ar-unread-badge {
+  position: absolute;
+  left: -26px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--ink-hi);
+  color: var(--ed-bg-0);
+  font-family: var(--sr-font-mono);
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 13px;
+  text-align: center;
+}
 
 /* Program tab icons — same stroke-icon language as the rail/view navs. */
 .alch-prog-tab-icon { display: inline-flex; align-items: center; align-self: center; opacity: 0.60; }

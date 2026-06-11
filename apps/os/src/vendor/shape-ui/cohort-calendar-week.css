@@ -126,7 +126,7 @@
  * page-title. In day view, the day's own "WEDNESDAY 20" header takes
  * over that role, so the masthead can stay light and navigational. */
 .cal-masthead {
-  margin: 16px 0 24px;
+  margin: 0 0 24px;
   border-top: 1px solid var(--ed-rule-2);
   border-bottom: 1px solid var(--ed-rule-2);
 }
@@ -1181,7 +1181,7 @@
   /* Masthead at phone width: tabs on row 1 (with nav on the same row,
    * left/right), scrubber on row 2 full-width, dateline as a stacked
    * pair below. Hairlines stay so it still reads as one block. */
-  .cal-masthead { margin: 10px 0 14px; }
+  .cal-masthead { margin: 0 0 14px; }
   .cal-masthead-rail { padding: 10px 0 12px; gap: 12px; }
   .cal-subtabs { gap: 16px; }
   .cal-subtab { padding: 4px 0 6px; }

@@ -94,6 +94,11 @@ function normalizeLocation(loc) {
   if (loc.tab === "alchemy" && loc.mode === "intel") {
     return { ...loc, mode: "context", contextView: "signals" };
   }
+  // calendar2 graduated to THE calendar (2026-06) — old trial tabs reopen
+  // on the calendar page.
+  if (loc.tab === "alchemy" && loc.mode === "calendar2") {
+    return { ...loc, mode: "calendar" };
+  }
   return loc;
 }
 

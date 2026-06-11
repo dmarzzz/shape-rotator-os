@@ -85,6 +85,15 @@ const CAL_PROGRAM_END_D   = new Date(PROGRAM_END_MS);
 // ── Date helpers (UTC-anchored to avoid TZ drift) ─────────────────────
 function isoToDate(s) {
   if (!s) return null;
+  // js-yaml (the live GitHub cohort load) parses ISO dates into Date
+  // objects, while the bundled surface carries ISO strings. Accept both:
+  // String(Date) is "Wed May 18 2026 …", which the regex below can't
+  // read, and a silent null here erases every presence bar + the
+  // headcount strip (see whats-new.js's stableStringify for the same
+  // dual-shape issue on the fingerprint side).
+  if (s instanceof Date) {
+    return isNaN(s) ? null : new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate()));
+  }
   const m = String(s).match(/(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return null;
   return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
@@ -373,26 +382,32 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
     ctx.fillStyle = "rgba(245, 243, 238, 0.05)";
     ctx.fillRect(x, CAL_HEADER_H - 18, CAL_DAY_W, gridH + 18);
     const grad = ctx.createLinearGradient(x - 6, 0, x + CAL_DAY_W + 6, 0);
-    grad.addColorStop(0,   "rgba(196, 64, 37, 0)");
-    grad.addColorStop(0.5, "rgba(196, 64, 37, 0.10)");
-    grad.addColorStop(1,   "rgba(196, 64, 37, 0)");
+    grad.addColorStop(0,   "rgba(245, 243, 238, 0)");
+    grad.addColorStop(0.5, "rgba(245, 243, 238, 0.07)");
+    grad.addColorStop(1,   "rgba(245, 243, 238, 0)");
     ctx.fillStyle = grad;
     ctx.fillRect(x - 6, CAL_HEADER_H - 18, CAL_DAY_W + 12, gridH + 18);
     const xc = x + CAL_DAY_W / 2;
-    ctx.strokeStyle = "rgba(196, 64, 37, 0.85)";
+    // Today line in ink (white on dark, dark on paper) — the red puck above
+    // already carries the accent; a red line through the bars read as alarm.
+    ctx.strokeStyle = CAL_INK_1;
+    ctx.globalAlpha = 0.85;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(xc, CAL_HEADER_H - 6);
     ctx.lineTo(xc, CAL_HEADER_H + gridH);
     ctx.stroke();
-    ctx.fillStyle = CAL_OXIDE;
+    ctx.globalAlpha = 1;
+    // Puck in ink too — the whole today marker reads white-on-dark
+    // (dark-on-paper in light mode), no red anywhere in the gantt.
+    ctx.fillStyle = CAL_INK_1;
     const puckW = 50;
     const puckH = 16;
     const puckX = Math.max(gridX, xc - puckW / 2);
     const puckY = CAL_HEADER_H - 18;
     roundRect(ctx, puckX, puckY, puckW, puckH, 8);
     ctx.fill();
-    ctx.fillStyle = "#0a0908";
+    ctx.fillStyle = CAL_BG;
     ctx.font = `600 9px "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
@@ -401,14 +416,14 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
   } else if (dayIdx < 0) {
     const daysUntil = -dayIdx;
     const label = `T-${daysUntil} day${daysUntil === 1 ? "" : "s"}`;
-    ctx.fillStyle = CAL_OXIDE;
+    ctx.fillStyle = CAL_INK_1;
     const puckW = ctx.measureText ? Math.max(72, label.length * 8 + 24) : 96;
     const puckH = 16;
     const puckX = gridX + 6;
     const puckY = CAL_HEADER_H - 18;
     roundRect(ctx, puckX, puckY, puckW, puckH, 8);
     ctx.fill();
-    ctx.fillStyle = "#0a0908";
+    ctx.fillStyle = CAL_BG;
     ctx.font = `600 9px "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
@@ -464,7 +479,7 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
   ctx.globalAlpha = 0.85;
   ctx.fillText("absent", absX + 36, legY);
   const todX = absX + 90;
-  ctx.strokeStyle = CAL_OXIDE;
+  ctx.strokeStyle = CAL_INK_1;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(todX + 8, legY - 8);

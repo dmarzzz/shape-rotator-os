@@ -605,7 +605,6 @@ export function mountMembrane(container, opts = {}) {
   container.classList.add('membrane-host');
 
   container.innerHTML = `
-    <div class="alch-page-intro membrane-page-intro"></div>
     <div class="membrane-stage">
       <div class="membrane-atmosphere" aria-hidden="true">
         <div class="ma-throne-presence"></div>

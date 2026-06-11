@@ -1690,6 +1690,16 @@ function initAutoUpdater() {
     const { autoUpdater } = require("electron-updater");
     autoUpdater.autoDownload = false;          // wait for explicit user click
     autoUpdater.autoInstallOnAppQuit = true;   // apply on next quit if downloaded
+    // electron-updater auto-enables allowPrerelease when the CURRENT version
+    // carries a prerelease tag — and its GitHub provider then locks updates
+    // to the same custom channel ("rc" only ever sees "rc"), so rc users
+    // could never reach a stable release (every v0.3.0-rc.x install was
+    // walled off from v0.3.1 this way). This project gates releases with
+    // GitHub's "Latest" marker instead of updater channels, so force the
+    // stable resolution path everywhere. The singleton means this covers
+    // the IPC handlers' require() calls too, but they re-assert it anyway
+    // in case a check fires before init.
+    autoUpdater.allowPrerelease = false;
     autoUpdater.on("error", (err) => process.stderr.write(`[viz:warn] updater error: ${err && err.message}\n`));
     autoUpdater.on("update-available", (info) => process.stderr.write(`[viz:log] update available: ${info && info.version}\n`));
     autoUpdater.on("update-not-available", () => process.stderr.write(`[viz:log] no update available\n`));
@@ -1731,6 +1741,7 @@ ipcMain.handle("fg:check-update", async () => {
   }
   try {
     const { autoUpdater } = require("electron-updater");
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
     const result = await autoUpdater.checkForUpdates();
     const latest = result?.updateInfo?.version || null;
     const available = !!latest && latest !== app.getVersion();
@@ -1744,6 +1755,7 @@ ipcMain.handle("fg:apply-update", async () => {
   if (!app.isPackaged) return { ok: false, reason: "dev_mode" };
   try {
     const { autoUpdater } = require("electron-updater");
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
     await autoUpdater.downloadUpdate();
     return { ok: true, detail: "downloaded · will install on next quit (or click 'install + restart' to apply now)" };
   } catch (e) {
@@ -1755,6 +1767,7 @@ ipcMain.handle("fg:apply-update-and-restart", async () => {
   if (!app.isPackaged) return { ok: false, reason: "dev_mode" };
   try {
     const { autoUpdater } = require("electron-updater");
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
     // isSilent=true → install with no NSIS wizard (the same seamless swap the
     // autoInstallOnAppQuit path already does); isForceRunAfter=true → relaunch
     // when the install finishes. One click: install + reopen, no file, no UI.
@@ -1867,6 +1880,7 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
   let updateInfo = null;
   try {
     const { autoUpdater } = require("electron-updater");
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
     const result = await autoUpdater.checkForUpdates();
     updateInfo = result?.updateInfo || null;
     version = String(updateInfo?.version || "").replace(/^v/, "");

@@ -7,6 +7,8 @@ import {
   renderProfileForm,
   shapeForTeam,
   domainLabel,
+  cohortRosterForTeam,
+  compactCohortLinkItems,
 } from "@shape-rotator/shape-ui";
 
 const TEAM_CHIPS = [
@@ -230,6 +232,20 @@ function renderProofRead(rec) {
   return renderProse(sentences.join("\n\n"));
 }
 
+// Flat section — same hairline + label language as the disclosure, but
+// the content is simply visible. The dossier reads top to bottom; only
+// the long tail (timeline) stays collapsible. Mirrors the Electron app.
+function renderFlatSection(title, body, extraClass = "") {
+  const cleaned = asArray(body).join("");
+  if (!cleaned.trim()) return "";
+  return `
+    <section class="cd-section cd-section-flat ${extraClass}">
+      <div class="cd-flat-label">${escHtml(title)}</div>
+      <div class="cd-section-body">${cleaned}</div>
+    </section>
+  `;
+}
+
 function renderSection(title, body, open = false, preview = "") {
   const cleaned = asArray(body).join("");
   if (!cleaned.trim()) return "";
@@ -364,24 +380,6 @@ function cohortDetailHref(recordId) {
   return `#${encodeURIComponent(recordId || "")}`;
 }
 
-function prettyLinkLabel(key) {
-  const labels = {
-    github: "GitHub",
-    repo: "Repo",
-    repository: "Repo",
-    website: "Website",
-    site: "Website",
-    demo: "Demo",
-    docs: "Docs",
-    deck: "Deck",
-    linkedin: "LinkedIn",
-    x: "X",
-    twitter: "X",
-  };
-  const k = String(key || "").toLowerCase();
-  return labels[k] || labelize(k || "link").replace(/\b\w/g, c => c.toUpperCase());
-}
-
 function compactPills(items) {
   const rows = asArray(items)
     .map(item => String(item || "").trim())
@@ -428,42 +426,16 @@ function compactPills(items) {
   }
 
   function teamPeopleFor(teamId) {
-    return people.filter(p =>
-      p.team === teamId || asArray(p.secondary_teams).includes(teamId)
-    );
+    return cohortRosterForTeam(people, teamId);
   }
 
   function surfaceLinkAnchors(links = {}) {
-    return Object.entries(links || {})
-      .filter(([, value]) => !isBlank(value))
-      .map(([key, value]) => {
-        const href = normalizeLinkHref(key, value);
-        const label = prettyLinkLabel(key);
-        if (!href) return `<span>${escHtml(label)}</span>`;
-        return `<a href="${escAttr(href)}" target="_blank" rel="noopener noreferrer">${escHtml(label)}</a>`;
-      });
-  }
-
-  function stageLineHtml(rec) {
-    const journey = journeySummary(rec);
-    if (!journey) return "";
-    const ticks = JOURNEY_STAGE_LABELS.map((_, i) =>
-      `<i${i <= journey.stage ? ' class="on"' : ""}></i>`
-    ).join("");
-    return `<span class="sr-stage" title="stage ${journey.stage} of ${JOURNEY_STAGE_LABELS.length - 1} — ${escAttr(journey.stageLabel)}">
-      <span class="sr-stage-ticks" aria-hidden="true">${ticks}</span>
-      <span class="sr-stage-label">${escHtml(journey.stageLabel)}</span>
-    </span>`;
+    return compactCohortLinkItems({ links })
+      .map(item => `<a href="${escAttr(item.href)}" target="_blank" rel="noopener noreferrer" title="${escAttr(item.display)}">${escHtml(item.label)}</a>`);
   }
 
   function renderSurfaceRoutes(rec, isPerson, team, members) {
     const rows = [];
-    // Journey stage micro-mark first — "where are they?" is the grid's
-    // missing decision layer; ticks mark progress, label names the stage.
-    if (!isPerson) {
-      const stage = stageLineHtml(rec);
-      if (stage) rows.push({ label: "stage", items: [stage] });
-    }
     if (isPerson && team) {
       rows.push({
         label: "team",
@@ -502,7 +474,9 @@ function compactPills(items) {
     const members = isPerson ? [] : teamPeopleFor(rec.record_id);
     const title = rec.name || rec.record_id;
     const subtitle = isPerson
-      ? (rec.role || team?.name || labelize(rec.role_class || "individual"))
+      ? (team && rec.role
+        ? `${team.name || team.record_id} · ${rec.role}`
+        : (team?.name || rec.role || labelize(rec.role_class || "individual")))
       : (rec.focus || rec.record_id);
     const tags = isPerson
       ? [idLabel, labelize(rec.role_class || rec.role || "individual"), rec.domain ? domainLabel(rec.domain) : "", rec.geo].filter(Boolean)
@@ -651,7 +625,7 @@ function compactPills(items) {
           <div class="cd-rail-list">
             ${rec.domain ? `<div><span>domain</span>${escHtml(domainLabel(rec.domain))}</div>` : ""}
             ${rec.geo ? `<div><span>geo</span>${escHtml(rec.geo)}</div>` : ""}
-            ${memberLinks ? `<div><span>${kind === "project" ? "contributors" : "members"}</span><span class="cd-rail-members">${memberLinks}</span></div>` : ""}
+            ${memberLinks ? `<div><span>${kind === "project" ? "contributors" : "team"}</span><span class="cd-rail-members">${memberLinks}</span></div>` : ""}
             ${rec.membership ? `<div><span>status</span>${escHtml(labelize(rec.membership))}</div>` : ""}
           </div>
         </div>
@@ -681,7 +655,7 @@ function compactPills(items) {
     );
     // (No "team context" quick row — the rail's team token owns that fact;
     // the team's focus lives one click away on its dossier.)
-    const bioSection = renderSection("about / bio", renderProse(rec.bio_md), true, "profile context");
+    const bioSection = renderFlatSection("about / bio", renderProse(rec.bio_md));
     const currentRows = [
       renderRow("now", rec.now),
       renderRow("weekly intention", rec.weekly_intention),
@@ -709,18 +683,18 @@ function compactPills(items) {
         ${bioSection ? `<div class="cd-section-stack cd-priority-stack">${bioSection}</div>` : ""}
         <div class="cd-quick">${explore}${askMeAbout}${themes}</div>
         <div class="cd-section-stack">
-          ${renderSection("current read", currentRows, true, previewSnippet(rec.now) || "now, weekly intention")}
-          ${renderSection("working with", workingRows, false, previewSnippet(rec.comm_style || rec.availability_pref) || "style, availability, seeks")}
-          ${renderSection("proof / prior work", proofRead, false, previewSnippet(rec.prior_work) || "shipping, lineage")}
+          ${renderFlatSection("current read", currentRows)}
+          ${renderFlatSection("working with", workingRows)}
+          ${renderFlatSection("proof / prior work", proofRead)}
+          ${renderFlatSection("routes / asks", routeRows)}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems), false, timelinePreview(timelineItems))}
-          ${renderSection("routes / asks", routeRows, false, previewSnippet(secondary.map(t => t.name || t.record_id)) || "other teams, asks")}
         </div>
       </section>
     `;
   }
 
   function renderTeamDetail(rec, editUrl, fam, kind) {
-    const teamPeople = people.filter(p => p.team === rec.record_id);
+    const teamPeople = teamPeopleFor(rec.record_id);
     const memberClusters = (cohort.clusters || []).filter(cl =>
       Array.isArray(cl.teams) && cl.teams.includes(rec.record_id)
     );
@@ -730,12 +704,12 @@ function compactPills(items) {
     const nextMove = renderQuickRow("next move", [
       quickText("", rec.now || journey?.next),
     ]);
-    const needs = renderQuickRow("needs",
-      asArray(rec.seeking).slice(0, 2).map(value => quickText("", value))
-    );
-    const provides = renderQuickRow("provides",
-      asArray(rec.offering).slice(0, 2).map(value => quickText("", value))
-    );
+    // (needs / provides quick rows retired — the flat "coordination" block
+    // shows the full seeking/offering lists in the same frame.)
+    const coordinationRows = [
+      renderRow("seeking", rec.seeking),
+      renderRow("offering", rec.offering),
+    ];
     const guild = renderQuickRow("guild",
       memberClusters.map(cl => quickText("", cl.label))
     );
@@ -781,10 +755,11 @@ function compactPills(items) {
         <div class="cd-ledger-head">
           <span class="cd-h">${escHtml(kind)} read</span>
         </div>
-        <div class="cd-quick cd-team-quick">${nextMove}${needs}${provides}${guild}${trajectory}${routes}${explore}</div>
+        <div class="cd-quick cd-team-quick">${nextMove}${guild}${trajectory}${routes}${explore}</div>
         <div class="cd-section-stack">
-          ${renderSection("trajectory", trajectoryRows, false, previewSnippet(journey?.problem || journey?.icp) || "who for, problem, solution")}
-          ${renderSection("evidence", evidenceRows, true, previewSnippet(rec.traction) || "traction, paper, shipping")}
+          ${renderFlatSection("positioning", trajectoryRows)}
+          ${renderFlatSection("evidence", evidenceRows)}
+          ${renderFlatSection("coordination", coordinationRows)}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems), false, timelinePreview(timelineItems))}
         </div>
       </section>
@@ -802,8 +777,6 @@ function compactPills(items) {
         <a class="cd-back" href="#" aria-label="back to grid"><span aria-hidden="true">&lt;-</span> back</a>
         <div class="cd-tag">
           <span>${escHtml(String(rec.record_id || "").toUpperCase())}</span>
-          <span class="cd-sep">/</span>
-          <span class="cd-kind cd-kind-${escAttr(shapeKind)}">${escHtml(shapeKind)}</span>
         </div>
         <div class="cd-actions">
           <button class="cd-edit" type="button" data-edit-toggle>edit details</button>
