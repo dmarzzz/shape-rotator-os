@@ -18096,17 +18096,27 @@ html[data-theme="light"] .cb-headrow {
  * the oxide cohort hairline is kept since it reads on both themes. */
 html[data-theme="light"] .alch-card {
   background: linear-gradient(180deg, #FFFFFF 0%, #F4EFE6 100%);
-  border-top-color: rgba(var(--ink-rgb), 0.10);
+  border-color: rgba(var(--ink-rgb), 0.12);
 }
 html[data-theme="light"] .alch-card:hover {
   background: linear-gradient(180deg, #FFFFFF 0%, #EFE8DD 100%);
-  border-top-color: rgba(var(--ink-rgb), 0.22);
+  border-color: rgba(var(--ink-rgb), 0.24);
 }
 html[data-theme="light"] .alch-card-membership-cohort {
   background: linear-gradient(180deg, #FCF7F1 0%, #F3EADF 100%);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 36%, transparent);
 }
 html[data-theme="light"] .alch-card-membership-cohort:hover {
   background: linear-gradient(180deg, #FFFFFF 0%, #F1E6D9 100%);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, transparent);
+}
+/* Dossier panel — same paper treatment as the cards in light mode. */
+html[data-theme="light"] .alch-detail-dossier {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F6F1E9 100%);
+  border-color: rgba(var(--ink-rgb), 0.12);
+}
+html[data-theme="light"] .alch-card-now {
+  background: color-mix(in srgb, #FFFFFF 95%, transparent);
 }
 
 /* Collab board adjacency matrix — the sticky column-header row hardcodes a
@@ -19866,8 +19876,13 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   display: grid;
   grid-template-columns: minmax(230px, 320px) minmax(0, 1fr);
   min-height: 0;
-  border-top: 1px solid var(--ed-rule, var(--alchemy-rule));
-  border-bottom: 1px solid var(--ed-rule, var(--alchemy-rule));
+  /* Warm specimen panel (2026-06 restyle): the dossier sits in the same
+   * rounded warm-brown frame as the directory cards instead of bleeding
+   * into the near-black page. */
+  background: linear-gradient(180deg, #281f18 0%, #211a14 100%);
+  border: 1px solid rgba(241, 236, 231, 0.08);
+  border-radius: 14px;
+  padding: 4px 28px;
 }
 .alch-detail-rail {
   min-width: 0;
@@ -20105,6 +20120,32 @@ button.alch-quick-link {
 .alch-priority-stack {
   gap: 0;
 }
+/* Flat section — the dossier's default block (2026-06 restyle): same
+ * hairline + small-label language as the disclosure, but content simply
+ * visible. Nothing about it suggests clicking. */
+.alch-detail-flat {
+  border: 0;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
+  border-radius: 0;
+  background: transparent;
+  padding: 16px 0 6px;
+  position: relative;
+}
+.alch-detail-flat::before {
+  display: none; /* the section-generation gradient hairline would double the border-top */
+}
+.alch-flat-label {
+  margin: 0 0 12px;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10.5px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: rgba(var(--ink-rgb), 0.58);
+}
+.alch-detail-flat .alch-section-body {
+  animation: none;
+}
+
 .alch-detail-disclosure {
   border: 0;
   border-top: 1px solid var(--ed-rule, var(--alchemy-rule));

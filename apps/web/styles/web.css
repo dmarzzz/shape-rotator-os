@@ -1240,6 +1240,25 @@ body.links-page-body .hero-tagline {
   letter-spacing: 0;
   text-transform: none;
 }
+/* Flat section — the dossier's default block: hairline + small label,
+ * content simply visible; nothing suggests clicking. */
+.cd-section-flat {
+  border: 0;
+  border-top: 1px solid rgba(241, 236, 231, 0.08);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-4) 0 var(--space-2);
+}
+.cd-flat-label {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.cd-section-flat .cd-section-body { animation: none; }
+
 .cd-section-mark {
   color: rgba(241, 236, 231, 0.46);
   font-size: var(--t-12);

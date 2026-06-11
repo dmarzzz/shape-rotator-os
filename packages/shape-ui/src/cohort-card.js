@@ -33,50 +33,25 @@ function hashStr(s) {
 
 function teamKind(t) { return (t && t.kind) || "team"; }
 
-// Journey stage vocabulary — mirrors JOURNEY_STAGE_LABELS in
-// apps/os/src/renderer/alchemy.js and apps/web/scripts/cohort.js (the
-// detail surfaces). Kept module-local so the card stays dependency-free;
-// if the canonical list changes, change all three.
-const STAGE_LABELS = [
-  "side project",
-  "idea",
-  "problem discovery",
-  "problem-solution fit",
-  "mvp / product validation",
-  "early traction",
-  "emerging pmf",
-  "strong pmf",
-  "scale fit",
-];
-
-// Stage micro-mark: nine ticks filled to the journey stage, plus the
-// stage's name. Readable at rest (the mark answers "where are they?");
-// the title attribute carries the exact reading on hover.
-function stageRowHtml(t) {
-  const journey = t && typeof t.journey === "object" && t.journey ? t.journey : null;
-  if (!journey) return "";
-  const n = Number(journey.stage);
-  if (!Number.isFinite(n)) return "";
-  const stage = Math.max(0, Math.min(STAGE_LABELS.length - 1, Math.trunc(n)));
-  const label = STAGE_LABELS[stage] || "idea";
-  const ticks = STAGE_LABELS.map((_, i) => `<i${i <= stage ? ' class="on"' : ""}></i>`).join("");
-  return `
-    <div class="alch-card-meta-row alch-card-stage-row">
-      <span class="cm-k">stage</span>
-      <span class="cm-v"><span class="sr-stage" title="stage ${stage} of ${STAGE_LABELS.length - 1} — ${escAttr(label)}">
-        <span class="sr-stage-ticks" aria-hidden="true">${ticks}</span>
-        <span class="sr-stage-label">${escHtml(label)}</span>
-      </span></span>
-    </div>`;
-}
-
-// Hover layer: the record's `now` line, revealed over the shape area so
-// the card's footprint never shifts. Glance = card, hover = what they're
+// Hover layer: the record's `now` line, revealed over the card head (the
+// sigil + name zone — known information) so it never covers the
+// actionable member/link rows below. Glance = card, hover = what they're
 // doing this week, click = full dossier.
 function nowOverlayHtml(rec) {
   const now = String(rec?.now || "").trim();
   if (!now) return "";
   return `<div class="alch-card-now"><span>now</span>${escHtml(now)}</div>`;
+}
+
+// Compact skill / topic chips along the card foot — same scanning role
+// they played on the original specimen cards.
+function cardChipsHtml(values, max = 3) {
+  const items = (Array.isArray(values) ? values : [])
+    .map(v => String(v || "").trim())
+    .filter(Boolean)
+    .slice(0, max);
+  if (!items.length) return "";
+  return `<div class="alch-card-chips">${items.map(v => `<span>${escHtml(v)}</span>`).join("")}</div>`;
 }
 
 function compactGithubLabel(value) {
@@ -158,17 +133,21 @@ export function teamCardHtml(t, idx, ctx = {}) {
       : "");
   return `
     <article class="${cardCls}" data-record-id="${escHtml(t.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(t.name)} — open detail">
-      <div class="alch-card-shape"><canvas data-shape-fam="${s ? s.fam : 0}" data-shape-kind="${escAttr(kind)}" data-shape-scale="1.1" data-shape-seed="${escAttr(t.record_id)}"></canvas>${nowOverlayHtml(t)}</div>
-      <div class="alch-card-name">${escHtml(t.name)}</div>
-      <div class="alch-card-domain">${escHtml(domainLabel(t.domain))}</div>
-      <div class="alch-card-rule"></div>
+      <div class="alch-card-head">
+        <div class="alch-card-shape"><canvas data-shape-fam="${s ? s.fam : 0}" data-shape-kind="${escAttr(kind)}" data-shape-scale="1.1" data-shape-seed="${escAttr(t.record_id)}"></canvas></div>
+        <div class="alch-card-title">
+          <div class="alch-card-name">${escHtml(t.name)}</div>
+          ${t.focus ? `<p class="alch-card-sub">${escHtml(t.focus)}</p>` : ""}
+          <div class="alch-card-domain">${escHtml(domainLabel(t.domain))}</div>
+        </div>
+      </div>
       <div class="alch-card-meta">
-        <div class="alch-card-meta-row"><span class="cm-k">focus</span><span class="cm-v">${escHtml(t.focus)}</span></div>
-        ${stageRowHtml(t)}
         <div class="alch-card-meta-row"><span class="cm-k">geo</span><span class="cm-v">${escHtml(t.geo)}</span></div>
         ${membersRow}
         ${links.join("")}
       </div>
+      ${cardChipsHtml(t.skill_areas)}
+      ${nowOverlayHtml(t)}
     </article>`;
 }
 
@@ -207,15 +186,21 @@ export function personCardHtml(p, idx, ctx = {}) {
   const roleClass = p.role_class || "visiting-scholar";
   return `
     <article class="alch-card is-clickable alch-card-person alch-card-role-${escAttr(roleClass)}" data-record-id="${escHtml(p.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(p.name)} — open profile">
-      <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.1" data-shape-seed="${escAttr(p.record_id)}"></canvas>${nowOverlayHtml(p)}</div>
-      <div class="alch-card-name">${escHtml(p.name)}</div>
-      <div class="alch-card-rule"></div>
+      <div class="alch-card-head">
+        <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.1" data-shape-seed="${escAttr(p.record_id)}"></canvas></div>
+        <div class="alch-card-title">
+          <div class="alch-card-name">${escHtml(p.name)}</div>
+          ${p.role ? `<p class="alch-card-sub">${escHtml(p.role)}</p>` : ""}
+          ${p.domain ? `<div class="alch-card-domain">${escHtml(domainLabel(p.domain))}</div>` : ""}
+        </div>
+      </div>
       <div class="alch-card-meta">
-        <div class="alch-card-meta-row"><span class="cm-k">role</span><span class="cm-v">${escHtml(p.role || "—")}</span></div>
         ${teamLabel ? `<div class="alch-card-meta-row"><span class="cm-k">team</span><span class="cm-v">${escHtml(teamLabel)}</span></div>` : ""}
         <div class="alch-card-meta-row"><span class="cm-k">geo</span><span class="cm-v">${escHtml(p.geo || "—")}</span></div>
         ${links.join("")}
       </div>
+      ${cardChipsHtml(p.go_to_them_for)}
+      ${nowOverlayHtml(p)}
     </article>`;
 }
 

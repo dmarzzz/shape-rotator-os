@@ -11743,6 +11743,20 @@ function renderDisclosureSection(title, body, open = false, preview = "", extraC
   `;
 }
 
+// Flat section — same visual language as the disclosure (hairline + small
+// label) but the content is simply VISIBLE. The dossier reads top to
+// bottom like a document; only the long tail (timeline) stays collapsible.
+function renderFlatSection(title, body, extraClass = "") {
+  const cleaned = detailHtmlParts(body);
+  if (!cleaned.trim()) return "";
+  return `
+    <section class="alch-detail-section alch-detail-flat ${extraClass}">
+      <div class="alch-flat-label">${escHtml(title)}</div>
+      <div class="alch-section-body">${cleaned}</div>
+    </section>
+  `;
+}
+
 function detailQuickRow(label, items, extraClass = "") {
   const html = (items || []).filter(Boolean).join("");
   if (!html) return "";
@@ -12096,8 +12110,9 @@ function renderTeamDetail(team) {
   const nextMove = detailQuickRow("next move", [
     detailQuickText("", team.now || journey.next_milestone),
   ]);
-  const needs = detailQuickRow("needs", detailItems(team.seeking).slice(0, 2).map(value => detailQuickText("", value)));
-  const provides = detailQuickRow("provides", detailItems(team.offering).slice(0, 2).map(value => detailQuickText("", value)));
+  // (needs / provides quick rows retired — the flat "coordination" block
+  // below now shows the full seeking/offering lists in the same frame;
+  // truncated copies above them were duplicate owners.)
   const guild = detailQuickRow("guild", memberClusters.map(cl => detailQuickText("", cl.label || cl.name || cl.record_id)));
   const trajectory = detailQuickRow("trajectory", [
     detailPill("stage", `${journey.stage} ${journey.stageLabel}`),
@@ -12138,11 +12153,11 @@ function renderTeamDetail(team) {
         <div class="alch-ledger-head">
           <span class="alch-detail-h">${escHtml(kind)} read</span>
         </div>
-        <div class="alch-detail-quick alch-team-quick">${nextMove}${needs}${provides}${guild}${trajectory}${explore}</div>
+        <div class="alch-detail-quick alch-team-quick">${nextMove}${guild}${trajectory}${explore}</div>
         <div class="alch-section-stack">
-          ${renderDisclosureSection("positioning", detailRows(trajectoryRows), false, previewSnippet(journey.problem || journey.icp) || "who for, problem, solution")}
-          ${renderDisclosureSection("evidence", detailRows(evidenceRows), true, previewSnippet(team.traction) || "traction, paper, shipping")}
-          ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, previewSnippet(team.seeking) || "dependencies, seeks, offers")}
+          ${renderFlatSection("positioning", detailRows(trajectoryRows))}
+          ${renderFlatSection("evidence", detailRows(evidenceRows))}
+          ${renderFlatSection("coordination", detailRows(coordinationRows))}
           ${renderRecordTimeline("team", recordId)}
         </div>
       </section>
@@ -12186,7 +12201,7 @@ function renderPersonDetail(person) {
   const links = person.links || {};
   const timelineItems = detailTimelineItems("person", recordId);
   const absences = Array.isArray(person.absences) ? person.absences : [];
-  const bioSection = renderDisclosureSection("about / bio", detailProse(person.bio_md), true, "profile context", "alch-detail-priority");
+  const bioSection = renderFlatSection("about / bio", detailProse(person.bio_md), "alch-detail-priority");
   const explore = detailQuickRow("explore", [
     detailQuickLink("GitHub", detailLinkForKey(links, "github")),
     detailQuickLink("X", detailLinkForKey(links, "x")),
@@ -12254,11 +12269,11 @@ function renderPersonDetail(person) {
         ${bioSection ? `<div class="alch-section-stack alch-priority-stack">${bioSection}</div>` : ""}
         <div class="alch-detail-quick">${explore}${askMeAbout}${themes}</div>
         <div class="alch-section-stack">
-          ${renderDisclosureSection("current read", detailRows(currentRows), true, previewSnippet(person.now) || "now, weekly intention")}
-          ${renderDisclosureSection("working with", detailRows(workingRows), false, previewSnippet(person.comm_style || person.availability_pref) || "style, availability, seeks")}
-          ${renderDisclosureSection("proof / prior work", renderPersonProofRead(person), false, previewSnippet(person.prior_work) || "shipping, lineage")}
+          ${renderFlatSection("current read", detailRows(currentRows))}
+          ${renderFlatSection("working with", detailRows(workingRows))}
+          ${renderFlatSection("proof / prior work", renderPersonProofRead(person))}
+          ${renderFlatSection("routes / asks", detailRows(routeRows))}
           ${renderRecordTimeline("person", recordId)}
-          ${renderDisclosureSection("routes / asks", detailRows(routeRows), false, previewSnippet(secondary.map(t => t.name || t.record_id)) || "other teams, logistics")}
         </div>
       </section>
     </article>

@@ -54,23 +54,25 @@
   --ed-mono:        "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace;
 }
 
-/* ─── card chassis ────────────────────────────────────────────────── */
+/* ─── card chassis ──────────────────────────────────────────────────
+ * Warm specimen panel (2026-06 restyle, modeled on the original field-
+ * guide cards): rounded warm-brown slab, compact sigil beside the title,
+ * meta ledger below, skill chips at the foot. Succinct over monumental. */
 .alch-card {
   --alch-i: 0;
   position: relative;
-  display: flex; flex-direction: column; gap: 14px;
-  padding: 22px 22px 20px;
-  background: linear-gradient(180deg, #15120e 0%, #100e0b 100%);
+  display: flex; flex-direction: column; gap: 13px;
+  padding: 18px 18px 16px;
+  background: linear-gradient(180deg, #281f18 0%, #211a14 100%);
   color: var(--ed-ink-2);
-  border: none;
-  border-top: 1px solid rgba(245, 243, 238, 0.10);
-  border-radius: 0;
+  border: 1px solid rgba(241, 236, 231, 0.08);
+  border-radius: 12px;
   box-shadow: none;
-  transition: background 220ms ease-out, border-top-color 220ms ease-out;
+  transition: background 220ms ease-out, border-color 220ms ease-out;
 }
 .alch-card:hover {
-  background: linear-gradient(180deg, #1c1814 0%, #161311 100%);
-  border-top-color: rgba(245, 243, 238, 0.28);
+  background: linear-gradient(180deg, #2e241c 0%, #261e17 100%);
+  border-color: rgba(241, 236, 231, 0.18);
   cursor: pointer;
 }
 .alch-card.is-clickable:active { transform: translateY(0); }
@@ -95,7 +97,28 @@
 .alch-card-tag .ct-id { opacity: var(--ed-op-loud); }
 .alch-card-tag .ct-sep { opacity: 0.4; }
 
-/* ─── shape stage ─────────────────────────────────────────────────── */
+/* ─── card head: compact sigil beside the title block ─────────────── */
+.alch-card-head {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+.alch-card-head .alch-card-shape {
+  width: 84px; height: 84px;
+  margin: 0;
+}
+.alch-card-title { min-width: 0; display: grid; gap: 4px; }
+.alch-card-sub {
+  margin: 0;
+  font-family: var(--font-sans, inherit);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ed-ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* ─── shape stage (full-size base kept for the field-guide legend) ── */
 .alch-card-shape {
   height: 168px;
   margin-bottom: 16px;
@@ -130,26 +153,22 @@
   50%      { filter: drop-shadow(0 6px 20px rgba(143,34,14,0.30)); }
 }
 
-/* Hover layer — the record's `now` line, revealed over the shape area.
- * Absolutely positioned so the card footprint never shifts; translucent
- * veil over the sigil keeps the type readable in both themes. Enter is
- * slower than exit, with a short intent delay so grid pass-overs don't
- * flicker. */
+/* Hover layer — the record's `now` line, revealed over the card HEAD
+ * (sigil + name: information you already have) so it never covers the
+ * actionable member/link rows below. Near-solid veil, hard 3-line
+ * ceiling; enter slower than exit with a short intent delay. */
 .alch-card-now {
   position: absolute;
-  left: 0; right: 0; bottom: 0;
+  left: 10px; right: 10px; top: 10px;
   padding: 8px 10px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
-  /* Belt and braces with the line-clamp: a hard ceiling so a fourth line
-   * can never bleed past the veil (3 × 1.5 line-height + padding). */
   max-height: calc(3 * 1.5 * 10px + 18px);
   overflow: hidden;
-  /* Near-solid veil — the sigils underneath are full-spectrum and bright;
-   * a translucent wash left the type fighting the artwork. */
-  background: color-mix(in srgb, var(--ed-bg-0) 95%, transparent);
+  background: color-mix(in srgb, #181210 95%, transparent);
   border: 1px solid var(--ed-rule-3);
+  border-radius: 8px;
   box-shadow: 0 3px 14px rgba(0, 0, 0, 0.35);
   font-family: var(--ed-mono);
   font-size: 10px;
@@ -177,22 +196,40 @@
 /* ─── title block ─────────────────────────────────────────────────── */
 .alch-card-name {
   font-family: var(--ed-display);
-  font-size: 22px;
-  font-weight: 400;
-  letter-spacing: -0.025em;
-  font-feature-settings: "liga", "dlig", "swsh";
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
   color: var(--ed-ink-1);
-  margin: 0 0 14px;
-  line-height: 1.1;
-  text-transform: none;
+  margin: 0;
+  line-height: 1.15;
+  text-transform: lowercase;
+  overflow-wrap: anywhere;
 }
 .alch-card-domain {
-  margin-top: -8px;
-  font-family: var(--ed-mono); font-size: 9.5px;
-  letter-spacing: 0.20em; text-transform: uppercase;
+  font-family: var(--ed-mono); font-size: 9px;
+  letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--alchemy-ink-mute);
 }
 .alch-card-rule { display: none; }
+
+/* ─── skill / topic chips along the card foot ─────────────────────── */
+.alch-card-chips {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.alch-card-chips span {
+  max-width: 26ch;
+  padding: 3px 9px;
+  border: 1px solid rgba(241, 236, 231, 0.11);
+  border-radius: 5px;
+  background: rgba(241, 236, 231, 0.03);
+  font-family: var(--ed-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  color: var(--ed-ink-1);
+  opacity: 0.82;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* ─── meta ledger ─────────────────────────────────────────────────── */
 .alch-card-meta {
@@ -221,35 +258,6 @@
   transition: border-bottom-color 200ms ease-out;
 }
 .alch-card-meta-row .cm-v a:hover { border-bottom-color: var(--ed-ink-1); }
-
-/* Journey stage micro-mark — nine ticks filled to the team's declared
- * stage. The mark answers "where are they?" at rest; the title attr on
- * .sr-stage carries the exact reading. Oxide marks progress; the rest
- * of the track stays in rule-gray (chart-ink discipline). */
-.alch-card-stage-row .cm-v { min-width: 0; }
-.sr-stage {
-  display: inline-flex; align-items: baseline; gap: 3px 8px;
-  flex-wrap: wrap;
-  min-width: 0; max-width: 100%;
-}
-.sr-stage-ticks {
-  display: inline-flex; align-items: center; gap: 3px;
-  flex: 0 0 auto;
-  align-self: center;
-}
-.sr-stage-ticks i {
-  width: 4px; height: 9px;
-  border-radius: 1px;
-  background: var(--ed-rule-3);
-}
-.sr-stage-ticks i.on { background: var(--alchemy-oxide-bright); }
-.sr-stage-label {
-  min-width: 0;
-  /* The stage NAME is the signal — wrap it rather than ellipsize it
-   * ("problem-solution f…" loses exactly what the mark exists to say). */
-  white-space: normal;
-  color: var(--ed-ink-1); opacity: 0.72;
-}
 
 /* Mentor-card variant: the old dashed-outline chrome lost the cascade
  * to the cook generations long ago (border/none + gradient backgrounds
@@ -315,30 +323,31 @@
  * dashboard to imply teams were competing 1-in-30 for prize money when
  * the formal cohort was 1-in-7. The accent answers that at-a-glance. */
 
-/* Cohort: warm oxide hairline + a quiet warm wash. The card already pops
- * via its hover state; the at-rest cue should be confident but understated. */
+/* Cohort: warm oxide-tinted outline + a slightly warmer wash. On the
+ * rounded chassis the whole border carries the cue (a lone top hairline
+ * fights the radius); confident but understated at rest. */
 .alch-card-membership-cohort,
 .alch-card-role-cohort-member {
-  border-top: 1px solid color-mix(in srgb, var(--alchemy-oxide-bright) 55%, transparent);
-  background: linear-gradient(180deg, #1a130e 0%, #120e0b 100%);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 32%, transparent);
+  background: linear-gradient(180deg, #2c2016 0%, #241a12 100%);
 }
 .alch-card-membership-cohort:hover,
 .alch-card-role-cohort-member:hover {
-  border-top-color: color-mix(in srgb, var(--alchemy-oxide-bright) 85%, transparent);
-  background: linear-gradient(180deg, #21170f 0%, #19120d 100%);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 55%, transparent);
+  background: linear-gradient(180deg, #322517 0%, #2a1e14 100%);
 }
 
 /* Visiting: untreated. Inherits the base card look so visiting teams
  * remain first-class — they just don't carry the formal-cohort cue. */
 
-/* Coordinators get their own quiet accent (cool ink hairline) so program
+/* Coordinators get their own quiet accent (cool ink outline) so program
  * staff are visually separable from participants without competing with
  * the cohort warm. */
 .alch-card-role-coordinator {
-  border-top: 1px solid rgba(180, 200, 220, 0.30);
+  border-color: rgba(180, 200, 220, 0.26);
 }
 .alch-card-role-coordinator:hover {
-  border-top-color: rgba(180, 200, 220, 0.55);
+  border-color: rgba(180, 200, 220, 0.45);
 }
 
 /* Tag-row pills for membership / role_class — share styling with
