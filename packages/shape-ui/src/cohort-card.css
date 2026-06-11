@@ -61,23 +61,38 @@
 .alch-card {
   --alch-i: 0;
   position: relative;
-  display: flex; flex-direction: column; gap: 13px;
-  padding: 18px 18px 16px;
-  /* Clearly elevated taupe panel on the espresso page — the two-step
-   * warm elevation is the signature of the original field-guide look. */
-  background: linear-gradient(180deg, #352b21 0%, #2c231a 100%);
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px;
+  /* The June-5 "polish public cohort profile pages" recipe (a0114d97),
+   * verbatim: translucent warm base over the charcoal page with a
+   * diagonal oxide wash + inset cream highlight. The warmth is the wash,
+   * not a flat brown. */
+  background:
+    linear-gradient(112deg, rgba(180, 58, 25, 0.10), rgba(180, 58, 25, 0.020) 34%, transparent 62%),
+    linear-gradient(180deg, rgba(241, 236, 231, 0.036), rgba(143, 34, 14, 0.010)),
+    rgba(33, 27, 25, 0.54);
   color: var(--ed-ink-2);
-  border: 1px solid rgba(241, 236, 231, 0.11);
-  border-radius: 12px;
-  box-shadow: 0 1px 0 rgba(241, 236, 231, 0.04) inset, 0 2px 10px rgba(0, 0, 0, 0.18);
-  transition: background 220ms ease-out, border-color 220ms ease-out;
+  border: 1px solid rgba(241, 236, 231, 0.105);
+  border-top-color: rgba(143, 34, 14, 0.32);
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgba(241, 236, 231, 0.028);
+  cursor: pointer;
+  transition: border-color 220ms ease-out, background 220ms ease-out, box-shadow 220ms ease-out, transform 220ms ease-out;
 }
 .alch-card:hover {
-  background: linear-gradient(180deg, #3c3126 0%, #33291e 100%);
-  border-color: rgba(241, 236, 231, 0.20);
-  cursor: pointer;
+  border-color: rgba(241, 236, 231, 0.16);
+  border-top-color: rgba(208, 83, 50, 0.46);
+  background:
+    linear-gradient(112deg, rgba(180, 58, 25, 0.13), rgba(180, 58, 25, 0.030) 38%, transparent 64%),
+    linear-gradient(180deg, rgba(241, 236, 231, 0.046), rgba(143, 34, 14, 0.020)),
+    rgba(35, 29, 27, 0.72);
+  box-shadow: inset 0 1px 0 rgba(241, 236, 231, 0.04), 0 10px 28px rgba(0, 0, 0, 0.18);
+  transform: translateY(-1px);
 }
-.alch-card.is-clickable:active { transform: translateY(0); }
+.alch-card.is-clickable:active { transform: scale(0.995); }
+/* Kind accents on the top edge, per June 5: teams/projects oxide,
+ * people teal. */
+.alch-card-person { border-top-color: rgba(139, 216, 209, 0.42); }
 .alch-card.is-clickable:focus,
 .alch-card.is-clickable:focus-visible {
   outline: 1px solid color-mix(in srgb, var(--alchemy-oxide-hot) 82%, transparent);
@@ -102,12 +117,12 @@
 /* ─── card head: compact sigil beside the title block ─────────────── */
 .alch-card-head {
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-columns: 112px minmax(0, 1fr);
   gap: 16px;
   align-items: center;
 }
 .alch-card-head .alch-card-shape {
-  width: 84px; height: 84px;
+  width: 112px; height: 112px;
   margin: 0;
 }
 .alch-card-title { min-width: 0; display: grid; gap: 4px; }
@@ -326,31 +341,23 @@
  * dashboard to imply teams were competing 1-in-30 for prize money when
  * the formal cohort was 1-in-7. The accent answers that at-a-glance. */
 
-/* Cohort: warm oxide-tinted outline + a slightly warmer wash. On the
- * rounded chassis the whole border carries the cue (a lone top hairline
- * fights the radius); confident but understated at rest. */
-.alch-card-membership-cohort,
+/* Cohort membership modulates the kind accent's intensity (the June-5
+ * card body stays uniform): formally-invited cohort teams/members get a
+ * stronger top edge than visiting ones. */
+.alch-card-membership-cohort {
+  border-top-color: rgba(208, 83, 50, 0.62);
+}
 .alch-card-role-cohort-member {
-  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 34%, transparent);
-  background: linear-gradient(180deg, #392b1e 0%, #2f2317 100%);
-}
-.alch-card-membership-cohort:hover,
-.alch-card-role-cohort-member:hover {
-  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 56%, transparent);
-  background: linear-gradient(180deg, #403023 0%, #36281a 100%);
+  border-top-color: rgba(139, 216, 209, 0.62);
 }
 
-/* Visiting: untreated. Inherits the base card look so visiting teams
- * remain first-class — they just don't carry the formal-cohort cue. */
+/* Visiting: untreated. Inherits the base kind accent so visiting records
+ * remain first-class — they just don't carry the formal-cohort weight. */
 
-/* Coordinators get their own quiet accent (cool ink outline) so program
- * staff are visually separable from participants without competing with
- * the cohort warm. */
+/* Coordinators get their own quiet accent (cool ink edge) so program
+ * staff are visually separable from participants. */
 .alch-card-role-coordinator {
-  border-color: rgba(180, 200, 220, 0.26);
-}
-.alch-card-role-coordinator:hover {
-  border-color: rgba(180, 200, 220, 0.45);
+  border-top-color: rgba(180, 200, 220, 0.45);
 }
 
 /* Tag-row pills for membership / role_class — share styling with
