@@ -137,14 +137,20 @@
  * flicker. */
 .alch-card-now {
   position: absolute;
-  left: 8px; right: 8px; bottom: 8px;
+  left: 0; right: 0; bottom: 0;
   padding: 8px 10px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+  /* Belt and braces with the line-clamp: a hard ceiling so a fourth line
+   * can never bleed past the veil (3 × 1.5 line-height + padding). */
+  max-height: calc(3 * 1.5 * 10px + 18px);
   overflow: hidden;
-  background: color-mix(in srgb, var(--ed-bg-0) 86%, transparent);
-  border: 1px solid var(--ed-rule-2);
+  /* Near-solid veil — the sigils underneath are full-spectrum and bright;
+   * a translucent wash left the type fighting the artwork. */
+  background: color-mix(in srgb, var(--ed-bg-0) 95%, transparent);
+  border: 1px solid var(--ed-rule-3);
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.35);
   font-family: var(--ed-mono);
   font-size: 10px;
   line-height: 1.5;
@@ -222,7 +228,8 @@
  * of the track stays in rule-gray (chart-ink discipline). */
 .alch-card-stage-row .cm-v { min-width: 0; }
 .sr-stage {
-  display: inline-flex; align-items: baseline; gap: 8px;
+  display: inline-flex; align-items: baseline; gap: 3px 8px;
+  flex-wrap: wrap;
   min-width: 0; max-width: 100%;
 }
 .sr-stage-ticks {
@@ -238,7 +245,9 @@
 .sr-stage-ticks i.on { background: var(--alchemy-oxide-bright); }
 .sr-stage-label {
   min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* The stage NAME is the signal — wrap it rather than ellipsize it
+   * ("problem-solution f…" loses exactly what the mark exists to say). */
+  white-space: normal;
   color: var(--ed-ink-1); opacity: 0.72;
 }
 

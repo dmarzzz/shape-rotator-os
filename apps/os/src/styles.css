@@ -20075,6 +20075,17 @@ button.alch-quick-link {
   min-height: 0;
   padding: 8px 0;
 }
+/* Multi-item values: short pills (stage / evidence / upside…) share a
+ * line; prose items each own a full row. Two long items flowing inline
+ * produced a ragged fake second column (the "provides" rows). */
+.alch-team-quick .alch-quick-v {
+  column-gap: 16px;
+  row-gap: 5px;
+}
+.alch-team-quick .alch-quick-text {
+  flex: 1 1 100%;
+  max-width: 72ch;
+}
 .alch-team-quick .alch-quick-link,
 .alch-team-quick .alch-quick-pill,
 .alch-team-quick .alch-quick-text {

@@ -783,7 +783,7 @@ function compactPills(items) {
         </div>
         <div class="cd-quick cd-team-quick">${nextMove}${needs}${provides}${guild}${trajectory}${routes}${explore}</div>
         <div class="cd-section-stack">
-          ${renderSection("trajectory", trajectoryRows, false, previewSnippet(journey?.problem || journey?.icp) || "who for, problem, solution")}
+          ${renderSection("positioning", trajectoryRows, false, previewSnippet(journey?.problem || journey?.icp) || "who for, problem, solution")}
           ${renderSection("evidence", evidenceRows, true, previewSnippet(rec.traction) || "traction, paper, shipping")}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems), false, timelinePreview(timelineItems))}
         </div>

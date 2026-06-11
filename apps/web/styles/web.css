@@ -1158,6 +1158,15 @@ body.links-page-body .hero-tagline {
 .cd-team-quick .cd-quick-v {
   gap: var(--space-3);
 }
+/* Multi-item values: short pills share a line; prose items each own a
+ * full row (two long items flowing inline made a ragged fake column). */
+.cd-team-quick .cd-quick-v {
+  column-gap: 16px;
+  row-gap: 5px;
+}
+.cd-team-quick .cd-quick-text {
+  flex: 1 1 100%;
+}
 .cd-team-quick .cd-quick-link,
 .cd-team-quick .cd-pill,
 .cd-team-quick .cd-quick-text {

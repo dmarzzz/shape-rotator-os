@@ -12140,7 +12140,7 @@ function renderTeamDetail(team) {
         </div>
         <div class="alch-detail-quick alch-team-quick">${nextMove}${needs}${provides}${guild}${trajectory}${explore}</div>
         <div class="alch-section-stack">
-          ${renderDisclosureSection("trajectory", detailRows(trajectoryRows), false, previewSnippet(journey.problem || journey.icp) || "who for, problem, solution")}
+          ${renderDisclosureSection("positioning", detailRows(trajectoryRows), false, previewSnippet(journey.problem || journey.icp) || "who for, problem, solution")}
           ${renderDisclosureSection("evidence", detailRows(evidenceRows), true, previewSnippet(team.traction) || "traction, paper, shipping")}
           ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, previewSnippet(team.seeking) || "dependencies, seeks, offers")}
           ${renderRecordTimeline("team", recordId)}
