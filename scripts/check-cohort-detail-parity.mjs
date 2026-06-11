@@ -42,6 +42,7 @@ function countSurfaceField(kind, field) {
 const web = read("apps/web/scripts/cohort.js");
 const os = read("apps/os/src/renderer/alchemy.js");
 const cohortSource = read("apps/os/src/renderer/cohort-source.js");
+const publishBundles = read("scripts/publish-bundles.js");
 const surface = JSON.parse(read("apps/os/src/cohort-surface.json"));
 
 const webPerson = between(web, "function renderPersonDetail", "function renderTeamDetail", "web person detail");
@@ -131,14 +132,24 @@ for (const field of ["person_timeline", "team_timeline"]) {
   }
 }
 
-for (const field of [...personFields.filter(field => field !== "person_timeline"), ...teamFields.filter(field => field !== "team_timeline"), ...electronOnlyTeamFields]) {
-  if (!hasToken(cohortSource, field)) {
-    failures.push(`Electron cohort-source data boundary does not hydrate generated read field ${field}`);
-  }
+if (cohortSource.includes("GENERATED_PERSON_READ_FIELDS") || cohortSource.includes("GENERATED_TEAM_READ_FIELDS") || cohortSource.includes("mergeGeneratedRecordFields")) {
+  failures.push("Electron cohort-source must not hydrate source-owned entity fields from generated surface JSON");
 }
 
-if (!cohortSource.includes("mergeGeneratedReadModels")) {
-  failures.push("Electron cohort-source data boundary does not merge generated profile/team read models");
+if (!cohortSource.includes("function extractPublicPersonBio") || !cohortSource.includes('expectedType === "person"')) {
+  failures.push("Electron GitHub loader must derive person bio_md from live markdown bodies before generated fallback hydration");
+}
+
+if (!cohortSource.includes("const recordSig") || !cohortSource.includes("clusterSig = recordSig") || !cohortSource.includes("depSig = recordSig")) {
+  failures.push("Electron cohort-source refresh signature must fingerprint full public entity records");
+}
+
+if (!publishBundles.includes('"dependency", "dependencies"') || !publishBundles.includes("schema.dependencies?.surface_fields")) {
+  failures.push("signed cohort.surface publisher must include dependency records because relationship insights depend on them");
+}
+
+if (!publishBundles.includes("function extractPublicPersonBio") || !publishBundles.includes("payload.bio_md = bio")) {
+  failures.push("signed cohort.surface publisher must derive person bio_md from markdown bodies");
 }
 
 if (failures.length) {
