@@ -7,7 +7,7 @@ membership: cohort
 
 name: JJHub
 focus: agentic coding platform
-members_count: 1
+members_count: 2
 geo: PST
 domain: ai
 shape: prism

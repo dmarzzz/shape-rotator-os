@@ -7,7 +7,7 @@ membership: visiting
 
 name: Shape Rotator OS
 focus: cohort coordination layer · cohort viewer + context vault
-members_count: 1
+members_count: 3
 geo: NYC
 domain: ai
 shape: null

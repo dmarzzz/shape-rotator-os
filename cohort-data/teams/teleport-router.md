@@ -8,7 +8,7 @@ membership: cohort
 # surface fields (visible to all participants)
 name: Teleport Router
 focus: cross-network routing
-members_count: 2
+members_count: 3
 geo: null
 domain: crypto
 shape: meridian

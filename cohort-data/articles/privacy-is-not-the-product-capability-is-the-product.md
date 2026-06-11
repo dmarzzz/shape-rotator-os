@@ -64,7 +64,7 @@ The Day 2 intro session — shorthanded in the program as the "local / private-f
 That reframes the category. Local-first is not a destination that cohort projects either ship or fail to ship. It is a position on a spectrum of user control that becomes a workflow requirement *when the workflow itself demands it*. Three moments in the session show this:
 
 - **Phil Daian**, during the Q&A on his "Alien Love" AI-game debrief, refused to let an audience member's harness run his game remotely: *"you're not going to own my endpoint here, are you?… this is my local device, you know."* The local boundary wasn't privacy in the abstract — it was the precondition for an honest game mechanic. The capability he was unlocking (a shared emotional experience without platform capture) required an endpoint the player controls.
-- **Vaishnavi Dasika and Rajat Verma (#pramaana / VERMA)** described an identity flow where the government ID is destroyed at enrollment and only a commitment-on-chain plus a small secret key on the user's device remain: *"What remains is the commitment on chain and a small secret key on your device. The original data is mathematically gone."* The local key is load-bearing because the workflow — unlinkable pseudonyms across services with no central re-linkage — is only credible if no central party can rebuild the chain. Privacy is the mechanism; the capability is "one identity, infinite unlinkable pseudonyms."
+- **Pramaana (#pramaana / PALC)** described an identity flow where the government ID is destroyed at enrollment and only a commitment-on-chain plus a small secret key on the user's device remain: *"What remains is the commitment on chain and a small secret key on your device. The original data is mathematically gone."* The local key is load-bearing because the workflow — unlinkable pseudonyms across services with no central re-linkage — is only credible if no central party can rebuild the chain. Privacy is the mechanism; the capability is "one identity, infinite unlinkable pseudonyms."
 - **Sam Gbafa (#tinycloud)** then made the spectrum explicit: a user's data in his architecture can live on a self-hosted node, on a trusted third-party node, or on a Tiny Cloud node running inside a TEE. Hosted TEE is *one option on a spectrum*, not the default. The user picks the position on the spectrum that the workflow requires.
 
 The pattern across all three: **the local end of the spectrum is a workflow constraint, not a marketing posture.** When the workflow requires the user to be the only party who can do something, the architecture has to put that capability on the user's machine. When it doesn't, insisting on it is product theatre — the inverse trap article #3 names from the verifiability angle.
@@ -81,7 +81,7 @@ Read alongside Phil's *"this is my local device,"* the spectrum becomes legible.
 
 The dstack salon and the Phil intro session, scheduled back-to-back on Day 2, are not coincidence in programming. They are two faces of the same cohort thesis: that the next wave of differentiation in AI infrastructure is not "more capable models" but *"capabilities that were previously legally, operationally, or commercially impossible."* TEEs make one half of those capabilities possible (verifiable hosted compute). Local-first stacks make the other half possible (compute that the user already controls). Both are arguing — in cohort-internal vocabulary — that *privacy is the permission slip, and the capability is what gets shipped*.
 
-If the projects in #dstack, #confidential-data, and the local-first cluster talk to each other this week, the shared claim almost writes itself. If they don't, the cohort risks shipping two parallel narratives that compete for the same external attention at midterm.
+If the projects in #dstack, #confidential-data, and the local-first cluster talk to each other this week, the shared claim almost writes itself. If they don't, the cohort risks shipping two parallel narratives that compete for the same external attention at the June 14 demo night.
 
 ### cross-project connections this week
 
@@ -89,9 +89,9 @@ If the projects in #dstack, #confidential-data, and the local-first cluster talk
 - **#abra / #tinycloud / #conclave / #signalstack ↔ Hang (private inference)** — verifiable LLM inference with on-demand attestation receipts is the UX template for every "AI with provenance" workflow in the cluster. One implementation, four downstream products.
 - **Andrew Miller (proprietary code sandbox) ↔ #abra** — sandboxed proprietary execution with declarable network limits is the commercial path for #abra: "we make your model rentable inside customer environments."
 - **Hang (declarative cluster bootstrap) ↔ #dcnet ↔ #conclave** — declarative multi-node TEE bootstrap is the unlock for both DCNet's overlay network and Conclave's distributed evidence-aggregation flows.
-- **#tinycloud (Sam Gbafa) ↔ #pramaana (Vaishnavi / Rajat)** — Sam's "user-owned data spaces enabling agentic workflows" and VERMA's "each service gets a unique pseudonym" map onto each other directly: VERMA can issue the pseudonym, Tiny Cloud can be the space the pseudonym authorizes against. One integration, two products with a sharper claim.
+- **#tinycloud (Sam Gbafa) ↔ #pramaana** — Sam's "user-owned data spaces enabling agentic workflows" and Pramaana's "each service gets a unique pseudonym" map onto each other directly: Pramaana can issue the pseudonym, Tiny Cloud can be the space the pseudonym authorizes against. One integration, two products with a sharper claim.
 - **#bitrouter (Kelsen) ↔ #signalstack, #etherea, #conclave** — Kelsen's "TEE attestation as the trust recovery path for third-party model gateways" is exactly the proof shape the AI-with-provenance projects need to ship. One implementation pattern; multiple downstream users.
-- **#pramaana (Vaishnavi / Rajat) ↔ #teesql (LSDan)** — Both projects design from a post-quantum baseline (Kyber 1024 on the VERMA side, TDX + reproducible builds on the dstack side). That shared assumption is a sharper joint claim at midterm than either makes alone.
+- **#pramaana ↔ #teesql (LSDan)** — Both projects design from a post-quantum baseline (ML-KEM-1024 / PALC on the Pramaana side, TDX + reproducible builds on the dstack side). That shared assumption is a sharper joint claim for demo night than either makes alone.
 - **Phil Daian ↔ #tinycloud (Sam)** — Phil's "this is my local device" and Sam's three-data-location architecture share an intuition: consent-respecting interaction requires a boundary the user controls. The two halves of one category claim.
 - **#tinycloud standing offer** — Sam's "customers haven't asked for local-first" is a standing invitation to any cohort project whose workflow *does* demand it. If your product needs user-controlled storage, the integration target exists in the cohort.
 
@@ -142,7 +142,7 @@ Concrete moves, ranked by who they're for:
 - on the capability ad-hoc workflows unlock: *"user-owned structured permission data enables dynamic ad-hoc agentic applications… a food tracker… a pain tracker… a third app, which is this insights app — we've been collecting data for some time, let's do some correlations."*
 - on identity as cybernetic substrate: *"if you live in Russia, and you get sanctioned… all of a sudden you've had a digital stroke… you no longer have access to part of your brain."*
 
-### Vaishnavi Dasika and Rajat Verma (#pramaana / VERMA)
+### Pramaana (#pramaana / PALC)
 
 - on the capability the credential destruction unlocks: *"you have access to every single place that requires verification of your private information… each service gets a unique pseudonym… you don't have to constantly connect your wallet, constantly prove that you're human."*
 - on PII destruction at enrollment: *"we use the government ID itself as a cryptographic [seed]… there is no tracing back… we erase everything, the PII, the hash, the seed, the randomness, all wiped from the memory. What remains is the commitment on chain and a small secret key on your device. The original data is mathematically gone."*
@@ -183,9 +183,9 @@ Concrete moves, ranked by who they're for:
 | Name | What it is | Mentioned by | URL / pointer |
 |---|---|---|---|
 | **Alien Love** | Phil's AI-game demoed in the session — LLM + game-loop progression intended to test whether LLMs can produce shared emotional experience | Phil Daian | code held locally; not distributed |
-| **VERMA** | Post-quantum anonymous-credential identity stack — destroys PII at enrollment, leaves on-chain commitment + local secret key | Vaishnavi Dasika, Rajat Verma | open-source per session; repo via cohort team `#pramaana` |
-| **Kyber 1024** | NIST-standardized post-quantum key-encapsulation; used in VERMA's key-generation pipeline | Rajat Verma | NIST FIPS 203 |
-| **Anonymous self-credentials paper** | Cited as the cryptographic basis for VERMA's PII-derived seed approach | Rajat Verma | confirm author/title before citing publicly |
+| **Pramaana / PALC** | Post-quantum anonymous-credential identity stack — destroys PII at enrollment, leaves on-chain commitment + local secret key | Pramaana team | repo via cohort team `#pramaana` |
+| **ML-KEM-1024** | NIST-standardized post-quantum key-encapsulation; used in Pramaana's key-generation pipeline | Pramaana / PALC | NIST FIPS 203 |
+| **Anonymous self-credentials paper** | Cited as the cryptographic basis for the PII-derived seed approach | Pramaana | confirm author/title before citing publicly |
 | **Tiny Cloud** | User-owned data spaces + permission delegation; supports self-host / third-party-host / Tiny Cloud TEE-host as three deployment options | Sam Gbafa | repo via cohort team `#tinycloud` |
 | **OpenKey** | Custodial signer (passkeys) inside Tiny Cloud; based on prior Spruce work | Sam Gbafa | — |
 | **ReCaps / SIWE Capabilities** | Delegated capabilities in signed messages — EIP standard for capability delegation | Sam Gbafa | EIP referenced; verify number |
@@ -196,13 +196,13 @@ Concrete moves, ranked by who they're for:
 | **OpenRouter** | Centralized model-aggregator; comparative reference | Kelsen Liu (comparative) | openrouter.io |
 | **SiliconFlow** | China-based serverless inference provider; cited as an example of the third-API-gateway pattern | Kelsen Liu | — |
 | **Bittensor** | Decentralized inference marketplace; cited as another point on the routing spectrum | Kelsen Liu | bittensor.com |
-| **Worldcoin** | Iris-biometric identity stack; comparative reference (centralized biometric storage; VERMA differs by keeping biometric-derived seed local-only) | Vaishnavi (comparative) | worldcoin.org |
-| **Fractal ID** | Web3 KYC stack with 14-day document retention; comparative reference | Rajat (comparative) | fractal.id |
+| **Worldcoin** | Iris-biometric identity stack; comparative reference (centralized biometric storage; Pramaana differs by keeping biometric-derived seed local-only) | Pramaana comparative reference | worldcoin.org |
+| **Fractal ID** | Web3 KYC stack with 14-day document retention; comparative reference | Pramaana comparative reference | fractal.id |
 
 ## why this article exists
 
-Half the cohort is sitting on privacy primitives that are interesting only in proportion to the capability they unlock. The midterm at ETH NY is three weeks away, and the version of this argument that lands outside the cohort is *not* "we built private AI infra." It is "we made [specific workflow] possible for the first time, and here's the privacy primitive that made it credible." The cohort projects that can finish that sentence in one breath go to ETH NY with a story. The ones that can't go with a deck.
+Half the cohort is sitting on privacy primitives that are interesting only in proportion to the capability they unlock. The June 14 demo night is roughly three weeks away, and the version of this argument that lands outside the cohort is *not* "we built private AI infra." It is "we made [specific workflow] possible for the first time, and here's the privacy primitive that made it credible." The cohort projects that can finish that sentence in one breath go to demo night with a story. The ones that can't go with a deck.
 
 ---
 
-*Sources: dstack salon session notes (2026-05-20) and Day 2 local / private-first intro session notes (2026-05-20) — Phil Daian's Alien Love debrief plus #tinycloud, #pramaana / VERMA, and #bitrouter intros. See also article #3 (`verifiability-is-becoming-ux-for-ai-infrastructure.md`) for the parallel argument from the trust-layer side, and article #1 (`why-llm-agents-need-memory-workflows-and-social-routing.md`) for the agent-infrastructure half of the same week.*
+*Sources: dstack salon session notes (2026-05-20) and Day 2 local / private-first intro session notes (2026-05-20) — Phil Daian's Alien Love debrief plus #tinycloud, #pramaana / PALC, and #bitrouter intros. See also article #3 (`verifiability-is-becoming-ux-for-ai-infrastructure.md`) for the parallel argument from the trust-layer side, and article #1 (`why-llm-agents-need-memory-workflows-and-social-routing.md`) for the agent-infrastructure half of the same week.*

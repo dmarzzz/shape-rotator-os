@@ -10,7 +10,7 @@ geo: null
 domain: tee
 email: null
 dates_start: 2026-05-18
-dates_end: 2026-07-18
+dates_end: 2026-07-25
 absences:
   - start: 2026-05-18
     end: 2026-05-24

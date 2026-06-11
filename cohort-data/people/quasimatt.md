@@ -3,7 +3,7 @@ record_id: quasimatt
 record_type: person
 schema_version: 1
 name: "Matt Van Ommeren (quasimatt)"
-team: null
+team: shake
 role: ""
 role_class: visiting-scholar
 geo: "NYC"
