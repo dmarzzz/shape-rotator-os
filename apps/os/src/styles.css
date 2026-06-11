@@ -20422,9 +20422,13 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
 .alch-detail-flat { padding: 18px 0 10px; }
 .alch-detail-ledger .alch-quick-row { min-height: 42px; padding: 12px 0; }
 /* Directory grid — the original shows three generous columns, not a
- * five-up dense pack. Rows stretch so card heights match per row. */
+ * five-up dense pack. Rows stretch so card heights match per row.
+ * The min track is width-relative: 26% keeps laptop windows at 3-up
+ * (a fixed 360px floor used to collapse them to two stretched slabs),
+ * the 280px floor lets small windows keep 2-up, and the 440px cap
+ * re-admits 4-up only on ultrawide. */
 .alch-specimens {
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(clamp(280px, 26%, 440px), 1fr));
   gap: 22px;
   align-items: stretch;
 }

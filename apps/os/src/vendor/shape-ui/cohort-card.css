@@ -126,6 +126,16 @@
   width: 112px; height: 112px;
   margin: 0;
 }
+/* Density switch — cards size to their grid track, so when tracks
+ * compress (narrow windows, 2-up/3-up at the floor) the head trades
+ * sigil size for title room instead of crowding the name. Container
+ * queries measure the CONTENT box: 284px here = ~318px border-box
+ * (16px padding each side + 1px borders). */
+.alch-card { container-type: inline-size; }
+@container (max-width: 284px) {
+  .alch-card-head { grid-template-columns: 88px minmax(0, 1fr); gap: 13px; }
+  .alch-card-head .alch-card-shape { width: 88px; height: 88px; }
+}
 .alch-card-title { min-width: 0; display: grid; gap: 4px; }
 .alch-card-sub {
   margin: 0;
@@ -326,6 +336,10 @@
 /* ─── meta ledger ─────────────────────────────────────────────────── */
 .alch-card-meta {
   display: flex; flex-direction: column; gap: 5px;
+  /* Field-guide rule line (original specimen cards): a hairline closes
+   * the head (sigil + title) before the geo/team/links ledger opens. */
+  padding-top: 12px;
+  border-top: 1px solid var(--ed-rule-2);
   font-family: var(--ed-mono); font-size: 11px; line-height: 1.55;
 }
 .alch-card-meta-row {

@@ -1488,7 +1488,7 @@ function renderShapes() {
   `).join("");
 
   const chips = `
-    <div class="alch-view-controls">
+    <div class="alch-view-controls" data-shape-occluder>
       <nav class="alch-shapes-filter" role="tablist" aria-label="filter by kind">
         <button class="alch-shapes-chip" data-shapes-filter="works"  type="button" role="tab" aria-selected="${filter === "works"}">teams & projects <span class="ascn">${nWorks}</span></button>
         <button class="alch-shapes-chip" data-shapes-filter="people" type="button" role="tab" aria-selected="${filter === "people"}">individuals <span class="ascn">${nPeople}</span></button>
@@ -4728,7 +4728,7 @@ function renderJourney() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="journey">
     ${cohortPageHead("journey")}
-    <div class="alch-view-controls">${filterBar}${constSelectionChipHtml()}</div>
+    <div class="alch-view-controls" data-shape-occluder>${filterBar}${constSelectionChipHtml()}</div>
     <div class="alch-constellation" data-constellation-view="journey">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
@@ -4783,7 +4783,7 @@ function renderProductStack() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="stack">
     ${cohortPageHead("stack")}
-    ${selectionChip ? `<div class="alch-view-controls">${selectionChip}</div>` : ""}
+    ${selectionChip ? `<div class="alch-view-controls" data-shape-occluder>${selectionChip}</div>` : ""}
     <div class="alch-constellation" data-constellation-view="stack">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
@@ -5043,7 +5043,7 @@ function renderConstellationPeople(teams, people, clusters, edges) {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="map">
       ${cohortPageHead("map", { dek: "How people connect — grouped by project, linked by shared work and overlapping context." })}
-      <div class="alch-view-controls">
+      <div class="alch-view-controls" data-shape-occluder>
         ${constellationNetworkScopeRow("people", { projects: teams.length, people: people.length })}
         ${constSelectionChipHtml()}
       </div>
@@ -5574,7 +5574,7 @@ function renderConstellation() {
     <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">
     ${cohortPageHead(viewMode)}
     ${viewMode === "map" || viewMode === "ring" ? `
-      <div class="alch-view-controls">
+      <div class="alch-view-controls" data-shape-occluder>
         ${viewMode === "map" ? constellationNetworkScopeRow("projects", { projects: teams.length, people: people.length }) : ""}
         ${constellationMapLayoutRow(viewMode)}
         ${viewMode === "map" ? `
@@ -9489,7 +9489,7 @@ function renderCollab() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="collab">
     ${cohortPageHead("collab")}
-    <div class="alch-view-controls">${controlBar}</div>
+    <div class="alch-view-controls" data-shape-occluder>${controlBar}</div>
     <div class="alch-collab">
       ${matrix}
       ${introSection}
