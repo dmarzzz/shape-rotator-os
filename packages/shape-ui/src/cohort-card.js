@@ -33,6 +33,27 @@ function hashStr(s) {
 
 function teamKind(t) { return (t && t.kind) || "team"; }
 
+// Hover layer: the record's `now` line, revealed over the card head (the
+// sigil + name zone — known information) so it never covers the
+// actionable member/link rows below. Glance = card, hover = what they're
+// doing this week, click = full dossier.
+function nowOverlayHtml(rec) {
+  const now = String(rec?.now || "").trim();
+  if (!now) return "";
+  return `<div class="alch-card-now"><span>now</span>${escHtml(now)}</div>`;
+}
+
+// Compact skill / topic chips along the card foot — same scanning role
+// they played on the original specimen cards.
+function cardChipsHtml(values, max = 3) {
+  const items = (Array.isArray(values) ? values : [])
+    .map(v => String(v || "").trim())
+    .filter(Boolean)
+    .slice(0, max);
+  if (!items.length) return "";
+  return `<div class="alch-card-chips">${items.map(v => `<span>${escHtml(v)}</span>`).join("")}</div>`;
+}
+
 function compactGithubLabel(value) {
   const raw = String(value || "").trim().replace(/^@+/, "");
   try {
@@ -83,7 +104,6 @@ export function teamCardHtml(t, idx, ctx = {}) {
     const label = compactXLabel(x);
     if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">x</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
   }
-  if (!gh && !x && !repoRaw) links.push(`<div class="alch-card-meta-row"><span class="cm-k">links</span><span class="cm-v" style="opacity:0.55">— not yet submitted</span></div>`);
   const membership = t.membership || "visiting";
   const cardCls = [
     "alch-card",
@@ -98,6 +118,9 @@ export function teamCardHtml(t, idx, ctx = {}) {
   const teamPeople = allPeople.filter(p =>
     p.team === t.record_id || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(t.record_id))
   );
+  // One owner for the roster: the full member list when person records are
+  // linked (names imply the count), the declared head-count only as a
+  // fallback for teams whose people haven't been linked yet.
   const membersRow = teamPeople.length
     ? `<div class="alch-card-meta-row alch-card-members-row">
          <span class="cm-k">${kind === "project" ? "contributors" : "members"}</span>
@@ -105,29 +128,40 @@ export function teamCardHtml(t, idx, ctx = {}) {
            `<button type="button" class="alch-card-member" data-person="${escHtml(p.record_id)}">${escHtml(p.name || p.record_id)}</button>`
          ).join('<span class="acm-sep">·</span>')}</span>
        </div>`
-    : "";
+    : (m > 0
+      ? `<div class="alch-card-meta-row"><span class="cm-k">${kind === "project" ? "contributors" : "team"}</span><span class="cm-v">${m} ${m === 1 ? "person" : "people"}</span></div>`
+      : "");
   return `
     <article class="${cardCls}" data-record-id="${escHtml(t.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(t.name)} — open detail">
-      <div class="alch-card-shape"><canvas data-shape-fam="${s ? s.fam : 0}" data-shape-kind="${escAttr(kind)}" data-shape-scale="1.1" data-shape-seed="${escAttr(t.record_id)}"></canvas></div>
-      <div class="alch-card-name">${escHtml(t.name)}</div>
-      <div class="alch-card-domain">${escHtml(domainLabel(t.domain))}</div>
-      <div class="alch-card-rule"></div>
+      <div class="alch-card-head">
+        <div class="alch-card-shape"><canvas data-shape-fam="${s ? s.fam : 0}" data-shape-kind="${escAttr(kind)}" data-shape-scale="1.1" data-shape-seed="${escAttr(t.record_id)}"></canvas></div>
+        <div class="alch-card-title">
+          <div class="alch-card-domain">${escHtml(domainLabel(t.domain))}</div>
+          <div class="alch-card-name">${escHtml(t.name)}</div>
+          ${t.focus ? `<p class="alch-card-sub">${escHtml(t.focus)}</p>` : ""}
+        </div>
+      </div>
       <div class="alch-card-meta">
-        <div class="alch-card-meta-row"><span class="cm-k">focus</span><span class="cm-v">${escHtml(t.focus)}</span></div>
-        <div class="alch-card-meta-row"><span class="cm-k">${kind === "project" ? "contributors" : "team"}</span><span class="cm-v">${m} ${m === 1 ? "person" : "people"}</span></div>
         <div class="alch-card-meta-row"><span class="cm-k">geo</span><span class="cm-v">${escHtml(t.geo)}</span></div>
         ${membersRow}
         ${links.join("")}
       </div>
+      ${cardChipsHtml(t.skill_areas)}
+      ${nowOverlayHtml(t)}
     </article>`;
 }
 
-export function personCardHtml(p, idx) {
+export function personCardHtml(p, idx, ctx = {}) {
   // People don't have a shape vocabulary — derive a fam from their
   // record_id hash purely so the per-family rotation/symmetry/specimen
   // varies between individuals. The shader sees u_kind=2 and overrides
   // the silhouette to a circle medallion regardless.
   const fam = Math.abs(hashStr(p.record_id || "_")) % 6;
+  // Resolve the team slug to its display name when the caller hands us
+  // the teams list; the raw record_id is the fallback, never a dead end.
+  const teams = Array.isArray(ctx.teams) ? ctx.teams : [];
+  const team = p.team ? teams.find(t => t.record_id === p.team) : null;
+  const teamLabel = team ? (team.name || team.record_id) : (p.team || "");
   const links = [];
   const gh = p?.links?.github;
   const x  = p?.links?.x;
@@ -149,19 +183,24 @@ export function personCardHtml(p, idx) {
     if (href) links.push(`<div class="alch-card-meta-row"><span class="cm-k">site</span><span class="cm-v"><a href="${escAttr(href)}" data-external>${escHtml(label)}</a></span></div>`);
   }
   if (li) links.push(`<div class="alch-card-meta-row"><span class="cm-k">linkedin</span><span class="cm-v"><a href="https://linkedin.com/in/${escHtml(li)}" data-external>${escHtml(li)}</a></span></div>`);
-  if (!gh && !x && !w && !li) links.push(`<div class="alch-card-meta-row"><span class="cm-k">links</span><span class="cm-v" style="opacity:0.55">— not yet submitted</span></div>`);
   const roleClass = p.role_class || "visiting-scholar";
   return `
     <article class="alch-card is-clickable alch-card-person alch-card-role-${escAttr(roleClass)}" data-record-id="${escHtml(p.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(p.name)} — open profile">
-      <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.1" data-shape-seed="${escAttr(p.record_id)}"></canvas></div>
-      <div class="alch-card-name">${escHtml(p.name)}</div>
-      <div class="alch-card-rule"></div>
+      <div class="alch-card-head">
+        <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.1" data-shape-seed="${escAttr(p.record_id)}"></canvas></div>
+        <div class="alch-card-title">
+          ${p.domain ? `<div class="alch-card-domain">${escHtml(domainLabel(p.domain))}</div>` : ""}
+          <div class="alch-card-name">${escHtml(p.name)}</div>
+          ${p.role ? `<p class="alch-card-sub">${escHtml(p.role)}</p>` : ""}
+        </div>
+      </div>
       <div class="alch-card-meta">
-        <div class="alch-card-meta-row"><span class="cm-k">role</span><span class="cm-v">${escHtml(p.role || "—")}</span></div>
-        <div class="alch-card-meta-row"><span class="cm-k">team</span><span class="cm-v">${escHtml(p.team || "—")}</span></div>
+        ${teamLabel ? `<div class="alch-card-meta-row"><span class="cm-k">team</span><span class="cm-v">${escHtml(teamLabel)}</span></div>` : ""}
         <div class="alch-card-meta-row"><span class="cm-k">geo</span><span class="cm-v">${escHtml(p.geo || "—")}</span></div>
         ${links.join("")}
       </div>
+      ${cardChipsHtml(p.go_to_them_for)}
+      ${nowOverlayHtml(p)}
     </article>`;
 }
 
@@ -207,7 +246,8 @@ export function renderTeamCard(team, options = {}) {
 
 export function renderPersonCard(person, options = {}) {
   const idx = Number.isFinite(options.idx) ? options.idx : 0;
-  const el = htmlToElement(personCardHtml(person, idx));
+  const ctx = { teams: options.teams || [] };
+  const el = htmlToElement(personCardHtml(person, idx, ctx));
   return attachOnClick(el, options.onClick);
 }
 

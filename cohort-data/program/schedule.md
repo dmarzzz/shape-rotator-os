@@ -43,7 +43,8 @@ week 2 is the most *program-intensive* week of the whole program. by then the co
 ### week 4 — ETH NY week + midterm demo day (jun 8 → jun 14)
 **the loudest week of the program.**
 - **mon jun 8 → sun jun 14** — ETH NY week. ETH global hackathon + adjacent events. lots of outside traffic in NYC.
-- **thu jun 11** — **midterm demo day.** external-facing. external judges (low-context, peer-review-style). every project presents. *optics matter most here — the rest of the world meets shape rotator for the first time.*
+- **thu jun 11 → fri jun 12** — **internal ETH NY product review.** demo review, hackathon team goal-setting, and team-led sessions before the public slot.
+- **sun jun 14** — **Shape Rotator demo night.** external-facing timed demos + friendly investor feedback. *optics matter most here — the rest of the world meets shape rotator for the first time.*
 - the weekend after demo day — **peer evaluation** (anonymized, structured rubric, "how has each cohort member concretely contributed to each project's progress?")
 
 after midterm, it becomes very clear which projects will graduate as-is, which will pivot, and which will be absorbed into others.
@@ -51,7 +52,7 @@ after midterm, it becomes very clear which projects will graduate as-is, which w
 ### weeks 5-8 — sprint mode (jun 15 → jul 12)
 **recombination + focus.** projects pivot, consolidate, or fold. cohort members shift between teams based on the midterm reads + their own retrospective. some teams declare "no-meeting weeks" to lock down on sprint work.
 
-- **mon jun 15 → sun jun 21** — IC3 hackathon week (princeton). andrew + some of the cohort on the road.
+- **mon jun 15 → sat jun 20** — TEE / private-inference technical week. external customer-pilot validation starts while the cohort recombines after ETH NY.
 - weeks 6-8 — **reset / reflection week** (one of these weeks is scheduled — internally we call it a reset, externally a "retro reflection week" because reset reads scary)
 - for projects clearly in the for-profit track, road-show practice + investor curation starts in week 8
 - for commons-track projects, grant matching + distribution-partnership scoping ramps

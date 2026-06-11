@@ -8,7 +8,7 @@ membership: cohort
 # surface fields (visible to all participants)
 name: Pramaana
 focus: lattice / PQ crypto, ZK proofs
-members_count: 2
+members_count: 3
 geo: NYC (Columbia)
 domain: crypto
 shape: torus

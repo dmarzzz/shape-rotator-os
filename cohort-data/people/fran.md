@@ -5,6 +5,7 @@ schema_version: 1
 name: "Fran"
 team: teesql
 role: "Product"
+role_class: cohort-member
 geo: "NYC"
 domain: crypto
 links:

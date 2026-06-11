@@ -8,7 +8,7 @@ membership: visiting
 # surface fields
 name: Enclave
 focus: TEE-enabled medical data sharing
-members_count: 1
+members_count: 0
 geo: Toronto (valid US visa)
 domain: tee
 shape: hex

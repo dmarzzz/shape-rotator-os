@@ -9,7 +9,7 @@ role_class: cohort-member
 geo: "NYC, nomadic"
 domain: tee
 dates_start: 2026-05-18T00:00:00.000Z
-dates_end: 2026-07-18T00:00:00.000Z
+dates_end: 2026-07-25T00:00:00.000Z
 links:
   github: "dmvt"
   x: "@lsdan_defi"

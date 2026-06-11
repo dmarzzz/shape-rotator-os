@@ -165,7 +165,6 @@ const state = {
   cohortTimelineError: "",
   constellationTimelineIdx: null,  // selected snapshot index within cohortTimeline.snapshots
   constellationShowDelta: false,
-  constellationDrawerRecordId: null,
   profile: null,       // local-only: { user, editor state, ... }
   programPage: null,   // active program-handbook page slug (overview | success | rules | schedule)
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
@@ -1328,6 +1327,7 @@ function computeMembraneData() {
 // Public hook used by membrane/index.js.
 window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   if (mode === "collab") {
+    clearDetailForNavigation();
     state.mode = "constellation";
     state.constellationMode = "collab";
     try {
@@ -1341,6 +1341,7 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   // intel lives inside the context page now — jump to its view there.
   if (mode === "intel") { mode = "context"; opts = { ...(opts || {}), contextView: opts?.contextView || "signals" }; }
   if (!ALCHEMY_MODES.includes(mode)) return;
+  clearDetailForNavigation();
   state.mode = mode;
   if (mode === "context" && opts && opts.contextView) {
     state.contextVault.mode = contextNormalizeView(opts.contextView);
@@ -1376,16 +1377,7 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
 // their profile in the cohort surface (shapes mode with detail page).
 window.__srwkAlchemyShowRecord = function showRecordFromMembrane(recordId, returnMode = 'shapes') {
   if (!recordId) return;
-  if (!ALCHEMY_MODES.includes(returnMode)) returnMode = 'shapes';
-  state.mode = returnMode;
-  state.detailRecordId = String(recordId);
-  state.detailReturnMode = returnMode;
-  try {
-    localStorage.setItem(ALCHEMY_LS_KEY, returnMode);
-    localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: String(recordId), returnMode }));
-  } catch {}
-  syncRailSelection();
-  render();
+  openDetail(recordId, returnMode);
 };
 
 // Display id "SHAPE-NN" from the team's index in the array.
@@ -1491,14 +1483,14 @@ function renderShapes() {
     counts.set(chip.id, sourceRecords.filter(r => chip.match(r)).length);
   }
   const membershipChips = chipSet.map(chip => `
-    <button class="alch-shapes-chip alch-shapes-chip-membership" data-membership-filter="${escAttr(chip.id)}" type="button" aria-selected="${chip.id === activeChip.id}">${escHtml(chip.label)} <span class="ascn">${counts.get(chip.id) || 0}</span></button>
+    <button class="alch-shapes-chip alch-shapes-chip-membership" data-membership-filter="${escAttr(chip.id)}" type="button" role="tab" aria-selected="${chip.id === activeChip.id}">${escHtml(chip.label)} <span class="ascn">${counts.get(chip.id) || 0}</span></button>
   `).join("");
 
   const chips = `
     <div class="alch-view-controls">
       <nav class="alch-shapes-filter" role="tablist" aria-label="filter by kind">
-        <button class="alch-shapes-chip" data-shapes-filter="works"  type="button" aria-selected="${filter === "works"}">teams & projects <span class="ascn">${nWorks}</span></button>
-        <button class="alch-shapes-chip" data-shapes-filter="people" type="button" aria-selected="${filter === "people"}">individuals <span class="ascn">${nPeople}</span></button>
+        <button class="alch-shapes-chip" data-shapes-filter="works"  type="button" role="tab" aria-selected="${filter === "works"}">teams & projects <span class="ascn">${nWorks}</span></button>
+        <button class="alch-shapes-chip" data-shapes-filter="people" type="button" role="tab" aria-selected="${filter === "people"}">individuals <span class="ascn">${nPeople}</span></button>
       </nav>
       <nav class="alch-shapes-filter alch-shapes-filter-membership" role="tablist" aria-label="filter by membership">
         ${membershipChips}
@@ -1506,9 +1498,9 @@ function renderShapes() {
       <button id="dossier-export-png" class="alch-shapes-chip" type="button">export dossier (png)</button>
     </div>
   `;
-  const cardCtx = { people: state.cohort?.people || [] };
+  const cardCtx = { people: state.cohort?.people || [], teams: state.cohort?.teams || [] };
   const cards = records.map((r, idx) => {
-    if (r._kind === "person") return personCardHtml(r, idx);
+    if (r._kind === "person") return personCardHtml(r, idx, cardCtx);
     return teamCardHtml(r, idx, cardCtx);
   }).join("");
   const emptyMsg = filter === "people"
@@ -1888,14 +1880,33 @@ function pageHeadHtml({ kicker, title, dek, side = "", nav = "" }) {
     </div>`;
 }
 
-function cohortPageHead(view, { side = "" } = {}) {
+function cohortPageHead(view, { side = "", dek = "" } = {}) {
   return pageHeadHtml({
     kicker: "shape rotator cohort",
     title: "cohort",
-    dek: COHORT_VIEW_DEK[view] || COHORT_VIEW_DEK.directory,
+    dek: dek || COHORT_VIEW_DEK[view] || COHORT_VIEW_DEK.directory,
     side,
     nav: constellationNav(view),
   });
+}
+
+// Cross-view selection cue. state.constSelection survives view switches by
+// design (select a team on the map, see where it sits on pmf evidence) —
+// but a selection you can't see is a trap, so every constellation view
+// renders the same chip: who is selected, one click to clear. The chip is
+// also the discoverable sibling of the Escape shortcut.
+function constSelectionChipHtml() {
+  const sel = state.constSelection;
+  if (!sel || (sel.type !== "team" && sel.type !== "person")) return "";
+  const cohort = activeConstellationCohort();
+  const rec = sel.type === "person"
+    ? (cohort?.people || []).find(p => p.record_id === sel.rid)
+    : (cohort?.teams || []).find(t => t.record_id === sel.rid);
+  const name = rec?.name || sel.rid;
+  return `
+    <button type="button" class="ac-selection-chip" data-const-clear-selection aria-label="${escAttr(`clear selection: ${name}`)}">
+      <span>selected</span><strong>${escHtml(name)}</strong><i aria-hidden="true">×</i>
+    </button>`;
 }
 
 const CONST_MAP_LAYOUTS = [
@@ -2335,6 +2346,9 @@ function constTranscriptCueKey(cue) {
 function constSourceCueHref(source) {
   const raw = constText(source);
   if (!raw) return "";
+  // private-vault citations reference raw transcripts held outside the
+  // public repo — provenance label only, never a public link.
+  if (/^private-vault:/i.test(raw)) return "";
   if (/^https?:\/\//i.test(raw)) return raw;
   const match = raw.match(/^(.*?)(?::(\d+))?$/);
   const pathPart = (match?.[1] || raw).replace(/\\/g, "/").replace(/^\/+/, "");
@@ -3389,6 +3403,64 @@ function constJourneyReadoutHtml(visibleTeams = [], allTeams = visibleTeams) {
           return `<span>${escHtml(team.name || team.record_id)}<em>${escHtml(`${j.stage}/${j.evidence_quality}`)}</em></span>`;
         }).join("")}
       </div>
+    </section>`;
+}
+
+// Selected-team readouts — first click on an entity selects it and the
+// view's readout answers in THIS view's terms (journey read here, stack
+// placement below); a second click on the entity — or its name in the
+// readout — commits to the full record page. The generated cohort-level
+// read returns when the selection clears.
+function constJourneySelectedReadoutHtml(allTeams) {
+  const sel = state.constSelection;
+  if (sel?.type !== "team") return "";
+  const team = (Array.isArray(allTeams) ? allTeams : []).find(t => t.record_id === sel.rid);
+  if (!team) return "";
+  const j = journeyFor(team);
+  const assessed = journeyAssessed(team);
+  const chips = assessed
+    ? `
+      <span>stage<em>${escHtml(`${j.stage} ${JOURNEY_STAGE_LABELS[j.stage] || ""}`.trim())}</em></span>
+      <span>evidence<em>${escHtml(`${j.evidence_quality}/5`)}</em></span>
+      <span>upside<em>${escHtml(`${j.market_upside}/5`)}</em></span>
+      ${j.primary_bottleneck ? `<span>bottleneck<em>${escHtml(j.primary_bottleneck)}</em></span>` : ""}`
+    : `<span>journey read<em>not declared</em></span>`;
+  const line = assessed
+    ? constShortText(j.problem || j.next_milestone || "", 150)
+    : "Profile context only — the dot's position is inferred, not asserted.";
+  return `
+    <section class="ac-main-readout is-journey-readout is-selected-readout" aria-label="selected team journey read">
+      <div class="ac-inspector-kicker">selected · journey read</div>
+      <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(team.record_id)}">${escHtml(team.name || team.record_id)}</button></h3>
+      ${line ? `<p>${escHtml(line)}</p>` : ""}
+      <div class="ac-view-chips">${chips}</div>
+      <p class="ac-readout-hint">click the dot again — or the name above — for the full record</p>
+    </section>`;
+}
+
+function constStackSelectedReadoutHtml(ctx) {
+  const sel = state.constSelection;
+  if (sel?.type !== "team") return "";
+  const team = ctx?.teamById?.get?.(sel.rid)
+    || (activeConstellationCohort()?.teams || []).find(t => t.record_id === sel.rid);
+  if (!team) return "";
+  const item = constStackItemForTeam(ctx, sel.rid);
+  const role = item?.role || constMarketRoleForTeam(team);
+  const evidence = item?.evidence || constEvidenceModeForTeam(team, ctx);
+  const evidenceRead = evidence.key === "profile"
+    ? evidence.label
+    : `${evidence.label} · ${String(evidence.value)}/5`;
+  return `
+    <section class="ac-main-readout is-stack-readout is-selected-readout" aria-label="selected team stack read">
+      <div class="ac-inspector-kicker">selected · stack read</div>
+      <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(team.record_id)}">${escHtml(team.name || team.record_id)}</button></h3>
+      ${role.reason ? `<p>${escHtml(constShortText(role.reason, 150))}</p>` : ""}
+      <div class="ac-view-chips">
+        <span>layer<em>${escHtml(role.label)}</em></span>
+        ${role.secondary ? `<span>also<em>${escHtml(role.secondary.label)}</em></span>` : ""}
+        <span>proof<em>${escHtml(evidenceRead)}</em></span>
+      </div>
+      <p class="ac-readout-hint">click the entry again — or the name above — for the full record</p>
     </section>`;
 }
 
@@ -4655,11 +4727,11 @@ function renderJourney() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="journey">
     ${cohortPageHead("journey")}
-    <div class="alch-view-controls">${filterBar}</div>
+    <div class="alch-view-controls">${filterBar}${constSelectionChipHtml()}</div>
     <div class="alch-constellation" data-constellation-view="journey">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
-          ${constJourneyReadoutHtml(teams, all)}
+          ${constJourneySelectedReadoutHtml(all) || constJourneyReadoutHtml(teams, all)}
           <div class="alch-constellation-legend">${legend}</div>
           <div class="alch-constellation-stage alch-journey-stage">
             <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
@@ -4677,6 +4749,7 @@ function renderJourney() {
     </div>
     </div>
   `;
+  markConstellationSelection(state.constSelection);
 }
 
 function renderProductStack() {
@@ -4698,13 +4771,15 @@ function renderProductStack() {
   const legend = CONST_DOMAIN_KEYS
     .map(k => `<span class="acl-item"><span class="acl-dot acl-dot-${k}"></span>${escHtml(CONST_DOMAIN_LABEL[k])}</span>`)
     .join("");
+  const selectionChip = constSelectionChipHtml();
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="stack">
     ${cohortPageHead("stack")}
+    ${selectionChip ? `<div class="alch-view-controls">${selectionChip}</div>` : ""}
     <div class="alch-constellation" data-constellation-view="stack">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
-          ${constStackReadoutHtml(inspectorCtx)}
+          ${constStackSelectedReadoutHtml(inspectorCtx) || constStackReadoutHtml(inspectorCtx)}
           <div class="alch-constellation-legend">${legend}</div>
           <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" tabindex="0" aria-label="constellation product layer directory">
             ${constProductStackHtml(stackModel)}
@@ -4956,9 +5031,10 @@ function renderConstellationPeople(teams, people, clusters, edges) {
     <div class="acl-line-note">Circles are primary project groups. Lines are inferred from person profiles and should be treated as conversation leads.</div>`;
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="map">
-      ${cohortPageHead("map")}
+      ${cohortPageHead("map", { dek: "How people connect — grouped by project, linked by shared work and overlapping context." })}
       <div class="alch-view-controls">
         ${constellationNetworkScopeRow("people", { projects: teams.length, people: people.length })}
+        ${constSelectionChipHtml()}
       </div>
       <div class="alch-constellation" data-constellation-view="map" data-constellation-scope="people">
         <div class="alch-const-workbench">
@@ -5190,7 +5266,6 @@ function setConstellationTimelineIdx(rawIdx) {
   if (state.mode === "constellation") {
     renderConstellation();
     wireConstellationHover();
-    if (state.constellationDrawerRecordId) openDrawer(state.constellationDrawerRecordId);
   }
 }
 
@@ -5489,6 +5564,7 @@ function renderConstellation() {
         ${viewMode === "map" ? `
           ${constellationLensRow(lens, { edges: coverage.edges, meaningMissing: coverage.meaningMissing, ...relationshipBreakdown })}
         ` : ""}
+        ${constSelectionChipHtml()}
       </div>` : ""}
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
       <div class="alch-const-workbench">
@@ -5811,21 +5887,58 @@ function wireShapeCardClicks() {
   wireExternalLinks(state.canvas);
 }
 
-function openDetail(recordId) {
+function normalizeDetailReturnMode(mode) {
+  if (mode === "collab") return "constellation";
+  if (mode === "pulse") return "shapes";
+  if (mode === "intel") return "context";
+  return ALCHEMY_MODES.includes(mode) ? mode : "shapes";
+}
+
+function clearDetailForNavigation() {
+  state.detailRecordId = null;
+  state.detailReturnMode = null;
+  try { localStorage.removeItem(DETAIL_LS_KEY); } catch {}
+}
+
+function openDetail(recordId, returnMode = state.mode || "shapes") {
   if (!recordId) return;
+  const mode = normalizeDetailReturnMode(returnMode);
+  state.mode = mode;
   state.detailRecordId = String(recordId);
-  // Remember where to land on back — usually shapes, but if user opened
-  // the detail from a different mode (future entry points) honor that.
-  state.detailReturnMode = state.mode || "shapes";
+  // Remember where to land on back. Constellation sub-views keep their
+  // own state in state.constellationMode, so restoring "constellation"
+  // returns to map/journey/stack/collab rather than the generic cohort grid.
+  state.detailReturnMode = mode;
   try {
+    localStorage.setItem(ALCHEMY_LS_KEY, mode);
     localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({
       recordId: state.detailRecordId,
       returnMode: state.detailReturnMode,
     }));
   } catch {}
-  render();
-  // Scroll the canvas to the top so the hero is in view.
-  try { state.canvas?.scrollTo({ top: 0, behavior: "auto" }); } catch {}
+  const update = () => {
+    render();
+    // Scroll the canvas to the top so the hero is in view.
+    try { state.canvas?.scrollTo({ top: 0, behavior: "auto" }); } catch {}
+  };
+  // Sigil continuity: tag the clicked card's canvas so the same-document
+  // view transition morphs it into the dossier hero (the rail canvas
+  // carries the matching view-transition-name statically in styles.css).
+  // Forward direction only — back to the grid stays instant.
+  let cardCanvas = null;
+  try {
+    cardCanvas = state.canvas?.querySelector(
+      `.alch-card[data-record-id="${CSS.escape(state.detailRecordId)}"] canvas`
+    ) || null;
+  } catch {}
+  const reduceMotion = typeof matchMedia === "function"
+    && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (cardCanvas && !reduceMotion && typeof document.startViewTransition === "function") {
+    cardCanvas.style.viewTransitionName = "sr-sigil";
+    document.startViewTransition(update);
+  } else {
+    update();
+  }
 }
 
 function closeDetail() {
@@ -5842,6 +5955,27 @@ function closeDetail() {
 function wireConstellationHover() {
   wireConstellationModeNav();
   const stage = state.canvas.querySelector(".alch-constellation-stage");
+  // Selection chip + readout name-links live OUTSIDE the inspector (which
+  // has its own delegated handler), so the canvas owns them. Bound once —
+  // state.canvas survives innerHTML swaps, so per-render binds would pile up.
+  if (!state.constellationCanvasActionsBound) {
+    state.constellationCanvasActionsBound = true;
+    state.canvas.addEventListener("click", (e) => {
+      if (state.mode !== "constellation" || state.detailRecordId) return;
+      if (e.target.closest(".ac-inspector")) return;
+      const clearTarget = e.target.closest("[data-const-clear-selection]");
+      if (clearTarget) {
+        state.constSelection = null;
+        render();
+        return;
+      }
+      const openTarget = e.target.closest("[data-const-open-record]");
+      if (openTarget) {
+        const rid = openTarget.getAttribute("data-const-open-record");
+        if (rid) openDetail(rid);
+      }
+    });
+  }
   if (!state.constellationEscapeBound) {
     state.constellationEscapeBound = true;
     document.addEventListener("keydown", (e) => {
@@ -5903,6 +6037,24 @@ function wireConstellationHover() {
     };
     // Cluster wells are the ecosystem control. Clicking the visual circle now
     // changes the graph read; the old text-chip row was redundant.
+    // Two-click grammar, shared by every entity mark on every cohort view:
+    // first click selects (the view's sidebar/readout answers in this
+    // view's terms); clicking the SAME entity again commits to its full
+    // record page. Views without a live inspector panel (journey, stack)
+    // re-render so their readout picks the selection up.
+    const selectOrOpen = (type, rid) => {
+      if (!rid) return;
+      if (state.constSelection?.type === type && state.constSelection.rid === rid) {
+        openDetail(rid);
+        return;
+      }
+      if (state.canvas?.querySelector(".ac-inspector")) {
+        setConstellationInspector({ type, rid }, inspectorCtx);
+      } else {
+        state.constSelection = { type, rid };
+        render();
+      }
+    };
     for (const well of stage.querySelectorAll(".ac-well[data-well]")) {
       const wellId = well.getAttribute("data-well") || "all";
       const showWellTip = (e) => {
@@ -5951,7 +6103,7 @@ function wireConstellationHover() {
       });
       g.addEventListener("click", (e) => {
         e.preventDefault();
-        setConstellationInspector({ type: "team", rid }, inspectorCtx);
+        selectOrOpen("team", rid);
       });
       g.addEventListener("focus", () => {
         setConstellationHover(stage, rid, true);
@@ -5960,7 +6112,7 @@ function wireConstellationHover() {
       g.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        setConstellationInspector({ type: "team", rid }, inspectorCtx);
+        selectOrOpen("team", rid);
       });
     }
     for (const item of stage.querySelectorAll(".ac-stack-team[data-const-team]")) {
@@ -5989,7 +6141,7 @@ function wireConstellationHover() {
       item.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
       item.addEventListener("click", (e) => {
         e.preventDefault();
-        if (rid) openDrawer(rid);
+        selectOrOpen("team", rid);
       });
       item.addEventListener("focus", () => {
         const t = teamById.get(rid);
@@ -6008,7 +6160,7 @@ function wireConstellationHover() {
       item.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        if (rid) openDrawer(rid);
+        selectOrOpen("team", rid);
       });
     }
     // Dependency paths: hover identifies the line; click pins the full evidence
@@ -6060,7 +6212,7 @@ function wireConstellationHover() {
       node.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
       node.addEventListener("click", (e) => {
         e.preventDefault();
-        if (rid) openDrawer(rid);
+        selectOrOpen("team", rid);
       });
       node.addEventListener("focus", () => {
         showJourneyTip(stage, tip, teamById.get(rid));
@@ -6069,7 +6221,7 @@ function wireConstellationHover() {
       node.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        if (rid) openDrawer(rid);
+        selectOrOpen("team", rid);
       });
     }
     for (const node of stage.querySelectorAll(".ac-person-node[data-person-id]")) {
@@ -6090,7 +6242,7 @@ function wireConstellationHover() {
       });
       node.addEventListener("click", (e) => {
         e.preventDefault();
-        if (rid) setConstellationInspector({ type: "person", rid }, inspectorCtx);
+        selectOrOpen("person", rid);
       });
       node.addEventListener("focus", () => {
         setConstellationPersonHover(stage, rid, true);
@@ -6106,7 +6258,7 @@ function wireConstellationHover() {
       node.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        if (rid) setConstellationInspector({ type: "person", rid }, inspectorCtx);
+        selectOrOpen("person", rid);
       });
     }
     for (const anchor of stage.querySelectorAll(".ac-project-anchor[data-const-team]")) {
@@ -6128,7 +6280,7 @@ function wireConstellationHover() {
       });
       anchor.addEventListener("click", (e) => {
         e.preventDefault();
-        if (rid) setConstellationInspector({ type: "team", rid }, inspectorCtx);
+        selectOrOpen("team", rid);
       });
       anchor.addEventListener("focus", () => setConstellationPersonProjectHover(stage, rid, true));
       anchor.addEventListener("blur", () => setConstellationPersonProjectHover(stage, rid, false));
@@ -6157,14 +6309,14 @@ function wireConstellationHover() {
       });
       group.addEventListener("click", (e) => {
         e.preventDefault();
-        if (rid) setConstellationInspector({ type: "team", rid }, inspectorCtx);
+        selectOrOpen("team", rid);
       });
       group.addEventListener("focus", () => setConstellationPersonProjectHover(stage, rid, true));
       group.addEventListener("blur", () => setConstellationPersonProjectHover(stage, rid, false));
       group.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        if (rid) setConstellationInspector({ type: "team", rid }, inspectorCtx);
+        selectOrOpen("team", rid);
       });
     }
   }
@@ -6258,9 +6410,11 @@ function wireConstellationHover() {
       }
       const openTarget = e.target.closest("[data-const-open-record]");
       if (openTarget) {
+        // Person or team, the destination is the same: the full record
+        // page. (The legacy summary drawer is retired — the dossier now
+        // carries everything it showed.)
         const rid = openTarget.getAttribute("data-const-open-record");
-        if (rid && constellationCurrentInspectorContext().personById?.has(rid)) openDetail(rid);
-        else if (rid) openDrawer(rid);
+        if (rid) openDetail(rid, "constellation");
         return;
       }
       const personTarget = e.target.closest("[data-const-person]");
@@ -6305,6 +6459,14 @@ function setConstellationInspector(selection, ctx) {
   if (body) body.innerHTML = constellationInspectorLeadHtml(ctx, state.constSelection) + constellationInspectorHtml(state.constSelection, ctx);
   if (head) wireExternalLinks(head);
   if (body) wireExternalLinks(body);
+  // Keep the controls-row selection chip in sync without a full re-render
+  // (it's the cross-view cue + the discoverable clear).
+  const controls = state.canvas?.querySelector(".alch-view-controls");
+  if (controls) {
+    controls.querySelector(".ac-selection-chip")?.remove();
+    const chipHtml = constSelectionChipHtml();
+    if (chipHtml) controls.insertAdjacentHTML("beforeend", chipHtml);
+  }
   markConstellationSelection(state.constSelection);
 }
 
@@ -6445,6 +6607,15 @@ function markConstellationSelection(selection) {
       node.classList.add(cls);
       if (coreIds.has(recordId)) node.classList.add("is-selected");
     });
+  }
+  // A selection the current view can't show must not dim the view: when no
+  // mark classified as core (the selected record is filtered out, lives in
+  // the other scope, or this view doesn't plot it), dimming everything
+  // reads as a broken page. Drop the dim; the selection chip in the view
+  // controls stays as the cross-view cue.
+  if (stage && !root.querySelector(".is-selection-core")) {
+    stage.removeAttribute("data-selection-active");
+    root.querySelectorAll(".is-selection-outside").forEach(el => el.classList.remove("is-selection-outside"));
   }
 }
 
@@ -9455,10 +9626,13 @@ function wireCollab() {
       if (!rid) return;
       if (collabRoot) {
         const next = { type: "team", rid };
-        if (collabSameSelection(state.collabSelection, next)) clearCollabSelection();
+        // Same two-click grammar as the other cohort views: first click
+        // selects into the collab inspector, the second click on the same
+        // record commits to its full page. (Deselect via inspector/Escape.)
+        if (collabSameSelection(state.collabSelection, next)) openDetail(rid, "constellation");
         else setCollabSelection(next);
       } else {
-        openDrawer(rid);
+        openDetail(rid, "constellation");
       }
     };
     el.addEventListener("click", activate);
@@ -11554,6 +11728,20 @@ function renderDisclosureSection(title, body, open = false, preview = "", extraC
   `;
 }
 
+// Flat section — same visual language as the disclosure (hairline + small
+// label) but the content is simply VISIBLE. The dossier reads top to
+// bottom like a document; only the long tail (timeline) stays collapsible.
+function renderFlatSection(title, body, extraClass = "") {
+  const cleaned = detailHtmlParts(body);
+  if (!cleaned.trim()) return "";
+  return `
+    <section class="alch-detail-section alch-detail-flat ${extraClass}">
+      <div class="alch-flat-label">${escHtml(title)}</div>
+      <div class="alch-section-body">${cleaned}</div>
+    </section>
+  `;
+}
+
 function detailQuickRow(label, items, extraClass = "") {
   const html = (items || []).filter(Boolean).join("");
   if (!html) return "";
@@ -11608,8 +11796,34 @@ function detailTeamToken(team) {
   `;
 }
 
+// Collapsed-section previews carry CONTENT, not schema: the summary line
+// should replace uncertainty ("what's in here?") with the actual signal.
+// Truncate to one readable clause; empty in → empty out so callers can
+// fall back to a schema hint when a record hasn't declared the field.
+function previewSnippet(value, max = 64) {
+  const first = Array.isArray(value)
+    ? value.find(v => v != null && String(v).trim())
+    : value;
+  const s = String(first || "").replace(/\s+/g, " ").trim();
+  if (!s) return "";
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
+}
+
 function detailTimelinePreview(items = []) {
-  const labels = [...new Set((Array.isArray(items) ? items : [])
+  const rows = (Array.isArray(items) ? items : []).filter(Boolean);
+  // Lead with the most recent entry — "what happened last" is the signal;
+  // the old type-label list ("event, onboarding, profile") restated schema.
+  const dated = rows
+    .filter(item => item?.date)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const latest = dated[0] || rows[rows.length - 1];
+  if (latest) {
+    const title = previewSnippet(latest.title || detailTimelineType(latest.type), 48);
+    if (title) {
+      return latest.date ? `${detailTimelineDate(latest.date)} — ${title}` : title;
+    }
+  }
+  const labels = [...new Set(rows
     .map(item => detailLabelize(item?.type || item?.source || ""))
     .filter(Boolean))]
     .slice(0, 3);
@@ -11764,7 +11978,7 @@ function renderPersonRail(person, team, fam) {
         ${person.role ? `<p class="alch-detail-focus">${escHtml(person.role)}</p>` : ""}
         <div class="alch-rail-list">
           <div><span>status</span>${escHtml(detailLabelize(person.role_class || "person"))}</div>
-          ${team ? `<div><span>team</span>${detailRecordToken(team)}</div>` : ""}
+          ${team ? `<div><span>team</span>${detailTeamToken(team)}</div>` : ""}
           ${person.geo ? `<div><span>geo</span>${escHtml(person.geo)}</div>` : ""}
           ${person.domain ? `<div><span>domain</span>${escHtml(domainLabel(person.domain))}</div>` : ""}
           ${dates ? `<div><span>window</span>${dates}</div>` : ""}
@@ -11850,18 +12064,17 @@ function renderTeamDetail(team) {
   const editUrl = buildEditPRUrl({ recordType: "team", recordId });
   const links = team.links || {};
   const journey = detailJourneySummary(team);
+  // Stage / evidence / upside / bottleneck / next milestone live in the
+  // always-visible "trajectory" quick row — the section below adds the
+  // qualitative read (who for, what problem, what proof) instead of
+  // repeating the same pills as rows.
   const trajectoryRows = [
-    { key: "stage", value: escHtml(`${journey.stage} ${journey.stageLabel}`.trim()) },
-    { key: "evidence", value: escHtml(`${journey.evidence_quality}/5${journey.evidenceLabel ? ` ${journey.evidenceLabel}` : ""}`) },
-    { key: "upside", value: escHtml(`${journey.market_upside}/5${journey.upsideLabel ? ` ${journey.upsideLabel}` : ""}`) },
-    { key: "bottleneck", value: journey.primary_bottleneck ? escHtml(journey.primary_bottleneck) : "" },
     { key: "company type", value: journey.company_type ? escHtml(journey.company_type) : "" },
     { key: "confidence", value: journey.confidence ? escHtml(journey.confidence) : "" },
     { key: "icp", value: journey.icp ? escHtml(journey.icp) : "" },
     { key: "problem", value: journey.problem ? escHtml(journey.problem) : "" },
     { key: "solution", value: journey.solution ? escHtml(journey.solution) : "" },
     { key: "evidence notes", value: journey.evidence_notes ? escHtml(journey.evidence_notes) : "" },
-    { key: "next milestone", value: journey.next_milestone ? escHtml(journey.next_milestone) : "" },
     { key: "this week", value: detailList(team.weekly_goals) },
     { key: "milestones", value: detailList(team.monthly_milestones) },
     { key: "graduation", value: team.graduation_target ? escHtml(team.graduation_target) : "" },
@@ -11882,8 +12095,9 @@ function renderTeamDetail(team) {
   const nextMove = detailQuickRow("next move", [
     detailQuickText("", team.now || journey.next_milestone),
   ]);
-  const needs = detailQuickRow("needs", detailItems(team.seeking).slice(0, 2).map(value => detailQuickText("", value)));
-  const provides = detailQuickRow("provides", detailItems(team.offering).slice(0, 2).map(value => detailQuickText("", value)));
+  // (needs / provides quick rows retired — the flat "coordination" block
+  // below now shows the full seeking/offering lists in the same frame;
+  // truncated copies above them were duplicate owners.)
   const guild = detailQuickRow("guild", memberClusters.map(cl => detailQuickText("", cl.label || cl.name || cl.record_id)));
   const trajectory = detailQuickRow("trajectory", [
     detailPill("stage", `${journey.stage} ${journey.stageLabel}`),
@@ -11924,11 +12138,11 @@ function renderTeamDetail(team) {
         <div class="alch-ledger-head">
           <span class="alch-detail-h">${escHtml(kind)} read</span>
         </div>
-        <div class="alch-detail-quick alch-team-quick">${nextMove}${needs}${provides}${guild}${trajectory}${explore}</div>
+        <div class="alch-detail-quick alch-team-quick">${nextMove}${guild}${trajectory}${explore}</div>
         <div class="alch-section-stack">
-          ${renderDisclosureSection("trajectory", detailRows(trajectoryRows), false, "stage, proof, next test")}
-          ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, "traction, paper, shipping")}
-          ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, "dependencies, seeks, offers")}
+          ${renderFlatSection("positioning", detailRows(trajectoryRows))}
+          ${renderFlatSection("evidence", detailRows(evidenceRows))}
+          ${renderFlatSection("coordination", detailRows(coordinationRows))}
           ${renderRecordTimeline("team", recordId)}
         </div>
       </section>
@@ -11972,7 +12186,7 @@ function renderPersonDetail(person) {
   const links = person.links || {};
   const timelineItems = detailTimelineItems("person", recordId);
   const absences = Array.isArray(person.absences) ? person.absences : [];
-  const bioSection = renderDisclosureSection("about / bio", detailProse(person.bio_md), true, "profile context", "alch-detail-priority");
+  const bioSection = renderFlatSection("about / bio", detailProse(person.bio_md), "alch-detail-priority");
   const explore = detailQuickRow("explore", [
     detailQuickLink("GitHub", detailLinkForKey(links, "github")),
     detailQuickLink("X", detailLinkForKey(links, "x")),
@@ -11988,10 +12202,8 @@ function renderPersonDetail(person) {
     "themes",
     detailItems(person.recurring_themes).slice(0, 4).map(value => detailQuickText("", value))
   );
-  const teamContext = team ? detailQuickRow("team context", [
-    detailTeamToken(team),
-    detailQuickText("focus", team.focus),
-  ]) : "";
+  // (No "team context" quick row — the rail's team token owns that fact;
+  // the team's own focus lives one click away on its dossier.)
   const currentRows = [
     { key: "now", value: person.now ? `<span class="alch-detail-now">${escHtml(person.now)}</span>` : "" },
     { key: "weekly intention", value: person.weekly_intention ? escHtml(person.weekly_intention) : "" },
@@ -12028,8 +12240,6 @@ function renderPersonDetail(person) {
         <span>${escHtml(recordId.toUpperCase())}</span>
         <span class="ct-sep">·</span>
         <span class="ct-kind ct-kind-person">individual</span>
-        <span class="ct-sep">·</span>
-        <span>${escHtml(domainLabel(person.domain))}</span>
       </div>
       <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
     </header>
@@ -12042,13 +12252,13 @@ function renderPersonDetail(person) {
           <span class="alch-detail-h">individual read</span>
         </div>
         ${bioSection ? `<div class="alch-section-stack alch-priority-stack">${bioSection}</div>` : ""}
-        <div class="alch-detail-quick">${explore}${askMeAbout}${themes}${teamContext}</div>
+        <div class="alch-detail-quick">${explore}${askMeAbout}${themes}</div>
         <div class="alch-section-stack">
-          ${renderDisclosureSection("current read", detailRows(currentRows), !bioSection, "now, weekly intention")}
-          ${renderDisclosureSection("working with", detailRows(workingRows), false, "style, availability, seeks")}
-          ${renderDisclosureSection("proof / prior work", renderPersonProofRead(person), false, "shipping, lineage")}
+          ${renderFlatSection("current read", detailRows(currentRows))}
+          ${renderFlatSection("working with", detailRows(workingRows))}
+          ${renderFlatSection("proof / prior work", renderPersonProofRead(person))}
+          ${renderFlatSection("routes / asks", detailRows(routeRows))}
           ${renderRecordTimeline("person", recordId)}
-          ${renderDisclosureSection("routes / asks", detailRows(routeRows), false, "other teams, logistics")}
         </div>
       </section>
     </article>
@@ -12113,200 +12323,6 @@ function renderDetailLinks(L) {
   }
   if (rows.length === 0) rows.push(`<div class="alch-detail-row"><span class="adr-k">links</span><span class="adr-v" style="opacity:0.55">— not yet submitted</span></div>`);
   return rows.join("");
-}
-
-// ─── drawer (specimen detail) ────────────────────────────────────────
-function openDrawer(recordId) {
-  if (!state.cohort) return;
-  const cohort = state.mode === "constellation" ? activeConstellationCohort() : state.cohort;
-  const cohortIndex = buildCohortIndex(cohort);
-  const team = cohortIndex.teamById.get(recordId);
-  if (!team) {
-    if (state.mode === "constellation") closeDrawer();
-    return;
-  }
-  if (state.mode === "constellation") state.constellationDrawerRecordId = String(recordId);
-
-  const { backdrop, drawer, body } = ensureDrawer();
-  const s = shapeForTeam(team);
-  const dest = s ? SHAPE_BY_KEY[s.rotates_to] : null;
-  const m = Number(team.members_count) || 0;
-
-  // Find which clusters this team belongs to
-  const memberClusters = cohortIndex.clustersByTeam.get(recordId) || [];
-
-  // Render every available link key with a sensible label; github + x
-  // get full URL prefixes, the rest are passed through.
-  const LINK_LABELS = {
-    website: "website", demo: "demo", deck: "deck", repo: "repo",
-    article: "article", slides: "slides", alt: "alt site",
-  };
-  const linksRow = (() => {
-    const rows = [];
-    const L = team.links || {};
-    if (L.github) {
-      // Treat as github user/org if no slash; as path otherwise.
-      const gh = String(L.github);
-      const url = gh.startsWith("http") ? gh : `https://github.com/${gh}`;
-      rows.push(`<div class="alch-drawer-row"><span class="dr-k">github</span><span class="dr-v"><a href="${escHtml(url)}" data-external>${escHtml(gh)}</a></span></div>`);
-    }
-    if (L.x) {
-      const handle = String(L.x).replace(/^@/, "");
-      rows.push(`<div class="alch-drawer-row"><span class="dr-k">x</span><span class="dr-v"><a href="https://x.com/${escHtml(handle)}" data-external>@${escHtml(handle)}</a></span></div>`);
-    }
-    for (const k of Object.keys(L)) {
-      if (k === "github" || k === "x") continue;
-      const v = L[k];
-      if (!v) continue;
-      const label = LINK_LABELS[k] || k;
-      const display = (typeof v === "string") ? v.replace(/^https?:\/\//, "") : String(v);
-      rows.push(`<div class="alch-drawer-row"><span class="dr-k">${escHtml(label)}</span><span class="dr-v"><a href="${escHtml(v)}" data-external>${escHtml(display)}</a></span></div>`);
-    }
-    if (rows.length === 0) rows.push(`<div class="alch-drawer-row"><span class="dr-k">links</span><span class="dr-v muted">— not yet submitted</span></div>`);
-    return rows.join("");
-  })();
-
-  const tagBits = [
-    `<span class="dt-id">${escHtml(team.record_id.toUpperCase())}</span>`,
-    `<span>·</span>`,
-    `<span>${escHtml(s ? s.name : domainLabel(team.domain))}</span>`,
-    `<span>·</span>`,
-    `<span>${escHtml(domainLabel(team.domain))}</span>`,
-  ];
-  if (team.is_mentor) {
-    tagBits.push(`<span>·</span>`, `<span>mentor</span>`);
-  }
-  if (state.mode === "constellation") {
-    const snap = activeConstellationSnapshot();
-    if (snap?.label) tagBits.push(`<span>·</span>`, `<span>${escHtml(snap.label)}</span>`);
-  }
-
-  // Editorial section header — italic-serif title + terse lowercase sub-label,
-  // matching the collab board's .alch-cb-sechead.
-  const sechead = (title, sub) =>
-    `<div class="alch-drawer-sechead"><h4>${escHtml(title)}</h4>${sub ? `<span class="dr-sub">${escHtml(sub)}</span>` : ""}</div>`;
-
-  // Roster — primary contributors (person.team) + anyone who lists this team in
-  // secondary_teams. Rendered as gold-accent person chips (people read
-  // differently from teams/clusters — the collab shape-grammar).
-  const roster = (state.cohort.people || []).filter(p =>
-    p.team === team.record_id || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(team.record_id)));
-  const crewChips = roster.map(p => {
-    const role = p.role || (p.team === team.record_id ? "" : "contributor");
-    return `<span class="alch-drawer-person"><span class="dp-name">${escHtml(p.name || p.record_id)}</span>${role ? `<span class="dp-role">${escHtml(role)}</span>` : ""}</span>`;
-  }).join("");
-  const successChips = constSuccessDimensions(team).map(d => `<span class="alch-drawer-success">${escHtml(d)}</span>`).join("");
-  const opRows = [
-    ["now", team.now],
-    ["this week", team.weekly_goals],
-    ["graduation", team.graduation_target],
-    ["milestones", team.monthly_milestones],
-  ].filter(([, v]) => constText(v)).map(([k, v]) =>
-    `<div class="alch-drawer-row"><span class="dr-k">${escHtml(k)}</span><span class="dr-v">${escHtml(constText(v))}</span></div>`
-  ).join("");
-
-  body.innerHTML = `
-    <div class="alch-drawer-tag">${tagBits.join("")}</div>
-    <div class="alch-drawer-name">${escHtml(team.name)}</div>
-    <div class="alch-drawer-shape">${s ? shapeSvgByFam(s.fam, hashStr(team.record_id)) : ""}</div>
-    <div class="alch-drawer-rule"></div>
-    <section class="alch-drawer-section">
-      ${sechead("about", "focus · size · geo")}
-      <div class="alch-drawer-row"><span class="dr-k">focus</span><span class="dr-v">${escHtml(team.focus || "—")}</span></div>
-      <div class="alch-drawer-row"><span class="dr-k">team</span><span class="dr-v">${m} ${m === 1 ? "person" : "people"}</span></div>
-      <div class="alch-drawer-row"><span class="dr-k">geo</span><span class="dr-v">${escHtml(team.geo || "—")}</span></div>
-      ${team.traction ? `<div class="alch-drawer-row"><span class="dr-k">traction</span><span class="dr-v">${escHtml(team.traction)}</span></div>` : ""}
-    </section>
-    ${crewChips ? `
-      <section class="alch-drawer-section">
-        ${sechead("crew", "who to talk to")}
-        <div class="alch-drawer-people">${crewChips}</div>
-      </section>
-    ` : ""}
-    ${successChips || opRows ? `
-      <section class="alch-drawer-section">
-        ${sechead("operating model", "success vector · current proof")}
-        ${successChips ? `<div class="alch-drawer-successes">${successChips}</div>` : ""}
-        ${opRows}
-      </section>
-    ` : ""}
-    <section class="alch-drawer-section">
-      ${sechead("pmf · journey", "where they are on the arc")}
-      ${journeyDetailSection(team)}
-    </section>
-    ${team.paper_basis || team.hackathon_note ? `
-      <section class="alch-drawer-section">
-        ${sechead("credentials", "papers · hackathons")}
-        ${team.paper_basis  ? `<div class="alch-drawer-row"><span class="dr-k">paper</span><span class="dr-v">${escHtml(constText(team.paper_basis))}</span></div>`  : ""}
-        ${team.hackathon_note ? `<div class="alch-drawer-row"><span class="dr-k">hackathon</span><span class="dr-v"><span style="color:var(--alchemy-oxide-bright)">★</span> ${escHtml(team.hackathon_note)}</span></div>` : ""}
-      </section>
-    ` : ""}
-    <section class="alch-drawer-section">
-      ${sechead("links", "")}
-      ${linksRow}
-    </section>
-    ${memberClusters.length ? `
-      <section class="alch-drawer-section">
-        ${sechead("clusters", "why they sit in these wells")}
-        <div class="alch-drawer-clusters alch-drawer-cluster-cards">
-          ${memberClusters.map(cl => `
-            <span class="alch-drawer-cluster"><span>${escHtml(cl.label || cl.name || cl.record_id)}</span>${cl.description ? `<em>${escHtml(cl.description)}</em>` : ""}</span>
-          `).join("")}
-        </div>
-      </section>
-    ` : ""}
-  `;
-  // Open external links via the Electron shell, not in-window.
-  for (const a of body.querySelectorAll("a[data-external]")) {
-    a.addEventListener("click", (e) => {
-      e.preventDefault();
-      const url = a.getAttribute("href");
-      if (url) try { window.api?.openExternal?.(url); } catch {}
-    });
-  }
-  drawer.querySelector(".alch-drawer-tag-host")?.replaceChildren();
-  // Open with a frame delay so the transition fires.
-  requestAnimationFrame(() => {
-    backdrop.classList.add("is-open");
-    drawer.classList.add("is-open");
-  });
-}
-
-function closeDrawer() {
-  state.constellationDrawerRecordId = null;
-  const backdrop = document.querySelector(".alch-drawer-backdrop");
-  const drawer = document.querySelector(".alch-drawer");
-  if (backdrop) backdrop.classList.remove("is-open");
-  if (drawer) drawer.classList.remove("is-open");
-}
-
-let _drawerNodes = null;
-function ensureDrawer() {
-  if (_drawerNodes) return _drawerNodes;
-  const backdrop = document.createElement("div");
-  backdrop.className = "alch-drawer-backdrop";
-  backdrop.addEventListener("click", closeDrawer);
-  document.body.appendChild(backdrop);
-
-  const drawer = document.createElement("aside");
-  drawer.className = "alch-drawer";
-  drawer.setAttribute("aria-label", "team detail");
-  drawer.innerHTML = `
-    <header class="alch-drawer-head">
-      <div class="alch-drawer-tag-host"></div>
-      <button class="alch-drawer-close" type="button" title="close (esc)">close</button>
-    </header>
-    <div class="alch-drawer-body"></div>
-  `;
-  drawer.querySelector(".alch-drawer-close").addEventListener("click", closeDrawer);
-  document.body.appendChild(drawer);
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && drawer.classList.contains("is-open")) closeDrawer();
-  });
-
-  _drawerNodes = { backdrop, drawer, body: drawer.querySelector(".alch-drawer-body") };
-  return _drawerNodes;
 }
 
 // ─── profile (localStorage; cohort-data write-back is Phase 4) ───────
