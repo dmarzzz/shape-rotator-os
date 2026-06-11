@@ -104,15 +104,17 @@ const BRANCH_ORBS = {
   search: { base: "#6f6a64", rim: "#FFFFFF", contour: "#d9d4cc" },
 };
 
-// The shape-rotator vocabulary: every branch is a SOLID, not just a hue.
-// seek = sphere, ask = octahedron (diamond), offer = hexagonal prism,
-// search = lens (rounded square). The base anchor is a cube that rotates
-// into the chosen branch's shape as you select.
+// The membrane vocabulary: every branch is a BLOB — the same soft
+// cabochons as the cohort/events/asks blobs floating in the void (hard
+// polygons read as clip-art against them). Each branch gets its own
+// organic wobble via inset-round radii; hue still does the heavy
+// lifting. The base anchor stays the cube — the namesake — turning
+// into the chosen branch's blob as you select.
 const BRANCH_SHAPES = {
-  ask: "polygon(50% 2%, 98% 50%, 50% 98%, 2% 50%)",
+  ask: "inset(1% round 51% 49% 46% 54% / 53% 45% 55% 47%)",
   seek: "circle(48% at 50% 50%)",
-  offer: "polygon(25% 6.7%, 75% 6.7%, 100% 50%, 75% 93.3%, 25% 93.3%, 0% 50%)",
-  search: "inset(8% round 32%)",
+  offer: "inset(1% round 45% 55% 52% 48% / 50% 54% 46% 50%)",
+  search: "inset(3% round 48% 52% 50% 50% / 52% 48% 50% 50%)",
 };
 
 function branchOf(node) {
@@ -120,37 +122,36 @@ function branchOf(node) {
   return node.kind === "branch" ? node.id : node.kind;
 }
 
-function orbVars(node) {
+// Apply a node's gem vars (hue triple + silhouette) to an element by
+// setting each custom property individually. Cheaper and safer than
+// `cssText +=`, which reparses the WHOLE inline style and — when called
+// per-frame — appends duplicates without bound (the old marker jank).
+// A leaf wears its own gem everywhere it appears — bubble, path marker,
+// FAB facet — so the chosen shape survives the whole journey.
+function applyOrbVars(el, node) {
   const branch = branchOf(node);
   const orb = BRANCH_ORBS[branch];
-  if (!orb) return "";
-  // a leaf wears its own gem everywhere it appears — bubble, path
-  // marker, FAB facet — so the chosen shape survives the whole journey
-  const shape = node.variant?.shape || BRANCH_SHAPES[branch] || "circle(48% at 50% 50%)";
-  return `--qd-orb-base:${orb.base};--qd-orb-rim:${orb.rim};--qd-orb-contour:${orb.contour};--qd-shape:${shape}`;
+  if (!orb) return;
+  el.style.setProperty("--qd-orb-base", orb.base);
+  el.style.setProperty("--qd-orb-rim", orb.rim);
+  el.style.setProperty("--qd-orb-contour", orb.contour);
+  el.style.setProperty("--qd-shape", node.variant?.shape || BRANCH_SHAPES[branch] || "circle(48% at 50% 50%)");
 }
 
-// Ring-2 is a GEM TRAY, not a family of cuts: each slot in the ring is a
-// categorically different solid — kite, delta, pentagon, star, octagon,
-// plus — shared by index across every branch. (v1 used six subtle cuts
-// of the parent solid; at 48px parametric variations of one polygon read
-// as rendering errors, not siblings.) Hue carries the family, shape
-// carries the option, and the keyboard numeral n always pairs with the
-// same silhouette — the ring becomes muscle memory. Each gem also gets
-// its own light (--qd-grad), so the tray glints instead of repeating.
+// Ring-2 is a CLUTCH OF BLOBS, not a tray of cut gems: hard polygons at
+// 48px read as sharp clip-art against the membrane's soft cabochons
+// (tried twice — parametric cuts, then distinct solids; both fought the
+// galaxy). Every slot is the same organic material with its own wobble
+// (inset-round radii), its own light angle (--qd-grad), and its own
+// size, so siblings read as littermates — clearly individual, clearly
+// one species. Icons + labels carry the meaning; hue carries the family.
 const LEAF_SHAPES = [
-  // kite — the tall gem
-  { shape: "polygon(50% 0%, 90% 42%, 50% 100%, 10% 42%)", size: 52, grad: "36% 24%" },
-  // delta — broad base, points up
-  { shape: "polygon(50% 6%, 97% 92%, 3% 92%)", size: 50, grad: "50% 40%" },
-  // pentagon
-  { shape: "polygon(50% 2%, 98% 38%, 80% 98%, 20% 98%, 2% 38%)", size: 48, grad: "62% 26%" },
-  // five-point star — the ring's one spiky moment
-  { shape: "polygon(50% 0%, 63% 32%, 98% 35%, 72% 58%, 81% 94%, 50% 73%, 19% 94%, 28% 58%, 2% 35%, 37% 32%)", size: 56, grad: "50% 22%" },
-  // octagon
-  { shape: "polygon(30% 2%, 70% 2%, 98% 30%, 98% 70%, 70% 98%, 30% 98%, 2% 70%, 2% 30%)", size: 46, grad: "30% 50%" },
-  // plus gem — arms wide enough to seat the 14px icon
-  { shape: "polygon(32% 2%, 68% 2%, 68% 32%, 98% 32%, 98% 68%, 68% 68%, 68% 98%, 32% 98%, 32% 68%, 2% 68%, 2% 32%, 32% 32%)", size: 50, grad: "64% 60%" },
+  { shape: "inset(0% round 47% 53% 44% 56% / 55% 46% 54% 45%)", size: 50, grad: "36% 26%" },
+  { shape: "inset(0% round 56% 44% 52% 48% / 46% 56% 44% 54%)", size: 47, grad: "62% 28%" },
+  { shape: "inset(0% round 44% 56% 50% 50% / 52% 42% 58% 48%)", size: 52, grad: "50% 19%" },
+  { shape: "inset(0% round 52% 48% 58% 42% / 44% 54% 46% 56%)", size: 46, grad: "28% 48%" },
+  { shape: "inset(0% round 50% 50% 45% 55% / 56% 48% 52% 44%)", size: 50, grad: "64% 58%" },
+  { shape: "inset(0% round 58% 42% 50% 50% / 48% 58% 42% 52%)", size: 48, grad: "42% 32%" },
 ];
 
 // Suggested tags for ask composing — recognition over recall. One
@@ -384,10 +385,9 @@ export function mountQuickDial() {
         el.style.setProperty("--qd-i", String(i));
         el.style.setProperty("--qd-dx", `${(anchor.x - opt.pos.x).toFixed(1)}px`);
         el.style.setProperty("--qd-dy", `${(anchor.y - opt.pos.y).toFixed(1)}px`);
-        const orb = orbVars(opt.node);
-        if (orb) el.style.cssText += `;${orb}`;
-        // ring-2 wears its own gem (shape arrives via orbVars); size and
-        // light are per-slot so the tray glints instead of repeating
+        applyOrbVars(el, opt.node);
+        // ring-2 wears its own gem (shape arrives via applyOrbVars); size
+        // and light are per-slot so the tray glints instead of repeating
         const variant = opt.node.variant;
         if (variant) {
           if (variant.size) el.style.setProperty("--qd-orb-size", `${variant.size}px`);
@@ -456,8 +456,12 @@ export function mountQuickDial() {
       // so keep the pop only while its animation is still running.
       const fresh = performance.now() - Number(el.dataset.born || 0) < 320;
       el.className = `qd-node${isActive ? " qd-node-active" : ""}${isActive && fresh ? " qd-node-pop" : ""}`;
-      const orb = orbVars(entry.node);
-      if (orb) el.style.cssText += `;${orb}`;
+      // gem vars only change when this slot's node changes (pop + recommit
+      // to a different branch) — set them then, never every frame
+      if (el.dataset.nodeId !== entry.node.id) {
+        el.dataset.nodeId = entry.node.id;
+        applyOrbVars(el, entry.node);
+      }
       el.style.left = `${entry.pos.x}px`;
       el.style.top = `${entry.pos.y}px`;
     });
@@ -580,10 +584,14 @@ export function mountQuickDial() {
     }
     const branchId = nodes[0]?.id || homedBranch;
     const crumb = nodes.map((n) => n.label).join(" ▸ ") || homedBranch;
-    const fallback = uiState === "drawing"
-      ? "draw, then release"
-      : "click — or hold + draw";
-    const hint = BRANCH_HINTS[branchId] || fallback;
+    // Ring-1 browse with nothing aimed: the labeled bubbles ARE the
+    // teaching — a generic how-to line next to them is noise. The
+    // caption earns its place once there's a crumb or a homed branch.
+    if (!crumb && uiState !== "drawing") {
+      caption.textContent = "";
+      return;
+    }
+    const hint = BRANCH_HINTS[branchId] || "draw, then release";
     const text = crumb ? `${crumb} · ${hint}` : hint;
     if (caption.textContent !== text) {
       caption.textContent = text;
