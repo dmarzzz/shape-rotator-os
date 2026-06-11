@@ -235,6 +235,26 @@ function renderProofRead(rec) {
 // Flat section — same hairline + label language as the disclosure, but
 // the content is simply visible. The dossier reads top to bottom; only
 // the long tail (timeline) stays collapsible. Mirrors the Electron app.
+// The team's positioning as prose (first-mock lesson: lead the dossier
+// with a read, not labeled rows): problem → what they're building → who
+// for. The lifted fields leave the assessment disclosure so no fact has
+// two owners on the page.
+function teamPositioningProse(journey) {
+  if (!journey) return "";
+  const clause = (value) => String(value || "").replace(/\s+/g, " ").trim().replace(/\.\s*$/, "");
+  // Lowercase a leading sentence-case word so the clause splices mid-
+  // sentence; leave acronyms ("TEE…") alone.
+  const splice = (value) => /^[A-Z][a-z]/.test(value) ? value[0].toLowerCase() + value.slice(1) : value;
+  const problem = sentenceText(journey.problem);
+  const solution = clause(journey.solution);
+  const icp = clause(journey.icp);
+  const sentences = [];
+  if (problem) sentences.push(problem);
+  if (solution) sentences.push(`Building ${splice(solution)}.`);
+  if (icp) sentences.push(`For ${splice(icp)}.`);
+  return renderProse(sentences.join(" "));
+}
+
 function renderFlatSection(title, body, extraClass = "") {
   const cleaned = asArray(body).join("");
   if (!cleaned.trim()) return "";
@@ -376,8 +396,64 @@ function quickText(label, value) {
   return `<span class="cd-quick-text">${label ? `<span>${escHtml(label)}</span>` : ""}${escHtml(values.join(" · "))}</span>`;
 }
 
-function cohortDetailHref(recordId) {
-  return `#${encodeURIComponent(recordId || "")}`;
+// Most recent timeline entry whose title/detail shares a substantive word
+// with the chip text — the hover layer's "where has this actually shown
+// up" provenance. Only event/transcript/calendar entries count: profile,
+// team, onboarding, and availability entries restate the record itself,
+// so matching them would be circular. Empty when nothing matches (no
+// dead hover affordances).
+const EVIDENCE_TYPES = new Set(["event", "transcript", "calendar"]);
+// Filler that appears on both sides of almost every record — matching on
+// these words produces noise, not provenance.
+const EVIDENCE_STOPWORDS = new Set(["context", "cohort", "project", "projects", "issues", "notes", "weekly"]);
+// Generated phrasing in timeline entries; never evidence of a topic.
+const EVIDENCE_BOILERPLATE = /\b(mentioned in transcript|team context in transcript|held privately)\b/gi;
+
+// Clause around the first matched word — evidence must show the matched
+// region, not the field's (often junk) opening ("Tue May 19:").
+function matchSnippet(text, words, max = 56) {
+  const s = String(text || "").replace(EVIDENCE_BOILERPLATE, " ").replace(/\s+/g, " ").trim();
+  const lower = s.toLowerCase();
+  let idx = -1;
+  for (const w of words) {
+    // Word-start boundary always; short words also need a word END so
+    // "defi" can't claim "defining" (longer words keep prefix matching —
+    // "agent" → "agentic", "market" → "markets").
+    const pattern = new RegExp(`(?<![a-z0-9])${w}${w.length <= 4 ? "(?![a-z0-9])" : ""}`);
+    const m = pattern.exec(lower);
+    if (m && (idx < 0 || m.index < idx)) idx = m.index;
+  }
+  if (idx < 0) return "";
+  let start = Math.max(0, idx - 18);
+  while (start > 0 && /\S/.test(s[start - 1])) start--;
+  const clause = s.slice(start);
+  const clipped = clause.length > max ? `${clause.slice(0, max - 1).trimEnd()}…` : clause;
+  return (start > 0 ? "…" : "") + clipped;
+}
+
+function evidenceFor(text, timelineItems) {
+  const words = String(text || "").toLowerCase().split(/[^a-z0-9]+/)
+    .filter(w => w.length > 3 && !EVIDENCE_STOPWORDS.has(w));
+  if (!words.length) return "";
+  const dated = asArray(timelineItems)
+    .filter(item => EVIDENCE_TYPES.has(String(item?.type || "").toLowerCase()))
+    .sort((a, b) => String(b?.date || "").localeCompare(String(a?.date || "")));
+  for (const item of dated) {
+    const snippet = matchSnippet(item?.title, words) || matchSnippet(item?.detail, words);
+    if (snippet) {
+      return item.date ? `${dateText(item.date)} — ${snippet}` : snippet;
+    }
+  }
+  return "";
+}
+
+// Ask-me-about chip with an optional hover/focus evidence layer (the
+// matched timeline entry). Falls back to the plain chip when no evidence
+// matches — nothing should look layered that isn't.
+function quickChip(value, evidence) {
+  if (!String(value || "").trim()) return "";
+  if (!evidence) return quickText("", value);
+  return `<span class="cd-quick-text cd-evidence-chip" tabindex="0" data-evidence="${escAttr(evidence)}" aria-label="${escAttr(`${value} — evidence: ${evidence}`)}">${escHtml(value)}</span>`;
 }
 
 function compactPills(items) {
@@ -648,19 +724,26 @@ function compactPills(items) {
       quickLink("source", editUrl),
     ]);
     const askMeAbout = renderQuickRow("ask me about",
-      asArray(rec.go_to_them_for).slice(0, 4).map(value => quickText("", value))
+      asArray(rec.go_to_them_for).slice(0, 4)
+        .map(value => quickChip(value, evidenceFor(value, timelineItems)))
     );
     const themes = renderQuickRow("themes",
       asArray(rec.recurring_themes).slice(0, 4).map(value => quickText("", value))
     );
-    // (No "team context" quick row — the rail's team token owns that fact;
-    // the team's focus lives one click away on its dossier.)
+    // Quick band = the one-frame read (first-mock lesson): what they're
+    // doing now, how to engage, what to route to them, and where their
+    // work sits — everything else is opt-in below.
+    const nowRow = renderQuickRow("now", [quickText("", rec.now)]);
+    // Team context rides in the read: the rail token answers "which team",
+    // this row answers "what that team is building" without a click — the
+    // focus pill is the new information.
+    const teamContext = team ? renderQuickRow("team context", [
+      teamQuickLink(team),
+      team.focus ? pill("focus", team.focus) : "",
+    ]) : "";
     const bioSection = renderFlatSection("about / bio", renderProse(rec.bio_md));
-    const currentRows = [
-      renderRow("now", rec.now),
-      renderRow("weekly intention", rec.weekly_intention),
-    ];
     const workingRows = [
+      renderRow("weekly intention", rec.weekly_intention),
       renderRow("comm style", rec.comm_style),
       renderRow("availability", rec.availability_pref),
       renderRow("working style", rec.working_style),
@@ -673,6 +756,12 @@ function compactPills(items) {
       secondary.length ? renderHtmlRow("also contributes", secondary.map(t => `<a class="cd-text-link" href="#${escAttr(encodeURIComponent(t.record_id))}">${escHtml(t.name || t.record_id)}</a>`).join(" ")) : "",
     ];
     const proofRead = renderProofRead(rec);
+    // Collapsed-section previews carry the strongest fact behind each fold.
+    const workingPreview = previewSnippet(rec.working_style || rec.comm_style || rec.weekly_intention || rec.best_contexts);
+    const proofPreview = previewSnippet(rec.prior_work || rec.making_signature?.note);
+    const routesPreview = secondary.length
+      ? `also contributes: ${previewSnippet(secondary[0].name || secondary[0].record_id, 40)}`
+      : "";
 
     return `
       ${renderPersonRail(rec, team, fam)}
@@ -681,12 +770,11 @@ function compactPills(items) {
           <span class="cd-h">individual read</span>
         </div>
         ${bioSection ? `<div class="cd-section-stack cd-priority-stack">${bioSection}</div>` : ""}
-        <div class="cd-quick">${explore}${askMeAbout}${themes}</div>
+        <div class="cd-quick">${nowRow}${explore}${askMeAbout}${themes}${teamContext}</div>
         <div class="cd-section-stack">
-          ${renderFlatSection("current read", currentRows)}
-          ${renderFlatSection("working with", workingRows)}
-          ${renderFlatSection("proof / prior work", proofRead)}
-          ${renderFlatSection("routes / asks", routeRows)}
+          ${renderSection("working with", workingRows, false, workingPreview)}
+          ${renderSection("proof / prior work", proofRead, false, proofPreview)}
+          ${renderSection("routes / asks", routeRows, false, routesPreview)}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems), false, timelinePreview(timelineItems))}
         </div>
       </section>
@@ -720,10 +808,11 @@ function compactPills(items) {
       pill("bottleneck", journey.bottleneck),
       quickText("next", journey.next),
     ]) : "";
-    const routes = renderQuickRow("routes / asks", [
-      quickLink(`${rec.name || rec.record_id} cohort detail`, cohortDetailHref(rec.record_id), false),
-    ]);
+    // (The old "routes / asks" quick row linked to this same page — a
+    // self-link is a control with no consequence; dropped.)
     const explore = renderQuickRow("explore", [
+      quickLink("calendar", "/calendar", false),
+      quickLink("availability", "/availability", false),
       quickLink("GitHub", linkForKey(links, "github")),
       quickLink("Repo", linkForKey(links, "repo")),
       quickLink("X", linkForKey(links, "x")),
@@ -738,16 +827,28 @@ function compactPills(items) {
       renderRow("prior shipping", rec.prior_shipping),
       renderRow("hackathon note", rec.hackathon_note),
     ];
-    // "next milestone" lives in the always-visible trajectory quick row —
-    // the section adds the qualitative read instead of repeating it.
-    const trajectoryRows = journey ? [
+    // Stage / evidence / upside / bottleneck / next milestone live in the
+    // always-visible "trajectory" quick row; icp / problem / solution live
+    // in the "about / positioning" prose up top. This disclosure keeps the
+    // program's assessment and the declared plan.
+    const assessmentRows = journey ? [
       renderRow("company type", journey.companyType),
       renderRow("confidence", journey.confidence),
-      renderRow("icp", journey.icp),
-      renderRow("problem", journey.problem),
-      renderRow("solution", journey.solution),
       renderRow("evidence notes", journey.evidenceNotes),
+      renderRow("this week", rec.weekly_goals),
+      renderRow("milestones", rec.monthly_milestones),
+      renderRow("graduation", rec.graduation_target),
     ] : [];
+    const readSection = renderFlatSection("about / positioning", teamPositioningProse(journey));
+    const assessmentPreview = [
+      journey?.companyType,
+      journey?.confidence ? `${journey.confidence} confidence` : "",
+    ].filter(Boolean).join(" · ") || previewSnippet(journey?.evidenceNotes);
+    const evidencePreview = previewSnippet(rec.traction || rec.paper_basis);
+    const seekingFirst = asArray(rec.seeking)[0];
+    const coordinationPreview = seekingFirst
+      ? `seeking ${previewSnippet(seekingFirst, 52)}`
+      : previewSnippet(rec.offering);
 
     return `
       ${renderTeamRail(rec, teamPeople, fam, kind)}
@@ -755,11 +856,12 @@ function compactPills(items) {
         <div class="cd-ledger-head">
           <span class="cd-h">${escHtml(kind)} read</span>
         </div>
-        <div class="cd-quick cd-team-quick">${nextMove}${guild}${trajectory}${routes}${explore}</div>
+        ${readSection ? `<div class="cd-section-stack cd-priority-stack">${readSection}</div>` : ""}
+        <div class="cd-quick cd-team-quick">${nextMove}${guild}${trajectory}${explore}</div>
         <div class="cd-section-stack">
-          ${renderFlatSection("positioning", trajectoryRows)}
-          ${renderFlatSection("evidence", evidenceRows)}
-          ${renderFlatSection("coordination", coordinationRows)}
+          ${renderSection("assessment / plan", assessmentRows, false, assessmentPreview)}
+          ${renderSection("evidence", evidenceRows, false, evidencePreview)}
+          ${renderSection("coordination", coordinationRows, false, coordinationPreview)}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems), false, timelinePreview(timelineItems))}
         </div>
       </section>

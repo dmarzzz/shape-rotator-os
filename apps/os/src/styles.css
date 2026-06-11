@@ -20698,6 +20698,55 @@ button.alch-quick-link {
   color: var(--ed-ink-2, var(--alchemy-ink));
   border-color: rgba(var(--ink-rgb), 0.11);
 }
+/* ask-me-about chips with matching timeline provenance carry a hover/
+ * focus evidence layer (the matched entry: date — title). The oxide
+ * corner tick marks which chips have it; chips without a match render
+ * plain, so nothing looks layered that isn't. */
+.alch-evidence-chip {
+  position: relative;
+}
+.alch-evidence-chip::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-top: 1px solid var(--alchemy-oxide-bright, #d05332);
+  border-right: 1px solid var(--alchemy-oxide-bright, #d05332);
+  opacity: 0.65;
+}
+.alch-evidence-chip::after {
+  content: "evidence · " attr(data-evidence);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 12;
+  width: max-content;
+  max-width: min(46ch, 70vw);
+  padding: 5px 9px;
+  border: 1px solid rgba(var(--ink-rgb), 0.22);
+  border-radius: 4px;
+  background: var(--ed-bg-1, #221d1a);
+  color: var(--ed-ink-2, var(--alchemy-ink));
+  font-size: 10.5px;
+  line-height: 1.45;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--dur-fast, 120ms) var(--ease-out, ease-out),
+              transform var(--dur-fast, 120ms) var(--ease-out, ease-out);
+}
+.alch-evidence-chip:hover::after,
+.alch-evidence-chip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+  /* enter slower than exit */
+  transition-duration: var(--dur-base, 220ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .alch-evidence-chip::after { transition: none; }
+}
 .alch-quick-text span,
 .alch-quick-pill span {
   margin-right: 6px;
