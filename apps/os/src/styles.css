@@ -7816,14 +7816,14 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-network-scope-btn:hover {
   color: var(--alchemy-paper-warm);
 }
-.ac-network-scope-btn[aria-selected="true"] {
+.ac-network-scope-btn[aria-checked="true"] {
   border-color: var(--alchemy-oxide-bright);
   color: var(--alchemy-paper-warm);
 }
-.ac-network-scope-btn[aria-selected="true"] strong {
+.ac-network-scope-btn[aria-checked="true"] strong {
   font-weight: 900;
 }
-.ac-network-scope-btn[aria-selected="true"] em {
+.ac-network-scope-btn[aria-checked="true"] em {
   color: var(--alchemy-oxide-bright);
 }
 .ac-map-layout-btn {
@@ -7847,7 +7847,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-map-layout-btn:hover {
   color: var(--alchemy-paper-warm);
 }
-.ac-map-layout-btn[aria-selected="true"] {
+.ac-map-layout-btn[aria-checked="true"] {
   border-color: rgba(214,189,134,0.82);
   background: transparent;
   color: var(--alchemy-paper-warm);
@@ -7868,15 +7868,15 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   letter-spacing: 0.08em;
 }
 .ac-lens-btn:hover { color: var(--alchemy-paper-warm); }
-.ac-lens-btn[aria-selected="true"] { border-color: var(--alchemy-oxide-bright); color: var(--alchemy-oxide-bright); background: transparent; font-weight: 800; }
-.ac-lens-btn[aria-selected="true"] em { color: var(--alchemy-paper-warm); }
+.ac-lens-btn[aria-checked="true"] { border-color: var(--alchemy-oxide-bright); color: var(--alchemy-oxide-bright); background: transparent; font-weight: 800; }
+.ac-lens-btn[aria-checked="true"] em { color: var(--alchemy-paper-warm); }
 .ac-lens-btn.is-empty {
   color: rgba(var(--ink-rgb),0.56);
 }
 .ac-lens-btn.is-empty em {
   color: rgba(var(--ink-rgb),0.58);
 }
-.ac-lens-btn.is-empty[aria-selected="true"] {
+.ac-lens-btn.is-empty[aria-checked="true"] {
   border-color: rgba(193,168,114,0.46);
   background: transparent;
   color: var(--alchemy-paper-warm);
@@ -15165,9 +15165,9 @@ html, body {
    1px ring, and real lift. The micro oxide underline (::after) is the
    signature — the same "active = oxide underline" the view tabs above
    carry, scaled down to thumb size. */
-.alch-view-controls .ac-network-scope-btn[aria-selected="true"],
-.alch-view-controls .ac-map-layout-btn[aria-selected="true"],
-.alch-view-controls .ac-lens-btn[aria-selected="true"],
+.alch-view-controls .ac-network-scope-btn[aria-checked="true"],
+.alch-view-controls .ac-map-layout-btn[aria-checked="true"],
+.alch-view-controls .ac-lens-btn[aria-checked="true"],
 .alch-view-controls .ajf-toggle.is-on,
 .alch-view-controls .alch-shapes-chip[aria-selected="true"],
 .alch-view-controls .cb-lens[aria-pressed="true"] {
@@ -15185,9 +15185,9 @@ html, body {
 }
 /* (ajf-toggle excluded — its multi-select state dot already carries the
    oxide signal; tick + dot would double-mark one 26px thumb) */
-.alch-view-controls .ac-network-scope-btn[aria-selected="true"]::after,
-.alch-view-controls .ac-map-layout-btn[aria-selected="true"]::after,
-.alch-view-controls .ac-lens-btn[aria-selected="true"]::after,
+.alch-view-controls .ac-network-scope-btn[aria-checked="true"]::after,
+.alch-view-controls .ac-map-layout-btn[aria-checked="true"]::after,
+.alch-view-controls .ac-lens-btn[aria-checked="true"]::after,
 .alch-view-controls .alch-shapes-chip[aria-selected="true"]::after,
 .alch-view-controls .cb-lens[aria-pressed="true"]::after {
   content: "";
@@ -15223,7 +15223,7 @@ html, body {
 /* Empty lens — brass-tinted thumb keeps "no data of this type" distinct
    from merely inactive; its tick goes brass too */
 .alch-view-controls .ac-lens-btn.is-empty { color: rgba(var(--ink-rgb), 0.36); }
-.alch-view-controls .ac-lens-btn.is-empty[aria-selected="true"] {
+.alch-view-controls .ac-lens-btn.is-empty[aria-checked="true"] {
   color: rgba(var(--ink-rgb), 0.62);
   background: linear-gradient(rgba(193, 168, 114, 0.13), rgba(193, 168, 114, 0.07));
   box-shadow:
@@ -15231,7 +15231,7 @@ html, body {
     0 0 0 1px rgba(193, 168, 114, 0.22),
     0 2px 5px rgba(0, 0, 0, 0.30);
 }
-.alch-view-controls .ac-lens-btn.is-empty[aria-selected="true"]::after {
+.alch-view-controls .ac-lens-btn.is-empty[aria-checked="true"]::after {
   background: rgba(193, 168, 114, 0.85);
   box-shadow: 0 0 5px rgba(193, 168, 114, 0.45);
 }

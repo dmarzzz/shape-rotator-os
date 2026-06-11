@@ -1881,11 +1881,11 @@ function constNormalizeNetworkScope(raw) {
 function constellationNetworkScopeRow(active) {
   const scope = constNormalizeNetworkScope(active);
   return `
-    <div class="ac-network-scope-row" role="group" aria-label="network entity layer">
+    <div class="ac-network-scope-row" role="radiogroup" aria-label="network entity layer">
       <span>Graph</span>
       ${CONST_NETWORK_SCOPES.map(v => {
         return `
-          <button class="ac-network-scope-btn" data-const-network-scope="${v.scope}" aria-selected="${scope === v.scope}" aria-label="${escAttr(`${v.label}, ${v.hint}`)}" type="button">
+          <button class="ac-network-scope-btn" data-const-network-scope="${v.scope}" role="radio" aria-checked="${scope === v.scope}" aria-label="${escAttr(`${v.label}, ${v.hint}`)}" type="button">
             <strong>${escHtml(v.label)}</strong>
           </button>`;
       }).join("")}
@@ -1894,10 +1894,10 @@ function constellationNetworkScopeRow(active) {
 function constellationMapLayoutRow(active) {
   const activeLayout = active === "ring" ? "ring" : "map";
   return `
-    <div class="ac-map-layout-row" role="group" aria-label="map layout">
+    <div class="ac-map-layout-row" role="radiogroup" aria-label="map layout">
       <span>layout</span>
       ${CONST_MAP_LAYOUTS.map(v => `
-        <button class="ac-map-layout-btn" data-const-map-layout="${v.mode}" aria-selected="${activeLayout === v.mode}" aria-label="${escAttr(`${v.label} layout, ${v.hint}`)}" type="button">${escHtml(v.label)}</button>
+        <button class="ac-map-layout-btn" data-const-map-layout="${v.mode}" role="radio" aria-checked="${activeLayout === v.mode}" aria-label="${escAttr(`${v.label} layout, ${v.hint}`)}" type="button">${escHtml(v.label)}</button>
       `).join("")}
     </div>`;
 }
@@ -1938,13 +1938,13 @@ function constellationLensRow(active, metrics = {}) {
     substrate: { label: "shared" },
   };
   return `
-    <div class="ac-lens-row" role="group" aria-label="map lens">
+    <div class="ac-lens-row" role="radiogroup" aria-label="map lens">
       <span>lines</span>
       ${CONST_LENSES.map(l => {
         const metric = constellationLensMetric(l.lens, metrics);
         const aria = constellationLensAria(l.lens, l.label, metric);
         const spec = chipCopy[l.lens] || { label: l.label };
-        return `<button class="ac-lens-btn${metric === 0 ? " is-empty" : ""}" data-const-lens="${l.lens}" aria-selected="${active === l.lens}" aria-label="${escAttr(aria)}" type="button"><span>${escHtml(spec.label)}</span></button>`;
+        return `<button class="ac-lens-btn${metric === 0 ? " is-empty" : ""}" data-const-lens="${l.lens}" role="radio" aria-checked="${active === l.lens}" aria-label="${escAttr(aria)}" type="button"><span>${escHtml(spec.label)}</span></button>`;
       }).join("")}
     </div>`;
 }
