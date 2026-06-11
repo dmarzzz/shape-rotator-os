@@ -4726,8 +4726,15 @@ function renderProductStack() {
   };
   const stackModel = constProductStackModel(teams, baseCtx);
   const inspectorCtx = { ...baseCtx, stackModel };
+  // Domain counts + hover-isolation hooks: touching a domain key dims the
+  // other domains' tiles in the stack below (CSS :has).
+  const domainCounts = new Map(CONST_DOMAIN_KEYS.map(k => [k, 0]));
+  for (const t of teams) {
+    const k = constDomainClass(t.domain);
+    if (domainCounts.has(k)) domainCounts.set(k, domainCounts.get(k) + 1);
+  }
   const legend = CONST_DOMAIN_KEYS
-    .map(k => `<span class="acl-item"><span class="acl-dot acl-dot-${k}"></span>${escHtml(CONST_DOMAIN_LABEL[k])}</span>`)
+    .map(k => `<span class="acl-item" data-legend-domain="${escAttr(k)}" tabindex="0"><span class="acl-dot acl-dot-${k}"></span>${escHtml(CONST_DOMAIN_LABEL[k])}<em class="acl-count">${domainCounts.get(k)}</em></span>`)
     .join("");
   const selectionChip = constSelectionChipHtml();
   state.canvas.innerHTML = `
@@ -4979,12 +4986,15 @@ function renderConstellationPeople(teams, people, clusters, edges) {
         <text class="ac-person-initial" y="2.6" text-anchor="middle">${escHtml(constPersonInitials(person))}</text>
       </g>`;
   }).join("");
+  // Each key row carries its count and isolates its lines on hover/focus
+  // (pure CSS via :has, see "legend → canvas isolation" in styles.css).
+  const linkCount = (...kinds) => model.edges.filter(e => kinds.includes(e.kind)).length;
   const legend = `
     <div class="acl-line-key">
       <strong>People links</strong>
-      <span class="acl-line-key-row is-typed"><i></i><b>same project</b></span>
-      <span class="acl-line-key-row is-profile"><i></i><b>profile overlap</b></span>
-      <span class="acl-line-key-row is-shared"><i></i><b>shared context</b></span>
+      <span class="acl-line-key-row is-typed" data-legend-link="same-team" tabindex="0"><i></i><b>same project</b> <em>${linkCount("same-team")}</em></span>
+      <span class="acl-line-key-row is-profile" data-legend-link="profile" tabindex="0"><i></i><b>profile overlap</b> <em>${linkCount("secondary-overlap", "pair-with")}</em></span>
+      <span class="acl-line-key-row is-shared" data-legend-link="shared-context" tabindex="0"><i></i><b>shared context</b> <em>${linkCount("shared-context")}</em></span>
     </div>
     <div class="acl-line-note">Circles are primary project groups. Lines are inferred from person profiles and should be treated as conversation leads.</div>`;
   state.canvas.innerHTML = `
@@ -5505,11 +5515,16 @@ function renderConstellation() {
   // is read from the labeled wells, not the legend, so nothing swaps.
   // One legend element: the swatch rows carry the nuance inline (the old
   // acl-line-note sentence restated the same solid/dotted fact a second time).
+  // Counts make the key data-bearing; hover/focus on a row isolates that
+  // line tier on the map below (CSS :has rules — no listeners to lose on
+  // re-render).
+  const recordEdgeCount = relationshipBreakdown.typed;
+  const mentionEdgeCount = Math.max(0, relationshipBreakdown.total - relationshipBreakdown.typed);
   const legend = `
     <div class="acl-line-key">
       <strong>Line source</strong>
-      <span class="acl-line-key-row is-typed"><i></i><b>relationship record</b> <small>typed, with status + evidence</small></span>
-      <span class="acl-line-key-row is-profile"><i></i><b>profile mention</b> <small>needs confirmation</small></span>
+      <span class="acl-line-key-row is-typed" data-legend-edge="record" tabindex="0"><i></i><b>relationship record</b> <em>${recordEdgeCount}</em> <small>typed, with status + evidence</small></span>
+      <span class="acl-line-key-row is-profile" data-legend-edge="mention" tabindex="0"><i></i><b>profile mention</b> <em>${mentionEdgeCount}</em> <small>needs confirmation</small></span>
     </div>`;
 
   state.canvas.innerHTML = `
@@ -8323,12 +8338,14 @@ function collabTeamRouteRailHtml({ outbound, inbound, getsHelpFrom, givesHelpTo 
 }
 
 function collabLegendHtml() {
+  // data-legend-cell drives hover-isolation on the matrix (CSS :has):
+  // touching a key entry surfaces exactly the cells it describes.
   return `
     <div class="cb-legend" aria-label="collab board legend">
-      <span tabindex="0" data-desc="This row team relies on the column team to do its work. Read it as: row needs column."><i class="cb-legend-mark dep"></i><b>dependency</b></span>
-      <span tabindex="0" data-desc="The row team is seeking something the column team has offered. Read it as: row seeks → column provides. A concrete match to introduce."><i class="cb-legend-mark so"></i><b>seek / offer</b></span>
-      <span tabindex="0" data-desc="How strong a seek/offer match is, shown by the cell's teal depth: paler = fewer shared terms, darker = more overlap."><i class="cb-legend-mark so-scale"></i><b>match strength</b></span>
-      <span tabindex="0" data-desc="A team many others depend on; its column is densely filled."><i class="cb-legend-mark key"></i><b>keystone</b></span>
+      <span tabindex="0" data-legend-cell="dep" data-desc="This row team relies on the column team to do its work. Read it as: row needs column."><i class="cb-legend-mark dep"></i><b>dependency</b></span>
+      <span tabindex="0" data-legend-cell="so" data-desc="The row team is seeking something the column team has offered. Read it as: row seeks → column provides. A concrete match to introduce."><i class="cb-legend-mark so"></i><b>seek / offer</b></span>
+      <span tabindex="0" data-legend-cell="scale" data-desc="How strong a seek/offer match is, shown by the cell's teal depth: paler = fewer shared terms, darker = more overlap."><i class="cb-legend-mark so-scale"></i><b>match strength</b></span>
+      <span tabindex="0" data-legend-cell="key" data-desc="A team many others depend on; its column is densely filled."><i class="cb-legend-mark key"></i><b>keystone</b></span>
     </div>`;
 }
 

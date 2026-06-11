@@ -14978,10 +14978,16 @@ html, body {
   align-items: center;
   gap: 7px;
   margin-left: auto;
-  padding: 5px 11px 5px 13px;
-  background: color-mix(in srgb, var(--alchemy-oxide-bright) 10%, transparent);
+  min-height: 34px;
+  padding: 5px 13px 5px 15px;
+  background: linear-gradient(
+    color-mix(in srgb, var(--alchemy-oxide-bright) 14%, transparent),
+    color-mix(in srgb, var(--alchemy-oxide-bright) 7%, transparent));
   border: 1px solid color-mix(in srgb, var(--alchemy-oxide-hot) 55%, transparent);
   border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 1px 3px rgba(0, 0, 0, 0.22);
   color: var(--ed-ink-1);
   font-family: var(--ed-mono);
   font-size: 10px;
@@ -15018,6 +15024,451 @@ html, body {
   align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
+}
+
+/* ── Cohort control band — liquid-glass segmented rails ───────────
+   One material across all five views (directory, map, journey, stack,
+   collab). Each filter group sits in a recessed glass rail: alpha
+   gradient fill, hairline border, inner shadow so the trough reads
+   sunken. The active option is a raised glass thumb — lighter fill,
+   top-light catch, soft drop shadow. Group labels (graph / layout /
+   lines / include) etch into the rail's left edge as field prefixes.
+   Oxide stays reserved: membership tier, counts, the live dot, and
+   the one action button. Everything else is ink-on-glass. */
+
+.alch-view-controls {
+  gap: 8px 12px;
+  margin: 6px 0 18px;
+  padding-bottom: 12px;
+}
+
+/* The rails — every button group becomes one glass trough. Light reads
+   top-down: the trough's upper edge sits in shadow, its lower lip
+   catches light, so the strip reads carved into the surface. */
+.alch-view-controls .ac-network-scope-row,
+.alch-view-controls .ac-map-layout-row,
+.alch-view-controls .ac-lens-row,
+.alch-view-controls .alch-journey-filters,
+.alch-view-controls .alch-shapes-filter,
+.alch-view-controls .cb-lenses {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  min-width: 0;
+  border: 1px solid rgba(var(--ink-rgb), 0.06);
+  border-bottom-color: rgba(var(--ink-rgb), 0.13);
+  border-radius: 17px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0.12) 55%, rgba(255, 255, 255, 0.012));
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, 0.30),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.045);
+}
+
+/* Etched field prefixes — sit inside the rail's left edge */
+.alch-view-controls .ac-network-scope-row > span,
+.alch-view-controls .ac-map-layout-row > span,
+.alch-view-controls .ac-lens-row > span,
+.alch-view-controls .ajf-label {
+  padding: 0 7px 0 12px;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 7.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(var(--ink-rgb), 0.40);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* Segments — one structure for every filter/lens/toggle button */
+.alch-view-controls .ac-network-scope-btn,
+.alch-view-controls .ac-map-layout-btn,
+.alch-view-controls .ac-lens-btn,
+.alch-view-controls .ajf-toggle,
+.alch-view-controls .alch-shapes-chip,
+.alch-view-controls .cb-lens {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 4px 13px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  line-height: 1;
+  color: rgba(var(--ink-rgb), 0.62);
+  opacity: 1;
+  text-decoration: none;
+  transform: none;
+  box-shadow: none;
+  cursor: pointer;
+  transition:
+    color 150ms ease-out,
+    background 150ms ease-out,
+    box-shadow 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+/* Scope buttons wrap labels in <strong>; weight follows button state */
+.alch-view-controls .ac-network-scope-btn strong {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+/* Hint <em> text is too verbose for a compact rail */
+.alch-view-controls .ac-network-scope-btn em { display: none; }
+
+/* Hover — proto-thumb: a faint version of the raised state so the glass
+   reads as responsive before commit */
+.alch-view-controls .ac-network-scope-btn:hover,
+.alch-view-controls .ac-map-layout-btn:hover,
+.alch-view-controls .ac-lens-btn:hover,
+.alch-view-controls .ajf-toggle:hover,
+.alch-view-controls .alch-shapes-chip:hover,
+.alch-view-controls .cb-lens:hover {
+  color: var(--alchemy-paper-warm);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.07), rgba(var(--ink-rgb), 0.035));
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transform: none;
+}
+/* Press — glass gives slightly */
+.alch-view-controls .ac-network-scope-btn:active,
+.alch-view-controls .ac-map-layout-btn:active,
+.alch-view-controls .ac-lens-btn:active,
+.alch-view-controls .ajf-toggle:active,
+.alch-view-controls .alch-shapes-chip:active,
+.alch-view-controls .cb-lens:active {
+  transform: scale(0.97);
+}
+/* Designed focus — oxide ring hugging the segment */
+.alch-view-controls .ac-network-scope-btn:focus-visible,
+.alch-view-controls .ac-map-layout-btn:focus-visible,
+.alch-view-controls .ac-lens-btn:focus-visible,
+.alch-view-controls .ajf-toggle:focus-visible,
+.alch-view-controls .alch-shapes-chip:focus-visible,
+.alch-view-controls .cb-lens:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright);
+  outline-offset: 1px;
+}
+
+/* The raised thumb — shared across aria-selected / aria-pressed / .is-on.
+   Specular glass: a diagonal glare layer over a top-lit gradient, a crisp
+   1px ring, and real lift. The micro oxide underline (::after) is the
+   signature — the same "active = oxide underline" the view tabs above
+   carry, scaled down to thumb size. */
+.alch-view-controls .ac-network-scope-btn[aria-selected="true"],
+.alch-view-controls .ac-map-layout-btn[aria-selected="true"],
+.alch-view-controls .ac-lens-btn[aria-selected="true"],
+.alch-view-controls .ajf-toggle.is-on,
+.alch-view-controls .alch-shapes-chip[aria-selected="true"],
+.alch-view-controls .cb-lens[aria-pressed="true"] {
+  color: var(--alchemy-paper-warm);
+  font-weight: 700;
+  background:
+    linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.055) 40%, transparent 50%),
+    linear-gradient(180deg, rgba(var(--ink-rgb), 0.17), rgba(var(--ink-rgb), 0.075));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 0 0 1px rgba(var(--ink-rgb), 0.11),
+    0 2px 5px rgba(0, 0, 0, 0.38);
+  text-decoration: none;
+  opacity: 1;
+}
+/* (ajf-toggle excluded — its multi-select state dot already carries the
+   oxide signal; tick + dot would double-mark one 26px thumb) */
+.alch-view-controls .ac-network-scope-btn[aria-selected="true"]::after,
+.alch-view-controls .ac-map-layout-btn[aria-selected="true"]::after,
+.alch-view-controls .ac-lens-btn[aria-selected="true"]::after,
+.alch-view-controls .alch-shapes-chip[aria-selected="true"]::after,
+.alch-view-controls .cb-lens[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2.5px;
+  width: 12px;
+  height: 1.5px;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  background: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 6px rgba(217, 83, 54, 0.65);
+}
+
+/* PMF toggles are multi-select — keep the state dot, drop the strikethrough */
+.alch-view-controls .ajf-toggle:not(.is-on) {
+  opacity: 1;
+  text-decoration: none;
+  color: rgba(var(--ink-rgb), 0.46);
+}
+.alch-view-controls .ajf-toggle::before {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.26);
+  transition: background 150ms ease-out, box-shadow 150ms ease-out;
+}
+.alch-view-controls .ajf-toggle.is-on::before {
+  background: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 5px rgba(217, 83, 54, 0.55);
+}
+
+/* Empty lens — brass-tinted thumb keeps "no data of this type" distinct
+   from merely inactive; its tick goes brass too */
+.alch-view-controls .ac-lens-btn.is-empty { color: rgba(var(--ink-rgb), 0.36); }
+.alch-view-controls .ac-lens-btn.is-empty[aria-selected="true"] {
+  color: rgba(var(--ink-rgb), 0.62);
+  background: linear-gradient(rgba(193, 168, 114, 0.13), rgba(193, 168, 114, 0.07));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px rgba(193, 168, 114, 0.22),
+    0 2px 5px rgba(0, 0, 0, 0.30);
+}
+.alch-view-controls .ac-lens-btn.is-empty[aria-selected="true"]::after {
+  background: rgba(193, 168, 114, 0.85);
+  box-shadow: 0 0 5px rgba(193, 168, 114, 0.45);
+}
+
+/* Counts — quiet at rest, oxide-lit on the active thumb */
+.alch-view-controls .alch-shapes-chip .ascn,
+.alch-view-controls .cb-lens strong {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  opacity: 0.55;
+}
+.alch-view-controls .alch-shapes-chip[aria-selected="true"] .ascn,
+.alch-view-controls .cb-lens[aria-pressed="true"] strong {
+  color: color-mix(in srgb, var(--alchemy-oxide-bright) 72%, var(--alchemy-paper-warm));
+  opacity: 1;
+}
+
+/* Cohort membership thumb — the one oxide-tinted segment (tier signal,
+   matches the warm tint on cohort cards); its tick reads paper-on-oxide */
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"],
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"] {
+  color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, var(--alchemy-paper-warm));
+  background:
+    linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.05) 40%, transparent 50%),
+    linear-gradient(180deg, rgba(180, 58, 25, 0.30), rgba(180, 58, 25, 0.13));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(180, 58, 25, 0.30),
+    0 2px 5px rgba(0, 0, 0, 0.34);
+}
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"]::after,
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"]::after {
+  background: color-mix(in srgb, var(--alchemy-oxide-bright) 45%, var(--alchemy-paper-warm));
+  box-shadow: 0 0 6px rgba(217, 83, 54, 0.55);
+}
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"]:hover,
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"]:hover {
+  color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, var(--alchemy-paper-warm));
+  background: rgba(180, 58, 25, 0.10);
+}
+
+/* Collab actions — harmonize the sort select with the rail material;
+   the intake button keeps its own action treatment (it commits, the
+   rails only re-scope) but shares the band height. */
+.alch-view-controls .cb-sort-control select {
+  min-height: 32px;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
+  background: linear-gradient(rgba(var(--ink-rgb), 0.055), rgba(var(--ink-rgb), 0.028));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.20);
+  padding: 0 28px 0 14px;
+  font-family: var(--ed-mono, var(--font-mono));
+}
+.alch-view-controls .cb-sort-control select:hover,
+.alch-view-controls .cb-sort-control select:focus {
+  border-color: rgba(217, 83, 54, 0.36);
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alch-view-controls .ac-network-scope-btn,
+  .alch-view-controls .ac-map-layout-btn,
+  .alch-view-controls .ac-lens-btn,
+  .alch-view-controls .ajf-toggle,
+  .alch-view-controls .alch-shapes-chip,
+  .alch-view-controls .cb-lens {
+    transition: none;
+  }
+  .alch-view-controls .ac-network-scope-btn:active,
+  .alch-view-controls .ac-map-layout-btn:active,
+  .alch-view-controls .ac-lens-btn:active,
+  .alch-view-controls .ajf-toggle:active,
+  .alch-view-controls .alch-shapes-chip:active,
+  .alch-view-controls .cb-lens:active {
+    transform: none;
+  }
+}
+
+/* ── legend → canvas isolation ────────────────────────────────────
+   Legends are keys, not captions. Every entry carries its count, its
+   swatch mirrors the real mark style exactly, and hovering/focusing an
+   entry isolates that mark type on the canvas below — the mapping is
+   demonstrated, not explained. Pure CSS via :has() so the behavior
+   survives the renderer's innerHTML rebuilds. */
+
+/* Key entries are live: subtle lift on hover, designed focus ring */
+.acl-line-key-row[data-legend-link],
+.acl-line-key-row[data-legend-edge],
+.alch-constellation-legend .acl-item[data-legend-domain],
+.cb-legend span[data-legend-cell] {
+  border-radius: 6px;
+  transition: color 140ms ease-out;
+}
+.acl-line-key-row[data-legend-link]:hover,
+.acl-line-key-row[data-legend-edge]:hover,
+.alch-constellation-legend .acl-item[data-legend-domain]:hover {
+  color: var(--alchemy-paper-warm);
+}
+.acl-line-key-row[data-legend-link]:focus-visible,
+.acl-line-key-row[data-legend-edge]:focus-visible,
+.alch-constellation-legend .acl-item[data-legend-domain]:focus-visible,
+.cb-legend span[data-legend-cell]:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright);
+  outline-offset: 2px;
+}
+
+/* Stack legend counts — same oxide voice as the line-key <em> counts */
+.alch-constellation-legend .acl-item .acl-count {
+  margin-left: 5px;
+  color: var(--alchemy-oxide-bright);
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* People-map swatches now mirror the actual stroke styles (the old key
+   showed profile overlap as ink-dotted and shared context as teal-dashed
+   — exactly swapped relative to the canvas) */
+.alch-constellation-legend.is-line-confidence .acl-line-key-row.is-typed i {
+  border-top: 2px solid rgba(226, 207, 162, 0.72);
+  box-shadow: none;
+}
+.alch-constellation-legend.is-line-confidence .acl-line-key-row.is-profile i {
+  border-top: 1px dashed rgba(79, 163, 160, 0.75);
+}
+.alch-constellation-legend.is-line-confidence .acl-line-key-row.is-shared i {
+  border-top: 1px dotted rgba(var(--ink-rgb), 0.55);
+}
+
+/* Projects map — hover "relationship record" → mentions recede; hover
+   "profile mention" → records recede and the faint mention tier surfaces */
+.alch-const-main:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
+.alch-const-main:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.06;
+}
+.alch-const-main:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
+.alch-const-main:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 1;
+  stroke-width: 1.9;
+}
+.alch-const-main:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
+.alch-const-main:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 0.07;
+}
+.alch-const-main:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
+.alch-const-main:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.95;
+  stroke: rgba(var(--ink-rgb), 0.70);
+  stroke-width: 1.05;
+}
+
+/* People map — each key row isolates its link kind */
+.alch-const-main:has([data-legend-link="same-team"]:hover) .ac-people-stage svg .ac-person-link:not(.is-same-team),
+.alch-const-main:has([data-legend-link="same-team"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-same-team) {
+  opacity: 0.05;
+}
+.alch-const-main:has([data-legend-link="same-team"]:hover) .ac-people-stage svg .ac-person-link.is-same-team,
+.alch-const-main:has([data-legend-link="same-team"]:focus-visible) .ac-people-stage svg .ac-person-link.is-same-team {
+  opacity: 1;
+  stroke-width: 1.6;
+}
+.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link:not(.is-secondary-overlap):not(.is-pair-with),
+.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-secondary-overlap):not(.is-pair-with) {
+  opacity: 0.05;
+}
+.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link.is-secondary-overlap,
+.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link.is-pair-with,
+.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link.is-secondary-overlap,
+.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link.is-pair-with {
+  opacity: 1;
+  stroke-width: 1.5;
+}
+.alch-const-main:has([data-legend-link="shared-context"]:hover) .ac-people-stage svg .ac-person-link:not(.is-shared-context),
+.alch-const-main:has([data-legend-link="shared-context"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-shared-context) {
+  opacity: 0.05;
+}
+.alch-const-main:has([data-legend-link="shared-context"]:hover) .ac-people-stage svg .ac-person-link.is-shared-context,
+.alch-const-main:has([data-legend-link="shared-context"]:focus-visible) .ac-people-stage svg .ac-person-link.is-shared-context {
+  opacity: 1;
+  stroke: rgba(var(--ink-rgb), 0.62);
+  stroke-width: 1.3;
+}
+
+/* Product layer — hover a domain key → other domains' tiles recede */
+.alch-const-main:has(.acl-item[data-legend-domain="tee"]:hover) .ac-stack-team:not(.ac-stack-domain-tee),
+.alch-const-main:has(.acl-item[data-legend-domain="tee"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-tee),
+.alch-const-main:has(.acl-item[data-legend-domain="ai"]:hover) .ac-stack-team:not(.ac-stack-domain-ai),
+.alch-const-main:has(.acl-item[data-legend-domain="ai"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-ai),
+.alch-const-main:has(.acl-item[data-legend-domain="crypto"]:hover) .ac-stack-team:not(.ac-stack-domain-crypto),
+.alch-const-main:has(.acl-item[data-legend-domain="crypto"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-crypto),
+.alch-const-main:has(.acl-item[data-legend-domain="app-ux"]:hover) .ac-stack-team:not(.ac-stack-domain-app-ux),
+.alch-const-main:has(.acl-item[data-legend-domain="app-ux"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-app-ux) {
+  opacity: 0.22;
+}
+.alch-const-main .ac-stack-team {
+  transition: opacity 160ms ease-out;
+}
+
+/* Collab matrix — the key teaches by demonstration: dependency / seek-offer
+   isolate their cells; match strength dims the weak tier so the ramp reads;
+   keystone surfaces the dense columns */
+.cb-matrix-section:has([data-legend-cell="dep"]:hover) .cb-cell.has-so:not(.has-dep),
+.cb-matrix-section:has([data-legend-cell="dep"]:focus-within) .cb-cell.has-so:not(.has-dep) {
+  opacity: 0.14;
+}
+.cb-matrix-section:has([data-legend-cell="so"]:hover) .cb-cell.has-dep:not(.has-so),
+.cb-matrix-section:has([data-legend-cell="so"]:focus-within) .cb-cell.has-dep:not(.has-so) {
+  opacity: 0.14;
+}
+.cb-matrix-section:has([data-legend-cell="scale"]:hover) .cb-cell.has-so.s1,
+.cb-matrix-section:has([data-legend-cell="scale"]:hover) .cb-cell.has-so.s2,
+.cb-matrix-section:has([data-legend-cell="scale"]:focus-within) .cb-cell.has-so.s1,
+.cb-matrix-section:has([data-legend-cell="scale"]:focus-within) .cb-cell.has-so.s2 {
+  opacity: 0.22;
+}
+.cb-matrix-section:has([data-legend-cell="key"]:hover) .cb-colhead:not(.is-key),
+.cb-matrix-section:has([data-legend-cell="key"]:focus-within) .cb-colhead:not(.is-key) {
+  opacity: 0.30;
+}
+.cb-matrix-section:has([data-legend-cell="key"]:hover) .cb-colhead.is-key,
+.cb-matrix-section:has([data-legend-cell="key"]:focus-within) .cb-colhead.is-key {
+  color: var(--alchemy-paper-warm);
+}
+.cb-matrix-section .cb-cell,
+.cb-matrix-section .cb-colhead {
+  transition: opacity 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alch-const-main .ac-stack-team,
+  .cb-matrix-section .cb-cell,
+  .cb-matrix-section .cb-colhead {
+    transition: none;
+  }
 }
 
 @media (max-width: 1120px) {
