@@ -40,7 +40,7 @@ function mdToPlainText(md, max = 240) {
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/`([^`]*)`/g, "$1")
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^#{1,6}\s+.*$/gm, " ")
     .replace(/[*_>~]/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -60,10 +60,12 @@ function mdToPlainText(md, max = 240) {
 function cardPeeks(rec) {
   const about = mdToPlainText(rec?.bio_md);
   const now = String(rec?.now || "").trim();
+  // .acp-b is the line-clamp wrapper: the layer itself must keep
+  // overflow visible or it clips its own ::before cursor bridge.
   const peek = (key, body) =>
     `<span class="alch-card-peek" data-peek="${key}" tabindex="0" role="button" aria-label="${key} — hover to preview" data-no-card-click>${key}` +
       `<span class="alch-card-peek-layer alch-card-peek-${key}" role="tooltip" data-no-card-click>` +
-        `<span class="acp-k">${key}</span>${escHtml(body)}` +
+        `<span class="acp-b"><span class="acp-k">${key}</span>${escHtml(body)}</span>` +
       `</span>` +
     `</span>`;
   const anchors = [];
