@@ -319,11 +319,11 @@ function setUpdateReady(mode, ctx) {
   const glyph = mode === "restart"
     ? `<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>` // rotate-cw
     : `<path d="M20 6 9 17l-5-5"/>`;                                                          // check
-  const label = mode === "restart" ? "install & restart" : "open installer";
+  // Icon-only (matches the rest of the update indicator) — the action label
+  // lives in the tooltip below, not next to the glyph.
   icon.innerHTML =
     `<svg class="fg-ready-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor"` +
-      ` stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${glyph}</svg>` +
-    `<span class="fg-update-pct fg-ready-label">${label}</span>`;
+      ` stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${glyph}</svg>`;
   icon.title = mode === "restart"
     ? "update downloaded — click to install & relaunch now (or it installs automatically next time you quit)"
     : "installer downloaded to your Downloads — click to open & finish";
