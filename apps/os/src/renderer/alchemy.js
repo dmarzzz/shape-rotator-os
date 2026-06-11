@@ -8163,7 +8163,7 @@ function collabPeopleForTeam(rid) {
 
 function collabCurrentModel() {
   const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
-  return buildCollabModel(teams, state.cohort?.clusters || [], state.cohort?.dependencies || []);
+  return buildCollabModel(teams, state.cohort?.clusters || [], state.cohort?.dependencies || [], state.cohort?.cohort_vocab?.skill_areas || []);
 }
 
 function collabTeamByRecordId(rid, m = collabCurrentModel()) {
@@ -9327,7 +9327,7 @@ function renderCollab() {
     state.canvas.innerHTML = `<div class="alch-cohort-page" data-cohort-view="collab">${cohortPageHead("collab")}<p class="alch-callout">no team data yet.</p></div>`;
     return;
   }
-  const m = buildCollabModel(teams, clusters, state.cohort?.dependencies || []);
+  const m = buildCollabModel(teams, clusters, state.cohort?.dependencies || [], state.cohort?.cohort_vocab?.skill_areas || []);
   normalizeCollabControls();
   const teamFilter = state.collabTeamFilter || "all";
   const sort = state.collabSort || "cluster";

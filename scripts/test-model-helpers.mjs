@@ -20,6 +20,75 @@ const contextVault = await importRendererModule("apps/os/src/renderer/context-va
 const shapeEscape = await importRendererModule("packages/shape-ui/src/escape.js");
 const vendoredEscape = await importRendererModule("apps/os/src/vendor/shape-ui/escape.js");
 
+test("transcript-derived cues and session insights resolve cohort references", async () => {
+  const surface = JSON.parse(await readFile(path.join(ROOT, "apps/os/src/cohort-surface.json"), "utf8"));
+  const teamIds = new Set((surface.teams || []).map(team => team.record_id));
+  const personIds = new Set((surface.people || []).map(person => person.record_id));
+  const clusterIds = new Set((surface.clusters || []).map(cluster => cluster.record_id));
+  const failures = [];
+
+  for (const [idx, cue] of (surface.constellation_cues || []).entries()) {
+    assert.ok(cue.label, `constellation cue ${idx} is missing label`);
+    assert.ok(cue.source, `constellation cue ${idx} is missing source`);
+    assert.ok(cue.excerpt, `constellation cue ${idx} is missing excerpt`);
+    for (const id of cue.teams || []) if (!teamIds.has(id)) failures.push(`cue ${idx} team ${id}`);
+    for (const id of cue.clusters || []) if (!clusterIds.has(id)) failures.push(`cue ${idx} cluster ${id}`);
+  }
+
+  for (const [idx, insight] of (surface.session_insights || []).entries()) {
+    assert.ok(insight.vault_id, `session insight ${idx} is missing vault_id`);
+    assert.ok(insight.source, `session insight ${idx} is missing source`);
+    for (const id of insight.teams || []) if (!teamIds.has(id)) failures.push(`session insight ${idx} team ${id}`);
+    for (const id of insight.people || []) if (!personIds.has(id)) failures.push(`session insight ${idx} person ${id}`);
+  }
+
+  assert.deepEqual(failures, []);
+});
+
+test("cohort surface join fields resolve to canonical records", async () => {
+  const surface = JSON.parse(await readFile(path.join(ROOT, "apps/os/src/cohort-surface.json"), "utf8"));
+  const teamIds = new Set((surface.teams || []).map(team => team.record_id));
+  const personIds = new Set((surface.people || []).map(person => person.record_id));
+  const failures = [];
+
+  for (const person of surface.people || []) {
+    if (person.team && !teamIds.has(person.team)) failures.push(`person ${person.record_id} team ${person.team}`);
+    for (const id of person.secondary_teams || []) {
+      if (!teamIds.has(id)) failures.push(`person ${person.record_id} secondary team ${id}`);
+    }
+    for (const id of person.pair_with || []) {
+      if (!personIds.has(id)) failures.push(`person ${person.record_id} pair_with ${id}`);
+    }
+  }
+
+  for (const team of surface.teams || []) {
+    for (const id of team.dependencies || []) {
+      if (!teamIds.has(id)) failures.push(`team ${team.record_id} dependency ${id}`);
+    }
+  }
+
+  for (const cluster of surface.clusters || []) {
+    for (const id of cluster.teams || []) {
+      if (!teamIds.has(id)) failures.push(`cluster ${cluster.record_id} team ${id}`);
+    }
+  }
+
+  for (const dependency of surface.dependencies || []) {
+    if (!teamIds.has(dependency.source)) failures.push(`dependency ${dependency.record_id} source ${dependency.source}`);
+    if (!teamIds.has(dependency.target)) failures.push(`dependency ${dependency.record_id} target ${dependency.target}`);
+    if (dependency.owner && !teamIds.has(dependency.owner) && !personIds.has(dependency.owner)) {
+      failures.push(`dependency ${dependency.record_id} owner ${dependency.owner}`);
+    }
+  }
+
+  for (const ask of surface.asks || []) {
+    if (ask.author && !personIds.has(ask.author)) failures.push(`ask ${ask.record_id} author ${ask.author}`);
+    if (ask.claimed_by && !personIds.has(ask.claimed_by)) failures.push(`ask ${ask.record_id} claimed_by ${ask.claimed_by}`);
+  }
+
+  assert.deepEqual(failures, []);
+});
+
 test("buildCohortIndex maps local team, person, secondary team, and cluster joins", () => {
   const cohort = {
     teams: [
@@ -64,7 +133,6 @@ test("buildCollabModel derives dependencies, seek-offer matches, affinity, and c
       name: "Offer Studio",
       skill_areas: ["documentation", "tee"],
       offering: ["documentation help"],
-      pair_with: ["third"],
     },
     {
       record_id: "third",
@@ -80,9 +148,20 @@ test("buildCollabModel derives dependencies, seek-offer matches, affinity, and c
   assert.deepEqual(model.ordered.map(item => item.rid), ["offer", "need", "third"]);
   assert.ok(model.deps.has("need>offer"));
   assert.deepEqual(model.soByPair.get("need>offer").shared, ["documentation"]);
-  assert.equal(model.aff.get(relations.collabAffKey("offer", "third")).endorsed, true);
+  assert.equal(model.aff.get(relations.collabAffKey("offer", "third")).endorsed, false);
   assert.deepEqual(model.aff.get(relations.collabAffKey("need", "offer")).shared, ["tee"]);
   assert.deepEqual(model.convergence, [{ skill: "tee", teams: ["Offer Studio", "Need Lab", "Third Works"], count: 3 }]);
+});
+
+test("buildCollabModel ignores unsupported team-level pair_with endorsements", () => {
+  const teams = [
+    { record_id: "alpha", name: "Alpha", skill_areas: ["tee"], pair_with: ["beta"] },
+    { record_id: "beta", name: "Beta", skill_areas: ["design"] },
+  ];
+
+  const model = relations.buildCollabModel(teams, []);
+
+  assert.equal(model.aff.has(relations.collabAffKey("alpha", "beta")), false);
 });
 
 test("typed dependency records override legacy shorthand without inventing dependency semantics", () => {
@@ -154,6 +233,41 @@ test("aggregateSkillAreas normalizes and dedupes team and person skill tags", ()
   assert.deepEqual(byTag.get("protocol"), { tag: "protocol", teams: ["alpha", "beta"], people: [], size: 2 });
   assert.ok(model.edges.some(edge => edge.a === "protocol" && edge.b === "tee" && edge.weight === 1));
   assert.ok(model.edges.some(edge => edge.a === "protocol" && edge.b === "research" && edge.weight === 1));
+});
+
+test("skill-area models ignore freeform tags when controlled vocab is present", async () => {
+  const cohort = {
+    cohort_vocab: { skill_areas: ["agentic", "agent-runtime", "agent-routing", "p2p", "bd-gtm"] },
+    teams: [
+      { record_id: "alpha", name: "Alpha", skill_areas: ["agentic", "model-routing", "unknown-specialty"] },
+      { record_id: "beta", name: "Beta", skill_areas: ["agentic"] },
+      { record_id: "gamma", name: "Gamma", skill_areas: ["agentic", "p2p-networks"] },
+    ],
+    people: [
+      { record_id: "person-1", skill_areas: ["bd-gtm", "rust"] },
+      { record_id: "person-2", skill_areas: ["agent-runtime", "memory-retrieval"] },
+    ],
+  };
+
+  const aggregate = relations.aggregateSkillAreas(cohort);
+  const nodeTags = aggregate.nodes.map(node => node.tag).sort();
+  assert.deepEqual(nodeTags, ["agent-runtime", "agentic", "bd-gtm"]);
+  assert.deepEqual(aggregate.nodes.find(node => node.tag === "agentic").teams.sort(), ["alpha", "beta", "gamma"]);
+  assert.equal(aggregate.nodes.some(node => node.tag === "unknown-specialty" || node.tag === "rust" || node.tag === "model-routing" || node.tag === "p2p-networks"), false);
+
+  const collab = relations.buildCollabModel(cohort.teams, [], [], cohort.cohort_vocab.skill_areas);
+  assert.equal(collab.convergence.length, 1);
+  assert.equal(collab.convergence[0].skill, "agentic");
+  assert.equal(collab.convergence[0].count, 3);
+  assert.deepEqual([...collab.convergence[0].teams].sort(), ["Alpha", "Beta", "Gamma"]);
+
+  const surface = JSON.parse(await readFile(path.join(ROOT, "apps/os/src/cohort-surface.json"), "utf8"));
+  const surfaceVocab = new Set(surface.cohort_vocab?.skill_areas || []);
+  const surfaceAggregate = relations.aggregateSkillAreas(surface);
+  const unknownSurfaceTags = surfaceAggregate.nodes
+    .map(node => node.tag)
+    .filter(tag => !surfaceVocab.has(tag));
+  assert.deepEqual(unknownSurfaceTags, []);
 });
 
 test("normalizeGithubAccount canonicalizes profile handles in shared and vendored helpers", () => {

@@ -13791,8 +13791,7 @@
     },
     {
       "teams": [
-        "teesql",
-        "dstack"
+        "teesql"
       ],
       "clusters": [
         "dstack",
