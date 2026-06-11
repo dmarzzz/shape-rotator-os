@@ -5611,7 +5611,7 @@ function renderConstellation() {
 // Returns:
 //   { ok: true, url }                — URL was opened
 //   { ok: false, reason: "needs-fork" } — fork modal shown, no URL opened
-async function launchPRFlow({ kind, path, value }) {
+export async function launchPRFlow({ kind, path, value }) {
   let res;
   try {
     res = await resolvePRForCurrentUser({ kind, path, value });
@@ -8036,7 +8036,7 @@ function dmLinkForPerson(p) {
   return null;
 }
 
-function currentAskContext() {
+export function currentAskContext() {
   const people = state.cohort?.people || [];
   const me = state.profile?.user || {};
   const askIdentity = { identity: getIdentity(), profileUser: me, people };
@@ -13500,7 +13500,7 @@ function wireProfileForm() {
 // YAML-quote a user-supplied string. Always wrap in double quotes +
 // escape internal quotes/backslashes — bulletproof for our schema
 // (URLs, names with punctuation, handles, etc.).
-function quoteYaml(s) {
+export function quoteYaml(s) {
   return `"${String(s ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
@@ -13509,7 +13509,7 @@ function quoteYaml(s) {
 // number of spaces a continuation line should sit at (the key's column
 // + 2). Used for textarea-backed fields like weekly_goals, monthly_milestones,
 // and the personal-API fields where multiline content matters.
-function yamlScalar(value, indent = 2) {
+export function yamlScalar(value, indent = 2) {
   if (value == null || value === "") return "null";
   const s = String(value);
   if (!/\n/.test(s)) return quoteYaml(s);

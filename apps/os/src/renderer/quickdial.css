@@ -1,0 +1,1027 @@
+/* quickdial — the "+" marking-menu in the bottom-right corner.
+ *
+ * Visual contract (calibrated to the MEMBRANE, the app's hero surface):
+ * mist inks, EMBER accent (#ff7a3d) with the membrane's three border
+ * alphas (rest .18 / hover .35 / active .55) and bloom glows, the
+ * translucent card gradient + blur(6px) saturate(1.1), 16px panel
+ * radius with asymmetric corner brackets, and uppercase mono labels at
+ * 0.16em — the membrane dock voice.
+ *
+ * Motion: surface-STATE changes (border, glow, color) ride the
+ * membrane curve — 240ms cubic-bezier(0.65, 0, 0.05, 1). Spatial
+ * motion (bloom travel, rise, collapse) keeps the radial-dial grammar:
+ * expo-out entrances, overshoot punctuation, exits faster than entries.
+ */
+
+#quick-dial {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  /* dial-local palette — mirrors renderer/membrane/membrane.css */
+  --qd-mist: #f1ece7;
+  --qd-mist-rgb: 241, 236, 231;
+  --qd-mist-mid: #b8b3ad;
+  --qd-mist-dim: #6f6a64;
+  --qd-ember: #ff7a3d;
+  --qd-ember-rgb: 255, 122, 61;
+  --qd-card-bg: rgba(22, 20, 25, 0.52);
+  --qd-card-top: rgba(36, 30, 36, 0.62);
+  --qd-mono: var(--sr-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  --qd-serif: var(--ed-serif, "Iowan Old Style", Georgia, serif);
+  --qd-mem: cubic-bezier(0.65, 0, 0.05, 1);
+  --qd-expo: cubic-bezier(0.19, 1, 0.22, 1);
+  --qd-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --qd-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── scrim — the membrane void, breathing through ──────────────────── */
+
+#quick-dial .qd-scrim {
+  position: absolute;
+  inset: 0;
+  /* a corner LENS, not a wall: darkening and blur live in the dial's
+   * quadrant and fall off radially — the rest of the page stays
+   * readable. The element still spans the screen so pressing anywhere
+   * outside dismisses. */
+  background: radial-gradient(circle 680px at calc(100% - 42px) calc(100% - 42px),
+    rgba(0, 0, 0, 0.74) 0%,
+    rgba(0, 0, 0, 0.52) 46%,
+    rgba(0, 0, 0, 0) 72%);
+  -webkit-backdrop-filter: blur(14px) saturate(1.05);
+  backdrop-filter: blur(14px) saturate(1.05);
+  -webkit-mask-image: radial-gradient(circle 720px at calc(100% - 42px) calc(100% - 42px),
+    #000 0%, #000 46%, transparent 74%);
+  mask-image: radial-gradient(circle 720px at calc(100% - 42px) calc(100% - 42px),
+    #000 0%, #000 46%, transparent 74%);
+  opacity: 0;
+  transition: opacity 140ms var(--qd-smooth);
+}
+#quick-dial:not([data-state="rest"]) .qd-scrim {
+  opacity: 1;
+  pointer-events: auto;
+  transition-duration: 200ms;
+}
+
+/* ── ink ───────────────────────────────────────────────────────────── */
+
+#quick-dial .qd-ink {
+  position: absolute;
+  inset: 0;
+}
+#quick-dial .qd-ink path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#quick-dial .qd-ink .qd-ink-live {
+  stroke: rgba(var(--qd-mist-rgb), 0.78);
+}
+#quick-dial .qd-ink .qd-ink-frozen {
+  stroke: rgba(var(--qd-mist-rgb), 0.40);
+  /* freshly frozen strokes mount thick then relax — the ink lays down */
+  transition: stroke-width 340ms var(--qd-smooth);
+}
+
+/* ── option bubbles — membrane-galaxy orbs ─────────────────────────── */
+/* A glowing cabochon floating in the void with its label BELOW, exactly
+ * like the cohort/events/asks blobs. No card, no border, no blur —
+ * the hue + label carry everything. Per-branch colors arrive as
+ * --qd-orb-base/rim/contour inline vars (from membrane BLOB_PROFILES). */
+
+#quick-dial .qd-bubble {
+  position: absolute;
+  width: 88px;
+  height: 102px;
+  margin: -51px 0 0 -44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--qd-mist);
+  cursor: pointer;
+  pointer-events: auto;
+  /* bloom in, then float — gentle bobbing, phase-staggered per orb, like
+   * the membrane blobs breathing in the void. Float waits out the bloom
+   * so the travel entrance stays legible. */
+  animation:
+    qd-bloom 200ms var(--qd-overshoot) both,
+    qd-float 5.5s ease-in-out infinite;
+  animation-delay: calc(var(--qd-i, 0) * 30ms), calc(420ms + var(--qd-i, 0) * 700ms);
+  transition:
+    transform 160ms var(--qd-overshoot),
+    opacity 140ms var(--qd-smooth);
+}
+@keyframes qd-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2.5px); }
+}
+/* The face is a clipped ::before so the glow (drop-shadow on the
+ * UNclipped wrapper) follows the shape's silhouette — sphere, diamond,
+ * hexagon, lens all glow true to their geometry. */
+#quick-dial .qd-bubble-orb {
+  position: relative;
+  width: var(--qd-orb-size, 48px);
+  height: var(--qd-orb-size, 48px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.92);
+  filter:
+    drop-shadow(0 0 10px color-mix(in srgb, var(--qd-orb-base, #c43914) 55%, transparent))
+    drop-shadow(0 0 26px color-mix(in srgb, var(--qd-orb-base, #c43914) 24%, transparent));
+  /* --qd-pull-x/y: the homed orb leans toward the cursor (set in JS) */
+  transform: translate(var(--qd-pull-x, 0px), var(--qd-pull-y, 0px));
+  transition: transform 160ms var(--qd-overshoot), filter 240ms var(--qd-mem);
+}
+#quick-dial .qd-bubble-orb::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: var(--qd-shape, circle(48% at 50% 50%));
+  /* --qd-grad: the light's position — seek's moons are the same sphere
+   * lit from six different sides */
+  background: radial-gradient(circle at var(--qd-grad, 32% 28%),
+    var(--qd-orb-rim, #FFE6D4) 0%,
+    var(--qd-orb-contour, #FFB48A) 30%,
+    var(--qd-orb-base, #c43914) 62%,
+    color-mix(in srgb, var(--qd-orb-base, #c43914) 55%, #000) 100%);
+}
+#quick-dial .qd-bubble-orb svg,
+#quick-dial .qd-bubble-orb .alch-asks-verb-svg {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+#quick-dial .qd-bubble:hover .qd-bubble-orb {
+  transform: translate(var(--qd-pull-x, 0px), var(--qd-pull-y, 0px)) scale(1.06);
+  filter:
+    drop-shadow(0 0 12px color-mix(in srgb, var(--qd-orb-base, #c43914) 70%, transparent))
+    drop-shadow(0 0 30px color-mix(in srgb, var(--qd-orb-base, #c43914) 32%, transparent));
+}
+#quick-dial .qd-bubble:focus-visible {
+  outline: none;
+}
+#quick-dial .qd-bubble:focus-visible .qd-bubble-orb {
+  filter:
+    drop-shadow(0 0 2px color-mix(in srgb, var(--qd-orb-rim, #FFE6D4) 80%, transparent))
+    drop-shadow(0 0 14px color-mix(in srgb, var(--qd-orb-base, #c43914) 70%, transparent));
+}
+#quick-dial .qd-bubble:active .qd-bubble-orb {
+  transform: translate(var(--qd-pull-x, 0px), var(--qd-pull-y, 0px)) scale(0.95);
+}
+/* homed: the shape brightens and reaches — aim confidence made visible */
+#quick-dial .qd-bubble.is-homed .qd-bubble-orb {
+  transform: translate(var(--qd-pull-x, 0px), var(--qd-pull-y, 0px))
+             scale(calc(1.06 + 0.12 * var(--qd-strength, 0)));
+  filter:
+    drop-shadow(0 0 3px color-mix(in srgb, var(--qd-orb-rim, #FFE6D4) 60%, transparent))
+    drop-shadow(0 0 14px color-mix(in srgb, var(--qd-orb-base, #c43914) calc(60% + 25% * var(--qd-strength, 0)), transparent))
+    drop-shadow(0 0 34px color-mix(in srgb, var(--qd-orb-base, #c43914) 30%, transparent));
+}
+/* The bloom travels OUT from the gesture's anchor (--qd-dx/--qd-dy point
+ * back at it) — bubbles visibly come FROM the press point, which is the
+ * wordless "drag toward these" lesson. */
+@keyframes qd-bloom {
+  from { opacity: 0; transform: translate(var(--qd-dx, 0px), var(--qd-dy, 0px)) scale(0.35); }
+  to   { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+/* unchosen siblings retract toward the anchor they bloomed from… */
+#quick-dial .qd-bubble.leaving {
+  opacity: 0;
+  transform: translate(calc(var(--qd-dx, 0px) * 0.45), calc(var(--qd-dy, 0px) * 0.45)) scale(0.5);
+  pointer-events: none;
+  animation: none;
+}
+/* …the chosen one collapses in place, into the marker chip it becomes. */
+#quick-dial .qd-bubble.leaving.chosen {
+  transform: scale(0.18);
+}
+/* While drawing, the engine owns the pointer — bubbles drop hover/click
+ * so the homed glow is the single signal. */
+#quick-dial[data-state="drawing"] .qd-bubble {
+  pointer-events: none;
+}
+#quick-dial .qd-bubble-label {
+  font-family: var(--qd-mono);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  line-height: 1.3;
+  text-align: center;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+}
+/* ring-1 qualifier — disambiguates ask/seek/offer at a glance */
+#quick-dial .qd-bubble-sub {
+  font-family: var(--qd-mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  line-height: 1;
+  color: var(--qd-mist-dim);
+  white-space: nowrap;
+}
+/* keyboard-opened dial shows each bubble's selection numeral */
+#quick-dial.qd-kbd .qd-bubble::after {
+  content: attr(data-n);
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-family: var(--qd-mono);
+  font-size: 9px;
+  line-height: 1;
+  color: var(--qd-mist-dim);
+}
+/* ── committed-path markers ────────────────────────────────────────── */
+
+/* markers wear their branch's SHAPE and hue — the path stays coded */
+#quick-dial .qd-node {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  background: none;
+  border: 0;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--qd-orb-base, var(--qd-ember)) 50%, transparent));
+  pointer-events: none;
+}
+#quick-dial .qd-node::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: var(--qd-shape, circle(50% at 50% 50%));
+  background: radial-gradient(circle at 35% 30%,
+    var(--qd-orb-contour, var(--qd-ember)) 0%,
+    var(--qd-orb-base, var(--qd-ember)) 70%);
+}
+/* the active node is a brighter, larger shape — a waypoint in the
+ * constellation. The ring's hue + shape carry "where am I". */
+#quick-dial .qd-node-active {
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  filter:
+    drop-shadow(0 0 8px color-mix(in srgb, var(--qd-orb-base, var(--qd-ember)) 60%, transparent))
+    drop-shadow(0 0 20px color-mix(in srgb, var(--qd-orb-base, var(--qd-ember)) 25%, transparent));
+}
+#quick-dial .qd-node-active::before {
+  background: radial-gradient(circle at 35% 30%,
+    var(--qd-orb-rim, var(--qd-ember)) 0%,
+    var(--qd-orb-contour, var(--qd-ember)) 35%,
+    var(--qd-orb-base, var(--qd-ember)) 75%);
+}
+/* it pops as the chosen bubble collapses into it — object constancy */
+#quick-dial .qd-node-pop {
+  animation: qd-node-pop 260ms var(--qd-overshoot) both;
+}
+@keyframes qd-node-pop {
+  from { opacity: 0; transform: scale(2.4); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── caption (whisper line) — the membrane dock voice ──────────────── */
+
+#quick-dial .qd-caption {
+  position: absolute;
+  right: 78px;
+  bottom: 30px;
+  max-width: 340px;
+  text-align: right;
+  font-family: var(--qd-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+  color: var(--qd-mist-dim);
+  pointer-events: none;
+}
+#quick-dial .qd-caption.swap {
+  animation: qd-cap 200ms var(--qd-expo) both;
+}
+@keyframes qd-cap {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── the search rail — liquid glass pouring out from behind the FAB ── */
+
+#quick-dial .qd-search {
+  position: absolute;
+  right: 42px; /* tucked behind the FAB's left half — it emerges from it */
+  bottom: 20px;
+  height: 44px;
+  width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(48, 42, 48, 0.62) 0%, rgba(24, 21, 26, 0.58) 100%);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(var(--qd-ember-rgb), 0.10),
+    0 0 24px rgba(var(--qd-ember-rgb), 0.12),
+    0 14px 40px -12px rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  pointer-events: none;
+  transition: width 380ms var(--qd-expo), opacity 180ms var(--qd-smooth);
+}
+#quick-dial[data-state="search"] .qd-search {
+  width: min(420px, calc(100vw - 120px));
+  opacity: 1;
+  pointer-events: auto;
+}
+#quick-dial .qd-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 20px 0 22px;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--qd-mist);
+  caret-color: var(--qd-ember);
+  font-family: var(--qd-mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+#quick-dial .qd-search input::placeholder {
+  color: var(--qd-mist-dim);
+  letter-spacing: 0.10em;
+  text-transform: lowercase;
+}
+
+/* ── micro-composer — the membrane panel, miniature, liquid glass ───── */
+
+#quick-dial .qd-composer {
+  position: absolute;
+  right: 20px;
+  bottom: 78px;
+  width: min(380px, calc(100vw - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px 16px;
+  background: linear-gradient(180deg, rgba(48, 42, 48, 0.66) 0%, rgba(26, 23, 28, 0.60) 30%, rgba(22, 20, 25, 0.58) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 0 40px rgba(var(--qd-ember-rgb), 0.04),
+    0 0 0 1px rgba(var(--qd-ember-rgb), 0.16),
+    0 0 24px rgba(var(--qd-ember-rgb), 0.16),
+    0 22px 60px -18px rgba(0, 0, 0, 0.75);
+  pointer-events: auto;
+  animation: qd-rise 200ms var(--qd-expo) both;
+}
+/* specular sheen across the upper face — the glass catches the void's
+ * one light source */
+#quick-dial .qd-composer::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 62% 0;
+  border-radius: 16px 16px 50% 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%);
+  pointer-events: none;
+}
+@keyframes qd-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* contents settle in a breath behind the panel — quiet cascade */
+#quick-dial .qd-composer > * {
+  animation: qd-rise-item 240ms var(--qd-expo) both;
+}
+#quick-dial .qd-composer > :nth-child(1) { animation-delay: 30ms; }
+#quick-dial .qd-composer > :nth-child(2) { animation-delay: 60ms; }
+#quick-dial .qd-composer > :nth-child(3) { animation-delay: 85ms; }
+#quick-dial .qd-composer > :nth-child(4) { animation-delay: 105ms; }
+#quick-dial .qd-composer > :nth-child(5) { animation-delay: 120ms; }
+#quick-dial .qd-composer > :nth-child(n+6) { animation-delay: 130ms; }
+@keyframes qd-rise-item {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* (the membrane corner brackets were tried here and removed — at this
+ * miniature scale they read as stray squares, not as a designed mark) */
+
+/* close — top-right, always visible, kills the whole dial */
+#quick-dial .qd-composer-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--qd-mist-rgb), 0.16);
+  background: transparent;
+  color: var(--qd-mist-dim);
+  font-family: var(--qd-mono);
+  font-size: 13px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: none;
+  transition: color 240ms var(--qd-mem), border-color 240ms var(--qd-mem),
+              box-shadow 240ms var(--qd-mem), transform 100ms var(--qd-smooth);
+}
+#quick-dial .qd-composer-x:hover {
+  color: var(--qd-ember);
+  border-color: rgba(var(--qd-ember-rgb), 0.45);
+  box-shadow: 0 0 12px rgba(var(--qd-ember-rgb), 0.18);
+}
+#quick-dial .qd-composer-x:active {
+  transform: scale(0.92);
+}
+#quick-dial .qd-composer-x:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--qd-ember-rgb), 0.35);
+}
+/* keep the crumbs clear of the close button */
+#quick-dial .qd-crumbs {
+  padding-right: 30px;
+}
+
+/* crumbs — membrane pills */
+#quick-dial .qd-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+#quick-dial .qd-crumb {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--qd-ember-rgb), 0.18);
+  background: transparent;
+  color: var(--qd-mist-mid);
+  font-family: var(--qd-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 240ms var(--qd-mem), color 240ms var(--qd-mem), box-shadow 240ms var(--qd-mem);
+}
+#quick-dial .qd-crumb:not([disabled]):hover {
+  border-color: rgba(var(--qd-ember-rgb), 0.35);
+  color: var(--qd-mist);
+  box-shadow: 0 0 16px rgba(var(--qd-ember-rgb), 0.15);
+}
+#quick-dial .qd-crumb.is-leaf {
+  color: var(--qd-ember);
+  border-color: rgba(var(--qd-ember-rgb), 0.55);
+  box-shadow: 0 0 18px rgba(var(--qd-ember-rgb), 0.22);
+  cursor: default;
+}
+/* …except the verb leaf, which keeps its board hue — cross-surface
+ * identity. The verb vars live on the .qd-crumbs container (set by
+ * crumbsHtml), so the gate tests the container, not the crumb. */
+#quick-dial .qd-crumbs[style*="--verb-color"] .qd-crumb.is-leaf {
+  background: var(--verb-color);
+  border-color: var(--verb-color);
+  color: #fff;
+  box-shadow: none;
+}
+#quick-dial .qd-crumb .alch-asks-verb-svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+#quick-dial .qd-crumb-sep {
+  color: var(--qd-mist-dim);
+  font-family: var(--qd-mono);
+  font-size: 10px;
+}
+
+/* inputs — quiet field, ember focus (the enter-the-field idiom) */
+#quick-dial .qd-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  color: var(--qd-mist);
+  font-family: var(--qd-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  resize: none;
+  transition: border-color 240ms var(--qd-mem), box-shadow 240ms var(--qd-mem), background 240ms var(--qd-mem);
+}
+/* the topic is prose — serif, the board's editorial voice */
+#quick-dial textarea.qd-topic {
+  font-family: var(--qd-serif);
+  font-size: 15px;
+  line-height: 1.55;
+}
+#quick-dial .qd-input::placeholder {
+  color: var(--qd-mist-dim);
+}
+#quick-dial .qd-input:focus {
+  outline: none;
+  border-color: rgba(var(--qd-ember-rgb), 0.55);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 14px rgba(var(--qd-ember-rgb), 0.12);
+}
+/* empty-submit nudge — a 3px headshake, not an error state */
+#quick-dial .qd-input.qd-nudge {
+  animation: qd-nudge 200ms var(--qd-smooth);
+}
+@keyframes qd-nudge {
+  0%, 100% { transform: none; }
+  30%      { transform: translateX(-3px); }
+  70%      { transform: translateX(3px); }
+}
+
+/* suggested tags / bucket starters — small membrane pills */
+#quick-dial .qd-tagrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#quick-dial .qd-tag {
+  appearance: none;
+  padding: 4px 10px;
+  min-height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--qd-ember-rgb), 0.18);
+  background: transparent;
+  color: var(--qd-mist-mid);
+  font-family: var(--qd-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 240ms var(--qd-mem), color 240ms var(--qd-mem),
+              background 240ms var(--qd-mem), box-shadow 240ms var(--qd-mem);
+}
+#quick-dial .qd-tag:hover {
+  border-color: rgba(var(--qd-ember-rgb), 0.35);
+  color: var(--qd-mist);
+  box-shadow: 0 0 16px rgba(var(--qd-ember-rgb), 0.15);
+}
+#quick-dial .qd-tag[aria-pressed="true"] {
+  color: var(--qd-ember);
+  border-color: rgba(var(--qd-ember-rgb), 0.55);
+  background: rgba(var(--qd-ember-rgb), 0.08);
+  box-shadow: 0 0 18px rgba(var(--qd-ember-rgb), 0.25);
+}
+#quick-dial .qd-tag:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--qd-ember-rgb), 0.35);
+}
+/* the "+" pill — dashed rim says "this one makes more" */
+#quick-dial .qd-tag-add {
+  min-width: 26px;
+  border-style: dashed;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+/* the make-your-own input, revealed beneath the row */
+#quick-dial .qd-tagrow-custom .qd-tag-input {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  padding: 7px 10px;
+}
+
+#quick-dial .qd-meta {
+  font-family: var(--qd-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+  color: var(--qd-mist-dim);
+}
+#quick-dial .qd-meta strong {
+  color: var(--qd-mist-mid);
+  font-weight: 500;
+}
+
+#quick-dial .qd-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+/* primary action — membrane pill, ember-pressed at rest */
+#quick-dial .qd-submit {
+  appearance: none;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--qd-ember-rgb), 0.55);
+  background: rgba(var(--qd-ember-rgb), 0.08);
+  color: var(--qd-ember);
+  font-family: var(--qd-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 240ms var(--qd-mem), box-shadow 240ms var(--qd-mem),
+              color 240ms var(--qd-mem), transform 100ms var(--qd-smooth);
+}
+#quick-dial .qd-submit:hover {
+  background: rgba(var(--qd-ember-rgb), 0.14);
+  box-shadow: 0 0 18px rgba(var(--qd-ember-rgb), 0.30);
+}
+#quick-dial .qd-submit:active {
+  transform: scale(0.97);
+}
+#quick-dial .qd-submit[data-busy] {
+  opacity: 0.6;
+  cursor: progress;
+}
+#quick-dial .qd-submit:disabled:not([data-busy]) {
+  background: transparent;
+  border-color: rgba(var(--qd-mist-rgb), 0.20);
+  color: var(--qd-mist-dim);
+  box-shadow: none;
+  cursor: default;
+}
+#quick-dial .qd-alt,
+#quick-dial .qd-link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: var(--qd-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+  color: var(--qd-mist-dim);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 240ms var(--qd-mem);
+}
+#quick-dial .qd-alt:hover,
+#quick-dial .qd-link:hover {
+  color: var(--qd-ember);
+}
+#quick-dial .qd-crumb:focus-visible,
+#quick-dial .qd-submit:focus-visible,
+#quick-dial .qd-alt:focus-visible,
+#quick-dial .qd-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--qd-ember-rgb), 0.35);
+}
+
+/* result note — ember-spined membrane note */
+#quick-dial .qd-result {
+  padding: 12px 14px;
+  background: rgba(var(--qd-mist-rgb), 0.03);
+  border-left: 2px solid rgba(var(--qd-ember-rgb), 0.45);
+  border-radius: 0 8px 8px 0;
+  font-family: var(--qd-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  line-height: 1.6;
+  color: var(--qd-mist-mid);
+}
+#quick-dial .qd-result[data-kind="error"] {
+  border-left-color: var(--c-error, #ff6b7a);
+}
+#quick-dial .qd-result strong {
+  color: var(--qd-mist);
+  font-weight: 500;
+}
+#quick-dial .qd-result .qd-link {
+  letter-spacing: 0.12em;
+}
+#quick-dial .qd-result-preview summary {
+  cursor: pointer;
+  margin-top: 6px;
+  color: var(--qd-mist-dim);
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+}
+#quick-dial .qd-result-preview pre {
+  margin: 8px 0 0;
+  padding: 10px;
+  max-height: 180px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.30);
+  border: 1px solid rgba(var(--qd-mist-rgb), 0.10);
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── the FAB — a membrane pill, circular ───────────────────────────── */
+/* Structure: the outer button is a bare positioning shell — motion.js
+ * magnetize() (the same hover magnet the tab-bar buttons use) writes its
+ * inline transform there. The inner .qd-fab-core carries every visual and
+ * the press/draw scale, so the two transforms never fight. */
+
+#quick-dial .qd-fab {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}
+#quick-dial .qd-fab:focus-visible {
+  outline: none;
+}
+/* the FAB is a miniature SELF blob — the membrane's oxide cabochon.
+ * You, expressing. (BLOB_PROFILES.self: rim #FFE6D4 / contour #FFB48A /
+ * base #c43914.) */
+/* No disc, no chrome — the solid floats free in the void like the
+ * membrane blobs. The core is a transparent stage; glow is light,
+ * never surface. */
+#quick-dial .qd-fab-core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    box-shadow 240ms var(--qd-mem),
+    transform 120ms var(--qd-smooth);
+}
+/* a quiet halo that breathes on its own layer — the blob is alive, and
+ * nothing here competes with the press/hover/sent shadows on the core */
+#quick-dial .qd-fab-core::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  box-shadow: 0 0 20px rgba(196, 57, 20, 0.40);
+  opacity: 0.5;
+  pointer-events: none;
+  animation: qd-halo 6.5s ease-in-out infinite;
+}
+@keyframes qd-halo {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.8; }
+}
+#quick-dial .qd-fab:hover .qd-fab-core {
+  transform: scale(1.05);
+}
+#quick-dial .qd-fab:active .qd-fab-core {
+  transform: scale(0.94);
+}
+/* the anchor stays compressed for the whole draw — held, not clicked */
+#quick-dial[data-state="drawing"] .qd-fab-core {
+  transform: scale(0.92);
+}
+#quick-dial .qd-fab:focus-visible .qd-fab-core {
+  box-shadow:
+    0 0 0 2px rgba(255, 230, 212, 0.55),
+    0 0 18px rgba(196, 57, 20, 0.62);
+}
+/* once open, the base shape burns a little brighter on the void */
+#quick-dial:not([data-state="rest"]) .qd-fab-core {
+  box-shadow: 0 0 30px rgba(196, 57, 20, 0.26);
+}
+
+/* charge ring: a one-shot pulse expanding outward on press — the
+ * wordless "drag outward from here" cue. Re-armed per press in JS. */
+#quick-dial .qd-fab-ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 180, 138, 0.55);
+  opacity: 0;
+  pointer-events: none;
+}
+#quick-dial .qd-fab-ring.on {
+  animation: qd-charge 340ms var(--qd-expo) both;
+}
+@keyframes qd-charge {
+  from { opacity: 0.55; transform: scale(1); }
+  to   { opacity: 0; transform: scale(2.2); }
+}
+
+/* hover hints: three ember motes drift outward along the ring-1 angles —
+ * "things live in these directions" before the first press. Rest only. */
+#quick-dial .qd-fab-hints {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+#quick-dial .qd-fab-hints i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: rgba(255, 180, 138, 0.75);
+  box-shadow: 0 0 6px rgba(196, 57, 20, 0.45);
+  opacity: 0;
+  transform: translate(calc(var(--hx) * 0.55), calc(var(--hy) * 0.55));
+  transition: opacity 220ms var(--qd-expo), transform 260ms var(--qd-expo);
+  transition-delay: calc(var(--hi) * 45ms);
+}
+#quick-dial[data-state="rest"] .qd-fab:hover .qd-fab-hints i,
+#quick-dial[data-state="rest"] .qd-fab:focus-visible .qd-fab-hints i {
+  opacity: 1;
+  transform: translate(var(--hx), var(--hy));
+}
+
+/* the base shape: a CUBE at rest — the shape rotator's namesake — which
+ * turns in 3D into the chosen branch's solid. Aiming previews with a
+ * soft fade; a COMMIT earns the full turn: the outgoing face rotates to
+ * edge-on (90°), the incoming face continues the same rotation in from
+ * −90° — one object, turning to show its next facet. */
+#quick-dial .qd-fab-shape {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  perspective: 140px;
+  transition: transform 240ms var(--qd-mem), filter 240ms var(--qd-mem);
+}
+#quick-dial .qd-fab-cube {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 8px rgba(196, 57, 20, 0.5));
+  opacity: 1;
+  transform: none;
+  transition: opacity 200ms var(--qd-mem), transform 240ms var(--qd-mem);
+}
+#quick-dial .qd-fab-face {
+  position: absolute;
+  inset: 0;
+  clip-path: var(--qd-shape, circle(48% at 50% 50%));
+  background: radial-gradient(circle at 32% 28%,
+    var(--qd-orb-rim, #FFE6D4) 0%,
+    var(--qd-orb-contour, #FFB48A) 30%,
+    var(--qd-orb-base, #c43914) 62%,
+    color-mix(in srgb, var(--qd-orb-base, #c43914) 55%, #000) 100%);
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 200ms var(--qd-mem), transform 240ms var(--qd-mem);
+}
+/* steady states (and the soft preview while aiming) */
+#quick-dial[data-branch] .qd-fab-cube {
+  opacity: 0;
+  transform: scale(0.85);
+}
+#quick-dial[data-branch] .qd-fab-face {
+  opacity: 1;
+  transform: none;
+}
+#quick-dial[data-branch] .qd-fab-shape {
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--qd-orb-base, #c43914) 55%, transparent));
+}
+/* THE TURN — fired on commit (and on return to rest). Outgoing facet
+ * rotates away through edge-on; incoming facet completes the same arc. */
+#quick-dial[data-branch] .qd-fab-shape.turning .qd-fab-cube,
+#quick-dial:not([data-branch]) .qd-fab-shape.turning .qd-fab-face {
+  animation: qd-turn-out 420ms var(--qd-expo) both;
+}
+#quick-dial[data-branch] .qd-fab-shape.turning .qd-fab-face,
+#quick-dial:not([data-branch]) .qd-fab-shape.turning .qd-fab-cube {
+  animation: qd-turn-in 420ms var(--qd-expo) both;
+}
+@keyframes qd-turn-out {
+  0%   { opacity: 1; transform: rotateY(0deg) scale(1); }
+  45%  { opacity: 1; transform: rotateY(88deg) scale(0.92); }
+  46%  { opacity: 0; }
+  100% { opacity: 0; transform: rotateY(90deg) scale(0.9); }
+}
+@keyframes qd-turn-in {
+  0%   { opacity: 0; transform: rotateY(-90deg) scale(0.9); }
+  44%  { opacity: 0; }
+  45%  { opacity: 1; transform: rotateY(-88deg) scale(0.92); }
+  78%  { transform: rotateY(8deg) scale(1.06); }
+  100% { opacity: 1; transform: rotateY(0deg) scale(1); }
+}
+/* alive on hover — a gentle tilt, still a cube */
+#quick-dial[data-state="rest"] .qd-fab:hover .qd-fab-shape {
+  transform: rotate(-12deg) scale(1.08);
+}
+
+/* first-run discovery: one slow ember breath until the first open, and a
+ * whisper naming the gesture. Both die forever at the first open. */
+#quick-dial.qd-first .qd-fab-core {
+  animation: qd-breathe 4s ease-in-out infinite;
+}
+@keyframes qd-breathe {
+  0%, 100% { box-shadow: 0 0 0 rgba(196, 57, 20, 0); }
+  50%      { box-shadow: 0 0 24px rgba(196, 57, 20, 0.30); }
+}
+#quick-dial .qd-fab-whisper {
+  position: absolute;
+  right: 54px;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-family: var(--qd-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--qd-mist-dim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 600ms var(--qd-smooth) 1.4s;
+}
+#quick-dial.qd-first:not(.qd-hinted)[data-state="rest"] .qd-fab-whisper {
+  opacity: 1;
+}
+/* once expired, it leaves promptly — no lingering exit delay */
+#quick-dial.qd-hinted .qd-fab-whisper {
+  transition-delay: 0s;
+  transition-duration: 400ms;
+}
+
+/* post-submit success: the self orb glows green and gives one happy
+ * overshoot pulse — earned punctuation */
+#quick-dial.qd-sent .qd-fab-core {
+  box-shadow:
+    0 0 0 1px rgba(110, 231, 183, 0.55),
+    0 0 22px rgba(110, 231, 183, 0.40),
+    0 0 48px rgba(110, 231, 183, 0.18);
+  animation: qd-sent-pop 420ms var(--qd-overshoot);
+}
+@keyframes qd-sent-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}
+
+/* ── yield to onboarding ───────────────────────────────────────────── */
+/* While the onboarding mode owns the alchemy surface, the FAB disappears
+ * entirely (quickdial.js additionally gates opening for the modal cases
+ * CSS can't see). #quick-dial is body-appended after #alchemy-view, so
+ * the sibling combinator holds. */
+body[data-active-tab="alchemy"] .alchemy-view[data-alch-mode-current="onboarding"] ~ #quick-dial {
+  display: none;
+}
+
+/* ── reduced motion — media query AND the app's manual toggle ──────── */
+
+@media (prefers-reduced-motion: reduce) {
+  #quick-dial .qd-bubble,
+  #quick-dial .qd-bubble-orb,
+  #quick-dial .qd-node-pop,
+  #quick-dial .qd-composer,
+  #quick-dial .qd-composer > *,
+  #quick-dial .qd-caption,
+  #quick-dial .qd-fab-core,
+  #quick-dial .qd-fab-core::after,
+  #quick-dial .qd-fab-ring,
+  #quick-dial .qd-fab-hints i,
+  #quick-dial .qd-fab-shape,
+  #quick-dial .qd-fab-cube,
+  #quick-dial .qd-fab-face,
+  #quick-dial .qd-fab-whisper,
+  #quick-dial .qd-ink-frozen,
+  #quick-dial .qd-scrim {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+html[data-reduce-motion="1"] #quick-dial .qd-bubble,
+html[data-reduce-motion="1"] #quick-dial .qd-bubble-orb,
+html[data-reduce-motion="1"] #quick-dial .qd-node-pop,
+html[data-reduce-motion="1"] #quick-dial .qd-composer,
+html[data-reduce-motion="1"] #quick-dial .qd-composer > *,
+html[data-reduce-motion="1"] #quick-dial .qd-caption,
+html[data-reduce-motion="1"] #quick-dial .qd-fab-core,
+html[data-reduce-motion="1"] #quick-dial .qd-fab-core::after,
+html[data-reduce-motion="1"] #quick-dial .qd-fab-ring,
+html[data-reduce-motion="1"] #quick-dial .qd-fab-hints i,
+html[data-reduce-motion="1"] #quick-dial .qd-fab-shape,
+  #quick-dial .qd-fab-cube,
+  #quick-dial .qd-fab-face,
+html[data-reduce-motion="1"] #quick-dial .qd-fab-whisper,
+html[data-reduce-motion="1"] #quick-dial .qd-ink-frozen,
+html[data-reduce-motion="1"] #quick-dial .qd-scrim {
+  animation: none !important;
+  transition-duration: 0.01ms !important;
+}
