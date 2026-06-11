@@ -226,9 +226,13 @@ DTSTAMP:20260611T033727Z
 DTSTART;VALUE=DATE:20260611
 DTEND;VALUE=DATE:20260612
 SUMMARY:16:00–16:30 tea on roof
-DESCRIPTION:16:00–16:30 tea on roof\n\n16:30–19:30 Internal ETH NY prod
- uct review | Demo review + hackathon team goal-setting.\n\n19:30–22:30 O
- pen Jams / Muse Dinner | Hackathon team open jams + dinner at the Convent.
+DESCRIPTION:16:00–16:30 tea on roof\n\n16:30–18:00 Design Thinking Work
+ shop: Agency Preserving Private Coordination Substrate for Human Flourishi
+ ng\n  29 Nassau Ave\, Brooklyn\, NY 11222\, USA\n  Google Meet: https://me
+ et.google.com/qgu-naaa-qca\n  Original invite time: 22:30–00:00 Europe/S
+ tockholm\n\n16:30–19:30 Internal ETH NY product review | Demo review + h
+ ackathon team goal-setting.\n\n19:30–22:30 Open Jams / Muse Dinner | Hac
+ kathon team open jams + dinner at the Convent.
 CATEGORIES:May 18 Start
 END:VEVENT
 BEGIN:VEVENT
