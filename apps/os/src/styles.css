@@ -19958,13 +19958,34 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   background: transparent;
   border: 0;
 }
+/* Sigil continuity, grid → dossier. The rail hero canvas carries the
+ * view-transition-name statically; openDetail() tags the clicked card's
+ * canvas with the same name and wraps the re-render in
+ * document.startViewTransition (forward only — back stays instant;
+ * reduced-motion guarded at the call site). Old snapshot leaves faster
+ * than the new frame arrives, per the house asymmetric timing. */
+.alch-detail-rail .alch-detail-shape canvas { view-transition-name: sr-sigil; }
+::view-transition-group(sr-sigil),
+::view-transition-old(sr-sigil),
+::view-transition-new(sr-sigil) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+::view-transition-old(sr-sigil),
+::view-transition-new(sr-sigil) {
+  height: 100%;
+}
+::view-transition-old(root) { animation-duration: 140ms; }
+::view-transition-new(root) { animation-duration: 220ms; }
 .alch-rail-read {
   display: grid;
   gap: 14px;
 }
 .alch-rail-kicker {
   font-family: var(--ed-mono, var(--font-mono));
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  /* Caption ink routed through --ink-rgb (flips with theme) at an alpha
+   * that clears AA on both substrates — --ed-ink-4 sat at ~1.6:1. */
+  color: rgba(var(--ink-rgb), 0.58);
   font-size: 10px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -19984,7 +20005,7 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   align-items: baseline;
 }
 .alch-rail-list span:first-child {
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  color: rgba(var(--ink-rgb), 0.58);
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
@@ -19997,9 +20018,12 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   min-width: 0;
 }
 .alch-rail-member button,
-.alch-rail-list .alch-record-token {
+.alch-rail-list .alch-record-token,
+.alch-rail-list .alch-team-token {
   appearance: none;
+  min-height: 0;
   border: 0;
+  border-radius: 0;
   border-bottom: 1px solid var(--ed-rule-2, var(--alchemy-rule-warm));
   background: transparent;
   color: var(--ed-ink-1, var(--alchemy-paper-warm));
@@ -20009,9 +20033,14 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   text-align: left;
 }
 .alch-rail-member button:hover,
-.alch-rail-list .alch-record-token:hover {
+.alch-rail-list .alch-record-token:hover,
+.alch-rail-list .alch-team-token:hover {
   border-bottom-color: var(--ed-ink-1, var(--alchemy-oxide-bright));
 }
+/* The rail's team token carries the mini sigil (it absorbed the old
+ * "team context" quick row) — size the shape to the rail's type scale. */
+.alch-rail-list .alch-team-token { gap: 6px; padding-left: 0; }
+.alch-rail-list .alch-team-token .alch-mini-shape { width: 15px; height: 15px; }
 .alch-rail-member em {
   color: var(--ed-ink-4, var(--alchemy-ink-mute));
   font-style: normal;
@@ -20049,7 +20078,7 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
 }
 .alch-quick-k,
 .alch-detail-row .adr-k {
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  color: rgba(var(--ink-rgb), 0.58);
   font-family: var(--ed-mono, var(--font-mono));
   font-size: 10px;
   letter-spacing: 0.18em;
@@ -20096,9 +20125,12 @@ button.alch-quick-link {
 .alch-quick-text span,
 .alch-quick-pill span {
   margin-right: 6px;
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  color: rgba(var(--ink-rgb), 0.58);
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  /* The pill's overflow-wrap:anywhere may not break the LABEL mid-word
+   * ("FOCU S") — labels are atomic; only the value text wraps. */
+  white-space: nowrap;
 }
 .alch-team-token {
   gap: 7px;
@@ -20182,17 +20214,25 @@ button.alch-quick-link {
 }
 .alch-section-preview {
   min-width: 0;
-  max-width: min(42ch, 60%);
+  max-width: min(52ch, 68%);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  /* Previews now carry actual record content (the now-line, latest
+   * timeline entry, traction snippet) — they must be readable, not
+   * marginalia. --ed-ink-4 measured ~1.6:1 on the dark substrate. */
+  color: rgba(var(--ink-rgb), 0.55);
   font-weight: 400;
   letter-spacing: 0;
-  text-transform: lowercase;
+  text-transform: none;
+}
+/* Open section: the body below owns the content — a preview restating it
+ * would be a duplicate role in the same frame. */
+.alch-detail-disclosure[open] .alch-section-preview {
+  display: none;
 }
 .alch-section-mark {
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  color: rgba(var(--ink-rgb), 0.5);
   font-size: 12px;
 }
 .alch-section-mark::before {
