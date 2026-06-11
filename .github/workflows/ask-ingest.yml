@@ -46,11 +46,12 @@ permissions:
   contents: write       # push the new ask + regenerated bundle to main
   issues: write         # comment on + close the originating issue
 
-# Serialize per issue so the near-simultaneous opened+labeled events don't both
-# publish. The second run waits, then sees the first run's marker comment and
-# no-ops. cancel-in-progress: false so we never kill a run mid git-push.
+# Serialize per issue author so same-member asks cannot publish in parallel and
+# bypass the live-ask cap. This also covers the near-simultaneous opened+labeled
+# events for one issue; the second run waits, sees the marker comment, and no-ops.
+# cancel-in-progress: false so we never kill a run mid git-push.
 concurrency:
-  group: ask-ingest-${{ github.event.issue.number }}
+  group: ask-ingest-${{ github.event.issue.user.login }}
   cancel-in-progress: false
 
 jobs:
