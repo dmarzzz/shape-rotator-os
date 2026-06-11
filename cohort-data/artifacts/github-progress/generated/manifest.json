@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-11T15:07:02.145Z",
+  "artifact_count": 21,
+  "artifacts": [
+    {
+      "artifact_id": "github-progress-quality:elocute:albionahoti-wiki-speech-trainer",
+      "artifact_kind": "github_repo_data_quality",
+      "record_id": "elocute",
+      "date": "2026-06-11",
+      "file": "github-progress-quality-elocute-albionahoti-wiki-speech-trainer.json",
+      "review_status": "generated",
+      "surface_recommendation": "operator_only"
+    },
+    {
+      "artifact_id": "github-progress-quality:etherea:jameslbarnes-etherea-ai",
+      "artifact_kind": "github_repo_data_quality",
+      "record_id": "etherea",
+      "date": "2026-06-11",
+      "file": "github-progress-quality-etherea-jameslbarnes-etherea-ai.json",
+      "review_status": "generated",
+      "surface_recommendation": "operator_only"
+    },
+    {
+      "artifact_id": "github-progress:conclave:prakhar728-conclave:2026-05-18",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "conclave",
+      "date": "2026-05-18",
+      "file": "github-progress-conclave-prakhar728-conclave-2026-05-18.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:conclave:prakhar728-conclave:2026-05-25",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "conclave",
+      "date": "2026-05-25",
+      "file": "github-progress-conclave-prakhar728-conclave-2026-05-25.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-05-25",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "dealproof",
+      "date": "2026-05-25",
+      "file": "github-progress-dealproof-kkoci-dealproof-2026-05-25.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-06-01",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "dealproof",
+      "date": "2026-06-01",
+      "file": "github-progress-dealproof-kkoci-dealproof-2026-06-01.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-06-08",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "dealproof",
+      "date": "2026-06-08",
+      "file": "github-progress-dealproof-kkoci-dealproof-2026-06-08.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:elizaos:elizaos-eliza:2026-06-01",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "elizaos",
+      "date": "2026-06-01",
+      "file": "github-progress-elizaos-elizaos-eliza-2026-06-01.json",
+      "review_status": "generated",
+      "surface_recommendation": "review"
+    },
+    {
+      "artifact_id": "github-progress:elizaos:elizaos-eliza:2026-06-08",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "elizaos",
+      "date": "2026-06-08",
+      "file": "github-progress-elizaos-elizaos-eliza-2026-06-08.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:jjhub:roninjin10-smithers:2026-05-18",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "jjhub",
+      "date": "2026-05-18",
+      "file": "github-progress-jjhub-roninjin10-smithers-2026-05-18.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:jjhub:roninjin10-smithers:2026-05-25",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "jjhub",
+      "date": "2026-05-25",
+      "file": "github-progress-jjhub-roninjin10-smithers-2026-05-25.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:jjhub:roninjin10-smithers:2026-06-01",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "jjhub",
+      "date": "2026-06-01",
+      "file": "github-progress-jjhub-roninjin10-smithers-2026-06-01.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:searxng-wth-frnds:dmarzzz-searxng-wth-frnds:2026-05-18",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "searxng-wth-frnds",
+      "date": "2026-05-18",
+      "file": "github-progress-searxng-wth-frnds-dmarzzz-searxng-wth-frnds-2026-05-18.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:searxng-wth-frnds:dmarzzz-searxng-wth-frnds:2026-05-25",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "searxng-wth-frnds",
+      "date": "2026-05-25",
+      "file": "github-progress-searxng-wth-frnds-dmarzzz-searxng-wth-frnds-2026-05-25.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:searxng-wth-frnds:dmarzzz-searxng-wth-frnds:2026-06-08",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "searxng-wth-frnds",
+      "date": "2026-06-08",
+      "file": "github-progress-searxng-wth-frnds-dmarzzz-searxng-wth-frnds-2026-06-08.json",
+      "review_status": "generated",
+      "surface_recommendation": "hold"
+    },
+    {
+      "artifact_id": "github-progress:shape-rotator-os:dmarzzz-shape-rotator-os:2026-05-25",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "shape-rotator-os",
+      "date": "2026-05-25",
+      "file": "github-progress-shape-rotator-os-dmarzzz-shape-rotator-os-2026-05-25.json",
+      "review_status": "generated",
+      "surface_recommendation": "review"
+    },
+    {
+      "artifact_id": "github-progress:shape-rotator-os:dmarzzz-shape-rotator-os:2026-06-01",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "shape-rotator-os",
+      "date": "2026-06-01",
+      "file": "github-progress-shape-rotator-os-dmarzzz-shape-rotator-os-2026-06-01.json",
+      "review_status": "generated",
+      "surface_recommendation": "hold"
+    },
+    {
+      "artifact_id": "github-progress:shape-rotator-os:dmarzzz-shape-rotator-os:2026-06-08",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "shape-rotator-os",
+      "date": "2026-06-08",
+      "file": "github-progress-shape-rotator-os-dmarzzz-shape-rotator-os-2026-06-08.json",
+      "review_status": "generated",
+      "surface_recommendation": "review"
+    },
+    {
+      "artifact_id": "github-progress:signalstack:ronturetzky-sigstack:2026-05-18",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "signalstack",
+      "date": "2026-05-18",
+      "file": "github-progress-signalstack-ronturetzky-sigstack-2026-05-18.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-progress:teleport-router:jameslbarnes-teleport-router:2026-05-18",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "teleport-router",
+      "date": "2026-05-18",
+      "file": "github-progress-teleport-router-jameslbarnes-teleport-router-2026-05-18.json",
+      "review_status": "generated",
+      "surface_recommendation": "review"
+    },
+    {
+      "artifact_id": "github-progress:teleport-router:jameslbarnes-teleport-router:2026-05-25",
+      "artifact_kind": "github_progress_weekly_summary",
+      "record_id": "teleport-router",
+      "date": "2026-05-25",
+      "file": "github-progress-teleport-router-jameslbarnes-teleport-router-2026-05-25.json",
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    }
+  ]
+}

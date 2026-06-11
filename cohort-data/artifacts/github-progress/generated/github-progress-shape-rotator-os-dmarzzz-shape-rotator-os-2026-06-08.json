@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-progress:shape-rotator-os:dmarzzz-shape-rotator-os:2026-06-08",
+  "artifact_kind": "github_progress_weekly_summary",
+  "record_type": "team",
+  "record_id": "shape-rotator-os",
+  "date": "2026-06-08",
+  "week_start": "2026-06-08",
+  "program_week": 4,
+  "title": "dmarzzz/shape-rotator-os: 221 commits",
+  "summary": "other, fix, maintenance, feature — fix: pixel-match the original — upright names, reading sizes, 3-up grid; feat: match the original warm elevation — espresso page, taupe panels, compact head; feat: warm specimen restyle — compact cards + flat dossiers (original-design synthesis)",
+  "source_kind": "github_git_transport",
+  "source_url": "https://github.com/dmarzzz/shape-rotator-os",
+  "source_repo": "dmarzzz/shape-rotator-os",
+  "source_transform": "commit-metadata-weekly-distillation",
+  "confidence": "medium",
+  "review_status": "generated",
+  "surface_recommendation": "review",
+  "consider": [
+    "189 human-authored commits observed in the week.",
+    "156 non-bot, non-admin commits remain after basic filtering.",
+    "Feature-labeled movement is present.",
+    "Fix/stabilization movement is present.",
+    "Topic surface: ops, ui, agent."
+  ],
+  "do_not_consider": [
+    "32 bot/generated commits should not count as product momentum.",
+    "33 cohort-admin/profile/calendar commits should not count as project progress.",
+    "High-volume week: promote only if the examples summarize a meaningful phase, not raw activity volume."
+  ],
+  "review_questions": [
+    "Is this the team's real project repo for this period?",
+    "Do the example commit subjects describe product/research movement rather than generated churn?",
+    "Would this card add information not already captured by profile, transcript, or calendar timeline items?"
+  ],
+  "verbatim": false,
+  "generated_at": "2026-06-11T15:07:02.145Z",
+  "evidence": {
+    "commit_count": 221,
+    "human_commit_count": 189,
+    "bot_commit_count": 32,
+    "admin_commit_count": 33,
+    "useful_commit_count": 156,
+    "categories": [
+      {
+        "key": "other",
+        "count": 88
+      },
+      {
+        "key": "fix",
+        "count": 44
+      },
+      {
+        "key": "maintenance",
+        "count": 42
+      },
+      {
+        "key": "feature",
+        "count": 26
+      }
+    ],
+    "topics": [
+      {
+        "key": "ops",
+        "count": 50
+      },
+      {
+        "key": "ui",
+        "count": 28
+      },
+      {
+        "key": "agent",
+        "count": 5
+      },
+      {
+        "key": "data",
+        "count": 4
+      }
+    ],
+    "authors": [
+      {
+        "key": "Mikeishiring",
+        "count": 85
+      },
+      {
+        "key": "dmarzzz",
+        "count": 55
+      },
+      {
+        "key": "freddmannen",
+        "count": 39
+      },
+      {
+        "key": "github-actions[bot]",
+        "count": 32
+      }
+    ],
+    "examples": [
+      "fix: pixel-match the original — upright names, reading sizes, 3-up grid",
+      "feat: match the original warm elevation — espresso page, taupe panels, compact head",
+      "feat: warm specimen restyle — compact cards + flat dossiers (original-design synthesis)"
+    ]
+  }
+}

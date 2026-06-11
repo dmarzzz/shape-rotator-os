@@ -415,8 +415,8 @@ export function applyLocation(loc = {}) {
     state.programPage = String(loc.programPage);
     try { localStorage.setItem(PROGRAM_PAGE_LS_KEY, state.programPage); } catch {}
   }
-  if (legacyCollab || (mode === "constellation" && loc.constellationMode)) {
-    state.constellationMode = legacyCollab ? "collab" : constNormalizeConstellationMode(loc.constellationMode);
+  if (legacyCollab || mode === "constellation") {
+    state.constellationMode = legacyCollab ? "collab" : constNormalizeConstellationMode(loc.constellationMode || "map");
     try { localStorage.setItem(CONST_MODE_LS_KEY, state.constellationMode); } catch {}
   }
   if (legacyIntel || (mode === "context" && loc.contextView)) {
@@ -1348,6 +1348,22 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
     state.contextVault.mode = contextNormalizeView(opts.contextView);
     try { localStorage.setItem(CONTEXT_VIEW_LS_KEY, state.contextVault.mode); } catch {}
   }
+  // Optional: land on a calendar sub-view ("cal" grid | "presence" gantt).
+  // Used by the dossier explore rows ("calendar" / "availability").
+  if (mode === "calendar" && opts && opts.calendarView) {
+    state.calendar.view = opts.calendarView === "presence" ? "presence" : "cal";
+  }
+  // Optional one-shot focus for the presence gantt: a dossier's
+  // "availability" jump names the person (or team) it came from; the
+  // gantt scrolls there and rings the row(s). Consumed on first paint.
+  if (mode === "calendar" && opts && (opts.presencePeople || opts.presenceTeam)) {
+    state.calendar.presenceFocus = {
+      people: Array.isArray(opts.presencePeople) ? opts.presencePeople : [],
+      team: opts.presenceTeam || null,
+      at: Date.now(),       // focus expires — see applyPresenceFocus
+      applied: false,       // scroll only on the first application
+    };
+  }
   // Optional: land on a specific constellation sub-view (clusters /
   // dependencies / journey / collab). Used by the cohort panel's view cards.
   if (mode === "constellation" && opts && opts.constellationMode) {
@@ -1488,7 +1504,7 @@ function renderShapes() {
   `).join("");
 
   const chips = `
-    <div class="alch-view-controls">
+    <div class="alch-view-controls" data-shape-occluder>
       <nav class="alch-shapes-filter" role="tablist" aria-label="filter by kind">
         <button class="alch-shapes-chip" data-shapes-filter="works"  type="button" role="tab" aria-selected="${filter === "works"}">teams & projects <span class="ascn">${nWorks}</span></button>
         <button class="alch-shapes-chip" data-shapes-filter="people" type="button" role="tab" aria-selected="${filter === "people"}">individuals <span class="ascn">${nPeople}</span></button>
@@ -1924,11 +1940,11 @@ function constNormalizeNetworkScope(raw) {
 function constellationNetworkScopeRow(active) {
   const scope = constNormalizeNetworkScope(active);
   return `
-    <div class="ac-network-scope-row" role="group" aria-label="network entity layer">
+    <div class="ac-network-scope-row" role="radiogroup" aria-label="network entity layer">
       <span>Graph</span>
       ${CONST_NETWORK_SCOPES.map(v => {
         return `
-          <button class="ac-network-scope-btn" data-const-network-scope="${v.scope}" aria-selected="${scope === v.scope}" aria-label="${escAttr(`${v.label}, ${v.hint}`)}" type="button">
+          <button class="ac-network-scope-btn" data-const-network-scope="${v.scope}" role="radio" aria-checked="${scope === v.scope}" aria-label="${escAttr(`${v.label}, ${v.hint}`)}" type="button">
             <strong>${escHtml(v.label)}</strong>
           </button>`;
       }).join("")}
@@ -1937,10 +1953,10 @@ function constellationNetworkScopeRow(active) {
 function constellationMapLayoutRow(active) {
   const activeLayout = active === "ring" ? "ring" : "map";
   return `
-    <div class="ac-map-layout-row" role="group" aria-label="map layout">
+    <div class="ac-map-layout-row" role="radiogroup" aria-label="map layout">
       <span>layout</span>
       ${CONST_MAP_LAYOUTS.map(v => `
-        <button class="ac-map-layout-btn" data-const-map-layout="${v.mode}" aria-selected="${activeLayout === v.mode}" aria-label="${escAttr(`${v.label} layout, ${v.hint}`)}" type="button">${escHtml(v.label)}</button>
+        <button class="ac-map-layout-btn" data-const-map-layout="${v.mode}" role="radio" aria-checked="${activeLayout === v.mode}" aria-label="${escAttr(`${v.label} layout, ${v.hint}`)}" type="button">${escHtml(v.label)}</button>
       `).join("")}
     </div>`;
 }
@@ -1981,13 +1997,13 @@ function constellationLensRow(active, metrics = {}) {
     substrate: { label: "shared" },
   };
   return `
-    <div class="ac-lens-row" role="group" aria-label="map lens">
+    <div class="ac-lens-row" role="radiogroup" aria-label="map lens">
       <span>lines</span>
       ${CONST_LENSES.map(l => {
         const metric = constellationLensMetric(l.lens, metrics);
         const aria = constellationLensAria(l.lens, l.label, metric);
         const spec = chipCopy[l.lens] || { label: l.label };
-        return `<button class="ac-lens-btn${metric === 0 ? " is-empty" : ""}" data-const-lens="${l.lens}" aria-selected="${active === l.lens}" aria-label="${escAttr(aria)}" type="button"><span>${escHtml(spec.label)}</span></button>`;
+        return `<button class="ac-lens-btn${metric === 0 ? " is-empty" : ""}" data-const-lens="${l.lens}" role="radio" aria-checked="${active === l.lens}" aria-label="${escAttr(aria)}" type="button"><span>${escHtml(spec.label)}</span></button>`;
       }).join("")}
     </div>`;
 }
@@ -4728,7 +4744,7 @@ function renderJourney() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="journey">
     ${cohortPageHead("journey")}
-    <div class="alch-view-controls">${filterBar}${constSelectionChipHtml()}</div>
+    <div class="alch-view-controls" data-shape-occluder>${filterBar}${constSelectionChipHtml()}</div>
     <div class="alch-constellation" data-constellation-view="journey">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
@@ -4769,14 +4785,21 @@ function renderProductStack() {
   };
   const stackModel = constProductStackModel(teams, baseCtx);
   const inspectorCtx = { ...baseCtx, stackModel };
+  // Domain counts + hover-isolation hooks: touching a domain key dims the
+  // other domains' tiles in the stack below (CSS :has).
+  const domainCounts = new Map(CONST_DOMAIN_KEYS.map(k => [k, 0]));
+  for (const t of teams) {
+    const k = constDomainClass(t.domain);
+    if (domainCounts.has(k)) domainCounts.set(k, domainCounts.get(k) + 1);
+  }
   const legend = CONST_DOMAIN_KEYS
-    .map(k => `<span class="acl-item"><span class="acl-dot acl-dot-${k}"></span>${escHtml(CONST_DOMAIN_LABEL[k])}</span>`)
+    .map(k => `<span class="acl-item" data-legend-domain="${escAttr(k)}" tabindex="0"><span class="acl-dot acl-dot-${k}"></span>${escHtml(CONST_DOMAIN_LABEL[k])}<em class="acl-count">${domainCounts.get(k)}</em></span>`)
     .join("");
   const selectionChip = constSelectionChipHtml();
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="stack">
     ${cohortPageHead("stack")}
-    ${selectionChip ? `<div class="alch-view-controls">${selectionChip}</div>` : ""}
+    ${selectionChip ? `<div class="alch-view-controls" data-shape-occluder>${selectionChip}</div>` : ""}
     <div class="alch-constellation" data-constellation-view="stack">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
@@ -5022,18 +5045,21 @@ function renderConstellationPeople(teams, people, clusters, edges) {
         <text class="ac-person-initial" y="2.6" text-anchor="middle">${escHtml(constPersonInitials(person))}</text>
       </g>`;
   }).join("");
+  // Each key row carries its count and isolates its lines on hover/focus
+  // (pure CSS via :has, see "legend → canvas isolation" in styles.css).
+  const linkCount = (...kinds) => model.edges.filter(e => kinds.includes(e.kind)).length;
   const legend = `
     <div class="acl-line-key">
       <strong>People links</strong>
-      <span class="acl-line-key-row is-typed"><i></i><b>same project</b></span>
-      <span class="acl-line-key-row is-profile"><i></i><b>profile overlap</b></span>
-      <span class="acl-line-key-row is-shared"><i></i><b>shared context</b></span>
+      <span class="acl-line-key-row is-typed" data-legend-link="same-team" tabindex="0"><i></i><b>same project</b> <em>${linkCount("same-team")}</em></span>
+      <span class="acl-line-key-row is-profile" data-legend-link="profile" tabindex="0"><i></i><b>profile overlap</b> <em>${linkCount("secondary-overlap", "pair-with")}</em></span>
+      <span class="acl-line-key-row is-shared" data-legend-link="shared-context" tabindex="0"><i></i><b>shared context</b> <em>${linkCount("shared-context")}</em></span>
     </div>
     <div class="acl-line-note">Circles are primary project groups. Lines are inferred from person profiles and should be treated as conversation leads.</div>`;
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="map">
       ${cohortPageHead("map", { dek: "How people connect — grouped by project, linked by shared work and overlapping context." })}
-      <div class="alch-view-controls">
+      <div class="alch-view-controls" data-shape-occluder>
         ${constellationNetworkScopeRow("people", { projects: teams.length, people: people.length })}
         ${constSelectionChipHtml()}
       </div>
@@ -5548,18 +5574,23 @@ function renderConstellation() {
   // is read from the labeled wells, not the legend, so nothing swaps.
   // One legend element: the swatch rows carry the nuance inline (the old
   // acl-line-note sentence restated the same solid/dotted fact a second time).
+  // Counts make the key data-bearing; hover/focus on a row isolates that
+  // line tier on the map below (CSS :has rules — no listeners to lose on
+  // re-render).
+  const recordEdgeCount = relationshipBreakdown.typed;
+  const mentionEdgeCount = Math.max(0, relationshipBreakdown.total - relationshipBreakdown.typed);
   const legend = `
     <div class="acl-line-key">
       <strong>Line source</strong>
-      <span class="acl-line-key-row is-typed"><i></i><b>relationship record</b> <small>typed, with status + evidence</small></span>
-      <span class="acl-line-key-row is-profile"><i></i><b>profile mention</b> <small>needs confirmation</small></span>
+      <span class="acl-line-key-row is-typed" data-legend-edge="record" tabindex="0"><i></i><b>relationship record</b> <em>${recordEdgeCount}</em> <small>typed, with status + evidence</small></span>
+      <span class="acl-line-key-row is-profile" data-legend-edge="mention" tabindex="0"><i></i><b>profile mention</b> <em>${mentionEdgeCount}</em> <small>needs confirmation</small></span>
     </div>`;
 
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">
     ${cohortPageHead(viewMode)}
     ${viewMode === "map" || viewMode === "ring" ? `
-      <div class="alch-view-controls">
+      <div class="alch-view-controls" data-shape-occluder>
         ${viewMode === "map" ? constellationNetworkScopeRow("projects", { projects: teams.length, people: people.length }) : ""}
         ${constellationMapLayoutRow(viewMode)}
         ${viewMode === "map" ? `
@@ -6894,6 +6925,7 @@ function paintCalendarView({ wire = false } = {}) {
   });
   if (presence) {
     mountAvailabilityCanvas();
+    applyPresenceFocus();
   } else {
     cal.detach = attachCalendarPageBehavior(state.canvas, { scrollToNow: cal.initialMount });
     cal.initialMount = false;
@@ -7059,6 +7091,57 @@ function mountAvailabilityCanvas() {
   ctx.scale(dpr, dpr);
   drawCalendar(ctx, w, h, rows, start, end, numDays);
   mountGanttFreezePanes(cnv, w, h, dpr);
+}
+
+// Focus marker for the presence gantt. A dossier's "availability" jump
+// lands here with cal.presenceFocus naming the person (or team) the
+// visitor came from: scroll the row(s) into view and ring them. The rows
+// are canvas-drawn, so the ring is a positioned DOM overlay computed from
+// the same row geometry the painter uses. The focus outlives repaints
+// (the async calendar load repaints right after the jump and wipes the
+// overlay) but expires after a short window, and only scrolls once.
+function applyPresenceFocus() {
+  const cal = state.calendar;
+  const focus = cal.presenceFocus;
+  if (!focus) return;
+  if (Date.now() - (focus.at || 0) > 15000) {
+    cal.presenceFocus = null;
+    return;
+  }
+  const wrap = state.canvas.querySelector(".cal-gantt-wrap");
+  if (!wrap) return;
+  const personIds = new Set(focus.people || []);
+  const teamId = focus.team || null;
+  let y = CAL_HEADER_H;
+  const segments = [];
+  for (const row of buildCalendarRows(state.cohort || {})) {
+    const rowH = row.type === "team" ? CAL_TEAM_H : CAL_ROW_H;
+    const hit = teamId
+      ? row.team?.record_id === teamId
+      : (row.type === "person" && personIds.has(row.person?.record_id));
+    if (hit) {
+      const last = segments[segments.length - 1];
+      // Contiguous hits (a team block) merge into one ring.
+      if (last && Math.abs(last.y + last.h - y) < 0.5) last.h += rowH;
+      else segments.push({ y, h: rowH });
+    }
+    y += rowH;
+  }
+  if (!segments.length) {
+    cal.presenceFocus = null;
+    return;
+  }
+  for (const seg of segments) {
+    const mark = document.createElement("div");
+    mark.className = "cal-focus-row";
+    mark.style.top = `${seg.y}px`;
+    mark.style.height = `${seg.h}px`;
+    wrap.appendChild(mark);
+  }
+  if (!focus.applied) {
+    focus.applied = true;
+    wrap.querySelector(".cal-focus-row")?.scrollIntoView({ block: "center", inline: "nearest" });
+  }
 }
 
 // Freeze panes for the gantt. The whole chart is one canvas, so CSS sticky
@@ -8163,7 +8246,7 @@ function collabPeopleForTeam(rid) {
 
 function collabCurrentModel() {
   const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
-  return buildCollabModel(teams, state.cohort?.clusters || [], state.cohort?.dependencies || []);
+  return buildCollabModel(teams, state.cohort?.clusters || [], state.cohort?.dependencies || [], state.cohort?.cohort_vocab?.skill_areas || []);
 }
 
 function collabTeamByRecordId(rid, m = collabCurrentModel()) {
@@ -8300,12 +8383,14 @@ function collabTeamRouteRailHtml({ outbound, inbound, getsHelpFrom, givesHelpTo 
 }
 
 function collabLegendHtml() {
+  // data-legend-cell drives hover-isolation on the matrix (CSS :has):
+  // touching a key entry surfaces exactly the cells it describes.
   return `
     <div class="cb-legend" aria-label="collab board legend">
-      <span tabindex="0" data-desc="This row team relies on the column team to do its work. Read it as: row needs column."><i class="cb-legend-mark dep"></i><b>dependency</b></span>
-      <span tabindex="0" data-desc="The row team is seeking something the column team has offered. Read it as: row seeks → column provides. A concrete match to introduce."><i class="cb-legend-mark so"></i><b>seek / offer</b></span>
-      <span tabindex="0" data-desc="How strong a seek/offer match is, shown by the cell's teal depth: paler = fewer shared terms, darker = more overlap."><i class="cb-legend-mark so-scale"></i><b>match strength</b></span>
-      <span tabindex="0" data-desc="A team many others depend on; its column is densely filled."><i class="cb-legend-mark key"></i><b>keystone</b></span>
+      <span tabindex="0" data-legend-cell="dep" data-desc="This row team relies on the column team to do its work. Read it as: row needs column."><i class="cb-legend-mark dep"></i><b>dependency</b></span>
+      <span tabindex="0" data-legend-cell="so" data-desc="The row team is seeking something the column team has offered. Read it as: row seeks → column provides. A concrete match to introduce."><i class="cb-legend-mark so"></i><b>seek / offer</b></span>
+      <span tabindex="0" data-legend-cell="scale" data-desc="How strong a seek/offer match is, shown by the cell's teal depth: paler = fewer shared terms, darker = more overlap."><i class="cb-legend-mark so-scale"></i><b>match strength</b></span>
+      <span tabindex="0" data-legend-cell="key" data-desc="A team many others depend on; its column is densely filled."><i class="cb-legend-mark key"></i><b>keystone</b></span>
     </div>`;
 }
 
@@ -9327,7 +9412,7 @@ function renderCollab() {
     state.canvas.innerHTML = `<div class="alch-cohort-page" data-cohort-view="collab">${cohortPageHead("collab")}<p class="alch-callout">no team data yet.</p></div>`;
     return;
   }
-  const m = buildCollabModel(teams, clusters, state.cohort?.dependencies || []);
+  const m = buildCollabModel(teams, clusters, state.cohort?.dependencies || [], state.cohort?.cohort_vocab?.skill_areas || []);
   normalizeCollabControls();
   const teamFilter = state.collabTeamFilter || "all";
   const sort = state.collabSort || "cluster";
@@ -9472,7 +9557,7 @@ function renderCollab() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="collab">
     ${cohortPageHead("collab")}
-    <div class="alch-view-controls">${controlBar}</div>
+    <div class="alch-view-controls" data-shape-occluder>${controlBar}</div>
     <div class="alch-collab">
       ${matrix}
       ${introSection}
@@ -11740,6 +11825,66 @@ function detailPill(label, value) {
   return `<span class="alch-quick-pill"><span>${escHtml(label)}</span>${escHtml(value)}</span>`;
 }
 
+// Most recent timeline entry whose title/detail shares a substantive word
+// with the chip text — the hover layer's "where has this actually shown
+// up" provenance. Only event/transcript/calendar entries count: profile,
+// team, onboarding, and availability entries restate the record itself,
+// so matching them would be circular. Empty when nothing matches (no
+// dead hover affordances).
+const DETAIL_EVIDENCE_TYPES = new Set(["event", "transcript", "calendar"]);
+// Filler that appears on both sides of almost every record — matching on
+// these words produces noise, not provenance.
+const DETAIL_EVIDENCE_STOPWORDS = new Set(["context", "cohort", "project", "projects", "issues", "notes", "weekly"]);
+// Generated phrasing in timeline entries; never evidence of a topic.
+const DETAIL_EVIDENCE_BOILERPLATE = /\b(mentioned in transcript|team context in transcript|held privately)\b/gi;
+
+// Clause around the first matched word — evidence must show the matched
+// region, not the field's (often junk) opening ("Tue May 19:").
+function detailMatchSnippet(text, words, max = 56) {
+  const s = String(text || "").replace(DETAIL_EVIDENCE_BOILERPLATE, " ").replace(/\s+/g, " ").trim();
+  const lower = s.toLowerCase();
+  let idx = -1;
+  for (const w of words) {
+    // Word-start boundary always; short words also need a word END so
+    // "defi" can't claim "defining" (longer words keep prefix matching —
+    // "agent" → "agentic", "market" → "markets").
+    const pattern = new RegExp(`(?<![a-z0-9])${w}${w.length <= 4 ? "(?![a-z0-9])" : ""}`);
+    const m = pattern.exec(lower);
+    if (m && (idx < 0 || m.index < idx)) idx = m.index;
+  }
+  if (idx < 0) return "";
+  let start = Math.max(0, idx - 18);
+  while (start > 0 && /\S/.test(s[start - 1])) start--;
+  const clause = s.slice(start);
+  const clipped = clause.length > max ? `${clause.slice(0, max - 1).trimEnd()}…` : clause;
+  return (start > 0 ? "…" : "") + clipped;
+}
+
+function detailEvidenceFor(text, timelineItems) {
+  const words = String(text || "").toLowerCase().split(/[^a-z0-9]+/)
+    .filter(w => w.length > 3 && !DETAIL_EVIDENCE_STOPWORDS.has(w));
+  if (!words.length) return "";
+  const dated = (Array.isArray(timelineItems) ? timelineItems : [])
+    .filter(item => DETAIL_EVIDENCE_TYPES.has(String(item?.type || "").toLowerCase()))
+    .sort((a, b) => String(b?.date || "").localeCompare(String(a?.date || "")));
+  for (const item of dated) {
+    const snippet = detailMatchSnippet(item?.title, words) || detailMatchSnippet(item?.detail, words);
+    if (snippet) {
+      return item.date ? `${detailTimelineDate(item.date)} — ${snippet}` : snippet;
+    }
+  }
+  return "";
+}
+
+// Ask-me-about chip with an optional hover/focus evidence layer (the
+// matched timeline entry). Falls back to the plain chip when no evidence
+// matches — nothing should look layered that isn't.
+function detailQuickChip(value, evidence) {
+  if (!String(value || "").trim()) return "";
+  if (!evidence) return detailQuickText("", value);
+  return `<span class="alch-quick-text alch-evidence-chip" tabindex="0" data-evidence="${escAttr(evidence)}" aria-label="${escAttr(`${value} — evidence: ${evidence}`)}">${escHtml(value)}</span>`;
+}
+
 function detailLinkForKey(links, key) {
   const value = links?.[key];
   if (!value || !String(value).trim()) return "";
@@ -11750,6 +11895,14 @@ function detailQuickLink(label, href, external = true) {
   if (!href) return "";
   const externalAttr = external ? " data-external" : "";
   return `<a class="alch-quick-link" href="${escAttr(href)}"${externalAttr}>${escHtml(label)}</a>`;
+}
+
+// In-OS destination chip (calendar, availability…) — same visual language
+// as external explore links, but jumps to an alchemy page via
+// __srwkAlchemyJump instead of leaving the app.
+function detailQuickJump(label, mode, opts = null) {
+  const optsAttr = opts ? ` data-jump-opts="${escAttr(JSON.stringify(opts))}"` : "";
+  return `<button type="button" class="alch-quick-link" data-jump="${escAttr(mode)}"${optsAttr}>${escHtml(label)}</button>`;
 }
 
 function detailRecordToken(record, fallbackLabel = "") {
@@ -11841,6 +11994,25 @@ function renderPersonProofRead(person) {
     sentences.push(signature?.note ? `${read}: ${sentenceText(signature.note)}` : `${read}.`);
   }
   return detailProse(sentences.join("\n\n"));
+}
+
+// The team's positioning as prose (first-mock lesson: lead the dossier
+// with a read, not labeled rows): problem → what they're building → who
+// for. The lifted fields leave the assessment disclosure so no fact has
+// two owners on the page.
+function teamPositioningProse(journey) {
+  const clause = (value) => String(value || "").replace(/\s+/g, " ").trim().replace(/\.\s*$/, "");
+  // Lowercase a leading sentence-case word so the clause splices mid-
+  // sentence; leave acronyms ("TEE…") alone.
+  const splice = (value) => /^[A-Z][a-z]/.test(value) ? value[0].toLowerCase() + value.slice(1) : value;
+  const problem = sentenceText(journey.problem);
+  const solution = clause(journey.solution);
+  const icp = clause(journey.icp);
+  const sentences = [];
+  if (problem) sentences.push(problem);
+  if (solution) sentences.push(`Building ${splice(solution)}.`);
+  if (icp) sentences.push(`For ${splice(icp)}.`);
+  return detailProse(sentences.join(" "));
 }
 
 function detailTimelineItems(recordKind, recordId) {
@@ -12041,15 +12213,12 @@ function renderTeamDetail(team) {
   const links = team.links || {};
   const journey = detailJourneySummary(team);
   // Stage / evidence / upside / bottleneck / next milestone live in the
-  // always-visible "trajectory" quick row — the section below adds the
-  // qualitative read (who for, what problem, what proof) instead of
-  // repeating the same pills as rows.
-  const trajectoryRows = [
+  // always-visible "trajectory" quick row; icp / problem / solution live
+  // in the "about / positioning" prose up top. This disclosure keeps the
+  // program's assessment and the declared plan.
+  const assessmentRows = [
     { key: "company type", value: journey.company_type ? escHtml(journey.company_type) : "" },
     { key: "confidence", value: journey.confidence ? escHtml(journey.confidence) : "" },
-    { key: "icp", value: journey.icp ? escHtml(journey.icp) : "" },
-    { key: "problem", value: journey.problem ? escHtml(journey.problem) : "" },
-    { key: "solution", value: journey.solution ? escHtml(journey.solution) : "" },
     { key: "evidence notes", value: journey.evidence_notes ? escHtml(journey.evidence_notes) : "" },
     { key: "this week", value: detailList(team.weekly_goals) },
     { key: "milestones", value: detailList(team.monthly_milestones) },
@@ -12083,6 +12252,8 @@ function renderTeamDetail(team) {
     detailQuickText("next", journey.next_milestone),
   ]);
   const explore = detailQuickRow("explore", [
+    detailQuickJump("calendar", "calendar"),
+    detailQuickJump("availability", "calendar", { calendarView: "presence", presenceTeam: recordId }),
     detailQuickLink("GitHub", detailLinkForKey(links, "github")),
     detailQuickLink("Repo", detailLinkForKey(links, "repo")),
     detailQuickLink("X", detailLinkForKey(links, "x")),
@@ -12091,6 +12262,17 @@ function renderTeamDetail(team) {
     detailQuickLink("Deck", detailLinkForKey(links, "deck")),
     detailQuickLink("source", editUrl),
   ]);
+  const readSection = renderFlatSection("about / positioning", teamPositioningProse(journey), "alch-detail-priority");
+  const assessmentPreview = [
+    journey.company_type,
+    journey.confidence ? `${journey.confidence} confidence` : "",
+  ].filter(Boolean).join(" · ") || previewSnippet(journey.evidence_notes);
+  const evidencePreview = previewSnippet(team.traction || team.paper_basis);
+  const seekingFirst = detailItems(team.seeking)[0];
+  const dependsFirst = detailItems(team.dependencies)[0];
+  const coordinationPreview = seekingFirst
+    ? `seeking ${previewSnippet(seekingFirst, 52)}`
+    : (dependsFirst ? `depends on ${previewSnippet(dependsFirst, 44)}` : previewSnippet(team.offering));
 
   state.canvas.innerHTML = `
     <header class="alch-detail-bar">
@@ -12112,11 +12294,12 @@ function renderTeamDetail(team) {
         <div class="alch-ledger-head">
           <span class="alch-detail-h">${escHtml(kind)} read</span>
         </div>
+        ${readSection ? `<div class="alch-section-stack alch-priority-stack">${readSection}</div>` : ""}
         <div class="alch-detail-quick alch-team-quick">${nextMove}${guild}${trajectory}${explore}</div>
         <div class="alch-section-stack">
-          ${renderFlatSection("positioning", detailRows(trajectoryRows))}
-          ${renderFlatSection("evidence", detailRows(evidenceRows))}
-          ${renderFlatSection("coordination", detailRows(coordinationRows))}
+          ${renderDisclosureSection("assessment / plan", detailRows(assessmentRows), false, assessmentPreview)}
+          ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, evidencePreview)}
+          ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, coordinationPreview)}
           ${renderRecordTimeline("team", recordId)}
         </div>
       </section>
@@ -12126,6 +12309,7 @@ function renderTeamDetail(team) {
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
+  wireDetailJumps(state.canvas);
   if (state.detailReturnMode === "constellation") wireConstellationTimelineControls(state.canvas);
   wirePlateFoil(state.canvas.querySelector(".cohort-plate"));
 }
@@ -12161,7 +12345,13 @@ function renderPersonDetail(person) {
   const timelineItems = detailTimelineItems("person", recordId);
   const absences = Array.isArray(person.absences) ? person.absences : [];
   const bioSection = renderFlatSection("about / bio", detailProse(person.bio_md), "alch-detail-priority");
+  // Quick band = the one-frame read (first-mock lesson): what they're
+  // doing now, how to engage, what to route to them, and where their work
+  // sits — everything else is opt-in below.
+  const nowRow = detailQuickRow("now", [detailQuickText("", person.now)]);
   const explore = detailQuickRow("explore", [
+    detailQuickJump("calendar", "calendar"),
+    detailQuickJump("availability", "calendar", { calendarView: "presence", presencePeople: [recordId] }),
     detailQuickLink("GitHub", detailLinkForKey(links, "github")),
     detailQuickLink("X", detailLinkForKey(links, "x")),
     detailQuickLink("Website", detailLinkForKey(links, "website")),
@@ -12170,20 +12360,23 @@ function renderPersonDetail(person) {
   ]);
   const askMeAbout = detailQuickRow(
     "ask me about",
-    detailItems(person.go_to_them_for).slice(0, 4).map(value => detailQuickText("", value))
+    detailItems(person.go_to_them_for).slice(0, 4)
+      .map(value => detailQuickChip(value, detailEvidenceFor(value, timelineItems)))
   );
   const themes = detailQuickRow(
     "themes",
     detailItems(person.recurring_themes).slice(0, 4).map(value => detailQuickText("", value))
   );
-  // (No "team context" quick row — the rail's team token owns that fact;
-  // the team's own focus lives one click away on its dossier.)
-  const currentRows = [
-    { key: "now", value: person.now ? `<span class="alch-detail-now">${escHtml(person.now)}</span>` : "" },
+  // Team context rides in the read: the rail token answers "which team",
+  // this row answers "what that team is building" without a click — the
+  // focus pill is the new information.
+  const teamContext = team ? detailQuickRow("team context", [
+    detailTeamToken(team),
+    team.focus ? detailPill("focus", team.focus) : "",
+  ]) : "";
+  const workingRows = [
     { key: "weekly intention", value: person.weekly_intention ? escHtml(person.weekly_intention) : "" },
     { key: "skills", value: detailChips(person.skill_areas || person.skills) },
-  ];
-  const workingRows = [
     { key: "comm style", value: person.comm_style ? escHtml(person.comm_style) : "" },
     { key: "availability", value: person.availability_pref ? escHtml(person.availability_pref) : "" },
     { key: "working style", value: person.working_style ? escHtml(person.working_style) : "" },
@@ -12203,6 +12396,16 @@ function renderPersonDetail(person) {
     },
     { key: "dietary", value: person.dietary_restrictions ? escHtml(person.dietary_restrictions) : "" },
   ];
+  // Collapsed-section previews carry the strongest fact behind each fold.
+  const workingPreview = previewSnippet(
+    person.working_style || person.comm_style || person.weekly_intention || person.best_contexts
+  );
+  const proofPreview = previewSnippet(person.prior_work || person?.making_signature?.note);
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const upcomingAbsence = absences.find(a => String(a.end || a.start || "") >= todayIso);
+  const routesPreview = upcomingAbsence
+    ? `away ${detailLongDate(upcomingAbsence.start)} → ${detailLongDate(upcomingAbsence.end)}`
+    : (secondary.length ? `also contributes: ${previewSnippet(secondary[0].name || secondary[0].record_id, 40)}` : "");
 
   state.canvas.innerHTML = `
     <header class="alch-detail-bar">
@@ -12224,12 +12427,11 @@ function renderPersonDetail(person) {
           <span class="alch-detail-h">individual read</span>
         </div>
         ${bioSection ? `<div class="alch-section-stack alch-priority-stack">${bioSection}</div>` : ""}
-        <div class="alch-detail-quick">${explore}${askMeAbout}${themes}</div>
+        <div class="alch-detail-quick">${nowRow}${explore}${askMeAbout}${themes}${teamContext}</div>
         <div class="alch-section-stack">
-          ${renderFlatSection("current read", detailRows(currentRows))}
-          ${renderFlatSection("working with", detailRows(workingRows))}
-          ${renderFlatSection("proof / prior work", renderPersonProofRead(person))}
-          ${renderFlatSection("routes / asks", detailRows(routeRows))}
+          ${renderDisclosureSection("working with", detailRows(workingRows), false, workingPreview)}
+          ${renderDisclosureSection("proof / prior work", renderPersonProofRead(person), false, proofPreview)}
+          ${renderDisclosureSection("routes / asks", detailRows(routeRows), false, routesPreview)}
           ${renderRecordTimeline("person", recordId)}
         </div>
       </section>
@@ -12239,7 +12441,18 @@ function renderPersonDetail(person) {
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
+  wireDetailJumps(state.canvas);
   if (state.detailReturnMode === "constellation") wireConstellationTimelineControls(state.canvas);
+}
+
+function wireDetailJumps(root) {
+  for (const el of root.querySelectorAll("[data-jump]")) {
+    el.addEventListener("click", () => {
+      let opts;
+      try { opts = el.dataset.jumpOpts ? JSON.parse(el.dataset.jumpOpts) : undefined; } catch {}
+      window.__srwkAlchemyJump?.(el.dataset.jump, opts);
+    });
+  }
 }
 
 function wirePersonLinks(root) {

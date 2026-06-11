@@ -506,7 +506,7 @@ function buildPersonTimeline({ people, teams, asks, events, calendar }) {
   return timeline;
 }
 
-function buildTeamTimeline({ teams, people, asks, events, calendar }) {
+function buildTeamTimeline({ teams, people, asks, events, calendar, githubProgressArtifacts = [] }) {
   const peopleByTeam = new Map();
   for (const person of people) {
     const teamIds = [person.team, ...asArray(person.secondary_teams)].filter(Boolean);
@@ -518,6 +518,13 @@ function buildTeamTimeline({ teams, people, asks, events, calendar }) {
   const calBlocks = calendarBlocks(calendar);
   const transcriptMatches = loadCalendarTranscriptMatches();
   const timeline = {};
+  const githubArtifactsByTeam = new Map();
+  for (const artifact of githubProgressArtifacts) {
+    const teamId = String(artifact.record_id || "").trim();
+    if (!teamId) continue;
+    if (!githubArtifactsByTeam.has(teamId)) githubArtifactsByTeam.set(teamId, []);
+    githubArtifactsByTeam.get(teamId).push(artifact);
+  }
 
   for (const team of teams) {
     const members = peopleByTeam.get(team.record_id) || [];
@@ -626,6 +633,20 @@ function buildTeamTimeline({ teams, people, asks, events, calendar }) {
     });
     items.push(...uniqueTranscriptItems.slice(0, 6).map(({ _priority, _dedup, ...item }) => item));
 
+    for (const artifact of githubArtifactsByTeam.get(team.record_id) || []) {
+      const repo = artifact.source_repo || artifact.evidence?.repo || "github repo";
+      const count = artifact.evidence?.commit_count;
+      const title = artifact.title || `${repo}${Number.isFinite(count) ? `: ${count} commit${count === 1 ? "" : "s"}` : ""}`;
+      items.push({
+        date: isoDate(artifact.date || artifact.week_start),
+        type: "github progress",
+        title: compactText(title, 110),
+        detail: compactText(artifact.summary || artifact.detail || "", 220),
+        href: artifact.source_url || artifact.evidence?.url || "",
+        source: "github distillation",
+      });
+    }
+
     timeline[team.record_id] = sortTimeline(items).slice(0, 28);
   }
 
@@ -644,6 +665,47 @@ function loadJsonArray(file, label) {
   return [];
 }
 
+function listJsonFilesRecursive(dir) {
+  if (!fs.existsSync(dir)) return [];
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...listJsonFilesRecursive(full));
+    } else if (entry.isFile() && entry.name.endsWith(".json") && entry.name !== "manifest.json") {
+      out.push(full);
+    }
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
+function loadGithubProgressArtifacts() {
+  const root = path.join(COHORT_DIR, "artifacts", "github-progress");
+  const files = listJsonFilesRecursive(root);
+  const out = [];
+  for (const file of files) {
+    let artifact;
+    try {
+      artifact = JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch (e) {
+      console.warn(`[build-bundles] github progress artifact unreadable ${file}: ${e.message}`);
+      continue;
+    }
+    if (artifact?.artifact_kind !== "github_progress_weekly_summary") continue;
+    if (artifact?.review_status !== "reviewed") continue;
+    if (artifact?.record_type !== "team" || !artifact?.record_id) {
+      console.warn(`[build-bundles] github progress artifact missing team record_id: ${file}`);
+      continue;
+    }
+    out.push(artifact);
+  }
+  return out.sort((a, b) => {
+    const ad = isoDate(a.date || a.week_start);
+    const bd = isoDate(b.date || b.week_start);
+    if (ad !== bd) return ad.localeCompare(bd);
+    return String(a.artifact_id || "").localeCompare(String(b.artifact_id || ""));
+  });
+}
 function build() {
   const schema = readSchema();
   if (!schema || schema.schema_version !== 1) {
@@ -681,6 +743,7 @@ function build() {
   // the raw transcript never enters the repo; vault_id joins back to the
   // held-private timeline anchors in calendar-transcript-matches.js.
   const session_insights = loadJsonArray(path.join(COHORT_DIR, "session-insights.json"), "session-insights.json");
+  const github_progress_artifacts = loadGithubProgressArtifacts();
 
   // Cohort-wide controlled vocab + UI configuration the renderer needs at
   // boot. Shipped alongside records so the atlas / constellation / asks UIs
@@ -700,7 +763,7 @@ function build() {
     asks,
     calendar,
     person_timeline: buildPersonTimeline({ people, teams, asks, events, calendar }),
-    team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar }),
+    team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar, githubProgressArtifacts: github_progress_artifacts }),
     cohort_vocab,
     constellation_cues,
     session_insights,

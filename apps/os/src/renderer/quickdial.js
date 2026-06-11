@@ -104,15 +104,17 @@ const BRANCH_ORBS = {
   search: { base: "#6f6a64", rim: "#FFFFFF", contour: "#d9d4cc" },
 };
 
-// The shape-rotator vocabulary: every branch is a SOLID, not just a hue.
-// seek = sphere, ask = octahedron (diamond), offer = hexagonal prism,
-// search = lens (rounded square). The base anchor is a cube that rotates
-// into the chosen branch's shape as you select.
+// The membrane vocabulary: every branch is a BLOB — the same soft
+// cabochons as the cohort/events/asks blobs floating in the void (hard
+// polygons read as clip-art against them). Each branch gets its own
+// organic wobble via inset-round radii; hue still does the heavy
+// lifting. The base anchor stays the cube — the namesake — turning
+// into the chosen branch's blob as you select.
 const BRANCH_SHAPES = {
-  ask: "polygon(50% 2%, 98% 50%, 50% 98%, 2% 50%)",
+  ask: "inset(1% round 51% 49% 46% 54% / 53% 45% 55% 47%)",
   seek: "circle(48% at 50% 50%)",
-  offer: "polygon(25% 6.7%, 75% 6.7%, 100% 50%, 75% 93.3%, 25% 93.3%, 0% 50%)",
-  search: "inset(8% round 32%)",
+  offer: "inset(1% round 45% 55% 52% 48% / 50% 54% 46% 50%)",
+  search: "inset(3% round 48% 52% 50% 50% / 52% 48% 50% 50%)",
 };
 
 function branchOf(node) {
@@ -120,52 +122,37 @@ function branchOf(node) {
   return node.kind === "branch" ? node.id : node.kind;
 }
 
-function orbVars(node) {
+// Apply a node's gem vars (hue triple + silhouette) to an element by
+// setting each custom property individually. Cheaper and safer than
+// `cssText +=`, which reparses the WHOLE inline style and — when called
+// per-frame — appends duplicates without bound (the old marker jank).
+// A leaf wears its own gem everywhere it appears — bubble, path marker,
+// FAB facet — so the chosen shape survives the whole journey.
+function applyOrbVars(el, node) {
   const branch = branchOf(node);
   const orb = BRANCH_ORBS[branch];
-  if (!orb) return "";
-  const shape = BRANCH_SHAPES[branch] || "circle(48% at 50% 50%)";
-  return `--qd-orb-base:${orb.base};--qd-orb-rim:${orb.rim};--qd-orb-contour:${orb.contour};--qd-shape:${shape}`;
+  if (!orb) return;
+  el.style.setProperty("--qd-orb-base", orb.base);
+  el.style.setProperty("--qd-orb-rim", orb.rim);
+  el.style.setProperty("--qd-orb-contour", orb.contour);
+  el.style.setProperty("--qd-shape", node.variant?.shape || BRANCH_SHAPES[branch] || "circle(48% at 50% 50%)");
 }
 
-// Ring-2 is a SHAPE FAMILY, not six copies: every option is a variation
-// of its branch's solid. Ask's octahedron becomes six gem cuts; seek's
-// sphere becomes six moons (same silhouette, different light); offer's
-// hexagon becomes six prism facets. Identity through geometry — color
-// does ambience, shape does meaning.
-const SHAPE_FAMILIES = {
-  ask: [
-    { shape: "polygon(50% 2%, 98% 50%, 50% 98%, 2% 50%)", size: 48 },
-    { shape: "polygon(50% 0%, 86% 56%, 50% 100%, 14% 56%)", size: 50 },
-    { shape: "polygon(50% 16%, 100% 50%, 50% 84%, 0% 50%)", size: 50 },
-    { shape: "polygon(32% 4%, 68% 4%, 96% 50%, 68% 96%, 32% 96%, 4% 50%)", size: 46 },
-    { shape: "polygon(30% 2%, 70% 2%, 98% 30%, 98% 70%, 70% 98%, 30% 98%, 2% 70%, 2% 30%)", size: 46 },
-    { shape: "polygon(50% 0%, 82% 36%, 66% 100%, 34% 100%, 18% 36%)", size: 48 },
-  ],
-  seek: [
-    { shape: "circle(48% at 50% 50%)", grad: "32% 28%", size: 48 },
-    { shape: "circle(44% at 50% 50%)", grad: "68% 26%", size: 46 },
-    { shape: "circle(48% at 50% 50%)", grad: "50% 18%", size: 52 },
-    { shape: "circle(40% at 50% 50%)", grad: "26% 50%", size: 42 },
-    { shape: "circle(46% at 50% 50%)", grad: "62% 66%", size: 48 },
-    { shape: "circle(48% at 50% 50%)", grad: "40% 36%", size: 44 },
-  ],
-  offer: [
-    { shape: "polygon(25% 6.7%, 75% 6.7%, 100% 50%, 75% 93.3%, 25% 93.3%, 0% 50%)", size: 48 },
-    { shape: "polygon(50% 0%, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%)", size: 48 },
-    { shape: "polygon(50% 4%, 96% 38%, 78% 96%, 22% 96%, 4% 38%)", size: 46 },
-    { shape: "polygon(20% 10%, 80% 10%, 96% 90%, 4% 90%)", size: 44 },
-    { shape: "polygon(32% 4%, 96% 18%, 68% 96%, 4% 82%)", size: 48 },
-    { shape: "polygon(14% 20%, 86% 8%, 86% 80%, 14% 92%)", size: 46 },
-  ],
-};
-
-function shapeVariantFor(node, index) {
-  if (node.kind === "branch") return null; // ring 1 wears the canonical solid
-  const family = SHAPE_FAMILIES[branchOf(node)];
-  if (!family) return null;
-  return family[index % family.length];
-}
+// Ring-2 is a CLUTCH OF BLOBS, not a tray of cut gems: hard polygons at
+// 48px read as sharp clip-art against the membrane's soft cabochons
+// (tried twice — parametric cuts, then distinct solids; both fought the
+// galaxy). Every slot is the same organic material with its own wobble
+// (inset-round radii), its own light angle (--qd-grad), and its own
+// size, so siblings read as littermates — clearly individual, clearly
+// one species. Icons + labels carry the meaning; hue carries the family.
+const LEAF_SHAPES = [
+  { shape: "inset(0% round 47% 53% 44% 56% / 55% 46% 54% 45%)", size: 50, grad: "36% 26%" },
+  { shape: "inset(0% round 56% 44% 52% 48% / 46% 56% 44% 54%)", size: 47, grad: "62% 28%" },
+  { shape: "inset(0% round 44% 56% 50% 50% / 52% 42% 58% 48%)", size: 52, grad: "50% 19%" },
+  { shape: "inset(0% round 52% 48% 58% 42% / 44% 54% 46% 56%)", size: 46, grad: "28% 48%" },
+  { shape: "inset(0% round 50% 50% 45% 55% / 56% 48% 52% 44%)", size: 50, grad: "64% 58%" },
+  { shape: "inset(0% round 58% 42% 50% 50% / 48% 58% 42% 52%)", size: 48, grad: "42% 32%" },
+];
 
 // Suggested tags for ask composing — recognition over recall. One
 // representative tag per vocab bucket, click to toggle.
@@ -195,6 +182,15 @@ const TREE = {
   ],
 };
 
+// Stamp each leaf with its solid at definition time so bubbles, path
+// markers, and the FAB facet all wear the SAME silhouette — object
+// constancy from ring to marker to anchor.
+for (const branch of TREE.children) {
+  (branch.children || []).forEach((child, i) => {
+    child.variant = LEAF_SHAPES[i % LEAF_SHAPES.length];
+  });
+}
+
 const SEEN_LS_KEY = "srwk:quickdial_seen";
 
 const escHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => (
@@ -214,9 +210,6 @@ export function mountQuickDial() {
     <svg class="qd-ink" aria-hidden="true"></svg>
     <div class="qd-layer"></div>
     <div class="qd-caption" aria-live="polite"></div>
-    <div class="qd-search" role="search">
-      <input type="text" placeholder="search the os…" aria-label="search the os" maxlength="120" />
-    </div>
     <form class="qd-composer" novalidate hidden></form>
     <button class="qd-fab" type="button" title="ask / seek / offer (Ctrl+Shift+A)"
             aria-label="quick ask, seek, or offer" aria-expanded="false" aria-haspopup="menu">
@@ -242,8 +235,6 @@ export function mountQuickDial() {
   const layer = root.querySelector(".qd-layer");
   const caption = root.querySelector(".qd-caption");
   const composer = root.querySelector(".qd-composer");
-  const searchBox = root.querySelector(".qd-search");
-  const searchInput = searchBox.querySelector("input");
   const fab = root.querySelector(".qd-fab");
   const fabRing = root.querySelector(".qd-fab-ring");
 
@@ -340,7 +331,7 @@ export function mountQuickDial() {
   }
 
   function currentOptions() {
-    if (uiState === "rest" || uiState === "composing" || uiState === "search") return [];
+    if (uiState === "rest" || uiState === "composing") return [];
     if (ctrl.state.path.length > 0) return ctrl.visibleChildren();
     return uiState === "browse" ? ringOneLocal() : [];
   }
@@ -394,13 +385,11 @@ export function mountQuickDial() {
         el.style.setProperty("--qd-i", String(i));
         el.style.setProperty("--qd-dx", `${(anchor.x - opt.pos.x).toFixed(1)}px`);
         el.style.setProperty("--qd-dy", `${(anchor.y - opt.pos.y).toFixed(1)}px`);
-        const orb = orbVars(opt.node);
-        if (orb) el.style.cssText += `;${orb}`;
-        // ring-2 wears its family variant: a different cut of the
-        // branch's solid per sibling (and a different light, for moons)
-        const variant = shapeVariantFor(opt.node, i);
+        applyOrbVars(el, opt.node);
+        // ring-2 wears its own gem (shape arrives via applyOrbVars); size
+        // and light are per-slot so the tray glints instead of repeating
+        const variant = opt.node.variant;
         if (variant) {
-          el.style.setProperty("--qd-shape", variant.shape);
           if (variant.size) el.style.setProperty("--qd-orb-size", `${variant.size}px`);
           if (variant.grad) el.style.setProperty("--qd-grad", variant.grad);
         }
@@ -467,8 +456,12 @@ export function mountQuickDial() {
       // so keep the pop only while its animation is still running.
       const fresh = performance.now() - Number(el.dataset.born || 0) < 320;
       el.className = `qd-node${isActive ? " qd-node-active" : ""}${isActive && fresh ? " qd-node-pop" : ""}`;
-      const orb = orbVars(entry.node);
-      if (orb) el.style.cssText += `;${orb}`;
+      // gem vars only change when this slot's node changes (pop + recommit
+      // to a different branch) — set them then, never every frame
+      if (el.dataset.nodeId !== entry.node.id) {
+        el.dataset.nodeId = entry.node.id;
+        applyOrbVars(el, entry.node);
+      }
       el.style.left = `${entry.pos.x}px`;
       el.style.top = `${entry.pos.y}px`;
     });
@@ -580,7 +573,7 @@ export function mountQuickDial() {
   }
 
   function updateCaption() {
-    if (uiState === "rest" || uiState === "composing" || uiState === "search") {
+    if (uiState === "rest" || uiState === "composing") {
       caption.textContent = "";
       return;
     }
@@ -591,10 +584,14 @@ export function mountQuickDial() {
     }
     const branchId = nodes[0]?.id || homedBranch;
     const crumb = nodes.map((n) => n.label).join(" ▸ ") || homedBranch;
-    const fallback = uiState === "drawing"
-      ? "draw, then release"
-      : "click — or hold + draw";
-    const hint = BRANCH_HINTS[branchId] || fallback;
+    // Ring-1 browse with nothing aimed: the labeled bubbles ARE the
+    // teaching — a generic how-to line next to them is noise. The
+    // caption earns its place once there's a crumb or a homed branch.
+    if (!crumb && uiState !== "drawing") {
+      caption.textContent = "";
+      return;
+    }
+    const hint = BRANCH_HINTS[branchId] || "draw, then release";
     const text = crumb ? `${crumb} · ${hint}` : hint;
     if (caption.textContent !== text) {
       caption.textContent = text;
@@ -611,9 +608,14 @@ export function mountQuickDial() {
   // rotating to reveal its next facet, with a ring pulse at the moment
   // of the turn. Back to the cube at rest, with the same turn.
   let lastBaseBranch = null;
+  let lastFacetLeaf = null;
   let turnTimer = 0;
+  let facetTimer = 0;
   function syncBaseShape() {
     const committedBranch = branchOf(ctrl.state.path[1]?.node) || null;
+    // a committed LEAF puts its own gem on the anchor — the journey's
+    // shape rides with you: cube → branch solid → chosen gem
+    const leaf = committedBranch ? ctrl.state.path[2]?.node || null : null;
     let branchId = committedBranch;
     let preview = false;
     if (!branchId && uiState === "drawing") {
@@ -628,16 +630,18 @@ export function mountQuickDial() {
       root.style.setProperty("--qd-orb-base", orb.base);
       root.style.setProperty("--qd-orb-rim", orb.rim);
       root.style.setProperty("--qd-orb-contour", orb.contour);
-      root.style.setProperty("--qd-shape", BRANCH_SHAPES[branchId] || "circle(48% at 50% 50%)");
+      root.style.setProperty("--qd-shape",
+        leaf?.variant?.shape || BRANCH_SHAPES[branchId] || "circle(48% at 50% 50%)");
     } else {
       delete root.dataset.branch;
       delete root.dataset.preview;
     }
+    const shape = root.querySelector(".qd-fab-shape");
     if (committedBranch !== lastBaseBranch) {
       lastBaseBranch = committedBranch;
-      const shape = root.querySelector(".qd-fab-shape");
+      lastFacetLeaf = leaf?.id || null;
       if (shape) {
-        shape.classList.remove("turning");
+        shape.classList.remove("turning", "facet");
         void shape.offsetWidth;
         shape.classList.add("turning");
         // the class must not outlive the turn — a lingering .turning
@@ -649,6 +653,18 @@ export function mountQuickDial() {
         fabRing.classList.remove("on");
         void fabRing.offsetWidth;
         fabRing.classList.add("on");
+      }
+    } else if ((leaf?.id || null) !== lastFacetLeaf) {
+      // same solid, new facet: branch↔leaf movement flips the face in
+      // from edge-on — lighter than the cube turn, no ring pulse. The
+      // full turn above owns branch changes; this owns depth changes.
+      lastFacetLeaf = leaf?.id || null;
+      if (shape && committedBranch) {
+        shape.classList.remove("facet");
+        void shape.offsetWidth;
+        shape.classList.add("facet");
+        clearTimeout(facetTimer);
+        facetTimer = setTimeout(() => shape.classList.remove("facet"), 380);
       }
     }
   }
@@ -669,17 +685,16 @@ export function mountQuickDial() {
     try { localStorage.setItem(SEEN_LS_KEY, "1"); } catch {}
   }
 
-  function closeAll() {
+  function closeAll({ restoreFocus = true } = {}) {
     const hadFocus = root.contains(document.activeElement);
     composingLeaf = null;
     composer.hidden = true;
     composer.innerHTML = "";
-    searchInput.value = "";
     staleGeometry = false;
     root.classList.remove("qd-kbd");
     ctrl.reset();
     setState("rest");
-    if (hadFocus) fab.focus({ preventScroll: true });
+    if (restoreFocus && hadFocus) fab.focus({ preventScroll: true });
   }
 
   function closeComposer() {
@@ -696,12 +711,13 @@ export function mountQuickDial() {
     setState("browse");
   }
 
-  // The search rail: a glass field morphs out from behind the FAB,
-  // leftward. Enter hands the query to the find overlay (Ctrl+F's home).
+  // Search belongs to the global find overlay. Earlier quickdial builds
+  // mounted a second bottom-right glass input; when empty it read as a
+  // stray capsule attached to the FAB. Route directly to the real search
+  // surface instead, then bow the dial out.
   function openSearch() {
-    ctrl.reset();
-    setState("search");
-    requestAnimationFrame(() => searchInput.focus());
+    closeAll({ restoreFocus: false });
+    try { openFindWithQuery(""); } catch {}
   }
 
   function routeLeaf(leaf) {
@@ -1285,7 +1301,7 @@ status: open
       return;
     }
     // Number keys select the nth visible option (tap path, keyboard-only).
-    // Gated to fan states so typing digits in search/composer never selects.
+    // Gated to fan states so typing digits in the composer never selects.
     if ((uiState === "browse" || uiState === "drawing") && /^[1-9]$/.test(e.key)) {
       const opts = currentOptions();
       const node = opts[Number(e.key) - 1]?.node;
@@ -1305,17 +1321,6 @@ status: open
     if (uiState === "composing") staleGeometry = true;
     else if (uiState !== "rest") closeAll();
   });
-
-  // Search rail: Enter hands the query to the find overlay; the dial
-  // bows out. (Esc and scrim-press are handled by the global paths.)
-  searchInput.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    const q = searchInput.value.trim();
-    closeAll();
-    try { openFindWithQuery(q); } catch {}
-  });
-  searchInput.addEventListener("pointerdown", (e) => e.stopPropagation());
 
   // The house hover: the same magnetic pull the tab-bar buttons have
   // (motion.js). The outer button takes the inline transform; the inner

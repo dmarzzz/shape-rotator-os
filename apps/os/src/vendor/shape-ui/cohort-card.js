@@ -83,14 +83,48 @@ export function cohortRosterSummary({ kind = "team", roster = [], declaredCount 
   };
 }
 
-// Hover layer: the record's `now` line, revealed over the card head (the
-// sigil + name zone — known information) so it never covers the
-// actionable member/link rows below. Glance = card, hover = what they're
-// doing this week, click = full dossier.
-function nowOverlayHtml(rec) {
+// Markdown → one-line plain text for the about peek. Heading lines drop
+// wholesale (they're labels, not prose — an "## about" heading would
+// double the peek's own label); the dossier renders the real thing.
+function mdToPlainText(md, max = 240) {
+  const text = String(md || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^#{1,6}\s+.*$/gm, " ")
+    .replace(/[*_>~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, max).replace(/\s+\S*$/, "")}…`;
+}
+
+// Hover peeks: quiet "about · now" anchors in the title block, each a
+// deliberate hover/focus target carrying its OWN glass popover. The
+// layer is nested inside its anchor so hovering the popover still counts
+// as hovering the anchor — the cursor can travel from tag into popover
+// and the panel stays open ("do more from the preview"). The card body
+// triggers nothing, so the cursor can rest on a card without opening it.
+// Anchors carry data-no-card-click so a click peeks instead of selecting.
+// Reveal + the cursor-bridge are CSS-only — see .alch-card-peek in
+// cohort-card.css.
+function cardPeeks(rec) {
+  const about = mdToPlainText(rec?.bio_md);
   const now = String(rec?.now || "").trim();
-  if (!now) return "";
-  return `<div class="alch-card-now"><span>now</span>${escHtml(now)}</div>`;
+  // .acp-b is the line-clamp wrapper: the layer itself must keep
+  // overflow visible or it clips its own ::before cursor bridge.
+  const peek = (key, body) =>
+    `<span class="alch-card-peek" data-peek="${key}" tabindex="0" role="button" aria-label="${key} — hover to preview" data-no-card-click>${key}` +
+      `<span class="alch-card-peek-layer alch-card-peek-${key}" role="tooltip" data-no-card-click>` +
+        `<span class="acp-b"><span class="acp-k">${key}</span>${escHtml(body)}</span>` +
+      `</span>` +
+    `</span>`;
+  const anchors = [];
+  if (about) anchors.push(peek("about", about));
+  if (now) anchors.push(peek("now", now));
+  // Layers ride inside their anchors, so the whole feature is this one
+  // title-block row — nothing trails the card foot.
+  return anchors.length ? `<div class="alch-card-peeks">${anchors.join("")}</div>` : "";
 }
 
 // Compact skill / topic chips along the card foot — same scanning role
@@ -235,6 +269,7 @@ export function teamCardHtml(t, idx, ctx = {}) {
         `<button type="button" class="alch-card-member" data-person="${escAttr(p.record_id)}">${escHtml(personDisplayName(p))}</button>`
       ).join('<span class="acm-sep">·</span>')}${roster.overflow ? `<span class="acm-sep">·</span><span class="alch-card-member-more">+${roster.overflow}</span>` : ""}`
     : escHtml(roster.fallback);
+  const peeks = cardPeeks(t);
   return `
     <article class="${cardCls}" data-record-id="${escHtml(t.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(t.name)} — open detail">
       <div class="alch-card-head">
@@ -243,6 +278,7 @@ export function teamCardHtml(t, idx, ctx = {}) {
           <div class="alch-card-domain">${escHtml(domainLabel(t.domain))}</div>
           <div class="alch-card-name">${escHtml(t.name)}</div>
           ${t.focus ? `<p class="alch-card-sub">${escHtml(t.focus)}</p>` : ""}
+          ${peeks}
         </div>
       </div>
       <div class="alch-card-meta">
@@ -251,7 +287,6 @@ export function teamCardHtml(t, idx, ctx = {}) {
         ${compactLinksRow(t)}
       </div>
       ${cardChipsHtml(t.skill_areas)}
-      ${nowOverlayHtml(t)}
     </article>`;
 }
 
@@ -272,6 +307,7 @@ export function personCardHtml(p, idx, ctx = {}) {
     ? `${teamLabel} · ${role}`
     : (teamLabel || role || "—");
   const teamRoleLabel = teamLabel ? "team" : "role";
+  const peeks = cardPeeks(p);
   return `
     <article class="alch-card is-clickable alch-card-person alch-card-role-${escAttr(roleClass)}" data-record-id="${escHtml(p.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(p.name)} — open profile">
       <div class="alch-card-head">
@@ -280,6 +316,7 @@ export function personCardHtml(p, idx, ctx = {}) {
           ${p.domain ? `<div class="alch-card-domain">${escHtml(domainLabel(p.domain))}</div>` : ""}
           <div class="alch-card-name">${escHtml(p.name)}</div>
           ${p.role ? `<p class="alch-card-sub">${escHtml(p.role)}</p>` : ""}
+          ${peeks}
         </div>
       </div>
       <div class="alch-card-meta">
@@ -288,7 +325,6 @@ export function personCardHtml(p, idx, ctx = {}) {
         ${compactLinksRow(p)}
       </div>
       ${cardChipsHtml(p.go_to_them_for)}
-      ${nowOverlayHtml(p)}
     </article>`;
 }
 

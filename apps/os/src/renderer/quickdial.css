@@ -33,6 +33,10 @@
   --qd-expo: cubic-bezier(0.19, 1, 0.22, 1);
   --qd-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   --qd-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* a SETTLED pop — just enough life to feel alive, without the 1.56
+   * spring's visible second wobble that read as jank across six staggered
+   * orbs. Used for the bloom arrival and the orb's own transforms. */
+  --qd-pop: cubic-bezier(0.22, 1.18, 0.4, 1);
 }
 
 /* ── scrim — the membrane void, breathing through ──────────────────── */
@@ -109,12 +113,12 @@
    * the membrane blobs breathing in the void. Float waits out the bloom
    * so the travel entrance stays legible. */
   animation:
-    qd-bloom 200ms var(--qd-overshoot) both,
+    qd-bloom 190ms var(--qd-pop) both,
     qd-float 5.5s ease-in-out infinite;
-  animation-delay: calc(var(--qd-i, 0) * 30ms), calc(420ms + var(--qd-i, 0) * 700ms);
+  animation-delay: calc(var(--qd-i, 0) * 22ms), calc(380ms + var(--qd-i, 0) * 700ms);
   transition:
-    transform 160ms var(--qd-overshoot),
-    opacity 140ms var(--qd-smooth);
+    transform 150ms var(--qd-pop),
+    opacity 130ms var(--qd-smooth);
 }
 @keyframes qd-float {
   0%, 100% { transform: translateY(0); }
@@ -131,25 +135,33 @@
   align-items: center;
   justify-content: center;
   color: rgba(255, 255, 255, 0.92);
-  filter:
-    drop-shadow(0 0 10px color-mix(in srgb, var(--qd-orb-base, #c43914) 55%, transparent))
-    drop-shadow(0 0 26px color-mix(in srgb, var(--qd-orb-base, #c43914) 24%, transparent));
+  /* ONE drop-shadow at rest (was two): six orbs bloom at once, and each
+   * extra filter pass is a per-frame GPU cost that hitched the entrance.
+   * The second, wider bloom is added back on hover/homed — one or two
+   * orbs, never all six. */
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--qd-orb-base, #c43914) 42%, transparent));
   /* --qd-pull-x/y: the homed orb leans toward the cursor (set in JS) */
   transform: translate(var(--qd-pull-x, 0px), var(--qd-pull-y, 0px));
-  transition: transform 160ms var(--qd-overshoot), filter 240ms var(--qd-mem);
+  transition: transform 150ms var(--qd-pop), filter 240ms var(--qd-mem);
 }
 #quick-dial .qd-bubble-orb::before {
   content: "";
   position: absolute;
   inset: 0;
   clip-path: var(--qd-shape, circle(48% at 50% 50%));
-  /* --qd-grad: the light's position — seek's moons are the same sphere
-   * lit from six different sides */
-  background: radial-gradient(circle at var(--qd-grad, 32% 28%),
-    var(--qd-orb-rim, #FFE6D4) 0%,
-    var(--qd-orb-contour, #FFB48A) 30%,
-    var(--qd-orb-base, #c43914) 62%,
-    color-mix(in srgb, var(--qd-orb-base, #c43914) 55%, #000) 100%);
+  /* A CABOCHON, not a flat fill: a soft gloss along the top-left over
+   * the radial body — the same polished-stone light the membrane blobs
+   * carry. --qd-grad places the body's light per sibling. */
+  background:
+    linear-gradient(132deg,
+      rgba(255, 255, 255, 0.30) 0%,
+      rgba(255, 255, 255, 0.08) 22%,
+      transparent 46%),
+    radial-gradient(circle at var(--qd-grad, 32% 28%),
+      var(--qd-orb-rim, #FFE6D4) 0%,
+      var(--qd-orb-contour, #FFB48A) 30%,
+      var(--qd-orb-base, #c43914) 62%,
+      color-mix(in srgb, var(--qd-orb-base, #c43914) 55%, #000) 100%);
 }
 #quick-dial .qd-bubble-orb svg,
 #quick-dial .qd-bubble-orb .alch-asks-verb-svg {
@@ -289,8 +301,12 @@
 
 #quick-dial .qd-caption {
   position: absolute;
-  right: 78px;
-  bottom: 30px;
+  /* along the bottom edge, LEFT of the straight-left bubble's lane (the
+   * search bubble owns from-right ≈162-250px; both it and this caption
+   * are corner-anchored, so the clearance holds at any window size). The
+   * old slot (right 78 / bottom 30) collided with that bubble's label. */
+  right: 264px;
+  bottom: 24px;
   max-width: 340px;
   text-align: right;
   font-family: var(--qd-mono);
@@ -306,56 +322,6 @@
 @keyframes qd-cap {
   from { opacity: 0; transform: translateY(3px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ── the search rail — liquid glass pouring out from behind the FAB ── */
-
-#quick-dial .qd-search {
-  position: absolute;
-  right: 42px; /* tucked behind the FAB's left half — it emerges from it */
-  bottom: 20px;
-  height: 44px;
-  width: 0;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(48, 42, 48, 0.62) 0%, rgba(24, 21, 26, 0.58) 100%);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
-  backdrop-filter: blur(18px) saturate(1.4);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    0 0 0 1px rgba(var(--qd-ember-rgb), 0.10),
-    0 0 24px rgba(var(--qd-ember-rgb), 0.12),
-    0 14px 40px -12px rgba(0, 0, 0, 0.7);
-  opacity: 0;
-  pointer-events: none;
-  transition: width 380ms var(--qd-expo), opacity 180ms var(--qd-smooth);
-}
-#quick-dial[data-state="search"] .qd-search {
-  width: min(420px, calc(100vw - 120px));
-  opacity: 1;
-  pointer-events: auto;
-}
-#quick-dial .qd-search input {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  padding: 0 20px 0 22px;
-  background: transparent;
-  border: 0;
-  outline: none;
-  color: var(--qd-mist);
-  caret-color: var(--qd-ember);
-  font-family: var(--qd-mono);
-  font-size: 13px;
-  letter-spacing: 0.04em;
-}
-#quick-dial .qd-search input::placeholder {
-  color: var(--qd-mist-dim);
-  letter-spacing: 0.10em;
-  text-transform: lowercase;
 }
 
 /* ── micro-composer — the membrane panel, miniature, liquid glass ───── */
@@ -877,11 +843,18 @@
   position: absolute;
   inset: 0;
   clip-path: var(--qd-shape, circle(48% at 50% 50%));
-  background: radial-gradient(circle at 32% 28%,
-    var(--qd-orb-rim, #FFE6D4) 0%,
-    var(--qd-orb-contour, #FFB48A) 30%,
-    var(--qd-orb-base, #c43914) 62%,
-    color-mix(in srgb, var(--qd-orb-base, #c43914) 55%, #000) 100%);
+  /* same cabochon gloss as the ring blobs — the anchor wears the chosen
+   * blob as a polished stone, not a flat fill */
+  background:
+    linear-gradient(132deg,
+      rgba(255, 255, 255, 0.30) 0%,
+      rgba(255, 255, 255, 0.08) 22%,
+      transparent 46%),
+    radial-gradient(circle at 32% 28%,
+      var(--qd-orb-rim, #FFE6D4) 0%,
+      var(--qd-orb-contour, #FFB48A) 30%,
+      var(--qd-orb-base, #c43914) 62%,
+      color-mix(in srgb, var(--qd-orb-base, #c43914) 55%, #000) 100%);
   opacity: 0;
   transform: scale(0.85);
   transition: opacity 200ms var(--qd-mem), transform 240ms var(--qd-mem);
@@ -919,6 +892,17 @@
   44%  { opacity: 0; }
   45%  { opacity: 1; transform: rotateY(-88deg) scale(0.92); }
   78%  { transform: rotateY(8deg) scale(1.06); }
+  100% { opacity: 1; transform: rotateY(0deg) scale(1); }
+}
+/* THE FACET FLIP — branch↔leaf depth changes within one solid family.
+ * The face (already wearing the new gem) sweeps in from edge-on: the
+ * same object turning one facet, lighter than the full cube turn. */
+#quick-dial .qd-fab-shape.facet .qd-fab-face {
+  animation: qd-facet 320ms var(--qd-expo) both;
+}
+@keyframes qd-facet {
+  0%   { opacity: 1; transform: rotateY(-86deg) scale(0.92); }
+  72%  { transform: rotateY(7deg) scale(1.05); }
   100% { opacity: 1; transform: rotateY(0deg) scale(1); }
 }
 /* alive on hover — a gentle tilt, still a cube */

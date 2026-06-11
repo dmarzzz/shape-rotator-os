@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-progress:elizaos:elizaos-eliza:2026-06-01",
+  "artifact_kind": "github_progress_weekly_summary",
+  "record_type": "team",
+  "record_id": "elizaos",
+  "date": "2026-06-01",
+  "week_start": "2026-06-01",
+  "program_week": 3,
+  "title": "elizaOS/eliza: 378 commits",
+  "summary": "fix, test, maintenance, other — fix(apps): inject the tenant DSN under both DATABASE_URL and POSTGRES_URL; fix(cloud-agent): mount missing UI routes + bundle plugin-wallet (#8320); fix(cloud-api): strip openrouter routing suffix (:nitro, :floor) from pricing lookup (#8319)",
+  "source_kind": "github_git_transport",
+  "source_url": "https://github.com/elizaOS/eliza",
+  "source_repo": "elizaOS/eliza",
+  "source_transform": "commit-metadata-weekly-distillation",
+  "confidence": "medium",
+  "review_status": "generated",
+  "surface_recommendation": "review",
+  "consider": [
+    "370 human-authored commits observed in the week.",
+    "370 non-bot, non-admin commits remain after basic filtering.",
+    "Fix/stabilization movement is present.",
+    "Topic surface: ui, ops, agent."
+  ],
+  "do_not_consider": [
+    "8 bot/generated commits should not count as product momentum.",
+    "High-volume week: promote only if the examples summarize a meaningful phase, not raw activity volume."
+  ],
+  "review_questions": [
+    "Is this the team's real project repo for this period?",
+    "Do the example commit subjects describe product/research movement rather than generated churn?",
+    "Would this card add information not already captured by profile, transcript, or calendar timeline items?"
+  ],
+  "verbatim": false,
+  "generated_at": "2026-06-11T15:07:02.145Z",
+  "evidence": {
+    "commit_count": 378,
+    "human_commit_count": 370,
+    "bot_commit_count": 8,
+    "admin_commit_count": 0,
+    "useful_commit_count": 370,
+    "categories": [
+      {
+        "key": "fix",
+        "count": 138
+      },
+      {
+        "key": "test",
+        "count": 61
+      },
+      {
+        "key": "maintenance",
+        "count": 44
+      },
+      {
+        "key": "other",
+        "count": 43
+      }
+    ],
+    "topics": [
+      {
+        "key": "ui",
+        "count": 70
+      },
+      {
+        "key": "ops",
+        "count": 50
+      },
+      {
+        "key": "agent",
+        "count": 35
+      },
+      {
+        "key": "runtime",
+        "count": 35
+      }
+    ],
+    "authors": [
+      {
+        "key": "Shaw",
+        "count": 142
+      },
+      {
+        "key": "Odilitime",
+        "count": 61
+      },
+      {
+        "key": "NubsCarson",
+        "count": 49
+      },
+      {
+        "key": "dexploarer",
+        "count": 27
+      }
+    ],
+    "examples": [
+      "fix(apps): inject the tenant DSN under both DATABASE_URL and POSTGRES_URL",
+      "fix(cloud-agent): mount missing UI routes + bundle plugin-wallet (#8320)",
+      "fix(cloud-api): strip openrouter routing suffix (:nitro, :floor) from pricing lookup (#8319)"
+    ]
+  }
+}

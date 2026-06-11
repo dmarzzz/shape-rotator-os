@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-progress-quality:elocute:albionahoti-wiki-speech-trainer",
+  "artifact_kind": "github_repo_data_quality",
+  "record_type": "team",
+  "record_id": "elocute",
+  "date": "2026-06-11",
+  "title": "AlbionaHoti/wiki-speech-trainer: GitHub repo unavailable",
+  "summary": "Linked repo could not be verified: cache contains no branch refs; run without --no-fetch to verify whether the repo exists",
+  "source_kind": "github_git_transport",
+  "source_url": "https://github.com/AlbionaHoti/wiki-speech-trainer",
+  "source_repo": "AlbionaHoti/wiki-speech-trainer",
+  "source_transform": "repo-link-verification",
+  "confidence": "high",
+  "review_status": "generated",
+  "surface_recommendation": "operator_only",
+  "consider": [
+    "Use as a data-quality prompt to repair or classify the linked GitHub repo."
+  ],
+  "do_not_consider": [
+    "Do not render this as participant-facing project progress.",
+    "Do not infer the project is inactive from an unavailable public repo link."
+  ],
+  "review_questions": [
+    "Is this repo private, renamed, deleted, or just the wrong field?",
+    "Should the team record use a concrete public repo, a profile link, or `repo: null`?"
+  ],
+  "verbatim": false,
+  "generated_at": "2026-06-11T15:07:02.145Z",
+  "evidence": {
+    "source_file": "cohort-data/teams/elocute.md",
+    "source_field": "links.github",
+    "raw_value": "AlbionaHoti/wiki-speech-trainer",
+    "error": "cache contains no branch refs; run without --no-fetch to verify whether the repo exists"
+  }
+}

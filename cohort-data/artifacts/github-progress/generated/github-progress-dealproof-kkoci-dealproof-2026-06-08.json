@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-06-08",
+  "artifact_kind": "github_progress_weekly_summary",
+  "record_type": "team",
+  "record_id": "dealproof",
+  "date": "2026-06-08",
+  "week_start": "2026-06-08",
+  "program_week": 4,
+  "title": "kkoci/Dealproof: 6 commits",
+  "summary": "docs, feature, fix, refactor — fix: audit_report dict fields, null memory_write_hash on no-op writes, surface audit_error in response; refactor: scope AuditorAgent to qualitative-only, remove monotonic_convergence and within_bounds from LLM prompt; Updated example payloads on README",
+  "source_kind": "github_git_transport",
+  "source_url": "https://github.com/kkoci/Dealproof",
+  "source_repo": "kkoci/Dealproof",
+  "source_transform": "commit-metadata-weekly-distillation",
+  "confidence": "medium",
+  "review_status": "generated",
+  "surface_recommendation": "promote_candidate",
+  "consider": [
+    "6 human-authored commits observed in the week.",
+    "6 non-bot, non-admin commits remain after basic filtering.",
+    "Feature-labeled movement is present.",
+    "Fix/stabilization movement is present.",
+    "Documentation or launch/readout movement is present.",
+    "Topic surface: agent, privacy."
+  ],
+  "do_not_consider": [],
+  "review_questions": [
+    "Is this the team's real project repo for this period?",
+    "Do the example commit subjects describe product/research movement rather than generated churn?",
+    "Would this card add information not already captured by profile, transcript, or calendar timeline items?"
+  ],
+  "verbatim": false,
+  "generated_at": "2026-06-11T15:07:02.145Z",
+  "evidence": {
+    "commit_count": 6,
+    "human_commit_count": 6,
+    "bot_commit_count": 0,
+    "admin_commit_count": 0,
+    "useful_commit_count": 6,
+    "categories": [
+      {
+        "key": "docs",
+        "count": 2
+      },
+      {
+        "key": "feature",
+        "count": 2
+      },
+      {
+        "key": "fix",
+        "count": 1
+      },
+      {
+        "key": "refactor",
+        "count": 1
+      }
+    ],
+    "topics": [
+      {
+        "key": "agent",
+        "count": 2
+      },
+      {
+        "key": "privacy",
+        "count": 2
+      }
+    ],
+    "authors": [
+      {
+        "key": "Kristian Koci",
+        "count": 6
+      }
+    ],
+    "examples": [
+      "fix: audit_report dict fields, null memory_write_hash on no-op writes, surface audit_error in response",
+      "refactor: scope AuditorAgent to qualitative-only, remove monotonic_convergence and within_bounds from LLM prompt",
+      "Updated example payloads on README"
+    ]
+  }
+}
