@@ -206,9 +206,12 @@ export const CALENDAR_TRANSCRIPT_MATCHES = [
     confidence: "medium",
     sources: [
       {
-        role: "redacted transcript",
-        label: "teleport router onboarding redacted excerpt",
-        path: "apps/os/src/content/context/raw-scripts/Teleport Router Onboarding Privacy Boundaries May 27 Redacted Transcript.txt",
+        role: "transcript",
+        label: "teleport router onboarding",
+        held: "private-vault",
+        vault_id: "teleport-router-onboarding-2026-05-27",
+        mentions_direct: ["andrew-miller", "gonzo-gelso", "james-barnes", "shape-rotator-os", "teleport-router"],
+        mentions_any: ["andrew-miller", "gonzo-gelso", "james-barnes", "shape-rotator-os", "teleport-router"],
       },
     ],
   },
@@ -235,9 +238,12 @@ export const CALENDAR_TRANSCRIPT_MATCHES = [
     confidence: "medium",
     sources: [
       {
-        role: "redacted transcript",
-        label: "agentic tooling workshop redacted excerpt",
-        path: "apps/os/src/content/context/raw-scripts/Agentic Tooling Workshop May 28 Redacted Transcript.txt",
+        role: "transcript",
+        label: "agentic tooling workshop",
+        held: "private-vault",
+        vault_id: "agentic-tooling-workshop-2026-05-28",
+        mentions_direct: ["andrew-miller", "dmarz", "elizaos", "shaw-walters"],
+        mentions_any: ["andrew-miller", "dmarz", "elizaos", "shaw-walters"],
       },
     ],
   },

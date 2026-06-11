@@ -11,7 +11,13 @@ source: private-vault:dumb-agent-tricks-2026-05-21
 
 # Dumb Agent Tricks: Cohort Agent-Workflow Show-and-Tell
 
-Cohort members demoed their personal coding-agent setups — local-model pipelines over Matrix, multi-agent orchestration, visual verification loops, and the security shortcuts everyone admits to taking.
+**Everyone's agent setup has a security shortcut they're slightly ashamed of.**
+
+*Cohort members demoed their personal coding-agent setups — local-model pipelines over Matrix, multi-agent orchestration, visual verification loops, and the security shortcuts everyone admits to taking.*
+
+## the 60-second version
+
+Cohort members demoed their real coding-agent rigs — local models over encrypted Matrix, an orchestrator spawning workers across git worktrees, browser-driven visual verification loops — and owned up to the credential-hygiene corners they cut for speed. The shared lesson: scope tokens hard, give agents their own accounts, keep real secrets off disk, and treat autonomous drift as a when-not-if rather than an if.
 
 ## themes
 
@@ -64,3 +70,7 @@ Consensus was no. Models remain weak at architecture and long-horizon planning, 
 - [Conductor (worktree/session management UI)](https://conductor.build)
 - [GitHub Copilot code review](https://github.com/features/copilot)
 - [Excalidraw (agent-generated diagrams)](https://excalidraw.com)
+
+## provenance
+
+Distilled from a private-vault transcript (`dumb-agent-tricks-2026-05-21`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: `cohort-internal`.

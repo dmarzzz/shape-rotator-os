@@ -41,13 +41,13 @@ flowchart LR
 
 ## Bundled Public-Safe Files
 
-These are the only transcript-derived files that remain in the public repo. They line up with calendar events, and only redacted excerpts or distilled recaps are bundled because the raw sources contain private team feedback or business/customer details.
+The public repo now carries exactly **one** transcript-derived `.txt` — the distilled WDYDLW recap (reconstructed, not verbatim, and already backed by a consented public journal article). Everything else is published as **distilled readouts** in [session-insights.json](../cohort-data/session-insights.json) / [session-readouts/](../cohort-data/session-readouts/), with raw transcripts held in the private vault.
 
 | file | calendar match | confidence | boundary decision |
 |---|---|---:|---|
-| [Teleport Router Onboarding Privacy Boundaries May 27 Redacted Transcript](<../apps/os/src/content/context/raw-scripts/Teleport Router Onboarding Privacy Boundaries May 27 Redacted Transcript.txt>) | `2026-05-27` Teleport Router onboarding / Q&A | medium | Redacted excerpt only. Raw private PMF/product feedback and customer/business detail are not imported. |
-| [Agentic Tooling Workshop May 28 Redacted Transcript](<../apps/os/src/content/context/raw-scripts/Agentic Tooling Workshop May 28 Redacted Transcript.txt>) | `2026-05-28` Agentic Tooling workshops/clinic | medium | Redacted excerpt only. Raw product/investor-style feedback and private event planning are not imported. |
 | [WDYDLW Standup Recap June 8 2026](<../apps/os/src/content/context/raw-scripts/WDYDLW Standup Recap June 8 2026.txt>) | `2026-06-08` WDYDLW with Shaw | high | Distilled reconstructed recap, not a verbatim transcript. Source capture stays private. |
+
+> **2026-06-11 redaction-tier cleanup.** The two redacted excerpts (Teleport Router onboarding May 27, Agentic Tooling workshop May 28) previously lived here as near-verbatim `.txt` with `[redacted]` markers. Because an abridged/near-verbatim transcript is a gated-cohort-tier artifact (not a public one), they were distilled into paraphrased readouts (`teleport-router-onboarding-2026-05-27`, `agentic-tooling-workshop-2026-05-28`), their calendar anchors converted to `held: "private-vault"`, and the raw redacted `.txt` moved to the vault. The public repo no longer carries any verbatim or near-verbatim speaker dialogue.
 
 ## Calendar Coverage
 
@@ -66,20 +66,25 @@ Office-hours links are intentionally excluded. This table covers the substantive
 | `2026-05-22` | Founders Journey w/ Shaw | medium | held privately — `friday-shaw-greg-2026-05-22` |
 | `2026-05-26` | Project Intros: Elocute, Dealproof, Wikigen, Crossroads | high | held privately — `elocute-2026-05-26`, `wikigen-crossroads-gil-pmf-2026-05-26` |
 | `2026-05-26` | Lecture: Defining Product Market Fit, Gil Rosen | medium | held privately — `wikigen-crossroads-gil-pmf-2026-05-26` |
-| `2026-05-27` | Teleport Router onboarding / Q&A | medium | bundled redacted excerpt |
+| `2026-05-27` | Teleport Router onboarding / Q&A | medium | held privately — `teleport-router-onboarding-2026-05-27` |
 | `2026-05-27` | Ideal Customer Profiling / User Interviews | high | held privately — `icp-user-interviews-2026-05-27` |
-| `2026-05-28` | Agentic Tooling workshops/clinic | medium | bundled redacted excerpt |
+| `2026-05-28` | Agentic Tooling workshops/clinic | medium | held privately — `agentic-tooling-workshop-2026-05-28` |
 | `2026-06-08` | WDYDLW with Shaw | high | bundled distilled recap |
 
-## Held Privately, No Timeline Anchor
+## Distilled But Without A Calendar Anchor
 
-These raw files were removed from the repo and are not referenced by any calendar match (no timeline impact). They stay in the private vault pending a distillation pass or remain excluded.
+These vault transcripts have **distilled readouts** in the OS but no matching calendar block (undated salons), so they carry no calendar-timeline anchor — they surface only via session insights and constellation cues.
+
+| readout | note |
+|---|---|
+| `tee-dstack-easytee-phala` | TEE/dstack convergence salon, undated. Distilled; no calendar block to anchor to. |
+| `dstack-hangout` | Informal dstack hangout, undated. Distilled; no calendar block to anchor to. |
+
+## Excluded Entirely
 
 | file | note |
 |---|---|
-| Office Hours Transcript | Office-hours material is excluded from the OS by policy. |
-| TEE dstack easyTEE Phala Transcript | No matched calendar block in the current map. Candidate for a future distill + anchor. |
-| dstack hangout Alex Shaw Lsdan Andrew | Informal hangout, no matched calendar block. Candidate for a future distill + anchor. |
+| Office Hours Transcript | Office-hours material (private 1:1 / team feedback) is excluded from the OS by policy — no readout, no cues, no anchor. Held in the private vault only. |
 
 ## Missing Or Unresolved
 

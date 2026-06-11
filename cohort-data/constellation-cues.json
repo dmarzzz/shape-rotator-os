@@ -383,5 +383,30 @@
     "label": "agent OS as Debian fork",
     "source": "private-vault:dstack-hangout",
     "excerpt": "The team is building an agent operating system as a minimal Debian derivative, using Tails as a reference, and was pointed to mkosi to avoid maintaining a full fork."
+  },
+  {
+    "teams": [
+      "teleport-router"
+    ],
+    "label": "router onboarding pipeline",
+    "source": "private-vault:teleport-router-onboarding-2026-05-27",
+    "excerpt": "Walked the cohort through linking agents to the router, an agent-drafted self-introduction notebook, and Matrix account linking via a code handshake."
+  },
+  {
+    "teams": [
+      "teleport-router",
+      "shape-rotator-os"
+    ],
+    "label": "feed consumable by the OS",
+    "source": "private-vault:teleport-router-onboarding-2026-05-27",
+    "excerpt": "The router exposes a simple REST API so the Shape Rotator OS can consume the shared notebook feed directly."
+  },
+  {
+    "teams": [
+      "elizaos"
+    ],
+    "label": "agentic interface checkpoint",
+    "source": "private-vault:agentic-tooling-workshop-2026-05-28",
+    "excerpt": "A checkpoint workshop on the interface and workflow layer — what people would use daily — framing self-optimizing, directable workflow runners as the real product surface."
   }
 ]

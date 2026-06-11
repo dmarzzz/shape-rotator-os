@@ -11,7 +11,13 @@ source: private-vault:wikigen-crossroads-gil-pmf-2026-05-26
 
 # Week 2 Project Intros (Crossroads, Wikigen) and a Product-Market Fit Deep Dive
 
-A cohort team presented a key-encumbrance-based cross-chain exchange and fielded sharp market-viability questions, followed by a guest session on what product-market fit actually means for deep-tech founders.
+**Interrogate the market before you polish the tech.**
+
+*A cohort team presented a key-encumbrance-based cross-chain exchange and fielded sharp market-viability questions, followed by a guest session on what product-market fit actually means for deep-tech founders.*
+
+## the 60-second version
+
+A cohort team presented a key-encumbrance cross-chain exchange that moves trust from bridge validators into cryptographic signing policy, then fielded sharp questions about whether the cross-chain-swap market is even worth attacking right now. A guest PMF lecture supplied the frame: fit means proven retention and willingness to pay for a specific segment, and AI-era defensibility shifts to distribution, proprietary data, and reliability.
 
 ## themes
 
@@ -58,6 +64,8 @@ Mentor feedback was skeptical of the pure-solver market: spreads are thin, volum
 
 - [Liquefaction: Privately Liquefying Blockchain Assets (key-encumbrance research paper)](https://arxiv.org/abs/2412.02634)
 
-## consent note
+## provenance
+
+Distilled from a private-vault transcript (`wikigen-crossroads-gil-pmf-2026-05-26`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: `speaker-pending`.
 
 This session included external or featured speakers. The readout is held to thematic, unattributed distillation; a richer version requires a speaker consent pass.
