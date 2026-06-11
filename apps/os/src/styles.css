@@ -6341,11 +6341,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   display: flex; flex-direction: column; gap: 8px;
   height: 100%;
 }
-.alchemy-canvas:has(.alch-constellation),
-.alchemy-canvas:has(.alch-cohort-page) {
-  padding-left: 34px;
-  padding-right: 32px;
-}
+/* Cohort/constellation no longer narrows the canvas gutters (2026-06) —
+   every page shares .alchemy-canvas's standard side padding. Unified. */
 /* ── cohort page shell (2026-06) ─────────────────────────────────────
    Every cohort view renders inside the same shell: page header, then the
    view nav, then ONE controls band, then content. The header and the
@@ -8503,11 +8500,6 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 
 @media (max-width: 1180px) {
-  .alchemy-canvas:has(.alch-constellation),
-  .alchemy-canvas:has(.alch-cohort-page) {
-    padding-left: 28px;
-    padding-right: 28px;
-  }
   .alch-const-workbench { grid-template-columns: 1fr; }
   .ac-inspector { position: relative; top: auto; max-height: none; }
 }
@@ -13632,21 +13624,19 @@ html, body { background: var(--ed-bg-0); }
  * bump text contrast everywhere it was below readable.
  * ═══════════════════════════════════════════════════════════════════ */
 
-/* Page-level warm radial wash — espresso, not near-black (2026-06
-   restyle back toward the original field-guide warmth): the page is the
-   dark layer of a two-step warm elevation, with the specimen panels
-   sitting visibly lighter on top. */
+/* Page-level radial wash — back to near-black (2026-06-11): the espresso
+   page wash from the warm-elevation pass read as flat gray at laptop
+   brightness; the page returns to the deep near-black field while the
+   panels keep their warm elevation on top. */
 html, body {
-  background: radial-gradient(ellipse 140% 100% at 50% -10%, #2c2728 0%, #231f20 55%, #1a1718 100%);
+  background: radial-gradient(ellipse 140% 100% at 50% -10%, #1a1612 0%, #0e0c0a 55%, #08070a 100%);
 }
 
 /* Alchemy stage + network/metrics stages get the same gradient so the
-   chrome backdrop is unified across views. The June-5 design sits on the
-   warm charcoal (--abyss family); the warmth comes from the oxide washes
-   on the panels, not from a brown page. */
+   chrome backdrop is unified across views. */
 .alchemy-view, #alchemy-view,
 #network-view, #metrics-view {
-  background: radial-gradient(ellipse 130% 90% at 50% -5%, #2a2526 0%, #221e1f 60%, #1b1819 100%);
+  background: radial-gradient(ellipse 130% 90% at 50% -5%, #16130f 0%, #0d0c0a 60%, #0a0908 100%);
 }
 
 /* ── back / edit-on-github / pill actions — proper readable chips ── */
@@ -14015,7 +14005,28 @@ html, body {
 }
 .cal-avail-head > div:first-child { display: flex; flex-direction: column; gap: 4px; }
 .cal-avail-head .cal-page-actions { margin-left: auto; }
-.cal-avail-edit { margin-left: 4px; }
+/* Same pill treatment as .cal-action so the presence-head buttons read as
+   one family (was an unstyled native button — white box). */
+.cal-avail-edit {
+  margin-left: 4px;
+  appearance: none;
+  display: inline-flex; align-items: center; gap: 7px;
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.08), rgba(var(--ink-rgb), 0.02));
+  color: var(--ed-ink-1);
+  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-family: var(--ed-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  cursor: pointer;
+}
+.cal-avail-edit:hover {
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.16), rgba(var(--ink-rgb), 0.06));
+  border-color: rgba(var(--ink-rgb), 0.40);
+  box-shadow: 0 0 0 3px rgba(var(--ink-rgb), 0.06);
+}
 
 @media (max-width: 880px) {
   .cal-tw-wrap { grid-template-columns: 1fr; }
@@ -14029,7 +14040,10 @@ html, body {
 .cal-section-presence { max-width: none; }
 .cal-section-presence .cal-scroll {
   overflow-x: auto;
-  overflow-y: hidden;
+  /* The gantt is taller than the .cal-scroll max-height cap — overflow-y
+     must scroll, not hide, or every row below the fold (later teams) is
+     unreachable. */
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 .cal-section-head {
@@ -14313,7 +14327,7 @@ html, body {
   border-bottom: 2px solid transparent;
   padding: 10px 16px 12px 16px;
   color: var(--ed-ink-1);
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: pointer;
   display: inline-flex; gap: 10px; align-items: baseline;
 }
@@ -14322,17 +14336,22 @@ html, body {
   opacity: 1;
   border-bottom-color: #c44025;
 }
+.alch-prog-tab[aria-selected="true"] .alch-prog-tab-label {
+  color: var(--alchemy-paper-warm);
+}
 .alch-prog-tab-num {
   font-family: var(--ed-mono);
   font-size: 10px;
   letter-spacing: 0.22em;
   opacity: 0.60;
 }
+/* Mirrors .apv-label (context/cohort view tabs) so the program tabs use
+ * the identical font treatment — same family, style, size, spacing. */
 .alch-prog-tab-label {
   font-family: var(--ed-display);
   font-style: italic;
-  font-size: 16px;
-  letter-spacing: -0.01em;
+  font-size: 16.5px;
+  color: var(--ed-ink-1);
 }
 .alch-prog-page { margin: 0; max-width: 70ch; }
 .alch-prog-page-head {
@@ -14461,10 +14480,11 @@ html, body {
 
 /* ── asks board ──────────────────────────────────────────────────── */
 /* Stack the asks header (title + subtitle + post button) vertically so the
-   button never gets jammed into a narrow grid auto-column. Centered with
-   matching width to the section list below. */
+   button never gets jammed into a narrow grid auto-column. Left-aligned to
+   the canvas gutter (2026-06) so every page shares the same content edge;
+   the max-width still caps the line length for readability. */
 .alch-asks-head {
-  margin: 0 auto 20px;
+  margin: 0 0 20px;
   max-width: 80ch;
   display: flex; flex-direction: column;
   gap: 10px;
@@ -14489,7 +14509,7 @@ html, body {
   opacity: 0.62;
   margin: 0;
 }
-.alch-asks-section { max-width: 84ch; margin: 18px auto; }
+.alch-asks-section { max-width: 84ch; margin: 18px 0; }
 .alch-asks-section-head {
   display: flex; align-items: baseline; gap: 12px;
   padding-bottom: 8px;
@@ -14972,6 +14992,9 @@ html, body {
   padding: 0;
   border: 0;
 }
+/* Directory's export action shares the band row with the filter chips —
+ * same chip styling, pushed to the right edge. */
+.alch-view-controls > #dossier-export-png { margin-left: auto; }
 /* Cross-view selection chip — the visible owner of "something is selected".
  * Sits last in the controls row on every cohort view; clicking clears
  * (same effect as the Escape shortcut, but discoverable). Oxide-warm so
@@ -15202,10 +15225,13 @@ html, body {
 .alch-prog-title       { font-size: 44px; letter-spacing: -0.02em; line-height: 1.0; margin: 0 0 14px 0; }
 .alch-prog-sub         { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 64ch; margin: 0; opacity: 0.62; }
 
-.alch-prog-tabs        { margin: 24px 0 40px; max-width: 88ch; gap: 0; }
-.alch-prog-tab         { padding: 12px 24px 14px; gap: 12px; }
-.alch-prog-tab-num     { font-size: 11px; letter-spacing: 0.22em; }
-.alch-prog-tab-label   { font-size: 19px; }
+/* Tab metrics mirror .alch-page-view-btn / .apv-label exactly so the
+ * program tabs land at the same y and row height as the context/cohort
+ * view tabs — switching rail pages must not move the tab row. */
+.alch-prog-tabs        { margin: 0 0 40px; max-width: 88ch; gap: 0; }
+.alch-prog-tab         { padding: 6px 17px 9px; gap: 8px; }
+.alch-prog-tab-num     { font-size: 10px; letter-spacing: 0.22em; }
+.alch-prog-tab-label   { font-size: 16.5px; }
 
 .alch-prog-page        { margin: 0; max-width: 80ch; padding: 0 0 96px; }
 .alch-prog-page-head   { margin-bottom: 32px; align-items: baseline; gap: 24px; }
@@ -15243,12 +15269,12 @@ html, body {
 .alch-prog-page-foot   { margin-top: 40px; padding-top: 16px; font-size: 11px; }
 
 /* ── asks ─────────────────────────────────────────────────────────── */
-.alch-asks-head        { margin: 0 auto 18px; max-width: 88ch; padding-top: 12px; gap: 10px; }
+.alch-asks-head        { margin: 0 0 18px; max-width: 88ch; padding-top: 12px; gap: 10px; }
 .alch-asks-title       { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
 .alch-asks-sub         { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 70ch; margin: 0; opacity: 0.62; }
 .alch-asks-head-actions { margin-top: 10px; }
 
-.alch-asks-section     { max-width: 88ch; margin: 18px auto; }
+.alch-asks-section     { max-width: 88ch; margin: 18px 0; }
 .alch-asks-section-head { padding-bottom: 8px; margin-bottom: 10px; gap: 10px; }
 .alch-asks-section-title { font-size: 14px; line-height: 1.20; }
 .alch-asks-section-count { font-size: 11px; letter-spacing: 0.22em; }
@@ -15491,7 +15517,7 @@ html, body {
 /* ── asks compose form ────────────────────────────────────────────── */
 .alch-asks-compose {
   max-width: 88ch;
-  margin: 10px auto 24px;
+  margin: 0 0 24px;
   padding: 0;
   background: rgba(var(--ink-rgb), 0.025);
   border: 1px solid rgba(var(--ink-rgb), 0.16);
@@ -16167,7 +16193,6 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
 .cal-tw-h-label,
 .cal-sched-h-label,
 .cal-event-title,
-.alch-prog-tab-label,
 .cal-subtab .cs-label,
 .alch-feed-loading-title {
   font-family: var(--sr-font-sans) !important;
@@ -20425,19 +20450,26 @@ button.alch-quick-link {
   }
 }
 
-/* ─── unified page intro — boxed explainer at the top of each OS page ── */
+/* ─── unified page intro — floating top-right action slot ──────────── */
+/* The boxed explainer text was removed (2026-06) as clutter; the row now
+ * only renders on pages with a functional element to keep top-right
+ * (theme toggle, per-view side actions). It floats out of the flow so it
+ * adds no height — every page's content starts at the same y (the
+ * canvas's 24px top padding). top/right match the standard canvas
+ * padding (24px top; 56px right — cohort/constellation canvases reach
+ * the same 56px via narrower padding + the old strip margin). */
 /* Doubled class beats later-loading per-page rules (e.g. intel.css) on ties. */
 .alch-page-intro.alch-page-intro {
+  position: absolute;
+  top: 24px;
+  right: 56px;
+  z-index: 5;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   box-sizing: border-box;
-  min-height: 64px;
-  border: 1px solid var(--alchemy-rule);
-  border-radius: 4px;
-  padding: 10px 16px;
-  margin: 0 0 24px;
+  margin: 0;
   font-family: var(--font-sans);
   font-size: 13px;
   letter-spacing: 0.01em;
@@ -20451,33 +20483,36 @@ button.alch-quick-link {
  * as floating in dead space. */
 .alchemy-canvas:has(.alch-onb-steps) .alch-callout { margin-left: 0; margin-right: 0; }
 .alchemy-canvas:has(.alch-seal-section) .alch-callout { margin-left: 0; margin-right: 0; max-width: none; }
-/* An intro strip with no text yet keeps its reserved space (same height +
- * spacing as every other page) but hides the rectangle. Adding text to the
- * div makes the outline appear automatically. */
-.alch-page-intro.alch-page-intro:empty { border-color: transparent; }
-/* Constellation + cohort-page canvases use narrower padding (34/32; 28/28
- * under 1180px) for the graph — offset the strip so its edges land at the
- * same 56px as every other page. */
-.alchemy-canvas:has(.alch-constellation) .alch-page-intro,
-.alchemy-canvas:has(.alch-cohort-page) .alch-page-intro { margin-left: 22px; margin-right: 24px; }
-@media (max-width: 1180px) {
-  .alchemy-canvas:has(.alch-constellation) .alch-page-intro,
-  .alchemy-canvas:has(.alch-cohort-page) .alch-page-intro { margin-left: 28px; margin-right: 28px; }
-}
-/* Membrane is a full-bleed stage with zero canvas padding — give the strip
- * explicit margins matching the standard page padding, above the scene. */
-.membrane-host .membrane-page-intro { position: relative; z-index: 6; margin: 24px 56px 0; }
 
-/* ── what's new — Slack-style unread on the OS rail ──────────────────
- * A rail page whose cohort content changed since the user last viewed
- * it renders at full ink, exactly like a Slack/Discord channel with new
- * messages. Color only — no badges, no dots, no text. `.ar-unread` is
- * toggled by alchemy.js (updateRailUnread, fed by whats-new.js) and
- * settles back once the page is actually viewed. Uses the same theme
- * vars as the selected state, so light mode is covered for free. */
-.alchemy-rail-btn.ar-unread { opacity: var(--ed-op-loud); }
-.primary-nav .alchemy-rail-btn.ar-unread .ar-label { color: var(--ink-hi) !important; }
-.primary-nav .alchemy-rail-btn.ar-unread .ar-num   { opacity: 1 !important; }
+/* ── what's new — numbered unread badges on the OS rail ──────────────
+ * A rail page whose content changed since the user last viewed it gets
+ * a small numbered circle in the gutter LEFT of its icon — the count of
+ * new/changed records. The icon and label stay exactly where they are:
+ * the badge is absolutely positioned into the rail's 40px left padding.
+ * `.ar-unread` + the badge element are managed by alchemy.js
+ * (updateRailUnread, fed by whats-new.js) and clear once the page is
+ * actually viewed. overflow must be visible so the badge can escape the
+ * button box into the gutter (base rule clips it). */
+.primary-nav .alchemy-rail-btn { overflow: visible !important; }
+.alchemy-rail-btn .ar-unread-badge {
+  position: absolute;
+  left: -26px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--ink-hi);
+  color: var(--ed-bg-0);
+  font-family: var(--sr-font-mono);
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 13px;
+  text-align: center;
+}
 
 /* Program tab icons — same stroke-icon language as the rail/view navs. */
 .alch-prog-tab-icon { display: inline-flex; align-items: center; align-self: center; opacity: 0.60; }

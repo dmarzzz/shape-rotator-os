@@ -866,18 +866,8 @@ export function renderWeekView({
   const phase = phaseFor(safeWeekIdx + 1);
   const recurring = parseRecurring(rows);
 
-  const isLive    = source === "live";
-  const isSnapshot = source === "snapshot";
   const isBundled = source === "bundled";
   const isStale   = isBundled; // any non-live source is "stale"; refine later if we add a third tier
-  const syncStateClass = isLive || isSnapshot ? "is-live" : isBundled ? "is-bundled" : "is-unknown";
-  const syncLabel = (() => {
-    if (source == null) return "no calendar data yet";
-    const stamp = fmtSyncStamp(data?.last_refresh) || "—";
-    if (isLive) return `synced live · ${stamp}`;
-    if (isSnapshot) return `web snapshot · ${stamp}`;
-    return `bundled snapshot · ${stamp}`;
-  })();
 
   // ── scrubber dots — labeled 1..10, phase-tinted, with current selection ─
   const scrubDots = Array.from({ length: WEEK_COUNT }, (_, i) => {
@@ -989,15 +979,6 @@ export function renderWeekView({
     : "";
 
   return `
-    <header class="cal-page-head">
-      <div class="alch-page-intro">
-        <span>The cohort schedule — day, week &amp; full program views, plus presence. synced from the phala calendar.</span>
-        <div class="cal-page-sync ${syncStateClass}">
-          <span class="cps-label">${escHtml(syncLabel)}</span>
-        </div>
-      </div>
-    </header>
-
     ${staleBanner}
 
     <div class="cal-canvas" data-sub="${escAttr(sub)}" data-phase="${escAttr(phase)}">
