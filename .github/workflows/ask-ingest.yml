@@ -1,0 +1,324 @@
+name: ask-ingest
+
+# Turns a "Post an ask" issue (see .github/ISSUE_TEMPLATE/new-ask.yml) into a
+# cohort-data/asks/<slug>.md committed straight to main — the same direct-push
+# pattern calendar-sync.yml uses for the schedule. No PR, no human merge.
+#
+# Why no human gate:
+#   Asks are low-stakes, short-lived (5-day fade), cohort-internal pair
+#   requests. The cohort allowlist below replaces the reviewer: only an issue
+#   whose AUTHOR's GitHub handle matches a cohort-data/people/*.md `links.github`
+#   is auto-published, and the matched person record_id is stamped as the ask's
+#   `author` (so identity is the GitHub account you post with — not spoofable
+#   via a form field). Issues from non-cohort accounts are left open with a
+#   note for a human to look at; they are never auto-committed.
+#
+#   Trust note: this relocates identity to the integrity of `links.github` in
+#   people records (which are themselves human-reviewed via the cohort-data PR
+#   flow). We defend the two failure modes we CAN see here — a handle that maps
+#   to more than one record is rejected as ambiguous rather than silently
+#   attributed, and the matched record_id is echoed in the success comment so
+#   any mis-attribution is visible.
+#
+# Why it must regenerate the bundle:
+#   apps/os/src/cohort-surface.json is a generated artifact gated by the
+#   required `check:cohort` status. If we committed only the .md, the next
+#   unrelated PR would fail that gate. So we run `npm run build:cohort` and
+#   commit the regenerated surface in the SAME commit. (The OS app reads asks
+#   live from main markdown, so it doesn't need the bundle to show the ask —
+#   but the gate and the offline/web fallback do.)
+#
+# Why [skip ci]:
+#   Same as calendar-sync — keeps the direct push from retriggering push-based
+#   workflows. os-pr-checks is pull_request-only and os-release is tag-only, so
+#   nothing here loops.
+#
+# Residual risks accepted (cohort-internal repo): any GitHub user can open a
+# form issue and spin a runner (it short-circuits at the allowlist before any
+# write); a crash between commit and the marker comment could in rare cases
+# allow a re-publish on a later re-label.
+
+on:
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: write       # push the new ask + regenerated bundle to main
+  issues: write         # comment on + close the originating issue
+
+# Serialize per issue so the near-simultaneous opened+labeled events don't both
+# publish. The second run waits, then sees the first run's marker comment and
+# no-ops. cancel-in-progress: false so we never kill a run mid git-push.
+concurrency:
+  group: ask-ingest-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    # Cheap pre-filter: only spin up a runner for issues that carry the `ask`
+    # label. (The form applies it automatically.)
+    if: contains(github.event.issue.labels.*.name, 'ask')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Default GITHUB_TOKEN; contents:write above lets it push to main.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      # build:cohort + the parse step's js-yaml come from here. --ignore-scripts
+      # skips native rebuilds we don't need (build-bundles.js only needs js-yaml).
+      - name: install
+        run: npm ci --ignore-scripts
+
+      - name: parse issue + check cohort allowlist + write ask file
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const path = require("path");
+            const fs = require("fs");
+            const crypto = require("crypto");
+            const yaml = require(path.join(process.env.GITHUB_WORKSPACE, "node_modules", "js-yaml"));
+
+            const issue = context.payload.issue;
+            const { owner, repo } = context.repo;
+            const ws = process.env.GITHUB_WORKSPACE;
+            const ASK_EXPIRY_DAYS = 5;   // mirror apps/os/src/renderer/asks.js
+            const OPEN_ASK_CAP = 8;      // max live asks per author (anti-spam backstop)
+            const TOPIC_MAX = 160;       // asks are one-liners; bound surface bloat
+
+            // Soft reject: leave the issue open, post a marker comment so we
+            // don't reprocess, and skip every downstream (publish) step.
+            function reject(marker, message) {
+              core.setOutput("action", "reject");
+              core.setOutput("message", `<!-- ask-ingest:${marker} -->\n${message}`);
+            }
+
+            if (issue.state !== "open") { core.info("issue not open; skipping"); core.setOutput("action", "skip"); return; }
+
+            // Idempotency: bail if we've already posted ANY ask-ingest marker
+            // comment (handles the opened+labeled double-fire and re-labels).
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: issue.number, per_page: 100,
+            });
+            if (comments.some(c => (c.body || "").includes("<!-- ask-ingest:"))) {
+              core.info("already processed (marker comment present); skipping");
+              core.setOutput("action", "skip");
+              return;
+            }
+
+            // Normalize a github handle the same way the renderer does
+            // (apps/os/src/renderer/asks.js normalizeAskIdentity) so URL-form or
+            // @-prefixed handles in people records still match a plain login.
+            function normHandle(value) {
+              let s = String(value ?? "").trim().toLowerCase();
+              if (!s) return "";
+              s = s.replace(/^mailto:/, "");
+              s = s.replace(/^https?:\/\/(?:www\.)?github\.com\//, "");
+              s = s.replace(/^(?:www\.)?github\.com\//, "");
+              s = s.replace(/^@+/, "");
+              return s.split(/[/?#]/)[0].trim();
+            }
+
+            // Parse the issue-form body: sections delimited by "### <label>".
+            function parseForm(body) {
+              const text = String(body || "").replace(/\r\n?/g, "\n");
+              const out = {};
+              for (const seg of text.split(/\n?###[ \t]+/)) {
+                if (!seg.trim()) continue;
+                const nl = seg.indexOf("\n");
+                if (nl < 0) continue;
+                const key = seg.slice(0, nl).trim().toLowerCase();
+                let val = seg.slice(nl + 1).trim();
+                if (/^_no response_$/i.test(val)) val = "";
+                out[key] = val;
+              }
+              return out;
+            }
+            const form = parseForm(issue.body);
+            const verb = (form["what kind of ask?"] || "").trim();
+            let topic = (form["topic"] || "").replace(/\s+/g, " ").trim();
+            const skillRaw = form["skill areas (comma-separated)"] || "";
+
+            if (!verb || !topic) {
+              core.info("missing verb/topic — not a parseable ask form");
+              return reject("invalid", "⚠️ I couldn't read an ask out of this issue (missing the kind-of-ask or topic).\n\nPlease post via the **Post an ask** issue form so the fields parse correctly.");
+            }
+            let topicTrimmed = false;
+            if (topic.length > TOPIC_MAX) { topic = topic.slice(0, TOPIC_MAX - 1).trim() + "…"; topicTrimmed = true; }
+
+            // Cohort allowlist: normalized github handle -> set of record_ids.
+            // A Set per handle so a duplicated/typo'd links.github is caught
+            // (rejected as ambiguous) instead of silently last-writer-wins.
+            const peopleDir = path.join(ws, "cohort-data", "people");
+            const handleToRecords = new Map();
+            for (const f of fs.readdirSync(peopleDir)) {
+              if (!f.endsWith(".md")) continue;
+              const raw = fs.readFileSync(path.join(peopleDir, f), "utf8").replace(/\r\n?/g, "\n");
+              const m = /^---\n([\s\S]*?)\n---/.exec(raw);
+              if (!m) continue;
+              let data; try { data = yaml.load(m[1]); } catch { continue; }
+              const handle = normHandle(data && data.links && data.links.github);
+              if (handle && data.record_id) {
+                if (!handleToRecords.has(handle)) handleToRecords.set(handle, new Set());
+                handleToRecords.get(handle).add(data.record_id);
+              }
+            }
+            const login = (issue.user && issue.user.login) || "";
+            const matches = handleToRecords.get(normHandle(login));
+            if (!matches || matches.size === 0) {
+              core.info(`@${login} not in cohort allowlist`);
+              return reject("not-member", `👋 Thanks for posting! I couldn't match **@${login}** to a cohort profile, so this ask wasn't auto-published.\n\nTo enable auto-publish, add your GitHub handle to your \`cohort-data/people/<you>.md\` record under \`links.github\`. A maintainer can also post this ask manually.`);
+            }
+            if (matches.size > 1) {
+              core.warning(`@${login} maps to multiple records: ${[...matches].join(", ")}`);
+              return reject("ambiguous", `⚠️ Your GitHub handle **@${login}** matches more than one cohort profile (\`${[...matches].join("`, `")}\`), so I can't safely attribute this ask. A maintainer needs to resolve the duplicate \`links.github\` first.`);
+            }
+            const author = [...matches][0];
+
+            // Anti-spam backstop: cap live (open, un-expired) asks per author.
+            const asksDir = path.join(ws, "cohort-data", "asks");
+            const nowMs = Date.now();
+            let liveByAuthor = 0;
+            for (const f of fs.readdirSync(asksDir)) {
+              if (!f.endsWith(".md")) continue;
+              const raw = fs.readFileSync(path.join(asksDir, f), "utf8").replace(/\r\n?/g, "\n");
+              const m = /^---\n([\s\S]*?)\n---/.exec(raw);
+              if (!m) continue;
+              let data; try { data = yaml.load(m[1]); } catch { continue; }
+              if (!data || data.record_type !== "ask") continue;
+              if (String(data.author || "").toLowerCase() !== author.toLowerCase()) continue;
+              if (String(data.status || "open").toLowerCase() !== "open") continue;
+              const dm = /(\d{4})-(\d{2})-(\d{2})/.exec(String(data.posted_at || ""));
+              const postedMs = dm ? Date.UTC(+dm[1], +dm[2] - 1, +dm[3]) : null;
+              const ageDays = postedMs == null ? 0 : Math.floor((nowMs - postedMs) / 86400000);
+              if (ageDays < ASK_EXPIRY_DAYS) liveByAuthor += 1;
+            }
+            if (liveByAuthor >= OPEN_ASK_CAP) {
+              core.info(`author ${author} at live-ask cap (${liveByAuthor})`);
+              return reject("rate-limited", `🛑 You already have **${liveByAuthor}** live asks on the wall (cap is ${OPEN_ASK_CAP}). Wait for some to fade (5 days) or close one, then post again.`);
+            }
+
+            // Validate skill_areas against the controlled vocab; drop unknowns.
+            const schema = yaml.load(fs.readFileSync(path.join(ws, "cohort-data", "schema.yml"), "utf8"));
+            const vocab = new Set((((schema || {}).cohort_vocab || {}).skill_areas || []).map(s => String(s).toLowerCase()));
+            const requested = skillRaw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+            const skillAreas = [...new Set(requested.filter(s => vocab.has(s)))];
+            const dropped = [...new Set(requested.filter(s => !vocab.has(s)))];
+
+            // Unique, non-clobbering record_id: <author>-<date>-<csprng>. Write
+            // with flag "wx" (fail if exists) and retry, so a slug collision can
+            // never overwrite an existing ask.
+            const today = new Date().toISOString().slice(0, 10);
+            let slug = "", written = false;
+            for (let i = 0; i < 6 && !written; i++) {
+              const rand = crypto.randomBytes(3).toString("hex");   // 6 hex chars
+              slug = `${author}-${today}-${rand}`.toLowerCase().replace(/[^a-z0-9-]/g, "");
+              const front = { record_id: slug, record_type: "ask", schema_version: 1, posted_at: today, author, verb, topic };
+              if (skillAreas.length) front.skill_areas = skillAreas;
+              front.status = "open";
+              const md = `---\n${yaml.dump(front, { lineWidth: -1 })}---\n\n(posted via the new-ask issue form.)\n`;
+              try { fs.writeFileSync(path.join(asksDir, `${slug}.md`), md, { flag: "wx" }); written = true; }
+              catch (e) { if (e.code !== "EEXIST") throw e; }
+            }
+            if (!written) { core.setFailed("could not allocate a unique ask slug after 6 tries"); core.setOutput("action", "skip"); return; }
+
+            core.info(`wrote cohort-data/asks/${slug}.md (author ${author})`);
+            core.setOutput("action", "publish");
+            core.setOutput("slug", slug);
+            core.setOutput("author", author);
+            core.setOutput("dropped", dropped.join(", "));
+            core.setOutput("skills", skillAreas.join(", "));
+            core.setOutput("topic_trimmed", topicTrimmed ? "1" : "");
+
+      - name: regenerate bundle + commit to main
+        if: steps.parse.outputs.action == 'publish'
+        env:
+          SLUG: ${{ steps.parse.outputs.slug }}
+          AUTHOR: ${{ steps.parse.outputs.author }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          npm run build:cohort
+          # Stage only our two known paths — never `git add -A` — so no stray
+          # file can ride along in the commit.
+          git add "cohort-data/asks/${SLUG}.md" "apps/os/src/cohort-surface.json"
+          git commit \
+            -m "feat(asks): add ${SLUG} via issue #${ISSUE} [skip ci]" \
+            -m "Auto-ingested from the new-ask issue form (author: ${AUTHOR}). Source: .github/workflows/ask-ingest.yml."
+
+          # Push, retrying onto a moved main (calendar-sync advances main every
+          # 2h, so a race is possible). The only file that can conflict is the
+          # generated bundle — auto-resolve, then regenerate from the merged
+          # markdown so our ask is folded in correctly.
+          attempt=0
+          until git push origin HEAD:main; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -ge 4 ]; then
+              echo "::error::push to main failed after ${attempt} attempts"
+              exit 1
+            fi
+            echo "push rejected (attempt ${attempt}) — rebasing onto origin/main"
+            git fetch origin main
+            git rebase -X theirs origin/main
+            npm run build:cohort
+            git add "apps/os/src/cohort-surface.json"
+            git diff --cached --quiet || git commit --amend --no-edit
+          done
+
+      - name: comment + close (published)
+        if: steps.parse.outputs.action == 'publish'
+        uses: actions/github-script@v7
+        env:
+          SLUG: ${{ steps.parse.outputs.slug }}
+          AUTHOR: ${{ steps.parse.outputs.author }}
+          DROPPED: ${{ steps.parse.outputs.dropped }}
+          SKILLS: ${{ steps.parse.outputs.skills }}
+          TOPIC_TRIMMED: ${{ steps.parse.outputs.topic_trimmed }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.issue.number;
+            const slug = process.env.SLUG;
+            const file = `cohort-data/asks/${slug}.md`;
+            const url = `https://github.com/${owner}/${repo}/blob/main/${file}`;
+            const skills = process.env.SKILLS ? `\n- Skill areas: \`${process.env.SKILLS.split(", ").join("`, `")}\`` : "";
+            const dropped = process.env.DROPPED
+              ? `\n- ⚠️ Dropped unrecognized skill tag(s): \`${process.env.DROPPED.split(", ").join("`, `")}\` — not in the controlled vocab (see \`cohort-data/schema.yml\`).`
+              : "";
+            const trimmed = process.env.TOPIC_TRIMMED ? "\n- ℹ️ Your topic was trimmed to fit the one-line ask format." : "";
+            const body = [
+              "<!-- ask-ingest:published -->",
+              "✅ **Your ask is live.**",
+              "",
+              `- Posted as \`${slug}\` (author: \`${process.env.AUTHOR}\`).${skills}${dropped}${trimmed}`,
+              "- It appears on everyone's asks wall within ~1 hour automatically, or instantly when they hit **resync from GitHub**.",
+              "- It auto-fades 5 days after posting. To close it early or edit it, edit the source file.",
+              "",
+              `Source: [\`${file}\`](${url})`,
+            ].join("\n");
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            await github.rest.issues.update({ owner, repo, issue_number, state: "closed" });
+
+      - name: comment (soft reject — left open for a human)
+        if: steps.parse.outputs.action == 'reject'
+        uses: actions/github-script@v7
+        env:
+          MESSAGE: ${{ steps.parse.outputs.message }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.issues.createComment({
+              owner, repo,
+              issue_number: context.payload.issue.number,
+              body: process.env.MESSAGE,
+            });
