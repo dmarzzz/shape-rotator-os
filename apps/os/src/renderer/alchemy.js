@@ -1447,23 +1447,23 @@ function renderShapes() {
     counts.set(chip.id, sourceRecords.filter(r => chip.match(r)).length);
   }
   const membershipChips = chipSet.map(chip => `
-    <button class="alch-shapes-chip alch-shapes-chip-membership" data-membership-filter="${escAttr(chip.id)}" type="button" aria-selected="${chip.id === activeChip.id}">${escHtml(chip.label)} <span class="ascn">${counts.get(chip.id) || 0}</span></button>
+    <button class="alch-shapes-chip alch-shapes-chip-membership" data-membership-filter="${escAttr(chip.id)}" type="button" role="tab" aria-selected="${chip.id === activeChip.id}">${escHtml(chip.label)} <span class="ascn">${counts.get(chip.id) || 0}</span></button>
   `).join("");
 
   const chips = `
     <div class="alch-view-controls">
       <nav class="alch-shapes-filter" role="tablist" aria-label="filter by kind">
-        <button class="alch-shapes-chip" data-shapes-filter="works"  type="button" aria-selected="${filter === "works"}">teams & projects <span class="ascn">${nWorks}</span></button>
-        <button class="alch-shapes-chip" data-shapes-filter="people" type="button" aria-selected="${filter === "people"}">individuals <span class="ascn">${nPeople}</span></button>
+        <button class="alch-shapes-chip" data-shapes-filter="works"  type="button" role="tab" aria-selected="${filter === "works"}">teams & projects <span class="ascn">${nWorks}</span></button>
+        <button class="alch-shapes-chip" data-shapes-filter="people" type="button" role="tab" aria-selected="${filter === "people"}">individuals <span class="ascn">${nPeople}</span></button>
       </nav>
       <nav class="alch-shapes-filter alch-shapes-filter-membership" role="tablist" aria-label="filter by membership">
         ${membershipChips}
       </nav>
     </div>
   `;
-  const cardCtx = { people: state.cohort?.people || [] };
+  const cardCtx = { people: state.cohort?.people || [], teams: state.cohort?.teams || [] };
   const cards = records.map((r, idx) => {
-    if (r._kind === "person") return personCardHtml(r, idx);
+    if (r._kind === "person") return personCardHtml(r, idx, cardCtx);
     return teamCardHtml(r, idx, cardCtx);
   }).join("");
   const emptyMsg = filter === "people"
@@ -5784,9 +5784,29 @@ function openDetail(recordId) {
       returnMode: state.detailReturnMode,
     }));
   } catch {}
-  render();
-  // Scroll the canvas to the top so the hero is in view.
-  try { state.canvas?.scrollTo({ top: 0, behavior: "auto" }); } catch {}
+  const update = () => {
+    render();
+    // Scroll the canvas to the top so the hero is in view.
+    try { state.canvas?.scrollTo({ top: 0, behavior: "auto" }); } catch {}
+  };
+  // Sigil continuity: tag the clicked card's canvas so the same-document
+  // view transition morphs it into the dossier hero (the rail canvas
+  // carries the matching view-transition-name statically in styles.css).
+  // Forward direction only — back to the grid stays instant.
+  let cardCanvas = null;
+  try {
+    cardCanvas = state.canvas?.querySelector(
+      `.alch-card[data-record-id="${CSS.escape(state.detailRecordId)}"] canvas`
+    ) || null;
+  } catch {}
+  const reduceMotion = typeof matchMedia === "function"
+    && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (cardCanvas && !reduceMotion && typeof document.startViewTransition === "function") {
+    cardCanvas.style.viewTransitionName = "sr-sigil";
+    document.startViewTransition(update);
+  } else {
+    update();
+  }
 }
 
 function closeDetail() {
@@ -11626,8 +11646,34 @@ function detailTeamToken(team) {
   `;
 }
 
+// Collapsed-section previews carry CONTENT, not schema: the summary line
+// should replace uncertainty ("what's in here?") with the actual signal.
+// Truncate to one readable clause; empty in → empty out so callers can
+// fall back to a schema hint when a record hasn't declared the field.
+function previewSnippet(value, max = 64) {
+  const first = Array.isArray(value)
+    ? value.find(v => v != null && String(v).trim())
+    : value;
+  const s = String(first || "").replace(/\s+/g, " ").trim();
+  if (!s) return "";
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
+}
+
 function detailTimelinePreview(items = []) {
-  const labels = [...new Set((Array.isArray(items) ? items : [])
+  const rows = (Array.isArray(items) ? items : []).filter(Boolean);
+  // Lead with the most recent entry — "what happened last" is the signal;
+  // the old type-label list ("event, onboarding, profile") restated schema.
+  const dated = rows
+    .filter(item => item?.date)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const latest = dated[0] || rows[rows.length - 1];
+  if (latest) {
+    const title = previewSnippet(latest.title || detailTimelineType(latest.type), 48);
+    if (title) {
+      return latest.date ? `${detailTimelineDate(latest.date)} — ${title}` : title;
+    }
+  }
+  const labels = [...new Set(rows
     .map(item => detailLabelize(item?.type || item?.source || ""))
     .filter(Boolean))]
     .slice(0, 3);
@@ -11782,7 +11828,7 @@ function renderPersonRail(person, team, fam) {
         ${person.role ? `<p class="alch-detail-focus">${escHtml(person.role)}</p>` : ""}
         <div class="alch-rail-list">
           <div><span>status</span>${escHtml(detailLabelize(person.role_class || "person"))}</div>
-          ${team ? `<div><span>team</span>${detailRecordToken(team)}</div>` : ""}
+          ${team ? `<div><span>team</span>${detailTeamToken(team)}</div>` : ""}
           ${person.geo ? `<div><span>geo</span>${escHtml(person.geo)}</div>` : ""}
           ${person.domain ? `<div><span>domain</span>${escHtml(domainLabel(person.domain))}</div>` : ""}
           ${dates ? `<div><span>window</span>${dates}</div>` : ""}
@@ -11868,18 +11914,17 @@ function renderTeamDetail(team) {
   const editUrl = buildEditPRUrl({ recordType: "team", recordId });
   const links = team.links || {};
   const journey = detailJourneySummary(team);
+  // Stage / evidence / upside / bottleneck / next milestone live in the
+  // always-visible "trajectory" quick row — the section below adds the
+  // qualitative read (who for, what problem, what proof) instead of
+  // repeating the same pills as rows.
   const trajectoryRows = [
-    { key: "stage", value: escHtml(`${journey.stage} ${journey.stageLabel}`.trim()) },
-    { key: "evidence", value: escHtml(`${journey.evidence_quality}/5${journey.evidenceLabel ? ` ${journey.evidenceLabel}` : ""}`) },
-    { key: "upside", value: escHtml(`${journey.market_upside}/5${journey.upsideLabel ? ` ${journey.upsideLabel}` : ""}`) },
-    { key: "bottleneck", value: journey.primary_bottleneck ? escHtml(journey.primary_bottleneck) : "" },
     { key: "company type", value: journey.company_type ? escHtml(journey.company_type) : "" },
     { key: "confidence", value: journey.confidence ? escHtml(journey.confidence) : "" },
     { key: "icp", value: journey.icp ? escHtml(journey.icp) : "" },
     { key: "problem", value: journey.problem ? escHtml(journey.problem) : "" },
     { key: "solution", value: journey.solution ? escHtml(journey.solution) : "" },
     { key: "evidence notes", value: journey.evidence_notes ? escHtml(journey.evidence_notes) : "" },
-    { key: "next milestone", value: journey.next_milestone ? escHtml(journey.next_milestone) : "" },
     { key: "this week", value: detailList(team.weekly_goals) },
     { key: "milestones", value: detailList(team.monthly_milestones) },
     { key: "graduation", value: team.graduation_target ? escHtml(team.graduation_target) : "" },
@@ -11944,9 +11989,9 @@ function renderTeamDetail(team) {
         </div>
         <div class="alch-detail-quick alch-team-quick">${nextMove}${needs}${provides}${guild}${trajectory}${explore}</div>
         <div class="alch-section-stack">
-          ${renderDisclosureSection("trajectory", detailRows(trajectoryRows), false, "stage, proof, next test")}
-          ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, "traction, paper, shipping")}
-          ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, "dependencies, seeks, offers")}
+          ${renderDisclosureSection("trajectory", detailRows(trajectoryRows), false, previewSnippet(journey.problem || journey.icp) || "who for, problem, solution")}
+          ${renderDisclosureSection("evidence", detailRows(evidenceRows), true, previewSnippet(team.traction) || "traction, paper, shipping")}
+          ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, previewSnippet(team.seeking) || "dependencies, seeks, offers")}
           ${renderRecordTimeline("team", recordId)}
         </div>
       </section>
@@ -12006,10 +12051,8 @@ function renderPersonDetail(person) {
     "themes",
     detailItems(person.recurring_themes).slice(0, 4).map(value => detailQuickText("", value))
   );
-  const teamContext = team ? detailQuickRow("team context", [
-    detailTeamToken(team),
-    detailQuickText("focus", team.focus),
-  ]) : "";
+  // (No "team context" quick row — the rail's team token owns that fact;
+  // the team's own focus lives one click away on its dossier.)
   const currentRows = [
     { key: "now", value: person.now ? `<span class="alch-detail-now">${escHtml(person.now)}</span>` : "" },
     { key: "weekly intention", value: person.weekly_intention ? escHtml(person.weekly_intention) : "" },
@@ -12046,8 +12089,6 @@ function renderPersonDetail(person) {
         <span>${escHtml(recordId.toUpperCase())}</span>
         <span class="ct-sep">·</span>
         <span class="ct-kind ct-kind-person">individual</span>
-        <span class="ct-sep">·</span>
-        <span>${escHtml(domainLabel(person.domain))}</span>
       </div>
       <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
     </header>
@@ -12060,13 +12101,13 @@ function renderPersonDetail(person) {
           <span class="alch-detail-h">individual read</span>
         </div>
         ${bioSection ? `<div class="alch-section-stack alch-priority-stack">${bioSection}</div>` : ""}
-        <div class="alch-detail-quick">${explore}${askMeAbout}${themes}${teamContext}</div>
+        <div class="alch-detail-quick">${explore}${askMeAbout}${themes}</div>
         <div class="alch-section-stack">
-          ${renderDisclosureSection("current read", detailRows(currentRows), !bioSection, "now, weekly intention")}
-          ${renderDisclosureSection("working with", detailRows(workingRows), false, "style, availability, seeks")}
-          ${renderDisclosureSection("proof / prior work", renderPersonProofRead(person), false, "shipping, lineage")}
+          ${renderDisclosureSection("current read", detailRows(currentRows), true, previewSnippet(person.now) || "now, weekly intention")}
+          ${renderDisclosureSection("working with", detailRows(workingRows), false, previewSnippet(person.comm_style || person.availability_pref) || "style, availability, seeks")}
+          ${renderDisclosureSection("proof / prior work", renderPersonProofRead(person), false, previewSnippet(person.prior_work) || "shipping, lineage")}
           ${renderRecordTimeline("person", recordId)}
-          ${renderDisclosureSection("routes / asks", detailRows(routeRows), false, "other teams, logistics")}
+          ${renderDisclosureSection("routes / asks", detailRows(routeRows), false, previewSnippet(secondary.map(t => t.name || t.record_id)) || "other teams, logistics")}
         </div>
       </section>
     </article>
