@@ -6483,9 +6483,14 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-neighbor .ac-node-shape {
   stroke-width: 1.35;
 }
-.alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-outside,
-.alch-constellation-stage[data-selection-active="true"] svg .ac-jnode.is-selection-outside {
+.alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-outside {
   opacity: 0.12;
+}
+/* PMF scatter: outside-dots stay readable — the scatter has no selection
+ * edges to carry the story, so a 0.12 ghost field reads as a broken page.
+ * The selected dot pops via is-selection-core; the rest recede gently. */
+.alch-constellation-stage[data-selection-active="true"] svg .ac-jnode.is-selection-outside {
+  opacity: 0.45;
 }
 /* In the all lens, keep resting edges legible enough to invite inspection
    without letting untyped legacy links dominate the wells. Hover restores them. */
@@ -11744,160 +11749,6 @@ button.cb-cell:disabled { cursor: default; }
   height: 18px;
   overflow: visible;
 }
-.alch-drawer-tag {
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-  font-family: var(--font-mono); font-size: 10px;
-  letter-spacing: 0.20em; text-transform: uppercase;
-  color: var(--alchemy-ink-mute);
-}
-.alch-drawer-tag .dt-id { color: var(--alchemy-oxide-bright); }
-.alch-drawer-close {
-  background: transparent; border: 1px solid var(--alchemy-rule);
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono); font-size: 10px;
-  letter-spacing: 0.18em; text-transform: uppercase;
-  padding: 4px 10px; border-radius: 999px;
-  cursor: pointer;
-  transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
-}
-.alch-drawer-close:hover {
-  color: var(--alchemy-oxide-bright);
-  border-color: var(--alchemy-rule-warm);
-  background: rgba(143,34,14,0.06);
-}
-.alch-drawer-body {
-  flex: 1; min-height: 0; overflow-y: auto;
-  padding: 22px 28px 32px;
-  display: flex; flex-direction: column; gap: 18px;
-}
-.alch-drawer-name {
-  font-family: var(--ed-display); font-style: italic;
-  font-size: 30px; line-height: 1.08; letter-spacing: -0.01em; font-weight: 500;
-  color: var(--ed-ink-1);
-}
-.alch-drawer-shape {
-  height: 140px;
-  display: grid; place-items: center;
-  border: 1px solid var(--alchemy-rule);
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(143,34,14,0.06), rgba(var(--ink-rgb), 0.005));
-}
-.alch-drawer-shape svg {
-  width: 80%; height: 100%;
-  animation: alchTilt 11s ease-in-out infinite, alchBreathe 9.5s ease-in-out infinite;
-  transform-origin: center;
-}
-.alch-drawer-shape svg .as-fill { fill: var(--alchemy-oxide); }
-.alch-drawer-shape svg .as-stroke { stroke: var(--alchemy-oxide-bright); fill: none; stroke-width: 1; }
-.alch-drawer-shape svg .as-mute { stroke: rgba(var(--ink-rgb), 0.18); fill: none; stroke-width: 0.6; }
-.alch-drawer-rule { height: 1px; background: var(--alchemy-rule-warm); width: 32px; }
-.alch-drawer-section {
-  display: flex; flex-direction: column; gap: 8px;
-}
-/* Section header — editorial italic-serif + underline rule, matching the
-   collab board's .alch-cb-sechead, with an optional terse lowercase sub-label. */
-.alch-drawer-sechead {
-  display: flex; align-items: baseline; gap: 12px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10); padding-bottom: 6px; margin-bottom: 2px;
-}
-.alch-drawer-section h4 {
-  font-family: var(--ed-display); font-style: italic;
-  font-size: 15px; letter-spacing: 0; text-transform: none;
-  color: var(--ed-ink-1);
-  margin: 0;
-  font-weight: normal;
-}
-.alch-drawer-sechead .dr-sub {
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.14em;
-  text-transform: lowercase; color: var(--alchemy-ink-mute);
-}
-.alch-drawer-row {
-  display: grid; grid-template-columns: 100px 1fr; gap: 12px;
-  font-family: var(--font-mono); font-size: 11.5px;
-  letter-spacing: 0.04em;
-}
-.alch-drawer-row .dr-k {
-  color: var(--alchemy-ink-mute); text-transform: uppercase; letter-spacing: 0.16em;
-  font-size: 10px; padding-top: 2px;
-}
-.alch-drawer-row .dr-v { color: var(--alchemy-paper-warm); }
-.alch-drawer-row .dr-v.muted { color: rgba(var(--ink-rgb), 0.40); font-style: italic; }
-.alch-drawer-row .dr-v a { color: var(--alchemy-paper-warm); border-bottom: 1px solid var(--alchemy-rule-warm); text-decoration: none; }
-.alch-drawer-row .dr-v a:hover { color: var(--alchemy-oxide-bright); border-color: var(--alchemy-oxide-bright); }
-.alch-drawer-clusters {
-  display: flex; flex-wrap: wrap; gap: 8px;
-}
-/* Cluster chip — a quiet labelled pill. Cluster identity is the LABEL (matching
-   the map, where cluster = the labeled well, never a color), so no per-cluster
-   hue here — that old hardcoded-by-record_id palette left most chips grey. */
-.alch-drawer-cluster {
-  display: inline-flex; align-items: center;
-  font-family: var(--font-mono); font-size: 9.5px;
-  letter-spacing: 0.12em; text-transform: lowercase;
-  padding: 4px 11px;
-  border-radius: 999px;
-  background: rgba(var(--ink-rgb), 0.04);
-  color: var(--alchemy-paper-warm);
-  border: 1px solid var(--alchemy-rule);
-}
-.alch-drawer-successes {
-  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;
-}
-.alch-drawer-success {
-  display: inline-flex; align-items: center;
-  border-radius: 4px; padding: 4px 8px;
-  border: 1px solid rgba(193,168,114,0.28);
-  background: rgba(193,168,114,0.08);
-  color: rgba(226,207,162,0.95);
-  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.alch-drawer-cluster-cards {
-  display: flex; flex-direction: column; gap: 8px;
-}
-.alch-drawer-cluster-cards .alch-drawer-cluster {
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 4px;
-  border-radius: 5px;
-  padding: 8px 10px;
-  text-transform: none;
-  letter-spacing: 0;
-}
-.alch-drawer-cluster-cards .alch-drawer-cluster span {
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.alch-drawer-cluster-cards .alch-drawer-cluster em {
-  font-style: normal;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-sans);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-/* Roster — the team's people as warm gold-accent chips (the collab board's
-   people shape-grammar: a person reads differently from a team or a cluster). */
-.alch-drawer-people { display: flex; flex-wrap: wrap; gap: 8px; }
-.alch-drawer-person {
-  display: inline-flex; align-items: baseline; gap: 7px;
-  padding: 5px 11px 5px 9px;
-  border-radius: 7px;
-  background: rgba(193,168,114,0.07);
-  border: 1px solid rgba(193,168,114,0.22);
-  border-left: 2px solid rgba(193,168,114,0.7);
-}
-.alch-drawer-person .dp-name {
-  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.02em;
-  color: var(--alchemy-paper-warm);
-}
-.alch-drawer-person .dp-role {
-  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.14em;
-  text-transform: uppercase; color: rgba(193,168,114,0.85);
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
  * THE COOK — deep editorial, gallery-grade.
  *
@@ -15117,6 +14968,47 @@ html, body {
   margin: 0;
   padding: 0;
   border: 0;
+}
+/* Cross-view selection chip — the visible owner of "something is selected".
+ * Sits last in the controls row on every cohort view; clicking clears
+ * (same effect as the Escape shortcut, but discoverable). Oxide-warm so
+ * it reads as kin to the cohort-membership accent, not a filter. */
+.ac-selection-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  padding: 5px 11px 5px 13px;
+  background: color-mix(in srgb, var(--alchemy-oxide-bright) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--alchemy-oxide-hot) 55%, transparent);
+  border-radius: 999px;
+  color: var(--ed-ink-1);
+  font-family: var(--ed-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  cursor: pointer;
+  transition: background 160ms ease-out, border-color 160ms ease-out;
+}
+.ac-selection-chip span { opacity: 0.6; letter-spacing: 0.18em; }
+.ac-selection-chip strong { font-weight: 500; text-transform: none; letter-spacing: 0.02em; }
+.ac-selection-chip i { font-style: normal; opacity: 0.7; font-size: 12px; line-height: 1; }
+.ac-selection-chip:hover,
+.ac-selection-chip:focus-visible {
+  background: color-mix(in srgb, var(--alchemy-oxide-bright) 18%, transparent);
+  border-color: var(--alchemy-oxide-hot);
+}
+.ac-selection-chip:hover i { opacity: 1; }
+/* Selected-entity readouts (journey/stack) — second-click hint line. */
+.ac-readout-hint {
+  margin: 8px 0 0;
+  font-family: var(--ed-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: rgba(var(--ink-rgb), 0.45);
+}
+.ac-main-readout.is-selected-readout {
+  border-left: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 55%, transparent);
 }
 /* Collab's lens buttons + actions become one space-between band row. */
 .alch-view-controls > .cb-controls {
