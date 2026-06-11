@@ -48,28 +48,30 @@ function mdToPlainText(md, max = 240) {
   return `${text.slice(0, max).replace(/\s+\S*$/, "")}…`;
 }
 
-// Hover peeks: quiet "about · now" anchors in the title block, each the
-// deliberate hover target for its own glass layer over the card head.
-// The card body itself triggers nothing, so the cursor can rest on a
-// card while reading. Reveal is CSS-only — see
-// .alch-card:has(.alch-card-peek:hover) in cohort-card.css.
+// Hover peeks: quiet "about · now" anchors in the title block, each a
+// deliberate hover/focus target carrying its OWN glass popover. The
+// layer is nested inside its anchor so hovering the popover still counts
+// as hovering the anchor — the cursor can travel from tag into popover
+// and the panel stays open ("do more from the preview"). The card body
+// triggers nothing, so the cursor can rest on a card without opening it.
+// Anchors carry data-no-card-click so a click peeks instead of selecting.
+// Reveal + the cursor-bridge are CSS-only — see .alch-card-peek in
+// cohort-card.css.
 function cardPeeks(rec) {
   const about = mdToPlainText(rec?.bio_md);
   const now = String(rec?.now || "").trim();
+  const peek = (key, body) =>
+    `<span class="alch-card-peek" data-peek="${key}" tabindex="0" role="button" aria-label="${key} — hover to preview" data-no-card-click>${key}` +
+      `<span class="alch-card-peek-layer alch-card-peek-${key}" role="tooltip" data-no-card-click>` +
+        `<span class="acp-k">${key}</span>${escHtml(body)}` +
+      `</span>` +
+    `</span>`;
   const anchors = [];
-  const layers = [];
-  if (about) {
-    anchors.push(`<span class="alch-card-peek" data-peek="about">about</span>`);
-    layers.push(`<div class="alch-card-peek-layer alch-card-peek-about"><span>about</span>${escHtml(about)}</div>`);
-  }
-  if (now) {
-    anchors.push(`<span class="alch-card-peek" data-peek="now">now</span>`);
-    layers.push(`<div class="alch-card-peek-layer alch-card-now"><span>now</span>${escHtml(now)}</div>`);
-  }
-  return {
-    anchors: anchors.length ? `<div class="alch-card-peeks">${anchors.join("")}</div>` : "",
-    layers: layers.join(""),
-  };
+  if (about) anchors.push(peek("about", about));
+  if (now) anchors.push(peek("now", now));
+  // Layers ride inside their anchors, so the whole feature is this one
+  // title-block row — nothing trails the card foot.
+  return anchors.length ? `<div class="alch-card-peeks">${anchors.join("")}</div>` : "";
 }
 
 // One "links" row of label anchors (github · x · site · linkedin). The
@@ -155,7 +157,7 @@ export function teamCardHtml(t, idx, ctx = {}) {
           <div class="alch-card-domain">${escHtml(domainLabel(t.domain))}</div>
           <div class="alch-card-name">${escHtml(t.name)}</div>
           ${t.focus ? `<p class="alch-card-sub">${escHtml(t.focus)}</p>` : ""}
-          ${peeks.anchors}
+          ${peeks}
         </div>
       </div>
       <div class="alch-card-meta">
@@ -164,7 +166,6 @@ export function teamCardHtml(t, idx, ctx = {}) {
         ${links.join("")}
       </div>
       ${cardChipsHtml(t.skill_areas)}
-      ${peeks.layers}
     </article>`;
 }
 
@@ -211,7 +212,7 @@ export function personCardHtml(p, idx, ctx = {}) {
           ${p.domain ? `<div class="alch-card-domain">${escHtml(domainLabel(p.domain))}</div>` : ""}
           <div class="alch-card-name">${escHtml(p.name)}</div>
           ${p.role ? `<p class="alch-card-sub">${escHtml(p.role)}</p>` : ""}
-          ${peeks.anchors}
+          ${peeks}
         </div>
       </div>
       <div class="alch-card-meta">
@@ -220,7 +221,6 @@ export function personCardHtml(p, idx, ctx = {}) {
         ${linksRow}
       </div>
       ${cardChipsHtml(p.go_to_them_for)}
-      ${peeks.layers}
     </article>`;
 }
 

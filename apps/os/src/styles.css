@@ -18119,8 +18119,19 @@ html[data-theme="light"] .alch-detail-dossier {
   border-color: rgba(var(--ink-rgb), 0.12);
   box-shadow: none;
 }
-html[data-theme="light"] .alch-card-now {
+/* Hover-peek anchors + popovers — flip the cream/white alphas (invisible
+ * on paper) to dark-ink alphas, and swap the dark glass veil for a near-
+ * white paper veil so the about/now previews read in light mode. */
+html[data-theme="light"] .alch-card-peek {
+  color: rgba(var(--ink-rgb), 0.62);
+  background: rgba(var(--ink-rgb), 0.04);
+  border-color: rgba(var(--ink-rgb), 0.14);
+}
+html[data-theme="light"] .alch-card-peek-layer {
   background: color-mix(in srgb, #FFFFFF 95%, transparent);
+  border-color: rgba(var(--ink-rgb), 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 8px 26px rgba(60, 40, 30, 0.16);
+  color: var(--ed-ink-1);
 }
 
 /* Collab board adjacency matrix — the sticky column-header row hardcodes a
