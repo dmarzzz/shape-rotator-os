@@ -10,7 +10,7 @@ geo: Ohio (PT)
 domain: crypto
 email: null
 dates_start: 2026-06-01
-dates_end: 2026-07-18
+dates_end: 2026-07-25
 links:
   github: null
   x: null

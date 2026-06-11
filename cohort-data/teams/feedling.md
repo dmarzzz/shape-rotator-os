@@ -6,7 +6,7 @@ kind: project
 
 name: Feedling
 focus: information-diet interventions for short-form video · TEE-delegated watch history
-members_count: 5
+members_count: 1
 geo: null
 domain: ai
 shape: null

@@ -5,6 +5,7 @@ schema_version: 1
 name: "Shaw Walters"
 team: elizaos
 role: "lead"
+role_class: visiting-scholar
 geo: "SF / Bay Area"
 domain: ai
 email: developer@elizalabs.ai
