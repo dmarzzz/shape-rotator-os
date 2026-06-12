@@ -518,7 +518,24 @@ async function boot() {
   mountConnectionIndicator({ serverUrl: srwk.serverUrl });
   setConnectionState({ state: "connecting", serverUrl: srwk.serverUrl });
   mountSyncChip();
-  mountQuickDial();
+  // The quick dial is a LAB surface — kept out of packaged releases
+  // until the publish rails graduate from the PRD's demo wiring. It
+  // mounts only when running from source (npm run dev), or in a
+  // packaged build when a tester opts in:
+  //   localStorage.setItem("srwk:labs_quickdial", "1")  (+ reload)
+  // Fire-and-forget: the gate costs one IPC round trip and nothing
+  // downstream in boot depends on the dial existing.
+  (async () => {
+    try {
+      let on = false;
+      try { on = localStorage.getItem("srwk:labs_quickdial") === "1"; } catch {}
+      if (!on) {
+        const info = await window.api?.getAppInfo?.();
+        on = info?.isPackaged === false;
+      }
+      if (on) mountQuickDial();
+    } catch {}
+  })();
   wireGlobalKeyboard();
   registerVisualizerShortcutsAndCommands();
 
