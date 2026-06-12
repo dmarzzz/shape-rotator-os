@@ -109,12 +109,14 @@
   color: var(--qd-mist);
   cursor: pointer;
   pointer-events: auto;
-  /* bloom in, then float — gentle bobbing, phase-staggered per orb, like
-   * the membrane blobs breathing in the void. Float waits out the bloom
-   * so the travel entrance stays legible. */
+  /* bloom in, then float — gentle bobbing like the membrane blobs
+   * breathing in the void. Period (--qd-float-t) and amplitude
+   * (--qd-drift) are per-slot, so the clutch never bobs in lockstep —
+   * organic drift, not a metronome. Float waits out the bloom so the
+   * travel entrance stays legible. */
   animation:
     qd-bloom 190ms var(--qd-pop) both,
-    qd-float 5.5s ease-in-out infinite;
+    qd-float var(--qd-float-t, 5.5s) ease-in-out infinite;
   animation-delay: calc(var(--qd-i, 0) * 22ms), calc(380ms + var(--qd-i, 0) * 700ms);
   transition:
     transform 150ms var(--qd-pop),
@@ -122,7 +124,7 @@
 }
 @keyframes qd-float {
   0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-2.5px); }
+  50%      { transform: translateY(var(--qd-drift, -2.5px)); }
 }
 /* The face is a clipped ::before so the glow (drop-shadow on the
  * UNclipped wrapper) follows the shape's silhouette — sphere, diamond,
@@ -232,11 +234,14 @@
 /* ring-1 qualifier — disambiguates ask/seek/offer at a glance */
 #quick-dial .qd-bubble-sub {
   font-family: var(--qd-mono);
-  font-size: 8px;
+  /* 9px + mist-mid (was 8px dim): the qualifier must survive the dark
+   * scrim at arm's length — below this it decorates, it doesn't inform */
+  font-size: 9px;
   letter-spacing: 0.12em;
   text-transform: lowercase;
   line-height: 1;
-  color: var(--qd-mist-dim);
+  color: var(--qd-mist-mid);
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.7);
   white-space: nowrap;
 }
 /* keyboard-opened dial shows each bubble's selection numeral */

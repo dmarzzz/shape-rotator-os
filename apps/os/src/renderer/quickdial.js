@@ -132,9 +132,15 @@ function applyOrbVars(el, node) {
   const branch = branchOf(node);
   const orb = BRANCH_ORBS[branch];
   if (!orb) return;
-  el.style.setProperty("--qd-orb-base", orb.base);
+  // per-slot temperature: nudge body + contour toward white/black in
+  // oklch (perceptual — the hue holds, only the stone's depth shifts);
+  // the rim stays shared so every sibling catches the same light
+  const tint = node.variant?.tint;
+  const base = tint ? `color-mix(in oklch, ${orb.base} ${100 - tint.p}%, ${tint.c})` : orb.base;
+  const contour = tint ? `color-mix(in oklch, ${orb.contour} ${100 - tint.p}%, ${tint.c})` : orb.contour;
+  el.style.setProperty("--qd-orb-base", base);
   el.style.setProperty("--qd-orb-rim", orb.rim);
-  el.style.setProperty("--qd-orb-contour", orb.contour);
+  el.style.setProperty("--qd-orb-contour", contour);
   el.style.setProperty("--qd-shape", node.variant?.shape || BRANCH_SHAPES[branch] || "circle(48% at 50% 50%)");
 }
 
@@ -145,13 +151,22 @@ function applyOrbVars(el, node) {
 // (inset-round radii), its own light angle (--qd-grad), and its own
 // size, so siblings read as littermates — clearly individual, clearly
 // one species. Icons + labels carry the meaning; hue carries the family.
+// Each slot also gets a TEMPERATURE (tint nudges base+contour toward
+// white or black in oklch) and its own float period + amplitude — six
+// stones from one quarry, no two cut alike, none bobbing in sync.
 const LEAF_SHAPES = [
-  { shape: "inset(0% round 47% 53% 44% 56% / 55% 46% 54% 45%)", size: 50, grad: "36% 26%" },
-  { shape: "inset(0% round 56% 44% 52% 48% / 46% 56% 44% 54%)", size: 47, grad: "62% 28%" },
-  { shape: "inset(0% round 44% 56% 50% 50% / 52% 42% 58% 48%)", size: 52, grad: "50% 19%" },
-  { shape: "inset(0% round 52% 48% 58% 42% / 44% 54% 46% 56%)", size: 46, grad: "28% 48%" },
-  { shape: "inset(0% round 50% 50% 45% 55% / 56% 48% 52% 44%)", size: 50, grad: "64% 58%" },
-  { shape: "inset(0% round 58% 42% 50% 50% / 48% 58% 42% 52%)", size: 48, grad: "42% 32%" },
+  { shape: "inset(0% round 47% 53% 44% 56% / 55% 46% 54% 45%)", size: 50, grad: "36% 26%",
+    floatT: "5.2s", drift: "-2.4px" },
+  { shape: "inset(0% round 56% 44% 52% 48% / 46% 56% 44% 54%)", size: 47, grad: "62% 28%",
+    tint: { c: "#fff", p: 7 }, floatT: "6.1s", drift: "-3.2px" },
+  { shape: "inset(0% round 44% 56% 50% 50% / 52% 42% 58% 48%)", size: 52, grad: "50% 19%",
+    tint: { c: "#000", p: 8 }, floatT: "4.7s", drift: "-2px" },
+  { shape: "inset(0% round 52% 48% 58% 42% / 44% 54% 46% 56%)", size: 46, grad: "28% 48%",
+    tint: { c: "#fff", p: 11 }, floatT: "5.7s", drift: "-3.5px" },
+  { shape: "inset(0% round 50% 50% 45% 55% / 56% 48% 52% 44%)", size: 50, grad: "64% 58%",
+    tint: { c: "#000", p: 12 }, floatT: "6.4s", drift: "-2.7px" },
+  { shape: "inset(0% round 58% 42% 50% 50% / 48% 58% 42% 52%)", size: 48, grad: "42% 32%",
+    tint: { c: "#fff", p: 4 }, floatT: "5s", drift: "-3px" },
 ];
 
 // Suggested tags for ask composing — recognition over recall. One
@@ -386,12 +401,15 @@ export function mountQuickDial() {
         el.style.setProperty("--qd-dx", `${(anchor.x - opt.pos.x).toFixed(1)}px`);
         el.style.setProperty("--qd-dy", `${(anchor.y - opt.pos.y).toFixed(1)}px`);
         applyOrbVars(el, opt.node);
-        // ring-2 wears its own gem (shape arrives via applyOrbVars); size
-        // and light are per-slot so the tray glints instead of repeating
+        // ring-2 wears its own gem (shape + tint arrive via applyOrbVars);
+        // size, light, and float rhythm are per-slot so the clutch glints
+        // and breathes instead of repeating
         const variant = opt.node.variant;
         if (variant) {
           if (variant.size) el.style.setProperty("--qd-orb-size", `${variant.size}px`);
           if (variant.grad) el.style.setProperty("--qd-grad", variant.grad);
+          if (variant.floatT) el.style.setProperty("--qd-float-t", variant.floatT);
+          if (variant.drift) el.style.setProperty("--qd-drift", variant.drift);
         }
         el.innerHTML = bubbleHtml(opt.node);
         el.addEventListener("pointerdown", (e) => e.stopPropagation());
