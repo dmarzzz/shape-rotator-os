@@ -335,9 +335,9 @@ let overlayList = null;
 
 // Open the overlay with a query prefilled — the quick dial's search rail
 // hands off here. Exported alongside init(); same overlay, same catalog.
-export function openWithQuery(query) {
+export function openWithQuery(query = null) {
   openOverlay();
-  if (inputEl && query != null && String(query).trim()) {
+  if (inputEl && query != null) {
     inputEl.value = String(query);
     inputEl.dispatchEvent(new Event("input", { bubbles: true }));
   }

@@ -60,6 +60,21 @@ test("cohort timeline source boundary covers snapshot collections that drive ins
   }
 });
 
+test("cohort dependency snapshots stay on first-parent history", async () => {
+  const timeline = JSON.parse(await readFile(path.join(ROOT, "apps/os/src/cohort-timeline.json"), "utf8"));
+  const week03 = (timeline.snapshots || []).find((snapshot) => snapshot.id === "week-03");
+  const dependencyEvents = (timeline.events || []).filter((event) => event.collection === "dependencies");
+
+  assert.ok(week03, "week-03 snapshot is missing");
+  assert.equal(week03.counts?.dependencies, 0);
+  assert.equal((week03.surface?.dependencies || []).length, 0);
+  assert.ok(dependencyEvents.length > 0, "dependency events are missing from the timeline");
+  assert.ok(
+    dependencyEvents.every((event) => event.snapshot_id === "latest"),
+    "dependency events should not be back-assigned to earlier snapshots",
+  );
+});
+
 test("transcript-derived cues and session insights resolve cohort references", async () => {
   const surface = JSON.parse(await readFile(path.join(ROOT, "apps/os/src/cohort-surface.json"), "utf8"));
   const teamIds = new Set((surface.teams || []).map(team => team.record_id));
