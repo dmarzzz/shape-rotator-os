@@ -15396,28 +15396,6 @@ html, body {
   border-top: 1px dotted rgba(var(--ink-rgb), 0.55);
 }
 
-/* Projects map — hover "relationship record" → mentions recede; hover
-   "profile mention" → records recede and the faint mention tier surfaces */
-.alch-const-main:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
-.alch-const-main:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
-  opacity: 0.06;
-}
-.alch-const-main:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
-.alch-const-main:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
-  opacity: 1;
-  stroke-width: 1.9;
-}
-.alch-const-main:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
-.alch-const-main:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
-  opacity: 0.07;
-}
-.alch-const-main:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
-.alch-const-main:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
-  opacity: 0.95;
-  stroke: rgba(var(--ink-rgb), 0.70);
-  stroke-width: 1.05;
-}
-
 /* People map — each key row isolates its link kind */
 .alch-const-main:has([data-legend-link="same-team"]:hover) .ac-people-stage svg .ac-person-link:not(.is-same-team),
 .alch-const-main:has([data-legend-link="same-team"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-same-team) {
@@ -15628,6 +15606,29 @@ html, body {
   stroke: rgba(214,189,134,0.98);
   stroke-width: 2.25;
   opacity: 1;
+}
+/* Projects map — hover "relationship record" → mentions recede; hover
+   "profile mention" → records recede and the faint mention tier surfaces.
+   Keep after the base dependency-edge rules so same-specificity all/ring
+   at-rest rules do not restore the default opacity and stroke width. */
+.alch-const-main:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
+.alch-const-main:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.06;
+}
+.alch-const-main:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
+.alch-const-main:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 1;
+  stroke-width: 1.9;
+}
+.alch-const-main:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
+.alch-const-main:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 0.07;
+}
+.alch-const-main:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
+.alch-const-main:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.95;
+  stroke: rgba(var(--ink-rgb), 0.70);
+  stroke-width: 1.05;
 }
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record.ac-edge-meaning-reliance,
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record.ac-edge-meaning-collaboration,

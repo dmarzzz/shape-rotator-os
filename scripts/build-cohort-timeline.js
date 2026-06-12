@@ -214,12 +214,12 @@ function buildSurfaceAtRef(ref, schema) {
 
 function resolveSnapshotRef(snapshot, baseRef) {
   if (snapshot.ref) {
-    const commit = git(["rev-list", "-n", "1", snapshot.ref, "--", ...SNAPSHOT_SOURCE_PATHS]).trim()
+    const commit = git(["rev-list", "--first-parent", "-n", "1", snapshot.ref, "--", ...SNAPSHOT_SOURCE_PATHS]).trim()
       || git(["rev-parse", `${snapshot.ref}^{commit}`]).trim();
     return { commit, mode: "ref" };
   }
   if (!snapshot.as_of) throw new Error(`snapshot ${snapshot.id} needs ref or as_of`);
-  const commit = git(["rev-list", "-n", "1", `--before=${snapshot.as_of}`, baseRef, "--", ...SNAPSHOT_SOURCE_PATHS]).trim();
+  const commit = git(["rev-list", "--first-parent", "-n", "1", `--before=${snapshot.as_of}`, baseRef, "--", ...SNAPSHOT_SOURCE_PATHS]).trim();
   if (!commit) throw new Error(`snapshot ${snapshot.id} could not resolve a commit before ${snapshot.as_of}`);
   return { commit, mode: "as_of" };
 }
