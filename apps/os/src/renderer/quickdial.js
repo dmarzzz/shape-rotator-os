@@ -92,6 +92,12 @@ const BRANCH_SUBS = {
   search: "find",
 };
 
+// Branch mnemonics — the succinct spine of the keyboard path. With the
+// ring-2 numerals, any composer is three keystrokes from anywhere:
+// Ctrl+Shift+A · letter · numeral. ("/" aliases f, the muscle-memory
+// search key.)
+const BRANCH_KEYS = { ask: "a", seek: "s", offer: "o", search: "f" };
+
 // Galaxy hues — the membrane's blob cabochons (renderer/membrane/blob.js
 // BLOB_PROFILES). ask wears the asks blob's amber; seek points at the
 // cohort constellation (lapis); offer gives like events (jade). The FAB
@@ -419,8 +425,12 @@ export function mountQuickDial() {
       }
       el.style.left = `${opt.pos.x}px`;
       el.style.top = `${opt.pos.y}px`;
-      // numeral badge for the keyboard path (visible only under .qd-kbd)
-      el.dataset.n = String(i + 1);
+      // keyboard badge (visible only under .qd-kbd): branches show their
+      // letter mnemonic, leaves their numeral — the two-key spelling of
+      // every destination
+      el.dataset.n = opt.node.kind === "branch"
+        ? BRANCH_KEYS[opt.node.id] || String(i + 1)
+        : String(i + 1);
     });
 
     // Homed highlight — the only thing glowing at any moment. The homed
@@ -831,7 +841,7 @@ export function mountQuickDial() {
             : `posting as <strong>${escHtml(ctx.authorSlug)}</strong> · open for 5 days${draftNote}`
         }</div>
         <div class="qd-row">
-          ${primaryBtn || `<button class="qd-submit" type="submit">post → PR</button>`}
+          ${primaryBtn || `<button class="qd-submit" type="submit" title="Ctrl+Enter">post → PR</button>`}
           <button class="qd-alt" type="button" data-qd-board>full board ↗</button>
         </div>
         <div class="qd-result" hidden></div>`;
@@ -858,7 +868,7 @@ export function mountQuickDial() {
             : `standing · lives on your profile under <strong>${field}</strong>${draftNote}`
         }</div>
         <div class="qd-row">
-          ${primaryBtn || `<button class="qd-submit" type="submit">add to profile → PR</button>`}
+          ${primaryBtn || `<button class="qd-submit" type="submit" title="Ctrl+Enter">add to profile → PR</button>`}
           <button class="qd-alt" type="button" data-qd-board>full board ↗</button>
         </div>
         <div class="qd-result" hidden></div>`;
@@ -1317,6 +1327,27 @@ status: open
         setState("browse");
       }
       return;
+    }
+    // Ctrl/Cmd+Enter posts the composer from anywhere inside it — the
+    // topic is a textarea (plain Enter is a newline), so the chord is
+    // the fast path from typing to posted.
+    if (uiState === "composing" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      composer.requestSubmit?.();
+      return;
+    }
+    // Letter mnemonics pick branches (a / s / o, f or / for search) —
+    // gated to fan states so typing in the composer or search rail never
+    // selects. Branches only live on ring 1, so the letters are
+    // naturally scoped; numerals keep working everywhere.
+    if ((uiState === "browse" || uiState === "drawing") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const k = e.key === "/" ? "f" : e.key.toLowerCase();
+      const hit = currentOptions().find((o) => o.node.kind === "branch" && BRANCH_KEYS[o.node.id] === k);
+      if (hit) {
+        e.preventDefault();
+        handleNodeClick(hit.node);
+        return;
+      }
     }
     // Number keys select the nth visible option (tap path, keyboard-only).
     // Gated to fan states so typing digits in the composer never selects.
