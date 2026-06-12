@@ -1749,6 +1749,42 @@ function journeyJitter(recordId, salt) {
   return ((((t ^ (t >>> 14)) >>> 0) % 10000) / 10000) * 2 - 1;
 }
 
+// At-rest name labels for the journey scatter. Every dot that can carry its
+// name without colliding with a neighbour's label (or covering another dot)
+// gets one — assessed and larger reads place first, the rest keep their
+// hover/focus label. Candidates per dot: above, below, right, left.
+// Widths are estimated (8px mono uppercase + 0.12em tracking ≈ 5.9px/char);
+// the dark stroke halo on .ac-jnode-label absorbs the estimate's slack.
+function journeyPlaceLabels(nodes, { W, padT, plotH }) {
+  const CHAR_W = 5.9, LBL_H = 9, GAP = 2;
+  const out = new Map();
+  const blockers = nodes.map(nd => ({ x1: nd.cx - nd.r, x2: nd.cx + nd.r, y1: nd.cy - nd.r, y2: nd.cy + nd.r }));
+  const overlaps = (a, b) => !(a.x1 > b.x2 + GAP || a.x2 < b.x1 - GAP || a.y1 > b.y2 + GAP || a.y2 < b.y1 - GAP);
+  const order = nodes.slice().sort((a, b) =>
+    ((b.assessed ? 1 : 0) - (a.assessed ? 1 : 0))
+    || (b.r - a.r)
+    || constText(a.t.name || a.t.record_id).localeCompare(constText(b.t.name || b.t.record_id)));
+  for (const nd of order) {
+    const name = constText(nd.t.name || nd.t.record_id);
+    if (!name) continue;
+    const w = name.length * CHAR_W + 2;
+    const candidates = [
+      { x: 0, y: -nd.r - 8, anchor: "middle", x1: nd.cx - w / 2, x2: nd.cx + w / 2, y1: nd.cy - nd.r - 8 - LBL_H, y2: nd.cy - nd.r - 8 },
+      { x: 0, y: nd.r + 13, anchor: "middle", x1: nd.cx - w / 2, x2: nd.cx + w / 2, y1: nd.cy + nd.r + 13 - LBL_H, y2: nd.cy + nd.r + 13 },
+      { x: nd.r + 6, y: 3, anchor: "start", x1: nd.cx + nd.r + 6, x2: nd.cx + nd.r + 6 + w, y1: nd.cy + 3 - LBL_H, y2: nd.cy + 3 },
+      { x: -nd.r - 6, y: 3, anchor: "end", x1: nd.cx - nd.r - 6 - w, x2: nd.cx - nd.r - 6, y1: nd.cy + 3 - LBL_H, y2: nd.cy + 3 },
+    ];
+    for (const c of candidates) {
+      if (c.x1 < 4 || c.x2 > W - 4 || c.y1 < padT - 16 || c.y2 > padT + plotH + 4) continue;
+      if (blockers.some(rect => overlaps(rect, c))) continue;
+      out.set(nd.t.record_id, { x: c.x, y: c.y, anchor: c.anchor });
+      blockers.push(c);
+      break;
+    }
+  }
+  return out;
+}
+
 // Market-upside labels (index = upside 1..5).
 const JOURNEY_UPSIDE_LABELS = ["", "niche", "modest", "solid", "large", "category-defining"];
 
@@ -3401,11 +3437,35 @@ function constJourneyReadoutHtml(visibleTeams = [], allTeams = visibleTeams) {
       || String(a.name || a.record_id).localeCompare(String(b.name || b.record_id));
   }).slice(0, 3);
   const missing = Math.max(0, cohortTeams.length - assessed.length);
-  const title = assessed.length
-    ? `${assessed.length}/${cohortTeams.length} explicit PMF reads`
-    : "PMF journey coverage is missing";
+  // Headline = the distribution claim (where the cohort mass sits, who is
+  // furthest along) — the thing a 5-second viewer actually wants from the
+  // scatter. The coverage stat that used to headline moves into the body.
+  let title = "PMF journey coverage is missing";
+  if (assessed.length) {
+    const stageTally = new Map();
+    for (const team of assessed) {
+      const stage = journeyFor(team).stage;
+      stageTally.set(stage, (stageTally.get(stage) || 0) + 1);
+    }
+    let modal = null;
+    for (const [stage, count] of stageTally) {
+      if (!modal || count > modal.count || (count === modal.count && stage < modal.stage)) modal = { stage, count };
+    }
+    const leader = assessed.slice().sort((a, b) => {
+      const aj = journeyFor(a);
+      const bj = journeyFor(b);
+      return bj.stage - aj.stage
+        || bj.evidence_quality - aj.evidence_quality
+        || String(a.name || a.record_id).localeCompare(String(b.name || b.record_id));
+    })[0];
+    const leaderStage = leader ? journeyFor(leader).stage : null;
+    title = `cohort mass sits at ${JOURNEY_STAGE_LABELS[modal.stage] || `stage ${modal.stage}`}`;
+    if (leader && leaderStage > modal.stage) {
+      title += ` · ${leader.name || leader.record_id} leads at ${JOURNEY_STAGE_LABELS[leaderStage] || `stage ${leaderStage}`}`;
+    }
+  }
   const body = assessed.length
-    ? `This view is evidence coverage, not a cohort-wide maturity ranking. ${missing} profile dot${missing === 1 ? "" : "s"} mean missing journey data, not weak companies.`
+    ? `${assessed.length}/${cohortTeams.length} teams carry explicit PMF reads — evidence coverage, not a cohort-wide maturity ranking.${missing ? ` ${missing} profile dot${missing === 1 ? "" : "s"} mean missing journey data, not weak companies.` : ""}`
     : "Every plotted dot is profile context until a team has an explicit journey read.";
   return `
     <section class="ac-main-readout is-journey-readout" aria-label="pmf evidence coverage readout">
@@ -3414,10 +3474,10 @@ function constJourneyReadoutHtml(visibleTeams = [], allTeams = visibleTeams) {
       <p>${escHtml(body)}</p>
       <div class="ac-view-chips">
         <span>shown assessed<em>${escHtml(String(visibleAssessed))}</em></span>
-        <span>missing assessment<em>${escHtml(String(missing))}</em></span>
+        ${missing ? `<span>missing assessment<em>${escHtml(String(missing))}</em></span>` : ""}
         ${top.map(team => {
           const j = journeyFor(team);
-          return `<span>${escHtml(team.name || team.record_id)}<em>${escHtml(`${j.stage}/${j.evidence_quality}`)}</em></span>`;
+          return `<span>${escHtml(team.name || team.record_id)}<em>${escHtml(`stage ${j.stage} · ev ${j.evidence_quality}`)}</em></span>`;
         }).join("")}
       </div>
     </section>`;
@@ -3677,18 +3737,24 @@ function constMapReadout(ctx) {
   const title = top
     ? `${top.a.label} to ${top.b.label}`
     : (scoped ? `No ${lensSpec.label} corridors yet` : "Start with the bright lines");
+  // The title already names the corridor — the body carries only what the
+  // title can't (why it headlines + its evidence mix), never the name again.
   const body = top
-    ? `${top.a.label} to ${top.b.label} is the strongest ${scoped ? `${lensSpec.label} corridor — ${lensSpec.meaning} —` : "current cross-world corridor"} from the source bundle. Line mix: ${constLineBasisText(top.typed, top.profile)}.`
+    ? `${scoped ? `The strongest ${lensSpec.label} corridor — ${lensSpec.meaning}.` : "The strongest current cross-world corridor from the source bundle."} ${constLineBasisText(top.typed, top.profile)} · ${top.teams.size} teams touched.`
     : (scoped
       ? `No cross-world ${lensSpec.label} lines (${lensSpec.meaning}) connect ecosystems yet. Set lines to all to read every declared corridor.`
       : "No cross-world corridor is strong enough to headline yet; inspect the relationship rows first.");
-  const caveat = `${breakdown.typed} relationship record${breakdown.typed === 1 ? "" : "s"} and ${breakdown.missing} profile mention${breakdown.missing === 1 ? "" : "s"}${scoped ? ` under the ${lensSpec.label} lens` : ""}. Solid lines have records; dotted lines are leads to verify.`;
-  return { title, body, caveat, corridors, breakdown, lens, lensSpec, scoped };
+  // Counts live in the pills alone; the caveat keeps only the decode rule.
+  const caveat = "Solid lines have records; dotted lines are leads to verify.";
+  return { title, body, caveat, top, corridors, breakdown, lens, lensSpec, scoped };
 }
 
 function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
   const read = constMapReadout(ctx);
   const kickerText = read.scoped ? `${kicker} · ${read.lensSpec.label} lines` : kicker;
+  // The hero owns corridor #1 outright — claim, evidence mix, AND its inspect
+  // action — so the corridor list below starts at #2 instead of restating it.
+  const topEdge = read.top?.topEdge;
   return `
     <div class="ac-inspector-hero is-generated-readout">
       <div class="ac-inspector-kicker">${escHtml(kickerText)}</div>
@@ -3697,29 +3763,23 @@ function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
       <div class="ac-inspector-pills">
         <span><strong>${escHtml(String(read.breakdown.typed))}</strong> records</span>
         <span><strong>${escHtml(String(read.breakdown.missing))}</strong> mentions</span>
+        ${topEdge ? `<button type="button" class="ac-hero-corridor" data-const-edge-from="${escAttr(topEdge.from)}" data-const-edge-to="${escAttr(topEdge.to)}">inspect corridor →</button>` : ""}
       </div>
       <p class="ac-rel-queue-more">${escHtml(read.caveat)}</p>
     </div>`;
 }
 
 function constCorridorReadoutHtml(ctx) {
-  const corridors = constTopCorridors(ctx, 3);
+  // Corridor #1 lives in the hero above (claim + inspect action); this
+  // section lists what comes next, so the panel never says a thing twice.
+  const corridors = constTopCorridors(ctx, 4).slice(1);
   const lens = constNormalizeConstellationLens(ctx?.lens || "all");
   const lensSpec = CONST_LENSES.find(l => l.lens === lens) || CONST_LENSES[0];
   const scoped = lens !== "all";
-  if (!corridors.length) {
-    // Under a scoped lens the panel explains itself instead of vanishing —
-    // an empty answer to a narrowed question is still an answer.
-    if (!scoped) return "";
-    return `
-    <section class="ac-inspector-section ac-action-card is-corridor-readout">
-      <h4>top corridors · ${escHtml(lensSpec.label)} lines</h4>
-      <p class="ac-rel-queue-more">No cross-world ${escHtml(lensSpec.label)} corridors yet — ${escHtml(lensSpec.meaning)}. Set lines to all to read every declared corridor.</p>
-    </section>`;
-  }
+  if (!corridors.length) return "";
   return `
     <section class="ac-inspector-section ac-action-card is-corridor-readout">
-      <h4>top corridors${scoped ? ` · ${escHtml(lensSpec.label)} lines` : ""}</h4>
+      <h4>next corridors${scoped ? ` · ${escHtml(lensSpec.label)} lines` : ""}</h4>
       <div class="ac-action-list">
         ${corridors.map(row => {
           const edge = row.topEdge;
@@ -4669,9 +4729,6 @@ function renderJourney() {
   }).join("");
   const axisTitleX = `<text class="ac-jaxis-title" x="${(PAD_L + plotW / 2).toFixed(1)}" y="${(H - 16).toFixed(1)}" text-anchor="middle">stage →</text>`;
   const axisTitleY = `<text class="ac-jaxis-title" transform="translate(18,${(PAD_T + plotH / 2).toFixed(1)}) rotate(-90)" text-anchor="middle">evidence quality →</text>`;
-  // #226 journey-assessed set — declaration dropped during the mega-merge; restored.
-  const assessedTeams = teams.filter(t => journeyAssessed(t));
-  const assessedShown = assessedTeams.length;
   const cellBuckets = new Map();
   for (const t of teams) {
     const j = journeyFor(t);
@@ -4686,7 +4743,7 @@ function renderJourney() {
   // ── dots: one per visible team/project. Explicit journey reads use
   // bottleneck color + upside size; default/profile records stay quieter but
   // remain individually selectable.
-  const dots = teams.map((t) => {
+  const nodes = teams.map((t) => {
     const j = journeyFor(t);
     const bucket = cellBuckets.get(`${j.stage}:${j.evidence_quality}`) || [t];
     const n = bucket.length;
@@ -4701,29 +4758,38 @@ function renderJourney() {
       jx = (cols <= 1 ? 0 : ((col / (cols - 1)) - 0.5) * (colW * 0.66)) + journeyJitter(t.record_id, "x") * 2;
       jy = (rows <= 1 ? 0 : ((row / (rows - 1)) - 0.5) * (rowH * 0.56)) + journeyJitter(t.record_id, "y") * 2;
     }
-    const cx = xForStage(j.stage) + jx;
-    const cy = yForEvidence(j.evidence_quality) + jy;
     const assessed = journeyAssessed(t);
     const r = assessed ? 4 + j.market_upside * 1.8 : 4.8; // upside 1..5 -> r 5.8..13
+    return { t, j, assessed, r, cx: xForStage(j.stage) + jx, cy: yForEvidence(j.evidence_quality) + jy };
+  });
+  const labelPos = journeyPlaceLabels(nodes, { W, padT: PAD_T, plotH });
+  const dots = nodes.map(({ t, j, assessed, r, cx, cy }) => {
     const famIdx = journeyFamilyIdx(j.primary_bottleneck);
     const isProject = teamKind(t) === "project";
-    const labelClass = assessed && assessedShown <= 6 ? " is-labeled" : "";
+    const label = labelPos.get(t.record_id) || null;
+    const labelClass = label ? " is-labeled" : "";
     const contextClass = assessed ? "" : " is-profile-context";
     const dotClass = assessed ? `ac-jdot ac-jfam-${famIdx}` : "ac-jdot ac-jprofile-dot";
     const title = assessed
       ? `${t.name || t.record_id}: ${JOURNEY_STAGE_LABELS[j.stage] || "journey"} / ${JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "evidence"}`
       : `${t.name || t.record_id}: profile context; no explicit journey read yet`;
+    const labelX = label ? label.x : 0;
+    const labelY = label ? label.y : -r - 8;
+    const labelAnchor = label ? label.anchor : "middle";
     return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${t.name || t.record_id} journey`)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
         <title>${escHtml(title)}</title>
         <circle class="ac-jhit" r="${Math.max(18, r + 9).toFixed(1)}"/>
         <circle class="${dotClass}" r="${r.toFixed(1)}"/>
-        <text class="ac-jnode-label" y="${(-r - 8).toFixed(1)}" text-anchor="middle">${escHtml(t.name)}</text>
+        <text class="ac-jnode-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="${labelAnchor}">${escHtml(t.name)}</text>
       </g>`;
   }).join("");
 
   // ── bottleneck legend — grouped into 4 color families (the dot palette),
-  // each family's members still individually clickable to isolate that one. ──
-  const legend = JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => `
+  // each family's members still individually clickable to isolate that one.
+  // Led by the encoding key: without it nothing on the view says what color
+  // or size MEAN, and both encodings are otherwise hover-only knowledge. ──
+  const legendKey = `<span class="acl-jkey">color = primary bottleneck · size = market upside</span>`;
+  const legend = legendKey + JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => `
     <div class="acl-jfamily">
       <span class="acl-jfam-head"><span class="acl-jswatch ac-jfam-${fi}"></span>${escHtml(fam.label)}</span>
       ${fam.members.map(b =>
@@ -8406,18 +8472,48 @@ function collabLegendHtml() {
 
 function collabInspectorDefaultHtml(m) {
   const top = m.keystones.slice(0, 3).map(k => collabTeamMini(k.team, `${k.inbound.length} inbound`)).join("");
-  return `
-    <div class="cb-inspector-hero">
-      <div class="cb-inspector-identity">
+  // At-rest readout, not a bare empty-state: lead with the board's strongest
+  // finding (the top intro) and trail the below-fold sections — the matrix
+  // fills the whole first viewport, so without this the intros / offers /
+  // convergence sections are invisible until someone happens to scroll.
+  const introByPair = new Map();
+  for (const s of m.seekOffer) {
+    const k = collabAffKey(s.seeker, s.offerer);
+    if (!introByPair.has(k) || s.score > introByPair.get(k).score) introByPair.set(k, s);
+  }
+  const intros = [...introByPair.values()].sort((a, b) => b.score - a.score);
+  const best = intros[0] || null;
+  // Counts mirror the page sections exactly (both cap at 12 cards).
+  const introCount = Math.min(intros.length, 12);
+  const underusedCount = Math.min((m.underusedOffers || []).length, 12);
+  const convergenceCount = (m.convergence || []).length;
+  const trailerLinks = [
+    introCount ? { id: "intros", label: `${introCount} intro${introCount === 1 ? "" : "s"} to make` } : null,
+    underusedCount ? { id: "offers", label: `${underusedCount} underused offer${underusedCount === 1 ? "" : "s"}` } : null,
+    convergenceCount ? { id: "convergence", label: `${convergenceCount} convergence area${convergenceCount === 1 ? "" : "s"}` } : null,
+  ].filter(Boolean);
+  const hero = best
+    ? `
+        <div class="cb-inspector-kicker">collab context · top intro</div>
+        <h4 class="cb-inspector-title">${escHtml(best.seekerName || best.seeker)} → ${escHtml(best.offererName || best.offerer)}</h4>
+        <p class="cb-inspector-copy">${escHtml(`${best.seekerName || best.seeker} is seeking what ${best.offererName || best.offerer} offers${best.shared?.length ? ` — ${best.shared.slice(0, 3).join(" · ")}` : ""}. Click any row, column, band, or cell to inspect a signal.`)}</p>`
+    : `
         <div class="cb-inspector-kicker">collab context</div>
         <h4 class="cb-inspector-title">select a signal</h4>
-        <p class="cb-inspector-copy">Click a row, column, cluster band, or cell to inspect who is involved, why the connection exists, and where to route next.</p>
+        <p class="cb-inspector-copy">Click a row, column, cluster band, or cell to inspect who is involved, why the connection exists, and where to route next.</p>`;
+  return `
+    <div class="cb-inspector-hero">
+      <div class="cb-inspector-identity">${hero}
       </div>
     </div>
     ${collabInspectorPills([
       { value: m.seekOffer.length, label: "seek/offers" },
       { value: m.deps.size, label: "dependencies" },
     ])}
+    ${trailerLinks.length ? collabInspectorSection("below on this board", `
+      <div class="cb-board-trailer">
+        ${trailerLinks.map(l => `<button type="button" class="cb-trailer-link" data-collab-scroll="${escAttr(l.id)}"><span>${escHtml(l.label)}</span><i aria-hidden="true">↓</i></button>`).join("")}
+      </div>`, "is-trailer") : ""}
     ${top ? collabInspectorSection("keystones", `<div class="cb-inspector-stack">${top}</div>`) : ""}
   `;
 }
@@ -9330,11 +9426,29 @@ function syncCollabSelectionDom() {
   }
 }
 
+// Default-inspector trailer links scroll to their below-fold board section
+// (intros / underused offers / convergence) — the visible local delta is the
+// section arriving at the top of the viewport.
+function wireCollabTrailerLinks(root) {
+  if (!root) return;
+  for (const btn of root.querySelectorAll("[data-collab-scroll]")) {
+    if (btn.dataset.collabScrollWired === "1") continue;
+    btn.dataset.collabScrollWired = "1";
+    btn.addEventListener("click", () => {
+      const section = state.canvas?.querySelector(`[data-cb-section="${cssAttr(btn.dataset.collabScroll)}"]`);
+      if (!section) return;
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      section.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+    });
+  }
+}
+
 function setCollabInspectorHtml(html) {
   const panel = state.canvas.querySelector("[data-collab-inspector]");
   if (!panel) return;
   panel.innerHTML = html;
   wireCollabCohortLinks(panel);
+  wireCollabTrailerLinks(panel);
   wirePersonLinks(panel);
   wireExternalLinks(panel);
 }
@@ -9518,7 +9632,7 @@ function renderCollab() {
     </article>`;
   }).join("");
   const introSection = `
-    <section class="alch-cb-section">
+    <section class="alch-cb-section" data-cb-section="intros">
       <div class="alch-cb-sechead"><h3>Intros to make</h3><span class="cb-sub">strongest seek ↔ offer overlaps — the conversations to schedule</span></div>
       <div class="cb-intro-grid">${introCards || '<p class="cb-empty">no overlaps found.</p>'}</div>
     </section>`;
@@ -9542,7 +9656,7 @@ function renderCollab() {
     </article>`;
   }).join("");
   const underusedSection = `
-    <section class="alch-cb-section">
+    <section class="alch-cb-section" data-cb-section="offers">
       <div class="alch-cb-sechead"><h3>Underused offers</h3><span class="cb-sub">declared help with the lowest matched demand — useful supply to route better</span></div>
       <div class="cb-intro-grid">${underusedCards || '<p class="cb-empty">no underused offers found.</p>'}</div>
     </section>`;
@@ -9559,7 +9673,7 @@ function renderCollab() {
     </article>`;
   }).join("");
   const convSection = `
-    <section class="alch-cb-section">
+    <section class="alch-cb-section" data-cb-section="convergence">
       <div class="alch-cb-sechead"><h3>Convergence</h3><span class="cb-sub">skill areas shared by 3+ teams — where the cohort concentrates</span></div>
       <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
     </section>`;
@@ -9610,6 +9724,7 @@ function wireCollab() {
   const collabRoot = state.canvas.querySelector(".alch-collab");
   wireConstellationModeNav();
   wireCollabCohortLinks(state.canvas);
+  wireCollabTrailerLinks(state.canvas);
   for (const btn of state.canvas.querySelectorAll("[data-collab-intake-open]")) {
     btn.addEventListener("click", (event) => {
       event.preventDefault();

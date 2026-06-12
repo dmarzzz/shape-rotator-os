@@ -6817,6 +6817,32 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   background: rgba(193,168,114,0.04);
   color: var(--alchemy-paper-warm);
 }
+/* Hero's one local action: select the headline corridor's edge in place. */
+.ac-hero-corridor {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  border: 1px solid rgba(143,34,14,0.46);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: rgba(143,34,14,0.10);
+  color: var(--alchemy-paper-warm);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: border-color 160ms var(--ease), background 160ms var(--ease);
+}
+.ac-hero-corridor:hover {
+  border-color: rgba(143,34,14,0.78);
+  background: rgba(143,34,14,0.20);
+}
+.ac-hero-corridor:active { transform: scale(0.97); }
+.ac-hero-corridor:focus-visible {
+  outline: 1px solid rgba(143,34,14,0.78);
+  outline-offset: 2px;
+}
 .ac-inspector-actions {
   display: flex;
   flex-wrap: wrap;
@@ -6945,9 +6971,12 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   font-family: var(--font-mono);
   font-size: 10.5px;
   letter-spacing: 0.06em;
-  text-overflow: ellipsis;
   text-transform: uppercase;
-  white-space: nowrap;
+  /* corridor names are the row's payload — wrap to two lines, never "…" */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.35;
 }
 .ac-action-row p,
 .ac-action-card > p {
@@ -7690,9 +7719,11 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .alch-constellation-stage svg .ac-well-label {
   fill: var(--well-accent, var(--alchemy-ink-mute));
-  opacity: 0.58;
+  /* the well caption IS the grouping claim — keep it readable at rest
+     (was 7.6px / 0.58, squint territory on a 1690px window) */
+  opacity: 0.72;
   font-family: var(--font-mono);
-  font-size: 7.6px;
+  font-size: 8.4px;
   font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -7703,7 +7734,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   stroke-width: 2.8px;
 }
 .alch-constellation-stage[data-view="map"]:not([data-hover-active="true"]):not([data-selection-active="true"]):not([data-interest-active="true"]) svg .ac-well.is-dense-well .ac-well-label {
-  opacity: 0.46;
+  opacity: 0.58;
 }
 .alch-constellation-stage svg .ac-ring-segment {
   fill: none;
@@ -9026,6 +9057,17 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-journey-stage svg .ac-jcount {
   fill: var(--journey-ink); font-family: var(--font-mono);
   font-size: 9px; font-weight: 600; opacity: 0.86;
+}
+/* Encoding key — static text leading the bottleneck legend; states what the
+   scatter's color and size MEAN. Deliberately not button-shaped so it can't
+   read as one more filter. */
+.alch-constellation-legend .acl-jkey {
+  align-self: center;
+  padding-right: 14px;
+  border-right: 1px solid rgba(var(--ink-rgb), 0.14);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--journey-muted);
 }
 /* Filter bar */
 .alch-journey-filters {
@@ -11603,6 +11645,48 @@ button.cb-cell:disabled { cursor: default; }
   font-size: 12px;
   letter-spacing: 0;
   text-transform: none;
+}
+
+/* Default-inspector trailer — names the board's below-fold sections and
+   scrolls to them; each row is a quiet full-width jump, not a pill. */
+.cb-board-trailer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cb-trailer-link {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+  border: 1px solid rgba(var(--ink-rgb), 0.08);
+  border-radius: 6px;
+  padding: 6px 9px;
+  background: rgba(var(--ink-rgb), 0.018);
+  color: var(--alchemy-ink-mute);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: left;
+  transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
+}
+.cb-trailer-link:hover {
+  color: var(--alchemy-paper-warm);
+  border-color: rgba(var(--ink-rgb), 0.22);
+  background: rgba(var(--ink-rgb), 0.045);
+}
+.cb-trailer-link:active { transform: scale(0.98); }
+.cb-trailer-link:focus-visible {
+  outline: 1px solid rgba(143,34,14,0.78);
+  outline-offset: 2px;
+}
+.cb-trailer-link i {
+  font-style: normal;
+  color: var(--alchemy-oxide-bright);
 }
 
 .cb-inspector-metrics {
