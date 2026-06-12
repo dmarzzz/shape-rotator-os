@@ -99,31 +99,17 @@ function mdToPlainText(md, max = 240) {
   return `${text.slice(0, max).replace(/\s+\S*$/, "")}…`;
 }
 
-// Hover peeks: quiet "about · now" anchors in the title block, each a
-// deliberate hover/focus target carrying its OWN glass popover. The
-// layer is nested inside its anchor so hovering the popover still counts
-// as hovering the anchor — the cursor can travel from tag into popover
-// and the panel stays open ("do more from the preview"). The card body
-// triggers nothing, so the cursor can rest on a card without opening it.
-// Anchors carry data-no-card-click so a click peeks instead of selecting.
-// Reveal + the cursor-bridge are CSS-only — see .alch-card-peek in
-// cohort-card.css.
+// Quiet "about / now" anchors in the title block. These used to carry a
+// glass hover popover, but that layer read as a stray floating box on
+// scrolled cards; the detail view already carries the full copy.
 function cardPeeks(rec) {
   const about = mdToPlainText(rec?.bio_md);
   const now = String(rec?.now || "").trim();
-  // .acp-b is the line-clamp wrapper: the layer itself must keep
-  // overflow visible or it clips its own ::before cursor bridge.
-  const peek = (key, body) =>
-    `<span class="alch-card-peek" data-peek="${key}" tabindex="0" role="button" aria-label="${key} — hover to preview" data-no-card-click>${key}` +
-      `<span class="alch-card-peek-layer alch-card-peek-${key}" role="tooltip" data-no-card-click>` +
-        `<span class="acp-b"><span class="acp-k">${key}</span>${escHtml(body)}</span>` +
-      `</span>` +
-    `</span>`;
+  const peek = (key) =>
+    `<span class="alch-card-peek" data-peek="${key}" tabindex="0" role="button" aria-label="${key}" data-no-card-click>${key}</span>`;
   const anchors = [];
-  if (about) anchors.push(peek("about", about));
-  if (now) anchors.push(peek("now", now));
-  // Layers ride inside their anchors, so the whole feature is this one
-  // title-block row — nothing trails the card foot.
+  if (about) anchors.push(peek("about"));
+  if (now) anchors.push(peek("now"));
   return anchors.length ? `<div class="alch-card-peeks">${anchors.join("")}</div>` : "";
 }
 
