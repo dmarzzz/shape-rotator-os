@@ -38,6 +38,14 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("fg:update-progress", handler);
     return () => ipcRenderer.removeListener("fg:update-progress", handler);
   },
+  // Streams main's periodic-check hits ("fg:update-available") so the
+  // renderer can light the update indicator + raise a toast without the
+  // user ever clicking the version stamp. `cb` receives { version }.
+  onUpdateAvailable: (cb) => {
+    const handler = (_e, info) => { try { cb(info); } catch {} };
+    ipcRenderer.on("fg:update-available", handler);
+    return () => ipcRenderer.removeListener("fg:update-available", handler);
+  },
   // calendar export — PNG (recommended for messaging) or PDF.
   exportCalendar:        (opts)   => ipcRenderer.invoke("fg:export-calendar", opts),
   // bundled swf-node supervisor — see apps/os/swf-node.js. The renderer

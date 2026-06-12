@@ -1701,7 +1701,19 @@ function initAutoUpdater() {
     // in case a check fires before init.
     autoUpdater.allowPrerelease = false;
     autoUpdater.on("error", (err) => process.stderr.write(`[viz:warn] updater error: ${err && err.message}\n`));
-    autoUpdater.on("update-available", (info) => process.stderr.write(`[viz:log] update available: ${info && info.version}\n`));
+    autoUpdater.on("update-available", (info) => {
+      process.stderr.write(`[viz:log] update available: ${info && info.version}\n`);
+      // Forward to the renderer (same single-window pattern as
+      // download-progress below). Without this the periodic 2h check only
+      // ever reached stderr — a long-running session never learned a new
+      // release existed unless the user happened to click the version stamp.
+      try {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (win && !win.isDestroyed()) win.webContents.send("fg:update-available", {
+          version: (info && info.version) || null,
+        });
+      } catch {}
+    });
     autoUpdater.on("update-not-available", () => process.stderr.write(`[viz:log] no update available\n`));
     autoUpdater.on("download-progress", (p) => {
       process.stderr.write(`[viz:log] downloading update: ${Math.round(p.percent || 0)}%\n`);
@@ -1721,14 +1733,14 @@ function initAutoUpdater() {
     });
     autoUpdater.on("update-downloaded", (info) => process.stderr.write(`[viz:log] update downloaded: ${info && info.version}\n`));
     // Defer the first check ~30s so it doesn't race the boot-path fetch to swf-node on 127.0.0.1:7777.
-    // Then re-check every 6h so long-running sessions still notice new releases.
+    // Then re-check every 2h so long-running sessions still notice new releases.
     setTimeout(() => {
       try { autoUpdater.checkForUpdates().catch((err) => process.stderr.write(`[viz:warn] updater check failed: ${err && err.message}\n`)); }
       catch (e) { process.stderr.write(`[viz:warn] updater check threw: ${e.message}\n`); }
       setInterval(() => {
         try { autoUpdater.checkForUpdates().catch((err) => process.stderr.write(`[viz:warn] updater check failed: ${err && err.message}\n`)); }
         catch (e) { process.stderr.write(`[viz:warn] updater check threw: ${e.message}\n`); }
-      }, 6 * 60 * 60 * 1000);
+      }, 2 * 60 * 60 * 1000);
     }, 30 * 1000);
   } catch (e) {
     process.stderr.write(`[viz:warn] electron-updater init failed: ${e.message}\n`);

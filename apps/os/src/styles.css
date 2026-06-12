@@ -48,6 +48,12 @@ html[data-reduce-motion="1"] *, html[data-reduce-motion="1"] *::before, html[dat
 html, body {
   margin: 0; height: 100vh; overflow: hidden;
   background: radial-gradient(ellipse 110% 70% at 50% -10%, #2C2728 0%, #231F20 60%, #1A1719 100%);
+  /* The gradient above is a background-IMAGE — the shorthand leaves
+   * background-color transparent, so Chromium's base background (white)
+   * is what composites wherever a frame lands before raster catches up
+   * (page switches, resizes). Pin it to the gradient's outer stop so any
+   * such gap flashes dark instead of white. */
+  background-color: #1A1719;
   color: var(--light-1);
   font-family: var(--font-sans);
   font-size: var(--t-13);
@@ -12583,6 +12589,70 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 }
 /* When the side panel is collapsed, the footer goes with it. */
 body[data-sidebar="hidden"] .fg-footer-row { display: none; }
+
+/* ── update banner: "update available!" above the footer row ─────
+ * Same fixed bottom-left strip treatment as .fg-footer-row, parked
+ * directly above it and matching the side panel width. Built in
+ * boot.js (showUpdateBanner); the whole pill is the download button —
+ * no dismiss, it only leaves when the user updates. A slow "breathe"
+ * brightens the pill background to pull the eye (the ::after overlay
+ * animates opacity, so it stays cheap; the global data-reduce-motion
+ * rule kills it for reduced-motion users). */
+.fg-update-banner {
+  position: fixed;
+  left: 16px;               /* align with the footer row's left inset */
+  bottom: 52px;             /* one row above .fg-footer-row (bottom: 16px) */
+  width: calc(270px - 16px - 8px);  /* panel rail minus left/right insets */
+  box-sizing: border-box;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  background: rgba(var(--overlay-rgb), 0.86);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.10),
+              0 8px 24px rgba(0,0,0,0.45);
+  -webkit-app-region: no-drag;
+}
+/* Breathe: a soft light layer over the pill fades in and out. */
+.fg-update-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(var(--ink-rgb), 0.048);
+  pointer-events: none;
+  animation: fg-update-banner-breathe 7.8s ease-in-out infinite;
+}
+@keyframes fg-update-banner-breathe {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; }
+}
+.fg-update-banner-action {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--light-1);
+  text-align: left;
+}
+.fg-update-banner-action:hover { color: var(--c-info); }
+.fg-update-banner-dot {
+  flex: none;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--c-info);
+}
+/* Collapses with the side panel, like the footer row. */
+body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 .identity-pill {
   position: static;
   margin: 0;

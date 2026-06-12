@@ -346,12 +346,7 @@ async function checkForUpdate({ showSpinner } = {}) {
       return;
     }
     if (r.ok && r.available) {
-      if (chip) {
-        chip.dataset.update = "available";
-        chip.dataset.latest = r.latest || "";
-        chip.title = `update available · v${r.latest} (you have v${r.current || chip.dataset.current || "?"})`;
-      }
-      setUpdateIcon("available");
+      announceUpdateAvailable(r.latest);
     } else {
       if (chip) chip.removeAttribute("data-update");
       // Up to date (or dev mode) — show the confirmation checkmark only when
@@ -364,6 +359,49 @@ async function checkForUpdate({ showSpinner } = {}) {
     if (chip) chip.removeAttribute("data-update");
     if (showSpinner) setUpdateIcon("offline");
   }
+}
+
+// A newer build is known to exist (silent boot check, manual click, or a
+// push from main's periodic 2h check). Stamp the chip, light the download
+// icon, and show the update banner — the bottom-left icon alone proved too
+// subtle (users weren't updating), so the banner is the loud signal. It
+// sits in the left side panel directly above the profile/version footer
+// row (same width — see .fg-update-banner in styles.css). Clicking it
+// runs the same action as clicking the icon: download/install for this
+// platform. It cannot be dismissed — it stays until the user updates.
+function announceUpdateAvailable(latest) {
+  const chip = document.getElementById("fg-version-chip");
+  const icon = document.getElementById("fg-update-icon");
+  if (chip) {
+    chip.dataset.update = "available";
+    chip.dataset.latest = latest || "";
+    chip.title = `update available · v${latest} (you have v${chip.dataset.current || "?"})`;
+  }
+  // Don't clobber an in-flight download or a staged installer waiting on
+  // the user — those states already represent this release.
+  const st = icon?.dataset.state;
+  if (st === "downloading" || st === "ready") return;
+  setUpdateIcon("available");
+  showUpdateBanner();
+}
+
+// Build the banner once and park it above the footer row. The action area
+// is a real <button> (keyboard focusable). Deliberately no dismiss
+// affordance — the only way to clear it is to update; it leaves when the
+// click kicks off the download (the icon's progress ring takes over).
+function showUpdateBanner() {
+  if (document.getElementById("fg-update-banner")) return;
+  const banner = document.createElement("div");
+  banner.id = "fg-update-banner";
+  banner.className = "fg-update-banner";
+  banner.innerHTML =
+    `<button class="fg-update-banner-action" type="button" title="click to download the update">` +
+      `<span class="fg-update-banner-dot" aria-hidden="true"></span>update available!</button>`;
+  banner.querySelector(".fg-update-banner-action").addEventListener("click", () => {
+    banner.remove();
+    onUpdateIconClick();
+  });
+  document.body.appendChild(banner);
 }
 
 // Version stamp clicked. If we already know an update is waiting, go
@@ -554,6 +592,11 @@ async function boot() {
   } catch (e) {
     console.warn("[boot] footer row assembly failed:", e?.message || e);
   }
+
+  // Main re-checks for releases every 2h and pushes hits here, so a
+  // session left open for days still gets the indicator + toast without
+  // anyone clicking the version stamp.
+  try { window.api?.onUpdateAvailable?.((info) => announceUpdateAvailable(info?.version || null)); } catch {}
 
   // Check for a newer build automatically on launch / refresh (previously
   // this only ran when the version stamp was clicked). Silent — it only
