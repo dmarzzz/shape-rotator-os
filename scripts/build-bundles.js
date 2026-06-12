@@ -775,6 +775,10 @@ function fmt(j) {
   return JSON.stringify(j, null, 2) + "\n";
 }
 
+function surfaceForComparison(surface) {
+  return { ...surface, _generated_at: null };
+}
+
 function main() {
   const args = process.argv.slice(2);
   const check = args.includes("--check");
@@ -793,8 +797,8 @@ function main() {
     const current = fs.readFileSync(OUT_PATH, "utf8");
     // Compare structurally (ignoring _generated_at) so re-running on
     // the same content doesn't trip --check.
-    const a = { ...JSON.parse(current), _generated_at: null };
-    const b = { ...built, _generated_at: null };
+    const a = surfaceForComparison(JSON.parse(current));
+    const b = surfaceForComparison(built);
     if (JSON.stringify(a) !== JSON.stringify(b)) {
       console.error(`[build-bundles] --check: ${OUT_PATH} is stale; run \`npm run build:cohort\` and commit`);
       process.exit(4);
@@ -804,6 +808,18 @@ function main() {
   }
 
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
+  if (fs.existsSync(OUT_PATH)) {
+    const current = fs.readFileSync(OUT_PATH, "utf8");
+    try {
+      const parsed = JSON.parse(current);
+      if (JSON.stringify(surfaceForComparison(parsed)) === JSON.stringify(surfaceForComparison(built))) {
+        console.log(`[build-bundles] up to date; leaving ${OUT_PATH} untouched`);
+        return;
+      }
+    } catch {
+      // Fall through and rewrite malformed output.
+    }
+  }
   fs.writeFileSync(OUT_PATH, json);
   const calTabs = built.calendar?.tabs ? Object.keys(built.calendar.tabs).length : 0;
   console.log(`[build-bundles] wrote ${OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.dependencies.length} dependencies, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.constellation_cues.length} constellation cues, ${built.session_insights.length} session insights, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
