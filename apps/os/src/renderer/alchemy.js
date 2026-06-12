@@ -3511,7 +3511,7 @@ function constJourneySelectedReadoutHtml(allTeams) {
       <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(team.record_id)}">${escHtml(team.name || team.record_id)}</button></h3>
       ${line ? `<p>${escHtml(line)}</p>` : ""}
       <div class="ac-view-chips">${chips}</div>
-      <p class="ac-readout-hint">click the dot again — or the name above — for the full record</p>
+      <p class="ac-readout-hint">click the dot again for the full record · click the name for the directory card</p>
     </section>`;
 }
 
@@ -3537,7 +3537,7 @@ function constStackSelectedReadoutHtml(ctx) {
         ${role.secondary ? `<span>also<em>${escHtml(role.secondary.label)}</em></span>` : ""}
         <span>proof<em>${escHtml(evidenceRead)}</em></span>
       </div>
-      <p class="ac-readout-hint">click the entry again — or the name above — for the full record</p>
+      <p class="ac-readout-hint">click the entry again for the full record · click the name for the directory card</p>
     </section>`;
 }
 
@@ -6008,6 +6008,54 @@ function clearDetailForNavigation() {
   try { localStorage.removeItem(DETAIL_LS_KEY); } catch {}
 }
 
+function directoryMembershipForRecord(record, kind) {
+  const chips = kind === "person" ? PERSON_ROLE_CHIPS : TEAM_MEMBERSHIP_CHIPS;
+  const directId = kind === "person"
+    ? (record?.role_class || "visiting-scholar")
+    : (record?.membership || "visiting");
+  const direct = chips.find(chip => chip.id === directId && chip.match(record));
+  if (direct) return direct.id;
+  const match = chips.find(chip => chip.id !== "all" && chip.match(record));
+  return match ? match.id : "all";
+}
+
+function focusDirectoryRecord(recordId) {
+  const focus = () => {
+    let card = null;
+    try {
+      card = state.canvas?.querySelector(`.alch-card[data-record-id="${cssAttr(recordId)}"]`) || null;
+    } catch {}
+    if (!card) return;
+    try { card.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" }); } catch {}
+    try { card.focus({ preventScroll: true }); }
+    catch {
+      try { card.focus(); } catch {}
+    }
+  };
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(focus);
+  else setTimeout(focus, 0);
+}
+
+function openDirectoryRecord(recordId) {
+  if (!recordId) return false;
+  const id = String(recordId);
+  const cohortIndex = buildCohortIndex(state.cohort);
+  const team = cohortIndex.teamById.get(id);
+  const person = cohortIndex.personById.get(id);
+  if (!team && !person) return false;
+  const kind = person ? "person" : "team";
+  const record = person || team;
+  clearDetailForNavigation();
+  state.mode = "shapes";
+  state.shapesKindFilter = kind === "person" ? "people" : "works";
+  state.shapesMembershipFilter = directoryMembershipForRecord(record, kind);
+  try { localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); } catch {}
+  syncRailSelection();
+  render();
+  focusDirectoryRecord(id);
+  return true;
+}
+
 function openDetail(recordId, returnMode = state.mode || "shapes") {
   if (!recordId) return;
   const mode = normalizeDetailReturnMode(returnMode);
@@ -6080,7 +6128,7 @@ function wireConstellationHover() {
       const openTarget = e.target.closest("[data-const-open-record]");
       if (openTarget) {
         const rid = openTarget.getAttribute("data-const-open-record");
-        if (rid) openDetail(rid);
+        if (rid) openDirectoryRecord(rid) || openDetail(rid);
       }
     });
   }
@@ -6518,11 +6566,10 @@ function wireConstellationHover() {
       }
       const openTarget = e.target.closest("[data-const-open-record]");
       if (openTarget) {
-        // Person or team, the destination is the same: the full record
-        // page. (The legacy summary drawer is retired — the dossier now
-        // carries everything it showed.)
+        // Name links return to the roster card; graph marks still keep the
+        // two-click grammar that opens the full dossier.
         const rid = openTarget.getAttribute("data-const-open-record");
-        if (rid) openDetail(rid, "constellation");
+        if (rid) openDirectoryRecord(rid) || openDetail(rid, "constellation");
         return;
       }
       const personTarget = e.target.closest("[data-const-person]");
@@ -8364,7 +8411,7 @@ function collabInspectorPills(items) {
 
 function collabTeamMini(team, role = "") {
   if (!team) return "";
-  return `<button type="button" class="cb-inspector-team" data-collab-cohort-open="${escAttr(team.record_id)}" title="open ${escAttr(team.name || team.record_id)} profile">
+  return `<button type="button" class="cb-inspector-team" data-collab-cohort-open="${escAttr(team.record_id)}" title="show ${escAttr(team.name || team.record_id)} in directory">
     <span>${escHtml(team.name || team.record_id)}</span>
     ${role ? `<small>${escHtml(role)}</small>` : ""}
   </button>`;
@@ -8373,7 +8420,7 @@ function collabTeamMini(team, role = "") {
 function collabRouteRows(items) {
   const rows = (items || [])
     .filter(item => item && item.team)
-    .map(item => `<button type="button" class="cb-route-row" data-collab-cohort-open="${escAttr(item.team.record_id)}" title="open ${escAttr(item.team.name || item.team.record_id)} profile">
+    .map(item => `<button type="button" class="cb-route-row" data-collab-cohort-open="${escAttr(item.team.record_id)}" title="show ${escAttr(item.team.name || item.team.record_id)} in directory">
       <span>
         <strong>${escHtml(item.team.name || item.team.record_id)}</strong>
         ${item.note ? `<small>${escHtml(item.note)}</small>` : ""}
@@ -8533,7 +8580,7 @@ function collabTeamInspectorHtml(rid, m = collabCurrentModel()) {
 
   return `
     <div class="cb-team-detail">
-      <div class="cb-inspector-hero is-link is-team" data-collab-cohort-open="${escAttr(rid)}" role="link" tabindex="0" title="open ${escAttr(team.name || rid)} profile">
+      <div class="cb-inspector-hero is-link is-team" data-collab-cohort-open="${escAttr(rid)}" role="link" tabindex="0" title="show ${escAttr(team.name || rid)} in directory">
         <div class="cb-inspector-identity">
           <div class="cb-inspector-kicker">${escHtml(meta || "team")}</div>
           <h4 class="cb-inspector-title">${escHtml(team.name || rid)}</h4>
@@ -8595,7 +8642,7 @@ function collabConnRow(label, bodyHtml, sourceNote) {
 }
 
 // A team shown by name + cluster/geo + its own focus line (the "fresh team
-// description"). The whole card opens that team's profile (click layer).
+// description"). The whole card returns that team to the directory.
 function collabPairTeamCard(team, name, role, signal) {
   const signalHtml = signal && signal.text
     ? `<span class="cb-pair-team-signal"><em>${escHtml(signal.label)}</em>${escHtml(signal.text)}</span>`
@@ -8604,7 +8651,7 @@ function collabPairTeamCard(team, name, role, signal) {
     return `<div class="cb-pair-team is-empty"><span class="cb-pair-team-role">${escHtml(role)}</span><span class="cb-pair-team-name">${escHtml(name)}</span>${signalHtml}</div>`;
   }
   const meta = [domainLabel(team.domain), team.geo].filter(Boolean).join(" · ");
-  return `<button type="button" class="cb-pair-team" data-collab-cohort-open="${escAttr(team.record_id)}" title="open ${escAttr(name)} profile">
+  return `<button type="button" class="cb-pair-team" data-collab-cohort-open="${escAttr(team.record_id)}" title="show ${escAttr(name)} in directory">
     <span class="cb-pair-team-role">${escHtml(role)}</span>
     <span class="cb-pair-team-name">${escHtml(name)}</span>
     ${meta ? `<span class="cb-pair-team-meta">${escHtml(meta)}</span>` : ""}
@@ -9623,7 +9670,7 @@ function renderCollab() {
   const intros = [...introByPair.values()].sort((a, b) => b.score - a.score).slice(0, 12);
   const introCards = intros.map(s => {
     const chips = s.shared.slice(0, 5).map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("");
-    return `<article class="cb-intro" data-collab-cohort-open="${escAttr(s.offerer)}" role="link" tabindex="0" title="${escAttr(`open ${s.offererName || s.offerer} profile`)}">
+    return `<article class="cb-intro" data-collab-cohort-open="${escAttr(s.offerer)}" role="link" tabindex="0" title="${escAttr(`show ${s.offererName || s.offerer} in directory`)}">
       <div class="cb-intro-flow">
         <div class="cb-intro-side"><span class="cb-intro-role">needs</span><span class="cb-intro-team">${escHtml(s.seekerName)}</span>${s.seeking ? `<span class="cb-intro-text">${escHtml(s.seeking)}</span>` : ""}</div>
         <div class="cb-intro-arrow" aria-hidden="true">→</div>
@@ -9643,7 +9690,7 @@ function renderCollab() {
     const chips = item.skills.slice(0, 5).map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("");
     const matchLabel = item.matchCount === 1 ? "1 matched ask" : `${item.matchCount} matched asks`;
     const teamMeta = [domainLabel(item.team?.domain), item.team?.geo].filter(Boolean).join(" · ");
-    return `<article class="cb-intro cb-underused-offer" data-collab-cohort-open="${escAttr(item.rid)}" role="link" tabindex="0" title="${escAttr(`open ${item.teamName} profile`)}">
+    return `<article class="cb-intro cb-underused-offer" data-collab-cohort-open="${escAttr(item.rid)}" role="link" tabindex="0" title="${escAttr(`show ${item.teamName} in directory`)}">
       <div class="cb-intro-flow cb-underused-flow">
         <div class="cb-intro-side">
           <span class="cb-intro-role">available offer</span>
@@ -9702,11 +9749,7 @@ function wireCollabCohortLinks(root) {
       event?.stopPropagation?.();
       const rid = el.getAttribute("data-collab-cohort-open");
       if (!rid) return;
-      const cohortIndex = buildCohortIndex(state.cohort);
-      if (cohortIndex.teamById.has(rid) || cohortIndex.personById.has(rid)) {
-        openDetail(rid);
-        return;
-      }
+      if (openDirectoryRecord(rid)) return;
       try { window.api?.openExternal?.(cohortRecordUrl(rid)); } catch {}
     };
     el.addEventListener("click", activate);
@@ -11408,7 +11451,7 @@ function wireAtlas() {
   const clr = state.canvas.querySelector("[data-atlas-clear]");
   if (clr) clr.addEventListener("click", () => { state.atlasFocus = null; render(); });
   for (const li of state.canvas.querySelectorAll("[data-atlas-go-team]")) {
-    li.addEventListener("click", () => openDetail(li.dataset.atlasGoTeam));
+    li.addEventListener("click", () => openDirectoryRecord(li.dataset.atlasGoTeam));
   }
   for (const li of state.canvas.querySelectorAll("[data-atlas-go-person]")) {
     li.addEventListener("click", () => openDetail(li.dataset.atlasGoPerson));
@@ -12033,7 +12076,7 @@ function detailQuickJump(label, mode, opts = null) {
 function detailRecordToken(record, fallbackLabel = "") {
   if (!record?.record_id) return "";
   return `
-    <button type="button" class="alch-quick-link alch-record-token" data-person="${escAttr(record.record_id)}">
+    <button type="button" class="alch-quick-link alch-record-token" data-directory-record="${escAttr(record.record_id)}">
       <span>${escHtml(fallbackLabel || record.name || record.record_id)}</span>
     </button>
   `;
@@ -12043,7 +12086,7 @@ function detailTeamToken(team) {
   if (!team?.record_id) return "";
   const s = shapeForTeam(team);
   return `
-    <button type="button" class="alch-quick-link alch-team-token" data-person="${escAttr(team.record_id)}">
+    <button type="button" class="alch-quick-link alch-team-token" data-directory-record="${escAttr(team.record_id)}">
       <span class="alch-mini-shape" aria-hidden="true">${s ? `<canvas data-shape-fam="${escAttr(s.fam)}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</span>
       <span>${escHtml(team.name || team.record_id)}</span>
     </button>
@@ -12288,7 +12331,7 @@ function renderDependencyLinks(ids) {
     const t = teamsById.get(id);
     const label = t ? (t.name || t.record_id) : id;
     const role = t ? teamKind(t) : "record";
-    return `<li><button type="button" class="alch-detail-inline-link" data-person="${escAttr(id)}">${escHtml(label)}</button> <span class="adl-role">${escHtml(role)}</span></li>`;
+    return `<li><button type="button" class="alch-detail-inline-link" data-directory-record="${escAttr(id)}">${escHtml(label)}</button> <span class="adl-role">${escHtml(role)}</span></li>`;
   }).join("")}</ul>`;
 }
 
@@ -12513,7 +12556,7 @@ function renderPersonDetail(person) {
   const routeRows = [
     {
       key: "also contributes",
-      value: secondary.map(t => `<button type="button" class="alch-detail-inline-link" data-person="${escAttr(t.record_id)}">${escHtml(t.name || t.record_id)}</button>`).join(" "),
+      value: secondary.map(t => `<button type="button" class="alch-detail-inline-link" data-directory-record="${escAttr(t.record_id)}">${escHtml(t.name || t.record_id)}</button>`).join(" "),
     },
     {
       key: "absences",
@@ -12581,8 +12624,9 @@ function wireDetailJumps(root) {
 }
 
 function wirePersonLinks(root) {
-  // Member chips on team cards / detail and the "team" pill on person
-  // detail share the same hook: data-person="<record_id>" → openDetail.
+  // Member chips use data-person and still open the person's dossier.
+  // Team/company reference chips use data-directory-record so they return
+  // to the roster card instead of chaining through the old detail page.
   // stopPropagation so clicks inside a card don't also fire the card.
   const handler = (e) => {
     const id = (e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.person) || "";
@@ -12595,6 +12639,19 @@ function wirePersonLinks(root) {
     el.addEventListener("click", handler);
     el.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") handler(e);
+    });
+  }
+  const directoryHandler = (e) => {
+    const id = (e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.directoryRecord) || "";
+    if (!id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!openDirectoryRecord(id)) openDetail(id);
+  };
+  for (const el of root.querySelectorAll("[data-directory-record]")) {
+    el.addEventListener("click", directoryHandler);
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") directoryHandler(e);
     });
   }
 }

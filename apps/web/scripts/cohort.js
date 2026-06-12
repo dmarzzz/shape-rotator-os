@@ -355,11 +355,15 @@ function quickLink(label, href, external = true) {
   return `<a class="cd-quick-link" href="${escAttr(href)}"${attrs}>${escHtml(label)}</a>`;
 }
 
+function directoryLinkAttrs(recordId) {
+  return `href="/cohort" data-directory-record="${escAttr(recordId)}"`;
+}
+
 function teamQuickLink(team) {
   if (!team) return "";
   const kind = teamKind(team);
   return `
-    <a class="cd-quick-link cd-team-token" href="#${escAttr(encodeURIComponent(team.record_id))}">
+    <a class="cd-quick-link cd-team-token" ${directoryLinkAttrs(team.record_id)}>
       <span class="cd-mini-shape" aria-hidden="true">
         <canvas data-shape-fam="${escAttr(shapeFamily(team, "team"))}" data-shape-kind="${escAttr(kind)}" data-shape-seed="${escAttr(team.record_id)}"></canvas>
       </span>
@@ -505,6 +509,63 @@ function compactPills(items) {
     return cohortRosterForTeam(people, teamId);
   }
 
+  function directoryMembershipForRecord(rec) {
+    const isPerson = recordKind(rec) === "person";
+    const chips = isPerson ? PERSON_CHIPS : TEAM_CHIPS;
+    const directId = isPerson
+      ? (rec?.role_class || "visiting-scholar")
+      : (rec?.membership || "visiting");
+    const direct = chips.find(chip => chip.id === directId && chip.match(rec));
+    if (direct) return direct.id;
+    const match = chips.find(chip => chip.id !== "all" && chip.match(rec));
+    return match ? match.id : DEFAULT_MEMBERSHIP;
+  }
+
+  function focusDirectoryRecord(recordId) {
+    requestAnimationFrame(() => {
+      let card = null;
+      try {
+        card = grid.querySelector(`.cohort-item-card[data-record-id="${CSS.escape(String(recordId || ""))}"]`);
+      } catch {}
+      if (!card) return;
+      try { card.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" }); } catch {}
+      try { card.focus({ preventScroll: true }); }
+      catch {
+        try { card.focus(); } catch {}
+      }
+    });
+  }
+
+  function openDirectoryRecord(recordId, event = null) {
+    const rec = findRecord(recordId);
+    if (!rec) return false;
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    state.detail = null;
+    state.kind = recordKind(rec) === "person" ? "people" : "works";
+    state.membership = directoryMembershipForRecord(rec);
+    if (location.hash) {
+      try { history.replaceState(null, "", `${location.pathname}${location.search}`); }
+      catch { location.hash = ""; }
+    }
+    pageHead?.classList.remove("is-detail");
+    detailHost.hidden = true;
+    detailHost.innerHTML = "";
+    browse.hidden = false;
+    renderKindFilter();
+    renderGrid();
+    focusDirectoryRecord(rec.record_id);
+    return true;
+  }
+
+  mount.addEventListener("click", (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest("[data-directory-record]")
+      : null;
+    if (!target || !mount.contains(target)) return;
+    openDirectoryRecord(target.getAttribute("data-directory-record"), event);
+  });
+
   function surfaceLinkAnchors(links = {}) {
     return compactCohortLinkItems({ links })
       .map(item => `<a href="${escAttr(item.href)}" target="_blank" rel="noopener noreferrer" title="${escAttr(item.display)}">${escHtml(item.label)}</a>`);
@@ -515,7 +576,7 @@ function compactPills(items) {
     if (isPerson && team) {
       rows.push({
         label: "team",
-        items: [`<a href="#${escAttr(encodeURIComponent(team.record_id))}">${escHtml(team.name || team.record_id)}</a>`],
+        items: [`<a ${directoryLinkAttrs(team.record_id)}>${escHtml(team.name || team.record_id)}</a>`],
       });
     }
     if (!isPerson && members.length) {
@@ -753,7 +814,7 @@ function compactPills(items) {
       renderRow("offering", rec.offering),
     ];
     const routeRows = [
-      secondary.length ? renderHtmlRow("also contributes", secondary.map(t => `<a class="cd-text-link" href="#${escAttr(encodeURIComponent(t.record_id))}">${escHtml(t.name || t.record_id)}</a>`).join(" ")) : "",
+      secondary.length ? renderHtmlRow("also contributes", secondary.map(t => `<a class="cd-text-link" ${directoryLinkAttrs(t.record_id)}>${escHtml(t.name || t.record_id)}</a>`).join(" ")) : "",
     ];
     const proofRead = renderProofRead(rec);
     // Collapsed-section previews carry the strongest fact behind each fold.
