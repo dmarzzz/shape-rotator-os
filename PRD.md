@@ -2,6 +2,14 @@
 
 Succinct log of shipped features. Newest first.
 
+## Update indicator polish (2026-06-12)
+
+- **Downloading = number only**: the progress ring is gone; the slot shows
+  just the live "NN%" while an update downloads.
+- **"Open installer" ready state** uses the Lucide package-open glyph
+  (picked over folder-open / external-link / play) instead of a checkmark,
+  which was confusable with the transient "up to date" check.
+
 ## Loud update-available signal (2026-06-12)
 
 - **Update banner**: when a newer release is detected (silent boot check
