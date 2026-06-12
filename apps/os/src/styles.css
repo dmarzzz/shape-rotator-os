@@ -12693,7 +12693,7 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
  * when a glyph appears. States via data-state:
  *   (empty)   → reserved slot, no glyph
  *   checking    → spinner (animated), set while a check is in flight
- *   downloading → progress ring + live "NN%" while the update downloads
+ *   downloading → live "NN%" readout while the update downloads
  *   ready       → persistent post-download CTA (restart, or open installer)
  *   ok          → checkmark, transient "you're on the latest" confirmation
  *   available   → download icon, a newer build is ready to fetch */
@@ -12722,19 +12722,14 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 /* The checking loaders self-animate via SMIL inside the SVG — no CSS
  * animation needed here. */
 .fg-update-icon[data-state^="checking"] { cursor: default; }
-/* downloading + ready → both drop the fixed 12px and widen to fit ring+number
- * or glyph+label. Because the cluster is right-pinned (.fg-footer-vcluster),
+/* downloading + ready → both drop the fixed 12px and widen to fit the number
+ * or glyph. Because the cluster is right-pinned (.fg-footer-vcluster),
  * the version number eases a few px left while one of these shows, then snaps
  * back to its reserved-slot position once cleared. */
 .fg-update-icon[data-state="downloading"],
 .fg-update-icon[data-state="ready"] { width: auto; gap: 4px; }
 .fg-update-icon[data-state="downloading"] { cursor: default; }
 .fg-update-icon[data-state="ready"] { cursor: pointer; }
-/* progress ring — faint full track + a sweeping arc that eases between values.
- * Overrides the base 12px svg sizing (higher specificity via svg.fg-ring). */
-.fg-update-icon svg.fg-ring { width: 14px; height: 14px; }
-.fg-ring-track { stroke: currentColor; stroke-width: 2.5; opacity: 0.22; }
-.fg-ring-arc { stroke: currentColor; stroke-width: 2.5; transition: stroke-dashoffset 180ms var(--ease, linear); }
 .fg-update-icon svg.fg-ready-glyph { width: 12px; height: 12px; }
 /* numeric % / ready label — mono, tabular so the digits don't jitter. */
 .fg-update-pct {
@@ -12748,8 +12743,6 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
   white-space: nowrap;
   color: var(--ink-hi);
 }
-/* The arc snaps instead of easing when the user prefers reduced motion. */
-@media (prefers-reduced-motion: reduce) { .fg-ring-arc { transition: none; } }
 
 /* ── alchemy host ─────────────────────────────────────────────────── */
 .alchemy-view, #alchemy-view {

@@ -266,13 +266,10 @@ function setUpdateIcon(state) {
 
 // Live download readout. While an update downloads, electron-updater (or the
 // manual mac/.deb path) emits "download-progress" → "fg:update-progress"; we
-// paint a progress ring with the running % beside it, replacing the "checking"
-// spinner. The ring DOM is built once on entry, then only the arc offset + the
-// number update per event — no DOM churn at ~20 events/sec, and the arc eases
-// between values via a CSS transition on stroke-dashoffset. p = { percent,
-// bytesPerSecond, transferred, total } — any field may be absent (the manual
-// path omits bytesPerSecond).
-const _RING_C = 56.549;   // circumference of an r=9 circle (2·π·9)
+// paint the running % in the slot, replacing the "checking" spinner. The
+// span is built once on entry, then only the number updates per event — no
+// DOM churn at ~20 events/sec. p = { percent, bytesPerSecond, transferred,
+// total } — any field may be absent (the manual path omits bytesPerSecond).
 function setDownloadProgress(p) {
   const icon = document.getElementById("fg-update-icon");
   if (!icon) return;
@@ -281,17 +278,9 @@ function setDownloadProgress(p) {
   const pct = Math.max(0, Math.min(100, Math.round(p?.percent || 0)));
   if (icon.dataset.state !== "downloading") {
     icon.dataset.state = "downloading";
-    icon.innerHTML =
-      `<svg class="fg-ring" viewBox="0 0 24 24" fill="none" aria-hidden="true">` +
-        `<circle class="fg-ring-track" cx="12" cy="12" r="9"/>` +
-        `<circle class="fg-ring-arc" cx="12" cy="12" r="9" stroke-linecap="round"` +
-          ` stroke-dasharray="${_RING_C}" stroke-dashoffset="${_RING_C}"` +
-          ` transform="rotate(-90 12 12)"/>` +
-      `</svg><span class="fg-update-pct">0%</span>`;
+    icon.innerHTML = `<span class="fg-update-pct">0%</span>`;
   }
-  const arc = icon.querySelector(".fg-ring-arc");
   const txt = icon.querySelector(".fg-update-pct");
-  if (arc) arc.setAttribute("stroke-dashoffset", String(_RING_C * (1 - pct / 100)));
   if (txt) txt.textContent = `${pct}%`;
   // Exact size + speed live in the tooltip so the slot stays a clean readout.
   const mb = (b) => (b / 1048576).toFixed(0);
@@ -318,7 +307,7 @@ function setUpdateReady(mode, ctx) {
   icon.dataset.state = "ready";
   const glyph = mode === "restart"
     ? `<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>` // rotate-cw
-    : `<path d="M20 6 9 17l-5-5"/>`;                                                          // check
+    : `<path d="M12 22v-9"/><path d="M15.17 2.21a1.67 1.67 0 0 1 1.63 0L21 4.57a1.93 1.93 0 0 1 0 3.36L8.82 14.79a1.655 1.655 0 0 1-1.64 0L3 12.43a1.93 1.93 0 0 1 0-3.36z"/><path d="M20 13v3.87a2.06 2.06 0 0 1-1.11 1.83l-6 3.08a1.93 1.93 0 0 1-1.78 0l-6-3.08A2.06 2.06 0 0 1 4 16.87V13"/><path d="M21 12.43a1.93 1.93 0 0 0 0-3.36L8.83 2.2a1.64 1.64 0 0 0-1.63 0L3 4.57a1.93 1.93 0 0 0 0 3.36l12.18 6.86a1.636 1.636 0 0 0 1.63 0z"/>`; // package-open
   // Icon-only (matches the rest of the update indicator) — the action label
   // lives in the tooltip below, not next to the glyph.
   icon.innerHTML =
@@ -433,7 +422,7 @@ async function onUpdateIconClick() {
   if (state === "downloading") return;                                  // mid-download: ignore clicks
   if (state !== "available") { checkForUpdate({ showSpinner: true }); return; }
   setUpdateIcon("checking");
-  // Subscribe to the live download-progress stream so the ring fills (spinner →
+  // Subscribe to the live download-progress stream so the % counts up (spinner →
   // 0% → … → 100% → "update ready") instead of a frozen spinner for the ~275 MB
   // pull. unsub() detaches the listener in finally so repeated downloads don't
   // stack handlers. Both paths below stream it — main.js forwards
