@@ -2,6 +2,27 @@
 
 Succinct log of shipped features. Newest first.
 
+## Loud update-available signal (2026-06-12)
+
+- **Update banner**: when a newer release is detected (silent boot check
+  or main's periodic check, now every 2h instead of 6h) a persistent
+  "update available!" banner appears in the left side panel, directly
+  above the profile/version footer row and matching the panel width. Its
+  background "breathes" (slow brightness pulse, reduced-motion aware) to
+  draw the eye. Clicking it runs the platform's existing download/install
+  action — that is the only way to clear it (no dismiss). Previously the
+  only signal was the small icon by the version chip (bottom-left), which
+  users missed.
+- **Background checks now reach the UI**: main's `update-available` event
+  was stderr-only; it's now forwarded over new IPC `fg:update-available`
+  ([main.js](apps/os/main.js) → [preload.js](apps/os/preload.js) →
+  `announceUpdateAvailable()` in [boot.js](apps/os/src/renderer/boot.js)),
+  so week-long sessions learn about releases without anyone clicking.
+- **Old-version broadcast**:
+  [cohort-data/asks/2026-06-12-update-your-app.md](cohort-data/asks/2026-06-12-update-your-app.md)
+  — every install ≥v0.2.10 polling cohort-data renders it on the asks
+  wall, nudging users on old builds (which predate the banner) to update.
+
 ## Calendar page redesign — one-view timeline (2026-06-11)
 
 Replaced the day/week/presence sub-tabbed calendar with a single
