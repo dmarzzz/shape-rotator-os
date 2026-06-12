@@ -31,6 +31,23 @@ Succinct log of shipped features. Newest first.
   — every install ≥v0.2.10 polling cohort-data renders it on the asks
   wall, nudging users on old builds (which predate the banner) to update.
 
+## Arrow-key view-tab navigation + white-blink fix (2026-06-11)
+
+- **←/→ cycle the current page's view tabs** (program handbook pages,
+  cohort views, calendar/presence, context views) with wrap-around.
+  One document-level handler in [alchemy.js](apps/os/src/renderer/alchemy.js)
+  clicks the neighbouring `.alch-page-views` / `.alch-prog-tabs` button, so
+  each page's existing wiring does the work. Skips typing contexts and
+  modifier'd arrows (alt+←/→ stays history nav).
+- **Page-switch white blink fixed**: the body wash gradients set only a
+  background-IMAGE, leaving `background-color` transparent — when a heavy
+  page switch missed a raster deadline the compositor flashed the default
+  white base. Solid fallback colors added under every body-wash gradient
+  plus a `body::before` fixed backdrop on its own compositor layer
+  (never invalidates, so dropped frames composite over the dark wash).
+  Verified via CDP screencast: 3 white frames / 240 switches before,
+  0 / 480 after.
+
 ## Calendar page redesign — one-view timeline (2026-06-11)
 
 Replaced the day/week/presence sub-tabbed calendar with a single

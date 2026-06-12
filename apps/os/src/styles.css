@@ -13776,6 +13776,30 @@ html, body { background: var(--ed-bg-0); }
    panels keep their warm elevation on top. */
 html, body {
   background: radial-gradient(ellipse 140% 100% at 50% -10%, #1a1612 0%, #0e0c0a 55%, #08070a 100%);
+  /* The gradient is a background-IMAGE; the shorthand leaves
+   * background-color transparent, and with no solid color on the root
+   * Chromium composites its default WHITE base background wherever a
+   * frame lands before raster catches up (page switches, resizes) —
+   * the occasional full-window white blink. Pin the solid color to the
+   * gradient's outer stop so any such gap stays dark. */
+  background-color: #08070a;
+}
+/* Flash-proof backdrop. Page switches restyle/repaint nearly the whole
+ * document layer in one frame; when raster misses that frame's deadline
+ * the compositor has nothing dark to show and the window blinks white.
+ * This fixed pseudo-element carries the same wash on its OWN compositor
+ * layer (will-change) — it never invalidates after first raster, so a
+ * dropped content frame composites over the dark backdrop instead of
+ * blowing out to white. Visually identical to the body wash above. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse 140% 100% at 50% -10%, #1a1612 0%, #0e0c0a 55%, #08070a 100%);
+  background-color: #08070a;
+  will-change: transform;
 }
 
 /* Alchemy stage + network/metrics stages get the same gradient so the
@@ -18670,7 +18694,23 @@ html[data-theme="light"], html[data-theme="light"] body {
     #F6F6F6 60%,
     #EAEAEA 100%
   );
+  /* Solid fallback under the gradient — same reason as the dark-mode
+   * html,body rule at the top of the file (unpainted regions otherwise
+   * composite as the default white base background). */
+  background-color: #EAEAEA;
   color: var(--ed-ink-2);
+}
+/* Light-mode counterpart of the flash-proof body::before backdrop layer
+ * (see the dark rule near the html,body wash) — without this the dark
+ * backdrop would sit on top of the paper body wash in light mode. */
+html[data-theme="light"] body::before {
+  background: radial-gradient(
+    ellipse 110% 70% at 50% -10%,
+    #FFFFFF 0%,
+    #F6F6F6 60%,
+    #EAEAEA 100%
+  );
+  background-color: #EAEAEA;
 }
 html[data-theme="light"] #network-view {
   background: radial-gradient(

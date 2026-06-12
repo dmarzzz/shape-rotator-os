@@ -107,6 +107,7 @@
 .c2-scrub { display: flex; align-items: center; gap: 5px; }
 .c2-scrub-dot {
   appearance: none; cursor: pointer;
+  position: relative;
   width: 22px; height: 22px;
   border: 1px solid var(--ed-rule-2); border-radius: 50%;
   background: transparent;
@@ -121,13 +122,16 @@
   border-color: var(--ed-ink-1);
   color: var(--ed-ink-1);
 }
-/* the week being viewed — filled */
-.c2-scrub-dot[aria-selected="true"] {
-  background: var(--alchemy-oxide, #8F220E);
-  border-color: var(--alchemy-oxide-bright, #B43A19);
-  color: #f5f3ee;
+/* the week being viewed — small dot under the circle */
+.c2-scrub-dot[aria-selected="true"] { color: var(--ed-ink-1); }
+.c2-scrub-dot[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  top: calc(100% + 3px); left: 50%;
+  width: 4px; height: 4px; margin-left: -2px;
+  border-radius: 50%;
+  background: var(--ed-ink-1);
 }
-.c2-scrub-dot.is-now[aria-selected="true"] { border-color: var(--ed-ink-1); }
 
 .c2-scrub-arrow {
   appearance: none; cursor: pointer;

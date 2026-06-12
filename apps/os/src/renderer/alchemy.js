@@ -362,6 +362,29 @@ export function mount(container) {
       setMembraneMenuOpen(false);
     }
   });
+  // Plain ←/→ step through the current page's view tabs (program handbook
+  // pages, cohort views, calendar/presence, context views). Modifier'd
+  // arrows are left alone — alt+←/→ is history nav (boot.js) — and so are
+  // typing contexts. Clicking the neighbour button reuses each page's own
+  // tab wiring, so this needs no per-page state.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const t = e.target;
+    const tag = t?.tagName?.toUpperCase?.();
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable) return;
+    if (document.body.dataset.activeTab !== "alchemy") return;
+    if (!state.canvas) return;
+    const strip = state.canvas.querySelector(".alch-page-views, .alch-prog-tabs");
+    if (!strip) return;
+    const btns = [...strip.querySelectorAll(".alch-page-view-btn, .alch-prog-tab")].filter(b => !b.disabled);
+    if (btns.length < 2) return;
+    const cur = btns.findIndex(b => b.getAttribute("aria-selected") === "true");
+    if (cur < 0) return;
+    const next = (cur + (e.key === "ArrowRight" ? 1 : -1) + btns.length) % btns.length;
+    e.preventDefault();
+    btns[next].click();
+  });
   syncRailSelection();
   startContextAutoRefresh();
   loadCohort().then(render).catch(err => {
