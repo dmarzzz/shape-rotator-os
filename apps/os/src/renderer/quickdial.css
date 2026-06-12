@@ -151,19 +151,30 @@
   position: absolute;
   inset: 0;
   clip-path: var(--qd-shape, circle(48% at 50% 50%));
-  /* A CABOCHON, not a flat fill: a soft gloss along the top-left over
-   * the radial body — the same polished-stone light the membrane blobs
-   * carry. --qd-grad places the body's light per sibling. */
+  /* A CABOCHON, not a flat fill — four lights, one stone:
+   *   1. specular glint: a wet pinpoint at the slot's own light angle
+   *      (--qd-grad); --qd-glint sets its strength, so siblings range
+   *      glossy → satin without leaving the branch hue
+   *   2. broad gloss: the soft top-left sheen the membrane blobs carry
+   *   3. bounce light: the void's glow reflecting up the underside,
+   *      in the branch's own contour color
+   *   4. body: rim → contour → base, falling into shadow at the edge */
   background:
+    radial-gradient(ellipse 28% 28% at var(--qd-grad, 32% 28%),
+      var(--qd-glint, rgba(255, 255, 255, 0.55)) 0%,
+      transparent 72%),
     linear-gradient(132deg,
-      rgba(255, 255, 255, 0.30) 0%,
-      rgba(255, 255, 255, 0.08) 22%,
+      rgba(255, 255, 255, 0.26) 0%,
+      rgba(255, 255, 255, 0.07) 22%,
       transparent 46%),
+    radial-gradient(ellipse 72% 44% at 68% 98%,
+      color-mix(in srgb, var(--qd-orb-contour, #FFB48A) 30%, transparent) 0%,
+      transparent 62%),
     radial-gradient(circle at var(--qd-grad, 32% 28%),
       var(--qd-orb-rim, #FFE6D4) 0%,
-      var(--qd-orb-contour, #FFB48A) 30%,
-      var(--qd-orb-base, #c43914) 62%,
-      color-mix(in srgb, var(--qd-orb-base, #c43914) 55%, #000) 100%);
+      var(--qd-orb-contour, #FFB48A) 28%,
+      var(--qd-orb-base, #c43914) 60%,
+      color-mix(in srgb, var(--qd-orb-base, #c43914) 46%, #000) 100%);
 }
 #quick-dial .qd-bubble-orb svg,
 #quick-dial .qd-bubble-orb .alch-asks-verb-svg {
@@ -171,6 +182,9 @@
   width: 14px;
   height: 14px;
   display: block;
+  /* a breath of shadow under the white stroke — keeps the icon legible
+   * on the brighter, glossier slots without thickening it */
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.38));
 }
 #quick-dial .qd-bubble:hover .qd-bubble-orb {
   transform: translate(var(--qd-pull-x, 0px), var(--qd-pull-y, 0px)) scale(1.06);
@@ -848,18 +862,24 @@
   position: absolute;
   inset: 0;
   clip-path: var(--qd-shape, circle(48% at 50% 50%));
-  /* same cabochon gloss as the ring blobs — the anchor wears the chosen
-   * blob as a polished stone, not a flat fill */
+  /* the same four-light cabochon as the ring blobs — the anchor wears
+   * the chosen stone, not a flat fill */
   background:
+    radial-gradient(ellipse 28% 28% at 32% 28%,
+      rgba(255, 255, 255, 0.55) 0%,
+      transparent 72%),
     linear-gradient(132deg,
-      rgba(255, 255, 255, 0.30) 0%,
-      rgba(255, 255, 255, 0.08) 22%,
+      rgba(255, 255, 255, 0.26) 0%,
+      rgba(255, 255, 255, 0.07) 22%,
       transparent 46%),
+    radial-gradient(ellipse 72% 44% at 68% 98%,
+      color-mix(in srgb, var(--qd-orb-contour, #FFB48A) 30%, transparent) 0%,
+      transparent 62%),
     radial-gradient(circle at 32% 28%,
       var(--qd-orb-rim, #FFE6D4) 0%,
-      var(--qd-orb-contour, #FFB48A) 30%,
-      var(--qd-orb-base, #c43914) 62%,
-      color-mix(in srgb, var(--qd-orb-base, #c43914) 55%, #000) 100%);
+      var(--qd-orb-contour, #FFB48A) 28%,
+      var(--qd-orb-base, #c43914) 60%,
+      color-mix(in srgb, var(--qd-orb-base, #c43914) 46%, #000) 100%);
   opacity: 0;
   transform: scale(0.85);
   transition: opacity 200ms var(--qd-mem), transform 240ms var(--qd-mem);
