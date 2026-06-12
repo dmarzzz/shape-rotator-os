@@ -706,13 +706,16 @@ function mountSharedOverlay(overlay) {
       }
       // Sticky chrome (data-shape-occluder) floats over the content; clip
       // the covered edge so the shape passes UNDER the glass, not over it.
+      const edgeSnapPx = 6;
       for (const o of occluders) {
         if (!o.isConnected) continue;
         const or = rectOf(o);
         if (or.right <= cL || or.left >= cR || or.bottom <= cT || or.top >= cB) continue;
-        if (or.top <= cT && or.bottom >= cB) { cT = cB; break; }   // fully covered
-        if (or.top <= cT) cT = or.bottom;                          // covers top edge
-        else if (or.bottom >= cB) cB = or.top;                     // covers bottom edge
+        const coversTopEdge = or.top <= cT + edgeSnapPx;
+        const coversBottomEdge = or.bottom >= cB - edgeSnapPx;
+        if (coversTopEdge && or.bottom >= cB) { cT = cB; break; }  // fully covered
+        if (coversTopEdge) cT = or.bottom;                         // covers top edge
+        else if (coversBottomEdge) cB = or.top;                    // covers bottom edge
         // mid-rect occluders can't be one scissor rect — leave those alone
       }
       if (cR - cL < 1 || cB - cT < 1) continue;

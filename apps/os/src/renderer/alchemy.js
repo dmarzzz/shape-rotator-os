@@ -5968,10 +5968,20 @@ function isProfileForked() { return _forkedSelf; }
 // ─── shape card → drawer ─────────────────────────────────────────────
 function wireShapeCardClicks() {
   const cards = state.canvas.querySelectorAll(".alch-card[data-record-id]");
+  const isNestedControl = (e, card) => {
+    const target = e?.target;
+    return target instanceof Element
+      && target !== card
+      && !!target.closest("a, button, input, select, textarea, [data-no-card-click]");
+  };
   for (const card of cards) {
-    card.addEventListener("click", () => openDetail(card.dataset.recordId));
+    card.addEventListener("click", (e) => {
+      if (isNestedControl(e, card)) return;
+      openDetail(card.dataset.recordId);
+    });
     card.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
+        if (isNestedControl(e, card) || e.target !== card) return;
         e.preventDefault();
         openDetail(card.dataset.recordId);
       }
@@ -12367,7 +12377,7 @@ function renderTeamDetail(team) {
     detailQuickText("next", journey.next_milestone),
   ]);
   const explore = detailQuickRow("explore", [
-    detailQuickJump("calendar", "calendar"),
+    detailQuickJump("calendar", "calendar", { calendarView: "cal" }),
     detailQuickJump("availability", "calendar", { calendarView: "presence", presenceTeam: recordId }),
     detailQuickLink("GitHub", detailLinkForKey(links, "github")),
     detailQuickLink("Repo", detailLinkForKey(links, "repo")),
@@ -12465,7 +12475,7 @@ function renderPersonDetail(person) {
   // sits — everything else is opt-in below.
   const nowRow = detailQuickRow("now", [detailQuickText("", person.now)]);
   const explore = detailQuickRow("explore", [
-    detailQuickJump("calendar", "calendar"),
+    detailQuickJump("calendar", "calendar", { calendarView: "cal" }),
     detailQuickJump("availability", "calendar", { calendarView: "presence", presencePeople: [recordId] }),
     detailQuickLink("GitHub", detailLinkForKey(links, "github")),
     detailQuickLink("X", detailLinkForKey(links, "x")),
