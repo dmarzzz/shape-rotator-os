@@ -5,6 +5,7 @@ const crypto = require("node:crypto");
 const swfNode = require("./swf-node");
 const swarm = require("./swarm-node");
 const easelNdi = require("./easel-ndi");
+const matrix = require("./matrix");
 // Daybook (apps→daybook): registering this module wires every `daybook:*`
 // ipcMain handler (digest pipeline, scope/redaction, onboarding). Side-effect
 // require, mirroring the prefs/swarm/easel handlers below. See daybook-main.js.
@@ -1411,6 +1412,24 @@ ipcMain.handle("fg:swf-node-external-info", async () => swfNode.getExternalDaemo
 // builds, swf-node disabled / crashed).
 ipcMain.handle("fg:swf-agent-token", async () => swfNode.getAgentToken() || null);
 
+// ─── matrix (cohort chat) ─────────────────────────────────────────────
+// A main-process Matrix client (apps/os/matrix.js) talks to the cohort
+// homeserver over the Client-Server HTTP API and streams rooms/messages
+// to the renderer via webContents.send on the "matrix:status|rooms|
+// messages" channels. The renderer (src/renderer/chat/) drives it through
+// these invoke handlers. v1 is unencrypted channels only; E2EE is a later
+// swap behind this same surface.
+ipcMain.handle("matrix:get-status", async () => matrix.getStatus());
+ipcMain.handle("matrix:flows", async (_e, hs) => matrix.getFlows(hs));
+ipcMain.handle("matrix:login-sso", async (_e, p) => matrix.loginSSO(p || {}));
+ipcMain.handle("matrix:cancel-sso", async () => { matrix.cancelSSO(); return { ok: true }; });
+ipcMain.handle("matrix:login", async (_e, p) => matrix.login(p || {}));
+ipcMain.handle("matrix:login-token", async (_e, p) => matrix.loginToken(p || {}));
+ipcMain.handle("matrix:logout", async () => matrix.logout());
+ipcMain.handle("matrix:get-rooms", async () => matrix.getRooms());
+ipcMain.handle("matrix:get-messages", async (_e, roomId) => matrix.getMessages(roomId));
+ipcMain.handle("matrix:send", async (_e, { roomId, body } = {}) => matrix.send(roomId, body));
+
 // ─── swarm-mode IPC ──────────────────────────────────────────────────
 //
 // `research-swarm` subprocess supervision. Config (LLM model, API key,
@@ -2099,6 +2118,9 @@ app.whenReady().then(() => {
   // the binary is missing, start() short-circuits to "unsupported"
   // and the renderer keeps the legacy "swf-node not running" UX.
   swfNode.start(app, broadcastSwfNodeStatus);
+  // Resume the cohort Matrix session (if signed in) once a window exists so
+  // its rooms/messages broadcasts have a webContents target.
+  matrix.start(app);
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
     recheckDaemon();
@@ -2115,6 +2137,7 @@ app.whenReady().then(() => {
 // immediately and the child becomes our zombie.
 let _quittingSwfNode = false;
 app.on("before-quit", (event) => {
+  try { matrix.stop(); } catch {}
   if (_quittingSwfNode) return;
   const status = swfNode.getStatus();
   if (status === "idle" || status === "unsupported" || status === "crashed") return;

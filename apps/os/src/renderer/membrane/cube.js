@@ -189,13 +189,14 @@ const CUBE_FRAG = /* glsl */ `
     // flat face has a constant object-space normal, so matching this fragment's
     // normal against the hovered face's normal isolates a single facet (the
     // boundary is hard at the edges where the normal jumps). The emissive uses
-    // uGlowColor (the BRIGHT rim pastel in both themes) at an HDR gain >1 so the
+    // uGlowColor (the BRIGHT rim pastel in both themes) at a strong HDR gain so the
     // hovered face crosses the UnrealBloom threshold and the pass throws a real
     // colored halo — not just a brighter facet. uGlow eases it in/out. Applied
-    // AFTER the spin energy so it reads the same still or spinning.
+    // AFTER the spin energy so it reads the same still or spinning. Gains scaled
+    // to 0.7× of the original (1.12 → 0.784, 0.12 → 0.084) to soften the halo.
     float fmask = smoothstep(0.9, 0.999, dot(normalize(vLocalN), uHoverN));
-    col += uGlowColor * fmask * uGlow * 1.12;
-    col *= 1.0 + fmask * uGlow * 0.12;
+    col += uGlowColor * fmask * uGlow * 0.784;
+    col *= 1.0 + fmask * uGlow * 0.084;
 
     gl_FragColor = vec4(col, 0.94);
   }

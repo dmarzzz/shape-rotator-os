@@ -241,7 +241,7 @@ async function showOnboardingModal(cohortHint) {
 //              repaint the card in place (via `repaint`) or hand off to
 //              the editor on the same page via __srwkOpenProfile.
 // Returns a cleanup fn (drops the cohort-change subscription).
-async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
+async function renderResealCard(host, { variant, cohortHint, close, repaint, sealExtras = {} }) {
   const inline = variant === "inline";
   const cohort = cohortHint || (await getCohortSurface().catch(() => null));
   const teams = cohort?.teams || [];
@@ -302,37 +302,70 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
         <span class="im-resync-label">re-sync the rolls</span>
       </button>
     `;
-    // Contact line — pulled from the full cohort record so the card
-    // answers "is this really me?" at a glance: handle, email, team.
+    // Contact block — pulled from the full cohort record so the card
+    // answers "is this really me?": github + x handles, each tagged with its
+    // platform logo so the handle is unambiguous; then email + team.
     let contactHtml = "";
     if (claimed) {
       const rec = (pools[currentId.kind] || []).find(r => r.record_id === currentId.record_id) || null;
       const teamName = rec?.team
         ? ((pools.team.find(t => t.record_id === rec.team) || pools.project.find(t => t.record_id === rec.team))?.name || rec.team)
         : null;
-      const bits = [
-        currentResolved?.gh ? `@${currentResolved.gh}` : null,
-        rec?.email || null,
-        teamName,
-      ].filter(Boolean);
-      if (bits.length) contactHtml = `<span class="alch-seal-contact">${bits.map(escHtml).join(" · ")}</span>`;
+      const stripAt = (h) => String(h || "").replace(/^@+/, "").trim();
+      const ghHandle = stripAt(rec?.links?.github || currentResolved?.gh || "");
+      const xHandle = stripAt(rec?.links?.x || "");
+      const GH_LOGO = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>`;
+      const X_LOGO = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>`;
+      const handles = [];
+      if (ghHandle) handles.push(`<span class="alch-seal-handle" title="github">${GH_LOGO}<span>${escHtml(ghHandle)}</span></span>`);
+      if (xHandle) handles.push(`<span class="alch-seal-handle" title="x / twitter">${X_LOGO}<span>${escHtml(xHandle)}</span></span>`);
+      const handlesHtml = handles.length ? `<div class="alch-seal-handles">${handles.join("")}</div>` : "";
+      const metaBits = [rec?.email || null, teamName].filter(Boolean);
+      const metaHtml = metaBits.length ? `<span class="alch-seal-contact">${metaBits.map(escHtml).join(" · ")}</span>` : "";
+      contactHtml = handlesHtml + metaHtml;
+    }
+    // Edges + "system read" — carried over from the retired membrane self
+    // panel so "your seal" now leads with everything that card showed.
+    let edgesHtml = "";
+    let readHtml = "";
+    if (claimed) {
+      const connCount = Array.isArray(sealExtras.connections) ? sealExtras.connections.length : 0;
+      const edgeCount = sealExtras.edgeCount;
+      if (edgeCount != null && edgeCount !== "") {
+        edgesHtml = `
+          <div class="alch-seal-edges">
+            <span class="alch-seal-edges-k">edges</span>
+            <span class="alch-seal-edges-v">${escHtml(String(edgeCount))} · ${connCount} connection${connCount === 1 ? "" : "s"}</span>
+          </div>`;
+      }
+      const readText = sealExtras.read?.text || "";
+      if (readText) {
+        readHtml = `
+          <div class="alch-seal-read">
+            <span class="alch-seal-read-h">system read</span>
+            <p class="alch-seal-read-body">${escHtml(readText)}</p>
+          </div>`;
+      }
     }
     host.innerHTML = `
       <h3 class="alch-profile-h">your seal</h3>
       ${claimed ? `
+        <div class="alch-seal-box">
         <div class="alch-seal-current">
           <span class="alch-seal-avatar" aria-hidden="true">${currentResolved?.avatar
             ? `<img class="alch-seal-avatar-img" alt="" />`
             : `<span class="alch-seal-initials">${escHtml(initials)}</span>`}</span>
           <div class="alch-seal-who">
             <span class="alch-seal-name">${escHtml(label)}</span>
-            <span class="alch-seal-meta">${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)}</span>
             ${contactHtml}
           </div>
           <div class="alch-seal-actions">
             ${resyncHtml}
             <button class="alch-seal-btn alch-seal-btn-danger" type="button" data-im-action="unclaim">break the seal</button>
           </div>
+        </div>
+        ${edgesHtml}
+        ${readHtml}
         </div>
       ` : `
         <p class="alch-seal-empty">no seal yet — pick your record in the editor below and press <strong>this is me</strong>. stored on this device, never broadcast.</p>
@@ -546,19 +579,20 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint }) {
 // Called by alchemy's profile renderer with the host <section>. Repaints
 // in place on claim / switch / unclaim; cleans up the previous render's
 // subscription when remounted into the same host.
-export async function mountResealInline(host) {
+export async function mountResealInline(host, sealExtras = {}) {
   if (!host) return;
   try { if (typeof host.__resealCleanup === "function") host.__resealCleanup(); } catch {}
   host.classList.add("alch-profile-section", "alch-seal-section");
   host.__resealCleanup = await renderResealCard(host, {
     variant: "inline",
+    sealExtras,
     // Identity changes alter the editor too (its "this is me" claim
     // button keys off the current seal), so repaint the whole profile
     // page, not just this card. Falls back to a card-only repaint if
     // alchemy hasn't registered its navigation hook.
     repaint: () => {
       if (typeof window.__srwkGoProfilePage === "function") window.__srwkGoProfilePage();
-      else if (host.isConnected) mountResealInline(host);
+      else if (host.isConnected) mountResealInline(host, sealExtras);
     },
   });
 }

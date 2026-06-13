@@ -14427,8 +14427,16 @@ function wireExternalLinks(root) {
 
 function wireProfileForm() {
   // Seal summary card at the top of the page (async — paints once the
-  // cohort surface resolves; wires its own controls).
-  mountResealInline(state.canvas.querySelector("#alch-reseal-host"));
+  // cohort surface resolves; wires its own controls). Carry over the two
+  // signals the retired membrane self-panel used to surface: the edges /
+  // connections count and the generated "system read" paragraph. "Your seal"
+  // is their only home now.
+  let sealExtras = {};
+  try {
+    const ms = computeMembraneData().self || {};
+    sealExtras = { edgeCount: ms.edgeCount, connections: ms.connections, read: ms.read };
+  } catch {}
+  mountResealInline(state.canvas.querySelector("#alch-reseal-host"), sealExtras);
 
   // "this is me" — seal as the record currently loaded in the editor.
   // Re-render so the seal card and this button both reflect the claim.

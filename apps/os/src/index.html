@@ -18,6 +18,9 @@
          doesn't leak into legacy alchemy modes. -->
     <link rel="stylesheet" href="renderer/membrane/membrane.css" />
     <link rel="stylesheet" href="renderer/intel/intel.css" />
+    <!-- Cohort chat (matrix) — the "chat" top-level tab. Scoped under
+         .chat-view so it doesn't leak into other surfaces. -->
+    <link rel="stylesheet" href="renderer/chat/chat.css" />
     <!-- Global search overlay (⌘/Ctrl+F) + new-tab launcher. Scoped under
          .os-find / .os-find-blank so it doesn't leak into the rest of the OS. -->
     <link rel="stylesheet" href="renderer/find.css" />
@@ -101,6 +104,9 @@
       </nav>
       <button class="nav-cat" data-tab="apps" type="button" aria-selected="false">
         <span class="nav-cat-label">apps</span>
+      </button>
+      <button class="nav-cat" data-tab="matrix" type="button" aria-selected="false">
+        <span class="nav-cat-label">matrix</span>
       </button>
       <button class="nav-cat" data-tab="network" type="button" aria-selected="false">
         <span class="nav-cat-label">network</span>
@@ -541,6 +547,12 @@
         <main id="alchemy-canvas" class="alchemy-canvas" aria-live="polite"></main>
       </div>
     </section>
+
+    <!-- ─── chat view (cohort matrix) ─── -->
+    <!-- Mounted lazily by renderer/chat/chat.js on first activation of the
+         "chat" top-level tab. The main-process Matrix client (apps/os/
+         matrix.js) feeds it rooms + messages over IPC. -->
+    <section id="chat-view" class="chat-view chat-only" aria-label="cohort chat"></section>
 
     <!-- ─── links view (important external endpoints) ─── -->
     <section id="links-view" class="links-view links-only" aria-label="important links">
