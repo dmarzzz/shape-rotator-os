@@ -14196,6 +14196,18 @@ body::before {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
+/* Presence gantt blends into the page (2026-06): the scroll panel and the
+ * main canvas are transparent so the page's radial gradient shows through
+ * instead of the old #0b0a08 panel. The pinned freeze panes repaint that
+ * same gradient in JS (see mountGanttFreezePanes) — CSS background-
+ * attachment:fixed can't be used because .alchemy-canvas has a transform. */
+.cal-section-presence .cal-scroll {
+  background: transparent;
+  border-color: transparent;
+}
+html[data-theme="light"] .cal-section-presence .cal-scroll {
+  background: transparent;
+}
 .cal-section-head {
   display: flex; align-items: baseline; gap: 14px;
   padding-bottom: 8px;

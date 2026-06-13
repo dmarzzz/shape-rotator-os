@@ -7871,26 +7871,44 @@ function mountGanttFreezePanes(mainCnv, w, h, dpr) {
   const cornerCnv = document.getElementById("cal-canvas-corner");
   if (!scroller || !wrap || !leftCnv || !topCnv || !cornerCnv) return;
 
-  const veil = (getComputedStyle(document.documentElement).getPropertyValue("--ed-bg-0") || "").trim() || "#0a0a0a";
-  // The main gantt canvas is transparent (the page gradient shows through),
-  // so the pinned panes must paint their OWN opaque backdrop before copying —
-  // otherwise bars scrolled underneath would bleed through the frozen name
-  // column / date header. Use the page's base background colour so the panes
-  // still read as native to the page (theme-aware via computed style).
-  const paneBg = (getComputedStyle(document.body).backgroundColor || "").trim() || "#1A1719";
+  // The main gantt canvas is transparent so the page's radial gradient shows
+  // through. The pinned freeze panes (name column / date header) must stay
+  // opaque or rows scrolled beneath them would bleed through — so paint that
+  // SAME gradient onto each pane, viewport-aligned, so they occlude while
+  // still matching the page. (CSS background-attachment:fixed can't do this:
+  // .alchemy-canvas has a transform, which would anchor a fixed background to
+  // it rather than the viewport.) Stops mirror the html/body gradient in
+  // styles.css for both themes.
+  const paintPageGradient = (c, cnv) => {
+    const light = document.documentElement.dataset.theme === "light";
+    const stops = light
+      ? [[0, "#FFFFFF"], [0.6, "#F6F6F6"], [1, "#EAEAEA"]]
+      : [[0, "#2C2728"], [0.6, "#231F20"], [1, "#1A1719"]];
+    const VW = window.innerWidth, VH = window.innerHeight;
+    const cx = 0.5 * VW, cy = -0.10 * VH;   // gradient centre (viewport css px)
+    const rx = 1.10 * VW, ry = 0.70 * VH;   // ellipse radii (viewport css px)
+    const rect = cnv.getBoundingClientRect();
+    c.save();
+    // Map a unit circle (the normalised ellipse) → this pane's device px:
+    //   device = (centre − paneTopLeft)·dpr + u·(radii·dpr)
+    c.translate((cx - rect.left) * dpr, (cy - rect.top) * dpr);
+    c.scale(rx * dpr, ry * dpr);
+    const g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+    for (const [off, col] of stops) g.addColorStop(off, col);
+    c.fillStyle = g;
+    // Cover the whole pane, expressed back in the unit space.
+    c.fillRect((rect.left - cx) / rx, (rect.top - cy) / ry,
+               (cnv.width / dpr) / rx, (cnv.height / dpr) / ry);
+    c.restore();
+  };
   const copyRegion = (cnv, cssW, cssH) => {
     cnv.width  = Math.round(cssW * dpr);
     cnv.height = Math.round(cssH * dpr);
     cnv.style.width  = cssW + "px";
     cnv.style.height = cssH + "px";
     const c = cnv.getContext("2d");
-    c.fillStyle = paneBg;
-    c.fillRect(0, 0, cnv.width, cnv.height);
+    paintPageGradient(c, cnv);
     c.drawImage(mainCnv, 0, 0, cnv.width, cnv.height, 0, 0, cnv.width, cnv.height);
-    c.globalAlpha = 0.22;
-    c.fillStyle = veil;
-    c.fillRect(0, 0, cnv.width, cnv.height);
-    c.globalAlpha = 1;
   };
   copyRegion(leftCnv, CAL_LEFT_W, h);
   copyRegion(topCnv, w, CAL_HEADER_H);
