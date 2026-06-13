@@ -96,9 +96,26 @@ export function mountChat(host) {
     const body = host.querySelector(".chat-gate-body");
     if (!body) return;
     let flows = [];
-    try { flows = (await api.flows(DEFAULT_HS)).flows || []; } catch {}
+    let reachable = false;
+    try {
+      const res = await api.flows(DEFAULT_HS);
+      reachable = !!(res && res.ok);
+      flows = (res && res.flows) || [];
+    } catch {}
     if (!host.querySelector(".chat-gate-body")) return; // re-rendered while awaiting
+    if (!reachable) {
+      // A transient failure must NOT fall through to the password-only branch —
+      // that's the phishing-shaped fallback this whole feature exists to avoid.
+      // Offer a retry instead of falsely claiming the server has no other option.
+      body.innerHTML = `
+        <p class="chat-gate-note">Couldn't reach the homeserver to check sign-in options. Check your connection and try again.</p>
+        <button class="chat-btn chat-btn-primary chat-retry" type="button">try again</button>`;
+      const retry = body.querySelector(".chat-retry");
+      if (retry) retry.addEventListener("click", refreshGateOptions);
+      return;
+    }
     const sso = flows.find((f) => f.type === "m.login.sso");
+    const tokenFlow = flows.find((f) => f.type === "m.login.token" && f.get_login_token);
     if (sso) {
       const idps = Array.isArray(sso.identity_providers) ? sso.identity_providers : [];
       const buttons = idps.length
@@ -106,15 +123,76 @@ export function mountChat(host) {
         : `<button class="chat-btn chat-btn-primary chat-sso" type="button" data-idp=""><span>sign in in your browser</span></button>`;
       body.innerHTML = `${buttons}<div class="chat-gate-status" role="status" aria-live="polite"></div>`;
       body.querySelectorAll(".chat-sso").forEach((b) => b.addEventListener("click", () => startSSO(b.dataset.idp)));
+    } else if (tokenFlow) {
+      // Device-approval: mint a one-time code from a device you're already
+      // signed into. Password never touches this app.
+      body.innerHTML = `
+        <button class="chat-btn chat-btn-primary chat-device" type="button"><span>sign in with another device</span></button>
+        <p class="chat-gate-note">Opens your browser. Paste an access token from a device you're already signed in to (Element → <code>Settings → Help &amp; About → Access Token</code>) — your <strong>password never touches this app</strong>, and that token is used once to mint a 2-minute code.</p>
+        <details class="chat-dev">
+          <summary>other ways to sign in</summary>
+          <form class="chat-code-form" autocomplete="off">
+            <p class="chat-dev-note">Already have a one-time login code? Paste it here.</p>
+            <input class="chat-input-text" name="code" placeholder="one-time login code" spellcheck="false" autocapitalize="off" />
+            <button class="chat-btn" type="submit">redeem code</button>
+            <div class="chat-login-msg" role="status" aria-live="polite"></div>
+          </form>
+          <hr class="chat-dev-rule" />
+          ${passwordFormHtml()}
+        </details>
+        <div class="chat-gate-status" role="status" aria-live="polite"></div>`;
+      const dev = body.querySelector(".chat-device");
+      if (dev) dev.addEventListener("click", startDevice);
+      wireCodeForm();
+      wirePasswordForm();
     } else {
       body.innerHTML = `
-        <p class="chat-gate-note">Browser sign-in isn't switched on for this homeserver yet — that's a one-time server setting (see <code>docs/MATRIX_OIDC_SETUP.md</code>). Until it's on, there's nothing to type here.</p>
+        <p class="chat-gate-note">No password-free sign-in is available on this homeserver yet. Until it is, there's nothing to type here.</p>
         <details class="chat-dev">
           <summary>developer sign-in (temporary)</summary>
           ${passwordFormHtml()}
         </details>`;
       wirePasswordForm();
     }
+  }
+
+  function startDevice() {
+    const body = host.querySelector(".chat-gate-body");
+    if (body) {
+      body.innerHTML = `
+        <div class="chat-gate-checking">opening your browser… follow the steps there. this window signs you in automatically once you approve.</div>
+        <button class="chat-btn chat-sso-cancel" type="button">cancel</button>`;
+      const cancel = host.querySelector(".chat-sso-cancel");
+      if (cancel) cancel.addEventListener("click", () => { api.cancelSSO(); refreshGateOptions(); });
+    }
+    api.loginDevice({ homeserver: DEFAULT_HS }).then((res) => {
+      if (res && res.ok) return; // onStatus flips us into the chat shell
+      if (res && res.error === "cancelled") return; // gate already re-rendered
+      const b = host.querySelector(".chat-gate-body");
+      if (!b) return;
+      b.innerHTML = `
+        <div class="chat-gate-error">${esc((res && res.error) || "sign-in failed")}</div>
+        <button class="chat-btn chat-btn-primary chat-retry" type="button">try again</button>`;
+      const retry = host.querySelector(".chat-retry");
+      if (retry) retry.addEventListener("click", refreshGateOptions);
+    });
+  }
+
+  function wireCodeForm() {
+    const form = host.querySelector(".chat-code-form");
+    if (!form) return;
+    const msg = form.querySelector(".chat-login-msg");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const btn = form.querySelector("button[type=submit]");
+      if (msg) { msg.textContent = "redeeming…"; msg.className = "chat-login-msg"; }
+      btn.disabled = true;
+      const res = await api.loginCode({ homeserver: DEFAULT_HS, token: String(fd.get("code") || "").trim() });
+      btn.disabled = false;
+      if (res && res.ok) { if (msg) msg.textContent = "connecting…"; }
+      else if (msg) { msg.textContent = (res && res.error) || "sign-in failed"; msg.className = "chat-login-msg is-error"; }
+    });
   }
 
   function startSSO(idpId) {
@@ -128,6 +206,7 @@ export function mountChat(host) {
     }
     api.loginSSO({ homeserver: DEFAULT_HS, idpId: idpId || undefined }).then((res) => {
       if (res && res.ok) return; // onStatus flips us into the chat shell
+      if (res && res.error === "cancelled") return; // gate already re-rendered
       const b = host.querySelector(".chat-gate-body");
       if (!b) return;
       b.innerHTML = `
@@ -157,7 +236,7 @@ export function mountChat(host) {
   function wirePasswordForm() {
     const form = host.querySelector(".chat-login");
     if (!form) return;
-    const msg = host.querySelector(".chat-login-msg");
+    const msg = form.querySelector(".chat-login-msg");
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(form);

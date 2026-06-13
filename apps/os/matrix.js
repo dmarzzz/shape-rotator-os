@@ -333,6 +333,13 @@ async function loginToken({ homeserver, token: tok } = {}) {
 // touches the app. Requires the homeserver to advertise `m.login.sso` (see
 // docs/MATRIX_OIDC_SETUP.md for the one-time Synapse config that enables it).
 let ssoServer = null;
+let ssoFinish = null; // settle-callback of the in-flight browser/device flow
+
+function escHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
 
 // Reports which login methods the homeserver offers, so the UI can show the
 // browser button when available and a clear "not enabled yet" state otherwise.
@@ -347,8 +354,13 @@ async function getFlows(homeserver) {
   }
 }
 
+// Cancel the in-flight browser/device flow: close the loopback AND settle its
+// promise (otherwise the renderer's await hangs until the 5-min timeout, then
+// paints a phantom "timed out" error over whatever the user moved on to).
 function cancelSSO() {
+  const f = ssoFinish; ssoFinish = null;
   if (ssoServer) { try { ssoServer.close(); } catch {} ssoServer = null; }
+  if (f) f({ ok: false, error: "cancelled" });
 }
 
 // Drive the full browser SSO handshake. Resolves once the loopback callback
@@ -363,36 +375,32 @@ function loginSSO({ homeserver, idpId } = {}) {
     const finish = (result) => {
       if (settled) return; settled = true;
       clearTimeout(timer);
-      cancelSSO();
+      try { server.close(); } catch {}          // tear down ONLY our own loopback
+      if (ssoServer === server) ssoServer = null;
+      if (ssoFinish === finish) ssoFinish = null;
       resolve(result);
     };
+    ssoFinish = finish;
     const server = http.createServer(async (req, res) => {
       try {
         const url = new URL(req.url, "http://localhost");
         if (!url.pathname.includes(nonce)) { res.writeHead(404); res.end(); return; }
         const loginToken = url.searchParams.get("loginToken");
-        const page = (title, msg) => `<!doctype html><meta charset=utf-8><body style="font-family:system-ui;background:#1A1719;color:#f5f3ee;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h2 style="font-weight:500">${title}</h2><p style="opacity:.7">${msg}</p></div>`;
         if (!loginToken) {
           res.writeHead(400, { "Content-Type": "text/html" });
-          res.end(page("Sign-in failed", "No login token was returned. You can close this tab."));
+          res.end(resultPage("Sign-in failed", "No login token was returned. You can close this tab."));
           finish({ ok: false, error: "no login token returned" });
           return;
         }
-        res.writeHead(200, { "Content-Type": "text/html" });
-        res.end(page("Signed in ✓", "Return to Shape Rotator OS — you can close this tab."));
-        const r = await fetch(hs + "/_matrix/client/v3/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "m.login.token", token: loginToken, initial_device_display_name: "Shape Rotator OS" }),
-        });
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok || !data.access_token) { finish({ ok: false, error: data.error || `token redeem failed (HTTP ${r.status})` }); return; }
-        stopSync();
-        rooms.clear(); since = null;
-        saveSession({ homeserver: hs, userId: data.user_id, deviceId: data.device_id || null }, data.access_token);
-        log(`signed in via browser as ${data.user_id}`);
-        startSync();
-        finish({ ok: true, userId: data.user_id });
+        const result = await applyLoginToken(hs, loginToken);
+        if (result.ok) {
+          res.writeHead(200, { "Content-Type": "text/html" });
+          res.end(resultPage("Signed in ✓", "Return to Shape Rotator OS — you can close this tab."));
+        } else {
+          res.writeHead(401, { "Content-Type": "text/html" });
+          res.end(resultPage("Sign-in failed", escHtml(result.error || "could not redeem the code") + " — return to Shape Rotator OS and try again."));
+        }
+        finish(result);
       } catch (e) {
         try { res.writeHead(500); res.end(); } catch {}
         finish({ ok: false, error: e.message });
@@ -411,6 +419,177 @@ function loginSSO({ homeserver, idpId } = {}) {
       shell.openExternal(ssoUrl);
     });
     // Give up after 5 minutes so a dropped flow doesn't leak a listener.
+    timer = setTimeout(() => finish({ ok: false, error: "sign-in timed out" }), 5 * 60 * 1000);
+  });
+}
+
+// Small dark "you can close this tab" page shown in the browser after a flow.
+function resultPage(title, msg) {
+  return `<!doctype html><meta charset=utf-8><body style="font-family:system-ui;background:#1A1719;color:#f5f3ee;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h2 style="font-weight:500">${title}</h2><p style="opacity:.7">${msg}</p></div>`;
+}
+
+// Redeem a one-time login token (m.login.token) for a FRESH device session.
+// Shared by the SSO callback, the device-approval flow, and manual paste — the
+// app never sees the user's password or their other device's access token,
+// only this short-lived token.
+async function applyLoginToken(hs, loginToken) {
+  try {
+    const r = await fetch(hs + "/_matrix/client/v3/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "m.login.token", token: loginToken, initial_device_display_name: "Shape Rotator OS" }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.access_token) return { ok: false, error: data.error || `sign-in failed (HTTP ${r.status})` };
+    stopSync();
+    rooms.clear(); since = null;
+    saveSession({ homeserver: hs, userId: data.user_id, deviceId: data.device_id || null }, data.access_token);
+    log(`signed in via login token as ${data.user_id}`);
+    startSync();
+    return { ok: true, userId: data.user_id };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Manual fallback: redeem a one-time login code the user pasted in directly.
+async function loginWithCode({ homeserver, token } = {}) {
+  const hs = (homeserver || DEFAULT_HS).replace(/\/+$/, "");
+  const code = String(token || "").trim();
+  if (!code) return { ok: false, error: "paste a login code first" };
+  return applyLoginToken(hs, code);
+}
+
+// ─── device-approval sign-in (MSC3882 login-token) ──────────────────────────
+// The homeserver advertises m.login.token with get_login_token, but has no
+// rendezvous endpoint, so we bridge it locally. The app opens a small helper
+// page (served by a loopback http server) in the user's browser. The user
+// pastes an access token from a device they're already signed in to; the
+// helper calls /login/get_token THERE (so the password — and the access token
+// — never touch this app), then hands the resulting short-lived login token
+// back to the loopback, which redeems it for a fresh device session.
+function deviceHelperHtml(hs, nonce) {
+  // Escape for a <script> context: JSON.stringify alone leaves '<'/'>' intact,
+  // so a homeserver containing "</script>" could break out. Unicode-escape the
+  // HTML-significant chars (JS parses them back to the same string). Defensive
+  // today (hs is the hardcoded DEFAULT_HS) but load-bearing if hs ever becomes
+  // user/.well-known-supplied.
+  const jsLit = (v) => JSON.stringify(String(v))
+    .replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
+  const safeHs = jsLit(hs);
+  const safeNonce = jsLit(nonce);
+  return `<!doctype html><html lang=en><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Shape Rotator OS — sign in</title>
+<style>
+ :root{color-scheme:dark}
+ *{box-sizing:border-box}
+ body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#1A1719;color:#f5f3ee;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+ .card{width:100%;max-width:440px;background:rgba(245,243,238,.03);border:1px solid rgba(245,243,238,.12);border-radius:12px;padding:28px}
+ .eyebrow{font-family:ui-monospace,Menlo,monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:rgba(245,243,238,.4);margin-bottom:12px}
+ h1{font-size:20px;font-weight:500;margin:0 0 8px}
+ p{font-size:13px;line-height:1.55;color:rgba(245,243,238,.62);margin:0 0 14px}
+ ol{font-size:13px;line-height:1.65;color:rgba(245,243,238,.72);padding-left:18px;margin:0 0 16px}
+ code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:rgba(245,243,238,.08);padding:1px 5px;border-radius:4px}
+ label{display:block;font-family:ui-monospace,Menlo,monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(245,243,238,.45);margin-bottom:6px}
+ input{width:100%;background:rgba(245,243,238,.04);border:1px solid rgba(245,243,238,.16);border-radius:6px;padding:10px 12px;color:#f5f3ee;font-family:ui-monospace,Menlo,monospace;font-size:12px;outline:none}
+ input:focus{border-color:rgba(245,243,238,.4)}
+ button{width:100%;margin-top:14px;cursor:pointer;border:1px solid rgba(208,83,50,.6);background:rgba(208,83,50,.18);color:#fff;border-radius:6px;padding:11px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+ button:hover{background:rgba(208,83,50,.3)} button:disabled{opacity:.5;cursor:default}
+ .msg{margin-top:12px;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.5;min-height:14px;color:rgba(245,243,238,.6)}
+ .msg.err{color:#e8896b}
+ .hs{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:rgba(245,243,238,.45);word-break:break-all}
+</style></head><body>
+<div class=card>
+ <div class=eyebrow>SHAPE ROTATOR &middot; cohort matrix</div>
+ <h1>Approve this sign-in</h1>
+ <p>This signs Shape Rotator OS into <span class=hs></span> using a device you're already logged in to. <strong>Your password is never used here.</strong></p>
+ <ol>
+  <li>In Element (a Matrix client you're already signed in to), open <code>Settings &rarr; Help &amp; About</code>.</li>
+  <li>Scroll to <code>Access Token</code>, reveal and copy it.</li>
+  <li>Paste it below and approve. It's used once to mint a 2-minute code, then discarded.</li>
+ </ol>
+ <label for=tok>Access token</label>
+ <input id=tok type=password placeholder="syt_&hellip;" autocomplete=off spellcheck=false>
+ <button id=go>Approve sign-in</button>
+ <div class=msg id=msg></div>
+</div>
+<script>
+ var HS=${safeHs}, NONCE=${safeNonce};
+ document.querySelector('.hs').textContent=HS;
+ var go=document.getElementById('go'),tok=document.getElementById('tok'),msg=document.getElementById('msg');
+ function err(t){msg.textContent=t;msg.className='msg err';go.disabled=false;}
+ go.onclick=async function(){
+  var t=tok.value.trim();
+  if(!t){err('Paste your access token first.');return;}
+  msg.className='msg';msg.textContent='Minting a one-time code\\u2026';go.disabled=true;
+  try{
+   var r=await fetch(HS+'/_matrix/client/v1/login/get_token',{method:'POST',headers:{'Authorization':'Bearer '+t,'Content-Type':'application/json'},body:'{}'});
+   var d=await r.json().catch(function(){return{};});
+   if(r.status===401&&d&&d.flows){err('This homeserver needs re-authentication for device sign-in (UIA), which is not supported yet. Close this tab and click Cancel in Shape Rotator OS, then tell the SR OS team you hit this.');return;}
+   if(!r.ok||!d.login_token){err((d&&(d.error||d.errcode))||('Failed (HTTP '+r.status+')'));return;}
+   msg.textContent='Approved \\u2014 signing you in\\u2026';
+   window.location='/'+NONCE+'?loginToken='+encodeURIComponent(d.login_token);
+  }catch(e){err('Network error: '+((e&&e.message)||e));}
+ };
+ tok.addEventListener('keydown',function(e){if(e.key==='Enter')go.click();});
+</script></body></html>`;
+}
+
+function loginViaDevice({ homeserver } = {}) {
+  const hs = (homeserver || DEFAULT_HS).replace(/\/+$/, "");
+  cancelSSO();
+  const nonce = crypto.randomBytes(16).toString("hex"); // unguessable callback path
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer = null;
+    const finish = (result) => {
+      if (settled) return; settled = true;
+      clearTimeout(timer);
+      try { server.close(); } catch {}          // tear down ONLY our own loopback
+      if (ssoServer === server) ssoServer = null;
+      if (ssoFinish === finish) ssoFinish = null;
+      resolve(result);
+    };
+    ssoFinish = finish;
+    const server = http.createServer(async (req, res) => {
+      try {
+        const url = new URL(req.url, "http://localhost");
+        // Any path WITHOUT the nonce → serve the mint helper page.
+        if (!url.pathname.includes(nonce)) {
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(deviceHelperHtml(hs, nonce));
+          return;
+        }
+        // The nonce callback → the helper handed us a minted login token.
+        const loginToken = url.searchParams.get("loginToken");
+        if (!loginToken) {
+          res.writeHead(400, { "Content-Type": "text/html" });
+          res.end(resultPage("Sign-in failed", "No code was returned. You can close this tab."));
+          finish({ ok: false, error: "no login token returned" });
+          return;
+        }
+        const result = await applyLoginToken(hs, loginToken);
+        if (result.ok) {
+          res.writeHead(200, { "Content-Type": "text/html" });
+          res.end(resultPage("Signed in ✓", "Return to Shape Rotator OS — you can close this tab."));
+        } else {
+          res.writeHead(401, { "Content-Type": "text/html" });
+          res.end(resultPage("Sign-in failed", escHtml(result.error || "could not redeem the code") + " — return to Shape Rotator OS and try again."));
+        }
+        finish(result);
+      } catch (e) {
+        try { res.writeHead(500); res.end(); } catch {}
+        finish({ ok: false, error: e.message });
+      }
+    });
+    ssoServer = server;
+    server.on("error", (e) => finish({ ok: false, error: `local listener failed: ${e.message}` }));
+    server.listen(0, "127.0.0.1", () => {
+      const port = server.address().port;
+      log(`opening device sign-in helper on http://localhost:${port}/`);
+      shell.openExternal(`http://localhost:${port}/`);
+    });
     timer = setTimeout(() => finish({ ok: false, error: "sign-in timed out" }), 5 * 60 * 1000);
   });
 }
@@ -474,6 +653,6 @@ function stop() { stopSync(); cancelSSO(); }
 
 module.exports = {
   start, stop,
-  getStatus, getFlows, login, loginToken, loginSSO, cancelSSO, logout,
+  getStatus, getFlows, login, loginToken, loginSSO, loginViaDevice, loginWithCode, cancelSSO, logout,
   getRooms, getMessages, send,
 };
