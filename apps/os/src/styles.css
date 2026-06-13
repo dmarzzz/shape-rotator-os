@@ -6704,8 +6704,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-inspector-status span {
   color: var(--alchemy-oxide-bright);
   font-family: var(--font-mono);
-  font-size: 7.5px;
-  letter-spacing: 0.18em;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 .ac-inspector-status strong {
@@ -6777,8 +6777,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .ac-inspector-kicker {
   font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 0.18em;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--alchemy-oxide-bright);
 }

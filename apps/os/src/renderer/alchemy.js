@@ -3983,7 +3983,8 @@ function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
 function constCorridorReadoutHtml(ctx) {
   // Corridor #1 lives in the hero above (claim + inspect action); this
   // section lists what comes next, so the panel never says a thing twice.
-  const corridors = constTopCorridors(ctx, 4).slice(1);
+  // It's the panel's only connection list now, so it runs a little deeper.
+  const corridors = constTopCorridors(ctx, 6).slice(1);
   const lens = constNormalizeConstellationLens(ctx?.lens || "all");
   const lensSpec = CONST_LENSES.find(l => l.lens === lens) || CONST_LENSES[0];
   const scoped = lens !== "all";
@@ -4020,7 +4021,7 @@ function constDataCoverageHtml(ctx) {
         <span>missing journey<em>${escHtml(String(missingJourney))}</em></span>
         ${missingOwner ? `<span>missing owner<em>${escHtml(String(missingOwner))}</em></span>` : ""}
       </div>
-      <p class="ac-rel-queue-more">Profile-mention lines are leads. They should not read as source-backed relationships until a relationship record supplies evidence, owner, and next action.</p>
+      <p class="ac-rel-queue-more">Fill these in to turn a lead into a source-backed line — a record needs evidence, an owner, and a next action.</p>
     </section>`;
 }
 
@@ -4751,10 +4752,6 @@ function constellationInspectorDefaultHtml(ctx) {
     return `
       ${constMapReadoutHeroHtml(ctx, "circle readout")}
       ${constCorridorReadoutHtml(ctx)}
-      <section class="ac-inspector-section is-rel-queue">
-        <h4>who should talk next</h4>
-        ${constRelationshipQueueHtml(ctx, { max: 3, compact: true })}
-      </section>
       ${constDataCoverageHtml(ctx)}`;
   }
   if (ctx?.mode === "stack") {
@@ -4772,13 +4769,13 @@ function constellationInspectorDefaultHtml(ctx) {
       </section>`;
   }
   if ((ctx?.mode === "map" || ctx?.mode === "ring") && !ctx?.interest?.active) {
+    // ONE connection story: the hero owns the strongest corridor (claim +
+    // inspect), the list continues it (#2+). The old "who should talk next"
+    // relationship queue restated the same top pairs by a different scorer —
+    // dropped here; it still serves the focused (ecosystem) + fallback panels.
     return `
       ${constMapReadoutHeroHtml(ctx)}
       ${constCorridorReadoutHtml(ctx)}
-      <section class="ac-inspector-section is-rel-queue">
-        <h4>who should talk next</h4>
-        ${constRelationshipQueueHtml(ctx, { max: 4, compact: true })}
-      </section>
       ${constDataCoverageHtml(ctx)}`;
   }
   return `
