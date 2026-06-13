@@ -31,12 +31,12 @@ const POLICY = {
     shared_drive_name: "Shape Rotator Transcript Vault",
     admin_role: "manager",
     admins: [
-      { name: "Tina", email: "tina@flashbots.net" },
-      { name: "Andrew", email: "socrates1024@gmail.com" },
-      { name: "Dmarz", email: "dan@flashbots.net" },
-      { name: "Michael", email: "michael@flashbots.net" },
-      { name: "Fred", email: "fredrik@flashbots.net" },
-      { name: "Albi", email: "albi@flashbots.net" },
+      { name: "Tina", email: "admin-one@example.com" },
+      { name: "Andrew", email: "admin-two@example.com" },
+      { name: "Dmarz", email: "admin-three@example.com" },
+      { name: "Michael", email: "admin-four@example.com" },
+      { name: "Fred", email: "admin-five@example.com" },
+      { name: "Albi", email: "admin-six@example.com" },
     ],
     folder_routes: {
       weekly_standup: { path: "10_raw_transcripts_T0/weekly_standup", derived_path: "40_derived_review/weekly_standup" },
@@ -210,7 +210,7 @@ test("builds external-ref manifest rows and flags calendar conflicts", () => {
   assert.equal(plan.counts.transcript_files, 2);
   assert.equal(plan.counts.matched, 1);
   assert.equal(plan.counts.rename_recommended, 2);
-  assert.equal(plan.drive_permissions.admins.find((admin) => admin.name === "Dmarz").email, "dan@flashbots.net");
+  assert.equal(plan.drive_permissions.admins.find((admin) => admin.name === "Dmarz").email, "admin-three@example.com");
   assert.equal(plan.manual_artifact_manifest.artifacts[0].storage_mode, "external_ref");
   assert.equal(plan.manual_artifact_manifest.artifacts[0].storage_ref, "drive://drive_wdydlw");
   assert.equal(plan.manual_artifact_manifest.artifacts[0].raw_available_to_server, false);

@@ -18,8 +18,8 @@ const IMPORT_PLAN = {
     shared_drive_name: "Shape Rotator Transcript Vault",
     admin_role: "manager",
     admins: [
-      { name: "Tina", email: "tina@flashbots.net" },
-      { name: "Dmarz", email: "dan@flashbots.net" },
+      { name: "Tina", email: "admin-one@example.com" },
+      { name: "Dmarz", email: "admin-two@example.com" },
     ],
   },
   files: [
@@ -92,8 +92,8 @@ test("builds Drive operation plan with folder ensures and manager grants", () =>
   assert.equal(plan.operation_mode, "dry_run");
   assert.equal(plan.counts.manager_grants, 2);
   assert.deepEqual(plan.admin_operations.map((operation) => operation.email), [
-    "tina@flashbots.net",
-    "dan@flashbots.net",
+    "admin-one@example.com",
+    "admin-two@example.com",
   ]);
   assert.ok(plan.admin_operations.every((operation) => operation.drive_api_role === "organizer"));
   assert.ok(plan.folder_operations.some((operation) => operation.path === "10_raw_transcripts_T0"));
@@ -138,7 +138,7 @@ test("renders a human-readable dry-run summary", () => {
 
   assert.match(summary, /dry-run plan/);
   assert.match(summary, /weekly_standup_shaw_2026-06-08\.txt/);
-  assert.match(summary, /dan@flashbots\.net/);
+  assert.match(summary, /admin-two@example\.com/);
   assert.match(summary, /quarantine_review/);
 });
 

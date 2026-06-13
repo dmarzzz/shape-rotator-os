@@ -51,12 +51,12 @@ export const DEFAULT_ROUTING_POLICY = {
     shared_drive_name: "Shape Rotator Transcript Vault",
     admin_role: "manager",
     admins: [
-      { name: "Tina", email: "tina@flashbots.net" },
-      { name: "Andrew", email: "socrates1024@gmail.com" },
-      { name: "Dmarz", email: "dan@flashbots.net" },
-      { name: "Michael", email: "michael@flashbots.net" },
-      { name: "Fred", email: "fredrik@flashbots.net" },
-      { name: "Albi", email: "albi@flashbots.net" },
+      { name: "Tina" },
+      { name: "Andrew" },
+      { name: "Dmarz" },
+      { name: "Michael" },
+      { name: "Fred" },
+      { name: "Albi" },
     ],
     root_folders: {
       inbox: "00_inbox",

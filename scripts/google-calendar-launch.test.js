@@ -95,7 +95,7 @@ test("Google calendar launch dry-run plans backfill and editor ACLs without fetc
   const result = await runGoogleCalendarLaunch({
     sourcePath: writeFixture(),
     calendarId: "calendar@example.com",
-    emails: "andrew@flashbots.net,tina@flashbots.net",
+    emails: "admin-one@example.com,admin-two@example.com",
     fetchImpl: async () => {
       throw new Error("dry-run should not call fetch");
     },
@@ -106,7 +106,7 @@ test("Google calendar launch dry-run plans backfill and editor ACLs without fetc
   assert.equal(result.backfill.planned, 2);
   assert.equal(result.acl.planned, 2);
   assert.equal(result.verification, null);
-  assert.deepEqual(result.editor_emails, ["andrew@flashbots.net", "tina@flashbots.net"]);
+  assert.deepEqual(result.editor_emails, ["admin-one@example.com", "admin-two@example.com"]);
 });
 
 test("Google calendar launch apply writes then verifies idempotent state", async () => {
@@ -115,7 +115,7 @@ test("Google calendar launch apply writes then verifies idempotent state", async
     sourcePath: writeFixture(),
     calendarId: "calendar@example.com",
     accessToken: "google-token",
-    emails: "andrew@flashbots.net,tina@flashbots.net",
+    emails: "admin-one@example.com,admin-two@example.com",
     organizerEmail: "cube@shaperotator.xyz",
     apply: true,
     fetchImpl,
@@ -139,6 +139,7 @@ test("Google calendar launch apply requires an OAuth token", async () => {
     () => runGoogleCalendarLaunch({
       sourcePath: writeFixture(),
       calendarId: "calendar@example.com",
+      emails: "admin-one@example.com,admin-two@example.com",
       apply: true,
     }),
     /accessToken is required/,
@@ -148,7 +149,7 @@ test("Google calendar launch apply requires an OAuth token", async () => {
 test("Google calendar launch apply rejects the wrong Google account when tokeninfo exposes email", async () => {
   const fetchImpl = async (url, options = {}) => {
     const parsed = new URL(String(url));
-    if (parsed.hostname === "oauth2.googleapis.com") return Response.json({ email: "michaelwilliamsonthego@gmail.com" });
+    if (parsed.hostname === "oauth2.googleapis.com") return Response.json({ email: "wrong-admin@example.com" });
     assert.equal(options.headers.authorization, "Bearer google-token");
     if (parsed.pathname.includes("/calendarList/")) return Response.json({ accessRole: "owner" });
     throw new Error(`unexpected URL: ${url}`);
@@ -159,7 +160,7 @@ test("Google calendar launch apply rejects the wrong Google account when tokenin
       sourcePath: writeFixture(),
       calendarId: "calendar@example.com",
       accessToken: "google-token",
-      emails: "andrew@flashbots.net,tina@flashbots.net",
+      emails: "admin-one@example.com,admin-two@example.com",
       organizerEmail: "cube@shaperotator.xyz",
       apply: true,
       fetchImpl,
@@ -181,7 +182,7 @@ test("Google calendar launch apply requires owner access for ACL grants", async 
       sourcePath: writeFixture(),
       calendarId: "calendar@example.com",
       accessToken: "google-token",
-      emails: "andrew@flashbots.net,tina@flashbots.net",
+      emails: "admin-one@example.com,admin-two@example.com",
       organizerEmail: "cube@shaperotator.xyz",
       apply: true,
       fetchImpl,

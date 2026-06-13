@@ -35,16 +35,12 @@ config.
 - Calendar ID:
   `c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com`
 - Calendar timezone: `America/New_York`
-- Desired editor/admin emails:
-  `tina@flashbots.net`, `socrates1024@gmail.com`, `dan@flashbots.net`,
-  `michael@flashbots.net`, `fredrik@flashbots.net`, `albi@flashbots.net`
+- Desired editor/admin emails are supplied through private env, not committed
+  defaults.
 - Current ACL state: Google API ACL apply promoted all six accounts to `owner`
   on 2026-06-13.
-- Current Drive ACL state: Google Drive API apply promoted all six accounts to
-  shared-drive `organizer`/manager on 2026-06-13. Andrew uses
-  `socrates1024@gmail.com`; `andrew@flashbots.net` is still on the calendar
-  but cannot be added as a shared-drive member because Google reports it as a
-  non-Google account for Drive membership.
+- Current Drive ACL state: Google Drive API apply promoted the configured
+  private admin list to shared-drive `organizer`/manager on 2026-06-13.
 - Current backfill state: Google Calendar and Supabase have the managed calendar
   source backfilled and verified.
 - Current capture state: historical backfill rows are schedule placeholders, not
@@ -160,9 +156,8 @@ returning id;
 - [x] Calendar admins should subscribe to the secondary calendar by its
   `@group.calendar.google.com` ID, not by the Cube organizer email. Use:
   `https://calendar.google.com/calendar/r?cid=c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed%40group.calendar.google.com`
-  while signed into the granted account, e.g. `michael@flashbots.net` or
-  `tina@flashbots.net`. Adding `cube@shaperotator.xyz` attempts to subscribe
-  to Cube's primary calendar and correctly fails.
+  while signed into a granted admin account. Adding the capture bot attempts
+  to subscribe to its primary calendar and correctly fails.
 - [ ] Record the owning organizer account as
   `GOOGLE_CALENDAR_ORGANIZER_EMAIL`. Prefer a dedicated account such as
   `calendar@...`, not a human's personal calendar.
@@ -186,7 +181,7 @@ Process-local PowerShell setup for a trusted operator shell:
 
 ```powershell
 $env:GOOGLE_CALENDAR_ID = "c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com"
-$env:GOOGLE_CALENDAR_EDITOR_EMAILS = "tina@flashbots.net,socrates1024@gmail.com,dan@flashbots.net,michael@flashbots.net,fredrik@flashbots.net,albi@flashbots.net"
+$env:GOOGLE_CALENDAR_EDITOR_EMAILS = "admin-one@example.com,admin-two@example.com"
 $env:GOOGLE_OAUTH_REDIRECT_URI = "http://127.0.0.1:8787/oauth2callback"
 # Paste these only when the real values exist:
 # $env:GOOGLE_OAUTH_CLIENT_ID = "<oauth-client-id>"

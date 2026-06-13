@@ -2,14 +2,7 @@
 
 const { loadEnvFile } = require("./lib/env-file.cjs");
 
-const DEFAULT_EDITOR_EMAILS = [
-  "tina@flashbots.net",
-  "socrates1024@gmail.com",
-  "dan@flashbots.net",
-  "michael@flashbots.net",
-  "fredrik@flashbots.net",
-  "albi@flashbots.net",
-];
+const DEFAULT_EDITOR_EMAILS = [];
 const ROLE_RANK = {
   none: 0,
   freeBusyReader: 1,
@@ -42,8 +35,7 @@ function usage() {
     "  GOOGLE_CALENDAR_EDITOR_EMAILS",
     "  GOOGLE_CALENDAR_ACCESS_TOKEN or GOOGLE_ACCESS_TOKEN",
     "",
-    "Default editor emails:",
-    `  ${DEFAULT_EDITOR_EMAILS.join(", ")}`,
+    "Editor emails must be supplied through --emails or GOOGLE_CALENDAR_EDITOR_EMAILS.",
   ].join("\n");
 }
 
@@ -155,7 +147,7 @@ function buildAclPlan({
   const normalizedRole = normalizeRole(role);
   const normalizedScopeType = normalizeScopeType(scopeType);
   const editors = parseEmails(emails);
-  if (!editors.length) throw new Error("at least one valid editor email is required");
+  if (!editors.length) throw new Error("at least one editor email is required; use --emails or GOOGLE_CALENDAR_EDITOR_EMAILS");
   return {
     calendar_id: calendarId,
     role: normalizedRole,

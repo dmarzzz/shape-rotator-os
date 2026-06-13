@@ -3,14 +3,7 @@ export const DEFAULT_CALENDAR_ID = "c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a286
 export const DEFAULT_SUPABASE_URL = "https://txjntzwksiluvqcpccpc.supabase.co";
 export const DEFAULT_CALENDAR_TIMEZONE = "America/New_York";
 export const DEFAULT_CAPTURE_BOT_EMAIL = "cube@shaperotator.xyz";
-export const DEFAULT_CALENDAR_ADMINS = Object.freeze([
-  "tina@flashbots.net",
-  "socrates1024@gmail.com",
-  "dan@flashbots.net",
-  "michael@flashbots.net",
-  "fredrik@flashbots.net",
-  "albi@flashbots.net",
-]);
+export const DEFAULT_CALENDAR_ADMINS = Object.freeze([]);
 export const DEFAULT_CALENDAR_INGRESS_CONFIG = Object.freeze({
   supabaseUrl: DEFAULT_SUPABASE_URL,
   calendarId: DEFAULT_CALENDAR_ID,
@@ -98,12 +91,12 @@ export const DEFAULT_ROUTING_POLICY = {
     shared_drive_name: "Shape Rotator Transcript Vault",
     admin_role: "manager",
     admins: [
-      { name: "Tina", email: "tina@flashbots.net" },
-      { name: "Andrew", email: "socrates1024@gmail.com" },
-      { name: "Dmarz", email: "dan@flashbots.net" },
-      { name: "Michael", email: "michael@flashbots.net" },
-      { name: "Fred", email: "fredrik@flashbots.net" },
-      { name: "Albi", email: "albi@flashbots.net" },
+      { name: "Tina" },
+      { name: "Andrew" },
+      { name: "Dmarz" },
+      { name: "Michael" },
+      { name: "Fred" },
+      { name: "Albi" },
     ],
     root_folders: {
       inbox: "00_inbox",

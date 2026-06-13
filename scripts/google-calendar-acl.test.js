@@ -7,20 +7,25 @@ const {
   runGoogleCalendarAclSetup,
 } = require("./setup-google-calendar-acl.js");
 
-test("Google calendar ACL plan defaults to the requested editor emails", () => {
-  const plan = buildAclPlan({ calendarId: "calendar@example.com" });
+test("Google calendar ACL plan requires explicit editor emails", () => {
+  assert.deepEqual(DEFAULT_EDITOR_EMAILS, []);
+  assert.throws(
+    () => buildAclPlan({ calendarId: "calendar@example.com" }),
+    /at least one editor email is required/,
+  );
 
-  assert.deepEqual(plan.editors, DEFAULT_EDITOR_EMAILS);
+  const plan = buildAclPlan({ calendarId: "calendar@example.com", emails: "editor@example.com" });
+  assert.deepEqual(plan.editors, ["editor@example.com"]);
   assert.equal(plan.role, "owner");
   assert.equal(plan.scope_type, "user");
-  assert.equal(plan.actions.length, 6);
+  assert.equal(plan.actions.length, 1);
   assert.ok(plan.actions.every((action) => action.action === "dry-run"));
 });
 
 test("Google calendar ACL email parsing dedupes and validates addresses", () => {
   assert.deepEqual(
-    parseEmails("Andrew@Flashbots.net, andrew@flashbots.net; tina@flashbots.net invalid fredrik@flashbots.net"),
-    ["andrew@flashbots.net", "tina@flashbots.net", "fredrik@flashbots.net"],
+    parseEmails("Admin@Example.com, admin@example.com; second@example.com invalid third@example.com"),
+    ["admin@example.com", "second@example.com", "third@example.com"],
   );
 });
 

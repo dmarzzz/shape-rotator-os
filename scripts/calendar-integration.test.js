@@ -43,16 +43,10 @@ test("routing policy validates and preserves Tina ceilings", () => {
   ]);
   assert.equal(policy.transcript_naming.preferred_pattern, "type_project_name_date");
   assert.deepEqual(
-    policy.drive_vault.admins.map((admin) => admin.email).sort(),
-    [
-      "albi@flashbots.net",
-      "dan@flashbots.net",
-      "fredrik@flashbots.net",
-      "michael@flashbots.net",
-      "socrates1024@gmail.com",
-      "tina@flashbots.net",
-    ],
+    policy.drive_vault.admins.map((admin) => admin.name),
+    ["Tina", "Andrew", "Dmarz", "Michael", "Fred", "Albi"],
   );
+  assert.ok(policy.drive_vault.admins.every((admin) => admin.email == null));
   assert.equal(policy.drive_vault.folder_routes.planning_strategy.path, "90_do_not_publish/planning_strategy");
   assert.equal(policy.drive_vault.folder_routes.private_1on1.path, "90_do_not_publish/private_1on1");
 });

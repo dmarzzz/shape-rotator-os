@@ -282,7 +282,7 @@ function renderInvitePicker() {
   const roleGroups = directory.groups.filter((group) => group.kind === "role");
   const teamGroups = directory.groups.filter((group) => group.kind === "team");
   const groupButton = (group) => `
-    <button type="button" data-cal-invite-group="${esc(group.id)}" title="${esc(group.emails.join(", "))}">
+    <button type="button" data-cal-invite-group="${esc(group.id)}">
       ${esc(group.label)} <span>${esc(group.count)}</span>
     </button>
   `;
@@ -290,7 +290,7 @@ function renderInvitePicker() {
     <div class="cal-ingress-invite" data-cal-invite-picker>
       <div class="cal-ingress-invite-head">
         <span>cohort guests</span>
-        <strong>${esc(directory.people.length)} with email · ${esc(directory.missingEmailCount)} missing</strong>
+        <strong>${esc(directory.people.length)} available · ${esc(directory.missingEmailCount)} without private contact</strong>
       </div>
       <div class="cal-ingress-invite-groups" aria-label="invite role groups">
         ${roleGroups.map(groupButton).join("") || `<p>no email-backed role groups</p>`}
@@ -302,9 +302,9 @@ function renderInvitePicker() {
         <label>
           <span>add person</span>
           <select name="attendee_person" data-cal-invite-person>
-            <option value="">select person with email</option>
+            <option value="">select person</option>
             ${directory.people.map((person) => `
-              <option value="${esc(person.id)}">${esc(person.name)} · ${esc(person.email)}</option>
+              <option value="${esc(person.id)}">${esc(person.name)}</option>
             `).join("")}
           </select>
         </label>
@@ -478,6 +478,24 @@ function renderSourceIngress() {
 function render() {
   if (!root) return;
   const timezone = DEFAULT_CALENDAR_TIMEZONE;
+  const readiness = calendarIngressReadiness(state.config);
+  if (!readiness.browserReady) {
+    root.innerHTML = `
+    <div class="cal-ingress-inner">
+      <div class="cal-ingress-head">
+        <div>
+          <p class="cal-ingress-kicker">calendar ingress</p>
+          <h2>operator controls</h2>
+        </div>
+        ${renderStatus()}
+      </div>
+      <p class="cal-ingress-empty">Signed-in Supabase config is required before event creation, guest selection, or review queues are loaded.</p>
+      ${renderConfig()}
+    </div>
+  `;
+    wire();
+    return;
+  }
   root.innerHTML = `
     <div class="cal-ingress-inner">
       <div class="cal-ingress-head">
@@ -565,6 +583,7 @@ function addInviteEmails(emails = []) {
 
 async function loadInviteDirectory() {
   if (!root) return;
+  if (!calendarIngressReadiness(state.config).browserReady) return;
   try {
     const response = await fetch("/cohort-surface.json");
     if (!response.ok) throw new Error(`cohort directory fetch failed: ${response.status}`);

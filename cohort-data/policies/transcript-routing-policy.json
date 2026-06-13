@@ -30,28 +30,22 @@
     "admin_role": "manager",
     "admins": [
       {
-        "name": "Tina",
-        "email": "tina@flashbots.net"
+        "name": "Tina"
       },
       {
-        "name": "Andrew",
-        "email": "socrates1024@gmail.com"
+        "name": "Andrew"
       },
       {
-        "name": "Dmarz",
-        "email": "dan@flashbots.net"
+        "name": "Dmarz"
       },
       {
-        "name": "Michael",
-        "email": "michael@flashbots.net"
+        "name": "Michael"
       },
       {
-        "name": "Fred",
-        "email": "fredrik@flashbots.net"
+        "name": "Fred"
       },
       {
-        "name": "Albi",
-        "email": "albi@flashbots.net"
+        "name": "Albi"
       }
     ],
     "root_folders": {

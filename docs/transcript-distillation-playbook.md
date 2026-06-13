@@ -253,9 +253,8 @@ The Drive vault should route raw files by type before review:
 | `planning_strategy` | `90_do_not_publish/planning_strategy` | coordinator/core only; never cohort or public |
 
 Drive admins/managers for the transcript vault are Tina, Andrew, Dmarz, Michael,
-Fred, and Albi. The current policy file resolves these as
-`tina@flashbots.net`, `socrates1024@gmail.com`, `dan@flashbots.net`,
-`michael@flashbots.net`, `fredrik@flashbots.net`, and `albi@flashbots.net`.
+Fred, and Albi. Their email targets are supplied through private operator env,
+not committed defaults.
 
 ## Current Cloud Command Path
 

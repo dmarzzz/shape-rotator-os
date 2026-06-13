@@ -6,12 +6,17 @@ const {
   runGoogleDriveAdminSetup,
 } = require("./setup-google-drive-admins.js");
 
-test("Google Drive admin plan defaults to transcript vault managers", () => {
-  const plan = buildDriveAdminPlan({ driveId: "shared-drive" });
+test("Google Drive admin plan requires explicit admin emails", () => {
+  assert.deepEqual(DEFAULT_DRIVE_ADMIN_EMAILS, []);
+  assert.throws(
+    () => buildDriveAdminPlan({ driveId: "shared-drive" }),
+    /at least one Drive admin email is required/,
+  );
 
-  assert.deepEqual(plan.admins, DEFAULT_DRIVE_ADMIN_EMAILS);
+  const plan = buildDriveAdminPlan({ driveId: "shared-drive", emails: "admin@example.com" });
+  assert.deepEqual(plan.admins, ["admin@example.com"]);
   assert.equal(plan.role, "organizer");
-  assert.equal(plan.actions.length, 6);
+  assert.equal(plan.actions.length, 1);
   assert.ok(plan.actions.every((action) => action.action === "dry-run"));
 });
 

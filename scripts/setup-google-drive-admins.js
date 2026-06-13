@@ -3,14 +3,7 @@
 const { loadEnvFile } = require("./lib/env-file.cjs");
 const { parseEmails } = require("./setup-google-calendar-acl.js");
 
-const DEFAULT_DRIVE_ADMIN_EMAILS = [
-  "tina@flashbots.net",
-  "socrates1024@gmail.com",
-  "dan@flashbots.net",
-  "michael@flashbots.net",
-  "fredrik@flashbots.net",
-  "albi@flashbots.net",
-];
+const DEFAULT_DRIVE_ADMIN_EMAILS = [];
 
 const ROLE_RANK = {
   reader: 1,
@@ -42,8 +35,7 @@ function usage() {
     "  GOOGLE_DRIVE_ADMIN_EMAILS",
     "  GOOGLE_CALENDAR_ACCESS_TOKEN or GOOGLE_ACCESS_TOKEN",
     "",
-    "Default admin emails:",
-    `  ${DEFAULT_DRIVE_ADMIN_EMAILS.join(", ")}`,
+    "Admin emails must be supplied through --emails or GOOGLE_DRIVE_ADMIN_EMAILS.",
   ].join("\n");
 }
 
@@ -147,7 +139,7 @@ function buildDriveAdminPlan({
 } = {}) {
   if (!driveId) throw new Error("driveId is required");
   const admins = parseEmails(emails);
-  if (!admins.length) throw new Error("at least one valid admin email is required");
+  if (!admins.length) throw new Error("at least one Drive admin email is required; use --emails or GOOGLE_DRIVE_ADMIN_EMAILS");
   const normalizedRole = normalizeRole(role);
   return {
     drive_id: driveId,
