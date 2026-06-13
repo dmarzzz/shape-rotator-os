@@ -1196,50 +1196,41 @@ function buildMembraneSelfRead(record, team, connections, asks, askIdentity, tim
 // sources slot in here as they land.
 function buildWhatsNewFeed(c) {
   const out = [];
+
+  // GitHub releases — surfaced from the bundled `github_releases` items (built
+  // by scripts/build-bundles.js from the github-releases artifacts). Mirrors
+  // buildWhatsNew(): real published releases, not commit subjects. Normally
+  // c.whats_new is present and preferred (see computeMembraneData), so this
+  // fallback only runs when the bundled feed is missing.
+  for (const it of (Array.isArray(c?.github_releases) ? c.github_releases : [])) {
+    const date = String(it?.date || '').slice(0, 10);
+    const label = String(it?.label || '').trim();
+    if (!date || !label) continue;
+    out.push({ date, kind: 'release', label, meta: it.meta || '', nav: it.nav || { mode: 'shapes' } });
+  }
+
+  // Weekly commit activity — one digest item per project per week, mirroring
+  // buildWhatsNew(). Reads the bundled team_timeline "github progress" entries
+  // (one per project-week) rather than re-deriving from artifacts.
   const teamNameById = new Map(
     (Array.isArray(c?.teams) ? c.teams : []).map((t) => [String(t.record_id || ''), t.name || t.record_id])
   );
-
-  // GitHub activity. Each weekly artifact carries a few example commit
-  // subjects in its summary ("<categories> — ex1; ex2; ex3"); we split those
-  // out into individual commit items so an active repo fills the feed.
   const tt = (c && c.team_timeline) || {};
-  const seen = new Set();
   for (const teamId of Object.keys(tt)) {
     const project = teamNameById.get(teamId) || teamId;
     for (const it of (Array.isArray(tt[teamId]) ? tt[teamId] : [])) {
       if (it.type !== 'github progress') continue;
-      const date = String(it.date || '').trim();
+      const date = String(it.date || '').slice(0, 10);
       if (!date) continue;
-      const detail = String(it.detail || '');
-      const afterDash = detail.includes('—') ? detail.split('—').slice(1).join('—') : detail;
-      const commits = afterDash.split(/;|·|\|/).map((s) => s.trim().replace(/^(feat|fix|chore|docs|refactor|style|test|perf|build|ci|other|maintenance|feature)\s*:\s*/i, '')).filter((s) => s.length > 4);
-      const nav = { mode: 'shapes', recordId: teamId };
-      if (commits.length) {
-        for (const msg of commits.slice(0, 4)) {
-          const key = `r|${teamId}|${msg.toLowerCase()}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          out.push({ date, kind: 'release', label: msg, meta: project, nav });
-        }
-      } else {
-        const m = String(it.title || '').match(/:\s*(\d+)\s+commits?/i);
-        out.push({ date, kind: 'release', label: project, meta: m ? `${m[1]} commits` : 'new commits', nav });
-      }
+      const m = String(it.title || '').match(/:\s*(\d+)\s+commits?/i);
+      const label = m ? `${m[1]} commit${m[1] === '1' ? '' : 's'}` : 'new commits';
+      out.push({ date, kind: 'commit', label, meta: project, nav: { mode: 'shapes', recordId: teamId } });
     }
   }
 
-  // Newly-distilled transcripts / session readouts.
-  for (const s of (Array.isArray(c?.session_insights) ? c.session_insights : [])) {
-    const date = String(s.date || '').slice(0, 10);
-    if (!date) continue;
-    out.push({
-      date, kind: 'transcript',
-      label: s.title || s.one_liner || 'session',
-      meta: s.kind ? `${s.kind} · transcript` : 'transcript',
-      nav: { mode: 'context', contextView: 'raw' },
-    });
-  }
+  // Transcripts are intentionally not emitted — the renderer hides them, so
+  // they would only burn feed slots. Mirrors buildWhatsNew(); re-add once the
+  // readout → context deep-link lands.
 
   // Freshly-posted asks.
   for (const a of (Array.isArray(c?.asks) ? c.asks : [])) {
@@ -1266,7 +1257,7 @@ function buildWhatsNewFeed(c) {
   }
 
   out.sort((x, y) => String(y.date).localeCompare(String(x.date)));
-  return out.slice(0, 60);
+  return out.slice(0, 200); // high backstop — full program log, mirrors FEED_MAX
 }
 
 // stat dictionaries that the panels can render. Re-runs on every cohort

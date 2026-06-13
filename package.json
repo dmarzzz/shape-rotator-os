@@ -27,7 +27,8 @@
     "vendor:web": "node scripts/vendor-web.js",
     "deploy:web": "npm run vendor:web && cd apps/web && vercel deploy --prod --yes",
     "audit:github-progress": "node scripts/check-github-progress.mjs",
-    "review:github-progress": "node scripts/promote-github-progress-artifacts.mjs"
+    "review:github-progress": "node scripts/promote-github-progress-artifacts.mjs",
+    "audit:github-releases": "node scripts/check-github-releases.mjs"
   },
   "devDependencies": {
     "js-yaml": "^4.1.1",
