@@ -13119,6 +13119,27 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
   color: var(--ed-ink-3);
   overflow-wrap: anywhere;
 }
+/* github + x handles, each prefixed by its platform logo so it's clear
+ * what the handle is. Logo recedes (ink-4); handle text reads as contact. */
+.alch-seal-handles { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.alch-seal-handle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--ed-mono); font-size: 12px; letter-spacing: 0.02em;
+  color: var(--ed-ink-3);
+  text-decoration: none; cursor: pointer;
+  transition: color 140ms ease;
+}
+.alch-seal-handle svg { width: 13px; height: 13px; flex: 0 0 auto; color: var(--ed-ink-4); transition: color 140ms ease; }
+.alch-seal-handle:hover { color: var(--ed-ink-1); }
+.alch-seal-handle:hover svg { color: var(--ed-ink-1); }
+/* Team / project name → opens that record's cohort page in a new tab. */
+.alch-seal-team {
+  color: var(--ed-ink-2);
+  text-decoration: none; cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.alch-seal-team:hover { color: var(--ed-ink-1); border-bottom-color: currentColor; }
 .alch-seal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; align-self: center; }
 .alch-seal-btn {
   background: transparent;
