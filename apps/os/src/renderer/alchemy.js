@@ -1575,9 +1575,7 @@ function renderShapes() {
     if (r._kind === "person") return personCardHtml(r, idx, cardCtx);
     return teamCardHtml(r, idx, cardCtx);
   }).join("");
-  const emptyMsg = filter === "people"
-    ? `no ${escHtml(activeChip.label)} yet.`
-    : `no ${escHtml(activeChip.label)} yet.`;
+  const emptyMsg = `no ${escHtml(activeChip.label)} yet.`;
   const grid = records.length
     ? `<div class="alch-specimens">${cards}</div>`
     : `<p class="alch-pf-pick">${emptyMsg}</p>`;
@@ -3433,6 +3431,19 @@ function constMarketRoleForTeam(team) {
     .map((col, idx) => ({ ...col, score: scores.get(col.key) || 0, hits: hitsByKey.get(col.key) || [], idx }))
     .sort((a, b) => b.score - a.score || a.idx - b.idx);
   const primary = ranked[0];
+  // No keyword hits, no domain boost, no proof/market signal: the source data
+  // does not place this team anywhere. Don't fold it into substrate (the
+  // lowest-index column) as if it had a real placement — surface it as unplaced.
+  if (!primary.score) {
+    return {
+      key: "unplaced",
+      label: "no stack signal yet",
+      score: 0,
+      secondary: null,
+      reason: "profile only — no product-stack signal in declared text",
+      unplaced: true,
+    };
+  }
   const secondary = ranked.find(item => item.key !== primary.key && item.score > 0) || null;
   const roleReason = constStackRoleReason(primary.hits, domain);
   return {
@@ -3521,6 +3532,25 @@ function constStackPlacementHtml(team, ctx) {
     </section>`;
 }
 
+function constStackTeamButtonHtml(item, fallbackLabel = "") {
+  const domain = constDomainClass(item.team.domain);
+  const color = CONST_DOMAIN_COLORS[domain] || CONST_DOMAIN_COLORS.other;
+  const relationshipSurface = item.typed + item.profile;
+  const relationship = item.typed
+    ? `${item.typed} relationship record${item.typed === 1 ? "" : "s"}`
+    : (relationshipSurface ? `${item.profile} profile mention${item.profile === 1 ? "" : "s"}` : "no relationship lines");
+  const sourceSignal = item.evidence.key === "profile" ? "profile data" : item.evidence.label;
+  const title = `${item.team.name || item.team.record_id}: ${item.team.focus || item.team.now || item.role.reason || fallbackLabel}`;
+  return `
+                <button type="button" class="ac-stack-team ac-stack-domain-${escAttr(domain)}" data-const-team="${escAttr(item.team.record_id)}" title="${escAttr(title)}" aria-label="${escAttr(title)}" style="--team-color:${escAttr(color)};--team-size:12px">
+                  <i aria-hidden="true"></i>
+                  <span>${escHtml(item.team.name || item.team.record_id)}</span>
+                  <p>${escHtml(constShortText(item.team.focus || item.team.now || item.role.reason, 124))}</p>
+                  <em>${escHtml(sourceSignal)}</em>
+                  <small>${escHtml(relationship)}</small>
+                </button>`;
+}
+
 function constProductStackHtml(model) {
   const layerRows = model.columns
     .map(col => {
@@ -3535,7 +3565,21 @@ function constProductStackHtml(model) {
       return { col, items };
     })
     .filter(group => group.items.length);
-  if (!layerRows.length) return `<p class="ac-stack-empty">no companies to place yet.</p>`;
+  const unplaced = model.teamRows
+    .filter(item => item.role.key === "unplaced")
+    .slice()
+    .sort((a, b) => String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id)));
+  if (!layerRows.length && !unplaced.length) return `<p class="ac-stack-empty">no companies to place yet.</p>`;
+  const unplacedHtml = unplaced.length ? `
+        <section class="ac-stack-layer ac-stack-layer-unplaced">
+          <header class="ac-stack-layer-head">
+            <strong>no stack signal yet</strong>
+            <span>${escHtml(constTeamCountText(unplaced.length))}</span>
+          </header>
+          <div class="ac-stack-layer-list">
+            ${unplaced.map(item => constStackTeamButtonHtml(item, "no stack signal yet")).join("")}
+          </div>
+        </section>` : "";
   return `
     <div class="ac-stack-view is-layer-list">
       ${layerRows.map(({ col, items }) => `
@@ -3545,28 +3589,10 @@ function constProductStackHtml(model) {
             <span>${escHtml(constTeamCountText(items.length))}</span>
           </header>
           <div class="ac-stack-layer-list">
-            ${items.map(item => {
-              const domain = constDomainClass(item.team.domain);
-              const color = CONST_DOMAIN_COLORS[domain] || CONST_DOMAIN_COLORS.other;
-              const relationshipSurface = item.typed + item.profile;
-              const relationship = item.typed
-                ? `${item.typed} relationship record${item.typed === 1 ? "" : "s"}`
-                : (relationshipSurface ? `${item.profile} profile mention${item.profile === 1 ? "" : "s"}` : "no relationship lines");
-              const sourceSignal = item.evidence.key === "profile"
-                ? "profile data"
-                : item.evidence.label;
-              const title = `${item.team.name || item.team.record_id}: ${item.team.focus || item.team.now || item.role.reason || col.label}`;
-              return `
-                <button type="button" class="ac-stack-team ac-stack-domain-${escAttr(domain)}" data-const-team="${escAttr(item.team.record_id)}" title="${escAttr(title)}" aria-label="${escAttr(title)}" style="--team-color:${escAttr(color)};--team-size:12px">
-                  <i aria-hidden="true"></i>
-                  <span>${escHtml(item.team.name || item.team.record_id)}</span>
-                  <p>${escHtml(constShortText(item.team.focus || item.team.now || item.role.reason, 124))}</p>
-                  <em>${escHtml(sourceSignal)}</em>
-                  <small>${escHtml(relationship)}</small>
-                </button>`;
-            }).join("")}
+            ${items.map(item => constStackTeamButtonHtml(item, col.label)).join("")}
           </div>
         </section>`).join("")}
+      ${unplacedHtml}
     </div>`;
 }
 
@@ -4830,18 +4856,27 @@ function renderJourney() {
   // Filters (persist for the session). side = include the off-track stage-0
   // "side project" column; bottleneck = isolate one bottleneck.
   const jf = state.journeyFilters || (state.journeyFilters = { teams: true, projects: true, side: true, bottleneck: null });
+  // Only reserve the off-track "side project" column (stage 0) when some record
+  // actually sits there. With none, the column + divider + include-toggle are
+  // hidden and the populated stages reclaim that ~11% of plot width.
+  const sideEligible = all.some((t) => teamKind(t) !== "person" && journeyFor(t).stage === 0);
+  if (!sideEligible) jf.side = true; // toggle is hidden; don't let stale state hide anything
   const teams = all.filter((t) => {
     const j = journeyFor(t);
     const isProject = teamKind(t) === "project";
     if (isProject && !jf.projects) return false;
     if (!isProject && !jf.teams) return false;
     if (j.stage === 0 && !jf.side) return false;
-    if (jf.bottleneck && j.primary_bottleneck !== jf.bottleneck) return false;
     return true;
   });
+  // Bottleneck isolation DIMS non-matching dots (below) rather than removing
+  // them — a positional scatter loses its meaning if you drop the field it
+  // plots against.
+  const bnFocus = jf.bottleneck || null;
   // Stage distribution over the filtered set (drives the per-column counts).
   const stageCounts = new Array(9).fill(0);
   for (const t of teams) stageCounts[journeyFor(t).stage]++;
+  const minStage = sideEligible ? 0 : 1;
   const W = 1120, H = 560;
   // Plot area inset: leave room for axis labels (left = evidence, bottom = stage).
   const PAD_L = 178, PAD_R = 30, PAD_T = 30, PAD_B = 106;
@@ -4851,14 +4886,15 @@ function renderJourney() {
   // set apart by a divider — then stages 1..8 (idea → scale fit). 9 columns.
   // Y = evidence_quality (1..5, higher = up).
   const STAGE_COUNT = JOURNEY_STAGE_LABELS.length; // 9 (0..8)
-  const colW = plotW / STAGE_COUNT;
+  const spanStages = STAGE_COUNT - minStage;       // visible columns: 9, or 8 with no side track
+  const colW = plotW / spanStages;
   const rowH = plotH / 5;
-  const xForStage = (stage) => PAD_L + (stage + 0.5) * colW;
+  const xForStage = (stage) => PAD_L + (stage - minStage + 0.5) * colW;
   const yForEvidence = (ev) => PAD_T + plotH - (ev - 0.5) * rowH;
 
   // ── grid + axis labels ──
   const gridLines = [];
-  for (let i = 0; i <= STAGE_COUNT; i++) {
+  for (let i = 0; i <= spanStages; i++) {
     const x = PAD_L + i * colW;
     gridLines.push(`<line class="ac-jgrid" x1="${x.toFixed(1)}" y1="${PAD_T}" x2="${x.toFixed(1)}" y2="${(PAD_T + plotH).toFixed(1)}"/>`);
   }
@@ -4866,21 +4902,25 @@ function renderJourney() {
     const y = PAD_T + i * rowH;
     gridLines.push(`<line class="ac-jgrid" x1="${PAD_L}" y1="${y.toFixed(1)}" x2="${(PAD_L + plotW).toFixed(1)}" y2="${y.toFixed(1)}"/>`);
   }
-  // Divider between the off-track side-project column (0) and idea (1).
-  const dividerX = PAD_L + colW;
-  gridLines.push(`<line class="ac-jdivider" x1="${dividerX.toFixed(1)}" y1="${(PAD_T - 6).toFixed(1)}" x2="${dividerX.toFixed(1)}" y2="${(PAD_T + plotH + 6).toFixed(1)}"/>`);
+  // Divider between the off-track side-project column (0) and idea (1) — only
+  // drawn when the side column is shown.
+  if (minStage === 0) {
+    const dividerX = PAD_L + colW;
+    gridLines.push(`<line class="ac-jdivider" x1="${dividerX.toFixed(1)}" y1="${(PAD_T - 6).toFixed(1)}" x2="${dividerX.toFixed(1)}" y2="${(PAD_T + plotH + 6).toFixed(1)}"/>`);
+  }
   const stageAxisLines = [
     ["side", "project"],
     ["1", "idea"],
     ["2", "problem", "discovery"],
     ["3", "problem-", "solution fit"],
-    ["4", "product", "validation"],
-    ["5", "scaling", "traction"],
+    ["4", "mvp / product", "validation"],
+    ["5", "early", "traction"],
     ["6", "emerging", "pmf"],
     ["7", "strong", "pmf"],
     ["8", "scale", "fit"],
   ];
   const xLabels = JOURNEY_STAGE_LABELS.map((lbl, stage) => {
+    if (stage < minStage) return "";
     const x = xForStage(stage);
     const cls = stage === 0 ? "ac-jaxis-x ac-jaxis-x-side" : "ac-jaxis-x";
     const lines = stageAxisLines[stage] || [String(stage), lbl];
@@ -4953,6 +4993,7 @@ function renderJourney() {
     const label = labelPos.get(t.record_id) || null;
     const labelClass = label ? " is-labeled" : "";
     const contextClass = assessed ? "" : " is-profile-context";
+    const bnClass = bnFocus ? (j.primary_bottleneck === bnFocus ? " is-bn-match" : " is-bn-dim") : "";
     const dotClass = assessed ? `ac-jdot ac-jfam-${famIdx}` : "ac-jdot ac-jprofile-dot";
     const title = assessed
       ? `${t.name || t.record_id}: ${JOURNEY_STAGE_LABELS[j.stage] || "journey"} / ${JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "evidence"}`
@@ -4960,7 +5001,7 @@ function renderJourney() {
     const labelX = label ? label.x : 0;
     const labelY = label ? label.y : -r - 8;
     const labelAnchor = label ? label.anchor : "middle";
-    return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${t.name || t.record_id} journey`)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
+    return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}${bnClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${t.name || t.record_id} journey`)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
         <title>${escHtml(title)}</title>
         <circle class="ac-jhit" r="${Math.max(18, r + 9).toFixed(1)}"/>
         <circle class="${dotClass}" r="${r.toFixed(1)}"/>
@@ -5006,8 +5047,7 @@ function renderJourney() {
       ${includeChip("teams", "teams")}
       <span class="ac-sent-word">+</span>
       ${includeChip("projects", "projects")}
-      <span class="ac-sent-word">+</span>
-      ${includeChip("side", "side projects")}
+      ${sideEligible ? `<span class="ac-sent-word">+</span>${includeChip("side", "side projects")}` : ""}
       ${bottleneckChip}
     </div>`;
 
@@ -6339,6 +6379,14 @@ function wireConstellationHover() {
       if (editing) return;
       if (!state.canvas?.querySelector(".alch-constellation")) return;
       e.preventDefault();
+      // journey/stack drive their selected-readout from the markup, not a live
+      // .ac-inspector panel — setConstellationInspector can't reach it, so clear
+      // selection and re-render. Map/ring/people have the panel and update live.
+      if (!state.canvas.querySelector(".ac-inspector")) {
+        state.constSelection = null;
+        render();
+        return;
+      }
       setConstellationInspector(null, constellationCurrentInspectorContext());
     });
   }
@@ -8793,8 +8841,10 @@ function collabTeamInspectorHtml(rid, m = collabCurrentModel()) {
   const row = m.ordered.find(o => o.rid === rid);
   const inbound = (m.keystones.find(k => k.rid === rid)?.inbound || []).map(id => collabTeamByRecordId(id, m)).filter(Boolean);
   const outbound = (m.keystones.find(k => k.rid === rid)?.outbound || []).map(id => collabTeamByRecordId(id, m)).filter(Boolean);
-  const getsHelpFrom = m.seekOffer.filter(s => s.seeker === rid).slice(0, 3); // teams that offer what this team seeks
-  const givesHelpTo = m.seekOffer.filter(s => s.offerer === rid).slice(0, 3); // teams seeking what this team offers
+  const getsHelpFromAll = m.seekOffer.filter(s => s.seeker === rid); // teams that offer what this team seeks
+  const givesHelpToAll = m.seekOffer.filter(s => s.offerer === rid); // teams seeking what this team offers
+  const getsHelpFrom = getsHelpFromAll.slice(0, 3);
+  const givesHelpTo = givesHelpToAll.slice(0, 3);
   const meta = row?.clusterLabel || domainLabel(team.domain) || "team";
 
   const people = collabPeopleForTeam(rid);
@@ -8810,7 +8860,7 @@ function collabTeamInspectorHtml(rid, m = collabCurrentModel()) {
           ${collabTeamMetaInlineHtml(team, people)}
         </div>
       </div>
-      ${collabTeamRouteRailHtml({ outbound, inbound, getsHelpFrom, givesHelpTo })}
+      ${collabTeamRouteRailHtml({ outbound, inbound, getsHelpFrom: getsHelpFromAll, givesHelpTo: givesHelpToAll })}
       ${collabJourneyCompactHtml(team)}
       ${collabSignalHtml(team)}
       ${collabNetworkHtml([
@@ -8829,6 +8879,10 @@ function collabTeamInspectorHtml(rid, m = collabCurrentModel()) {
 // Compact PMF journey — the 8-stage track + evidence/upside dots, smaller than
 // the full cohort-profile version (no long meter labels).
 function collabJourneyCompactHtml(team) {
+  // journeyFor() returns stage-1 defaults for teams with no journey block, so a
+  // `stage <= 0` guard never fires — gate on a real self-entered read instead,
+  // matching the scatter, so we don't show fabricated "stage 1/8" data.
+  if (!journeyAssessed(team)) return "";
   const j = journeyFor(team);
   if (!j || j.stage <= 0) return "";
   const segs = [];
@@ -11777,7 +11831,7 @@ async function exportDossier() {
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
   ctx.fillStyle = CAL_INK_1;
-  ctx.font = `italic 44px "Iowan Old Style", "Hoefler Text", Georgia, serif`;
+  ctx.font = `italic 44px "Space Grotesk", "Inter", system-ui, sans-serif`;
   ctx.globalAlpha = 0.96;
   ctx.fillText("cohort dossier", padL, 64);
   ctx.font = `400 13px "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace`;
@@ -11887,14 +11941,14 @@ function drawDossierCard(ctx, team, members, x, y, w, h) {
 
   // ── Name (right, large italic Iowan) ──────────────────────────────
   const textX = glyphX + glyphSize + 22;
-  ctx.font = `italic 26px "Iowan Old Style", "Hoefler Text", Georgia, serif`;
+  ctx.font = `italic 26px "Space Grotesk", "Inter", system-ui, sans-serif`;
   ctx.fillStyle = CAL_INK_1;
   ctx.globalAlpha = 0.96;
   ctx.fillText(team.name || "—", textX, glyphY + 26);
 
   // ── Focus (italic, smaller) ────────────────────────────────────────
   if (team.focus) {
-    ctx.font = `italic 13.5px "Iowan Old Style", "Hoefler Text", Georgia, serif`;
+    ctx.font = `italic 13.5px "Space Grotesk", "Inter", system-ui, sans-serif`;
     ctx.globalAlpha = 0.78;
     wrapText(ctx, team.focus, textX, glyphY + 50, w - (textX - x) - 20, 18, 3);
   }

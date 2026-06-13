@@ -6495,6 +6495,12 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-stage[data-selection-active="true"] svg .ac-jnode.is-selection-outside {
   opacity: 0.45;
 }
+/* Bottleneck isolation recedes non-matching dots instead of removing them, so
+ * the scatter keeps its spatial field. Matched dots stay full + gain a touch of
+ * stroke weight to pop. */
+.alch-journey-stage svg .ac-jnode.is-bn-dim { opacity: 0.18; }
+.alch-journey-stage svg .ac-jnode.is-bn-dim .ac-jnode-label { opacity: 0; }
+.alch-journey-stage svg .ac-jnode.is-bn-match .ac-jdot { stroke-width: 2; }
 /* In the all lens, keep resting edges legible enough to invite inspection
    without letting untyped legacy links dominate the wells. Hover restores them. */
 /* At-rest edge opacity/width per lens also lives in the .ac-edge-dependency
@@ -8419,8 +8425,21 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   opacity: 0.58;
 }
 .alch-constellation-stage[data-selection-active="true"] .ac-stack-team.is-selection-outside {
-  opacity: 0.18;
+  /* The stack has no edges, so selecting a team marks every other tile
+   * "outside". Keep them readable (~0.5) so the layer comparison the view
+   * exists for survives a selection — the picked tile still pops via
+   * is-selection-core (opacity 1) + the .is-selected ring. */
+  opacity: 0.5;
 }
+/* Teams the source data places nowhere (no keyword hits, no domain/proof/market
+ * signal) are grouped here rather than folded into substrate as a false read. */
+.ac-stack-layer.ac-stack-layer-unplaced {
+  opacity: 0.6;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(241, 236, 231, 0.14);
+}
+.ac-stack-layer.ac-stack-layer-unplaced .ac-stack-layer-head strong { font-style: italic; }
 @media (max-width: 820px) {
   .alch-constellation-legend { max-width: 100%; padding-right: 0; }
   .alch-constellation-stage > .ac-distribution-card { position: static; width: auto; margin: 8px; }
@@ -9028,7 +9047,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   background: var(--journey-control-bg-hover);
 }
 /* Tooltip — anchored to the stage, positioned in JS on mousemove. */
-.alch-journey-tip {
+.ac-tip {
   position: absolute; top: 0; left: 0; z-index: 5;
   max-width: 286px; pointer-events: none;
   padding: 11px 12px 12px;
@@ -9086,7 +9105,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   background: rgba(var(--ink-rgb), 0.012);
   color: var(--alchemy-ink-mute);
   font-family: var(--font-mono);
-  font-size: 11px; color: var(--alchemy-oxide-bright);
+  font-size: 11px;
   margin-right: 6px;
 }
 .alch-feed-time {
@@ -11035,7 +11054,7 @@ button.cb-cell:disabled { cursor: default; }
 .alch-collab .cb-colhead.is-quiet:focus-visible { opacity: 0.85; }
 
 .alch-collab .cb-grid {
-  --cb-cell: clamp(20px, 2vw, 28px);
+  --cb-cell: clamp(24px, 2vw, 28px);
   --cb-rowhead: clamp(120px, 12vw, 156px);
   min-width: max-content;
   padding-right: 28px;

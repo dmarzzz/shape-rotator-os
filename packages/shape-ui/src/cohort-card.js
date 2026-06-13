@@ -246,7 +246,7 @@ export function teamCardHtml(t, idx, ctx = {}) {
         </div>
       </div>
       <div class="alch-card-meta">
-        <div class="alch-card-meta-row"><span class="cm-k">geo</span><span class="cm-v">${escHtml(t.geo)}</span></div>
+        <div class="alch-card-meta-row"><span class="cm-k">geo</span><span class="cm-v">${escHtml(t.geo || "—")}</span></div>
         <div class="alch-card-meta-row alch-card-members-row"><span class="cm-k">${escHtml(roster.label)}</span><span class="cm-v">${rosterValue}</span></div>
         ${compactLinksRow(t)}
       </div>

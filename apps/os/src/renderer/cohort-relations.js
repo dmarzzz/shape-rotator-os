@@ -198,7 +198,29 @@ export function constellationDependencyEdges(teams = [], byRecordId, dependencyR
       edges.push(legacyDependencyEdge(team, dependencyId));
     }
   }
-  return edges;
+  // Collapse mirror pairs. When A→B and B→A both exist they usually describe ONE
+  // relationship declared from both sides (most commonly a typed dependency
+  // record one way and an untyped profile mention the other) — drawing two
+  // opposing arrows and double-counting it in degree/coverage/score. Keep the
+  // typed edge when exactly one side is typed, else the lexicographically-first
+  // endpoint as the canonical direction; flag the survivor `mutual`. Two typed
+  // records (a deliberately authored bidirectional pair) are left as-is.
+  const collapsed = [];
+  const indexByPair = new Map();
+  for (const edge of edges) {
+    const pairKey = collabAffKey(edge.from, edge.to);
+    if (!indexByPair.has(pairKey)) {
+      indexByPair.set(pairKey, collapsed.length);
+      collapsed.push(edge);
+      continue;
+    }
+    const at = indexByPair.get(pairKey);
+    const existing = collapsed[at];
+    if (existing.normalized && edge.normalized) { collapsed.push(edge); continue; }
+    if (edge.normalized && !existing.normalized) collapsed[at] = { ...edge, mutual: true };
+    else collapsed[at] = { ...existing, mutual: true };
+  }
+  return collapsed;
 }
 
 export function constellationIndegree(teams = [], dependencyRecords = []) {
