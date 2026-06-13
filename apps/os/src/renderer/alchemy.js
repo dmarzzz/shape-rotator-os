@@ -7962,6 +7962,39 @@ function toggleOnboardingDone(key) {
   saveOnboardingDone(cur);
 }
 
+// One completion control per step, pinned to the right edge of the action
+// row so "do it" (left) and "mark done" (right) read as opposite outcomes.
+// Three honest states, each whose resting style encodes what a click does:
+//   • auto-detected → passive gold chip ("detected"). The cohort surface
+//     already knows this is done (e.g. profile fields synced), so there is
+//     nothing to toggle — the override map is force-ON only and can't
+//     un-detect a real signal. Not a button.
+//   • manually done → solid gold pill, aria-pressed, click to undo.
+//   • todo         → outlined neutral pill, click to mark done.
+// The left-edge data-state spine remains the single PASSIVE completion
+// signal; this is the single completion AFFORDANCE — no third encoding.
+function onbCompleteControl(s) {
+  const key = escAttr(s.key);
+  if (s.autoComplete) {
+    return `<span class="alch-onb-complete alch-onb-complete-auto" role="status"
+                  title="detected from your synced cohort profile">
+        <span class="alch-onb-complete-mark" aria-hidden="true"></span>detected
+      </span>`;
+  }
+  if (s.overridden) {
+    return `<button class="alch-onb-complete alch-onb-complete-on" type="button"
+                    data-onb-toggle="${key}" aria-pressed="true"
+                    title="marked done on this machine — click to undo">
+        <span class="alch-onb-complete-mark" aria-hidden="true"></span>marked done
+      </button>`;
+  }
+  return `<button class="alch-onb-complete" type="button"
+                  data-onb-toggle="${key}" aria-pressed="false"
+                  title="stored in localStorage on this machine">
+      <span class="alch-onb-complete-mark" aria-hidden="true"></span>mark done
+    </button>`;
+}
+
 function renderOnboarding() {
   const cohortIndex = buildCohortIndex(state.cohort);
   const people = cohortIndex.people;
@@ -8179,10 +8212,6 @@ function renderOnboarding() {
     // Per-step "mark done" toggle. Reflects + writes the localStorage map.
     // When auto-detect already says complete we still show the toggle so the
     // user can manually uncheck (and re-pin the step's state if they want).
-    const toggleLabel = s.overridden
-      ? "✓ marked done"
-      : (s.autoComplete ? "auto · mark done" : "mark done");
-    const toggleCls = s.overridden ? "alch-onb-done alch-onb-done-on" : "alch-onb-done";
     return separator + `
       <li class="alch-onb-step${s.bonus ? " alch-onb-step-bonus" : ""}" data-state="${escAttr(s.state)}">
         <div class="alch-onb-step-num">${escHtml(s.n)}</div>
@@ -8193,23 +8222,34 @@ function renderOnboarding() {
           <div class="alch-onb-step-actions">
             ${action}
             ${secondary}
-            <button class="${toggleCls}" type="button"
-                    data-onb-toggle="${escAttr(s.key)}"
-                    aria-pressed="${s.overridden}"
-                    title="stored in localStorage on this machine">
-              ${escHtml(toggleLabel)}
-            </button>
+            ${onbCompleteControl(s)}
           </div>
         </div>
-        <div class="alch-onb-step-mark" aria-hidden="true"></div>
       </li>
     `;
   }).join("");
 
+  // Overall progress — a single derived number stated in the dek and shown
+  // as a thin gold rule. Core steps only (bonus rows never inflate the
+  // denominator), matching the 01..06 / B1.. numbering split.
+  const coreTotal  = steps.filter(s => !s.bonus).length;
+  const bonusTotal = steps.filter(s =>  s.bonus).length;
+  const doneCore   = steps.filter(s => !s.bonus && s.state === "complete").length;
+  const corePct    = coreTotal ? Math.round((doneCore / coreTotal) * 100) : 0;
+
   state.canvas.innerHTML = `
+    <header class="alch-onb-head">
+      <h1 class="alch-onb-title">first week</h1>
+      <p class="alch-onb-sub">${coreTotal} core${bonusTotal ? ` · ${bonusTotal} optional` : ""} — <strong>${doneCore} of ${coreTotal} done</strong></p>
+      <div class="alch-onb-progress" role="progressbar"
+           aria-valuemin="0" aria-valuemax="${coreTotal}" aria-valuenow="${doneCore}"
+           aria-label="core onboarding progress">
+        <span class="alch-onb-progress-fill" style="width:${corePct}%"></span>
+      </div>
+    </header>
     <ol class="alch-onb-steps">${stepHtml}</ol>
     <p class="alch-callout"><strong>onboarding · v0.5</strong><br/>
-    01 + 03 auto-complete (you're in the app, so the local agent + Electron app are running). 02 sets up the field-kit so your agent gets CLI superpowers — voxterm comes bundled. 04 routes your profile through the field-kit's <code>/shape-rotator-profile</code> skill (with the in-app editor as fallback). 05 opens the live matrix join flow; 06 opens the local interview app/status. the bonus rows are second-agent (hermes) and adding your bot to matrix — optional, do them later.</p>
+    progress is saved on this machine. steps marked <em>detected</em> read from your synced cohort profile, so they stay done across devices once your profile syncs.</p>
   `;
 }
 
@@ -8458,7 +8498,7 @@ async function submitOnboardingInline(form) {
 }
 
 function wireOnboarding() {
-  for (const btn of state.canvas.querySelectorAll(".alch-onb-done[data-onb-toggle]")) {
+  for (const btn of state.canvas.querySelectorAll("[data-onb-toggle]")) {
     btn.addEventListener("click", () => {
       const key = btn.dataset.onbToggle;
       if (!key) return;
