@@ -908,6 +908,54 @@ function todayGridEvents(cal) {
   } catch { return []; }
 }
 
+// Timed grid events for the NEXT `days` days (not today) — the look-ahead
+// that keeps the agenda from reading empty on a quiet today. Same parsing as
+// todayGridEvents, generalized to iterate the current + following week rows
+// and keep only future days within the window. Matches days by LOCAL Y/M/D
+// (the grid cells are UTC-midnight) exactly like todayGridEvents.
+function upcomingGridEvents(cal, days = 28) {
+  try {
+    if (!cal || !cal.tabs) return [];
+    const tabName = cal.tabs["May 18 Start"] ? "May 18 Start" : Object.keys(cal.tabs)[0];
+    const rows = cal.tabs[tabName] || [];
+    const baseWk = calendarCurrentWeekIdx();
+    const DAY = 24 * 60 * 60 * 1000;
+    const n = new Date();
+    const todayStart = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+    const horizon = todayStart + days * DAY;
+    const out = [];
+    for (let wk = baseWk; wk <= baseWk + 4; wk++) {
+      const weekRow = rows[2 + wk];
+      if (!weekRow) continue;
+      let week;
+      try { week = calendarParseWeekRow(weekRow, wk); } catch { continue; }
+      for (const d of (week.days || [])) {
+        const dd = new Date(d.dayMs); // grid cell at UTC midnight
+        const localStart = new Date(dd.getUTCFullYear(), dd.getUTCMonth(), dd.getUTCDate()).getTime();
+        if (localStart <= todayStart || localStart >= horizon) continue;
+        const dayOffset = Math.round((localStart - todayStart) / DAY);
+        const ld = new Date(localStart);
+        const date = `${ld.getFullYear()}-${String(ld.getMonth() + 1).padStart(2, "0")}-${String(ld.getDate()).padStart(2, "0")}`;
+        for (const block of (d.blocks || [])) {
+          const first = String(block).split("\n")[0].trim();
+          let time = "", rest = "";
+          const range = first.match(/^(\d{1,2}:\d{2})\s*[-–—:]\s*(\d{1,2}:\d{2})(.*)$/);
+          if (range) { time = `${range[1]}–${range[2]}`; rest = range[3]; }
+          else {
+            const single = first.match(/^(\d{1,2}:\d{2})(.*)$/);
+            if (!single) continue;
+            time = single[1]; rest = single[2];
+          }
+          rest = rest.replace(/^[\s.·:–—-]+/, "").trim();
+          if (!rest) continue;
+          out.push({ date, dayOffset, time, title: rest, sub: "", source: "grid" });
+        }
+      }
+    }
+    return out;
+  } catch { return []; }
+}
+
 function membraneText(value) {
   if (Array.isArray(value)) return value.map(membraneText).filter(Boolean).join("; ");
   return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
@@ -1125,6 +1173,87 @@ function buildMembraneSelfRead(record, team, connections, asks, askIdentity, tim
 }
 
 // Cross-blob data feed. Read the cohort surface and shape it into per-blob
+// "What's new" feed — a recency-sorted stream of cohort activity for the
+// membrane's left edge. Pulls dated signals from sources already in the
+// surface and expands them to commit/session granularity so the feed reads
+// full, not sparse. Each item is {date, kind, label, meta, nav} where nav
+// describes the OS location to open in a new tab when clicked. New signal
+// sources slot in here as they land.
+function buildWhatsNewFeed(c) {
+  const out = [];
+  const teamNameById = new Map(
+    (Array.isArray(c?.teams) ? c.teams : []).map((t) => [String(t.record_id || ''), t.name || t.record_id])
+  );
+
+  // GitHub activity. Each weekly artifact carries a few example commit
+  // subjects in its summary ("<categories> — ex1; ex2; ex3"); we split those
+  // out into individual commit items so an active repo fills the feed.
+  const tt = (c && c.team_timeline) || {};
+  const seen = new Set();
+  for (const teamId of Object.keys(tt)) {
+    const project = teamNameById.get(teamId) || teamId;
+    for (const it of (Array.isArray(tt[teamId]) ? tt[teamId] : [])) {
+      if (it.type !== 'github progress') continue;
+      const date = String(it.date || '').trim();
+      if (!date) continue;
+      const detail = String(it.detail || '');
+      const afterDash = detail.includes('—') ? detail.split('—').slice(1).join('—') : detail;
+      const commits = afterDash.split(/;|·|\|/).map((s) => s.trim().replace(/^(feat|fix|chore|docs|refactor|style|test|perf|build|ci|other|maintenance|feature)\s*:\s*/i, '')).filter((s) => s.length > 4);
+      const nav = { mode: 'shapes', recordId: teamId };
+      if (commits.length) {
+        for (const msg of commits.slice(0, 4)) {
+          const key = `r|${teamId}|${msg.toLowerCase()}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push({ date, kind: 'release', label: msg, meta: project, nav });
+        }
+      } else {
+        const m = String(it.title || '').match(/:\s*(\d+)\s+commits?/i);
+        out.push({ date, kind: 'release', label: project, meta: m ? `${m[1]} commits` : 'new commits', nav });
+      }
+    }
+  }
+
+  // Newly-distilled transcripts / session readouts.
+  for (const s of (Array.isArray(c?.session_insights) ? c.session_insights : [])) {
+    const date = String(s.date || '').slice(0, 10);
+    if (!date) continue;
+    out.push({
+      date, kind: 'transcript',
+      label: s.title || s.one_liner || 'session',
+      meta: s.kind ? `${s.kind} · transcript` : 'transcript',
+      nav: { mode: 'context', contextView: 'raw' },
+    });
+  }
+
+  // Freshly-posted asks.
+  for (const a of (Array.isArray(c?.asks) ? c.asks : [])) {
+    const date = String(a.posted_at || '').slice(0, 10);
+    if (!date) continue;
+    out.push({
+      date, kind: 'ask',
+      label: a.topic || a.verb || 'ask',
+      meta: `${a.verb || 'ask'} · ask`,
+      nav: { mode: 'asks' },
+    });
+  }
+
+  // Program events added to the calendar.
+  for (const e of (Array.isArray(c?.events) ? c.events : [])) {
+    const date = String(e.date || e.range_start || e.starts_at || '').slice(0, 10);
+    if (!date) continue;
+    out.push({
+      date, kind: 'event',
+      label: e.title || e.name || 'program event',
+      meta: e.subtitle ? `${e.subtitle} · event` : 'event',
+      nav: { mode: 'calendar' },
+    });
+  }
+
+  out.sort((x, y) => String(y.date).localeCompare(String(x.date)));
+  return out.slice(0, 60);
+}
+
 // stat dictionaries that the panels can render. Re-runs on every cohort
 // refresh via subscribeToCohortChanges → render() chain.
 function computeMembraneData() {
@@ -1222,6 +1351,51 @@ function computeMembraneData() {
   }
   eventsToday.sort((a, b) =>
     (a.time ? 1 : 0) - (b.time ? 1 : 0) || String(a.time).localeCompare(String(b.time)));
+
+  // UPCOMING agenda — the next several days of events, so the widget rolls
+  // forward and never reads empty on a quiet today (Apple "Up Next" model).
+  // Same two sources as today (grid cells + cohort spans), generalized to a
+  // ~4-week window. Deduped by title across the whole window (so recurring
+  // spans like "daily tea" surface once at their soonest day, keeping
+  // variety), and we skip anything already shown in today. Day-ordered, then
+  // untimed-first within a day; capped so it can't overflow the column.
+  const UP_WINDOW_DAYS = 28;
+  const UP_MAX = 10;
+  const upByDay = new Map();
+  const pushUp = (off, item) => { if (!upByDay.has(off)) upByDay.set(off, []); upByDay.get(off).push(item); };
+  for (const g of upcomingGridEvents(c.calendar, UP_WINDOW_DAYS)) pushUp(g.dayOffset, g);
+  for (let off = 1; off <= UP_WINDOW_DAYS; off++) {
+    const ds = todayStartMs + off * DAY_MS;
+    const de = ds + DAY_MS;
+    for (const u of spans) {
+      if (u.startMs < de && u.endMs >= ds) {
+        const ld = new Date(ds);
+        pushUp(off, {
+          date: `${ld.getFullYear()}-${String(ld.getMonth() + 1).padStart(2, '0')}-${String(ld.getDate()).padStart(2, '0')}`,
+          dayOffset: off,
+          time: '',
+          title: u.e.title || u.e.name || 'untitled',
+          sub: u.e.subtitle || '',
+          ongoing: (u.endMs - u.startMs) > 12 * 60 * 60 * 1000,
+          source: 'events',
+        });
+      }
+    }
+  }
+  const seenUp = new Set(eventsToday.map((it) => (it.title || '').toLowerCase().trim()));
+  const eventsUpcoming = [];
+  for (const off of [...upByDay.keys()].sort((a, b) => a - b)) {
+    if (eventsUpcoming.length >= UP_MAX) break;
+    const dayItems = upByDay.get(off).sort((a, b) =>
+      (a.time ? 1 : 0) - (b.time ? 1 : 0) || String(a.time).localeCompare(String(b.time)));
+    for (const it of dayItems) {
+      const k = (it.title || '').toLowerCase().trim();
+      if (!k || seenUp.has(k)) continue;
+      seenUp.add(k);
+      eventsUpcoming.push(it);
+      if (eventsUpcoming.length >= UP_MAX) break;
+    }
+  }
 
   // Connections — mirror the constellation view's relationship edges into a
   // flat list the self panel can render. Includes teammates (same team),
@@ -1339,6 +1513,7 @@ function computeMembraneData() {
       nextEventInMs,
       eventsList: events,
       eventsToday,
+      eventsUpcoming,
     },
     asks: {
       openAskCount: String(openAsks),
@@ -1347,6 +1522,9 @@ function computeMembraneData() {
       peopleList: people,
       askIdentity,
     },
+    // Prefer the build-time feed bundled in the surface (full, stable);
+    // fall back to the live builder if it's somehow absent.
+    feed: (Array.isArray(c.whats_new) && c.whats_new.length) ? c.whats_new : buildWhatsNewFeed(c),
   };
 }
 

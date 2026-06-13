@@ -14,6 +14,10 @@
   --membrane-mist: #f1ece7;
   --membrane-mist-mid: #b8b3ad;
   --membrane-mist-dim: #6f6a64;
+  /* Cream ink as an --ink-rgb-style triple — every body-text / hairline site
+     reads rgba(var(--mem-ink-rgb), α). Dark mode = cream; the light-mode block
+     below flips this one value to dark ink, swinging all of them at once. */
+  --mem-ink-rgb: 247, 242, 236;
   --membrane-ember: #ff7a3d;          /* brighter neon ember */
   --membrane-ember-deep: #c75a2a;
   --membrane-ember-soft: rgba(255, 122, 61, 0.55);
@@ -24,6 +28,102 @@
   --membrane-card-top: rgba(36, 30, 36, 0.62);
   --membrane-rule: rgba(var(--ink-rgb), 0.08);
 }
+
+/* ── Light mode ──────────────────────────────────────────────────────────
+   The membrane was built dark-only. In light mode we flip the host to paper,
+   swing the ink triple to dark, turn the glass panels light, and lighten the
+   scrims. The WebGL scene (starfield / cube / bloom) reacts separately via the
+   theme read in scene.js. Dark mode is untouched. */
+html[data-theme="light"] .membrane-host,
+html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] {
+  --membrane-void: #f6f6f6;
+  --membrane-void-warm: #faf8f5;
+  --membrane-void-deep: #eaeaea;
+  --membrane-mist: #1a1a1a;          /* primary text → near-black ink */
+  --membrane-mist-mid: #4a4a4a;
+  --membrane-mist-dim: #7a7a7a;
+  --mem-ink-rgb: 26, 26, 26;          /* flip the cream triple to dark ink */
+  --membrane-star: rgba(20, 20, 24, 0.85);
+  /* Light translucent glass for the reading panels. */
+  --membrane-card-bg: rgba(255, 255, 255, 0.62);
+  --membrane-card-top: rgba(248, 248, 248, 0.74);
+}
+
+/* Paper background — what the transparent WebGL canvas composites over, so the
+   star field reads on white. The field is kept a touch DARKER than the feed /
+   agenda cards so they read as cards (white-on-grey), not a flat wash. Needs the
+   .alchemy-view…​.alchemy-canvas selector to out-specify the generic membrane-mode
+   bg rule (`.alchemy-view[…="membrane"] .alchemy-canvas { background: var(--membrane-void) }`). */
+html[data-theme="light"] .membrane-host { color: var(--membrane-mist); }
+html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alchemy-canvas,
+html[data-theme="light"] .membrane-host.alchemy-canvas {
+  background: radial-gradient(ellipse 110% 70% at 50% -10%, #efefef 0%, #e8e8e8 55%, #e2e2e2 100%);
+}
+
+/* Reading-gutter scrim: the dark version paints a black band over the left of a
+   white page. Flip to a faint paper veil. */
+html[data-theme="light"] .membrane-stage::before {
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0.00) 100%);
+}
+
+/* Warm "throne" glow uses screen blend — invisible on white. Switch to a soft
+   normal-blended warm tint so the cube still feels anchored. */
+html[data-theme="light"] .ma-throne-presence {
+  mix-blend-mode: normal;
+  background: radial-gradient(circle at center,
+    rgba(255, 140, 80, 0.07) 0%,
+    rgba(255, 120, 60, 0.035) 30%,
+    transparent 68%);
+}
+
+/* "enter the field" pill: dark fill → faint ink fill on paper. */
+html[data-theme="light"] .membrane-enter-field {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* ── Light mode: feed + agenda read as proper light-mode cards ────────────
+   The dark-mode pastels (cream text, low-blend tints) wash out on white. Here
+   the cards go near-white on the darker field, text is dark ink, and the kind /
+   category accents are darkened to saturated, readable hues (the pale sage /
+   lapis / amber pastels vanish on paper). */
+html[data-theme="light"] .mfeed-item {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(26, 26, 26, 0.10);
+}
+html[data-theme="light"] .mfeed-item:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+html[data-theme="light"] .mfeed-age { color: rgba(26, 26, 26, 0.5); }
+/* Chip: faint kind tint over white, kind-colored (darkened) text. */
+html[data-theme="light"] .mfeed-meta {
+  background: color-mix(in srgb, var(--mfeed-color) 16%, #ffffff);
+}
+html[data-theme="light"] .mfeed-release    { --mfeed-color: #4f8a64; }  /* sage */
+html[data-theme="light"] .mfeed-transcript { --mfeed-color: #4d6bb0; }  /* lapis */
+html[data-theme="light"] .mfeed-ask        { --mfeed-color: #b9821f; }  /* amber */
+html[data-theme="light"] .mfeed-event      { --mfeed-color: #3f8a72; }  /* teal */
+
+/* Agenda cards: lift tint + darken category hues so events read on white. */
+html[data-theme="light"] .magenda-event,
+html[data-theme="light"] .magenda-up-event {
+  --c2-acc: #6f655e;
+  background: color-mix(in srgb, var(--c2-acc) 28%, #ffffff);
+  border-color: color-mix(in srgb, var(--c2-acc) 55%, transparent);
+}
+html[data-theme="light"] .magenda-up-event:hover {
+  background: color-mix(in srgb, var(--c2-acc) 42%, #ffffff);
+}
+html[data-theme="light"] .membrane-agenda [data-cat="oh"]      { --c2-acc: #c4763f; }
+html[data-theme="light"] .membrane-agenda [data-cat="salon"]   { --c2-acc: #a87fc0; }
+html[data-theme="light"] .membrane-agenda [data-cat="weekly"]  { --c2-acc: #79a06a; }
+html[data-theme="light"] .membrane-agenda [data-cat="coord"]   { --c2-acc: #c9a338; }
+html[data-theme="light"] .membrane-agenda [data-cat="review"]  { --c2-acc: #d9883f; }
+html[data-theme="light"] .membrane-agenda [data-cat="hack"]    { --c2-acc: #6f90c4; }
+html[data-theme="light"] .membrane-agenda [data-cat="demo"]    { --c2-acc: #c75f34; }
+html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a06a; }
 
 .membrane-host {
   position: relative;
@@ -43,8 +143,8 @@
 }
 
 /* Atmosphere = distant stars + a single soft warm presence around the
-   throne. Stars are the cosmic field; throne-presence is the lit anchor.
-   Inactive blobs fade into this field — see blob.js setActive(). */
+   cube anchor. Stars are the cosmic field; throne-presence is the lit
+   anchor. */
 .membrane-atmosphere {
   position: absolute;
   inset: 0;
@@ -59,13 +159,14 @@
    gives real perspective + seamless wrap-around as stars stream past. */
 
 /* Throne presence — barely-there warm radial glow that anchors the
-   active blob in the void. The only atmosphere besides the stars. */
+   cube in the void. The only atmosphere besides the stars. */
 .ma-throne-presence {
   position: absolute;
   width: 70vmin;
   height: 70vmin;
-  right: -8vmin;
-  bottom: -8vmin;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   background: radial-gradient(
     circle at center,
     rgba(255, 140, 80, 0.10) 0%,
@@ -77,71 +178,324 @@
   mix-blend-mode: screen;
 }
 
-/* Orbital label — mono caps tracing the upper arc around the throne
-   blob. Positioned via CSS vars set in JS based on throne slot's
-   screen-space center. Kept to a single arc so it never paints a band
-   through the orb's middle. */
-.throne-orbital {
-  position: absolute;
-  right: calc(var(--throne-right, 200px) - var(--orbital-radius, 200px));
-  bottom: calc(var(--throne-bottom, 150px) - var(--orbital-radius, 200px));
-  width: calc(var(--orbital-radius, 200px) * 2);
-  height: calc(var(--orbital-radius, 200px) * 2);
-  pointer-events: none;
-  z-index: 4;
-  opacity: 0;
-  transition: opacity 600ms cubic-bezier(0.65, 0, 0.05, 1);
-}
-
-.throne-orbital.is-visible {
-  opacity: 0.92;
-}
-
-.throne-orbital text {
-  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  fill: rgba(245, 240, 233, 0.95);
-  /* Dark outline drawn UNDER the fill so the word stays legible over the
-     bright wet-glass highlight without becoming a filled capsule. */
-  paint-order: stroke;
-  stroke: rgba(6, 5, 14, 0.84);
-  stroke-width: 3px;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.55));
-}
-
-/* Background-orb name labels — pinned under each satellite orb (positioned
-   in JS via updateSatelliteLabels). Dark halo keeps them readable over the
-   orb's bright highlight. */
-.membrane-sat-labels {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 4;
-}
-
-.membrane-sat-label {
-  position: absolute;
-  transform: translate(-50%, 0);
-  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  color: rgba(247, 242, 236, 0.96);
-  -webkit-text-stroke: 0.4px rgba(6, 5, 14, 0.7);
-  text-shadow: 0 0 5px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.95);
-  opacity: 0;
-  transition: opacity 420ms ease;
-}
-
 .membrane-host * {
   box-sizing: border-box;
 }
+
+/* Shape name — pinned to the right edge, vertically centred. Names the
+   current die so shapes can be referenced by name. */
+/* Shape-name label hidden — no longer surfaced. */
+.membrane-shape-name {
+  display: none;
+}
+.membrane-shape-name .msn-name {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: rgba(var(--mem-ink-rgb), 0.96);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.95);
+}
+.membrane-shape-name .msn-meta {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(var(--mem-ink-rgb), 0.5);
+}
+
+/* Today's agenda — an ambient day-timeline pinned to the right edge, sitting
+   BEHIND the canvas (z-index 0) so the cube + stars render over it. Just
+   today; a glowing line marks the current time. */
+.membrane-agenda {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 190px;
+  padding: 56px 26px 52px 0;
+  z-index: 2;            /* above the canvas so the cards are clickable */
+  pointer-events: none;  /* container passes through; cards opt back in */
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.membrane-agenda .magenda-head {
+  text-align: right;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(var(--mem-ink-rgb), 0.3);
+  margin-bottom: 6px;
+}
+.membrane-agenda .magenda-allday {
+  text-align: right;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(var(--mem-ink-rgb), 0.32);
+  margin-bottom: 10px;
+}
+.membrane-agenda .magenda-track {
+  position: relative;
+  flex: 1 1 auto;        /* fills the column when there's no look-ahead… */
+  min-height: 150px;     /* …but yields room (keeping a defined height for
+                            the now-line/ticks) when upcoming events flow below */
+}
+.magenda-tick {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  border-top: 1px solid rgba(var(--mem-ink-rgb), 0.05);
+}
+.magenda-tick-label {
+  position: absolute;
+  right: 0;
+  top: -7px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: rgba(var(--mem-ink-rgb), 0.2);
+}
+/* Today axis events — positioned on the time ruler; compact cards with the
+   calendar category tint. Clickable (opens the calendar). */
+.membrane-agenda .magenda-event {
+  --c2-acc: #8f817a;
+  box-sizing: border-box;
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 164px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--c2-acc) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c2-acc) 40%, transparent);
+  border-radius: 7px;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  pointer-events: auto;
+  font: inherit;
+}
+.magenda-event-time {
+  flex: 0 0 auto;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: rgba(var(--mem-ink-rgb), 0.42);
+}
+.magenda-event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: rgba(var(--mem-ink-rgb), 0.72);
+}
+
+/* The current-time line — a glowing warm rule across the agenda. */
+.magenda-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  border-top: 1px solid rgba(255, 150, 90, 0.8);
+  box-shadow: 0 0 6px rgba(255, 140, 80, 0.45);
+}
+.magenda-now-label {
+  position: absolute;
+  right: 0;
+  top: -14px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(255, 178, 130, 0.95);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+}
+
+/* Look-ahead: upcoming days rolled forward below the today axis. A static
+   right-aligned list (no minute positioning) with terse day headers. */
+.membrane-agenda .magenda-upcoming {
+  flex: 0 0 auto;
+  margin-top: 14px;
+}
+.magenda-quiet {
+  text-align: right;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(var(--mem-ink-rgb), 0.22);
+}
+.magenda-day-head {
+  text-align: right;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(var(--mem-ink-rgb), 0.44);  /* ~30% brighter than 0.34 */
+  margin-top: 3px;
+}
+.magenda-day-head:first-child {
+  margin-top: 0;
+}
+/* Upcoming + today's all-day items — full cards, same chrome as the left
+   feed item (1px border, 9px corners, ~53px tall) but with the calendar
+   category tint for more contrast against the dark stage. Clickable. */
+.membrane-agenda .magenda-up-event {
+  --c2-acc: #8f817a;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;     /* title over time, like the left feed's 2-line cards */
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 11px;
+  min-height: 53px;           /* match the left feed item height */
+  background: color-mix(in srgb, var(--c2-acc) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c2-acc) 38%, transparent);
+  border-radius: 9px;
+  white-space: normal;        /* let long titles wrap instead of truncating */
+  text-align: right;
+  cursor: pointer;
+  pointer-events: auto;
+  font: inherit;
+  transition: background 160ms ease, transform 160ms ease;
+}
+.membrane-agenda .magenda-up-event:hover {
+  background: color-mix(in srgb, var(--c2-acc) 30%, transparent);
+  transform: translateX(-2px);
+}
+.magenda-up-event .magenda-event-title {
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: normal;        /* full title, wraps over multiple lines */
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  color: rgba(var(--mem-ink-rgb), 0.85);
+}
+/* Category colours — same hexes as calendar.css so the two surfaces match.
+   'default' is the inherited --c2-acc above. */
+.membrane-agenda [data-cat="oh"]      { --c2-acc: #d98a5c; }
+.membrane-agenda [data-cat="salon"]   { --c2-acc: #c9a8d8; }
+.membrane-agenda [data-cat="weekly"]  { --c2-acc: #a8c79f; }
+.membrane-agenda [data-cat="coord"]   { --c2-acc: #e3c77f; }
+.membrane-agenda [data-cat="review"]  { --c2-acc: #f3b174; }
+.membrane-agenda [data-cat="hack"]    { --c2-acc: #9fb8d8; }
+.membrane-agenda [data-cat="demo"]    { --c2-acc: #e07a4e; }
+.membrane-agenda [data-cat="anarchy"] { --c2-acc: #a8c79f; }
+
+/* "What's new" feed — left-edge stream of cohort activity. Above the canvas
+   (so items are clickable), scrollable, color-coded by kind. Each item is a
+   small two-line card; clicking it opens that thing in a new OS tab. */
+.membrane-feed {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 264px;
+  padding: 54px 14px 52px 24px;
+  z-index: 2;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 44px, #000 calc(100% - 40px), transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 44px, #000 calc(100% - 40px), transparent 100%);
+}
+.membrane-feed::-webkit-scrollbar { width: 0; height: 0; }
+
+.mfeed-item {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 11px;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.06);
+  border-radius: 9px;
+  background: rgba(var(--mem-ink-rgb), 0.08);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: background 160ms ease, transform 160ms ease;
+}
+.mfeed-item:hover {
+  background: rgba(var(--mem-ink-rgb), 0.14);
+  transform: translateX(2px);
+}
+/* Taper the tail of the feed: the last three items fade progressively,
+   strongest at the very bottom, so the list dissolves into the field
+   rather than ending on a hard edge. */
+.mfeed-item:nth-last-child(3) { opacity: 0.6; }
+.mfeed-item:nth-last-child(2) { opacity: 0.4; }
+.mfeed-item:nth-last-child(1) { opacity: 0.2; }
+.mfeed-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mfeed-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  color: rgba(var(--mem-ink-rgb), 0.82);
+}
+.mfeed-meta {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  /* Muted kind tint — softer than the original loud green, but not the dull
+     0-saturation grey it briefly became. */
+  color: var(--mfeed-color, rgba(var(--mem-ink-rgb), 0.7));
+  background: color-mix(in srgb, var(--mfeed-color, #f7f2ec) 18%, transparent);
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+/* Per-kind Lucide icon at the start of each feed item, tinted (muted) by
+   the kind color so the type is clear without being loud. */
+.mfeed-icon {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: 1px;
+  width: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mfeed-color, rgba(var(--mem-ink-rgb), 0.6));
+}
+.mfeed-icon svg { width: 13px; height: 13px; display: block; }
+.mfeed-age {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: rgba(var(--mem-ink-rgb), 0.32);
+}
+/* Kind tints — clearly colored but softer than the original loud palette;
+   shared by the icon and the project chip. */
+.mfeed-release    { --mfeed-color: rgba(136, 208, 161, 0.95); }  /* github / releases — sage green */
+.mfeed-transcript { --mfeed-color: rgba(153, 180, 235, 0.95); }  /* transcripts — lapis */
+.mfeed-ask        { --mfeed-color: rgba(238, 196, 126, 0.95); }  /* asks — amber */
+.mfeed-event      { --mfeed-color: rgba(140, 204, 183, 0.95); }  /* events — teal */
 
 .membrane-stage {
   position: absolute;
@@ -1710,9 +2064,9 @@
 
 /* ── membrane · Lucide icon sizing (2026-06) ─────────────────────────
    The membrane panels were on emoji/ascii glyphs; they now use the same
-   inline Lucide set as the rest of the app. The membrane stays dark in
-   every theme, so verb icons stay white even when the app is in light
-   mode (a black icon would vanish on the deep verb color). */
+   inline Lucide set as the rest of the app. Verb icons sit on a deep,
+   saturated verb-color chip, so they stay white in BOTH themes (a black icon
+   would vanish on the deep verb color) — independent of the page being light. */
 .membrane-ask-verb .alch-asks-verb-svg { width: 12px; height: 12px; }
 .membrane-ask-verb.has-verb-color {
   background: var(--verb-color);

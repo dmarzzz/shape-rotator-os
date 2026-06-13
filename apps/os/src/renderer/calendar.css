@@ -117,20 +117,20 @@
   transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
 }
 .c2-scrub-dot:hover { color: var(--ed-ink-1); border-color: var(--ed-rule-3); }
-/* the week containing today — white outline, always visible */
-.c2-scrub-dot.is-now {
-  border-color: var(--ed-ink-1);
-  color: var(--ed-ink-1);
-}
-/* the week being viewed — small dot under the circle */
-.c2-scrub-dot[aria-selected="true"] { color: var(--ed-ink-1); }
-.c2-scrub-dot[aria-selected="true"]::after {
+/* the week containing today — small dot under the circle, always visible */
+.c2-scrub-dot.is-now { color: var(--ed-ink-1); }
+.c2-scrub-dot.is-now::after {
   content: "";
   position: absolute;
   top: calc(100% + 3px); left: 50%;
   width: 4px; height: 4px; margin-left: -2px;
   border-radius: 50%;
   background: var(--ed-ink-1);
+}
+/* the week being viewed — white outline */
+.c2-scrub-dot[aria-selected="true"] {
+  border-color: var(--ed-ink-1);
+  color: var(--ed-ink-1);
 }
 
 .c2-scrub-arrow {

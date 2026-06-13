@@ -1,42 +1,22 @@
 import * as THREE from 'three';
-import { RoomEnvironment } from '../../vendor/three-jsm/environments/RoomEnvironment.js';
 import { EffectComposer } from '../../vendor/three-jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from '../../vendor/three-jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../../vendor/three-jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../../vendor/three-jsm/postprocessing/OutputPass.js';
-import { createBlob, BLOB_IDS } from './blob.js';
+import { createPsyCube, BLOB_IDS } from './cube.js';
 import { createStarField } from './starfield.js';
+import { getTheme } from '../theme.js';
 
-// Vanta cosmic — true-black background, stars via CSS. Lighting kept warm
-// so the blobs read as small celestial bodies against deep space.
-const KEY_LIGHT_COLOR = 0xffe2c2;
-const FILL_LIGHT_COLOR = 0xb8c4d6;
-const HEMI_SKY = 0xffe2c2;
-const HEMI_GROUND = 0x3a2a22;          // darker ground tone for true-black bg
-const AMBIENT_COLOR = 0x2a2530;
-const AMBIENT_INTENSITY = 0.20;
-
-// Slots defined as OFFSETS FROM THE RIGHT/BOTTOM EDGE in world units.
-// resize() converts these to actual world positions using the camera
-// frustum so the cluster always sits a fixed distance from the corner
-// regardless of window aspect ratio (no more clipping on narrow windows).
-export const SLOT_OFFSETS = {
-  throne:  { right: 0.70, bottom: 0.55, scale: 0.42 },
-  home_a:  { right: 1.50, bottom: 1.25, scale: 0.13 },
-  home_b:  { right: 1.00, bottom: 1.55, scale: 0.13 },
-  home_c:  { right: 0.40, bottom: 1.40, scale: 0.13 },
-};
-
-const INITIAL_THRONE = 'self';
-const INITIAL_HOMES = { cohort: 'home_a', events: 'home_b', asks: 'home_c' };
-
-const SWAP_DURATION_MS = 900;
-
-function easeInOutCubic(t) {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
+// The cube is the centerpiece — it sits at the world origin (the camera's
+// look-at point), dead center of the stage at every aspect ratio.
+export const CUBE_SCALE = 0.42;
 
 export function createMembraneScene(canvas, opts = {}) {
+  // Theme read once at mount. The toggle lives on the profile page, so
+  // switching it leaves membrane mode (destroying this scene) and returning
+  // remounts it — there's no live theme change while the scene is alive.
+  const isLight = (opts.theme ?? getTheme()) === 'light';
+
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: true,
@@ -50,26 +30,9 @@ export function createMembraneScene(canvas, opts = {}) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
   const scene = new THREE.Scene();
-
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  pmrem.compileEquirectangularShader();
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-
-  // Lighting: single dominant key + back-rim for silhouette. No spec accent
-  // (caused patchy multi-highlights). The back-rim is what gives a jewel
-  // its glowing edge against the void — classic gemstone photography move.
-  const keyLight = new THREE.DirectionalLight(KEY_LIGHT_COLOR, 2.6);
-  keyLight.position.set(-3.5, 4.2, 2.8);
-  scene.add(keyLight);
-
-  // Back rim — silhouettes the blob from behind. Warm so it reinforces the
-  // ember atmosphere rather than competing with it.
-  const backRim = new THREE.DirectionalLight(0xffb070, 1.2);
-  backRim.position.set(2.0, 0.5, -3.0);
-  scene.add(backRim);
-
-  const ambient = new THREE.AmbientLight(AMBIENT_COLOR, 0.14);
-  scene.add(ambient);
+  // No lights, no PMREM environment — the cube shader is unlit and the
+  // starfield is additive points. (The blob cluster needed both; dropping
+  // them cuts init cost and per-frame uniform uploads.)
 
   const cameraZ = 4.8;
   const fov = 38;
@@ -77,150 +40,186 @@ export function createMembraneScene(canvas, opts = {}) {
   camera.position.set(0, 0, cameraZ);
   camera.lookAt(0, 0, 0);
 
-  // Post-processing — bloom on bright pixels (specular highlights, halo,
-  // dust at full brightness) so the blob reads as jewel-luminous instead
-  // of "3D demo." Threshold means body color doesn't bloom; only the
-  // intentionally-bright bits do.
+  // Post-processing — bloom on bright pixels (the cube's fresnel rim +
+  // additive edge lines + stars at full brightness). Threshold means the
+  // psychedelic body color doesn't bloom; only the intentional glow does.
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
   const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.45, 0.62);
-  bloomPass.threshold = 0.62;
-  bloomPass.strength = 0.55;
-  bloomPass.radius = 0.45;
+  // Light mode: raise the threshold + drop strength so the vivid body and its
+  // dark wireframe don't bloom into a milky wash over the white page. Dark mode
+  // keeps the original cosmic glow.
+  bloomPass.threshold = isLight ? 0.80 : 0.62;
+  bloomPass.strength = isLight ? 0.24 : 0.44;
+  bloomPass.radius = isLight ? 0.40 : 0.45;
   composer.addPass(bloomPass);
   composer.addPass(new OutputPass());
 
-  // Resolved slot world positions — updated on every resize so blobs stay
-  // glued to the corner relative to the visible frustum.
-  const resolvedSlots = {
-    throne:  { x: 0, y: 0, scale: SLOT_OFFSETS.throne.scale },
-    home_a:  { x: 0, y: 0, scale: SLOT_OFFSETS.home_a.scale },
-    home_b:  { x: 0, y: 0, scale: SLOT_OFFSETS.home_b.scale },
-    home_c:  { x: 0, y: 0, scale: SLOT_OFFSETS.home_c.scale },
-  };
+  const cube = createPsyCube({ isLight });
+  scene.add(cube.group);
 
-  function recomputeSlots() {
-    const halfH = Math.tan((fov * Math.PI / 180) / 2) * cameraZ;
-    const halfW = halfH * camera.aspect;
-    for (const name of Object.keys(SLOT_OFFSETS)) {
-      const off = SLOT_OFFSETS[name];
-      resolvedSlots[name].x = halfW - off.right;
-      resolvedSlots[name].y = -halfH + off.bottom;
-      resolvedSlots[name].scale = off.scale;
-    }
-  }
-
-  const blobs = {};
-  const blobBySlot = {};
-  const slotByBlob = {};
-  BLOB_IDS.forEach((id, idx) => {
-    const blob = createBlob(THREE, id);
-    blobs[id] = blob;
-    const slotName = id === INITIAL_THRONE ? 'throne' : INITIAL_HOMES[id];
-    blob.currentSlot = slotName;
-    blob.rotationPhase = (idx * Math.PI * 0.6) + Math.random() * 0.4;
-    blob.spinRate = 0.06 + Math.random() * 0.03;
-    blob.setActive(slotName === 'throne');
-    scene.add(blob.group);
-    blobBySlot[slotName] = id;
-    slotByBlob[id] = slotName;
-  });
-
-  const tweens = [];
-
-  function tweenBlobToSlot(blobId, toSlot) {
-    const blob = blobs[blobId];
-    if (!blob) return;
-    const fromPos = blob.group.position.clone();
-    const fromScale = blob.group.scale.x;
-    const now = performance.now();
-    for (let i = tweens.length - 1; i >= 0; i--) {
-      if (tweens[i].blobId === blobId) tweens.splice(i, 1);
-    }
-    // Target is captured by slot NAME so resize() can re-point it mid-tween.
-    tweens.push({
-      blobId, fromPos, toSlot, fromScale,
-      startMs: now, endMs: now + SWAP_DURATION_MS,
-    });
-    blob.currentSlot = toSlot;
-    slotByBlob[blobId] = toSlot;
-  }
-
-  function wiggleThrone() {
-    const id = blobBySlot['throne'];
-    if (!id) return;
-    blobs[id].wiggleStart = performance.now();
-  }
+  let activeId = 'self';
+  let wiggleStart = null;
 
   function setActiveBlob(id) {
-    if (!blobs[id]) return;
-    if (slotByBlob[id] === 'throne') {
-      wiggleThrone();
-      return;
-    }
-    const currentThroneId = blobBySlot['throne'];
-    if (currentThroneId === id) return;
-
-    const vacatedSlot = slotByBlob[id];
-    if (currentThroneId) {
-      tweenBlobToSlot(currentThroneId, vacatedSlot);
-      blobBySlot[vacatedSlot] = currentThroneId;
-      blobs[currentThroneId].setActive(false);
-    }
-    tweenBlobToSlot(id, 'throne');
-    blobBySlot['throne'] = id;
-    blobs[id].setActive(true);
+    if (!BLOB_IDS.includes(id)) return;
+    activeId = id;
+    cube.setDomain(id);
+    wiggleStart = performance.now();
   }
 
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const clickTargets = BLOB_IDS.map((id) => blobs[id].mesh);
 
-  function pickBlobAt(clientX, clientY) {
+  // Nearest ray hit on the cube, or null. Carries the .face (with its
+  // object-space normal) so the hover highlight can target one facet.
+  function cubeIntersect(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects(clickTargets, false);
-    if (hits.length === 0) return null;
-    return { id: BLOB_IDS.find((id) => blobs[id].mesh === hits[0].object), point: hits[0].point };
+    const hits = raycaster.intersectObject(cube.mesh, false);
+    return hits.length > 0 ? hits[0] : null;
   }
+
+  function cubeHitAt(clientX, clientY) {
+    return cubeIntersect(clientX, clientY) !== null;
+  }
+
+  // ─── drag-to-rotate ──────────────────────────────────────────────────
+  // The cube is grabbable: drag anywhere on the canvas to spin it (screen
+  // x → world yaw, screen y → world pitch, premultiplied so it always
+  // tracks the screen no matter the cube's current orientation). Release
+  // mid-swipe and it keeps the fling momentum, then eases back into the
+  // slow idle tumble. A sub-threshold press still reads as a CLICK: on the
+  // cube it morphs the die a face (left +1, right −1, d6↔d20); on the void
+  // it toggles the panel.
+  const ROT_PER_PX = 0.0055;          // rad of rotation per px of drag
+  const DRAG_CLICK_PX = 4;            // movement under this = a click
+  const FLING_MAX = 5.0;              // rad/s cap on release momentum
+  const IDLE_RETURN_TAU = 2.5;        // s — momentum eases to idle tumble
+  const IDLE_SPIN = new THREE.Vector3(0.12, 0.21, 0.05); // rad/s tumble
+  const _ZERO = new THREE.Vector3(0, 0, 0);
+
+  const spinVel = IDLE_SPIN.clone();  // current angular velocity (rad/s)
+  const _dq = new THREE.Quaternion();
+  const _axis = new THREE.Vector3();
+
+  // Click the cube → it eases to a dead stop and stays there; dragging it
+  // resumes motion (and the idle tumble afterward).
+  let stopped = false;
+
+  // Speed → brightness. We read the cube's ACTUAL per-frame rotation (so
+  // both drag and fling count, and holding still reads as slow), then map
+  // speed-above-idle into a 0..1 energy the shader turns into glow.
+  const IDLE_SPEED = IDLE_SPIN.length();   // baseline tumble = "default"
+  const ENERGY_SPAN = 3.0;                 // rad/s above idle → full blaze
+  const _prevQuat = new THREE.Quaternion().copy(cube.group.quaternion);
+
+  // Spin fast enough and the die morphs to the next shape. A hysteresis
+  // latch means one change per fast burst (it must slow back down before it
+  // can fire again), so you can land on a specific shape.
+  const SHAPE_TRIGGER_SPEED = 2.5;  // rad/s — a deliberate whip
+  const SHAPE_REARM_SPEED = 1.0;    // rad/s — must drop below this to re-arm
+  const SHAPE_SUSTAIN_SEC = 0.5;    // must stay fast this long before it morphs
+  let shapeArmed = true;
+  let fastTime = 0;                 // seconds spent above the trigger speed
+
+  function rotateBy(yawRad, pitchRad) {
+    _dq.setFromAxisAngle(_axis.set(0, 1, 0), yawRad);
+    cube.group.quaternion.premultiply(_dq);
+    _dq.setFromAxisAngle(_axis.set(1, 0, 0), pitchRad);
+    cube.group.quaternion.premultiply(_dq);
+  }
+
+  let dragging = false;
+  let dragMoved = false;
+  let downOnCube = false;
+  let downButton = 0;
+  let downX = 0, downY = 0;
+  let lastX = 0, lastY = 0;
+  let lastMoveMs = 0;
+  let hovered = false;
 
   function handlePointerDown(ev) {
-    const hit = pickBlobAt(ev.clientX, ev.clientY);
-    if (!hit?.id) { if (opts.onEmptyClick) opts.onEmptyClick(); return; }
-    if (hit.id === blobBySlot['throne']) {
-      // Click on the throne → a quick scale-bounce for feedback…
-      wiggleThrone();
-      // …and open its panel (so the full-bleed "folded" world can summon
-      // the credential/overlay by tapping the orb you're already on).
-      if (opts.onOrbOpen) opts.onOrbOpen(hit.id);
-      return;
-    }
-    // Click on satellite → swap it into the throne + open its panel.
-    setActiveBlob(hit.id);
-    if (opts.onActiveChange) opts.onActiveChange(hit.id);
-    if (opts.onOrbOpen) opts.onOrbOpen(hit.id);
+    dragging = true;
+    dragMoved = false;
+    downOnCube = cubeHitAt(ev.clientX, ev.clientY);
+    downButton = ev.button;
+    downX = lastX = ev.clientX;
+    downY = lastY = ev.clientY;
+    lastMoveMs = performance.now();
+    canvas.setPointerCapture?.(ev.pointerId);
+    canvas.style.cursor = 'grabbing';
   }
 
-  let hoveredId = null;
   function handlePointerMove(ev) {
-    const hit = pickBlobAt(ev.clientX, ev.clientY);
-    const hitId = hit?.id || null;
-    canvas.style.cursor = hitId ? 'pointer' : 'default';
-    if (hitId === hoveredId) return;
-    if (hoveredId && blobs[hoveredId]) blobs[hoveredId].setHovered(false);
-    hoveredId = hitId;
-    if (hoveredId && blobs[hoveredId]) blobs[hoveredId].setHovered(true);
+    if (!dragging) {
+      const hit = cubeIntersect(ev.clientX, ev.clientY);
+      canvas.style.cursor = hit ? 'grab' : 'default';
+      if (hit) {
+        // Update every move so crossing from one face to the next re-targets
+        // the highlight to the facet actually under the cursor.
+        hovered = true;
+        cube.setHovered(true, hit.face ? hit.face.normal : null);
+      } else if (hovered) {
+        hovered = false;
+        cube.setHovered(false);
+      }
+      return;
+    }
+    const dx = ev.clientX - lastX;
+    const dy = ev.clientY - lastY;
+    lastX = ev.clientX;
+    lastY = ev.clientY;
+    if (!dragMoved
+        && Math.abs(ev.clientX - downX) + Math.abs(ev.clientY - downY) > DRAG_CLICK_PX) {
+      dragMoved = true;
+      stopped = false; // dragging it brings it back to life
+    }
+    if (!dragMoved) return;
+    rotateBy(dx * ROT_PER_PX, dy * ROT_PER_PX);
+    // Track fling velocity from the instantaneous pointer speed (smoothed
+    // so one jittery event doesn't dominate the release momentum).
+    const nowMs = performance.now();
+    const dtMove = Math.max(8, nowMs - lastMoveMs) / 1000;
+    lastMoveMs = nowMs;
+    spinVel.y += (dx * ROT_PER_PX / dtMove - spinVel.y) * 0.35;
+    spinVel.x += (dy * ROT_PER_PX / dtMove - spinVel.x) * 0.35;
+    spinVel.clampLength(0, FLING_MAX);
   }
+
+  function handlePointerUp(ev) {
+    if (!dragging) return;
+    dragging = false;
+    canvas.releasePointerCapture?.(ev.pointerId);
+    canvas.style.cursor = downOnCube || cubeHitAt(ev.clientX, ev.clientY) ? 'grab' : 'default';
+    if (dragMoved) {
+      // Held still at the end of a drag → no fling, it just stays put.
+      if (performance.now() - lastMoveMs > 80) spinVel.set(0, 0, spinVel.z);
+      return;
+    }
+    // No movement → a click. On the cube: stop it dead instantly (clicking
+    // an already-stopped cube does nothing). On the void: toggle the panel.
+    if (downOnCube) {
+      spinVel.set(0, 0, 0);
+      stopped = true;
+    } else if (opts.onEmptyClick) {
+      opts.onEmptyClick();
+    }
+  }
+
+  // Swallow the OS context menu on the canvas (right-click is unused).
+  function handleContextMenu(ev) { ev.preventDefault(); }
 
   canvas.addEventListener('pointerdown', handlePointerDown);
   canvas.addEventListener('pointermove', handlePointerMove);
+  canvas.addEventListener('pointerup', handlePointerUp);
+  canvas.addEventListener('pointercancel', handlePointerUp);
+  canvas.addEventListener('contextmenu', handleContextMenu);
 
   // 3D star field — point cloud + nebula mist flowing toward camera.
-  // (Regressed out of scene.js in a prior merge while starfield.js
-  // survived; re-wired here.)
-  const starField = createStarField({ scene, camera });
+  const starField = createStarField({ scene, camera, isLight });
 
   const startMs = performance.now();
   let lastTickSeconds = 0;
@@ -235,74 +234,40 @@ export function createMembraneScene(canvas, opts = {}) {
     composer.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    recomputeSlots();
-    // Snap non-tweening blobs to their current slot's new world position.
-    for (const id of BLOB_IDS) {
-      const blob = blobs[id];
-      if (!blob) continue;
-      const isTweening = tweens.some((t) => t.blobId === id);
-      if (isTweening) continue;
-      const slot = resolvedSlots[blob.currentSlot];
-      if (!slot) continue;
-      blob.group.position.set(slot.x, slot.y, 0);
-      blob.group.scale.setScalar(slot.scale);
-    }
   }
 
-  function tickTweens(nowMs) {
-    if (tweens.length === 0) return;
-    for (let i = tweens.length - 1; i >= 0; i--) {
-      const t = tweens[i];
-      const blob = blobs[t.blobId];
-      if (!blob) { tweens.splice(i, 1); continue; }
-      const target = resolvedSlots[t.toSlot];
-      if (!target) { tweens.splice(i, 1); continue; }
-      const raw = (nowMs - t.startMs) / (t.endMs - t.startMs);
-      const clamped = Math.max(0, Math.min(1, raw));
-      const eased = easeInOutCubic(clamped);
-      blob.group.position.x = t.fromPos.x + (target.x - t.fromPos.x) * eased;
-      blob.group.position.y = t.fromPos.y + (target.y - t.fromPos.y) * eased;
-      const s = t.fromScale + (target.scale - t.fromScale) * eased;
-      blob.group.scale.setScalar(s);
-      if (clamped >= 1) tweens.splice(i, 1);
+  // Integrate the angular velocity. While the user drags, pointermove
+  // applies rotation directly; afterwards this carries the fling momentum
+  // and eases it back toward the slow idle tumble (mutually irrational-ish
+  // axis rates so the resting spin never visibly repeats).
+  function tickMotion(time, nowMs, dt) {
+    if (!dragging) {
+      rotateBy(spinVel.y * dt, spinVel.x * dt);
+      _dq.setFromAxisAngle(_axis.set(0, 0, 1), spinVel.z * dt);
+      cube.group.quaternion.premultiply(_dq);
+      // While stopped, hold at zero (click zeroed it instantly). Otherwise
+      // fling momentum eases back into the slow idle tumble.
+      const target = stopped ? _ZERO : IDLE_SPIN;
+      spinVel.lerp(target, 1 - Math.exp(-dt / IDLE_RETURN_TAU));
     }
-  }
 
-  function tickMotion(time, nowMs) {
-    for (const id of BLOB_IDS) {
-      const blob = blobs[id];
-      if (!blob) continue;
-      const isThrone = blob.currentSlot === 'throne';
-      blob.group.rotation.y = (time * blob.spinRate) + blob.rotationPhase;
-      blob.group.rotation.x = Math.sin(time * 0.13 + blob.rotationPhase) * 0.05;
-      blob.group.rotation.z = Math.sin(time * 0.09 - blob.rotationPhase) * 0.04;
-
-      const hasTween = tweens.some((t) => t.blobId === id);
-      if (!hasTween) {
-        const slotName = blob.currentSlot;
-        const baseScale = resolvedSlots[slotName]?.scale ?? 1;
-        let s = baseScale;
-        if (isThrone) {
-          s = baseScale * (1 + Math.sin(time * 0.6) * 0.018);
-        }
-        if (blob.wiggleStart) {
-          const dt = (nowMs - blob.wiggleStart) / 400;
-          if (dt < 1) {
-            s *= 1 + Math.sin(dt * Math.PI * 3) * 0.04 * (1 - dt);
-          } else {
-            blob.wiggleStart = null;
-          }
-        }
-        blob.group.scale.setScalar(s);
+    let s = CUBE_SCALE * (1 + Math.sin(time * 0.6) * 0.018);
+    if (wiggleStart) {
+      const dt = (nowMs - wiggleStart) / 400;
+      if (dt < 1) {
+        s *= 1 + Math.sin(dt * Math.PI * 3) * 0.04 * (1 - dt);
+      } else {
+        wiggleStart = null;
       }
     }
+    cube.group.scale.setScalar(s);
   }
 
   // Barely-there camera sway. A slow Lissajous on x/y plus a gentle dolly on
-  // z makes the parallax between star strata felt even when the user is idle
-  // — the depth cue that motion alone provides. Amplitudes are a few
-  // hundredths of a world unit so it never reads as movement, only as life.
-  // Periods are mutually irrational-ish so the path never visibly repeats.
+  // z makes the parallax between star strata felt even when the user is idle.
+  // Amplitudes are a few hundredths of a world unit so it never reads as
+  // movement, only as life. Periods are mutually irrational-ish so the path
+  // never visibly repeats.
   const SWAY = {
     ax: 0.045, ay: 0.030, az: 0.025,   // amplitudes (world units)
     fx: 0.037, fy: 0.053, fz: 0.021,   // frequencies (Hz-ish)
@@ -312,16 +277,38 @@ export function createMembraneScene(canvas, opts = {}) {
     if (!running) return;
     const nowMs = performance.now();
     const time = (nowMs - startMs) / 1000;
-    const dt = lastTickSeconds === 0 ? 0.016 : time - lastTickSeconds;
+    // Clamp dt so a throttled/backgrounded frame can't blow up the physics
+    // (a huge dt would rotate wildly and instantly decay the spin momentum).
+    const dt = lastTickSeconds === 0 ? 0.016 : Math.min(0.05, time - lastTickSeconds);
     lastTickSeconds = time;
-    tickTweens(nowMs);
-    tickMotion(time, nowMs);
-    for (const id of BLOB_IDS) {
-      blobs[id].tick(time);
+    tickMotion(time, nowMs, dt);
+
+    // Measure the cube's actual rotation this frame → speed → brightness.
+    // Captures drag, fling, and idle alike; holding still reads as slow.
+    const speed = cube.group.quaternion.angleTo(_prevQuat) / Math.max(dt, 1e-4);
+    _prevQuat.copy(cube.group.quaternion);
+    cube.setEnergy((speed - IDLE_SPEED) / ENERGY_SPAN);
+
+    // Sustained fast spin morphs the die to the next shape: it must stay
+    // above the trigger speed for SHAPE_SUSTAIN_SEC, then fires once (one
+    // per fast burst — it must slow back down past the re-arm speed before
+    // it can fire again). Uses the angular VELOCITY, frame-rate independent.
+    const spinSpeed = spinVel.length();
+    fastTime = spinSpeed > SHAPE_TRIGGER_SPEED ? fastTime + dt : 0;
+    if (shapeArmed && fastTime >= SHAPE_SUSTAIN_SEC) {
+      const newCount = cube.cycleFaces(-1);
+      wiggleStart = nowMs;
+      if (newCount != null && opts.onFacesChange) opts.onFacesChange(newCount);
+      shapeArmed = false;
+      fastTime = 0;
+    } else if (!shapeArmed && spinSpeed < SHAPE_REARM_SPEED) {
+      shapeArmed = true;
     }
 
+    cube.tick(time);
+
     // Idle camera sway around the base position. Re-look at origin so the
-    // blobs stay anchored while the starfield parallax shifts behind them.
+    // cube stays anchored while the starfield parallax shifts behind it.
     const sx = Math.sin(time * SWAY.fx * Math.PI * 2) * SWAY.ax;
     const sy = Math.cos(time * SWAY.fy * Math.PI * 2) * SWAY.ay;
     const sz = Math.sin(time * SWAY.fz * Math.PI * 2) * SWAY.az;
@@ -337,32 +324,27 @@ export function createMembraneScene(canvas, opts = {}) {
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(canvas);
   resize();
-  // Initial blob placement at their slot positions.
-  for (const id of BLOB_IDS) {
-    const blob = blobs[id];
-    const slot = resolvedSlots[blob.currentSlot];
-    blob.group.position.set(slot.x, slot.y, 0);
-    blob.group.scale.setScalar(slot.scale);
-  }
+  cube.group.scale.setScalar(CUBE_SCALE);
   tick();
 
   return {
     scene,
     camera,
     renderer,
-    blobs,
     setActiveBlob,
-    getActiveBlobId: () => blobBySlot['throne'],
-    slotFor(id) { return slotByBlob[id]; },
+    getActiveBlobId: () => activeId,
+    getFaces: () => cube.getFaces(),
     destroy() {
       running = false;
       if (rafId) cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointermove', handlePointerMove);
-      for (const id of BLOB_IDS) blobs[id].dispose();
+      canvas.removeEventListener('pointerup', handlePointerUp);
+      canvas.removeEventListener('pointercancel', handlePointerUp);
+      canvas.removeEventListener('contextmenu', handleContextMenu);
+      cube.dispose();
       starField.dispose();
-      pmrem.dispose();
       composer.dispose?.();
       renderer.dispose();
     },

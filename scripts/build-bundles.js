@@ -653,6 +653,72 @@ function buildTeamTimeline({ teams, people, asks, events, calendar, githubProgre
   return timeline;
 }
 
+// "What's new" feed, generated at build time and bundled into the surface so
+// the membrane's left-edge feed reads full immediately (independent of the
+// live team_timeline refresh from main). Expands each project's weekly GitHub
+// summary into its example commits, plus distilled transcripts, asks, and
+// recent program events. Each item: {date, kind, label, meta, nav}.
+function buildWhatsNew({ teams, teamTimeline, sessionInsights, asks, events }) {
+  const nameById = new Map((teams || []).map((t) => [String(t.record_id || ""), t.name || t.record_id]));
+  const validDate = (d) => {
+    const t = Date.parse(d);
+    if (!Number.isFinite(t)) return false;
+    const y = new Date(t).getUTCFullYear();
+    return y >= 2025 && y <= 2027; // drop placeholder / garbage dates
+  };
+  const out = [];
+  const seen = new Set();
+
+  for (const teamId of Object.keys(teamTimeline || {})) {
+    const project = nameById.get(teamId) || teamId;
+    for (const it of (teamTimeline[teamId] || [])) {
+      if (it.type !== "github progress") continue;
+      const date = String(it.date || "").trim();
+      if (!validDate(date)) continue;
+      const detail = String(it.detail || "");
+      const afterDash = detail.includes("—") ? detail.split("—").slice(1).join("—") : detail;
+      const commits = afterDash.split(/;|·|\|/)
+        .map((s) => s.trim().replace(/^(feat|fix|chore|docs|refactor|style|test|perf|build|ci|other|maintenance|feature)\s*:\s*/i, ""))
+        .filter((s) => s.length > 4);
+      const nav = { mode: "shapes", recordId: teamId };
+      if (commits.length) {
+        for (const msg of commits.slice(0, 4)) {
+          const key = `r|${teamId}|${msg.toLowerCase()}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push({ date, kind: "release", label: msg, meta: project, nav });
+        }
+      } else {
+        const m = String(it.title || "").match(/:\s*(\d+)\s+commits?/i);
+        out.push({ date, kind: "release", label: project, meta: m ? `${m[1]} commits` : "new commits", nav });
+      }
+    }
+  }
+  for (const s of (sessionInsights || [])) {
+    // Date the transcript by its session date — a deterministic, data-driven
+    // value. (A prior version dated it via `git log -S` "first committed"
+    // lookup, but that diverged between a full local clone and CI's shallow
+    // checkout, making the bundled surface unreproducible and tripping the
+    // required cohort-surface gate. If "uploaded" freshness is wanted later,
+    // add an explicit date field to session-insights.json — keep it data-driven.)
+    const date = String(s.date || "").slice(0, 10);
+    if (!validDate(date)) continue;
+    out.push({ date, kind: "transcript", label: s.title || s.one_liner || "session", meta: s.kind ? `${s.kind} · transcript` : "transcript", nav: { mode: "context", contextView: "raw" } });
+  }
+  for (const a of (asks || [])) {
+    const date = String(a.posted_at || "").slice(0, 10);
+    if (!validDate(date)) continue;
+    out.push({ date, kind: "ask", label: a.topic || a.verb || "ask", meta: `${a.verb || "ask"} · ask`, nav: { mode: "asks" } });
+  }
+  for (const e of (events || [])) {
+    const date = String(e.date || e.range_start || e.starts_at || "").slice(0, 10);
+    if (!validDate(date)) continue;
+    out.push({ date, kind: "event", label: e.title || e.name || "program event", meta: e.subtitle ? `${e.subtitle} · event` : "event", nav: { mode: "calendar" } });
+  }
+
+  return out.sort((x, y) => String(y.date).localeCompare(String(x.date))).slice(0, 60);
+}
+
 function loadJsonArray(file, label) {
   if (!fs.existsSync(file)) return [];
   try {
@@ -682,7 +748,11 @@ function listJsonFilesRecursive(dir) {
 function loadGithubProgressArtifacts() {
   const root = path.join(COHORT_DIR, "artifacts", "github-progress");
   const files = listJsonFilesRecursive(root);
-  const out = [];
+  // Keep one artifact per (team, week), preferring a reviewed copy over a
+  // generated one. The "what's new" feed surfaces every project's weekly
+  // GitHub activity (including shape-rotator-os), so we no longer gate on
+  // review_status — but a reviewed copy still wins when both exist.
+  const byKey = new Map();
   for (const file of files) {
     let artifact;
     try {
@@ -692,13 +762,17 @@ function loadGithubProgressArtifacts() {
       continue;
     }
     if (artifact?.artifact_kind !== "github_progress_weekly_summary") continue;
-    if (artifact?.review_status !== "reviewed") continue;
     if (artifact?.record_type !== "team" || !artifact?.record_id) {
       console.warn(`[build-bundles] github progress artifact missing team record_id: ${file}`);
       continue;
     }
-    out.push(artifact);
+    const key = `${artifact.record_id}|${isoDate(artifact.date || artifact.week_start)}`;
+    const existing = byKey.get(key);
+    if (!existing || (existing.review_status !== "reviewed" && artifact.review_status === "reviewed")) {
+      byKey.set(key, artifact);
+    }
   }
+  const out = [...byKey.values()];
   return out.sort((a, b) => {
     const ad = isoDate(a.date || a.week_start);
     const bd = isoDate(b.date || b.week_start);
@@ -750,6 +824,8 @@ function build() {
   // have a stable filter set even when offline.
   const cohort_vocab = schema.cohort_vocab || {};
 
+  const team_timeline = buildTeamTimeline({ teams, people, asks, events, calendar, githubProgressArtifacts: github_progress_artifacts });
+
   const out = {
     schema_version: 1,
     _comment: "Generated by scripts/build-bundles.js — do not edit by hand. Source of truth is cohort-data/. See docs/SHAPE-ROTATOR-OS-SPEC.md §4.4.",
@@ -763,10 +839,11 @@ function build() {
     asks,
     calendar,
     person_timeline: buildPersonTimeline({ people, teams, asks, events, calendar }),
-    team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar, githubProgressArtifacts: github_progress_artifacts }),
+    team_timeline,
     cohort_vocab,
     constellation_cues,
     session_insights,
+    whats_new: buildWhatsNew({ teams, teamTimeline: team_timeline, sessionInsights: session_insights, asks, events }),
   };
   return out;
 }

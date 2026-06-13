@@ -52,6 +52,12 @@ const outfile = check
       logLevel: "warning",
       alias: {
         "three": path.join(APP_DIR, "node_modules", "three", "build", "three.module.js"),
+        // Subpath imports like `three/examples/jsm/geometries/ConvexGeometry.js`
+        // (cube.js): the bare `three` alias above is a single file, so esbuild
+        // would otherwise remap the subpath onto that file path. Mirror the
+        // importmap's `"three/": "../node_modules/three/"`. esbuild uses the
+        // longest matching alias, so this wins for three/examples/* paths.
+        "three/examples": path.join(APP_DIR, "node_modules", "three", "examples"),
         "js-yaml": path.join(APP_DIR, "src", "vendor", "js-yaml.mjs"),
         "@shape-rotator/shape-ui": path.join(APP_DIR, "src", "vendor", "shape-ui", "index.js"),
       },

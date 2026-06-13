@@ -460,6 +460,14 @@ function restore() {
   } catch { return false; }
 }
 
+// Open a location in a NEW tab (foreground) and switch to it. Public hook
+// used by the membrane's "what's new" feed so feed items open as their own
+// OS tab rather than hijacking the current one.
+window.__srwkOpenInNewTab = function openInNewTab(loc) {
+  if (!loc) return;
+  newTab(loc, { after: true });
+};
+
 export function init() {
   stripEl = document.getElementById("os-tabs");
   if (!stripEl) return;

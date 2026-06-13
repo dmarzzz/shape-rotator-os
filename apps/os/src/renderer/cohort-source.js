@@ -136,6 +136,7 @@ function _writeSurfaceLs(surface) {
       calendar: surface.calendar || null,
       constellation_cues: surface.constellation_cues || [],
       session_insights: surface.session_insights || [],
+      whats_new: surface.whats_new || [],
       person_timeline: surface.person_timeline || {},
       team_timeline: surface.team_timeline || {},
       _generated_at: surface._generated_at || null,
@@ -161,6 +162,7 @@ function emptyShape() {
     calendar: null,
     constellation_cues: [],
     session_insights: [],
+    whats_new: [],
     person_timeline: {},
     team_timeline: {},
   };
@@ -204,6 +206,10 @@ function normalize(data) {
     // scripts/ingest-session-readouts.mjs). Not rendered yet — passed
     // through so a future insights surface needs no data-plane change.
     session_insights: Array.isArray(data?.session_insights) ? data.session_insights : [],
+    // Build-time "what's new" feed (membrane left edge). Bundled in the
+    // surface so the feed reads full without depending on the live
+    // team_timeline refresh from main.
+    whats_new: Array.isArray(data?.whats_new) ? data.whats_new : [],
     person_timeline: timelineMap(data?.person_timeline),
     team_timeline: timelineMap(data?.team_timeline),
     // Pre-baked calendar bundle from the GH `cohort-data/program/calendar.json`
@@ -338,11 +344,21 @@ async function loadFromGithub() {
     }
     out.person_timeline = personTimeline;
     out.team_timeline = teamTimeline;
+    // The "what's new" feed is build-time generated. Prefer main's copy once
+    // it carries one; otherwise keep the bundled fixture's (full) feed so the
+    // membrane reads full even before the rebuilt surface ships to main.
+    if (Array.isArray(generated?.whats_new) && generated.whats_new.length) {
+      out.whats_new = generated.whats_new;
+    } else {
+      const fixture = await loadFromFixture();
+      out.whats_new = Array.isArray(fixture?.whats_new) ? fixture.whats_new : [];
+    }
   } catch (e) {
     try {
       const fixture = await loadFromFixture();
       out.person_timeline = timelineMap(fixture?.person_timeline);
       out.team_timeline = timelineMap(fixture?.team_timeline);
+      out.whats_new = Array.isArray(fixture?.whats_new) ? fixture.whats_new : [];
     } catch {
       console.warn("[cohort-source] generated timeline maps unavailable:", e?.message || e);
     }
