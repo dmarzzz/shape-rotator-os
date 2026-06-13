@@ -377,8 +377,23 @@ export function mount(container) {
     const t = e.target;
     const tag = t?.tagName?.toUpperCase?.();
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable) return;
+    // An open sentence-bar filter menu owns the arrows: its options are
+    // <button role="option"> (not caught by the tag check above), so without
+    // this guard ←/→ would tear down the menu and cycle the view mid-select.
+    if (t?.closest?.('[role="option"],[role="listbox"],.ac-sent-menu,[aria-haspopup="listbox"]')) return;
+    if (document.querySelector(".ac-sent-menu:not([hidden])")) return;
     if (document.body.dataset.activeTab !== "alchemy") return;
     if (!state.canvas) return;
+    // On the calendar timeline, ←/→ scrub weeks — that's the page's dominant
+    // affordance (big prev/next arrows), which was otherwise keyboard-dead
+    // while the global cycler stole the keys to toggle cal<->presence. The
+    // presence gantt has no week scrubber, so it falls through to tab cycling.
+    if (state.mode === "calendar" && state.calendar?.view === "cal") {
+      const navBtn = state.canvas.querySelector(`[data-c2-nav="${e.key === "ArrowRight" ? "next" : "prev"}"]`);
+      e.preventDefault();
+      if (navBtn && !navBtn.disabled) navBtn.click();
+      return;
+    }
     const strip = state.canvas.querySelector(".alch-page-views, .alch-prog-tabs");
     if (!strip) return;
     const btns = [...strip.querySelectorAll(".alch-page-view-btn, .alch-prog-tab")].filter(b => !b.disabled);
@@ -1181,50 +1196,41 @@ function buildMembraneSelfRead(record, team, connections, asks, askIdentity, tim
 // sources slot in here as they land.
 function buildWhatsNewFeed(c) {
   const out = [];
+
+  // GitHub releases — surfaced from the bundled `github_releases` items (built
+  // by scripts/build-bundles.js from the github-releases artifacts). Mirrors
+  // buildWhatsNew(): real published releases, not commit subjects. Normally
+  // c.whats_new is present and preferred (see computeMembraneData), so this
+  // fallback only runs when the bundled feed is missing.
+  for (const it of (Array.isArray(c?.github_releases) ? c.github_releases : [])) {
+    const date = String(it?.date || '').slice(0, 10);
+    const label = String(it?.label || '').trim();
+    if (!date || !label) continue;
+    out.push({ date, kind: 'release', label, meta: it.meta || '', nav: it.nav || { mode: 'shapes' } });
+  }
+
+  // Weekly commit activity — one digest item per project per week, mirroring
+  // buildWhatsNew(). Reads the bundled team_timeline "github progress" entries
+  // (one per project-week) rather than re-deriving from artifacts.
   const teamNameById = new Map(
     (Array.isArray(c?.teams) ? c.teams : []).map((t) => [String(t.record_id || ''), t.name || t.record_id])
   );
-
-  // GitHub activity. Each weekly artifact carries a few example commit
-  // subjects in its summary ("<categories> — ex1; ex2; ex3"); we split those
-  // out into individual commit items so an active repo fills the feed.
   const tt = (c && c.team_timeline) || {};
-  const seen = new Set();
   for (const teamId of Object.keys(tt)) {
     const project = teamNameById.get(teamId) || teamId;
     for (const it of (Array.isArray(tt[teamId]) ? tt[teamId] : [])) {
       if (it.type !== 'github progress') continue;
-      const date = String(it.date || '').trim();
+      const date = String(it.date || '').slice(0, 10);
       if (!date) continue;
-      const detail = String(it.detail || '');
-      const afterDash = detail.includes('—') ? detail.split('—').slice(1).join('—') : detail;
-      const commits = afterDash.split(/;|·|\|/).map((s) => s.trim().replace(/^(feat|fix|chore|docs|refactor|style|test|perf|build|ci|other|maintenance|feature)\s*:\s*/i, '')).filter((s) => s.length > 4);
-      const nav = { mode: 'shapes', recordId: teamId };
-      if (commits.length) {
-        for (const msg of commits.slice(0, 4)) {
-          const key = `r|${teamId}|${msg.toLowerCase()}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          out.push({ date, kind: 'release', label: msg, meta: project, nav });
-        }
-      } else {
-        const m = String(it.title || '').match(/:\s*(\d+)\s+commits?/i);
-        out.push({ date, kind: 'release', label: project, meta: m ? `${m[1]} commits` : 'new commits', nav });
-      }
+      const m = String(it.title || '').match(/:\s*(\d+)\s+commits?/i);
+      const label = m ? `${m[1]} commit${m[1] === '1' ? '' : 's'}` : 'new commits';
+      out.push({ date, kind: 'commit', label, meta: project, nav: { mode: 'shapes', recordId: teamId } });
     }
   }
 
-  // Newly-distilled transcripts / session readouts.
-  for (const s of (Array.isArray(c?.session_insights) ? c.session_insights : [])) {
-    const date = String(s.date || '').slice(0, 10);
-    if (!date) continue;
-    out.push({
-      date, kind: 'transcript',
-      label: s.title || s.one_liner || 'session',
-      meta: s.kind ? `${s.kind} · transcript` : 'transcript',
-      nav: { mode: 'context', contextView: 'raw' },
-    });
-  }
+  // Transcripts are intentionally not emitted — the renderer hides them, so
+  // they would only burn feed slots. Mirrors buildWhatsNew(); re-add once the
+  // readout → context deep-link lands.
 
   // Freshly-posted asks.
   for (const a of (Array.isArray(c?.asks) ? c.asks : [])) {
@@ -1251,7 +1257,7 @@ function buildWhatsNewFeed(c) {
   }
 
   out.sort((x, y) => String(y.date).localeCompare(String(x.date)));
-  return out.slice(0, 60);
+  return out.slice(0, 200); // high backstop — full program log, mirrors FEED_MAX
 }
 
 // stat dictionaries that the panels can render. Re-runs on every cohort
@@ -6664,6 +6670,23 @@ function closeDetail() {
   render();
 }
 
+// Click the bare canvas background — the gutter / empty space around the
+// dossier, i.e. anything outside the box — to pop back to the directory.
+// A cheap escape hatch on top of the back button + breadcrumb. Bound once:
+// state.canvas survives innerHTML swaps, so a per-render bind would stack.
+// Guarded so it only fires while a detail is open and only for clicks that
+// land on the canvas ITSELF — never the dossier, the nav strip, or any
+// interactive child (those are deeper targets, so e.target !== canvas).
+function wireDetailDismiss() {
+  if (state.detailDismissBound) return;
+  state.detailDismissBound = true;
+  state.canvas.addEventListener("click", (e) => {
+    if (!state.detailRecordId) return;
+    if (e.target !== state.canvas) return;
+    closeDetail();
+  });
+}
+
 // ─── constellation hover ─────────────────────────────────────────────
 function wireConstellationHover() {
   wireConstellationModeNav();
@@ -7546,7 +7569,7 @@ function positionConstTip(stage, tip, e) {
 // Export: PNG via canvas.toDataURL → Electron IPC save dialog. PNG is
 // the most messaging-app-friendly format (renders inline in iMessage,
 // Slack, Discord). PDF as bonus through electron's printToPDF if asked.
-const CAL_DAY_W      = 18;        // pixel width per day column (was 22; tightened so 62-day windows fit common viewports without horizontal scroll)
+const CAL_DAY_W      = 22;        // pixel width per day column — MUST match drawCalendar's column width in cohort-calendar.js (the painter lays out columns at its own 22px; sizing the canvas any tighter clips the right edge). The container scrolls horizontally by design (see note above).
 const CAL_ROW_H      = 32;        // height per person row
 const CAL_HEADER_H   = 148;       // top — concurrent strip + month band + week labels + day numbers
 const CAL_DENSITY_H  = 32;        // height of the concurrent-headcount strip above the grid
@@ -7965,6 +7988,39 @@ function toggleOnboardingDone(key) {
   saveOnboardingDone(cur);
 }
 
+// One completion control per step, pinned to the right edge of the action
+// row so "do it" (left) and "mark done" (right) read as opposite outcomes.
+// Three honest states, each whose resting style encodes what a click does:
+//   • auto-detected → passive gold chip ("detected"). The cohort surface
+//     already knows this is done (e.g. profile fields synced), so there is
+//     nothing to toggle — the override map is force-ON only and can't
+//     un-detect a real signal. Not a button.
+//   • manually done → solid gold pill, aria-pressed, click to undo.
+//   • todo         → outlined neutral pill, click to mark done.
+// The left-edge data-state spine remains the single PASSIVE completion
+// signal; this is the single completion AFFORDANCE — no third encoding.
+function onbCompleteControl(s) {
+  const key = escAttr(s.key);
+  if (s.autoComplete) {
+    return `<span class="alch-onb-complete alch-onb-complete-auto" role="status"
+                  title="detected from your synced cohort profile">
+        <span class="alch-onb-complete-mark" aria-hidden="true"></span>detected
+      </span>`;
+  }
+  if (s.overridden) {
+    return `<button class="alch-onb-complete alch-onb-complete-on" type="button"
+                    data-onb-toggle="${key}" aria-pressed="true"
+                    title="marked done on this machine — click to undo">
+        <span class="alch-onb-complete-mark" aria-hidden="true"></span>marked done
+      </button>`;
+  }
+  return `<button class="alch-onb-complete" type="button"
+                  data-onb-toggle="${key}" aria-pressed="false"
+                  title="stored in localStorage on this machine">
+      <span class="alch-onb-complete-mark" aria-hidden="true"></span>mark done
+    </button>`;
+}
+
 function renderOnboarding() {
   const cohortIndex = buildCohortIndex(state.cohort);
   const people = cohortIndex.people;
@@ -8182,10 +8238,6 @@ function renderOnboarding() {
     // Per-step "mark done" toggle. Reflects + writes the localStorage map.
     // When auto-detect already says complete we still show the toggle so the
     // user can manually uncheck (and re-pin the step's state if they want).
-    const toggleLabel = s.overridden
-      ? "✓ marked done"
-      : (s.autoComplete ? "auto · mark done" : "mark done");
-    const toggleCls = s.overridden ? "alch-onb-done alch-onb-done-on" : "alch-onb-done";
     return separator + `
       <li class="alch-onb-step${s.bonus ? " alch-onb-step-bonus" : ""}" data-state="${escAttr(s.state)}">
         <div class="alch-onb-step-num">${escHtml(s.n)}</div>
@@ -8196,23 +8248,34 @@ function renderOnboarding() {
           <div class="alch-onb-step-actions">
             ${action}
             ${secondary}
-            <button class="${toggleCls}" type="button"
-                    data-onb-toggle="${escAttr(s.key)}"
-                    aria-pressed="${s.overridden}"
-                    title="stored in localStorage on this machine">
-              ${escHtml(toggleLabel)}
-            </button>
+            ${onbCompleteControl(s)}
           </div>
         </div>
-        <div class="alch-onb-step-mark" aria-hidden="true"></div>
       </li>
     `;
   }).join("");
 
+  // Overall progress — a single derived number stated in the dek and shown
+  // as a thin gold rule. Core steps only (bonus rows never inflate the
+  // denominator), matching the 01..06 / B1.. numbering split.
+  const coreTotal  = steps.filter(s => !s.bonus).length;
+  const bonusTotal = steps.filter(s =>  s.bonus).length;
+  const doneCore   = steps.filter(s => !s.bonus && s.state === "complete").length;
+  const corePct    = coreTotal ? Math.round((doneCore / coreTotal) * 100) : 0;
+
   state.canvas.innerHTML = `
+    <header class="alch-onb-head">
+      <h1 class="alch-onb-title">first week</h1>
+      <p class="alch-onb-sub">${coreTotal} core${bonusTotal ? ` · ${bonusTotal} optional` : ""} — <strong>${doneCore} of ${coreTotal} done</strong></p>
+      <div class="alch-onb-progress" role="progressbar"
+           aria-valuemin="0" aria-valuemax="${coreTotal}" aria-valuenow="${doneCore}"
+           aria-label="core onboarding progress">
+        <span class="alch-onb-progress-fill" style="width:${corePct}%"></span>
+      </div>
+    </header>
     <ol class="alch-onb-steps">${stepHtml}</ol>
     <p class="alch-callout"><strong>onboarding · v0.5</strong><br/>
-    01 + 03 auto-complete (you're in the app, so the local agent + Electron app are running). 02 sets up the field-kit so your agent gets CLI superpowers — voxterm comes bundled. 04 routes your profile through the field-kit's <code>/shape-rotator-profile</code> skill (with the in-app editor as fallback). 05 opens the live matrix join flow; 06 opens the local interview app/status. the bonus rows are second-agent (hermes) and adding your bot to matrix — optional, do them later.</p>
+    progress is saved on this machine. steps marked <em>detected</em> read from your synced cohort profile, so they stay done across devices once your profile syncs.</p>
   `;
 }
 
@@ -8461,7 +8524,7 @@ async function submitOnboardingInline(form) {
 }
 
 function wireOnboarding() {
-  for (const btn of state.canvas.querySelectorAll(".alch-onb-done[data-onb-toggle]")) {
+  for (const btn of state.canvas.querySelectorAll("[data-onb-toggle]")) {
     btn.addEventListener("click", () => {
       const key = btn.dataset.onbToggle;
       if (!key) return;
@@ -12703,8 +12766,9 @@ function detailLinkForKey(links, key) {
 // "explore" quick row into an icon toolbar that sits in the ledger head
 // — the first actions you see when the read opens. Icon-only
 // (shape-grammar: square buttons, never words inside), each carrying an
-// accessible label + native tooltip. "source" is intentionally absent:
-// the detail bar's "edit on github" link already owns that intent.
+// accessible label + native tooltip. "source" (edit-on-github) lives here
+// as the last icon — the explore bar now owns the source-edit intent that
+// the old detail-bar pill used to carry (the bar is now a nav-only strip).
 // Mirror of EXPLORE_ICONS in apps/web/scripts/cohort.js — keep in sync.
 const EXPLORE_ICONS = {
   calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>',
@@ -12716,6 +12780,9 @@ const EXPLORE_ICONS = {
   demo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>',
   deck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h20"/><path d="M21 3v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3"/><path d="m7 21 5-5 5 5"/></svg>',
   linkedin: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z"/></svg>',
+  // "source" = edit-on-github. A pencil glyph, deliberately distinct from the
+  // github mark above so the two never read as one repeated link in the row.
+  source: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
 };
 
 // In-OS jump (calendar / availability) — jumps to an alchemy page via
@@ -13092,6 +13159,7 @@ function renderTeamDetail(team) {
     exploreLink("website", "Website", detailLinkForKey(links, "website")),
     exploreLink("demo", "Demo", detailLinkForKey(links, "demo")),
     exploreLink("deck", "Deck", detailLinkForKey(links, "deck")),
+    exploreLink("source", "Edit on GitHub", editUrl),
   ]);
   const readSection = renderFlatSection("about / positioning", teamPositioningProse(journey), "alch-detail-priority");
   const assessmentPreview = [
@@ -13106,16 +13174,17 @@ function renderTeamDetail(team) {
     : (dependsFirst ? `depends on ${previewSnippet(dependsFirst, 44)}` : previewSnippet(team.offering));
 
   state.canvas.innerHTML = `
-    <header class="alch-detail-bar">
-      <button class="alch-detail-back" type="button" id="alch-detail-back" aria-label="back to grid">
-        <span aria-hidden="true">←</span>
-        <span>back</span>
+    <header class="alch-detail-bar alch-trailbar">
+      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort grid"}">
+        <span class="atb-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></span>
+        <span class="atb-word">back</span>
       </button>
-      <div class="alch-detail-bar-tag">
-        <span>${escHtml(team.record_id.toUpperCase())}</span>
-        ${team.is_mentor ? `<span class="ct-sep">·</span><span>mentor</span>` : ""}
-      </div>
-      <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
+      <nav class="alch-trail-path" aria-label="location">
+        <button type="button" class="atb-root" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort directory"}">${state.detailReturnMode === "constellation" ? "constellation" : "cohort"}</button>
+        <span class="atb-sep" aria-hidden="true">/</span>
+        <span class="atb-here" aria-current="page">${escHtml(team.record_id.toLowerCase())}</span>
+        ${team.is_mentor ? `<span class="atb-sep" aria-hidden="true">·</span><span class="atb-kind">mentor</span>` : ""}
+      </nav>
     </header>
     ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
 
@@ -13139,6 +13208,8 @@ function renderTeamDetail(team) {
   `;
 
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
+  state.canvas.querySelector(".atb-root")?.addEventListener("click", closeDetail);
+  wireDetailDismiss();
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
   wireDetailJumps(state.canvas);
@@ -13188,6 +13259,7 @@ function renderPersonDetail(person) {
     exploreLink("x", "X", detailLinkForKey(links, "x")),
     exploreLink("website", "Website", detailLinkForKey(links, "website")),
     exploreLink("linkedin", "LinkedIn", detailLinkForKey(links, "linkedin")),
+    exploreLink("source", "Edit on GitHub", editUrl),
   ]);
   const askMeAbout = detailQuickRow(
     "ask me about",
@@ -13239,15 +13311,16 @@ function renderPersonDetail(person) {
     : (secondary.length ? `also contributes: ${previewSnippet(secondary[0].name || secondary[0].record_id, 40)}` : "");
 
   state.canvas.innerHTML = `
-    <header class="alch-detail-bar">
-      <button class="alch-detail-back" type="button" id="alch-detail-back" aria-label="back to grid">
-        <span aria-hidden="true">←</span>
-        <span>back</span>
+    <header class="alch-detail-bar alch-trailbar">
+      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort grid"}">
+        <span class="atb-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></span>
+        <span class="atb-word">back</span>
       </button>
-      <div class="alch-detail-bar-tag">
-        <span>${escHtml(recordId.toUpperCase())}</span>
-      </div>
-      <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
+      <nav class="alch-trail-path" aria-label="location">
+        <button type="button" class="atb-root" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort directory"}">${state.detailReturnMode === "constellation" ? "constellation" : "cohort"}</button>
+        <span class="atb-sep" aria-hidden="true">/</span>
+        <span class="atb-here" aria-current="page">${escHtml(recordId.toLowerCase())}</span>
+      </nav>
     </header>
     ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
 
@@ -13271,6 +13344,8 @@ function renderPersonDetail(person) {
   `;
 
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
+  state.canvas.querySelector(".atb-root")?.addEventListener("click", closeDetail);
+  wireDetailDismiss();
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
   wireDetailJumps(state.canvas);

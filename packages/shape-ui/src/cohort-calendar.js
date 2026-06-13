@@ -51,6 +51,11 @@ let CAL_INK_2      = "#b8b4ab";
 let CAL_INK_3      = "#7a7368";
 let CAL_INK_4      = "#3a3833";
 let CAL_OXIDE      = "#8F220E";  // today marker (xyz sr-red)
+// Today-column wash + glow. Theme-driven (via --cal-today-band/glow, which key
+// off --ink-rgb) so they don't stay near-white and vanish on the light/paper
+// theme. The dark fallbacks below equal the prior hardcoded values exactly.
+let CAL_TODAY_BAND = "rgba(245, 243, 238, 0.05)";
+let CAL_TODAY_GLOW = "rgba(245, 243, 238, 0.07)";
 
 // Refresh palette from CSS custom properties — keeps the imperatively
 // drawn gantt aligned with the data-theme attribute on <html>. Called
@@ -73,6 +78,8 @@ function readCalPalette() {
   CAL_INK_3     = pick("--cal-ink-3",     CAL_INK_3);
   CAL_INK_4     = pick("--cal-ink-4",     CAL_INK_4);
   CAL_OXIDE     = pick("--cal-oxide",     CAL_OXIDE);
+  CAL_TODAY_BAND = pick("--cal-today-band", CAL_TODAY_BAND);
+  CAL_TODAY_GLOW = pick("--cal-today-glow", CAL_TODAY_GLOW);
 }
 
 // Reasonable defaults for the program; the wrapper API accepts an
@@ -382,12 +389,12 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
   const dayIdx = daysBetween(start, todayUTC);
   if (dayIdx >= 0 && dayIdx < numDays) {
     const x = gridX + dayIdx * CAL_DAY_W;
-    ctx.fillStyle = "rgba(245, 243, 238, 0.05)";
+    ctx.fillStyle = CAL_TODAY_BAND;
     ctx.fillRect(x, CAL_HEADER_H - 18, CAL_DAY_W, gridH + 18);
     const grad = ctx.createLinearGradient(x - 6, 0, x + CAL_DAY_W + 6, 0);
-    grad.addColorStop(0,   "rgba(245, 243, 238, 0)");
-    grad.addColorStop(0.5, "rgba(245, 243, 238, 0.07)");
-    grad.addColorStop(1,   "rgba(245, 243, 238, 0)");
+    grad.addColorStop(0,   "transparent");
+    grad.addColorStop(0.5, CAL_TODAY_GLOW);
+    grad.addColorStop(1,   "transparent");
     ctx.fillStyle = grad;
     ctx.fillRect(x - 6, CAL_HEADER_H - 18, CAL_DAY_W + 12, gridH + 18);
     const xc = x + CAL_DAY_W / 2;

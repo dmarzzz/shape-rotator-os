@@ -10,7 +10,7 @@
 import * as THREE from "three";
 import { UnrealBloomPass } from "../vendor/three-extras/postprocessing/UnrealBloomPass.js";
 
-import { applyStoredTheme } from "./theme.js";
+import { applyStoredTheme, getTheme, toggleTheme, onThemeChange } from "./theme.js";
 // Apply the persisted light/dark choice at module load — before any
 // alchemy surface paints — so launches never flash the wrong palette.
 applyStoredTheme();
@@ -394,6 +394,19 @@ function showUpdateBanner() {
   document.body.appendChild(banner);
 }
 
+// A download attempt failed. The loud banner was already removed on click and
+// the icon was about to drop to the subtle "available" dot — so the nudge would
+// silently downgrade until main's next ~2h push re-announced it. Restore BOTH
+// the icon and the banner so a failed download stays loud and retryable. Unlike
+// announceUpdateAvailable this has no downloading/ready early-return, so it
+// recovers even if progress had advanced the icon state mid-pull.
+function restoreUpdateAvailable(latest) {
+  const chip = document.getElementById("fg-version-chip");
+  if (chip && latest) { chip.dataset.update = "available"; chip.dataset.latest = latest; }
+  setUpdateIcon("available");
+  showUpdateBanner();
+}
+
 // Version stamp clicked. If we already know an update is waiting, go
 // straight to the download; otherwise run a check with visible feedback.
 function onVersionClick() {
@@ -436,16 +449,16 @@ async function onUpdateIconClick() {
       // it applies on quit. Land on the persistent "update ready" state.
       const dl = await window.api?.applyAppUpdate?.();
       if (dl?.ok) setUpdateReady("restart");
-      else setUpdateIcon("available");
+      else restoreUpdateAvailable(chip?.dataset.latest);
     } else {
       // unsigned-mac / .deb: download to ~/Downloads and open/reveal it; the
       // user runs the installer. Land on the persistent "open installer" state.
       const res = await window.api?.downloadAndRevealUpdate?.();
       if (res?.ok) setUpdateReady("manual", { path: res.path });
-      else setUpdateIcon("available");
+      else restoreUpdateAvailable(chip?.dataset.latest);
     }
   } catch {
-    setUpdateIcon("available");
+    restoreUpdateAvailable(chip?.dataset.latest);
   } finally {
     if (unsub) { try { unsub(); } catch {} }
   }
@@ -571,12 +584,38 @@ async function boot() {
       updIcon.setAttribute("aria-label", "update status");
       updIcon.addEventListener("click", () => onUpdateIconClick());
 
+      // Persistent theme toggle. Lives here (bottom-left rail footer) so the
+      // light/dark switch is reachable from any screen in one click — it used
+      // to live only inside the profile record editor, where nobody found it.
+      // The profile page keeps its own mirror; both call the same toggleTheme.
+      const themeBtn = document.createElement("button");
+      themeBtn.id = "fg-theme-toggle";
+      themeBtn.className = "fg-theme-toggle";
+      themeBtn.type = "button";
+      const SUN_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v1"/><path d="M12 20v1"/><path d="M3 12h1"/><path d="M20 12h1"/><path d="m18.364 5.636-.707.707"/><path d="m6.343 17.657-.707.707"/><path d="m5.636 5.636.707.707"/><path d="m17.657 17.657.707.707"/></svg>`;
+      const MOON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>`;
+      const paintThemeToggle = () => {
+        const now = getTheme();
+        const next = now === "light" ? "dark" : "light";
+        themeBtn.dataset.themeNow = now;
+        themeBtn.title = `switch to ${next} mode`;
+        themeBtn.setAttribute("aria-label", `switch to ${next} mode`);
+        // Icon = the mode you'll switch TO (matches the profile-page toggle).
+        themeBtn.innerHTML = now === "light" ? MOON_SVG : SUN_SVG;
+      };
+      paintThemeToggle();
+      themeBtn.addEventListener("click", () => { toggleTheme(); });
+      onThemeChange(paintThemeToggle);
+
       // Group the version + icon, right-aligned to the panel edge. The icon
       // sits to the RIGHT of the version in a permanently reserved slot (it
       // keeps its width even when empty), so the version's position is fixed
-      // and never shifts when the icon's glyph appears.
+      // and never shifts when the icon's glyph appears. The theme toggle is
+      // the leftmost cluster child so it grows leftward without nudging the
+      // version's pinned right edge.
       const cluster = document.createElement("div");
       cluster.className = "fg-footer-vcluster";
+      cluster.appendChild(themeBtn);
       cluster.appendChild(ver);
       cluster.appendChild(updIcon);
       row.appendChild(cluster);
@@ -6492,6 +6531,10 @@ function registerVisualizerShortcutsAndCommands() {
     const tag = e.target?.tagName?.toUpperCase();
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
     if (e.target?.isContentEditable) return;
+    // A focused sentence-bar filter control is a <button role="option">, not a
+    // text field — without this guard, listbox type-ahead ('n'→needs, 'm'→map,
+    // 'a'→all) would fall through and yank the user out to another OS view.
+    if (e.target?.closest?.('.ac-sentence,[role="listbox"],[role="option"],[aria-haspopup="listbox"]')) return;
     const k = e.key.toLowerCase();
     if (k === "a") { openApp("atlas"); }
     else if (k === "n") { goTab("network"); setNetworkSub("network"); }
@@ -7849,14 +7892,37 @@ function stopMetricsPoll() {
   }
 }
 
+// A daemon-unreachable failure (swf-node not running) is the common case for
+// most users — Chromium raises a "Failed to fetch" TypeError on a refused
+// connection. Treat that as a calm offline state, not an error; reserve the
+// louder tone for genuine post-connection failures (HTTP 5xx, parse, etc.).
+function isDaemonUnreachable(e) {
+  const m = (e && e.message ? e.message : String(e)).toLowerCase();
+  return m.includes("failed to fetch")
+    || m.includes("networkerror")
+    || m.includes("load failed")
+    || m.includes("err_connection");
+}
+
 async function runMetricsRefresh() {
   const status = document.getElementById("metrics-status");
-  if (status) status.textContent = "loading.";
+  if (status) { status.textContent = "loading."; status.dataset.state = "loading"; }
   try {
     await Promise.all([fetchMetricsSnapshot(), fetchMetricsCharts()]);
-    if (status) status.textContent = `last update ${formatEventTs(Date.now())}`;
+    if (status) { status.textContent = `last update ${formatEventTs(Date.now())}`; status.dataset.state = "ok"; }
   } catch (e) {
-    if (status) status.textContent = `error: ${e?.message || String(e)}`;
+    // Speak the same offline grammar as atlas ("no daemon, no atlas") and
+    // network ("the network is quiet") rather than leaking the raw fetch
+    // exception string to the user.
+    const offline = isDaemonUnreachable(e);
+    if (status) {
+      status.textContent = offline ? "idle · swf-node offline" : "metrics unavailable · retrying";
+      status.dataset.state = offline ? "offline" : "error";
+    }
+    // Surface the "start swf-node" hint so the empty grid is explained,
+    // instead of leaving a graveyard of em-dashes under an error string.
+    const empty = document.getElementById("metrics-empty");
+    if (empty) empty.hidden = false;
   }
 }
 
