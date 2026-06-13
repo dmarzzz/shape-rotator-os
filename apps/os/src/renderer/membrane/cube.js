@@ -194,7 +194,7 @@ const CUBE_FRAG = /* glsl */ `
     // colored halo — not just a brighter facet. uGlow eases it in/out. Applied
     // AFTER the spin energy so it reads the same still or spinning.
     float fmask = smoothstep(0.9, 0.999, dot(normalize(vLocalN), uHoverN));
-    col += uGlowColor * fmask * uGlow * 1.6;
+    col += uGlowColor * fmask * uGlow * 1.12;
     col *= 1.0 + fmask * uGlow * 0.12;
 
     gl_FragColor = vec4(col, 0.94);
