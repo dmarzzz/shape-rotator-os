@@ -24,7 +24,7 @@
     "context:corpus": "node scripts/build-context-vault-corpus.js",
     "test:models": "node --test scripts/test-model-helpers.mjs",
     "keys:gen": "node scripts/keys-gen.js",
-    "vendor:web": "node scripts/build-ics.js && rm -rf apps/web/shape-ui && cp -R packages/shape-ui apps/web/shape-ui && cp apps/os/src/cohort-surface.json apps/web/cohort-surface.json && cp cohort-data/calendar.json apps/web/calendar.json && cp cohort-data/calendar.ics apps/web/calendar.ics",
+    "vendor:web": "node scripts/vendor-web.js",
     "deploy:web": "npm run vendor:web && cd apps/web && vercel deploy --prod --yes",
     "audit:github-progress": "node scripts/check-github-progress.mjs",
     "review:github-progress": "node scripts/promote-github-progress-artifacts.mjs"
