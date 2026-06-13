@@ -244,8 +244,10 @@ jobs:
             const p = 'apps/os/package.json';
             const j = JSON.parse(fs.readFileSync(p, 'utf8'));
             j.build.publish[0].owner = process.env.PUB_OWNER;
+            j.build.publish[0].releaseType = String(j.version || '').includes('-') ? 'prerelease' : 'release';
             fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
             console.log('publish owner →', j.build.publish[0].owner);
+            console.log('publish releaseType →', j.build.publish[0].releaseType);
           "
         env:
           PUB_OWNER: ${{ github.repository_owner }}

@@ -2912,6 +2912,10 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   letter-spacing: 0.10em;
   color: var(--light-3);
 }
+/* The swf-node-offline state ("idle · swf-node offline") stays in the calm
+ * default dim above — idle, not alarming. Only a genuine post-connection
+ * failure gets a muted amber warning; never an alarm-red or a raw exception. */
+.metrics-status[data-state="error"] { color: #d98a2b; }
 
 .metrics-stat-row {
   display: grid;
@@ -12795,6 +12799,31 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 .fg-update-icon[data-state="downloading"] { cursor: default; }
 .fg-update-icon[data-state="ready"] { cursor: pointer; }
 .fg-update-icon svg.fg-ready-glyph { width: 12px; height: 12px; }
+
+/* Persistent theme toggle in the footer cluster. Subdued at rest (it's a
+ * utility, not status, so it sits quieter than the white update glyph), warms
+ * to full ink on hover. Sized to sit alongside the version stamp + update
+ * icon without crowding them. */
+.fg-theme-toggle {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(var(--ink-rgb), 0.50);
+  cursor: pointer;
+  line-height: 0;
+  border-radius: 5px;
+  transition: color 200ms var(--ease, ease), transform 100ms var(--ease, ease);
+}
+.fg-theme-toggle svg { width: 14px; height: 14px; display: block; }
+.fg-theme-toggle:hover { color: var(--ink-hi); }
+.fg-theme-toggle:active { transform: scale(0.92); }
 /* numeric % / ready label — mono, tabular so the digits don't jitter. */
 .fg-update-pct {
   font-family: var(--font-mono, "SF Mono", Menlo, ui-monospace, monospace);
@@ -14323,6 +14352,23 @@ body::before {
   margin: 0;
 }
 .alch-onb-sub strong { color: var(--ed-ink-1); opacity: 1; font-weight: 500; }
+/* Overall progress — page-level echo of the per-row gold spine. Fills as
+   core steps complete; honours reduced-motion via the global reset. */
+.alch-onb-progress {
+  margin-top: 16px;
+  max-width: 70ch;
+  height: 2px;
+  background: rgba(var(--ink-rgb), 0.10);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.alch-onb-progress-fill {
+  display: block;
+  height: 100%;
+  background: rgba(193, 168, 114, 0.65);
+  border-radius: 1px;
+  transition: width 380ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
 .alch-onb-steps {
   list-style: none; padding: 0; margin: 0 0 28px;
   display: grid; gap: 14px;
@@ -14331,7 +14377,7 @@ body::before {
 .alch-onb-step {
   position: relative;
   display: grid;
-  grid-template-columns: 44px 1fr 24px;
+  grid-template-columns: 44px 1fr;
   gap: 18px;
   align-items: start;
   padding: 16px 18px;
@@ -14374,20 +14420,40 @@ body::before {
   padding: 1px 5px;
   border-radius: 2px;
 }
-.alch-onb-step-mark {
-  align-self: center;
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  background: transparent;
-  border: 1px solid rgba(var(--ink-rgb), 0.20);
+.alch-onb-step-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+/* Primary action — a real boxed command. `.alch-feed-btn` only gets its box
+   under the feed-mode scope, so onboarding supplies its own here (otherwise
+   the mandatory CTA renders as bare mono text). */
+.alch-onb-action {
+  margin-top: 0;
+  min-height: 32px;
+  padding: 7px 13px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  background: rgba(var(--ink-rgb), 0.018);
+  color: var(--ed-ink-1);
+  cursor: pointer;
+  transition: transform 160ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+              border-color 160ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+              background 160ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+              color 160ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
 }
-.alch-onb-step[data-state="complete"] .alch-onb-step-mark {
-  background: rgba(193,168,114,0.55);
-  border-color: rgba(193,168,114,0.55);
+.alch-onb-action:hover {
+  transform: translateY(-1px);
+  border-color: rgba(143, 34, 14, 0.58);
+  background: rgba(143, 34, 14, 0.035);
+  color: var(--ed-ink-1, #f5f3ee);
 }
-.alch-onb-step[data-state="missing"] .alch-onb-step-mark { border-color: #c44025; }
-.alch-onb-action { margin-top: 0; }
-.alch-onb-step-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.alch-onb-action:active { transform: translateY(0) scale(0.985); }
+/* Brand focus ring — beat the global HUD-cyan ring on this editorial surface
+   (mirrors the feed view's red override). */
+.alch-onb-action:focus-visible,
+.alch-onb-secondary:focus-visible,
+.alch-onb-complete:focus-visible {
+  outline: 2px solid rgba(143, 34, 14, 0.72);
+  outline-offset: 3px;
+  box-shadow: none;
+}
 /* Secondary action — a quieter text-link sibling to the primary
  * action button. Used today on the profile step to surface the
  * "ask your agent" path next to the in-app editor button. */
@@ -14412,27 +14478,56 @@ body::before {
   color: var(--ed-ink-1, #f5f3ee);
   text-decoration-color: var(--sr-red, #8f220e);
 }
-.alch-onb-done {
+/* Completion control — ONE per row, pinned right so "do it" (left) and
+   "mark done" (right) read as opposite outcomes, never peers. States:
+     .alch-onb-complete        todo      — outlined neutral pill, hollow ring
+     .alch-onb-complete-on     done      — solid gold pill, reversible (click→undo)
+     .alch-onb-complete-auto   detected  — passive gold chip (system-asserted)
+   The left-edge data-state spine is the single PASSIVE signal; this is the
+   single completion AFFORDANCE — no third encoding of "done" anywhere. */
+.alch-onb-complete {
   appearance: none;
-  background: transparent;
-  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 5px 13px;
   border-radius: 999px;
-  padding: 4px 11px;
+  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  background: transparent;
   font-family: var(--ed-mono);
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: lowercase;
   color: var(--ed-ink-1);
-  opacity: 0.65;
+  opacity: 0.7;
   cursor: pointer;
+  transition: opacity 200ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+              border-color 200ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+              background 200ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
 }
-.alch-onb-done:hover { opacity: 1; border-color: rgba(var(--ink-rgb), 0.40); }
-.alch-onb-done-on {
-  border-color: rgba(193,168,114,0.65);
-  background: rgba(193,168,114,0.12);
-  color: rgba(229,212,178,0.95);
+.alch-onb-complete:hover { opacity: 1; border-color: rgba(var(--ink-rgb), 0.40); }
+.alch-onb-complete-mark {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0.6;
+}
+.alch-onb-complete-on,
+.alch-onb-complete-auto {
+  opacity: 1;
+  border-color: rgba(193, 168, 114, 0.65);
+  background: rgba(193, 168, 114, 0.12);
+  color: rgba(229, 212, 178, 0.95);
+}
+.alch-onb-complete-on .alch-onb-complete-mark,
+.alch-onb-complete-auto .alch-onb-complete-mark {
+  background: rgba(193, 168, 114, 0.9);
+  border-color: rgba(193, 168, 114, 0.9);
   opacity: 1;
 }
+.alch-onb-complete-auto { cursor: default; }
 /* Brief left-edge pulse on the step the user is being directed to next.
    Added by wireOnboarding after a mark-done click; auto-removed after 1.6s. */
 @keyframes alch-onb-pulse {
@@ -16166,10 +16261,11 @@ body::before {
 .alch-onb-head         { margin: 0 auto 32px; max-width: 88ch; padding-top: 12px; }
 .alch-onb-title        { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
 .alch-onb-sub          { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 70ch; opacity: 0.62; }
+.alch-onb-progress     { max-width: 88ch; }
 
 .alch-onb-steps        { margin: 0 0 36px; max-width: 88ch; gap: 18px; }
 .alch-onb-step         {
-  grid-template-columns: 56px 1fr 28px;
+  grid-template-columns: 56px 1fr;
   gap: 24px;
   padding: 22px 24px;
 }
@@ -16177,9 +16273,8 @@ body::before {
 .alch-onb-step-title   { font-size: 22px; line-height: 1.20; margin: 0 0 10px 0; }
 .alch-onb-step-ask     { font-size: 16px; line-height: 1.6; margin: 0 0 16px 0; opacity: 0.88; }
 .alch-onb-step-ask code { font-size: 12.5px; padding: 2px 6px; }
-.alch-onb-step-mark    { width: 14px; height: 14px; }
 .alch-onb-step-actions { gap: 14px; }
-.alch-onb-done         { font-size: 11px; padding: 6px 14px; letter-spacing: 0.18em; }
+.alch-onb-complete     { font-size: 11px; padding: 6px 14px; letter-spacing: 0.18em; }
 
 /* ── calendar ─────────────────────────────────────────────────────── */
 .cal-page-head         { margin-bottom: 0; }
@@ -16785,7 +16880,6 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .cal-event[data-kind="demo"]              { border-left-color: var(--sr-red); }
 .cal-event[data-state="now"]              { background: rgba(143, 34, 14, 0.07); }
 .alch-onb-step[data-state="missing"]      { border-left-color: var(--sr-red); }
-.alch-onb-step[data-state="missing"] .alch-onb-step-mark { border-color: var(--sr-red); }
 .alch-prog-tab[aria-selected="true"]      { border-bottom-color: var(--sr-red); }
 .cal-subtab[aria-selected="true"]         { border-bottom-color: var(--sr-red); }
 .alch-page-view-btn[aria-selected="true"]{ border-bottom-color: var(--sr-red); }
@@ -17006,8 +17100,39 @@ body[data-active-tab="alchemy"] .nav-cat[data-tab="alchemy"],
 body[data-active-tab="apps"]    .nav-cat[data-tab="apps"],
 body[data-active-tab="network"] .nav-cat[data-tab="network"],
 body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
-  color: var(--ink-hi);
+  /* !important matches the rail's active-label convention (.primary-nav
+   * .alchemy-rail-btn[aria-selected] ... !important); without it the active
+   * color silently lost in this nav's cascade — the original omission is why
+   * apps/network/links had no working active treatment. */
+  color: var(--ink-hi) !important;
   text-shadow: 0 0 8px rgba(var(--ink-rgb), 0.50);
+}
+/* Ember "you are here" marker. APPS / NETWORK / LINKS are real destinations
+ * but read like the OPERATING-SYSTEM section header, and the brightness bump
+ * above is too subtle to answer "which one am I on?". A left oxide bar — the
+ * same accent the active rail page-icon uses — makes the active category
+ * unmistakable in both themes (the bump alone is near-invisible on paper). */
+.nav-cat { position: relative; }
+.nav-cat::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(50% + 3px);            /* +3px corrects the 12/6 asymmetric padding */
+  transform: translateY(-50%) scaleY(0.4);
+  width: 3px;
+  height: 14px;
+  border-radius: 0 2px 2px 0;
+  background: var(--sr-red);
+  opacity: 0;
+  transition: opacity 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              transform 200ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+body[data-active-tab="alchemy"] .nav-cat[data-tab="alchemy"]::before,
+body[data-active-tab="apps"]    .nav-cat[data-tab="apps"]::before,
+body[data-active-tab="network"] .nav-cat[data-tab="network"]::before,
+body[data-active-tab="links"]   .nav-cat[data-tab="links"]::before {
+  opacity: 1 !important;
+  transform: translateY(-50%) scaleY(1) !important;
 }
 /* The rail (operating-system sub-pages) nested under its category —
    reset the old stage-column sizing and indent it as a sub-list. */
@@ -17107,7 +17232,7 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
 .alch-asks-action,
 .alch-asks-status,
 .alch-onb-step-num,
-.alch-onb-done,
+.alch-onb-complete,
 .alch-onb-inline-line,
 .alch-onb-inline-hint,
 .alch-onb-inline-tag,
