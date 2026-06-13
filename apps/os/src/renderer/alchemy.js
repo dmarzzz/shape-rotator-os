@@ -7872,12 +7872,20 @@ function mountGanttFreezePanes(mainCnv, w, h, dpr) {
   if (!scroller || !wrap || !leftCnv || !topCnv || !cornerCnv) return;
 
   const veil = (getComputedStyle(document.documentElement).getPropertyValue("--ed-bg-0") || "").trim() || "#0a0a0a";
+  // The main gantt canvas is transparent (the page gradient shows through),
+  // so the pinned panes must paint their OWN opaque backdrop before copying —
+  // otherwise bars scrolled underneath would bleed through the frozen name
+  // column / date header. Use the page's base background colour so the panes
+  // still read as native to the page (theme-aware via computed style).
+  const paneBg = (getComputedStyle(document.body).backgroundColor || "").trim() || "#1A1719";
   const copyRegion = (cnv, cssW, cssH) => {
     cnv.width  = Math.round(cssW * dpr);
     cnv.height = Math.round(cssH * dpr);
     cnv.style.width  = cssW + "px";
     cnv.style.height = cssH + "px";
     const c = cnv.getContext("2d");
+    c.fillStyle = paneBg;
+    c.fillRect(0, 0, cnv.width, cnv.height);
     c.drawImage(mainCnv, 0, 0, cnv.width, cnv.height, 0, 0, cnv.width, cnv.height);
     c.globalAlpha = 0.22;
     c.fillStyle = veil;
@@ -12411,10 +12419,23 @@ function truncateText(ctx, text, maxW) {
 async function exportCalendar(format) {
   const cnv = document.getElementById("cal-canvas");
   if (!cnv) return;
+  // The live canvas is transparent on screen (it lets the page gradient show
+  // through). Exporting it directly would yield a see-through PNG/PDF, so
+  // flatten it onto the page's base background colour first.
+  const flattenCanvas = () => {
+    const out = document.createElement("canvas");
+    out.width = cnv.width;
+    out.height = cnv.height;
+    const octx = out.getContext("2d");
+    octx.fillStyle = (getComputedStyle(document.body).backgroundColor || "").trim() || "#1A1719";
+    octx.fillRect(0, 0, out.width, out.height);
+    octx.drawImage(cnv, 0, 0);
+    return out.toDataURL("image/png");
+  };
   if (format === "png") {
     // Snapshot the canvas as PNG. Routed through Electron IPC so we get
     // a native save dialog instead of a browser blob download.
-    const dataUrl = cnv.toDataURL("image/png");
+    const dataUrl = flattenCanvas();
     if (window.api?.exportCalendar) {
       const r = await window.api.exportCalendar({ format: "png", dataUrl });
       announceExport(r);
@@ -12429,7 +12450,7 @@ async function exportCalendar(format) {
     // For PDF we ask the main process to embed the canvas image into a
     // single-page PDF at the canvas's pixel dimensions. printToPDF would
     // capture the WHOLE app chrome which is not what we want.
-    const dataUrl = cnv.toDataURL("image/png");
+    const dataUrl = flattenCanvas();
     if (window.api?.exportCalendar) {
       const r = await window.api.exportCalendar({ format: "pdf", dataUrl, w: cnv.width, h: cnv.height });
       announceExport(r);

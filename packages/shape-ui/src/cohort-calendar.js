@@ -166,9 +166,12 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
   // current data-theme. Cheap enough to run every draw (string copies).
   readCalPalette();
 
-  // Background.
-  ctx.fillStyle = CAL_BG;
-  ctx.fillRect(0, 0, W, H);
+  // Background: cleared (transparent) so the page's radial gradient shows
+  // through the gantt instead of a flat grey panel. The pinned freeze panes
+  // lay down their own opaque backdrop (see mountGanttFreezePanes) so
+  // scrolled bars don't bleed through the name column / date header, and the
+  // PNG/PDF export flattens onto the page colour (see exportCalendar).
+  ctx.clearRect(0, 0, W, H);
 
   const gridX = CAL_LEFT_W;
   const gridY = CAL_HEADER_H;
