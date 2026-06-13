@@ -5076,6 +5076,161 @@ function renderJourney() {
   markConstellationSelection(state.constSelection);
 }
 
+// ─── product layer slot · team standing vs their OWN plan (v0.1) ─────
+// PMF says how mature a team is on a shared maturity curve. This answers
+// the orthogonal, self-referenced question PMF can't: how is each team
+// doing against the goals IT set? Every team is graded against itself, so
+// it cannot collapse back onto PMF. v0.1 reads standing from self-reported
+// confidence and shows each team's own next goal; the real week-over-week
+// momentum (recovering / slipping) lights up once transcripts feed the loop.
+const CONST_GOAL_STANDING = {
+  behind: { label: "behind plan", x: 0.18, color: "#d98a3d" },
+  onplan: { label: "on plan", x: 0.5, color: "#7fa05a" },
+  ahead: { label: "ahead", x: 0.82, color: "#4f9d8f" },
+};
+function constTeamStanding(team) {
+  if (!journeyAssessed(team)) return null;
+  const c = constText(journeyFor(team).confidence).toLowerCase();
+  if (c === "low") return "behind";
+  if (c === "high") return "ahead";
+  if (c === "medium") return "onplan";
+  return null;
+}
+function constTeamGoalText(team) {
+  const j = journeyFor(team);
+  return constText(j.next_milestone) || constText(team?.weekly_goals)
+    || constText(team?.graduation_target) || constText(team?.monthly_milestones) || "";
+}
+function constGoalPlanModel(teams = []) {
+  const rows = (Array.isArray(teams) ? teams : [])
+    .filter(team => team?.record_id && teamKind(team) !== "person")
+    .map(team => ({
+      team,
+      standing: constTeamStanding(team),
+      goalText: constTeamGoalText(team),
+      domain: constDomainClass(team?.domain),
+    }));
+  const order = { behind: 0, onplan: 1, ahead: 2 };
+  const byName = (a, b) => String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id));
+  const tracked = rows.filter(r => r.standing).sort((a, b) => order[a.standing] - order[b.standing] || byName(a, b));
+  const untracked = rows.filter(r => !r.standing).sort(byName);
+  const counts = { behind: 0, onplan: 0, ahead: 0 };
+  for (const r of tracked) counts[r.standing] += 1;
+  // teamRows keep the stack hover tooltip (constStackItemForTeam) consistent.
+  const teamRows = rows.map(r => ({
+    team: r.team,
+    role: {
+      key: r.standing || "untracked",
+      label: r.standing ? CONST_GOAL_STANDING[r.standing].label : "no standing read yet",
+      secondary: null,
+      reason: r.goalText ? `goal: ${r.goalText}` : "no goal declared yet",
+    },
+    evidence: { key: "profile", label: r.standing ? "self-reported confidence" : "no journey read", value: 0 },
+  }));
+  return { rows, tracked, untracked, counts, teamRows };
+}
+
+// Bare cohort read — the standing distribution (how many are behind their
+// OWN plan), the self-referenced glance PMF can't give.
+function constGoalPlanReadoutHtml(model) {
+  const tracked = model?.tracked?.length || 0;
+  let title = "No team standing declared yet";
+  if (tracked) {
+    const c = model.counts;
+    title = `${c.behind} behind plan · ${c.onplan} on track · ${c.ahead} ahead`;
+  }
+  const untracked = model?.untracked?.length || 0;
+  return `
+    <section class="ac-main-readout is-stack-readout" aria-label="team standing readout">
+      <div class="ac-inspector-kicker">generated standing read · v0.1</div>
+      <h3>${escHtml(title)}</h3>
+      ${untracked ? `<div class="ac-view-chips"><span>no plan read<em>${untracked}</em></span></div>` : ""}
+    </section>`;
+}
+
+function constGoalPlanSelectedReadoutHtml() {
+  const sel = state.constSelection;
+  if (sel?.type !== "team") return "";
+  const team = (activeConstellationCohort()?.teams || []).find(t => t.record_id === sel.rid);
+  if (!team) return "";
+  const standing = constTeamStanding(team);
+  const goalText = constTeamGoalText(team);
+  const nameLink = `<button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(team.record_id)}">${escHtml(team.name || team.record_id)}</button>`;
+  if (!standing) {
+    return `
+    <section class="ac-main-readout is-stack-readout is-selected-readout" aria-label="selected team standing read">
+      <div class="ac-inspector-kicker">selected · standing read</div>
+      <h3>${nameLink}</h3>
+      <p>No standing read yet — needs a journey assessment (and, soon, transcript signal).</p>
+    </section>`;
+  }
+  const line = standing === "behind"
+    ? "Reports low confidence against its own plan — worth a check-in."
+    : standing === "ahead"
+      ? "Reports high confidence — ahead of its own plan."
+      : "Reports steady confidence — tracking on plan.";
+  return `
+    <section class="ac-main-readout is-stack-readout is-selected-readout" aria-label="selected team standing read">
+      <div class="ac-inspector-kicker">selected · standing read</div>
+      <h3>${nameLink}</h3>
+      <p>${escHtml(line)}</p>
+      <div class="ac-view-chips">
+        <span>standing<em>${escHtml(CONST_GOAL_STANDING[standing].label)}</em></span>
+        ${goalText ? `<span>aimed at<em>${escHtml(constShortText(goalText, 60))}</em></span>` : ""}
+      </div>
+      <p class="ac-readout-hint">click the row again for the full record · click the name for the directory card</p>
+    </section>`;
+}
+
+// Rows of arrows, self-referenced: a center "on plan" line is each team's
+// own goal; the dot is where they report standing; behind teams show a
+// catch-up arrow to the line. Sorted behind-first so who-needs-help leads.
+function constGoalPlanHtml(model) {
+  const tracked = model?.tracked || [];
+  const untracked = model?.untracked || [];
+  if (!tracked.length && !untracked.length) return `<p class="ac-stack-empty">no teams to track yet.</p>`;
+  const head = `
+    <div class="ac-gp-head" aria-hidden="true">
+      <span></span>
+      <span class="ac-gp-axis"><i class="is-l">behind plan</i><i class="is-c">on plan</i><i class="is-r">ahead</i></span>
+      <span class="ac-gp-goalhead">their goal</span>
+    </div>`;
+  const row = (r) => {
+    const spec = CONST_GOAL_STANDING[r.standing];
+    const x = (spec.x * 100).toFixed(1);
+    const arrow = r.standing === "behind"
+      ? `<span class="ac-gp-arrow" style="left:${x}%;width:${((0.5 - spec.x) * 100).toFixed(1)}%"></span>`
+      : "";
+    const goal = r.goalText ? escHtml(constShortText(r.goalText, 48)) : "—";
+    const aria = `${r.team.name || r.team.record_id}: ${spec.label}${r.goalText ? `, goal: ${constShortText(r.goalText, 60)}` : ""}`;
+    return `
+      <button type="button" class="ac-stack-team ac-gp-row is-${escAttr(r.standing)}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${spec.color}" aria-label="${escAttr(aria)}">
+        <span class="ac-gp-name">${escHtml(r.team.name || r.team.record_id)}</span>
+        <span class="ac-gp-track">
+          ${arrow}
+          <span class="ac-gp-dot" style="left:${x}%"></span>
+        </span>
+        <span class="ac-gp-goal">${goal}</span>
+      </button>`;
+  };
+  const untrackedHtml = untracked.length ? `
+      <div class="ac-gp-untracked">
+        <span class="ac-gp-untracked-head">no standing read yet</span>
+        <div class="ac-gp-untracked-list">
+          ${untracked.map(r => `<button type="button" class="ac-stack-team ac-gp-chip" data-const-team="${escAttr(r.team.record_id)}" aria-label="${escAttr((r.team.name || r.team.record_id) + ": no standing read yet")}">${escHtml(r.team.name || r.team.record_id)}</button>`).join("")}
+        </div>
+      </div>` : "";
+  return `
+    <div class="ac-stack-view is-goalplan">
+      ${head}
+      <div class="ac-gp-rows">
+        ${tracked.map(row).join("")}
+      </div>
+      ${untrackedHtml}
+      <p class="ac-gp-note">v0.1 · standing is self-reported confidence against each team's own goal — not a shared spectrum. Week-over-week momentum (recovering / slipping) lights up once transcripts feed the loop.</p>
+    </div>`;
+}
+
 function renderProductStack() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
@@ -5090,28 +5245,20 @@ function renderProductStack() {
     lens: "all",
     interest: constInterestContext(teams, clusters, edges, state.constInterest),
   };
-  const stackModel = constProductStackModel(teams, baseCtx);
-  const inspectorCtx = { ...baseCtx, stackModel };
-  // The domain legend lives inside the sentence bar as chips: each carries
-  // its count, hover isolates that domain's tiles below (CSS :has, as the
-  // old legend did), and click pins the isolation (data-domain-pin on the
-  // stage) — hover previews, click commits.
-  const domainCounts = new Map(CONST_DOMAIN_KEYS.map(k => [k, 0]));
-  for (const t of teams) {
-    const k = constDomainClass(t.domain);
-    if (domainCounts.has(k)) domainCounts.set(k, domainCounts.get(k) + 1);
-  }
-  const domainPin = constNormalizeDomainPin(state.constDomainPin);
-  const domainChip = (k) => `
-    <button type="button" class="ac-sent-evi is-domain" data-legend-domain="${escAttr(k)}" data-domain-pin-toggle="${escAttr(k)}" aria-pressed="${domainPin === k ? "true" : "false"}" aria-label="${escAttr(`${CONST_DOMAIN_LABEL[k]}, ${domainCounts.get(k)} teams — ${domainPin === k ? "pinned, click to show every domain" : "hover previews, click isolates"}`)}">
-      <i class="acl-dot acl-dot-${k}" aria-hidden="true"></i><em>${domainCounts.get(k)}</em>&nbsp;${escHtml(CONST_DOMAIN_LABEL[k])}
-    </button>`;
+  const goalModel = constGoalPlanModel(teams);
+  const inspectorCtx = { ...baseCtx, stackModel: goalModel };
+  const domainPin = "";
+  // Sentence bar — this view tracks teams against their OWN declared goals
+  // (self-referenced standing), not a shared product spectrum.
+  const standCount = goalModel.counts;
   const sentenceBar = `
-    <div class="ac-sentence" role="group" aria-label="product layer filters">
-      <span class="ac-sent-word">stacking</span>
-      <strong class="ac-sent-fact">${teams.length} teams</strong>
-      <span class="ac-sent-word">· colored by</span>
-      ${CONST_DOMAIN_KEYS.map(domainChip).join("")}
+    <div class="ac-sentence" role="group" aria-label="team standing summary">
+      <span class="ac-sent-word">tracking</span>
+      <strong class="ac-sent-fact">${goalModel.tracked.length} teams</strong>
+      <span class="ac-sent-word">against their own goals ·</span>
+      <span class="ac-sent-evi">${standCount.behind} behind</span>
+      <span class="ac-sent-evi">${standCount.onplan} on plan</span>
+      <span class="ac-sent-evi">${standCount.ahead} ahead</span>
     </div>`;
   const selectionChip = constSelectionChipHtml();
   state.canvas.innerHTML = `
@@ -5121,9 +5268,9 @@ function renderProductStack() {
     <div class="alch-constellation" data-constellation-view="stack">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
-          ${constStackSelectedReadoutHtml(inspectorCtx) || constStackReadoutHtml(inspectorCtx)}
-          <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" data-domain-pin="${escAttr(domainPin)}" tabindex="0" aria-label="constellation product layer directory">
-            ${constProductStackHtml(stackModel)}
+          ${constGoalPlanSelectedReadoutHtml() || constGoalPlanReadoutHtml(goalModel)}
+          <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" data-domain-pin="${escAttr(domainPin)}" tabindex="0" aria-label="team standing against plan">
+            ${constGoalPlanHtml(goalModel)}
             <div class="ac-tip" hidden></div>
           </div>
         </div>

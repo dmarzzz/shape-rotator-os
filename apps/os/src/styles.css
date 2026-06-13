@@ -8158,6 +8158,77 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-dist-row.is-selected span {
   color: var(--alchemy-paper-warm);
 }
+/* ── product layer slot · team standing vs their own plan (v0.1) ────
+   Rows of arrows, self-referenced: a center "on plan" line is the team's
+   own goal; the dot is reported standing; behind teams get a catch-up
+   arrow. Rows reuse the .ac-stack-team glass tile (border / sheen / hover
+   lift), tinted by standing colour; layout scoped under .is-goalplan. */
+.ac-stack-view.is-goalplan {
+  display: flex; flex-direction: column; gap: 0;
+  min-width: 0; min-height: 0; border: 0; background: transparent;
+}
+.ac-stack-view.is-goalplan .ac-gp-head {
+  display: grid; grid-template-columns: 132px 1fr 132px; column-gap: 14px;
+  align-items: center; height: 14px; margin: 2px 11px 8px;
+}
+.ac-stack-view.is-goalplan .ac-gp-axis { position: relative; height: 14px; }
+.ac-stack-view.is-goalplan .ac-gp-axis i {
+  position: absolute; top: 0; font-family: var(--font-mono); font-size: 8.5px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--alchemy-ink-mute); font-style: normal;
+}
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-l { left: 0; }
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-c { left: 50%; transform: translateX(-50%); }
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-r { right: 0; }
+.ac-stack-view.is-goalplan .ac-gp-goalhead {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute); text-align: right;
+}
+.ac-stack-view.is-goalplan .ac-gp-rows { display: flex; flex-direction: column; gap: 6px; }
+.ac-stack-view.is-goalplan .ac-gp-row {
+  grid-template-columns: 132px 1fr 132px; grid-template-rows: auto;
+  column-gap: 14px; align-items: center; padding: 9px 11px;
+}
+.ac-stack-view.is-goalplan .ac-gp-name {
+  min-width: 0; font-family: var(--font-sans); font-size: 12px; color: var(--alchemy-paper-warm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ac-stack-view.is-goalplan .ac-gp-track { position: relative; height: 22px; min-width: 0; }
+.ac-stack-view.is-goalplan .ac-gp-track::before {
+  content: ""; position: absolute; left: 50%; top: 3px; bottom: 3px; width: 0; border-left: 1px dashed var(--lg-border);
+}
+.ac-stack-view.is-goalplan .ac-gp-arrow {
+  position: absolute; top: 50%; height: 2px; transform: translateY(-50%);
+  background: var(--team-color); opacity: 0.78; border-radius: 1px;
+}
+.ac-stack-view.is-goalplan .ac-gp-arrow::after {
+  content: ""; position: absolute; right: -2px; top: 50%; transform: translateY(-50%);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid var(--team-color);
+}
+.ac-stack-view.is-goalplan .ac-gp-dot {
+  position: absolute; top: 50%; width: 12px; height: 12px; transform: translate(-50%, -50%);
+  border-radius: 50%; background: var(--team-color); box-shadow: 0 0 0 2px rgba(20, 17, 18, 0.6), var(--lg-specular);
+}
+.ac-stack-view.is-goalplan .ac-gp-goal {
+  min-width: 0; font-family: var(--font-mono); font-size: 9px; color: var(--alchemy-ink-mute);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right;
+}
+.ac-stack-view.is-goalplan .ac-gp-untracked {
+  margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--lg-border);
+}
+.ac-stack-view.is-goalplan .ac-gp-untracked-head {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.ac-stack-view.is-goalplan .ac-gp-untracked-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ac-stack-view.is-goalplan .ac-gp-chip {
+  display: inline-block; width: auto; grid-template-columns: none; padding: 4px 10px;
+  border-radius: 999px; font-size: 11px; color: var(--alchemy-ink-mute);
+}
+.ac-stack-view.is-goalplan .ac-gp-note {
+  margin: 14px 2px 0; font-family: var(--font-mono); font-size: 9px; line-height: 1.5;
+  color: var(--alchemy-ink-mute); opacity: 0.85;
+}
+
 .ac-stack-stage {
   padding: 8px 0 0;
   overflow: auto;
