@@ -635,6 +635,9 @@ function renderAvatar(profile) {
 export function mountMembrane(container, opts = {}) {
   console.log('[membrane] mounting into', container?.id || container?.className);
   container.classList.add('membrane-host');
+  // The panel is retired — start folded so it never flashes in before the
+  // fold state below settles (see the "fold state" note further down).
+  container.classList.add('membrane-folded');
 
   container.innerHTML = `
     <div class="membrane-stage">
@@ -758,7 +761,9 @@ export function mountMembrane(container, opts = {}) {
 
     const todayEmpty = timed.length === 0;
     let html = '';
-    // Today's all-day items as cards (no "today" header — today is implied).
+    // Today header — same chrome as the day headers below, with a "today" prefix.
+    html += `<div class="magenda-day-head">${escHtml(`today - ${WD[now.getDay()]} ${MO[now.getMonth()]} ${now.getDate()}`)}</div>`;
+    // Today's all-day items as cards.
     for (const e of allDay) html += card(e.title, e.ongoing ? 'all day' : '');
     // Today's timed events keep the time axis + now-line (only when present).
     if (!todayEmpty) html += `<div class="magenda-track">${ticks}${rows}${nowLine}</div>`;
@@ -890,17 +895,14 @@ export function mountMembrane(container, opts = {}) {
   const sound = createSoundDirector();
 
   // ── fold state ───────────────────────────────────────────────────────
-  // Two homes, gated on whether you've claimed your shape:
-  //   • UNCLAIMED → the panel is home (the "wall with a window" — the claim
-  //     surface). Never auto-fold; an unclaimed user stranded in an empty
-  //     field has no way to claim.
-  //   • CLAIMED → the field is home. On first data load we fold the wall
-  //     away once so a returning member lands among the orbs. Tapping an orb
-  //     summons its panel back; tapping the void folds away again.
-  // The claimed signal comes from self.claimed (a FORMAL identity claim only)
-  // so the github editor user is never mistaken for claimed.
-  let folded = false;
-  let didAutoField = false;
+  // The membrane is now a pure ambient view. The old self/cohort/events/asks
+  // panel is retired as a pop-up — identity lives in profile › "your seal",
+  // and the other lenses are reached through the alchemy rail menu. So the
+  // panel starts folded for EVERYONE and never un-folds (the void-click
+  // summon is gone — see the scene wiring below). The panel DOM is kept but
+  // permanently hidden; its machinery stays valid for any external repaint.
+  let folded = true;
+  let didAutoField = true; // never auto-enter again — we already start folded
   function setFolded(f) {
     folded = !!f;
     container.classList.toggle('membrane-folded', folded);
@@ -923,9 +925,10 @@ export function mountMembrane(container, opts = {}) {
   (fieldRow || panelFoot || panel).prepend(foldBtn);
 
   const scene = createMembraneScene(canvas, {
-    // Clicking the void TOGGLES the panel, so there's always a way back to
-    // it. (The die morphs on fast spin, not on click — see scene.js.)
-    onEmptyClick() { setFolded(!folded); },
+    // No onEmptyClick: clicking the void no longer summons the panel. The
+    // membrane is a pure ambient view now; identity moved to profile ›
+    // "your seal". (The die still stops on click / morphs on fast spin —
+    // see scene.js.)
     // The die changed shape (triggered by a fast spin) — update the label.
     onFacesChange(faces) { updateShapeName(faces); },
   });

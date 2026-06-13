@@ -87,6 +87,7 @@ body[data-sidebar="hidden"] #sidebar { display: none; }
 #sidebar { grid-area: nav; }
 #graph   { grid-area: main; }
 #network-view { grid-area: main; }
+#chat-view { grid-area: main; }
 /* These two have no explicit placement; pin them to the content column so
    they don't auto-flow into the nav column. */
 .apps-grid, .links-view { grid-area: main; }
@@ -188,6 +189,16 @@ body:not([data-active-tab="alchemy"]) .alchemy-only { display: none !important; 
 
 /* links-only elements only on the links tab. */
 body:not([data-active-tab="links"]) .links-only { display: none !important; }
+
+/* chat-only elements only on the matrix tab (cohort matrix chat). */
+body:not([data-active-tab="matrix"]) .chat-only { display: none !important; }
+
+/* TEMPORARY: matrix is hidden from the left nav until the homeserver supports
+   password-free login (see docs/MATRIX_DEVICE_LOGIN_REQUEST.md). The tab + all
+   its code still ship — there's just no entry point, so we don't imply it
+   works yet. To re-enable, delete this one rule. */
+.nav-cat[data-tab="matrix"] { display: none !important; }
+
 /* search lives as an overlay inside the Atlas app (formerly its own
  * tab). Shown when on apps→atlas AND data-atlas-search="open". */
 body:not([data-active-tab="apps"]) .search-only,
@@ -208,6 +219,7 @@ body[data-active-tab="atlas"]       #graph,
 body[data-active-tab="alchemy"]     #graph,
 body[data-active-tab="apps"]        #graph,
 body[data-active-tab="links"]       #graph,
+body[data-active-tab="matrix"]      #graph,
 body[data-active-tab="experimental"][data-experimental-mode="cartography"] #graph,
 body[data-active-tab="experimental"][data-experimental-mode="cosmos"]      #graph {
   visibility: hidden;
@@ -13100,11 +13112,15 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
  * profile section — same heading, row grid, and pill buttons as the
  * record editor above it. The ember "enrollment terminal" look stays
  * exclusive to the first-launch modal. */
+/* One seal info box: identity row + edges + system read share a single
+ * border. The inner blocks are borderless; hairline dividers separate them. */
+.alch-seal-box {
+  border: 1px solid var(--ed-rule-2);
+  background: var(--ed-bg-1);
+}
 .alch-seal-current {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   padding: 16px 18px;
-  border: 1px solid var(--ed-rule-2);
-  background: var(--ed-bg-1);
 }
 .alch-seal-avatar {
   width: 48px; height: 48px; flex: 0 0 48px;
@@ -13134,6 +13150,27 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
   color: var(--ed-ink-3);
   overflow-wrap: anywhere;
 }
+/* github + x handles, each prefixed by its platform logo so it's clear
+ * what the handle is. Logo recedes (ink-4); handle text reads as contact. */
+.alch-seal-handles { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.alch-seal-handle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--ed-mono); font-size: 12px; letter-spacing: 0.02em;
+  color: var(--ed-ink-3);
+  text-decoration: none; cursor: pointer;
+  transition: color 140ms ease;
+}
+.alch-seal-handle svg { width: 13px; height: 13px; flex: 0 0 auto; color: var(--ed-ink-4); transition: color 140ms ease; }
+.alch-seal-handle:hover { color: var(--ed-ink-1); }
+.alch-seal-handle:hover svg { color: var(--ed-ink-1); }
+/* Team / project name → opens that record's cohort page in a new tab. */
+.alch-seal-team {
+  color: var(--ed-ink-2);
+  text-decoration: none; cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.alch-seal-team:hover { color: var(--ed-ink-1); border-bottom-color: currentColor; }
 .alch-seal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; align-self: center; }
 .alch-seal-btn {
   background: transparent;
@@ -13192,6 +13229,33 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
   margin: 0;
   font-family: var(--ed-mono); font-size: 11px; line-height: 1.6;
   color: var(--ed-ink-3);
+}
+/* Edges + "system read" — carried over from the retired membrane self
+ * panel. Borderless inner blocks of .alch-seal-box, no internal dividers. */
+.alch-seal-edges {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 4px 18px 11px;
+}
+.alch-seal-edges-k {
+  flex: 0 0 auto;
+  font-family: var(--ed-mono); font-size: 9.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ed-ink-4);
+}
+.alch-seal-edges-v {
+  font-family: var(--ed-mono); font-size: 12px; letter-spacing: 0.04em;
+  color: var(--ed-ink-2);
+}
+.alch-seal-read {
+  padding: 4px 18px 16px;
+}
+.alch-seal-read-h {
+  display: block; margin-bottom: 8px;
+  font-family: var(--ed-mono); font-size: 9.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ed-ink-4);
+}
+.alch-seal-read-body {
+  margin: 0;
+  font-size: 13px; line-height: 1.6; color: var(--ed-ink-2);
 }
 
 /* ── profile · submit row (save · local sync / save · open github PR) ──
@@ -14225,6 +14289,18 @@ body::before {
      unreachable. */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+/* Presence gantt blends into the page (2026-06): the scroll panel and the
+ * main canvas are transparent so the page's radial gradient shows through
+ * instead of the old #0b0a08 panel. The pinned freeze panes repaint that
+ * same gradient in JS (see mountGanttFreezePanes) — CSS background-
+ * attachment:fixed can't be used because .alchemy-canvas has a transform. */
+.cal-section-presence .cal-scroll {
+  background: transparent;
+  border-color: transparent;
+}
+html[data-theme="light"] .cal-section-presence .cal-scroll {
+  background: transparent;
 }
 .cal-section-head {
   display: flex; align-items: baseline; gap: 14px;

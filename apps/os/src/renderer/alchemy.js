@@ -7894,7 +7894,14 @@ function mountGanttFreezePanes(mainCnv, w, h, dpr) {
   const cornerCnv = document.getElementById("cal-canvas-corner");
   if (!scroller || !wrap || !leftCnv || !topCnv || !cornerCnv) return;
 
-  const veil = (getComputedStyle(document.documentElement).getPropertyValue("--ed-bg-0") || "").trim() || "#0a0a0a";
+  // Everything in the gantt is transparent so the page's radial gradient
+  // shows through and the table blends into the page: the main canvas is
+  // cleared, .cal-scroll is transparent (styles.css), and the pinned freeze
+  // panes (name column / date header) are left transparent here too — they
+  // just carry the copied names/dates over the page gradient.
+  // Trade-off (chosen deliberately): with no opaque pane backdrop, rows
+  // scrolled beneath the pinned name column / date header are faintly visible
+  // through them while you scroll the wide chart.
   const copyRegion = (cnv, cssW, cssH) => {
     cnv.width  = Math.round(cssW * dpr);
     cnv.height = Math.round(cssH * dpr);
@@ -7902,10 +7909,6 @@ function mountGanttFreezePanes(mainCnv, w, h, dpr) {
     cnv.style.height = cssH + "px";
     const c = cnv.getContext("2d");
     c.drawImage(mainCnv, 0, 0, cnv.width, cnv.height, 0, 0, cnv.width, cnv.height);
-    c.globalAlpha = 0.22;
-    c.fillStyle = veil;
-    c.fillRect(0, 0, cnv.width, cnv.height);
-    c.globalAlpha = 1;
   };
   copyRegion(leftCnv, CAL_LEFT_W, h);
   copyRegion(topCnv, w, CAL_HEADER_H);
@@ -12474,10 +12477,23 @@ function truncateText(ctx, text, maxW) {
 async function exportCalendar(format) {
   const cnv = document.getElementById("cal-canvas");
   if (!cnv) return;
+  // The live canvas is transparent on screen (it lets the page gradient show
+  // through). Exporting it directly would yield a see-through PNG/PDF, so
+  // flatten it onto the page's base background colour first.
+  const flattenCanvas = () => {
+    const out = document.createElement("canvas");
+    out.width = cnv.width;
+    out.height = cnv.height;
+    const octx = out.getContext("2d");
+    octx.fillStyle = (getComputedStyle(document.body).backgroundColor || "").trim() || "#1A1719";
+    octx.fillRect(0, 0, out.width, out.height);
+    octx.drawImage(cnv, 0, 0);
+    return out.toDataURL("image/png");
+  };
   if (format === "png") {
     // Snapshot the canvas as PNG. Routed through Electron IPC so we get
     // a native save dialog instead of a browser blob download.
-    const dataUrl = cnv.toDataURL("image/png");
+    const dataUrl = flattenCanvas();
     if (window.api?.exportCalendar) {
       const r = await window.api.exportCalendar({ format: "png", dataUrl });
       announceExport(r);
@@ -12492,7 +12508,7 @@ async function exportCalendar(format) {
     // For PDF we ask the main process to embed the canvas image into a
     // single-page PDF at the canvas's pixel dimensions. printToPDF would
     // capture the WHOLE app chrome which is not what we want.
-    const dataUrl = cnv.toDataURL("image/png");
+    const dataUrl = flattenCanvas();
     if (window.api?.exportCalendar) {
       const r = await window.api.exportCalendar({ format: "pdf", dataUrl, w: cnv.width, h: cnv.height });
       announceExport(r);
@@ -14486,8 +14502,16 @@ function wireExternalLinks(root) {
 
 function wireProfileForm() {
   // Seal summary card at the top of the page (async — paints once the
-  // cohort surface resolves; wires its own controls).
-  mountResealInline(state.canvas.querySelector("#alch-reseal-host"));
+  // cohort surface resolves; wires its own controls). Carry over the two
+  // signals the retired membrane self-panel used to surface: the edges /
+  // connections count and the generated "system read" paragraph. "Your seal"
+  // is their only home now.
+  let sealExtras = {};
+  try {
+    const ms = computeMembraneData().self || {};
+    sealExtras = { edgeCount: ms.edgeCount, connections: ms.connections, read: ms.read };
+  } catch {}
+  mountResealInline(state.canvas.querySelector("#alch-reseal-host"), sealExtras);
 
   // "this is me" — seal as the record currently loaded in the editor.
   // Re-render so the seal card and this button both reflect the claim.
