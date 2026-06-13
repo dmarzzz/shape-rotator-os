@@ -8194,9 +8194,19 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   position: absolute; top: 0; font-family: var(--font-mono); font-size: 8.5px;
   letter-spacing: 0.12em; text-transform: uppercase; color: var(--alchemy-ink-mute); font-style: normal;
 }
+/* The axis labels ARE the colour key — a swatch dot before each label keys the
+   row dots' colour without a separate (redundant) legend trough. Colours mirror
+   CONST_GOAL_STANDING in alchemy.js. */
+.ac-stack-view.is-goalplan .ac-gp-axis i::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  margin-right: 6px; vertical-align: middle;
+}
 .ac-stack-view.is-goalplan .ac-gp-axis i.is-l { left: 0; }
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-l::before { background: #c83a48; }
 .ac-stack-view.is-goalplan .ac-gp-axis i.is-c { left: 50%; transform: translateX(-50%); }
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-c::before { background: #7fa05a; }
 .ac-stack-view.is-goalplan .ac-gp-axis i.is-r { right: 0; }
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-r::before { background: #4f9d8f; }
 .ac-stack-view.is-goalplan .ac-gp-goalhead {
   font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--alchemy-ink-mute); text-align: right;
@@ -8225,7 +8235,10 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .ac-stack-view.is-goalplan .ac-gp-dot {
   position: absolute; top: 50%; width: 12px; height: 12px; transform: translate(-50%, -50%);
-  border-radius: 50%; background: var(--team-color); box-shadow: 0 0 0 2px rgba(20, 17, 18, 0.6), var(--lg-specular);
+  /* Stage-relative moat ring so the dot separates on BOTH themes: charcoal is
+     dark on dark / paper on cream, so this inverts instead of painting a hard
+     dark ring on the light stage. */
+  border-radius: 50%; background: var(--team-color); box-shadow: 0 0 0 2px color-mix(in srgb, var(--alchemy-charcoal) 70%, transparent), var(--lg-specular);
 }
 .ac-stack-view.is-goalplan .ac-gp-goal {
   min-width: 0; font-family: var(--font-mono); font-size: 9px; color: var(--alchemy-ink-mute);
@@ -9049,6 +9062,22 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   letter-spacing: 0.12em;
   color: var(--journey-muted);
 }
+/* Size ramp — shows the "size = market upside" encoding instead of only stating
+   it: a small dot → large dot, neutral fill (size, not colour, is the point). */
+.alch-constellation-legend .acl-jsize {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.alch-constellation-legend .acl-jsize i {
+  display: inline-block;
+  border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.5);
+}
+.alch-constellation-legend .acl-jsize i.sm { width: 5px; height: 5px; }
+.alch-constellation-legend .acl-jsize i.lg { width: 11px; height: 11px; }
 /* Filter bar */
 .alch-journey-filters {
   display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 14px;
@@ -15587,6 +15616,28 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   color: rgba(var(--ink-rgb), 0.52);
 }
 .ac-sent-word { letter-spacing: 0.01em; white-space: nowrap; }
+/* Generated read clause — continues the filter sentence INLINE (dual-use bar:
+   the one sentence filters AND describes). Takes the remaining row width and
+   wraps internally only if long; same sans family + muted tone, lead clause
+   brighter, em-dash divider. No box, no kicker, no separate row. */
+.ac-sent-read {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.005em;
+  color: rgba(var(--ink-rgb), 0.42);
+}
+.ac-sent-read i {
+  font-style: normal;
+  margin-right: 6px;
+  color: rgba(var(--ink-rgb), 0.3);
+}
+.ac-sent-read b {
+  font-weight: 600;
+  color: rgba(var(--ink-rgb), 0.82);
+}
 .ac-sent-unit { position: relative; display: inline-flex; }
 .ac-sent-tok,
 .ac-sent-evi {
@@ -15598,7 +15649,10 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   padding: 3px 11px;
   border: 1px solid rgba(var(--ink-rgb), 0.13);
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.05));
+  /* Ink-relative fill so the pill keeps the same faint inset on dark AND
+   * doesn't wash to a cold grey on the light cream theme (the old fixed
+   * rgba(0,0,0,…) only read right on dark). Border carries the shape. */
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.05), rgba(var(--ink-rgb), 0.02));
   font-family: var(--ed-mono, var(--font-mono));
   font-size: 10.5px;
   font-weight: 600;
@@ -15663,10 +15717,10 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   padding: 5px;
   border: 1px solid var(--lg-border);
   border-radius: 10px;
-  /* Opaque so options stay readable over busy cards — a dropdown can't be
-   * see-through, and the menu's own backdrop-filter is defeated by the glass
-   * control bar it's nested in (backdrop-filter ancestor = backdrop root), so
-   * blur here would be a wasted layer. Glass edge kept via border + specular. */
+  /* Opaque so options stay readable over busy cards — a dropdown over content
+   * can't be see-through regardless of chrome. (The control bar is a plain
+   * hairline strip now, not a glass backdrop ancestor, so blur here would be
+   * a wasted layer anyway.) Glass edge kept via border + specular. */
   background: var(--lg-solid);
   box-shadow: var(--lg-specular), var(--lg-shadow);
   animation: ac-sent-menu-in 160ms cubic-bezier(0.19, 1, 0.22, 1);
@@ -21239,22 +21293,18 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   /* On near-white glass a white glint barely reads — soften the dose. */
   --lg-sheen:       0.14;
 }
-/* The view controls float as a glass bar and stay pinned while the grid
- * or stage scrolls underneath — the one place blur earns its keep on
- * the directory. */
+/* The view controls read as a quiet hairline strip — the SAME material as
+ * the view-tab nav directly above it (.alch-page-views): a single bottom
+ * hairline, no fill / blur / radius / shadow. The filter row and the tabs
+ * then feel like one continuous chrome band instead of a glass bubble
+ * floating over the page, and the visible weight moves to the filter pills
+ * and the generated read below. (Earlier .alch-view-controls blocks at
+ * ~L15225/L15312 carry the flex layout; this one owns the resting skin and
+ * supersedes the retired sticky-glass-bar generation.) */
 .alch-view-controls {
-  position: sticky;
-  top: 2px;
-  z-index: 6;
-  padding: 6px 10px;
+  padding: 2px 0 12px;
   margin: 2px 0 16px;
-  border: 1px solid var(--lg-border);
-  border-bottom: 1px solid var(--lg-border);
-  border-radius: 11px;
-  background: var(--lg-bg);
-  -webkit-backdrop-filter: var(--lg-blur);
-  backdrop-filter: var(--lg-blur);
-  box-shadow: var(--lg-specular), 0 4px 14px rgba(0, 0, 0, 0.16);
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
 }
 /* Inspector + generated/selected readouts share one glass panel family —
  * consistent box language across map, journey, stack, and people. They carry
