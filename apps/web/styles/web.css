@@ -1162,8 +1162,53 @@ body.links-page-body .hero-tagline {
   gap: var(--space-5);
 }
 .cd-ledger-head {
-  display: grid;
-  gap: var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+/* Explore toolbar — record actions (calendar, availability, links)
+ * lifted into the read's head as icon buttons: the first actions you
+ * see. Square (shape-grammar: no words inside), hairline at rest, oxide
+ * tint on hover/focus — the dossier's link voice. Mirror of
+ * .alch-explore-* in apps/os/src/styles.css. */
+.cd-explore-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+.cd-explore-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid rgba(241, 236, 231, 0.16);
+  border-radius: 7px;
+  background: rgba(247, 241, 236, 0.018);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease), background var(--dur-base) var(--ease), transform 160ms var(--ease);
+}
+.cd-explore-btn svg { width: 16px; height: 16px; display: block; }
+.cd-explore-btn:hover,
+.cd-explore-btn:focus-visible {
+  color: #d05332;
+  border-color: rgba(208, 83, 50, 0.55);
+  background: rgba(180, 58, 25, 0.08);
+}
+.cd-explore-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(208, 83, 50, 0.38);
+}
+.cd-explore-btn:active { transform: scale(0.94); }
+@media (prefers-reduced-motion: reduce) {
+  .cd-explore-btn { transition: none; }
+  .cd-explore-btn:active { transform: none; }
 }
 .cd-quick {
   display: grid;
@@ -1343,7 +1388,6 @@ body.links-page-body .hero-tagline {
 .cd-team-quick .cd-quick-text {
   flex: 1 1 100%;
 }
-.cd-team-quick .cd-quick-link,
 .cd-team-quick .cd-pill,
 .cd-team-quick .cd-quick-text {
   min-height: 0;
@@ -1351,13 +1395,6 @@ body.links-page-body .hero-tagline {
   border: 0;
   border-radius: 0;
   background: transparent;
-}
-.cd-team-quick .cd-quick-link {
-  border-bottom: 1px solid rgba(241, 236, 231, 0.22);
-}
-.cd-team-quick .cd-quick-link:hover {
-  background: transparent;
-  border-bottom-color: rgba(208, 83, 50, 0.65);
 }
 .cd-team-quick .cd-pill {
   color: var(--ink-2);
@@ -1379,8 +1416,8 @@ body.links-page-body .hero-tagline {
   align-items: center;
   gap: var(--space-3);
   min-height: 42px;
-  padding-inline: 6px;
-  border-radius: var(--r-sm);
+  padding-inline: 8px;
+  border-radius: 8px;
   cursor: pointer;
   list-style: none;
   font-family: var(--font-mono);
@@ -1389,11 +1426,15 @@ body.links-page-body .hero-tagline {
   text-transform: uppercase;
   letter-spacing: var(--track-caps-loose);
   color: var(--ink-2);
-  transition: background var(--dur-base) var(--ease), color var(--dur-base) var(--ease);
+  transition: background var(--dur-base) var(--ease), color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
 }
-.cd-section summary:hover {
+/* Liquid-glass sheen on hover/focus — translucent fill + 1px inset
+ * specular highlight (gloss, not backdrop blur). */
+.cd-section summary:hover,
+.cd-section summary:focus-visible {
   color: var(--ink-1);
-  background: rgba(247, 241, 236, 0.028);
+  background: linear-gradient(180deg, rgba(247, 241, 236, 0.05), rgba(247, 241, 236, 0.018));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .cd-section summary::-webkit-details-marker { display: none; }
 .cd-section-label {
@@ -1435,14 +1476,44 @@ body.links-page-body .hero-tagline {
 }
 .cd-section-flat .cd-section-body { animation: none; }
 
+/* The expand affordance: a chevron in a small liquid-glass chip (mirrors
+ * the explore toolbar's icon-chip grammar and .alch-section-mark in the
+ * OS styles). Quiet at rest, oxide when open, chevron rotates 180° — what
+ * makes a section read as expandable vs an always-visible flat block. */
 .cd-section-mark {
-  color: rgba(241, 236, 231, 0.46);
-  font-size: var(--t-12);
-  transition: color var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid rgba(241, 236, 231, 0.10);
+  background: linear-gradient(180deg, rgba(241, 236, 231, 0.07), rgba(241, 236, 231, 0.02));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: rgba(241, 236, 231, 0.62);
+  transition: color var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease), background var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
 }
-.cd-section-mark::before { content: "+"; }
-.cd-section[open] .cd-section-mark::before { content: "-"; }
-.cd-section[open] .cd-section-mark { color: #d05332; }
+.cd-section-mark svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  transition: transform 240ms var(--ease);
+}
+.cd-section summary:hover .cd-section-mark,
+.cd-section summary:focus-visible .cd-section-mark {
+  color: var(--ink-1);
+  border-color: rgba(241, 236, 231, 0.22);
+  background: linear-gradient(180deg, rgba(241, 236, 231, 0.12), rgba(241, 236, 231, 0.04));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+.cd-section[open] .cd-section-mark {
+  color: #d05332;
+  border-color: rgba(208, 83, 50, 0.42);
+  background: linear-gradient(180deg, rgba(180, 58, 25, 0.16), rgba(180, 58, 25, 0.05));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.cd-section[open] .cd-section-mark svg { transform: rotate(180deg); }
 .cd-section[open] summary {
   color: var(--ink-1);
 }
@@ -1461,8 +1532,22 @@ body.links-page-body .hero-tagline {
   from { opacity: 0; transform: translateY(-2px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* Liquid open: animate the body's height where supported. interpolate-size
+ * is scoped to .cd-section (not :root) so nothing else changes. Mirror of
+ * the .alch-detail-disclosure rule in the OS styles. */
+@supports (interpolate-size: allow-keywords) {
+  .cd-section { interpolate-size: allow-keywords; }
+  .cd-section::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition: block-size 260ms var(--ease), content-visibility 260ms allow-discrete;
+  }
+  .cd-section[open]::details-content { block-size: auto; }
+}
 @media (prefers-reduced-motion: reduce) {
   .cd-section-body { animation: none; }
+  .cd-section-mark svg, .cd-section summary { transition: none; }
+  .cd-section::details-content { transition: none; }
 }
 .cd-prose {
   display: grid;

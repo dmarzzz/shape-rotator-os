@@ -21091,8 +21091,72 @@ html[data-theme="light"] .alch-constellation-stage {
   align-content: start;
   gap: 20px;
 }
+.alch-ledger-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
 .alch-ledger-head .alch-detail-h {
   margin: 0;
+}
+/* Explore toolbar — record actions (calendar, availability, links)
+ * lifted into the read's head as icon buttons: the first actions you
+ * see. Square (shape-grammar: no words inside), hairline at rest, oxide
+ * tint on hover/focus — the dossier's link voice. Mirror of
+ * .cd-explore-* in apps/web/styles/web.css. */
+.alch-explore-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+.alch-explore-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  padding: 0;
+  appearance: none;
+  border: 1px solid rgba(var(--ink-rgb), 0.16);
+  border-radius: 7px;
+  background: rgba(var(--ink-rgb), 0.018);
+  color: var(--ed-ink-2, var(--alchemy-ink));
+  cursor: pointer;
+  transition: color 200ms var(--ease-out, ease-out),
+              border-color 200ms var(--ease-out, ease-out),
+              background 200ms var(--ease-out, ease-out),
+              transform 160ms var(--ease-out, ease-out);
+}
+.alch-explore-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.alch-explore-btn:hover,
+.alch-explore-btn:focus-visible {
+  color: var(--alchemy-oxide-hot, #d05332);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 55%, transparent);
+  background: rgba(180, 58, 25, 0.08);
+}
+.alch-explore-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 38%, transparent);
+}
+.alch-explore-btn:active { transform: scale(0.94); }
+@media (prefers-reduced-motion: reduce) {
+  .alch-explore-btn { transition: none; }
+  .alch-explore-btn:active { transform: none; }
+}
+/* Light theme: the dark-ink glyph carries the contrast, but a 0.16
+ * border washes out on the cream surface (~1:1) — give the resting
+ * button a firmer boundary so it still reads as a button at rest. */
+html[data-theme="light"] .alch-explore-btn {
+  border-color: rgba(var(--ink-rgb), 0.30);
+  background: rgba(var(--ink-rgb), 0.04);
 }
 .alch-detail-quick {
   display: grid;
@@ -21251,7 +21315,6 @@ button.alch-quick-link {
   flex: 1 1 100%;
   max-width: 72ch;
 }
-.alch-team-quick .alch-quick-link,
 .alch-team-quick .alch-quick-pill,
 .alch-team-quick .alch-quick-text {
   min-height: 0;
@@ -21259,9 +21322,6 @@ button.alch-quick-link {
   border: 0;
   border-radius: 0;
   background: transparent;
-}
-.alch-team-quick .alch-quick-link {
-  border-bottom: 1px solid var(--ed-rule-2, var(--alchemy-rule-warm));
 }
 .alch-section-stack {
   display: grid;
@@ -21313,8 +21373,8 @@ button.alch-quick-link {
   align-items: center;
   gap: 14px;
   min-height: 42px;
-  padding: 0 6px;
-  border-radius: 4px;
+  padding: 0 8px;
+  border-radius: 8px;
   cursor: pointer;
   list-style: none;
   color: var(--ed-ink-2, var(--alchemy-ink));
@@ -21322,13 +21382,26 @@ button.alch-quick-link {
   font-size: 10.5px;
   letter-spacing: 0.20em;
   text-transform: uppercase;
+  transition: color 200ms var(--ease-out, ease-out),
+              background 200ms var(--ease-out, ease-out),
+              box-shadow 200ms var(--ease-out, ease-out);
 }
 .alch-detail-disclosure summary::-webkit-details-marker {
   display: none;
 }
-.alch-detail-disclosure summary:hover {
+/* Liquid-glass sheen on hover/focus — a translucent fill + 1px inset
+ * specular highlight (gloss, not backdrop blur: the dossier is content,
+ * and blur is reserved for floating chrome). */
+.alch-detail-disclosure summary:hover,
+.alch-detail-disclosure summary:focus-visible {
   color: var(--ed-ink-1, var(--alchemy-paper-warm));
-  background: rgba(var(--ink-rgb), 0.03);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.05), rgba(var(--ink-rgb), 0.018));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.alch-detail-disclosure summary:focus-visible {
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+              0 0 0 2px color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 30%, transparent);
 }
 .alch-section-label {
   min-width: 0;
@@ -21356,18 +21429,61 @@ button.alch-quick-link {
 .alch-detail-disclosure[open] .alch-section-preview {
   display: none;
 }
+/* The expand affordance: a chevron in a small liquid-glass chip (mirrors
+ * the explore toolbar's icon-chip grammar). Quiet at rest, oxide when
+ * open, chevron rotates 180°. This is what makes a section read as
+ * "expandable" vs an always-visible flat block. */
 .alch-section-mark {
-  color: rgba(var(--ink-rgb), 0.5);
-  font-size: 12px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.07), rgba(var(--ink-rgb), 0.02));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: rgba(var(--ink-rgb), 0.62);
+  transition: color 200ms var(--ease-out, ease-out),
+              border-color 200ms var(--ease-out, ease-out),
+              background 200ms var(--ease-out, ease-out),
+              box-shadow 200ms var(--ease-out, ease-out);
 }
-.alch-section-mark::before {
-  content: "+";
+.alch-section-mark svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  transition: transform 240ms var(--ease-out, cubic-bezier(0.19, 1, 0.22, 1));
 }
-.alch-detail-disclosure[open] .alch-section-mark::before {
-  content: "-";
+.alch-detail-disclosure summary:hover .alch-section-mark,
+.alch-detail-disclosure summary:focus-visible .alch-section-mark {
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+  border-color: rgba(var(--ink-rgb), 0.22);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.12), rgba(var(--ink-rgb), 0.04));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 .alch-detail-disclosure[open] .alch-section-mark {
-  color: var(--alchemy-oxide-bright, #d05332);
+  color: var(--alchemy-oxide-hot, #d05332);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 42%, transparent);
+  background: linear-gradient(180deg, rgba(180, 58, 25, 0.16), rgba(180, 58, 25, 0.05));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.alch-detail-disclosure[open] .alch-section-mark svg {
+  transform: rotate(180deg);
+}
+/* Light theme: the translucent border/fill wash out on the cream surface
+ * (~1:1), so the chip stops reading as a control — firm them up to match
+ * the explore-button light treatment. The dark-ink chevron carries the
+ * glyph contrast; hover stays a step stronger than rest. */
+html[data-theme="light"] .alch-section-mark {
+  border-color: rgba(var(--ink-rgb), 0.30);
+  background: rgba(var(--ink-rgb), 0.04);
+}
+html[data-theme="light"] .alch-detail-disclosure summary:hover .alch-section-mark,
+html[data-theme="light"] .alch-detail-disclosure summary:focus-visible .alch-section-mark {
+  border-color: rgba(var(--ink-rgb), 0.42);
+  background: rgba(var(--ink-rgb), 0.07);
 }
 .alch-detail-disclosure[open] summary {
   color: var(--ed-ink-1, var(--alchemy-paper-warm));
@@ -21381,6 +21497,23 @@ button.alch-quick-link {
 @keyframes alch-section-reveal {
   from { opacity: 0; transform: translateY(-2px); }
   to { opacity: 1; transform: translateY(0); }
+}
+/* Liquid open: animate the body's height (not just the fade) where the
+ * platform supports it. interpolate-size is scoped to the disclosure
+ * subtree — NOT :root — so no other auto-size animation in the app changes
+ * behavior. Unsupported engines fall back to the instant native open + the
+ * fade above; reduced-motion is covered by the global reset at the top. */
+@supports (interpolate-size: allow-keywords) {
+  .alch-detail-disclosure { interpolate-size: allow-keywords; }
+  .alch-detail-disclosure::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition: block-size 260ms var(--ease-out, cubic-bezier(0.19, 1, 0.22, 1)),
+                content-visibility 260ms allow-discrete;
+  }
+  .alch-detail-disclosure[open]::details-content {
+    block-size: auto;
+  }
 }
 .alch-detail-prose {
   max-width: 78ch;

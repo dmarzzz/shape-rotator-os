@@ -276,7 +276,7 @@ function renderSection(title, body, open = false, preview = "") {
     <details class="cd-section" ${open ? "open" : ""}>
       <summary>
         <span class="cd-section-label"><span>${escHtml(title)}</span>${previewHtml}</span>
-        <span class="cd-section-mark" aria-hidden="true"></span>
+        <span class="cd-section-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
       </summary>
       <div class="cd-section-body">${cleaned}</div>
     </details>
@@ -349,10 +349,38 @@ function renderTimelineItems(items = []) {
   `;
 }
 
-function quickLink(label, href, external = true) {
+// ── Explore toolbar (2026-06) ───────────────────────────────────────
+// External + in-app links lifted out of the old mid-page "explore" quick
+// row into an icon toolbar in the ledger head — the first actions you
+// see when the read opens. Icon-only (square buttons, never words
+// inside), each carrying an accessible label + tooltip. "source" is
+// intentionally absent: the detail bar's "raw github" link already owns
+// that intent. Mirror of EXPLORE_ICONS in apps/os/src/renderer/alchemy.js
+// — keep the icon set in sync.
+const EXPLORE_ICONS = {
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>',
+  availability: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6.5h8"/><path d="M9 12h10"/><path d="M5 17.5h6"/></svg>',
+  github: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.37.5 0 5.78 0 12.29c0 5.2 3.44 9.6 8.21 11.16.6.11.82-.25.82-.57 0-.28-.01-1.02-.02-2-3.34.71-4.04-1.58-4.04-1.58-.55-1.36-1.34-1.73-1.34-1.73-1.09-.73.08-.72.08-.72 1.2.08 1.84 1.22 1.84 1.22 1.07 1.8 2.81 1.28 3.5.98.11-.76.42-1.28.76-1.58-2.67-.3-5.47-1.31-5.47-5.84 0-1.29.47-2.34 1.24-3.17-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.21a11.6 11.6 0 0 1 3.01-.4c1.02 0 2.05.13 3.01.4 2.29-1.53 3.3-1.21 3.3-1.21.66 1.65.24 2.87.12 3.17.77.83 1.24 1.88 1.24 3.17 0 4.54-2.81 5.53-5.49 5.83.43.37.81 1.1.81 2.22 0 1.6-.01 2.89-.01 3.28 0 .32.21.69.83.57C20.56 21.88 24 17.48 24 12.29 24 5.78 18.63.5 12 .5z"/></svg>',
+  repo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.9 1.153h3.682l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932zm-1.292 19.482h2.04L6.486 3.24H4.298z"/></svg>',
+  website: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>',
+  demo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>',
+  deck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h20"/><path d="M21 3v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3"/><path d="m7 21 5-5 5 5"/></svg>',
+  linkedin: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z"/></svg>',
+};
+
+// label + href + external flag (calendar / availability are in-app
+// routes, external=false). An empty href drops the button so a record
+// only shows the links it actually declares.
+function exploreIconLink(iconKey, label, href, external = true) {
   if (!href) return "";
   const attrs = external ? ` target="_blank" rel="noopener noreferrer"` : "";
-  return `<a class="cd-quick-link" href="${escAttr(href)}"${attrs}>${escHtml(label)}</a>`;
+  return `<a class="cd-explore-btn" href="${escAttr(href)}"${attrs} aria-label="${escAttr(label)}" title="${escAttr(label)}">${EXPLORE_ICONS[iconKey] || ""}</a>`;
+}
+
+function renderExploreBar(items) {
+  const html = items.filter(Boolean).join("");
+  return html ? `<div class="cd-explore-bar" role="group" aria-label="explore">${html}</div>` : "";
 }
 
 function directoryLinkAttrs(recordId) {
@@ -845,14 +873,13 @@ function compactPills(items) {
     const secondary = asArray(rec.secondary_teams).map(id => teamById.get(id)).filter(Boolean);
     const timelineItems = cohort.person_timeline?.[rec.record_id] || [];
     const links = rec.links || {};
-    const explore = renderQuickRow("explore", [
-      quickLink("GitHub", linkForKey(links, "github")),
-      quickLink("X", linkForKey(links, "x")),
-      quickLink("Website", linkForKey(links, "website")),
-      quickLink("LinkedIn", linkForKey(links, "linkedin")),
-      quickLink("calendar", "/calendar", false),
-      quickLink("availability", "/availability", false),
-      quickLink("source", editUrl),
+    const exploreBar = renderExploreBar([
+      exploreIconLink("calendar", "Calendar", "/calendar", false),
+      exploreIconLink("availability", "Availability", "/availability", false),
+      exploreIconLink("github", "GitHub", linkForKey(links, "github")),
+      exploreIconLink("x", "X", linkForKey(links, "x")),
+      exploreIconLink("website", "Website", linkForKey(links, "website")),
+      exploreIconLink("linkedin", "LinkedIn", linkForKey(links, "linkedin")),
     ]);
     const askMeAbout = renderQuickRow("ask me about",
       asArray(rec.go_to_them_for).slice(0, 4)
@@ -899,9 +926,10 @@ function compactPills(items) {
       <section class="cd-ledger">
         <div class="cd-ledger-head">
           <span class="cd-h">individual read</span>
+          ${exploreBar}
         </div>
         ${bioSection ? `<div class="cd-section-stack cd-priority-stack">${bioSection}</div>` : ""}
-        <div class="cd-quick">${nowRow}${explore}${askMeAbout}${themes}${teamContext}</div>
+        <div class="cd-quick">${nowRow}${askMeAbout}${themes}${teamContext}</div>
         <div class="cd-section-stack">
           ${renderSection("working with", workingRows, false, workingPreview)}
           ${renderSection("proof / prior work", proofRead, false, proofPreview)}
@@ -941,16 +969,15 @@ function compactPills(items) {
     ]) : "";
     // (The old "routes / asks" quick row linked to this same page — a
     // self-link is a control with no consequence; dropped.)
-    const explore = renderQuickRow("explore", [
-      quickLink("calendar", "/calendar", false),
-      quickLink("availability", "/availability", false),
-      quickLink("GitHub", linkForKey(links, "github")),
-      quickLink("Repo", linkForKey(links, "repo")),
-      quickLink("X", linkForKey(links, "x")),
-      quickLink("Website", linkForKey(links, "website")),
-      quickLink("Demo", linkForKey(links, "demo")),
-      quickLink("Deck", linkForKey(links, "deck")),
-      quickLink("source", editUrl),
+    const exploreBar = renderExploreBar([
+      exploreIconLink("calendar", "Calendar", "/calendar", false),
+      exploreIconLink("availability", "Availability", "/availability", false),
+      exploreIconLink("github", "GitHub", linkForKey(links, "github")),
+      exploreIconLink("repo", "Repo", linkForKey(links, "repo")),
+      exploreIconLink("x", "X", linkForKey(links, "x")),
+      exploreIconLink("website", "Website", linkForKey(links, "website")),
+      exploreIconLink("demo", "Demo", linkForKey(links, "demo")),
+      exploreIconLink("deck", "Deck", linkForKey(links, "deck")),
     ]);
     const evidenceRows = [
       renderRow("traction", rec.traction),
@@ -986,9 +1013,10 @@ function compactPills(items) {
       <section class="cd-ledger">
         <div class="cd-ledger-head">
           <span class="cd-h">${escHtml(kind)} read</span>
+          ${exploreBar}
         </div>
         ${readSection ? `<div class="cd-section-stack cd-priority-stack">${readSection}</div>` : ""}
-        <div class="cd-quick cd-team-quick">${nextMove}${guild}${trajectory}${explore}</div>
+        <div class="cd-quick cd-team-quick">${nextMove}${guild}${trajectory}</div>
         <div class="cd-section-stack">
           ${renderSection("assessment / plan", assessmentRows, false, assessmentPreview)}
           ${renderSection("evidence", evidenceRows, false, evidencePreview)}

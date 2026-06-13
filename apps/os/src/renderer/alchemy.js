@@ -12255,7 +12255,7 @@ function renderDisclosureSection(title, body, open = false, preview = "", extraC
     <details class="alch-detail-section alch-detail-disclosure ${extraClass}" ${open ? "open" : ""}>
       <summary>
         <span class="alch-section-label"><span>${escHtml(title)}</span>${previewHtml}</span>
-        <span class="alch-section-mark" aria-hidden="true"></span>
+        <span class="alch-section-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
       </summary>
       <div class="alch-section-body">${cleaned}</div>
     </details>
@@ -12364,18 +12364,43 @@ function detailLinkForKey(links, key) {
   return normalizeLinkHref(key, value);
 }
 
-function detailQuickLink(label, href, external = true) {
-  if (!href) return "";
-  const externalAttr = external ? " data-external" : "";
-  return `<a class="alch-quick-link" href="${escAttr(href)}"${externalAttr}>${escHtml(label)}</a>`;
+// ── Explore toolbar (2026-06) ───────────────────────────────────────
+// The dossier's jump + external links, lifted out of the old mid-page
+// "explore" quick row into an icon toolbar that sits in the ledger head
+// — the first actions you see when the read opens. Icon-only
+// (shape-grammar: square buttons, never words inside), each carrying an
+// accessible label + native tooltip. "source" is intentionally absent:
+// the detail bar's "edit on github" link already owns that intent.
+// Mirror of EXPLORE_ICONS in apps/web/scripts/cohort.js — keep in sync.
+const EXPLORE_ICONS = {
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>',
+  availability: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6.5h8"/><path d="M9 12h10"/><path d="M5 17.5h6"/></svg>',
+  github: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.37.5 0 5.78 0 12.29c0 5.2 3.44 9.6 8.21 11.16.6.11.82-.25.82-.57 0-.28-.01-1.02-.02-2-3.34.71-4.04-1.58-4.04-1.58-.55-1.36-1.34-1.73-1.34-1.73-1.09-.73.08-.72.08-.72 1.2.08 1.84 1.22 1.84 1.22 1.07 1.8 2.81 1.28 3.5.98.11-.76.42-1.28.76-1.58-2.67-.3-5.47-1.31-5.47-5.84 0-1.29.47-2.34 1.24-3.17-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.21a11.6 11.6 0 0 1 3.01-.4c1.02 0 2.05.13 3.01.4 2.29-1.53 3.3-1.21 3.3-1.21.66 1.65.24 2.87.12 3.17.77.83 1.24 1.88 1.24 3.17 0 4.54-2.81 5.53-5.49 5.83.43.37.81 1.1.81 2.22 0 1.6-.01 2.89-.01 3.28 0 .32.21.69.83.57C20.56 21.88 24 17.48 24 12.29 24 5.78 18.63.5 12 .5z"/></svg>',
+  repo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.9 1.153h3.682l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932zm-1.292 19.482h2.04L6.486 3.24H4.298z"/></svg>',
+  website: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>',
+  demo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>',
+  deck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h20"/><path d="M21 3v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3"/><path d="m7 21 5-5 5 5"/></svg>',
+  linkedin: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z"/></svg>',
+};
+
+// In-OS jump (calendar / availability) — jumps to an alchemy page via
+// __srwkAlchemyJump (wired by wireDetailJumps) instead of leaving the app.
+function exploreJump(iconKey, label, mode, opts = null) {
+  const optsAttr = opts ? ` data-jump-opts="${escAttr(JSON.stringify(opts))}"` : "";
+  return `<button type="button" class="alch-explore-btn" data-jump="${escAttr(mode)}"${optsAttr} aria-label="${escAttr(label)}" title="${escAttr(label)}">${EXPLORE_ICONS[iconKey] || ""}</button>`;
 }
 
-// In-OS destination chip (calendar, availability…) — same visual language
-// as external explore links, but jumps to an alchemy page via
-// __srwkAlchemyJump instead of leaving the app.
-function detailQuickJump(label, mode, opts = null) {
-  const optsAttr = opts ? ` data-jump-opts="${escAttr(JSON.stringify(opts))}"` : "";
-  return `<button type="button" class="alch-quick-link" data-jump="${escAttr(mode)}"${optsAttr}>${escHtml(label)}</button>`;
+// External destination — an empty href drops the button so a record only
+// shows the links it actually declares.
+function exploreLink(iconKey, label, href) {
+  if (!href) return "";
+  return `<a class="alch-explore-btn" href="${escAttr(href)}" data-external aria-label="${escAttr(label)}" title="${escAttr(label)}">${EXPLORE_ICONS[iconKey] || ""}</a>`;
+}
+
+function renderExploreBar(items) {
+  const html = items.filter(Boolean).join("");
+  return html ? `<div class="alch-explore-bar" role="group" aria-label="explore">${html}</div>` : "";
 }
 
 function detailRecordToken(record, fallbackLabel = "") {
@@ -12724,16 +12749,15 @@ function renderTeamDetail(team) {
     detailPill("bottleneck", journey.primary_bottleneck),
     detailQuickText("next", journey.next_milestone),
   ]);
-  const explore = detailQuickRow("explore", [
-    detailQuickJump("calendar", "calendar", { calendarView: "cal" }),
-    detailQuickJump("availability", "calendar", { calendarView: "presence", presenceTeam: recordId }),
-    detailQuickLink("GitHub", detailLinkForKey(links, "github")),
-    detailQuickLink("Repo", detailLinkForKey(links, "repo")),
-    detailQuickLink("X", detailLinkForKey(links, "x")),
-    detailQuickLink("Website", detailLinkForKey(links, "website")),
-    detailQuickLink("Demo", detailLinkForKey(links, "demo")),
-    detailQuickLink("Deck", detailLinkForKey(links, "deck")),
-    detailQuickLink("source", editUrl),
+  const exploreBar = renderExploreBar([
+    exploreJump("calendar", "Calendar", "calendar", { calendarView: "cal" }),
+    exploreJump("availability", "Availability", "calendar", { calendarView: "presence", presenceTeam: recordId }),
+    exploreLink("github", "GitHub", detailLinkForKey(links, "github")),
+    exploreLink("repo", "Repo", detailLinkForKey(links, "repo")),
+    exploreLink("x", "X", detailLinkForKey(links, "x")),
+    exploreLink("website", "Website", detailLinkForKey(links, "website")),
+    exploreLink("demo", "Demo", detailLinkForKey(links, "demo")),
+    exploreLink("deck", "Deck", detailLinkForKey(links, "deck")),
   ]);
   const readSection = renderFlatSection("about / positioning", teamPositioningProse(journey), "alch-detail-priority");
   const assessmentPreview = [
@@ -12766,9 +12790,10 @@ function renderTeamDetail(team) {
       <section class="alch-detail-ledger">
         <div class="alch-ledger-head">
           <span class="alch-detail-h">${escHtml(kind)} read</span>
+          ${exploreBar}
         </div>
         ${readSection ? `<div class="alch-section-stack alch-priority-stack">${readSection}</div>` : ""}
-        <div class="alch-detail-quick alch-team-quick">${nextMove}${guild}${trajectory}${explore}</div>
+        <div class="alch-detail-quick alch-team-quick">${nextMove}${guild}${trajectory}</div>
         <div class="alch-section-stack">
           ${renderDisclosureSection("assessment / plan", detailRows(assessmentRows), false, assessmentPreview)}
           ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, evidencePreview)}
@@ -12822,14 +12847,13 @@ function renderPersonDetail(person) {
   // doing now, how to engage, what to route to them, and where their work
   // sits — everything else is opt-in below.
   const nowRow = detailQuickRow("now", [detailQuickText("", person.now)]);
-  const explore = detailQuickRow("explore", [
-    detailQuickJump("calendar", "calendar", { calendarView: "cal" }),
-    detailQuickJump("availability", "calendar", { calendarView: "presence", presencePeople: [recordId] }),
-    detailQuickLink("GitHub", detailLinkForKey(links, "github")),
-    detailQuickLink("X", detailLinkForKey(links, "x")),
-    detailQuickLink("Website", detailLinkForKey(links, "website")),
-    detailQuickLink("LinkedIn", detailLinkForKey(links, "linkedin")),
-    detailQuickLink("source", editUrl),
+  const exploreBar = renderExploreBar([
+    exploreJump("calendar", "Calendar", "calendar", { calendarView: "cal" }),
+    exploreJump("availability", "Availability", "calendar", { calendarView: "presence", presencePeople: [recordId] }),
+    exploreLink("github", "GitHub", detailLinkForKey(links, "github")),
+    exploreLink("x", "X", detailLinkForKey(links, "x")),
+    exploreLink("website", "Website", detailLinkForKey(links, "website")),
+    exploreLink("linkedin", "LinkedIn", detailLinkForKey(links, "linkedin")),
   ]);
   const askMeAbout = detailQuickRow(
     "ask me about",
@@ -12898,9 +12922,10 @@ function renderPersonDetail(person) {
       <section class="alch-detail-ledger">
         <div class="alch-ledger-head">
           <span class="alch-detail-h">individual read</span>
+          ${exploreBar}
         </div>
         ${bioSection ? `<div class="alch-section-stack alch-priority-stack">${bioSection}</div>` : ""}
-        <div class="alch-detail-quick">${nowRow}${explore}${askMeAbout}${themes}${teamContext}</div>
+        <div class="alch-detail-quick">${nowRow}${askMeAbout}${themes}${teamContext}</div>
         <div class="alch-section-stack">
           ${renderDisclosureSection("working with", detailRows(workingRows), false, workingPreview)}
           ${renderDisclosureSection("proof / prior work", renderPersonProofRead(person), false, proofPreview)}
