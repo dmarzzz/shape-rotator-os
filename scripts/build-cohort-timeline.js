@@ -2,12 +2,13 @@
 /**
  * build-cohort-timeline.js - canonical Git-backed cohort timeline read model.
  *
- * Projects public self-declared people/team data from cohort-data history into:
+ * Projects public self-declared people/team/cluster/dependency data from cohort-data history into:
  *   1. point-in-time snapshots for week/map reconstruction, and
  *   2. record-level field-change events for the canonical timeline log.
  *
  * This intentionally ignores OS/app code changes. A commit is relevant only
- * when it changes cohort-data/people or cohort-data/teams. Future sources
+ * when it changes cohort-data/people, cohort-data/teams, cohort-data/clusters,
+ * or cohort-data/dependencies. Future sources
  * (Teleport Router, transcript evidence) should append to the same event
  * shape with their own source_id instead of creating a parallel timeline.
  *
@@ -32,17 +33,21 @@ const SNAPSHOT_SOURCE_PATHS = [
   "cohort-data/people",
   "cohort-data/teams",
   "cohort-data/clusters",
+  "cohort-data/dependencies",
 ];
 
 const SNAPSHOT_COLLECTIONS = [
   { key: "teams", dir: "teams", recordType: "team" },
   { key: "people", dir: "people", recordType: "person" },
   { key: "clusters", dir: "clusters", recordType: "cluster" },
+  { key: "dependencies", dir: "dependencies", recordType: "dependency" },
 ];
 
 const EVENT_COLLECTIONS = [
   { key: "teams", dir: "teams", recordType: "team", sourceId: "cohort-data-github" },
   { key: "people", dir: "people", recordType: "person", sourceId: "cohort-data-github" },
+  { key: "clusters", dir: "clusters", recordType: "cluster", sourceId: "cohort-data-github" },
+  { key: "dependencies", dir: "dependencies", recordType: "dependency", sourceId: "cohort-data-github" },
 ];
 
 function rel(file) {
@@ -222,7 +227,7 @@ function resolveSnapshotRef(snapshot, baseRef) {
     return { commit, mode: "ref" };
   }
   if (!snapshot.as_of) throw new Error(`snapshot ${snapshot.id} needs ref or as_of`);
-  const commit = git(["rev-list", "-n", "1", `--before=${snapshot.as_of}`, baseRef, "--", ...SNAPSHOT_SOURCE_PATHS]).trim();
+  const commit = git(["rev-list", "-n", "1", "--first-parent", `--before=${snapshot.as_of}`, baseRef, "--", ...SNAPSHOT_SOURCE_PATHS]).trim();
   if (!commit) throw new Error(`snapshot ${snapshot.id} could not resolve a commit before ${snapshot.as_of}`);
   return { commit, mode: "as_of" };
 }
@@ -367,8 +372,7 @@ function buildEvents(schema, baseRef) {
     "--format=%H%x1f%P%x1f%ct%x1f%an%x1f%ae%x1f%s",
     baseRef,
     "--",
-    "cohort-data/people",
-    "cohort-data/teams",
+    ...EVENT_COLLECTIONS.map((spec) => `cohort-data/${spec.dir}`),
   ]);
   const commits = [];
   let current = null;
@@ -514,7 +518,7 @@ function build() {
       canonical_source: "cohort-data-github",
       repo_url: repoUrl,
       base_ref: baseRef,
-      included_paths: ["cohort-data/people", "cohort-data/teams"],
+      included_paths: EVENT_COLLECTIONS.map((spec) => `cohort-data/${spec.dir}`),
       ignored: ["OS/app code changes", "schema-only changes", "unmerged PRs", "dirty working-tree edits"],
       public_surface_only: true,
     },

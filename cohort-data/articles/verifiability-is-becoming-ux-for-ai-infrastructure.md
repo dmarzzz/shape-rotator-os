@@ -95,7 +95,7 @@ Concrete moves, ranked by who they're for:
 
 - **#teesql, #abra, #tinycloud, #conclave (dstack deployers).** Write down every manual step you currently take to bring up dstack from scratch. The shortest list wins. That document is the spec for the host image.
 - **#elizaos and anyone forking Debian for an agent workload.** Look at easyTEE / Make OSI before you write more Yocto. If it's the wrong fit, the comparison is itself a useful artifact for the cluster.
-- **Anyone who has UI feedback on dstack or Phala Cloud.** Hang explicitly asked for it in the room. Phala is rare among infra teams in actively inviting cluster-internal feedback before locking the UX — this window is open now and almost certainly closes after the midterm. If you've been quietly cursing a bootstrap flow, the highest-leverage 30 minutes you can spend this week is writing it down and sending it to Hang.
+- **Anyone who has UI feedback on dstack or Phala Cloud.** Hang explicitly asked for it in the room. Phala is rare among infra teams in actively inviting cluster-internal feedback before locking the UX — this window is open now and almost certainly narrows after the June 14 demo night. If you've been quietly cursing a bootstrap flow, the highest-leverage 30 minutes you can spend this week is writing it down and sending it to Hang.
 - **Whoever wants the cross-team primitive.** Prototype the install / bootstrap / join flow as a user journey before writing more low-level code. If the journey is the verifiability story, the journey is the project.
 - **Anyone with service-mesh experiments running.** Compare your design against attested WireGuard + peer discovery + measurement-gated join before you reach for Kubernetes.
 

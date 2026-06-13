@@ -5,7 +5,7 @@
  * Phase 1 implementation per docs/SHAPE-ROTATOR-OS-SPEC.md §4.4 §6:
  * reads cohort-data/{teams,people,clusters,dependencies}/*.md, applies the surface-
  * fields whitelist from cohort-data/schema.yml, writes
- * apps/os/src/cohort-surface.json. The depth side (encrypted
+ * apps/os/src/cohort-surface.json and apps/web/cohort-surface.json. The depth side (encrypted
  * raw markdown bytes per §3.1) lands once swf-node bundle handling is
  * in place.
  *
@@ -21,10 +21,20 @@ const fs   = require("node:fs");
 const path = require("node:path");
 const vm   = require("node:vm");
 const yaml = require("js-yaml");
+const {
+  publicArticleBlockedNames,
+  publicArticleCandidateFromReadout,
+} = require("./lib/public-article-policy.cjs");
 
 const REPO_ROOT  = path.resolve(__dirname, "..");
 const COHORT_DIR = path.join(REPO_ROOT, "cohort-data");
-const OUT_PATH   = path.join(REPO_ROOT, "apps", "os", "src", "cohort-surface.json");
+const OS_SURFACE_PATH = path.join(REPO_ROOT, "apps", "os", "src", "cohort-surface.json");
+const WEB_SURFACE_PATH = path.join(REPO_ROOT, "apps", "web", "cohort-surface.json");
+const OUT_PATHS = [
+  OS_SURFACE_PATH,
+  WEB_SURFACE_PATH,
+];
+const PRIMARY_OUT_PATH = OUT_PATHS[0];
 
 function readSchema() {
   const p = path.join(COHORT_DIR, "schema.yml");
@@ -145,6 +155,8 @@ function recordSourceUrl(recordType, recordId) {
     : recordType === "team" ? "teams"
     : recordType === "ask" ? "asks"
     : recordType === "event" ? "events"
+    : recordType === "cluster" ? "clusters"
+    : recordType === "dependency" ? "dependencies"
     : `${recordType || "record"}s`;
   return githubBlobUrl(`cohort-data/${folder}/${recordId}.md`);
 }
@@ -161,6 +173,10 @@ function compactText(value, max = 180) {
 function asArray(value) {
   if (Array.isArray(value)) return value.filter(v => v != null && String(v).trim() !== "");
   return value == null || String(value).trim() === "" ? [] : [value];
+}
+
+function labelize(value) {
+  return String(value || "not declared").replace(/[-_]+/g, " ");
 }
 
 function textIncludesAny(text, aliases) {
@@ -347,7 +363,92 @@ function sortTimeline(items) {
     });
 }
 
-function buildPersonTimeline({ people, teams, asks, events, calendar }) {
+function latestWeek(weeks) {
+  const values = asArray(weeks).map(isoDate).filter(Boolean).sort();
+  return values.length ? values[values.length - 1] : "";
+}
+
+function evidenceTimelineItems(transcriptEvidence, kind, recordId) {
+  const key = kind === "team" ? "team_id" : "person_id";
+  const rows = Array.isArray(transcriptEvidence?.[kind === "team" ? "teams" : "people"])
+    ? transcriptEvidence[kind === "team" ? "teams" : "people"]
+    : [];
+  const view = rows.find(item => String(item?.[key] || "") === String(recordId || ""));
+  if (!view) return [];
+  const claims = asArray(view.top_claims).slice(0, 6);
+  return claims.map((claim) => ({
+    date: latestWeek(view.weeks),
+    type: "transcript evidence",
+    title: labelize(claim.claim_type || "evidence claim"),
+    detail: compactText(claim.text || "", 230),
+    source: [claim.evidence_level, claim.confidence, "reviewed evidence card"].filter(Boolean).join(" · "),
+    evidence_card_id: claim.source_artifact_id || "",
+    sharing_boundary: view.sharing_boundary?.max_surface || "cohort",
+  }));
+}
+
+function buildCohortIntel({ transcriptEvidence, sessionInsights, teams = [], people = [] }) {
+  const evidence = transcriptEvidence && typeof transcriptEvidence === "object" ? transcriptEvidence : {};
+  const weekly = asArray(evidence.weekly)
+    .slice()
+    .sort((a, b) => String(b.week_start || "").localeCompare(String(a.week_start || "")))
+    .slice(0, 8)
+    .map((week) => ({
+      week_start: week.week_start,
+      evidence_card_count: asArray(week.evidence_card_ids).length,
+      claim_count: week.claim_count || asArray(week.top_claims).length,
+      teams: asArray(week.teams).slice(0, 12),
+      people: asArray(week.people).slice(0, 12),
+      themes: asArray(week.themes).slice(0, 8),
+      top_claims: asArray(week.top_claims).slice(0, 8),
+      confidence: week.confidence || "low",
+      sharing_boundary: week.sharing_boundary || { max_surface: "cohort", raw_allowed: false },
+      source_note: week.source_note || "Compiled from reviewed transcript evidence cards, not raw transcript blobs.",
+    }));
+  const teamViews = asArray(evidence.teams)
+    .slice()
+    .sort((a, b) => (b.claim_count || 0) - (a.claim_count || 0))
+    .slice(0, 16)
+    .map((team) => ({
+      team_id: team.team_id,
+      claim_count: team.claim_count || asArray(team.top_claims).length,
+      evidence_card_count: asArray(team.evidence_card_ids).length,
+      themes: asArray(team.themes).slice(0, 8),
+      top_claims: asArray(team.top_claims).slice(0, 6),
+      confidence: team.confidence || "low",
+      sharing_boundary: team.sharing_boundary || { max_surface: "cohort", raw_allowed: false },
+    }));
+  const personViews = asArray(evidence.people)
+    .slice()
+    .sort((a, b) => (b.claim_count || 0) - (a.claim_count || 0))
+    .slice(0, 16)
+    .map((person) => ({
+      person_id: person.person_id,
+      claim_count: person.claim_count || asArray(person.top_claims).length,
+      evidence_card_count: asArray(person.evidence_card_ids).length,
+      themes: asArray(person.themes).slice(0, 8),
+      top_claims: asArray(person.top_claims).slice(0, 6),
+      confidence: person.confidence || "low",
+      sharing_boundary: person.sharing_boundary || { max_surface: "cohort", raw_allowed: false },
+    }));
+  const publicReady = asArray(sessionInsights).filter(item => item.consent === "public-cleared");
+  const blockedNames = publicArticleBlockedNames({ teams, people });
+  return {
+    schema_version: 1,
+    source: "cohort-data/artifacts/transcript-evidence/generated/views.json",
+    generated_from: "reviewed transcript evidence cards",
+    raw_allowed: false,
+    weekly,
+    teams: teamViews,
+    people: personViews,
+    context_public_candidates: publicReady.map(item => publicArticleCandidateFromReadout(item, { blockedNames })),
+    context_policy_note: publicReady.length
+      ? "Public-cleared transcript readouts may become Context articles after editorial pass."
+      : "No transcript readout is public-cleared yet; Context should use existing articles and cohort-internal evidence only.",
+  };
+}
+
+function buildPersonTimeline({ people, teams, asks, events, calendar, transcriptEvidence }) {
   const teamById = new Map(teams.map(t => [t.record_id, t]));
   const calBlocks = calendarBlocks(calendar);
   const transcriptMatches = loadCalendarTranscriptMatches();
@@ -499,6 +600,7 @@ function buildPersonTimeline({ people, teams, asks, events, calendar }) {
       return true;
     });
     items.push(...uniqueTranscriptItems.slice(0, 6).map(({ _priority, _dedup, ...item }) => item));
+    items.push(...evidenceTimelineItems(transcriptEvidence, "person", person.record_id));
 
     timeline[person.record_id] = sortTimeline(items).slice(0, 28);
   }
@@ -506,7 +608,7 @@ function buildPersonTimeline({ people, teams, asks, events, calendar }) {
   return timeline;
 }
 
-function buildTeamTimeline({ teams, people, asks, events, calendar }) {
+function buildTeamTimeline({ teams, people, asks, events, calendar, githubProgressArtifacts = [], transcriptEvidence }) {
   const peopleByTeam = new Map();
   for (const person of people) {
     const teamIds = [person.team, ...asArray(person.secondary_teams)].filter(Boolean);
@@ -518,6 +620,13 @@ function buildTeamTimeline({ teams, people, asks, events, calendar }) {
   const calBlocks = calendarBlocks(calendar);
   const transcriptMatches = loadCalendarTranscriptMatches();
   const timeline = {};
+  const githubArtifactsByTeam = new Map();
+  for (const artifact of githubProgressArtifacts) {
+    const teamId = String(artifact.record_id || "").trim();
+    if (!teamId) continue;
+    if (!githubArtifactsByTeam.has(teamId)) githubArtifactsByTeam.set(teamId, []);
+    githubArtifactsByTeam.get(teamId).push(artifact);
+  }
 
   for (const team of teams) {
     const members = peopleByTeam.get(team.record_id) || [];
@@ -625,6 +734,21 @@ function buildTeamTimeline({ teams, people, asks, events, calendar }) {
       return true;
     });
     items.push(...uniqueTranscriptItems.slice(0, 6).map(({ _priority, _dedup, ...item }) => item));
+    items.push(...evidenceTimelineItems(transcriptEvidence, "team", team.record_id));
+
+    for (const artifact of githubArtifactsByTeam.get(team.record_id) || []) {
+      const repo = artifact.source_repo || artifact.evidence?.repo || "github repo";
+      const count = artifact.evidence?.commit_count;
+      const title = artifact.title || `${repo}${Number.isFinite(count) ? `: ${count} commit${count === 1 ? "" : "s"}` : ""}`;
+      items.push({
+        date: isoDate(artifact.date || artifact.week_start),
+        type: "github progress",
+        title: compactText(title, 110),
+        detail: compactText(artifact.summary || artifact.detail || "", 220),
+        href: artifact.source_url || artifact.evidence?.url || "",
+        source: "github distillation",
+      });
+    }
 
     timeline[team.record_id] = sortTimeline(items).slice(0, 28);
   }
@@ -642,6 +766,183 @@ function loadJsonArray(file, label) {
     console.warn(`[build-bundles] ${label} present but unreadable: ${e.message}`);
   }
   return [];
+}
+
+function loadJsonObject(file, label) {
+  if (!fs.existsSync(file)) return null;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+    console.warn(`[build-bundles] ${label} should be an object; got ${Array.isArray(parsed) ? "array" : typeof parsed}`);
+  } catch (e) {
+    console.warn(`[build-bundles] ${label} present but unreadable: ${e.message}`);
+  }
+  return null;
+}
+
+function listJsonFilesRecursive(dir) {
+  if (!fs.existsSync(dir)) return [];
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...listJsonFilesRecursive(full));
+    } else if (entry.isFile() && entry.name.endsWith(".json") && entry.name !== "manifest.json") {
+      out.push(full);
+    }
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
+function loadGithubProgressArtifacts() {
+  const root = path.join(COHORT_DIR, "artifacts", "github-progress");
+  const files = listJsonFilesRecursive(root);
+  const out = [];
+  for (const file of files) {
+    let artifact;
+    try {
+      artifact = JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch (e) {
+      console.warn(`[build-bundles] github progress artifact unreadable ${file}: ${e.message}`);
+      continue;
+    }
+    if (artifact?.artifact_kind !== "github_progress_weekly_summary") continue;
+    if (artifact?.review_status !== "reviewed") continue;
+    if (artifact?.record_type !== "team" || !artifact?.record_id) {
+      console.warn(`[build-bundles] github progress artifact missing team record_id: ${file}`);
+      continue;
+    }
+    out.push(artifact);
+  }
+  return out.sort((a, b) => {
+    const ad = isoDate(a.date || a.week_start);
+    const bd = isoDate(b.date || b.week_start);
+    if (ad !== bd) return ad.localeCompare(bd);
+    return String(a.artifact_id || "").localeCompare(String(b.artifact_id || ""));
+  });
+}
+
+function transcriptDistillationAppVisible(artifact) {
+  if (!artifact || typeof artifact !== "object") return false;
+  if (artifact.tier === "T2") {
+    return artifact.review_status === "reviewed" || artifact.review_status === "published";
+  }
+  if (artifact.tier === "T3") {
+    return artifact.review_status === "published" && artifact.approval_state === "approved";
+  }
+  return false;
+}
+
+function sanitizeTranscriptDistillationsForApp(manifest) {
+  const base = manifest && typeof manifest === "object" ? manifest : {};
+  const artifacts = Array.isArray(base.artifacts)
+    ? base.artifacts.filter(transcriptDistillationAppVisible)
+    : [];
+  return {
+    schema_version: base.schema_version || 1,
+    generated_at: base.generated_at || null,
+    source: base.source || "supabase.derived_artifacts",
+    default_export_policy: "app-visible only: T2 reviewed/published and T3 published+approved",
+    source_default_export_policy: base.default_export_policy || null,
+    source_artifact_count: Number(base.artifact_count || 0),
+    source_operator_review_count: Number(base.operator_review_count || 0),
+    artifact_count: artifacts.length,
+    cohort_count: artifacts.filter((item) => item.surface === "cohort").length,
+    public_count: artifacts.filter((item) => item.surface === "public").length,
+    operator_review_count: 0,
+    artifacts,
+  };
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function emptyTranscriptEvidence(source) {
+  return {
+    schema_version: source?.schema_version || 1,
+    source_artifact_count: 0,
+    weekly: [],
+    teams: [],
+    people: [],
+    graph: {
+      nodes: [],
+      edges: [],
+    },
+    generated_at: source?.generated_at || null,
+    public_web_policy: "cohort-only transcript evidence is excluded from the public static bundle",
+  };
+}
+
+function publicTranscriptDistillations(source) {
+  const base = source && typeof source === "object" ? source : {};
+  const artifacts = asArray(base.artifacts)
+    .filter((artifact) => artifact.surface === "public")
+    .filter(transcriptDistillationAppVisible);
+  return {
+    schema_version: base.schema_version || 1,
+    generated_at: base.generated_at || null,
+    source: base.source || "supabase.derived_artifacts",
+    default_export_policy: "public web only: T3 published+approved",
+    artifact_count: artifacts.length,
+    cohort_count: 0,
+    public_count: artifacts.length,
+    operator_review_count: 0,
+    artifacts,
+  };
+}
+
+function stripTranscriptEvidenceTimeline(timeline) {
+  const out = {};
+  for (const [recordId, items] of Object.entries(timeline || {})) {
+    out[recordId] = asArray(items).filter((item) => item.type !== "transcript evidence");
+  }
+  return out;
+}
+
+function privateTranscriptSource(value) {
+  const text = String(value || "");
+  return /\bprivate-vault:/i.test(text)
+    || /\btranscript-evidence:/i.test(text)
+    || /\bdrive:\/\//i.test(text);
+}
+
+function publicSafeConstellationCue(item) {
+  if (!item || typeof item !== "object") return false;
+  return !privateTranscriptSource(item.source)
+    && !privateTranscriptSource(item.source_artifact_id)
+    && !privateTranscriptSource(item.vault_id)
+    && !privateTranscriptSource(item.provenance?.source)
+    && !privateTranscriptSource(item.provenance?.source_artifact_id);
+}
+
+function publicWebSurface(surface) {
+  const out = cloneJson(surface);
+  const publicSessionInsights = asArray(out.session_insights)
+    .filter((item) => item.consent === "public-cleared");
+  out.session_insights = publicSessionInsights;
+  out.constellation_cues = asArray(out.constellation_cues).filter(publicSafeConstellationCue);
+  out.transcript_evidence = emptyTranscriptEvidence(surface.transcript_evidence);
+  out.transcript_distillations = publicTranscriptDistillations(surface.transcript_distillations);
+  out.cohort_intel = buildCohortIntel({
+    transcriptEvidence: out.transcript_evidence,
+    sessionInsights: publicSessionInsights,
+    teams: out.teams,
+    people: out.people,
+  });
+  out.cohort_intel.context_policy_note = out.transcript_distillations.public_count
+    ? "Public-approved transcript distillations may be used for Context."
+    : "No transcript readout is public-cleared yet; public Context should use existing articles only.";
+  out.person_timeline = stripTranscriptEvidenceTimeline(out.person_timeline);
+  out.team_timeline = stripTranscriptEvidenceTimeline(out.team_timeline);
+  out.surface_visibility = "public-web";
+  return out;
+}
+
+function surfaceForOutputPath(outPath, built) {
+  return path.resolve(outPath) === path.resolve(WEB_SURFACE_PATH)
+    ? publicWebSurface(built)
+    : built;
 }
 
 function build() {
@@ -681,6 +982,21 @@ function build() {
   // the raw transcript never enters the repo; vault_id joins back to the
   // held-private timeline anchors in calendar-transcript-matches.js.
   const session_insights = loadJsonArray(path.join(COHORT_DIR, "session-insights.json"), "session-insights.json");
+  const transcript_evidence = loadJsonObject(
+    path.join(COHORT_DIR, "artifacts", "transcript-evidence", "generated", "views.json"),
+    "transcript-evidence/generated/views.json",
+  );
+  const transcript_distillations = sanitizeTranscriptDistillationsForApp(loadJsonObject(
+    path.join(COHORT_DIR, "artifacts", "transcript-distillations", "generated", "manifest.json"),
+    "transcript-distillations/generated/manifest.json",
+  ));
+  const cohort_intel = buildCohortIntel({
+    transcriptEvidence: transcript_evidence,
+    sessionInsights: session_insights,
+    teams,
+    people,
+  });
+  const github_progress_artifacts = loadGithubProgressArtifacts();
 
   // Cohort-wide controlled vocab + UI configuration the renderer needs at
   // boot. Shipped alongside records so the atlas / constellation / asks UIs
@@ -699,11 +1015,14 @@ function build() {
     events,
     asks,
     calendar,
-    person_timeline: buildPersonTimeline({ people, teams, asks, events, calendar }),
-    team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar }),
+    person_timeline: buildPersonTimeline({ people, teams, asks, events, calendar, transcriptEvidence: transcript_evidence }),
+    team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar, githubProgressArtifacts: github_progress_artifacts, transcriptEvidence: transcript_evidence }),
     cohort_vocab,
     constellation_cues,
     session_insights,
+    transcript_evidence,
+    transcript_distillations,
+    cohort_intel,
   };
   return out;
 }
@@ -720,30 +1039,36 @@ function main() {
   try { built = build(); }
   catch (e) { console.error("[build-bundles]", e.message); process.exit(2); }
 
-  const json = fmt(built);
-
   if (check) {
-    if (!fs.existsSync(OUT_PATH)) {
-      console.error(`[build-bundles] --check: ${OUT_PATH} does not exist`);
-      process.exit(3);
-    }
-    const current = fs.readFileSync(OUT_PATH, "utf8");
-    // Compare structurally (ignoring _generated_at) so re-running on
-    // the same content doesn't trip --check.
-    const a = { ...JSON.parse(current), _generated_at: null };
-    const b = { ...built, _generated_at: null };
-    if (JSON.stringify(a) !== JSON.stringify(b)) {
-      console.error(`[build-bundles] --check: ${OUT_PATH} is stale; run \`npm run build:cohort\` and commit`);
-      process.exit(4);
+    for (const outPath of OUT_PATHS) {
+      if (!fs.existsSync(outPath)) {
+        console.error(`[build-bundles] --check: ${outPath} does not exist`);
+        process.exit(3);
+      }
+      const current = fs.readFileSync(outPath, "utf8");
+      // Compare structurally (ignoring _generated_at) so re-running on
+      // the same content doesn't trip --check.
+      const a = { ...JSON.parse(current), _generated_at: null };
+      const b = { ...surfaceForOutputPath(outPath, built), _generated_at: null };
+      if (JSON.stringify(a) !== JSON.stringify(b)) {
+        console.error(`[build-bundles] --check: ${outPath} is stale; run \`npm run build:cohort\` and commit`);
+        process.exit(4);
+      }
     }
     console.log(`[build-bundles] --check: surface JSON is up to date`);
     return;
   }
 
-  fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
-  fs.writeFileSync(OUT_PATH, json);
+  for (const outPath of OUT_PATHS) {
+    const json = fmt(surfaceForOutputPath(outPath, built));
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, json);
+  }
   const calTabs = built.calendar?.tabs ? Object.keys(built.calendar.tabs).length : 0;
-  console.log(`[build-bundles] wrote ${OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.dependencies.length} dependencies, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.constellation_cues.length} constellation cues, ${built.session_insights.length} session insights, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
+  const evidenceViews = built.transcript_evidence
+    ? `${built.transcript_evidence.weekly?.length || 0} weekly/${built.transcript_evidence.teams?.length || 0} team/${built.transcript_evidence.people?.length || 0} person`
+    : "none";
+  console.log(`[build-bundles] wrote ${OUT_PATHS.length} surface JSON files, primary=${PRIMARY_OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.dependencies.length} dependencies, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.constellation_cues.length} constellation cues, ${built.session_insights.length} session insights, transcript evidence=${evidenceViews}, transcript distillations=${built.transcript_distillations.artifact_count}, cohort intel=${built.cohort_intel.weekly.length} weeks, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
 }
 
 main();

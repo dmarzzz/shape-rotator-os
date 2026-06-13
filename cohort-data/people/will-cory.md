@@ -8,8 +8,9 @@ role: ""
 role_class: cohort-member
 geo: "SF (PST)"
 domain: ai
+email: willcory10@gmail.com
 dates_start: 2026-05-18T00:00:00.000Z
-dates_end: 2026-07-18T00:00:00.000Z
+dates_end: 2026-07-25T00:00:00.000Z
 links:
   github: "roninjin10"
   x: "@fucory"

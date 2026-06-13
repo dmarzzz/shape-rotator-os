@@ -7,7 +7,7 @@ membership: cohort
 
 name: TeeSQL
 focus: attestation-gated mesh for open-source workloads · TEE Postgres on dstack
-members_count: 2
+members_count: 3
 geo: NYC / Estonia
 domain: tee
 shape: hex
@@ -27,7 +27,7 @@ success_dimensions:
 prior_shipping:
   - attestation-report — open-source RA artifact tooling
   - ra-tls-parse, ra-tls-proxy, prisma-ra-tls (4 supporting repos)
-  - Shopped to Phala + Flashbots; 2+ Flashbots-X projects need this today
+  - Shopped to Phala + Flashbots; multiple Flashbots X-adjacent projects need this today
 skill_areas:
   - tee
   - dstack
@@ -55,7 +55,7 @@ journey:
   icp: European confidential-computing enterprises reducing US-cloud reliance (reached via web2 enterprise networks), alongside teams needing confidential SQL with attested connections
   problem: confidential applications need normal database ergonomics without silently losing the attestation and deployment guarantees
   solution: a generalized attestation-gated mesh that can run any open-source software (Postgres, Clickhouse, Redis) with a blockchain control plane and host- or dev-proof modes
-  evidence_notes: "multiple supporting repos, current beta direction, and clear cohort demand from other Flashbots-X projects. 2026-06-08 WDYDLW: product-shape pivot from HA Postgres cluster to generalized attestation-gated mesh; candid self-assessment — 'nothing fundamentally defensible yet'; bottleneck migrating from technical risk toward ICP clarity and a moat"
+  evidence_notes: "multiple supporting repos, current beta direction, and clear cohort demand from Flashbots X-adjacent projects. 2026-06-08 WDYDLW: product-shape pivot from HA Postgres cluster to generalized attestation-gated mesh; candid self-assessment — 'nothing fundamentally defensible yet'; bottleneck migrating from technical risk toward ICP clarity and a moat"
   next_milestone: open the first European confidential-computing enterprise conversation while keeping one cohort team on the attested beta path
 making_signature:
   built_domain: [systems, agentic]

@@ -53,11 +53,13 @@ const PRIMARY_TAB     = "May 18 Start";
 const COHORT_START_MS = Date.UTC(2026, 4, 18);                // mon may 18 2026
 const COHORT_END_MS   = Date.UTC(2026, 6, 26);                // sun jul 26 2026
 const WEEK_COUNT      = 10;
+const CALENDAR_TIME_ZONE = "America/New_York";
 
 export const PROGRAM_START_MS = COHORT_START_MS;
 export const PROGRAM_END_MS   = COHORT_END_MS;
 
 const DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const WEEKDAY_INDEX = Object.fromEntries(DAY_NAMES.map((name, index) => [name, index]));
 const DAY_NAMES_FULL = {
   mon: "monday", tue: "tuesday", wed: "wednesday", thu: "thursday",
   fri: "friday", sat: "saturday", sun: "sunday",
@@ -129,6 +131,239 @@ function boldTimes(htmlSafe) {
   return htmlSafe.replace(/(\d{1,2}:\d{2}(?:\s*[-–—:]\s*\d{1,2}:\d{2})?)/g, '<strong>$1</strong>');
 }
 
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+function dayIso(dayMs) {
+  return new Date(dayMs).toISOString().slice(0, 10);
+}
+
+function compactDate(dateIso) {
+  return String(dateIso || "").replace(/-/g, "");
+}
+
+function dateIsoWithOffset(dateIso, dayOffset = 0) {
+  if (!dayOffset) return dateIso;
+  const date = new Date(`${dateIso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + dayOffset);
+  return date.toISOString().slice(0, 10);
+}
+
+function compactDateTime(dateIso, minutes) {
+  const dayOffset = Math.floor(minutes / 1440);
+  const minuteOfDay = ((minutes % 1440) + 1440) % 1440;
+  const localDate = dateIsoWithOffset(dateIso, dayOffset);
+  return `${compactDate(localDate)}T${pad2(Math.floor(minuteOfDay / 60))}${pad2(minuteOfDay % 60)}00`;
+}
+
+function firstNonEmptyLine(value) {
+  return String(value || "").split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "";
+}
+
+function cleanTitleRest(value) {
+  return String(value || "")
+    .replace(/^\s*(?:[-*]\s*)?/, "")
+    .replace(/^\s*(?:[:\-–—]+|\)+)\s*/, "")
+    .trim();
+}
+
+function stripLeadingBullet(value) {
+  return String(value || "").replace(/^\s*[-*]\s+/, "").trim();
+}
+
+function stripAllDayPrefix(value) {
+  return stripLeadingBullet(value)
+    .replace(/^\s*\[\s*all\s+day\s*\]\s*/i, "")
+    .trim();
+}
+
+function parseMeridiem(value) {
+  const match = String(value || "").toLowerCase().match(/([ap])\.?m\.?(?![a-z])/);
+  return match ? (match[1] === "p" ? "pm" : "am") : null;
+}
+
+function parseTimeToken(token) {
+  const raw = String(token || "").trim().toLowerCase();
+  const meridiem = parseMeridiem(raw);
+  const compact = raw.replace(/\s*(?:[ap]\.?m\.?(?![a-z]))\s*$/i, "");
+  let hour;
+  let minute;
+  const colon = compact.match(/^(\d{1,2})(?::(\d{2}))?$/);
+  const digits = compact.match(/^(\d{3,4})$/);
+  if (colon) {
+    hour = Number(colon[1]);
+    minute = colon[2] == null ? 0 : Number(colon[2]);
+  } else if (digits) {
+    hour = Number(compact.slice(0, -2));
+    minute = Number(compact.slice(-2));
+  } else {
+    return null;
+  }
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour > 23 || minute > 59) return null;
+  const originalHour = hour;
+  if (meridiem === "pm" && hour < 12) hour += 12;
+  if (meridiem === "am" && hour === 12) hour = 0;
+  return { minutes: hour * 60 + minute, meridiem, originalHour };
+}
+
+function inferRangeMinutes(startToken, endToken) {
+  const start = parseTimeToken(startToken);
+  const end = parseTimeToken(endToken);
+  if (!start || !end) return null;
+  let startMinutes = start.minutes;
+  let endMinutes = end.minutes;
+  if (!start.meridiem && end.meridiem === "pm" && start.originalHour <= end.originalHour && start.originalHour < 12) {
+    startMinutes += 12 * 60;
+  }
+  if (!end.meridiem && start.meridiem === "pm" && end.originalHour < 12) {
+    endMinutes += 12 * 60;
+  }
+  if (!end.meridiem && startMinutes >= 12 * 60 && endMinutes < 12 * 60) {
+    endMinutes += 12 * 60;
+  }
+  if (endMinutes <= startMinutes) endMinutes += 24 * 60;
+  return { startMinutes, endMinutes };
+}
+
+function titleAfterFirstLine(block) {
+  return String(block || "").split(/\r?\n/).slice(1).map(stripAllDayPrefix).find(Boolean) || "";
+}
+
+function parseLeadingTiming(block) {
+  const firstLine = firstNonEmptyLine(block);
+  const timeToken = String.raw`\d{1,2}(?::?\d{2})?\s*(?:[ap]\.?m\.?(?![a-z]))?`;
+  const dashedRange = firstLine.match(new RegExp(String.raw`^\s*(?:[-*]\s*)?(?<start>${timeToken})\s*[-\u2013\u2014]{1,2}\s*~?\s*(?<end>${timeToken})(?<rest>.*)$`, "i"));
+  const colonTypoRange = firstLine.match(new RegExp(String.raw`^\s*(?:[-*]\s*)?(?<start>\d{1,2}:\d{2})\s*:\s*(?<end>\d{1,2}:\d{2})(?<rest>.*)$`, "i"));
+  const range = dashedRange || colonTypoRange;
+  if (range?.groups) {
+    const timing = inferRangeMinutes(range.groups.start, range.groups.end);
+    if (timing) return { ...timing, title: cleanTitleRest(range.groups.rest) || titleAfterFirstLine(block) || stripAllDayPrefix(firstLine) };
+  }
+  const single = firstLine.match(new RegExp(String.raw`^\s*(?:[-*]\s*)?(?<start>${timeToken})\s*:?\s*(?<rest>.*)$`, "i"));
+  if (single?.groups) {
+    const start = parseTimeToken(single.groups.start);
+    const rest = cleanTitleRest(single.groups.rest) || titleAfterFirstLine(block);
+    if (start && rest) {
+      return { startMinutes: start.minutes, endMinutes: start.minutes + 30, title: rest };
+    }
+  }
+  return null;
+}
+
+function parseAllDaySpanDays(block) {
+  const firstLine = stripAllDayPrefix(firstNonEmptyLine(block)).toLowerCase();
+  const match = firstLine.match(/^(mon|tue|wed|thu|fri|sat|sun)\s*[-\u2013\u2014]\s*(mon|tue|wed|thu|fri|sat|sun)\s*:/i);
+  if (!match) return 1;
+  const start = WEEKDAY_INDEX[match[1]];
+  const end = WEEKDAY_INDEX[match[2]];
+  if (!Number.isInteger(start) || !Number.isInteger(end) || end < start) return 1;
+  return end - start + 1;
+}
+
+function eventTitleForBlock(blockText) {
+  const timing = parseLeadingTiming(blockText);
+  return (timing?.title || stripAllDayPrefix(firstNonEmptyLine(blockText)) || "Shape Rotator session").replace(/\s+/g, " ").trim();
+}
+
+function icsTextEscape(value) {
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
+}
+
+function safeFileSlug(value) {
+  return String(value || "event").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 64) || "event";
+}
+
+function cleanUrlMatch(value) {
+  return String(value || "").replace(/[),.;\]]+$/g, "");
+}
+
+export function extractJoinLink(blockText) {
+  const text = String(blockText || "");
+  const marker = text.match(/(?:^|\n)\s*(?:meet|join)\s*:\s*(https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}[^\s<]*)/i);
+  if (marker) return cleanUrlMatch(marker[1]);
+  const anyMeet = text.match(/https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}[^\s<]*/i);
+  return anyMeet ? cleanUrlMatch(anyMeet[0]) : null;
+}
+
+function isJoinLine(value) {
+  return !!extractJoinLink(value) && /^\s*(?:[-*]\s*)?(?:meet|join)\s*:/i.test(String(value || ""));
+}
+
+export function buildEventCalendarActions({ blockText, dayMs, timeZone = CALENDAR_TIME_ZONE } = {}) {
+  if (!Number.isFinite(dayMs)) return null;
+  const dateIso = dayIso(dayMs);
+  const details = String(blockText || "").trim();
+  const title = eventTitleForBlock(details);
+  const timing = parseLeadingTiming(details);
+  const spanDays = timing ? 1 : parseAllDaySpanDays(details);
+  const endDateIso = dateIsoWithOffset(dateIso, spanDays);
+  const google = new URL("https://calendar.google.com/calendar/render");
+  google.searchParams.set("action", "TEMPLATE");
+  google.searchParams.set("text", title);
+  google.searchParams.set("details", details);
+  google.searchParams.set("ctz", timeZone);
+  if (timing) {
+    google.searchParams.set("dates", `${compactDateTime(dateIso, timing.startMinutes)}/${compactDateTime(dateIso, timing.endMinutes)}`);
+  } else {
+    google.searchParams.set("dates", `${compactDate(dateIso)}/${compactDate(endDateIso)}`);
+  }
+
+  const uid = `${safeFileSlug(title)}-${compactDate(dateIso)}@shape-rotator-os`;
+  const icsLines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//shape-rotator-os//cohort calendar event//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `SUMMARY:${icsTextEscape(title)}`,
+    `DESCRIPTION:${icsTextEscape(details)}`,
+  ];
+  if (timing) {
+    icsLines.push(
+      `DTSTART;TZID=${timeZone}:${compactDateTime(dateIso, timing.startMinutes)}`,
+      `DTEND;TZID=${timeZone}:${compactDateTime(dateIso, timing.endMinutes)}`,
+    );
+  } else {
+    icsLines.push(
+      `DTSTART;VALUE=DATE:${compactDate(dateIso)}`,
+      `DTEND;VALUE=DATE:${compactDate(endDateIso)}`,
+    );
+  }
+  icsLines.push("END:VEVENT", "END:VCALENDAR");
+  return {
+    title,
+    timeKind: timing ? "timed" : "all_day",
+    googleHref: google.toString(),
+    icsHref: `data:text/calendar;charset=utf-8,${encodeURIComponent(`${icsLines.join("\r\n")}\r\n`)}`,
+    icsFilename: `${safeFileSlug(title)}-${dateIso}.ics`,
+  };
+}
+
+function renderEventInlineActions(blockText, dayMs) {
+  const actions = buildEventCalendarActions({ blockText, dayMs });
+  const joinHref = extractJoinLink(blockText);
+  if (!actions && !joinHref) return "";
+  return `<span class="cal-event-actions" data-kind="${escAttr(actions?.timeKind || "join")}">
+    ${joinHref ? `<a class="cal-join-link" href="${escAttr(joinHref)}" target="_blank" rel="noopener" aria-label="${escAttr(`join ${actions?.title || "event"}`)}">join event</a>` : ""}
+    ${actions ? `<a class="cal-add-link" href="${escAttr(actions.googleHref)}" target="_blank" rel="noopener" aria-label="${escAttr(`add ${actions.title} to Google Calendar`)}">add</a>` : ""}
+  </span>`;
+}
+
+function renderEventQuickActions(blockText, title = "event") {
+  const joinHref = extractJoinLink(blockText);
+  if (!joinHref) return "";
+  return `<div class="cal-event-quick-actions">
+    <a class="cal-join-link" href="${escAttr(joinHref)}" target="_blank" rel="noopener" aria-label="${escAttr(`join ${title}`)}">join event</a>
+  </div>`;
+}
+
 // Split a title line that leads with a time range into { time, rest }.
 // e.g. "12:00-14:00 onsite kickoff" → { time: "12:00–14:00", rest: "onsite kickoff" }
 //      "19:00 founder & sorting hat" → { time: "19:00",       rest: "founder & sorting hat" }
@@ -177,6 +412,7 @@ function renderEventBlock(blockText, sources = []) {
   const extras  = [];
   for (const raw of tail) {
     if (!raw.trim()) continue;
+    if (isJoinLine(raw)) continue;
     const top  = raw.match(/^\s*-\s+(.+)$/);
     const deep = raw.match(/^\s{4,}-\s+(.+)$/);
     if (deep && bullets.length) {
@@ -223,12 +459,24 @@ function eventCategory(text) {
 }
 
 // Wrap one event block in a color-coded card with a category chip (+ TBC pill).
-function renderEventCard(blockText, sources = []) {
+function renderEventCard(blockText, sources = [], { dayMs } = {}) {
   const cat = eventCategory(blockText);
+  const actions = buildEventCalendarActions({ blockText, dayMs });
+  const joinHref = extractJoinLink(blockText);
+  const actionAttrs = actions
+    ? [
+        `data-cal-add-google="${escAttr(actions.googleHref)}"`,
+        `data-cal-add-ics="${escAttr(actions.icsHref)}"`,
+        `data-cal-add-filename="${escAttr(actions.icsFilename)}"`,
+        `data-cal-add-title="${escAttr(actions.title)}"`,
+        `data-cal-add-kind="${escAttr(actions.timeKind)}"`,
+      ].join(" ")
+    : "";
+  const joinAttrs = joinHref ? `data-cal-join-href="${escAttr(joinHref)}"` : "";
   const chip = (cat.label || cat.tbc)
     ? `<div class="cev-cat">${cat.label ? escHtml(cat.label) : ""}${cat.tbc ? `<span class="cev-tbc">TBC</span>` : ""}</div>`
     : "";
-  return `<div class="cal-event ev-${cat.key}${cat.tbc ? " is-tbc" : ""}" data-cat="${escAttr(cat.key)}" data-cal-event role="button" tabindex="0" aria-label="open event details">${chip}${renderEventBlock(blockText, sources)}</div>`;
+  return `<div class="cal-event ev-${cat.key}${cat.tbc ? " is-tbc" : ""}" data-cat="${escAttr(cat.key)}" ${actionAttrs} ${joinAttrs} data-cal-event role="button" tabindex="0" aria-label="open event details">${chip}${renderEventBlock(blockText, sources)}${renderEventQuickActions(blockText, actions?.title || "event")}</div>`;
 }
 
 // Open a full-detail popover for a clicked week-view event card. The card
@@ -240,6 +488,19 @@ export function openEventDetail(cardEl) {
   const dow = dayEl?.querySelector(".cdh-name")?.textContent?.trim() || "";
   const date = dayEl?.querySelector(".cdh-date")?.textContent?.trim() || "";
   const cat = cardEl.getAttribute("data-cat") || "default";
+  const googleHref = cardEl.getAttribute("data-cal-add-google") || "";
+  const icsHref = cardEl.getAttribute("data-cal-add-ics") || "";
+  const icsFilename = cardEl.getAttribute("data-cal-add-filename") || "shape-rotator-event.ics";
+  const actionTitle = cardEl.getAttribute("data-cal-add-title") || "this event";
+  const joinHref = cardEl.getAttribute("data-cal-join-href") || "";
+  const actionsHtml = joinHref || googleHref
+    ? `<div class="cem-actions" aria-label="event calendar actions">
+         ${joinHref ? `<a class="cem-action is-primary is-join" href="${escAttr(joinHref)}" target="_blank" rel="noopener">join event</a>` : ""}
+         ${googleHref ? `<a class="cem-action ${joinHref ? "" : "is-primary"}" href="${escAttr(googleHref)}" target="_blank" rel="noopener">add to Google</a>` : ""}
+         ${icsHref ? `<a class="cem-action" href="${escAttr(icsHref)}" download="${escAttr(icsFilename)}">download .ics</a>` : ""}
+         <span class="cem-action-note">adds ${escHtml(actionTitle)} to your own calendar</span>
+       </div>`
+    : "";
   document.querySelector(".cal-event-modal")?.remove();
   const overlay = document.createElement("div");
   overlay.className = "cal-event-modal";
@@ -248,6 +509,7 @@ export function openEventDetail(cardEl) {
        <button class="cem-close" type="button" aria-label="close">×</button>
        ${(dow || date) ? `<div class="cem-day">${escHtml(dow)}${date ? ` · ${escHtml(date)}` : ""}</div>` : ""}
        <div class="cem-body">${cardEl.innerHTML}</div>
+       ${actionsHtml}
      </div>`;
   const close = () => { overlay.remove(); document.removeEventListener("keydown", onKey); };
   function onKey(e) { if (e.key === "Escape") close(); }
@@ -532,10 +794,6 @@ export function buildEventsByDay(events = []) {
   return m;
 }
 
-function dayIso(dayMs) {
-  return new Date(dayMs).toISOString().slice(0, 10);
-}
-
 function matchFragments(value) {
   return Array.isArray(value) ? value : (value ? [value] : []);
 }
@@ -752,6 +1010,7 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase, transcriptMatches 
     const extras  = [];
     for (const raw of tail) {
       if (!raw.trim()) continue;
+      if (isJoinLine(raw)) continue;
       const top  = raw.match(/^\s*-\s+(.+)$/);
       const deep = raw.match(/^\s{4,}-\s+(.+)$/);
       if (deep && bullets.length) {
@@ -784,7 +1043,7 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase, transcriptMatches 
       <article class="cda-row" data-state="${state}">
         <div class="cda-row-time">${time ? escHtml(time) : `<span class="cda-row-time-dim">—</span>`}</div>
         <div class="cda-row-body">
-          <h3 class="cda-row-title">${escHtml(title)}${renderInlineTranscriptLinks(titleSources)}</h3>
+          <h3 class="cda-row-title">${escHtml(title)}${renderInlineTranscriptLinks(titleSources)}${renderEventInlineActions(it.raw, day.dayMs)}</h3>
           ${extras.join("")}
           ${bulletsHtml}
         </div>
@@ -909,7 +1168,7 @@ export function renderWeekView({
       </div>`).join("");
     const blockRows = d.blocks.map(b => {
       const sources = transcriptSourcesForBlock(transcriptMatches, dayIso(d.dayMs), b);
-      return renderEventCard(b, sources);
+      return renderEventCard(b, sources, { dayMs: d.dayMs });
     }).join("");
     return `
       <article class="cal-day ${d.isToday ? "is-today" : ""} ${d.isEmpty ? "is-empty" : ""}"

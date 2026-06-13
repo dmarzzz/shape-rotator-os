@@ -1,0 +1,449 @@
+{
+  "schema_version": 1,
+  "artifact_id": "transcript-evidence:icp-user-interviews-2026-05-27",
+  "artifact_kind": "transcript_evidence_card",
+  "record_type": "session",
+  "record_id": "icp-user-interviews-2026-05-27",
+  "vault_id": "icp-user-interviews-2026-05-27",
+  "date": "2026-05-27",
+  "week_start": "2026-05-25",
+  "title": "Ideal Customer Profiling and User Interviews: Alignment Before Interviews",
+  "summary": "A founder retrospective on why customer profiling starts with internal and co-founder alignment, and how empathy-driven segment choice plus in-person observation turn user interviews into usable signal.",
+  "session_kind": "workshop",
+  "source": "private-vault:icp-user-interviews-2026-05-27",
+  "source_kind": "private_vault_transcript",
+  "source_transform": "reviewed_readout_to_evidence_card",
+  "source_access": "private-vault",
+  "source_review_status": "reviewed_readout",
+  "evidence_level": "inferred",
+  "confidence": "medium",
+  "consent": "cohort-internal",
+  "sharing_boundary": {
+    "source_access": "private-vault",
+    "max_surface": "cohort",
+    "raw_allowed": false,
+    "public_requires_approval": true,
+    "consent": "cohort-internal"
+  },
+  "attribution": "team-level",
+  "review_status": "generated",
+  "surface_recommendation": "review_for_cohort",
+  "verbatim": false,
+  "teams": [
+    "etherea",
+    "feedling",
+    "teleport-router",
+    "tinycloud"
+  ],
+  "people": [
+    "james-barnes",
+    "albiona-hoti",
+    "andrew-miller",
+    "kristel-alliksaar",
+    "hunter-horsfall",
+    "sevenfloor",
+    "will-cory"
+  ],
+  "themes": [
+    "Founder-customer alignment",
+    "Customer segment selection",
+    "Interview and live-feedback technique",
+    "Synthesizing signal into product decisions"
+  ],
+  "claims": [
+    {
+      "claim_id": "transcript-evidence:icp-user-interviews-2026-05-27:claim:1",
+      "claim_type": "ask",
+      "text": "Customer alignment is a three-layer cascade: be honest about your own motivations first, then converge with co-founders on a single definition of success, and only then interview customers — skipping a layer means interview feedback scatters across audiences and cannot be synthesized.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "source_artifact_id": "transcript-evidence:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person",
+        "operator"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:icp-user-interviews-2026-05-27:claim:2",
+      "claim_type": "product_signal",
+      "text": "Building from a personal wound is a legitimate product origin, but only if you name it: explicitly separate which requirements serve the user and which serve the founder's own psychological needs, otherwise you cannot tell user-serving decisions from self-serving ones.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "source_artifact_id": "transcript-evidence:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:icp-user-interviews-2026-05-27:claim:3",
+      "claim_type": "collaboration_edge",
+      "text": "Two adjacent customer profiles on shared infrastructure are really two products with two roadmaps and two definitions of working; straddling both is often conflict avoidance in disguise, and the typical outcome is a beautiful product that retains neither profile.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "source_artifact_id": "transcript-evidence:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person",
+        "operator"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:icp-user-interviews-2026-05-27:claim:4",
+      "claim_type": "action_item",
+      "text": "Choose segments by empathy density: pick the group whose problem you have lived, deeply understand, or even contributed to causing — that is also the group you can stand to talk with every day, which is the practical test of segment fit alongside market size.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "source_artifact_id": "transcript-evidence:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:icp-user-interviews-2026-05-27:claim:5",
+      "claim_type": "product_signal",
+      "text": "Commit to the problem-and-audience pair, not the product expression: with real conviction about the audience, a failed product version sends you back to the drawing board for that audience instead of out of the market entirely.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "source_artifact_id": "transcript-evidence:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:icp-user-interviews-2026-05-27:claim:6",
+      "claim_type": "ask",
+      "text": "Watch for the principal-agent trap in interviews: when the buyer is not the end user (for example, products purchased as gifts for someone else), the feedback loop stretches and retention data misleads — interview the actual user directly.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "source_artifact_id": "transcript-evidence:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person",
+        "operator"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:icp-user-interviews-2026-05-27:claim:7",
+      "claim_type": "ask",
+      "text": "In-person observation beats remote or written feedback: people are polite in email but cannot easily hide hesitation, body language, or confusion live, and being present lets you improvise variations and recover from failures in real time.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "source_artifact_id": "transcript-evidence:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person",
+        "operator"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:icp-user-interviews-2026-05-27:claim:8",
+      "claim_type": "action_item",
+      "text": "Polished production is not validation — a flawless stage-quality launch experience can amplify something that works, but it can equally mask a missing foundation of genuine customer understanding.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "source_artifact_id": "transcript-evidence:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person"
+      ],
+      "verbatim": false
+    }
+  ],
+  "qa": [
+    {
+      "qa_id": "transcript-evidence:icp-user-interviews-2026-05-27:qa:1",
+      "question": "How do you select a customer segment when weighing market research against intrinsic motivation?",
+      "answer": "Search for where you feel the deepest empathy — a problem you experienced, watched people you know experience, or contributed to creating. That feeling predicts whether you will sustain daily customer conversations, and it should anchor the choice alongside conventional sizing criteria.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "verbatim": false
+    },
+    {
+      "qa_id": "transcript-evidence:icp-user-interviews-2026-05-27:qa:2",
+      "question": "How do you hold yourself accountable when your actions drift from what you decided?",
+      "answer": "Treat it as a discipline-and-habits problem: revisit past mistakes, notice when you are drifting toward areas where success is comfortable, and recognize that keeping a foot in two audiences is often conflict avoidance rather than strategy — commitment to one profile forces the hard but necessary arguments.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "verbatim": false
+    },
+    {
+      "qa_id": "transcript-evidence:icp-user-interviews-2026-05-27:qa:3",
+      "question": "How do you reconcile committing to a narrow segment with taking creative risks?",
+      "answer": "Pick a focus that is both sufficiently large and sufficiently sharp that you can still run experiments inside it; sequence the work so you get clean signal from a defined audience first, then let that audience grow rather than chasing every adjacent use case at once.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "verbatim": false
+    },
+    {
+      "qa_id": "transcript-evidence:icp-user-interviews-2026-05-27:qa:4",
+      "question": "How do you get honest feedback when demoing a live experience?",
+      "answer": "Observe behavior rather than collecting opinions: watch whether people engage unprompted, whether they know what to do, and how their energy shifts. Reactions in the room are far harder to fake than written feedback, and live failures reveal what the audience actually values.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "verbatim": false
+    },
+    {
+      "qa_id": "transcript-evidence:icp-user-interviews-2026-05-27:qa:5",
+      "question": "How do you get first-time users to engage with an unfamiliar interactive product?",
+      "answer": "Seed the first interaction — have a prepared participant or an ambient demo running when people arrive, so newcomers see both the input and the output before trying it themselves; one visible user typically triggers a chain of organic participation.",
+      "source": "private-vault:icp-user-interviews-2026-05-27",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "etherea",
+        "feedling",
+        "teleport-router",
+        "tinycloud"
+      ],
+      "people": [
+        "james-barnes",
+        "albiona-hoti",
+        "andrew-miller",
+        "kristel-alliksaar",
+        "hunter-horsfall",
+        "sevenfloor",
+        "will-cory"
+      ],
+      "verbatim": false
+    }
+  ],
+  "references": [
+    {
+      "label": "Principal-agent problem (economics concept applied to buyer-vs-user feedback loops)",
+      "href": "https://en.wikipedia.org/wiki/Principal%E2%80%93agent_problem"
+    },
+    {
+      "label": "Y Combinator's 'make something people want' principle",
+      "href": "https://www.ycombinator.com"
+    }
+  ],
+  "review_questions": [
+    "Does each claim accurately reflect the reviewed transcript readout?",
+    "Are team and person references appropriate for this sharing boundary?",
+    "Should any claim be promoted, held, merged, or narrowed before weekly use?"
+  ]
+}

@@ -10,7 +10,7 @@ geo: NYC
 domain: ai
 email: hello@albiona.dev
 dates_start: 2026-05-18
-dates_end: 2026-07-18
+dates_end: 2026-07-25
 absences:
   - start: 2026-06-11
     end: 2026-06-17

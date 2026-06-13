@@ -160,6 +160,7 @@ export {
   parseWeekRow,
   parseRecurring,
   buildEventsByDay,
+  buildEventCalendarActions,
   renderWeekView,
   renderSkeletonWeek,
   loadCalendar,

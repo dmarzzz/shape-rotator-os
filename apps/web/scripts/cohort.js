@@ -341,7 +341,6 @@ function cohortDetailHref(recordId) {
   return `#${encodeURIComponent(recordId || "")}`;
 }
 
-
 function compactPills(items) {
   const rows = asArray(items)
     .map(item => String(item || "").trim())
@@ -362,6 +361,7 @@ function compactPills(items) {
 
   const teams = cohort.teams || [];
   const people = cohort.people || [];
+  const dependencyRecords = cohort.dependencies || [];
   const teamById = new Map(teams.map(t => [t.record_id, t]));
 
   mount.innerHTML = `
@@ -389,6 +389,105 @@ function compactPills(items) {
 
   function teamPeopleFor(teamId) {
     return cohortRosterForTeam(people, teamId);
+  }
+
+  function teamTextLink(team, fallbackId = "") {
+    const rid = team?.record_id || fallbackId;
+    if (!rid) return "";
+    return `<a class="cd-text-link" href="#${escAttr(encodeURIComponent(rid))}">${escHtml(team?.name || rid)}</a>`;
+  }
+
+  function transcriptEvidenceView(recordId, kind) {
+    const source = kind === "person"
+      ? (cohort.transcript_evidence?.people || [])
+      : (cohort.transcript_evidence?.teams || []);
+    const key = kind === "person" ? "person_id" : "team_id";
+    return source.find(item => String(item?.[key] || "") === String(recordId || "")) || null;
+  }
+
+  function renderEvidenceClaimList(view) {
+    const claims = asArray(view?.top_claims).slice(0, 5);
+    if (!claims.length) return "";
+    return `
+      <ol class="cd-evidence-list">
+        ${claims.map(claim => {
+          const meta = [claim.claim_type, claim.evidence_level, claim.confidence]
+            .filter(Boolean)
+            .map(labelize)
+            .join(" · ");
+          return `
+            <li>
+              <p>${escHtml(claim.text || "")}</p>
+              <span>${escHtml(meta || "transcript evidence")} · ${escHtml(claim.source_artifact_id || "evidence card")}</span>
+            </li>
+          `;
+        }).join("")}
+      </ol>
+    `;
+  }
+
+  function renderTranscriptEvidence(recordId, kind) {
+    const view = transcriptEvidenceView(recordId, kind);
+    if (!view) return "";
+    const stats = [
+      `${asArray(view.evidence_card_ids).length} evidence source${asArray(view.evidence_card_ids).length === 1 ? "" : "s"}`,
+      `${view.claim_count || asArray(view.top_claims).length} inferred claim${(view.claim_count || asArray(view.top_claims).length) === 1 ? "" : "s"}`,
+      `${view.confidence || "low"} confidence`,
+      `${view.sharing_boundary?.max_surface || "cohort"} · raw hidden`,
+    ];
+    const themes = asArray(view.themes).slice(0, 6);
+    return `
+      <div class="cd-evidence">
+        <div class="cd-evidence-meta">${stats.map(item => `<span>${escHtml(item)}</span>`).join("")}</div>
+        ${themes.length ? `<div class="cd-evidence-themes">${themes.map(theme => `<span>${escHtml(theme)}</span>`).join("")}</div>` : ""}
+        ${renderEvidenceClaimList(view)}
+        <p class="cd-evidence-note">${escHtml(view.source_note || "Compiled from generated transcript evidence cards, not raw transcript blobs.")}</p>
+      </div>
+    `;
+  }
+
+  function dependencyPairKey(source, target) {
+    return `${String(source || "").toLowerCase()}>${String(target || "").toLowerCase()}`;
+  }
+
+  function renderRelationshipList(team) {
+    const rid = String(team?.record_id || "");
+    if (!rid) return "";
+    const ridLower = rid.toLowerCase();
+    const typed = dependencyRecords.filter(dep =>
+      dep && (String(dep.source || "").toLowerCase() === ridLower || String(dep.target || "").toLowerCase() === ridLower)
+    );
+    const typedPairs = new Set(typed.map(dep => dependencyPairKey(dep.source, dep.target)));
+    const rows = typed.map(dep => {
+      const outgoing = String(dep.source || "").toLowerCase() === ridLower;
+      const otherId = outgoing ? dep.target : dep.source;
+      const other = teamById.get(otherId);
+      const meta = [labelize(dep.relation || "relationship"), dep.status ? labelize(dep.status) : "", dep.confidence ? `${labelize(dep.confidence)} confidence` : ""]
+        .filter(Boolean)
+        .join(" · ");
+      const evidence = asArray(dep.evidence);
+      return `
+        <li>
+          <strong>${outgoing ? "to" : "from"} ${teamTextLink(other, otherId)}</strong>
+          ${meta ? `<span>${escHtml(meta)}</span>` : ""}
+          ${dep.reason ? `<p>${escHtml(dep.reason)}</p>` : ""}
+          ${evidence.length ? `<ul>${evidence.slice(0, 3).map(item => `<li>${escHtml(item)}</li>`).join("")}</ul>` : ""}
+          ${dep.next_action ? `<p><em>next:</em> ${escHtml(dep.next_action)}</p>` : ""}
+        </li>
+      `;
+    });
+    for (const targetId of asArray(team.dependencies)) {
+      if (typedPairs.has(dependencyPairKey(rid, targetId))) continue;
+      const target = teamById.get(targetId);
+      rows.push(`
+        <li>
+          <strong>to ${teamTextLink(target, targetId)}</strong>
+          <span>profile mention · declared link</span>
+        </li>
+      `);
+    }
+    if (!rows.length) return "";
+    return `<ul class="cd-bullet-list cd-relationship-list">${rows.join("")}</ul>`;
   }
 
   function surfaceLinkAnchors(links = {}) {
@@ -638,6 +737,7 @@ function compactPills(items) {
       secondary.length ? renderHtmlRow("also contributes", secondary.map(t => `<a class="cd-text-link" href="#${escAttr(encodeURIComponent(t.record_id))}">${escHtml(t.name || t.record_id)}</a>`).join(" ")) : "",
     ];
     const proofRead = renderProofRead(rec);
+    const evidenceRead = renderTranscriptEvidence(rec.record_id, "person");
 
     return `
       ${renderPersonRail(rec, team, fam)}
@@ -651,6 +751,7 @@ function compactPills(items) {
           ${renderSection("current read", currentRows, !bioSection, "now, weekly intention")}
           ${renderSection("working with", workingRows, false, "style, availability, seeks")}
           ${renderSection("proof / prior work", proofRead, false, "shipping, lineage")}
+          ${renderSection("distilled transcript evidence", evidenceRead, false, evidenceRead ? "claims, provenance, confidence" : "")}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems), false, timelinePreview(timelineItems))}
           ${renderSection("routes / asks", routeRows, false, "other teams, asks")}
         </div>
@@ -712,6 +813,8 @@ function compactPills(items) {
       renderRow("evidence notes", journey.evidenceNotes),
       renderRow("next milestone", journey.next),
     ] : [];
+    const relationshipBody = renderRelationshipList(rec);
+    const evidenceRead = renderTranscriptEvidence(rec.record_id, "team");
 
     return `
       ${renderTeamRail(rec, teamPeople, fam, kind)}
@@ -723,6 +826,8 @@ function compactPills(items) {
         <div class="cd-section-stack">
           ${renderSection("trajectory", trajectoryRows, false, "stage, proof, next test")}
           ${renderSection("evidence", evidenceRows, false, "traction, paper, shipping")}
+          ${renderSection("distilled transcript evidence", evidenceRead, false, evidenceRead ? "claims, provenance, confidence" : "")}
+          ${renderSection("relationships", relationshipBody, false, "records, dependencies")}
           ${renderSection(`timeline · ${timelineItems.length}`, renderTimelineItems(timelineItems), false, timelinePreview(timelineItems))}
         </div>
       </section>

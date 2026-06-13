@@ -4,8 +4,9 @@ program_start: 2026-05-18
 base_ref: HEAD
 
 # Canonical source for the public cohort timeline today. This intentionally
-# excludes OS/app code changes: only people and team/project declarations under
-# cohort-data are projected into the timeline event log.
+# excludes OS/app code changes: only public people, team/project, cluster, and
+# dependency declarations under cohort-data are projected into the timeline
+# event log.
 sources:
   - id: cohort-data-github
     kind: git
@@ -14,9 +15,13 @@ sources:
     paths:
       - cohort-data/people
       - cohort-data/teams
+      - cohort-data/clusters
+      - cohort-data/dependencies
     record_types:
       - person
       - team
+      - cluster
+      - dependency
   - id: teleport-router
     kind: router
     status: planned
@@ -27,8 +32,8 @@ sources:
     description: Future public-safe transcript-derived activity and evidence.
 
 # Snapshots are read models over Git history. Each as_of resolves to the latest
-# commit at or before that timestamp; ref resolves directly. Run the generator
-# on main for the official timeline artifact.
+# first-parent commit at or before that timestamp; ref resolves directly. Run
+# the generator on main for the official timeline artifact.
 snapshots:
   - id: program-start
     label: Program start

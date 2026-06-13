@@ -1,0 +1,407 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-13T21:15:55.425Z",
+  "source": "supabase.derived_artifacts",
+  "default_export_policy": "T2 reviewed/published and T3 published+approved only",
+  "artifact_count": 9,
+  "cohort_count": 9,
+  "public_count": 0,
+  "operator_review_count": 0,
+  "artifacts": [
+    {
+      "artifact_id": "069b3b94-00e3-5be5-80f0-41b2adc9db59",
+      "artifact_kind": "readout",
+      "session_id": "cb3c82d5-3527-445c-bc8e-0b3f656534eb",
+      "session_title": "Project Intros (Salon room)",
+      "session_type": "office_hours",
+      "starts_at": "2026-05-20T20:00:00+00:00",
+      "tier": "T2",
+      "surface": "cohort",
+      "review_status": "reviewed",
+      "approval_state": "not_required",
+      "confidence": 0.65,
+      "source_transform": "paraphrased_distillation",
+      "summary": [
+        "Project Intros (Salon room) produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies...",
+        "The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.",
+        "Source size signal: about 32512 redacted word-like tokens were processed inside the worker."
+      ],
+      "themes": [
+        "agentic organizations and workflow design",
+        "TEE, attestation, verifiability, and private compute",
+        "product direction, users, buyers, and market wedge",
+        "cohort collaboration, dependencies, and handoffs",
+        "research, prototypes, and whiteboarding questions"
+      ],
+      "action_items": [
+        "Review the private transcript against Tina's routing policy before changing this artifact from needs_review.",
+        "Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.",
+        "Resolve attribution conservatively at team, room, or speaker level before naming people."
+      ],
+      "open_questions": [
+        "Which claims are grounded enough to become weekly evidence cards?",
+        "What should remain T0/T1 only because it depends on room context, external subjects, or private critique?",
+        "Does the office_hours routing ceiling still match the actual room contents?"
+      ],
+      "content_md": "# Project Intros (Salon room)\n\nType: office_hours\nRouting ceiling: T2\nCohort mode: distilled_readout\n\n## Summary\n- Project Intros (Salon room) produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and handoffs; research, prototypes, and whiteboarding questions.\n- The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.\n- Source size signal: about 32512 redacted word-like tokens were processed inside the worker.\n\n## Detected Themes\n- agentic organizations and workflow design\n- TEE, attestation, verifiability, and private compute\n- product direction, users, buyers, and market wedge\n- cohort collaboration, dependencies, and handoffs\n- research, prototypes, and whiteboarding questions\n\n## Action Items\n- Review the private transcript against Tina's routing policy before changing this artifact from needs_review.\n- Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.\n- Resolve attribution conservatively at team, room, or speaker level before naming people.\n\n## Open Questions\n- Which claims are grounded enough to become weekly evidence cards?\n- What should remain T0/T1 only because it depends on room context, external subjects, or private critique?\n- Does the office_hours routing ceiling still match the actual room contents?\n\n## Handling\n- Raw transcript text was processed inside the transcript worker and was not returned in the API response.\n- The stored draft contains topic-level synthesis only; transcript sentences, timestamps, and raw speaker turns are intentionally excluded.\n- This deterministic draft remains needs_review until a human creates or approves evidence cards.",
+      "provenance": {
+        "source_artifact_id": "067299c5-e187-5375-ab2f-20e4c9e00265",
+        "processing_job_id": "3cb09422-d12d-4a1c-96da-53378b4bfe6f",
+        "raw_allowed": false,
+        "source_access": "private-vault"
+      },
+      "created_at": "2026-06-13T21:14:55.428803+00:00"
+    },
+    {
+      "artifact_id": "d7a0d101-9472-5df4-9493-2ebc43e7e0fc",
+      "artifact_kind": "readout",
+      "session_id": "3711063d-d598-45c3-ae9d-0b94253a5104",
+      "session_title": "Tutorial: Dumb agent tricks, install hermes",
+      "session_type": "office_hours",
+      "starts_at": "2026-05-21T16:00:00+00:00",
+      "tier": "T2",
+      "surface": "cohort",
+      "review_status": "reviewed",
+      "approval_state": "not_required",
+      "confidence": 0.65,
+      "source_transform": "paraphrased_distillation",
+      "summary": [
+        "Tutorial: Dumb agent tricks, install hermes produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaborati...",
+        "The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.",
+        "Source size signal: about 16658 redacted word-like tokens were processed inside the worker."
+      ],
+      "themes": [
+        "agentic organizations and workflow design",
+        "TEE, attestation, verifiability, and private compute",
+        "product direction, users, buyers, and market wedge",
+        "cohort collaboration, dependencies, and handoffs",
+        "research, prototypes, and whiteboarding questions"
+      ],
+      "action_items": [
+        "Review the private transcript against Tina's routing policy before changing this artifact from needs_review.",
+        "Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.",
+        "Resolve attribution conservatively at team, room, or speaker level before naming people."
+      ],
+      "open_questions": [
+        "Which claims are grounded enough to become weekly evidence cards?",
+        "What should remain T0/T1 only because it depends on room context, external subjects, or private critique?",
+        "Does the office_hours routing ceiling still match the actual room contents?"
+      ],
+      "content_md": "# Tutorial: Dumb agent tricks, install hermes\n\nType: office_hours\nRouting ceiling: T2\nCohort mode: distilled_readout\n\n## Summary\n- Tutorial: Dumb agent tricks, install hermes produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and handoffs; research, prototypes, and whiteboarding questions.\n- The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.\n- Source size signal: about 16658 redacted word-like tokens were processed inside the worker.\n\n## Detected Themes\n- agentic organizations and workflow design\n- TEE, attestation, verifiability, and private compute\n- product direction, users, buyers, and market wedge\n- cohort collaboration, dependencies, and handoffs\n- research, prototypes, and whiteboarding questions\n\n## Action Items\n- Review the private transcript against Tina's routing policy before changing this artifact from needs_review.\n- Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.\n- Resolve attribution conservatively at team, room, or speaker level before naming people.\n\n## Open Questions\n- Which claims are grounded enough to become weekly evidence cards?\n- What should remain T0/T1 only because it depends on room context, external subjects, or private critique?\n- Does the office_hours routing ceiling still match the actual room contents?\n\n## Handling\n- Raw transcript text was processed inside the transcript worker and was not returned in the API response.\n- The stored draft contains topic-level synthesis only; transcript sentences, timestamps, and raw speaker turns are intentionally excluded.\n- This deterministic draft remains needs_review until a human creates or approves evidence cards.",
+      "provenance": {
+        "source_artifact_id": "7ef30c7b-8891-5957-9ffa-0b746f20fbd6",
+        "processing_job_id": "6fb180c1-d6f4-44d1-ba9e-61a6ba5c3a81",
+        "raw_allowed": false,
+        "source_access": "private-vault"
+      },
+      "created_at": "2026-06-13T21:14:56.854225+00:00"
+    },
+    {
+      "artifact_id": "29880a76-24b1-595e-80f5-af80b9404b93",
+      "artifact_kind": "readout",
+      "session_id": "28b5c92d-a4a9-4882-9e5c-13f0188c42e4",
+      "session_title": "Flashnet jam (Dmarz)",
+      "session_type": "office_hours",
+      "starts_at": "2026-05-27T22:00:00+00:00",
+      "tier": "T2",
+      "surface": "cohort",
+      "review_status": "reviewed",
+      "approval_state": "not_required",
+      "confidence": 0.65,
+      "source_transform": "paraphrased_distillation",
+      "summary": [
+        "Flashnet jam (Dmarz) produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and h...",
+        "The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.",
+        "Source size signal: about 30441 redacted word-like tokens were processed inside the worker."
+      ],
+      "themes": [
+        "agentic organizations and workflow design",
+        "TEE, attestation, verifiability, and private compute",
+        "product direction, users, buyers, and market wedge",
+        "cohort collaboration, dependencies, and handoffs",
+        "research, prototypes, and whiteboarding questions"
+      ],
+      "action_items": [
+        "Review the private transcript against Tina's routing policy before changing this artifact from needs_review.",
+        "Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.",
+        "Resolve attribution conservatively at team, room, or speaker level before naming people."
+      ],
+      "open_questions": [
+        "Which claims are grounded enough to become weekly evidence cards?",
+        "What should remain T0/T1 only because it depends on room context, external subjects, or private critique?",
+        "Does the office_hours routing ceiling still match the actual room contents?"
+      ],
+      "content_md": "# Flashnet jam (Dmarz)\n\nType: office_hours\nRouting ceiling: T2\nCohort mode: distilled_readout\n\n## Summary\n- Flashnet jam (Dmarz) produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and handoffs; research, prototypes, and whiteboarding questions.\n- The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.\n- Source size signal: about 30441 redacted word-like tokens were processed inside the worker.\n\n## Detected Themes\n- agentic organizations and workflow design\n- TEE, attestation, verifiability, and private compute\n- product direction, users, buyers, and market wedge\n- cohort collaboration, dependencies, and handoffs\n- research, prototypes, and whiteboarding questions\n\n## Action Items\n- Review the private transcript against Tina's routing policy before changing this artifact from needs_review.\n- Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.\n- Resolve attribution conservatively at team, room, or speaker level before naming people.\n\n## Open Questions\n- Which claims are grounded enough to become weekly evidence cards?\n- What should remain T0/T1 only because it depends on room context, external subjects, or private critique?\n- Does the office_hours routing ceiling still match the actual room contents?\n\n## Handling\n- Raw transcript text was processed inside the transcript worker and was not returned in the API response.\n- The stored draft contains topic-level synthesis only; transcript sentences, timestamps, and raw speaker turns are intentionally excluded.\n- This deterministic draft remains needs_review until a human creates or approves evidence cards.",
+      "provenance": {
+        "source_artifact_id": "034d7c61-abec-5b27-a066-68a843b4a962",
+        "processing_job_id": "ab87e6f0-47c8-4e68-89b1-f9f01cb5326a",
+        "raw_allowed": false,
+        "source_access": "private-vault"
+      },
+      "created_at": "2026-06-13T21:14:59.910511+00:00"
+    },
+    {
+      "artifact_id": "b188c47d-03b5-5771-96b4-abc6a188d9d6",
+      "artifact_kind": "readout",
+      "session_id": "28b5c92d-a4a9-4882-9e5c-13f0188c42e4",
+      "session_title": "Flashnet jam (Dmarz)",
+      "session_type": "office_hours",
+      "starts_at": "2026-05-27T22:00:00+00:00",
+      "tier": "T2",
+      "surface": "cohort",
+      "review_status": "reviewed",
+      "approval_state": "not_required",
+      "confidence": 0.65,
+      "source_transform": "paraphrased_distillation",
+      "summary": [
+        "Flashnet jam (Dmarz) produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and h...",
+        "The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.",
+        "Source size signal: about 15357 redacted word-like tokens were processed inside the worker."
+      ],
+      "themes": [
+        "agentic organizations and workflow design",
+        "TEE, attestation, verifiability, and private compute",
+        "product direction, users, buyers, and market wedge",
+        "cohort collaboration, dependencies, and handoffs",
+        "research, prototypes, and whiteboarding questions"
+      ],
+      "action_items": [
+        "Review the private transcript against Tina's routing policy before changing this artifact from needs_review.",
+        "Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.",
+        "Resolve attribution conservatively at team, room, or speaker level before naming people."
+      ],
+      "open_questions": [
+        "Which claims are grounded enough to become weekly evidence cards?",
+        "What should remain T0/T1 only because it depends on room context, external subjects, or private critique?",
+        "Does the office_hours routing ceiling still match the actual room contents?"
+      ],
+      "content_md": "# Flashnet jam (Dmarz)\n\nType: office_hours\nRouting ceiling: T2\nCohort mode: distilled_readout\n\n## Summary\n- Flashnet jam (Dmarz) produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and handoffs; research, prototypes, and whiteboarding questions.\n- The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.\n- Source size signal: about 15357 redacted word-like tokens were processed inside the worker.\n\n## Detected Themes\n- agentic organizations and workflow design\n- TEE, attestation, verifiability, and private compute\n- product direction, users, buyers, and market wedge\n- cohort collaboration, dependencies, and handoffs\n- research, prototypes, and whiteboarding questions\n\n## Action Items\n- Review the private transcript against Tina's routing policy before changing this artifact from needs_review.\n- Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.\n- Resolve attribution conservatively at team, room, or speaker level before naming people.\n\n## Open Questions\n- Which claims are grounded enough to become weekly evidence cards?\n- What should remain T0/T1 only because it depends on room context, external subjects, or private critique?\n- Does the office_hours routing ceiling still match the actual room contents?\n\n## Handling\n- Raw transcript text was processed inside the transcript worker and was not returned in the API response.\n- The stored draft contains topic-level synthesis only; transcript sentences, timestamps, and raw speaker turns are intentionally excluded.\n- This deterministic draft remains needs_review until a human creates or approves evidence cards.",
+      "provenance": {
+        "source_artifact_id": "f7994f67-08f9-576e-8f7d-6d55ce2dfcc9",
+        "processing_job_id": "be43da73-7e65-4bf6-9d73-fd4188e2c48c",
+        "raw_allowed": false,
+        "source_access": "private-vault"
+      },
+      "created_at": "2026-06-13T21:14:58.335312+00:00"
+    },
+    {
+      "artifact_id": "bbf32ecc-826c-5ece-8d58-58cd21de4477",
+      "artifact_kind": "readout",
+      "session_id": "28b5c92d-a4a9-4882-9e5c-13f0188c42e4",
+      "session_title": "Flashnet jam (Dmarz)",
+      "session_type": "office_hours",
+      "starts_at": "2026-05-27T22:00:00+00:00",
+      "tier": "T2",
+      "surface": "cohort",
+      "review_status": "reviewed",
+      "approval_state": "not_required",
+      "confidence": 0.65,
+      "source_transform": "paraphrased_distillation",
+      "summary": [
+        "Flashnet jam (Dmarz) produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and h...",
+        "The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.",
+        "Source size signal: about 26976 redacted word-like tokens were processed inside the worker."
+      ],
+      "themes": [
+        "agentic organizations and workflow design",
+        "TEE, attestation, verifiability, and private compute",
+        "product direction, users, buyers, and market wedge",
+        "cohort collaboration, dependencies, and handoffs",
+        "research, prototypes, and whiteboarding questions"
+      ],
+      "action_items": [
+        "Review the private transcript against Tina's routing policy before changing this artifact from needs_review.",
+        "Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.",
+        "Resolve attribution conservatively at team, room, or speaker level before naming people."
+      ],
+      "open_questions": [
+        "Which claims are grounded enough to become weekly evidence cards?",
+        "What should remain T0/T1 only because it depends on room context, external subjects, or private critique?",
+        "Does the office_hours routing ceiling still match the actual room contents?"
+      ],
+      "content_md": "# Flashnet jam (Dmarz)\n\nType: office_hours\nRouting ceiling: T2\nCohort mode: distilled_readout\n\n## Summary\n- Flashnet jam (Dmarz) produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and handoffs; research, prototypes, and whiteboarding questions.\n- The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.\n- Source size signal: about 26976 redacted word-like tokens were processed inside the worker.\n\n## Detected Themes\n- agentic organizations and workflow design\n- TEE, attestation, verifiability, and private compute\n- product direction, users, buyers, and market wedge\n- cohort collaboration, dependencies, and handoffs\n- research, prototypes, and whiteboarding questions\n\n## Action Items\n- Review the private transcript against Tina's routing policy before changing this artifact from needs_review.\n- Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.\n- Resolve attribution conservatively at team, room, or speaker level before naming people.\n\n## Open Questions\n- Which claims are grounded enough to become weekly evidence cards?\n- What should remain T0/T1 only because it depends on room context, external subjects, or private critique?\n- Does the office_hours routing ceiling still match the actual room contents?\n\n## Handling\n- Raw transcript text was processed inside the transcript worker and was not returned in the API response.\n- The stored draft contains topic-level synthesis only; transcript sentences, timestamps, and raw speaker turns are intentionally excluded.\n- This deterministic draft remains needs_review until a human creates or approves evidence cards.",
+      "provenance": {
+        "source_artifact_id": "e991a885-a912-58bd-a982-826d39a07da4",
+        "processing_job_id": "3c47ebda-b9a3-4bb7-81e2-89a7926a2f92",
+        "raw_allowed": false,
+        "source_access": "private-vault"
+      },
+      "created_at": "2026-06-13T21:15:01.515133+00:00"
+    },
+    {
+      "artifact_id": "4f863481-a564-5a27-a22d-96852a446429",
+      "artifact_kind": "readout",
+      "session_id": "1644399c-c120-4816-b2b3-82cd545a6138",
+      "session_title": "sorting hat dinner (Tina)",
+      "session_type": "office_hours",
+      "starts_at": "2026-05-29T23:00:00+00:00",
+      "tier": "T2",
+      "surface": "cohort",
+      "review_status": "reviewed",
+      "approval_state": "not_required",
+      "confidence": 0.65,
+      "source_transform": "paraphrased_distillation",
+      "summary": [
+        "sorting hat dinner (Tina) produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies,...",
+        "The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.",
+        "Source size signal: about 17073 redacted word-like tokens were processed inside the worker."
+      ],
+      "themes": [
+        "agentic organizations and workflow design",
+        "TEE, attestation, verifiability, and private compute",
+        "product direction, users, buyers, and market wedge",
+        "cohort collaboration, dependencies, and handoffs",
+        "research, prototypes, and whiteboarding questions"
+      ],
+      "action_items": [
+        "Review the private transcript against Tina's routing policy before changing this artifact from needs_review.",
+        "Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.",
+        "Resolve attribution conservatively at team, room, or speaker level before naming people."
+      ],
+      "open_questions": [
+        "Which claims are grounded enough to become weekly evidence cards?",
+        "What should remain T0/T1 only because it depends on room context, external subjects, or private critique?",
+        "Does the office_hours routing ceiling still match the actual room contents?"
+      ],
+      "content_md": "# sorting hat dinner (Tina)\n\nType: office_hours\nRouting ceiling: T2\nCohort mode: distilled_readout\n\n## Summary\n- sorting hat dinner (Tina) produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and handoffs; research, prototypes, and whiteboarding questions.\n- The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.\n- Source size signal: about 17073 redacted word-like tokens were processed inside the worker.\n\n## Detected Themes\n- agentic organizations and workflow design\n- TEE, attestation, verifiability, and private compute\n- product direction, users, buyers, and market wedge\n- cohort collaboration, dependencies, and handoffs\n- research, prototypes, and whiteboarding questions\n\n## Action Items\n- Review the private transcript against Tina's routing policy before changing this artifact from needs_review.\n- Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.\n- Resolve attribution conservatively at team, room, or speaker level before naming people.\n\n## Open Questions\n- Which claims are grounded enough to become weekly evidence cards?\n- What should remain T0/T1 only because it depends on room context, external subjects, or private critique?\n- Does the office_hours routing ceiling still match the actual room contents?\n\n## Handling\n- Raw transcript text was processed inside the transcript worker and was not returned in the API response.\n- The stored draft contains topic-level synthesis only; transcript sentences, timestamps, and raw speaker turns are intentionally excluded.\n- This deterministic draft remains needs_review until a human creates or approves evidence cards.",
+      "provenance": {
+        "source_artifact_id": "20eaeca7-82cc-597c-9a19-067a640fbe19",
+        "processing_job_id": "e124e870-6940-45f0-8f52-e85908b4897d",
+        "raw_allowed": false,
+        "source_access": "private-vault"
+      },
+      "created_at": "2026-06-13T21:15:03.144624+00:00"
+    },
+    {
+      "artifact_id": "744ecc05-8968-54c2-b93f-35bc332e2845",
+      "artifact_kind": "readout",
+      "session_id": "19da4661-e3ed-529f-b1ea-a64d142526d1",
+      "session_title": "Agentic Organizations with Sreeram @EigenLabs",
+      "session_type": "office_hours",
+      "starts_at": "2026-06-08T15:30:00+00:00",
+      "tier": "T2",
+      "surface": "cohort",
+      "review_status": "reviewed",
+      "approval_state": "not_required",
+      "confidence": 0.65,
+      "source_transform": "paraphrased_distillation",
+      "summary": [
+        "11:30-13:00 Agentic Organizations with Sreeram @EigenLabs produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; coho...",
+        "The cloud worker stored an abstract review artifact, not transcript sentences; this T2 readout is cleared for cohort export, while public use still requires the separate T3 approval gates.",
+        "This row replaces an earlier deterministic draft that was held back because it was too close to transcript fragments."
+      ],
+      "themes": [
+        "agentic organizations and workflow design",
+        "TEE, attestation, verifiability, and private compute",
+        "product direction, users, buyers, and market wedge",
+        "cohort collaboration, dependencies, and handoffs"
+      ],
+      "action_items": [
+        "Keep future revisions aligned with Tina's routing policy before changing sharing boundaries.",
+        "Convert useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.",
+        "Resolve attribution conservatively at team, room, or speaker level before naming people."
+      ],
+      "open_questions": [
+        "Which claims are grounded enough to become weekly evidence cards?",
+        "What should remain T0/T1 only because it depends on room context, external subjects, or private critique?",
+        "Does the salon routing ceiling still match the actual room contents?"
+      ],
+      "content_md": "# 11:30-13:00 Agentic Organizations with Sreeram @EigenLabs\n\nType: salon\nRouting ceiling: T3\nCohort mode: distilled_readout\n\n## Summary\n- 11:30-13:00 Agentic Organizations with Sreeram @EigenLabs produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and handoffs.\n- The cloud worker stored an abstract review artifact, not transcript sentences; this T2 readout is cleared for cohort export, while public use still requires the separate T3 approval gates.\n- This row replaces an earlier deterministic draft that was held back because it was too close to transcript fragments.\n\n## Detected Themes\n- agentic organizations and workflow design\n- TEE, attestation, verifiability, and private compute\n- product direction, users, buyers, and market wedge\n- cohort collaboration, dependencies, and handoffs\n\n## Action Items\n- Keep future revisions aligned with Tina's routing policy before changing sharing boundaries.\n- Convert useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.\n- Resolve attribution conservatively at team, room, or speaker level before naming people.\n\n## Open Questions\n- Which claims are grounded enough to become weekly evidence cards?\n- What should remain T0/T1 only because it depends on room context, external subjects, or private critique?\n- Does the salon routing ceiling still match the actual room contents?\n\n## Handling\n- Raw transcript text was processed inside the transcript worker and was not returned in the API response.\n- The stored draft contains topic-level synthesis only; transcript sentences, timestamps, and raw speaker turns are intentionally excluded.\n- This reviewed cohort artifact stays non-public; public use requires the separate T3 candidate and cleared gates.\n\nCohort note: this T2 readout is reviewed for cohort export. Public publication remains blocked on the separate T3 candidate gates.",
+      "provenance": {
+        "source_artifact_id": "430fba86-ef15-5e0b-89fa-21351611c88b",
+        "processing_job_id": "eddbd63d-b1d0-4d5e-b3d8-cccebdac4726",
+        "raw_allowed": false,
+        "source_access": "private-vault"
+      },
+      "created_at": "2026-06-13T18:47:22.861543+00:00"
+    },
+    {
+      "artifact_id": "341dad1c-e11c-5766-b226-3c77dcda46a9",
+      "artifact_kind": "readout",
+      "session_id": "bbecf7e9-91e1-436c-b5ca-7237ac4405b2",
+      "session_title": "WDYDLW with Shaw as Moderator @ the auditorium",
+      "session_type": "office_hours",
+      "starts_at": "2026-06-08T20:00:00+00:00",
+      "tier": "T2",
+      "surface": "cohort",
+      "review_status": "reviewed",
+      "approval_state": "not_required",
+      "confidence": 0.65,
+      "source_transform": "paraphrased_distillation",
+      "summary": [
+        "WDYDLW with Shaw as Moderator @ the auditorium produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collabor...",
+        "The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.",
+        "Source size signal: about 30489 redacted word-like tokens were processed inside the worker."
+      ],
+      "themes": [
+        "agentic organizations and workflow design",
+        "TEE, attestation, verifiability, and private compute",
+        "product direction, users, buyers, and market wedge",
+        "cohort collaboration, dependencies, and handoffs",
+        "research, prototypes, and whiteboarding questions"
+      ],
+      "action_items": [
+        "Review the private transcript against Tina's routing policy before changing this artifact from needs_review.",
+        "Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.",
+        "Resolve attribution conservatively at team, room, or speaker level before naming people."
+      ],
+      "open_questions": [
+        "Which claims are grounded enough to become weekly evidence cards?",
+        "What should remain T0/T1 only because it depends on room context, external subjects, or private critique?",
+        "Does the office_hours routing ceiling still match the actual room contents?"
+      ],
+      "content_md": "# WDYDLW with Shaw as Moderator @ the auditorium\n\nType: office_hours\nRouting ceiling: T2\nCohort mode: distilled_readout\n\n## Summary\n- WDYDLW with Shaw as Moderator @ the auditorium produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and handoffs; research, prototypes, and whiteboarding questions.\n- The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.\n- Source size signal: about 30489 redacted word-like tokens were processed inside the worker.\n\n## Detected Themes\n- agentic organizations and workflow design\n- TEE, attestation, verifiability, and private compute\n- product direction, users, buyers, and market wedge\n- cohort collaboration, dependencies, and handoffs\n- research, prototypes, and whiteboarding questions\n\n## Action Items\n- Review the private transcript against Tina's routing policy before changing this artifact from needs_review.\n- Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.\n- Resolve attribution conservatively at team, room, or speaker level before naming people.\n\n## Open Questions\n- Which claims are grounded enough to become weekly evidence cards?\n- What should remain T0/T1 only because it depends on room context, external subjects, or private critique?\n- Does the office_hours routing ceiling still match the actual room contents?\n\n## Handling\n- Raw transcript text was processed inside the transcript worker and was not returned in the API response.\n- The stored draft contains topic-level synthesis only; transcript sentences, timestamps, and raw speaker turns are intentionally excluded.\n- This deterministic draft remains needs_review until a human creates or approves evidence cards.",
+      "provenance": {
+        "source_artifact_id": "2a5cb282-5438-5d84-a455-4fda4ac7fe2e",
+        "processing_job_id": "e7445bbd-a178-4b17-863b-8a68e3cc2303",
+        "raw_allowed": false,
+        "source_access": "private-vault"
+      },
+      "created_at": "2026-06-13T21:15:06.280911+00:00"
+    },
+    {
+      "artifact_id": "ddda1a57-7cb8-5058-8176-021aae341f1a",
+      "artifact_kind": "readout",
+      "session_id": "85fe5186-becb-43bb-90f4-0f33dfeaf596",
+      "session_title": "Design Thinking Workshop: Agency Preserving Private Coordination Substrate fo...",
+      "session_type": "office_hours",
+      "starts_at": "2026-06-11T20:30:00+00:00",
+      "tier": "T2",
+      "surface": "cohort",
+      "review_status": "reviewed",
+      "approval_state": "not_required",
+      "confidence": 0.65,
+      "source_transform": "paraphrased_distillation",
+      "summary": [
+        "Design Thinking Workshop: Agency Preserving Private Coordination Substrate fo... produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers,...",
+        "The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.",
+        "Source size signal: about 17204 redacted word-like tokens were processed inside the worker."
+      ],
+      "themes": [
+        "agentic organizations and workflow design",
+        "TEE, attestation, verifiability, and private compute",
+        "product direction, users, buyers, and market wedge",
+        "cohort collaboration, dependencies, and handoffs",
+        "research, prototypes, and whiteboarding questions"
+      ],
+      "action_items": [
+        "Review the private transcript against Tina's routing policy before changing this artifact from needs_review.",
+        "Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.",
+        "Resolve attribution conservatively at team, room, or speaker level before naming people."
+      ],
+      "open_questions": [
+        "Which claims are grounded enough to become weekly evidence cards?",
+        "What should remain T0/T1 only because it depends on room context, external subjects, or private critique?",
+        "Does the office_hours routing ceiling still match the actual room contents?"
+      ],
+      "content_md": "# Design Thinking Workshop: Agency Preserving Private Coordination Substrate fo...\n\nType: office_hours\nRouting ceiling: T2\nCohort mode: distilled_readout\n\n## Summary\n- Design Thinking Workshop: Agency Preserving Private Coordination Substrate fo... produced a cohort-internal draft signal across: agentic organizations and workflow design; TEE, attestation, verifiability, and private compute; product direction, users, buyers, and market wedge; cohort collaboration, dependencies, and handoffs; research, prototypes, and whiteboarding questions.\n- The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.\n- Source size signal: about 17204 redacted word-like tokens were processed inside the worker.\n\n## Detected Themes\n- agentic organizations and workflow design\n- TEE, attestation, verifiability, and private compute\n- product direction, users, buyers, and market wedge\n- cohort collaboration, dependencies, and handoffs\n- research, prototypes, and whiteboarding questions\n\n## Action Items\n- Review the private transcript against Tina's routing policy before changing this artifact from needs_review.\n- Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.\n- Resolve attribution conservatively at team, room, or speaker level before naming people.\n\n## Open Questions\n- Which claims are grounded enough to become weekly evidence cards?\n- What should remain T0/T1 only because it depends on room context, external subjects, or private critique?\n- Does the office_hours routing ceiling still match the actual room contents?\n\n## Handling\n- Raw transcript text was processed inside the transcript worker and was not returned in the API response.\n- The stored draft contains topic-level synthesis only; transcript sentences, timestamps, and raw speaker turns are intentionally excluded.\n- This deterministic draft remains needs_review until a human creates or approves evidence cards.",
+      "provenance": {
+        "source_artifact_id": "89b84357-7918-5515-99f5-ff39e481eead",
+        "processing_job_id": "973d3f9a-6149-4513-96fa-773f0e772815",
+        "raw_allowed": false,
+        "source_access": "private-vault"
+      },
+      "created_at": "2026-06-13T21:15:04.634714+00:00"
+    }
+  ]
+}

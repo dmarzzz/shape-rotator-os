@@ -21,6 +21,9 @@ data/
 
 # logs / scratch
 *.log
+tmp/github-progress-audit.json
+tmp/github-progress-audit.md
+tmp/github-progress-cache/
 .DS_Store
 .vscode/
 .idea/
@@ -29,6 +32,9 @@ data/
 # env / secrets
 .env
 .env.local
+.env.*.local
+calendar-ingress-seed.sql
+calendar-ingress-deploy-plan.md
 
 # private signing keys — NEVER commit
 cohort-data/.private/
@@ -47,6 +53,9 @@ apps/web/calendar.ics
 
 # vercel cli local link metadata
 .vercel
+
+# Supabase CLI local state
+supabase/.temp/
 
 # CI-fetched single-file PyInstaller binaries (populated at build time
 # by scripts/fetch-swf-node.sh + scripts/fetch-research-swarm.sh; the

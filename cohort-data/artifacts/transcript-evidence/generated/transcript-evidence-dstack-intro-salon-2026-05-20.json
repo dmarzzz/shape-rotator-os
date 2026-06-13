@@ -1,0 +1,362 @@
+{
+  "schema_version": 1,
+  "artifact_id": "transcript-evidence:dstack-intro-salon-2026-05-20",
+  "artifact_kind": "transcript_evidence_card",
+  "record_type": "session",
+  "record_id": "dstack-intro-salon-2026-05-20",
+  "vault_id": "dstack-intro-salon-2026-05-20",
+  "date": "2026-05-20",
+  "week_start": "2026-05-18",
+  "title": "Dstack Intro Salon: TEE Deployment 101, Multiplexed CVMs, and Attested Service Meshes",
+  "summary": "A hands-on walkthrough of deploying confidential VMs with dstack, plus deep dives on multiplexing many attested apps in one CVM and building an attestation-gated service mesh across TEEs.",
+  "session_kind": "workshop",
+  "source": "private-vault:dstack-intro-salon-2026-05-20",
+  "source_kind": "private_vault_transcript",
+  "source_transform": "reviewed_readout_to_evidence_card",
+  "source_access": "private-vault",
+  "source_review_status": "reviewed_readout",
+  "evidence_level": "inferred",
+  "confidence": "medium",
+  "consent": "cohort-internal",
+  "sharing_boundary": {
+    "source_access": "private-vault",
+    "max_surface": "cohort",
+    "raw_allowed": false,
+    "public_requires_approval": true,
+    "consent": "cohort-internal"
+  },
+  "attribution": "team-level",
+  "review_status": "generated",
+  "surface_recommendation": "review_for_cohort",
+  "verbatim": false,
+  "teams": [
+    "shape-rotator-os"
+  ],
+  "people": [
+    "lsdan",
+    "andrew-miller"
+  ],
+  "themes": [
+    "Lowering the barrier to TEE deployment with dstack",
+    "Remote attestation and reproducible verification chains",
+    "Multiplexing sub-apps in a single CVM with dev-to-attested promotion",
+    "Scaling TEEs out: attested service meshes and high-availability clusters"
+  ],
+  "claims": [
+    {
+      "claim_id": "transcript-evidence:dstack-intro-salon-2026-05-20:claim:1",
+      "claim_type": "claim",
+      "text": "dstack abstracts TEE deployment down to the Docker Compose level: you supply containers plus a compose file, and the framework handles CVM provisioning, boot-sequence measurement, and remote attestation; the whole stack is open source, with a hosted cloud option for quick starts.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "source_artifact_id": "transcript-evidence:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:dstack-intro-salon-2026-05-20:claim:2",
+      "claim_type": "claim",
+      "text": "Key management is decoupled from hardware: apps derive deterministic keys from a KMS (either cloud-managed or anchored to a smart contract on a chain like Base or Ethereum), so a CVM can migrate between machines and still derive the same keys — removing single-hardware lock-in and enabling encrypted stateful workloads.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "source_artifact_id": "transcript-evidence:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:dstack-intro-salon-2026-05-20:claim:3",
+      "claim_type": "claim",
+      "text": "Each deployed app gets an app ID embedded in its HTTPS endpoint with TLS terminating inside the TEE, giving an end-to-end encrypted channel bound to the attested workload; deployment secrets are encrypted in the browser and only decrypted inside the CVM.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "source_artifact_id": "transcript-evidence:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:dstack-intro-salon-2026-05-20:claim:4",
+      "claim_type": "product_signal",
+      "text": "Generating an attestation quote is easy (an SDK call returns TDX quotes exposing RTMR0-3, MRTD, and config measurements); the hard part is verification — linking those hashes back to source code requires reproducibly built OS images and tooling to compute reference values, which the dstack verification tutorial walks end to end.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "source_artifact_id": "transcript-evidence:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:dstack-intro-salon-2026-05-20:claim:5",
+      "claim_type": "claim",
+      "text": "Whole CVMs are a scarce unit: TDX caps concurrent CVMs per machine in the low hundreds even on large processors, and each reserves memory and billing. This motivates a web-host multiplexing layer where many lightweight sub-apps share one CVM, each individually promotable from SSH-accessible dev mode to an attested mode that provably removes developer access.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "source_artifact_id": "transcript-evidence:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:dstack-intro-salon-2026-05-20:claim:6",
+      "claim_type": "product_signal",
+      "text": "Sub-app attestation in a multiplexed CVM works by mediating the guest attestation socket: instead of letting sub-apps write raw user-report data, the host binds each sub-app's own hash into the report, partitioning attestation domains so co-tenant apps cannot masquerade as one another; SSH and ingress are similarly partitioned per sub-app.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "source_artifact_id": "transcript-evidence:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:dstack-intro-salon-2026-05-20:claim:7",
+      "claim_type": "ask",
+      "text": "The threat model for multiplexed TEEs treats co-tenant dev-mode apps as the adversary: even a source-audited attested app could leak secrets through covert channels (e.g., key-dependent disk writes) readable by neighbors, and whether combining two isolation mechanisms (language-runtime sandboxes vs gVisor-style runsc containers) yields best-of or worst-of security is an open analysis question.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "source_artifact_id": "transcript-evidence:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person",
+        "operator"
+      ],
+      "verbatim": false
+    },
+    {
+      "claim_id": "transcript-evidence:dstack-intro-salon-2026-05-20:claim:8",
+      "claim_type": "decision",
+      "text": "A prototype TEE service mesh connects multiple CVMs via Consul with Envoy sidecar mTLS, where onboarding requires remote attestation checked against a coordinator policy (a whitelist of compose hashes) before connection keys are released; Terraform orchestrates the fleet, demonstrated as a three-node high-availability Postgres cluster using Patroni leader election.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "source_artifact_id": "transcript-evidence:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "role_views": [
+        "weekly",
+        "team",
+        "person"
+      ],
+      "verbatim": false
+    }
+  ],
+  "qa": [
+    {
+      "qa_id": "transcript-evidence:dstack-intro-salon-2026-05-20:qa:1",
+      "question": "Why allow attested and unattested apps to coexist in the same CVM?",
+      "answer": "To share one CVM across development and production-like workloads, and to keep the behavioral gap between modes minimal — promotion only disconnects developer SSH/debug access, nothing else changes. Since auditors typically review one promoted app at a time, the co-tenant dev-mode apps must always be modeled as threats anyway. A similar pattern exists elsewhere in industry: developers debug in-situ with test data only, and must lock out their own access before the system handles private data.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "verbatim": false
+    },
+    {
+      "qa_id": "transcript-evidence:dstack-intro-salon-2026-05-20:qa:2",
+      "question": "How do sub-apps inside one CVM request attestations without impersonating each other?",
+      "answer": "The host never passes the raw attestation socket through. Each sub-app gets a partitioned attestation domain where its own code hash is bound into the user-report data, so it can influence but not forge the report — effectively mini-CVMs inside the CVM, with resources, SSH, and ingress also partitioned per app.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "verbatim": false
+    },
+    {
+      "qa_id": "transcript-evidence:dstack-intro-salon-2026-05-20:qa:3",
+      "question": "What is the minimal change to let parties under different accounts join the service mesh via a smart-contract-gated policy?",
+      "answer": "Small: the admission policy is currently hardcoded in the mesh coordinator, and attestation checks already gate key release. Replacing the hardcoded policy with a lightweight client that reads the policy from a blockchain would make the mesh joinable across owners.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "verbatim": false
+    },
+    {
+      "qa_id": "transcript-evidence:dstack-intro-salon-2026-05-20:qa:4",
+      "question": "Should mesh admission whitelist compose hashes or app IDs?",
+      "answer": "App-ID whitelisting inherits dstack's upgradeability and KMS-continuity guarantees (and can be managed on-chain), but forces an awkward deployment ordering. Compose-hash whitelisting lets all measurements be pre-calculated before deployment for a one-shot rollout, which is why it was chosen for the prototype.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "verbatim": false
+    },
+    {
+      "qa_id": "transcript-evidence:dstack-intro-salon-2026-05-20:qa:5",
+      "question": "How can code provenance be established for a proxy in front of multiple TEE inference providers?",
+      "answer": "One pragmatic workaround: run a minimal launcher script inside the TEE that pulls a public Git repo, pins and checks the commit hash, and then executes it — so fetching and running the code both happen inside the attested environment, linking the attestation to a specific commit.",
+      "source": "private-vault:dstack-intro-salon-2026-05-20",
+      "evidence_level": "inferred",
+      "confidence": "medium",
+      "attribution": "team-level",
+      "teams": [
+        "shape-rotator-os"
+      ],
+      "people": [
+        "lsdan",
+        "andrew-miller"
+      ],
+      "verbatim": false
+    }
+  ],
+  "references": [
+    {
+      "label": "dstack — open-source TEE deployment framework",
+      "href": "https://github.com/Dstack-TEE/dstack"
+    },
+    {
+      "label": "dstack-examples — SSH-in-TEE, blockchain light client, Tor, k3s, custom-domain ingress patterns",
+      "href": "https://github.com/Dstack-TEE/dstack-examples"
+    },
+    {
+      "label": "Phala Cloud — hosted dstack with CLI",
+      "href": "https://cloud.phala.network"
+    },
+    {
+      "label": "RedPill — TEE-verified inference API with attestation reports and signed receipts",
+      "href": "https://red-pill.ai"
+    },
+    {
+      "label": "HashiCorp Consul — service mesh control plane",
+      "href": "https://www.consul.io"
+    },
+    {
+      "label": "Patroni — Postgres high-availability and leader election",
+      "href": "https://github.com/patroni/patroni"
+    },
+    {
+      "label": "gVisor — runsc container sandbox",
+      "href": "https://gvisor.dev"
+    },
+    {
+      "label": "Terraform — CVM fleet orchestration",
+      "href": "https://www.terraform.io"
+    },
+    {
+      "label": "Deno — sandboxed runtime used for sub-app isolation",
+      "href": "https://deno.com"
+    }
+  ],
+  "review_questions": [
+    "Does each claim accurately reflect the reviewed transcript readout?",
+    "Are team and person references appropriate for this sharing boundary?",
+    "Should any claim be promoted, held, merged, or narrowed before weekly use?"
+  ]
+}

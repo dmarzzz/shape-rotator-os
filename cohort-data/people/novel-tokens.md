@@ -8,9 +8,9 @@ role: ""
 role_class: visiting-scholar
 geo: ""
 domain: design
-email: null
+email: noveltokens@gmail.com
 dates_start: 2026-05-18
-dates_end: 2026-07-18
+dates_end: 2026-07-25
 links:
   github: null
   x: "@noveltokens"
