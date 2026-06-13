@@ -21,28 +21,6 @@ const fs   = require("node:fs");
 const path = require("node:path");
 const vm   = require("node:vm");
 const yaml = require("js-yaml");
-const { execSync } = require("node:child_process");
-
-// Date (YYYY-MM-DD) a string first appeared in a tracked file — i.e. when a
-// record was committed/uploaded. Used so feed items reflect when they were
-// ADDED to the repo, not the older event they describe. "" if git is
-// unavailable or the needle isn't found.
-const _gitAddCache = new Map();
-function gitAddedDate(needle, file) {
-  const key = `${file}::${needle}`;
-  if (_gitAddCache.has(key)) return _gitAddCache.get(key);
-  let result = "";
-  try {
-    const out = execSync(
-      `git log -S ${JSON.stringify(needle)} --format=%ad --date=short -- ${JSON.stringify(file)}`,
-      { cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
-    ).trim();
-    const lines = out.split("\n").filter(Boolean);
-    if (lines.length) result = lines[lines.length - 1]; // oldest = first added
-  } catch { /* git unavailable — caller falls back */ }
-  _gitAddCache.set(key, result);
-  return result;
-}
 
 const REPO_ROOT  = path.resolve(__dirname, "..");
 const COHORT_DIR = path.join(REPO_ROOT, "cohort-data");
@@ -717,11 +695,13 @@ function buildWhatsNew({ teams, teamTimeline, sessionInsights, asks, events }) {
     }
   }
   for (const s of (sessionInsights || [])) {
-    // Date the transcript by when it was UPLOADED (committed to the repo),
-    // not the older session it captures — so newly-added readouts surface as
-    // fresh feed activity. Falls back to the session date if git is absent.
-    const created = (s.vault_id && gitAddedDate(s.vault_id, "cohort-data/session-insights.json")) || "";
-    const date = (created || String(s.date || "")).slice(0, 10);
+    // Date the transcript by its session date — a deterministic, data-driven
+    // value. (A prior version dated it via `git log -S` "first committed"
+    // lookup, but that diverged between a full local clone and CI's shallow
+    // checkout, making the bundled surface unreproducible and tripping the
+    // required cohort-surface gate. If "uploaded" freshness is wanted later,
+    // add an explicit date field to session-insights.json — keep it data-driven.)
+    const date = String(s.date || "").slice(0, 10);
     if (!validDate(date)) continue;
     out.push({ date, kind: "transcript", label: s.title || s.one_liner || "session", meta: s.kind ? `${s.kind} · transcript` : "transcript", nav: { mode: "context", contextView: "raw" } });
   }
