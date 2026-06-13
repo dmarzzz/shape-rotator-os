@@ -15419,9 +15419,11 @@ body::before {
   padding: 5px;
   border: 1px solid var(--lg-border);
   border-radius: 10px;
-  background: var(--lg-bg-strong);
-  -webkit-backdrop-filter: var(--lg-blur);
-  backdrop-filter: var(--lg-blur);
+  /* Opaque so options stay readable over busy cards — a dropdown can't be
+   * see-through, and the menu's own backdrop-filter is defeated by the glass
+   * control bar it's nested in (backdrop-filter ancestor = backdrop root), so
+   * blur here would be a wasted layer. Glass edge kept via border + specular. */
+  background: var(--lg-solid);
   box-shadow: var(--lg-specular), var(--lg-shadow);
   animation: ac-sent-menu-in 160ms cubic-bezier(0.19, 1, 0.22, 1);
 }
@@ -20931,6 +20933,11 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
 :root {
   --lg-bg:        rgba(40, 35, 36, 0.60);
   --lg-bg-strong: rgba(38, 33, 34, 0.72);
+  /* Opaque surface for popovers/menus that open OVER content but sit nested
+   * inside a backdrop-filter ancestor (the glass control bar) — there the
+   * menu's own blur can't reach the page (backdrop-filter ancestor = backdrop
+   * root), so a dropdown must be solid to stay readable. */
+  --lg-solid:     rgb(26, 22, 23);
   --lg-border:    rgba(241, 236, 231, 0.13);
   --lg-specular:  inset 0 1px 0 rgba(255, 255, 255, 0.07);
   --lg-shadow:    0 8px 28px rgba(0, 0, 0, 0.26);
@@ -20952,6 +20959,7 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
 :root[data-theme="light"] {
   --lg-bg:        rgba(255, 255, 255, 0.52);
   --lg-bg-strong: rgba(255, 255, 255, 0.74);
+  --lg-solid:     rgb(252, 250, 247);
   --lg-border:    rgba(27, 20, 17, 0.13);
   --lg-specular:  inset 0 1px 0 rgba(255, 255, 255, 0.65);
   --lg-shadow:    0 8px 28px rgba(31, 26, 22, 0.12);
