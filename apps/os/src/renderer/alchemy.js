@@ -10245,10 +10245,11 @@ function renderCollab() {
   const colN = `--cb-cols:${N}`;
   const byId = new Map(m.ordered.map(o => [o.rid, o.team]));
   const openAttrs = (rid) => `data-collab-open="${escAttr(rid)}" role="button" tabindex="0"`;
-  // Sentence bar — "showing all signals 232 · sorted by cluster". Lens and
-  // sort are stateful tokens whose menus carry each option's consequence +
-  // count; an active team filter (set from inspector links) surfaces as a
-  // clearable chip so the filtered state is visible where it was applied.
+  // Sentence bar — "showing all signals 232 · among all teams · sorted by
+  // cluster". Lens, team-scope, and sort are stateful tokens whose menus carry
+  // each option's consequence + count. Lens and team-scope are mutually
+  // exclusive (normalizeCollabControls): picking a team scope clears the lens
+  // to "all signals", so "the team filter owns the board".
   const lensMeta = [
     { key: "all", label: "all signals", note: "every dependency and seek / offer", count: m.deps.size + m.seekOffer.length },
     { key: "deps", label: "dependencies", note: "one team needs another to ship", count: m.deps.size },
@@ -10279,19 +10280,36 @@ function renderCollab() {
       label: s.label, note: s.note,
     })).join(""),
   });
-  const teamFilterChip = teamFilter === "all" ? "" : `
-    <span class="ac-sent-word">· only</span>
-    <button type="button" class="ac-sent-evi is-clearable" data-collab-filter="${escAttr(teamFilter)}" aria-label="${escAttr(`clear team filter: teams ${teamFilter === "needs" ? "seeking" : "offering"}`)}">
-      teams ${teamFilter === "needs" ? "seeking" : "offering"} <em>${N}</em><i class="ac-sent-x" aria-hidden="true">×</i>
-    </button>`;
+  // Team scope — narrow the board to teams that have declared a seek / an offer
+  // (team-level dossier fields). A stateful token (sibling to lens / sort), so
+  // the scope is reachable and self-describing at rest, and clearable by
+  // re-picking "all teams".
+  const teamsSeeking = m.ordered.filter(o => collabHasText(o.team.seeking)).length;
+  const teamsOffering = m.ordered.filter(o => collabHasText(o.team.offering)).length;
+  const teamMeta = [
+    { key: "all",    label: "all teams",      note: "every team on the board", count: totalN },
+    { key: "needs",  label: "teams seeking",  note: "have a declared seek",     count: teamsSeeking },
+    { key: "offers", label: "teams offering", note: "have a declared offer",    count: teamsOffering },
+  ];
+  const activeTeamMeta = teamMeta.find(t => t.key === teamFilter) || teamMeta[0];
+  const teamUnit = constSentenceUnit({
+    menu: "cb-team",
+    ariaMenu: "collab board team scope",
+    token: constSentenceToken({ menu: "cb-team", label: activeTeamMeta.label, count: teamFilter === "all" ? null : activeTeamMeta.count, aria: `${activeTeamMeta.label} — filter which teams appear` }),
+    options: teamMeta.map(t => constSentenceOption({
+      attr: "data-collab-filter", value: t.key, selected: teamFilter === t.key,
+      label: t.label, note: t.note, count: t.count, empty: t.count === 0,
+    })).join(""),
+  });
   const controlBar = `
     <div class="cb-controls">
       <div class="ac-sentence" role="group" aria-label="collab board controls">
         <span class="ac-sent-word">showing</span>
         ${lensUnit}
+        <span class="ac-sent-word">· among</span>
+        ${teamUnit}
         <span class="ac-sent-word">· sorted by</span>
         ${sortUnit}
-        ${teamFilterChip}
       </div>
       <div class="cb-control-actions">
         <button class="cb-intake-open" type="button" data-collab-intake-open>
@@ -10477,7 +10495,11 @@ function wireCollab() {
   for (const btn of state.canvas.querySelectorAll("[data-collab-filter]")) {
     btn.addEventListener("click", () => {
       const next = btn.getAttribute("data-collab-filter") || "all";
-      state.collabTeamFilter = state.collabTeamFilter === next ? "all" : next;
+      // Set semantics (the menu has an explicit "all teams" option) — re-picking
+      // the current scope is a no-op that just closes the menu. Picking a scope
+      // clears the lens so the two stay mutually exclusive.
+      if (next === state.collabTeamFilter) { closeConstSentenceMenus(); return; }
+      state.collabTeamFilter = next;
       state.collabLens = "all";
       render({ instant: true });
     });
