@@ -297,6 +297,7 @@
     code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 0.92em;
+      overflow-wrap: anywhere;
       background: rgba(32, 28, 24, 0.07);
       border-radius: 5px;
       padding: 1px 5px;
@@ -336,8 +337,8 @@
         <h1>Meetings move through tools, then become reviewed knowledge.</h1>
         <p class="lede">
           Google Calendar schedules the session. Google Meet runs it. Gemini transcript output
-          and source files stay private. Supabase tracks state, permissions, and reviewed
-          distillations. The app reads those distillations, not raw transcripts.
+          and source files stay private. Supabase is the control plane: refs, jobs, review state,
+          and approved distillations. The app reads approved rows, not raw transcripts.
         </p>
       </div>
       <aside class="answer" aria-label="tool chain">
@@ -345,6 +346,7 @@
         <p><b>Google Calendar</b> owns time, guests, session type, and Meet links.</p>
         <p><b>Google Meet + Gemini</b> produce the meeting transcript source.</p>
         <p><b>Google Drive</b> is the private source vault. <b>Supabase</b> stores metadata, jobs, permissions, and reviewed outputs.</p>
+        <p><b>Security rule:</b> browser clients never receive the raw transcript lane.</p>
       </aside>
     </header>
 
@@ -432,6 +434,42 @@
         </div>
       </section>
 
+      <section aria-labelledby="security-title">
+        <div class="section-head">
+          <div>
+            <p class="kicker">Security model</p>
+            <h2 id="security-title">Supabase records the path to insight, not the raw room.</h2>
+          </div>
+          <p>Raw material stays in the private source lane. Supabase turns it into controlled rows, then exposes only approved views.</p>
+        </div>
+        <div class="two-col">
+          <ul class="plain-list">
+            <li><span class="tag green">ingest</span><p><code>ingest-artifacts</code> writes <code>ingestion_events</code> and <code>source_artifacts</code>: source type, tier, storage ref, hash, size, uploader, and whether raw is server-readable.</p></li>
+            <li><span class="tag blue">queue</span><p><code>processing_jobs</code> says what must happen next: fetch an external ref, prepare review, or distill allowed text. Overlapping workers claim jobs atomically.</p></li>
+            <li><span class="tag amber">derive</span><p><code>process-transcript-jobs</code> runs server-side, fetches only allowed private sources, and writes <code>derived_artifacts</code>: summaries, claims, Q&amp;A, deltas, and public candidates.</p></li>
+            <li><span class="tag red">review</span><p><code>artifact_reviews</code> and <code>approval_gates</code> record who approved, blocked, or held the output before it can move to the app or public site.</p></li>
+          </ul>
+          <div class="checklist">
+            <div class="check no">
+              <b>No service keys in the browser</b>
+              <span>The web/app client uses browser-safe Supabase config. Google tokens and privileged Supabase credentials live in Edge Functions or trusted operator shells.</span>
+            </div>
+            <div class="check no">
+              <b>No raw transcript table for app users</b>
+              <span>App users do not read <code>source_artifacts</code> or <code>processing_jobs</code>. Those are coordinator/operator lanes behind RLS.</span>
+            </div>
+            <div class="check warn">
+              <b>App view strips provenance internals</b>
+              <span><code>app_transcript_distillations</code> exposes approved derived content and omits raw source refs, processing job IDs, and private artifact rows.</span>
+            </div>
+            <div class="check">
+              <b>T3 has a database stop sign</b>
+              <span>Public output must be a <code>public_candidate</code>, approved, and have all required gates cleared before publication.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section aria-labelledby="outputs-title">
         <div class="section-head">
           <div>
@@ -448,7 +486,7 @@
           </div>
           <div class="rail">
             <h3>Supabase app record</h3>
-            <p>Stores event metadata, source refs, tier, review state, claims, summaries, actions, and provenance.</p>
+            <p>Internally stores event metadata, source refs, tier, review state, claims, summaries, actions, and provenance.</p>
             <p>Users get calendar state and <code>join event</code> links when a Meet URL is available.</p>
           </div>
           <div class="rail">
