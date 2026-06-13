@@ -138,6 +138,8 @@
 .chat-dev > summary:hover { color: rgba(var(--ink-rgb), 0.6); }
 .chat-dev[open] > summary { color: rgba(var(--ink-rgb), 0.5); margin-bottom: 8px; }
 .chat-dev .chat-login { gap: 10px; }
+.chat-code-form { display: flex; flex-direction: column; gap: 9px; }
+.chat-dev-rule { border: 0; border-top: 1px solid rgba(var(--ink-rgb), 0.08); margin: 14px 0; }
 .chat-dev-note {
   font-family: var(--font-mono); font-size: 10px; line-height: 1.5;
   color: rgba(var(--ink-rgb), 0.4); margin: 0;
