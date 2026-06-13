@@ -53,7 +53,7 @@
          are nested beneath it as an always-expanded sub-list (the rail,
          relocated here 2026-06 from inside #alchemy-view). -->
     <aside id="primary-nav" class="primary-nav" aria-label="primary navigation">
-      <button class="nav-cat" data-tab="alchemy" type="button" aria-selected="true">
+      <button class="nav-cat nav-cat--eyebrow" data-tab="alchemy" type="button" aria-selected="true">
         <span class="nav-cat-label">operating system</span>
       </button>
       <nav class="alchemy-rail" role="tablist" aria-label="operating system pages">
@@ -97,14 +97,22 @@
           <span class="ar-hint">articles · transcripts · intel</span>
         </button>
       </nav>
-      <button class="nav-cat" data-tab="apps" type="button" aria-selected="false">
-        <span class="nav-cat-label">apps</span>
+      <!-- apps / network — top-level destinations, now in the rail's own row
+           grammar (icon · label · hint) so the column reads as one even list
+           instead of three orphaned headers. They keep class="nav-cat" +
+           data-tab (boot.js routing) and .nav-cat-label (find.js / tabs.js
+           label read); the --dest modifier re-skins them (styles.css).
+           `links` was demoted to a quiet footer chip (see boot.js footer-row)
+           — it's a static external bookmark grid, not a peer of the OS pages. -->
+      <button class="nav-cat nav-cat--dest" data-tab="apps" type="button" aria-selected="false">
+        <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></span>
+        <span class="nav-cat-label ar-label">apps</span>
+        <span class="ar-hint">atlas · easel · daybook</span>
       </button>
-      <button class="nav-cat" data-tab="network" type="button" aria-selected="false">
-        <span class="nav-cat-label">network</span>
-      </button>
-      <button class="nav-cat" data-tab="links" type="button" aria-selected="false">
-        <span class="nav-cat-label">links</span>
+      <button class="nav-cat nav-cat--dest" data-tab="network" type="button" aria-selected="false">
+        <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg></span>
+        <span class="nav-cat-label ar-label">network</span>
+        <span class="ar-hint">peers · sync · metrics</span>
       </button>
     </aside>
 

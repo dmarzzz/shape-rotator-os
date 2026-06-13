@@ -571,6 +571,24 @@ async function boot() {
       document.body.appendChild(row);
       row.appendChild(pill);
 
+      // Links — demoted from the nav rail to a quiet footer chip (2026-06).
+      // It's a static external bookmark grid, so it sits with the other meta
+      // affordances rather than as a peer of the OS pages. Routes to the
+      // links tab the same way a nav category did.
+      const linksChip = document.createElement("button");
+      linksChip.id = "fg-links-chip";
+      linksChip.className = "fg-links-chip";
+      linksChip.type = "button";
+      linksChip.title = "important links — handouts, repos, downloads";
+      linksChip.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg><span class="fg-links-label">links</span>`;
+      linksChip.addEventListener("click", () => {
+        if (document.body.dataset.activeTab === "links") return;
+        Alchemy.closeMembraneMenu();
+        morphActiveTab("links", () => applyActiveTab("links"));
+        try { localStorage.setItem(TAB_LS_KEY, "links"); } catch {}
+      });
+      row.appendChild(linksChip);
+
       // Update status icon — empty at rest; shows a spinner while checking,
       // a checkmark when up to date, or a download glyph when an update is
       // available (see setUpdateIcon). Same Lucide line set as the side
