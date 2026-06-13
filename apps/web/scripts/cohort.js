@@ -12,15 +12,15 @@ import {
 } from "@shape-rotator/shape-ui";
 
 const TEAM_CHIPS = [
-  { id: "all",      label: "all",              match: () => true },
-  { id: "cohort",   label: "cohort teams",     match: (t) => (t.membership || "visiting") === "cohort" },
-  { id: "visiting", label: "visiting",         match: (t) => (t.membership || "visiting") !== "cohort" },
+  { id: "all",      label: "all",              hint: "every team and project", match: () => true },
+  { id: "cohort",   label: "cohort teams",     hint: "formally invited cohort teams", match: (t) => (t.membership || "visiting") === "cohort" },
+  { id: "visiting", label: "visiting",         hint: "guests and friends of the program", match: (t) => (t.membership || "visiting") !== "cohort" },
 ];
 const PERSON_CHIPS = [
-  { id: "all",              label: "all",               match: () => true },
-  { id: "cohort-member",    label: "cohort members",    match: (p) => (p.role_class || "visiting-scholar") === "cohort-member" },
-  { id: "visiting-scholar", label: "visiting scholars", match: (p) => (p.role_class || "visiting-scholar") === "visiting-scholar" },
-  { id: "coordinator",      label: "coordinators",      match: (p) => (p.role_class || "visiting-scholar") === "coordinator" },
+  { id: "all",              label: "all",               hint: "everyone in the directory", match: () => true },
+  { id: "cohort-member",    label: "cohort members",    hint: "people on cohort teams", match: (p) => (p.role_class || "visiting-scholar") === "cohort-member" },
+  { id: "visiting-scholar", label: "visiting scholars", hint: "independent visiting scholars", match: (p) => (p.role_class || "visiting-scholar") === "visiting-scholar" },
+  { id: "coordinator",      label: "coordinators",      hint: "program coordinators", match: (p) => (p.role_class || "visiting-scholar") === "coordinator" },
 ];
 const DEFAULT_MEMBERSHIP = "all";
 const JOURNEY_STAGE_LABELS = [
@@ -658,26 +658,8 @@ function compactPills(items) {
 
   function renderGrid() {
     const chipSet = activeChipSet();
-    if (!membershipNav) return;
     if (!chipSet.some(c => c.id === state.membership)) state.membership = DEFAULT_MEMBERSHIP;
     const source = state.kind === "people" ? people : teams;
-    const counts = new Map(chipSet.map(c => [c.id, source.filter(c.match).length]));
-    membershipNav.innerHTML = chipSet.map(chip => {
-      const count = chip.id === "all"
-        ? ""
-        : ` <span class="cohort-chip-count">${counts.get(chip.id) || 0}</span>`;
-      return `
-        <button class="cohort-chip cohort-chip-membership" data-membership="${escAttr(chip.id)}" type="button" role="tab" aria-selected="${chip.id === state.membership}">${escHtml(chip.label)}${count}</button>
-      `;
-    }).join("");
-    for (const btn of membershipNav.querySelectorAll(".cohort-chip[data-membership]")) {
-      btn.addEventListener("click", () => {
-        if (btn.dataset.membership === state.membership) return;
-        state.membership = btn.dataset.membership;
-        renderGrid();
-      });
-    }
-
     const active = chipSet.find(c => c.id === state.membership) || chipSet[0];
     const records = source.filter(active.match);
     grid.innerHTML = "";
@@ -698,24 +680,103 @@ function compactPills(items) {
     });
   }
 
-  function renderKindFilter() {
+  // ── sentence bar — "listing teams & projects 41 · cohort teams 32" ──
+  // The kind tabs and membership chip row become one readable claim. Each
+  // swappable word is a stateful token (label = trigger = current value)
+  // whose listbox carries every option's count and one-line meaning —
+  // the same grammar the OS app's cohort views use.
+  function closeSentenceMenus() {
+    for (const menu of document.querySelectorAll(".ac-sent-menu:not([hidden])")) menu.hidden = true;
+    for (const tok of document.querySelectorAll('.ac-sent-tok[aria-expanded="true"]')) tok.setAttribute("aria-expanded", "false");
+  }
+  let sentenceDismissBound = false;
+  function wireSentenceDismiss() {
+    if (sentenceDismissBound) return;
+    sentenceDismissBound = true;
+    document.addEventListener("pointerdown", (e) => {
+      if (e.target instanceof Element && e.target.closest(".ac-sent-unit")) return;
+      closeSentenceMenus();
+    });
+    // Close on focus-leave (tab past the last option) so the floating
+    // listbox can't orphan over the page with aria-expanded stuck true.
+    // Keep open only while focus stays inside the OPEN menu's own unit.
+    document.addEventListener("focusout", (e) => {
+      const openMenu = document.querySelector(".ac-sent-menu:not([hidden])");
+      if (!openMenu) return;
+      const unit = openMenu.closest(".ac-sent-unit");
+      const next = e.relatedTarget;
+      if (next instanceof Element && unit && unit.contains(next)) return;
+      closeSentenceMenus();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const open = document.querySelector(".ac-sent-menu:not([hidden])");
+      if (!open) return;
+      const tok = open.closest(".ac-sent-unit")?.querySelector(".ac-sent-tok");
+      closeSentenceMenus();
+      tok?.focus();
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
+  }
+  function renderSentence() {
     if (!countsEl) return;
+    const chipSet = activeChipSet();
+    if (!chipSet.some(c => c.id === state.membership)) state.membership = DEFAULT_MEMBERSHIP;
+    const source = state.kind === "people" ? people : teams;
+    const counts = new Map(chipSet.map(c => [c.id, source.filter(c.match).length]));
+    const activeChip = chipSet.find(c => c.id === state.membership) || chipSet[0];
+    const kindLabel = state.kind === "people" ? "individuals" : "teams & projects";
+    const kindCount = state.kind === "people" ? people.length : teams.length;
+    const token = (menu, label, count, aria) => `
+      <button type="button" class="ac-sent-tok" data-sent-menu="${escAttr(menu)}" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(aria)}">
+        <span>${escHtml(label)}</span><em>${count}</em><i class="ac-sent-chev" aria-hidden="true"></i>
+      </button>`;
+    const option = ({ attr, value, selected, label, note, count }) => `
+      <button type="button" class="ac-sent-opt" ${attr}="${escAttr(value)}" role="option" aria-selected="${selected ? "true" : "false"}">
+        <span class="ac-sent-opt-main"><b>${escHtml(label)}</b>${note ? `<small>${escHtml(note)}</small>` : ""}</span>
+        ${count == null ? "" : `<em>${count}</em>`}
+      </button>`;
     countsEl.innerHTML = `
-      <button class="cohort-kind-count" data-kind="works" type="button" role="tab" aria-selected="${state.kind === "works"}"><span>${teams.length}</span> teams &amp; projects</button>
-      <span class="cohort-kind-sep" aria-hidden="true">/</span>
-      <button class="cohort-kind-count" data-kind="people" type="button" role="tab" aria-selected="${state.kind === "people"}"><span>${people.length}</span> individuals</button>
+      <span class="ac-sent-word">listing</span>
+      <span class="ac-sent-unit" data-unit="kind">
+        ${token("kind", kindLabel, kindCount, `kind: ${kindLabel} — change what is listed`)}
+        <div class="ac-sent-menu" role="listbox" aria-label="directory kind" hidden>
+          ${option({ attr: "data-kind", value: "works", selected: state.kind !== "people", label: "teams & projects", note: "teams, projects, and side projects", count: teams.length })}
+          ${option({ attr: "data-kind", value: "people", selected: state.kind === "people", label: "individuals", note: "everyone on and around the teams", count: people.length })}
+        </div>
+      </span>
+      <span class="ac-sent-word">·</span>
+      <span class="ac-sent-unit" data-unit="membership">
+        ${token("membership", activeChip.label, counts.get(activeChip.id) || 0, `membership: ${activeChip.label} — change which records show`)}
+        <div class="ac-sent-menu" role="listbox" aria-label="membership filter" hidden>
+          ${chipSet.map(chip => option({ attr: "data-membership", value: chip.id, selected: chip.id === activeChip.id, label: chip.label, note: chip.hint, count: counts.get(chip.id) || 0 })).join("")}
+        </div>
+      </span>
     `;
     countsEl.hidden = false;
-    for (const btn of countsEl.querySelectorAll("button[data-kind]")) {
+    for (const tok of countsEl.querySelectorAll(".ac-sent-tok[data-sent-menu]")) {
+      tok.addEventListener("click", () => {
+        const menu = tok.closest(".ac-sent-unit")?.querySelector(".ac-sent-menu");
+        if (!menu) return;
+        const wasOpen = !menu.hidden;
+        closeSentenceMenus();
+        if (wasOpen) return;
+        menu.hidden = false;
+        tok.setAttribute("aria-expanded", "true");
+        menu.querySelector('[role="option"][aria-selected="true"]')?.focus();
+      });
+    }
+    for (const btn of countsEl.querySelectorAll("[data-kind]")) {
       btn.addEventListener("click", () => {
         const nextKind = btn.dataset.kind;
         const changed = nextKind !== state.kind;
-        if (!changed && !state.detail) return;
+        if (!changed && !state.detail) { closeSentenceMenus(); return; }
         if (changed) {
           state.kind = nextKind;
           state.membership = DEFAULT_MEMBERSHIP;
         }
-        renderKindFilter();
+        renderSentence();
         if (location.hash) {
           location.hash = "";
           return;
@@ -723,6 +784,15 @@ function compactPills(items) {
         renderGrid();
       });
     }
+    for (const btn of countsEl.querySelectorAll("[data-membership]")) {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.membership === state.membership) { closeSentenceMenus(); return; }
+        state.membership = btn.dataset.membership;
+        renderSentence();
+        renderGrid();
+      });
+    }
+    wireSentenceDismiss();
   }
 
   function renderPersonRail(rec, team, fam) {
@@ -1001,7 +1071,7 @@ function compactPills(items) {
       if (state.kind !== detailKind) {
         state.kind = detailKind;
         state.membership = DEFAULT_MEMBERSHIP;
-        renderKindFilter();
+        renderSentence();
       }
       pageHead?.classList.add("is-detail");
       browse.hidden = true;
@@ -1017,7 +1087,9 @@ function compactPills(items) {
     }
   }
 
-  renderKindFilter();
+  // The old membership chip row is absorbed into the sentence bar.
+  if (membershipNav) { membershipNav.hidden = true; membershipNav.innerHTML = ""; }
+  renderSentence();
 
   // Sigil continuity, grid → dossier: tag the opened record's card canvas
   // and let a same-document view transition morph it into the rail hero

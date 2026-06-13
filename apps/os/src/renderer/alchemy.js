@@ -72,6 +72,8 @@ const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles
 const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "collab"
 const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "people"
 const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "works" | "substrate"
+const CONST_TIER_LS_KEY = "srwk:const_tier";  // pinned line-source tier: "all" | "record" | "mention"
+const CONST_DOMAIN_LS_KEY = "srwk:const_domain"; // pinned domain on product layer: "all" | tee | ai | crypto | app-ux
 const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem view: cluster record_id | "all"
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
@@ -223,6 +225,8 @@ export function mount(container) {
     state.constellationMode = constNormalizeConstellationMode(localStorage.getItem(CONST_MODE_LS_KEY));
     state.constellationScope = constNormalizeNetworkScope(localStorage.getItem(CONST_SCOPE_LS_KEY));
     state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
+    state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
+    state.constDomainPin = constNormalizeDomainPin(localStorage.getItem(CONST_DOMAIN_LS_KEY));
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
     const savedProgramPage = localStorage.getItem(PROGRAM_PAGE_LS_KEY);
@@ -1476,15 +1480,15 @@ function renderLegend() {
 // (role_class on person records). Both default the leftmost chip — cohort /
 // cohort-member — so the formally-invited cohort lands first.
 const TEAM_MEMBERSHIP_CHIPS = [
-  { id: "cohort",   label: "cohort teams",  match: (t) => (t.membership || "visiting") === "cohort" },
-  { id: "visiting", label: "visiting",      match: (t) => (t.membership || "visiting") !== "cohort" },
-  { id: "all",      label: "all",           match: () => true },
+  { id: "cohort",   label: "cohort teams",  hint: "formally invited cohort teams", match: (t) => (t.membership || "visiting") === "cohort" },
+  { id: "visiting", label: "visiting",      hint: "guests and friends of the program", match: (t) => (t.membership || "visiting") !== "cohort" },
+  { id: "all",      label: "all",           hint: "every team and project", match: () => true },
 ];
 const PERSON_ROLE_CHIPS = [
-  { id: "cohort-member",    label: "cohort members",    match: (p) => (p.role_class || "visiting-scholar") === "cohort-member" },
-  { id: "visiting-scholar", label: "visiting scholars", match: (p) => (p.role_class || "visiting-scholar") === "visiting-scholar" },
-  { id: "coordinator",      label: "coordinators",      match: (p) => (p.role_class || "visiting-scholar") === "coordinator" },
-  { id: "all",              label: "all",               match: () => true },
+  { id: "cohort-member",    label: "cohort members",    hint: "people on cohort teams", match: (p) => (p.role_class || "visiting-scholar") === "cohort-member" },
+  { id: "visiting-scholar", label: "visiting scholars", hint: "independent visiting scholars", match: (p) => (p.role_class || "visiting-scholar") === "visiting-scholar" },
+  { id: "coordinator",      label: "coordinators",      hint: "program coordinators", match: (p) => (p.role_class || "visiting-scholar") === "coordinator" },
+  { id: "all",              label: "all",               hint: "everyone in the directory", match: () => true },
 ];
 
 function renderShapes() {
@@ -1522,19 +1526,47 @@ function renderShapes() {
   for (const chip of chipSet) {
     counts.set(chip.id, sourceRecords.filter(r => chip.match(r)).length);
   }
-  const membershipChips = chipSet.map(chip => `
-    <button class="alch-shapes-chip alch-shapes-chip-membership" data-membership-filter="${escAttr(chip.id)}" type="button" role="tab" aria-selected="${chip.id === activeChip.id}">${escHtml(chip.label)} <span class="ascn">${counts.get(chip.id) || 0}</span></button>
-  `).join("");
-
+  // Sentence bar — "listing teams & projects 41 · cohort teams 32". Kind
+  // and membership are stateful tokens; their menus carry each bucket's
+  // count and a one-line meaning (the cohort-vs-visiting distinction the
+  // old tab row left implicit).
+  const kindUnit = constSentenceUnit({
+    menu: "dir-kind",
+    ariaMenu: "directory kind",
+    token: constSentenceToken({
+      menu: "dir-kind",
+      label: filter === "people" ? "individuals" : "teams & projects",
+      count: filter === "people" ? nPeople : nWorks,
+      aria: `kind: ${filter === "people" ? "individuals" : "teams & projects"} — change what is listed`,
+    }),
+    options: [
+      constSentenceOption({ attr: "data-shapes-filter", value: "works", selected: filter !== "people", label: "teams & projects", note: "teams, projects, and side projects", count: nWorks }),
+      constSentenceOption({ attr: "data-shapes-filter", value: "people", selected: filter === "people", label: "individuals", note: "everyone on and around the teams", count: nPeople }),
+    ].join(""),
+  });
+  const memberUnit = constSentenceUnit({
+    menu: "dir-membership",
+    ariaMenu: "membership filter",
+    token: constSentenceToken({
+      menu: "dir-membership",
+      label: activeChip.label,
+      count: counts.get(activeChip.id) || 0,
+      aria: `membership: ${activeChip.label} — change which records show`,
+    }),
+    options: chipSet.map(chip => constSentenceOption({
+      attr: "data-membership-filter", value: chip.id, selected: chip.id === activeChip.id,
+      label: chip.label, note: chip.hint, count: counts.get(chip.id) || 0,
+      empty: (counts.get(chip.id) || 0) === 0,
+    })).join(""),
+  });
   const chips = `
     <div class="alch-view-controls" data-shape-occluder>
-      <nav class="alch-shapes-filter" role="tablist" aria-label="filter by kind">
-        <button class="alch-shapes-chip" data-shapes-filter="works"  type="button" role="tab" aria-selected="${filter === "works"}">teams & projects <span class="ascn">${nWorks}</span></button>
-        <button class="alch-shapes-chip" data-shapes-filter="people" type="button" role="tab" aria-selected="${filter === "people"}">individuals <span class="ascn">${nPeople}</span></button>
-      </nav>
-      <nav class="alch-shapes-filter alch-shapes-filter-membership" role="tablist" aria-label="filter by membership">
-        ${membershipChips}
-      </nav>
+      <div class="ac-sentence" role="group" aria-label="directory filters">
+        <span class="ac-sent-word">listing</span>
+        ${kindUnit}
+        <span class="ac-sent-word">·</span>
+        ${memberUnit}
+      </div>
       <button id="dossier-export-png" class="alch-shapes-chip" type="button">export dossier (png)</button>
     </div>
   `;
@@ -1556,12 +1588,14 @@ function renderShapes() {
       Each card is a team, project or individual in its current shape (week ${weekNow}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them). The other views above — relationship map, pmf evidence, product layer, collab board — read these same records from different angles.</p>
     </div>
   `;
-  // Wire the kind filter chips. Switching sub-tabs resets the membership
-  // chip to the new tab's default (cohort / cohort-member).
-  for (const btn of state.canvas.querySelectorAll(".alch-shapes-chip[data-shapes-filter]")) {
+  // Sentence tokens (kind + membership) open their menus.
+  wireConstSentenceTokens();
+  // Wire the kind options. Switching kind resets the membership
+  // selection to the new kind's default (cohort / cohort-member).
+  for (const btn of state.canvas.querySelectorAll("[data-shapes-filter]")) {
     btn.addEventListener("click", () => {
       const next = btn.dataset.shapesFilter;
-      if (next === state.shapesKindFilter) return;
+      if (next === state.shapesKindFilter) { closeConstSentenceMenus(); return; }
       state.shapesKindFilter = next;
       const nextChipSet = next === "people" ? PERSON_ROLE_CHIPS : TEAM_MEMBERSHIP_CHIPS;
       state.shapesMembershipFilter = nextChipSet[0].id;
@@ -1569,11 +1603,11 @@ function renderShapes() {
       wireShapeCardClicks();   // renderShapes() rebinds chips, not card→openDetail; re-wire after filter switch
     });
   }
-  // Wire the membership chips.
-  for (const btn of state.canvas.querySelectorAll(".alch-shapes-chip[data-membership-filter]")) {
+  // Wire the membership options.
+  for (const btn of state.canvas.querySelectorAll("[data-membership-filter]")) {
     btn.addEventListener("click", () => {
       const next = btn.dataset.membershipFilter;
-      if (next === state.shapesMembershipFilter) return;
+      if (next === state.shapesMembershipFilter) { closeConstSentenceMenus(); return; }
       state.shapesMembershipFilter = next;
       renderShapes();
       wireShapeCardClicks();   // re-wire cards after membership-filter switch (see note above)
@@ -1994,28 +2028,179 @@ const CONST_NETWORK_SCOPES = [
 function constNormalizeNetworkScope(raw) {
   return String(raw || "").toLowerCase() === "people" ? "people" : "projects";
 }
-function constellationNetworkScopeRow(active) {
-  const scope = constNormalizeNetworkScope(active);
+function constNormalizeEdgeTier(raw) {
+  const tier = String(raw || "").toLowerCase();
+  return tier === "record" || tier === "mention" ? tier : "all";
+}
+
+// ── Sentence bar ─────────────────────────────────────────────────────
+// The view controls read as one sentence — "showing projects as wells ·
+// lined by all 76 · backed by 9 on record + 67 unconfirmed" — so the bar
+// IS the claim the map below is making. Each swappable word is a stateful
+// token (label = trigger = current value) whose listbox carries every
+// option's consequence (hint + live count), surfacing the copy that used
+// to hide in aria-labels. The two evidence chips absorb the old LINE
+// SOURCE legend: hover previews that tier (CSS :has, as before), click
+// pins it (data-edge-tier on the stage). Options reuse the same
+// data-const-* attributes the old segmented buttons carried, so the
+// wireConstellationHover state handlers are unchanged.
+function constSentenceToken({ menu, label, count, aria }) {
   return `
-    <div class="ac-network-scope-row" role="radiogroup" aria-label="network entity layer">
-      <span>Graph</span>
-      ${CONST_NETWORK_SCOPES.map(v => {
-        return `
-          <button class="ac-network-scope-btn" data-const-network-scope="${v.scope}" role="radio" aria-checked="${scope === v.scope}" aria-label="${escAttr(`${v.label}, ${v.hint}`)}" type="button">
-            <strong>${escHtml(v.label)}</strong>
-          </button>`;
-      }).join("")}
+    <button type="button" class="ac-sent-tok" data-sent-menu="${escAttr(menu)}" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(aria)}">
+      <span>${escHtml(label)}</span>${count == null ? "" : `<em>${escHtml(String(count))}</em>`}<i class="ac-sent-chev" aria-hidden="true"></i>
+    </button>`;
+}
+function constSentenceOption({ attr, value, selected, label, note, count, empty }) {
+  return `
+    <button type="button" class="ac-sent-opt${empty ? " is-empty" : ""}" ${attr}="${escAttr(value)}" role="option" aria-selected="${selected ? "true" : "false"}">
+      <span class="ac-sent-opt-main"><b>${escHtml(label)}</b>${note ? `<small>${escHtml(note)}</small>` : ""}</span>
+      ${count == null ? "" : `<em>${escHtml(String(count))}</em>`}
+    </button>`;
+}
+function constSentenceUnit({ menu, token, ariaMenu, options }) {
+  return `
+    <span class="ac-sent-unit">
+      ${token}
+      <div class="ac-sent-menu" data-sent-menu-for="${escAttr(menu)}" role="listbox" aria-label="${escAttr(ariaMenu)}" hidden>${options}</div>
+    </span>`;
+}
+function constellationSentenceBar({ view = "map", scope = "projects", lens = "all", metrics = {}, tier = "all" } = {}) {
+  const isRing = view === "ring";
+  const activeScope = constNormalizeNetworkScope(scope);
+  const scopeUnit = constSentenceUnit({
+    menu: "scope",
+    ariaMenu: "graph entity layer",
+    token: constSentenceToken({ menu: "scope", label: activeScope, aria: `graph: ${activeScope} — change entity layer` }),
+    options: CONST_NETWORK_SCOPES.map(v => constSentenceOption({
+      attr: "data-const-network-scope", value: v.scope, selected: v.scope === activeScope,
+      label: v.label, note: v.hint,
+    })).join(""),
+  });
+  // People network keeps the short form: the dek above already explains
+  // grouping and line meaning, and its legend stays beside the stage.
+  if (activeScope === "people") {
+    return `
+      <div class="ac-sentence" role="group" aria-label="people map filters">
+        <span class="ac-sent-word">showing</span>
+        ${scopeUnit}
+      </div>`;
+  }
+  const activeLayout = isRing ? "ring" : "map";
+  const layoutSpec = CONST_MAP_LAYOUTS.find(v => v.mode === activeLayout) || CONST_MAP_LAYOUTS[0];
+  const layoutUnit = constSentenceUnit({
+    menu: "layout",
+    ariaMenu: "map layout",
+    token: constSentenceToken({ menu: "layout", label: layoutSpec.label, aria: `layout: ${layoutSpec.label} — change map geometry` }),
+    options: CONST_MAP_LAYOUTS.map(v => constSentenceOption({
+      attr: "data-const-map-layout", value: v.mode, selected: v.mode === activeLayout,
+      label: v.label, note: v.hint,
+    })).join(""),
+  });
+  const activeLens = constNormalizeConstellationLens(lens);
+  const lensSpec = CONST_LENSES.find(l => l.lens === activeLens) || CONST_LENSES[0];
+  const lensCount = constellationLensMetric(activeLens, metrics);
+  const lensUnit = isRing ? "" : constSentenceUnit({
+    menu: "lens",
+    ariaMenu: "map lens",
+    token: constSentenceToken({
+      menu: "lens", label: lensSpec.label, count: lensCount,
+      aria: `lines: ${lensSpec.label}${typeof lensCount === "number" ? `, ${lensCount}` : ""} — change relationship lens`,
+    }),
+    options: CONST_LENSES.map(l => {
+      const metric = constellationLensMetric(l.lens, metrics);
+      return constSentenceOption({
+        attr: "data-const-lens", value: l.lens, selected: l.lens === activeLens,
+        label: l.label, note: l.meaning, count: metric, empty: metric === 0,
+      });
+    }).join(""),
+  });
+  const recordCount = Number(metrics.typed) || 0;
+  const mentionCount = Math.max(0, (Number(metrics.total) || 0) - recordCount);
+  const tierChip = (key, swatch, count, label, note) => `
+    <button type="button" class="ac-sent-evi ${swatch}" data-legend-edge="${key}" data-edge-tier-toggle="${key}" aria-pressed="${tier === key ? "true" : "false"}" aria-label="${escAttr(`${count} ${note}${tier === key ? " — pinned; click to show both tiers" : " — hover previews, click isolates these lines"}`)}">
+      <i aria-hidden="true"></i><em>${count}</em>&nbsp;${escHtml(label)}
+    </button>`;
+  return `
+    <div class="ac-sentence" role="group" aria-label="map filters">
+      <span class="ac-sent-word">showing</span>
+      ${scopeUnit}
+      <span class="ac-sent-word">as</span>
+      ${layoutUnit}
+      ${lensUnit ? `<span class="ac-sent-word">· lined by</span>${lensUnit}` : ""}
+      <span class="ac-sent-word">· backed by</span>
+      ${tierChip("record", "is-typed", recordCount, "on record", "relationship records — typed, with status and evidence")}
+      <span class="ac-sent-word">+</span>
+      ${tierChip("mention", "is-profile", mentionCount, "unconfirmed", "profile mentions — leads that need confirmation")}
     </div>`;
 }
-function constellationMapLayoutRow(active) {
-  const activeLayout = active === "ring" ? "ring" : "map";
+function constNormalizeDomainPin(raw) {
+  const k = String(raw || "").toLowerCase();
+  return CONST_DOMAIN_KEYS.includes(k) ? k : "all";
+}
+// Multi-select include chip (journey's teams/projects/side toggles): the
+// oxide state dot carries on/off — the same vocabulary the old ajf-toggle
+// used — so three chips at rest don't read as three raised thumbs.
+function constSentenceIncludeChip({ attr, value, on, label, count, aria }) {
   return `
-    <div class="ac-map-layout-row" role="radiogroup" aria-label="map layout">
-      <span>layout</span>
-      ${CONST_MAP_LAYOUTS.map(v => `
-        <button class="ac-map-layout-btn" data-const-map-layout="${v.mode}" role="radio" aria-checked="${activeLayout === v.mode}" aria-label="${escAttr(`${v.label} layout, ${v.hint}`)}" type="button">${escHtml(v.label)}</button>
-      `).join("")}
-    </div>`;
+    <button type="button" class="ac-sent-evi is-include" ${attr}="${escAttr(value)}" aria-pressed="${on ? "true" : "false"}" aria-label="${escAttr(aria)}">
+      <i class="ac-sent-dot" aria-hidden="true"></i><em>${escHtml(String(count))}</em>&nbsp;${escHtml(label)}
+    </button>`;
+}
+function closeConstSentenceMenus() {
+  for (const menu of document.querySelectorAll(".ac-sent-menu:not([hidden])")) menu.hidden = true;
+  for (const tok of document.querySelectorAll('.ac-sent-tok[aria-expanded="true"]')) tok.setAttribute("aria-expanded", "false");
+}
+// Token open/close for every sentence bar. Each cohort view re-renders its
+// own controls, so this is called from wireConstellationHover (map/ring/
+// journey/stack/people), wireCollab, and renderShapes.
+function wireConstSentenceTokens() {
+  for (const tok of state.canvas.querySelectorAll(".ac-sent-tok[data-sent-menu]")) {
+    tok.addEventListener("click", () => {
+      const menu = tok.closest(".ac-sent-unit")?.querySelector(".ac-sent-menu");
+      if (!menu) return;
+      const wasOpen = !menu.hidden;
+      closeConstSentenceMenus();
+      if (wasOpen) return;
+      menu.hidden = false;
+      tok.setAttribute("aria-expanded", "true");
+      menu.querySelector('[role="option"][aria-selected="true"]')?.focus();
+    });
+  }
+  wireConstSentenceDismiss();
+}
+let constSentenceDismissBound = false;
+function wireConstSentenceDismiss() {
+  if (constSentenceDismissBound) return;
+  constSentenceDismissBound = true;
+  document.addEventListener("pointerdown", (e) => {
+    if (e.target instanceof Element && e.target.closest(".ac-sent-unit")) return;
+    closeConstSentenceMenus();
+  });
+  // Close on focus-leave: tabbing past the last option moves focus out of
+  // the unit while the absolutely-positioned listbox would otherwise stay
+  // open over the content (and aria-expanded stuck true). Keep open only
+  // while focus stays inside the OPEN menu's own unit (token <-> options);
+  // moving to a different unit or off the bar closes it.
+  document.addEventListener("focusout", (e) => {
+    const openMenu = document.querySelector(".ac-sent-menu:not([hidden])");
+    if (!openMenu) return;
+    const unit = openMenu.closest(".ac-sent-unit");
+    const next = e.relatedTarget;
+    if (next instanceof Element && unit && unit.contains(next)) return;
+    closeConstSentenceMenus();
+  });
+  // Capture phase so closing an open menu wins over the bubble-phase
+  // Escape shortcut that clears the constellation selection.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const open = document.querySelector(".ac-sent-menu:not([hidden])");
+    if (!open) return;
+    const tok = open.closest(".ac-sent-unit")?.querySelector(".ac-sent-tok");
+    closeConstSentenceMenus();
+    tok?.focus();
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
 }
 
 // Map line lenses. Each re-weights the SAME map (control-as-claim): it changes
@@ -2039,30 +2224,6 @@ function constellationLensMetric(lens, metrics = {}) {
   if (lens === "works") return metrics.collaboration;
   if (lens === "substrate") return metrics.ecosystem;
   return "";
-}
-function constellationLensAria(lens, label, metric) {
-  if (lens === "relies") return metric === 0 ? `${label}, no reliance records yet` : `${label}, reliance or unblock lines`;
-  if (lens === "works") return `${label}, collaboration lines`;
-  if (lens === "substrate") return `${label}, shared substrate lines`;
-  return `${label}, declared lines`;
-}
-function constellationLensRow(active, metrics = {}) {
-  const chipCopy = {
-    all: { label: "all" },
-    relies: { label: "relies" },
-    works: { label: "works" },
-    substrate: { label: "shared" },
-  };
-  return `
-    <div class="ac-lens-row" role="radiogroup" aria-label="map lens">
-      <span>lines</span>
-      ${CONST_LENSES.map(l => {
-        const metric = constellationLensMetric(l.lens, metrics);
-        const aria = constellationLensAria(l.lens, l.label, metric);
-        const spec = chipCopy[l.lens] || { label: l.label };
-        return `<button class="ac-lens-btn${metric === 0 ? " is-empty" : ""}" data-const-lens="${l.lens}" role="radio" aria-checked="${active === l.lens}" aria-label="${escAttr(aria)}" type="button"><span>${escHtml(spec.label)}</span></button>`;
-      }).join("")}
-    </div>`;
 }
 // Truncate long cluster/well labels at rest. Full text stays available via
 // an SVG <title> tooltip. Keeps compact labels from colliding with nodes.
@@ -3462,14 +3623,15 @@ function constStackReadoutHtml(ctx) {
   const body = top
     ? `${top.count}/${total} projects currently read as ${top.label}${second ? `, followed by ${second.label}` : ""}. ${market && market.count <= Math.max(1, Math.floor(total * 0.16)) ? "Market/customer signal is still thin." : "Market/customer signal is visible but should be checked against traction."}`
     : "Add team/project records before using the stack view.";
+  // No layer-count chip row here: the stack columns below already label
+  // every product layer with its count (ac-stack-layer-head), and the
+  // sentence bar carries the domain breakdown. The headline names the
+  // largest layer; the columns are the breakdown.
   return `
     <section class="ac-main-readout is-stack-readout" aria-label="product stack readout">
       <div class="ac-inspector-kicker">generated stack read</div>
       <h3>${escHtml(title)}</h3>
       <p>${escHtml(body)}</p>
-      <div class="ac-view-chips">
-        ${ordered.slice(0, 4).map(item => `<span>${escHtml(item.label)}<em>${escHtml(String(item.count))}</em></span>`).join("")}
-      </div>
     </section>`;
 }
 
@@ -3793,8 +3955,9 @@ function constMapReadout(ctx) {
     : (scoped
       ? `No cross-world ${lensSpec.label} lines (${lensSpec.meaning}) connect ecosystems yet. Set lines to all to read every declared corridor.`
       : "No cross-world corridor is strong enough to headline yet; inspect the relationship rows first.");
-  // Counts live in the pills alone; the caveat keeps only the decode rule.
-  const caveat = "Solid lines have records; dotted lines are leads to verify.";
+  // Counts live in the sentence bar's evidence chips now; the caveat keeps
+  // only the teaching the chips can't carry (what solid vs dotted means).
+  const caveat = `Solid lines have a relationship record; dotted lines are profile mentions — leads to verify${scoped ? ` under the ${lensSpec.label} lens` : ""}.`;
   return { title, body, caveat, top, corridors, breakdown, lens, lensSpec, scoped };
 }
 
@@ -3809,11 +3972,10 @@ function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
       <div class="ac-inspector-kicker">${escHtml(kickerText)}</div>
       <h3>${escHtml(read.title)}</h3>
       <p>${escHtml(read.body)}</p>
+      ${topEdge ? `
       <div class="ac-inspector-pills">
-        <span><strong>${escHtml(String(read.breakdown.typed))}</strong> records</span>
-        <span><strong>${escHtml(String(read.breakdown.missing))}</strong> mentions</span>
-        ${topEdge ? `<button type="button" class="ac-hero-corridor" data-const-edge-from="${escAttr(topEdge.from)}" data-const-edge-to="${escAttr(topEdge.to)}">inspect corridor →</button>` : ""}
-      </div>
+        <button type="button" class="ac-hero-corridor" data-const-edge-from="${escAttr(topEdge.from)}" data-const-edge-to="${escAttr(topEdge.to)}">inspect corridor →</button>
+      </div>` : ""}
       <p class="ac-rel-queue-more">${escHtml(read.caveat)}</p>
     </div>`;
 }
@@ -3846,16 +4008,15 @@ function constCorridorReadoutHtml(ctx) {
 }
 
 function constDataCoverageHtml(ctx) {
-  const breakdown = constRelationshipBreakdown(ctx?.edges || []);
   const coverage = constConstellationCoverage(ctx?.teams || [], ctx?.edges || []);
   const missingOwner = (ctx?.edges || []).filter(edge => edge?.normalized && !constText(edge.owner)).length;
   const missingJourney = Math.max(0, coverage.teams - coverage.assessed);
+  // Record/mention counts live in the sentence bar's evidence chips now;
+  // this section keeps only the coverage gaps shown nowhere else.
   return `
     <section class="ac-inspector-section is-data-coverage">
-      <h4>source caveat</h4>
+      <h4>coverage gaps</h4>
       <div class="ac-view-chips">
-        <span>record lines<em>${escHtml(String(breakdown.typed))}</em></span>
-        <span>profile mentions<em>${escHtml(String(breakdown.missing))}</em></span>
         <span>missing journey<em>${escHtml(String(missingJourney))}</em></span>
         ${missingOwner ? `<span>missing owner<em>${escHtml(String(missingOwner))}</em></span>` : ""}
       </div>
@@ -4861,14 +5022,33 @@ function renderJourney() {
       ).join("")}
     </div>`).join("");
 
-  // ── filter bar — toggle teams / projects / side projects ──
-  const fbtn = (key, label) => `<button type="button" class="ajf-toggle ${jf[key] ? "is-on" : ""}" data-jfilter="${key}">${label}</button>`;
+  // ── sentence bar — "plotting teams + projects + side projects" ──
+  // Counts come from the UNFILTERED set so a toggled-off chip still says
+  // what it would bring back. An active bottleneck isolation (set from the
+  // legend below) surfaces here as a clearable chip — the legend's
+  // is-active highlight alone left the filter state invisible at the top.
+  const kindCount = {
+    teams: all.filter(t => teamKind(t) !== "project").length,
+    projects: all.filter(t => teamKind(t) === "project").length,
+    side: all.filter(t => journeyFor(t).stage === 0).length,
+  };
+  const includeChip = (key, label) => constSentenceIncludeChip({
+    attr: "data-jfilter", value: key, on: !!jf[key], label, count: kindCount[key],
+    aria: `${label}, ${kindCount[key]} on the chart — click to ${jf[key] ? "hide" : "include"}`,
+  });
+  const bottleneckChip = jf.bottleneck ? `
+    <span class="ac-sent-word">· stuck on</span>
+    <button type="button" class="ac-sent-evi is-clearable" data-jbottleneck="${escAttr(jf.bottleneck)}" aria-label="${escAttr(`clear bottleneck filter: ${jf.bottleneck}`)}">
+      ${escHtml(jf.bottleneck)}<i class="ac-sent-x" aria-hidden="true">×</i>
+    </button>` : "";
   const filterBar = `
-    <div class="alch-journey-filters">
-      <span class="ajf-label">include</span>
-      ${fbtn("teams", "teams")}
-      ${fbtn("projects", "projects")}
-      ${sideEligible ? fbtn("side", "side projects") : ""}
+    <div class="ac-sentence" role="group" aria-label="pmf evidence filters">
+      <span class="ac-sent-word">plotting</span>
+      ${includeChip("teams", "teams")}
+      <span class="ac-sent-word">+</span>
+      ${includeChip("projects", "projects")}
+      ${sideEligible ? `<span class="ac-sent-word">+</span>${includeChip("side", "side projects")}` : ""}
+      ${bottleneckChip}
     </div>`;
 
   state.canvas.innerHTML = `
@@ -4915,27 +5095,37 @@ function renderProductStack() {
   };
   const stackModel = constProductStackModel(teams, baseCtx);
   const inspectorCtx = { ...baseCtx, stackModel };
-  // Domain counts + hover-isolation hooks: touching a domain key dims the
-  // other domains' tiles in the stack below (CSS :has).
+  // The domain legend lives inside the sentence bar as chips: each carries
+  // its count, hover isolates that domain's tiles below (CSS :has, as the
+  // old legend did), and click pins the isolation (data-domain-pin on the
+  // stage) — hover previews, click commits.
   const domainCounts = new Map(CONST_DOMAIN_KEYS.map(k => [k, 0]));
   for (const t of teams) {
     const k = constDomainClass(t.domain);
     if (domainCounts.has(k)) domainCounts.set(k, domainCounts.get(k) + 1);
   }
-  const legend = CONST_DOMAIN_KEYS
-    .map(k => `<span class="acl-item" data-legend-domain="${escAttr(k)}" tabindex="0"><span class="acl-dot acl-dot-${k}"></span>${escHtml(CONST_DOMAIN_LABEL[k])}<em class="acl-count">${domainCounts.get(k)}</em></span>`)
-    .join("");
+  const domainPin = constNormalizeDomainPin(state.constDomainPin);
+  const domainChip = (k) => `
+    <button type="button" class="ac-sent-evi is-domain" data-legend-domain="${escAttr(k)}" data-domain-pin-toggle="${escAttr(k)}" aria-pressed="${domainPin === k ? "true" : "false"}" aria-label="${escAttr(`${CONST_DOMAIN_LABEL[k]}, ${domainCounts.get(k)} teams — ${domainPin === k ? "pinned, click to show every domain" : "hover previews, click isolates"}`)}">
+      <i class="acl-dot acl-dot-${k}" aria-hidden="true"></i><em>${domainCounts.get(k)}</em>&nbsp;${escHtml(CONST_DOMAIN_LABEL[k])}
+    </button>`;
+  const sentenceBar = `
+    <div class="ac-sentence" role="group" aria-label="product layer filters">
+      <span class="ac-sent-word">stacking</span>
+      <strong class="ac-sent-fact">${teams.length} teams</strong>
+      <span class="ac-sent-word">· colored by</span>
+      ${CONST_DOMAIN_KEYS.map(domainChip).join("")}
+    </div>`;
   const selectionChip = constSelectionChipHtml();
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="stack">
     ${cohortPageHead("stack")}
-    ${selectionChip ? `<div class="alch-view-controls" data-shape-occluder>${selectionChip}</div>` : ""}
+    <div class="alch-view-controls" data-shape-occluder>${sentenceBar}${selectionChip}</div>
     <div class="alch-constellation" data-constellation-view="stack">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
           ${constStackSelectedReadoutHtml(inspectorCtx) || constStackReadoutHtml(inspectorCtx)}
-          <div class="alch-constellation-legend">${legend}</div>
-          <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" tabindex="0" aria-label="constellation product layer directory">
+          <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" data-domain-pin="${escAttr(domainPin)}" tabindex="0" aria-label="constellation product layer directory">
             ${constProductStackHtml(stackModel)}
             <div class="ac-tip" hidden></div>
           </div>
@@ -5190,7 +5380,7 @@ function renderConstellationPeople(teams, people, clusters, edges) {
     <div class="alch-cohort-page" data-cohort-view="map">
       ${cohortPageHead("map", { dek: "How people connect — grouped by project, linked by shared work and overlapping context." })}
       <div class="alch-view-controls" data-shape-occluder>
-        ${constellationNetworkScopeRow("people", { projects: teams.length, people: people.length })}
+        ${constellationSentenceBar({ scope: "people" })}
         ${constSelectionChipHtml()}
       </div>
       <div class="alch-constellation" data-constellation-view="map" data-constellation-scope="people">
@@ -5524,6 +5714,7 @@ function renderConstellation() {
 
   const lens = constNormalizeConstellationLens(state.constellationLens);
   state.constellationLens = lens;
+  const edgeTier = constNormalizeEdgeTier(state.constEdgeTier);
   const viewMode = mode === "ring" ? "ring" : "map";
   const networkScope = viewMode === "map" ? constNormalizeNetworkScope(state.constellationScope) : "projects";
   const activeLens = viewMode === "ring" ? "all" : lens;
@@ -5700,39 +5891,23 @@ function renderConstellation() {
     </g>`;
   }).join("");
 
-  // Legend is the SAME in every lens — color = domain always. Cluster identity
-  // is read from the labeled wells, not the legend, so nothing swaps.
-  // One legend element: the swatch rows carry the nuance inline (the old
-  // acl-line-note sentence restated the same solid/dotted fact a second time).
-  // Counts make the key data-bearing; hover/focus on a row isolates that
-  // line tier on the map below (CSS :has rules — no listeners to lose on
-  // re-render).
-  const recordEdgeCount = relationshipBreakdown.typed;
-  const mentionEdgeCount = Math.max(0, relationshipBreakdown.total - relationshipBreakdown.typed);
-  const legend = `
-    <div class="acl-line-key">
-      <strong>Line source</strong>
-      <span class="acl-line-key-row is-typed" data-legend-edge="record" tabindex="0"><i></i><b>relationship record</b> <em>${recordEdgeCount}</em> <small>typed, with status + evidence</small></span>
-      <span class="acl-line-key-row is-profile" data-legend-edge="mention" tabindex="0"><i></i><b>profile mention</b> <em>${mentionEdgeCount}</em> <small>needs confirmation</small></span>
-    </div>`;
-
+  // The old LINE SOURCE legend lives inside the sentence bar now — its
+  // two rows became the "backed by" evidence chips (same data-legend-edge
+  // hover-isolate contract, plus click-to-pin via data-edge-tier on the
+  // stage). Node color stays domain in every lens; cluster identity is
+  // read from the labeled wells, so no legend swaps with the lens.
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">
     ${cohortPageHead(viewMode)}
     ${viewMode === "map" || viewMode === "ring" ? `
       <div class="alch-view-controls" data-shape-occluder>
-        ${viewMode === "map" ? constellationNetworkScopeRow("projects", { projects: teams.length, people: people.length }) : ""}
-        ${constellationMapLayoutRow(viewMode)}
-        ${viewMode === "map" ? `
-          ${constellationLensRow(lens, { edges: coverage.edges, meaningMissing: coverage.meaningMissing, ...relationshipBreakdown })}
-        ` : ""}
+        ${constellationSentenceBar({ view: viewMode, scope: "projects", lens, metrics: { edges: coverage.edges, ...relationshipBreakdown }, tier: edgeTier })}
         ${constSelectionChipHtml()}
       </div>` : ""}
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
       <div class="alch-const-workbench">
         <div class="alch-const-main">
-          <div class="alch-constellation-legend">${legend}</div>
-          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-lens="${activeLens}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "constellation relationship graph")}">
+          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "constellation relationship graph")}">
             <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <marker id="ac-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -6548,11 +6723,11 @@ function wireConstellationHover() {
       });
     }
   }
-  // Graph scope toggle: project network ↔ people network.
-  for (const btn of state.canvas.querySelectorAll(".ac-network-scope-btn[data-const-network-scope]")) {
+  // Graph scope: project network ↔ people network (sentence-menu option).
+  for (const btn of state.canvas.querySelectorAll("[data-const-network-scope]")) {
     btn.addEventListener("click", () => {
       const next = constNormalizeNetworkScope(btn.dataset.constNetworkScope);
-      if (next === state.constellationScope) return;
+      if (next === state.constellationScope) { closeConstSentenceMenus(); return; }
       state.constellationScope = next;
       state.constSelection = null;
       if (state.constellationMode === "ring" && next === "people") state.constellationMode = "map";
@@ -6564,10 +6739,10 @@ function wireConstellationHover() {
     });
   }
   // Map layout: same question, alternate geometry. Persisted with view mode.
-  for (const btn of state.canvas.querySelectorAll(".ac-map-layout-btn[data-const-map-layout]")) {
+  for (const btn of state.canvas.querySelectorAll("[data-const-map-layout]")) {
     btn.addEventListener("click", () => {
       const next = btn.dataset.constMapLayout === "ring" ? "ring" : "map";
-      if (next === state.constellationMode) return;
+      if (next === state.constellationMode) { closeConstSentenceMenus(); return; }
       state.constellationMode = next;
       state.constSelection = null;
       try { localStorage.setItem(CONST_MODE_LS_KEY, next); } catch {}
@@ -6575,12 +6750,33 @@ function wireConstellationHover() {
     });
   }
   // Map lens: re-weights the same map by line type. Persisted.
-  for (const btn of state.canvas.querySelectorAll(".ac-lens-btn[data-const-lens]")) {
+  for (const btn of state.canvas.querySelectorAll("[data-const-lens]")) {
     btn.addEventListener("click", () => {
       const next = constNormalizeConstellationLens(btn.dataset.constLens);
-      if (next === state.constellationLens) return;
+      if (next === state.constellationLens) { closeConstSentenceMenus(); return; }
       state.constellationLens = next;
       try { localStorage.setItem(CONST_LENS_LS_KEY, next); } catch {}
+      render();
+    });
+  }
+  // Sentence tokens open their option listbox; selections re-render the
+  // view, which rebuilds the bar closed.
+  wireConstSentenceTokens();
+  // Evidence chips: hover previews a line tier (CSS :has), click pins it.
+  for (const chip of state.canvas.querySelectorAll("[data-edge-tier-toggle]")) {
+    chip.addEventListener("click", () => {
+      const tier = constNormalizeEdgeTier(chip.dataset.edgeTierToggle);
+      state.constEdgeTier = state.constEdgeTier === tier ? "all" : tier;
+      try { localStorage.setItem(CONST_TIER_LS_KEY, state.constEdgeTier); } catch {}
+      render();
+    });
+  }
+  // Domain chips (product layer): hover previews, click pins the domain.
+  for (const chip of state.canvas.querySelectorAll("[data-domain-pin-toggle]")) {
+    chip.addEventListener("click", () => {
+      const k = constNormalizeDomainPin(chip.dataset.domainPinToggle);
+      state.constDomainPin = state.constDomainPin === k ? "all" : k;
+      try { localStorage.setItem(CONST_DOMAIN_LS_KEY, state.constDomainPin); } catch {}
       render();
     });
   }
@@ -6610,16 +6806,18 @@ function wireConstellationHover() {
       render();
     });
   }
-  // Journey filters: toggle teams / projects / side projects.
+  // Journey filters: toggle teams / projects / side projects (sentence chips).
   const jf = state.journeyFilters;
-  for (const btn of state.canvas.querySelectorAll(".ajf-toggle[data-jfilter]")) {
+  for (const btn of state.canvas.querySelectorAll("[data-jfilter]")) {
     btn.addEventListener("click", () => {
       const key = btn.dataset.jfilter;
       if (jf && key in jf) { jf[key] = !jf[key]; render(); }
     });
   }
-  // Journey legend: click a bottleneck to isolate it; click again to clear.
-  for (const btn of state.canvas.querySelectorAll(".acl-jbtn[data-jbottleneck]")) {
+  // Journey bottleneck: legend buttons isolate one bottleneck (click again
+  // to clear); the sentence's "stuck on" chip carries the same attribute,
+  // so clicking it re-toggles — i.e. clears — the active one.
+  for (const btn of state.canvas.querySelectorAll("[data-jbottleneck]")) {
     btn.addEventListener("click", () => {
       if (!jf) return;
       const b = btn.dataset.jbottleneck;
@@ -9674,31 +9872,59 @@ function renderCollab() {
   const colN = `--cb-cols:${N}`;
   const byId = new Map(m.ordered.map(o => [o.rid, o.team]));
   const openAttrs = (rid) => `data-collab-open="${escAttr(rid)}" role="button" tabindex="0"`;
-  const lensButton = (key, label, count) => `
-    <button class="cb-lens" type="button" data-collab-lens="${escAttr(key)}" aria-pressed="${teamFilter === "all" && lens === key ? "true" : "false"}">
-      <span>${escHtml(label)}</span><strong>${escHtml(String(count))}</strong>
+  // Sentence bar — "showing all signals 232 · sorted by cluster". Lens and
+  // sort are stateful tokens whose menus carry each option's consequence +
+  // count; an active team filter (set from inspector links) surfaces as a
+  // clearable chip so the filtered state is visible where it was applied.
+  const lensMeta = [
+    { key: "all", label: "all signals", note: "every dependency and seek / offer", count: m.deps.size + m.seekOffer.length },
+    { key: "deps", label: "dependencies", note: "one team needs another to ship", count: m.deps.size },
+    { key: "needs", label: "seek / offer", note: "asks matched to offers", count: m.seekOffer.length },
+  ];
+  const sortMeta = [
+    { key: "cluster", label: "cluster", note: "rows grouped by ecosystem cluster" },
+    { key: "intro", label: "intro potential", note: "strongest seek ↔ offer matches first" },
+    { key: "dependency", label: "dependency pressure", note: "most-depended-on teams first" },
+  ];
+  const activeLensMeta = lensMeta.find(l => l.key === lens) || lensMeta[0];
+  const activeSortMeta = sortMeta.find(s => s.key === sort) || sortMeta[0];
+  const lensUnit = constSentenceUnit({
+    menu: "cb-lens",
+    ariaMenu: "collab board lens",
+    token: constSentenceToken({ menu: "cb-lens", label: activeLensMeta.label, count: activeLensMeta.count, aria: `signals: ${activeLensMeta.label}, ${activeLensMeta.count} — change board lens` }),
+    options: lensMeta.map(l => constSentenceOption({
+      attr: "data-collab-lens", value: l.key, selected: teamFilter === "all" && lens === l.key,
+      label: l.label, note: l.note, count: l.count, empty: l.count === 0,
+    })).join(""),
+  });
+  const sortUnit = constSentenceUnit({
+    menu: "cb-sort",
+    ariaMenu: "collab board row order",
+    token: constSentenceToken({ menu: "cb-sort", label: activeSortMeta.label, aria: `sorted by ${activeSortMeta.label} — change row order` }),
+    options: sortMeta.map(s => constSentenceOption({
+      attr: "data-collab-sort-option", value: s.key, selected: sort === s.key,
+      label: s.label, note: s.note,
+    })).join(""),
+  });
+  const teamFilterChip = teamFilter === "all" ? "" : `
+    <span class="ac-sent-word">· only</span>
+    <button type="button" class="ac-sent-evi is-clearable" data-collab-filter="${escAttr(teamFilter)}" aria-label="${escAttr(`clear team filter: teams ${teamFilter === "needs" ? "seeking" : "offering"}`)}">
+      teams ${teamFilter === "needs" ? "seeking" : "offering"} <em>${N}</em><i class="ac-sent-x" aria-hidden="true">×</i>
     </button>`;
-  const sortOption =(key, label) => `<option value="${escAttr(key)}" ${sort === key ? "selected" : ""}>${escHtml(label)}</option>`;
   const controlBar = `
     <div class="cb-controls">
-      <div class="cb-lenses" role="group" aria-label="collaboration board lens and filters">
-        ${lensButton("all", "all signals", m.deps.size + m.seekOffer.length)}
-        ${lensButton("deps", "dependencies", m.deps.size)}
-        ${lensButton("needs", "seek / offer", m.seekOffer.length)}
+      <div class="ac-sentence" role="group" aria-label="collab board controls">
+        <span class="ac-sent-word">showing</span>
+        ${lensUnit}
+        <span class="ac-sent-word">· sorted by</span>
+        ${sortUnit}
+        ${teamFilterChip}
       </div>
       <div class="cb-control-actions">
         <button class="cb-intake-open" type="button" data-collab-intake-open>
           <span class="cb-intake-open-mark" aria-hidden="true">+</span>
           <span>add seek / offer</span>
         </button>
-        <label class="cb-sort-control">
-          <span>sort by</span>
-          <select data-collab-sort aria-label="sort collab board rows">
-            ${sortOption("cluster", "cluster")}
-            ${sortOption("intro", "intro potential")}
-            ${sortOption("dependency", "dependency pressure")}
-          </select>
-        </label>
       </div>
     </div>`;
 
@@ -9865,10 +10091,11 @@ function wireCollab() {
       }
     });
   }
+  wireConstSentenceTokens();
   for (const btn of state.canvas.querySelectorAll("[data-collab-lens]")) {
     btn.addEventListener("click", () => {
       const next = btn.getAttribute("data-collab-lens") || "all";
-      if (next === state.collabLens && state.collabTeamFilter === "all") return;
+      if (next === state.collabLens && state.collabTeamFilter === "all") { closeConstSentenceMenus(); return; }
       state.collabLens = next;
       state.collabTeamFilter = "all";
       render({ instant: true });
@@ -9882,10 +10109,10 @@ function wireCollab() {
       render({ instant: true });
     });
   }
-  for (const sel of state.canvas.querySelectorAll("[data-collab-sort]")) {
-    sel.addEventListener("change", () => {
-      const next = sel.value || "cluster";
-      if (next === state.collabSort) return;
+  for (const btn of state.canvas.querySelectorAll("[data-collab-sort-option]")) {
+    btn.addEventListener("click", () => {
+      const next = btn.getAttribute("data-collab-sort-option") || "cluster";
+      if (next === state.collabSort) { closeConstSentenceMenus(); return; }
       state.collabSort = next;
       render({ instant: true });
     });

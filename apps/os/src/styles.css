@@ -7809,118 +7809,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   background: transparent;
   border-top: 1px dashed rgba(var(--ink-rgb),0.38);
 }
-/* map lens row — all / relies / works / shared. Re-weights the same map
-   (control-as-claim), so it reads as a claim selector, not a view toggle. */
-.ac-network-scope-row,
-.ac-map-layout-row,
-.ac-lens-row {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.ac-network-scope-row > span,
-.ac-map-layout-row > span,
-.ac-lens-row > span {
-  color: rgba(var(--ink-rgb),0.58);
-  font-family: var(--font-mono);
-  font-size: 7.6px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-.ac-network-scope-btn {
-  appearance: none;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  padding: 3px 0 4px;
-  border: 0;
-  border-bottom: 1px solid transparent;
-  background: transparent;
-  color: var(--alchemy-ink-mute);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  text-transform: lowercase;
-}
-.ac-network-scope-btn strong {
-  color: inherit;
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-.ac-network-scope-btn em {
-  color: rgba(var(--ink-rgb),0.52);
-  font-size: 9px;
-  font-style: normal;
-}
-.ac-network-scope-btn:hover {
-  color: var(--alchemy-paper-warm);
-}
-.ac-network-scope-btn[aria-checked="true"] {
-  border-color: var(--alchemy-oxide-bright);
-  color: var(--alchemy-paper-warm);
-}
-.ac-network-scope-btn[aria-checked="true"] strong {
-  font-weight: 900;
-}
-.ac-network-scope-btn[aria-checked="true"] em {
-  color: var(--alchemy-oxide-bright);
-}
-.ac-map-layout-btn {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  border: 0;
-  border-bottom: 1px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--alchemy-ink-mute);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0;
-  line-height: 1;
-  padding: 3px 0 4px;
-  text-transform: lowercase;
-  transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
-}
-.ac-map-layout-btn:hover {
-  color: var(--alchemy-paper-warm);
-}
-.ac-map-layout-btn[aria-checked="true"] {
-  border-color: rgba(214,189,134,0.82);
-  background: transparent;
-  color: var(--alchemy-paper-warm);
-  font-weight: 800;
-}
-.ac-lens-btn {
-  appearance: none; display: inline-flex; align-items: baseline; gap: 7px;
-  background: transparent; border: 0; border-bottom: 1px solid transparent;
-  border-radius: 0; padding: 3px 0 4px; cursor: pointer;
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.03em; text-transform: lowercase;
-  color: var(--alchemy-ink-mute); transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
-}
-.ac-lens-btn span { white-space: nowrap; }
-.ac-lens-btn em {
-  font-style: normal;
-  color: rgba(193,168,114,0.78);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-}
-.ac-lens-btn:hover { color: var(--alchemy-paper-warm); }
-.ac-lens-btn[aria-checked="true"] { border-color: var(--alchemy-oxide-bright); color: var(--alchemy-oxide-bright); background: transparent; font-weight: 800; }
-.ac-lens-btn[aria-checked="true"] em { color: var(--alchemy-paper-warm); }
-.ac-lens-btn.is-empty {
-  color: rgba(var(--ink-rgb),0.56);
-}
-.ac-lens-btn.is-empty em {
-  color: rgba(var(--ink-rgb),0.58);
-}
-.ac-lens-btn.is-empty[aria-checked="true"] {
-  border-color: rgba(193,168,114,0.46);
-  background: transparent;
-  color: var(--alchemy-paper-warm);
-}
+/* (The map's graph/layout/lens rows were replaced by the sentence bar —
+   see "Sentence bar" in the cohort control band section.) */
 .ac-people-stage {
   min-height: 620px;
 }
@@ -15246,10 +15136,11 @@ body::before {
    collab). Each filter group sits in a quiet rail: faint alpha fill,
    hairline border — same surface language as the cards below. The
    active option is a softly lifted thumb; the oxide underline (shared
-   with the view tabs) is the real active signal. Group labels
-   (graph / layout / lines / include) sit inside the rail's left edge
-   as field prefixes. Oxide stays reserved: membership tier, counts,
-   the live dot, and the one action button. */
+   with the view tabs) is the real active signal. Group labels (include)
+   sit inside the rail's left edge as field prefixes. Oxide stays
+   reserved: membership tier, counts, the live dot, and the one action
+   button. (The constellation map's graph/layout/lines rails are the
+   sentence bar now — see below.) */
 
 .alch-view-controls {
   gap: 8px 12px;
@@ -15258,10 +15149,8 @@ body::before {
 }
 
 /* The rails — every button group becomes one quiet trough: a faint
-   wash and a hairline, nothing carved. */
-.alch-view-controls .ac-network-scope-row,
-.alch-view-controls .ac-map-layout-row,
-.alch-view-controls .ac-lens-row,
+   wash and a hairline, nothing carved. (The constellation map's three
+   rails became the sentence bar below.) */
 .alch-view-controls .alch-journey-filters,
 .alch-view-controls .alch-shapes-filter,
 .alch-view-controls .cb-lenses {
@@ -15279,9 +15168,6 @@ body::before {
 }
 
 /* Etched field prefixes — sit inside the rail's left edge */
-.alch-view-controls .ac-network-scope-row > span,
-.alch-view-controls .ac-map-layout-row > span,
-.alch-view-controls .ac-lens-row > span,
 .alch-view-controls .ajf-label {
   padding: 0 6px 0 10px;
   font-family: var(--ed-mono, var(--font-mono));
@@ -15292,9 +15178,6 @@ body::before {
 }
 
 /* Segments — one structure for every filter/lens/toggle button */
-.alch-view-controls .ac-network-scope-btn,
-.alch-view-controls .ac-map-layout-btn,
-.alch-view-controls .ac-lens-btn,
 .alch-view-controls .ajf-toggle,
 .alch-view-controls .alch-shapes-chip,
 .alch-view-controls .cb-lens {
@@ -15327,20 +15210,8 @@ body::before {
     transform 150ms ease-out;
 }
 
-/* Scope buttons wrap labels in <strong>; weight follows button state */
-.alch-view-controls .ac-network-scope-btn strong {
-  font-size: inherit;
-  font-weight: inherit;
-  color: inherit;
-}
-/* Hint <em> text is too verbose for a compact rail */
-.alch-view-controls .ac-network-scope-btn em { display: none; }
-
 /* Hover — proto-thumb: a faint version of the raised state so the glass
    reads as responsive before commit */
-.alch-view-controls .ac-network-scope-btn:hover,
-.alch-view-controls .ac-map-layout-btn:hover,
-.alch-view-controls .ac-lens-btn:hover,
 .alch-view-controls .ajf-toggle:hover,
 .alch-view-controls .alch-shapes-chip:hover,
 .alch-view-controls .cb-lens:hover {
@@ -15351,18 +15222,12 @@ body::before {
   transform: none;
 }
 /* Press — glass gives slightly */
-.alch-view-controls .ac-network-scope-btn:active,
-.alch-view-controls .ac-map-layout-btn:active,
-.alch-view-controls .ac-lens-btn:active,
 .alch-view-controls .ajf-toggle:active,
 .alch-view-controls .alch-shapes-chip:active,
 .alch-view-controls .cb-lens:active {
   transform: scale(0.97);
 }
 /* Designed focus — oxide ring hugging the segment */
-.alch-view-controls .ac-network-scope-btn:focus-visible,
-.alch-view-controls .ac-map-layout-btn:focus-visible,
-.alch-view-controls .ac-lens-btn:focus-visible,
 .alch-view-controls .ajf-toggle:focus-visible,
 .alch-view-controls .alch-shapes-chip:focus-visible,
 .alch-view-controls .cb-lens:focus-visible {
@@ -15375,9 +15240,6 @@ body::before {
    The micro oxide underline (::after) is the signature — the same
    "active = oxide underline" the view tabs above carry, scaled down
    to thumb size. */
-.alch-view-controls .ac-network-scope-btn[aria-checked="true"],
-.alch-view-controls .ac-map-layout-btn[aria-checked="true"],
-.alch-view-controls .ac-lens-btn[aria-checked="true"],
 .alch-view-controls .ajf-toggle.is-on,
 .alch-view-controls .alch-shapes-chip[aria-selected="true"],
 .alch-view-controls .cb-lens[aria-pressed="true"] {
@@ -15393,9 +15255,6 @@ body::before {
 }
 /* (ajf-toggle excluded — its multi-select state dot already carries the
    oxide signal; tick + dot would double-mark one 26px thumb) */
-.alch-view-controls .ac-network-scope-btn[aria-checked="true"]::after,
-.alch-view-controls .ac-map-layout-btn[aria-checked="true"]::after,
-.alch-view-controls .ac-lens-btn[aria-checked="true"]::after,
 .alch-view-controls .alch-shapes-chip[aria-selected="true"]::after,
 .alch-view-controls .cb-lens[aria-pressed="true"]::after {
   content: "";
@@ -15426,22 +15285,6 @@ body::before {
 .alch-view-controls .ajf-toggle.is-on::before {
   background: var(--alchemy-oxide-bright);
   box-shadow: 0 0 5px rgba(217, 83, 54, 0.55);
-}
-
-/* Empty lens — brass-tinted thumb keeps "no data of this type" distinct
-   from merely inactive; its tick goes brass too */
-.alch-view-controls .ac-lens-btn.is-empty { color: rgba(var(--ink-rgb), 0.36); }
-.alch-view-controls .ac-lens-btn.is-empty[aria-checked="true"] {
-  color: rgba(var(--ink-rgb), 0.62);
-  background: linear-gradient(rgba(193, 168, 114, 0.11), rgba(193, 168, 114, 0.06));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 0 0 1px rgba(193, 168, 114, 0.20),
-    0 1px 2px rgba(0, 0, 0, 0.18);
-}
-.alch-view-controls .ac-lens-btn.is-empty[aria-checked="true"]::after {
-  background: rgba(193, 168, 114, 0.85);
-  box-shadow: 0 0 5px rgba(193, 168, 114, 0.45);
 }
 
 /* Counts — quiet at rest, oxide-lit on the active thumb */
@@ -15482,6 +15325,272 @@ body::before {
   background: rgba(180, 58, 25, 0.10);
 }
 
+/* ── Sentence bar (constellation map/ring) ─────────────────────────
+   The view controls read as one sentence: "showing projects as wells ·
+   lined by all 76 · backed by 9 on record + 67 unconfirmed". Connector
+   words are quiet sans prose; each swappable word is a stateful token
+   (label = trigger = current value) opening a listbox whose options
+   carry their consequence (hint + live count). The evidence chips are
+   the old LINE SOURCE legend relocated into the sentence — same
+   data-legend-edge hover-isolate contract, plus click-to-pin. */
+.ac-sentence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 8px;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: rgba(var(--ink-rgb), 0.52);
+}
+.ac-sent-word { letter-spacing: 0.01em; white-space: nowrap; }
+.ac-sent-unit { position: relative; display: inline-flex; }
+.ac-sent-tok,
+.ac-sent-evi {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 3px 11px;
+  border: 1px solid rgba(var(--ink-rgb), 0.13);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.05));
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  line-height: 1;
+  color: var(--alchemy-paper-warm);
+  cursor: pointer;
+  transition:
+    color 150ms ease-out,
+    background 150ms ease-out,
+    border-color 150ms ease-out,
+    box-shadow 150ms ease-out,
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+}
+.ac-sent-tok em,
+.ac-sent-evi em {
+  font-style: normal;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--alchemy-oxide-bright);
+}
+.ac-sent-tok:hover,
+.ac-sent-evi:hover {
+  border-color: rgba(var(--ink-rgb), 0.24);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.07), rgba(var(--ink-rgb), 0.035));
+}
+.ac-sent-tok:active,
+.ac-sent-evi:active { transform: scale(0.97); }
+.ac-sent-tok:focus-visible,
+.ac-sent-evi:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright);
+  outline-offset: 1px;
+}
+.ac-sent-chev {
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4.5px solid rgba(var(--ink-rgb), 0.45);
+  transition: transform 150ms ease-out;
+}
+.ac-sent-tok[aria-expanded="true"] {
+  color: var(--alchemy-paper-warm);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.13), rgba(var(--ink-rgb), 0.065));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.20);
+}
+.ac-sent-tok[aria-expanded="true"] .ac-sent-chev { transform: rotate(180deg); }
+
+/* The listbox — same liquid-glass material as the stage tooltip. Enter
+   eases in (expo-out); exit is instant, like a context menu. */
+.ac-sent-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 80;
+  min-width: 252px;
+  max-width: min(320px, 84vw);
+  padding: 5px;
+  border: 1px solid var(--lg-border);
+  border-radius: 10px;
+  background: var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+  animation: ac-sent-menu-in 160ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+@keyframes ac-sent-menu-in {
+  from { opacity: 0; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-sent-menu { animation: none; }
+}
+.ac-sent-opt {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  font-family: var(--ed-mono, var(--font-mono));
+  cursor: pointer;
+  transition: background 130ms ease-out;
+}
+.ac-sent-opt + .ac-sent-opt { margin-top: 1px; }
+.ac-sent-opt:hover { background: rgba(var(--ink-rgb), 0.06); }
+.ac-sent-opt:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright);
+  outline-offset: -1px;
+}
+.ac-sent-opt-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ac-sent-opt b {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: rgba(var(--ink-rgb), 0.66);
+}
+.ac-sent-opt small {
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
+  color: rgba(var(--ink-rgb), 0.48);
+}
+.ac-sent-opt em {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--alchemy-oxide-bright);
+}
+.ac-sent-opt[aria-selected="true"] {
+  background: rgba(var(--ink-rgb), 0.07);
+  box-shadow: inset 2px 0 0 var(--alchemy-oxide-bright);
+}
+.ac-sent-opt[aria-selected="true"] b { color: var(--alchemy-paper-warm); }
+.ac-sent-opt.is-empty b { color: rgba(var(--ink-rgb), 0.36); }
+.ac-sent-opt.is-empty em { color: rgba(193, 168, 114, 0.75); }
+
+/* Evidence chips — the line specimens are drawn exactly as the map draws
+   them (gold solid record / dotted ink mention), so the chip is legend
+   and control at once. Pinned = the band's active-thumb recipe.
+   Scope the line-specimen <i> to the tier chips ONLY: the journey state
+   dot (.ac-sent-dot) and the clear glyph (.ac-sent-x) are also <i> inside
+   .ac-sent-evi, and a bare `.ac-sent-evi i` (0,1,1) would out-specify
+   their single-class rules and collapse them to a 24px×0 box. */
+.ac-sent-evi.is-typed i,
+.ac-sent-evi.is-profile i {
+  display: inline-block;
+  width: 24px;
+  height: 0;
+}
+.ac-sent-evi.is-typed i {
+  border-top: 3px solid rgba(226, 207, 162, 0.96);
+  box-shadow: 0 0 12px rgba(226, 207, 162, 0.22);
+}
+.ac-sent-evi.is-profile i {
+  border-top: 1.5px dotted rgba(var(--ink-rgb), 0.5);
+}
+.ac-sent-evi {
+  position: relative;
+}
+.ac-sent-evi[aria-pressed="true"]:not(.is-include) {
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.13), rgba(var(--ink-rgb), 0.065));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(var(--ink-rgb), 0.10),
+    0 1px 2px rgba(0, 0, 0, 0.20);
+}
+.ac-sent-evi[aria-pressed="true"]:not(.is-include)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 10px;
+  height: 1.5px;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  background: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 4px rgba(217, 83, 54, 0.45);
+}
+/* One chip pinned → its unpinned siblings recede, mirroring the canvas.
+   (Include chips are multi-select: an off chip recedes the same way.) */
+.ac-sentence:has(.ac-sent-evi:not(.is-include)[aria-pressed="true"]) .ac-sent-evi:not(.is-include)[aria-pressed="false"],
+.ac-sentence .ac-sent-evi.is-include[aria-pressed="false"] {
+  opacity: 0.55;
+}
+
+/* Include chips (journey) — multi-select; the oxide state dot is the
+   on/off signal, same vocabulary as the old ajf-toggle. */
+.ac-sent-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.26);
+  transition: background 150ms ease-out, box-shadow 150ms ease-out;
+}
+.ac-sent-evi.is-include[aria-pressed="true"] .ac-sent-dot {
+  background: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 5px rgba(217, 83, 54, 0.55);
+}
+
+/* Domain chips (product layer) — the colored dot is the same coding the
+   tiles below wear. Scoped colors: the legend-scoped .acl-dot rules don't
+   reach into the sentence bar. */
+.ac-sent-evi .acl-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.ac-sent-evi .acl-dot-tee    { background: #C0492E; }
+.ac-sent-evi .acl-dot-ai     { background: #D9913D; }
+.ac-sent-evi .acl-dot-crypto { background: #9A5BA6; }
+.ac-sent-evi .acl-dot-app-ux { background: #3F9B8E; }
+
+/* Clearable chips (active bottleneck / team filter) — an applied filter
+   reads oxide-warm, kin to the selection chip; the × is the affordance. */
+.ac-sent-evi.is-clearable {
+  border-color: rgba(217, 83, 54, 0.38);
+  color: var(--alchemy-paper-warm);
+}
+.ac-sent-evi.is-clearable:hover { border-color: rgba(217, 83, 54, 0.62); }
+.ac-sent-x {
+  margin-left: 2px;
+  font-style: normal;
+  color: rgba(var(--ink-rgb), 0.5);
+}
+.ac-sent-evi.is-clearable:hover .ac-sent-x { color: var(--alchemy-oxide-bright); }
+
+/* Plain stated fact inside a sentence (no control affordance). */
+.ac-sent-fact {
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--alchemy-paper-warm);
+}
+
 /* Collab actions — harmonize the sort select with the rail material;
    the intake button keeps its own action treatment (it commits, the
    rails only re-scope) but shares the band height. */
@@ -15517,20 +15626,20 @@ body::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .alch-view-controls .ac-network-scope-btn,
-  .alch-view-controls .ac-map-layout-btn,
-  .alch-view-controls .ac-lens-btn,
   .alch-view-controls .ajf-toggle,
   .alch-view-controls .alch-shapes-chip,
-  .alch-view-controls .cb-lens {
+  .alch-view-controls .cb-lens,
+  .ac-sent-tok,
+  .ac-sent-evi,
+  .ac-sent-chev,
+  .ac-sent-opt {
     transition: none;
   }
-  .alch-view-controls .ac-network-scope-btn:active,
-  .alch-view-controls .ac-map-layout-btn:active,
-  .alch-view-controls .ac-lens-btn:active,
   .alch-view-controls .ajf-toggle:active,
   .alch-view-controls .alch-shapes-chip:active,
-  .alch-view-controls .cb-lens:active {
+  .alch-view-controls .cb-lens:active,
+  .ac-sent-tok:active,
+  .ac-sent-evi:active {
     transform: none;
   }
 }
@@ -15618,15 +15727,28 @@ body::before {
   stroke-width: 1.3;
 }
 
-/* Product layer — hover a domain key → other domains' tiles recede */
-.alch-const-main:has(.acl-item[data-legend-domain="tee"]:hover) .ac-stack-team:not(.ac-stack-domain-tee),
-.alch-const-main:has(.acl-item[data-legend-domain="tee"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-tee),
-.alch-const-main:has(.acl-item[data-legend-domain="ai"]:hover) .ac-stack-team:not(.ac-stack-domain-ai),
-.alch-const-main:has(.acl-item[data-legend-domain="ai"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-ai),
-.alch-const-main:has(.acl-item[data-legend-domain="crypto"]:hover) .ac-stack-team:not(.ac-stack-domain-crypto),
-.alch-const-main:has(.acl-item[data-legend-domain="crypto"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-crypto),
-.alch-const-main:has(.acl-item[data-legend-domain="app-ux"]:hover) .ac-stack-team:not(.ac-stack-domain-app-ux),
-.alch-const-main:has(.acl-item[data-legend-domain="app-ux"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-app-ux) {
+/* Product layer — hover a domain chip → other domains' tiles recede.
+   The chips live in the sentence bar (outside .alch-const-main), so the
+   :has scope is the cohort page. */
+.alch-cohort-page:has([data-legend-domain="tee"]:hover) .ac-stack-team:not(.ac-stack-domain-tee),
+.alch-cohort-page:has([data-legend-domain="tee"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-tee),
+.alch-cohort-page:has([data-legend-domain="ai"]:hover) .ac-stack-team:not(.ac-stack-domain-ai),
+.alch-cohort-page:has([data-legend-domain="ai"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-ai),
+.alch-cohort-page:has([data-legend-domain="crypto"]:hover) .ac-stack-team:not(.ac-stack-domain-crypto),
+.alch-cohort-page:has([data-legend-domain="crypto"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-crypto),
+.alch-cohort-page:has([data-legend-domain="app-ux"]:hover) .ac-stack-team:not(.ac-stack-domain-app-ux),
+.alch-cohort-page:has([data-legend-domain="app-ux"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-app-ux) {
+  opacity: 0.22;
+}
+/* Pinned domain — click commits what chip hover previews (data-domain-pin
+   is written on the stack stage by the sentence bar's domain chips). The
+   :not(:has(...:hover)) gate makes the pin yield WHILE a chip is hovered,
+   so hovering a second domain previews it instead of the pin dimming the
+   hovered domain's own tiles (which would leave everything at 0.22). */
+.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="tee"] .ac-stack-team:not(.ac-stack-domain-tee),
+.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="ai"] .ac-stack-team:not(.ac-stack-domain-ai),
+.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="crypto"] .ac-stack-team:not(.ac-stack-domain-crypto),
+.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="app-ux"] .ac-stack-team:not(.ac-stack-domain-app-ux) {
   opacity: 0.22;
 }
 .alch-const-main .ac-stack-team {
@@ -15797,25 +15919,27 @@ body::before {
   stroke-width: 2.25;
   opacity: 1;
 }
-/* Projects map — hover "relationship record" → mentions recede; hover
-   "profile mention" → records recede and the faint mention tier surfaces.
-   Keep after the base dependency-edge rules so same-specificity all/ring
-   at-rest rules do not restore the default opacity and stroke width. */
-.alch-const-main:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
-.alch-const-main:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+/* Projects map — hover "on record" → mentions recede; hover
+   "unconfirmed" → records recede and the faint mention tier surfaces.
+   The chips live in the sentence bar (outside .alch-const-main), so the
+   :has scope is the cohort page. Keep after the base dependency-edge
+   rules so same-specificity all/ring at-rest rules do not restore the
+   default opacity and stroke width. */
+.alch-cohort-page:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
+.alch-cohort-page:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
   opacity: 0.06;
 }
-.alch-const-main:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
-.alch-const-main:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+.alch-cohort-page:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
+.alch-cohort-page:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
   opacity: 1;
   stroke-width: 1.9;
 }
-.alch-const-main:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
-.alch-const-main:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+.alch-cohort-page:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
+.alch-cohort-page:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
   opacity: 0.07;
 }
-.alch-const-main:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
-.alch-const-main:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+.alch-cohort-page:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
+.alch-cohort-page:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
   opacity: 0.95;
   stroke: rgba(var(--ink-rgb), 0.70);
   stroke-width: 1.05;
@@ -15833,6 +15957,31 @@ body::before {
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy.ac-edge-meaning-unknown {
   stroke: rgba(var(--ink-rgb),0.45);
   stroke-dasharray: 2 5;
+}
+/* Pinned line-source tier — click commits what chip hover previews.
+   data-edge-tier is written on the stage by the sentence bar's evidence
+   chips. The at-rest lens rules carry :not([data-hover-active]):not(
+   [data-selection-active]) (specificity 0,7,1) and data-lens="all" is the
+   DEFAULT, so a bare [data-edge-tier] pin (0,5,1) would LOSE the cascade
+   and the click would silently no-op in the most common state. We mirror
+   the at-rest guards here (to out-rank them and to yield to node hover /
+   selection like they do), and gate on :not(:has([data-legend-edge]
+   :hover)) so a pin yields to an active chip hover-preview of the other
+   tier. */
+.alch-cohort-page:not(:has([data-legend-edge]:hover)) .alch-constellation-stage[data-edge-tier="record"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.06;
+}
+.alch-cohort-page:not(:has([data-legend-edge]:hover)) .alch-constellation-stage[data-edge-tier="record"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 1;
+  stroke-width: 1.9;
+}
+.alch-cohort-page:not(:has([data-legend-edge]:hover)) .alch-constellation-stage[data-edge-tier="mention"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 0.07;
+}
+.alch-cohort-page:not(:has([data-legend-edge]:hover)) .alch-constellation-stage[data-edge-tier="mention"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.95;
+  stroke: rgba(var(--ink-rgb), 0.70);
+  stroke-width: 1.05;
 }
 .acl-swatch-dependency {
   background: rgba(193,168,114,0.65);

@@ -203,6 +203,133 @@ body .alch-shape-overlay { display: block !important; }
   border-color: rgba(208, 83, 50, 0.55);
 }
 
+/* ── sentence bar — "listing teams & projects 41 · cohort teams 32" ──
+   The kind tabs + membership chips read as one claim; each swappable word
+   is a stateful token opening a listbox with counts + meanings. Mirrors
+   the OS app's cohort sentence grammar. */
+.cohort-kind-filter {
+  align-items: center;
+  gap: 7px;
+  font-size: var(--t-12, 12px);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: var(--ink-4);
+}
+.ac-sent-word { white-space: nowrap; }
+.ac-sent-unit { position: relative; display: inline-flex; }
+.ac-sent-tok {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 3px 11px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: rgba(245, 243, 238, 0.03);
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  line-height: 1;
+  color: var(--ink-1);
+  cursor: pointer;
+  transition: color var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease), background var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+}
+.ac-sent-tok em {
+  font-style: normal;
+  font-weight: 600;
+  font-feature-settings: var(--num-feat);
+  color: #d05332;
+}
+.ac-sent-tok:hover { border-color: var(--ink-3); background: rgba(245, 243, 238, 0.05); }
+.ac-sent-tok:active { transform: scale(0.97); }
+.ac-sent-tok:focus-visible { outline: 1px solid rgba(208, 83, 50, 0.78); outline-offset: 2px; }
+.ac-sent-chev {
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4.5px solid var(--ink-4);
+  transition: transform var(--dur-base) var(--ease);
+}
+.ac-sent-tok[aria-expanded="true"] { border-color: var(--ink-3); background: rgba(245, 243, 238, 0.06); }
+.ac-sent-tok[aria-expanded="true"] .ac-sent-chev { transform: rotate(180deg); }
+.ac-sent-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 248px;
+  max-width: min(320px, 84vw);
+  padding: 5px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: #2b2726;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+  animation: ac-sent-menu-in 160ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+@keyframes ac-sent-menu-in {
+  from { opacity: 0; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-sent-menu { animation: none; }
+  .ac-sent-tok, .ac-sent-chev, .ac-sent-opt { transition: none; }
+}
+.ac-sent-opt {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background var(--dur-base) var(--ease);
+}
+.ac-sent-opt + .ac-sent-opt { margin-top: 1px; }
+.ac-sent-opt:hover { background: rgba(245, 243, 238, 0.05); }
+.ac-sent-opt:focus-visible { outline: 1px solid rgba(208, 83, 50, 0.78); outline-offset: -1px; }
+.ac-sent-opt-main { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.ac-sent-opt b {
+  font-size: var(--t-11);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--ink-3);
+}
+.ac-sent-opt small {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
+  color: var(--ink-4);
+}
+.ac-sent-opt em {
+  font-style: normal;
+  font-size: var(--t-11);
+  font-weight: 600;
+  font-feature-settings: var(--num-feat);
+  color: #d05332;
+}
+.ac-sent-opt[aria-selected="true"] {
+  background: rgba(245, 243, 238, 0.05);
+  box-shadow: inset 2px 0 0 #d05332;
+}
+.ac-sent-opt[aria-selected="true"] b { color: var(--ink-1); }
+/* Detail view keeps the kind token (it exits the dossier) but the
+   membership token only applies to the grid. */
+.cohort-page-head.is-detail .ac-sent-unit[data-unit="membership"],
+.cohort-page-head.is-detail .ac-sent-unit[data-unit="membership"] + .ac-sent-word,
+.cohort-page-head.is-detail .ac-sent-word:has(+ .ac-sent-unit[data-unit="membership"]) {
+  display: none;
+}
+
 .cohort-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
