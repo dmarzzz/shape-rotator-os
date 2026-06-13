@@ -651,11 +651,6 @@ function drawHeadcountStrip(ctx, rows, start, numDays, gridX) {
     ctx.lineTo(x1, top);
   }
   ctx.stroke();
-  ctx.font = `500 9px "JetBrains Mono", "Berkeley Mono", ui-monospace, monospace`;
-  ctx.fillStyle = "rgba(245, 243, 238, 0.55)";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(`on-site / day · peak ${maxCount}`, gridX + 6, stripY + 10);
   ctx.restore();
 }
 
