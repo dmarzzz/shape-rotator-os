@@ -434,7 +434,7 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
     ctx.textAlign = "left";
   }
 
-  // ── Footer: program span + legend ──────────────────────────────────
+  // ── Footer: program span ───────────────────────────────────────────
   const footerY = CAL_HEADER_H + gridH + 18;
   ctx.font = `400 10px "JetBrains Mono", ui-monospace, monospace`;
   ctx.fillStyle = CAL_INK_3;
@@ -442,54 +442,6 @@ export function drawCalendar(ctx, W, H, rows, start, end, numDays) {
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
   ctx.fillText(`shape rotator · summer 2026 · ${fmtShortDate(start)} – ${fmtShortDate(end)}`, 20, footerY);
-
-  // Legend — swatches mirror the in-grid rendering so the key actually
-  // describes what the eye sees in the bars.
-  const legX = 20;
-  const legY = footerY + 22;
-  // present swatch — mirrors the saturated body fill used in person rows
-  // (s=0.78, l=0.62) so the legend matches what the eye sees in the grid.
-  ctx.globalAlpha = 1;
-  const presentGrad = ctx.createLinearGradient(legX, legY - 6, legX, legY + 2);
-  presentGrad.addColorStop(0, hsl(0.06, 0.78, 0.68, 1));
-  presentGrad.addColorStop(1, hsl(0.10, 0.78, 0.54, 1));
-  ctx.fillStyle = presentGrad;
-  ctx.fillRect(legX, legY - 6, 30, 8);
-  ctx.fillStyle = "rgba(255,255,255,0.30)";
-  ctx.fillRect(legX, legY - 6, 30, 1);
-  ctx.fillStyle = CAL_INK_1;
-  ctx.globalAlpha = 0.85;
-  ctx.fillText("present", legX + 36, legY);
-  // absent swatch — solid dark base + bright stripes, matching bars
-  const absX = legX + 90;
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = CAL_ABS_BASE;
-  ctx.fillRect(absX, legY - 6, 30, 8);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(absX, legY - 6, 30, 8);
-  ctx.clip();
-  ctx.strokeStyle = "rgba(245, 243, 238, 0.55)";
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  for (let i = -8; i < 38; i += 5) {
-    ctx.moveTo(absX + i, legY + 2);
-    ctx.lineTo(absX + i + 8, legY - 6);
-  }
-  ctx.stroke();
-  ctx.restore();
-  ctx.fillStyle = CAL_INK_1;
-  ctx.globalAlpha = 0.85;
-  ctx.fillText("absent", absX + 36, legY);
-  const todX = absX + 90;
-  ctx.strokeStyle = CAL_INK_1;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(todX + 8, legY - 8);
-  ctx.lineTo(todX + 8, legY + 4);
-  ctx.stroke();
-  ctx.fillStyle = CAL_INK_2;
-  ctx.fillText("today", todX + 18, legY);
   ctx.globalAlpha = 1;
 }
 
