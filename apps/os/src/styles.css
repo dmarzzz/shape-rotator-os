@@ -22446,3 +22446,120 @@ body[data-active-tab="network"] .net-subtab:focus-visible {
     margin-top: 40px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * TRAILHEAD STRIP — detail-page nav consolidation (2026-06-13)
+ *
+ * Collapses the old three-island detail bar (back pill · record-id tag ·
+ * edit-on-github pill, with a heavy rule + ~60px dead band) into one thin
+ * in-flow nav strip:   ← back   cohort / bitrouter · team
+ *
+ *  · The record id is RE-ROLED from a duplicate of the rail <h2> title into
+ *    a location/path segment (the rail h2 is name||record_id; a naive cut
+ *    loses the id glance when a team has a distinct display name).
+ *  · edit-on-github moves OUT of the bar into the read header's exploreBar
+ *    (its icon-square host) — see alchemy.js EXPLORE_ICONS.source.
+ *  · Kills the COOK-v2 space hog (border + 20px pad + 40px margin) → the
+ *    sigil plate rises into first view (~75px reclaimed).
+ *
+ * Scoped via .alch-trailbar so the bare .alch-detail-bar rule (~12907) still
+ * serves the third consumer with no rail beneath it: renderTimelineMissing-
+ * Detail. Appended last so it wins source-order over the base / COOK-v2 /
+ * COOK-v3 generations without !important.
+ * ═══════════════════════════════════════════════════════════════════ */
+.alch-detail-bar.alch-trailbar {
+  border-bottom: none;
+  padding: 0;
+  margin: 0 0 14px;
+  gap: 14px;
+  min-height: 0;
+  align-items: center;
+}
+
+/* back — the literal word stays the spoken click target (never euphemized);
+   #alch-detail-back id is preserved so closeDetail wiring is untouched.
+   Icon-led rounded rect (shape grammar: not a 999px pill on a word). */
+.alch-trailbar .alch-trail-back {
+  display: inline-flex; align-items: center; gap: 7px;
+  appearance: none; cursor: pointer;
+  padding: 5px 11px 5px 9px;
+  border: 1px solid rgba(var(--ink-rgb), 0.16);
+  border-radius: 8px;
+  background: rgba(var(--ink-rgb), 0.018);
+  color: rgba(var(--ink-rgb), 0.74);
+  font-family: var(--ed-mono);
+  font-size: 10.5px; letter-spacing: 0.20em; text-transform: lowercase;
+  transition: color 200ms cubic-bezier(0.19,1,0.22,1),
+              border-color 200ms cubic-bezier(0.19,1,0.22,1),
+              background 200ms cubic-bezier(0.19,1,0.22,1),
+              transform 150ms cubic-bezier(0.19,1,0.22,1);
+}
+.alch-trailbar .alch-trail-back .atb-glyph { display: inline-flex; }
+.alch-trailbar .alch-trail-back .atb-glyph svg {
+  display: block;
+  transition: transform 200ms cubic-bezier(0.19,1,0.22,1);
+}
+.alch-trailbar .alch-trail-back:hover {
+  color: var(--alchemy-oxide-bright);
+  border-color: rgba(180,58,25,0.50);          /* #B43A19 @ .50 — house oxide */
+  background: rgba(180,58,25,0.07);
+}
+.alch-trailbar .alch-trail-back:hover .atb-glyph svg { transform: translateX(-2px); }
+.alch-trailbar .alch-trail-back:active { transform: scale(0.97); }
+.alch-trailbar .alch-trail-back:focus-visible {
+  outline: none;
+  border-color: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 0 2px rgba(180,58,25,0.35);
+}
+/* light theme: 0.16 border washes out on cream (mirrors the explore-btn fix) */
+html[data-theme="light"] .alch-trailbar .alch-trail-back {
+  border-color: rgba(var(--ink-rgb), 0.30);
+  background: rgba(var(--ink-rgb), 0.04);
+}
+
+/* the trail — fills the former void with real meaning. Non-interactive: the
+   word "back" is the only click target (no redundant second exit, no
+   predictability lie). record_id re-roled to a location/path segment. */
+.alch-trailbar .alch-trail-path {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  min-width: 0; overflow: hidden;
+  font-family: var(--ed-mono);
+  font-size: 11px; letter-spacing: 0.18em; text-transform: lowercase;
+  line-height: 1;
+}
+/* the root crumb ("cohort" / "constellation") is a real back affordance —
+   clicking it returns to the directory (wired to closeDetail). Button reset
+   + interactive hover/focus; the here/kind segments stay inert spans. */
+.alch-trailbar .atb-root {
+  appearance: none; background: none; border: none; padding: 0; margin: 0;
+  font: inherit; letter-spacing: inherit; text-transform: inherit;
+  color: rgba(var(--ink-rgb), 0.52);
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.19,1,0.22,1);
+}
+.alch-trailbar .atb-root:hover { color: var(--alchemy-oxide-bright); }
+.alch-trailbar .atb-root:focus-visible {
+  outline: 2px solid var(--alchemy-oxide-bright);
+  outline-offset: 3px; border-radius: 2px;
+  color: var(--alchemy-oxide-bright);
+}
+.alch-trailbar .atb-sep  { color: rgba(var(--ink-rgb), 0.30); }
+.alch-trailbar .atb-here {
+  color: rgba(var(--ink-rgb), 0.84);          /* the path anchor — brightest */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40ch;
+}
+.alch-trailbar .atb-kind { color: rgba(var(--ink-rgb), 0.52); }
+
+@media (prefers-reduced-motion: reduce) {
+  .alch-trailbar .alch-trail-back,
+  .alch-trailbar .alch-trail-back .atb-glyph svg { transition: color 200ms linear; }
+  .alch-trailbar .alch-trail-back:hover .atb-glyph svg { transform: none; }
+  .alch-trailbar .alch-trail-back:active { transform: none; }
+}
+
+/* narrow canvas: drop the literal word; glyph + crumb still read. One line,
+   never wraps into a second band. */
+@media (max-width: 560px) {
+  .alch-trailbar .alch-trail-back .atb-word { display: none; }
+  .alch-trailbar .alch-trail-back { padding: 6px; }
+}

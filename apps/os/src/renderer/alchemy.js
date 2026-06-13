@@ -6664,6 +6664,23 @@ function closeDetail() {
   render();
 }
 
+// Click the bare canvas background — the gutter / empty space around the
+// dossier, i.e. anything outside the box — to pop back to the directory.
+// A cheap escape hatch on top of the back button + breadcrumb. Bound once:
+// state.canvas survives innerHTML swaps, so a per-render bind would stack.
+// Guarded so it only fires while a detail is open and only for clicks that
+// land on the canvas ITSELF — never the dossier, the nav strip, or any
+// interactive child (those are deeper targets, so e.target !== canvas).
+function wireDetailDismiss() {
+  if (state.detailDismissBound) return;
+  state.detailDismissBound = true;
+  state.canvas.addEventListener("click", (e) => {
+    if (!state.detailRecordId) return;
+    if (e.target !== state.canvas) return;
+    closeDetail();
+  });
+}
+
 // ─── constellation hover ─────────────────────────────────────────────
 function wireConstellationHover() {
   wireConstellationModeNav();
@@ -12687,8 +12704,9 @@ function detailLinkForKey(links, key) {
 // "explore" quick row into an icon toolbar that sits in the ledger head
 // — the first actions you see when the read opens. Icon-only
 // (shape-grammar: square buttons, never words inside), each carrying an
-// accessible label + native tooltip. "source" is intentionally absent:
-// the detail bar's "edit on github" link already owns that intent.
+// accessible label + native tooltip. "source" (edit-on-github) lives here
+// as the last icon — the explore bar now owns the source-edit intent that
+// the old detail-bar pill used to carry (the bar is now a nav-only strip).
 // Mirror of EXPLORE_ICONS in apps/web/scripts/cohort.js — keep in sync.
 const EXPLORE_ICONS = {
   calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>',
@@ -12700,6 +12718,9 @@ const EXPLORE_ICONS = {
   demo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>',
   deck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h20"/><path d="M21 3v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3"/><path d="m7 21 5-5 5 5"/></svg>',
   linkedin: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z"/></svg>',
+  // "source" = edit-on-github. A pencil glyph, deliberately distinct from the
+  // github mark above so the two never read as one repeated link in the row.
+  source: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
 };
 
 // In-OS jump (calendar / availability) — jumps to an alchemy page via
@@ -13076,6 +13097,7 @@ function renderTeamDetail(team) {
     exploreLink("website", "Website", detailLinkForKey(links, "website")),
     exploreLink("demo", "Demo", detailLinkForKey(links, "demo")),
     exploreLink("deck", "Deck", detailLinkForKey(links, "deck")),
+    exploreLink("source", "Edit on GitHub", editUrl),
   ]);
   const readSection = renderFlatSection("about / positioning", teamPositioningProse(journey), "alch-detail-priority");
   const assessmentPreview = [
@@ -13090,16 +13112,17 @@ function renderTeamDetail(team) {
     : (dependsFirst ? `depends on ${previewSnippet(dependsFirst, 44)}` : previewSnippet(team.offering));
 
   state.canvas.innerHTML = `
-    <header class="alch-detail-bar">
-      <button class="alch-detail-back" type="button" id="alch-detail-back" aria-label="back to grid">
-        <span aria-hidden="true">←</span>
-        <span>back</span>
+    <header class="alch-detail-bar alch-trailbar">
+      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort grid"}">
+        <span class="atb-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></span>
+        <span class="atb-word">back</span>
       </button>
-      <div class="alch-detail-bar-tag">
-        <span>${escHtml(team.record_id.toUpperCase())}</span>
-        ${team.is_mentor ? `<span class="ct-sep">·</span><span>mentor</span>` : ""}
-      </div>
-      <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
+      <nav class="alch-trail-path" aria-label="location">
+        <button type="button" class="atb-root" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort directory"}">${state.detailReturnMode === "constellation" ? "constellation" : "cohort"}</button>
+        <span class="atb-sep" aria-hidden="true">/</span>
+        <span class="atb-here" aria-current="page">${escHtml(team.record_id.toLowerCase())}</span>
+        ${team.is_mentor ? `<span class="atb-sep" aria-hidden="true">·</span><span class="atb-kind">mentor</span>` : ""}
+      </nav>
     </header>
     ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
 
@@ -13123,6 +13146,8 @@ function renderTeamDetail(team) {
   `;
 
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
+  state.canvas.querySelector(".atb-root")?.addEventListener("click", closeDetail);
+  wireDetailDismiss();
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
   wireDetailJumps(state.canvas);
@@ -13172,6 +13197,7 @@ function renderPersonDetail(person) {
     exploreLink("x", "X", detailLinkForKey(links, "x")),
     exploreLink("website", "Website", detailLinkForKey(links, "website")),
     exploreLink("linkedin", "LinkedIn", detailLinkForKey(links, "linkedin")),
+    exploreLink("source", "Edit on GitHub", editUrl),
   ]);
   const askMeAbout = detailQuickRow(
     "ask me about",
@@ -13223,15 +13249,16 @@ function renderPersonDetail(person) {
     : (secondary.length ? `also contributes: ${previewSnippet(secondary[0].name || secondary[0].record_id, 40)}` : "");
 
   state.canvas.innerHTML = `
-    <header class="alch-detail-bar">
-      <button class="alch-detail-back" type="button" id="alch-detail-back" aria-label="back to grid">
-        <span aria-hidden="true">←</span>
-        <span>back</span>
+    <header class="alch-detail-bar alch-trailbar">
+      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort grid"}">
+        <span class="atb-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></span>
+        <span class="atb-word">back</span>
       </button>
-      <div class="alch-detail-bar-tag">
-        <span>${escHtml(recordId.toUpperCase())}</span>
-      </div>
-      <a href="${escHtml(editUrl)}" data-external class="alch-detail-edit" title="edit this record on github">edit on github →</a>
+      <nav class="alch-trail-path" aria-label="location">
+        <button type="button" class="atb-root" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort directory"}">${state.detailReturnMode === "constellation" ? "constellation" : "cohort"}</button>
+        <span class="atb-sep" aria-hidden="true">/</span>
+        <span class="atb-here" aria-current="page">${escHtml(recordId.toLowerCase())}</span>
+      </nav>
     </header>
     ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
 
@@ -13255,6 +13282,8 @@ function renderPersonDetail(person) {
   `;
 
   state.canvas.querySelector("#alch-detail-back")?.addEventListener("click", closeDetail);
+  state.canvas.querySelector(".atb-root")?.addEventListener("click", closeDetail);
+  wireDetailDismiss();
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
   wireDetailJumps(state.canvas);
