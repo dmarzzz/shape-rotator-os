@@ -60,6 +60,7 @@ import * as Easel from "./easel.js";
 import * as Alchemy from "./alchemy.js";
 import * as Tabs from "./tabs.js";
 import * as Find from "./find.js";
+import * as Glass from "./glass.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
 import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.js";
 
@@ -615,6 +616,7 @@ async function boot() {
   wireTabs();
   Tabs.init();
   Find.init();
+  Glass.init();
   wireAppsGrid();
   initNavHistory();
   wireAtlasOfflinePanel();
