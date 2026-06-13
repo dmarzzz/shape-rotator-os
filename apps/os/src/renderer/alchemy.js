@@ -1585,7 +1585,7 @@ function renderShapes() {
       ${chips}
       ${grid}
       <p class="alch-callout"><strong>cohort directory · v0.2</strong><br/>
-      Each card is a team, project or individual in its current shape (week ${weekNow}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them). The other views above — relationship map, pmf evidence, product layer, collab board — read these same records from different angles.</p>
+      Each card is a team, project or individual in its current shape (week ${weekNow}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them). The other views above — relationship map, pmf evidence, standing, collab board — read these same records from different angles.</p>
     </div>
   `;
   // Sentence tokens (kind + membership) open their menus.
@@ -1936,7 +1936,7 @@ const CONST_VIEWS = [
   { mode: "directory", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', label: "directory", hint: "every team, project & person — the roster" },
   { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "relationship map", hint: "project wells and evidence-backed connections" },
   { mode: "journey", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>', label: "pmf evidence", hint: "coverage of explicit product-market-fit reads" },
-  { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>', label: "product layer", hint: "where projects enter the product stack" },
+  { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "how each team is tracking against its own goals" },
   { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "matrix, intros, and convergence" },
 ];
 function constNormalizeConstellationMode(raw) {
@@ -1966,7 +1966,7 @@ const COHORT_VIEW_DEK = {
   map: "How the cohort connects — declared relationships across ecosystem wells.",
   ring: "Every relationship line at once — the cohort as one ring.",
   journey: "Where each project sits on the road to product-market fit.",
-  stack: "Where each project enters the shared product stack.",
+  stack: "How each team is tracking against its own declared goals.",
   collab: "Who depends on whom, and the intros worth making.",
 };
 
@@ -5248,17 +5248,13 @@ function renderProductStack() {
   const goalModel = constGoalPlanModel(teams);
   const inspectorCtx = { ...baseCtx, stackModel: goalModel };
   const domainPin = "";
-  // Sentence bar — this view tracks teams against their OWN declared goals
-  // (self-referenced standing), not a shared product spectrum.
-  const standCount = goalModel.counts;
+  // Sentence bar frames the view; the standing distribution lives in the
+  // readout below, so it isn't repeated here.
   const sentenceBar = `
     <div class="ac-sentence" role="group" aria-label="team standing summary">
       <span class="ac-sent-word">tracking</span>
       <strong class="ac-sent-fact">${goalModel.tracked.length} teams</strong>
-      <span class="ac-sent-word">against their own goals ·</span>
-      <span class="ac-sent-evi">${standCount.behind} behind</span>
-      <span class="ac-sent-evi">${standCount.onplan} on plan</span>
-      <span class="ac-sent-evi">${standCount.ahead} ahead</span>
+      <span class="ac-sent-word">against their own declared goals</span>
     </div>`;
   const selectionChip = constSelectionChipHtml();
   state.canvas.innerHTML = `

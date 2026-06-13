@@ -8194,7 +8194,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .ac-stack-view.is-goalplan .ac-gp-track { position: relative; height: 22px; min-width: 0; }
 .ac-stack-view.is-goalplan .ac-gp-track::before {
-  content: ""; position: absolute; left: 50%; top: 3px; bottom: 3px; width: 0; border-left: 1px dashed var(--lg-border);
+  content: ""; position: absolute; left: 50%; top: 2px; bottom: 2px; width: 0;
+  border-left: 1px dashed rgba(var(--ink-rgb), 0.22);
 }
 .ac-stack-view.is-goalplan .ac-gp-arrow {
   position: absolute; top: 50%; height: 2px; transform: translateY(-50%);
