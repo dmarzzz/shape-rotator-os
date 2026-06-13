@@ -20,6 +20,19 @@ const contextVault = await importRendererModule("apps/os/src/renderer/context-va
 const shapeEscape = await importRendererModule("packages/shape-ui/src/escape.js");
 const vendoredEscape = await importRendererModule("apps/os/src/vendor/shape-ui/escape.js");
 
+test("shape-ui cohort-card copies stay in sync (package vs OS vendor)", async () => {
+  // The OS renderer loads the vendor copy; packages/shape-ui is the canonical
+  // source. They drifted once — the removed now-overlay popover lived on in the
+  // package copy after the vendor moved to inline peeks. Keep them byte-identical
+  // so editing one copy without the other fails here instead of resurfacing
+  // removed UI in any future package consumer / re-vendor.
+  for (const file of ["cohort-card.js", "cohort-card.css"]) {
+    const pkg = await readFile(path.join(ROOT, "packages/shape-ui/src", file), "utf8");
+    const vendor = await readFile(path.join(ROOT, "apps/os/src/vendor/shape-ui", file), "utf8");
+    assert.equal(pkg, vendor, `${file} differs between packages/shape-ui/src and apps/os/src/vendor/shape-ui — edit BOTH copies`);
+  }
+});
+
 test("cohort timeline source boundary covers snapshot collections that drive insights", async () => {
   const timeline = JSON.parse(await readFile(path.join(ROOT, "apps/os/src/cohort-timeline.json"), "utf8"));
   const collectionPaths = new Map([

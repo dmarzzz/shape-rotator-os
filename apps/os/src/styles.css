@@ -47,13 +47,10 @@ html[data-reduce-motion="1"] *, html[data-reduce-motion="1"] *::before, html[dat
 * { box-sizing: border-box; }
 html, body {
   margin: 0; height: 100vh; overflow: hidden;
-  background: radial-gradient(ellipse 110% 70% at 50% -10%, #2C2728 0%, #231F20 60%, #1A1719 100%);
-  /* The gradient above is a background-IMAGE — the shorthand leaves
-   * background-color transparent, so Chromium's base background (white)
-   * is what composites wherever a frame lands before raster catches up
-   * (page switches, resizes). Pin it to the gradient's outer stop so any
-   * such gap flashes dark instead of white. */
-  background-color: #1A1719;
+  /* Page background (the radial wash + its flash-proof solid color) is
+     declared together lower in this file — search "Page-level radial wash"
+     (#1a1612 → #08070a) — so it wins by source order. Declaring background
+     here too would be dead, so this block keeps only layout + type. */
   color: var(--light-1);
   font-family: var(--font-sans);
   font-size: var(--t-13);
@@ -6137,6 +6134,11 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   --cal-ink-3:     #7a7368;
   --cal-ink-4:     #3a3833;
   --cal-oxide:     #8F220E;
+  /* Today-column wash + glow — keyed off --ink-rgb so they invert with the
+     theme (light mode overrides --ink-rgb to dark ink) instead of staying
+     near-white and disappearing on paper. */
+  --cal-today-band: rgba(var(--ink-rgb), 0.05);
+  --cal-today-glow: rgba(var(--ink-rgb), 0.07);
 }
 /* Light-mode alchemy palette — toggled from the profile header (#130).
    Keeps the oxide accent as the brand color; swaps paper/charcoal so the
@@ -13271,11 +13273,10 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 }
 
 /* ── modals (identity onboarding) ────────────────────────────────── */
-.identity-modal-backdrop {
-  background: rgba(10, 10, 10, 0.80);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
+/* (The .identity-modal-backdrop glass is owned by its canonical rule near
+   the top of this file + the light-theme override below; the stale
+   blur(8px)/near-black duplicate that used to live here silently shadowed
+   it via source order and was removed.) */
 .identity-modal {
   background: var(--ed-bg-1);
   border: 1px solid var(--ed-rule-2);
@@ -19048,11 +19049,10 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"]::before {
   --status-local:   #0E7C8A;
 }
 
-/* The default body background is a literal radial-gradient declared at
- * the very top of this file (`html, body { background: radial-gradient(
- * ... #2C2728 ... #231F20 ... #1A1719 ...) }`) — a hardcoded dark blend
- * that ignores --ed-bg-0. Need a stronger override so the paper bg
- * actually wins in light mode. */
+/* The default page background is the near-black radial wash declared lower
+ * in this file (search "Page-level radial wash": #1a1612 → #08070a). It is a
+ * hardcoded dark blend that ignores --ed-bg-0, so light mode needs this
+ * higher-specificity override for the paper background to actually win. */
 html[data-theme="light"], html[data-theme="light"] body {
   background: radial-gradient(
     ellipse 110% 70% at 50% -10%,
@@ -19061,7 +19061,7 @@ html[data-theme="light"], html[data-theme="light"] body {
     #EAEAEA 100%
   );
   /* Solid fallback under the gradient — same reason as the dark-mode
-   * html,body rule at the top of the file (unpainted regions otherwise
+   * html,body wash lower in this file (unpainted regions otherwise
    * composite as the default white base background). */
   background-color: #EAEAEA;
   color: var(--ed-ink-2);

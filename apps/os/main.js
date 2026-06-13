@@ -1909,7 +1909,18 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
   }
   // github.com/.../releases/download/ is a redirect to objects.githubusercontent.com.
   // Not rate-limited. The followingGet loop below already handles 30x chains.
-  const downloadUrl = `https://github.com/dmarzzz/shape-rotator-os/releases/download/v${version}/${assetName}`;
+  // Derive owner/repo from the bundled app-update.yml (CI stamps it to the
+  // publishing repo) so forks / self-published channels download from their OWN
+  // releases — matching the per-repo publish-owner fix instead of hardcoding
+  // upstream. Falls back to the package default in dev (no app-update.yml).
+  let relOwner = "dmarzzz", relRepo = "shape-rotator-os";
+  try {
+    const cfg = fs.readFileSync(path.join(process.resourcesPath, "app-update.yml"), "utf8");
+    const o = (cfg.match(/^owner:\s*(.+)$/m) || [])[1];
+    const r = (cfg.match(/^repo:\s*(.+)$/m) || [])[1];
+    if (o && r) { relOwner = o.trim(); relRepo = r.trim(); }
+  } catch {}
+  const downloadUrl = `https://github.com/${relOwner}/${relRepo}/releases/download/v${version}/${assetName}`;
 
   // 2) stream the asset to ~/Downloads/<name>.
   const downloads = app.getPath("downloads");

@@ -105,8 +105,12 @@ function mdToPlainText(md, max = 240) {
 function cardPeeks(rec) {
   const about = mdToPlainText(rec?.bio_md);
   const now = String(rec?.now || "").trim();
+  // Inert label, not a control: after the hover popover was removed these
+  // carry no click/keydown handler, so role=button + tabindex=0 only added
+  // dead tab stops that announced as "button" and did nothing. Plain <span>;
+  // data-no-card-click still suppresses parent card-select on a stray click.
   const peek = (key) =>
-    `<span class="alch-card-peek" data-peek="${key}" tabindex="0" role="button" aria-label="${key}" data-no-card-click>${key}</span>`;
+    `<span class="alch-card-peek" data-peek="${key}" data-no-card-click>${key}</span>`;
   const anchors = [];
   if (about) anchors.push(peek("about"));
   if (now) anchors.push(peek("now"));

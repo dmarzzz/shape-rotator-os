@@ -377,8 +377,23 @@ export function mount(container) {
     const t = e.target;
     const tag = t?.tagName?.toUpperCase?.();
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable) return;
+    // An open sentence-bar filter menu owns the arrows: its options are
+    // <button role="option"> (not caught by the tag check above), so without
+    // this guard ←/→ would tear down the menu and cycle the view mid-select.
+    if (t?.closest?.('[role="option"],[role="listbox"],.ac-sent-menu,[aria-haspopup="listbox"]')) return;
+    if (document.querySelector(".ac-sent-menu:not([hidden])")) return;
     if (document.body.dataset.activeTab !== "alchemy") return;
     if (!state.canvas) return;
+    // On the calendar timeline, ←/→ scrub weeks — that's the page's dominant
+    // affordance (big prev/next arrows), which was otherwise keyboard-dead
+    // while the global cycler stole the keys to toggle cal<->presence. The
+    // presence gantt has no week scrubber, so it falls through to tab cycling.
+    if (state.mode === "calendar" && state.calendar?.view === "cal") {
+      const navBtn = state.canvas.querySelector(`[data-c2-nav="${e.key === "ArrowRight" ? "next" : "prev"}"]`);
+      e.preventDefault();
+      if (navBtn && !navBtn.disabled) navBtn.click();
+      return;
+    }
     const strip = state.canvas.querySelector(".alch-page-views, .alch-prog-tabs");
     if (!strip) return;
     const btns = [...strip.querySelectorAll(".alch-page-view-btn, .alch-prog-tab")].filter(b => !b.disabled);
@@ -7546,7 +7561,7 @@ function positionConstTip(stage, tip, e) {
 // Export: PNG via canvas.toDataURL → Electron IPC save dialog. PNG is
 // the most messaging-app-friendly format (renders inline in iMessage,
 // Slack, Discord). PDF as bonus through electron's printToPDF if asked.
-const CAL_DAY_W      = 18;        // pixel width per day column (was 22; tightened so 62-day windows fit common viewports without horizontal scroll)
+const CAL_DAY_W      = 22;        // pixel width per day column — MUST match drawCalendar's column width in cohort-calendar.js (the painter lays out columns at its own 22px; sizing the canvas any tighter clips the right edge). The container scrolls horizontally by design (see note above).
 const CAL_ROW_H      = 32;        // height per person row
 const CAL_HEADER_H   = 148;       // top — concurrent strip + month band + week labels + day numbers
 const CAL_DENSITY_H  = 32;        // height of the concurrent-headcount strip above the grid

@@ -186,52 +186,37 @@
   50%      { filter: drop-shadow(0 6px 20px rgba(143,34,14,0.30)); }
 }
 
-/* Hover layer — the record's `now` line, revealed over the card HEAD
- * (sigil + name: information you already have) so it never covers the
- * actionable member/link rows below. Near-solid veil, hard 3-line
- * ceiling; enter slower than exit with a short intent delay. */
-.alch-card-now {
-  position: absolute;
-  /* Clear of the 112px sigil column: the shape shader paints on a
-   * body-level overlay canvas ABOVE card content, so glass that
-   * intersects the sigil rect gets punched through. The strip sits over
-   * the title text only (known info while reading the now-line). */
-  left: 140px; right: 10px; top: 10px;
-  padding: 8px 10px;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  max-height: calc(3 * 1.5 * 10px + 18px);
-  overflow: hidden;
-  /* Liquid glass: the blur carries legibility over the bright sigil, so
-   * the veil itself can stay lighter and read as glass, not a card. */
-  background: color-mix(in srgb, #181210 72%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  backdrop-filter: blur(14px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 10px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 3px 14px rgba(0, 0, 0, 0.35);
+/* ─── hover peeks: discrete "about · now" points in the title ─────── */
+.alch-card-peeks {
+  display: flex;
+  gap: 6px;
+  margin-top: 3px;
+}
+.alch-card-peek {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
   font-family: var(--ed-mono);
-  font-size: 10px;
-  line-height: 1.5;
-  color: var(--ed-ink-1);
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 130ms ease-out, transform 130ms ease-out;
-}
-.alch-card-now span {
-  margin-right: 8px;
   font-size: 9px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--alchemy-oxide-hot);
+  color: var(--ed-ink-1);
+  opacity: 0.5;
+  background: rgba(241, 236, 231, 0.03);
+  border: 1px solid rgba(241, 236, 231, 0.10);
+  border-radius: 999px;
+  cursor: default;
+  user-select: none;
+  transition: opacity 150ms ease-out, color 150ms ease-out,
+              background 150ms ease-out, border-color 150ms ease-out;
 }
-.alch-card:hover .alch-card-now,
-.alch-card:focus-visible .alch-card-now {
+.alch-card-peek:hover,
+.alch-card-peek:focus-visible {
   opacity: 1;
-  transform: none;
-  transition: opacity 230ms cubic-bezier(0.16, 1, 0.3, 1) 70ms, transform 230ms cubic-bezier(0.16, 1, 0.3, 1) 70ms;
+  color: var(--alchemy-oxide-hot);
+  background: color-mix(in srgb, var(--alchemy-oxide-hot) 12%, transparent);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-hot) 50%, transparent);
+  outline: none;
 }
 
 /* ─── title block ─────────────────────────────────────────────────── */
@@ -421,7 +406,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .alch-card-shape svg { animation: none; }
-  .alch-card-now,
-  .alch-card:hover .alch-card-now,
-  .alch-card:focus-visible .alch-card-now { transition: none; transform: none; }
+  .alch-card-peek { transition: none; transform: none; }
 }

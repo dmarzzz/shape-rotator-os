@@ -393,6 +393,19 @@ function showUpdateBanner() {
   document.body.appendChild(banner);
 }
 
+// A download attempt failed. The loud banner was already removed on click and
+// the icon was about to drop to the subtle "available" dot — so the nudge would
+// silently downgrade until main's next ~2h push re-announced it. Restore BOTH
+// the icon and the banner so a failed download stays loud and retryable. Unlike
+// announceUpdateAvailable this has no downloading/ready early-return, so it
+// recovers even if progress had advanced the icon state mid-pull.
+function restoreUpdateAvailable(latest) {
+  const chip = document.getElementById("fg-version-chip");
+  if (chip && latest) { chip.dataset.update = "available"; chip.dataset.latest = latest; }
+  setUpdateIcon("available");
+  showUpdateBanner();
+}
+
 // Version stamp clicked. If we already know an update is waiting, go
 // straight to the download; otherwise run a check with visible feedback.
 function onVersionClick() {
@@ -435,16 +448,16 @@ async function onUpdateIconClick() {
       // it applies on quit. Land on the persistent "update ready" state.
       const dl = await window.api?.applyAppUpdate?.();
       if (dl?.ok) setUpdateReady("restart");
-      else setUpdateIcon("available");
+      else restoreUpdateAvailable(chip?.dataset.latest);
     } else {
       // unsigned-mac / .deb: download to ~/Downloads and open/reveal it; the
       // user runs the installer. Land on the persistent "open installer" state.
       const res = await window.api?.downloadAndRevealUpdate?.();
       if (res?.ok) setUpdateReady("manual", { path: res.path });
-      else setUpdateIcon("available");
+      else restoreUpdateAvailable(chip?.dataset.latest);
     }
   } catch {
-    setUpdateIcon("available");
+    restoreUpdateAvailable(chip?.dataset.latest);
   } finally {
     if (unsub) { try { unsub(); } catch {} }
   }
@@ -6517,6 +6530,10 @@ function registerVisualizerShortcutsAndCommands() {
     const tag = e.target?.tagName?.toUpperCase();
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
     if (e.target?.isContentEditable) return;
+    // A focused sentence-bar filter control is a <button role="option">, not a
+    // text field — without this guard, listbox type-ahead ('n'→needs, 'm'→map,
+    // 'a'→all) would fall through and yank the user out to another OS view.
+    if (e.target?.closest?.('.ac-sentence,[role="listbox"],[role="option"],[aria-haspopup="listbox"]')) return;
     const k = e.key.toLowerCase();
     if (k === "a") { openApp("atlas"); }
     else if (k === "n") { goTab("network"); setNetworkSub("network"); }
