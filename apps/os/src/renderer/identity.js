@@ -212,7 +212,7 @@ async function showOnboardingModal(cohortHint) {
   overlay.className = "identity-modal-backdrop";
   _modalEl = overlay; // claim the slot before the await so a second call can't double-open
   const card = document.createElement("div");
-  card.className = "identity-modal enroll";
+  card.className = "identity-modal enroll lg-track";
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-labelledby", "im-title");
   overlay.appendChild(card);
