@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calendar and Transcript Pipeline</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f6f1e8;
+      --paper-2: #fffaf0;
+      --ink: #201c18;
+      --muted: #6f655a;
+      --rule: #d8cbb9;
+      --green: #637c52;
+      --amber: #b47a34;
+      --red: #a04e3f;
+      --blue: #4f6f8f;
+      --shadow: 0 18px 50px rgba(49, 38, 27, 0.12);
+      --radius: 10px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(99, 124, 82, 0.06) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(99, 124, 82, 0.05) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      line-height: 1.45;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 44px 0 56px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+      gap: 24px;
+      align-items: end;
+      min-height: 360px;
+      border-bottom: 1px solid var(--rule);
+      padding-bottom: 28px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      max-width: 760px;
+      font-size: clamp(40px, 7vw, 84px);
+      line-height: 0.95;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+
+    h2 {
+      font-size: clamp(24px, 3vw, 38px);
+      line-height: 1.04;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+
+    h3 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .kicker {
+      margin-bottom: 18px;
+      font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--green);
+    }
+
+    .lede {
+      margin-top: 22px;
+      max-width: 720px;
+      font-size: clamp(18px, 2vw, 23px);
+      color: #3e3831;
+      text-wrap: pretty;
+    }
+
+    .answer {
+      background: var(--paper-2);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+
+    .answer strong {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 20px;
+    }
+
+    .answer p + p { margin-top: 12px; }
+
+    .page-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 28px;
+      margin-top: 28px;
+    }
+
+    section {
+      background: rgba(255, 250, 240, 0.72);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: start;
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--rule);
+      padding-bottom: 14px;
+    }
+
+    .section-head p {
+      max-width: 560px;
+      color: var(--muted);
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(120px, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .node {
+      position: relative;
+      min-height: 138px;
+      padding: 14px;
+      border: 1px solid color-mix(in srgb, var(--rule), var(--ink) 8%);
+      border-radius: 8px;
+      background: #fffdf7;
+    }
+
+    .node:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: 0;
+      width: 10px;
+      border-top: 2px solid var(--green);
+      transform: translateY(-50%);
+    }
+
+    .node b {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+
+    .node span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .node small {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: rgba(99, 124, 82, 0.13);
+      color: var(--green);
+      font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .plain-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .plain-list li {
+      display: grid;
+      grid-template-columns: 86px 1fr;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(216, 203, 185, 0.8);
+    }
+
+    .plain-list li:last-child { border-bottom: 0; }
+
+    .tag {
+      align-self: start;
+      padding: 4px 7px;
+      border-radius: 6px;
+      background: var(--ink);
+      color: var(--paper-2);
+      font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      text-align: center;
+    }
+
+    .tag.green { background: var(--green); }
+    .tag.amber { background: var(--amber); }
+    .tag.red { background: var(--red); }
+    .tag.blue { background: var(--blue); }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: 150px repeat(4, 1fr);
+      overflow: hidden;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: #fffdf7;
+    }
+
+    .matrix div {
+      min-height: 58px;
+      padding: 12px;
+      border-right: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .matrix div:nth-child(5n) { border-right: 0; }
+    .matrix div:nth-last-child(-n + 5) { border-bottom: 0; }
+    .matrix .head {
+      background: rgba(32, 28, 24, 0.06);
+      font-weight: 800;
+    }
+    .matrix .yes { background: rgba(99, 124, 82, 0.14); }
+    .matrix .maybe { background: rgba(180, 122, 52, 0.14); }
+    .matrix .no { background: rgba(160, 78, 63, 0.11); }
+
+    .rails {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .rail {
+      min-height: 210px;
+      padding: 16px;
+      border-radius: 8px;
+      background: #fffdf7;
+      border: 1px solid var(--rule);
+    }
+
+    .rail h3 { margin-bottom: 12px; }
+    .rail p { color: var(--muted); }
+    .rail p + p { margin-top: 10px; }
+
+    .checklist {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .check {
+      padding: 14px;
+      border-left: 4px solid var(--green);
+      background: #fffdf7;
+      border-radius: 6px;
+    }
+
+    .check.warn { border-left-color: var(--amber); }
+    .check.no { border-left-color: var(--red); }
+    .check b { display: block; margin-bottom: 5px; }
+    .check span { color: var(--muted); font-size: 14px; }
+
+    .footer-note {
+      margin-top: 28px;
+      padding-top: 18px;
+      border-top: 1px solid var(--rule);
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+      background: rgba(32, 28, 24, 0.07);
+      border-radius: 5px;
+      padding: 1px 5px;
+    }
+
+    @media (max-width: 920px) {
+      header, .two-col, .rails, .checklist { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: 1fr; }
+      .node:not(:last-child)::after {
+        top: auto;
+        right: auto;
+        left: 22px;
+        bottom: -11px;
+        height: 10px;
+        width: 0;
+        border-top: 0;
+        border-left: 2px solid var(--green);
+        transform: none;
+      }
+      .matrix {
+        grid-template-columns: 88px repeat(4, minmax(52px, 1fr));
+        overflow: hidden;
+      }
+      .matrix div {
+        min-height: 52px;
+        padding: 9px 7px;
+        font-size: 11.5px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="kicker">Shape Rotator OS / Calendar and transcripts</p>
+        <h1>The system turns meetings into reviewed app knowledge.</h1>
+        <p class="lede">
+          Raw transcripts stay private. The app gets distilled readouts, evidence cards,
+          calendar state, and reviewed insights. Public pages get only cleared, general output.
+        </p>
+      </div>
+      <aside class="answer" aria-label="short answer">
+        <strong>Will the PR do what we want?</strong>
+        <p><b>Yes, for the pipeline.</b> It creates the calendar, capture, Supabase, review, and app-surface path.</p>
+        <p><b>Not by itself.</b> It still needs merge, deploy, and private runtime values: Supabase secrets, Google OAuth, calendar connection IDs, Drive IDs, and admin emails.</p>
+        <p><b>It should not contain those values.</b> The PR now keeps contact lists and raw transcript material out of public/generated files.</p>
+      </aside>
+    </header>
+
+    <div class="page-grid">
+      <section aria-labelledby="flow-title">
+        <div class="section-head">
+          <div>
+            <p class="kicker">The simple version</p>
+            <h2 id="flow-title">A meeting walks through six doors.</h2>
+          </div>
+          <p>Each door changes the shape of the data. The raw recording does not become app content directly.</p>
+        </div>
+        <div class="flow" role="list" aria-label="pipeline flow">
+          <div class="node" role="listitem">
+            <b>1. Calendar event</b>
+            <span>Admin or app creates the session. Type and ceiling are attached up front.</span>
+            <small>policy</small>
+          </div>
+          <div class="node" role="listitem">
+            <b>2. Meet and bot</b>
+            <span>Timed events get Meet links. Future timed events get capture coverage.</span>
+            <small>capture</small>
+          </div>
+          <div class="node" role="listitem">
+            <b>3. Private source</b>
+            <span>Transcript files become private source refs. The repo and public app do not store raw text.</span>
+            <small>T0</small>
+          </div>
+          <div class="node" role="listitem">
+            <b>4. Distillation</b>
+            <span>A worker makes summaries, claims, themes, and action items from the private source.</span>
+            <small>derived</small>
+          </div>
+          <div class="node" role="listitem">
+            <b>5. Review gates</b>
+            <span>Humans approve, block, or hold. Public output has extra gates.</span>
+            <small>review</small>
+          </div>
+          <div class="node" role="listitem">
+            <b>6. App surfaces</b>
+            <span>The app sees reviewed distillations, provenance, confidence, and join links.</span>
+            <small>T2 / T3</small>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="boundaries-title">
+        <div class="section-head">
+          <div>
+            <p class="kicker">Access rule</p>
+            <h2 id="boundaries-title">Do not ask "can we show the transcript?" Ask "which layer is allowed?"</h2>
+          </div>
+          <p>The system is built around layers. Each layer has a smaller or larger audience.</p>
+        </div>
+        <div class="matrix" role="table" aria-label="sharing matrix">
+          <div class="head">Session kind</div>
+          <div class="head">T0 room</div>
+          <div class="head">T1 core</div>
+          <div class="head">T2 cohort</div>
+          <div class="head">T3 public</div>
+
+          <div class="head">Standup</div>
+          <div class="yes">Raw only for people there.</div>
+          <div class="yes">Coordinator view.</div>
+          <div class="maybe">Aggregate signal only.</div>
+          <div class="no">No.</div>
+
+          <div class="head">Office hours</div>
+          <div class="yes">Raw in room.</div>
+          <div class="yes">Project/core team.</div>
+          <div class="maybe">Distilled readout.</div>
+          <div class="no">No by default.</div>
+
+          <div class="head">Salon / demo</div>
+          <div class="yes">Raw in room.</div>
+          <div class="yes">Core review.</div>
+          <div class="maybe">Distilled readout.</div>
+          <div class="maybe">Only after explicit gates.</div>
+
+          <div class="head">R&amp;D / strategy</div>
+          <div class="yes">Raw in room.</div>
+          <div class="maybe">Core if needed.</div>
+          <div class="no">Usually no.</div>
+          <div class="no">No.</div>
+        </div>
+      </section>
+
+      <section aria-labelledby="outputs-title">
+        <div class="section-head">
+          <div>
+            <p class="kicker">What each surface gets</p>
+            <h2 id="outputs-title">One source, three different outputs.</h2>
+          </div>
+          <p>The same meeting can create private operations, cohort insight, and public writing. They are not the same file.</p>
+        </div>
+        <div class="rails">
+          <div class="rail">
+            <h3>Private vault</h3>
+            <p>Stores raw capture and private refs.</p>
+            <p>Used by workers and reviewers. Not bundled into the public website.</p>
+          </div>
+          <div class="rail">
+            <h3>App / cohort</h3>
+            <p>Shows reviewed readouts, evidence, confidence, provenance, and calendar state.</p>
+            <p>Users get <code>join event</code> links for Supabase-backed events with Meet links.</p>
+          </div>
+          <div class="rail">
+            <h3>Public site</h3>
+            <p>Shows only approved T3 material.</p>
+            <p>Public article output must be general and no-name unless a public gate explicitly allows more.</p>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="admin-title">
+        <div class="section-head">
+          <div>
+            <p class="kicker">Admin path</p>
+            <h2 id="admin-title">The admin side is a control room, not public content.</h2>
+          </div>
+          <p>Admins configure private values outside the repo, then use the app to request, create, approve, and review.</p>
+        </div>
+        <div class="two-col">
+          <ul class="plain-list">
+            <li><span class="tag green">input</span><p>Private env supplies Google, Supabase, Drive, calendar connection, and admin contact values.</p></li>
+            <li><span class="tag blue">create</span><p>Admin creates or approves a calendar event. Guests cannot edit or invite others.</p></li>
+            <li><span class="tag amber">watch</span><p>Google watch renewal keeps calendar changes flowing into Supabase.</p></li>
+            <li><span class="tag red">hold</span><p>Anything raw, ambiguous, private, or ungated stays out of app/public output.</p></li>
+          </ul>
+          <div class="checklist">
+            <div class="check">
+              <b>Subscribe link</b>
+              <span>Public users get read-only <code>.ics</code> / webcal subscription links.</span>
+            </div>
+            <div class="check">
+              <b>Join link</b>
+              <span>App users see <code>join event</code> when a Supabase event carries a Meet URL.</span>
+            </div>
+            <div class="check warn">
+              <b>Guest picker</b>
+              <span>Guest picker needs a private contact source. Until that is wired, admins can paste attendees manually. Public bundles do not publish emails.</span>
+            </div>
+            <div class="check no">
+              <b>Raw transcript</b>
+              <span>Never used as a direct app payload. It must become reviewed derived content first.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="failure-title">
+        <div class="section-head">
+          <div>
+            <p class="kicker">Failure behavior</p>
+            <h2 id="failure-title">If a step is missing, the system should stop narrow.</h2>
+          </div>
+          <p>The safe failure mode is delay, not accidental publication.</p>
+        </div>
+        <div class="checklist">
+          <div class="check warn">
+            <b>No Meet link</b>
+            <span>The event cannot be captured through Meet until repaired.</span>
+          </div>
+          <div class="check warn">
+            <b>No capture coverage</b>
+            <span>The event is not capture-ready until the bot or organizer coverage is present.</span>
+          </div>
+          <div class="check warn">
+            <b>No review</b>
+            <span>The output remains internal or held. It does not become app/public content.</span>
+          </div>
+          <div class="check no">
+            <b>Public gate blocked</b>
+            <span>No public article. T3 requires cleared gates.</span>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="not-title">
+        <div class="section-head">
+          <div>
+            <p class="kicker">What the PR does not do</p>
+            <h2 id="not-title">The PR is code. It is not private configuration.</h2>
+          </div>
+          <p>Keep this distinction clear during review.</p>
+        </div>
+        <ul class="plain-list">
+          <li><span class="tag red">no</span><p>It does not commit Supabase admin keys, Google tokens, Drive IDs, or private admin email lists.</p></li>
+          <li><span class="tag red">no</span><p>It does not publish raw transcripts to the app or website.</p></li>
+          <li><span class="tag red">no</span><p>It does not recover old meetings that never produced a source artifact.</p></li>
+          <li><span class="tag amber">after</span><p>It still needs merge, deploy, configured secrets, and scheduled workers to run without a local PC.</p></li>
+        </ul>
+      </section>
+    </div>
+
+    <p class="footer-note">
+      Short version: calendar events produce private capture refs; private refs produce reviewed distillations;
+      reviewed distillations feed the app; public output is a separate approval lane.
+    </p>
+  </main>
+</body>
+</html>
