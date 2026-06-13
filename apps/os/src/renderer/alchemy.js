@@ -3571,7 +3571,7 @@ function constProductStackHtml(model) {
     .sort((a, b) => String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id)));
   if (!layerRows.length && !unplaced.length) return `<p class="ac-stack-empty">no companies to place yet.</p>`;
   const unplacedHtml = unplaced.length ? `
-        <section class="ac-stack-layer ac-stack-layer-unplaced">
+        <section class="ac-stack-layer ac-stack-layer-unplaced lg-track">
           <header class="ac-stack-layer-head">
             <strong>no stack signal yet</strong>
             <span>${escHtml(constTeamCountText(unplaced.length))}</span>
@@ -3583,7 +3583,7 @@ function constProductStackHtml(model) {
   return `
     <div class="ac-stack-view is-layer-list">
       ${layerRows.map(({ col, items }) => `
-        <section class="ac-stack-layer ac-stack-col-${escAttr(col.key)}">
+        <section class="ac-stack-layer ac-stack-col-${escAttr(col.key)} lg-track">
           <header class="ac-stack-layer-head">
             <strong>${escHtml(col.label)}</strong>
             <span>${escHtml(constTeamCountText(items.length))}</span>
@@ -5056,7 +5056,7 @@ function renderJourney() {
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
           ${constJourneySelectedReadoutHtml(all) || constJourneyReadoutHtml(teams, all)}
-          <div class="alch-constellation-legend">${legend}</div>
+          <div class="alch-constellation-legend is-journey-legend lg-track">${legend}</div>
           <div class="alch-constellation-stage alch-journey-stage">
             <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
               ${gridLines.join("")}
@@ -5383,7 +5383,7 @@ function renderConstellationPeople(teams, people, clusters, edges) {
       <div class="alch-constellation" data-constellation-view="map" data-constellation-scope="people">
         <div class="alch-const-workbench">
           <div class="alch-const-main">
-            <div class="alch-constellation-legend is-line-confidence">${legend}</div>
+            <div class="alch-constellation-legend is-line-confidence lg-track">${legend}</div>
             <div class="alch-constellation-stage ac-people-stage" data-view="people" data-lens="people" tabindex="0" aria-label="people connected to projects">
               <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
                 <g class="ac-person-wells">${groupMarkup}</g>
@@ -9955,7 +9955,7 @@ function renderCollab() {
   });
   const inspectorHtml = selected ? collabInspectorHtmlForSelection(selected, m) : collabInspectorDefaultHtml(m);
   const inspector = `<aside class="cb-inspector" data-collab-inspector aria-live="polite">${inspectorHtml}</aside>`;
-  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div><div class="cb-matrix-side"><div class="cb-matrix-key">${collabLegendHtml()}</div>${inspector}</div>`;
+  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div><div class="cb-matrix-side lg-track"><div class="cb-matrix-key">${collabLegendHtml()}</div>${inspector}</div>`;
   const matrix = `
     <section class="alch-cb-section cb-matrix-section" aria-label="collaboration signal board">
       <div class="cb-scroll">${matrixBody}</div>

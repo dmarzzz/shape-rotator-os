@@ -6691,9 +6691,10 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
-  background: rgba(22,18,19,0.96);
-  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--lg-border);
+  background: var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
 }
 .ac-inspector-status {
   min-width: 0;
@@ -8178,21 +8179,32 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   color: var(--alchemy-ink-mute);
   font-size: 12px;
 }
+/* Each product layer is a translucent glass pane that picks up the cursor
+ * sheen (.lg-track). No oxide tint here — it's a repeated content pane, so the
+ * signature wash stays on the singular hero/legend surfaces. */
 .ac-stack-layer {
   min-width: 0;
-  border: 1px solid rgba(var(--ink-rgb),0.06);
-  border-radius: 7px;
-  background: rgba(20,17,18,0.24);
+  border: 1px solid var(--lg-border);
+  border-radius: 12px;
+  background:
+    radial-gradient(240px 200px at var(--lg-mx, 28%) var(--lg-my, -8%),
+      rgba(var(--lg-sheen-color), calc(0.24 * var(--lg-sheen))), transparent 60%),
+    var(--lg-bg);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
   overflow: hidden;
 }
+/* The header reads as a frosted lip on the pane. */
 .ac-stack-layer-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
   padding: 12px 11px 9px;
-  border-bottom: 1px solid rgba(var(--ink-rgb),0.05);
-  background: rgba(20,17,18,0.34);
+  border-bottom: 1px solid var(--lg-border);
+  background: var(--lg-bg-strong);
+  box-shadow: var(--lg-specular);
 }
 .ac-stack-layer-head strong {
   min-width: 0;
@@ -8216,83 +8228,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   gap: 7px;
   padding: 9px;
 }
-.ac-stack-corner,
-.ac-stack-col-head,
-.ac-stack-row-head,
-.ac-stack-cell {
-  border-right: 1px solid rgba(var(--ink-rgb),0.08);
-  border-bottom: 1px solid rgba(var(--ink-rgb),0.08);
-}
-.ac-stack-corner,
-.ac-stack-col-head,
-.ac-stack-row-head {
-  background: rgba(20,17,18,0.72);
-}
-.ac-stack-corner {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 9px;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.ac-stack-corner em {
-  color: var(--alchemy-paper-warm);
-  font-style: normal;
-}
-.ac-stack-col-head {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 5px;
-  justify-content: center;
-  padding: 9px;
-}
-.ac-stack-col-head strong,
-.ac-stack-row-head strong {
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono);
-  font-size: 8.8px;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-}
-.ac-stack-col-head span,
-.ac-stack-row-head span {
-  color: var(--alchemy-ink-mute);
-  font-size: 10px;
-  line-height: 1.25;
-}
-.ac-stack-row-head {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  justify-content: center;
-  padding: 9px;
-}
-.ac-stack-cell {
-  position: relative;
-  min-width: 0;
-  min-height: 88px;
-  padding: 9px 8px 8px;
-  background: rgba(var(--ink-rgb), 0.018);
-}
-.ac-stack-cell-count {
-  position: absolute;
-  top: 5px;
-  right: 6px;
-  color: rgba(var(--ink-rgb),0.46);
-  font-family: var(--font-mono);
-  font-size: 8px;
-}
-.ac-stack-team-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding-right: 14px;
-}
+/* (Unused 2D stack-matrix variant styles removed — .ac-stack-corner /
+   -col-head / -row-head / -cell / -cell-count / -team-list were never emitted;
+   the rendered path is the .ac-stack-view.is-layer-list masonry above.) */
 .ac-stack-team {
   appearance: none;
   display: grid;
@@ -8302,20 +8240,22 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   width: 100%;
   min-width: 0;
   padding: 8px 9px;
-  border: 1px solid rgba(var(--ink-rgb),0.06);
-  border-radius: 5px;
-  background: rgba(20,17,18,0.22);
+  border: 1px solid var(--lg-border);
+  border-radius: 8px;
+  background: rgba(var(--ink-rgb), 0.035);
+  box-shadow: var(--lg-specular);
   color: var(--alchemy-paper-warm);
   cursor: pointer;
   text-align: left;
-  transition: border-color 160ms var(--ease), background 160ms var(--ease), opacity 160ms var(--ease), transform 160ms var(--ease);
+  transition: border-color 160ms var(--ease), background 160ms var(--ease), box-shadow 160ms var(--ease), opacity 160ms var(--ease), transform 160ms var(--ease);
 }
 .ac-stack-team:hover,
 .ac-stack-team:focus-visible,
 .ac-stack-team.is-selected {
   outline: none;
   border-color: var(--team-color, rgba(193,168,114,0.58));
-  background: rgba(193,168,114,0.045);
+  background: color-mix(in oklch, var(--team-color, #D9913D) 16%, rgba(var(--ink-rgb), 0.05));
+  box-shadow: var(--lg-specular), 0 6px 18px rgba(0, 0, 0, 0.22);
   transform: translateY(-1px);
 }
 .ac-stack-team i {
@@ -8966,6 +8906,40 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-journey-stage svg .ac-jcount {
   fill: var(--journey-ink); font-family: var(--font-mono);
   font-size: 9px; font-weight: 600; opacity: 0.86;
+}
+/* Constellation legends ride a quiet glass trough so the color/line key reads
+   as kin to the glass readout above them — and pick up the cursor sheen. The
+   plot/graph itself stays material (SVG can't take backdrop-filter anyway).
+   Material only here; each legend variant keeps its own flex layout. */
+.alch-constellation-legend.lg-track {
+  margin: 2px 0 12px;
+  padding: 9px 13px;
+  border: 1px solid var(--lg-border);
+  border-radius: 11px;
+  background:
+    radial-gradient(220px 140px at var(--lg-mx, 28%) var(--lg-my, -10%),
+      rgba(var(--lg-sheen-color), calc(0.22 * var(--lg-sheen))), transparent 60%),
+    var(--lg-tint),
+    var(--lg-bg);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+.alch-constellation-legend.is-journey-legend {
+  align-items: center;
+  gap: 8px 14px;
+}
+.alch-constellation-legend.is-journey-legend .acl-jfamily {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.alch-constellation-legend.is-journey-legend .acl-jbtn {
+  background: rgba(var(--ink-rgb), 0.05);
+  border-color: var(--lg-border);
+}
+.alch-constellation-legend.is-journey-legend .acl-jkey {
+  border-right-color: var(--lg-border);
 }
 /* Encoding key — static text leading the bottleneck legend; states what the
    scatter's color and size MEAN. Deliberately not button-shaped so it can't
@@ -10862,11 +10836,22 @@ button.cb-cell:disabled { cursor: default; }
 }
 
 .alch-collab .alch-cb-section {
-  border: 1px solid var(--alchemy-rule);
+  border: 1px solid var(--lg-border);
   border-radius: 12px;
   background: linear-gradient(180deg, var(--cb-preview-panel) 0%, var(--cb-preview-panel-2) 100%);
   padding: 18px;
-  box-shadow: 0 18px 50px rgba(0,0,0,0.24);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+/* Non-matrix sections (intros, underused offers, convergence) lift to
+ * translucent glass. The matrix section keeps its opaque card so the 200+ cell
+ * scrolling grid never reveals a blur layer behind it (perf + legibility). */
+.alch-collab .alch-cb-section:not(.cb-matrix-section) {
+  background:
+    radial-gradient(280px 200px at var(--lg-mx, 28%) var(--lg-my, -8%),
+      rgba(255, 255, 255, calc(0.16 * var(--lg-sheen))), transparent 60%),
+    linear-gradient(180deg, rgba(30, 25, 27, 0.58), rgba(24, 20, 22, 0.66));
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
 }
 
 .alch-collab .alch-cb-sechead {
@@ -10944,14 +10929,21 @@ button.cb-cell:disabled { cursor: default; }
   max-height: none;
 }
 
+/* The inspector rail floats as glass beside the matrix and carries the cursor
+ * sheen (.lg-track). It's a grid column next to the matrix, not over it, so the
+ * blur layer is bounded and never sits behind the scrolling cells. */
 .alch-collab .cb-matrix-side {
   min-width: 0;
   display: grid;
   grid-template-rows: 128px auto;
-  border-left: 1px solid var(--cb-preview-grid);
+  border-left: 1px solid var(--lg-border);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.006)),
-    rgba(18, 14, 16, 0.78);
+    radial-gradient(240px 220px at var(--lg-mx, 30%) var(--lg-my, -6%),
+      rgba(255, 255, 255, calc(0.20 * var(--lg-sheen))), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.006)),
+    rgba(20, 16, 18, 0.56);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
 }
 
 .alch-collab .cb-matrix-key {
@@ -20923,7 +20915,20 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   --lg-border:    rgba(241, 236, 231, 0.13);
   --lg-specular:  inset 0 1px 0 rgba(255, 255, 255, 0.07);
   --lg-shadow:    0 8px 28px rgba(0, 0, 0, 0.26);
+  /* Blur scale — three named tiers replace the ~14 ad-hoc radii that had
+   * drifted across the file. sm = chips/cards, md = panels, lg = full chrome. */
+  --lg-blur-sm:   blur(8px) saturate(1.2);
   --lg-blur:      blur(16px) saturate(1.25);
+  --lg-blur-lg:   blur(24px) saturate(1.35);
+  /* Cohort signature wash — the oxide tint derived from the one accent via
+   * perceptual mixing, replacing the old rgba(180,58,25,0.10) magic literal. */
+  --lg-tint-color: color-mix(in oklch, var(--alchemy-oxide, #8F220E) 14%, transparent);
+  --lg-tint:       linear-gradient(112deg, var(--lg-tint-color), transparent 52%);
+  /* Liquid dose — master intensity for the cursor-tracking specular sheen
+   * (renderer/glass.js moves --lg-mx/--lg-my; CSS paints the glint). Held at a
+   * conservative 0.2; raise toward 1 to scale the whole motif up at once. */
+  --lg-sheen:       0.2;
+  --lg-sheen-color: 255, 255, 255;
 }
 :root[data-theme="light"] {
   --lg-bg:        rgba(255, 255, 255, 0.52);
@@ -20931,6 +20936,8 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   --lg-border:    rgba(27, 20, 17, 0.13);
   --lg-specular:  inset 0 1px 0 rgba(255, 255, 255, 0.65);
   --lg-shadow:    0 8px 28px rgba(31, 26, 22, 0.12);
+  /* On near-white glass a white glint barely reads — soften the dose. */
+  --lg-sheen:       0.14;
 }
 /* The view controls float as a glass bar and stay pinned while the grid
  * or stage scrolls underneath — the one place blur earns its keep on
@@ -20950,17 +20957,68 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   box-shadow: var(--lg-specular), 0 4px 14px rgba(0, 0, 0, 0.16);
 }
 /* Inspector + generated/selected readouts share one glass panel family —
- * consistent box language across map, journey, stack, and people. */
+ * consistent box language across map, journey, stack, and people. They carry
+ * the cohort's signature: the oxide tint + a cursor-tracking specular sheen
+ * (glass.js feeds --lg-mx/--lg-my; the sheen amplitude rides --lg-sheen). */
 .ac-inspector,
 .ac-main-readout {
   border: 1px solid var(--lg-border);
   border-radius: 12px;
   background:
-    linear-gradient(112deg, rgba(180, 58, 25, 0.10), transparent 52%),
+    radial-gradient(260px 200px at var(--lg-mx, 28%) var(--lg-my, -8%),
+      rgba(var(--lg-sheen-color), calc(0.30 * var(--lg-sheen))), transparent 60%),
+    var(--lg-tint),
     var(--lg-bg-strong);
   -webkit-backdrop-filter: var(--lg-blur);
   backdrop-filter: var(--lg-blur);
   box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+
+/* ── Reusable liquid-glass surfaces ──────────────────────────────────────
+ * One definition each; collab / pmf / stack / map consume these instead of
+ * re-typing the recipe, so the material stays identical across the cohort.
+ * Tag a surface `.lg-track` to give it the cursor-following sheen. Dial the
+ * whole system from the --lg-* tokens above. */
+.lg-bar,
+.lg-card,
+.lg-panel,
+.lg-tip {
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+.lg-bar {
+  border-radius: 11px;
+  background: var(--lg-bg);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
+}
+.lg-tip {
+  border-radius: 10px;
+  background: var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+}
+/* Content cards — lighter blur, keeps tiny text legible (the chrome-vs-content
+ * contract: data surfaces stay material-ish, never see-through frost). */
+.lg-card {
+  border-radius: 12px;
+  background:
+    radial-gradient(220px 180px at var(--lg-mx, 28%) var(--lg-my, -8%),
+      rgba(var(--lg-sheen-color), calc(0.22 * var(--lg-sheen))), transparent 60%),
+    var(--lg-bg);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
+}
+/* Hero panels — full blur + oxide tint + the strongest sheen. */
+.lg-panel {
+  border-radius: 12px;
+  background:
+    radial-gradient(260px 200px at var(--lg-mx, 28%) var(--lg-my, -8%),
+      rgba(var(--lg-sheen-color), calc(0.30 * var(--lg-sheen))), transparent 60%),
+    var(--lg-tint),
+    var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
 }
 /* Floating tooltips are pure glass. */
 .alch-constellation-stage .ac-tip {
