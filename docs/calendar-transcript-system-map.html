@@ -105,6 +105,119 @@
 
     .answer p + p { margin-top: 12px; }
 
+    .architecture-map {
+      margin-top: 28px;
+      background: rgba(255, 250, 240, 0.82);
+    }
+
+    .map-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .map-lane {
+      position: relative;
+      min-height: 292px;
+      padding: 16px;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: #fffdf7;
+    }
+
+    .map-lane:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: 0;
+      width: 12px;
+      border-top: 2px solid var(--green);
+      transform: translateY(-50%);
+      z-index: 1;
+    }
+
+    .map-lane.private { border-top: 5px solid var(--green); }
+    .map-lane.control { border-top: 5px solid var(--blue); }
+    .map-lane.review { border-top: 5px solid var(--amber); }
+    .map-lane.output { border-top: 5px solid var(--red); }
+
+    .map-lane h3 {
+      margin-bottom: 10px;
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 17px;
+    }
+
+    .map-lane p {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .map-stack {
+      display: grid;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .map-node {
+      min-height: 44px;
+      padding: 10px;
+      border: 1px solid rgba(216, 203, 185, 0.9);
+      border-radius: 7px;
+      background: rgba(246, 241, 232, 0.7);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .map-node small {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font: 700 10px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .stop-line {
+      margin-top: 14px;
+      padding: 10px;
+      border: 1px dashed var(--red);
+      border-radius: 7px;
+      color: var(--red);
+      background: rgba(160, 78, 63, 0.08);
+      font: 800 11px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .manual-grid, .source-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .manual-step, .source-card {
+      padding: 15px;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: #fffdf7;
+    }
+
+    .manual-step b, .source-card b {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+
+    .manual-step span, .source-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .manual-step code, .source-card code { background: rgba(32, 28, 24, 0.08); }
+
     .page-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -304,8 +417,20 @@
     }
 
     @media (max-width: 920px) {
-      header, .two-col, .rails, .checklist { grid-template-columns: 1fr; }
+      header, .two-col, .rails, .checklist, .map-grid, .manual-grid, .source-grid { grid-template-columns: 1fr; }
       .flow { grid-template-columns: 1fr; }
+      .map-lane { min-height: auto; }
+      .map-lane:not(:last-child)::after {
+        top: auto;
+        right: auto;
+        left: 22px;
+        bottom: -12px;
+        height: 12px;
+        width: 0;
+        border-top: 0;
+        border-left: 2px solid var(--green);
+        transform: none;
+      }
       .node:not(:last-child)::after {
         top: auto;
         right: auto;
@@ -334,7 +459,7 @@
     <header>
       <div>
         <p class="kicker">Shape Rotator OS / Meeting knowledge architecture</p>
-        <h1>Meetings move through tools, then become reviewed knowledge.</h1>
+        <h1>Meetings become trusted knowledge only after checks.</h1>
         <p class="lede">
           Google Calendar schedules the session. Google Meet runs it. Gemini transcript output
           and source files stay private. Supabase is the control plane: refs, jobs, review state,
@@ -350,45 +475,80 @@
       </aside>
     </header>
 
+    <section class="architecture-map" aria-labelledby="map-title">
+      <div class="section-head">
+        <div>
+          <p class="kicker">Source of truth</p>
+          <h2 id="map-title">Four lanes. One clean handoff.</h2>
+        </div>
+        <p>This is the system organizers need to trust: raw sources stay narrow, Supabase tracks the work, humans review the output, and only approved layers reach the app or site.</p>
+      </div>
+      <div class="map-grid" aria-label="system source of truth map">
+        <div class="map-lane private">
+          <h3>1. Schedule and source</h3>
+          <p>Organizer-facing truth. Use one managed calendar and one private source vault.</p>
+          <div class="map-stack">
+            <div class="map-node">Google Calendar<small>time, guests, Meet link</small></div>
+            <div class="map-node">Meet / Gemini / Otter<small>transcript source</small></div>
+            <div class="map-node">Google Drive vault<small>raw file home</small></div>
+          </div>
+          <div class="stop-line">Raw transcript stops here for most people</div>
+        </div>
+        <div class="map-lane control">
+          <h3>2. Supabase control plane</h3>
+          <p>Supabase records what exists and what should happen next. It is not the public source dump.</p>
+          <div class="map-stack">
+            <div class="map-node">source_artifacts<small>source ref, tier, hash</small></div>
+            <div class="map-node">processing_jobs<small>fetch, prepare, distill</small></div>
+            <div class="map-node">derived_artifacts<small>claims, summary, Q&amp;A</small></div>
+          </div>
+        </div>
+        <div class="map-lane review">
+          <h3>3. Human review</h3>
+          <p>Automated output is not trusted content until a reviewer approves the derived artifact.</p>
+          <div class="map-stack">
+            <div class="map-node">artifact_reviews<small>approve, block, changes</small></div>
+            <div class="map-node">approval_gates<small>T3 public checks</small></div>
+            <div class="map-node">audit trail<small>who decided, when</small></div>
+          </div>
+        </div>
+        <div class="map-lane output">
+          <h3>4. App and website</h3>
+          <p>Users see the allowed view, not the whole vault.</p>
+          <div class="map-stack">
+            <div class="map-node">app_transcript_distillations<small>approved app rows</small></div>
+            <div class="map-node">Cohort app<small>insights and calendar</small></div>
+            <div class="map-node">Public site<small>gated, no-name by default</small></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <div class="page-grid">
       <section aria-labelledby="flow-title">
         <div class="section-head">
           <div>
-            <p class="kicker">The simple version</p>
-            <h2 id="flow-title">Each tool has one job.</h2>
+            <p class="kicker">Organizer manual</p>
+            <h2 id="flow-title">How to update the system.</h2>
           </div>
-          <p>The raw meeting never jumps straight into the app. It passes through capture, storage, processing, and review first.</p>
+          <p>If organizers follow these four steps, the system stays reliable and avoids duplicate handling.</p>
         </div>
-        <div class="flow" role="list" aria-label="pipeline flow">
-          <div class="node" role="listitem">
-            <b>1. Google Calendar</b>
-            <span>Creates the event, guest list, session type, sharing ceiling, and Meet link.</span>
-            <small>schedule</small>
+        <div class="manual-grid" role="list" aria-label="organizer update workflow">
+          <div class="manual-step" role="listitem">
+            <b>1. Update Calendar</b>
+            <span>Create or edit the session in the managed Google Calendar or admin app. Do not create parallel invites. Timed sessions need a Meet link.</span>
           </div>
-          <div class="node" role="listitem">
-            <b>2. Meet + Gemini</b>
-            <span>Runs the meeting and creates transcript output or capture artifacts for timed sessions.</span>
-            <small>source</small>
+          <div class="manual-step" role="listitem">
+            <b>2. Store Source</b>
+            <span>Name the transcript <code>type_project-name_date</code>. Put raw files in the correct private Drive folder, not in GitHub, public docs, or calendar descriptions.</span>
           </div>
-          <div class="node" role="listitem">
-            <b>3. Google Drive</b>
-            <span>Stores raw files in private folders. Folder permissions follow the session tier.</span>
-            <small>vault</small>
+          <div class="manual-step" role="listitem">
+            <b>3. Register Ref</b>
+            <span>Supabase records the source as a ref with type, tier, storage mode, hash, and job state. The app does not need the raw file.</span>
           </div>
-          <div class="node" role="listitem">
-            <b>4. Supabase</b>
-            <span>Records the event, source refs, access tier, processing job, and derived records.</span>
-            <small>state</small>
-          </div>
-          <div class="node" role="listitem">
-            <b>5. Review gates</b>
-            <span>Admins approve summaries, evidence cards, actions, and public-safe outputs.</span>
-            <small>review</small>
-          </div>
-          <div class="node" role="listitem">
-            <b>6. App + site</b>
-            <span>The app reads reviewed Supabase outputs. The website only gets cleared public material.</span>
-            <small>surface</small>
+          <div class="manual-step" role="listitem">
+            <b>4. Review Output</b>
+            <span>Review derived summaries and evidence cards. T2 can reach the cohort after review. T3 public needs all gates cleared.</span>
           </div>
         </div>
       </section>
@@ -466,6 +626,34 @@
               <b>T3 has a database stop sign</b>
               <span>Public output must be a <code>public_candidate</code>, approved, and have all required gates cleared before publication.</span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="classification-title">
+        <div class="section-head">
+          <div>
+            <p class="kicker">Input hygiene</p>
+            <h2 id="classification-title">Every source is classified before it is trusted.</h2>
+          </div>
+          <p>The system does not treat all transcripts as equal. It records where each source came from, how raw it is, who can inspect it, and whether it can be processed.</p>
+        </div>
+        <div class="source-grid">
+          <div class="source-card">
+            <b>Meet / Gemini</b>
+            <span><code>meet_transcript</code> or <code>meet_smart_notes</code>. Stored in Drive, registered in Supabase, distilled only after the source ref exists.</span>
+          </div>
+          <div class="source-card">
+            <b>Otter</b>
+            <span><code>otter_transcript</code>, <code>otter_summary</code>, or <code>otter_slide</code>. Slide/image artifacts stay private until a reviewed derivative is promoted.</span>
+          </div>
+          <div class="source-card">
+            <b>Manual / raw logs</b>
+            <span><code>manual_upload</code>, <code>local_only</code>, or <code>external_ref</code>. Defaults to T0/T1 handling and waits for review before wider use.</span>
+          </div>
+          <div class="source-card">
+            <b>Other signals</b>
+            <span>GitHub, Router, notes, or docs can become evidence inputs. They enter as references and claims, not as noisy feeds pushed straight to the app.</span>
           </div>
         </div>
       </section>
