@@ -102,6 +102,7 @@ html[data-theme="light"] .mfeed-meta {
   background: color-mix(in srgb, var(--mfeed-color) 16%, #ffffff);
 }
 html[data-theme="light"] .mfeed-release    { --mfeed-color: #4f8a64; }  /* sage */
+html[data-theme="light"] .mfeed-commit     { --mfeed-color: #7a6aa6; }  /* violet */
 html[data-theme="light"] .mfeed-transcript { --mfeed-color: #4d6bb0; }  /* lapis */
 html[data-theme="light"] .mfeed-ask        { --mfeed-color: #b9821f; }  /* amber */
 html[data-theme="light"] .mfeed-event      { --mfeed-color: #3f8a72; }  /* teal */
@@ -493,6 +494,7 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
 /* Kind tints — clearly colored but softer than the original loud palette;
    shared by the icon and the project chip. */
 .mfeed-release    { --mfeed-color: rgba(136, 208, 161, 0.95); }  /* github / releases — sage green */
+.mfeed-commit     { --mfeed-color: rgba(186, 170, 222, 0.95); }  /* commit activity — violet */
 .mfeed-transcript { --mfeed-color: rgba(153, 180, 235, 0.95); }  /* transcripts — lapis */
 .mfeed-ask        { --mfeed-color: rgba(238, 196, 126, 0.95); }  /* asks — amber */
 .mfeed-event      { --mfeed-color: rgba(140, 204, 183, 0.95); }  /* events — teal */
