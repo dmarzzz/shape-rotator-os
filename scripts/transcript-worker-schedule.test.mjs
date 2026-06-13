@@ -21,6 +21,14 @@ const rescheduleMigration = fs.readFileSync(
   path.join(ROOT, "supabase", "migrations", "202606130002_transcript_worker_half_hour_schedule.sql"),
   "utf8",
 );
+const evidenceOpsMigration = fs.readFileSync(
+  path.join(ROOT, "supabase", "migrations", "202606140000_transcript_evidence_operations.sql"),
+  "utf8",
+);
+const drivePollFunction = fs.readFileSync(
+  path.join(ROOT, "supabase", "functions", "poll-drive-artifacts", "index.ts"),
+  "utf8",
+);
 
 test("transcript worker schedule invokes the deployed Edge Function from Supabase cron", () => {
   assert.match(migration, /create extension if not exists pg_net/i);
@@ -46,6 +54,20 @@ test("transcript worker current schedule runs on the hour and half hour", () => 
   assert.match(rescheduleMigration, /private\.invoke_process_transcript_jobs\(\)/);
   assert.doesNotMatch(rescheduleMigration, /'\*\/5 \* \* \* \*'/);
   assert.doesNotMatch(rescheduleMigration, /SUPABASE_SERVICE_ROLE_KEY/);
+});
+
+test("Drive artifact watcher runs from Supabase cron without a local PC", () => {
+  assert.match(evidenceOpsMigration, /invoke_poll_drive_artifacts/);
+  assert.match(evidenceOpsMigration, /ensure_poll_drive_artifacts_schedule/);
+  assert.match(evidenceOpsMigration, /shape_drive_artifact_folder_id/);
+  assert.match(evidenceOpsMigration, /poll-drive-artifacts-every-15-minutes/);
+  assert.match(evidenceOpsMigration, /\/functions\/v1\/poll-drive-artifacts/);
+  assert.match(evidenceOpsMigration, /Authorization', 'Bearer ' \|\| worker_token/);
+  assert.doesNotMatch(evidenceOpsMigration, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(drivePollFunction, /TRANSCRIPT_WORKER_TOKEN/);
+  assert.match(drivePollFunction, /Google Drive files\.list/);
+  assert.match(drivePollFunction, /storage_ref:\s*`drive:\/\/\$\{file\.id\}`/);
+  assert.doesNotMatch(drivePollFunction, /export\?mimeType=text\/plain[\s\S]+fetch\(/);
 });
 
 test("vault secret SQL generator quotes values and keeps summaries secret-free", () => {

@@ -27,18 +27,22 @@ test("transcript cloud worker does not return raw transcript text", () => {
   assert.doesNotMatch(workerSource, /transcriptText:\s*transcriptText/);
   assert.doesNotMatch(workerSource, /text:\s*fetched\.text/);
   assert.doesNotMatch(workerSource, /transcript_text/);
+  assert.match(workerSource, /source_note: "Generated from abstract worker distillation[\s\S]+raw_allowed: false,\s+},/);
 });
 
 test("transcript cloud worker preserves review gates before app/public visibility", () => {
   assert.match(workerSource, /review_status:\s*"needs_review"/);
   assert.match(workerSource, /approval_state:\s*"pending"/);
   assert.match(workerSource, /approval_gates/);
+  assert.match(workerSource, /evidence_cards/);
+  assert.match(workerSource, /evidence_card_ids/);
+  assert.match(workerSource, /source_boundary:\s*"derived_only"/);
   assert.match(workerSource, /decision\.required_public_approvals/);
   assert.match(workerSource, /transcript_status:\s*hasReadout \? "distilled" : "source_ready"/);
 });
 
 test("transcript cloud worker does not create derived readouts for private-only sessions", () => {
   assert.match(workerSource, /decision\.cohort_mode === "never"/);
-  assert.match(workerSource, /return \{ derivedArtifacts: \[\], approvalGates: \[\] \}/);
+  assert.match(workerSource, /return \{ derivedArtifacts: \[\], approvalGates: \[\], evidenceCards: \[\] \}/);
   assert.doesNotMatch(workerSource, /held_private/);
 });

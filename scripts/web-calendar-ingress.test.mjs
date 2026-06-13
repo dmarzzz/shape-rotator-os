@@ -17,6 +17,7 @@ import {
   defaultCalendarDateTimeValue,
   decideApprovalGate,
   fetchCalendarOpsQueue,
+  fetchPrivateInviteDirectory,
   googleCalendarManagedUrl,
   loadCalendarIngressConfig,
   callCreateCalendarEvent,
@@ -24,8 +25,10 @@ import {
   parseAttendees,
   persistableCalendarIngressConfig,
   postEventRequest,
+  privateInviteDirectoryFromRows,
   saveCalendarIngressConfig,
   reviewDerivedArtifact,
+  reviewEvidenceCard,
 } from "../apps/web/scripts/calendar-ingress-client.mjs";
 
 test("web calendar ingress parses and deduplicates attendee emails", () => {
@@ -79,6 +82,40 @@ test("web calendar ingress derives cohort invite groups from the surface", () =>
   assert.deepEqual(directory.groups.find((group) => group.id === "role:cohort-member").emails, ["alice@example.com"]);
   assert.deepEqual(directory.groups.find((group) => group.id === "role:coordinator").emails, ["bob@example.com"]);
   assert.deepEqual(directory.groups.find((group) => group.id === "team:alpha").emails, ["alice@example.com", "bob@example.com"]);
+});
+
+test("web calendar ingress derives invite groups from private contacts", () => {
+  const directory = privateInviteDirectoryFromRows([
+    {
+      id: "contact_1",
+      person_record_id: "alice",
+      display_name: "Alice",
+      email: "Alice@example.com",
+      team_record_id: "alpha",
+      role_class: "cohort-member",
+      active: true,
+    },
+    {
+      id: "contact_2",
+      display_name: "Inactive",
+      email: "inactive@example.com",
+      role_class: "cohort-member",
+      active: false,
+    },
+    {
+      id: "contact_3",
+      display_name: "Bob",
+      email: "bob@example.com",
+      team_record_id: "alpha",
+      role_class: "coordinator",
+      active: true,
+    },
+  ]);
+
+  assert.equal(directory.source, "private_invite_contacts");
+  assert.deepEqual(directory.people.map((person) => person.email), ["alice@example.com", "bob@example.com"]);
+  assert.deepEqual(directory.groups.find((group) => group.id === "team:alpha").emails, ["alice@example.com", "bob@example.com"]);
+  assert.deepEqual(directory.groups.find((group) => group.id === "role:coordinator").emails, ["bob@example.com"]);
 });
 
 test("web calendar ingress builds a policy-bound session payload", () => {
@@ -356,6 +393,7 @@ test("web calendar ingress fetches the operator queue with signed-in Supabase au
     if (path.endsWith("/event_requests")) return Response.json([{ id: "req_1", request_json: {} }]);
     if (path.endsWith("/processing_jobs")) return Response.json([{ id: "job_1" }]);
     if (path.endsWith("/derived_artifacts")) return Response.json([{ id: "derived_1" }]);
+    if (path.endsWith("/evidence_cards")) return Response.json([{ id: "card_1" }]);
     if (path.endsWith("/approval_gates")) return Response.json([{ id: "gate_1" }]);
     return Response.json({ error: "unexpected" }, { status: 404 });
   };
@@ -365,11 +403,46 @@ test("web calendar ingress fetches the operator queue with signed-in Supabase au
   assert.equal(queue.eventRequests.length, 1);
   assert.equal(queue.processingJobs.length, 1);
   assert.equal(queue.derivedArtifacts.length, 1);
+  assert.equal(queue.evidenceCards.length, 1);
   assert.equal(queue.approvalGates.length, 1);
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   assert.ok(calls.every((call) => call.options.headers.authorization === "Bearer user-token"));
   assert.match(calls.find((call) => call.url.includes("event_requests")).url, /status=eq\.pending/);
   assert.match(calls.find((call) => call.url.includes("derived_artifacts")).url, /review_status=in.%28generated%2Cneeds_review%2Creviewed%2Cblocked%29/);
+  assert.match(calls.find((call) => call.url.includes("evidence_cards")).url, /review_status=in.%28generated%2Cneeds_review%2Creviewed%2Cblocked%29/);
+});
+
+test("web calendar ingress fetches private invite contacts with signed-in Supabase auth", async () => {
+  const calls = [];
+  const config = {
+    supabaseUrl: "https://project.supabase.co",
+    supabaseAnonKey: "anon",
+    accessToken: "user-token",
+    orgId: "org_1",
+  };
+  const fetchImpl = async (url, options) => {
+    calls.push({ url: String(url), options });
+    return Response.json([
+      {
+        id: "contact_1",
+        person_record_id: "alice",
+        display_name: "Alice",
+        email: "alice@example.com",
+        team_record_id: "alpha",
+        role_class: "cohort-member",
+        active: true,
+      },
+    ]);
+  };
+
+  const directory = await fetchPrivateInviteDirectory({ config, fetchImpl });
+
+  assert.equal(directory.source, "private_invite_contacts");
+  assert.equal(directory.people[0].email, "alice@example.com");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.headers.authorization, "Bearer user-token");
+  assert.match(calls[0].url, /\/private_invite_contacts/);
+  assert.match(calls[0].url, /org_id=eq\.org_1/);
 });
 
 test("web calendar ingress approval creates the invite before marking request approved", async () => {
@@ -498,6 +571,40 @@ test("web calendar ingress review actions use the server-side review function", 
   assert.ok(calls.every((call) => call.options.headers.authorization === "Bearer user-token"));
   assert.equal(calls[1].body.publish_public, true);
   assert.equal(calls[1].body.notes, "publish after gates");
+});
+
+test("web calendar ingress evidence-card reviews use the server-side review function", async () => {
+  const calls = [];
+  const config = {
+    supabaseUrl: "https://project.supabase.co",
+    supabaseAnonKey: "anon",
+    accessToken: "user-token",
+    orgId: "org_1",
+  };
+  const fetchImpl = async (url, options) => {
+    calls.push({ url: String(url), options, body: JSON.parse(options.body) });
+    return Response.json({
+      ok: true,
+      action: "review_evidence_card",
+      evidence_card: { id: "card_1", review_status: "published", approval_state: "approved" },
+    });
+  };
+
+  const rows = await reviewEvidenceCard({
+    config,
+    cardId: "card_1",
+    reviewStatus: "published",
+    approvalState: "approved",
+    notes: "publish no-name card",
+    fetchImpl,
+  });
+
+  assert.equal(rows[0].review_status, "published");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://project.supabase.co/functions/v1/review-transcript-artifact");
+  assert.equal(calls[0].body.action, "review_evidence_card");
+  assert.equal(calls[0].body.card_id, "card_1");
+  assert.equal(calls[0].body.publish_public, true);
 });
 
 test("web calendar ingress mutations require a signed-in access token", async () => {

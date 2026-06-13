@@ -462,15 +462,15 @@
         <h1>Meetings become trusted knowledge only after checks.</h1>
         <p class="lede">
           Google Calendar schedules the session. Google Meet runs it. Gemini transcript output
-          and source files stay private. Supabase is the control plane: refs, jobs, review state,
-          and approved distillations. The app reads approved rows, not raw transcripts.
+          and source files stay private. Supabase is the control plane: refs, jobs, evidence cards,
+          review state, and approved distillations. The app reads approved views, not raw transcripts.
         </p>
       </div>
       <aside class="answer" aria-label="tool chain">
         <strong>Tool chain</strong>
         <p><b>Google Calendar</b> owns time, guests, session type, and Meet links.</p>
         <p><b>Google Meet + Gemini</b> produce the meeting transcript source.</p>
-        <p><b>Google Drive</b> is the private source vault. <b>Supabase</b> stores metadata, jobs, permissions, and reviewed outputs.</p>
+        <p><b>Google Drive</b> is the private source vault. <b>Supabase</b> stores metadata, jobs, private invite contacts, evidence cards, permissions, and reviewed outputs.</p>
         <p><b>Security rule:</b> browser clients never receive the raw transcript lane.</p>
       </aside>
     </header>
@@ -500,12 +500,13 @@
           <div class="map-stack">
             <div class="map-node">source_artifacts<small>source ref, tier, hash</small></div>
             <div class="map-node">processing_jobs<small>fetch, prepare, distill</small></div>
-            <div class="map-node">derived_artifacts<small>claims, summary, Q&amp;A</small></div>
+            <div class="map-node">derived_artifacts<small>draft readouts</small></div>
+            <div class="map-node">evidence_cards<small>reviewable claims</small></div>
           </div>
         </div>
         <div class="map-lane review">
           <h3>3. Human review</h3>
-          <p>Automated output is not trusted content until a reviewer approves the derived artifact.</p>
+          <p>Automated output is not trusted content until a reviewer approves the artifact and its evidence cards.</p>
           <div class="map-stack">
             <div class="map-node">artifact_reviews<small>approve, block, changes</small></div>
             <div class="map-node">approval_gates<small>T3 public checks</small></div>
@@ -516,7 +517,8 @@
           <h3>4. App and website</h3>
           <p>Users see the allowed view, not the whole vault.</p>
           <div class="map-stack">
-            <div class="map-node">app_transcript_distillations<small>approved app rows</small></div>
+            <div class="map-node">app_transcript_distillations<small>approved readouts</small></div>
+            <div class="map-node">app_transcript_evidence_cards<small>approved claims</small></div>
             <div class="map-node">Cohort app<small>insights and calendar</small></div>
             <div class="map-node">Public site<small>gated, no-name by default</small></div>
           </div>
@@ -604,10 +606,10 @@
         </div>
         <div class="two-col">
           <ul class="plain-list">
-            <li><span class="tag green">ingest</span><p><code>ingest-artifacts</code> writes <code>ingestion_events</code> and <code>source_artifacts</code>: source type, tier, storage ref, hash, size, uploader, and whether raw is server-readable.</p></li>
+            <li><span class="tag green">ingest</span><p><code>poll-drive-artifacts</code> finds Drive source refs; <code>ingest-artifacts</code> writes <code>ingestion_events</code> and <code>source_artifacts</code>: source type, tier, hash, size, uploader, and whether raw is server-readable.</p></li>
             <li><span class="tag blue">queue</span><p><code>processing_jobs</code> says what must happen next: fetch an external ref, prepare review, or distill allowed text. Overlapping workers claim jobs atomically.</p></li>
-            <li><span class="tag amber">derive</span><p><code>process-transcript-jobs</code> runs server-side, fetches only allowed private sources, and writes <code>derived_artifacts</code>: summaries, claims, Q&amp;A, deltas, and public candidates.</p></li>
-            <li><span class="tag red">review</span><p><code>artifact_reviews</code> and <code>approval_gates</code> record who approved, blocked, or held the output before it can move to the app or public site.</p></li>
+            <li><span class="tag amber">derive</span><p><code>process-transcript-jobs</code> runs server-side, fetches only allowed private sources, and writes <code>derived_artifacts</code> plus <code>evidence_cards</code>.</p></li>
+            <li><span class="tag red">review</span><p><code>review-transcript-artifact</code>, <code>artifact_reviews</code>, and <code>approval_gates</code> record who approved, blocked, or held the output before it can move to the app or public site.</p></li>
           </ul>
           <div class="checklist">
             <div class="check no">
@@ -616,15 +618,15 @@
             </div>
             <div class="check no">
               <b>No raw transcript table for app users</b>
-              <span>App users do not read <code>source_artifacts</code> or <code>processing_jobs</code>. Those are coordinator/operator lanes behind RLS.</span>
+              <span>App users do not read <code>source_artifacts</code>, <code>processing_jobs</code>, or the private <code>evidence_cards</code> table. Those are coordinator/operator lanes behind RLS.</span>
             </div>
             <div class="check warn">
-              <b>App view strips provenance internals</b>
-              <span><code>app_transcript_distillations</code> exposes approved derived content and omits raw source refs, processing job IDs, and private artifact rows.</span>
+              <b>App views strip provenance internals</b>
+              <span><code>app_transcript_distillations</code> and <code>app_transcript_evidence_cards</code> expose approved content and omit raw source refs, processing job IDs, and private artifact rows.</span>
             </div>
             <div class="check">
               <b>T3 has a database stop sign</b>
-              <span>Public output must be a <code>public_candidate</code>, approved, and have all required gates cleared before publication.</span>
+              <span>Public output must be a <code>public_candidate</code>, approved, no-name for articles, and have all required gates cleared before publication.</span>
             </div>
           </div>
         </div>
@@ -662,9 +664,9 @@
         <div class="section-head">
           <div>
             <p class="kicker">Storage model</p>
-            <h2 id="outputs-title">One meeting produces three records.</h2>
+            <h2 id="outputs-title">One meeting produces separate records.</h2>
           </div>
-          <p>The transcript source, the reviewed app record, and the public article record are separate things.</p>
+          <p>The transcript source, evidence cards, reviewed app readout, and public article candidate are separate things.</p>
         </div>
         <div class="rails">
           <div class="rail">
@@ -674,7 +676,7 @@
           </div>
           <div class="rail">
             <h3>Supabase app record</h3>
-            <p>Internally stores event metadata, source refs, tier, review state, claims, summaries, actions, and provenance.</p>
+            <p>Internally stores event metadata, source refs, tier, review state, derived readouts, evidence cards, actions, and provenance.</p>
             <p>Users get calendar state and <code>join event</code> links when a Meet URL is available.</p>
           </div>
           <div class="rail">
@@ -711,7 +713,7 @@
             </div>
             <div class="check warn">
               <b>Guest picker</b>
-              <span>Guest selection should read from a private cohort contact source, not a public bundle. Manual attendee paste is the fallback.</span>
+              <span>Guest selection reads from <code>private_invite_contacts</code>, not the public bundle. Manual attendee paste is the fallback.</span>
             </div>
             <div class="check no">
               <b>Raw transcript</b>

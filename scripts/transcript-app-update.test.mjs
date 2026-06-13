@@ -11,11 +11,13 @@ test("transcript app update keeps the required pipeline order", () => {
   const source = fs.readFileSync("scripts/update-transcript-app-surfaces.mjs", "utf8");
   const exportIndex = source.indexOf("export-transcript-distillations.mjs");
   const articleIndex = source.indexOf("build-public-transcript-articles.mjs");
+  const scanIndex = source.indexOf("transcript-surface-leak-scan.mjs");
   const vendorIndex = source.indexOf("vendor-web.mjs");
   const checkIndex = source.indexOf("build-bundles.js\"), [\"--check\"]");
 
   assert.ok(exportIndex > 0);
   assert.ok(articleIndex > exportIndex);
-  assert.ok(vendorIndex > articleIndex);
+  assert.ok(scanIndex > articleIndex);
+  assert.ok(vendorIndex > scanIndex);
   assert.ok(checkIndex > vendorIndex);
 });

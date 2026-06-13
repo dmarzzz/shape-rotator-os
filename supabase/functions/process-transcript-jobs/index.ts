@@ -270,6 +270,15 @@ function distillTranscriptText(text: string, {
   };
 }
 
+function claimTypeForEvidenceText(text: string) {
+  const value = String(text || "");
+  if (/\b(risk|block|blocked|fails?|failure|privacy|security|leak|concern|unclear)\b/i.test(value)) return "risk";
+  if (/\b(review|convert|keep|resolve|promote|hold|merge|narrow|should|must|needs?)\b/i.test(value)) return "action_item";
+  if (/\?$|which|what|how|does\b/i.test(value)) return "open_question";
+  if (/\b(topic|theme|signal|pattern|workflow|product|market|research)\b/i.test(value)) return "insight";
+  return "claim";
+}
+
 function artifactTierForDecision(decision: ReturnType<typeof policyDecisionForSession>) {
   if (decision.max_tier === "T1") return "T1";
   if (decision.cohort_mode === "aggregate_only") return "T2";
@@ -330,7 +339,7 @@ async function buildDerivedRows({
 }) {
   const decision = policyDecisionForSession(DEFAULT_ROUTING_POLICY, String(session.session_type || "office_hours"));
   if (decision.cohort_mode === "never") {
-    return { derivedArtifacts: [], approvalGates: [] };
+    return { derivedArtifacts: [], approvalGates: [], evidenceCards: [] };
   }
   const distillation = distillTranscriptText(transcriptText, {
     mode: decision.cohort_mode,
@@ -363,6 +372,38 @@ async function buildDerivedRows({
   };
   const derivedArtifacts = [readout];
   const approvalGates = [];
+  const evidenceCards = [
+    ...(distillation.summary || []),
+    ...(distillation.action_items || []),
+    ...(distillation.open_questions || []),
+  ].slice(0, 12).map(async (text, index) => ({
+    id: await stableUuid(`transcript-worker:evidence:${readout.id}:${index + 1}`),
+    org_id: orgId,
+    session_id: readout.session_id,
+    derived_artifact_id: readout.id,
+    source_artifact_id: readout.source_artifact_id,
+    processing_job_id: readout.processing_job_id,
+    claim_type: claimTypeForEvidenceText(text),
+    title: String(session.public_title || session.title || decision.label || "Session evidence"),
+    claim_text: text,
+    summary: index === 0 ? distillation.summary?.[0] || text : null,
+    evidence_level: decision.cohort_mode === "aggregate_only" ? "aggregate" : "inferred",
+    confidence: readout.confidence,
+    attribution_scope: decision.cohort_mode === "aggregate_only" ? "aggregate" : "room",
+    surface_tier: readout.tier,
+    source_boundary: "derived_only",
+    review_status: "needs_review",
+    approval_state: "not_required",
+    public_anonymous: false,
+    public_article_mode: null,
+    content_json: {
+      policy_key: decision.policy_key,
+      policy_version: decision.policy_version,
+      session_type: decision.session_type,
+      source_note: "Generated from abstract worker distillation; reviewer must verify against private source before weekly use.",
+      raw_allowed: false,
+    },
+  }));
   if (decision.public_allowed) {
     const publicCandidate = {
       ...readout,
@@ -374,6 +415,34 @@ async function buildDerivedRows({
       approval_state: "pending",
     };
     derivedArtifacts.push(publicCandidate);
+    evidenceCards.push(...(distillation.summary || []).slice(0, 6).map(async (text, index) => ({
+      id: await stableUuid(`transcript-worker:public-evidence:${publicCandidate.id}:${index + 1}`),
+      org_id: orgId,
+      session_id: publicCandidate.session_id,
+      derived_artifact_id: publicCandidate.id,
+      source_artifact_id: publicCandidate.source_artifact_id,
+      processing_job_id: publicCandidate.processing_job_id,
+      claim_type: "insight",
+      title: "General public insight",
+      claim_text: text,
+      summary: text,
+      evidence_level: "inferred",
+      confidence: publicCandidate.confidence,
+      attribution_scope: "anonymous_public",
+      surface_tier: "T3",
+      source_boundary: "derived_only",
+      review_status: "needs_review",
+      approval_state: "pending",
+      public_anonymous: true,
+      public_article_mode: "generalized_no_named_insights",
+      content_json: {
+        policy_key: decision.policy_key,
+        policy_version: decision.policy_version,
+        session_type: decision.session_type,
+        article_mode: "generalized_no_named_insights",
+        raw_allowed: false,
+      },
+    })));
     for (const gateKey of decision.required_public_approvals || []) {
       approvalGates.push({
         id: await stableUuid(`transcript-worker:gate:${publicId}:${gateKey}`),
@@ -385,7 +454,7 @@ async function buildDerivedRows({
       });
     }
   }
-  return { derivedArtifacts, approvalGates };
+  return { derivedArtifacts, approvalGates, evidenceCards: await Promise.all(evidenceCards) };
 }
 
 async function fetchQueuedJobs({
@@ -560,6 +629,13 @@ async function processOneJob({
       rows: rows.approvalGates,
       onConflict: "derived_artifact_id,gate_key",
     });
+    await upsertRows({
+      supabaseUrl,
+      serviceRoleKey,
+      table: "evidence_cards",
+      rows: rows.evidenceCards,
+      onConflict: "id",
+    });
     await patchRow({
       supabaseUrl,
       serviceRoleKey,
@@ -589,6 +665,7 @@ async function processOneJob({
     source_artifact_id: sourceArtifact.id,
     session_id: session.id,
     derived_artifact_ids: rows.derivedArtifacts.map((row) => row.id),
+    evidence_card_ids: rows.evidenceCards.map((row) => row.id),
     approval_gate_count: rows.approvalGates.length,
     source_hash: fetched.sourceHash,
     size_bytes: fetched.sizeBytes,

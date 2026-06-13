@@ -69,6 +69,25 @@ async function fetchArtifact({ supabaseUrl, serviceRoleKey, orgId, artifactId }:
   });
 }
 
+async function fetchEvidenceCard({ supabaseUrl, serviceRoleKey, orgId, cardId }: {
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  orgId: string;
+  cardId: string;
+}) {
+  return await fetchOne({
+    supabaseUrl,
+    serviceRoleKey,
+    table: "evidence_cards",
+    query: {
+      select: "*",
+      id: `eq.${cardId}`,
+      org_id: `eq.${orgId}`,
+    },
+    notFound: "evidence card not found",
+  });
+}
+
 async function fetchGate({ supabaseUrl, serviceRoleKey, orgId, gateId }: {
   supabaseUrl: string;
   serviceRoleKey: string;
@@ -123,6 +142,25 @@ function assertNoPublicContentLeak(artifact: Record<string, unknown>) {
   if (hit) throw statusError(`T3 publication blocked by private-source marker: ${hit}`, 400);
 }
 
+function assertNoPublicEvidenceCardLeak(card: Record<string, unknown>) {
+  const text = JSON.stringify({
+    title: card.title || "",
+    claim_text: card.claim_text || "",
+    summary: card.summary || "",
+    content_json: card.content_json || {},
+  });
+  const patterns = [
+    /\bprivate-vault:/i,
+    /\bdrive:\/\//i,
+    /"source_artifact_id"\s*:/i,
+    /"storage_ref"\s*:/i,
+    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+    /\b[A-Za-z]:\\[^\s"]+/,
+  ];
+  const hit = patterns.find((pattern) => pattern.test(text));
+  if (hit) throw statusError(`T3 evidence card blocked by private-source marker: ${hit}`, 400);
+}
+
 async function assertT3PublishAllowed({
   supabaseUrl,
   serviceRoleKey,
@@ -173,6 +211,60 @@ async function patchArtifact({
     method: "PATCH",
     query: {
       id: `eq.${artifactId}`,
+      org_id: `eq.${orgId}`,
+    },
+    body,
+    prefer: "return=representation",
+  });
+}
+
+async function patchEvidenceCard({
+  supabaseUrl,
+  serviceRoleKey,
+  orgId,
+  cardId,
+  body,
+}: {
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  orgId: string;
+  cardId: string;
+  body: Record<string, unknown>;
+}) {
+  return await supabaseRest({
+    supabaseUrl,
+    serviceRoleKey,
+    table: "evidence_cards",
+    method: "PATCH",
+    query: {
+      id: `eq.${cardId}`,
+      org_id: `eq.${orgId}`,
+    },
+    body,
+    prefer: "return=representation",
+  });
+}
+
+async function patchEvidenceCardsForArtifact({
+  supabaseUrl,
+  serviceRoleKey,
+  orgId,
+  artifactId,
+  body,
+}: {
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  orgId: string;
+  artifactId: string;
+  body: Record<string, unknown>;
+}) {
+  return await supabaseRest({
+    supabaseUrl,
+    serviceRoleKey,
+    table: "evidence_cards",
+    method: "PATCH",
+    query: {
+      derived_artifact_id: `eq.${artifactId}`,
       org_id: `eq.${orgId}`,
     },
     body,
@@ -234,6 +326,63 @@ async function insertReviewAndAudit({
   });
 }
 
+async function insertEvidenceAudit({
+  supabaseUrl,
+  serviceRoleKey,
+  orgId,
+  actorId,
+  cardId,
+  decision,
+  notes,
+  action,
+  before,
+  after,
+}: {
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  orgId: string;
+  actorId: string;
+  cardId: string;
+  decision: string;
+  notes?: string;
+  action: string;
+  before?: unknown;
+  after?: unknown;
+}) {
+  await upsertRows({
+    supabaseUrl,
+    serviceRoleKey,
+    table: "audit_log",
+    rows: [{
+      org_id: orgId,
+      actor_id: actorId,
+      action,
+      object_type: "evidence_card",
+      object_id: cardId,
+      before_json: before || null,
+      after_json: after || null,
+      created_at: nowIso(),
+    }],
+  });
+  if (decision || notes) {
+    await upsertRows({
+      supabaseUrl,
+      serviceRoleKey,
+      table: "audit_log",
+      rows: [{
+        org_id: orgId,
+        actor_id: actorId,
+        action: `evidence_card.review_note.${decision}`,
+        object_type: "evidence_card",
+        object_id: cardId,
+        before_json: null,
+        after_json: { notes: notes || null },
+        created_at: nowIso(),
+      }],
+    });
+  }
+}
+
 async function reviewArtifact({
   supabaseUrl,
   serviceRoleKey,
@@ -284,6 +433,18 @@ async function reviewArtifact({
   };
   const rows = await patchArtifact({ supabaseUrl, serviceRoleKey, orgId, artifactId, body: patch });
   const after = Array.isArray(rows) ? rows[0] : null;
+  const syncedEvidenceCards = await patchEvidenceCardsForArtifact({
+    supabaseUrl,
+    serviceRoleKey,
+    orgId,
+    artifactId,
+    body: {
+      review_status: reviewStatus,
+      ...(approvalState ? { approval_state: approvalState } : {}),
+      reviewed_by: actorId,
+      reviewed_at: nowIso(),
+    },
+  });
   await insertReviewAndAudit({
     supabaseUrl,
     serviceRoleKey,
@@ -296,7 +457,69 @@ async function reviewArtifact({
     before: artifact,
     after,
   });
-  return { artifact: after, reviews_written: 1 };
+  return { artifact: after, evidence_cards: syncedEvidenceCards, reviews_written: 1 };
+}
+
+async function reviewEvidenceCard({
+  supabaseUrl,
+  serviceRoleKey,
+  orgId,
+  actorId,
+  body,
+}: {
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  orgId: string;
+  actorId: string;
+  body: Record<string, unknown>;
+}) {
+  const cardId = asText(body.card_id || body.cardId || body.evidence_card_id || body.evidenceCardId);
+  if (!cardId) throw statusError("card_id is required", 400);
+  const card = await fetchEvidenceCard({ supabaseUrl, serviceRoleKey, orgId, cardId });
+  const reviewStatus = asText(body.review_status || body.reviewStatus || body.decision || "reviewed");
+  if (!["reviewed", "blocked", "published", "needs_review"].includes(reviewStatus)) {
+    throw statusError(`unsupported review_status: ${reviewStatus}`, 400);
+  }
+  let approvalState = asText(body.approval_state || body.approvalState);
+  if (!approvalState && reviewStatus === "blocked") approvalState = "blocked";
+  if (!approvalState && reviewStatus === "published") approvalState = "approved";
+  if (!approvalState && reviewStatus === "needs_review" && card.surface_tier === "T3") approvalState = "pending";
+  if (!approvalState && card.surface_tier === "T2") approvalState = "not_required";
+  if (approvalState && !["not_required", "pending", "approved", "blocked"].includes(approvalState)) {
+    throw statusError(`unsupported approval_state: ${approvalState}`, 400);
+  }
+  if (reviewStatus === "published") {
+    if (card.surface_tier !== "T3") throw statusError("only T3 evidence cards can be published", 400);
+    if (approvalState !== "approved") throw statusError("published evidence cards require approval_state=approved", 400);
+    if (body.publish_public !== true && body.publishPublic !== true) {
+      throw statusError("T3 evidence-card publication requires publish_public=true", 400);
+    }
+    if (card.public_anonymous !== true || card.public_article_mode !== "generalized_no_named_insights") {
+      throw statusError("T3 evidence cards must be no-named generalized insights", 400);
+    }
+    assertNoPublicEvidenceCardLeak(card);
+  }
+  const patch = {
+    review_status: reviewStatus,
+    ...(approvalState ? { approval_state: approvalState } : {}),
+    reviewed_by: actorId,
+    reviewed_at: nowIso(),
+  };
+  const rows = await patchEvidenceCard({ supabaseUrl, serviceRoleKey, orgId, cardId, body: patch });
+  const after = Array.isArray(rows) ? rows[0] : null;
+  await insertEvidenceAudit({
+    supabaseUrl,
+    serviceRoleKey,
+    orgId,
+    actorId,
+    cardId,
+    decision: reviewDecisionForStatus(reviewStatus),
+    notes: asText(body.note || body.notes) || null,
+    action: `evidence_card.${reviewStatus}`,
+    before: card,
+    after,
+  });
+  return { evidence_card: after, reviews_written: 1 };
 }
 
 async function decideGate({
@@ -343,6 +566,7 @@ async function decideGate({
   });
 
   let artifactRows = [];
+  let evidenceCardRows = [];
   if (artifactId && gateStatus === "blocked") {
     artifactRows = await patchArtifact({
       supabaseUrl,
@@ -352,6 +576,18 @@ async function decideGate({
       body: {
         review_status: "blocked",
         approval_state: "blocked",
+      },
+    });
+    evidenceCardRows = await patchEvidenceCardsForArtifact({
+      supabaseUrl,
+      serviceRoleKey,
+      orgId,
+      artifactId,
+      body: {
+        review_status: "blocked",
+        approval_state: "blocked",
+        reviewed_by: actorId,
+        reviewed_at: decidedAt,
       },
     });
   } else if (artifactId) {
@@ -365,7 +601,19 @@ async function decideGate({
         artifactId,
         body: {
           review_status: "reviewed",
+        approval_state: "approved",
+      },
+    });
+      evidenceCardRows = await patchEvidenceCardsForArtifact({
+        supabaseUrl,
+        serviceRoleKey,
+        orgId,
+        artifactId,
+        body: {
+          review_status: "reviewed",
           approval_state: "approved",
+          reviewed_by: actorId,
+          reviewed_at: decidedAt,
         },
       });
     }
@@ -391,6 +639,7 @@ async function decideGate({
   return {
     gates,
     artifact: Array.isArray(artifactRows) ? artifactRows[0] || null : null,
+    evidence_cards: evidenceCardRows,
     reviews_written: artifactId ? 1 : 0,
   };
 }
@@ -416,7 +665,9 @@ Deno.serve(async (req) => {
       ? await decideGate({ supabaseUrl, serviceRoleKey, orgId, actorId: requester.userId, body })
       : action === "review_artifact"
         ? await reviewArtifact({ supabaseUrl, serviceRoleKey, orgId, actorId: requester.userId, body })
-        : (() => { throw statusError(`unsupported action: ${action}`, 400); })();
+        : action === "review_evidence_card"
+          ? await reviewEvidenceCard({ supabaseUrl, serviceRoleKey, orgId, actorId: requester.userId, body })
+          : (() => { throw statusError(`unsupported action: ${action}`, 400); })();
     return jsonResponse({ ok: true, action, ...result });
   } catch (error) {
     return errorResponse(error);

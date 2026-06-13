@@ -18,12 +18,14 @@ import {
   approveEventRequest,
   decideApprovalGate,
   fetchCalendarOpsQueue,
+  fetchPrivateInviteDirectory,
   loadCalendarIngressConfig,
   mergeAttendeeEmails,
   policyDecision,
   postEventRequest,
   rejectEventRequest,
   reviewDerivedArtifact,
+  reviewEvidenceCard,
   saveCalendarIngressConfig,
 } from "./calendar-ingress-client.mjs?v=supabase-source";
 
@@ -182,6 +184,10 @@ function artifactSummary(row) {
   return compactText(row?.content_md || "", 260) || "no preview exported";
 }
 
+function cardSummary(row) {
+  return compactText(row?.claim_text || row?.summary || row?.content_json?.source_note || "", 260) || "no claim exported";
+}
+
 function renderEmptyQueue() {
   return `<p class="cal-ingress-empty">no queue rows loaded</p>`;
 }
@@ -240,6 +246,20 @@ function renderQueue() {
               </li>`)}
           </section>
           <section>
+            <h4>evidence cards</h4>
+            ${renderQueueList(queue.evidenceCards, (row) => `
+              <li>
+                <strong>${esc(row.claim_type || "claim")} · ${esc(row.surface_tier || "")}</strong>
+                <span>${esc(row.review_status || "needs_review")} · ${esc(row.approval_state || "not_required")} · ${esc(row.attribution_scope || "room")}</span>
+                <pre class="cal-ingress-artifact-preview">${esc(cardSummary(row))}</pre>
+                <div class="cal-ingress-queue-actions">
+                  ${row.approval_state === "pending" ? "" : `<button type="button" data-cal-queue-action="review-card" data-id="${esc(row.id)}">reviewed</button>`}
+                  ${row.surface_tier === "T3" && row.approval_state === "approved" ? `<button type="button" data-cal-queue-action="publish-card" data-id="${esc(row.id)}">publish</button>` : ""}
+                  <button type="button" data-cal-queue-action="block-card" data-id="${esc(row.id)}">block</button>
+                </div>
+              </li>`)}
+          </section>
+          <section>
             <h4>public gates</h4>
             ${renderQueueList(queue.approvalGates, (row) => `
               <li>
@@ -290,7 +310,7 @@ function renderInvitePicker() {
     <div class="cal-ingress-invite" data-cal-invite-picker>
       <div class="cal-ingress-invite-head">
         <span>cohort guests</span>
-        <strong>${esc(directory.people.length)} available · ${esc(directory.missingEmailCount)} without private contact</strong>
+        <strong>${esc(directory.people.length)} available · ${esc(directory.source || "public surface")} · ${esc(directory.missingEmailCount)} without private contact</strong>
       </div>
       <div class="cal-ingress-invite-groups" aria-label="invite role groups">
         ${roleGroups.map(groupButton).join("") || `<p>no email-backed role groups</p>`}
@@ -373,8 +393,8 @@ function renderConfig() {
           <code>${esc(driveCommand)}</code>
         </div>
         <div>
-          <span>local distill</span>
-          <code>npm run artifacts:worker -- --supabase-url "$SUPABASE_URL" --service-role-key "$SUPABASE_SERVICE_ROLE_KEY" --org-id ${esc(c.orgId || "ORG_ID")} --transcript-root ./private-transcripts --apply</code>
+          <span>cloud distill</span>
+          <code>Supabase cron invokes Drive discovery and transcript processing with Vault worker credentials; server admin credentials never enter browser state.</code>
         </div>
       </div>
       <div class="cal-ingress-actions">
@@ -585,13 +605,29 @@ async function loadInviteDirectory() {
   if (!root) return;
   if (!calendarIngressReadiness(state.config).browserReady) return;
   try {
-    const response = await fetch("/cohort-surface.json");
-    if (!response.ok) throw new Error(`cohort directory fetch failed: ${response.status}`);
-    state.inviteDirectory = cohortInviteDirectoryFromSurface(await response.json());
+    state.inviteDirectory = await fetchPrivateInviteDirectory({ config: state.config });
+    if (!state.inviteDirectory.people.length) {
+      const response = await fetch("/cohort-surface.json");
+      if (!response.ok) throw new Error(`cohort directory fetch failed: ${response.status}`);
+      state.inviteDirectory = {
+        ...cohortInviteDirectoryFromSurface(await response.json()),
+        source: "public_surface_fallback",
+      };
+    }
     state.inviteError = null;
   } catch (error) {
-    state.inviteDirectory = null;
-    state.inviteError = error?.message || String(error);
+    try {
+      const response = await fetch("/cohort-surface.json");
+      if (!response.ok) throw error;
+      state.inviteDirectory = {
+        ...cohortInviteDirectoryFromSurface(await response.json()),
+        source: "public_surface_fallback",
+      };
+      state.inviteError = null;
+    } catch {
+      state.inviteDirectory = null;
+      state.inviteError = error?.message || String(error);
+    }
   }
   const picker = root.querySelector("[data-cal-invite-picker]");
   if (picker) {
@@ -738,6 +774,15 @@ async function handleQueueAction(action, id) {
     } else if (action === "publish-derived") {
       await reviewDerivedArtifact({ config: state.config, artifactId: id, reviewStatus: "published", approvalState: "approved", notes: "Published in calendar ingress queue after approval gates cleared." });
       state.result = "artifact published";
+    } else if (action === "review-card") {
+      await reviewEvidenceCard({ config: state.config, cardId: id, reviewStatus: "reviewed", notes: "Evidence card reviewed in calendar ingress queue." });
+      state.result = "evidence card marked reviewed";
+    } else if (action === "block-card") {
+      await reviewEvidenceCard({ config: state.config, cardId: id, reviewStatus: "blocked", approvalState: "blocked", notes: "Evidence card blocked in calendar ingress queue." });
+      state.result = "evidence card blocked";
+    } else if (action === "publish-card") {
+      await reviewEvidenceCard({ config: state.config, cardId: id, reviewStatus: "published", approvalState: "approved", notes: "Published no-name evidence card after public approval gates cleared." });
+      state.result = "evidence card published";
     } else if (action === "approve-gate") {
       const gate = findQueueRow("approvalGates", id);
       await decideApprovalGate({ config: state.config, gate, gateStatus: "approved", notes: "Approved in calendar ingress queue." });
