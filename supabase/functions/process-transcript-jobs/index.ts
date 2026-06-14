@@ -728,16 +728,31 @@ Deno.serve(async (req) => {
           error: message,
         });
         if (apply && job?.id) {
+          // C5-4: requeue transient failures with bounded exponential backoff
+          // instead of failing terminally. `attempts` was already incremented at
+          // claim time, so on the max_attempts-th failure we give up for good.
+          const attempts = Number(job.attempts ?? 0);
+          const maxAttempts = Number(job.max_attempts ?? 5);
+          const exhausted = attempts >= maxAttempts;
+          const backoffMinutes = Math.min(2 ** Math.max(1, attempts), 30);
+          const failureBody = exhausted
+            ? {
+                processor_status: "failed",
+                finished_at: new Date().toISOString(),
+                error: message.slice(0, 1000),
+              }
+            : {
+                processor_status: "queued",
+                started_at: null,
+                due_at: new Date(Date.now() + backoffMinutes * 60_000).toISOString(),
+                error: message.slice(0, 1000),
+              };
           await patchRow({
             supabaseUrl,
             serviceRoleKey,
             table: "processing_jobs",
             id: String(job.id),
-            body: {
-              processor_status: "failed",
-              finished_at: new Date().toISOString(),
-              error: message.slice(0, 1000),
-            },
+            body: failureBody,
           });
         }
       }
