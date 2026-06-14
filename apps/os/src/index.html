@@ -18,6 +18,9 @@
          doesn't leak into legacy alchemy modes. -->
     <link rel="stylesheet" href="renderer/membrane/membrane.css" />
     <link rel="stylesheet" href="renderer/intel/intel.css" />
+    <!-- Cohort chat (matrix) — the "chat" top-level tab. Scoped under
+         .chat-view so it doesn't leak into other surfaces. -->
+    <link rel="stylesheet" href="renderer/chat/chat.css" />
     <!-- Global search overlay (⌘/Ctrl+F) + new-tab launcher. Scoped under
          .os-find / .os-find-blank so it doesn't leak into the rest of the OS. -->
     <link rel="stylesheet" href="renderer/find.css" />
@@ -108,6 +111,11 @@
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></span>
         <span class="nav-cat-label ar-label">apps</span>
         <span class="ar-hint">atlas · easel · daybook</span>
+      </button>
+      <button class="nav-cat nav-cat--dest" data-tab="matrix" type="button" aria-selected="false">
+        <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="nav-cat-label ar-label">matrix</span>
+        <span class="ar-hint">chat · cohort · e2ee</span>
       </button>
       <button class="nav-cat nav-cat--dest" data-tab="network" type="button" aria-selected="false">
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg></span>
@@ -547,6 +555,12 @@
         <main id="alchemy-canvas" class="alchemy-canvas" aria-live="polite"></main>
       </div>
     </section>
+
+    <!-- ─── chat view (cohort matrix) ─── -->
+    <!-- Mounted lazily by renderer/chat/chat.js on first activation of the
+         "chat" top-level tab. The main-process Matrix client (apps/os/
+         matrix.js) feeds it rooms + messages over IPC. -->
+    <section id="chat-view" class="chat-view chat-only" aria-label="cohort chat"></section>
 
     <!-- ─── links view (important external endpoints) ─── -->
     <section id="links-view" class="links-view links-only" aria-label="important links">

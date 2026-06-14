@@ -22,6 +22,7 @@ import { DAMP, dampPosition } from "./damping.js";
 import { materialize } from "./materialize.js";
 import { syncLabels, fadeLabelsByDistance } from "./labels.js";
 import { stableHue } from "./colors.js";
+import { mountChat } from "./chat/chat.js";
 import {
   toast,
   mountConnectionIndicator,
@@ -5970,7 +5971,7 @@ function showTimelineAutoToast() {
 // _archive/experimental/.
 const TAB_LS_KEY = "srwk:active_tab";
 const NET_SUB_LS_KEY = "srwk:network_sub";
-const TOP_TABS = new Set(["alchemy", "apps", "network", "links"]);
+const TOP_TABS = new Set(["alchemy", "apps", "network", "links", "matrix"]);
 const NET_SUBS = new Set(["network", "metrics"]);
 const APPS_LS_KEY = "srwk:apps_view";
 const APPS_VIEWS = new Set(["atlas", "easel"]);  // grid is the absence of one of these
@@ -6574,12 +6575,19 @@ function registerVisualizerShortcutsAndCommands() {
   } catch {}
 }
 
+let _chatMounted = false;
 function applyActiveTab(tab) {
   if (!TOP_TABS.has(tab)) tab = "alchemy";
   if (tab !== "alchemy") Alchemy.closeMembraneMenu();
   document.body.dataset.activeTab = tab;
   for (const btn of document.querySelectorAll("#tab-bar .tab-btn, #primary-nav .nav-cat")) {
     btn.setAttribute("aria-selected", btn.dataset.tab === tab ? "true" : "false");
+  }
+  // Cohort matrix chat mounts lazily on first activation so its IPC listeners
+  // + initial sync fetch don't run for users who never open it.
+  if (tab === "matrix" && !_chatMounted) {
+    const host = document.getElementById("chat-view");
+    if (host) { try { mountChat(host); _chatMounted = true; } catch (e) { console.error("[matrix] mount failed", e); } }
   }
   // Stale: experimental tab archived 2026-05-09. Variables retained as
   // false so any leftover branches below are no-ops without further edits.
