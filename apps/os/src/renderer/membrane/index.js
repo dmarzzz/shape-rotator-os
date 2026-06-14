@@ -397,7 +397,7 @@ function renderSelfCard(data, tpl) {
   const profile = data?.profile || {};
   const connections = Array.isArray(data?.connections) ? data.connections : [];
   const name = profile.name || profile.display_name || profile.handle || profile.gh_handle || profile.record_id || 'unclaimed';
-  const claimed = !!(profile.record_id || profile.handle || profile.name || profile.gh_handle);
+  const claimed = data?.claimed === true;
   const handle = profile.handle || profile.gh_handle || (profile.links && profile.links.github) || '';
   const role = profile.role || profile.title || (profile.is_mentor ? 'mentor' : '');
   const circle = profile.team || (profile.kind === 'team' ? profile.record_id : '') || '—';
@@ -997,6 +997,15 @@ export function mountMembrane(container, opts = {}) {
       btn.addEventListener('click', () => {
         if (typeof window.__srwkAlchemyJump === 'function') {
           window.__srwkAlchemyJump('shapes');
+        }
+      });
+    });
+    panelContent.querySelectorAll('[data-crewid-claim]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (typeof window.__srwkOpenIdentityFlow === 'function') {
+          window.__srwkOpenIdentityFlow();
+        } else if (typeof window.__srwkAlchemyJump === 'function') {
+          window.__srwkAlchemyJump('profile');
         }
       });
     });

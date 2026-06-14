@@ -10,6 +10,8 @@
 import { getCohortSurface, subscribeToCohortChanges, refreshCohortFromGithub } from "./cohort-source.js";
 
 const IDENTITY_LS_KEY = "srwk:identity_v1";
+const ONBOARDING_SKIP_LS_KEY = "srwk:identity_onboarding_skipped_v1";
+const ONBOARDING_SKIP_EVENT = "srwk:identity-onboarding-skip-changed";
 
 // Listeners fire whenever the identity changes (claim, switch, clear).
 // Used by the top-right pill to repaint and by alchemy.js to surface
@@ -42,6 +44,7 @@ export function setIdentity(record) {
   };
   _cached = v;
   try { localStorage.setItem(IDENTITY_LS_KEY, JSON.stringify(v)); } catch {}
+  setIdentityOnboardingSkipped(false);
   for (const cb of _listeners) { try { cb(v); } catch {} }
   return v;
 }
@@ -56,6 +59,22 @@ export function onIdentityChanged(cb) {
   if (typeof cb !== "function") return () => {};
   _listeners.add(cb);
   return () => _listeners.delete(cb);
+}
+
+export function hasSkippedIdentityOnboarding() {
+  try { return localStorage.getItem(ONBOARDING_SKIP_LS_KEY) === "1"; }
+  catch { return false; }
+}
+
+export function setIdentityOnboardingSkipped(skipped) {
+  const next = !!skipped;
+  try {
+    if (next) localStorage.setItem(ONBOARDING_SKIP_LS_KEY, "1");
+    else localStorage.removeItem(ONBOARDING_SKIP_LS_KEY);
+  } catch {}
+  try {
+    window.dispatchEvent(new CustomEvent(ONBOARDING_SKIP_EVENT, { detail: { skipped: next } }));
+  } catch {}
 }
 
 // Resolve the identity to a *displayable* {label, avatar, kind} bundle.
@@ -182,6 +201,11 @@ function labelInitials(label) {
 // that page (mountResealInline, called by alchemy's renderProfile). The
 // modal survives only as the automatic first-launch onboarding flow.
 function openIdentityFlow() {
+  if (!getIdentity()) {
+    setIdentityOnboardingSkipped(false);
+    showOnboardingModal();
+    return;
+  }
   if (typeof window.__srwkGoProfilePage === "function") {
     window.__srwkGoProfilePage();
   } else {
@@ -191,6 +215,8 @@ function openIdentityFlow() {
   }
 }
 
+try { window.__srwkOpenIdentityFlow = openIdentityFlow; } catch {}
+
 // ─── onboarding modal ────────────────────────────────────────────────
 // First-launch (or when the user clears identity) prompt. Shows the
 // existing cohort records they could claim, plus a "create new" path.
@@ -199,6 +225,7 @@ let _modalEl = null;
 
 export async function maybeShowOnboarding() {
   if (getIdentity()) return; // already claimed
+  if (hasSkippedIdentityOnboarding()) return; // user explicitly chose "not yet"
   // Defer until cohort is available — there's nothing to claim otherwise.
   let cohort = null;
   try { cohort = await getCohortSurface(); } catch {}
@@ -227,7 +254,12 @@ async function showOnboardingModal(cohortHint) {
   document.body.appendChild(overlay);
 
   // Click outside the card → close (treat as skip).
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) {
+      if (!getIdentity()) setIdentityOnboardingSkipped(true);
+      close();
+    }
+  });
 }
 
 // ─── re-seal card (shared by modal + profile page) ──────────────────
@@ -569,6 +601,7 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint, sea
   }
 
   host.querySelector("[data-im-skip]")?.addEventListener("click", () => {
+    if (!claimed) setIdentityOnboardingSkipped(true);
     if (typeof close === "function") close();
   });
 
