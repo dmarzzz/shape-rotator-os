@@ -1,0 +1,1326 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shape Rotator OS Information Rules</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: oklch(20% 0.025 58);
+      --muted: oklch(47% 0.026 64);
+      --paper: oklch(96% 0.018 78);
+      --paper-2: oklch(92% 0.025 78);
+      --line: oklch(80% 0.038 72);
+      --line-strong: oklch(61% 0.055 72);
+      --copper: oklch(55% 0.118 47);
+      --olive: oklch(48% 0.074 125);
+      --blue: oklch(43% 0.083 236);
+      --plum: oklch(41% 0.079 332);
+      --red: oklch(47% 0.12 31);
+      --shadow: 0 18px 60px oklch(23% 0.04 58 / 0.12);
+      --radius: 12px;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scrollbar-gutter: stable;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        linear-gradient(90deg, oklch(91% 0.028 75 / 0.75) 1px, transparent 1px),
+        linear-gradient(0deg, oklch(91% 0.028 75 / 0.75) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.45;
+    }
+
+    a {
+      color: inherit;
+      text-underline-offset: 0.18em;
+      text-decoration-color: color-mix(in oklch, var(--copper), transparent 45%);
+    }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid color-mix(in oklch, var(--blue), white 18%);
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.94em;
+      color: oklch(24% 0.04 60);
+      background: oklch(91% 0.026 80);
+      border: 1px solid color-mix(in oklch, var(--line), white 18%);
+      border-radius: 6px;
+      padding: 0.08rem 0.3rem;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .emoji {
+      display: inline-block;
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+      line-height: 1;
+      transform: translateY(0.03em);
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 72px;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 28px;
+      align-items: start;
+    }
+
+    .rail {
+      position: sticky;
+      top: 20px;
+      border-left: 3px solid var(--copper);
+      padding: 8px 0 10px 16px;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .rail strong {
+      display: block;
+      margin-bottom: 10px;
+      color: var(--ink);
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .rail a {
+      display: block;
+      padding: 6px 0;
+      text-decoration: none;
+    }
+
+    .rail a:hover {
+      color: var(--ink);
+    }
+
+    .hero {
+      min-height: min(680px, 92svh);
+      display: grid;
+      align-content: center;
+      gap: 28px;
+      padding: 28px 0 56px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .kicker {
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--copper);
+      overflow-wrap: anywhere;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: 920px;
+      font-family: var(--serif);
+      font-size: clamp(3rem, 8vw, 6.8rem);
+      line-height: 0.92;
+      font-weight: 700;
+    }
+
+    h2 {
+      font-family: var(--serif);
+      font-size: clamp(2rem, 4vw, 3.4rem);
+      line-height: 1;
+      margin-bottom: 18px;
+    }
+
+    h3 {
+      font-size: 1rem;
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      text-wrap: pretty;
+    }
+
+    .lede {
+      max-width: 760px;
+      font-size: clamp(1.08rem, 2vw, 1.45rem);
+      color: oklch(32% 0.035 63);
+    }
+
+    .thesis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .thesis-item {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: color-mix(in oklch, white, var(--paper) 56%);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      min-height: 158px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .thesis-item::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 4px;
+      background: var(--tone);
+    }
+
+    .thesis-item b {
+      display: block;
+      margin: 8px 0 10px;
+      font-size: 1.05rem;
+    }
+
+    .thesis-item .thesis-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--tone);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .quick-order {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: oklch(98% 0.014 80);
+    }
+
+    .order-step {
+      min-height: 116px;
+      padding: 14px 12px;
+      border-right: 1px solid var(--line);
+      position: relative;
+    }
+
+    .order-step:last-child {
+      border-right: 0;
+    }
+
+    .order-step .num {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--copper);
+      margin-bottom: 18px;
+    }
+
+    .order-step b {
+      display: block;
+      font-size: 0.9rem;
+      line-height: 1.1;
+    }
+
+    .order-step small {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+
+    section {
+      padding: 68px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(260px, 0.55fr);
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    .section-head p {
+      font-size: 0.98rem;
+    }
+
+    .boundary {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .boundary-panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: oklch(98% 0.014 80);
+      overflow: hidden;
+    }
+
+    .boundary-panel header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .boundary-panel header span {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--tone);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .boundary-panel .body {
+      padding: 18px;
+    }
+
+    .boundary-panel ul,
+    .rules ul,
+    .checklist ul {
+      margin: 14px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .boundary-panel li,
+    .rules li,
+    .checklist li {
+      position: relative;
+      padding-left: 18px;
+      margin: 9px 0;
+      color: var(--muted);
+    }
+
+    .boundary-panel li::before,
+    .rules li::before,
+    .checklist li::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--tone, var(--copper));
+      position: absolute;
+      left: 0;
+      top: 0.62em;
+    }
+
+    .authority {
+      display: grid;
+      gap: 8px;
+    }
+
+    .authority-row {
+      display: grid;
+      grid-template-columns: 54px minmax(142px, 0.46fr) minmax(210px, 1fr) minmax(140px, 0.56fr) minmax(148px, 0.4fr);
+      gap: 0;
+      align-items: stretch;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: clip;
+      background: oklch(98% 0.012 80);
+    }
+
+    .authority-row > div {
+      padding: 13px 14px;
+      border-right: 1px solid var(--line);
+      min-width: 0;
+    }
+
+    .authority-row > div:last-child {
+      border-right: 0;
+    }
+
+    .authority-row .idx {
+      display: grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--copper);
+      background: color-mix(in oklch, var(--copper), transparent 92%);
+    }
+
+    .authority-row b {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 7px;
+      min-width: 0;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+
+    .authority-row p,
+    .authority-row code {
+      font-size: 0.82rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--ink);
+      background: oklch(96% 0.015 80);
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .badge.no {
+      color: var(--red);
+      border-color: color-mix(in oklch, var(--red), white 62%);
+      background: color-mix(in oklch, var(--red), white 92%);
+    }
+
+    .badge.yes {
+      color: var(--olive);
+      border-color: color-mix(in oklch, var(--olive), white 58%);
+      background: color-mix(in oklch, var(--olive), white 90%);
+    }
+
+    .route-map {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(120px, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .route {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: oklch(98% 0.012 80);
+      padding: 14px;
+      min-height: 156px;
+      display: grid;
+      gap: 14px;
+      align-content: start;
+      position: relative;
+    }
+
+    .route::before {
+      content: attr(data-icon) " " attr(data-folder);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--tone);
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .route b {
+      font-size: 0.92rem;
+      line-height: 1.15;
+    }
+
+    .route p {
+      font-size: 0.82rem;
+    }
+
+    .transcript-name {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: oklch(98% 0.012 80);
+      padding: 22px;
+    }
+
+    .name-pattern {
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) auto minmax(0, 1.15fr) auto minmax(0, 0.95fr) auto minmax(70px, 0.35fr);
+      gap: 8px;
+      align-items: center;
+      margin: 12px 0 18px;
+    }
+
+    .token {
+      min-height: 82px;
+      border: 1px solid color-mix(in oklch, var(--line), var(--tone, var(--copper)) 22%);
+      border-radius: 10px;
+      background: color-mix(in oklch, white, var(--tone, var(--copper)) 5%);
+      padding: 13px;
+    }
+
+    .token span {
+      display: block;
+      font-family: var(--mono);
+      color: var(--tone, var(--copper));
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 9px;
+    }
+
+    .token b {
+      display: block;
+      font-size: 0.95rem;
+      overflow-wrap: anywhere;
+    }
+
+    .joiner {
+      font-family: var(--mono);
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .examples {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .example-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      background: oklch(96% 0.016 80);
+    }
+
+    .example-row span {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .example-row code {
+      display: block;
+      width: 100%;
+    }
+
+    .example-row.bad code {
+      color: var(--red);
+      border-color: color-mix(in oklch, var(--red), white 64%);
+      background: color-mix(in oklch, var(--red), white 92%);
+    }
+
+    .example-row.good code {
+      color: var(--olive);
+      border-color: color-mix(in oklch, var(--olive), white 62%);
+      background: color-mix(in oklch, var(--olive), white 91%);
+    }
+
+    .matrix {
+      display: grid;
+      gap: 8px;
+    }
+
+    .matrix-row {
+      display: grid;
+      grid-template-columns: minmax(190px, 0.72fr) minmax(180px, 0.72fr) minmax(230px, 1fr) minmax(190px, 0.8fr);
+      gap: 0;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: oklch(98% 0.012 80);
+    }
+
+    .matrix-row > div {
+      padding: 12px 14px;
+      border-right: 1px solid var(--line);
+      min-width: 0;
+    }
+
+    .matrix-row > div:last-child {
+      border-right: 0;
+    }
+
+    .matrix-row .type {
+      border-left: 5px solid var(--tone);
+    }
+
+    .matrix-row .type b,
+    .tier .label b,
+    .folder-row b,
+    .rule-panel h3,
+    .checklist h3 {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .matrix-row p {
+      font-size: 0.82rem;
+    }
+
+    .tier-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: oklch(98% 0.012 80);
+    }
+
+    .tier {
+      padding: 18px;
+      border-right: 1px solid var(--line);
+      min-height: 154px;
+    }
+
+    .tier:last-child {
+      border-right: 0;
+    }
+
+    .tier .label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .tier .label span {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--tone);
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(112px, 1fr));
+      gap: 8px;
+    }
+
+    .flow-step {
+      min-height: 168px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: oklch(98% 0.012 80);
+      padding: 14px;
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .flow-step span {
+      font-family: var(--mono);
+      color: var(--copper);
+      font-size: 0.72rem;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .decision {
+      display: grid;
+      gap: 8px;
+    }
+
+    .decision-row {
+      display: grid;
+      grid-template-columns: 46px minmax(220px, 1fr) minmax(260px, 1fr);
+      gap: 0;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: oklch(98% 0.012 80);
+    }
+
+    .decision-row > div {
+      padding: 13px 14px;
+      border-right: 1px solid var(--line);
+    }
+
+    .decision-row > div:last-child {
+      border-right: 0;
+    }
+
+    .decision-row .mark {
+      display: grid;
+      place-items: center;
+      background: color-mix(in oklch, var(--blue), transparent 91%);
+      color: var(--blue);
+      font-family: var(--mono);
+      font-size: 1rem;
+    }
+
+    .folder-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .folder-row {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      background: oklch(98% 0.012 80);
+    }
+
+    .folder-row b {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .folder-row p {
+      font-size: 0.82rem;
+    }
+
+    .rules {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .rule-panel,
+    .checklist {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: oklch(98% 0.012 80);
+      padding: 18px;
+    }
+
+    .rule-panel h3 {
+      color: var(--red);
+    }
+
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .footer-links a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 12px;
+      text-decoration: none;
+      background: oklch(98% 0.012 80);
+      font-size: 0.88rem;
+    }
+
+    @media (max-width: 980px) {
+      .shell {
+        display: block;
+      }
+
+      .rail {
+        position: static;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        border-left: 0;
+        border-bottom: 1px solid var(--line);
+        padding: 0 0 16px;
+        margin-bottom: 22px;
+      }
+
+      .rail strong {
+        flex-basis: 100%;
+      }
+
+      .rail a {
+        padding: 3px 0;
+      }
+
+      .thesis,
+      .boundary,
+      .section-head,
+      .rules {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-order,
+      .route-map,
+      .flow {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .authority-row,
+      .matrix-row {
+        grid-template-columns: 1fr;
+      }
+
+      .authority-row > div,
+      .matrix-row > div {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .authority-row > div:last-child,
+      .matrix-row > div:last-child {
+        border-bottom: 0;
+      }
+
+      .tier-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .tier:nth-child(2) {
+        border-right: 0;
+      }
+
+      .tier:nth-child(-n+2) {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .name-pattern {
+        grid-template-columns: 1fr;
+      }
+
+      .joiner {
+        display: none;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .page {
+        width: min(100% - 20px, 1180px);
+        padding-top: 16px;
+      }
+
+      .hero {
+        min-height: auto;
+        padding: 24px 0 44px;
+      }
+
+      h1 {
+        font-size: clamp(2.6rem, 16vw, 4rem);
+      }
+
+      section {
+        padding: 44px 0;
+      }
+
+      .quick-order,
+      .route-map,
+      .flow,
+      .tier-strip,
+      .folder-grid,
+      .examples {
+        grid-template-columns: 1fr;
+      }
+
+      .order-step,
+      .tier {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .order-step:last-child,
+      .tier:last-child {
+        border-bottom: 0;
+      }
+
+      .decision-row {
+        grid-template-columns: 1fr;
+      }
+
+      .decision-row > div {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .decision-row > div:last-child {
+        border-bottom: 0;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+
+      .rail {
+        display: none;
+      }
+
+      .page {
+        width: auto;
+        padding: 0;
+      }
+
+      .shell {
+        display: block;
+      }
+
+      section,
+      .hero {
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="shell">
+      <nav class="rail" aria-label="Information index sections">
+        <strong>Index</strong>
+        <a href="#boundary">🔒 Boundary</a>
+        <a href="#authority">📌 Authority</a>
+        <a href="#routes">🗂️ Drive Routes</a>
+        <a href="#naming">🏷️ Naming</a>
+        <a href="#types">🧾 Transcript Types</a>
+        <a href="#privacy">🛂 Privacy</a>
+        <a href="#lifecycle">🔁 Lifecycle</a>
+        <a href="#placement">🧭 Placement</a>
+        <a href="#folders">📁 Folder Map</a>
+        <a href="#checklist">✅ Checklist</a>
+      </nav>
+
+      <main>
+        <header class="hero">
+          <div>
+            <div class="kicker">Shape Rotator OS / information rules / reviewed 2026-06-14</div>
+            <h1>Store information by authority, not convenience.</h1>
+          </div>
+          <p class="lede">When something arrives, do not ask where it landed. Ask what the safest authoritative version is, who may see it, and which system owns the next step.</p>
+
+          <div class="thesis" aria-label="Primary storage boundary">
+            <article class="thesis-item" style="--tone: var(--copper)">
+              <span class="thesis-label"><span class="emoji" aria-hidden="true">🔒</span> Raw source</span>
+              <b>Drive vault or private local only.</b>
+              <p>Original transcripts, recordings, private notes, and operator evidence stay out of the public repo.</p>
+            </article>
+            <article class="thesis-item" style="--tone: var(--blue)">
+              <span class="thesis-label"><span class="emoji" aria-hidden="true">🧠</span> Distillation</span>
+              <b>Supabase is the system of record.</b>
+              <p>Processing jobs, derived artifacts, reviews, approval gates, and app-safe views live in Supabase.</p>
+            </article>
+            <article class="thesis-item" style="--tone: var(--olive)">
+              <span class="thesis-label"><span class="emoji" aria-hidden="true">📚</span> Durable knowledge</span>
+              <b>Repo data and docs are reviewed surfaces.</b>
+              <p>Commit only safe anchors, canonical cohort records, reviewed artifacts, policy, code, and generated bundles by intent.</p>
+            </article>
+          </div>
+
+          <div class="quick-order" aria-label="Authority order">
+            <div class="order-step"><span class="num"><span class="emoji" aria-hidden="true">🔒</span>01</span><b>Raw private source</b><small>Drive vault or <code>.private</code></small></div>
+            <div class="order-step"><span class="num"><span class="emoji" aria-hidden="true">🧠</span>02</span><b>Distillation state</b><small>Supabase, not Drive</small></div>
+            <div class="order-step"><span class="num"><span class="emoji" aria-hidden="true">📌</span>03</span><b>Cohort facts</b><small><code>cohort-data/</code></small></div>
+            <div class="order-step"><span class="num"><span class="emoji" aria-hidden="true">📚</span>04</span><b>Operating docs</b><small><code>docs/</code></small></div>
+            <div class="order-step"><span class="num"><span class="emoji" aria-hidden="true">⚙️</span>05</span><b>Product code</b><small><code>apps/</code>, <code>packages/</code>, <code>scripts/</code></small></div>
+            <div class="order-step"><span class="num"><span class="emoji" aria-hidden="true">🏗️</span>06</span><b>Generated output</b><small>Explicit generated/build locations</small></div>
+            <div class="order-step"><span class="num"><span class="emoji" aria-hidden="true">🧹</span>07</span><b>Scratch</b><small>Never policy until promoted</small></div>
+          </div>
+        </header>
+
+        <section id="boundary">
+          <div class="section-head">
+            <div>
+              <div class="kicker">The storage boundary</div>
+              <h2>Drive captures. Supabase distills. Repo publishes reviewed truth.</h2>
+            </div>
+            <p>This is the highest-value distinction in the index. It prevents raw material from leaking into public surfaces and prevents Drive folders from becoming the unofficial review database.</p>
+          </div>
+
+          <div class="boundary">
+            <article class="boundary-panel" style="--tone: var(--copper)">
+              <header><b>Drive vault</b><span>T0 source</span></header>
+              <div class="body">
+                <p>Use for recordings, raw transcripts, source file names, and operator routing evidence.</p>
+                <ul>
+                  <li>Raw transcript stays in the room.</li>
+                  <li>Calendar match before final route.</li>
+                  <li>Run <code>scripts/audit-transcript-labels.mjs</code> for label and order review.</li>
+                  <li><code>operator_review_exports</code> is only an operator export mirror.</li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="boundary-panel" style="--tone: var(--blue)">
+              <header><b>Supabase</b><span>distillation</span></header>
+              <div class="body">
+                <p>Use for canonical processing and review state.</p>
+                <ul>
+                  <li><code>source_artifacts</code></li>
+                  <li><code>processing_jobs</code></li>
+                  <li><code>derived_artifacts</code>, reviews, approval gates, app-safe views</li>
+                  <li>Type, group, understanding, and card confidence percentages</li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="boundary-panel" style="--tone: var(--olive)">
+              <header><b>Repository</b><span>reviewed</span></header>
+              <div class="body">
+                <p>Use for durable safe records, policy, code, and generated app bundles.</p>
+                <ul>
+                  <li>No raw transcript text.</li>
+                  <li>No private exports.</li>
+                  <li>Machine-enforced policy goes in <code>cohort-data/policies/</code>.</li>
+                </ul>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="authority">
+          <div class="section-head">
+            <div>
+              <div class="kicker">Authority levels</div>
+              <h2>Commit only the level that is safe and authoritative.</h2>
+            </div>
+            <p>The same fact can exist as raw source, metadata anchor, reviewed synthesis, or public article. The level determines where it belongs.</p>
+          </div>
+
+          <div class="authority" role="table" aria-label="Authority levels">
+            <div class="authority-row" role="row">
+              <div class="idx">T0</div>
+              <div><b><span class="emoji" aria-hidden="true">🔒</span> Raw private source</b></div>
+              <div><p>Original transcript, recording, private note, unredacted upload, privileged export.</p></div>
+              <div><code>Drive</code> <code>cohort-data/.private/</code></div>
+              <div><span class="badge no">🚫 do not commit</span></div>
+            </div>
+            <div class="authority-row" role="row">
+              <div class="idx">A1</div>
+              <div><b><span class="emoji" aria-hidden="true">📌</span> Source anchor</b></div>
+              <div><p>Metadata proving a source exists without exposing private content.</p></div>
+              <div><code>cohort-data/events/</code> <code>Supabase</code></div>
+              <div><span class="badge yes">✅ safe if clean</span></div>
+            </div>
+            <div class="authority-row" role="row">
+              <div class="idx">A2</div>
+              <div><b><span class="emoji" aria-hidden="true">📚</span> Canonical cohort record</b></div>
+              <div><p>Stable object the OS renders or routes on.</p></div>
+              <div><code>cohort-data/</code></div>
+              <div><span class="badge yes">✅ commit</span></div>
+            </div>
+            <div class="authority-row" role="row">
+              <div class="idx">A3</div>
+              <div><b><span class="emoji" aria-hidden="true">🧠</span> Derived reviewed artifact</b></div>
+              <div><p>Human-reviewed synthesis from a private or noisy source.</p></div>
+              <div><code>Supabase</code> <code>reviewed/</code></div>
+              <div><span class="badge yes">✅ policy gated</span></div>
+            </div>
+            <div class="authority-row" role="row">
+              <div class="idx">D</div>
+              <div><b><span class="emoji" aria-hidden="true">📄</span> Durable operating doc</b></div>
+              <div><p>Rule, playbook, audit, launch checklist, architecture note.</p></div>
+              <div><code>docs/</code></div>
+              <div><span class="badge yes">✅ commit</span></div>
+            </div>
+            <div class="authority-row" role="row">
+              <div class="idx">G</div>
+              <div><b><span class="emoji" aria-hidden="true">🏗️</span> Generated artifact</b></div>
+              <div><p>Mechanical output that can be rebuilt.</p></div>
+              <div><code>generated/</code> <code>tmp/</code> bundles</div>
+              <div><span class="badge">🔎 case by case</span></div>
+            </div>
+            <div class="authority-row" role="row">
+              <div class="idx">X</div>
+              <div><b><span class="emoji" aria-hidden="true">🧹</span> Scratch/import residue</b></div>
+              <div><p>Local test output, downloaded pile, temporary debugging screenshot.</p></div>
+              <div><code>tmp/</code> ignored local path</div>
+              <div><span class="badge no">🚫 do not commit</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="routes">
+          <div class="section-head">
+            <div>
+              <div class="kicker">Drive vault routes</div>
+              <h2>Folder names say what they hold.</h2>
+            </div>
+            <p>These folders organize source/admin material in Drive. Read left to right for lifecycle order; the order is not encoded into the folder name.</p>
+          </div>
+
+          <div class="route-map" aria-label="Drive vault lifecycle folders">
+            <div class="route" data-icon="📥" data-folder="inbox" style="--tone: var(--muted)"><b>Inbox</b><p>New arrivals before classification.</p></div>
+            <div class="route" data-icon="🧾" data-folder="raw_transcripts" style="--tone: var(--copper)"><b>Raw transcripts</b><p>Room-level T0 transcript sources after type classification.</p></div>
+            <div class="route" data-icon="📅" data-folder="calendar_matched" style="--tone: var(--blue)"><b>Calendar matched</b><p>Sources tied to calendar/session anchors.</p></div>
+            <div class="route" data-icon="🔎" data-folder="needs_calendar_match" style="--tone: var(--plum)"><b>Needs calendar match</b><p>Manual date, session, or audience review.</p></div>
+            <div class="route" data-icon="🧪" data-folder="operator_review_exports" style="--tone: var(--olive)"><b>Review exports</b><p>Optional export/review mirror. Supabase remains canonical.</p></div>
+            <div class="route" data-icon="🚫" data-folder="do_not_publish" style="--tone: var(--red)"><b>Do not publish</b><p>Private, sensitive, strategy, or core-only material.</p></div>
+          </div>
+        </section>
+
+        <section id="naming">
+          <div class="section-head">
+            <div>
+              <div class="kicker">Transcript naming</div>
+              <h2>Every transcript source uses one readable pattern.</h2>
+            </div>
+            <p>Check the calendar first. Then name by session type, project/topic/person slug, confirmed date, and source extension.</p>
+          </div>
+
+          <div class="transcript-name">
+            <div class="name-pattern" aria-label="Transcript naming pattern">
+              <div class="token" style="--tone: var(--copper)"><span>type</span><b>office_hours</b></div>
+              <div class="joiner">_</div>
+              <div class="token" style="--tone: var(--olive)"><span>project-name</span><b>conclave</b></div>
+              <div class="joiner">_</div>
+              <div class="token" style="--tone: var(--blue)"><span>date</span><b>2026-06-10</b></div>
+              <div class="joiner">.</div>
+              <div class="token" style="--tone: var(--plum)"><span>ext</span><b>txt</b></div>
+            </div>
+            <p><code>type_project-name_YYYY-MM-DD.ext</code> is the operational form of <code>type_project_name_date</code>. Use underscores between components and hyphens inside the project/topic component.</p>
+
+            <div class="examples">
+              <div class="example-row bad"><span>❌ Bad</span><code>Conclave office hours final.txt</code></div>
+              <div class="example-row good"><span>✅ Good</span><code>office_hours_conclave_2026-06-10.txt</code></div>
+              <div class="example-row bad"><span>❌ Bad</span><code>Copy of Product Whiteboarding Jam Jun 9.txt</code></div>
+              <div class="example-row good"><span>✅ Good</span><code>rd_jam_product-whiteboarding_2026-06-09.txt</code></div>
+              <div class="example-row bad"><span>❌ Bad</span><code>WDYDLW Shaw notes latest.md</code></div>
+              <div class="example-row good"><span>✅ Good</span><code>weekly_standup_shaw_2026-06-08.md</code></div>
+              <div class="example-row bad"><span>❌ Bad</span><code>Project intros & workflow.txt</code></div>
+              <div class="example-row good"><span>✅ Good</span><code>demo_presentation_project-intros-workflow_2026-05-19.txt</code></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="types">
+          <div class="section-head">
+            <div>
+              <div class="kicker">Transcript routing matrix</div>
+              <h2>Calendar first. Restrictive route on ambiguity.</h2>
+            </div>
+            <p>If a transcript fits two rows, use the calendar event as the first anchor. If the calendar is still ambiguous, route to <code>needs_calendar_match</code>.</p>
+          </div>
+
+          <div class="matrix" aria-label="Transcript source types">
+            <div class="matrix-row" style="--tone: var(--olive)">
+              <div class="type"><b><span class="emoji" aria-hidden="true">👤</span> weekly_standup</b><p>individual based</p></div>
+              <div><code>raw_transcripts/weekly_standup</code></div>
+              <div><p>Recurring WDYDLW, status update, individual progress, or coordinator check-in by person.</p></div>
+              <div><p>Only aggregate signal reaches cohort. Never public.</p></div>
+            </div>
+            <div class="matrix-row" style="--tone: var(--blue)">
+              <div class="type"><b><span class="emoji" aria-hidden="true">🧑‍💻</span> office_hours</b><p>project core team or product based</p></div>
+              <div><code>raw_transcripts/office_hours</code></div>
+              <div><p>Project support, product feedback, roadmap critique, milestone review, or core-team implementation help.</p></div>
+              <div><p>Reviewed cohort readout allowed. Not public by default.</p></div>
+            </div>
+            <div class="matrix-row" style="--tone: var(--copper)">
+              <div class="type"><b><span class="emoji" aria-hidden="true">💬</span> salon</b><p>topic based</p></div>
+              <div><code>raw_transcripts/salon</code></div>
+              <div><p>Topic-led discussion, speaker-led room, or salon-style session not centered on one team's operating work.</p></div>
+              <div><p>Public candidate only after editorial, speaker, and named-person passes.</p></div>
+            </div>
+            <div class="matrix-row" style="--tone: var(--plum)">
+              <div class="type"><b><span class="emoji" aria-hidden="true">🧪</span> rd_jam</b><p>product or technical idea based</p></div>
+              <div><code>raw_transcripts/rd_jam</code></div>
+              <div><p>Open-ended whiteboarding, architecture exploration, hypothesis testing, or idea-stage workshop.</p></div>
+              <div><p>Cohort only after team call and hard distillation. Never public by default.</p></div>
+            </div>
+            <div class="matrix-row" style="--tone: var(--olive)">
+              <div class="type"><b><span class="emoji" aria-hidden="true">🎬</span> demo_presentation</b><p>project or product based</p></div>
+              <div><code>raw_transcripts/demo_presentation</code></div>
+              <div><p>Prepared project/product demo, presentation, intro, showcase, or presenter-owned material.</p></div>
+              <div><p>Public requires presenter approval plus editorial and named-person passes.</p></div>
+            </div>
+            <div class="matrix-row" style="--tone: var(--red)">
+              <div class="type"><b><span class="emoji" aria-hidden="true">🔒</span> private_1on1</b><p>private/coaching based</p></div>
+              <div><code>do_not_publish/private_1on1</code></div>
+              <div><p>Private one-on-one, coordinator feedback, sensitive coaching.</p></div>
+              <div><p>No cohort or public artifact.</p></div>
+            </div>
+            <div class="matrix-row" style="--tone: var(--blue)">
+              <div class="type"><b><span class="emoji" aria-hidden="true">🎙️</span> user_interview</b><p>external-subject based</p></div>
+              <div><code>raw_transcripts/user_interview</code></div>
+              <div><p>External customer, user, ICP, or research subject.</p></div>
+              <div><p>Only aggregate insights may travel. The interview itself never widens.</p></div>
+            </div>
+            <div class="matrix-row" style="--tone: var(--red)">
+              <div class="type"><b><span class="emoji" aria-hidden="true">🧭</span> planning_strategy</b><p>coordinator/governance based</p></div>
+              <div><code>do_not_publish/planning_strategy</code></div>
+              <div><p>Governance, fundraising, internal planning, access policy, coordinator strategy.</p></div>
+              <div><p>Coordinator/core only. Not cohort, not public.</p></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="privacy">
+          <div class="section-head">
+            <div>
+              <div class="kicker">Privacy and publication tiers</div>
+              <h2>Raw content never leaves T0/T1 control.</h2>
+            </div>
+            <p>Public and cohort surfaces receive distillation, never raw transcript text. Attribution and quotes require explicit clearance.</p>
+          </div>
+
+          <div class="tier-strip" aria-label="Privacy tiers">
+            <article class="tier" style="--tone: var(--copper)">
+              <div class="label"><b><span class="emoji" aria-hidden="true">🔒</span> T0 Room</b><span>raw yes</span></div>
+              <p>People who were there. Raw transcript lives here only.</p>
+            </article>
+            <article class="tier" style="--tone: var(--blue)">
+              <div class="label"><b><span class="emoji" aria-hidden="true">🛂</span> T1 Core</b><span>request</span></div>
+              <p>Core team, coordinators, and project owners. Raw only by request and approval.</p>
+            </article>
+            <article class="tier" style="--tone: var(--olive)">
+              <div class="label"><b><span class="emoji" aria-hidden="true">🧠</span> T2 Cohort</b><span>distilled</span></div>
+              <p>Gated cohort surface. Distilled readout with provenance, confidence, and review status.</p>
+            </article>
+            <article class="tier" style="--tone: var(--red)">
+              <div class="label"><b><span class="emoji" aria-hidden="true">🌐</span> T3 Public</b><span>cleared</span></div>
+              <p>Open public site. Generalized or explicitly cleared material only.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="lifecycle">
+          <div class="section-head">
+            <div>
+              <div class="kicker">Promotion lifecycle</div>
+              <h2>Raw input becomes durable OS knowledge only after review.</h2>
+            </div>
+            <p>The workflow is intentionally slower than dumping files into the repo. The point is to preserve useful signal without widening private context.</p>
+          </div>
+
+          <div class="flow" aria-label="Promotion lifecycle">
+            <div class="flow-step"><span><span class="emoji" aria-hidden="true">📥</span>01</span><b>Inbox</b><p>Put unclassified arrivals in <code>inbox</code>, <code>tmp/</code>, or <code>.private</code>.</p></div>
+            <div class="flow-step"><span><span class="emoji" aria-hidden="true">📅</span>02</span><b>Classify</b><p>Match calendar first. Identify type, source, date, audience, sensitivity, confidence percentages, and transcript label/order audit status.</p></div>
+            <div class="flow-step"><span><span class="emoji" aria-hidden="true">📌</span>03</span><b>Anchor</b><p>Create safe metadata in events, Supabase source metadata, or a manifest.</p></div>
+            <div class="flow-step"><span><span class="emoji" aria-hidden="true">🧠</span>04</span><b>Distill</b><p>Store canonical distillation state in Supabase. Ship T2 fast lane when allowed.</p></div>
+            <div class="flow-step"><span><span class="emoji" aria-hidden="true">✅</span>05</span><b>Review</b><p>Mark generated output; below 70% stays review-held unless a human overrides.</p></div>
+            <div class="flow-step"><span><span class="emoji" aria-hidden="true">🌐</span>06</span><b>Publish</b><p>Update canonical records, rebuild generated app bundles, and refresh <code>INFORMATION_INDEX.html</code>.</p></div>
+            <div class="flow-step"><span><span class="emoji" aria-hidden="true">🚫</span>07</span><b>Archive or hold</b><p>Move private or blocked material to the correct private/held location.</p></div>
+          </div>
+        </section>
+
+        <section id="placement">
+          <div class="section-head">
+            <div>
+              <div class="kicker">Placement decision tree</div>
+              <h2>Answer these questions in order.</h2>
+            </div>
+            <p>The tree is intentionally blunt. If a file contains raw private content, no later answer can make it public-repo safe.</p>
+          </div>
+
+          <div class="decision">
+            <div class="decision-row"><div class="mark"><span class="emoji" aria-hidden="true">🔒</span></div><div><b>Does it contain raw private content?</b></div><div><code>Drive vault</code> or <code>cohort-data/.private/</code></div></div>
+            <div class="decision-row"><div class="mark"><span class="emoji" aria-hidden="true">📌</span></div><div><b>Is it a stable fact about a cohort object?</b></div><div><code>cohort-data/&lt;record-type&gt;/</code></div></div>
+            <div class="decision-row"><div class="mark"><span class="emoji" aria-hidden="true">📚</span></div><div><b>Is it a rule, plan, audit, architecture note, or process guide?</b></div><div><code>docs/</code></div></div>
+            <div class="decision-row"><div class="mark"><span class="emoji" aria-hidden="true">⚙️</span></div><div><b>Is it code or automation?</b></div><div><code>apps/</code>, <code>packages/</code>, <code>scripts/</code>, or <code>supabase/</code></div></div>
+            <div class="decision-row"><div class="mark"><span class="emoji" aria-hidden="true">🏗️</span></div><div><b>Is it rebuildable output or local scratch?</b></div><div><code>generated/</code>, app bundle output, ignored build output, or <code>tmp/</code></div></div>
+            <div class="decision-row"><div class="mark"><span class="emoji" aria-hidden="true">🌐</span></div><div><b>Is it a durable public article or recap?</b></div><div><code>cohort-data/articles/</code>; rendered web copy goes where the app expects it.</div></div>
+          </div>
+        </section>
+
+        <section id="folders">
+          <div class="section-head">
+            <div>
+              <div class="kicker">Folder map</div>
+              <h2>Use the folder that matches authority.</h2>
+            </div>
+            <p>Folder choice should encode the source of truth. It should not merely reflect where a file happened to arrive.</p>
+          </div>
+
+          <div class="folder-grid">
+            <div class="folder-row"><b><span class="emoji" aria-hidden="true">📌</span><code>cohort-data/</code></b><p>Canonical cohort knowledge and app-rendered markdown/data.</p></div>
+            <div class="folder-row"><b><span class="emoji" aria-hidden="true">🔒</span><code>cohort-data/.private/</code></b><p>Never commit. Vault plans, private exports, local-only review manifests.</p></div>
+            <div class="folder-row"><b><span class="emoji" aria-hidden="true">📅</span><code>cohort-data/events/</code></b><p>Calendar/event anchors. Use <code>YYYY-MM-DD-short-event-name.md</code>.</p></div>
+            <div class="folder-row"><b><span class="emoji" aria-hidden="true">🧠</span><code>cohort-data/session-readouts/</code></b><p>Reviewed session-level readouts. No raw transcript text.</p></div>
+            <div class="folder-row"><b><span class="emoji" aria-hidden="true">⚖️</span><code>cohort-data/policies/</code></b><p>Machine-readable JSON/YAML rules that scripts enforce.</p></div>
+            <div class="folder-row"><b><span class="emoji" aria-hidden="true">📚</span><code>docs/</code></b><p>Durable human-readable playbooks, audits, launch checklists, architecture notes.</p></div>
+            <div class="folder-row"><b><span class="emoji" aria-hidden="true">⚙️</span><code>apps/</code> and <code>packages/</code></b><p>Application and shared package code. Do not store canonical cohort facts here except generated bundles.</p></div>
+            <div class="folder-row"><b><span class="emoji" aria-hidden="true">🧹</span><code>tmp/</code></b><p>Disposable local work. Anything here may be deleted.</p></div>
+          </div>
+        </section>
+
+        <section id="checklist">
+          <div class="section-head">
+            <div>
+              <div class="kicker">Before promoting information</div>
+              <h2>Run the checklist, then commit.</h2>
+            </div>
+            <p>Most mistakes come from skipping the boundary check, not from bad filenames. Use this as the final gate.</p>
+          </div>
+
+          <div class="rules">
+            <article class="checklist" style="--tone: var(--olive)">
+              <h3><span class="emoji" aria-hidden="true">✅</span> Review checklist</h3>
+              <ul>
+                <li>The file is in the right authority layer.</li>
+                <li>The filename follows the correct pattern.</li>
+                <li>Dates use <code>YYYY-MM-DD</code>.</li>
+                <li>Transcript date, type, and project were checked against the calendar before routing.</li>
+                <li>Transcript label/order review ran <code>scripts/audit-transcript-labels.mjs</code> or remaining content gaps are reported.</li>
+                <li>Transcript/source records include type, group, and understanding confidence percentages.</li>
+                <li>Public/cohort-visible material contains no raw private transcript text.</li>
+                <li>Derived material has provenance, confidence, review status, and audience boundary.</li>
+                <li><code>docs/INFORMATION_INDEX.html</code> was regenerated after any transcript source, route, or review queue change.</li>
+                <li>Script-enforced rules live in schema or policy, not only prose.</li>
+              </ul>
+            </article>
+
+            <article class="rule-panel" style="--tone: var(--red)">
+              <h3><span class="emoji" aria-hidden="true">🚫</span> Do not do this</h3>
+              <ul>
+                <li>Do not use the repository root as a dumping ground.</li>
+                <li>Do not store raw transcripts in <code>docs/</code>, <code>apps/</code>, public web folders, or session readouts.</li>
+                <li>Do not hand-edit generated files unless the file explicitly says it is hand-maintained.</li>
+                <li>Do not create parallel person/team files because the name changed.</li>
+                <li>Do not publish "transcript says" claims when the artifact is a paraphrased reconstruction.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="footer-links" aria-label="Related source documents">
+            <a href="README.md">Docs hub</a>
+            <a href="INFORMATION_INDEX.html">Transcript source index</a>
+            <a href="INFORMATION_RULES.md">Markdown source</a>
+            <a href="../cohort-data/policies/transcript-routing-policy.json">Machine-readable routing policy</a>
+            <a href="transcript-distillation-playbook.md">Transcript distillation playbook</a>
+            <a href="transcript-calendar-coverage-index.md">Transcript coverage index</a>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

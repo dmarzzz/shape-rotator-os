@@ -17,6 +17,13 @@
   "source_review_status": "reviewed_readout",
   "evidence_level": "inferred",
   "confidence": "medium",
+  "confidence_pct": 76,
+  "confidence_basis": [
+    "dated reviewed readout",
+    "vault_id present",
+    "three or more insights",
+    "team reference present"
+  ],
   "consent": "cohort-internal",
   "sharing_boundary": {
     "source_access": "private-vault",
@@ -55,6 +62,13 @@
       "source_artifact_id": "transcript-evidence:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -82,6 +96,13 @@
       "source_artifact_id": "transcript-evidence:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -109,6 +130,13 @@
       "source_artifact_id": "transcript-evidence:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -136,6 +164,13 @@
       "source_artifact_id": "transcript-evidence:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -163,6 +198,13 @@
       "source_artifact_id": "transcript-evidence:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -191,6 +233,13 @@
       "source_artifact_id": "transcript-evidence:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -218,6 +267,13 @@
       "source_artifact_id": "transcript-evidence:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -245,6 +301,13 @@
       "source_artifact_id": "transcript-evidence:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -273,6 +336,13 @@
       "source": "private-vault:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -294,6 +364,13 @@
       "source": "private-vault:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -315,6 +392,13 @@
       "source": "private-vault:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -336,6 +420,13 @@
       "source": "private-vault:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",
@@ -357,6 +448,13 @@
       "source": "private-vault:dumb-agent-tricks-2026-05-21",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "tinycloud",

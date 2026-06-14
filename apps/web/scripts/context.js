@@ -92,6 +92,17 @@ function renderMetrics(items) {
   return `<div class="context-metrics">${rows.join("")}</div>`;
 }
 
+function renderSourceCards(ids, label = "sources") {
+  const rows = asArray(ids).slice(0, 8);
+  if (!rows.length) return "";
+  return `
+    <div class="context-source-strip">
+      <span>${escHtml(label)}</span>
+      <p>${rows.map(id => `<code>${escHtml(id)}</code>`).join("")}</p>
+    </div>
+  `;
+}
+
 function renderProvenance(claim, boundary) {
   const sourceId = claim?.source_artifact_id || claim?.provenance?.source_artifact_id || "";
   const source = claim?.source || claim?.provenance?.source_access || "";
@@ -214,15 +225,289 @@ function renderPolicy(intel, distillations) {
 }
 
 function renderSummary(intel, distillations) {
+  const inventory = intel.signal_inventory || {};
   return `
     <section class="context-summary" aria-label="context intel summary">
       ${renderMetric("weeks", asArray(intel.weekly).length)}
       ${renderMetric("team evidence", asArray(intel.teams).length)}
       ${renderMetric("person evidence", asArray(intel.people).length)}
+      ${renderMetric("card signals", asArray(intel.card_signals?.teams).length + asArray(intel.card_signals?.people).length)}
+      ${renderMetric("field notes", asArray(intel.field_notes).length)}
+      ${renderMetric("session notes", asArray(intel.session_notes).length)}
+      ${renderMetric("signals audited", inventory.total_signal_count ?? 0)}
       ${renderMetric("distillations", distillations?.artifact_count ?? asArray(distillations?.artifacts).length)}
       ${renderMetric("public candidates", asArray(intel.context_public_candidates).length)}
     </section>
   `;
+}
+
+function renderNoteClaim(claim) {
+  return `
+    <li>
+      <strong>${escHtml(claim.label || labelize(claim.claim_type || "claim"))}</strong>
+      <p>${escHtml(claim.text || "")}</p>
+      ${renderMetrics([
+        renderMetric("type", labelize(claim.claim_type || "")),
+        renderMetric("level", labelize(claim.evidence_level || "")),
+        renderMetric("confidence", labelize(claim.confidence || "")),
+      ])}
+    </li>
+  `;
+}
+
+function renderNoteQuestion(item) {
+  return `
+    <li class="context-question">
+      <strong>question</strong>
+      <p>${escHtml(item.question || "")}</p>
+      ${item.answer ? `<blockquote>${escHtml(item.answer)}</blockquote>` : ""}
+      ${renderMetrics([
+        renderMetric("level", labelize(item.evidence_level || "")),
+        renderMetric("confidence", labelize(item.confidence || "")),
+      ])}
+    </li>
+  `;
+}
+
+function renderNoteSection(section) {
+  const claims = asArray(section.claims).map(renderNoteClaim).join("");
+  const qa = asArray(section.qa).map(renderNoteQuestion).join("");
+  if (!claims && !qa) return "";
+  return `
+    <div class="context-note-section">
+      <h4>${escHtml(section.title || "section")}</h4>
+      <ul>${claims}${qa}</ul>
+    </div>
+  `;
+}
+
+function renderFieldNote(note) {
+  const boundary = note.sharing_boundary || { max_surface: "cohort", raw_allowed: false };
+  const metrics = renderMetrics([
+    renderMetric("week", note.week_start || "undated"),
+    renderMetric("cards", note.evidence_card_count ?? ""),
+    renderMetric("claims", note.claim_count ?? ""),
+    renderMetric("confidence", labelize(note.confidence || "unknown")),
+    renderMetric("review", labelize(note.review_status || "generated")),
+    renderMetric("boundary", boundaryText(boundary)),
+  ]);
+  const sections = asArray(note.sections).map(renderNoteSection).join("");
+  return `
+    <article class="context-field-note">
+      <header class="context-evidence-head">
+        <h3>${escHtml(note.title || "cohort field note")}</h3>
+        <p>${escHtml(note.summary || "")}</p>
+      </header>
+      ${metrics}
+      ${renderChips(note.themes, { limit: 10 })}
+      ${renderSourceCards(note.source_card_ids, "source cards")}
+      ${sections || `<p class="page-empty">no note sections exported.</p>`}
+      <details class="context-note-copy">
+        <summary>copyable field note markdown</summary>
+        <textarea readonly>${escHtml(note.markdown || "")}</textarea>
+      </details>
+    </article>
+  `;
+}
+
+function renderFieldNotes(intel = {}) {
+  const notes = asArray(intel.field_notes);
+  return renderSection(
+    "field notes",
+    `${notes.length} generated notes`,
+    notes.map(renderFieldNote).join(""),
+    "no cohort field notes are exported in this bundle."
+  );
+}
+
+function renderSessionNote(note, maps = { teams: new Map(), people: new Map() }) {
+  const boundary = note.sharing_boundary || { max_surface: "cohort", raw_allowed: false };
+  const metrics = renderMetrics([
+    renderMetric("date", note.date || note.week_start || "undated"),
+    renderMetric("kind", labelize(note.session_kind || "session")),
+    renderMetric("claims", note.claim_count ?? ""),
+    renderMetric("questions", note.question_count ?? ""),
+    renderMetric("review", labelize(note.review_status || "generated")),
+    renderMetric("boundary", boundaryText(boundary)),
+  ]);
+  const sections = asArray(note.sections).map(renderNoteSection).join("");
+  return `
+    <details class="context-session-note">
+      <summary>
+        <span>${escHtml(note.title || "session note")}</span>
+        <span>${escHtml([note.date || note.week_start || "undated", `${note.claim_count ?? 0} claims`, `${note.question_count ?? 0} q`].filter(Boolean).join(" / "))}</span>
+      </summary>
+      <div class="context-session-body">
+        <header class="context-evidence-head">
+          <p>${escHtml(note.summary || "")}</p>
+        </header>
+        ${metrics}
+        ${renderChips(note.themes, { limit: 8 })}
+        <div class="context-linked-records">
+          ${renderEntityLinks(note.teams, "team", maps.teams, 8)}
+          ${renderEntityLinks(note.people, "person", maps.people, 8)}
+        </div>
+        ${renderSourceCards(note.source_card_ids, "source card")}
+        ${sections || `<p class="page-empty">no session-note sections exported.</p>`}
+        <details class="context-note-copy">
+          <summary>copyable session note markdown</summary>
+          <textarea readonly>${escHtml(note.markdown || "")}</textarea>
+        </details>
+      </div>
+    </details>
+  `;
+}
+
+function renderSessionNotes(intel = {}, maps = { teams: new Map(), people: new Map() }) {
+  const notes = asArray(intel.session_notes);
+  return renderSection(
+    "session notes",
+    `${notes.length} transcript notes`,
+    notes.map(note => renderSessionNote(note, maps)).join(""),
+    "no per-session transcript notes are exported in this bundle."
+  );
+}
+
+function renderTypeCounts(counts = {}) {
+  const rows = Object.entries(counts || {}).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  if (!rows.length) return "";
+  return `
+    <div class="context-type-counts">
+      ${rows.map(([key, value]) => `<span><b>${escHtml(labelize(key))}</b>${escHtml(value)}</span>`).join("")}
+    </div>
+  `;
+}
+
+function renderInventorySignal(signal) {
+  return `
+    <li class="context-inventory-signal">
+      <span>${escHtml(signal.label || labelize(signal.signal_type || signal.signal_kind || "signal"))}</span>
+      <p>${escHtml(signal.text || "")}</p>
+      ${signal.answer ? `<blockquote>${escHtml(signal.answer)}</blockquote>` : ""}
+      ${renderMetrics([
+        renderMetric("kind", labelize(signal.signal_kind || "")),
+        renderMetric("confidence", labelize(signal.confidence || "")),
+        renderMetric("level", labelize(signal.evidence_level || "")),
+      ])}
+    </li>
+  `;
+}
+
+function renderInventorySource(source, maps) {
+  const boundary = source.sharing_boundary || { max_surface: "cohort", raw_allowed: false };
+  const summaryMeta = [
+    source.date || source.week_start || "undated",
+    `${source.total_signal_count ?? asArray(source.signals).length} signals`,
+    `${source.claim_signal_count ?? 0} claims`,
+    `${source.qa_signal_count ?? 0} q&a`,
+  ].join(" / ");
+  return `
+    <details class="context-signal-source">
+      <summary>
+        <span>${escHtml(source.title || source.source_card_id || "transcript source")}</span>
+        <span>${escHtml(summaryMeta)}</span>
+      </summary>
+      <div class="context-signal-source-body">
+        ${source.summary ? `<p class="context-note">${escHtml(source.summary)}</p>` : ""}
+        ${renderMetrics([
+          renderMetric("kind", labelize(source.session_kind || "session")),
+          renderMetric("consent", labelize(source.consent || "unknown")),
+          renderMetric("review", labelize(source.review_status || "generated")),
+          renderMetric("confidence", labelize(source.confidence || "unknown")),
+          renderMetric("boundary", boundaryText(boundary)),
+        ])}
+        ${renderTypeCounts(source.signal_type_counts)}
+        ${renderChips(source.themes, { limit: 10 })}
+        <div class="context-linked-records">
+          ${renderEntityLinks(source.teams, "team", maps.teams, 10)}
+          ${renderEntityLinks(source.people, "person", maps.people, 10)}
+        </div>
+        ${renderSourceCards(source.source_card_id, "source card")}
+        <ol class="context-inventory-list">
+          ${asArray(source.signals).map(renderInventorySignal).join("")}
+        </ol>
+      </div>
+    </details>
+  `;
+}
+
+function renderSignalInventory(intel = {}, maps = { teams: new Map(), people: new Map() }) {
+  const inventory = intel.signal_inventory || {};
+  const sources = asArray(inventory.sources);
+  const coverage = inventory.coverage || {};
+  const body = `
+    <article class="context-signal-inventory">
+      ${renderMetrics([
+        renderMetric("source transcripts", inventory.source_card_count ?? 0),
+        renderMetric("total signals", inventory.total_signal_count ?? 0),
+        renderMetric("claim signals", inventory.claim_signal_count ?? 0),
+        renderMetric("q&a signals", inventory.qa_signal_count ?? 0),
+        renderMetric("min/source", coverage.min_signals_per_source ?? 0),
+        renderMetric("max/source", coverage.max_signals_per_source ?? 0),
+      ])}
+      ${renderTypeCounts(inventory.signal_type_counts)}
+      ${sources.map(source => renderInventorySource(source, maps)).join("")}
+    </article>
+  `;
+  return renderSection(
+    "signal inventory",
+    `${inventory.total_signal_count ?? 0} extracted transcript signals`,
+    body,
+    "no transcript signal inventory is exported in this bundle."
+  );
+}
+
+function renderDataContract(intel = {}) {
+  const contract = intel.data_contract || {};
+  const quality = contract.quality || {};
+  const hasEvidenceInputs = Boolean(
+    (quality.team_signal_count || 0)
+    + (quality.person_signal_count || 0)
+    + (quality.field_note_count || 0)
+    + (quality.session_note_count || 0)
+    + (quality.total_signal_count || 0)
+    + asArray(intel.weekly).length
+  );
+  if (!hasEvidenceInputs) return "";
+  const body = `
+    <article class="context-data-contract">
+      ${renderMetrics([
+        renderMetric("source transcripts", quality.source_transcript_count ?? 0),
+        renderMetric("total signals", quality.total_signal_count ?? 0),
+        renderMetric("claim signals", quality.claim_signal_count ?? 0),
+        renderMetric("q&a signals", quality.qa_signal_count ?? 0),
+        renderMetric("team signals", quality.team_signal_count ?? 0),
+        renderMetric("person signals", quality.person_signal_count ?? 0),
+        renderMetric("field notes", quality.field_note_count ?? 0),
+        renderMetric("session notes", quality.session_note_count ?? 0),
+        renderMetric("missing team signals", quality.missing_team_signal_count ?? 0),
+        renderMetric("missing person signals", quality.missing_person_signal_count ?? 0),
+        renderMetric("missing session notes", quality.missing_session_note_count ?? 0),
+        renderMetric("sources without claims", quality.sources_without_claims ?? 0),
+        renderMetric("sources without q&a", quality.sources_without_questions ?? 0),
+      ])}
+      <div class="context-contract-grid">
+        <div class="context-block">
+          <h4>card signal inputs</h4>
+          <ul>${asArray(contract.card_signal_inputs).map(item => `<li>${escHtml(item)}</li>`).join("")}</ul>
+        </div>
+        <div class="context-block">
+          <h4>field note inputs</h4>
+          <ul>${asArray(contract.field_note_inputs).map(item => `<li>${escHtml(item)}</li>`).join("")}</ul>
+        </div>
+        <div class="context-block">
+          <h4>session note inputs</h4>
+          <ul>${asArray(contract.session_note_inputs).map(item => `<li>${escHtml(item)}</li>`).join("")}</ul>
+        </div>
+        <div class="context-block">
+          <h4>signal inventory inputs</h4>
+          <ul>${asArray(contract.signal_inventory_inputs).map(item => `<li>${escHtml(item)}</li>`).join("")}</ul>
+        </div>
+      </div>
+      ${contract.promotion_rule ? `<p class="context-note">${escHtml(contract.promotion_rule)}</p>` : ""}
+    </article>
+  `;
+  return renderSection("data contract", "inputs needed for cards and notes", body);
 }
 
 function renderDistillationArtifact(artifact) {
@@ -305,6 +590,10 @@ export function renderContextSurface(cohort) {
   return `
     ${renderPolicy(intel, distillations)}
     ${renderSummary(intel, distillations)}
+    ${renderFieldNotes(intel)}
+    ${renderSignalInventory(intel, maps)}
+    ${renderSessionNotes(intel, maps)}
+    ${renderDataContract(intel)}
     ${renderSection("weekly evidence", `${asArray(intel.weekly).length} weeks`, weekly)}
     ${renderSection("team evidence", `${asArray(intel.teams).length} records`, teams)}
     ${renderSection("person evidence", `${asArray(intel.people).length} records`, people)}

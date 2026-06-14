@@ -59,6 +59,149 @@ test("context renderer keeps claim provenance, confidence, and raw boundary visi
       }],
       teams: [],
       people: [],
+      card_signals: {
+        teams: [{
+          record_id: "team-a",
+          signal_type: "ask",
+          label: "needs",
+          text: "Needs a sharper partner handoff.",
+          confidence: "medium",
+          evidence_card_count: 1,
+          claim_count: 1,
+          sharing_boundary: { max_surface: "cohort", raw_allowed: false },
+        }],
+        people: [],
+      },
+      field_notes: [{
+        note_id: "cohort-field-note:2026-06-08",
+        note_kind: "cohort_field_note",
+        week_start: "2026-06-08",
+        title: "Cohort field note: week of 2026-06-08",
+        summary: "Generated operator summary from reviewed evidence.",
+        evidence_card_count: 1,
+        claim_count: 1,
+        confidence: "medium",
+        themes: ["routing"],
+        source_card_ids: ["source-artifact-1"],
+        review_status: "generated",
+        sharing_boundary: { max_surface: "cohort", raw_allowed: false },
+        sections: [{
+          title: "asks and edges",
+          claims: [{
+            claim_type: "ask",
+            label: "needs",
+            text: "Needs a sharper partner handoff.",
+            confidence: "medium",
+            evidence_level: "inferred",
+          }],
+        }],
+        markdown: "# Cohort field note: week of 2026-06-08\n\n## asks and edges\n\n- Needs a sharper partner handoff.",
+      }],
+      session_notes: [{
+        note_id: "cohort-session-note:session-1",
+        note_kind: "cohort_session_note",
+        title: "Session note: routing review",
+        summary: "Article-style note from one transcript evidence card.",
+        date: "2026-06-08",
+        week_start: "2026-06-08",
+        session_kind: "review",
+        claim_count: 1,
+        question_count: 1,
+        confidence: "medium",
+        review_status: "generated",
+        source_card_ids: ["source-artifact-1"],
+        sharing_boundary: { max_surface: "cohort", raw_allowed: false },
+        teams: ["team-a"],
+        people: ["person-a"],
+        themes: ["routing"],
+        sections: [{
+          title: "questions from the room",
+          qa: [{
+            question: "What should the card carry?",
+            answer: "Only the sharpest generated signal; the article note carries depth.",
+            confidence: "medium",
+            evidence_level: "inferred",
+          }],
+        }],
+        markdown: "# Session note: routing review",
+      }],
+      signal_inventory: {
+        schema_version: 1,
+        source_card_count: 1,
+        total_signal_count: 2,
+        claim_signal_count: 1,
+        qa_signal_count: 1,
+        signal_type_counts: { ask: 1 },
+        review_status_counts: { generated: 1 },
+        coverage: {
+          sources_without_claims: [],
+          sources_without_questions: [],
+          min_signals_per_source: 2,
+          max_signals_per_source: 2,
+        },
+        sources: [{
+          source_card_id: "source-artifact-1",
+          session_id: "session-1",
+          title: "Session signal inventory",
+          summary: "Full internal signal inventory for one transcript.",
+          date: "2026-06-08",
+          week_start: "2026-06-08",
+          session_kind: "review",
+          consent: "cohort-internal",
+          confidence: "medium",
+          review_status: "generated",
+          sharing_boundary: { max_surface: "cohort", raw_allowed: false },
+          claim_signal_count: 1,
+          qa_signal_count: 1,
+          total_signal_count: 2,
+          signal_type_counts: { ask: 1 },
+          teams: ["team-a"],
+          people: ["person-a"],
+          themes: ["routing"],
+          signals: [{
+            signal_id: "source-artifact-1:claim:1",
+            signal_kind: "claim",
+            signal_type: "ask",
+            label: "needs",
+            text: "Needs a sharper partner handoff.",
+            source_card_id: "source-artifact-1",
+            confidence: "medium",
+            evidence_level: "inferred",
+          }, {
+            signal_id: "source-artifact-1:qa:1",
+            signal_kind: "qa",
+            signal_type: "question",
+            label: "question",
+            text: "What should the card carry?",
+            answer: "Only the sharpest generated signal.",
+            source_card_id: "source-artifact-1",
+            confidence: "medium",
+            evidence_level: "inferred",
+          }],
+        }],
+      },
+      data_contract: {
+        card_signal_inputs: ["record_id", "claim_type"],
+        field_note_inputs: ["weekly top_claims by type"],
+        session_note_inputs: ["transcript evidence card Q&A"],
+        signal_inventory_inputs: ["every transcript evidence card claim"],
+        quality: {
+          source_transcript_count: 1,
+          total_signal_count: 2,
+          claim_signal_count: 1,
+          qa_signal_count: 1,
+          team_signal_count: 1,
+          person_signal_count: 0,
+          field_note_count: 1,
+          session_note_count: 1,
+          missing_team_signal_count: 0,
+          missing_person_signal_count: 1,
+          missing_session_note_count: 0,
+          sources_without_claims: 0,
+          sources_without_questions: 0,
+        },
+        promotion_rule: "Review before promotion.",
+      },
       context_public_candidates: [],
     },
     transcript_distillations: {
@@ -89,6 +232,18 @@ test("context renderer keeps claim provenance, confidence, and raw boundary visi
   });
 
   assert.match(html, /Raw transcripts are not app-visible/);
+  assert.match(html, /Cohort field note: week of 2026-06-08/);
+  assert.match(html, /copyable field note markdown/);
+  assert.match(html, /Session note: routing review/);
+  assert.match(html, /copyable session note markdown/);
+  assert.match(html, /What should the card carry/);
+  assert.match(html, /signal inventory/);
+  assert.match(html, /Session signal inventory/);
+  assert.match(html, /2 extracted transcript signals/);
+  assert.match(html, /data contract/);
+  assert.match(html, /session note inputs/);
+  assert.match(html, /signal inventory inputs/);
+  assert.match(html, /team signals/);
   assert.match(html, /source-artifact-1/);
   assert.match(html, /private-vault:session-1/);
   assert.match(html, /medium/);
@@ -107,6 +262,11 @@ test("current web bundle exposes public-safe context intel inputs", () => {
   assert.equal(surface.cohort_intel.weekly.length, 0);
   assert.equal(surface.cohort_intel.teams.length, 0);
   assert.equal(surface.cohort_intel.people.length, 0);
+  assert.equal(surface.cohort_intel.card_signals.teams.length, 0);
+  assert.equal(surface.cohort_intel.card_signals.people.length, 0);
+  assert.equal(surface.cohort_intel.field_notes.length, 0);
+  assert.equal(surface.cohort_intel.session_notes.length, 0);
+  assert.equal(surface.cohort_intel.signal_inventory.total_signal_count, 0);
   assert.equal(surface.transcript_evidence.source_artifact_count, 0);
   assert.ok(Array.isArray(surface.transcript_distillations.artifacts));
   assert.ok(surface.transcript_distillations.artifacts.every((item) => item.surface === "public"));

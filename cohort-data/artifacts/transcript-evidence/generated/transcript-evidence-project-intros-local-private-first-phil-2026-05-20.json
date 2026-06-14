@@ -17,6 +17,14 @@
   "source_review_status": "reviewed_readout",
   "evidence_level": "inferred",
   "confidence": "medium",
+  "confidence_pct": 76,
+  "confidence_basis": [
+    "dated reviewed readout",
+    "vault_id present",
+    "three or more insights",
+    "team reference present",
+    "speaker/public clearance pending"
+  ],
   "consent": "speaker-pending",
   "sharing_boundary": {
     "source_access": "private-vault",
@@ -69,6 +77,14 @@
       "source_artifact_id": "transcript-evidence:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -111,6 +127,14 @@
       "source_artifact_id": "transcript-evidence:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -152,6 +176,14 @@
       "source_artifact_id": "transcript-evidence:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -193,6 +225,14 @@
       "source_artifact_id": "transcript-evidence:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -235,6 +275,14 @@
       "source_artifact_id": "transcript-evidence:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -277,6 +325,14 @@
       "source_artifact_id": "transcript-evidence:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -318,6 +374,14 @@
       "source_artifact_id": "transcript-evidence:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -359,6 +423,14 @@
       "source_artifact_id": "transcript-evidence:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -402,6 +474,14 @@
       "source": "private-vault:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -437,6 +517,14 @@
       "source": "private-vault:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -472,6 +560,14 @@
       "source": "private-vault:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -507,6 +603,14 @@
       "source": "private-vault:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",
@@ -542,6 +646,14 @@
       "source": "private-vault:project-intros-local-private-first-phil-2026-05-20",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "pramaana",

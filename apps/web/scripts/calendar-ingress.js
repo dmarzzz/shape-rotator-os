@@ -188,6 +188,74 @@ function cardSummary(row) {
   return compactText(row?.claim_text || row?.summary || row?.content_json?.source_note || "", 260) || "no claim exported";
 }
 
+function selectOptions(values, selected) {
+  return values
+    .map((value) => `<option value="${esc(value)}"${String(selected || "") === value ? " selected" : ""}>${esc(value.replace(/_/g, " "))}</option>`)
+    .join("");
+}
+
+function renderArtifactEditor(row) {
+  return `
+    <div class="cal-ingress-review-edit">
+      <label>
+        <span>content</span>
+        <textarea rows="7" data-cal-review-field="content_md">${esc(row.content_md || "")}</textarea>
+      </label>
+      <label>
+        <span>confidence</span>
+        <input data-cal-review-field="confidence" inputmode="decimal" value="${esc(row.confidence ?? "")}" />
+      </label>
+    </div>
+  `;
+}
+
+function renderEvidenceCardEditor(row) {
+  return `
+    <div class="cal-ingress-review-edit">
+      <label>
+        <span>title</span>
+        <input data-cal-review-field="title" value="${esc(row.title || "")}" />
+      </label>
+      <label>
+        <span>claim type</span>
+        <input data-cal-review-field="claim_type" value="${esc(row.claim_type || "claim")}" />
+      </label>
+      <label class="span-2">
+        <span>claim</span>
+        <textarea rows="5" data-cal-review-field="claim_text">${esc(row.claim_text || "")}</textarea>
+      </label>
+      <label class="span-2">
+        <span>summary</span>
+        <textarea rows="3" data-cal-review-field="summary">${esc(row.summary || "")}</textarea>
+      </label>
+      <label>
+        <span>evidence</span>
+        <select data-cal-review-field="evidence_level">${selectOptions(["observed", "inferred", "aggregate", "reviewed"], row.evidence_level || "inferred")}</select>
+      </label>
+      <label>
+        <span>attribution</span>
+        <select data-cal-review-field="attribution_scope">${selectOptions(["room", "team", "person", "aggregate", "anonymous_public"], row.attribution_scope || "room")}</select>
+      </label>
+      <label>
+        <span>tier</span>
+        <select data-cal-review-field="surface_tier">${selectOptions(["T1", "T2", "T3"], row.surface_tier || "T2")}</select>
+      </label>
+      <label>
+        <span>confidence</span>
+        <input data-cal-review-field="confidence" inputmode="decimal" value="${esc(row.confidence ?? "")}" />
+      </label>
+      <label>
+        <span>public mode</span>
+        <input data-cal-review-field="public_article_mode" value="${esc(row.public_article_mode || "")}" />
+      </label>
+      <label class="cal-ingress-check">
+        <input type="checkbox" data-cal-review-field="public_anonymous"${row.public_anonymous ? " checked" : ""} />
+        <span>anonymous</span>
+      </label>
+    </div>
+  `;
+}
+
 function renderEmptyQueue() {
   return `<p class="cal-ingress-empty">no queue rows loaded</p>`;
 }
@@ -213,7 +281,7 @@ function renderQueue() {
           <section>
             <h4>event requests</h4>
             ${renderQueueList(queue.eventRequests, (row) => `
-              <li>
+              <li data-cal-queue-item="eventRequests" data-id="${esc(row.id)}">
                 <strong>${esc(requestTitle(row))}</strong>
                 <span>${esc(requestMeta(row) || row.status || "pending")}</span>
                 <div class="cal-ingress-queue-actions">
@@ -225,7 +293,7 @@ function renderQueue() {
           <section>
             <h4>processing jobs</h4>
             ${renderQueueList(queue.processingJobs, (row) => `
-              <li>
+              <li data-cal-queue-item="processingJobs" data-id="${esc(row.id)}">
                 <strong>${esc(row.job_kind || "job")} · ${esc(row.processor_status || "queued")}</strong>
                 <span>${esc(row.processor_mode || "local")} · due ${esc(shortDate(row.due_at))}</span>
                 ${row.error ? `<span class="is-error">${esc(row.error)}</span>` : ""}
@@ -234,10 +302,11 @@ function renderQueue() {
           <section>
             <h4>derived review</h4>
             ${renderQueueList(queue.derivedArtifacts, (row) => `
-              <li>
+              <li data-cal-queue-item="derivedArtifacts" data-id="${esc(row.id)}">
                 <strong>${esc(row.artifact_kind || "artifact")} · ${esc(row.tier || "")}</strong>
                 <span>${esc(row.review_status || "needs_review")} · ${esc(row.approval_state || "not_required")}</span>
                 <pre class="cal-ingress-artifact-preview">${esc(artifactSummary(row))}</pre>
+                ${renderArtifactEditor(row)}
                 <div class="cal-ingress-queue-actions">
                   ${row.approval_state === "pending" ? "" : `<button type="button" data-cal-queue-action="review-derived" data-id="${esc(row.id)}">reviewed</button>`}
                   ${row.tier === "T3" && row.approval_state === "approved" ? `<button type="button" data-cal-queue-action="publish-derived" data-id="${esc(row.id)}">publish</button>` : ""}
@@ -248,10 +317,11 @@ function renderQueue() {
           <section>
             <h4>evidence cards</h4>
             ${renderQueueList(queue.evidenceCards, (row) => `
-              <li>
+              <li data-cal-queue-item="evidenceCards" data-id="${esc(row.id)}">
                 <strong>${esc(row.claim_type || "claim")} · ${esc(row.surface_tier || "")}</strong>
                 <span>${esc(row.review_status || "needs_review")} · ${esc(row.approval_state || "not_required")} · ${esc(row.attribution_scope || "room")}</span>
                 <pre class="cal-ingress-artifact-preview">${esc(cardSummary(row))}</pre>
+                ${renderEvidenceCardEditor(row)}
                 <div class="cal-ingress-queue-actions">
                   ${row.approval_state === "pending" ? "" : `<button type="button" data-cal-queue-action="review-card" data-id="${esc(row.id)}">reviewed</button>`}
                   ${row.surface_tier === "T3" && row.approval_state === "approved" ? `<button type="button" data-cal-queue-action="publish-card" data-id="${esc(row.id)}">publish</button>` : ""}
@@ -262,7 +332,7 @@ function renderQueue() {
           <section>
             <h4>public gates</h4>
             ${renderQueueList(queue.approvalGates, (row) => `
-              <li>
+              <li data-cal-queue-item="approvalGates" data-id="${esc(row.id)}">
                 <strong>${esc(row.gate_key || "gate")}</strong>
                 <span>${esc(row.gate_status || "pending")}</span>
                 <div class="cal-ingress-queue-actions">
@@ -752,9 +822,35 @@ function findQueueRow(group, id) {
   return (state.queue?.[group] || []).find((row) => String(row.id) === String(id));
 }
 
-async function handleQueueAction(action, id) {
+function readQueueEdits(button) {
+  const item = button?.closest?.("[data-cal-queue-item]");
+  if (!item) return {};
+  const edits = {};
+  item.querySelectorAll("[data-cal-review-field]").forEach((field) => {
+    const key = field.dataset.calReviewField;
+    if (!key) return;
+    if (field.type === "checkbox") {
+      edits[key] = field.checked;
+      return;
+    }
+    const value = String(field.value ?? "").trim();
+    if (key === "confidence") {
+      if (value !== "") edits[key] = Number(value);
+      return;
+    }
+    if (key === "summary" || key === "public_article_mode") {
+      edits[key] = value;
+      return;
+    }
+    if (value !== "") edits[key] = value;
+  });
+  return edits;
+}
+
+async function handleQueueAction(action, id, button = null) {
   state.error = null;
   state.result = null;
+  const edits = readQueueEdits(button);
   state.queueBusy = true;
   render();
   try {
@@ -766,22 +862,22 @@ async function handleQueueAction(action, id) {
       await rejectEventRequest({ config: state.config, requestId: id, reviewNotes: "Rejected in calendar ingress queue." });
       state.result = "request rejected";
     } else if (action === "review-derived") {
-      await reviewDerivedArtifact({ config: state.config, artifactId: id, reviewStatus: "reviewed", notes: "Reviewed in calendar ingress queue." });
+      await reviewDerivedArtifact({ config: state.config, artifactId: id, reviewStatus: "reviewed", notes: "Reviewed in calendar ingress queue.", edits });
       state.result = "artifact marked reviewed";
     } else if (action === "block-derived") {
-      await reviewDerivedArtifact({ config: state.config, artifactId: id, reviewStatus: "blocked", approvalState: "blocked", notes: "Blocked in calendar ingress queue." });
+      await reviewDerivedArtifact({ config: state.config, artifactId: id, reviewStatus: "blocked", approvalState: "blocked", notes: "Blocked in calendar ingress queue.", edits });
       state.result = "artifact blocked";
     } else if (action === "publish-derived") {
-      await reviewDerivedArtifact({ config: state.config, artifactId: id, reviewStatus: "published", approvalState: "approved", notes: "Published in calendar ingress queue after approval gates cleared." });
+      await reviewDerivedArtifact({ config: state.config, artifactId: id, reviewStatus: "published", approvalState: "approved", notes: "Published in calendar ingress queue after approval gates cleared.", edits });
       state.result = "artifact published";
     } else if (action === "review-card") {
-      await reviewEvidenceCard({ config: state.config, cardId: id, reviewStatus: "reviewed", notes: "Evidence card reviewed in calendar ingress queue." });
+      await reviewEvidenceCard({ config: state.config, cardId: id, reviewStatus: "reviewed", notes: "Evidence card reviewed in calendar ingress queue.", edits });
       state.result = "evidence card marked reviewed";
     } else if (action === "block-card") {
-      await reviewEvidenceCard({ config: state.config, cardId: id, reviewStatus: "blocked", approvalState: "blocked", notes: "Evidence card blocked in calendar ingress queue." });
+      await reviewEvidenceCard({ config: state.config, cardId: id, reviewStatus: "blocked", approvalState: "blocked", notes: "Evidence card blocked in calendar ingress queue.", edits });
       state.result = "evidence card blocked";
     } else if (action === "publish-card") {
-      await reviewEvidenceCard({ config: state.config, cardId: id, reviewStatus: "published", approvalState: "approved", notes: "Published no-name evidence card after public approval gates cleared." });
+      await reviewEvidenceCard({ config: state.config, cardId: id, reviewStatus: "published", approvalState: "approved", notes: "Published no-name evidence card after public approval gates cleared.", edits });
       state.result = "evidence card published";
     } else if (action === "approve-gate") {
       const gate = findQueueRow("approvalGates", id);
@@ -823,7 +919,7 @@ function wire() {
   root.querySelector("[data-cal-source-action='dry-run']")?.addEventListener("click", () => handleSourceSubmit("dry-run"));
   root.querySelector("[data-cal-queue-refresh]")?.addEventListener("click", refreshQueue);
   root.querySelectorAll("[data-cal-queue-action]").forEach((button) => {
-    button.addEventListener("click", () => handleQueueAction(button.dataset.calQueueAction, button.dataset.id));
+    button.addEventListener("click", () => handleQueueAction(button.dataset.calQueueAction, button.dataset.id, button));
   });
   root.querySelector("[data-cal-config-save]")?.addEventListener("click", () => {
     state.config = calendarIngressConfigWithDefaults(readConfigFromDom());

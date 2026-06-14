@@ -47,8 +47,8 @@ test("routing policy validates and preserves Tina ceilings", () => {
     ["Tina", "Andrew", "Dmarz", "Michael", "Fred", "Albi"],
   );
   assert.ok(policy.drive_vault.admins.every((admin) => admin.email == null));
-  assert.equal(policy.drive_vault.folder_routes.planning_strategy.path, "90_do_not_publish/planning_strategy");
-  assert.equal(policy.drive_vault.folder_routes.private_1on1.path, "90_do_not_publish/private_1on1");
+  assert.equal(policy.drive_vault.folder_routes.planning_strategy.path, "do_not_publish/planning_strategy");
+  assert.equal(policy.drive_vault.folder_routes.private_1on1.path, "do_not_publish/private_1on1");
 });
 
 test("Google event payload gives guests real invites but no edit rights", () => {
@@ -514,6 +514,7 @@ test("local transcript distillation creates gated readouts without raw contact d
   assert.equal(rows.derivedArtifacts[0].artifact_kind, "readout");
   assert.equal(rows.derivedArtifacts[0].tier, "T2");
   assert.equal(rows.derivedArtifacts[0].approval_state, "not_required");
+  assert.equal(rows.derivedArtifacts[0].content_json.confidence_pct, 65);
   assert.equal(rows.derivedArtifacts[1].artifact_kind, "public_candidate");
   assert.equal(rows.derivedArtifacts[1].tier, "T3");
   assert.equal(rows.derivedArtifacts[1].approval_state, "pending");

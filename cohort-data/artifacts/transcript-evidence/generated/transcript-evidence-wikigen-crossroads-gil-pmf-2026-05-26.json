@@ -17,6 +17,14 @@
   "source_review_status": "reviewed_readout",
   "evidence_level": "inferred",
   "confidence": "medium",
+  "confidence_pct": 76,
+  "confidence_basis": [
+    "dated reviewed readout",
+    "vault_id present",
+    "three or more insights",
+    "team reference present",
+    "speaker/public clearance pending"
+  ],
   "consent": "speaker-pending",
   "sharing_boundary": {
     "source_access": "private-vault",
@@ -57,6 +65,14 @@
       "source_artifact_id": "transcript-evidence:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -86,6 +102,14 @@
       "source_artifact_id": "transcript-evidence:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -115,6 +139,14 @@
       "source_artifact_id": "transcript-evidence:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -144,6 +176,14 @@
       "source_artifact_id": "transcript-evidence:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -173,6 +213,14 @@
       "source_artifact_id": "transcript-evidence:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -202,6 +250,14 @@
       "source_artifact_id": "transcript-evidence:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -232,6 +288,14 @@
       "source_artifact_id": "transcript-evidence:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -261,6 +325,14 @@
       "source_artifact_id": "transcript-evidence:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -292,6 +364,14 @@
       "source": "private-vault:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -315,6 +395,14 @@
       "source": "private-vault:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -338,6 +426,14 @@
       "source": "private-vault:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -361,6 +457,14 @@
       "source": "private-vault:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",
@@ -384,6 +488,14 @@
       "source": "private-vault:wikigen-crossroads-gil-pmf-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present",
+        "speaker/public clearance pending"
+      ],
       "attribution": "team-level",
       "teams": [
         "crossroads",

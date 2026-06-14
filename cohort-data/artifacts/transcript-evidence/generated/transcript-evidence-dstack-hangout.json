@@ -17,6 +17,13 @@
   "source_review_status": "reviewed_readout",
   "evidence_level": "inferred",
   "confidence": "low",
+  "confidence_pct": 52,
+  "confidence_basis": [
+    "missing date",
+    "vault_id present",
+    "three or more insights",
+    "team reference present"
+  ],
   "consent": "cohort-internal",
   "sharing_boundary": {
     "source_access": "private-vault",
@@ -51,6 +58,13 @@
       "source_artifact_id": "transcript-evidence:dstack-hangout",
       "evidence_level": "inferred",
       "confidence": "low",
+      "confidence_pct": 52,
+      "confidence_basis": [
+        "missing date",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elizaos"
@@ -75,6 +89,13 @@
       "source_artifact_id": "transcript-evidence:dstack-hangout",
       "evidence_level": "inferred",
       "confidence": "low",
+      "confidence_pct": 52,
+      "confidence_basis": [
+        "missing date",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elizaos"
@@ -99,6 +120,13 @@
       "source_artifact_id": "transcript-evidence:dstack-hangout",
       "evidence_level": "inferred",
       "confidence": "low",
+      "confidence_pct": 52,
+      "confidence_basis": [
+        "missing date",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elizaos"
@@ -123,6 +151,13 @@
       "source_artifact_id": "transcript-evidence:dstack-hangout",
       "evidence_level": "inferred",
       "confidence": "low",
+      "confidence_pct": 52,
+      "confidence_basis": [
+        "missing date",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elizaos"
@@ -147,6 +182,13 @@
       "source_artifact_id": "transcript-evidence:dstack-hangout",
       "evidence_level": "inferred",
       "confidence": "low",
+      "confidence_pct": 52,
+      "confidence_basis": [
+        "missing date",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elizaos"
@@ -171,6 +213,13 @@
       "source_artifact_id": "transcript-evidence:dstack-hangout",
       "evidence_level": "inferred",
       "confidence": "low",
+      "confidence_pct": 52,
+      "confidence_basis": [
+        "missing date",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elizaos"
@@ -196,6 +245,13 @@
       "source": "private-vault:dstack-hangout",
       "evidence_level": "inferred",
       "confidence": "low",
+      "confidence_pct": 52,
+      "confidence_basis": [
+        "missing date",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elizaos"

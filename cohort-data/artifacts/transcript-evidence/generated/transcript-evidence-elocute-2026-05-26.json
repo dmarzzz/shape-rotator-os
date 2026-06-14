@@ -17,6 +17,13 @@
   "source_review_status": "reviewed_readout",
   "evidence_level": "inferred",
   "confidence": "medium",
+  "confidence_pct": 76,
+  "confidence_basis": [
+    "dated reviewed readout",
+    "vault_id present",
+    "three or more insights",
+    "team reference present"
+  ],
   "consent": "cohort-internal",
   "sharing_boundary": {
     "source_access": "private-vault",
@@ -54,6 +61,13 @@
       "source_artifact_id": "transcript-evidence:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -80,6 +94,13 @@
       "source_artifact_id": "transcript-evidence:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -106,6 +127,13 @@
       "source_artifact_id": "transcript-evidence:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -132,6 +160,13 @@
       "source_artifact_id": "transcript-evidence:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -158,6 +193,13 @@
       "source_artifact_id": "transcript-evidence:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -184,6 +226,13 @@
       "source_artifact_id": "transcript-evidence:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -210,6 +259,13 @@
       "source_artifact_id": "transcript-evidence:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -237,6 +293,13 @@
       "source_artifact_id": "transcript-evidence:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -264,6 +327,13 @@
       "source": "private-vault:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -284,6 +354,13 @@
       "source": "private-vault:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -304,6 +381,13 @@
       "source": "private-vault:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -324,6 +408,13 @@
       "source": "private-vault:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"
@@ -344,6 +435,13 @@
       "source": "private-vault:elocute-2026-05-26",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "elocute"

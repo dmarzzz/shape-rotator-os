@@ -17,6 +17,13 @@
   "source_review_status": "reviewed_readout",
   "evidence_level": "inferred",
   "confidence": "medium",
+  "confidence_pct": 76,
+  "confidence_basis": [
+    "dated reviewed readout",
+    "vault_id present",
+    "three or more insights",
+    "team reference present"
+  ],
   "consent": "cohort-internal",
   "sharing_boundary": {
     "source_access": "private-vault",
@@ -60,6 +67,13 @@
       "source_artifact_id": "transcript-evidence:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -92,6 +106,13 @@
       "source_artifact_id": "transcript-evidence:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -124,6 +145,13 @@
       "source_artifact_id": "transcript-evidence:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -156,6 +184,13 @@
       "source_artifact_id": "transcript-evidence:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -189,6 +224,13 @@
       "source_artifact_id": "transcript-evidence:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -221,6 +263,13 @@
       "source_artifact_id": "transcript-evidence:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -253,6 +302,13 @@
       "source_artifact_id": "transcript-evidence:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -286,6 +342,13 @@
       "source_artifact_id": "transcript-evidence:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -319,6 +382,13 @@
       "source": "private-vault:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -345,6 +415,13 @@
       "source": "private-vault:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -371,6 +448,13 @@
       "source": "private-vault:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -397,6 +481,13 @@
       "source": "private-vault:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",
@@ -423,6 +514,13 @@
       "source": "private-vault:day1-project-intros-notes-2026-05-19",
       "evidence_level": "inferred",
       "confidence": "medium",
+      "confidence_pct": 76,
+      "confidence_basis": [
+        "dated reviewed readout",
+        "vault_id present",
+        "three or more insights",
+        "team reference present"
+      ],
       "attribution": "team-level",
       "teams": [
         "daedalus",

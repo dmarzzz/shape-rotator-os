@@ -21,6 +21,7 @@ data/
 
 # logs / scratch
 *.log
+tmp/
 tmp/github-progress-audit.json
 tmp/github-progress-audit.md
 tmp/github-progress-cache/

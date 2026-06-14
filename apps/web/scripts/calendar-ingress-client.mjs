@@ -1100,7 +1100,15 @@ export async function rejectEventRequest({ config, requestId, reviewNotes, fetch
   });
 }
 
-export async function reviewDerivedArtifact({ config, artifactId, reviewStatus, approvalState, notes, fetchImpl = fetch }) {
+export async function reviewDerivedArtifact({
+  config,
+  artifactId,
+  reviewStatus,
+  approvalState,
+  notes,
+  edits,
+  fetchImpl = fetch,
+}) {
   if (!artifactId) throw new Error("artifactId is required");
   if (!["reviewed", "blocked", "published", "needs_review"].includes(reviewStatus)) {
     throw new Error(`unsupported review status: ${reviewStatus}`);
@@ -1114,6 +1122,7 @@ export async function reviewDerivedArtifact({ config, artifactId, reviewStatus, 
       review_status: reviewStatus,
       ...(approvalState ? { approval_state: approvalState } : {}),
       ...(notes ? { notes } : {}),
+      ...(edits && Object.keys(edits).length ? { edits } : {}),
       ...(reviewStatus === "published" ? { publish_public: true } : {}),
     },
     fetchImpl,
@@ -1121,7 +1130,15 @@ export async function reviewDerivedArtifact({ config, artifactId, reviewStatus, 
   return result.artifact ? [result.artifact] : [];
 }
 
-export async function reviewEvidenceCard({ config, cardId, reviewStatus, approvalState, notes, fetchImpl = fetch }) {
+export async function reviewEvidenceCard({
+  config,
+  cardId,
+  reviewStatus,
+  approvalState,
+  notes,
+  edits,
+  fetchImpl = fetch,
+}) {
   if (!cardId) throw new Error("cardId is required");
   if (!["reviewed", "blocked", "published", "needs_review"].includes(reviewStatus)) {
     throw new Error(`unsupported review status: ${reviewStatus}`);
@@ -1135,6 +1152,7 @@ export async function reviewEvidenceCard({ config, cardId, reviewStatus, approva
       review_status: reviewStatus,
       ...(approvalState ? { approval_state: approvalState } : {}),
       ...(notes ? { notes } : {}),
+      ...(edits && Object.keys(edits).length ? { edits } : {}),
       ...(reviewStatus === "published" ? { publish_public: true } : {}),
     },
     fetchImpl,

@@ -179,6 +179,38 @@ function labelize(value) {
   return String(value || "not declared").replace(/[-_]+/g, " ");
 }
 
+const RECORD_KEYWORD_STOPWORDS = new Set([
+  "and", "are", "for", "from", "into", "that", "the", "this", "with",
+  "team", "teams", "user", "users", "app", "apps", "build", "building",
+  "product", "project", "private", "public", "agent", "agents", "data",
+]);
+
+function keywordTokens(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(/\s+/)
+    .filter(token => token.length >= 4 && !RECORD_KEYWORD_STOPWORDS.has(token));
+}
+
+function recordKeywords(record = {}) {
+  const values = [
+    record.record_id,
+    String(record.record_id || "").replace(/[-_]+/g, " "),
+    record.name,
+    record.focus,
+    record.now,
+    record.domain,
+    record.working_style,
+    asArray(record.skill_areas).join(" "),
+    asArray(record.success_dimensions).join(" "),
+    asArray(record.go_to_them_for).join(" "),
+    asArray(record.recurring_themes).join(" "),
+    asArray(record.prior_work).join(" "),
+  ];
+  return Array.from(new Set(values.flatMap(keywordTokens))).slice(0, 40);
+}
+
 function textIncludesAny(text, aliases) {
   const hay = String(text || "").toLowerCase();
   return aliases.some(alias => alias && hay.includes(String(alias).toLowerCase()));
@@ -368,6 +400,14 @@ function latestWeek(weeks) {
   return values.length ? values[values.length - 1] : "";
 }
 
+function weekSortValue(value) {
+  return isoDate(value) || "0000-00-00";
+}
+
+function compareWeekDesc(a, b) {
+  return weekSortValue(b?.week_start || b).localeCompare(weekSortValue(a?.week_start || a));
+}
+
 function evidenceTimelineItems(transcriptEvidence, kind, recordId) {
   const key = kind === "team" ? "team_id" : "person_id";
   const rows = Array.isArray(transcriptEvidence?.[kind === "team" ? "teams" : "people"])
@@ -387,14 +427,469 @@ function evidenceTimelineItems(transcriptEvidence, kind, recordId) {
   }));
 }
 
-function buildCohortIntel({ transcriptEvidence, sessionInsights, teams = [], people = [] }) {
+const CLAIM_SIGNAL_PRIORITY = {
+  action_item: 100,
+  ask: 94,
+  collaboration_edge: 88,
+  product_signal: 80,
+  decision: 72,
+  risk: 64,
+  market_signal: 56,
+  claim: 36,
+};
+
+function claimSignalScore(claim, index = 0, context = {}) {
+  const type = claim?.claim_type || "claim";
+  const base = CLAIM_SIGNAL_PRIORITY[type] || CLAIM_SIGNAL_PRIORITY.claim;
+  const confidence = claim?.confidence === "high" ? 8 : claim?.confidence === "medium" ? 4 : 0;
+  const kind = context.kind || "team";
+  const recordId = String(context.recordId || "");
+  const peerIds = kind === "person" ? asArray(claim?.people) : asArray(claim?.teams);
+  const hasRecord = recordId && peerIds.includes(recordId);
+  const breadthPenalty = Math.max(0, peerIds.length - 1) * (kind === "person" ? 7 : 9);
+  const roomPenalty = Math.max(0, asArray(claim?.teams).length + asArray(claim?.people).length - 8) * 2;
+  const specificity = peerIds.length <= 1 ? 36 : peerIds.length <= 2 ? 20 : peerIds.length <= 4 ? 6 : -14;
+  const text = String(claim?.text || "").toLowerCase();
+  const overlapCount = asArray(context.keywords)
+    .filter(token => token && text.includes(token))
+    .slice(0, 6).length;
+  const keywordOverlap = overlapCount * 7;
+  const lexicalPenalty = overlapCount === 0 && peerIds.length > 4
+    ? 90
+    : overlapCount === 0 && peerIds.length > 2
+      ? 38
+      : 0;
+  const broadAskPenalty = type === "ask" && peerIds.length > 4 ? 42 : 0;
+  return base + confidence + specificity + keywordOverlap + (hasRecord ? 6 : 0) - breadthPenalty - roomPenalty - lexicalPenalty - broadAskPenalty - index;
+}
+
+function signalLabel(type) {
+  const labels = {
+    action_item: "next move",
+    ask: "needs",
+    collaboration_edge: "connect",
+    product_signal: "product signal",
+    decision: "decision",
+    risk: "risk",
+    market_signal: "market signal",
+    claim: "evidence",
+  };
+  return labels[type] || labels.claim;
+}
+
+function pickSignalClaim(view, context = {}) {
+  return asArray(view?.top_claims)
+    .map((claim, index) => ({ claim, score: claimSignalScore(claim, index, context) }))
+    .sort((a, b) => b.score - a.score)[0]?.claim || null;
+}
+
+function signalSpecificity(claim, kind) {
+  const peers = kind === "person" ? asArray(claim?.people) : asArray(claim?.teams);
+  if (peers.length <= 1) return "record-specific";
+  if (peers.length <= 4) return "small-group";
+  return "shared-session";
+}
+
+function compactSignalText(text, max = 138) {
+  return compactText(String(text || "").replace(/\s+/g, " "), max);
+}
+
+function buildCardSignal(view, kind, record) {
+  const id = kind === "team" ? view?.team_id : view?.person_id;
+  const claim = pickSignalClaim(view, {
+    kind,
+    recordId: id,
+    keywords: recordKeywords(record),
+  });
+  if (!id || !claim) return null;
+  const sourceCardIds = Array.from(new Set([
+    claim.source_artifact_id,
+    ...asArray(view.evidence_card_ids),
+  ].filter(Boolean)));
+  return {
+    record_id: id,
+    record_kind: kind,
+    signal_type: claim.claim_type || "claim",
+    label: signalLabel(claim.claim_type),
+    text: compactSignalText(claim.text),
+    detail_text: compactSignalText(claim.text, 280),
+    specificity: signalSpecificity(claim, kind),
+    review_status: "generated",
+    promotion_state: "needs-review",
+    confidence: claim.confidence || view.confidence || "low",
+    evidence_level: claim.evidence_level || "inferred",
+    evidence_card_count: asArray(view.evidence_card_ids).length,
+    claim_count: view.claim_count || asArray(view.top_claims).length,
+    source_card: claim.source_artifact_id || "",
+    source_card_ids: sourceCardIds.slice(0, 8),
+    claim_id: claim.claim_id || "",
+    week: latestWeek(view.weeks),
+    themes: asArray(view.themes).slice(0, 3),
+    teams: asArray(claim.teams).filter(team => team !== id).slice(0, 4),
+    people: asArray(claim.people).filter(person => person !== id).slice(0, 4),
+    sharing_boundary: view.sharing_boundary || { max_surface: "cohort", raw_allowed: false },
+  };
+}
+
+function buildCardSignals(evidence, records = {}) {
+  const teamById = new Map(asArray(records.teams).map(record => [record.record_id, record]));
+  const personById = new Map(asArray(records.people).map(record => [record.record_id, record]));
+  const teamSignals = asArray(evidence?.teams)
+    .map(view => buildCardSignal(view, "team", teamById.get(view?.team_id)))
+    .filter(Boolean)
+    .sort((a, b) => String(a.record_id).localeCompare(String(b.record_id)));
+  const personSignals = asArray(evidence?.people)
+    .map(view => buildCardSignal(view, "person", personById.get(view?.person_id)))
+    .filter(Boolean)
+    .sort((a, b) => String(a.record_id).localeCompare(String(b.record_id)));
+  return {
+    teams: teamSignals,
+    people: personSignals,
+  };
+}
+
+function claimsForNote(claims, types, limit = 4) {
+  const typeSet = new Set(types);
+  return asArray(claims)
+    .filter(claim => typeSet.has(claim.claim_type || "claim"))
+    .map((claim, index) => ({ claim, score: claimSignalScore(claim, index) }))
+    .sort((a, b) => b.score - a.score)
+    .map(item => ({
+      claim_type: item.claim.claim_type || "claim",
+      label: signalLabel(item.claim.claim_type),
+      text: compactSignalText(item.claim.text, 220),
+      confidence: item.claim.confidence || "low",
+      evidence_level: item.claim.evidence_level || "inferred",
+      source_card: item.claim.source_artifact_id || "",
+      source_card_ids: asArray(item.claim.source_artifact_id).slice(0, 1),
+      teams: asArray(item.claim.teams).slice(0, 8),
+      people: asArray(item.claim.people).slice(0, 8),
+    }))
+    .slice(0, limit);
+}
+
+function fieldNoteMarkdown(note) {
+  const sourceIds = asArray(note.source_card_ids);
+  const lines = [
+    `# ${note.title}`,
+    "",
+    "## the 60-second version",
+    "",
+    note.summary,
+    "",
+  ];
+  for (const section of note.sections) {
+    if (!asArray(section.claims).length) continue;
+    lines.push(`## ${section.title}`, "");
+    for (const claim of section.claims) {
+      lines.push(`- **${claim.label}.** ${claim.text}`);
+    }
+    lines.push("");
+  }
+  lines.push(
+    "## provenance",
+    "",
+    `Generated from ${note.evidence_card_count} generated transcript evidence card(s) for the week of ${note.week_start}. Claims are paraphrased and cohort-internal unless separately promoted. Source dialogue is not shown here.`,
+    sourceIds.length ? `Source cards: ${sourceIds.join(", ")}` : "",
+    "",
+  );
+  return lines.join("\n").trim();
+}
+
+function buildFieldNotes(weeklyViews) {
+  return asArray(weeklyViews).map((week) => {
+    const topClaims = asArray(week.top_claims);
+    const sections = [
+      { title: "what moved", claims: claimsForNote(topClaims, ["action_item", "product_signal", "decision"], 5) },
+      { title: "asks and edges", claims: claimsForNote(topClaims, ["ask", "collaboration_edge"], 5) },
+      { title: "risks to watch", claims: claimsForNote(topClaims, ["risk", "market_signal"], 4) },
+    ].filter(section => section.claims.length);
+    const note = {
+      note_id: `cohort-field-note:${week.week_start || "undated"}`,
+      note_kind: "cohort_field_note",
+      week_start: week.week_start || "undated",
+      title: `Cohort field note: week of ${week.week_start || "undated"}`,
+      summary: `The transcript evidence for this week spans ${week.evidence_card_count || asArray(week.evidence_card_ids).length} source card(s), ${week.claim_count || topClaims.length} inferred claim(s), ${asArray(week.teams).length} team(s), and ${asArray(week.themes).length} recurring theme(s).`,
+      evidence_card_count: week.evidence_card_count || asArray(week.evidence_card_ids).length,
+      claim_count: week.claim_count || topClaims.length,
+      source_card_ids: asArray(week.evidence_card_ids).slice(0, 24),
+      teams: asArray(week.teams).slice(0, 16),
+      people: asArray(week.people).slice(0, 16),
+      themes: asArray(week.themes).slice(0, 10),
+      confidence: week.confidence || "low",
+      sharing_boundary: week.sharing_boundary || { max_surface: "cohort", raw_allowed: false },
+      review_status: "generated",
+      promotion_state: "needs-review",
+      sections,
+    };
+    return { ...note, markdown: fieldNoteMarkdown(note) };
+  });
+}
+
+function qaForSessionNote(items, limit = 4) {
+  return asArray(items).slice(0, limit).map(item => ({
+    question: compactSignalText(item.question, 180),
+    answer: compactSignalText(item.answer, 220),
+    confidence: item.confidence || "low",
+    evidence_level: item.evidence_level || "inferred",
+    source_card_ids: asArray(item.source_artifact_id || item.source).slice(0, 1),
+    teams: asArray(item.teams).slice(0, 8),
+    people: asArray(item.people).slice(0, 8),
+  }));
+}
+
+function sessionNoteMarkdown(note) {
+  const lines = [
+    `# ${note.title}`,
+    "",
+    "## the 60-second version",
+    "",
+    note.summary,
+    "",
+  ];
+  for (const section of note.sections) {
+    if (!asArray(section.claims).length && !asArray(section.qa).length) continue;
+    lines.push(`## ${section.title}`, "");
+    for (const claim of asArray(section.claims)) {
+      lines.push(`- **${claim.label}.** ${claim.text}`);
+    }
+    for (const qa of asArray(section.qa)) {
+      lines.push(`- **Q.** ${qa.question}`);
+      if (qa.answer) lines.push(`  **A.** ${qa.answer}`);
+    }
+    lines.push("");
+  }
+  if (asArray(note.teams).length || asArray(note.people).length) {
+    lines.push("## implicated records", "");
+    if (asArray(note.teams).length) lines.push(`Teams: ${asArray(note.teams).join(", ")}`);
+    if (asArray(note.people).length) lines.push(`People: ${asArray(note.people).join(", ")}`);
+    lines.push("");
+  }
+  lines.push(
+    "## provenance",
+    "",
+    `Generated from ${asArray(note.source_card_ids).join(", ") || note.note_id}. Review status: ${note.review_status}. Promotion state: ${note.promotion_state}. Raw transcript text is hidden.`,
+    "",
+  );
+  return lines.join("\n").trim();
+}
+
+function buildSessionNotes(evidenceCards) {
+  return asArray(evidenceCards)
+    .filter(card => card?.artifact_kind === "transcript_evidence_card")
+    .map((card) => {
+      const claims = asArray(card.claims);
+      const sections = [
+        { title: "what changed", claims: claimsForNote(claims, ["action_item", "product_signal", "decision", "market_signal", "claim"], 5) },
+        { title: "asks and risks", claims: claimsForNote(claims, ["ask", "risk", "collaboration_edge"], 5) },
+        { title: "questions from the room", qa: qaForSessionNote(card.qa, 5) },
+      ].filter(section => asArray(section.claims).length || asArray(section.qa).length);
+      const note = {
+        note_id: `cohort-session-note:${card.record_id || card.artifact_id}`,
+        note_kind: "cohort_session_note",
+        session_id: card.record_id || "",
+        title: card.title || `Session note: ${card.record_id || card.artifact_id}`,
+        summary: card.summary || `Generated from ${claims.length} transcript evidence claim(s).`,
+        date: isoDate(card.date),
+        week_start: card.week_start || "undated",
+        session_kind: card.session_kind || "",
+        evidence_card_count: 1,
+        claim_count: claims.length,
+        question_count: asArray(card.qa).length,
+        source_card_ids: asArray(card.artifact_id).slice(0, 1),
+        source: card.source || "",
+        teams: asArray(card.teams).slice(0, 16),
+        people: asArray(card.people).slice(0, 16),
+        themes: asArray(card.themes).slice(0, 10),
+        confidence: card.confidence || "low",
+        review_status: card.review_status || "generated",
+        promotion_state: card.surface_recommendation || "review_for_cohort",
+        sharing_boundary: card.sharing_boundary || { max_surface: "cohort", raw_allowed: false },
+        sections,
+        references: asArray(card.references).slice(0, 6),
+      };
+      return { ...note, markdown: sessionNoteMarkdown(note) };
+    })
+    .sort((a, b) => {
+      const ad = weekSortValue(a.date || a.week_start);
+      const bd = weekSortValue(b.date || b.week_start);
+      if (ad !== bd) return bd.localeCompare(ad);
+      return String(a.note_id).localeCompare(String(b.note_id));
+    });
+}
+
+function countBy(values) {
+  const out = {};
+  for (const value of values) {
+    const key = String(value || "unknown");
+    out[key] = (out[key] || 0) + 1;
+  }
+  return Object.fromEntries(Object.entries(out).sort((a, b) => a[0].localeCompare(b[0])));
+}
+
+function signalInventoryClaim(claim, card) {
+  return {
+    signal_id: claim.claim_id || `${card.artifact_id}:claim`,
+    signal_kind: "claim",
+    signal_type: claim.claim_type || "claim",
+    label: signalLabel(claim.claim_type),
+    text: compactSignalText(claim.text, 320),
+    source_card_id: card.artifact_id || "",
+    session_id: card.record_id || card.vault_id || "",
+    session_title: card.title || "",
+    date: isoDate(card.date),
+    week_start: card.week_start || "undated",
+    confidence: claim.confidence || card.confidence || "low",
+    evidence_level: claim.evidence_level || "inferred",
+    review_status: card.review_status || "generated",
+    promotion_state: card.surface_recommendation || "review_for_cohort",
+    sharing_boundary: card.sharing_boundary || { max_surface: "cohort", raw_allowed: false },
+    teams: asArray(claim.teams || card.teams).slice(0, 24),
+    people: asArray(claim.people || card.people).slice(0, 24),
+    themes: asArray(card.themes).slice(0, 10),
+  };
+}
+
+function signalInventoryQuestion(item, card) {
+  return {
+    signal_id: item.qa_id || `${card.artifact_id}:qa`,
+    signal_kind: "qa",
+    signal_type: "question",
+    label: "question",
+    text: compactSignalText(item.question, 260),
+    answer: compactSignalText(item.answer, 320),
+    source_card_id: card.artifact_id || "",
+    session_id: card.record_id || card.vault_id || "",
+    session_title: card.title || "",
+    date: isoDate(card.date),
+    week_start: card.week_start || "undated",
+    confidence: item.confidence || card.confidence || "low",
+    evidence_level: item.evidence_level || "inferred",
+    review_status: card.review_status || "generated",
+    promotion_state: card.surface_recommendation || "review_for_cohort",
+    sharing_boundary: card.sharing_boundary || { max_surface: "cohort", raw_allowed: false },
+    teams: asArray(item.teams || card.teams).slice(0, 24),
+    people: asArray(item.people || card.people).slice(0, 24),
+    themes: asArray(card.themes).slice(0, 10),
+  };
+}
+
+function buildSignalInventory(evidenceCards) {
+  const sources = asArray(evidenceCards)
+    .filter(card => card?.artifact_kind === "transcript_evidence_card")
+    .map((card) => {
+      const claimSignals = asArray(card.claims).map(claim => signalInventoryClaim(claim, card));
+      const qaSignals = asArray(card.qa).map(item => signalInventoryQuestion(item, card));
+      const signals = [...claimSignals, ...qaSignals];
+      return {
+        source_card_id: card.artifact_id || "",
+        session_id: card.record_id || card.vault_id || "",
+        title: card.title || card.record_id || card.artifact_id || "transcript evidence",
+        summary: card.summary || "",
+        date: isoDate(card.date),
+        week_start: card.week_start || "undated",
+        session_kind: card.session_kind || "",
+        consent: card.consent || "unknown",
+        confidence: card.confidence || "low",
+        review_status: card.review_status || "generated",
+        promotion_state: card.surface_recommendation || "review_for_cohort",
+        sharing_boundary: card.sharing_boundary || { max_surface: "cohort", raw_allowed: false },
+        claim_signal_count: claimSignals.length,
+        qa_signal_count: qaSignals.length,
+        total_signal_count: signals.length,
+        signal_type_counts: countBy(claimSignals.map(signal => signal.signal_type)),
+        teams: asArray(card.teams).slice(0, 24),
+        people: asArray(card.people).slice(0, 24),
+        themes: asArray(card.themes).slice(0, 10),
+        signals,
+      };
+    })
+    .sort((a, b) => {
+      const ad = weekSortValue(a.date || a.week_start);
+      const bd = weekSortValue(b.date || b.week_start);
+      if (ad !== bd) return bd.localeCompare(ad);
+      return String(a.source_card_id).localeCompare(String(b.source_card_id));
+    });
+  const allSignals = sources.flatMap(source => source.signals);
+  const claimSignals = allSignals.filter(signal => signal.signal_kind === "claim");
+  const qaSignals = allSignals.filter(signal => signal.signal_kind === "qa");
+  return {
+    schema_version: 1,
+    source_card_count: sources.length,
+    total_signal_count: allSignals.length,
+    claim_signal_count: claimSignals.length,
+    qa_signal_count: qaSignals.length,
+    signal_type_counts: countBy(claimSignals.map(signal => signal.signal_type)),
+    review_status_counts: countBy(sources.map(source => source.review_status)),
+    coverage: {
+      sources_without_claims: sources.filter(source => source.claim_signal_count === 0).map(source => source.source_card_id),
+      sources_without_questions: sources.filter(source => source.qa_signal_count === 0).map(source => source.source_card_id),
+      min_signals_per_source: sources.length ? Math.min(...sources.map(source => source.total_signal_count)) : 0,
+      max_signals_per_source: sources.length ? Math.max(...sources.map(source => source.total_signal_count)) : 0,
+    },
+    sources,
+  };
+}
+
+function buildIntelDataContract({ cardSignals, fieldNotes, sessionNotes, signalInventory, teams, people, sourceTranscriptCount = 0 }) {
+  return {
+    card_signal_inputs: [
+      "record_id",
+      "transcript_evidence.top_claims[].claim_type",
+      "transcript_evidence.top_claims[].text",
+      "transcript_evidence.top_claims[].confidence",
+      "transcript_evidence.sharing_boundary",
+      "transcript_evidence.evidence_card_ids",
+    ],
+    field_note_inputs: [
+      "weekly evidence_card_count",
+      "weekly claim_count",
+      "weekly teams",
+      "weekly themes",
+      "weekly top_claims by type",
+      "weekly source_card_ids",
+    ],
+    session_note_inputs: [
+      "transcript evidence card title/summary",
+      "transcript evidence card claims",
+      "transcript evidence card Q&A",
+      "transcript evidence card teams/people/themes",
+      "transcript evidence card sharing boundary",
+    ],
+    signal_inventory_inputs: [
+      "every transcript evidence card claim",
+      "every transcript evidence card Q&A item",
+      "source card id, review status, confidence, sharing boundary",
+      "teams, people, themes attached to each signal",
+    ],
+    quality: {
+      source_transcript_count: sourceTranscriptCount,
+      total_signal_count: signalInventory.total_signal_count || 0,
+      claim_signal_count: signalInventory.claim_signal_count || 0,
+      qa_signal_count: signalInventory.qa_signal_count || 0,
+      team_signal_count: cardSignals.teams.length,
+      person_signal_count: cardSignals.people.length,
+      field_note_count: fieldNotes.length,
+      session_note_count: sessionNotes.length,
+      missing_session_note_count: Math.max(0, sourceTranscriptCount - sessionNotes.length),
+      sources_without_claims: asArray(signalInventory.coverage?.sources_without_claims).length,
+      sources_without_questions: asArray(signalInventory.coverage?.sources_without_questions).length,
+      missing_team_signal_count: Math.max(0, asArray(teams).length - cardSignals.teams.length),
+      missing_person_signal_count: Math.max(0, asArray(people).length - cardSignals.people.length),
+    },
+    promotion_rule: "Generated evidence can guide internal cards and field notes; high-salience or public surfaces still need review before promotion.",
+  };
+}
+
+function buildCohortIntel({ transcriptEvidence, transcriptEvidenceCards = [], sessionInsights, teams = [], people = [] }) {
   const evidence = transcriptEvidence && typeof transcriptEvidence === "object" ? transcriptEvidence : {};
   const weekly = asArray(evidence.weekly)
     .slice()
-    .sort((a, b) => String(b.week_start || "").localeCompare(String(a.week_start || "")))
+    .sort(compareWeekDesc)
     .slice(0, 8)
     .map((week) => ({
       week_start: week.week_start,
+      evidence_card_ids: asArray(week.evidence_card_ids).slice(0, 24),
       evidence_card_count: asArray(week.evidence_card_ids).length,
       claim_count: week.claim_count || asArray(week.top_claims).length,
       teams: asArray(week.teams).slice(0, 12),
@@ -433,6 +928,10 @@ function buildCohortIntel({ transcriptEvidence, sessionInsights, teams = [], peo
     }));
   const publicReady = asArray(sessionInsights).filter(item => item.consent === "public-cleared");
   const blockedNames = publicArticleBlockedNames({ teams, people });
+  const cardSignals = buildCardSignals(evidence, { teams, people });
+  const fieldNotes = buildFieldNotes(weekly);
+  const sessionNotes = buildSessionNotes(transcriptEvidenceCards);
+  const signalInventory = buildSignalInventory(transcriptEvidenceCards);
   return {
     schema_version: 1,
     source: "cohort-data/artifacts/transcript-evidence/generated/views.json",
@@ -441,6 +940,19 @@ function buildCohortIntel({ transcriptEvidence, sessionInsights, teams = [], peo
     weekly,
     teams: teamViews,
     people: personViews,
+    card_signals: cardSignals,
+    field_notes: fieldNotes,
+    session_notes: sessionNotes,
+    signal_inventory: signalInventory,
+    data_contract: buildIntelDataContract({
+      cardSignals,
+      fieldNotes,
+      sessionNotes,
+      signalInventory,
+      teams,
+      people,
+      sourceTranscriptCount: Number(evidence.source_artifact_count || transcriptEvidenceCards.length || 0),
+    }),
     context_public_candidates: publicReady.map(item => publicArticleCandidateFromReadout(item, { blockedNames })),
     context_policy_note: publicReady.length
       ? "Public-cleared transcript readouts may become Context articles after editorial pass."
@@ -780,6 +1292,26 @@ function loadJsonObject(file, label) {
   return null;
 }
 
+function loadTranscriptEvidenceCards() {
+  const root = path.join(COHORT_DIR, "artifacts", "transcript-evidence", "generated");
+  const manifest = loadJsonObject(path.join(root, "manifest.json"), "transcript-evidence/generated/manifest.json");
+  const artifacts = asArray(manifest?.artifacts);
+  const cards = [];
+  for (const artifact of artifacts) {
+    if (!artifact?.file) continue;
+    const file = path.join(root, artifact.file);
+    const card = loadJsonObject(file, `transcript-evidence/generated/${artifact.file}`);
+    if (!card) continue;
+    cards.push(card);
+  }
+  return cards.sort((a, b) => {
+    const ad = weekSortValue(a.date || a.week_start);
+    const bd = weekSortValue(b.date || b.week_start);
+    if (ad !== bd) return bd.localeCompare(ad);
+    return String(a.artifact_id || "").localeCompare(String(b.artifact_id || ""));
+  });
+}
+
 function listJsonFilesRecursive(dir) {
   if (!fs.existsSync(dir)) return [];
   const out = [];
@@ -986,12 +1518,14 @@ function build() {
     path.join(COHORT_DIR, "artifacts", "transcript-evidence", "generated", "views.json"),
     "transcript-evidence/generated/views.json",
   );
+  const transcript_evidence_cards = loadTranscriptEvidenceCards();
   const transcript_distillations = sanitizeTranscriptDistillationsForApp(loadJsonObject(
     path.join(COHORT_DIR, "artifacts", "transcript-distillations", "generated", "manifest.json"),
     "transcript-distillations/generated/manifest.json",
   ));
   const cohort_intel = buildCohortIntel({
     transcriptEvidence: transcript_evidence,
+    transcriptEvidenceCards: transcript_evidence_cards,
     sessionInsights: session_insights,
     teams,
     people,

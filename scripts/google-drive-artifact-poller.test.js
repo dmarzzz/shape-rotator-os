@@ -126,6 +126,7 @@ test("Drive artifact plan maps Meet transcript and Gemini notes refs without raw
   assert.equal(plan.sourceArtifacts[0].source_kind, "meet_transcript");
   assert.equal(plan.sourceArtifacts[0].storage_mode, "external_ref");
   assert.equal(plan.sourceArtifacts[0].storage_ref, "drive://drive_file_1");
+  assert.equal(plan.sourceArtifacts[0].metadata.source_confidence_pct, 92);
   assert.equal(plan.processingJobs.length, 0);
   assert.equal(plan.unmatchedFiles.length, 1);
   assert.doesNotMatch(text, /raw transcript text/i);
@@ -167,7 +168,12 @@ test("Drive artifact poller paginates, applies metadata refs, and queues fetch w
   assert.equal(output.persisted.processingJobRows[0].job_kind, "artifact_fetch");
   assert.equal(output.persisted.processingJobRows[0].prompt_version, "artifact-fetch-v1");
   assert.ok(calls.some((call) => call.method === "POST" && call.url.includes("/capture_artifacts") && call.body[0].drive_file_id === "drive_file_1"));
-  assert.ok(calls.some((call) => call.method === "POST" && call.url.includes("/source_artifacts") && call.body[0].storage_ref === "drive://drive_file_1"));
+  assert.ok(calls.some((call) => (
+    call.method === "POST"
+    && call.url.includes("/source_artifacts")
+    && call.body[0].storage_ref === "drive://drive_file_1"
+    && call.body[0].metadata.source_confidence_pct === 92
+  )));
   assert.ok(calls.some((call) => call.method === "PATCH" && call.url.includes("/sessions") && call.body.transcript_status === "source_ready"));
   assert.equal(calls.some((call) => call.url.includes("/export?mimeType=text/plain")), false);
 });
@@ -261,13 +267,12 @@ test("Drive source classifier reports confidence for Otter, GMeet, and ambiguous
     }).source_kind,
     "otter_summary",
   );
-  assert.equal(
-    classifyDriveSourceSystem({
-      name: "Gemini smart notes",
-      mimeType: "application/vnd.google-apps.document",
-    }).source_kind,
-    "meet_smart_notes",
-  );
+  const gemini = classifyDriveSourceSystem({
+    name: "Gemini smart notes",
+    mimeType: "application/vnd.google-apps.document",
+  });
+  assert.equal(gemini.source_kind, "meet_smart_notes");
+  assert.equal(gemini.confidence_pct, 92);
   assert.equal(
     classifyDriveSourceSystem({
       name: "Otter export from Google Meet transcript",

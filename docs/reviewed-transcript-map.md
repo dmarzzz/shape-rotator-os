@@ -1,8 +1,14 @@
 # Reviewed Transcript Import Map
 
+> **Status 2026-06-13:** This is now a historical week 1/2 import map. Use
+> [Transcript Calendar Coverage Index](transcript-calendar-coverage-index.md)
+> for the current complete calendar coverage list, missing-session queue,
+> candidate-review queue, and transcript naming audit. The newer index is
+> generated from the current calendar plus private transcript vault plans.
+
 This is the review map for the current Shape Rotator OS transcript audit. It separates existing OS coverage from candidate transcript files that match calendar events but should not be submitted raw until their content boundary is approved.
 
-> **2026-06-10 content-boundary update.** Raw transcripts no longer live in this public repo. Per the content policy (raw transcripts are never published beyond attendees), the 13 raw .txt files were removed from `apps/os/src/content/context/raw-scripts/` and moved to the private vault. Their canonical-timeline anchors remain in [calendar-transcript-matches.js](../apps/os/src/content/context/calendar-transcript-matches.js) as `held: "private-vault"` sources carrying a `vault_id` join key and a snapshot of person/team mention hits, so person and team timelines keep full fidelity. Only public-safe files stay bundled: the two redacted excerpts and the distilled WDYDLW recap. Distilled insights (journal articles, recaps, event pages) are unaffected.
+> **2026-06-10 content-boundary update.** Raw transcripts no longer live in this public repo. Per the content policy (raw transcripts are never published beyond attendees), the 13 raw .txt files were removed from `apps/os/src/content/context/raw-scripts/` and moved to the private vault. Their historical canonical-timeline anchors lived in `apps/os/src/content/context/calendar-transcript-matches.js` as `held: "private-vault"` sources carrying a `vault_id` join key and a snapshot of person/team mention hits. Use the current [Transcript Calendar Coverage Index](transcript-calendar-coverage-index.md) for live coverage status.
 >
 > **Insights pipeline.** Each vault transcript gets a public-safe distilled readout, hardcoded via `npm run ingest:readouts <readouts.json>` ([ingest-session-readouts.mjs](../scripts/ingest-session-readouts.mjs)): canonical structured readouts land in [session-insights.json](../cohort-data/session-insights.json) (shipped in the app surface as `session_insights`), per-team cues append to [constellation-cues.json](../cohort-data/constellation-cues.json) (rendered in constellation inspectors today), and human-readable review copies land in [session-readouts/](../cohort-data/session-readouts/). Sessions with external or featured speakers carry `consent: speaker-pending` and are held to thematic, unattributed distillation until a speaker consent pass.
 
@@ -39,15 +45,15 @@ flowchart LR
 | medium | Date and topic line up, but the transcript spans a broader conversation, an adjacent block, or a segment inferred from surrounding context. |
 | low | Do not link. The match is too weak for the app surface. |
 
-## Bundled Public-Safe Files
+## Historical Bundled Public-Safe Files
 
-These are the only transcript-derived files that remain in the public repo. They line up with calendar events, and only redacted excerpts or distilled recaps are bundled because the raw sources contain private team feedback or business/customer details.
+These were the transcript-derived files referenced by the week 1/2 import review. They are retained here as historical names, not live file links. Use the current [Transcript Calendar Coverage Index](transcript-calendar-coverage-index.md) for live coverage and source status.
 
 | file | calendar match | confidence | boundary decision |
 |---|---|---:|---|
-| [Teleport Router Onboarding Privacy Boundaries May 27 Redacted Transcript](<../apps/os/src/content/context/raw-scripts/Teleport Router Onboarding Privacy Boundaries May 27 Redacted Transcript.txt>) | `2026-05-27` Teleport Router onboarding / Q&A | medium | Redacted excerpt only. Raw private PMF/product feedback and customer/business detail are not imported. |
-| [Agentic Tooling Workshop May 28 Redacted Transcript](<../apps/os/src/content/context/raw-scripts/Agentic Tooling Workshop May 28 Redacted Transcript.txt>) | `2026-05-28` Agentic Tooling workshops/clinic | medium | Redacted excerpt only. Raw product/investor-style feedback and private event planning are not imported. |
-| [WDYDLW Standup Recap June 8 2026](<../apps/os/src/content/context/raw-scripts/WDYDLW Standup Recap June 8 2026.txt>) | `2026-06-08` WDYDLW with Shaw | high | Distilled reconstructed recap, not a verbatim transcript. Source capture stays private. |
+| `Teleport Router Onboarding Privacy Boundaries May 27 Redacted Transcript` | `2026-05-27` Teleport Router onboarding / Q&A | medium | Redacted excerpt only. Raw private PMF/product feedback and customer/business detail are not imported. |
+| `Agentic Tooling Workshop May 28 Redacted Transcript` | `2026-05-28` Agentic Tooling workshops/clinic | medium | Redacted excerpt only. Raw product/investor-style feedback and private event planning are not imported. |
+| `WDYDLW Standup Recap June 8 2026` | `2026-06-08` WDYDLW with Shaw | high | Distilled reconstructed recap, not a verbatim transcript. Source capture stays private. |
 
 ## Calendar Coverage
 
