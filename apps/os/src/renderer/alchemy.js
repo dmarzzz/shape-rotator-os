@@ -7753,6 +7753,7 @@ function paintCalendarView({ wire = false } = {}) {
   const presence = cal.view === "presence";
   state.canvas.innerHTML = renderCalendarPage({
     data: cal.data,
+    calendarGoogleEvents: state.cohort?.calendar_google_events || {},
     weekIdx: cal.weekIdx,
     source: cal.source,
     view: cal.view,

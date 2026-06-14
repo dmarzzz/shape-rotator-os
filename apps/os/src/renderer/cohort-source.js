@@ -134,6 +134,7 @@ function _writeSurfaceLs(surface) {
       asks: surface.asks || [],
       cohort_vocab: surface.cohort_vocab || {},
       calendar: surface.calendar || null,
+      calendar_google_events: surface.calendar_google_events || {},
       constellation_cues: surface.constellation_cues || [],
       session_insights: surface.session_insights || [],
       whats_new: surface.whats_new || [],
@@ -160,6 +161,7 @@ function emptyShape() {
     asks: [],
     cohort_vocab: {},
     calendar: null,
+    calendar_google_events: {},
     constellation_cues: [],
     session_insights: [],
     whats_new: [],
@@ -191,6 +193,10 @@ function timelineMap(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
+function objectMap(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
 function normalize(data) {
   const out = {
     teams:        dedupById(data?.teams, "team"),
@@ -219,6 +225,7 @@ function normalize(data) {
     // rendered against `data=null` until the Phala fetch resolved (and went
     // blank entirely if that fetch failed or was slow). Pass it through.
     calendar:     (data?.calendar && typeof data.calendar === "object") ? data.calendar : null,
+    calendar_google_events: objectMap(data?.calendar_google_events),
   };
   if (typeof data?._generated_at === "string") out._generated_at = data._generated_at;
   return out;

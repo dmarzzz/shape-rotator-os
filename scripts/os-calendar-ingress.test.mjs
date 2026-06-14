@@ -81,7 +81,12 @@ test("os calendar ingress preview keeps guests non-editable and private title ou
   assert.equal(body.calendar_connection_id, "cal_1");
   assert.equal(body.calendar_id, undefined);
   assert.equal(body.session.status, "scheduled");
+  assert.equal(body.session.bot_requested, true);
+  assert.equal(body.request_meet, true);
+  assert.equal(body.auto_transcript, true);
+  assert.equal(body.require_auto_artifacts, true);
   assert.equal(body.dry_run, true);
+  assert.equal(preview.conferenceData.createRequest.conferenceSolutionKey.type, "hangoutsMeet");
 });
 
 test("os calendar ingress does not put browser calendar IDs into create-event bodies", () => {

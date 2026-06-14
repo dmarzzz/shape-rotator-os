@@ -112,8 +112,8 @@ function readForm(form) {
     location: data.get("location"),
     attendee_emails: data.get("attendee_emails"),
     public_description: data.get("public_description"),
-    bot_requested: data.get("bot_requested") === "on",
-    request_meet: data.get("request_meet") === "on",
+    bot_requested: true,
+    request_meet: true,
   };
 }
 
@@ -444,8 +444,8 @@ function renderConfig() {
         <label><span>capture bot email</span><input name="botEmail" value="${esc(c.botEmail || "")}" autocomplete="off" /></label>
         <label><span>drive artifact folder</span><input name="driveArtifactFolderId" value="${esc(c.driveArtifactFolderId || "")}" autocomplete="off" /></label>
         <div class="cal-ingress-managed-calendar">
-          <span>admin edit path</span>
-          <p>The editable Google Calendar link is shared privately with calendar owners. Public Google, webcal, and .ics links are read-only subscriptions.</p>
+          <span>admin event path</span>
+          <p>Admins create managed invites through this panel; the server writes to the organizer calendar. Public Google, webcal, and .ics links are read-only subscriptions.</p>
         </div>
         <label class="span-2"><span>create function url</span><input name="createEventUrl" value="${esc(c.createEventUrl || "")}" autocomplete="off" /></label>
       </div>
@@ -614,8 +614,9 @@ function render() {
           <label><span>attendees</span><textarea name="attendee_emails" rows="4" placeholder="guest@example.com"></textarea></label>
           <label><span>public note</span><textarea name="public_description" rows="3" placeholder="short safe note for the invite"></textarea></label>
           <div class="cal-ingress-toggles">
-            <label><input name="request_meet" type="checkbox" checked /><span>Google Meet</span></label>
-            <label><input name="bot_requested" type="checkbox" checked /><span>capture bot</span></label>
+            <span>Google Meet</span>
+            <span>transcript on</span>
+            <span>Cube invited</span>
           </div>
           <div class="cal-ingress-actions">
             <button type="submit" data-cal-action="request">submit request</button>

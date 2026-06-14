@@ -12,10 +12,10 @@ function usage() {
     "  node scripts/prepare-calendar-ingress-seed-sql.js [--env-file .env.local] [--out seed.sql]",
     "",
     "Reads non-browser launch values and emits idempotent SQL for:",
-    "  orgs, first admin membership, routing_policies, calendar_connections",
+    "  orgs, admin organizer memberships, routing_policies, calendar_connections",
     "",
     "Relevant env keys:",
-    "  ORG_SLUG, ORG_NAME, ADMIN_USER_ID, GOOGLE_CALENDAR_ID,",
+    "  ORG_SLUG, ORG_NAME, ADMIN_USER_ID, ADMIN_ORGANIZER_USER_IDS, GOOGLE_CALENDAR_ID,",
     "  GOOGLE_CALENDAR_ORGANIZER_EMAIL, GOOGLE_CALENDAR_AUTH_MODE",
   ].join("\n");
 }

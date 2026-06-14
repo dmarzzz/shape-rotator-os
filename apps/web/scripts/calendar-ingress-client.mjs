@@ -630,6 +630,12 @@ export function privateInviteDirectoryFromRows(rows = []) {
   };
 }
 
+export function googleCalendarManagedUrl(calendarId = DEFAULT_CALENDAR_ID) {
+  const id = String(calendarId || "").trim();
+  if (!id) throw new Error("Google calendar ID is required");
+  return `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(id)}`;
+}
+
 export function toCalendarDateTime(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -663,7 +669,7 @@ export function buildCalendarIngressPayload(values, { policy = DEFAULT_ROUTING_P
     ends_at: endsAt,
     timezone: String(values.timezone || DEFAULT_CALENDAR_TIMEZONE).trim(),
     location: String(values.location || "").trim() || null,
-    bot_requested: values.bot_requested !== false && values.botRequested !== false,
+    bot_requested: true,
   };
   const attendees = Array.isArray(values.attendees)
     ? parseAttendees(values.attendees.map((item) => item.email || item).join("\n"))
@@ -671,7 +677,9 @@ export function buildCalendarIngressPayload(values, { policy = DEFAULT_ROUTING_P
   return {
     session,
     attendees,
-    request_meet: values.request_meet !== false && values.requestMeet !== false,
+    request_meet: true,
+    auto_transcript: true,
+    require_auto_artifacts: true,
     decision,
   };
 }
@@ -687,7 +695,9 @@ export function buildEventRequestRow({ orgId, payload, surface = "web" }) {
         status: "requested",
       },
       attendees: payload.attendees,
-      request_meet: payload.request_meet,
+      request_meet: true,
+      auto_transcript: true,
+      require_auto_artifacts: true,
       decision: payload.decision,
       submitted_at: new Date().toISOString(),
       surface,
@@ -712,7 +722,9 @@ export function buildCreateCalendarEventBody({
       status: "scheduled",
     },
     attendees: payload.attendees,
-    request_meet: payload.request_meet,
+    request_meet: true,
+    auto_transcript: true,
+    require_auto_artifacts: true,
     dry_run: !!dryRun,
     persist: persist !== false,
   };
@@ -838,7 +850,7 @@ export function buildGoogleEventPreview(payload, { botEmail } = {}) {
     guestsCanModify: defaults.guestsCanModify === true,
     guestsCanInviteOthers: defaults.guestsCanInviteOthers === true,
     guestsCanSeeOtherGuests: defaults.guestsCanSeeOtherGuests !== false,
-    conferenceData: payload.request_meet ? { createRequest: { conferenceSolutionKey: { type: "hangoutsMeet" } } } : undefined,
+    conferenceData: { createRequest: { conferenceSolutionKey: { type: "hangoutsMeet" } } },
     extendedProperties: {
       private: {
         shape_session_id: payload.session.id,
@@ -1055,7 +1067,9 @@ export async function approveEventRequest({ config, request, fetchImpl = fetch }
   const payload = {
     session: request.request_json?.session,
     attendees: request.request_json?.attendees || [],
-    request_meet: request.request_json?.request_meet !== false,
+    request_meet: true,
+    auto_transcript: true,
+    require_auto_artifacts: true,
   };
   const calendarResult = await callCreateCalendarEvent({
     config,

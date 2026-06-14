@@ -60,7 +60,7 @@ test("known cells expand into timed events and true all-day events", () => {
   const kickoff = all.find((e) => /kickoff dinner/.test(e.description));
   assert.equal(kickoff.summary, "kickoff dinner @ Auditorium");
   assert.equal(kickoff.datetype, "date-time");
-  assert.match(kickoff.uid, /-block-4-kickoff-dinner-auditorium@shape-rotator-os$/);
+  assert.match(kickoff.uid, /-block-4@shape-rotator-os$/);
   assert.equal(kickoff.start.tz, "America/New_York");
   assert.equal(kickoff.start.toISOString(), "2026-05-18T23:30:00.000Z");
   assert.equal(kickoff.end.toISOString(), "2026-05-19T00:00:00.000Z");
