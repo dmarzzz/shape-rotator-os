@@ -630,12 +630,6 @@ export function privateInviteDirectoryFromRows(rows = []) {
   };
 }
 
-export function googleCalendarManagedUrl(calendarId = DEFAULT_CALENDAR_ID) {
-  const id = String(calendarId || "").trim();
-  if (!id) throw new Error("Google calendar ID is required");
-  return `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(id)}`;
-}
-
 export function toCalendarDateTime(value) {
   const text = String(value || "").trim();
   if (!text) return "";

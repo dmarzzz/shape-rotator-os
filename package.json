@@ -104,7 +104,7 @@
     "test:models": "node --test scripts/test-model-helpers.mjs",
     "keys:gen": "node scripts/keys-gen.js",
     "vendor:web": "node scripts/vendor-web.mjs",
-    "deploy:web": "npm run vendor:web && cd apps/web && npx --yes vercel deploy --prod --yes",
+    "deploy:web": "npm run vendor:web && node scripts/write-web-runtime-config.mjs && cd apps/web && npx --yes vercel deploy --prod --yes",
     "audit:github-releases": "node scripts/check-github-releases.mjs"
   },
   "devDependencies": {
