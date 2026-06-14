@@ -1424,6 +1424,7 @@ ipcMain.handle("matrix:flows", async (_e, hs) => matrix.getFlows(hs));
 ipcMain.handle("matrix:login-sso", async (_e, p) => matrix.loginSSO(p || {}));
 ipcMain.handle("matrix:login-device", async (_e, p) => matrix.loginViaDevice(p || {}));
 ipcMain.handle("matrix:login-code", async (_e, p) => matrix.loginWithCode(p || {}));
+ipcMain.handle("matrix:login-access-token", async (_e, p) => matrix.loginWithAccessToken(p || {}));
 ipcMain.handle("matrix:cancel-sso", async () => { matrix.cancelSSO(); return { ok: true }; });
 ipcMain.handle("matrix:login", async (_e, p) => matrix.login(p || {}));
 ipcMain.handle("matrix:login-token", async (_e, p) => matrix.loginToken(p || {}));

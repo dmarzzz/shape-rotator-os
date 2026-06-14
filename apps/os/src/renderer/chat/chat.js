@@ -64,7 +64,6 @@ export function mountChat(host) {
     host.innerHTML = `
       <div class="chat-gate">
         <div class="chat-gate-card">
-          <div class="chat-gate-mark">SHAPE ROTATOR · cohort matrix</div>
           <h2 class="chat-gate-title">restart needed</h2>
           <p class="chat-gate-sub">The Matrix bridge isn't loaded. Fully <strong>quit and relaunch</strong> the app (a window reload isn't enough) and reopen this tab to sign in.</p>
         </div>
@@ -83,9 +82,7 @@ export function mountChat(host) {
     host.innerHTML = `
       <div class="chat-gate">
         <div class="chat-gate-card">
-          <div class="chat-gate-mark">SHAPE ROTATOR · cohort matrix</div>
           <h2 class="chat-gate-title">sign in to matrix</h2>
-          <p class="chat-gate-sub">Sign-in happens in your browser — your password never touches this app. Your session is then encrypted on this device.</p>
           <div class="chat-gate-body"><div class="chat-gate-checking">checking sign-in…</div></div>
         </div>
       </div>`;
@@ -97,18 +94,20 @@ export function mountChat(host) {
     if (!body) return;
     let flows = [];
     let reachable = false;
+    let why = "";
     try {
       const res = await api.flows(DEFAULT_HS);
       reachable = !!(res && res.ok);
       flows = (res && res.flows) || [];
-    } catch {}
+      if (!reachable) why = (res && res.error) || "unexpected response";
+    } catch (e) { why = String((e && e.message) || e); }
     if (!host.querySelector(".chat-gate-body")) return; // re-rendered while awaiting
     if (!reachable) {
       // A transient failure must NOT fall through to the password-only branch —
       // that's the phishing-shaped fallback this whole feature exists to avoid.
       // Offer a retry instead of falsely claiming the server has no other option.
       body.innerHTML = `
-        <p class="chat-gate-note">Couldn't reach the homeserver to check sign-in options. Check your connection and try again.</p>
+        <p class="chat-gate-note">Couldn't reach the homeserver to check sign-in options.${why ? ` <span class="chat-gate-why">(${esc(why)})</span>` : ""} Check your connection and try again.</p>
         <button class="chat-btn chat-btn-primary chat-retry" type="button">try again</button>`;
       const retry = body.querySelector(".chat-retry");
       if (retry) retry.addEventListener("click", refreshGateOptions);
@@ -124,27 +123,28 @@ export function mountChat(host) {
       body.innerHTML = `${buttons}<div class="chat-gate-status" role="status" aria-live="polite"></div>`;
       body.querySelectorAll(".chat-sso").forEach((b) => b.addEventListener("click", () => startSSO(b.dataset.idp)));
     } else if (tokenFlow) {
-      // Device-approval: mint a one-time code from a device you're already
-      // signed into. Password never touches this app.
+      // Toggle by which device you're already signed in on:
+      //  • desktop → paste an access token from a desktop Element (works today)
+      //  • mobile  → approve via QR from your phone (needs the homeserver's
+      //    rendezvous relay, not deployed yet — see Andrew).
       body.innerHTML = `
-        <button class="chat-btn chat-btn-primary chat-device" type="button"><span>sign in with another device</span></button>
-        <p class="chat-gate-note">Opens your browser. Paste an access token from a device you're already signed in to (Element → <code>Settings → Help &amp; About → Access Token</code>) — your <strong>password never touches this app</strong>, and that token is used once to mint a 2-minute code.</p>
-        <details class="chat-dev">
-          <summary>other ways to sign in</summary>
-          <form class="chat-code-form" autocomplete="off">
-            <p class="chat-dev-note">Already have a one-time login code? Paste it here.</p>
-            <input class="chat-input-text" name="code" placeholder="one-time login code" spellcheck="false" autocapitalize="off" />
-            <button class="chat-btn" type="submit">redeem code</button>
+        <div class="chat-seg" role="tablist" aria-label="how you're already signed in">
+          <button class="chat-seg-btn is-active" type="button" data-pane="desktop">desktop</button>
+          <button class="chat-seg-btn" type="button" data-pane="mobile">mobile</button>
+        </div>
+        <div class="chat-pane" data-pane="desktop">
+          <form class="chat-token-form" autocomplete="off">
+            <input class="chat-input-text" name="token" type="password" placeholder="paste access token" spellcheck="false" autocapitalize="off" />
+            <p class="chat-gate-hint">From a signed-in <strong>desktop</strong> Element: <code>Settings → Help &amp; About → Access Token</code></p>
+            <button class="chat-btn chat-btn-primary" type="submit">sign in</button>
             <div class="chat-login-msg" role="status" aria-live="polite"></div>
           </form>
-          <hr class="chat-dev-rule" />
-          ${passwordFormHtml()}
-        </details>
-        <div class="chat-gate-status" role="status" aria-live="polite"></div>`;
-      const dev = body.querySelector(".chat-device");
-      if (dev) dev.addEventListener("click", startDevice);
-      wireCodeForm();
-      wirePasswordForm();
+        </div>
+        <div class="chat-pane is-hidden" data-pane="mobile">
+          <p class="chat-gate-note">Approve from a phone you're already signed in to — <strong>not enabled yet</strong>. It needs a one-time change on the homeserver (a rendezvous relay) before phones can approve a sign-in. Ping the admin to switch it on.</p>
+        </div>`;
+      wireSegmented();
+      wireTokenForm();
     } else {
       body.innerHTML = `
         <p class="chat-gate-note">No password-free sign-in is available on this homeserver yet. Until it is, there's nothing to type here.</p>
@@ -195,6 +195,34 @@ export function mountChat(host) {
     });
   }
 
+  function wireTokenForm() {
+    const form = host.querySelector(".chat-token-form");
+    if (!form) return;
+    const msg = form.querySelector(".chat-login-msg");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const tok = String(new FormData(form).get("token") || "").trim();
+      const btn = form.querySelector("button[type=submit]");
+      if (!tok) { if (msg) { msg.textContent = "paste your access token first"; msg.className = "chat-login-msg is-error"; } return; }
+      if (msg) { msg.textContent = "signing in…"; msg.className = "chat-login-msg"; }
+      btn.disabled = true;
+      const res = await api.loginAccessToken({ homeserver: DEFAULT_HS, accessToken: tok });
+      btn.disabled = false;
+      if (res && res.ok) { if (msg) msg.textContent = "connecting…"; }
+      else if (msg) { msg.textContent = (res && res.error) || "sign-in failed"; msg.className = "chat-login-msg is-error"; }
+    });
+  }
+
+  function wireSegmented() {
+    const btns = host.querySelectorAll(".chat-seg-btn");
+    const panes = host.querySelectorAll(".chat-pane");
+    btns.forEach((b) => b.addEventListener("click", () => {
+      const want = b.dataset.pane;
+      btns.forEach((x) => x.classList.toggle("is-active", x === b));
+      panes.forEach((p) => p.classList.toggle("is-hidden", p.dataset.pane !== want));
+    }));
+  }
+
   function startSSO(idpId) {
     const body = host.querySelector(".chat-gate-body");
     if (body) {
@@ -225,10 +253,9 @@ export function mountChat(host) {
   function passwordFormHtml() {
     return `
       <form class="chat-login" autocomplete="off">
-        <p class="chat-dev-note">Testing only — sends your password to the homeserver directly. Goes away once browser sign-in is enabled.</p>
-        <label class="chat-field"><span class="chat-field-label">username</span><input class="chat-input-text" name="user" placeholder="you" spellcheck="false" autocapitalize="off" /></label>
+        <label class="chat-field"><span class="chat-field-label">username</span><input class="chat-input-text" name="user" placeholder="your matrix username (e.g. fred)" spellcheck="false" autocapitalize="off" /></label>
         <label class="chat-field"><span class="chat-field-label">password</span><input class="chat-input-text" name="pass" type="password" /></label>
-        <button class="chat-btn" type="submit">sign in (dev)</button>
+        <button class="chat-btn chat-btn-primary" type="submit">sign in</button>
         <div class="chat-login-msg" role="status" aria-live="polite"></div>
       </form>`;
   }

@@ -31,7 +31,16 @@ const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
 const crypto = require("node:crypto");
-const { BrowserWindow, safeStorage, shell } = require("electron");
+const { BrowserWindow, safeStorage, shell, net } = require("electron");
+
+// Route every homeserver request through Electron's net.fetch (Chromium's
+// network stack: the SYSTEM cert store, proxies, HTTP/2) rather than Node's
+// global fetch/undici, which uses Node's own bundled CAs and can fail to
+// verify the Phala-TEE homeserver's cert chain that curl + the browser accept
+// (symptom: "couldn't reach the homeserver" while curl returns 200). This
+// module-scope shadow makes all fetch(...) calls below use it; the browser
+// fetch inside deviceHelperHtml is a string template and is unaffected.
+const fetch = (...args) => net.fetch(...args);
 
 // The cohort homeserver (docs/MATRIX.md). The Client-Server API base is the
 // same host; we skip .well-known discovery for v1.
@@ -348,8 +357,10 @@ async function getFlows(homeserver) {
   try {
     const res = await fetch(hs + "/_matrix/client/v3/login");
     const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, flows: Array.isArray(data.flows) ? data.flows : [] };
+    if (!res.ok) warn(`getFlows: ${hs} returned HTTP ${res.status}`);
+    return { ok: res.ok, error: res.ok ? undefined : `HTTP ${res.status}`, flows: Array.isArray(data.flows) ? data.flows : [] };
   } catch (e) {
+    warn(`getFlows: cannot reach ${hs} — ${e.message}`);
     return { ok: false, error: e.message, flows: [] };
   }
 }
@@ -458,6 +469,37 @@ async function loginWithCode({ homeserver, token } = {}) {
   const code = String(token || "").trim();
   if (!code) return { ok: false, error: "paste a login code first" };
   return applyLoginToken(hs, code);
+}
+
+// In-app device sign-in: the renderer hands us an access token from a device
+// the user is already signed into. We mint a short-lived login token from it
+// (get_token), redeem that for our OWN device session, and discard the access
+// token (we only persist the fresh token from redemption). The renderer can't
+// reach the homeserver directly (CSP), so the access token transits the main
+// process transiently — same trust as the rest of the app; never written down.
+async function loginWithAccessToken({ homeserver, accessToken } = {}) {
+  const hs = (homeserver || DEFAULT_HS).replace(/\/+$/, "");
+  const at = String(accessToken || "").trim();
+  if (!at) return { ok: false, error: "paste your access token first" };
+  let loginToken;
+  try {
+    const r = await fetch(hs + "/_matrix/client/v1/login/get_token", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${at}`, "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401 && d && d.flows) {
+      return { ok: false, error: "this server needs re-authentication for device sign-in (UIA) — not supported yet" };
+    }
+    if (!r.ok || !d.login_token) {
+      return { ok: false, error: d.error || d.errcode || `couldn't mint a code (HTTP ${r.status})` };
+    }
+    loginToken = d.login_token;
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+  return applyLoginToken(hs, loginToken);
 }
 
 // ─── device-approval sign-in (MSC3882 login-token) ──────────────────────────
@@ -653,6 +695,6 @@ function stop() { stopSync(); cancelSSO(); }
 
 module.exports = {
   start, stop,
-  getStatus, getFlows, login, loginToken, loginSSO, loginViaDevice, loginWithCode, cancelSSO, logout,
+  getStatus, getFlows, login, loginToken, loginSSO, loginViaDevice, loginWithCode, loginWithAccessToken, cancelSSO, logout,
   getRooms, getMessages, send,
 };

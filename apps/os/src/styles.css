@@ -197,7 +197,9 @@ body:not([data-active-tab="matrix"]) .chat-only { display: none !important; }
    password-free login (see docs/MATRIX_DEVICE_LOGIN_REQUEST.md). The tab + all
    its code still ship — there's just no entry point, so we don't imply it
    works yet. To re-enable, delete this one rule. */
-.nav-cat[data-tab="matrix"] { display: none !important; }
+/* >>> LOCAL TEST ONLY — matrix temporarily UNHIDDEN. DO NOT COMMIT this change.
+   Restore the line below before any commit / PR. <<< */
+/* .nav-cat[data-tab="matrix"] { display: none !important; } */
 
 /* search lives as an overlay inside the Atlas app (formerly its own
  * tab). Shown when on apps→atlas AND data-atlas-search="open". */
@@ -9308,22 +9310,54 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   color: var(--alchemy-paper-warm); margin: 0 0 6px;
 }
 .alch-profile-head-row .alch-profile-title { margin: 0; }
+/* Profile theme switch — a sun↔moon sliding toggle. Both icons live in the
+ * track; a knob slides over the active mode and that icon brightens to full
+ * ink while the other recedes. State is driven by [data-theme-now]. */
 .alch-theme-toggle {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
-  color: var(--alchemy-ink-mute);
-  background: transparent;
-  border: 1px solid var(--alchemy-rule);
-  padding: 6px 10px;
-  cursor: pointer;
-  transition: color 160ms var(--ease), border-color 160ms var(--ease);
+  -webkit-app-region: no-drag;
+  display: inline-flex; align-items: center;
+  padding: 0; border: 0; background: transparent; cursor: pointer;
 }
-.alch-theme-toggle:hover {
-  color: var(--alchemy-paper-warm);
-  border-color: var(--alchemy-paper-warm);
+.att-track {
+  /* Two equal halves (flex 1 each); the knob is centered in a half and the
+   * icon is centered in the same half, so the knob lands exactly over its
+   * icon. With a 58px box (56px inside the 1px border) each half is 28px and
+   * the 24px knob travels 28px from one to the other. */
+  position: relative;
+  display: flex;
+  width: 58px; height: 28px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  border: 1px solid var(--ed-rule-2, var(--alchemy-rule));
+  background: rgba(var(--ink-rgb), 0.05);
+  transition: border-color 180ms var(--ease, ease), background 180ms var(--ease, ease);
 }
-.alch-theme-toggle-icon { font-size: 13px; letter-spacing: 0; }
+.alch-theme-toggle:hover .att-track { border-color: var(--ed-ink-2, var(--alchemy-paper-warm)); }
+.alch-theme-toggle:focus-visible { outline: none; }
+.alch-theme-toggle:focus-visible .att-track {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ed-ink-2, var(--alchemy-paper-warm)) 45%, transparent);
+}
+.att-ico {
+  flex: 1 1 50%;
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  transition: color 180ms var(--ease, ease);
+}
+.att-ico svg { width: 15px; height: 15px; display: block; }
+.att-thumb {
+  position: absolute; top: 1px; left: 2px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.16);
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  transition: transform 240ms var(--ease, cubic-bezier(0.4, 0, 0.2, 1));
+}
+/* Dark mode → knob slides right (over the moon); light → rests left (sun). */
+.alch-theme-toggle[data-theme-now="dark"] .att-thumb { transform: translateX(28px); }
+.alch-theme-toggle[data-theme-now="light"] .att-sun,
+.alch-theme-toggle[data-theme-now="dark"]  .att-moon { color: var(--ed-ink-1, var(--alchemy-paper-warm)); }
 .alch-profile-sub {
   font-family: var(--font-mono);
   font-size: 11px; letter-spacing: 0.04em;
@@ -12915,30 +12949,6 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 .fg-update-icon[data-state="ready"] { cursor: pointer; }
 .fg-update-icon svg.fg-ready-glyph { width: 12px; height: 12px; }
 
-/* Persistent theme toggle in the footer cluster. Subdued at rest (it's a
- * utility, not status, so it sits quieter than the white update glyph), warms
- * to full ink on hover. Sized to sit alongside the version stamp + update
- * icon without crowding them. */
-.fg-theme-toggle {
-  -webkit-app-region: no-drag;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  flex: 0 0 auto;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: rgba(var(--ink-rgb), 0.50);
-  cursor: pointer;
-  line-height: 0;
-  border-radius: 5px;
-  transition: color 200ms var(--ease, ease), transform 100ms var(--ease, ease);
-}
-.fg-theme-toggle svg { width: 14px; height: 14px; display: block; }
-.fg-theme-toggle:hover { color: var(--ink-hi); }
-.fg-theme-toggle:active { transform: scale(0.92); }
 /* numeric % / ready label — mono, tabular so the digits don't jitter. */
 .fg-update-pct {
   font-family: var(--font-mono, "SF Mono", Menlo, ui-monospace, monospace);
@@ -21201,9 +21211,6 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
 .acl-glyph { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 5px; }
 .acl-glyph svg { width: 13px; height: 13px; display: block; }
 
-.alch-theme-toggle-icon { display: inline-flex; align-items: center; }
-.alch-theme-toggle-icon svg { width: 14px; height: 14px; display: block; }
-
 .alch-edit-glyph { display: inline-flex; align-items: center; }
 .alch-edit-glyph svg { width: 13px; height: 13px; display: block; }
 
@@ -21570,14 +21577,24 @@ html[data-theme="light"] .alch-constellation-stage {
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
+/* Roster row: label is too wide for the fixed label column, so stack it —
+ * label on its own row, contributors starting on the next. */
+.alch-rail-list div.alch-rail-row-block {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
 .alch-rail-members {
-  display: grid;
-  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+  color: var(--ed-ink-2, var(--alchemy-ink));
 }
 .alch-rail-member {
-  display: block;
+  display: list-item;
   min-width: 0;
+  margin-bottom: 4px;
 }
+.alch-rail-member:last-child { margin-bottom: 0; }
 .alch-rail-member button,
 .alch-rail-list .alch-record-token,
 .alch-rail-list .alch-team-token {
@@ -21605,6 +21622,16 @@ html[data-theme="light"] .alch-constellation-stage {
 .alch-rail-member em {
   color: var(--ed-ink-4, var(--alchemy-ink-mute));
   font-style: normal;
+}
+/* Contributor names read like the rail's other values (muted, no rule);
+ * the link affordance returns on hover. */
+.alch-rail-member button {
+  color: var(--ed-ink-2, var(--alchemy-ink));
+  border-bottom-color: transparent;
+}
+.alch-rail-member button:hover {
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+  border-bottom-color: var(--ed-ink-1, var(--alchemy-oxide-bright));
 }
 .alch-detail-ledger {
   min-width: 0;
@@ -21826,12 +21853,12 @@ button.alch-quick-link {
   min-height: 0;
   padding: 8px 0;
 }
-/* Multi-item values: short pills (stage / evidence / upside…) share a
+/* Multi-item values: short stats (stage / evidence / upside…) share a
  * line; prose items each own a full row. Two long items flowing inline
  * produced a ragged fake second column (the "provides" rows). */
 .alch-team-quick .alch-quick-v {
-  column-gap: 16px;
-  row-gap: 5px;
+  column-gap: 26px;
+  row-gap: 12px;
 }
 .alch-team-quick .alch-quick-text {
   flex: 1 1 100%;
@@ -21844,6 +21871,21 @@ button.alch-quick-link {
   border: 0;
   border-radius: 0;
   background: transparent;
+  /* Stack the label as a caption ABOVE its value instead of gluing a
+   * wide-tracked uppercase label inline with the value — the inline mix
+   * read as run-on noise and was hard to scan. */
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+/* The caption (label) — quieter and tighter than the inline version, so it
+ * sits over the value as a small heading rather than competing with it. */
+.alch-team-quick .alch-quick-pill > span:first-child,
+.alch-team-quick .alch-quick-text > span:first-child {
+  margin-right: 0;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
 }
 .alch-section-stack {
   display: grid;
@@ -21876,6 +21918,13 @@ button.alch-quick-link {
 }
 .alch-detail-flat .alch-section-body {
   animation: none;
+}
+/* The leading section sits directly under the explore-bar icons; its
+ * hairline read as a stray separator beneath the header, so drop it. Interior
+ * flat sections keep their separators. */
+.alch-priority-stack .alch-detail-flat {
+  border-top: 0;
+  padding-top: 4px;
 }
 
 .alch-detail-disclosure {
@@ -22089,7 +22138,7 @@ html[data-theme="light"] .alch-detail-disclosure summary:focus-visible .alch-sec
 /* Doubled class beats later-loading per-page rules (e.g. intel.css) on ties. */
 .alch-page-intro.alch-page-intro {
   position: absolute;
-  top: 24px;
+  top: 12px;
   right: 56px;
   z-index: 5;
   display: flex;

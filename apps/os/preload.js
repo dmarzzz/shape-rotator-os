@@ -151,6 +151,7 @@ contextBridge.exposeInMainWorld("api", {
     loginSSO:   (p) => ipcRenderer.invoke("matrix:login-sso", p),
     loginDevice: (p) => ipcRenderer.invoke("matrix:login-device", p),
     loginCode:  (p) => ipcRenderer.invoke("matrix:login-code", p),
+    loginAccessToken: (p) => ipcRenderer.invoke("matrix:login-access-token", p),
     cancelSSO:  () => ipcRenderer.invoke("matrix:cancel-sso"),
     login:      (p) => ipcRenderer.invoke("matrix:login", p),
     loginToken: (p) => ipcRenderer.invoke("matrix:login-token", p),

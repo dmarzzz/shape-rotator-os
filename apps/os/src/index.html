@@ -112,7 +112,9 @@
         <span class="nav-cat-label ar-label">apps</span>
         <span class="ar-hint">atlas · easel · daybook</span>
       </button>
-      <button class="nav-cat nav-cat--dest" data-tab="matrix" type="button" aria-selected="false">
+      <!-- matrix tab temporarily hidden for this release (chat almost works;
+           re-enable after the next round of fixes). Tab logic stays wired. -->
+      <button class="nav-cat nav-cat--dest" data-tab="matrix" type="button" aria-selected="false" hidden style="display:none">
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
         <span class="nav-cat-label ar-label">matrix</span>
         <span class="ar-hint">chat · cohort · e2ee</span>

@@ -9,7 +9,7 @@ focus: "Shake is a social network app that connects people when they shake their
 members_count: 1
 geo: "NYC"
 domain: app-ux
-shape: null
+shape: prism
 is_mentor: false
 links:
   website: https://quasimatt.com
