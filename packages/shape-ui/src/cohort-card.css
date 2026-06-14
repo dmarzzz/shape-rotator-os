@@ -232,6 +232,9 @@
   text-transform: lowercase;
   overflow-wrap: anywhere;
 }
+/* Person cards carry real human names — keep their natural casing instead of
+   the codename-style lowercase used for teams/projects. */
+.alch-card-person .alch-card-name { text-transform: none; }
 .alch-card-domain {
   font-family: var(--ed-mono); font-size: 9px;
   letter-spacing: 0.18em; text-transform: uppercase;

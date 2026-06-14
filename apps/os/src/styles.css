@@ -6463,6 +6463,12 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   transform-box: fill-box;
 }
 .alch-constellation-stage svg .ac-node-group:hover .ac-node-shape { transform: scale(1.45); filter: drop-shadow(0 0 10px rgba(143,34,14,0.6)); }
+/* Keyboard focus: these nodes are role=button tabindex=0, but the global cyan
+   :focus-visible ring draws around the inflated hit-bbox and clashes with the
+   warm palette. Suppress it and give an SVG-native warm focus instead. */
+.alch-constellation-stage svg .ac-node-group:focus-visible { outline: none; }
+.alch-constellation-stage svg .ac-node-group:focus-visible .ac-node-shape { transform: scale(1.45); filter: drop-shadow(0 0 11px rgba(214,189,134,0.85)); }
+.alch-constellation-stage svg .ac-node-group:focus-visible .ac-node-label { opacity: 1; }
 .alch-constellation-stage svg .ac-node-group.is-selected .ac-node-shape {
   transform: scale(1.35);
   filter: drop-shadow(0 0 12px rgba(214,189,134,0.50));
@@ -6861,8 +6867,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   background: rgba(143,34,14,0.10);
   color: var(--alchemy-paper-warm);
   font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   transition: border-color 160ms var(--ease), background 160ms var(--ease);
 }
@@ -7365,6 +7371,22 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   background: rgba(193,168,114,0.025);
   transform: none;
 }
+/* Pair rows aren't a single click target — each person name is its own
+   button — so the row shouldn't signal whole-row clickability. */
+.ac-rel-row.is-pair { cursor: default; }
+.ac-rel-row.is-pair:hover { border-color: rgba(var(--ink-rgb), 0.10); background: transparent; }
+/* Pair rows hold two real human names (not team codenames), so override the
+   rel-queue strong treatment: show both names in full + normal case, and let
+   them wrap rather than clip the second name (and its hit area). */
+.ac-rel-row.is-pair .ac-rel-row-top { flex-wrap: wrap; }
+.ac-rel-row.is-pair .ac-rel-row-top strong {
+  display: inline;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  text-transform: none;
+}
 .ac-rel-row-copy {
   display: flex;
   min-width: 0;
@@ -7755,7 +7777,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
      (was 7.6px / 0.58, squint territory on a 1690px window) */
   opacity: 0.72;
   font-family: var(--font-mono);
-  font-size: 8.4px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -7779,7 +7801,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   fill: var(--well-accent, var(--alchemy-paper-warm));
   opacity: 0.82;
   font-family: var(--font-mono);
-  font-size: 7.8px;
+  font-size: 8.6px;
   letter-spacing: 0;
   text-transform: uppercase;
   pointer-events: none;
@@ -8037,17 +8059,34 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   font: inherit;
   letter-spacing: inherit;
   text-align: left;
-  text-decoration: none;
+  /* the open-record link is the most important nav affordance in every
+     inspector — give it a quiet resting underline so it doesn't read as a
+     static status label (deepens on hover below). Underline is derived from
+     currentColor so it stays visible in BOTH light and dark themes. */
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, currentColor 38%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: color 140ms var(--ease), text-decoration-color 140ms var(--ease);
 }
 .ac-inspector-title-link:hover,
-.ac-inspector-title-link:focus-visible,
 .ac-inspector-name-link:hover,
+.ac-inspector-title-link:focus-visible,
 .ac-inspector-name-link:focus-visible {
-  outline: none;
   color: var(--alchemy-paper-warm);
   text-decoration: underline;
-  text-decoration-color: rgba(193,168,114,0.42);
+  text-decoration-color: color-mix(in oklch, currentColor 72%, transparent);
   text-underline-offset: 4px;
+  transition-duration: 190ms; /* enter slower than exit (140ms) */
+}
+/* Real keyboard focus ring — these links are the sole identity/nav element in
+   team/person heroes and the only targets in the people-pair rows, so focus
+   must read as more than an underline-alpha shift (WCAG 2.4.13). */
+.ac-inspector-title-link:focus-visible,
+.ac-inspector-name-link:focus-visible {
+  outline: 2px solid color-mix(in oklch, currentColor 60%, transparent);
+  outline-offset: 3px;
+  border-radius: 3px;
 }
 .ac-distribution-card {
   display: flex;
@@ -8541,7 +8580,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-stage[data-view="ring"] svg .ac-ring-label {
   opacity: 0.82;
   fill: var(--well-accent, var(--alchemy-paper-warm));
-  font-size: 7px;
+  font-size: 8.6px; /* this view-scoped rule wins over the base .ac-ring-label */
 }
 .alch-constellation-stage[data-view="ring"] svg .ac-node-label {
   opacity: 0;
@@ -8655,7 +8694,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-timeline-meta {
   flex: 0 1 auto;
   color: var(--alchemy-ink-mute);
-  font-size: 9px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
 }
@@ -8945,7 +8985,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-journey-stage svg .ac-jaxis-x,
 .alch-journey-stage svg .ac-jaxis-y {
   fill: var(--journey-muted);
-  font-family: var(--font-mono); font-size: 8.8px; letter-spacing: 0.06em; text-transform: lowercase;
+  font-family: var(--font-mono); font-size: 10.2px; letter-spacing: 0.05em; text-transform: lowercase; font-variant-numeric: tabular-nums;
 }
 .alch-journey-stage svg .ac-jaxis-num { fill: var(--journey-ink); font-weight: 600; }
 /* Divider setting the off-track "side project" column apart from idea→scale-fit. */
@@ -8955,7 +8995,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-journey-stage svg .ac-jaxis-x-side { fill: var(--journey-muted); font-style: italic; opacity: 0.86; }
 .alch-journey-stage svg .ac-jaxis-title {
   fill: var(--journey-muted);
-  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
 }
 .alch-journey-stage svg .ac-jnode { cursor: pointer; }
 .alch-journey-stage svg .ac-jnode .ac-jdot {
@@ -8980,6 +9020,14 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   transform: scale(1.25); stroke-width: 1.4;
   filter: drop-shadow(0 0 8px rgba(143,34,14,0.55));
 }
+/* Keyboard focus (jnodes are role=button tabindex=0): warm SVG-native focus
+   instead of the global cyan ring, which mis-renders on the <g>. */
+.alch-journey-stage svg .ac-jnode:focus-visible { outline: none; }
+.alch-journey-stage svg .ac-jnode:focus-visible .ac-jdot {
+  transform: scale(1.25); stroke-width: 1.6;
+  filter: drop-shadow(0 0 9px rgba(214,189,134,0.85));
+}
+.alch-journey-stage svg .ac-jnode:focus-visible .ac-jnode-label { opacity: 1; }
 .alch-journey-stage svg .ac-jnode.is-selected .ac-jdot {
   transform: scale(1.22);
   stroke-width: 1.8;
@@ -8987,7 +9035,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .alch-journey-stage svg .ac-jnode-label {
   fill: var(--journey-ink); opacity: 0;
-  font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
   pointer-events: none;
   paint-order: stroke;
   stroke: rgba(10,9,9,0.74);
@@ -9015,7 +9063,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 /* Per-stage count strip across the top of the plot. */
 .alch-journey-stage svg .ac-jcount {
   fill: var(--journey-ink); font-family: var(--font-mono);
-  font-size: 9px; font-weight: 600; opacity: 0.86;
+  font-size: 10px; font-weight: 600; opacity: 0.86; font-variant-numeric: tabular-nums;
 }
 /* Constellation legends ride a quiet glass trough so the color/line key reads
    as kin to the glass readout above them — and pick up the cursor sheen. The
@@ -15316,7 +15364,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-page-view-btn:hover { opacity: 0.85; }
 .alch-page-view-btn[aria-selected="true"] {
   opacity: 1;
-  border-bottom-color: #c44025;
+  border-bottom-color: var(--sr-red);
 }
 .apv-glyph { font-size: 14px; opacity: 0.65; }
 .apv-label {
@@ -19453,20 +19501,23 @@ html[data-theme="light"] .cb-headrow {
  * warm-charcoal gradients (#15120e…) that ignore the themed --ed vars, so the
  * card body stays dark under the (now paper) shape canvas. Re-skin to paper;
  * the oxide cohort hairline is kept since it reads on both themes. */
+/* Flat fills only — a white-top/colored-bottom gradient here made the card
+   grid read as alternating row stripes (the grey bottom of one card against
+   the white top of the next); see the anti-gradient note above. */
 html[data-theme="light"] .alch-card {
-  background: linear-gradient(180deg, #FFFFFF 0%, #F4EFE6 100%);
+  background: #FFFFFF;
   border-color: rgba(var(--ink-rgb), 0.12);
 }
 html[data-theme="light"] .alch-card:hover {
-  background: linear-gradient(180deg, #FFFFFF 0%, #EFE8DD 100%);
+  background: #F7F7F7;
   border-color: rgba(var(--ink-rgb), 0.24);
 }
 html[data-theme="light"] .alch-card-membership-cohort {
-  background: linear-gradient(180deg, #FCF7F1 0%, #F3EADF 100%);
+  background: #FCF7F1;
   border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 36%, transparent);
 }
 html[data-theme="light"] .alch-card-membership-cohort:hover {
-  background: linear-gradient(180deg, #FFFFFF 0%, #F1E6D9 100%);
+  background: #FAF3EB;
   border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, transparent);
 }
 /* Dossier panel — same paper treatment as the cards in light mode. */
