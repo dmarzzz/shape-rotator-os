@@ -5,6 +5,67 @@ import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAutho
 
 function up(s) { return String(s ?? '').toUpperCase(); }
 
+// ── dismissable ambient notifications ──────────────────────────────────────
+// The left feed and right agenda are peripheral notification rails. Each card
+// carries a quiet dismiss control (hidden at rest, revealed on hover/focus —
+// see .mfeed-dismiss / .magenda-dismiss in membrane.css). A dismissed card is
+// remembered by a stable per-occurrence key so it stays gone across the
+// once-a-minute / on-data re-renders. Occurrence keys embed the item's date,
+// so dismissing one calendar instance never suppresses a future recurrence.
+//
+// Storage is SESSION-scoped on purpose: dismissals reset on the next app
+// launch rather than being permanent. We're not committing to "gone forever"
+// until we've seen how the affordance gets used — flip the `kind` arg to
+// 'local' (below) to make dismissals persist across relaunches.
+const DISMISS_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
+// Total close-animation budget (ms) — matches the membrane fold-recede in
+// membrane.css (.is-dismissing). The card is removed only after it has fully
+// receded into the field, so the dissolve never snaps.
+const DISMISS_MS = 460;
+
+function makeDismissStore(key, kind = 'session') {
+  // Resolve the backing Storage lazily + defensively — sessionStorage can be
+  // absent/blocked; on failure the Set just lives in memory (still resets on
+  // reload, which is the session-scoped behavior we want anyway).
+  const store = () => {
+    try { return kind === 'local' ? localStorage : sessionStorage; } catch { return null; }
+  };
+  let set = new Set();
+  try {
+    const s = store();
+    const raw = s && s.getItem(key);
+    if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) set = new Set(arr); }
+  } catch {}
+  return {
+    has: (k) => set.has(k),
+    add(k) {
+      if (!k || set.has(k)) return;
+      set.add(k);
+      // Cap the ledger so a long session can't grow it unbounded; keep the
+      // most-recent dismissals (newest pushed last).
+      if (set.size > 400) set = new Set([...set].slice(-400));
+      try { const s = store(); if (s) s.setItem(key, JSON.stringify([...set])); } catch {}
+    },
+  };
+}
+
+// Fold a card out — it recedes into the field like the membrane panel does
+// (perspective + rotateY, the membrane's signature exit), direction set in CSS
+// by the host rail. The element is REMOVED once it has receded, then `done`
+// re-renders to reconcile (tail-taper, day groups). Honors reduced-motion by
+// collapsing the wait to a tick. Exit styles live on the `.is-dismissing`
+// class. Removing-then-rendering also lets renderFeed/renderAgenda skip a
+// rebuild while any card is mid-recede (so the fold is never snapped).
+function dismissCard(el, done) {
+  if (!el) { done?.(); return; }
+  let reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch {}
+  el.classList.add('is-dismissing');
+  el.style.pointerEvents = 'none';
+  setTimeout(() => { try { el.remove(); } catch {} done?.(); }, reduce ? 0 : DISMISS_MS);
+}
+
 // Per-blob panel content. `inline` renderer is called with (data) and
 // returns the inline-content HTML. cohort intentionally keeps jump-only —
 // user explicitly wants peer browsing in the legacy constellation view.
@@ -635,14 +696,21 @@ function renderAvatar(profile) {
 export function mountMembrane(container, opts = {}) {
   console.log('[membrane] mounting into', container?.id || container?.className);
   container.classList.add('membrane-host');
+  // The panel is retired — start folded so it never flashes in before the
+  // fold state below settles (see the "fold state" note further down).
+  container.classList.add('membrane-folded');
 
   container.innerHTML = `
     <div class="membrane-stage">
       <div class="membrane-atmosphere" aria-hidden="true">
         <div class="ma-throne-presence"></div>
       </div>
-      <div class="membrane-agenda" data-agenda aria-hidden="true"></div>
-      <div class="membrane-feed" data-feed aria-hidden="true"></div>
+      <!-- Not aria-hidden: these rails hold operable, labelled controls (open
+           the calendar / a profile, dismiss). Hiding them from the a11y tree
+           while leaving focusable buttons inside is a broken contract — they
+           are named regions instead so keyboard/SR users reach them. -->
+      <div class="membrane-agenda" data-agenda role="region" aria-label="today's agenda"></div>
+      <div class="membrane-feed" data-feed role="region" aria-label="what's new"></div>
       <canvas class="membrane-canvas"></canvas>
       <div class="membrane-shape-name" aria-hidden="true">
         <span class="msn-name" data-shape-name></span>
@@ -699,8 +767,14 @@ export function mountMembrane(container, opts = {}) {
   // and a glowing line marks the current time. Re-rendered on data load and
   // once a minute (so the now-line and time window track the clock).
   const agendaEl = container.querySelector('[data-agenda]');
+  const agendaDismissed = makeDismissStore('srwk:membrane:dismissed:agenda');
   function renderAgenda() {
     if (!agendaEl) return;
+    // Don't rebuild while a card is mid-recede — the once-a-minute timer or a
+    // data load would otherwise snap the fold animation. The dismiss's own
+    // completion calls renderAgenda() after the element is gone, so nothing is
+    // lost by skipping here.
+    if (agendaEl.querySelector('.is-dismissing')) return;
     const events = Array.isArray(dataStore.events?.eventsToday) ? dataStore.events.eventsToday : [];
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -751,15 +825,37 @@ export function mountMembrane(container, opts = {}) {
     }
 
     // Unified card — same chrome as the left feed item, with a calendar-
-    // category color tint (data-cat). Title (primary) over an optional sub
-    // line (time / "all day"). Clickable → opens the calendar.
-    const card = (title, sub) =>
-      `<button type="button" class="magenda-up-event" data-cat="${agendaCat(title)}"><span class="magenda-event-title">${escHtml(title || 'untitled')}</span>${sub ? `<span class="magenda-event-time">${escHtml(sub)}</span>` : ''}</button>`;
+    // category color tint (data-cat) and an accent edge-bar. Title (primary)
+    // over an optional sub line (time / "all day"). The card opens the
+    // calendar; the quiet dismiss control (revealed on hover/focus) closes the
+    // notification. `dateStr` keys the dismissal to this one occurrence.
+    const todayStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+    // Disambiguate same-day, same-title, same-sub cards with an occurrence
+    // ordinal so dismissing one never silently eats its visual twin. First
+    // occurrence keeps the bare key (back-compatible with earlier dismissals).
+    const keyN = new Map();
+    const card = (title, sub, dateStr) => {
+      const base = `${dateStr || ''}|${title || ''}|${sub || ''}`;
+      const n = keyN.get(base) || 0; keyN.set(base, n + 1);
+      const key = n ? `${base}#${n}` : base;
+      if (agendaDismissed.has(key)) return '';
+      const ek = escHtml(key);
+      return `<div class="magenda-up" data-cat="${agendaCat(title)}">
+        <button type="button" class="magenda-up-event" data-up-key="${ek}">
+          <span class="magenda-event-title">${escHtml(title || 'untitled')}</span>${sub ? `<span class="magenda-event-time">${escHtml(sub)}</span>` : ''}
+        </button>
+        <button type="button" class="magenda-dismiss" data-dismiss-key="${ek}" aria-label="dismiss ${escHtml(title || 'event')}" title="dismiss">${DISMISS_X}</button>
+      </div>`;
+    };
 
     const todayEmpty = timed.length === 0;
     let html = '';
-    // Today's all-day items as cards (no "today" header — today is implied).
-    for (const e of allDay) html += card(e.title, e.ongoing ? 'all day' : '');
+    // Today header — same chrome as the day headers below, with a "today"
+    // prefix (from main). Keep the per-occurrence dateStr key on the card call
+    // so same-day duplicate titles stay individually dismissable.
+    html += `<div class="magenda-day-head">${escHtml(`today - ${WD[now.getDay()]} ${MO[now.getMonth()]} ${now.getDate()}`)}</div>`;
+    // Today's all-day items as cards.
+    for (const e of allDay) html += card(e.title, e.ongoing ? 'all day' : '', todayStr);
     // Today's timed events keep the time axis + now-line (only when present).
     if (!todayEmpty) html += `<div class="magenda-track">${ticks}${rows}${nowLine}</div>`;
     // Quiet note when today has nothing but there's a look-ahead.
@@ -767,7 +863,7 @@ export function mountMembrane(container, opts = {}) {
     // Upcoming, grouped by day.
     for (const g of groups) {
       html += `<div class="magenda-day-head">${escHtml(dayLabel(g.date))}</div>`;
-      for (const it of g.items) html += card(it.title, it.time);
+      for (const it of g.items) html += card(it.title, it.time, g.date);
     }
     // Truly nothing on the horizon.
     if (todayEmpty && !allDay.length && !groups.length) html += `<div class="magenda-quiet">clear ahead</div>`;
@@ -775,9 +871,18 @@ export function mountMembrane(container, opts = {}) {
     agendaEl.innerHTML = html;
   }
   const agendaTimer = setInterval(renderAgenda, 60 * 1000);
-  // Clicking any agenda item opens the calendar in a new OS tab (same as
-  // clicking through from the calendar view).
+  // Clicking a dismiss control closes that notification; clicking the card
+  // itself opens the calendar in a new OS tab (same as clicking through from
+  // the calendar view).
   agendaEl?.addEventListener('click', (ev) => {
+    const x = ev.target.closest('.magenda-dismiss');
+    if (x) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      agendaDismissed.add(x.dataset.dismissKey);
+      dismissCard(x.closest('.magenda-up'), () => renderAgenda());
+      return;
+    }
     if (!ev.target.closest('.magenda-up-event, .magenda-event')) return;
     if (typeof window.__srwkOpenInNewTab === 'function') {
       window.__srwkOpenInNewTab({ tab: 'alchemy', mode: 'calendar' });
@@ -788,6 +893,7 @@ export function mountMembrane(container, opts = {}) {
   // the agenda. Color-coded by kind (release / transcript / ask), minimal:
   // a colored dot, a short label, a relative age. Newest first.
   const feedEl = container.querySelector('[data-feed]');
+  const feedDismissed = makeDismissStore('srwk:membrane:dismissed:feed');
   function feedAge(date) {
     const then = Date.parse(date);
     if (!Number.isFinite(then)) return '';
@@ -797,31 +903,59 @@ export function mountMembrane(container, opts = {}) {
     if (days < 7) return `${days}d`;
     return `${Math.floor(days / 7)}w`;
   }
+  const feedKey = (it) => `${it.kind || ''}|${it.date || ''}|${it.label || ''}|${it.meta || ''}`;
   function renderFeed() {
     if (!feedEl) return;
+    // Don't rebuild while a card is mid-recede (see renderAgenda).
+    if (feedEl.querySelector('.is-dismissing')) return;
     // Transcript chips are hidden for now: they dead-end on the generic
     // context "raw" view (the session readouts aren't wired to a per-item
     // surface yet). Every other kind (release / ask / event) still shows.
     // Remove this filter once the readout → context deep-link lands.
+    const keyN = new Map();
     const items = (Array.isArray(dataStore.feed) ? dataStore.feed : [])
-      .filter((it) => it.kind !== 'transcript');
+      .filter((it) => it.kind !== 'transcript')
+      // Attach a collision-proof dismiss key (occurrence ordinal for any
+      // identical kind|date|label|meta), then drop the already-dismissed.
+      .map((it) => {
+        const base = feedKey(it);
+        const n = keyN.get(base) || 0; keyN.set(base, n + 1);
+        return { it, key: n ? `${base}#${n}` : base };
+      })
+      .filter(({ key }) => !feedDismissed.has(key));
     if (!items.length) { feedEl.innerHTML = ''; return; }
-    feedEl.innerHTML = items.map((it, i) => `
-      <button type="button" class="mfeed-item mfeed-${escHtml(it.kind)}" data-feed-i="${i}">
-        ${feedIcon(it.kind)}
-        <span class="mfeed-body">
-          <span class="mfeed-label">${escHtml(it.label || '')}</span>
-          <span class="mfeed-meta">${escHtml(it.meta || '')}</span>
-        </span>
-        <span class="mfeed-age">${escHtml(feedAge(it.date))}</span>
-      </button>`).join('');
+    // Each item is wrapped in a positioned row so a quiet dismiss control can
+    // sit on the card's inner corner (hidden at rest, revealed on hover/focus
+    // — the "subtle hidden feature" — see .mfeed-dismiss in membrane.css).
+    feedEl.innerHTML = items.map(({ it, key }, i) => `
+      <div class="mfeed-row">
+        <button type="button" class="mfeed-item mfeed-${escHtml(it.kind)}" data-feed-i="${i}">
+          ${feedIcon(it.kind)}
+          <span class="mfeed-body">
+            <span class="mfeed-label">${escHtml(it.label || '')}</span>
+            <span class="mfeed-meta">${escHtml(it.meta || '')}</span>
+          </span>
+          <span class="mfeed-age">${escHtml(feedAge(it.date))}</span>
+        </button>
+        <button type="button" class="mfeed-dismiss" data-dismiss-key="${escHtml(key)}" aria-label="dismiss ${escHtml(it.label || 'notification')}" title="dismiss">${DISMISS_X}</button>
+      </div>`).join('');
     feedEl.querySelectorAll('[data-feed-i]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const it = items[+btn.dataset.feedI];
+        const it = items[+btn.dataset.feedI]?.it;
         if (!it || !it.nav) return;
         if (typeof window.__srwkOpenInNewTab === 'function') {
           window.__srwkOpenInNewTab({ tab: 'alchemy', ...it.nav });
         }
+      });
+    });
+    feedEl.querySelectorAll('.mfeed-dismiss').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        // Record synchronously (by stable key, not list position) so a
+        // re-render mid-animation can never resurrect the card.
+        feedDismissed.add(btn.dataset.dismissKey);
+        dismissCard(btn.closest('.mfeed-row'), () => renderFeed());
       });
     });
   }
@@ -890,17 +1024,14 @@ export function mountMembrane(container, opts = {}) {
   const sound = createSoundDirector();
 
   // ── fold state ───────────────────────────────────────────────────────
-  // Two homes, gated on whether you've claimed your shape:
-  //   • UNCLAIMED → the panel is home (the "wall with a window" — the claim
-  //     surface). Never auto-fold; an unclaimed user stranded in an empty
-  //     field has no way to claim.
-  //   • CLAIMED → the field is home. On first data load we fold the wall
-  //     away once so a returning member lands among the orbs. Tapping an orb
-  //     summons its panel back; tapping the void folds away again.
-  // The claimed signal comes from self.claimed (a FORMAL identity claim only)
-  // so the github editor user is never mistaken for claimed.
-  let folded = false;
-  let didAutoField = false;
+  // The membrane is now a pure ambient view. The old self/cohort/events/asks
+  // panel is retired as a pop-up — identity lives in profile › "your seal",
+  // and the other lenses are reached through the alchemy rail menu. So the
+  // panel starts folded for EVERYONE and never un-folds (the void-click
+  // summon is gone — see the scene wiring below). The panel DOM is kept but
+  // permanently hidden; its machinery stays valid for any external repaint.
+  let folded = true;
+  let didAutoField = true; // never auto-enter again — we already start folded
   function setFolded(f) {
     folded = !!f;
     container.classList.toggle('membrane-folded', folded);
@@ -923,9 +1054,10 @@ export function mountMembrane(container, opts = {}) {
   (fieldRow || panelFoot || panel).prepend(foldBtn);
 
   const scene = createMembraneScene(canvas, {
-    // Clicking the void TOGGLES the panel, so there's always a way back to
-    // it. (The die morphs on fast spin, not on click — see scene.js.)
-    onEmptyClick() { setFolded(!folded); },
+    // No onEmptyClick: clicking the void no longer summons the panel. The
+    // membrane is a pure ambient view now; identity moved to profile ›
+    // "your seal". (The die still stops on click / morphs on fast spin —
+    // see scene.js.)
     // The die changed shape (triggered by a fast spin) — update the label.
     onFacesChange(faces) { updateShapeName(faces); },
   });

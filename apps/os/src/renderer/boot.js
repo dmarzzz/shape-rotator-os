@@ -22,6 +22,7 @@ import { DAMP, dampPosition } from "./damping.js";
 import { materialize } from "./materialize.js";
 import { syncLabels, fadeLabelsByDistance } from "./labels.js";
 import { stableHue } from "./colors.js";
+import { mountChat } from "./chat/chat.js";
 import {
   toast,
   mountConnectionIndicator,
@@ -570,6 +571,24 @@ async function boot() {
       row.className = "fg-footer-row";
       document.body.appendChild(row);
       row.appendChild(pill);
+
+      // Links — demoted from the nav rail to a quiet footer chip (2026-06).
+      // It's a static external bookmark grid, so it sits with the other meta
+      // affordances rather than as a peer of the OS pages. Routes to the
+      // links tab the same way a nav category did.
+      const linksChip = document.createElement("button");
+      linksChip.id = "fg-links-chip";
+      linksChip.className = "fg-links-chip";
+      linksChip.type = "button";
+      linksChip.title = "important links — handouts, repos, downloads";
+      linksChip.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg><span class="fg-links-label">links</span>`;
+      linksChip.addEventListener("click", () => {
+        if (document.body.dataset.activeTab === "links") return;
+        Alchemy.closeMembraneMenu();
+        morphActiveTab("links", () => applyActiveTab("links"));
+        try { localStorage.setItem(TAB_LS_KEY, "links"); } catch {}
+      });
+      row.appendChild(linksChip);
 
       // Update status icon — empty at rest; shows a spinner while checking,
       // a checkmark when up to date, or a download glyph when an update is
@@ -5952,7 +5971,7 @@ function showTimelineAutoToast() {
 // _archive/experimental/.
 const TAB_LS_KEY = "srwk:active_tab";
 const NET_SUB_LS_KEY = "srwk:network_sub";
-const TOP_TABS = new Set(["alchemy", "apps", "network", "links"]);
+const TOP_TABS = new Set(["alchemy", "apps", "network", "links", "matrix"]);
 const NET_SUBS = new Set(["network", "metrics"]);
 const APPS_LS_KEY = "srwk:apps_view";
 const APPS_VIEWS = new Set(["atlas", "easel"]);  // grid is the absence of one of these
@@ -6556,12 +6575,19 @@ function registerVisualizerShortcutsAndCommands() {
   } catch {}
 }
 
+let _chatMounted = false;
 function applyActiveTab(tab) {
   if (!TOP_TABS.has(tab)) tab = "alchemy";
   if (tab !== "alchemy") Alchemy.closeMembraneMenu();
   document.body.dataset.activeTab = tab;
   for (const btn of document.querySelectorAll("#tab-bar .tab-btn, #primary-nav .nav-cat")) {
     btn.setAttribute("aria-selected", btn.dataset.tab === tab ? "true" : "false");
+  }
+  // Cohort matrix chat mounts lazily on first activation so its IPC listeners
+  // + initial sync fetch don't run for users who never open it.
+  if (tab === "matrix" && !_chatMounted) {
+    const host = document.getElementById("chat-view");
+    if (host) { try { mountChat(host); _chatMounted = true; } catch (e) { console.error("[matrix] mount failed", e); } }
   }
   // Stale: experimental tab archived 2026-05-09. Variables retained as
   // false so any leftover branches below are no-ops without further edits.
