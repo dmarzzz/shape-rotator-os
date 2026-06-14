@@ -21,13 +21,6 @@ function dateIsoWithOffset(dateIso, dayOffset = 0) {
   return isoDate(date);
 }
 
-function slug(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
 function truncateSummary(value) {
   const summary = String(value || "").replace(/\s+/g, " ").trim() || "Shape Rotator session";
   return summary.length > 80 ? `${summary.slice(0, 77)}...` : summary;
@@ -174,12 +167,11 @@ function parseAllDaySpanDays(block) {
   return end - start + 1;
 }
 
-function uidWithBlockSuffix(baseUid, blockNumber, summary) {
+function uidWithBlockSuffix(baseUid, blockNumber) {
   const at = baseUid.indexOf("@");
   const local = at === -1 ? baseUid : baseUid.slice(0, at);
   const domain = at === -1 ? "shape-rotator-os" : baseUid.slice(at + 1);
-  const suffix = slug(summary).slice(0, 36) || "event";
-  return `${local}-block-${blockNumber}-${suffix}@${domain}`;
+  return `${local}-block-${blockNumber}@${domain}`;
 }
 
 function expandCollectedEvent(event) {
@@ -192,7 +184,7 @@ function expandCollectedEvent(event) {
     const blockNumber = index + 1;
     return {
       ...event,
-      uid: index === 0 ? event.uid : uidWithBlockSuffix(event.uid, blockNumber, summary),
+      uid: index === 0 ? event.uid : uidWithBlockSuffix(event.uid, blockNumber),
       baseUid: event.uid,
       blockIndex: blockNumber,
       summary,

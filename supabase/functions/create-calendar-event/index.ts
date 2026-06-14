@@ -206,13 +206,14 @@ Deno.serve(async (req) => {
     const { policy, policyId } = await resolveRoutingPolicy({ supabaseUrl, serviceRoleKey, orgId });
     const calendarId = calendarConnection.calendar_id;
 
-    const requestMeet = body.request_meet ?? body.requestMeet ?? true;
+    const session = { ...(body.session || {}), bot_requested: true };
+    const autoRecording = body.auto_recording ?? body.autoRecording ?? false;
+    const autoSmartNotes = body.auto_smart_notes ?? body.autoSmartNotes ?? null;
     const built = buildGoogleCalendarEvent({
-      session: body.session,
+      session,
       attendees: body.attendees || [],
       policy,
       botEmail: body.bot_email || optionalEnv("SHAPE_CALENDAR_BOT_EMAIL"),
-      requestMeet,
     });
     const googleUrl = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`);
     googleUrl.searchParams.set("sendUpdates", built.query.sendUpdates);
@@ -223,6 +224,11 @@ Deno.serve(async (req) => {
         dry_run: true,
         google_request: { method: "POST", url: String(googleUrl), body: built.body },
         decision: built.decision,
+        meet_auto_artifacts_policy: {
+          transcript: "required",
+          recording: autoRecording === true ? "on" : "off",
+          smart_notes: autoSmartNotes === true ? "on" : "off",
+        },
         calendar_connection_id: calendarConnection.id,
       });
     }
@@ -270,23 +276,18 @@ Deno.serve(async (req) => {
     }
 
     let meetAutoArtifacts = { requested: false, configured: false, reason: "not_requested" };
-    const autoTranscript = body.auto_transcript ?? body.autoTranscript ?? true;
-    const autoRecording = body.auto_recording ?? body.autoRecording ?? false;
-    const autoSmartNotes = body.auto_smart_notes ?? body.autoSmartNotes ?? null;
-    if (requestMeet !== false && autoTranscript !== false) {
-      meetAutoArtifacts = await configureMeetAutoArtifacts({
-        googleEvent,
-        accessToken: googleAccessToken,
-        transcript: autoTranscript !== false,
-        recording: autoRecording === true,
-        smartNotes: autoSmartNotes === true,
-      });
-      if (!meetAutoArtifacts.configured && body.require_auto_artifacts === true) {
-        const error = new Error(meetAutoArtifacts.error || meetAutoArtifacts.reason || "Meet auto artifacts were not configured") as Error & { status?: number; body?: unknown };
-        error.status = 502;
-        error.body = meetAutoArtifacts;
-        throw error;
-      }
+    meetAutoArtifacts = await configureMeetAutoArtifacts({
+      googleEvent,
+      accessToken: googleAccessToken,
+      transcript: true,
+      recording: autoRecording === true,
+      smartNotes: autoSmartNotes === true,
+    });
+    if (!meetAutoArtifacts.configured) {
+      const error = new Error(meetAutoArtifacts.error || meetAutoArtifacts.reason || "Meet auto artifacts were not configured") as Error & { status?: number; body?: unknown };
+      error.status = 502;
+      error.body = meetAutoArtifacts;
+      throw error;
     }
 
     const sessionRow = googleEventToSessionRow(googleEvent, {

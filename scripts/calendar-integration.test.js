@@ -89,7 +89,7 @@ test("Google event payload gives guests real invites but no edit rights", () => 
   assert.doesNotMatch(payload.body.description, /Private strategy details/);
 });
 
-test("Google event payload includes capture bot by default unless explicitly disabled", () => {
+test("Google event payload always includes capture bot when configured", () => {
   const policy = loadRoutingPolicy();
   const baseSession = {
     id: "9da143d9-4585-43b2-98f7-b3dfb4c34d5d",
@@ -116,10 +116,13 @@ test("Google event payload includes capture bot by default unless explicitly dis
     attendees: [{ email: "guest@example.com" }],
     botEmail: "cube@shaperotator.xyz",
   });
-  assert.deepEqual(disabledPayload.body.attendees.map((attendee) => attendee.email), ["guest@example.com"]);
+  assert.deepEqual(disabledPayload.body.attendees.map((attendee) => attendee.email).sort(), [
+    "cube@shaperotator.xyz",
+    "guest@example.com",
+  ]);
 });
 
-test("Google event payload can disable Meet creation for non-video sessions", () => {
+test("Google event payload always includes Google Meet creation", () => {
   const policy = loadRoutingPolicy();
   const payload = buildGoogleCalendarEvent({
     policy,
@@ -134,8 +137,8 @@ test("Google event payload can disable Meet creation for non-video sessions", ()
     },
   });
 
-  assert.equal(payload.query.conferenceDataVersion, 0);
-  assert.equal(payload.body.conferenceData, undefined);
+  assert.equal(payload.query.conferenceDataVersion, 1);
+  assert.equal(payload.body.conferenceData.createRequest.conferenceSolutionKey.type, "hangoutsMeet");
 });
 
 test("Google event rows round-trip back to session metadata", () => {

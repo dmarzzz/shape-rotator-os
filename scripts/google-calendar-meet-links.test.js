@@ -3,6 +3,8 @@ const assert = require("node:assert/strict");
 const {
   buildEnsureMeetPlan,
   buildMeetPatchBody,
+  buildTranscriptConfigPlan,
+  eventMeetUrl,
   googleEventPatchUrl,
   hasGoogleMeet,
   isPatchableEvent,
@@ -31,6 +33,8 @@ function allDay(overrides = {}) {
     ...overrides,
   };
 }
+
+const NOW = new Date("2026-06-13T12:00:00Z");
 
 test("Meet detection accepts hangoutLink or video conference entry", () => {
   assert.equal(hasGoogleMeet(timed({ hangoutLink: "https://meet.google.com/abc-defg-hij" })), true);
@@ -97,6 +101,26 @@ test("patchability requires a non-cancelled missing-link timed event", () => {
   assert.equal(isPatchableEvent(allDay(), { includeAllDay: true }), true);
 });
 
+test("transcript config plan selects future timed events that already have Meet", () => {
+  const plan = buildTranscriptConfigPlan([
+    timed({ id: "with_meet", hangoutLink: "https://meet.google.com/abc-defg-hij" }),
+    timed({ id: "missing_meet" }),
+    timed({
+      id: "past_with_meet",
+      start: { dateTime: "2026-06-10T16:00:00-04:00" },
+      end: { dateTime: "2026-06-10T17:00:00-04:00" },
+      hangoutLink: "https://meet.google.com/past-defg-hij",
+    }),
+    allDay({ id: "all_day_with_meet", hangoutLink: "https://meet.google.com/day-defg-hij" }),
+  ], { now: NOW });
+
+  assert.equal(eventMeetUrl(plan.selected[0]), "https://meet.google.com/abc-defg-hij");
+  assert.equal(plan.counts.future_timed_events, 2);
+  assert.equal(plan.counts.future_timed_events_with_meet, 1);
+  assert.equal(plan.counts.future_timed_events_without_meet, 1);
+  assert.deepEqual(plan.actions.map((action) => action.google_event_id), ["with_meet"]);
+});
+
 test("dry-run fixture mode does not call Google", async () => {
   const result = await runEnsureGoogleCalendarMeetLinks({
     calendarId: "calendar@example.com",
@@ -145,4 +169,43 @@ test("apply patches selected events and reports returned Meet URL", async () => 
   assert.equal(result.actions[0].action, "patched");
   assert.equal(result.actions[0].meet_url, "https://meet.google.com/abc-defg-hij");
   assert.equal(calls.length, 1);
+});
+
+test("apply can add a Meet link and configure auto transcription", async () => {
+  const calls = [];
+  const result = await runEnsureGoogleCalendarMeetLinks({
+    calendarId: "calendar@example.com",
+    accessToken: "google-token",
+    events: [timed({ id: "event_1" })],
+    now: NOW,
+    apply: true,
+    configureTranscripts: true,
+    env: {},
+    fetchImpl: async (url, options = {}) => {
+      const parsed = new URL(String(url));
+      const body = options.body ? JSON.parse(options.body) : null;
+      calls.push({ method: options.method || "GET", origin: parsed.origin, path: parsed.pathname, body });
+      if (parsed.hostname === "www.googleapis.com") {
+        return Response.json({
+          id: "event_1",
+          summary: "Office hours",
+          start: { dateTime: "2026-06-16T16:00:00-04:00" },
+          end: { dateTime: "2026-06-16T17:00:00-04:00" },
+          hangoutLink: "https://meet.google.com/abc-defg-hij",
+        });
+      }
+      if ((options.method || "GET") === "GET") {
+        return Response.json({ name: "spaces/space_1", meetingCode: "abc-defg-hij" });
+      }
+      return Response.json({ name: "spaces/space_1", config: body.config });
+    },
+  });
+
+  assert.equal(result.patched, 1);
+  assert.equal(result.transcript_selected_for_config, 1);
+  assert.equal(result.transcripts_configured, 1);
+  assert.equal(result.transcripts_failed, 0);
+  assert.equal(result.transcript_actions[0].meeting_code, "abc-defg-hij");
+  assert.equal(calls.length, 3);
+  assert.equal(calls[2].body.config.artifactConfig.transcriptionConfig.autoTranscriptionGeneration, "ON");
 });
