@@ -62,6 +62,7 @@ const REQUIRED_FILES = [
   "supabase/functions/create-calendar-event/index.ts",
   "supabase/functions/google-calendar-webhook/index.ts",
   "supabase/functions/ingest-artifacts/index.ts",
+  "supabase/functions/poll-drive-artifacts/index.ts",
   "supabase/functions/process-transcript-jobs/index.ts",
   "supabase/functions/review-transcript-artifact/index.ts",
   "scripts/run-local-distillation-worker.js",
@@ -74,6 +75,7 @@ const EDGE_FUNCTIONS = [
   "create-calendar-event",
   "google-calendar-webhook",
   "ingest-artifacts",
+  "poll-drive-artifacts",
   "process-transcript-jobs",
   "review-transcript-artifact",
 ];
@@ -426,7 +428,7 @@ function renderDeployPlan({
   lines.push("");
   lines.push("```bash");
   for (const fn of EDGE_FUNCTIONS) {
-    const noVerify = fn === "process-transcript-jobs" ? " --no-verify-jwt --use-api" : "";
+    const noVerify = ["poll-drive-artifacts", "process-transcript-jobs"].includes(fn) ? " --no-verify-jwt --use-api" : "";
     lines.push(`supabase functions deploy ${fn} --project-ref ${resolvedProjectRef}${noVerify}`);
   }
   lines.push("```");

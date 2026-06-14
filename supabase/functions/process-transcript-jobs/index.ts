@@ -568,7 +568,7 @@ async function buildDerivedRows({
         content_json: publicCard.content_json,
       }, { scope: "public", label: "public evidence card" });
       return publicCard;
-    })));
+    }));
     for (const gateKey of decision.required_public_approvals || []) {
       approvalGates.push({
         id: await stableUuid(`transcript-worker:gate:${publicId}:${gateKey}`),
