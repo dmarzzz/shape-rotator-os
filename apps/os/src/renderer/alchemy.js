@@ -2189,12 +2189,25 @@ function cohortPageHead(view, { side = "", dek = "" } = {}) {
 // also the discoverable sibling of the Escape shortcut.
 function constSelectionChipHtml() {
   const sel = state.constSelection;
-  if (!sel || (sel.type !== "team" && sel.type !== "person")) return "";
+  if (!sel) return "";
   const cohort = activeConstellationCohort();
-  const rec = sel.type === "person"
-    ? (cohort?.people || []).find(p => p.record_id === sel.rid)
-    : (cohort?.teams || []).find(t => t.record_id === sel.rid);
-  const name = rec?.name || sel.rid;
+  let name;
+  if (sel.type === "edge") {
+    // An edge pinned on the map is otherwise invisible (and unclearable) on
+    // the journey/stack views that show no inspector — exactly the trap this
+    // chip exists to prevent. Resolve both endpoints to a "from → to" label.
+    const teams = cohort?.teams || [];
+    const fromName = teams.find(t => t.record_id === sel.from)?.name || sel.from || "source";
+    const toName = teams.find(t => t.record_id === sel.to)?.name || sel.to || "target";
+    name = `${fromName} → ${toName}`;
+  } else if (sel.type === "team" || sel.type === "person") {
+    const rec = sel.type === "person"
+      ? (cohort?.people || []).find(p => p.record_id === sel.rid)
+      : (cohort?.teams || []).find(t => t.record_id === sel.rid);
+    name = rec?.name || sel.rid;
+  } else {
+    return "";
+  }
   return `
     <button type="button" class="ac-selection-chip" data-const-clear-selection aria-label="${escAttr(`clear selection: ${name}`)}">
       <span>selected</span><strong>${escHtml(name)}</strong><i aria-hidden="true">×</i>
@@ -2203,7 +2216,7 @@ function constSelectionChipHtml() {
 
 const CONST_MAP_LAYOUTS = [
   { mode: "map", label: "wells", hint: "ecosystem placement" },
-  { mode: "ring", label: "circle", hint: "all relationship lines" },
+  { mode: "ring", label: "ring", hint: "all relationship lines" },
 ];
 const CONST_NETWORK_SCOPES = [
   { scope: "projects", label: "projects", hint: "team/project relationship records" },
@@ -2781,9 +2794,16 @@ function constSourceCueHref(source) {
 function constTranscriptCueSourceHtml(cue) {
   const source = cue?.source || "raw transcript";
   const href = constSourceCueHref(source);
+  // Don't leak the raw vault id ("private-vault:shape-rotator-…-2026-05-22")
+  // into the panel — show a clean provenance label with just the date.
+  let label = source;
+  if (/^private-vault:/i.test(source)) {
+    const date = (source.match(/(\d{4}-\d{2}-\d{2})/) || [])[1];
+    label = date ? `private transcript · ${date}` : "private transcript";
+  }
   return href
-    ? `<a class="ac-source-link" href="${escAttr(href)}" data-external>${escHtml(source)}</a>`
-    : `<small>${escHtml(source)}</small>`;
+    ? `<a class="ac-source-link" href="${escAttr(href)}" data-external>${escHtml(label)}</a>`
+    : `<small>${escHtml(label)}</small>`;
 }
 
 function constTranscriptCuesForTeam(team, limit = 3) {
@@ -4269,22 +4289,25 @@ function constSeekingOfferingCue(a, b) {
   const bOffering = constList(b?.offering);
   const aNeedsB = constTalkTokenOverlap(aSeeking, bOffering);
   const bNeedsA = constTalkTokenOverlap(bSeeking, aOffering);
+  // Name BOTH sides of the match concretely (need + offer) rather than the
+  // vague "may offer related help" hedge — and leave detail empty so the
+  // action card doesn't reprint the seeking text it already shows.
   if (aNeedsB.length) {
-    const seeking = constShortText(aSeeking[0] || "listed help", 92);
-    const offering = constShortText(bOffering[0] || "related support", 92);
+    const seeking = constShortText(aSeeking[0] || "listed help", 80);
+    const offering = constShortText(bOffering[0] || "related work", 80);
     return {
       score: aNeedsB.length,
-      direction: `${a?.name || a?.record_id} is seeking ${seeking}; ${b?.name || b?.record_id} may offer related help.`,
-      detail: `${seeking} / ${offering}`,
+      direction: `${a?.name || a?.record_id} needs ${seeking}; ${b?.name || b?.record_id} offers ${offering}.`,
+      detail: "",
     };
   }
   if (bNeedsA.length) {
-    const seeking = constShortText(bSeeking[0] || "listed help", 92);
-    const offering = constShortText(aOffering[0] || "related support", 92);
+    const seeking = constShortText(bSeeking[0] || "listed help", 80);
+    const offering = constShortText(aOffering[0] || "related work", 80);
     return {
       score: bNeedsA.length,
-      direction: `${b?.name || b?.record_id} is seeking ${seeking}; ${a?.name || a?.record_id} may offer related help.`,
-      detail: `${seeking} / ${offering}`,
+      direction: `${b?.name || b?.record_id} needs ${seeking}; ${a?.name || a?.record_id} offers ${offering}.`,
+      detail: "",
     };
   }
   return { score: 0, direction: "", detail: "" };
@@ -4670,7 +4693,6 @@ function constPersonInspectorHtml(person, ctx) {
   const attachedLabel = team?.name || person.team || "not attached to a project";
   return `
     <div class="ac-inspector-hero" data-const-selected-person="${escAttr(person.record_id)}">
-      <div class="ac-inspector-kicker">selected person</div>
       <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(person.record_id)}">${escHtml(constPersonDisplayName(person))}</button></h3>
       <p>${escHtml(constShortText([constPersonRoleLabel(person), attachedLabel].filter(Boolean).join(" · "), 150))}</p>
       <div class="ac-inspector-pills">
@@ -4690,10 +4712,6 @@ function constPersonInspectorHtml(person, ctx) {
           <dd>${team ? `<button type="button" class="ac-inline-record" data-const-team="${escAttr(team.record_id)}">${escHtml(team.name || team.record_id)}</button>` : escHtml(attachedLabel)}</dd>
         </div>
         ${secondaryTeams.length ? `<div><dt>secondary</dt><dd>${secondaryTeams.map(t => `<button type="button" class="ac-inline-record" data-const-team="${escAttr(t.record_id)}">${escHtml(t.name || t.record_id)}</button>`).join(" ")}</dd></div>` : ""}
-        <div>
-          <dt>source</dt>
-          <dd><strong>person profile</strong><span>Primary and secondary links come from person record fields.</span></dd>
-        </div>
       </dl>
     </section>
     ${goto.length ? `
@@ -4746,12 +4764,12 @@ function constPeopleDefaultHtml(ctx) {
       <h4>strongest people links</h4>
       <div class="ac-rel-queue is-compact">
         ${linkRows.length ? linkRows.map(row => `
-          <button type="button" class="ac-rel-row" data-const-person="${escAttr(row.a.record_id)}">
+          <div class="ac-rel-row is-pair" role="group" aria-label="${escAttr(constPersonDisplayName(row.a) + " and " + constPersonDisplayName(row.b) + " — " + kindLabel(row.edge.kind))}">
             <span class="ac-rel-row-copy">
-              <span class="ac-rel-row-top"><strong>${escHtml(constPersonDisplayName(row.a))} ↔ ${escHtml(constPersonDisplayName(row.b))}</strong><em>${escHtml(kindLabel(row.edge.kind))}</em></span>
+              <span class="ac-rel-row-top"><strong><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(row.a.record_id)}" aria-label="${escAttr("Open " + constPersonDisplayName(row.a))}">${escHtml(constPersonDisplayName(row.a))}</button> ↔ <button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(row.b.record_id)}" aria-label="${escAttr("Open " + constPersonDisplayName(row.b))}">${escHtml(constPersonDisplayName(row.b))}</button></strong><em>${escHtml(kindLabel(row.edge.kind))}</em></span>
               <span class="ac-rel-row-summary">${escHtml(constShortText(row.edge.reason, 130))}</span>
             </span>
-          </button>`).join("") : `<p class="ac-inspector-empty">No person-to-person links can be inferred yet.</p>`}
+          </div>`).join("") : `<p class="ac-inspector-empty">No person-to-person links can be inferred yet.</p>`}
       </div>
       <p class="ac-rel-queue-more">${escHtml(String(links.length))} visible person link${links.length === 1 ? "" : "s"} from profile fields and shared declared context.</p>
     </section>
@@ -4784,16 +4802,20 @@ function constTeamInspectorHtml(team, ctx) {
   const inboundEdges = ctx?.inBy?.get(team.record_id) || [];
   const outboundEdges = ctx?.outBy?.get(team.record_id) || [];
   const currentRole = constText(team.now || team.focus || team.traction);
-  const sourceProof = `
-    ${constMiniListHtml("traction", team.traction, "none listed", 1)}
-    ${constMiniListHtml("shipping", team.prior_shipping, "none listed", 3)}
-    ${constMiniListHtml("research", team.paper_basis, "none listed", 3)}`;
+  // Only surface evidence rows that actually have content — a "source proof"
+  // section of three "none listed" lines is noise that reads as low quality.
+  const sourceProofParts = [
+    constList(team.traction).length ? constMiniListHtml("traction", team.traction, "", 1) : "",
+    constList(team.prior_shipping).length ? constMiniListHtml("shipping", team.prior_shipping, "", 3) : "",
+    constList(team.paper_basis).length ? constMiniListHtml("research", team.paper_basis, "", 3) : "",
+  ].filter(Boolean);
+  const sourceProof = sourceProofParts.join("");
   const transcriptCues = constTranscriptCueListHtml(constTranscriptCuesForTeam(team), "source cues");
   const marketFitBody = assessed
     ? journeyDetailSection(team)
     : `<p class="ac-inspector-note">No explicit PMF journey read yet. Use the relationship and profile evidence above first.</p>`;
   const marketFitSection = ctx?.mode === "stack" ? "" : constInspectorDetailsHtml("PMF evidence", marketFitBody);
-  const sourceProofDetails = ctx?.mode === "stack" ? "" : constInspectorDetailsHtml("source proof", sourceProof);
+  const sourceProofDetails = (ctx?.mode === "stack" || !sourceProof) ? "" : constInspectorDetailsHtml("source proof", sourceProof);
   const currentBetRows = [
     ["live bet", liveBet],
     ["uncertainty", uncertainty],
@@ -4811,7 +4833,6 @@ function constTeamInspectorHtml(team, ctx) {
     </div>`) : "";
   return `
     <div class="ac-inspector-hero" data-const-team="${escAttr(team.record_id)}">
-      <div class="ac-inspector-kicker">selected team</div>
       <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(team.record_id)}">${escHtml(team.name || team.record_id)}</button></h3>
       <p>${escHtml(constShortText(currentRole, 150) || "No current focus in profile.")}</p>
       <div class="ac-inspector-pills">
@@ -4865,16 +4886,20 @@ function constEdgeInspectorHtml(edge, ctx) {
     || (canonical.normalized
       ? "No next action is attached to this relationship record yet."
       : "Verify this profile mention and convert it into a relationship record if it is real.");
+  // The kicker already states provenance ("profile mention" / "relationship
+  // record"); drop any pill that just restates it (and any duplicate pills) so
+  // an unconfirmed edge doesn't print "profile mention" three times.
+  const edgeKicker = canonical.normalized ? "relationship record" : "profile mention";
+  const edgePills = [meaning.label, status.label, confidenceLabel]
+    .map(constText).filter(Boolean)
+    .filter(p => !p.toLowerCase().includes(edgeKicker.toLowerCase()))
+    .filter((p, i, arr) => arr.findIndex(x => x.toLowerCase() === p.toLowerCase()) === i);
   return `
     <div class="ac-inspector-hero is-edge${canonical.normalized ? " is-source-backed" : " is-profile-link"}">
-      <div class="ac-inspector-kicker">${canonical.normalized ? "relationship record" : "profile mention"}</div>
+      <div class="ac-inspector-kicker">${edgeKicker}</div>
       <h3>${escHtml(from.name || from.record_id)} → ${escHtml(to.name || to.record_id)}</h3>
       <p>${escHtml(constShortText(clearAnswer.answer || oneLine, 220))}</p>
-      <div class="ac-inspector-pills">
-        <span>${escHtml(meaning.label)}</span>
-        <span>${escHtml(status.label)}</span>
-        <span>${escHtml(confidenceLabel)}</span>
-      </div>
+      ${edgePills.length ? `<div class="ac-inspector-pills">${edgePills.map(p => `<span>${escHtml(p)}</span>`).join("")}</div>` : ""}
     </div>
     <section class="ac-inspector-section ac-action-card is-line-action">
       <h4>next action</h4>
@@ -4883,7 +4908,6 @@ function constEdgeInspectorHtml(edge, ctx) {
     <section class="ac-inspector-section is-edge-meaning">
       <h4>why this matters</h4>
       <dl class="ac-bet-list">
-        <div><dt>answer</dt><dd>${escHtml(constShortText(clearAnswer.answer || directionText, 240))}</dd></div>
         <div><dt>basis</dt><dd>${escHtml(constShortText(clearAnswer.why, 220))}</dd></div>
         <div><dt>caveat</dt><dd>${escHtml(clearAnswer.caveat)}</dd></div>
       </dl>
@@ -4904,7 +4928,7 @@ function constEdgeInspectorHtml(edge, ctx) {
         <div><span>${escHtml(to.name || to.record_id)}</span>${toPeople.length ? toPeople.map(constPersonChipHtml).join("") : `<p class="ac-inspector-empty">no attached person.</p>`}</div>
       </div>
     </section>
-    ${constInspectorDetailsHtml("source evidence", evidenceBody, Boolean(canonical.normalized && canonical.evidence?.length))}
+    ${(canonical.normalized && canonical.evidence?.length) ? constInspectorDetailsHtml("source evidence", evidenceBody, true) : ""}
     ${transcriptCues}
     ${constInspectorDetailsHtml("team context and needs", contextBody)}`;
 }
@@ -5000,10 +5024,15 @@ function constellationInspectorHeaderHtml(selection, ctx) {
     title = constClusterLabel(ctx.interest.cluster);
   }
   if (!titleHtml) titleHtml = escHtml(title);
+  // The team/person/edge hero (in the body below) already prints the name (or
+  // "from → to") as its own heading, so the header would duplicate it in a
+  // second type system. Carry the title in the header only for ecosystem-focus,
+  // whose is-confidence hero has no name heading. See cohort-click-audit.
+  const heroCarriesName = selection?.type === "team" || selection?.type === "person" || selection?.type === "edge";
   return `
     <div class="ac-inspector-status">
       <span>${escHtml(kicker)}</span>
-      <strong>${titleHtml}</strong>
+      ${heroCarriesName ? "" : `<strong>${titleHtml}</strong>`}
     </div>
     ${selection ? `<button type="button" class="ac-inspector-clear" data-const-clear-selection aria-label="Clear selected constellation item">×</button>` : ""}`;
 }
@@ -5269,8 +5298,8 @@ function renderJourney() {
 // momentum (recovering / slipping) lights up once transcripts feed the loop.
 const CONST_GOAL_STANDING = {
   behind: { label: "behind plan", x: 0.18, color: "#d98a3d" },
-  onplan: { label: "on plan", x: 0.5, color: "#7fa05a" },
-  ahead: { label: "ahead", x: 0.82, color: "#4f9d8f" },
+  onplan: { label: "on plan", x: 0.5, color: "#6f8fa0" },
+  ahead: { label: "ahead", x: 0.82, color: "#7fa05a" },
 };
 function constTeamStanding(team) {
   if (!journeyAssessed(team)) return null;
@@ -5615,7 +5644,7 @@ function constNodeTipHTML(team, deg, outBy, inBy, clusterLabels, sourceStats = {
   html += row("lines", `${escHtml(String(outboundLinks.length))} out · ${escHtml(String(inboundLinks.length))} in`);
   html += row("source", `${escHtml(String(sourceStats.typed || 0))} records · ${escHtml(String(sourceStats.profile || 0))} mentions`);
   html += row("size", `${escHtml(String(deg))} incoming declared line${deg === 1 ? "" : "s"}`);
-  html += row("action", "click to pin evidence");
+  html += row("action", "click to inspect");
   return html;
 }
 
@@ -5634,7 +5663,7 @@ function constPersonTipHTML(person, model, ctx) {
   if (goto) html += row("go to for", escHtml(goto));
   html += row("links", `${escHtml(String(linkCount))} visible people link${linkCount === 1 ? "" : "s"}`);
   html += row("source", "person profile");
-  html += row("action", "click to pin person");
+  html += row("action", "click to inspect");
   return html;
 }
 
