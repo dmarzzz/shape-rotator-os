@@ -59,13 +59,23 @@ const STAR_PALETTE = [
   { w: 0.04, color: [0.66, 0.76, 0.95] }, // deeper cool blue (rare)
 ];
 
-function pickStarColor() {
+// Light-mode palette: faint, low-contrast grey/slate specks so the field reads
+// as a barely-there whisper of motion on white (the warm palette above would be
+// invisible once blending flips to normal). Kept pale on purpose.
+const STAR_PALETTE_LIGHT = [
+  { w: 0.42, color: [0.64, 0.66, 0.70] }, // cool grey
+  { w: 0.30, color: [0.68, 0.68, 0.70] }, // neutral grey
+  { w: 0.16, color: [0.70, 0.66, 0.62] }, // warm grey
+  { w: 0.12, color: [0.58, 0.62, 0.70] }, // slate
+];
+
+function pickStarColor(palette = STAR_PALETTE) {
   let r = Math.random();
-  for (const entry of STAR_PALETTE) {
+  for (const entry of palette) {
     r -= entry.w;
     if (r <= 0) return entry.color;
   }
-  return STAR_PALETTE[0].color;
+  return palette[0].color;
 }
 
 // Nebula / galactic-plane palette — warm ember band. Same family as the stars
@@ -296,7 +306,7 @@ function createMistLayer({ scene, camera }) {
 // One parallax stratum of stars. Returns a tickable slab; the parent star
 // field owns the shared shader/material and just delegates wrapping here so
 // each layer drifts at its own rate and wraps within its own depth slab.
-function createStratum({ scene, camera, material, spec, count }) {
+function createStratum({ scene, camera, material, spec, count, palette }) {
   const positions = new Float32Array(count * 3);
   const sizes = new Float32Array(count);
   const colors = new Float32Array(count * 3);
@@ -316,7 +326,7 @@ function createStratum({ scene, camera, material, spec, count }) {
     const big = Math.random() < 0.18;
     const baseSize = big ? (1.0 + Math.random() * 0.8) : (0.5 + Math.random() * 0.5);
     sizes[i] = baseSize * spec.size * spec.bright;
-    const c = pickStarColor();
+    const c = pickStarColor(palette);
     colors[i * 3]     = c[0];
     colors[i * 3 + 1] = c[1];
     colors[i * 3 + 2] = c[2];
@@ -361,7 +371,7 @@ function createStratum({ scene, camera, material, spec, count }) {
           pos[i * 3]     = (Math.random() - 0.5) * 2 * STAR_SPREAD_X;
           pos[i * 3 + 1] = (Math.random() - 0.5) * 2 * STAR_SPREAD_Y;
           pos[zi] = wrapFarLocal;
-          const c = pickStarColor();
+          const c = pickStarColor(palette);
           colorAttr[i * 3]     = c[0];
           colorAttr[i * 3 + 1] = c[1];
           colorAttr[i * 3 + 2] = c[2];
@@ -379,19 +389,25 @@ function createStratum({ scene, camera, material, spec, count }) {
   };
 }
 
-export function createStarField({ scene, camera }) {
-  const mist = createMistLayer({ scene, camera });
+export function createStarField({ scene, camera, isLight = false }) {
+  // The nebula mist is an additive warm cloud — invisible on white and only
+  // muddies paper — so it's dropped entirely in light mode (a no-op stub keeps
+  // the tick/dispose contract below intact).
+  const mist = isLight ? { tick() {}, dispose() {} } : createMistLayer({ scene, camera });
+  const starPalette = isLight ? STAR_PALETTE_LIGHT : STAR_PALETTE;
 
   // Shared star material — all strata draw with the same shader so depth
-  // grading is uniform; the slab geometry differs per layer.
+  // grading is uniform; the slab geometry differs per layer. Light mode flips
+  // to normal blending (dark/pale specks over white) and shrinks the base size
+  // so the field stays faint.
   const material = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
     depthTest: false,
-    blending: THREE.AdditiveBlending,
+    blending: isLight ? THREE.NormalBlending : THREE.AdditiveBlending,
     uniforms: {
       uPxRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
-      uSizeBase: { value: 90.0 },
+      uSizeBase: { value: isLight ? 72.0 : 90.0 },
       uMaxDepth: { value: MAX_DEPTH },
       uFogDensity: { value: 0.052 },
       uNearFade: { value: STRATA[0].near }, // overridden per stratum on clone
@@ -407,7 +423,7 @@ export function createStarField({ scene, camera }) {
     const count = isLast
       ? STAR_COUNT - STRATA.slice(0, idx).reduce((acc, s) => acc + Math.round(STAR_COUNT * s.weight), 0)
       : Math.round(STAR_COUNT * spec.weight);
-    return createStratum({ scene, camera, material, spec, count: Math.max(1, count) });
+    return createStratum({ scene, camera, material, spec, count: Math.max(1, count), palette: starPalette });
   });
 
   // A single representative Points (the near stratum) is exposed as `.points`

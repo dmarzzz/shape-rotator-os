@@ -11,7 +11,13 @@ source: private-vault:project-intros-local-private-first-phil-2026-05-20
 
 # Project Intros: Local/Private-First Architectures + Founder Journey Segment
 
-Five cohort teams presented local-first and private-first systems — no-retention identity, sovereign data spaces, open agent routing, enclave databases, and private messenger bots — followed by a thematic founder conversation on AI, art, and emotionally engaging experiences.
+**Privacy only matters when it unlocks a capability someone already wants.**
+
+*Five cohort teams presented local-first and private-first systems — no-retention identity, sovereign data spaces, open agent routing, enclave databases, and private messenger bots — followed by a thematic founder conversation on AI, art, and emotionally engaging experiences.*
+
+## the 60-second version
+
+Five teams presented local-first and private-first systems — no-retention identity, sovereign data spaces, open model routing, enclave databases, and private-messenger AI — with TEEs recurring as the trust primitive that lets users hand data to computation without handing it to a counterparty. A founder-journey segment closed the room on whether AI can make art, treated as an empirical design question rather than a slogan.
 
 ## themes
 
@@ -61,6 +67,8 @@ Self-hosted high-availability clusters carry heavy ongoing operational cost, whi
 - [EIP-5573: Sign-In with Ethereum capability delegations (ReCaps)](https://eips.ethereum.org/EIPS/eip-5573)
 - [dstack: open-source TEE deployment framework](https://github.com/Dstack-TEE/dstack)
 
-## consent note
+## provenance
+
+Distilled from a private-vault transcript (`project-intros-local-private-first-phil-2026-05-20`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: `speaker-pending`.
 
 This session included external or featured speakers. The readout is held to thematic, unattributed distillation; a richer version requires a speaker consent pass.

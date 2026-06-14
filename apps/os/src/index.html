@@ -12,10 +12,15 @@
     <link rel="stylesheet" href="styles.css" />
     <!-- Loaded after styles.css so it wins the cascade vs. legacy .cal-* rules. -->
     <link rel="stylesheet" href="vendor/shape-ui/cohort-calendar-week.css" />
+    <!-- calendar — one-view timeline page (2026-06 redesign). -->
+    <link rel="stylesheet" href="renderer/calendar.css" />
     <!-- Membrane mode (2026-05 redesign). Scoped via .membrane-host so it
          doesn't leak into legacy alchemy modes. -->
     <link rel="stylesheet" href="renderer/membrane/membrane.css" />
     <link rel="stylesheet" href="renderer/intel/intel.css" />
+    <!-- Cohort chat (matrix) — the "chat" top-level tab. Scoped under
+         .chat-view so it doesn't leak into other surfaces. -->
+    <link rel="stylesheet" href="renderer/chat/chat.css" />
     <!-- Global search overlay (⌘/Ctrl+F) + new-tab launcher. Scoped under
          .os-find / .os-find-blank so it doesn't leak into the rest of the OS. -->
     <link rel="stylesheet" href="renderer/find.css" />
@@ -55,7 +60,7 @@
         <span class="nav-cat-label">operating system</span>
       </button>
       <nav class="alchemy-rail" role="tablist" aria-label="operating system pages">
-        <button class="alchemy-rail-btn" data-alch-mode="membrane" type="button" aria-selected="true" title="the membrane — 4-blob constellation">
+        <button class="alchemy-rail-btn" data-alch-mode="membrane" type="button" aria-selected="true" title="the membrane — the psychedelic cube">
           <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.341 6.484A10 10 0 0 1 10.266 21.85"/><path d="M3.659 17.516A10 10 0 0 1 13.74 2.152"/><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/></svg></span>
           <span class="ar-label">membrane</span>
           <span class="ar-hint">self · cohort · events · asks</span>
@@ -97,6 +102,9 @@
       </nav>
       <button class="nav-cat" data-tab="apps" type="button" aria-selected="false">
         <span class="nav-cat-label">apps</span>
+      </button>
+      <button class="nav-cat" data-tab="matrix" type="button" aria-selected="false">
+        <span class="nav-cat-label">matrix</span>
       </button>
       <button class="nav-cat" data-tab="network" type="button" aria-selected="false">
         <span class="nav-cat-label">network</span>
@@ -537,6 +545,12 @@
         <main id="alchemy-canvas" class="alchemy-canvas" aria-live="polite"></main>
       </div>
     </section>
+
+    <!-- ─── chat view (cohort matrix) ─── -->
+    <!-- Mounted lazily by renderer/chat/chat.js on first activation of the
+         "chat" top-level tab. The main-process Matrix client (apps/os/
+         matrix.js) feeds it rooms + messages over IPC. -->
+    <section id="chat-view" class="chat-view chat-only" aria-label="cohort chat"></section>
 
     <!-- ─── links view (important external endpoints) ─── -->
     <section id="links-view" class="links-view links-only" aria-label="important links">

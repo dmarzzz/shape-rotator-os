@@ -756,6 +756,64 @@ function buildTeamTimeline({ teams, people, asks, events, calendar, githubProgre
   return timeline;
 }
 
+// "What's new" feed, generated at build time and bundled into the surface so
+// the membrane's left-edge feed reads full immediately (independent of the
+// live team_timeline refresh from main). Mixes the visible kinds, newest-first:
+//   - release : real GitHub releases (prereleases included) from releaseItems
+//   - commit  : ONE weekly summary per project per week ("N commits") from the
+//               github_progress artifacts — a digest, not individual commits
+//   - event   : program calendar events  ·  ask : posted asks
+// Goal is a complete log of the program: items run from `since` (program start)
+// onward, with no upper date bound (upcoming events show too) and only a high
+// safety cap (FEED_MAX). Transcripts are intentionally NOT emitted — the
+// renderer hides them (they dead-end with no deep-link), so they would only
+// burn feed slots; re-add the loop here once that surface lands. Each item is
+// {date, kind, label, meta, nav}. Dates go through isoDate() because js-yaml
+// parses ISO frontmatter timestamps (events/asks) into Date objects — a plain
+// String(date).slice(0,10) yields "Mon May 18" and silently drops them.
+function buildWhatsNew({ teams, releaseItems, githubProgressArtifacts, asks, events, since }) {
+  const nameById = new Map((teams || []).map((t) => [String(t.record_id || ""), t.name || t.record_id]));
+  // Keep a sane year window AND clip to the program start so pre-event history
+  // never leaks in once the cap is high.
+  const inWindow = (d) => {
+    const t = Date.parse(d);
+    if (!Number.isFinite(t)) return false;
+    const y = new Date(t).getUTCFullYear();
+    if (y < 2025 || y > 2027) return false;
+    return !since || String(d) >= since;
+  };
+  const out = [];
+
+  for (const item of (Array.isArray(releaseItems) ? releaseItems : [])) {
+    if (!inWindow(item.date)) continue;
+    out.push(item);
+  }
+  // Weekly commit activity — one digest item per project per week (the feed
+  // shows "150 commits", not the individual subjects; the per-project timeline
+  // still carries the detail via buildTeamTimeline).
+  for (const a of (githubProgressArtifacts || [])) {
+    const date = isoDate(a.date || a.week_start);
+    if (!inWindow(date)) continue;
+    const teamId = String(a.record_id || "").trim();
+    const project = nameById.get(teamId) || teamId;
+    const count = Number(a.evidence?.commit_count || 0);
+    const label = count ? `${count} commit${count === 1 ? "" : "s"}` : "new commits";
+    out.push({ date, kind: "commit", label, meta: project, nav: { mode: "shapes", recordId: teamId } });
+  }
+  for (const a of (asks || [])) {
+    const date = isoDate(a.posted_at);
+    if (!inWindow(date)) continue;
+    out.push({ date, kind: "ask", label: a.topic || a.verb || "ask", meta: `${a.verb || "ask"} · ask`, nav: { mode: "asks" } });
+  }
+  for (const e of (events || [])) {
+    const date = isoDate(e.date || e.range_start || e.starts_at);
+    if (!inWindow(date)) continue;
+    out.push({ date, kind: "event", label: e.title || e.name || "program event", meta: e.subtitle ? `${e.subtitle} · event` : "event", nav: { mode: "calendar" } });
+  }
+
+  return out.sort((x, y) => String(y.date).localeCompare(String(x.date))).slice(0, FEED_MAX);
+}
+
 function loadJsonArray(file, label) {
   if (!fs.existsSync(file)) return [];
   try {
@@ -797,7 +855,11 @@ function listJsonFilesRecursive(dir) {
 function loadGithubProgressArtifacts() {
   const root = path.join(COHORT_DIR, "artifacts", "github-progress");
   const files = listJsonFilesRecursive(root);
-  const out = [];
+  // Keep one artifact per (team, week), preferring a reviewed copy over a
+  // generated one. The "what's new" feed surfaces every project's weekly
+  // GitHub activity (including shape-rotator-os), so we no longer gate on
+  // review_status — but a reviewed copy still wins when both exist.
+  const byKey = new Map();
   for (const file of files) {
     let artifact;
     try {
@@ -807,13 +869,17 @@ function loadGithubProgressArtifacts() {
       continue;
     }
     if (artifact?.artifact_kind !== "github_progress_weekly_summary") continue;
-    if (artifact?.review_status !== "reviewed") continue;
     if (artifact?.record_type !== "team" || !artifact?.record_id) {
       console.warn(`[build-bundles] github progress artifact missing team record_id: ${file}`);
       continue;
     }
-    out.push(artifact);
+    const key = `${artifact.record_id}|${isoDate(artifact.date || artifact.week_start)}`;
+    const existing = byKey.get(key);
+    if (!existing || (existing.review_status !== "reviewed" && artifact.review_status === "reviewed")) {
+      byKey.set(key, artifact);
+    }
   }
+  const out = [...byKey.values()];
   return out.sort((a, b) => {
     const ad = isoDate(a.date || a.week_start);
     const bd = isoDate(b.date || b.week_start);
@@ -896,6 +962,77 @@ function stripTranscriptEvidenceTimeline(timeline) {
   const out = {};
   for (const [recordId, items] of Object.entries(timeline || {})) {
     out[recordId] = asArray(items).filter((item) => item.type !== "transcript evidence");
+  }
+  return out;
+}
+
+// Cap per project so one prolific upstream repo (e.g. elizaOS/eliza, 100+
+// releases) can't crowd out everyone else within the global feed cap.
+const PER_PROJECT_RELEASE_LIMIT = 12;
+
+// Global feed length. The feed is meant to be a complete log of the program
+// (every kind, every week from program start), so this is a high safety
+// backstop against pathological growth — not a "top N" display limit.
+const FEED_MAX = 200;
+
+// Program start (lower bound for the feed window). Read from timeline.yml so it
+// tracks the canonical cohort config; falls back to the known kickoff date.
+function readProgramStart() {
+  try {
+    const cfg = yaml.load(fs.readFileSync(path.join(COHORT_DIR, "timeline.yml"), "utf8")) || {};
+    return isoDate(cfg.program_start) || "2026-05-18";
+  } catch {
+    return "2026-05-18";
+  }
+}
+
+// github_release_list artifacts (scripts/check-github-releases.mjs). One per
+// repo; carries the published releases the membrane feed surfaces. Read-only
+// here — the GitHub API call lives in the generator, never in this build.
+function loadGithubReleaseArtifacts() {
+  const root = path.join(COHORT_DIR, "artifacts", "github-releases");
+  const files = listJsonFilesRecursive(root);
+  const out = [];
+  for (const file of files) {
+    let artifact;
+    try {
+      artifact = JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch (e) {
+      console.warn(`[build-bundles] github release artifact unreadable ${file}: ${e.message}`);
+      continue;
+    }
+    if (artifact?.artifact_kind !== "github_release_list") continue;
+    if (artifact?.record_type !== "team" || !artifact?.record_id) {
+      console.warn(`[build-bundles] github release artifact missing team record_id: ${file}`);
+      continue;
+    }
+    out.push(artifact);
+  }
+  return out.sort((a, b) => String(a.artifact_id || "").localeCompare(String(b.artifact_id || "")));
+}
+
+// Flatten release artifacts into "what's new" feed items, newest-first per
+// project and capped at PER_PROJECT_RELEASE_LIMIT. Each published release
+// becomes a kind:"release" item {date, kind, label, meta, nav}. `since` clips
+// to the program window so pre-event history (e.g. elizaOS's months of alphas)
+// doesn't reappear once the global feed cap is lifted.
+function releaseFeedItems(releaseArtifacts, teams, since) {
+  const nameById = new Map((teams || []).map((t) => [String(t.record_id || ""), t.name || t.record_id]));
+  const out = [];
+  for (const artifact of (releaseArtifacts || [])) {
+    const teamId = String(artifact.record_id || "").trim();
+    const project = nameById.get(teamId) || teamId;
+    const nav = { mode: "shapes", recordId: teamId };
+    const recent = (Array.isArray(artifact.releases) ? artifact.releases : [])
+      .filter((r) => !since || isoDate(r.published_at) >= since)
+      .sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")))
+      .slice(0, PER_PROJECT_RELEASE_LIMIT);
+    for (const release of recent) {
+      const date = isoDate(release.published_at);
+      const label = String(release.name || release.tag_name || "").trim();
+      if (!date || !label) continue;
+      out.push({ date, kind: "release", label, meta: project, nav });
+    }
   }
   return out;
 }
@@ -997,6 +1134,9 @@ function build() {
     people,
   });
   const github_progress_artifacts = loadGithubProgressArtifacts();
+  const github_release_artifacts = loadGithubReleaseArtifacts();
+  const program_start = readProgramStart();
+  const release_feed_items = releaseFeedItems(github_release_artifacts, teams, program_start);
 
   // Cohort-wide controlled vocab + UI configuration the renderer needs at
   // boot. Shipped alongside records so the atlas / constellation / asks UIs
@@ -1023,12 +1163,21 @@ function build() {
     transcript_evidence,
     transcript_distillations,
     cohort_intel,
+    whats_new: buildWhatsNew({ teams, releaseItems: release_feed_items, githubProgressArtifacts: github_progress_artifacts, asks, events, since: program_start }),
+    // Normalized release feed items, also exposed standalone so the renderer's
+    // runtime fallback (alchemy.js buildWhatsNewFeed) can rebuild the feed
+    // without re-deriving releases.
+    github_releases: release_feed_items,
   };
   return out;
 }
 
 function fmt(j) {
   return JSON.stringify(j, null, 2) + "\n";
+}
+
+function surfaceForComparison(surface) {
+  return { ...surface, _generated_at: null };
 }
 
 function main() {
@@ -1048,8 +1197,8 @@ function main() {
       const current = fs.readFileSync(outPath, "utf8");
       // Compare structurally (ignoring _generated_at) so re-running on
       // the same content doesn't trip --check.
-      const a = { ...JSON.parse(current), _generated_at: null };
-      const b = { ...surfaceForOutputPath(outPath, built), _generated_at: null };
+      const a = surfaceForComparison(JSON.parse(current));
+      const b = surfaceForComparison(surfaceForOutputPath(outPath, built));
       if (JSON.stringify(a) !== JSON.stringify(b)) {
         console.error(`[build-bundles] --check: ${outPath} is stale; run \`npm run build:cohort\` and commit`);
         process.exit(4);
@@ -1060,8 +1209,22 @@ function main() {
   }
 
   for (const outPath of OUT_PATHS) {
-    const json = fmt(surfaceForOutputPath(outPath, built));
+    const surface = surfaceForOutputPath(outPath, built);
+    const json = fmt(surface);
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    // Skip the write when the on-disk surface already matches (ignoring
+    // _generated_at) so re-running on unchanged content leaves files untouched.
+    if (fs.existsSync(outPath)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(outPath, "utf8"));
+        if (JSON.stringify(surfaceForComparison(parsed)) === JSON.stringify(surfaceForComparison(surface))) {
+          console.log(`[build-bundles] up to date; leaving ${outPath} untouched`);
+          continue;
+        }
+      } catch {
+        // Fall through and rewrite malformed output.
+      }
+    }
     fs.writeFileSync(outPath, json);
   }
   const calTabs = built.calendar?.tabs ? Object.keys(built.calendar.tabs).length : 0;

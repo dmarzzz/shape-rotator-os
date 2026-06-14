@@ -11,7 +11,13 @@ source: private-vault:tee-dstack-easytee-phala
 
 # TEE Convergence Salon: dstack, easyTEE, and Platform-Independent Attestation
 
-A whiteboard session mapping Flashbots-derived reproducible-build and event-level attestation tooling onto Phala's dstack, converging on attested TLS, attested WireGuard, and one-command bootstrap.
+**Stop reinventing the TEE service mesh; share the plumbing.**
+
+*A whiteboard session mapping Flashbots-derived reproducible-build and event-level attestation tooling onto Phala's dstack, converging on attested TLS, attested WireGuard, and one-command bootstrap.*
+
+## the 60-second version
+
+A whiteboard salon mapped Flashbots-derived reproducible-build and event-level attestation tooling onto Phala's dstack, converging on platform-independent attestation, attested transport (aTLS and attested WireGuard), and one-command bootstrap. The recurring observation: teams across the program keep rebuilding the same service-mesh-shaped plumbing, so small importable modules for attestation, transport, and peer discovery are the highest-leverage shared investment.
 
 ## themes
 
@@ -62,3 +68,7 @@ A hardware-backed local key provider outside the CVM returns a stable key to the
 - [Confidential Containers project](https://github.com/confidential-containers)
 - [Contrast (Edgeless Systems), prior art on hardening CoCo](https://github.com/edgelesssys/contrast)
 - [Debian snapshot archive](https://snapshot.debian.org)
+
+## provenance
+
+Distilled from a private-vault transcript (`tee-dstack-easytee-phala`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: `cohort-internal`.

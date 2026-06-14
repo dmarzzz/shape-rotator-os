@@ -71,12 +71,6 @@ function localCalendarDayMs(date = new Date()) {
   return Date.UTC(src.getFullYear(), src.getMonth(), src.getDate());
 }
 
-// Fraction of the day elapsed (local time), clamped to [0, 1].
-// Used to position the "now" line within today's day cell.
-function nowFraction() {
-  const d = new Date();
-  return Math.min(1, Math.max(0, (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400));
-}
 function fmtShortDate(d) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
 }
@@ -391,8 +385,25 @@ function splitLeadingTime(line) {
 // narrow day cards (the previous layout) was clipping titles after two
 // characters; pulling time off the title line frees the whole card
 // width for the words that actually identify the event.
+// Collapse consecutive identical lines within a block. The upstream Phala
+// calendar occasionally repeats a line verbatim (e.g. an "[All Day] Anarchy
+// Day…" note stored twice). Left alone that renders as an italic title PLUS a
+// duplicate sub-line, which both reads wrong and inflates the day column's
+// height (stretching every other column in the equal-height week grid). We
+// can't fix it in the JSON — the sync would overwrite it — so we dedupe at
+// render time, hardening both surfaces against any repeated upstream line.
+function dedupeAdjacentLines(lines) {
+  const out = [];
+  for (const line of lines) {
+    const prev = out[out.length - 1];
+    if (prev != null && line.trim() && prev.trim() === line.trim()) continue;
+    out.push(line);
+  }
+  return out;
+}
+
 function renderEventBlock(blockText, sources = []) {
-  const lines = blockText.split("\n").map(l => l.replace(/\s+$/, ""));
+  const lines = dedupeAdjacentLines(blockText.split("\n").map(l => l.replace(/\s+$/, "")));
   if (!lines.length) return "";
   const firstRaw = lines[0].trim();
   let { time, rest } = splitLeadingTime(firstRaw);
@@ -438,23 +449,41 @@ function renderEventBlock(blockText, sources = []) {
 }
 
 // Infer a coarse category from event text so cards can be color-coded the way
-// the cohort week-timetable reads (office hours / salon / weekly / coordination
-// / demo review / hacking / self-organized). Pure heuristic over the existing
-// calendar cell text — no schema change, no new event data required.
+// the cohort week-timetable reads. Pure heuristic over the existing calendar
+// cell text — no schema change, no new event data required.
+//
+// These are the STRUCTURED, RECURRING slot types (office hours / weekly /
+// coordination / demo review / hacking / self-organized). Salons are the
+// inverse: bespoke one-off topic sessions that don't match any of these and
+// aren't a standing ritual — see eventCategory.
 const CAL_CATEGORIES = [
   { key: "review",  label: "Demo Review",     re: /demo review|product review|internal .*review/i },
   { key: "demo",    label: "Demo Night",      re: /demo night|showcase|demo day/i },
   { key: "oh",      label: "Office Hour",     re: /office hour|pmf check|\bcheck[ -]?point|\b1:1/i },
-  { key: "salon",   label: "Salon",           re: /salon/i },
-  { key: "weekly",  label: "SR Weekly",       re: /\bweekly\b|what did you do/i },
+  { key: "weekly",  label: "SR Weekly",       re: /\bweekly\b|what did you do|\bwdydlw\b/i },
   { key: "coord",   label: "Coordination",    re: /coordinat|attribution/i },
   { key: "hack",    label: "Hacking",         re: /\bhack|hackathon|open jam|\bfinals\b|submission|build night/i },
   { key: "anarchy", label: "Self-organized",  re: /anarchy|self-organ|no .*program|protected build|team-led/i },
 ];
+
+// Standing daily rituals that read as neutral. They recur but aren't a
+// structured program slot, so they stay uncolored rather than becoming a
+// salon (tea on roof, coffee, lunch, stand-ups).
+const CAL_RITUAL_RE = /tea on roof|\btea\b|coffee|lunch|breakfast|stand[- ]?up/i;
+
 function eventCategory(text) {
   const t = String(text || "");
   const tbc = /\btbc\b|to be confirmed|\(tbc\)/i.test(t);
+  // An explicit "salon" label always wins.
+  if (/\bsalon\b/i.test(t)) return { key: "salon", label: "Salon", tbc };
+  // Structured, recurring slot types keep their own category.
   for (const c of CAL_CATEGORIES) if (c.re.test(t)) return { key: c.key, label: c.label, tbc };
+  // Standing daily ritual → neutral, not a salon.
+  if (CAL_RITUAL_RE.test(t)) return { key: "default", label: "", tbc };
+  // Otherwise it's a custom, one-off topic session (often guest-/host-led) —
+  // a salon. Require at least one letter so empty / dash-only cells stay
+  // neutral instead of rendering an empty salon chip.
+  if (/[a-z]/i.test(t)) return { key: "salon", label: "Salon", tbc };
   return { key: "default", label: "", tbc };
 }
 
@@ -718,10 +747,13 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 function renderCalendarKeyBar() {
-  const keys = CAL_CATEGORY_LEGEND.map(c =>
-    `<span class="cal-key" data-cat="${escAttr(c.key)}"><span class="cal-key-dot"></span>${escHtml(c.label)}</span>`
-  ).join("");
-  return `<div class="cal-keybar" role="list" aria-label="event categories">${keys}<span class="cal-key cal-key--tbc"><span class="cal-key-dot"></span>TBC (tentative)</span></div>`;
+  const keys = CAL_CATEGORY_LEGEND.map(c => {
+    // The "weekly / self-organized" legend item controls both the weekly
+    // and the anarchy (self-organized) card colors, so it filters both.
+    const cats = c.key === "weekly" ? "weekly anarchy" : c.key;
+    return `<button class="cal-key" type="button" data-cal-filter="${escAttr(cats)}" data-cat="${escAttr(c.key)}" aria-pressed="true"><span class="cal-key-dot"></span>${escHtml(c.label)}</button>`;
+  }).join("");
+  return `<div class="cal-keybar" role="group" aria-label="filter by event category">${keys}<button class="cal-key cal-key--tbc" type="button" data-cal-filter="tbc" data-cat="tbc" aria-pressed="true"><span class="cal-key-dot"></span>TBC (tentative)</button></div>`;
 }
 
 // Parse one week's row from the Phala tab structure. Returns:
@@ -998,7 +1030,7 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase, transcriptMatches 
     // Event block: parse like the week renderer, but with full-width
     // typography — the day card is the entire column width, so the title
     // can be 26–32px italic without competing for space with anything.
-    const lines = it.raw.split("\n").map(l => l.replace(/\s+$/, ""));
+    const lines = dedupeAdjacentLines(it.raw.split("\n").map(l => l.replace(/\s+$/, "")));
     const firstRaw = lines[0].trim();
     let { time, rest } = splitLeadingTime(firstRaw);
     let title = rest;
@@ -1153,12 +1185,13 @@ export function renderWeekView({
       </button>`;
   }).join("");
 
-  // ── now-line position ────────────────────────────────────────────────
-  // Rendered once at HTML-string time; attachWeekViewBehavior ticks it live.
-  const nowPct = nowFraction();
-  const nowLineHtml = `<div class="cal-now-line" aria-hidden="true" style="top:${(nowPct * 100).toFixed(2)}%"></div>`;
-
   // ── day cells ───────────────────────────────────────────────────────
+  // NB: the week grid is NOT a time-grid — events are stacked cards in
+  // order, not positioned at their clock time. A "now" line drawn at
+  // fraction-of-day therefore lands on an arbitrary card and reads as
+  // "we're N minutes into this event" when we're not. The day view carries
+  // the accurate now / past / up-next states instead, so the week view
+  // deliberately omits a now-line.
   const dayCells = week.days.map(d => {
     const anchorRows = d.anchors.map(a => `
       <div class="cal-day-anchor" data-kind="${escAttr(a.kind)}">
@@ -1181,7 +1214,6 @@ export function renderWeekView({
           ${d.isToday ? `<span class="cdh-today">today</span>` : ""}
           ${d.relLabel ? `<span class="cdh-rel">${escHtml(d.relLabel)}</span>` : ""}
         </header>
-        ${d.isToday ? nowLineHtml : ""}
         ${anchorRows}
         ${d.isEmpty
           ? `<div class="cal-day-empty" aria-label="nothing scheduled">—</div>`
@@ -1388,25 +1420,38 @@ export function attachWeekViewBehavior(root, { onWeekChange, scrollToToday = tru
     });
   }
 
-  // ── now-line live tick ────────────────────────────────────────────────
-  // Updates the "cal-now-line" top position every minute so it stays
-  // accurate without requiring a full re-render.
-  let nowTimer = null;
-  function tickNowLine() {
-    const line = root.querySelector(".cal-now-line");
-    if (!line) return;
-    const d = new Date();
-    const frac = Math.min(1, Math.max(0, (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400));
-    line.style.top = (frac * 100).toFixed(2) + "%";
+  // ── category legend → filters ────────────────────────────────────────
+  // Each key in the week-view key bar is a toggle: click to hide that
+  // category's cards, click again to show them (multi-select, everything
+  // visible by default). The "weekly / self-organized" key controls both
+  // the weekly and anarchy colors; the TBC key hides every tentative card
+  // regardless of its category. Ephemeral by design — it resets when the
+  // week re-renders, which reads as a fresh, unfiltered view per week.
+  function applyCalFilter() {
+    const offCats = new Set();
+    let hideTbc = false;
+    root.querySelectorAll(".cal-key[data-cal-filter]").forEach(k => {
+      if (k.getAttribute("aria-pressed") === "false") {
+        const f = k.getAttribute("data-cal-filter") || "";
+        if (f === "tbc") hideTbc = true;
+        else f.split(/\s+/).forEach(c => c && offCats.add(c));
+      }
+    });
+    root.querySelectorAll(".cal-event").forEach(ev => {
+      const cat = ev.getAttribute("data-cat") || "default";
+      const off = offCats.has(cat) || (hideTbc && ev.classList.contains("is-tbc"));
+      ev.classList.toggle("cal-event--off", off);
+    });
   }
-  // Align the first tick to the next whole minute so subsequent ticks stay
-  // on-the-minute rather than drifting. This is a best-effort alignment
-  // (exact only if the JS event loop is not blocked at tick time).
-  const msUntilNextMinute = 60000 - (Date.now() % 60000);
-  nowTimer = setTimeout(() => {
-    tickNowLine();
-    nowTimer = setInterval(tickNowLine, 60000);
-  }, msUntilNextMinute);
+  function onCalFilterClick(e) {
+    const key = e.target.closest && e.target.closest(".cal-key[data-cal-filter]");
+    if (!key || !root.contains(key)) return;
+    const wasOn = key.getAttribute("aria-pressed") !== "false";
+    key.setAttribute("aria-pressed", String(!wasOn));
+    key.classList.toggle("is-off", wasOn);
+    applyCalFilter();
+  }
+  root.addEventListener("click", onCalFilterClick);
 
   // ── swipe-to-navigate weeks (mobile only) ────────────────────────────
   let touchStartX = 0;
@@ -1438,7 +1483,7 @@ export function attachWeekViewBehavior(root, { onWeekChange, scrollToToday = tru
   return function teardown() {
     root.removeEventListener("touchstart", onTouchStart);
     root.removeEventListener("touchend",   onTouchEnd);
-    if (nowTimer != null) { clearTimeout(nowTimer); clearInterval(nowTimer); nowTimer = null; }
+    root.removeEventListener("click", onCalFilterClick);
   };
 }
 

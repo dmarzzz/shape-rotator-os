@@ -11,7 +11,13 @@ source: private-vault:dstack-intro-salon-2026-05-20
 
 # Dstack Intro Salon: TEE Deployment 101, Multiplexed CVMs, and Attested Service Meshes
 
-A hands-on walkthrough of deploying confidential VMs with dstack, plus deep dives on multiplexing many attested apps in one CVM and building an attestation-gated service mesh across TEEs.
+**Deploying a TEE is easy; proving what's inside it is the hard part.**
+
+*A hands-on walkthrough of deploying confidential VMs with dstack, plus deep dives on multiplexing many attested apps in one CVM and building an attestation-gated service mesh across TEEs.*
+
+## the 60-second version
+
+A hands-on walkthrough took the cohort from a Docker Compose file to a running confidential VM with dstack, then into the genuinely hard problems: linking attestation hashes back to source, multiplexing many attested sub-apps inside one scarce CVM, and wiring an attestation-gated service mesh across machines. The throughline was that generating a quote is a one-line SDK call, while reproducible verification is where the real work lives.
 
 ## themes
 
@@ -65,3 +71,7 @@ One pragmatic workaround: run a minimal launcher script inside the TEE that pull
 - [gVisor — runsc container sandbox](https://gvisor.dev)
 - [Terraform — CVM fleet orchestration](https://www.terraform.io)
 - [Deno — sandboxed runtime used for sub-app isolation](https://deno.com)
+
+## provenance
+
+Distilled from a private-vault transcript (`dstack-intro-salon-2026-05-20`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: `cohort-internal`.

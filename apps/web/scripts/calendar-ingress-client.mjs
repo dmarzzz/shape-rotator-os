@@ -258,7 +258,7 @@ export const DEFAULT_ROUTING_POLICY = {
     },
     office_hours: {
       label: "Office hours",
-      description: "Project core team or product-based office-hours session.",
+      description: "Project or core-team office-hours session.",
       event_basis: "project_core_team_or_product_based",
       max_tier: "T2",
       cohort_mode: "distilled_readout",
@@ -291,7 +291,7 @@ export const DEFAULT_ROUTING_POLICY = {
     },
     rd_jam: {
       label: "R&D / jam",
-      description: "Product or technical idea-stage session.",
+      description: "Idea-stage technical session.",
       event_basis: "product_or_technical_idea_based",
       max_tier: "T2",
       cohort_mode: "team_call_required",

@@ -10,7 +10,7 @@
 import * as THREE from "three";
 import { UnrealBloomPass } from "../vendor/three-extras/postprocessing/UnrealBloomPass.js";
 
-import { applyStoredTheme } from "./theme.js";
+import { applyStoredTheme, getTheme, toggleTheme, onThemeChange } from "./theme.js";
 // Apply the persisted light/dark choice at module load — before any
 // alchemy surface paints — so launches never flash the wrong palette.
 applyStoredTheme();
@@ -22,6 +22,7 @@ import { DAMP, dampPosition } from "./damping.js";
 import { materialize } from "./materialize.js";
 import { syncLabels, fadeLabelsByDistance } from "./labels.js";
 import { stableHue } from "./colors.js";
+import { mountChat } from "./chat/chat.js";
 import {
   toast,
   mountConnectionIndicator,
@@ -60,6 +61,7 @@ import * as Easel from "./easel.js";
 import * as Alchemy from "./alchemy.js";
 import * as Tabs from "./tabs.js";
 import * as Find from "./find.js";
+import * as Glass from "./glass.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
 import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.js";
 
@@ -263,6 +265,60 @@ function setUpdateIcon(state) {
   }
 }
 
+// Live download readout. While an update downloads, electron-updater (or the
+// manual mac/.deb path) emits "download-progress" → "fg:update-progress"; we
+// paint the running % in the slot, replacing the "checking" spinner. The
+// span is built once on entry, then only the number updates per event — no
+// DOM churn at ~20 events/sec. p = { percent, bytesPerSecond, transferred,
+// total } — any field may be absent (the manual path omits bytesPerSecond).
+function setDownloadProgress(p) {
+  const icon = document.getElementById("fg-update-icon");
+  if (!icon) return;
+  if (_okIconClearTimer) { clearTimeout(_okIconClearTimer); _okIconClearTimer = null; }
+  icon.classList.remove("fading");
+  const pct = Math.max(0, Math.min(100, Math.round(p?.percent || 0)));
+  if (icon.dataset.state !== "downloading") {
+    icon.dataset.state = "downloading";
+    icon.innerHTML = `<span class="fg-update-pct">0%</span>`;
+  }
+  const txt = icon.querySelector(".fg-update-pct");
+  if (txt) txt.textContent = `${pct}%`;
+  // Exact size + speed live in the tooltip so the slot stays a clean readout.
+  const mb = (b) => (b / 1048576).toFixed(0);
+  const size  = p?.total ? ` · ${mb(p.transferred || 0)}/${mb(p.total)} MB` : "";
+  const speed = p?.bytesPerSecond ? ` · ${mb(p.bytesPerSecond)} MB/s` : "";
+  icon.title = `downloading update… ${pct}%${size}${speed}`;
+}
+
+// Persistent post-download state — unlike "ok" (a transient checkmark) this
+// stays put until the user finishes, because finishing needs an action that
+// differs by platform:
+//   restart (win / AppImage / signed-mac — canAutoUpdate) — electron-updater
+//           staged the installer. Click = install silently + relaunch now; it
+//           also auto-installs on the next quit, so there's never a file step.
+//   manual  (unsigned-mac / .deb)                          — the installer was
+//           downloaded to ~/Downloads and opened. Click = open it again.
+let _updateReady = null;   // { mode, path } while a staged update is waiting
+function setUpdateReady(mode, ctx) {
+  const icon = document.getElementById("fg-update-icon");
+  if (!icon) return;
+  if (_okIconClearTimer) { clearTimeout(_okIconClearTimer); _okIconClearTimer = null; }
+  icon.classList.remove("fading");
+  _updateReady = { mode, path: ctx?.path || null };
+  icon.dataset.state = "ready";
+  const glyph = mode === "restart"
+    ? `<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>` // rotate-cw
+    : `<path d="M12 22v-9"/><path d="M15.17 2.21a1.67 1.67 0 0 1 1.63 0L21 4.57a1.93 1.93 0 0 1 0 3.36L8.82 14.79a1.655 1.655 0 0 1-1.64 0L3 12.43a1.93 1.93 0 0 1 0-3.36z"/><path d="M20 13v3.87a2.06 2.06 0 0 1-1.11 1.83l-6 3.08a1.93 1.93 0 0 1-1.78 0l-6-3.08A2.06 2.06 0 0 1 4 16.87V13"/><path d="M21 12.43a1.93 1.93 0 0 0 0-3.36L8.83 2.2a1.64 1.64 0 0 0-1.63 0L3 4.57a1.93 1.93 0 0 0 0 3.36l12.18 6.86a1.636 1.636 0 0 0 1.63 0z"/>`; // package-open
+  // Icon-only (matches the rest of the update indicator) — the action label
+  // lives in the tooltip below, not next to the glyph.
+  icon.innerHTML =
+    `<svg class="fg-ready-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor"` +
+      ` stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${glyph}</svg>`;
+  icon.title = mode === "restart"
+    ? "update downloaded — click to install & relaunch now (or it installs automatically next time you quit)"
+    : "installer downloaded to your Downloads — click to open & finish";
+}
+
 // Ask main whether a newer build exists, driving the icon slot. Shared by
 // the manual click (showSpinner → spinner + checkmark feedback) and the
 // silent boot/refresh check (no spinner → only lights up on an actual hit).
@@ -280,12 +336,7 @@ async function checkForUpdate({ showSpinner } = {}) {
       return;
     }
     if (r.ok && r.available) {
-      if (chip) {
-        chip.dataset.update = "available";
-        chip.dataset.latest = r.latest || "";
-        chip.title = `update available · v${r.latest} (you have v${r.current || chip.dataset.current || "?"})`;
-      }
-      setUpdateIcon("available");
+      announceUpdateAvailable(r.latest);
     } else {
       if (chip) chip.removeAttribute("data-update");
       // Up to date (or dev mode) — show the confirmation checkmark only when
@@ -300,12 +351,70 @@ async function checkForUpdate({ showSpinner } = {}) {
   }
 }
 
+// A newer build is known to exist (silent boot check, manual click, or a
+// push from main's periodic 2h check). Stamp the chip, light the download
+// icon, and show the update banner — the bottom-left icon alone proved too
+// subtle (users weren't updating), so the banner is the loud signal. It
+// sits in the left side panel directly above the profile/version footer
+// row (same width — see .fg-update-banner in styles.css). Clicking it
+// runs the same action as clicking the icon: download/install for this
+// platform. It cannot be dismissed — it stays until the user updates.
+function announceUpdateAvailable(latest) {
+  const chip = document.getElementById("fg-version-chip");
+  const icon = document.getElementById("fg-update-icon");
+  if (chip) {
+    chip.dataset.update = "available";
+    chip.dataset.latest = latest || "";
+    chip.title = `update available · v${latest} (you have v${chip.dataset.current || "?"})`;
+  }
+  // Don't clobber an in-flight download or a staged installer waiting on
+  // the user — those states already represent this release.
+  const st = icon?.dataset.state;
+  if (st === "downloading" || st === "ready") return;
+  setUpdateIcon("available");
+  showUpdateBanner();
+}
+
+// Build the banner once and park it above the footer row. The action area
+// is a real <button> (keyboard focusable). Deliberately no dismiss
+// affordance — the only way to clear it is to update; it leaves when the
+// click kicks off the download (the icon's progress ring takes over).
+function showUpdateBanner() {
+  if (document.getElementById("fg-update-banner")) return;
+  const banner = document.createElement("div");
+  banner.id = "fg-update-banner";
+  banner.className = "fg-update-banner";
+  banner.innerHTML =
+    `<button class="fg-update-banner-action" type="button" title="click to download the update">` +
+      `<span class="fg-update-banner-dot" aria-hidden="true"></span>update available!</button>`;
+  banner.querySelector(".fg-update-banner-action").addEventListener("click", () => {
+    banner.remove();
+    onUpdateIconClick();
+  });
+  document.body.appendChild(banner);
+}
+
+// A download attempt failed. The loud banner was already removed on click and
+// the icon was about to drop to the subtle "available" dot — so the nudge would
+// silently downgrade until main's next ~2h push re-announced it. Restore BOTH
+// the icon and the banner so a failed download stays loud and retryable. Unlike
+// announceUpdateAvailable this has no downloading/ready early-return, so it
+// recovers even if progress had advanced the icon state mid-pull.
+function restoreUpdateAvailable(latest) {
+  const chip = document.getElementById("fg-version-chip");
+  if (chip && latest) { chip.dataset.update = "available"; chip.dataset.latest = latest; }
+  setUpdateIcon("available");
+  showUpdateBanner();
+}
+
 // Version stamp clicked. If we already know an update is waiting, go
 // straight to the download; otherwise run a check with visible feedback.
 function onVersionClick() {
   const icon = document.getElementById("fg-update-icon");
-  // If an update is already known, a click goes straight to the download.
-  if (icon?.dataset.state === "available") { onUpdateIconClick(); return; }
+  // A known update (waiting to download, or downloaded & waiting to finish) →
+  // run the icon's action; otherwise re-check with visible feedback.
+  const st = icon?.dataset.state;
+  if (st === "available" || st === "ready") { onUpdateIconClick(); return; }
   checkForUpdate({ showSpinner: true });
 }
 
@@ -314,22 +423,44 @@ function onVersionClick() {
 async function onUpdateIconClick() {
   const icon = document.getElementById("fg-update-icon");
   const chip = document.getElementById("fg-version-chip");
-  if (icon?.dataset.state !== "available") { checkForUpdate({ showSpinner: true }); return; }
+  const state = icon?.dataset.state;
+  // A staged update is waiting — a click finishes it (platform-specific):
+  // restart now, or re-open the downloaded installer.
+  if (state === "ready" && _updateReady) {
+    try {
+      if (_updateReady.mode === "restart") await window.api?.applyUpdateAndRestart?.();
+      else await window.api?.openDownloadedInstaller?.(_updateReady.path);
+    } catch {}
+    return;
+  }
+  if (state === "downloading") return;                                  // mid-download: ignore clicks
+  if (state !== "available") { checkForUpdate({ showSpinner: true }); return; }
   setUpdateIcon("checking");
+  // Subscribe to the live download-progress stream so the % counts up (spinner →
+  // 0% → … → 100% → "update ready") instead of a frozen spinner for the ~275 MB
+  // pull. unsub() detaches the listener in finally so repeated downloads don't
+  // stack handlers. Both paths below stream it — main.js forwards
+  // "fg:update-progress" for electron-updater AND the manual mac/.deb download.
+  let unsub = null;
   try {
+    unsub = window.api?.onUpdateProgress?.((p) => setDownloadProgress(p)) || null;
     if (chip?.dataset.canAutoUpdate === "1") {
-      // Windows / AppImage: download in the background; electron-updater
-      // installs on next quit. Confirm with the checkmark.
+      // Windows / AppImage / signed-mac: electron-updater stages the installer;
+      // it applies on quit. Land on the persistent "update ready" state.
       const dl = await window.api?.applyAppUpdate?.();
-      setUpdateIcon(dl?.ok ? "ok" : "available");
+      if (dl?.ok) setUpdateReady("restart");
+      else restoreUpdateAvailable(chip?.dataset.latest);
     } else {
-      // macOS / .deb: download to ~/Downloads and reveal in the file
-      // manager so the user runs the installer themselves.
+      // unsigned-mac / .deb: download to ~/Downloads and open/reveal it; the
+      // user runs the installer. Land on the persistent "open installer" state.
       const res = await window.api?.downloadAndRevealUpdate?.();
-      setUpdateIcon(res?.ok ? "" : "available");
+      if (res?.ok) setUpdateReady("manual", { path: res.path });
+      else restoreUpdateAvailable(chip?.dataset.latest);
     }
   } catch {
-    setUpdateIcon("available");
+    restoreUpdateAvailable(chip?.dataset.latest);
+  } finally {
+    if (unsub) { try { unsub(); } catch {} }
   }
 }
 
@@ -401,6 +532,9 @@ async function boot() {
   mountConnectionIndicator({ serverUrl: srwk.serverUrl });
   setConnectionState({ state: "connecting", serverUrl: srwk.serverUrl });
   mountSyncChip();
+  // (The quick-dial radial menu lives on its side branch — see
+  // claude/nervous-newton-b2a9fd — and is intentionally absent from
+  // main and releases while it incubates.)
   wireGlobalKeyboard();
   registerVisualizerShortcutsAndCommands();
 
@@ -450,12 +584,38 @@ async function boot() {
       updIcon.setAttribute("aria-label", "update status");
       updIcon.addEventListener("click", () => onUpdateIconClick());
 
+      // Persistent theme toggle. Lives here (bottom-left rail footer) so the
+      // light/dark switch is reachable from any screen in one click — it used
+      // to live only inside the profile record editor, where nobody found it.
+      // The profile page keeps its own mirror; both call the same toggleTheme.
+      const themeBtn = document.createElement("button");
+      themeBtn.id = "fg-theme-toggle";
+      themeBtn.className = "fg-theme-toggle";
+      themeBtn.type = "button";
+      const SUN_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v1"/><path d="M12 20v1"/><path d="M3 12h1"/><path d="M20 12h1"/><path d="m18.364 5.636-.707.707"/><path d="m6.343 17.657-.707.707"/><path d="m5.636 5.636.707.707"/><path d="m17.657 17.657.707.707"/></svg>`;
+      const MOON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>`;
+      const paintThemeToggle = () => {
+        const now = getTheme();
+        const next = now === "light" ? "dark" : "light";
+        themeBtn.dataset.themeNow = now;
+        themeBtn.title = `switch to ${next} mode`;
+        themeBtn.setAttribute("aria-label", `switch to ${next} mode`);
+        // Icon = the mode you'll switch TO (matches the profile-page toggle).
+        themeBtn.innerHTML = now === "light" ? MOON_SVG : SUN_SVG;
+      };
+      paintThemeToggle();
+      themeBtn.addEventListener("click", () => { toggleTheme(); });
+      onThemeChange(paintThemeToggle);
+
       // Group the version + icon, right-aligned to the panel edge. The icon
       // sits to the RIGHT of the version in a permanently reserved slot (it
       // keeps its width even when empty), so the version's position is fixed
-      // and never shifts when the icon's glyph appears.
+      // and never shifts when the icon's glyph appears. The theme toggle is
+      // the leftmost cluster child so it grows leftward without nudging the
+      // version's pinned right edge.
       const cluster = document.createElement("div");
       cluster.className = "fg-footer-vcluster";
+      cluster.appendChild(themeBtn);
       cluster.appendChild(ver);
       cluster.appendChild(updIcon);
       row.appendChild(cluster);
@@ -463,6 +623,11 @@ async function boot() {
   } catch (e) {
     console.warn("[boot] footer row assembly failed:", e?.message || e);
   }
+
+  // Main re-checks for releases every 2h and pushes hits here, so a
+  // session left open for days still gets the indicator + toast without
+  // anyone clicking the version stamp.
+  try { window.api?.onUpdateAvailable?.((info) => announceUpdateAvailable(info?.version || null)); } catch {}
 
   // Check for a newer build automatically on launch / refresh (previously
   // this only ran when the version stamp was clicked). Silent — it only
@@ -491,6 +656,7 @@ async function boot() {
   wireTabs();
   Tabs.init();
   Find.init();
+  Glass.init();
   wireAppsGrid();
   initNavHistory();
   wireAtlasOfflinePanel();
@@ -5787,7 +5953,7 @@ function showTimelineAutoToast() {
 // _archive/experimental/.
 const TAB_LS_KEY = "srwk:active_tab";
 const NET_SUB_LS_KEY = "srwk:network_sub";
-const TOP_TABS = new Set(["alchemy", "apps", "network", "links"]);
+const TOP_TABS = new Set(["alchemy", "apps", "network", "links", "matrix"]);
 const NET_SUBS = new Set(["network", "metrics"]);
 const APPS_LS_KEY = "srwk:apps_view";
 const APPS_VIEWS = new Set(["atlas", "easel"]);  // grid is the absence of one of these
@@ -6365,6 +6531,10 @@ function registerVisualizerShortcutsAndCommands() {
     const tag = e.target?.tagName?.toUpperCase();
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
     if (e.target?.isContentEditable) return;
+    // A focused sentence-bar filter control is a <button role="option">, not a
+    // text field — without this guard, listbox type-ahead ('n'→needs, 'm'→map,
+    // 'a'→all) would fall through and yank the user out to another OS view.
+    if (e.target?.closest?.('.ac-sentence,[role="listbox"],[role="option"],[aria-haspopup="listbox"]')) return;
     const k = e.key.toLowerCase();
     if (k === "a") { openApp("atlas"); }
     else if (k === "n") { goTab("network"); setNetworkSub("network"); }
@@ -6387,12 +6557,19 @@ function registerVisualizerShortcutsAndCommands() {
   } catch {}
 }
 
+let _chatMounted = false;
 function applyActiveTab(tab) {
   if (!TOP_TABS.has(tab)) tab = "alchemy";
   if (tab !== "alchemy") Alchemy.closeMembraneMenu();
   document.body.dataset.activeTab = tab;
   for (const btn of document.querySelectorAll("#tab-bar .tab-btn, #primary-nav .nav-cat")) {
     btn.setAttribute("aria-selected", btn.dataset.tab === tab ? "true" : "false");
+  }
+  // Cohort matrix chat mounts lazily on first activation so its IPC listeners
+  // + initial sync fetch don't run for users who never open it.
+  if (tab === "matrix" && !_chatMounted) {
+    const host = document.getElementById("chat-view");
+    if (host) { try { mountChat(host); _chatMounted = true; } catch (e) { console.error("[matrix] mount failed", e); } }
   }
   // Stale: experimental tab archived 2026-05-09. Variables retained as
   // false so any leftover branches below are no-ops without further edits.
@@ -7715,14 +7892,37 @@ function stopMetricsPoll() {
   }
 }
 
+// A daemon-unreachable failure (swf-node not running) is the common case for
+// most users — Chromium raises a "Failed to fetch" TypeError on a refused
+// connection. Treat that as a calm offline state, not an error; reserve the
+// louder tone for genuine post-connection failures (HTTP 5xx, parse, etc.).
+function isDaemonUnreachable(e) {
+  const m = (e && e.message ? e.message : String(e)).toLowerCase();
+  return m.includes("failed to fetch")
+    || m.includes("networkerror")
+    || m.includes("load failed")
+    || m.includes("err_connection");
+}
+
 async function runMetricsRefresh() {
   const status = document.getElementById("metrics-status");
-  if (status) status.textContent = "loading.";
+  if (status) { status.textContent = "loading."; status.dataset.state = "loading"; }
   try {
     await Promise.all([fetchMetricsSnapshot(), fetchMetricsCharts()]);
-    if (status) status.textContent = `last update ${formatEventTs(Date.now())}`;
+    if (status) { status.textContent = `last update ${formatEventTs(Date.now())}`; status.dataset.state = "ok"; }
   } catch (e) {
-    if (status) status.textContent = `error: ${e?.message || String(e)}`;
+    // Speak the same offline grammar as atlas ("no daemon, no atlas") and
+    // network ("the network is quiet") rather than leaking the raw fetch
+    // exception string to the user.
+    const offline = isDaemonUnreachable(e);
+    if (status) {
+      status.textContent = offline ? "idle · swf-node offline" : "metrics unavailable · retrying";
+      status.dataset.state = offline ? "offline" : "error";
+    }
+    // Surface the "start swf-node" hint so the empty grid is explained,
+    // instead of leaving a graveyard of em-dashes under an error string.
+    const empty = document.getElementById("metrics-empty");
+    if (empty) empty.hidden = false;
   }
 }
 

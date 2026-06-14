@@ -20,6 +20,19 @@ const contextVault = await importRendererModule("apps/os/src/renderer/context-va
 const shapeEscape = await importRendererModule("packages/shape-ui/src/escape.js");
 const vendoredEscape = await importRendererModule("apps/os/src/vendor/shape-ui/escape.js");
 
+test("shape-ui cohort-card copies stay in sync (package vs OS vendor)", async () => {
+  // The OS renderer loads the vendor copy; packages/shape-ui is the canonical
+  // source. They drifted once — the removed now-overlay popover lived on in the
+  // package copy after the vendor moved to inline peeks. Keep them byte-identical
+  // so editing one copy without the other fails here instead of resurfacing
+  // removed UI in any future package consumer / re-vendor.
+  for (const file of ["cohort-card.js", "cohort-card.css"]) {
+    const pkg = await readFile(path.join(ROOT, "packages/shape-ui/src", file), "utf8");
+    const vendor = await readFile(path.join(ROOT, "apps/os/src/vendor/shape-ui", file), "utf8");
+    assert.equal(pkg, vendor, `${file} differs between packages/shape-ui/src and apps/os/src/vendor/shape-ui — edit BOTH copies`);
+  }
+});
+
 test("cohort timeline source boundary covers snapshot collections that drive insights", async () => {
   const timeline = JSON.parse(await readFile(path.join(ROOT, "apps/os/src/cohort-timeline.json"), "utf8"));
   const collectionPaths = new Map([
@@ -34,11 +47,11 @@ test("cohort timeline source boundary covers snapshot collections that drive ins
     ["clusters", "cluster"],
     ["dependencies", "dependency"],
   ]);
-  const source = (timeline.sources || []).find(item => item.id === "cohort-data-github") || {};
+  const source = (timeline.sources || []).find((item) => item.id === "cohort-data-github") || {};
   const sourcePaths = new Set(source.paths || []);
   const sourceRecordTypes = new Set(source.record_types || []);
   const boundaryPaths = new Set(timeline.source_boundary?.included_paths || []);
-  const eventCollections = new Set((timeline.events || []).map(event => event.collection).filter(Boolean));
+  const eventCollections = new Set((timeline.events || []).map((event) => event.collection).filter(Boolean));
   const snapshotCollections = new Set();
 
   for (const snapshot of (timeline.snapshots || [])) {
@@ -51,10 +64,28 @@ test("cohort timeline source boundary covers snapshot collections that drive ins
   for (const collection of snapshotCollections) {
     const pathName = collectionPaths.get(collection);
     assert.ok(sourcePaths.has(pathName), `${pathName} is missing from cohort-data-github source paths`);
-    assert.ok(sourceRecordTypes.has(recordTypes.get(collection)), `${collection} record type is missing from cohort-data-github source record_types`);
+    assert.ok(
+      sourceRecordTypes.has(recordTypes.get(collection)),
+      `${collection} record type is missing from cohort-data-github source record_types`,
+    );
     assert.ok(boundaryPaths.has(pathName), `${pathName} is missing from timeline source_boundary.included_paths`);
     assert.ok(eventCollections.has(collection), `${collection} snapshots exist but no ${collection} events are present`);
   }
+});
+
+test("cohort dependency snapshots stay on first-parent history", async () => {
+  const timeline = JSON.parse(await readFile(path.join(ROOT, "apps/os/src/cohort-timeline.json"), "utf8"));
+  const week03 = (timeline.snapshots || []).find((snapshot) => snapshot.id === "week-03");
+  const dependencyEvents = (timeline.events || []).filter((event) => event.collection === "dependencies");
+
+  assert.ok(week03, "week-03 snapshot is missing");
+  assert.equal(week03.counts?.dependencies, 0);
+  assert.equal((week03.surface?.dependencies || []).length, 0);
+  assert.ok(dependencyEvents.length > 0, "dependency events are missing from the timeline");
+  assert.ok(
+    dependencyEvents.every((event) => event.snapshot_id === "latest"),
+    "dependency events should not be back-assigned to earlier snapshots",
+  );
 });
 
 test("transcript-derived cues and session insights resolve cohort references", async () => {

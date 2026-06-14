@@ -83,6 +83,51 @@ export function cohortRosterSummary({ kind = "team", roster = [], declaredCount 
   };
 }
 
+// Markdown → one-line plain text for the about peek. Heading lines drop
+// wholesale (they're labels, not prose — an "## about" heading would
+// double the peek's own label); the dossier renders the real thing.
+function mdToPlainText(md, max = 240) {
+  const text = String(md || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^#{1,6}\s+.*$/gm, " ")
+    .replace(/[*_>~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, max).replace(/\s+\S*$/, "")}…`;
+}
+
+// Quiet "about / now" anchors in the title block. These used to carry a
+// glass hover popover, but that layer read as a stray floating box on
+// scrolled cards; the detail view already carries the full copy.
+function cardPeeks(rec) {
+  const about = mdToPlainText(rec?.bio_md);
+  const now = String(rec?.now || "").trim();
+  // Inert label, not a control: after the hover popover was removed these
+  // carry no click/keydown handler, so role=button + tabindex=0 only added
+  // dead tab stops that announced as "button" and did nothing. Plain <span>;
+  // data-no-card-click still suppresses parent card-select on a stray click.
+  const peek = (key) =>
+    `<span class="alch-card-peek" data-peek="${key}" data-no-card-click>${key}</span>`;
+  const anchors = [];
+  if (about) anchors.push(peek("about"));
+  if (now) anchors.push(peek("now"));
+  return anchors.length ? `<div class="alch-card-peeks">${anchors.join("")}</div>` : "";
+}
+
+// Compact skill / topic chips along the card foot — same scanning role
+// they played on the original specimen cards.
+function cardChipsHtml(values, max = 3) {
+  const items = (Array.isArray(values) ? values : [])
+    .map(v => String(v || "").trim())
+    .filter(Boolean)
+    .slice(0, max);
+  if (!items.length) return "";
+  return `<div class="alch-card-chips">${items.map(v => `<span>${escHtml(v)}</span>`).join("")}</div>`;
+}
+
 function compactGithubLabel(value) {
   const raw = String(value || "").trim().replace(/^@+/, "");
   try {
@@ -115,6 +160,23 @@ export function compactCohortLinkItems(record = {}) {
   const links = record?.links || {};
   const out = [];
   const seen = new Set();
+  const usedKeys = new Set();
+  const LABELS = {
+    github: "github",
+    repo: "repo",
+    repository: "repo",
+    website: "site",
+    site: "site",
+    demo: "demo",
+    docs: "docs",
+    deck: "deck",
+    slides: "slides",
+    article: "article",
+    alt: "alt site",
+    linkedin: "linkedin",
+    x: "x",
+    twitter: "x",
+  };
   const add = (label, href, display = label) => {
     if (!href) return;
     const key = `${label}:${href}`;
@@ -122,27 +184,42 @@ export function compactCohortLinkItems(record = {}) {
     seen.add(key);
     out.push({ label, href, display });
   };
+  const pick = (...keys) => keys.find(key => links[key]);
 
-  if (links.github) {
-    const href = normalizeLinkHref("github", links.github);
-    add("github", href, compactGithubLabel(links.github));
+  const githubKey = pick("github");
+  if (githubKey) {
+    usedKeys.add(githubKey);
+    const href = normalizeLinkHref("github", links[githubKey]);
+    add("github", href, compactGithubLabel(links[githubKey]));
   }
-  if (links.repo) {
-    const repo = normalizeGithubRepo(links.repo);
+  const repoKey = pick("repo", "repository");
+  if (repoKey) {
+    usedKeys.add(repoKey);
+    const repo = normalizeGithubRepo(links[repoKey]);
     if (repo) add("repo", `https://github.com/${repo}`, repo);
-    else add("repo", normalizeLinkHref("repo", links.repo), displayUrl(links.repo));
+    else add("repo", normalizeLinkHref("repo", links[repoKey]), displayUrl(links[repoKey]));
   }
-  if (links.x) {
-    const href = normalizeLinkHref("x", links.x);
-    add("x", href, compactXLabel(links.x));
+  const xKey = pick("x", "twitter");
+  if (xKey) {
+    usedKeys.add(xKey);
+    const href = normalizeLinkHref("x", links[xKey]);
+    add("x", href, compactXLabel(links[xKey]));
   }
-  if (links.website) add("site", normalizeLinkHref("website", links.website), displayUrl(links.website));
-  if (links.demo) add("demo", normalizeLinkHref("demo", links.demo), displayUrl(links.demo));
-  if (links.deck) add("deck", normalizeLinkHref("deck", links.deck), displayUrl(links.deck));
-  if (links.slides) add("slides", normalizeLinkHref("slides", links.slides), displayUrl(links.slides));
+  const websiteKey = pick("website", "site");
+  if (websiteKey) { usedKeys.add(websiteKey); add("site", normalizeLinkHref("website", links[websiteKey]), displayUrl(links[websiteKey])); }
+  if (links.demo) { usedKeys.add("demo"); add("demo", normalizeLinkHref("demo", links.demo), displayUrl(links.demo)); }
+  if (links.deck) { usedKeys.add("deck"); add("deck", normalizeLinkHref("deck", links.deck), displayUrl(links.deck)); }
+  if (links.slides) { usedKeys.add("slides"); add("slides", normalizeLinkHref("slides", links.slides), displayUrl(links.slides)); }
   if (links.linkedin) {
-    const account = String(links.linkedin).trim().replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, "").replace(/\/$/, "");
-    add("linkedin", account ? `https://linkedin.com/in/${account}` : "", account);
+    usedKeys.add("linkedin");
+    const display = displayUrl(links.linkedin).replace(/^www\.linkedin\.com\//i, "");
+    add("linkedin", normalizeLinkHref("linkedin", links.linkedin), display);
+  }
+  for (const [rawKey, value] of Object.entries(links)) {
+    const key = String(rawKey || "").toLowerCase();
+    if (usedKeys.has(key) || !String(value || "").trim()) continue;
+    const label = LABELS[key] || key.replace(/[_-]+/g, " ");
+    add(label, normalizeLinkHref(key, value), displayUrl(value));
   }
   return out;
 }
@@ -182,18 +259,24 @@ export function teamCardHtml(t, idx, ctx = {}) {
         `<button type="button" class="alch-card-member" data-person="${escAttr(p.record_id)}">${escHtml(personDisplayName(p))}</button>`
       ).join('<span class="acm-sep">·</span>')}${roster.overflow ? `<span class="acm-sep">·</span><span class="alch-card-member-more">+${roster.overflow}</span>` : ""}`
     : escHtml(roster.fallback);
+  const peeks = cardPeeks(t);
   return `
     <article class="${cardCls}" data-record-id="${escHtml(t.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(t.name)} — open detail">
-      <div class="alch-card-shape"><canvas data-shape-fam="${s ? s.fam : 0}" data-shape-kind="${escAttr(kind)}" data-shape-scale="1.1" data-shape-seed="${escAttr(t.record_id)}"></canvas></div>
-      <div class="alch-card-name">${escHtml(t.name)}</div>
-      <div class="alch-card-domain">${escHtml(domainLabel(t.domain))}</div>
-      <div class="alch-card-rule"></div>
+      <div class="alch-card-head">
+        <div class="alch-card-shape"><canvas data-shape-fam="${s ? s.fam : 0}" data-shape-kind="${escAttr(kind)}" data-shape-scale="1.1" data-shape-seed="${escAttr(t.record_id)}"></canvas></div>
+        <div class="alch-card-title">
+          <div class="alch-card-domain">${escHtml(domainLabel(t.domain))}</div>
+          <div class="alch-card-name">${escHtml(t.name)}</div>
+          ${t.focus ? `<p class="alch-card-sub">${escHtml(t.focus)}</p>` : ""}
+          ${peeks}
+        </div>
+      </div>
       <div class="alch-card-meta">
-        <div class="alch-card-meta-row"><span class="cm-k">focus</span><span class="cm-v">${escHtml(t.focus)}</span></div>
+        <div class="alch-card-meta-row"><span class="cm-k">geo</span><span class="cm-v">${escHtml(t.geo || "—")}</span></div>
         <div class="alch-card-meta-row alch-card-members-row"><span class="cm-k">${escHtml(roster.label)}</span><span class="cm-v">${rosterValue}</span></div>
-        <div class="alch-card-meta-row"><span class="cm-k">geo</span><span class="cm-v">${escHtml(t.geo)}</span></div>
         ${compactLinksRow(t)}
       </div>
+      ${cardChipsHtml(t.skill_areas)}
     </article>`;
 }
 
@@ -214,16 +297,24 @@ export function personCardHtml(p, idx, ctx = {}) {
     ? `${teamLabel} · ${role}`
     : (teamLabel || role || "—");
   const teamRoleLabel = teamLabel ? "team" : "role";
+  const peeks = cardPeeks(p);
   return `
     <article class="alch-card is-clickable alch-card-person alch-card-role-${escAttr(roleClass)}" data-record-id="${escHtml(p.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(p.name)} — open profile">
-      <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.1" data-shape-seed="${escAttr(p.record_id)}"></canvas></div>
-      <div class="alch-card-name">${escHtml(p.name)}</div>
-      <div class="alch-card-rule"></div>
+      <div class="alch-card-head">
+        <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.1" data-shape-seed="${escAttr(p.record_id)}"></canvas></div>
+        <div class="alch-card-title">
+          ${p.domain ? `<div class="alch-card-domain">${escHtml(domainLabel(p.domain))}</div>` : ""}
+          <div class="alch-card-name">${escHtml(p.name)}</div>
+          ${p.role ? `<p class="alch-card-sub">${escHtml(p.role)}</p>` : ""}
+          ${peeks}
+        </div>
+      </div>
       <div class="alch-card-meta">
-        <div class="alch-card-meta-row"><span class="cm-k">${escHtml(teamRoleLabel)}</span><span class="cm-v">${escHtml(teamRoleValue)}</span></div>
+        ${teamLabel ? `<div class="alch-card-meta-row"><span class="cm-k">${escHtml(teamRoleLabel)}</span><span class="cm-v">${escHtml(teamRoleValue)}</span></div>` : ""}
         <div class="alch-card-meta-row"><span class="cm-k">geo</span><span class="cm-v">${escHtml(p.geo || "—")}</span></div>
         ${compactLinksRow(p)}
       </div>
+      ${cardChipsHtml(p.go_to_them_for)}
     </article>`;
 }
 

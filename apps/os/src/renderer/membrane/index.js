@@ -1,24 +1,70 @@
-import { createMembraneScene, SLOT_OFFSETS } from './scene.js';
+import { createMembraneScene } from './scene.js';
 import { createSoundDirector } from './sound.js';
-import { BLOB_IDS, BLOB_PROFILES } from './blob.js';
+import { BLOB_IDS, BLOB_PROFILES, SHAPE_NAMES } from './cube.js';
 import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAuthor, askVerbIconSvg, askVerbVars } from '../asks.js';
 
 function up(s) { return String(s ?? '').toUpperCase(); }
 
-// Orbital ring NAME per blob — the big word that orbits the focused orb.
-// self resolves to the claimed handle/name (e.g. "dmarz"), or "self" when
-// unclaimed; the others are their fixed names. setOrbitalForBlob() repeats
-// the name around the ring so it reads as the orb's identity orbiting it.
-const ORBITAL_LABELS = {
-  self: (d) => {
-    const p = d.profile || {};
-    return p.display_name || p.name || p.handle || p.gh_handle
-        || (p.links && p.links.github) || p.record_id || 'self';
-  },
-  cohort: () => 'cohort',
-  events: () => 'events',
-  asks:   () => 'asks',
-};
+// ── dismissable ambient notifications ──────────────────────────────────────
+// The left feed and right agenda are peripheral notification rails. Each card
+// carries a quiet dismiss control (hidden at rest, revealed on hover/focus —
+// see .mfeed-dismiss / .magenda-dismiss in membrane.css). A dismissed card is
+// remembered by a stable per-occurrence key so it stays gone across the
+// once-a-minute / on-data re-renders. Occurrence keys embed the item's date,
+// so dismissing one calendar instance never suppresses a future recurrence.
+//
+// Storage is SESSION-scoped on purpose: dismissals reset on the next app
+// launch rather than being permanent. We're not committing to "gone forever"
+// until we've seen how the affordance gets used — flip the `kind` arg to
+// 'local' (below) to make dismissals persist across relaunches.
+const DISMISS_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
+// Total close-animation budget (ms) — matches the membrane fold-recede in
+// membrane.css (.is-dismissing). The card is removed only after it has fully
+// receded into the field, so the dissolve never snaps.
+const DISMISS_MS = 460;
+
+function makeDismissStore(key, kind = 'session') {
+  // Resolve the backing Storage lazily + defensively — sessionStorage can be
+  // absent/blocked; on failure the Set just lives in memory (still resets on
+  // reload, which is the session-scoped behavior we want anyway).
+  const store = () => {
+    try { return kind === 'local' ? localStorage : sessionStorage; } catch { return null; }
+  };
+  let set = new Set();
+  try {
+    const s = store();
+    const raw = s && s.getItem(key);
+    if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) set = new Set(arr); }
+  } catch {}
+  return {
+    has: (k) => set.has(k),
+    add(k) {
+      if (!k || set.has(k)) return;
+      set.add(k);
+      // Cap the ledger so a long session can't grow it unbounded; keep the
+      // most-recent dismissals (newest pushed last).
+      if (set.size > 400) set = new Set([...set].slice(-400));
+      try { const s = store(); if (s) s.setItem(key, JSON.stringify([...set])); } catch {}
+    },
+  };
+}
+
+// Fold a card out — it recedes into the field like the membrane panel does
+// (perspective + rotateY, the membrane's signature exit), direction set in CSS
+// by the host rail. The element is REMOVED once it has receded, then `done`
+// re-renders to reconcile (tail-taper, day groups). Honors reduced-motion by
+// collapsing the wait to a tick. Exit styles live on the `.is-dismissing`
+// class. Removing-then-rendering also lets renderFeed/renderAgenda skip a
+// rebuild while any card is mid-recede (so the fold is never snapped).
+function dismissCard(el, done) {
+  if (!el) { done?.(); return; }
+  let reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch {}
+  el.classList.add('is-dismissing');
+  el.style.pointerEvents = 'none';
+  setTimeout(() => { try { el.remove(); } catch {} done?.(); }, reduce ? 0 : DISMISS_MS);
+}
 
 // Per-blob panel content. `inline` renderer is called with (data) and
 // returns the inline-content HTML. cohort intentionally keeps jump-only —
@@ -135,6 +181,53 @@ function renderLinkedText(text, entities = []) {
 
 const WD = ['sun','mon','tue','wed','thu','fri','sat'];
 const MO = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+
+// Minutes-into-day from an "HH:MM" (or "HH:MM–HH:MM", takes the start) label.
+// null if there's no clock time (all-day / ongoing items).
+function parseDayMinutes(t) {
+  const m = String(t || '').match(/(\d{1,2}):(\d{2})/);
+  return m ? (+m[1]) * 60 + (+m[2]) : null;
+}
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+// Lightweight event categoriser — mirrors the full calendar's c2Category
+// (calendar.js) so the ambient agenda cards color-code off the SAME palette
+// as the calendar tab. Returns a category key (or 'default'); the actual
+// color lives in membrane.css's [data-cat] rules (hexes lifted from
+// calendar.css). Kept local + minimal rather than importing the calendar
+// module, which carries its whole sheet-parsing surface.
+const AGENDA_CATS = [
+  ['review',  /demo review|product review|internal .*review/i],
+  ['demo',    /demo night|showcase|demo day/i],
+  ['oh',      /office hour|pmf check|\bcheck[ -]?point|\b1:1/i],
+  ['salon',   /salon/i],
+  ['weekly',  /\bweekly\b|what did you do/i],
+  ['coord',   /coordinat|attribution/i],
+  ['hack',    /\bhack|hackathon|open jam|\bfinals\b|submission|build night/i],
+  ['anarchy', /anarchy|self-organ|no .*program|protected build|team-led/i],
+];
+function agendaCat(title) {
+  const t = String(title || '');
+  for (const [key, re] of AGENDA_CATS) if (re.test(t)) return key;
+  return 'default';
+}
+
+// Per-kind icon for "what's new" feed items so the type reads at a glance.
+// Lucide (same set the rail/tabs use): github / git-commit / file-text /
+// message-circle / calendar. Colored via the kind's --mfeed-color (muted tint)
+// in CSS.
+const LUCIDE_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+const FEED_ICON_PATHS = {
+  release: '<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>',
+  commit: '<circle cx="12" cy="12" r="3"/><line x1="3" x2="9" y1="12" y2="12"/><line x1="15" x2="21" y1="12" y2="12"/>',
+  transcript: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+  ask: '<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
+  event: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+};
+function feedIcon(kind) {
+  const p = FEED_ICON_PATHS[kind];
+  return p ? `<span class="mfeed-icon">${LUCIDE_OPEN}${p}</svg></span>` : '';
+}
 
 function fmtTimeOnly(t) {
   const d = new Date(t);
@@ -603,29 +696,25 @@ function renderAvatar(profile) {
 export function mountMembrane(container, opts = {}) {
   console.log('[membrane] mounting into', container?.id || container?.className);
   container.classList.add('membrane-host');
+  // The panel is retired — start folded so it never flashes in before the
+  // fold state below settles (see the "fold state" note further down).
+  container.classList.add('membrane-folded');
 
   container.innerHTML = `
-    <div class="alch-page-intro membrane-page-intro"></div>
     <div class="membrane-stage">
       <div class="membrane-atmosphere" aria-hidden="true">
         <div class="ma-throne-presence"></div>
       </div>
+      <!-- Not aria-hidden: these rails hold operable, labelled controls (open
+           the calendar / a profile, dismiss). Hiding them from the a11y tree
+           while leaving focusable buttons inside is a broken contract — they
+           are named regions instead so keyboard/SR users reach them. -->
+      <div class="membrane-agenda" data-agenda role="region" aria-label="today's agenda"></div>
+      <div class="membrane-feed" data-feed role="region" aria-label="what's new"></div>
       <canvas class="membrane-canvas"></canvas>
-      <svg class="throne-orbital" aria-hidden="true" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <!-- Horizontal ellipse so the name orbits left↔right around the orb's
-               middle (not top↔bottom). The word scrolls along it via the
-               startOffset animation added in setOrbitalForBlob(). -->
-          <path id="throne-orbital-path" d="M 8,200 a 192,76 0 1,1 384,0 a 192,76 0 1,1 -384,0" />
-        </defs>
-        <text>
-          <textPath href="#throne-orbital-path" startOffset="0%" data-orbital-text></textPath>
-        </text>
-      </svg>
-      <div class="membrane-sat-labels" aria-hidden="true">
-        <span class="membrane-sat-label" data-slot="home_a"></span>
-        <span class="membrane-sat-label" data-slot="home_b"></span>
-        <span class="membrane-sat-label" data-slot="home_c"></span>
+      <div class="membrane-shape-name" aria-hidden="true">
+        <span class="msn-name" data-shape-name></span>
+        <span class="msn-meta" data-shape-meta></span>
       </div>
       <aside class="membrane-panel" data-active-blob="self">
         <div class="membrane-panel-content"></div>
@@ -662,85 +751,214 @@ export function mountMembrane(container, opts = {}) {
   const soundToggle = container.querySelector('[data-membrane-sound]');
   const soundState = soundToggle.querySelector('.mst-state');
   const dots = container.querySelectorAll('.membrane-blob-dot');
-  const orbital = container.querySelector('.throne-orbital');
-  const orbitalText = container.querySelector('[data-orbital-text]');
-  const satLabelEls = {};
-  container.querySelectorAll('.membrane-sat-label').forEach((el) => { satLabelEls[el.dataset.slot] = el; });
+  const shapeNameEl = container.querySelector('[data-shape-name]');
+  const shapeMetaEl = container.querySelector('[data-shape-meta]');
 
-  // Resolve a blob's short display name (self → claimed handle or "self").
-  function blobName(id) {
-    const tpl = ORBITAL_LABELS[id];
-    return String((tpl ? tpl(dataStore[id] || {}) : id) || id).trim();
+  // Right-side label naming the current shape (so it can be referenced).
+  function updateShapeName(faces) {
+    const info = SHAPE_NAMES[faces];
+    if (!info || !shapeNameEl) return;
+    shapeNameEl.textContent = info.name;
+    shapeMetaEl.textContent = `${info.tag ? info.tag + ' · ' : ''}${faces} faces`;
   }
 
-  // px-per-world at z=0 (fov 38°, cameraZ 4.8). Same math the scene uses to
-  // place blobs — one source of truth so overlays track the 3D orbs exactly.
-  function pxPerWorld(rect) {
-    const halfHeightWorld = Math.tan((38 * Math.PI / 180) / 2) * 4.8;
-    return rect.height / (2 * halfHeightWorld);
-  }
+  // Ambient TODAY-only agenda pinned to the right edge, sitting behind the
+  // cube. Timed events are placed on a vertical time axis with hour ticks,
+  // and a glowing line marks the current time. Re-rendered on data load and
+  // once a minute (so the now-line and time window track the clock).
+  const agendaEl = container.querySelector('[data-agenda]');
+  const agendaDismissed = makeDismissStore('srwk:membrane:dismissed:agenda');
+  function renderAgenda() {
+    if (!agendaEl) return;
+    // Don't rebuild while a card is mid-recede — the once-a-minute timer or a
+    // data load would otherwise snap the fold animation. The dismiss's own
+    // completion calls renderAgenda() after the element is gone, so nothing is
+    // lost by skipping here.
+    if (agendaEl.querySelector('.is-dismissing')) return;
+    const events = Array.isArray(dataStore.events?.eventsToday) ? dataStore.events.eventsToday : [];
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
 
-  // Throne lives in screen space anchored to the bottom-right corner. The
-  // orbital SVG follows the same anchor.
-  function updateOrbitalGeometry() {
-    const rect = container.getBoundingClientRect();
-    const ppw = pxPerWorld(rect);
-    const throneRightPx  = SLOT_OFFSETS.throne.right  * ppw;
-    const throneBottomPx = SLOT_OFFSETS.throne.bottom * ppw;
-    const throneRadiusPx = SLOT_OFFSETS.throne.scale  * ppw;
-    const orbitalRadiusPx = throneRadiusPx * 1.55;
-    orbital.style.setProperty('--throne-right',  `${throneRightPx}px`);
-    orbital.style.setProperty('--throne-bottom', `${throneBottomPx}px`);
-    orbital.style.setProperty('--orbital-radius', `${orbitalRadiusPx}px`);
-    updateSatelliteLabels(rect, ppw);
-  }
-
-  // Background orbs get a static name label pinned just under each so you
-  // know what you're clicking. Text = the blob currently in that home slot
-  // (slots are fixed screen positions; the blob in each changes on swap).
-  function updateSatelliteLabels(rect = container.getBoundingClientRect(), ppw = pxPerWorld(rect)) {
-    for (const slotName of ['home_a', 'home_b', 'home_c']) {
-      const el = satLabelEls[slotName];
-      const off = SLOT_OFFSETS[slotName];
-      if (!el || !off) continue;
-      const id = BLOB_IDS.find((b) => scene.slotFor && scene.slotFor(b) === slotName);
-      if (!id) { el.style.opacity = '0'; continue; }
-      const cx = rect.width - off.right * ppw;
-      const cy = rect.height - off.bottom * ppw;
-      const r = off.scale * ppw;
-      el.textContent = blobName(id);
-      el.style.left = `${cx}px`;
-      el.style.top = `${cy + r + 7}px`;
-      el.style.opacity = '1';
+    const timed = [];
+    const allDay = [];
+    for (const e of events) {
+      const start = parseDayMinutes(e.time);
+      if (start == null) allDay.push(e);
+      else timed.push({ e, start });
     }
-  }
+    timed.sort((a, b) => a.start - b.start);
 
-  function setOrbitalForBlob(id) {
-    const tpl = ORBITAL_LABELS[id];
-    if (!tpl) return;
-    const name = blobName(id);
-    // Repeat the name around the ellipse with a separator so the big word
-    // fills the ring; reps scale to the name length.
-    const unit = `${name}  ·  `;
-    const reps = Math.max(4, Math.ceil(40 / unit.length));
-    orbitalText.textContent = unit.repeat(reps);
-    // (Re)attach the scroll animation — setting textContent wipes children.
-    // Scrolling startOffset negative drags the word leftward around the
-    // horizontal ellipse → it orbits left↔right across the orb's front.
-    const NS = 'http://www.w3.org/2000/svg';
-    const anim = document.createElementNS(NS, 'animate');
-    anim.setAttribute('attributeName', 'startOffset');
-    anim.setAttribute('from', '0%');
-    anim.setAttribute('to', '-100%');
-    anim.setAttribute('dur', '52s');
-    anim.setAttribute('repeatCount', 'indefinite');
-    orbitalText.appendChild(anim);
-    orbital.classList.add('is-visible');
-  }
+    // Time window: span the events + now, padded, with a sane minimum.
+    const anchors = timed.map((t) => t.start).concat([nowMin]);
+    let lo = Math.min(...anchors) - 60;
+    let hi = Math.max(...anchors) + 90;
+    if (hi - lo < 360) { const mid = (lo + hi) / 2; lo = mid - 180; hi = mid + 180; }
+    lo = Math.max(0, Math.round(lo));
+    hi = Math.min(1440, Math.round(hi));
+    const span = Math.max(60, hi - lo);
+    const topPct = (m) => Math.max(0, Math.min(100, ((m - lo) / span) * 100));
 
-  // Orbital geometry init + ResizeObserver are set up AFTER `scene` exists
-  // (updateSatelliteLabels reads scene.slotFor) — see below the scene mount.
-  let orbitalResize = null;
+    let ticks = '';
+    for (let h = Math.ceil(lo / 60); h <= Math.floor(hi / 60); h++) {
+      ticks += `<div class="magenda-tick" style="top:${topPct(h * 60).toFixed(2)}%"><span class="magenda-tick-label">${pad2(h)}:00</span></div>`;
+    }
+    const rows = timed.map(({ e, start }) =>
+      `<button type="button" class="magenda-event" data-cat="${agendaCat(e.title)}" style="top:${topPct(start).toFixed(2)}%">
+        <span class="magenda-event-time">${escHtml(e.time)}</span>
+        <span class="magenda-event-title">${escHtml(e.title || 'untitled')}</span>
+      </button>`).join('');
+    const nowLine = `<div class="magenda-now" style="top:${topPct(nowMin).toFixed(2)}%"><span class="magenda-now-label">${pad2(now.getHours())}:${pad2(now.getMinutes())}</span></div>`;
+
+    // Upcoming events grouped by day; headers show the weekday name + date
+    // (recomputed from each item's date at render time).
+    const upcoming = Array.isArray(dataStore.events?.eventsUpcoming) ? dataStore.events.eventsUpcoming : [];
+    const dayLabel = (dateStr) => {
+      const d = new Date(`${dateStr}T00:00:00`);
+      if (Number.isNaN(d.getTime())) return '';
+      return `${WD[d.getDay()]} ${MO[d.getMonth()]} ${d.getDate()}`;
+    };
+    const groups = [];
+    const gIndex = new Map();
+    for (const it of upcoming) {
+      if (!gIndex.has(it.date)) { const g = { date: it.date, items: [] }; gIndex.set(it.date, g); groups.push(g); }
+      gIndex.get(it.date).items.push(it);
+    }
+
+    // Unified card — same chrome as the left feed item, with a calendar-
+    // category color tint (data-cat) and an accent edge-bar. Title (primary)
+    // over an optional sub line (time / "all day"). The card opens the
+    // calendar; the quiet dismiss control (revealed on hover/focus) closes the
+    // notification. `dateStr` keys the dismissal to this one occurrence.
+    const todayStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+    // Disambiguate same-day, same-title, same-sub cards with an occurrence
+    // ordinal so dismissing one never silently eats its visual twin. First
+    // occurrence keeps the bare key (back-compatible with earlier dismissals).
+    const keyN = new Map();
+    const card = (title, sub, dateStr) => {
+      const base = `${dateStr || ''}|${title || ''}|${sub || ''}`;
+      const n = keyN.get(base) || 0; keyN.set(base, n + 1);
+      const key = n ? `${base}#${n}` : base;
+      if (agendaDismissed.has(key)) return '';
+      const ek = escHtml(key);
+      return `<div class="magenda-up" data-cat="${agendaCat(title)}">
+        <button type="button" class="magenda-up-event" data-up-key="${ek}">
+          <span class="magenda-event-title">${escHtml(title || 'untitled')}</span>${sub ? `<span class="magenda-event-time">${escHtml(sub)}</span>` : ''}
+        </button>
+        <button type="button" class="magenda-dismiss" data-dismiss-key="${ek}" aria-label="dismiss ${escHtml(title || 'event')}" title="dismiss">${DISMISS_X}</button>
+      </div>`;
+    };
+
+    const todayEmpty = timed.length === 0;
+    let html = '';
+    // Today header — same chrome as the day headers below, with a "today"
+    // prefix (from main). Keep the per-occurrence dateStr key on the card call
+    // so same-day duplicate titles stay individually dismissable.
+    html += `<div class="magenda-day-head">${escHtml(`today - ${WD[now.getDay()]} ${MO[now.getMonth()]} ${now.getDate()}`)}</div>`;
+    // Today's all-day items as cards.
+    for (const e of allDay) html += card(e.title, e.ongoing ? 'all day' : '', todayStr);
+    // Today's timed events keep the time axis + now-line (only when present).
+    if (!todayEmpty) html += `<div class="magenda-track">${ticks}${rows}${nowLine}</div>`;
+    // Quiet note when today has nothing but there's a look-ahead.
+    if (todayEmpty && !allDay.length && groups.length) html += `<div class="magenda-quiet">nothing today</div>`;
+    // Upcoming, grouped by day.
+    for (const g of groups) {
+      html += `<div class="magenda-day-head">${escHtml(dayLabel(g.date))}</div>`;
+      for (const it of g.items) html += card(it.title, it.time, g.date);
+    }
+    // Truly nothing on the horizon.
+    if (todayEmpty && !allDay.length && !groups.length) html += `<div class="magenda-quiet">clear ahead</div>`;
+
+    agendaEl.innerHTML = html;
+  }
+  const agendaTimer = setInterval(renderAgenda, 60 * 1000);
+  // Clicking a dismiss control closes that notification; clicking the card
+  // itself opens the calendar in a new OS tab (same as clicking through from
+  // the calendar view).
+  agendaEl?.addEventListener('click', (ev) => {
+    const x = ev.target.closest('.magenda-dismiss');
+    if (x) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      agendaDismissed.add(x.dataset.dismissKey);
+      dismissCard(x.closest('.magenda-up'), () => renderAgenda());
+      return;
+    }
+    if (!ev.target.closest('.magenda-up-event, .magenda-event')) return;
+    if (typeof window.__srwkOpenInNewTab === 'function') {
+      window.__srwkOpenInNewTab({ tab: 'alchemy', mode: 'calendar' });
+    }
+  });
+
+  // "What's new" feed pinned to the LEFT edge, behind the cube — a mirror of
+  // the agenda. Color-coded by kind (release / transcript / ask), minimal:
+  // a colored dot, a short label, a relative age. Newest first.
+  const feedEl = container.querySelector('[data-feed]');
+  const feedDismissed = makeDismissStore('srwk:membrane:dismissed:feed');
+  function feedAge(date) {
+    const then = Date.parse(date);
+    if (!Number.isFinite(then)) return '';
+    const days = Math.floor((Date.now() - then) / 86400000);
+    if (days <= 0) return 'today';
+    if (days === 1) return '1d';
+    if (days < 7) return `${days}d`;
+    return `${Math.floor(days / 7)}w`;
+  }
+  const feedKey = (it) => `${it.kind || ''}|${it.date || ''}|${it.label || ''}|${it.meta || ''}`;
+  function renderFeed() {
+    if (!feedEl) return;
+    // Don't rebuild while a card is mid-recede (see renderAgenda).
+    if (feedEl.querySelector('.is-dismissing')) return;
+    // Transcript chips are hidden for now: they dead-end on the generic
+    // context "raw" view (the session readouts aren't wired to a per-item
+    // surface yet). Every other kind (release / ask / event) still shows.
+    // Remove this filter once the readout → context deep-link lands.
+    const keyN = new Map();
+    const items = (Array.isArray(dataStore.feed) ? dataStore.feed : [])
+      .filter((it) => it.kind !== 'transcript')
+      // Attach a collision-proof dismiss key (occurrence ordinal for any
+      // identical kind|date|label|meta), then drop the already-dismissed.
+      .map((it) => {
+        const base = feedKey(it);
+        const n = keyN.get(base) || 0; keyN.set(base, n + 1);
+        return { it, key: n ? `${base}#${n}` : base };
+      })
+      .filter(({ key }) => !feedDismissed.has(key));
+    if (!items.length) { feedEl.innerHTML = ''; return; }
+    // Each item is wrapped in a positioned row so a quiet dismiss control can
+    // sit on the card's inner corner (hidden at rest, revealed on hover/focus
+    // — the "subtle hidden feature" — see .mfeed-dismiss in membrane.css).
+    feedEl.innerHTML = items.map(({ it, key }, i) => `
+      <div class="mfeed-row">
+        <button type="button" class="mfeed-item mfeed-${escHtml(it.kind)}" data-feed-i="${i}">
+          ${feedIcon(it.kind)}
+          <span class="mfeed-body">
+            <span class="mfeed-label">${escHtml(it.label || '')}</span>
+            <span class="mfeed-meta">${escHtml(it.meta || '')}</span>
+          </span>
+          <span class="mfeed-age">${escHtml(feedAge(it.date))}</span>
+        </button>
+        <button type="button" class="mfeed-dismiss" data-dismiss-key="${escHtml(key)}" aria-label="dismiss ${escHtml(it.label || 'notification')}" title="dismiss">${DISMISS_X}</button>
+      </div>`).join('');
+    feedEl.querySelectorAll('[data-feed-i]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const it = items[+btn.dataset.feedI]?.it;
+        if (!it || !it.nav) return;
+        if (typeof window.__srwkOpenInNewTab === 'function') {
+          window.__srwkOpenInNewTab({ tab: 'alchemy', ...it.nav });
+        }
+      });
+    });
+    feedEl.querySelectorAll('.mfeed-dismiss').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        // Record synchronously (by stable key, not list position) so a
+        // re-render mid-animation can never resurrect the card.
+        feedDismissed.add(btn.dataset.dismissKey);
+        dismissCard(btn.closest('.mfeed-row'), () => renderFeed());
+      });
+    });
+  }
 
   let dataStore = {};
 
@@ -801,25 +1019,19 @@ export function mountMembrane(container, opts = {}) {
     dots.forEach((d) => {
       d.setAttribute('aria-pressed', d.dataset.blobJump === id ? 'true' : 'false');
     });
-    // Orbital ring text — fade out → swap → fade in.
-    orbital.classList.remove('is-visible');
-    setTimeout(() => { setOrbitalForBlob(id); updateSatelliteLabels(); }, 320);
   }
 
   const sound = createSoundDirector();
 
   // ── fold state ───────────────────────────────────────────────────────
-  // Two homes, gated on whether you've claimed your shape:
-  //   • UNCLAIMED → the panel is home (the "wall with a window" — the claim
-  //     surface). Never auto-fold; an unclaimed user stranded in an empty
-  //     field has no way to claim.
-  //   • CLAIMED → the field is home. On first data load we fold the wall
-  //     away once so a returning member lands among the orbs. Tapping an orb
-  //     summons its panel back; tapping the void folds away again.
-  // The claimed signal comes from self.claimed (a FORMAL identity claim only)
-  // so the github editor user is never mistaken for claimed.
-  let folded = false;
-  let didAutoField = false;
+  // The membrane is now a pure ambient view. The old self/cohort/events/asks
+  // panel is retired as a pop-up — identity lives in profile › "your seal",
+  // and the other lenses are reached through the alchemy rail menu. So the
+  // panel starts folded for EVERYONE and never un-folds (the void-click
+  // summon is gone — see the scene wiring below). The panel DOM is kept but
+  // permanently hidden; its machinery stays valid for any external repaint.
+  let folded = true;
+  let didAutoField = true; // never auto-enter again — we already start folded
   function setFolded(f) {
     folded = !!f;
     container.classList.toggle('membrane-folded', folded);
@@ -842,22 +1054,17 @@ export function mountMembrane(container, opts = {}) {
   (fieldRow || panelFoot || panel).prepend(foldBtn);
 
   const scene = createMembraneScene(canvas, {
-    onActiveChange(id) {
-      sound.setTonic(id);
-      renderPanelFor(id);
-    },
-    // From the field, tapping an orb summons its panel back.
-    onOrbOpen() { if (folded) setFolded(false); },
-    // Tapping empty space (the void) folds the panel away again.
-    onEmptyClick() { setFolded(true); },
+    // No onEmptyClick: clicking the void no longer summons the panel. The
+    // membrane is a pure ambient view now; identity moved to profile ›
+    // "your seal". (The die still stops on click / morphs on fast spin —
+    // see scene.js.)
+    // The die changed shape (triggered by a fast spin) — update the label.
+    onFacesChange(faces) { updateShapeName(faces); },
   });
-  console.log('[membrane] scene mounted; blobs:', Object.keys(scene.blobs).join(','));
-
-  // Now that `scene` exists (updateSatelliteLabels reads scene.slotFor),
-  // do the initial geometry pass + keep it synced on resize.
-  updateOrbitalGeometry();
-  orbitalResize = new ResizeObserver(() => updateOrbitalGeometry());
-  orbitalResize.observe(container);
+  updateShapeName(scene.getFaces());
+  renderAgenda();
+  renderFeed();
+  console.log('[membrane] scene mounted; cube active:', scene.getActiveBlobId());
 
   sound.setTonic('self');
   renderPanelFor('self');
@@ -899,25 +1106,16 @@ export function mountMembrane(container, opts = {}) {
     setData(perBlobData) {
       dataStore = { ...dataStore, ...perBlobData };
       maybeAutoEnterField();
-      for (const id of BLOB_IDS) {
-        if (perBlobData?.[id] && scene.blobs[id]?.setData) {
-          scene.blobs[id].setData(perBlobData[id]);
-        }
-      }
+      renderAgenda();
+      renderFeed();
       const active = scene.getActiveBlobId();
-      if (active) {
-        renderPanelFor(active);
-        // Refresh the orbital text in place when underlying data changes
-        // (no fade — data refresh shouldn't feel like a swap).
-        setOrbitalForBlob(active);
-        updateSatelliteLabels();
-      }
+      if (active) renderPanelFor(active);
     },
     sound,
     destroy() {
+      clearInterval(agendaTimer);
       scene.destroy();
       sound.destroy();
-      orbitalResize?.disconnect();
       container.classList.remove('membrane-host');
       container.innerHTML = '';
     },

@@ -5,6 +5,7 @@ const crypto = require("node:crypto");
 const swfNode = require("./swf-node");
 const swarm = require("./swarm-node");
 const easelNdi = require("./easel-ndi");
+const matrix = require("./matrix");
 // Daybook (apps→daybook): registering this module wires every `daybook:*`
 // ipcMain handler (digest pipeline, scope/redaction, onboarding). Side-effect
 // require, mirroring the prefs/swarm/easel handlers below. See daybook-main.js.
@@ -1411,6 +1412,26 @@ ipcMain.handle("fg:swf-node-external-info", async () => swfNode.getExternalDaemo
 // builds, swf-node disabled / crashed).
 ipcMain.handle("fg:swf-agent-token", async () => swfNode.getAgentToken() || null);
 
+// ─── matrix (cohort chat) ─────────────────────────────────────────────
+// A main-process Matrix client (apps/os/matrix.js) talks to the cohort
+// homeserver over the Client-Server HTTP API and streams rooms/messages
+// to the renderer via webContents.send on the "matrix:status|rooms|
+// messages" channels. The renderer (src/renderer/chat/) drives it through
+// these invoke handlers. v1 is unencrypted channels only; E2EE is a later
+// swap behind this same surface.
+ipcMain.handle("matrix:get-status", async () => matrix.getStatus());
+ipcMain.handle("matrix:flows", async (_e, hs) => matrix.getFlows(hs));
+ipcMain.handle("matrix:login-sso", async (_e, p) => matrix.loginSSO(p || {}));
+ipcMain.handle("matrix:login-device", async (_e, p) => matrix.loginViaDevice(p || {}));
+ipcMain.handle("matrix:login-code", async (_e, p) => matrix.loginWithCode(p || {}));
+ipcMain.handle("matrix:cancel-sso", async () => { matrix.cancelSSO(); return { ok: true }; });
+ipcMain.handle("matrix:login", async (_e, p) => matrix.login(p || {}));
+ipcMain.handle("matrix:login-token", async (_e, p) => matrix.loginToken(p || {}));
+ipcMain.handle("matrix:logout", async () => matrix.logout());
+ipcMain.handle("matrix:get-rooms", async () => matrix.getRooms());
+ipcMain.handle("matrix:get-messages", async (_e, roomId) => matrix.getMessages(roomId));
+ipcMain.handle("matrix:send", async (_e, { roomId, body } = {}) => matrix.send(roomId, body));
+
 // ─── swarm-mode IPC ──────────────────────────────────────────────────
 //
 // `research-swarm` subprocess supervision. Config (LLM model, API key,
@@ -1690,8 +1711,30 @@ function initAutoUpdater() {
     const { autoUpdater } = require("electron-updater");
     autoUpdater.autoDownload = false;          // wait for explicit user click
     autoUpdater.autoInstallOnAppQuit = true;   // apply on next quit if downloaded
+    // electron-updater auto-enables allowPrerelease when the CURRENT version
+    // carries a prerelease tag — and its GitHub provider then locks updates
+    // to the same custom channel ("rc" only ever sees "rc"), so rc users
+    // could never reach a stable release (every v0.3.0-rc.x install was
+    // walled off from v0.3.1 this way). This project gates releases with
+    // GitHub's "Latest" marker instead of updater channels, so force the
+    // stable resolution path everywhere. The singleton means this covers
+    // the IPC handlers' require() calls too, but they re-assert it anyway
+    // in case a check fires before init.
+    autoUpdater.allowPrerelease = false;
     autoUpdater.on("error", (err) => process.stderr.write(`[viz:warn] updater error: ${err && err.message}\n`));
-    autoUpdater.on("update-available", (info) => process.stderr.write(`[viz:log] update available: ${info && info.version}\n`));
+    autoUpdater.on("update-available", (info) => {
+      process.stderr.write(`[viz:log] update available: ${info && info.version}\n`);
+      // Forward to the renderer (same single-window pattern as
+      // download-progress below). Without this the periodic 2h check only
+      // ever reached stderr — a long-running session never learned a new
+      // release existed unless the user happened to click the version stamp.
+      try {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (win && !win.isDestroyed()) win.webContents.send("fg:update-available", {
+          version: (info && info.version) || null,
+        });
+      } catch {}
+    });
     autoUpdater.on("update-not-available", () => process.stderr.write(`[viz:log] no update available\n`));
     autoUpdater.on("download-progress", (p) => {
       process.stderr.write(`[viz:log] downloading update: ${Math.round(p.percent || 0)}%\n`);
@@ -1711,14 +1754,14 @@ function initAutoUpdater() {
     });
     autoUpdater.on("update-downloaded", (info) => process.stderr.write(`[viz:log] update downloaded: ${info && info.version}\n`));
     // Defer the first check ~30s so it doesn't race the boot-path fetch to swf-node on 127.0.0.1:7777.
-    // Then re-check every 6h so long-running sessions still notice new releases.
+    // Then re-check every 2h so long-running sessions still notice new releases.
     setTimeout(() => {
       try { autoUpdater.checkForUpdates().catch((err) => process.stderr.write(`[viz:warn] updater check failed: ${err && err.message}\n`)); }
       catch (e) { process.stderr.write(`[viz:warn] updater check threw: ${e.message}\n`); }
       setInterval(() => {
         try { autoUpdater.checkForUpdates().catch((err) => process.stderr.write(`[viz:warn] updater check failed: ${err && err.message}\n`)); }
         catch (e) { process.stderr.write(`[viz:warn] updater check threw: ${e.message}\n`); }
-      }, 6 * 60 * 60 * 1000);
+      }, 2 * 60 * 60 * 1000);
     }, 30 * 1000);
   } catch (e) {
     process.stderr.write(`[viz:warn] electron-updater init failed: ${e.message}\n`);
@@ -1731,6 +1774,7 @@ ipcMain.handle("fg:check-update", async () => {
   }
   try {
     const { autoUpdater } = require("electron-updater");
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
     const result = await autoUpdater.checkForUpdates();
     const latest = result?.updateInfo?.version || null;
     const available = !!latest && latest !== app.getVersion();
@@ -1744,6 +1788,7 @@ ipcMain.handle("fg:apply-update", async () => {
   if (!app.isPackaged) return { ok: false, reason: "dev_mode" };
   try {
     const { autoUpdater } = require("electron-updater");
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
     await autoUpdater.downloadUpdate();
     return { ok: true, detail: "downloaded · will install on next quit (or click 'install + restart' to apply now)" };
   } catch (e) {
@@ -1755,7 +1800,11 @@ ipcMain.handle("fg:apply-update-and-restart", async () => {
   if (!app.isPackaged) return { ok: false, reason: "dev_mode" };
   try {
     const { autoUpdater } = require("electron-updater");
-    autoUpdater.quitAndInstall(false, true);
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
+    // isSilent=true → install with no NSIS wizard (the same seamless swap the
+    // autoInstallOnAppQuit path already does); isForceRunAfter=true → relaunch
+    // when the install finishes. One click: install + reopen, no file, no UI.
+    autoUpdater.quitAndInstall(true, true);
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: "install_failed", detail: e.message };
@@ -1864,6 +1913,7 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
   let updateInfo = null;
   try {
     const { autoUpdater } = require("electron-updater");
+    autoUpdater.allowPrerelease = false; // see initAutoUpdater — rc-channel stickiness
     const result = await autoUpdater.checkForUpdates();
     updateInfo = result?.updateInfo || null;
     version = String(updateInfo?.version || "").replace(/^v/, "");
@@ -1880,7 +1930,18 @@ ipcMain.handle("fg:download-and-reveal-update", async () => {
   }
   // github.com/.../releases/download/ is a redirect to objects.githubusercontent.com.
   // Not rate-limited. The followingGet loop below already handles 30x chains.
-  const downloadUrl = `https://github.com/dmarzzz/shape-rotator-os/releases/download/v${version}/${assetName}`;
+  // Derive owner/repo from the bundled app-update.yml (CI stamps it to the
+  // publishing repo) so forks / self-published channels download from their OWN
+  // releases — matching the per-repo publish-owner fix instead of hardcoding
+  // upstream. Falls back to the package default in dev (no app-update.yml).
+  let relOwner = "dmarzzz", relRepo = "shape-rotator-os";
+  try {
+    const cfg = fs.readFileSync(path.join(process.resourcesPath, "app-update.yml"), "utf8");
+    const o = (cfg.match(/^owner:\s*(.+)$/m) || [])[1];
+    const r = (cfg.match(/^repo:\s*(.+)$/m) || [])[1];
+    if (o && r) { relOwner = o.trim(); relRepo = r.trim(); }
+  } catch {}
+  const downloadUrl = `https://github.com/${relOwner}/${relRepo}/releases/download/v${version}/${assetName}`;
 
   // 2) stream the asset to ~/Downloads/<name>.
   const downloads = app.getPath("downloads");
@@ -2070,6 +2131,9 @@ app.whenReady().then(() => {
   // the binary is missing, start() short-circuits to "unsupported"
   // and the renderer keeps the legacy "swf-node not running" UX.
   swfNode.start(app, broadcastSwfNodeStatus);
+  // Resume the cohort Matrix session (if signed in) once a window exists so
+  // its rooms/messages broadcasts have a webContents target.
+  matrix.start(app);
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
     recheckDaemon();
@@ -2086,6 +2150,7 @@ app.whenReady().then(() => {
 // immediately and the child becomes our zombie.
 let _quittingSwfNode = false;
 app.on("before-quit", (event) => {
+  try { matrix.stop(); } catch {}
   if (_quittingSwfNode) return;
   const status = swfNode.getStatus();
   if (status === "idle" || status === "unsupported" || status === "crashed") return;

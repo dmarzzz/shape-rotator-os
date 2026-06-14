@@ -126,7 +126,7 @@
  * page-title. In day view, the day's own "WEDNESDAY 20" header takes
  * over that role, so the masthead can stay light and navigational. */
 .cal-masthead {
-  margin: 16px 0 24px;
+  margin: 0 0 24px;
   border-top: 1px solid var(--ed-rule-2);
   border-bottom: 1px solid var(--ed-rule-2);
 }
@@ -564,13 +564,17 @@
   letter-spacing: 0.02em;
 }
 .cal-event-row {
-  display: grid;
-  grid-template-columns: minmax(48px, max-content) minmax(0, 1fr);
-  column-gap: 8px;
-  align-items: baseline;
+  /* Stack: the time sits on its own line and the title flows full-width
+   * beneath it. The earlier two-column (time | title) layout split a
+   * ~160px card into a ~52px time column + an ~80px title column, which
+   * forced cramped wraps ("agentic organi-zatio…"). Giving the title the
+   * whole card width reads far cleaner now that all 7 days fit on screen. */
+  display: block;
   margin: 0 0 3px;
 }
 .cev-time {
+  display: block;
+  margin-bottom: 3px;
   font-family: var(--ed-mono);
   font-size: 10px;
   font-weight: 500;
@@ -578,14 +582,11 @@
   letter-spacing: 0.02em;
   color: var(--ed-ink-1);
   white-space: nowrap;
-  /* time sits a touch above the italic baseline so the two columns
-   * line up optically rather than mathematically */
-  position: relative; top: -1px;
 }
 .cev-time--empty {
-  /* preserve the grid column so titles align across stacked events even
-   * when one of them has no leading time, but render nothing */
-  width: 0; min-width: 0; padding: 0;
+  /* no leading time on this event — collapse the line entirely so the
+   * title isn't pushed down by an empty time slot */
+  display: none;
 }
 .cal-event-title {
   display: block;
@@ -613,11 +614,11 @@
 .cal-event-extra {
   color: var(--ed-ink-2);
   opacity: 0.8;
-  margin: 2px 0 2px 56px;   /* indent to align under title column */
+  margin: 2px 0 2px 0;   /* title is full-width now — no time-column indent */
   font-size: 10px;
 }
 .cal-event .cal-bullets {
-  list-style: none; padding: 0; margin: 4px 0 0 56px;   /* align under title column */
+  list-style: none; padding: 0; margin: 4px 0 0 0;   /* align under full-width title */
 }
 .cal-event .cal-bullets > li {
   padding-left: 12px; position: relative;
@@ -1181,7 +1182,7 @@
   /* Masthead at phone width: tabs on row 1 (with nav on the same row,
    * left/right), scrubber on row 2 full-width, dateline as a stacked
    * pair below. Hairlines stay so it still reads as one block. */
-  .cal-masthead { margin: 10px 0 14px; }
+  .cal-masthead { margin: 0 0 14px; }
   .cal-masthead-rail { padding: 10px 0 12px; gap: 12px; }
   .cal-subtabs { gap: 16px; }
   .cal-subtab { padding: 4px 0 6px; }
@@ -1280,11 +1281,10 @@
   .cal-event { font-size: 11px; line-height: 1.55; }
   .cal-event-title { font-size: 14px; -webkit-line-clamp: 4; }
   .cev-time { font-size: 10.5px; }
-  /* On a single-column mobile day card there's plenty of width, so let
-   * the time + title row breathe a hair more. */
-  .cal-event-row { column-gap: 10px; grid-template-columns: minmax(52px, max-content) minmax(0, 1fr); }
+  /* Time-over-title stacking carries to mobile too — extras/bullets align
+   * under the full-width title (no time-column indent). */
   .cal-event-extra,
-  .cal-event .cal-bullets { margin-left: 62px; }
+  .cal-event .cal-bullets { margin-left: 0; }
 
   /* Recurring + footer compress to one column. */
   .cal-recur { margin-top: 24px; }
@@ -1392,6 +1392,10 @@
   margin: 0;
 }
 .cal-key {
+  /* now a real toggle button — reset the native chrome and let the
+   * editorial styling below carry through */
+  appearance: none; background: transparent; border: 0; cursor: pointer;
+  padding: 2px 0; margin: 0;
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -1400,7 +1404,16 @@
   letter-spacing: 0.06em;
   color: var(--ed-ink-3);
   text-transform: lowercase;
+  transition: opacity 140ms ease-out, color 140ms ease-out;
 }
+.cal-key:hover { color: var(--ed-ink-1); }
+.cal-key:focus-visible { outline: 1px solid var(--ed-rule-3); outline-offset: 3px; }
+/* Toggled-off filter: dim the key + strike the label so it reads as muted.
+ * The dot keeps just enough color to still identify the category. */
+.cal-key.is-off { opacity: 0.4; text-decoration: line-through; text-decoration-thickness: 1px; }
+.cal-key.is-off .cal-key-dot { opacity: 0.45; }
+/* A card whose category filter is toggled off is removed from the grid. */
+.cal-week .cal-event.cal-event--off { display: none; }
 .cal-key-dot { width: 10px; height: 10px; border-radius: 3px; background: var(--ed-ink-4); flex: none; }
 .cal-key[data-cat="oh"]     .cal-key-dot { background: #d98a5c; }
 .cal-key[data-cat="salon"]  .cal-key-dot { background: #c9a8d8; }

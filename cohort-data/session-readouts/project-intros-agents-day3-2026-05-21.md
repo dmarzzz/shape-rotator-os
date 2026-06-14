@@ -11,7 +11,13 @@ source: private-vault:project-intros-agents-day3-2026-05-21
 
 # Project Intros: Agentic — Contexto, Conclave, Router, Smithers
 
-Four agentic-infrastructure intros spanning context engineering for long-running agents, confidential cohort intelligence, ambient work-sharing, and durable workflow orchestration.
+**The agent stack the cohort is quietly assembling out of each other's projects.**
+
+*Four agentic-infrastructure intros spanning context engineering for long-running agents, confidential cohort intelligence, ambient work-sharing, and durable workflow orchestration.*
+
+## the 60-second version
+
+Four agentic-infrastructure intros — a context engine, a confidential cohort-signal layer, an ambient work-sharing router, and a durable workflow orchestrator — turned out to chain into a single pipeline: configure, ingest long-horizon context, and surface serendipity. The cross-cutting theme was context engineering: the right context, to the right agent, at the right time, with privacy made legible enough that non-technical people actually trust it.
 
 ## themes
 
@@ -59,3 +65,7 @@ A visible shift from breaking work into task tickets toward giving agents measur
 - [Contexto context engine (GitHub)](https://github.com/ekailabs/contexto)
 - [Router public instance](https://router.teleport.computer)
 - [Smithers durable AI workflow orchestrator](https://smithers.sh)
+
+## provenance
+
+Distilled from a private-vault transcript (`project-intros-agents-day3-2026-05-21`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: `cohort-internal`.
