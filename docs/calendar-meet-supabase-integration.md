@@ -65,6 +65,13 @@ The normal product split is:
 - Direct editing in Google Calendar is optional operator/break-glass access,
   not the primary admin workflow.
 
+Admin access is therefore two separate grants:
+
+- Supabase `org_memberships` `admin` or `coordinator`: can use the Shape
+  Rotator OS event creator and approval path.
+- Google Calendar ACL: can edit directly in Google Calendar when that fallback
+  is intentionally needed.
+
 For direct Google Calendar operators, grant calendar-level ACL access:
 
 - `writer`: can edit events on the organizer calendar.

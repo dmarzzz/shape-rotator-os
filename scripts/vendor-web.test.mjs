@@ -32,7 +32,7 @@ test("Vercel Git deploys rebuild generated web assets before publishing", () => 
   const config = JSON.parse(fs.readFileSync(path.resolve("apps/web/vercel.json"), "utf8"));
   assert.equal(config.buildCommand, "cd ../.. && npm run vendor:web");
   assert.equal(config.outputDirectory, ".");
-  assert.match(config.installCommand, /vendor:web/);
+  assert.equal(config.installCommand, "cd ../.. && npm ci");
 });
 
 test("vendorWeb keeps an existing web shape-ui copy when package source is absent", () => {

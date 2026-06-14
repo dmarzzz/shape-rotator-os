@@ -447,7 +447,16 @@ function renderDeployPlan({
   lines.push("");
   lines.push("Run `calendar-ingress-seed.sql` in the Supabase SQL editor. Copy the returned `org_id` and `calendar_connection_id` back into the env worksheet.");
   lines.push("");
-  lines.push("5. Deploy Edge Functions.");
+  lines.push("5. Reconcile admin organizer memberships.");
+  lines.push("");
+  lines.push("Google calendar editor ACLs and Supabase app roles are separate. If the auth users already exist, map the configured editor emails into org admin memberships:");
+  lines.push("");
+  lines.push("```bash");
+  lines.push(`npm run calendar:admins:supabase -- --env-file ${worksheetTarget} --dry-run`);
+  lines.push(`npm run calendar:admins:supabase -- --env-file ${worksheetTarget} --apply`);
+  lines.push("```");
+  lines.push("");
+  lines.push("6. Deploy Edge Functions.");
   lines.push("");
   lines.push("```bash");
   for (const fn of EDGE_FUNCTIONS) {
@@ -456,7 +465,7 @@ function renderDeployPlan({
   }
   lines.push("```");
   lines.push("");
-  lines.push("6. Set Edge Function secrets.");
+  lines.push("7. Set Edge Function secrets.");
   lines.push("");
   lines.push("Set these in Supabase function secrets from the filled env worksheet:");
   lines.push("");
@@ -464,7 +473,7 @@ function renderDeployPlan({
   lines.push("");
   lines.push("Do not paste the Supabase service-role key into the web or Electron app. Only Edge Functions get it.");
   lines.push("");
-  lines.push("7. Seed transcript worker Vault secrets.");
+  lines.push("8. Seed transcript worker Vault secrets.");
   lines.push("");
   lines.push("```bash");
   lines.push(`npm run transcripts:worker:vault-sql -- --env-file ${worksheetTarget}`);
@@ -472,7 +481,7 @@ function renderDeployPlan({
   lines.push("");
   lines.push("Run the generated private SQL from `cohort-data/.private/transcript-vault/transcript-worker-vault-secrets.sql` in the Supabase SQL editor. Do not commit or print that SQL.");
   lines.push("");
-  lines.push("8. Configure browser-safe app fields.");
+  lines.push("9. Configure browser-safe app fields.");
   lines.push("");
   lines.push("Use these values in the web/Electron connection panel:");
   lines.push("");
@@ -482,7 +491,7 @@ function renderDeployPlan({
   lines.push(`- ORG_ID: ${valueStatus(env, "ORG_ID")}`);
   lines.push(`- CALENDAR_CONNECTION_ID: ${valueStatus(env, "CALENDAR_CONNECTION_ID")}`);
   lines.push("");
-  lines.push("9. Verify live behavior.");
+  lines.push("10. Verify live behavior.");
   lines.push("");
   lines.push("```bash");
   lines.push(`npm run calendar:setup:check -- --env-file ${worksheetTarget}`);

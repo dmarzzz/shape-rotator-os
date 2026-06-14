@@ -23,9 +23,9 @@ export function wireCalendarExportLinks({
 } = {}) {
   const links = buildCalendarExportLinks({ host });
   const ics = documentRef?.getElementById?.("cal-ics");
+  const admin = documentRef?.getElementById?.("cal-admin");
   const webcal = documentRef?.getElementById?.("cal-webcal");
   const google = documentRef?.getElementById?.("cal-google");
-  const admin = documentRef?.getElementById?.("cal-admin");
   if (admin) admin.href = links.adminHref;
   if (ics) ics.href = links.icsHref;
   if (webcal) webcal.href = links.webcalHref;

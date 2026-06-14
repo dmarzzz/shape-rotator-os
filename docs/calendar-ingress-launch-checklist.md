@@ -303,6 +303,14 @@ npm run calendar:acl:google -- --env-file .env.calendar.local --role owner --sco
   matching Supabase auth user is present in `ADMIN_ORGANIZER_USER_IDS` or has a
   coordinator/admin membership. Without that membership, the user may have
   Google calendar access but cannot use the normal Shape Rotator OS event path.
+- [ ] If the Supabase auth users already exist, reconcile Google editor emails
+  into app admin memberships from a trusted operator shell:
+
+```powershell
+npm run calendar:setup:admin-organizers -- --env-file .env.calendar.local --dry-run
+npm run calendar:setup:admin-organizers -- --env-file .env.calendar.local --apply
+```
+
 - [ ] Only for operators who need direct editing in Google Calendar, verify that
   operator's own Google account can see the managed calendar as a writable
   CalendarList entry. Run this with the direct operator's OAuth token, not with

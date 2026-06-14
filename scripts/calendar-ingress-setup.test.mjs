@@ -156,6 +156,8 @@ test("calendar ingress deploy plan gives run order without leaking secret values
   assert.match(plan, /--role owner --scope-type user --send-notifications --apply/);
   assert.match(plan, /calendar:backfill:google -- --calendar-id "\$GOOGLE_CALENDAR_ID" --apply/);
   assert.match(plan, /calendar:acl:google -- --calendar-id "\$GOOGLE_CALENDAR_ID" --apply/);
+  assert.match(plan, /calendar:admins:supabase -- --env-file \.env\.calendar\.local --dry-run/);
+  assert.match(plan, /calendar:admins:supabase -- --env-file \.env\.calendar\.local --apply/);
   assert.match(plan, /transcripts:worker:vault-sql -- --env-file \.env\.calendar\.local/);
   assert.match(plan, /curl -sS -X POST "\$SUPABASE_URL\/functions\/v1\/process-transcript-jobs"/);
   assert.match(plan, /Authorization: Bearer \$TRANSCRIPT_WORKER_TOKEN/);
@@ -186,6 +188,7 @@ test("package exposes documented calendar ingress operator scripts", () => {
   assert.equal(pkg.scripts["calendar:launch:google"], "node scripts/apply-google-calendar-launch.js");
   assert.equal(pkg.scripts["calendar:sync:google"], "node scripts/sync-google-calendar-events.js");
   assert.equal(pkg.scripts["calendar:list:google"], "node scripts/setup-google-calendar-list.js");
+  assert.equal(pkg.scripts["calendar:admins:supabase"], "node scripts/setup-supabase-admin-organizers.js");
   assert.equal(pkg.scripts["calendar:meet:google"], "node scripts/ensure-google-calendar-meet-links.js");
   assert.equal(pkg.scripts["calendar:capture-bot:google"], "node scripts/ensure-google-calendar-capture-bot.js");
   assert.equal(pkg.scripts["calendar:capture:audit"], "node scripts/audit-calendar-capture.js");

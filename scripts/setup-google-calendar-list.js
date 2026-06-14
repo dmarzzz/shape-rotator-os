@@ -37,8 +37,8 @@ function usage() {
     "",
     "Important:",
     "  This script fixes only the OAuth account attached to the supplied token.",
-    "  To repair Michael's browser state, run it with Michael's OAuth token, not",
-    "  the organizer/capture-bot token.",
+    "  To repair a specific browser user's state, run it with that user's OAuth token,",
+    "  not the organizer/capture-bot token.",
   ].join("\n");
 }
 

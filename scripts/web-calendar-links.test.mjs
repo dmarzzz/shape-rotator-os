@@ -25,9 +25,9 @@ test("web calendar export links keep Google, Apple/Outlook, and ICS on the read-
   });
 
   assert.equal(links.icsHref, "/calendar.ics");
+  assert.equal(links.adminHref, "#calendar-ingress");
   assert.equal(links.webcalHref, "webcal://shape.example/calendar.ics");
   assert.equal(decodeURIComponent(new URL(links.googleHref).searchParams.get("cid")), "webcal://shape.example/calendar.ics");
-  assert.equal(links.adminHref, "#calendar-ingress");
 });
 
 test("web calendar export links wire existing DOM anchors", () => {
@@ -46,10 +46,10 @@ test("web calendar export links wire existing DOM anchors", () => {
     host: "shape.example",
   });
 
+  assert.equal(anchors["cal-admin"].href, "#calendar-ingress");
   assert.equal(anchors["cal-ics"].href, "/calendar.ics");
   assert.equal(anchors["cal-webcal"].href, "webcal://shape.example/calendar.ics");
   assert.equal(decodeURIComponent(new URL(anchors["cal-google"].href).searchParams.get("cid")), "webcal://shape.example/calendar.ics");
-  assert.equal(anchors["cal-admin"].href, "#calendar-ingress");
 });
 
 test("web calendar event add link builds a Google timed event", () => {
