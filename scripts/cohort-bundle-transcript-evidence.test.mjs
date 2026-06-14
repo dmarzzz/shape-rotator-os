@@ -82,3 +82,12 @@ test("committed internal cohort surface omits cohort-internal transcript evidenc
 test("public web cohort surface excludes cohort-only transcript evidence", () => {
   assertPublicWebSurfaceExcludesCohortTranscriptEvidence(readSurface("apps/web/cohort-surface.json"));
 });
+
+test("public distillation bundle path redacts cohort names (S5-4b)", () => {
+  const buildSource = fs.readFileSync(path.join(ROOT, "scripts/build-bundles.js"), "utf8");
+  // publicTranscriptDistillations must run the public artifacts through the same
+  // name-redactor the article path uses (no verbatim no-name-bypass on the public web).
+  assert.match(buildSource, /function publicTranscriptDistillations\(source, blockedNames/);
+  assert.match(buildSource, /sanitizePublicArticleText\(value, blockedNames\)/);
+  assert.match(buildSource, /publicTranscriptDistillations\([\s\S]*publicArticleBlockedNames\(\{ teams: surface\.teams, people: surface\.people \}\)/);
+});
