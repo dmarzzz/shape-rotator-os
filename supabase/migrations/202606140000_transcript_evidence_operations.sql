@@ -186,6 +186,8 @@ on public.evidence_cards
 for each row
 execute function public.enforce_t3_evidence_card_boundary();
 
+revoke all on function public.enforce_t3_evidence_card_boundary() from public, anon, authenticated;
+
 create or replace function public.enforce_t3_publication_gates()
 returns trigger
 language plpgsql
