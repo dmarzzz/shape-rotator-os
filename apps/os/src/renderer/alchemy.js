@@ -48,7 +48,7 @@ import { enrichPeople } from "./gh-user.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
-import { getIdentity, setIdentity, mountResealInline } from "./identity.js";
+import { getIdentity, setIdentity, hasSkippedIdentityOnboarding, mountResealInline } from "./identity.js";
 import {
   askAgeLabel, askIsCurrent, askIsOpen, askStatus, askTopic, asksWithStatus,
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
@@ -1504,6 +1504,7 @@ function computeMembraneData() {
       // as "claimed" and stranded them in an empty field). The membrane uses
       // this to auto-enter the field for returning claimed users.
       claimed: !!(identity && identity.record_id),
+      onboardingSkipped: hasSkippedIdentityOnboarding(),
       profile: profileForPanel,
       connections,
       edgeCountSource,
