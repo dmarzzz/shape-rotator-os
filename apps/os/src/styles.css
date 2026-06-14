@@ -9176,16 +9176,26 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-legend .acl-jbtn {
   appearance: none;
   display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px;
   min-height: 24px; line-height: 1;
   cursor: pointer; background: var(--journey-control-bg); border: 1px solid rgba(var(--ink-rgb), 0.16);
   border-radius: 999px; padding: 3px 9px 3px 6px;
   font: inherit; color: var(--journey-muted);
   transition: opacity 160ms var(--ease), color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
 }
+.alch-constellation-legend .acl-jbtn em {
+  min-width: 1.25ch;
+  color: var(--alchemy-oxide-bright);
+  font-style: normal;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 .alch-constellation-legend .acl-jbtn.is-active {
   color: var(--journey-ink);
   border-color: rgba(143,34,14,0.72);
   background: rgba(143,34,14,0.16);
+  box-shadow: inset 0 -1.5px 0 var(--alchemy-oxide-bright);
 }
 .alch-constellation-legend .acl-jbtn.is-dim { opacity: 0.42; }
 .alch-constellation-legend .acl-jbtn:hover {
@@ -10652,13 +10662,38 @@ textarea.cb-intake-input {
 /* matrix */
 .cb-legend { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 12px; min-width: min(100%, 520px); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
 
-.cb-legend span { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; cursor: help; }
+.cb-legend :is(span, button) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  cursor: help;
+}
+.cb-legend button {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.cb-legend button[data-collab-lens] { cursor: pointer; }
+.cb-legend button[aria-pressed="true"] {
+  color: var(--alchemy-paper-warm);
+  box-shadow: inset 0 -1.5px 0 var(--alchemy-oxide-bright);
+}
+.cb-legend button[aria-pressed="true"] .cb-legend-mark {
+  filter: drop-shadow(0 0 5px rgba(217, 83, 54, 0.28));
+}
 
 .cb-legend b { font: inherit; color: inherit; white-space: nowrap; }
 
 /* Instant, styled legend tooltip (no native title delay, no "?" glyph). The
    whole legend item is the hover/focus target; description comes from data-desc. */
-.cb-legend span[data-desc]::after {
+.cb-legend :is(span, button)[data-desc]::after {
   content: attr(data-desc);
   position: absolute;
   top: calc(100% + 8px);
@@ -10686,14 +10721,14 @@ textarea.cb-intake-input {
   transition: opacity 140ms ease, transform 140ms ease;
 }
 
-.cb-legend span[data-desc]:hover::after,
-.cb-legend span[data-desc]:focus-visible::after {
+.cb-legend :is(span, button)[data-desc]:hover::after,
+.cb-legend :is(span, button)[data-desc]:focus-visible::after {
   opacity: 1;
   transform: translateY(0);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cb-legend span[data-desc]::after { transition: none; }
+  .cb-legend :is(span, button)[data-desc]::after { transition: none; }
 }
 
 .cb-legend-mark { position: relative; display: inline-grid; place-items: center; width: 13px; height: 13px; flex: 0 0 13px; }
@@ -11156,7 +11191,7 @@ button.cb-cell:disabled { cursor: default; }
   letter-spacing: 0.07em;
 }
 
-.alch-collab .cb-matrix-key .cb-legend span {
+.alch-collab .cb-matrix-key .cb-legend :is(span, button) {
   min-height: 19px;
   padding: 0;
   border: 0;
@@ -11165,8 +11200,9 @@ button.cb-cell:disabled { cursor: default; }
   color: color-mix(in srgb, var(--alchemy-ink-mute) 92%, var(--alchemy-paper-warm));
 }
 
-.alch-collab .cb-matrix-key .cb-legend span:hover,
-.alch-collab .cb-matrix-key .cb-legend span:focus-visible {
+.alch-collab .cb-matrix-key .cb-legend :is(span, button):hover,
+.alch-collab .cb-matrix-key .cb-legend :is(span, button):focus-visible,
+.alch-collab .cb-matrix-key .cb-legend button[aria-pressed="true"] {
   color: var(--alchemy-paper-warm);
 }
 
@@ -11176,7 +11212,7 @@ button.cb-cell:disabled { cursor: default; }
   text-overflow: ellipsis;
 }
 
-.alch-collab .cb-matrix-key .cb-legend span[data-desc]::after {
+.alch-collab .cb-matrix-key .cb-legend :is(span, button)[data-desc]::after {
   top: calc(100% + 6px);
   left: 0;
   right: auto;
@@ -12522,23 +12558,35 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 @media (max-width: 1180px) {
   .alch-collab .cb-scroll {
+    display: block;
     grid-template-columns: minmax(0, 1fr);
     max-height: none;
+    width: 100%;
   }
   .alch-collab .cb-matrix-side {
     grid-template-rows: auto auto;
+    width: 100%;
     border-left: 0;
     border-top: 1px solid var(--cb-preview-grid);
   }
   .alch-collab .cb-matrix-key {
+    width: 100%;
+    box-sizing: border-box;
     padding: 10px 12px;
   }
   .alch-collab .cb-matrix-key .cb-legend {
     display: flex;
     flex-wrap: wrap;
+    width: 100%;
   }
-  .alch-collab .cb-matrix-key .cb-legend span {
-    flex: 1 1 128px;
+  .alch-collab .cb-matrix-key .cb-legend :is(span, button) {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  .alch-collab .cb-matrix-key .cb-legend b {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
   }
   .alch-collab .cb-inspector {
     border-top: 1px solid var(--cb-preview-grid);
@@ -15748,6 +15796,11 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   font-variant-numeric: tabular-nums;
   color: var(--alchemy-oxide-bright);
 }
+.ac-sent-evi-label {
+  min-width: 0;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
 .ac-sent-tok:hover,
 .ac-sent-evi:hover {
   border-color: rgba(var(--ink-rgb), 0.24);
@@ -15881,6 +15934,35 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .ac-sent-evi.is-profile i {
   border-top: 1.5px dotted rgba(var(--ink-rgb), 0.5);
 }
+.ac-sent-evi.is-people-link i {
+  display: inline-block;
+  width: 24px;
+  height: 0;
+  flex: 0 0 24px;
+}
+.ac-sent-evi.is-people-same i {
+  border-top: 2px solid rgba(226, 207, 162, 0.78);
+  box-shadow: 0 0 10px rgba(226, 207, 162, 0.18);
+}
+.ac-sent-evi.is-people-profile i {
+  border-top: 1.5px dashed rgba(79, 163, 160, 0.78);
+}
+.ac-sent-evi.is-people-shared i {
+  border-top: 1.5px dotted rgba(var(--ink-rgb), 0.56);
+}
+@media (max-width: 640px) {
+  .ac-sent-evi.is-people-link {
+    box-sizing: border-box;
+    width: 100%;
+    justify-content: flex-start;
+    padding-inline: 8px;
+    gap: 5px;
+  }
+  .ac-sent-evi.is-people-link i {
+    width: 16px;
+    flex-basis: 16px;
+  }
+}
 .ac-sent-evi {
   position: relative;
 }
@@ -15922,6 +16004,29 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .ac-sent-evi.is-include[aria-pressed="true"] .ac-sent-dot {
   background: var(--alchemy-oxide-bright);
   box-shadow: 0 0 5px rgba(217, 83, 54, 0.55);
+}
+.ac-sent-evi.is-standing {
+  --standing-color: var(--alchemy-oxide-bright);
+}
+.ac-sent-evi.is-standing-behind { --standing-color: #c83a48; }
+.ac-sent-evi.is-standing-onplan { --standing-color: #7fa05a; }
+.ac-sent-evi.is-standing-ahead { --standing-color: #4f9d8f; }
+.ac-sent-evi.is-standing .ac-sent-dot {
+  width: 6px;
+  height: 6px;
+  background: color-mix(in srgb, var(--standing-color) 72%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--standing-color) 38%, transparent);
+}
+.ac-sent-evi.is-standing[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--standing-color) 58%, transparent);
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--standing-color) 14%, rgba(var(--ink-rgb), 0.06)),
+      rgba(var(--ink-rgb), 0.035));
+}
+.ac-sent-evi.is-standing[aria-pressed="true"] .ac-sent-dot {
+  background: var(--standing-color);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--standing-color) 58%, transparent);
 }
 
 /* Domain chips (product layer) — the colored dot is the same coding the
@@ -16026,7 +16131,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .acl-line-key-row[data-legend-link],
 .acl-line-key-row[data-legend-edge],
 .alch-constellation-legend .acl-item[data-legend-domain],
-.cb-legend span[data-legend-cell] {
+.cb-legend :is(span, button)[data-legend-cell] {
   border-radius: 6px;
   transition: color 140ms ease-out;
 }
@@ -16038,7 +16143,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .acl-line-key-row[data-legend-link]:focus-visible,
 .acl-line-key-row[data-legend-edge]:focus-visible,
 .alch-constellation-legend .acl-item[data-legend-domain]:focus-visible,
-.cb-legend span[data-legend-cell]:focus-visible {
+.cb-legend :is(span, button)[data-legend-cell]:focus-visible {
   outline: 1px solid var(--alchemy-oxide-bright);
   outline-offset: 2px;
 }
@@ -16067,32 +16172,51 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 }
 
 /* People map — each key row isolates its link kind */
-.alch-const-main:has([data-legend-link="same-team"]:hover) .ac-people-stage svg .ac-person-link:not(.is-same-team),
-.alch-const-main:has([data-legend-link="same-team"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-same-team) {
+.alch-cohort-page:has([data-legend-link="same-team"]:hover) .ac-people-stage svg .ac-person-link:not(.is-same-team),
+.alch-cohort-page:has([data-legend-link="same-team"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-same-team) {
   opacity: 0.05;
 }
-.alch-const-main:has([data-legend-link="same-team"]:hover) .ac-people-stage svg .ac-person-link.is-same-team,
-.alch-const-main:has([data-legend-link="same-team"]:focus-visible) .ac-people-stage svg .ac-person-link.is-same-team {
+.alch-cohort-page:has([data-legend-link="same-team"]:hover) .ac-people-stage svg .ac-person-link.is-same-team,
+.alch-cohort-page:has([data-legend-link="same-team"]:focus-visible) .ac-people-stage svg .ac-person-link.is-same-team {
   opacity: 1;
   stroke-width: 1.6;
 }
-.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link:not(.is-secondary-overlap):not(.is-pair-with),
-.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-secondary-overlap):not(.is-pair-with) {
+.alch-cohort-page:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link:not(.is-secondary-overlap):not(.is-pair-with),
+.alch-cohort-page:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-secondary-overlap):not(.is-pair-with) {
   opacity: 0.05;
 }
-.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link.is-secondary-overlap,
-.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link.is-pair-with,
-.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link.is-secondary-overlap,
-.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link.is-pair-with {
+.alch-cohort-page:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link.is-secondary-overlap,
+.alch-cohort-page:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link.is-pair-with,
+.alch-cohort-page:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link.is-secondary-overlap,
+.alch-cohort-page:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link.is-pair-with {
   opacity: 1;
   stroke-width: 1.5;
 }
-.alch-const-main:has([data-legend-link="shared-context"]:hover) .ac-people-stage svg .ac-person-link:not(.is-shared-context),
-.alch-const-main:has([data-legend-link="shared-context"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-shared-context) {
+.alch-cohort-page:has([data-legend-link="shared-context"]:hover) .ac-people-stage svg .ac-person-link:not(.is-shared-context),
+.alch-cohort-page:has([data-legend-link="shared-context"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-shared-context) {
   opacity: 0.05;
 }
-.alch-const-main:has([data-legend-link="shared-context"]:hover) .ac-people-stage svg .ac-person-link.is-shared-context,
-.alch-const-main:has([data-legend-link="shared-context"]:focus-visible) .ac-people-stage svg .ac-person-link.is-shared-context {
+.alch-cohort-page:has([data-legend-link="shared-context"]:hover) .ac-people-stage svg .ac-person-link.is-shared-context,
+.alch-cohort-page:has([data-legend-link="shared-context"]:focus-visible) .ac-people-stage svg .ac-person-link.is-shared-context {
+  opacity: 1;
+  stroke: rgba(var(--ink-rgb), 0.62);
+  stroke-width: 1.3;
+}
+.alch-cohort-page:not(:has([data-legend-link]:hover)) .ac-people-stage[data-people-link-filter="same-team"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-person-link:not(.is-same-team),
+.alch-cohort-page:not(:has([data-legend-link]:hover)) .ac-people-stage[data-people-link-filter="profile"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-person-link:not(.is-secondary-overlap):not(.is-pair-with),
+.alch-cohort-page:not(:has([data-legend-link]:hover)) .ac-people-stage[data-people-link-filter="shared-context"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-person-link:not(.is-shared-context) {
+  opacity: 0.035;
+}
+.alch-cohort-page:not(:has([data-legend-link]:hover)) .ac-people-stage[data-people-link-filter="same-team"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-person-link.is-same-team {
+  opacity: 1;
+  stroke-width: 1.6;
+}
+.alch-cohort-page:not(:has([data-legend-link]:hover)) .ac-people-stage[data-people-link-filter="profile"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-person-link.is-secondary-overlap,
+.alch-cohort-page:not(:has([data-legend-link]:hover)) .ac-people-stage[data-people-link-filter="profile"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-person-link.is-pair-with {
+  opacity: 1;
+  stroke-width: 1.5;
+}
+.alch-cohort-page:not(:has([data-legend-link]:hover)) .ac-people-stage[data-people-link-filter="shared-context"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-person-link.is-shared-context {
   opacity: 1;
   stroke: rgba(var(--ink-rgb), 0.62);
   stroke-width: 1.3;
