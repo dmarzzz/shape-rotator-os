@@ -104,9 +104,18 @@ function normalizeDerivedArtifact(row, sessionById = new Map()) {
 function buildDistillationManifest(rows, sessions = [], {
   generatedAt = new Date().toISOString(),
   includeNeedsReview = false,
+  blockedArtifactIds = new Set(),
 } = {}) {
   const sessionById = new Map(sessions.map((session) => [String(session.id), session]));
-  const selectedRows = rows.filter((row) => includeNeedsReview || exportableByDefault(row));
+  // S5-5: re-check live gate status at export time. A distillation that was
+  // legitimately published+approved and then had a gate retroactively flipped
+  // (e.g. consent withdrawn) must NOT be re-exported just because its own
+  // approval_state still reads 'approved' — exclude any artifact with a
+  // non-cleared approval gate.
+  const blocked = blockedArtifactIds instanceof Set ? blockedArtifactIds : new Set(blockedArtifactIds);
+  const selectedRows = rows.filter(
+    (row) => !blocked.has(String(row.id)) && (includeNeedsReview || exportableByDefault(row)),
+  );
   const artifacts = selectedRows
     .map((row) => normalizeDerivedArtifact(row, sessionById))
     .sort((a, b) => `${a.starts_at || ""}:${a.artifact_id}`.localeCompare(`${b.starts_at || ""}:${b.artifact_id}`));
@@ -154,6 +163,23 @@ async function fetchSessions({ supabaseUrl, serviceRoleKey, sessionIds, fetchImp
   });
 }
 
+async function fetchBlockedArtifactIds({ supabaseUrl, serviceRoleKey, artifactIds, fetchImpl = fetch }) {
+  const ids = Array.from(new Set(asArray(artifactIds).map(String).filter(Boolean)));
+  if (!ids.length) return new Set();
+  const gates = await supabaseServiceRequest({
+    supabaseUrl,
+    serviceRoleKey,
+    table: "approval_gates",
+    query: {
+      select: "derived_artifact_id,gate_status",
+      derived_artifact_id: `in.(${ids.join(",")})`,
+      gate_status: "not.in.(approved,not_required)",
+    },
+    fetchImpl,
+  });
+  return new Set(asArray(gates).map((gate) => String(gate.derived_artifact_id || "")).filter(Boolean));
+}
+
 function writeManifest(outPath, manifest) {
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -174,6 +200,11 @@ async function main(argv = process.argv.slice(2)) {
   if (!orgId) throw new Error("ORG_ID is required");
 
   const rows = await fetchDerivedArtifacts({ supabaseUrl, serviceRoleKey, orgId });
+  const blockedArtifactIds = await fetchBlockedArtifactIds({
+    supabaseUrl,
+    serviceRoleKey,
+    artifactIds: rows.map((row) => row.id),
+  });
   const sessions = await fetchSessions({
     supabaseUrl,
     serviceRoleKey,
@@ -182,6 +213,7 @@ async function main(argv = process.argv.slice(2)) {
   const outPath = path.resolve(arg("--out", argv) || DEFAULT_OUT);
   const manifest = buildDistillationManifest(rows, sessions, {
     includeNeedsReview: hasFlag("--include-needs-review", argv),
+    blockedArtifactIds,
   });
   writeManifest(outPath, manifest);
   console.log(JSON.stringify({

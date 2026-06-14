@@ -64,9 +64,38 @@ test("web and Electron event requests differ only by surface label", () => {
   assert.equal(osRow.request_json.surface, "electron");
 });
 
-test("web and Electron routing policies match the canonical transcript policy", () => {
-  assert.deepEqual(WEB_ROUTING_POLICY, canonicalPolicy);
-  assert.deepEqual(OS_ROUTING_POLICY, canonicalPolicy);
+// The client policies are the ROUTING-RELEVANT subset for the ingress UI. They
+// intentionally carry UI-only hints (e.g. `when`, `event_basis`) and OMIT
+// server-only policy detail (drive_vault admins, calendar_matching, etc.) that
+// must never ship in the public web bundle. So parity is the routing semantics —
+// the exact same normalized subset the `check:calendar-policy` CI gate enforces
+// (scripts/check-calendar-ingress-policy-drift.mjs normalizePolicy).
+function routingSemantics(policy) {
+  return {
+    schema_version: policy.schema_version,
+    policy_key: policy.policy_key,
+    version: policy.version,
+    title: policy.title,
+    calendar_event_defaults: policy.calendar_event_defaults,
+    tiers: policy.tiers,
+    session_types: Object.fromEntries(
+      Object.entries(policy.session_types || {}).map(([key, value]) => [key, {
+        label: value.label,
+        description: value.description,
+        max_tier: value.max_tier,
+        cohort_mode: value.cohort_mode,
+        public_allowed: value.public_allowed,
+        default_auto_transcript: value.default_auto_transcript,
+        required_public_approvals: value.required_public_approvals || [],
+        notes: value.notes,
+      }]),
+    ),
+  };
+}
+
+test("web and Electron routing policies match the canonical transcript routing semantics", () => {
+  assert.deepEqual(routingSemantics(WEB_ROUTING_POLICY), routingSemantics(canonicalPolicy));
+  assert.deepEqual(routingSemantics(OS_ROUTING_POLICY), routingSemantics(canonicalPolicy));
 });
 
 test("web and Electron payload decisions preserve every canonical session type gate", () => {

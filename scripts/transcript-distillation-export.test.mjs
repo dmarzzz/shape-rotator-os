@@ -72,6 +72,22 @@ test("distillation manifest separates cohort and public surfaces", () => {
   assert.ok(manifest.artifacts.every((item) => item.provenance.raw_allowed === false));
 });
 
+test("distillation export drops artifacts with a retroactively-blocked gate (S5-5 TOCTOU)", () => {
+  const rows = [
+    row({ id: "t3-published", artifact_kind: "public_candidate", tier: "T3", review_status: "published", approval_state: "approved" }),
+    row({ id: "t2-reviewed", tier: "T2", review_status: "reviewed" }),
+  ];
+  // Both are exportable by their own status, but t3-published had a gate flipped
+  // to blocked after the fact — it must not re-export.
+  const manifest = buildDistillationManifest(rows, [], {
+    generatedAt: "2026-06-13T00:00:00.000Z",
+    blockedArtifactIds: new Set(["t3-published"]),
+  });
+  assert.equal(manifest.artifact_count, 1);
+  assert.equal(manifest.public_count, 0);
+  assert.deepEqual(manifest.artifacts.map((item) => item.artifact_id), ["t2-reviewed"]);
+});
+
 test("distillation exporter rejects raw/private leakage patterns", () => {
   assert.throws(() => normalizeDerivedArtifact(row({
     content_md: "Speaker 1 4:22 copied raw transcript fragment",

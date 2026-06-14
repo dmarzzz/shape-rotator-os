@@ -24,6 +24,7 @@ const yaml = require("js-yaml");
 const {
   publicArticleBlockedNames,
   publicArticleCandidateFromReadout,
+  sanitizePublicArticleText,
 } = require("./lib/public-article-policy.cjs");
 
 const REPO_ROOT  = path.resolve(__dirname, "..");
@@ -940,16 +941,30 @@ function emptyTranscriptEvidence(source) {
   };
 }
 
-function publicTranscriptDistillations(source) {
+function publicTranscriptDistillations(source, blockedNames = []) {
   const base = source && typeof source === "object" ? source : {};
+  // S5-4b: redact cohort names from the public distillation surface, the same way
+  // the public ARTICLE path does. A published T3 distillation must be no-name by
+  // default on the public web bundle — not shipped verbatim like before.
+  const clean = (value) => sanitizePublicArticleText(value, blockedNames);
   const artifacts = asArray(base.artifacts)
     .filter((artifact) => artifact.surface === "public")
-    .filter(transcriptDistillationAppVisible);
+    .filter(transcriptDistillationAppVisible)
+    .map((artifact) => {
+      const out = { ...artifact };
+      if (typeof artifact.session_title === "string") out.session_title = clean(artifact.session_title);
+      if (Array.isArray(artifact.summary)) out.summary = artifact.summary.map(clean);
+      if (Array.isArray(artifact.themes)) out.themes = artifact.themes.map(clean);
+      if (Array.isArray(artifact.action_items)) out.action_items = artifact.action_items.map(clean);
+      if (Array.isArray(artifact.open_questions)) out.open_questions = artifact.open_questions.map(clean);
+      if (typeof artifact.content_md === "string") out.content_md = clean(artifact.content_md);
+      return out;
+    });
   return {
     schema_version: base.schema_version || 1,
     generated_at: base.generated_at || null,
     source: base.source || "supabase.derived_artifacts",
-    default_export_policy: "public web only: T3 published+approved",
+    default_export_policy: "public web only: T3 published+approved, no-name redacted",
     artifact_count: artifacts.length,
     cohort_count: 0,
     public_count: artifacts.length,
@@ -1060,7 +1075,10 @@ function publicWebSurface(surface) {
   out.session_insights = publicSessionInsights;
   out.constellation_cues = asArray(out.constellation_cues).filter(publicSafeConstellationCue);
   out.transcript_evidence = emptyTranscriptEvidence(surface.transcript_evidence);
-  out.transcript_distillations = publicTranscriptDistillations(surface.transcript_distillations);
+  out.transcript_distillations = publicTranscriptDistillations(
+    surface.transcript_distillations,
+    publicArticleBlockedNames({ teams: surface.teams, people: surface.people }),
+  );
   out.cohort_intel = buildCohortIntel({
     transcriptEvidence: out.transcript_evidence,
     sessionInsights: publicSessionInsights,
