@@ -444,8 +444,8 @@ function renderConfig() {
         <label><span>capture bot email</span><input name="botEmail" value="${esc(c.botEmail || "")}" autocomplete="off" /></label>
         <label><span>drive artifact folder</span><input name="driveArtifactFolderId" value="${esc(c.driveArtifactFolderId || "")}" autocomplete="off" /></label>
         <div class="cal-ingress-managed-calendar">
-          <span>admin edit path</span>
-          <p>The editable Google Calendar link is shared privately with calendar owners. Public Google, webcal, and .ics links are read-only subscriptions.</p>
+          <span>admin event path</span>
+          <p>Admins create managed invites through this panel; the server writes to the organizer calendar. Public Google, webcal, and .ics links are read-only subscriptions.</p>
         </div>
         <label class="span-2"><span>create function url</span><input name="createEventUrl" value="${esc(c.createEventUrl || "")}" autocomplete="off" /></label>
       </div>

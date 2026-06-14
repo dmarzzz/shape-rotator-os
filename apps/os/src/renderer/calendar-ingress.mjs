@@ -131,7 +131,7 @@ export function renderCalendarIngressPanel({ config = {} } = {}) {
         <label><span>org id</span><input name="orgId" value="${esc(c.orgId || "")}" /></label>
         <label><span>calendar connection</span><input name="calendarConnectionId" value="${esc(c.calendarConnectionId || "")}" /></label>
         <label><span>capture bot email</span><input name="botEmail" value="${esc(c.botEmail || DEFAULT_CAPTURE_BOT_EMAIL)}" /></label>
-        <div class="cal-ingress-managed-calendar"><span>managed calendar</span><code>${esc(c.calendarId || DEFAULT_CALENDAR_ID)}</code></div>
+        <div class="cal-ingress-managed-calendar"><span>managed event target</span><code>${esc(c.calendarId || DEFAULT_CALENDAR_ID)}</code></div>
         <button type="button" data-cal-config-save>save connection</button>
       </aside>
       <section class="cal-ingress-source" aria-label="source ingress">

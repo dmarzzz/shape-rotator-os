@@ -54,7 +54,14 @@ For guests, every app-created event should set:
 This gives guests a normal invitation on their own calendar without letting them
 change the canonical event.
 
-For admins, grant calendar-level ACL access:
+Admin access is two separate grants:
+
+- Supabase `org_memberships` `admin` or `coordinator`: can use the Shape
+  Rotator OS event creator and approval path.
+- Google Calendar ACL: can edit directly in Google Calendar when that fallback
+  is intentionally needed.
+
+For direct Google Calendar editors, grant calendar-level ACL access:
 
 - `writer`: can edit events on the organizer calendar.
 - `owner`: can edit events and manage calendar sharing.
@@ -417,8 +424,11 @@ custom `policy`.
    org and deployed create-calendar Edge Function.
 8. Verify the operator queue can approve one pending request, reject one pending
    request, review one derived artifact, and approve/block public gates.
-9. Grant admins/coordinators calendar ACL `writer` or `owner` on the organizer
-   calendar.
+9. Add every admin organizer to Supabase `org_memberships` as `admin` or
+   `coordinator`, then grant the same people calendar ACL `writer` or `owner`
+   on the organizer calendar. The Supabase membership is what unlocks the
+   normal Shape Rotator OS event creator; the Google ACL is only for direct
+   Google Calendar editing and operational fallback.
 10. Configure `GOOGLE_DRIVE_ARTIFACT_FOLDER_ID` and run
    `scripts/poll-google-drive-artifacts.js` after meetings; replace or trigger
    it with Workspace Events later if the organizer account supports it.
