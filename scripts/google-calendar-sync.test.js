@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const {
+  applyCancellationPatches,
   buildGoogleEventsListUrl,
   googleEventsToSyncRows,
   runGoogleCalendarSync,
@@ -288,4 +289,34 @@ test("cancelled Google tombstones become session patches, not invalid inserts", 
   assert.equal(rows.cancellationPatches.length, 1);
   assert.equal(rows.cancellationPatches[0].google_event_id, "gone-event");
   assert.equal(rows.cancellationPatches[0].status, "cancelled");
+});
+
+test("cancellation patches target the (calendar_connection_id, google_event_id) natural key, not the deterministic id (C1-01)", async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url: String(url), method: init?.method });
+    return { ok: true, status: 200, json: async () => [], text: async () => "[]" };
+  };
+  await applyCancellationPatches({
+    supabaseUrl: "https://example.supabase.co",
+    serviceRoleKey: "service_role_test",
+    cancellationPatches: [{
+      id: "deterministic-id-that-may-not-match-stored-row",
+      calendar_connection_id: CONNECTION_ID,
+      google_event_id: "gone-event",
+      status: "cancelled",
+      google_etag: "\"gone\"",
+      updated_at: "2026-01-01T00:00:00.000Z",
+    }],
+    fetchImpl,
+  });
+
+  assert.equal(calls.length, 1);
+  const url = calls[0].url;
+  // Targets the natural key (the table's unique constraint) so webhook-created
+  // rows or rows with an explicit shape_session_id are also tombstoned.
+  assert.match(url, /google_event_id=eq\.gone-event/);
+  assert.match(url, new RegExp(`calendar_connection_id=eq\\.${CONNECTION_ID}`));
+  // Must NOT fall back to the deterministic id while the natural key is present.
+  assert.doesNotMatch(url, /[?&]id=eq\./);
 });
