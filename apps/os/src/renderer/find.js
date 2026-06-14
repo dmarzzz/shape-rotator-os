@@ -126,6 +126,13 @@ function buildCatalog() {
       nav: () => window.__srwkGoTab?.(tab),
     });
   });
+  // Links — demoted from the nav rail to a footer chip (2026-06), but still
+  // a top-level destination, so keep it launchable from search.
+  items.push({
+    type: "section", title: "links", sub: "handouts · repos · downloads",
+    hay: "links handouts repos downloads workspace external",
+    nav: () => window.__srwkGoTab?.("links"),
+  });
   return items;
 }
 
