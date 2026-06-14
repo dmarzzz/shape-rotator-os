@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-releases:signalstack:ronturetzky-sigstack",
+  "artifact_kind": "github_release_list",
+  "record_type": "team",
+  "record_id": "signalstack",
+  "date": "2026-03-25",
+  "title": "RonTuretzky/sigstack: 1 release",
+  "summary": "Latest: v1.0.0 — Signal Stack",
+  "source_kind": "github_releases_api",
+  "source_url": "https://github.com/RonTuretzky/sigstack/releases",
+  "source_repo": "RonTuretzky/sigstack",
+  "source_transform": "gh-release-list",
+  "review_status": "generated",
+  "surface_recommendation": "promote_candidate",
+  "verbatim": true,
+  "release_count": 1,
+  "releases": [
+    {
+      "tag_name": "v1.0.0",
+      "name": "v1.0.0 — Signal Stack",
+      "published_at": "2026-03-25T22:20:55Z",
+      "prerelease": false,
+      "latest": true,
+      "html_url": "https://github.com/RonTuretzky/sigstack/releases/tag/v1.0.0"
+    }
+  ]
+}

@@ -102,19 +102,38 @@ html[data-theme="light"] .mfeed-meta {
   background: color-mix(in srgb, var(--mfeed-color) 16%, #ffffff);
 }
 html[data-theme="light"] .mfeed-release    { --mfeed-color: #4f8a64; }  /* sage */
+html[data-theme="light"] .mfeed-commit     { --mfeed-color: #7a6aa6; }  /* violet */
 html[data-theme="light"] .mfeed-transcript { --mfeed-color: #4d6bb0; }  /* lapis */
 html[data-theme="light"] .mfeed-ask        { --mfeed-color: #b9821f; }  /* amber */
 html[data-theme="light"] .mfeed-event      { --mfeed-color: #3f8a72; }  /* teal */
 
-/* Agenda cards: lift tint + darken category hues so events read on white. */
+/* Agenda cards: lift tint + darken category hues so events read on white.
+   The default --c2-acc tier sits on the element that carries data-cat: the
+   card itself for timed events, the .magenda-up wrapper for up-event cards
+   (so a [data-cat] override wins and the card inherits it). */
+html[data-theme="light"] .magenda-event { --c2-acc: #6f655e; }
+html[data-theme="light"] .magenda-up    { --c2-acc: #6f655e; }
 html[data-theme="light"] .magenda-event,
 html[data-theme="light"] .magenda-up-event {
-  --c2-acc: #6f655e;
   background: color-mix(in srgb, var(--c2-acc) 28%, #ffffff);
   border-color: color-mix(in srgb, var(--c2-acc) 55%, transparent);
 }
 html[data-theme="light"] .magenda-up-event:hover {
   background: color-mix(in srgb, var(--c2-acc) 42%, #ffffff);
+}
+/* Dismiss disc on paper: a real white chip with dark ink, not the dark-ink
+   wash the dark-mode rule would invert to (which reads as a smudge on white). */
+html[data-theme="light"] .mfeed-dismiss,
+html[data-theme="light"] .membrane-agenda .magenda-dismiss {
+  background: rgba(255, 255, 255, 0.74);
+  border-color: rgba(26, 26, 26, 0.14);
+  color: rgba(26, 26, 26, 0.55);
+}
+html[data-theme="light"] .mfeed-dismiss:hover,
+html[data-theme="light"] .membrane-agenda .magenda-dismiss:hover {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(26, 26, 26, 0.24);
+  color: rgba(26, 26, 26, 0.86);
 }
 html[data-theme="light"] .membrane-agenda [data-cat="oh"]      { --c2-acc: #c4763f; }
 html[data-theme="light"] .membrane-agenda [data-cat="salon"]   { --c2-acc: #a87fc0; }
@@ -214,8 +233,10 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   top: 0;
   right: 0;
   bottom: 0;
-  width: 190px;
-  padding: 56px 26px 52px 0;
+  width: 196px;
+  /* left pad gives the inner-edge dismiss control room to sit without being
+     clipped by overflow:hidden (mirror of the left feed's right gutter). */
+  padding: 56px 26px 52px 12px;
   z-index: 2;            /* above the canvas so the cards are clickable */
   pointer-events: none;  /* container passes through; cards opt back in */
   font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -273,16 +294,31 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   align-items: baseline;
   gap: 6px;
   max-width: 164px;
-  padding: 3px 8px;
+  padding: 3px 8px 3px 9px;
   background: color-mix(in srgb, var(--c2-acc) 22%, transparent);
   border: 1px solid color-mix(in srgb, var(--c2-acc) 40%, transparent);
   border-radius: 7px;
+  /* category accent — a crisp inner edge-tick, echoing the calendar's
+     left-bar marker so the two surfaces share a grammar. */
+  box-shadow: inset 3px 0 0 0 color-mix(in srgb, var(--c2-acc) 85%, transparent);
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
   pointer-events: auto;
   font: inherit;
+  transition: background 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              border-color 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              box-shadow 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              transform 120ms cubic-bezier(0.19, 1, 0.22, 1);
 }
+.membrane-agenda .magenda-event:hover {
+  background: color-mix(in srgb, var(--c2-acc) 34%, transparent);
+  border-color: color-mix(in srgb, var(--c2-acc) 58%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--c2-acc),
+              0 4px 14px -7px color-mix(in srgb, var(--c2-acc) 65%, transparent);
+  z-index: 5;
+}
+.membrane-agenda .magenda-event:active { transform: translateY(-50%) scale(0.97); }
 .magenda-event-time {
   flex: 0 0 auto;
   font-size: 9px;
@@ -344,9 +380,34 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
 }
 /* Upcoming + today's all-day items — full cards, same chrome as the left
    feed item (1px border, 9px corners, ~53px tall) but with the calendar
-   category tint for more contrast against the dark stage. Clickable. */
+   category tint for more contrast against the dark stage. Each card is
+   wrapped in .magenda-up (the dismiss anchor + collapse host); the wrapper
+   owns --c2-acc so a [data-cat] on it tints the inheriting card. */
+.membrane-agenda .magenda-up {
+  --c2-acc: #8f817a;          /* default tier; [data-cat] overrides on wrapper */
+  position: relative;
+  width: 100%;
+  max-height: 220px;
+  transition: opacity 200ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+/* Close = recede into the field — mirror of the feed's membrane fold, folding
+   away toward its own (right) screen edge. */
+.membrane-agenda .magenda-up.is-dismissing {
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: perspective(1100px) translateX(10px) rotateY(-20deg) scale(0.9);
+  transform-origin: right center;
+  filter: blur(6px);
+  max-height: 0;
+  margin-top: -7px;
+  transition: transform 340ms cubic-bezier(0.65, 0, 0.05, 1),
+              opacity 300ms cubic-bezier(0.65, 0, 0.05, 1),
+              filter 300ms ease,
+              max-height 260ms cubic-bezier(0.4, 0, 0.2, 1) 130ms,
+              margin-top 260ms cubic-bezier(0.4, 0, 0.2, 1) 130ms;
+}
 .membrane-agenda .magenda-up-event {
-  --c2-acc: #8f817a;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;     /* title over time, like the left feed's 2-line cards */
@@ -359,17 +420,80 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   background: color-mix(in srgb, var(--c2-acc) 20%, transparent);
   border: 1px solid color-mix(in srgb, var(--c2-acc) 38%, transparent);
   border-radius: 9px;
+  /* category accent — crisp inner edge-tick on the screen-edge (right) side,
+     a mirror of the calendar's left-bar marker. */
+  box-shadow: inset -3px 0 0 0 color-mix(in srgb, var(--c2-acc) 82%, transparent);
   white-space: normal;        /* let long titles wrap instead of truncating */
   text-align: right;
   cursor: pointer;
   pointer-events: auto;
   font: inherit;
-  transition: background 160ms ease, transform 160ms ease;
+  transition: background 220ms cubic-bezier(0.19, 1, 0.22, 1),
+              border-color 220ms cubic-bezier(0.19, 1, 0.22, 1),
+              box-shadow 220ms cubic-bezier(0.19, 1, 0.22, 1),
+              transform 220ms cubic-bezier(0.19, 1, 0.22, 1);
 }
 .membrane-agenda .magenda-up-event:hover {
   background: color-mix(in srgb, var(--c2-acc) 30%, transparent);
+  border-color: color-mix(in srgb, var(--c2-acc) 55%, transparent);
+  box-shadow: inset -3px 0 0 0 var(--c2-acc),
+              0 6px 18px -8px color-mix(in srgb, var(--c2-acc) 60%, transparent);
   transform: translateX(-2px);
 }
+.membrane-agenda .magenda-up-event:active {
+  transform: translateX(-2px) scale(0.985);
+}
+/* Quiet dismiss control — mirror of the feed's, pinned to the inner-top
+   (left) corner so the two rails read as one symmetric system. */
+.membrane-agenda .magenda-dismiss {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.16);
+  border-radius: 50%;
+  background: rgba(var(--mem-ink-rgb), 0.14);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: rgba(var(--mem-ink-rgb), 0.62);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.5);
+  pointer-events: none;
+  transition: opacity 130ms ease,
+              transform 150ms cubic-bezier(0.65, 0, 0.05, 1),
+              background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.membrane-agenda .magenda-up:hover .magenda-dismiss,
+.membrane-agenda .magenda-up:focus-within .magenda-dismiss {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  transition: opacity 200ms ease,
+              transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.membrane-agenda .magenda-dismiss:hover {
+  background: rgba(var(--mem-ink-rgb), 0.24);
+  border-color: rgba(var(--mem-ink-rgb), 0.30);
+  color: rgba(var(--mem-ink-rgb), 0.98);
+}
+.membrane-agenda .magenda-up:hover .magenda-dismiss:active,
+.membrane-agenda .magenda-up:focus-within .magenda-dismiss:active { transform: scale(0.84); }
+.membrane-agenda .magenda-dismiss:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 45%, transparent);
+  outline-offset: 2px;
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+.membrane-agenda .magenda-dismiss svg { width: 9px; height: 9px; display: block; }
+
 .magenda-up-event .magenda-event-title {
   max-width: 100%;
   font-size: 12px;
@@ -414,8 +538,47 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
 }
 .membrane-feed::-webkit-scrollbar { width: 0; height: 0; }
 
-.mfeed-item {
+/* Each feed item lives in a positioned row so the dismiss control can pin to
+   the card's inner-top corner. The row also owns the tail-taper opacity (so a
+   hovered tail card lifts back to full) and the collapse-out on dismiss. */
+.mfeed-row {
+  position: relative;
   flex: 0 0 auto;
+  width: 100%;
+  max-height: 160px;
+  transition: opacity 200ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+/* Taper the tail of the feed: the last three rows fade progressively,
+   strongest at the very bottom, so the list dissolves into the field rather
+   than ending on a hard edge. Hover/focus lifts the hovered card back to full
+   so it stays legible and its dismiss control is usable. */
+.mfeed-row:nth-last-child(3) { opacity: 0.6; }
+.mfeed-row:nth-last-child(2) { opacity: 0.4; }
+.mfeed-row:nth-last-child(1) { opacity: 0.2; }
+.mfeed-row:hover,
+.mfeed-row:focus-within { opacity: 1; }
+/* Close = recede into the field, the membrane's own exit. The card folds away
+   like the membrane panel does (perspective + rotateY toward its left screen
+   edge, signature easing cubic-bezier(0.65,0,0.05,1)) with a blur-dissolve;
+   the height then folds (delayed ~130ms) so siblings close AFTER the card has
+   gone, not while it's mid-fold. Negative top-margin eats the 7px flex gap. */
+.mfeed-row.is-dismissing {
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: perspective(1100px) translateX(-10px) rotateY(20deg) scale(0.9);
+  transform-origin: left center;
+  filter: blur(6px);
+  max-height: 0;
+  margin-top: -7px;
+  transition: transform 340ms cubic-bezier(0.65, 0, 0.05, 1),
+              opacity 300ms cubic-bezier(0.65, 0, 0.05, 1),
+              filter 300ms ease,
+              max-height 260ms cubic-bezier(0.4, 0, 0.2, 1) 130ms,
+              margin-top 260ms cubic-bezier(0.4, 0, 0.2, 1) 130ms;
+}
+
+.mfeed-item {
   display: flex;
   align-items: stretch;
   gap: 9px;
@@ -427,18 +590,73 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   text-align: left;
   cursor: pointer;
   font: inherit;
-  transition: background 160ms ease, transform 160ms ease;
+  transition: background 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              transform 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              border-color 200ms cubic-bezier(0.19, 1, 0.22, 1);
 }
 .mfeed-item:hover {
   background: rgba(var(--mem-ink-rgb), 0.14);
+  border-color: rgba(var(--mem-ink-rgb), 0.12);
   transform: translateX(2px);
 }
-/* Taper the tail of the feed: the last three items fade progressively,
-   strongest at the very bottom, so the list dissolves into the field
-   rather than ending on a hard edge. */
-.mfeed-item:nth-last-child(3) { opacity: 0.6; }
-.mfeed-item:nth-last-child(2) { opacity: 0.4; }
-.mfeed-item:nth-last-child(1) { opacity: 0.2; }
+.mfeed-item:active { transform: translateX(2px) scale(0.985); }
+
+/* Quiet dismiss control — the "subtle hidden feature". Invisible at rest, it
+   fades + scales in on the inner-top corner only when the row is hovered or
+   keyboard-focused. Neutral ink (not alarm-red): closing a glanceable feed
+   item is housekeeping, not a destructive act. */
+.mfeed-dismiss {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.16);
+  border-radius: 50%;
+  background: rgba(var(--mem-ink-rgb), 0.14);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: rgba(var(--mem-ink-rgb), 0.62);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.5);
+  pointer-events: none;
+  /* resting transition = the HIDE timing (fast); the reveal rule below
+     overrides it with a slower, softly-settling enter. */
+  transition: opacity 130ms ease,
+              transform 150ms cubic-bezier(0.65, 0, 0.05, 1),
+              background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.mfeed-row:hover .mfeed-dismiss,
+.mfeed-row:focus-within .mfeed-dismiss {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  /* enter slower than exit, with a small settle (punctuation overshoot). */
+  transition: opacity 200ms ease,
+              transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.mfeed-dismiss:hover {
+  background: rgba(var(--mem-ink-rgb), 0.24);
+  border-color: rgba(var(--mem-ink-rgb), 0.30);
+  color: rgba(var(--mem-ink-rgb), 0.98);
+}
+/* press — scoped under the revealed state so it out-specifies scale(1). */
+.mfeed-row:hover .mfeed-dismiss:active,
+.mfeed-row:focus-within .mfeed-dismiss:active { transform: scale(0.84); }
+.mfeed-dismiss:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 45%, transparent);
+  outline-offset: 2px;
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+.mfeed-dismiss svg { width: 9px; height: 9px; display: block; }
 .mfeed-body {
   flex: 1 1 auto;
   min-width: 0;
@@ -493,6 +711,7 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
 /* Kind tints — clearly colored but softer than the original loud palette;
    shared by the icon and the project chip. */
 .mfeed-release    { --mfeed-color: rgba(136, 208, 161, 0.95); }  /* github / releases — sage green */
+.mfeed-commit     { --mfeed-color: rgba(186, 170, 222, 0.95); }  /* commit activity — violet */
 .mfeed-transcript { --mfeed-color: rgba(153, 180, 235, 0.95); }  /* transcripts — lapis */
 .mfeed-ask        { --mfeed-color: rgba(238, 196, 126, 0.95); }  /* asks — amber */
 .mfeed-event      { --mfeed-color: rgba(140, 204, 183, 0.95); }  /* events — teal */
@@ -1727,6 +1946,30 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   .alchemy-view[data-alch-mode-current="membrane"] .membrane-panel {
     transition: none;
   }
+  /* Ambient-notification interactions: keep the final informative state
+     (dismiss control visible on hover/focus; cards present) but drop the
+     transforms, blur, and easing so nothing animates. */
+  .mfeed-row, .mfeed-item, .mfeed-dismiss,
+  .membrane-agenda .magenda-up,
+  .membrane-agenda .magenda-up-event,
+  .membrane-agenda .magenda-event,
+  .membrane-agenda .magenda-dismiss {
+    transition: none !important;
+  }
+  .mfeed-item:hover, .mfeed-item:active,
+  .membrane-agenda .magenda-up-event:hover,
+  .membrane-agenda .magenda-up-event:active,
+  .membrane-agenda .magenda-event:active {
+    transform: none;
+  }
+  .membrane-agenda .magenda-event:active { transform: translateY(-50%); }
+  .mfeed-dismiss, .membrane-agenda .magenda-dismiss { transform: scale(1); }
+  .mfeed-row:hover .mfeed-dismiss,
+  .mfeed-row:focus-within .mfeed-dismiss,
+  .membrane-agenda .magenda-up:hover .magenda-dismiss,
+  .membrane-agenda .magenda-up:focus-within .magenda-dismiss { transform: scale(1); }
+  .mfeed-row.is-dismissing,
+  .membrane-agenda .magenda-up.is-dismissing { filter: none; transform: none; }
 }
 
 /* Small floating mode pill — lets the user toggle back to legacy view

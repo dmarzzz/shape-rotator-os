@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-releases:searxng-wth-frnds:dmarzzz-searxng-wth-frnds",
+  "artifact_kind": "github_release_list",
+  "record_type": "team",
+  "record_id": "searxng-wth-frnds",
+  "date": "2026-05-25",
+  "title": "dmarzzz/searxng-wth-frnds: 16 releases",
+  "summary": "Latest: v0.13.6, v0.13.5, v0.13.4, v0.13.3, v0.13.2",
+  "source_kind": "github_releases_api",
+  "source_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases",
+  "source_repo": "dmarzzz/searxng-wth-frnds",
+  "source_transform": "gh-release-list",
+  "review_status": "generated",
+  "surface_recommendation": "promote_candidate",
+  "verbatim": true,
+  "release_count": 16,
+  "releases": [
+    {
+      "tag_name": "v0.13.6",
+      "name": "v0.13.6",
+      "published_at": "2026-05-25T15:10:20Z",
+      "prerelease": false,
+      "latest": true,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.13.6"
+    },
+    {
+      "tag_name": "v0.13.5",
+      "name": "v0.13.5",
+      "published_at": "2026-05-24T13:52:04Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.13.5"
+    },
+    {
+      "tag_name": "v0.13.4",
+      "name": "v0.13.4",
+      "published_at": "2026-05-24T11:04:58Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.13.4"
+    },
+    {
+      "tag_name": "v0.13.3",
+      "name": "v0.13.3",
+      "published_at": "2026-05-24T09:15:54Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.13.3"
+    },
+    {
+      "tag_name": "v0.13.2",
+      "name": "v0.13.2",
+      "published_at": "2026-05-24T09:10:26Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.13.2"
+    },
+    {
+      "tag_name": "v0.13.1",
+      "name": "v0.13.1",
+      "published_at": "2026-05-24T06:27:24Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.13.1"
+    },
+    {
+      "tag_name": "v0.13.0",
+      "name": "v0.13.0 — Windows x64 binary",
+      "published_at": "2026-05-20T14:40:54Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.13.0"
+    },
+    {
+      "tag_name": "v0.12.2",
+      "name": "v0.12.2",
+      "published_at": "2026-05-20T00:34:29Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.12.2"
+    },
+    {
+      "tag_name": "v0.12.1",
+      "name": "v0.12.1",
+      "published_at": "2026-05-19T20:21:43Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.12.1"
+    },
+    {
+      "tag_name": "v0.12.0",
+      "name": "v0.12.0",
+      "published_at": "2026-05-19T19:38:23Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.12.0"
+    },
+    {
+      "tag_name": "v0.11.3",
+      "name": "v0.11.3",
+      "published_at": "2026-05-19T08:23:06Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.11.3"
+    },
+    {
+      "tag_name": "v0.11.2",
+      "name": "v0.11.2",
+      "published_at": "2026-05-19T05:55:23Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.11.2"
+    },
+    {
+      "tag_name": "v0.11.1",
+      "name": "v0.11.1",
+      "published_at": "2026-05-19T05:21:38Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.11.1"
+    },
+    {
+      "tag_name": "v0.11.0",
+      "name": "v0.11.0",
+      "published_at": "2026-05-19T04:15:36Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.11.0"
+    },
+    {
+      "tag_name": "v0.10.0",
+      "name": "v0.10.0",
+      "published_at": "2026-05-19T03:42:10Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.10.0"
+    },
+    {
+      "tag_name": "v0.9.0",
+      "name": "v0.9.0",
+      "published_at": "2026-05-18T23:37:35Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/searxng-wth-frnds/releases/tag/v0.9.0"
+    }
+  ]
+}
