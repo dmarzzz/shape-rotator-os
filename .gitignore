@@ -51,6 +51,13 @@ apps/web/cohort-surface.json
 apps/web/calendar.json
 apps/web/calendar.ics
 
+# cohort-internal transcript evidence — generated locally from the private
+# vault (consent: cohort-internal, max_surface: cohort). MUST NOT be committed
+# to this public repo. The app reads reviewed evidence from the gated Supabase
+# app_transcript_evidence_cards view at runtime; build:cohort tolerates absence.
+cohort-data/artifacts/transcript-evidence/generated/
+cohort-data/artifacts/transcript-distillations/generated/
+
 # vercel cli local link metadata
 .vercel
 
