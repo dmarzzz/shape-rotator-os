@@ -18,7 +18,7 @@ test("transcript cloud worker can run without a local PC dependency", () => {
 
 test("transcript cloud worker recovers stranded jobs: retry/backoff + stale-lease reclaim (C5-3, C5-4)", () => {
   const retryMigration = fs.readFileSync(
-    new URL("../supabase/migrations/202606140001_transcript_worker_retry.sql", import.meta.url),
+    new URL("../supabase/migrations/20260614025739_transcript_worker_retry.sql", import.meta.url),
     "utf8",
   );
   // C5-4: transient failures requeue with bounded backoff instead of failing terminally.
