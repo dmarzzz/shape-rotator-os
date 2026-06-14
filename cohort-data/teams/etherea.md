@@ -10,7 +10,7 @@ focus: generative live-stage system
 members_count: 2
 geo: NYC (the Convent)
 domain: app-ux
-shape: meridian
+shape: prism
 is_mentor: false
 links:
   github: null

@@ -12843,7 +12843,18 @@ function exploreLink(iconKey, label, href) {
 }
 
 function renderExploreBar(items) {
-  const html = items.filter(Boolean).join("");
+  // Dedupe by destination: records often set links.github === links.repo
+  // (same repo URL), which rendered as two icons to the same place. Keep the
+  // first occurrence (github, the canonical mark); drop later links that
+  // resolve to an identical href. Jump buttons (no href) are always kept.
+  const seenHrefs = new Set();
+  const html = (items || []).filter(Boolean).filter((item) => {
+    const m = /href="([^"]+)"/.exec(item);
+    if (!m) return true;
+    if (seenHrefs.has(m[1])) return false;
+    seenHrefs.add(m[1]);
+    return true;
+  }).join("");
   return html ? `<div class="alch-explore-bar" role="group" aria-label="explore">${html}</div>` : "";
 }
 
@@ -12858,10 +12869,9 @@ function detailRecordToken(record, fallbackLabel = "") {
 
 function detailTeamToken(team) {
   if (!team?.record_id) return "";
-  const s = shapeForTeam(team);
+  // No team shape glyph on the user profile — just the team name.
   return `
     <button type="button" class="alch-quick-link alch-team-token" data-directory-record="${escAttr(team.record_id)}">
-      <span class="alch-mini-shape" aria-hidden="true">${s ? `<canvas data-shape-fam="${escAttr(s.fam)}" data-shape-kind="${escAttr(teamKind(team))}" data-shape-seed="${escAttr(team.record_id)}"></canvas>` : ""}</span>
       <span>${escHtml(team.name || team.record_id)}</span>
     </button>
   `;
@@ -13049,19 +13059,23 @@ function detailJourneySummary(rec) {
 
 function detailMemberRows(people, kind) {
   const rows = (people || []).map(person => `
-    <span class="alch-rail-member">
+    <li class="alch-rail-member">
       <button type="button" data-person="${escAttr(person.record_id)}">${escHtml(person.name || person.record_id)}</button>${person.role ? ` <em>(${escHtml(person.role)})</em>` : ""}
-    </span>
+    </li>
   `).join("");
   if (!rows) return "";
-  return `<div><span>${kind === "project" ? "contributors" : "team"}</span><span class="alch-rail-members">${rows}</span></div>`;
+  // Stack the label over the roster (.alch-rail-row-block): the "contributors"
+  // label is wider than the rail's fixed label column, so side-by-side it
+  // overlaps the first name. Its own row keeps them clear. The roster is an
+  // indented bullet list.
+  return `<div class="alch-rail-row-block"><span>${kind === "project" ? "contributors" : "team"}</span><ul class="alch-rail-members">${rows}</ul></div>`;
 }
 
 function renderPersonRail(person, team, fam) {
   const dates = (person.dates_start || person.dates_end) ? detailDateRange(person.dates_start, person.dates_end) : "";
   return `
     <aside class="alch-detail-rail">
-      <div class="alch-detail-shape"><canvas data-shape-fam="${escAttr(fam)}" data-shape-kind="person" data-shape-scale="1.18" data-shape-seed="${escAttr(person.record_id)}"></canvas></div>
+      <div class="alch-detail-shape"><canvas data-shape-fam="${escAttr(fam)}" data-shape-kind="person" data-shape-scale="1.18" data-shape-draggable="1" data-shape-seed="${escAttr(person.record_id)}"></canvas></div>
       <div class="alch-rail-read">
         <span class="alch-rail-kicker">individual</span>
         <h2 class="alch-detail-name">${escHtml(person.name || person.record_id)}</h2>
@@ -13081,9 +13095,8 @@ function renderPersonRail(person, team, fam) {
 function renderTeamRail(team, teamPeople, fam, kind) {
   return `
     <aside class="alch-detail-rail">
-      <div class="alch-detail-shape"><canvas data-shape-fam="${escAttr(fam)}" data-shape-kind="${escAttr(kind)}" data-shape-scale="1.18" data-shape-seed="${escAttr(team.record_id)}"></canvas></div>
+      <div class="alch-detail-shape"><canvas data-shape-fam="${escAttr(fam)}" data-shape-kind="${escAttr(kind)}" data-shape-scale="1.18" data-shape-draggable="1" data-shape-seed="${escAttr(team.record_id)}"></canvas></div>
       <div class="alch-rail-read">
-        <span class="alch-rail-kicker">${escHtml(kind)}</span>
         <h2 class="alch-detail-name">${escHtml(team.name || team.record_id)}</h2>
         ${team.focus ? `<p class="alch-detail-focus">${escHtml(team.focus)}</p>` : ""}
         <div class="alch-rail-list">
@@ -13196,8 +13209,10 @@ function renderTeamDetail(team) {
   const exploreBar = renderExploreBar([
     exploreJump("calendar", "Calendar", "calendar", { calendarView: "cal" }),
     exploreJump("availability", "Availability", "calendar", { calendarView: "presence", presenceTeam: recordId }),
-    exploreLink("github", "GitHub", detailLinkForKey(links, "github")),
-    exploreLink("repo", "Repo", detailLinkForKey(links, "repo")),
+    // One repo link only — the GitHub mark, falling back to links.repo when
+    // github isn't set. The separate git-branch "repo" icon is retired: for
+    // projects it just duplicated the repo destination.
+    exploreLink("github", "GitHub", detailLinkForKey(links, "github") || detailLinkForKey(links, "repo")),
     exploreLink("x", "X", detailLinkForKey(links, "x")),
     exploreLink("website", "Website", detailLinkForKey(links, "website")),
     exploreLink("demo", "Demo", detailLinkForKey(links, "demo")),
@@ -13235,7 +13250,6 @@ function renderTeamDetail(team) {
       ${renderTeamRail(team, teamPeople, fam, kind)}
       <section class="alch-detail-ledger">
         <div class="alch-ledger-head">
-          <span class="alch-detail-h">${escHtml(kind)} read</span>
           ${exploreBar}
         </div>
         ${readSection ? `<div class="alch-section-stack alch-priority-stack">${readSection}</div>` : ""}
@@ -14279,14 +14293,17 @@ function renderProfile() {
         id="alch-theme-toggle"
         class="alch-theme-toggle"
         type="button"
+        role="switch"
+        aria-checked="${themeNow === "dark"}"
         data-theme-now="${themeNow}"
         title="switch to ${themeNext} mode"
         aria-label="switch to ${themeNext} mode"
       >
-        <span class="alch-theme-toggle-icon" aria-hidden="true">${themeNow === "light"
-          ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>`
-          : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v1"/><path d="M12 20v1"/><path d="M3 12h1"/><path d="M20 12h1"/><path d="m18.364 5.636-.707.707"/><path d="m6.343 17.657-.707.707"/><path d="m5.636 5.636.707.707"/><path d="m17.657 17.657.707.707"/></svg>`}</span>
-        <span class="alch-theme-toggle-label">${themeNext} mode</span>
+        <span class="att-track" aria-hidden="true">
+          <span class="att-ico att-sun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v1"/><path d="M12 20v1"/><path d="M3 12h1"/><path d="M20 12h1"/><path d="m18.364 5.636-.707.707"/><path d="m6.343 17.657-.707.707"/><path d="m5.636 5.636.707.707"/><path d="m17.657 17.657.707.707"/></svg></span>
+          <span class="att-ico att-moon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg></span>
+          <span class="att-thumb"></span>
+        </span>
       </button>
     </div>
 

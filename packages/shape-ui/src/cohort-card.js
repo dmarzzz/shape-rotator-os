@@ -104,7 +104,6 @@ function mdToPlainText(md, max = 240) {
 // scrolled cards; the detail view already carries the full copy.
 function cardPeeks(rec) {
   const about = mdToPlainText(rec?.bio_md);
-  const now = String(rec?.now || "").trim();
   // Inert label, not a control: after the hover popover was removed these
   // carry no click/keydown handler, so role=button + tabindex=0 only added
   // dead tab stops that announced as "button" and did nothing. Plain <span>;
@@ -113,7 +112,8 @@ function cardPeeks(rec) {
     `<span class="alch-card-peek" data-peek="${key}" data-no-card-click>${key}</span>`;
   const anchors = [];
   if (about) anchors.push(peek("about"));
-  if (now) anchors.push(peek("now"));
+  // "now" anchor removed — it was an inert label that just printed "now" on
+  // the card; the detail view already carries the full `now` copy.
   return anchors.length ? `<div class="alch-card-peeks">${anchors.join("")}</div>` : "";
 }
 
