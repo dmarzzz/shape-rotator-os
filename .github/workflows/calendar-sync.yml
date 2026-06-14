@@ -37,6 +37,8 @@ on:
     - cron: "0 */2 * * *"
   workflow_dispatch:        # manual run from the Actions tab
   push:
+    branches:
+      - main
     paths:
       - "scripts/sync-calendar.js"
       - "scripts/build-bundles.js"
