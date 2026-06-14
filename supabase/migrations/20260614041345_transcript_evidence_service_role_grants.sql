@@ -1,4 +1,4 @@
--- Grant fix for migration 202606140000_transcript_evidence_operations.sql.
+-- Grant fix for migration 20260614025719_transcript_evidence_operations.sql.
 --
 -- That migration created public.evidence_cards and public.private_invite_contacts
 -- but the standard Supabase "grant all on tables to service_role" default

@@ -7,7 +7,7 @@ const migration = readFileSync(
   "utf8",
 );
 const evidenceOpsMigration = readFileSync(
-  new URL("../supabase/migrations/202606140000_transcript_evidence_operations.sql", import.meta.url),
+  new URL("../supabase/migrations/20260614025719_transcript_evidence_operations.sql", import.meta.url),
   "utf8",
 );
 

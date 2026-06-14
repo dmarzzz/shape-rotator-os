@@ -22,7 +22,7 @@ const rescheduleMigration = fs.readFileSync(
   "utf8",
 );
 const evidenceOpsMigration = fs.readFileSync(
-  path.join(ROOT, "supabase", "migrations", "202606140000_transcript_evidence_operations.sql"),
+  path.join(ROOT, "supabase", "migrations", "20260614025719_transcript_evidence_operations.sql"),
   "utf8",
 );
 const drivePollFunction = fs.readFileSync(
