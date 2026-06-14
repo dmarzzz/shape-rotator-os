@@ -227,6 +227,36 @@ jobs:
             echo "::notice::macOS build will be SIGNED + NOTARIZED"
           fi
 
+      # Publish to whichever repo is running this workflow. The owner in
+      # package.json is only a default for local/manual builds — forks
+      # (e.g. freddmannen's, which ships its own update channel) publish
+      # to themselves without having to patch the config after every
+      # upstream sync. The baked app-update.yml follows this too, so each
+      # channel's auto-updater points at its own releases. Done by editing
+      # the runner's package.json: electron-builder 26 rejects array-index
+      # CLI overrides (--config.publish.0.owner), so the flag form is not
+      # an option.
+      - name: point publish at this repo + force draft release
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = 'apps/os/package.json';
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            j.build.publish[0].owner = process.env.PUB_OWNER;
+            // Every platform leg publishes into a DRAFT release. GitHub never
+            // auto-marks a draft as 'Latest', so a single surviving leg can no
+            // longer ship a partial (e.g. Windows-only) release that mac/linux
+            // clients then resolve and 404 on. The 'promote' job below flips the
+            // draft to published only once ALL platforms have succeeded — and
+            // marks it Latest vs prerelease based on whether the tag is an rc.
+            j.build.publish[0].releaseType = 'draft';
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+            console.log('publish owner →', j.build.publish[0].owner, '· releaseType →', j.build.publish[0].releaseType);
+          "
+        env:
+          PUB_OWNER: ${{ github.repository_owner }}
+
       - name: build (${{ matrix.platform }})
         shell: bash
         run: |
@@ -277,3 +307,43 @@ jobs:
             apps/os/dist/*.zip
           if-no-files-found: ignore
           retention-days: 14
+
+  # Flip the draft release that the platform legs published into to a live,
+  # Latest release — but ONLY for tag pushes where EVERY platform build
+  # succeeded. `needs: build` waits for all matrix legs; the explicit
+  # `success()` re-asserts the all-succeeded gate that a custom `if:`
+  # otherwise drops. If any leg fails, this job is skipped and the release
+  # stays a draft (invisible to electron-updater's "Latest" lookup), so
+  # mac/linux/win clients never resolve a partial release.
+  promote:
+    name: promote draft → Latest (all platforms built)
+    needs: build
+    if: ${{ startsWith(github.ref, 'refs/tags/v') && success() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: publish the draft release (Latest for stable, prerelease for rc)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          # An rc/beta tag (version contains a hyphen, e.g. v0.3.0-rc.5) must
+          # NOT become 'Latest' — electron-updater's Latest lookup would then
+          # offer a pre-release to stable users. Publish it as a prerelease;
+          # publish a clean version tag as Latest. (Combines the all-platforms
+          # draft gate from this PR with the prerelease awareness from #332.)
+          if [[ "$TAG" == *-* ]]; then
+            echo "Promoting $TAG: draft → published (prerelease, not Latest)"
+            gh release edit "$TAG" \
+              --repo "${{ github.repository }}" \
+              --draft=false \
+              --prerelease
+          else
+            echo "Promoting $TAG: draft → published + Latest"
+            gh release edit "$TAG" \
+              --repo "${{ github.repository }}" \
+              --draft=false \
+              --latest
+          fi

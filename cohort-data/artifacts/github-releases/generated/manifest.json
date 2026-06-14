@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "artifact_count": 4,
+  "artifacts": [
+    {
+      "artifact_id": "github-releases:elizaos:elizaos-eliza",
+      "artifact_kind": "github_release_list",
+      "record_id": "elizaos",
+      "date": "2026-05-20",
+      "file": "github-releases-elizaos-elizaos-eliza.json",
+      "release_count": 100,
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-releases:searxng-wth-frnds:dmarzzz-searxng-wth-frnds",
+      "artifact_kind": "github_release_list",
+      "record_id": "searxng-wth-frnds",
+      "date": "2026-05-25",
+      "file": "github-releases-searxng-wth-frnds-dmarzzz-searxng-wth-frnds.json",
+      "release_count": 16,
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-releases:shape-rotator-os:dmarzzz-shape-rotator-os",
+      "artifact_kind": "github_release_list",
+      "record_id": "shape-rotator-os",
+      "date": "2026-06-13",
+      "file": "github-releases-shape-rotator-os-dmarzzz-shape-rotator-os.json",
+      "release_count": 75,
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
+    {
+      "artifact_id": "github-releases:signalstack:ronturetzky-sigstack",
+      "artifact_kind": "github_release_list",
+      "record_id": "signalstack",
+      "date": "2026-03-25",
+      "file": "github-releases-signalstack-ronturetzky-sigstack.json",
+      "release_count": 1,
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    }
+  ]
+}

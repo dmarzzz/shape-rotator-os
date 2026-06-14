@@ -11,7 +11,13 @@ source: private-vault:dstack-hangout
 
 # dstack hangout: reproducible Debian base images for TEE and agent workloads
 
-Informal dstack-adjacent session on building a shared, reproducible Debian image layer that TEE stacks and agent operating systems can both build on instead of reinventing image tooling.
+**Reproducible base images, so "self-verifiable" stops meaning "nobody verifies."**
+
+*Informal dstack-adjacent session on building a shared, reproducible Debian image layer that TEE stacks and agent operating systems can both build on instead of reinventing image tooling.*
+
+## the 60-second version
+
+An informal hangout on building a shared, reproducible Debian image layer that both TEE stacks and agent operating systems can build on — distributed as a verifiable package repo and built with mkosi instead of a hand-maintained fork. The point: Yocto-style images are technically reproducible but so painful to rebuild that almost nobody does, which quietly breaks the whole trust story.
 
 ## themes
 
@@ -40,3 +46,7 @@ Yes — use mkosi instead of forking. It behaves like Packer for Debian spin-off
 - [mkosi (systemd project for building OS images)](https://github.com/systemd/mkosi)
 - [Tails (Debian-based hardened live OS)](https://tails.net)
 - [dstack (open-source TEE deployment stack)](https://github.com/Dstack-TEE/dstack)
+
+## provenance
+
+Distilled from a private-vault transcript (`dstack-hangout`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: `cohort-internal`.

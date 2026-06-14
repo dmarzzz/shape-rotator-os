@@ -11,7 +11,13 @@ source: private-vault:day1-project-intros-notes-2026-05-19
 
 # Day 1 Project Intros: Info Markets and Consumer Agents
 
-First project-intro afternoon of the cohort: a prediction-market hedging agent, a behavior-modulating consumer agent stack, and a live conversation visualizer, capped by agentic-workflow swaps and a generalized founder-journey fireside.
+**Three first-day pitches, one shared question: who is this actually for?**
+
+*First project-intro afternoon of the cohort: a prediction-market hedging agent, a behavior-modulating consumer agent stack, and a live conversation visualizer, capped by agentic-workflow swaps and a generalized founder-journey fireside.*
+
+## the 60-second version
+
+The cohort's opening project-intro afternoon ran three very different bets — a prediction-market hedging agent, a privacy-preserving behavior-modulation stack, and a live speech-to-visual stage system — before drifting into how people are really building, with parallel coding agents, evals, and local models. The pressure from the room was less about the technology than the customer: every presenter got pushed to name a single ideal user, and most were still guessing.
 
 ## themes
 
@@ -60,3 +66,7 @@ Heavy investment in evals plus an auditor-style model that scores whether intent
 - [Claude Code](https://claude.com/claude-code)
 - [Matrix (cohort coordination)](https://matrix.org)
 - [shaperotator.xyz](https://shaperotator.xyz)
+
+## provenance
+
+Distilled from a private-vault transcript (`day1-project-intros-notes-2026-05-19`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: `cohort-internal`.

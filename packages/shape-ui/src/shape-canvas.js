@@ -584,11 +584,14 @@ export function mountShapesIn(container) {
     overlay = document.createElement("canvas");
     overlay.className = "alch-shape-overlay alchemy-only";
     // z-index sits above the tab content (#network-view / #atlas-view /
-    // alchemy host all use z:3) but BELOW the tab bar (z:6) and any
-    // modals (z:99+). pointer-events:none so the canvas is invisible
-    // to mouse hits — clicks fall through to the cards underneath.
-    overlay.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:5;";
+    // alchemy host all use z:3) but BELOW the blank-tab cover (z:5),
+    // the tab bar (z:6) and any modals (z:99+). pointer-events:none so
+    // the canvas is invisible to mouse hits — clicks fall through to
+    // the cards underneath.
+    overlay.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:4;";
     document.body.appendChild(overlay);
+  } else {
+    overlay.style.zIndex = "4";  // re-mounts inherit the corrected stacking
   }
   const ctrl = mountSharedOverlay(overlay);
   return [ctrl];
@@ -625,6 +628,29 @@ function mountSharedOverlay(overlay) {
 
   // Per-frame DOM query — cheap for tens of shapes, and re-querying
   // catches DOM mutations without needing a MutationObserver.
+  //
+  // CLIP CHAIN: the fixed overlay opted out of normal DOM clipping, so a
+  // shape scrolled past its host's edge kept painting — over sticky bars
+  // and tab chrome. Each placeholder's scrolling ancestors (computed
+  // overflow other than visible) are cached per element; per frame the
+  // draw rect is intersected with their rects, re-imposing exactly the
+  // clipping the placeholder itself gets from the DOM. Sticky chrome that
+  // floats over the content marks itself with data-shape-occluder and
+  // clips the covered edge.
+  const _clipChains = new WeakMap();
+  function clipChainFor(el) {
+    let chain = _clipChains.get(el);
+    if (chain) return chain;
+    chain = [];
+    let node = el.parentElement;
+    while (node && node !== document.documentElement && node !== document.body) {
+      const cs = getComputedStyle(node);
+      if (cs.overflowX !== "visible" || cs.overflowY !== "visible") chain.push(node);
+      node = node.parentElement;
+    }
+    _clipChains.set(el, chain);
+    return chain;
+  }
   function placeholderList() {
     const out = [];
     for (const el of document.querySelectorAll("canvas[data-shape-fam]")) {
@@ -638,6 +664,7 @@ function mountSharedOverlay(overlay) {
         kind,
         scale: Number(el.dataset.shapeScale) || 1,
         colors: hashColors(el.dataset.shapeSeed || ""),
+        clips: clipChainFor(el),
       });
     }
     return out;
@@ -651,24 +678,66 @@ function mountSharedOverlay(overlay) {
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(prog.prog);
 
+    // One rect read per clip/occluder element per frame, shared across
+    // placeholders (the whole grid shares the same scroll host).
+    const rectCache = new Map();
+    const rectOf = (el) => {
+      let r = rectCache.get(el);
+      if (!r) { r = el.getBoundingClientRect(); rectCache.set(el, r); }
+      return r;
+    };
+    const occluders = document.querySelectorAll("[data-shape-occluder]");
+
     for (const p of placeholderList()) {
       if (!p.el.isConnected) continue;
       // Don't draw if the placeholder is hidden via display:none (the
       // ancestors' getBoundingClientRect comes back zero).
       const r = p.el.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) continue;
+      // Visible region = placeholder rect ∩ every scrolling ancestor —
+      // the same clip the DOM applies to the placeholder itself.
+      let cL = r.left, cT = r.top, cR = r.right, cB = r.bottom;
+      for (const clipEl of p.clips) {
+        const cr = rectOf(clipEl);
+        if (cr.left   > cL) cL = cr.left;
+        if (cr.top    > cT) cT = cr.top;
+        if (cr.right  < cR) cR = cr.right;
+        if (cr.bottom < cB) cB = cr.bottom;
+      }
+      // Sticky chrome (data-shape-occluder) floats over the content; clip
+      // the covered edge so the shape passes UNDER the glass, not over it.
+      const edgeSnapPx = 6;
+      for (const o of occluders) {
+        if (!o.isConnected) continue;
+        const or = rectOf(o);
+        if (or.right <= cL || or.left >= cR || or.bottom <= cT || or.top >= cB) continue;
+        const coversTopEdge = or.top <= cT + edgeSnapPx;
+        const coversBottomEdge = or.bottom >= cB - edgeSnapPx;
+        if (coversTopEdge && or.bottom >= cB) { cT = cB; break; }  // fully covered
+        if (coversTopEdge) cT = or.bottom;                         // covers top edge
+        else if (coversBottomEdge) cB = or.top;                    // covers bottom edge
+        // mid-rect occluders can't be one scissor rect — leave those alone
+      }
+      if (cR - cL < 1 || cB - cT < 1) continue;
       // viewport coord system is bottom-left origin in CSS pixels; the
       // overlay covers the whole window so getBoundingClientRect (which
-      // is also viewport-relative) maps 1:1.
+      // is also viewport-relative) maps 1:1. The VIEWPORT keeps the full
+      // placeholder rect (it defines the shader's coordinate frame); the
+      // SCISSOR shrinks to the visible region so clipped pixels never land.
       const x  = Math.round(r.left * dpr);
       const yT = Math.round(r.top  * dpr);
       const w  = Math.max(1, Math.round(r.width  * dpr));
       const h  = Math.max(1, Math.round(r.height * dpr));
       const yB = overlay.height - yT - h;
-      // Cull rects that fall entirely outside the visible window.
-      if (x + w < 0 || yB + h < 0 || x >= overlay.width || yB >= overlay.height) continue;
+      const sx  = Math.round(cL * dpr);
+      const syT = Math.round(cT * dpr);
+      const sw  = Math.max(1, Math.round((cR - cL) * dpr));
+      const sh  = Math.max(1, Math.round((cB - cT) * dpr));
+      const syB = overlay.height - syT - sh;
+      // Cull rects whose visible region falls entirely outside the window.
+      if (sx + sw < 0 || syB + sh < 0 || sx >= overlay.width || syB >= overlay.height) continue;
       gl.viewport(x, yB, w, h);
-      gl.scissor(x, yB, w, h);
+      gl.scissor(sx, syB, sw, sh);
       gl.uniform1f(prog.uniforms.time, t);
       gl.uniform1f(prog.uniforms.family, p.family);
       gl.uniform1f(prog.uniforms.kind, p.kind);

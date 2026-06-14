@@ -11,7 +11,13 @@ source: private-vault:friday-shaw-greg-2026-05-22
 
 # PMF Roast and Founders Journey: Kill Discipline, Feedback Traps, and Open-Source Agent Stacks
 
-A week-one recap and PMF clinic distilled into principles on validating, killing, and shipping products, capped by a founders-journey conversation and a deep dive into an open-source agentic operating system.
+**Loud user demands are usually a request for a faster horse.**
+
+*A week-one recap and PMF clinic distilled into principles on validating, killing, and shipping products, capped by a founders-journey conversation and a deep dive into an open-source agentic operating system.*
+
+## the 60-second version
+
+A week-one PMF clinic and founders-journey conversation distilled to a handful of hard rules: pre-commit your kill criteria, validate against a diverse sample rather than a friendly niche, read complaints (not silence) as the real fit signal, and ship at 80% instead of going quiet. It closed on open-source movements as a distribution strategy in their own right.
 
 ## themes
 
@@ -61,6 +67,8 @@ Defense was framed in layers: role-gated actions where unauthorized capabilities
 - [The Bitter Lesson (Rich Sutton)](http://www.incompleteideas.net/IncIdeas/BitterLesson.html)
 - [The Alberta Plan for AI Research](https://arxiv.org/abs/2208.11173)
 
-## consent note
+## provenance
+
+Distilled from a private-vault transcript (`friday-shaw-greg-2026-05-22`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: `speaker-pending`.
 
 This session included external or featured speakers. The readout is held to thematic, unattributed distillation; a richer version requires a speaker consent pass.

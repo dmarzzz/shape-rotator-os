@@ -1,0 +1,45 @@
+name: "Post an ask"
+description: "Ask the cohort for help, a pairing, feedback, or to offer something. Auto-published to the asks wall."
+title: "[ask] "
+labels: ["ask"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Post an ask to the cohort. If your GitHub handle matches your cohort profile,
+        this is **published automatically** — it shows up on everyone's asks wall within
+        about an hour (or instantly when they hit "resync from GitHub"). No PR, no merge.
+
+        Your identity comes from the GitHub account you're posting with, so you don't
+        need to enter your name.
+  - type: dropdown
+    id: verb
+    attributes:
+      label: "What kind of ask?"
+      description: "The verb that leads your ask on the wall."
+      options:
+        - "🤝 pair on"
+        - "📣 looking for"
+        - "🛠️ offering"
+        - "🧠 advice on"
+        - "🔬 brain on"
+        - "👀 feedback on"
+        - "🎨 need 30 min with"
+    validations:
+      required: true
+  - type: input
+    id: topic
+    attributes:
+      label: "Topic"
+      description: "One line. Keep it concrete — what you actually want."
+      placeholder: "tee attestation flows — 30 min with someone who's shipped a dstack deployment"
+    validations:
+      required: true
+  - type: input
+    id: skill_areas
+    attributes:
+      label: "Skill areas (comma-separated)"
+      description: "Optional. Used for filtering. Unknown tags are dropped — see the controlled vocab in cohort-data/schema.yml (e.g. tee, dstack, attestation, zk, mpc, agentic, mev, design)."
+      placeholder: "tee, dstack, attestation"
+    validations:
+      required: false

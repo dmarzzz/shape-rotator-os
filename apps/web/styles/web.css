@@ -392,6 +392,133 @@ body .alch-shape-overlay { display: block !important; }
   border-color: rgba(208, 83, 50, 0.55);
 }
 
+/* ── sentence bar — "listing teams & projects 41 · cohort teams 32" ──
+   The kind tabs + membership chips read as one claim; each swappable word
+   is a stateful token opening a listbox with counts + meanings. Mirrors
+   the OS app's cohort sentence grammar. */
+.cohort-kind-filter {
+  align-items: center;
+  gap: 7px;
+  font-size: var(--t-12, 12px);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: var(--ink-4);
+}
+.ac-sent-word { white-space: nowrap; }
+.ac-sent-unit { position: relative; display: inline-flex; }
+.ac-sent-tok {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 3px 11px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: rgba(245, 243, 238, 0.03);
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  line-height: 1;
+  color: var(--ink-1);
+  cursor: pointer;
+  transition: color var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease), background var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+}
+.ac-sent-tok em {
+  font-style: normal;
+  font-weight: 600;
+  font-feature-settings: var(--num-feat);
+  color: #d05332;
+}
+.ac-sent-tok:hover { border-color: var(--ink-3); background: rgba(245, 243, 238, 0.05); }
+.ac-sent-tok:active { transform: scale(0.97); }
+.ac-sent-tok:focus-visible { outline: 1px solid rgba(208, 83, 50, 0.78); outline-offset: 2px; }
+.ac-sent-chev {
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4.5px solid var(--ink-4);
+  transition: transform var(--dur-base) var(--ease);
+}
+.ac-sent-tok[aria-expanded="true"] { border-color: var(--ink-3); background: rgba(245, 243, 238, 0.06); }
+.ac-sent-tok[aria-expanded="true"] .ac-sent-chev { transform: rotate(180deg); }
+.ac-sent-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 248px;
+  max-width: min(320px, 84vw);
+  padding: 5px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: #2b2726;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+  animation: ac-sent-menu-in 160ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+@keyframes ac-sent-menu-in {
+  from { opacity: 0; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-sent-menu { animation: none; }
+  .ac-sent-tok, .ac-sent-chev, .ac-sent-opt { transition: none; }
+}
+.ac-sent-opt {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background var(--dur-base) var(--ease);
+}
+.ac-sent-opt + .ac-sent-opt { margin-top: 1px; }
+.ac-sent-opt:hover { background: rgba(245, 243, 238, 0.05); }
+.ac-sent-opt:focus-visible { outline: 1px solid rgba(208, 83, 50, 0.78); outline-offset: -1px; }
+.ac-sent-opt-main { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.ac-sent-opt b {
+  font-size: var(--t-11);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--ink-3);
+}
+.ac-sent-opt small {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
+  color: var(--ink-4);
+}
+.ac-sent-opt em {
+  font-style: normal;
+  font-size: var(--t-11);
+  font-weight: 600;
+  font-feature-settings: var(--num-feat);
+  color: #d05332;
+}
+.ac-sent-opt[aria-selected="true"] {
+  background: rgba(245, 243, 238, 0.05);
+  box-shadow: inset 2px 0 0 #d05332;
+}
+.ac-sent-opt[aria-selected="true"] b { color: var(--ink-1); }
+/* Detail view keeps the kind token (it exits the dossier) but the
+   membership token only applies to the grid. */
+.cohort-page-head.is-detail .ac-sent-unit[data-unit="membership"],
+.cohort-page-head.is-detail .ac-sent-unit[data-unit="membership"] + .ac-sent-word,
+.cohort-page-head.is-detail .ac-sent-word:has(+ .ac-sent-unit[data-unit="membership"]) {
+  display: none;
+}
+
 .cohort-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
@@ -519,7 +646,7 @@ body .alch-shape-overlay { display: block !important; }
   line-height: 1.35;
 }
 .cic-route-line > span {
-  color: rgba(245, 243, 238, 0.24);
+  color: rgba(245, 243, 238, 0.48);
   font-size: 9.5px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1211,6 +1338,22 @@ body.links-page-body .hero-tagline {
   justify-self: center;
 }
 .cd-shape canvas { display: block; width: 100%; height: 100%; }
+/* Sigil continuity, grid → dossier (see syncFromHashTransitioned in
+ * cohort.js). The rail hero carries the name statically; the opened
+ * card's canvas is tagged at click time. */
+.cd-rail .cd-shape canvas { view-transition-name: sr-sigil; }
+::view-transition-group(sr-sigil),
+::view-transition-old(sr-sigil),
+::view-transition-new(sr-sigil) {
+  animation-duration: 300ms;
+  animation-timing-function: var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+::view-transition-old(sr-sigil),
+::view-transition-new(sr-sigil) {
+  height: 100%;
+}
+::view-transition-old(root) { animation-duration: 140ms; }
+::view-transition-new(root) { animation-duration: 220ms; }
 .cd-rail-kicker,
 .cd-h {
   font-family: var(--font-mono);
@@ -1295,8 +1438,53 @@ body.links-page-body .hero-tagline {
   gap: var(--space-5);
 }
 .cd-ledger-head {
-  display: grid;
-  gap: var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+/* Explore toolbar — record actions (calendar, availability, links)
+ * lifted into the read's head as icon buttons: the first actions you
+ * see. Square (shape-grammar: no words inside), hairline at rest, oxide
+ * tint on hover/focus — the dossier's link voice. Mirror of
+ * .alch-explore-* in apps/os/src/styles.css. */
+.cd-explore-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+.cd-explore-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid rgba(241, 236, 231, 0.16);
+  border-radius: 7px;
+  background: rgba(247, 241, 236, 0.018);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease), background var(--dur-base) var(--ease), transform 160ms var(--ease);
+}
+.cd-explore-btn svg { width: 16px; height: 16px; display: block; }
+.cd-explore-btn:hover,
+.cd-explore-btn:focus-visible {
+  color: #d05332;
+  border-color: rgba(208, 83, 50, 0.55);
+  background: rgba(180, 58, 25, 0.08);
+}
+.cd-explore-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(208, 83, 50, 0.38);
+}
+.cd-explore-btn:active { transform: scale(0.94); }
+@media (prefers-reduced-motion: reduce) {
+  .cd-explore-btn { transition: none; }
+  .cd-explore-btn:active { transform: none; }
 }
 .cd-quick {
   display: grid;
@@ -1382,18 +1570,82 @@ body.links-page-body .hero-tagline {
 }
 .cd-team-token:hover canvas,
 .cd-team-token:focus-visible canvas {
-  filter: drop-shadow(0 0 8px rgba(139, 216, 209, 0.34));
+  filter: drop-shadow(0 0 8px rgba(208, 83, 50, 0.34));
   transform: scale(1.08);
 }
+/* The rail's team token carries the mini sigil (it absorbed the old
+ * "team context" quick row) — reset the chip chrome to the rail's quiet
+ * underlined-link voice and size the shape to the rail's type scale. */
+.cd-rail-list .cd-team-token {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(241, 236, 231, 0.24);
+  background: transparent;
+  gap: 6px;
+}
+.cd-rail-list .cd-team-token .cd-mini-shape { width: 15px; }
 .cd-pill {
   gap: var(--space-2);
   color: var(--ink-2);
 }
 .cd-pill span,
 .cd-quick-text span {
-  color: var(--ink-4);
+  color: var(--ink-3);
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
+  /* Labels are atomic — only the value text may wrap (no "FOCU S"). */
+  white-space: nowrap;
+}
+/* ask-me-about chips with matching timeline provenance carry a hover/
+ * focus evidence layer (the matched entry: date — title). The oxide
+ * corner tick marks which chips have it; chips without a match render
+ * plain, so nothing looks layered that isn't. */
+.cd-evidence-chip {
+  position: relative;
+}
+.cd-evidence-chip::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-top: 1px solid #d05332;
+  border-right: 1px solid #d05332;
+  opacity: 0.65;
+}
+.cd-evidence-chip::after {
+  content: "evidence · " attr(data-evidence);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 12;
+  width: max-content;
+  max-width: min(46ch, 70vw);
+  padding: 5px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm, 4px);
+  background: var(--paper-2, var(--paper-1, #221d1a));
+  color: var(--ink-2);
+  font-size: var(--t-11, 10.5px);
+  line-height: 1.45;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--dur-fast, 120ms) var(--ease, ease-out),
+              transform var(--dur-fast, 120ms) var(--ease, ease-out);
+}
+.cd-evidence-chip:hover::after,
+.cd-evidence-chip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+  /* enter slower than exit */
+  transition-duration: var(--dur-base, 220ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cd-evidence-chip::after { transition: none; }
 }
 .cd-team-quick .cd-quick-row {
   grid-template-columns: 104px minmax(0, 1fr);
@@ -1403,7 +1655,15 @@ body.links-page-body .hero-tagline {
 .cd-team-quick .cd-quick-v {
   gap: var(--space-3);
 }
-.cd-team-quick .cd-quick-link,
+/* Multi-item values: short pills share a line; prose items each own a
+ * full row (two long items flowing inline made a ragged fake column). */
+.cd-team-quick .cd-quick-v {
+  column-gap: 16px;
+  row-gap: 5px;
+}
+.cd-team-quick .cd-quick-text {
+  flex: 1 1 100%;
+}
 .cd-team-quick .cd-pill,
 .cd-team-quick .cd-quick-text {
   min-height: 0;
@@ -1411,13 +1671,6 @@ body.links-page-body .hero-tagline {
   border: 0;
   border-radius: 0;
   background: transparent;
-}
-.cd-team-quick .cd-quick-link {
-  border-bottom: 1px solid rgba(241, 236, 231, 0.22);
-}
-.cd-team-quick .cd-quick-link:hover {
-  background: transparent;
-  border-bottom-color: rgba(208, 83, 50, 0.65);
 }
 .cd-team-quick .cd-pill {
   color: var(--ink-2);
@@ -1439,8 +1692,8 @@ body.links-page-body .hero-tagline {
   align-items: center;
   gap: var(--space-3);
   min-height: 42px;
-  padding-inline: 6px;
-  border-radius: var(--r-sm);
+  padding-inline: 8px;
+  border-radius: 8px;
   cursor: pointer;
   list-style: none;
   font-family: var(--font-mono);
@@ -1449,11 +1702,15 @@ body.links-page-body .hero-tagline {
   text-transform: uppercase;
   letter-spacing: var(--track-caps-loose);
   color: var(--ink-2);
-  transition: background var(--dur-base) var(--ease), color var(--dur-base) var(--ease);
+  transition: background var(--dur-base) var(--ease), color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
 }
-.cd-section summary:hover {
+/* Liquid-glass sheen on hover/focus — translucent fill + 1px inset
+ * specular highlight (gloss, not backdrop blur). */
+.cd-section summary:hover,
+.cd-section summary:focus-visible {
   color: var(--ink-1);
-  background: rgba(247, 241, 236, 0.028);
+  background: linear-gradient(180deg, rgba(247, 241, 236, 0.05), rgba(247, 241, 236, 0.018));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .cd-section summary::-webkit-details-marker { display: none; }
 .cd-section-label {
@@ -1465,28 +1722,81 @@ body.links-page-body .hero-tagline {
 }
 .cd-section summary .cd-section-preview {
   min-width: 0;
-  max-width: min(42ch, 60%);
+  max-width: min(52ch, 68%);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: rgba(241, 236, 231, 0.46);
+  /* Previews carry actual record content (now-line, latest timeline
+   * entry, traction snippet) — readable ink, content keeps its case. */
+  color: rgba(241, 236, 231, 0.55);
   font-weight: 400;
   letter-spacing: 0;
-  text-transform: lowercase;
+  text-transform: none;
 }
+/* Flat section — the dossier's default block: hairline + small label,
+ * content simply visible; nothing suggests clicking. */
+.cd-section-flat {
+  border: 0;
+  border-top: 1px solid rgba(241, 236, 231, 0.08);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-4) 0 var(--space-2);
+}
+.cd-flat-label {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.cd-section-flat .cd-section-body { animation: none; }
+
+/* The expand affordance: a chevron in a small liquid-glass chip (mirrors
+ * the explore toolbar's icon-chip grammar and .alch-section-mark in the
+ * OS styles). Quiet at rest, oxide when open, chevron rotates 180° — what
+ * makes a section read as expandable vs an always-visible flat block. */
 .cd-section-mark {
-  color: rgba(241, 236, 231, 0.46);
-  font-size: var(--t-12);
-  transition: color var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid rgba(241, 236, 231, 0.10);
+  background: linear-gradient(180deg, rgba(241, 236, 231, 0.07), rgba(241, 236, 231, 0.02));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: rgba(241, 236, 231, 0.62);
+  transition: color var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease), background var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
 }
-.cd-section-mark::before { content: "+"; }
-.cd-section[open] .cd-section-mark::before { content: "-"; }
-.cd-section[open] .cd-section-mark { color: #d05332; }
+.cd-section-mark svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  transition: transform 240ms var(--ease);
+}
+.cd-section summary:hover .cd-section-mark,
+.cd-section summary:focus-visible .cd-section-mark {
+  color: var(--ink-1);
+  border-color: rgba(241, 236, 231, 0.22);
+  background: linear-gradient(180deg, rgba(241, 236, 231, 0.12), rgba(241, 236, 231, 0.04));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+.cd-section[open] .cd-section-mark {
+  color: #d05332;
+  border-color: rgba(208, 83, 50, 0.42);
+  background: linear-gradient(180deg, rgba(180, 58, 25, 0.16), rgba(180, 58, 25, 0.05));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.cd-section[open] .cd-section-mark svg { transform: rotate(180deg); }
 .cd-section[open] summary {
   color: var(--ink-1);
 }
+/* Open section: the body below owns the content — a preview restating it
+ * would be a duplicate role in the same frame. */
 .cd-section[open] .cd-section-preview {
-  color: rgba(245, 243, 238, 0.52);
+  display: none;
 }
 .cd-section-body {
   display: grid;
@@ -1498,8 +1808,22 @@ body.links-page-body .hero-tagline {
   from { opacity: 0; transform: translateY(-2px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* Liquid open: animate the body's height where supported. interpolate-size
+ * is scoped to .cd-section (not :root) so nothing else changes. Mirror of
+ * the .alch-detail-disclosure rule in the OS styles. */
+@supports (interpolate-size: allow-keywords) {
+  .cd-section { interpolate-size: allow-keywords; }
+  .cd-section::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition: block-size 260ms var(--ease), content-visibility 260ms allow-discrete;
+  }
+  .cd-section[open]::details-content { block-size: auto; }
+}
 @media (prefers-reduced-motion: reduce) {
   .cd-section-body { animation: none; }
+  .cd-section-mark svg, .cd-section summary { transition: none; }
+  .cd-section::details-content { transition: none; }
 }
 .cd-prose {
   display: grid;

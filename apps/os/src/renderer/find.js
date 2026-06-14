@@ -126,6 +126,13 @@ function buildCatalog() {
       nav: () => window.__srwkGoTab?.(tab),
     });
   });
+  // Links — demoted from the nav rail to a footer chip (2026-06), but still
+  // a top-level destination, so keep it launchable from search.
+  items.push({
+    type: "section", title: "links", sub: "handouts · repos · downloads",
+    hay: "links handouts repos downloads workspace external",
+    nav: () => window.__srwkGoTab?.("links"),
+  });
   return items;
 }
 
@@ -332,6 +339,16 @@ function setScope(next) {
 
 // ─── overlay open/close ──────────────────────────────────────────────────────
 let overlayList = null;
+
+// Open the overlay with a query prefilled — the quick dial's search rail
+// hands off here. Exported alongside init(); same overlay, same catalog.
+export function openWithQuery(query = null) {
+  openOverlay();
+  if (inputEl && query != null) {
+    inputEl.value = String(query);
+    inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+}
 
 function openOverlay() {
   if (!overlayEl) return;
