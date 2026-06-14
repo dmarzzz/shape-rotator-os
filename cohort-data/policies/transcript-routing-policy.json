@@ -1,0 +1,317 @@
+{
+  "schema_version": 1,
+  "policy_key": "transcript-routing",
+  "version": "2026-06-13",
+  "title": "Shape Rotator transcript routing policy",
+  "calendar_event_defaults": {
+    "guestsCanModify": false,
+    "guestsCanInviteOthers": false,
+    "guestsCanSeeOtherGuests": true
+  },
+  "storage_boundary": {
+    "drive_role": "raw_source_vault",
+    "distillation_system_of_record": "supabase",
+    "drive_derived_review_role": "optional_operator_export_or_review_mirror_not_canonical",
+    "review_export_folder": "operator_review_exports",
+    "numeric_folder_prefixes_allowed": false,
+    "folder_rename_migration": "scripts/prepare-transcript-drive-operations.mjs + scripts/apply-transcript-drive-operations.mjs",
+    "raw_transcript_text_repo_allowed": false
+  },
+  "calendar_matching": {
+    "required_before_final_routing": true,
+    "required_before_final_filename": true,
+    "conflict_route": "needs_calendar_match",
+    "rule": "Match calendar event first to confirm or challenge date, type, project/topic basis, and audience boundary."
+  },
+  "transcript_naming": {
+    "preferred_pattern": "type_project_name_date",
+    "literal_pattern": "type_project-name_YYYY-MM-DD.ext",
+    "separator": "_",
+    "date_format": "YYYY-MM-DD",
+    "extension": "preserve_source_extension",
+    "example": "office_hours_conclave_2026-06-08.txt",
+    "bad_good_examples": [
+      {
+        "bad": "Conclave office hours final.txt",
+        "good": "office_hours_conclave_2026-06-10.txt"
+      },
+      {
+        "bad": "Copy of Product Whiteboarding Jam Jun 9.txt",
+        "good": "rd_jam_product-whiteboarding_2026-06-09.txt"
+      },
+      {
+        "bad": "WDYDLW Shaw notes latest.md",
+        "good": "weekly_standup_shaw_2026-06-08.md"
+      },
+      {
+        "bad": "Project intros & workflow.txt",
+        "good": "demo_presentation_project-intros-workflow_2026-05-19.txt"
+      }
+    ],
+    "type_slugs": {
+      "weekly_standup": "weekly_standup",
+      "office_hours": "office_hours",
+      "private_1on1": "private_1on1",
+      "salon": "salon",
+      "rd_jam": "rd_jam",
+      "demo_presentation": "demo_presentation",
+      "user_interview": "user_interview",
+      "planning_strategy": "planning_strategy"
+    }
+  },
+  "drive_vault": {
+    "shared_drive_name": "Shape Rotator Transcript Vault",
+    "role": "raw_source_vault",
+    "admin_role": "manager",
+    "derived_review_role": "optional_operator_export_or_review_mirror_not_canonical",
+    "review_export_folder": "operator_review_exports",
+    "numeric_folder_prefixes_allowed": false,
+    "admins": [
+      {
+        "name": "Tina"
+      },
+      {
+        "name": "Andrew"
+      },
+      {
+        "name": "Dmarz"
+      },
+      {
+        "name": "Michael"
+      },
+      {
+        "name": "Fred"
+      },
+      {
+        "name": "Albi"
+      }
+    ],
+    "root_folders": {
+      "inbox": "inbox",
+      "raw": "raw_transcripts",
+      "calendar_matched": "calendar_matched",
+      "needs_calendar_match": "needs_calendar_match",
+      "derived_review": "operator_review_exports",
+      "do_not_publish": "do_not_publish"
+    },
+    "folder_routes": {
+      "weekly_standup": {
+        "path": "raw_transcripts/weekly_standup",
+        "derived_path": "operator_review_exports/weekly_standup",
+        "access_note": "Admins plus people in the room; only aggregate output can reach cohort."
+      },
+      "office_hours": {
+        "path": "raw_transcripts/office_hours",
+        "derived_path": "operator_review_exports/office_hours",
+        "access_note": "Admins plus project core team; cohort gets reviewed distilled readout only."
+      },
+      "private_1on1": {
+        "path": "do_not_publish/private_1on1",
+        "derived_path": "do_not_publish/private_1on1",
+        "access_note": "Admins only by default; private 1:1 and coordinator feedback never reach cohort/public surfaces."
+      },
+      "salon": {
+        "path": "raw_transcripts/salon",
+        "derived_path": "operator_review_exports/salon",
+        "access_note": "Admins plus speakers/organizers; public candidates require speaker pass."
+      },
+      "rd_jam": {
+        "path": "raw_transcripts/rd_jam",
+        "derived_path": "operator_review_exports/rd_jam",
+        "access_note": "Admins plus invited builders; cohort only after team call and hard distillation."
+      },
+      "demo_presentation": {
+        "path": "raw_transcripts/demo_presentation",
+        "derived_path": "operator_review_exports/demo_presentation",
+        "access_note": "Admins plus presenters; public candidates require presenter approval."
+      },
+      "user_interview": {
+        "path": "raw_transcripts/user_interview",
+        "derived_path": "operator_review_exports/user_interview",
+        "access_note": "Admins plus interview owner; only aggregate insights travel."
+      },
+      "planning_strategy": {
+        "path": "do_not_publish/planning_strategy",
+        "derived_path": "do_not_publish/planning_strategy",
+        "access_note": "Admins only by default; stops at core and never reaches cohort/public surfaces."
+      },
+      "unknown": {
+        "path": "needs_calendar_match",
+        "derived_path": "needs_calendar_match",
+        "access_note": "Hold until type, date, and audience are reviewed."
+      }
+    }
+  },
+  "tiers": {
+    "T0": {
+      "label": "room",
+      "audience": "people who were there",
+      "raw_allowed": true
+    },
+    "T1": {
+      "label": "core",
+      "audience": "core team and coordinators",
+      "raw_allowed": "request_and_approval"
+    },
+    "T2": {
+      "label": "cohort",
+      "audience": "gated cohort site",
+      "raw_allowed": false
+    },
+    "T3": {
+      "label": "public",
+      "audience": "open public site",
+      "raw_allowed": false
+    }
+  },
+  "session_type_groups": {
+    "primary_event_types": [
+      "weekly_standup",
+      "office_hours",
+      "salon",
+      "rd_jam",
+      "demo_presentation"
+    ],
+    "restricted_or_special_types": [
+      "private_1on1",
+      "user_interview",
+      "planning_strategy"
+    ]
+  },
+  "manual_classification_checks": [
+    {
+      "when": "recurring WDYDLW, status update, individual progress, or coordinator check-in by person",
+      "classify_as": "weekly_standup",
+      "not_as": "office_hours"
+    },
+    {
+      "when": "project support, product feedback, roadmap critique, milestone review, or core-team implementation help",
+      "classify_as": "office_hours",
+      "not_as": "rd_jam"
+    },
+    {
+      "when": "open-ended whiteboarding, architecture exploration, product/technical hypothesis testing, or idea-stage workshop",
+      "classify_as": "rd_jam",
+      "not_as": "office_hours"
+    },
+    {
+      "when": "topic-led discussion, speaker-led room, or salon-style session not centered on one team's operating work",
+      "classify_as": "salon",
+      "not_as": "office_hours"
+    },
+    {
+      "when": "prepared project/product demo, presentation, intro, showcase, or presenter-owned material",
+      "classify_as": "demo_presentation",
+      "not_as": "salon"
+    },
+    {
+      "when": "external customer/user/ICP subject whose participation is research evidence",
+      "classify_as": "user_interview",
+      "not_as": "office_hours"
+    },
+    {
+      "when": "governance, fundraising, internal planning, access policy, or coordinator strategy",
+      "classify_as": "planning_strategy",
+      "not_as": "office_hours"
+    }
+  ],
+  "ambiguous_classification_rule": "Use the calendar event as the first anchor. If the calendar is ambiguous, choose the more restrictive route and send the file to needs_calendar_match.",
+  "session_types": {
+    "weekly_standup": {
+      "label": "Weekly standup",
+      "description": "Individual status session.",
+      "event_basis": "individual_based",
+      "max_tier": "T2",
+      "cohort_mode": "aggregate_only",
+      "public_allowed": false,
+      "default_auto_transcript": false,
+      "required_public_approvals": [],
+      "notes": "Individual detail routes to coordinators only; aggregate signal can reach the cohort."
+    },
+    "office_hours": {
+      "label": "Office hours",
+      "description": "Project core team or product-based office-hours session.",
+      "event_basis": "project_core_team_or_product_based",
+      "max_tier": "T2",
+      "cohort_mode": "distilled_readout",
+      "public_allowed": false,
+      "default_auto_transcript": true,
+      "required_public_approvals": [],
+      "notes": "Project-internal by default; distilled cohort readout is allowed after review."
+    },
+    "private_1on1": {
+      "label": "Private 1:1",
+      "description": "Private one-on-one, coordinator feedback, or sensitive coaching session.",
+      "event_basis": "private_or_coaching_based",
+      "max_tier": "T1",
+      "cohort_mode": "never",
+      "public_allowed": false,
+      "default_auto_transcript": false,
+      "required_public_approvals": [],
+      "notes": "Tina/Andrew/private 1:1 material stays coordinator/core-only; no cohort or public derived artifact should be generated."
+    },
+    "salon": {
+      "label": "Salon",
+      "description": "Topic-led or speaker-led session.",
+      "event_basis": "topic_based",
+      "max_tier": "T3",
+      "cohort_mode": "distilled_readout",
+      "public_allowed": true,
+      "default_auto_transcript": true,
+      "required_public_approvals": [
+        "editorial_pass",
+        "speaker_pass",
+        "named_people_ok"
+      ],
+      "notes": "Public output requires full post-processing and explicit speaker approval."
+    },
+    "rd_jam": {
+      "label": "R&D / jam",
+      "description": "Product or technical idea-stage session.",
+      "event_basis": "product_or_technical_idea_based",
+      "max_tier": "T2",
+      "cohort_mode": "team_call_required",
+      "public_allowed": false,
+      "default_auto_transcript": false,
+      "required_public_approvals": [],
+      "notes": "Idea-stage IP stays cohort-only and should be distilled hard."
+    },
+    "demo_presentation": {
+      "label": "Demo / presentation",
+      "description": "Project or product demo.",
+      "event_basis": "project_or_product_based",
+      "max_tier": "T3",
+      "cohort_mode": "distilled_readout",
+      "public_allowed": true,
+      "default_auto_transcript": true,
+      "required_public_approvals": [
+        "editorial_pass",
+        "presenter_ok",
+        "named_people_ok"
+      ],
+      "notes": "Presenter owns the material; public output requires presenter approval."
+    },
+    "user_interview": {
+      "label": "User interview",
+      "description": "External-subject interview.",
+      "event_basis": "external_subject_based",
+      "max_tier": "T2",
+      "cohort_mode": "aggregate_only",
+      "public_allowed": false,
+      "default_auto_transcript": false,
+      "required_public_approvals": [],
+      "notes": "External non-consenting subjects stay core-only; aggregate insights may travel."
+    },
+    "planning_strategy": {
+      "label": "Planning / strategy",
+      "description": "Coordinator governance or strategy session.",
+      "event_basis": "coordinator_governance_based",
+      "max_tier": "T1",
+      "cohort_mode": "never",
+      "public_allowed": false,
+      "default_auto_transcript": false,
+      "required_public_approvals": [],
+      "notes": "Coordinator-internal governance stops at core."
+    }
+  }
+}

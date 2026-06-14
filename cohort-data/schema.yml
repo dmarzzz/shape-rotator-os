@@ -29,7 +29,8 @@ people:
                      # visiting-scholar.
     - geo
     - domain
-    - email          # public contact — surfaced to all cohort participants
+    # Contact emails are private operational data. They may exist in private
+    # operator config, but generated cohort surfaces must not publish them.
     - dates_start    # YYYY-MM-DD · start of the OVERALL window this person is in the cohort
     - dates_end      # YYYY-MM-DD · end of that overall window
     - secondary_teams # optional list of team record_ids — this person also

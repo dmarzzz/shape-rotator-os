@@ -1,0 +1,19 @@
+project_id = "shape-rotator-os"
+
+[functions.create-calendar-event]
+verify_jwt = true
+
+[functions.ingest-artifacts]
+verify_jwt = true
+
+[functions.review-transcript-artifact]
+verify_jwt = true
+
+[functions.google-calendar-webhook]
+verify_jwt = false
+
+[functions.process-transcript-jobs]
+verify_jwt = false
+
+[functions.poll-drive-artifacts]
+verify_jwt = false

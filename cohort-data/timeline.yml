@@ -5,12 +5,13 @@ base_ref: HEAD
 
 # Canonical source for the public cohort timeline today. This intentionally
 # excludes OS/app code changes: only public people, team/project, cluster, and
-# dependency declarations under cohort-data are projected into the timeline log.
+# dependency declarations under cohort-data are projected into the timeline
+# event log.
 sources:
   - id: cohort-data-github
     kind: git
     status: active
-    description: Public self-declared cohort records committed to GitHub main.
+    description: Public self-declared people and team/project records committed to GitHub main.
     paths:
       - cohort-data/people
       - cohort-data/teams
@@ -31,8 +32,8 @@ sources:
     description: Future public-safe transcript-derived activity and evidence.
 
 # Snapshots are read models over Git history. Each as_of resolves to the latest
-# commit at or before that timestamp; ref resolves directly. Run the generator
-# on main for the official timeline artifact.
+# first-parent commit at or before that timestamp; ref resolves directly. Run
+# the generator on main for the official timeline artifact.
 snapshots:
   - id: program-start
     label: Program start

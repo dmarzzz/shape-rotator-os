@@ -1,0 +1,1082 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calendar, Transcript, and Insight System</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f7f1e6;
+      --paper-2: #fffaf0;
+      --ink: #211b16;
+      --muted: #6b6258;
+      --rule: #d9c9b4;
+      --soft-rule: rgba(217, 201, 180, 0.68);
+      --vault: #5f7a55;
+      --control: #4c7487;
+      --compute: #a96a3b;
+      --review: #9b5145;
+      --public: #7a5c94;
+      --shadow: 0 24px 70px rgba(52, 38, 21, 0.13);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-feature-settings: "tnum" 1, "cv11" 1;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scrollbar-gutter: stable;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(95, 122, 85, 0.055) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(95, 122, 85, 0.05) 1px, transparent 1px),
+        radial-gradient(circle at 20% 0%, rgba(169, 106, 59, 0.14), transparent 30rem),
+        var(--paper);
+      background-size: 32px 32px, 32px 32px, auto, auto;
+      line-height: 1.42;
+    }
+
+    main {
+      width: min(1220px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 40px 0 56px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      max-width: 880px;
+      font-size: clamp(42px, 7vw, 86px);
+      line-height: 0.94;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+
+    h2 {
+      font-size: clamp(26px, 3.3vw, 44px);
+      line-height: 1.02;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+
+    h3 {
+      font-size: 15px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    p {
+      text-wrap: pretty;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: rgba(33, 27, 22, 0.08);
+      font: 0.92em/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+
+    .kicker {
+      margin-bottom: 14px;
+      color: var(--vault);
+      font: 760 12px/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .hero {
+      min-height: 92svh;
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+      gap: 34px;
+      align-items: center;
+      padding-bottom: 36px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .hero > * {
+      min-width: 0;
+    }
+
+    .lede {
+      max-width: 710px;
+      margin-top: 20px;
+      font-size: clamp(18px, 2.1vw, 24px);
+      color: #3f362f;
+    }
+
+    .plain-answer {
+      max-width: 680px;
+      margin-top: 28px;
+      padding: 15px 0 0;
+      border-top: 1px solid var(--rule);
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .flow-board {
+      min-width: 0;
+      padding: 20px;
+      border: 1px solid var(--rule);
+      border-radius: 14px;
+      background: rgba(255, 250, 240, 0.84);
+      box-shadow: var(--shadow);
+    }
+
+    .flow-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: end;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--soft-rule);
+    }
+
+    .flow-title b {
+      display: block;
+      font-size: 20px;
+    }
+
+    .flow-title span {
+      color: var(--muted);
+      font: 720 10px/1.15 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .flow-chart {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    .flow-chart svg {
+      display: block;
+      width: 100%;
+      min-width: 920px;
+      height: auto;
+    }
+
+    .chart-lane {
+      fill: rgba(255, 253, 247, 0.82);
+      stroke: var(--soft-rule);
+      stroke-width: 1;
+    }
+
+    .chart-lane.private { stroke: var(--vault); stroke-width: 2; }
+    .chart-lane.control { stroke: var(--control); stroke-width: 2; }
+    .chart-lane.safe { stroke: var(--public); stroke-width: 2; }
+
+    .chart-node {
+      fill: rgba(247, 241, 230, 0.94);
+      stroke: var(--rule);
+      stroke-width: 1.4;
+    }
+
+    .chart-node.compute {
+      fill: #fff8ea;
+      stroke: rgba(169, 106, 59, 0.72);
+      stroke-width: 2;
+    }
+
+    .chart-node.review {
+      fill: rgba(155, 81, 69, 0.08);
+      stroke: rgba(155, 81, 69, 0.68);
+      stroke-width: 2;
+    }
+
+    .chart-node.export {
+      fill: rgba(122, 92, 148, 0.11);
+      stroke: rgba(122, 92, 148, 0.66);
+      stroke-width: 2;
+    }
+
+    .chart-title {
+      fill: var(--ink);
+      font: 760 17px/1 Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+
+    .chart-small,
+    .chart-lane-label,
+    .chart-edge-label {
+      fill: var(--muted);
+      font: 720 10px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .chart-body {
+      fill: #4b4037;
+      font: 13px/1.25 Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+
+    .chart-line {
+      fill: none;
+      stroke: rgba(33, 27, 22, 0.58);
+      stroke-width: 2;
+      marker-end: url(#arrowHead);
+    }
+
+    .chart-line.private {
+      stroke: var(--vault);
+    }
+
+    .chart-line.compute {
+      stroke: var(--compute);
+    }
+
+    .chart-line.safe {
+      stroke: var(--public);
+    }
+
+    .chart-boundary {
+      fill: none;
+      stroke: rgba(155, 81, 69, 0.54);
+      stroke-width: 2;
+      stroke-dasharray: 7 7;
+    }
+
+    .flow-lane {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid var(--soft-rule);
+      border-radius: 10px;
+      background: rgba(255, 253, 247, 0.86);
+    }
+
+    .flow-lane + .flow-lane { margin-top: 12px; }
+
+    .flow-lane::before {
+      content: attr(data-lane);
+      position: absolute;
+      left: 12px;
+      top: -9px;
+      padding: 3px 7px;
+      border-radius: 6px;
+      background: var(--paper-2);
+      color: var(--muted);
+      font: 760 10px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .flow-lane.private { border-left: 6px solid var(--vault); }
+    .flow-lane.control { border-left: 6px solid var(--control); }
+    .flow-lane.safe { border-left: 6px solid var(--public); }
+
+    .flow-card {
+      position: relative;
+      min-height: 120px;
+      padding: 13px;
+      border: 1px solid var(--soft-rule);
+      border-radius: 9px;
+      background: rgba(247, 241, 230, 0.66);
+    }
+
+    .flow-card:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      right: -11px;
+      top: 48%;
+      width: 12px;
+      height: 2px;
+      background: rgba(33, 27, 22, 0.48);
+    }
+
+    .flow-card:not(:last-child)::before {
+      content: "";
+      position: absolute;
+      right: -13px;
+      top: calc(48% - 4px);
+      width: 8px;
+      height: 8px;
+      border-top: 2px solid rgba(33, 27, 22, 0.48);
+      border-right: 2px solid rgba(33, 27, 22, 0.48);
+      transform: rotate(45deg);
+    }
+
+    .flow-card b {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 16px;
+    }
+
+    .flow-card p {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .flow-card small,
+    .lane small {
+      color: var(--muted);
+      font: 720 10px/1.15 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .flow-card small {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .flow-bridge {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 12px 0;
+    }
+
+    .bridge-card {
+      padding: 12px;
+      border: 1px dashed rgba(155, 81, 69, 0.46);
+      border-radius: 9px;
+      background: rgba(155, 81, 69, 0.07);
+      color: #493c34;
+      font-size: 13px;
+    }
+
+    .bridge-card b {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--review);
+      font-size: 14px;
+    }
+
+    .compute-card {
+      border-color: rgba(169, 106, 59, 0.55);
+      background: #fff8ea;
+    }
+
+    .compute-card b { color: var(--compute); }
+
+    .review-card {
+      border-color: rgba(155, 81, 69, 0.5);
+      background: rgba(155, 81, 69, 0.08);
+    }
+
+    .review-card b { color: var(--review); }
+
+    section {
+      padding: 54px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(280px, 0.55fr);
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    .section-head p {
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .compare-board {
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--rule);
+      border-radius: 12px;
+      background: rgba(255, 253, 247, 0.92);
+      overflow: hidden;
+    }
+
+    .compare-row {
+      display: grid;
+      grid-template-columns: minmax(180px, 0.75fr) minmax(0, 1fr) minmax(0, 1fr);
+      gap: 0;
+      border-bottom: 1px solid var(--soft-rule);
+    }
+
+    .compare-row:last-child { border-bottom: 0; }
+
+    .compare-row > div {
+      padding: 14px;
+      border-right: 1px solid var(--soft-rule);
+    }
+
+    .compare-row > div:last-child { border-right: 0; }
+
+    .compare-row.header {
+      background: rgba(33, 27, 22, 0.06);
+      color: var(--muted);
+      font: 760 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .compare-row b {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 16px;
+    }
+
+    .compare-row p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .compare-tag {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 4px 7px;
+      border-radius: 6px;
+      color: var(--paper-2);
+      background: var(--ink);
+      font: 760 10px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .compare-tag.private { background: var(--vault); }
+    .compare-tag.control { background: var(--control); }
+    .compare-tag.compute { background: var(--compute); }
+    .compare-tag.review { background: var(--review); }
+    .compare-tag.safe { background: var(--public); }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .callout {
+      padding: 19px;
+      border: 1px solid var(--rule);
+      border-radius: 12px;
+      background: rgba(255, 250, 240, 0.78);
+    }
+
+    .callout h3 {
+      margin-bottom: 8px;
+      font-size: 22px;
+    }
+
+    .callout p {
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .rules {
+      display: grid;
+      gap: 10px;
+    }
+
+    .rule-row {
+      display: grid;
+      grid-template-columns: 116px 1fr 112px;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--soft-rule);
+      border-radius: 9px;
+      background: rgba(255, 253, 247, 0.94);
+    }
+
+    .rule-row b {
+      font-size: 14px;
+    }
+
+    .rule-row span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .result {
+      justify-self: end;
+      padding: 5px 8px;
+      border-radius: 7px;
+      color: var(--paper-2);
+      background: var(--vault);
+      font: 760 10px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .result.hold { background: var(--review); }
+    .result.private { background: var(--control); }
+    .result.public { background: var(--public); }
+
+    .never-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .never-item {
+      min-height: 108px;
+      padding: 13px;
+      border: 1px solid rgba(155, 81, 69, 0.35);
+      border-radius: 9px;
+      background: rgba(155, 81, 69, 0.08);
+    }
+
+    .never-item b {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--review);
+      font: 780 11px/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .never-item span {
+      color: #493c34;
+      font-size: 14px;
+    }
+
+    .tier-map {
+      display: grid;
+      grid-template-columns: 0.7fr 1fr 1fr 1fr 1fr;
+      border: 1px solid var(--rule);
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(255, 253, 247, 0.92);
+    }
+
+    .tier-cell {
+      min-height: 86px;
+      padding: 13px;
+      border-right: 1px solid var(--soft-rule);
+      border-bottom: 1px solid var(--soft-rule);
+      font-size: 14px;
+    }
+
+    .tier-cell:nth-child(5n) { border-right: 0; }
+    .tier-cell:nth-last-child(-n + 5) { border-bottom: 0; }
+
+    .tier-cell.head {
+      min-height: 62px;
+      background: rgba(33, 27, 22, 0.07);
+      font-weight: 800;
+    }
+
+    .tier-cell.yes { background: rgba(95, 122, 85, 0.14); }
+    .tier-cell.some { background: rgba(169, 106, 59, 0.14); }
+    .tier-cell.no { background: rgba(155, 81, 69, 0.12); }
+    .tier-cell.pub { background: rgba(122, 92, 148, 0.13); }
+
+    .lane-stack {
+      display: grid;
+      gap: 14px;
+    }
+
+    .lane {
+      display: grid;
+      grid-template-columns: 138px 1fr;
+      gap: 14px;
+      align-items: stretch;
+      min-height: 100px;
+      padding: 14px;
+      border: 1px solid var(--soft-rule);
+      border-radius: 10px;
+      background: rgba(255, 253, 247, 0.92);
+    }
+
+    .lane-mark {
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: var(--paper-2);
+      background: var(--ink);
+      font: 780 12px/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.08em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .lane:nth-child(1) .lane-mark { background: var(--vault); }
+    .lane:nth-child(2) .lane-mark { background: var(--control); }
+    .lane:nth-child(3) .lane-mark { background: var(--compute); }
+    .lane:nth-child(4) .lane-mark { background: var(--review); }
+
+    .lane b {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 17px;
+    }
+
+    .lane p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .footer-note {
+      padding-top: 24px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    @media (max-width: 980px) {
+      main { width: min(100% - 24px, 760px); padding-top: 24px; }
+
+      .hero,
+      .section-head,
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        min-height: auto;
+        padding-bottom: 28px;
+      }
+
+      .flow-lane,
+      .flow-bridge {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-card:not(:last-child)::before,
+      .flow-card:not(:last-child)::after {
+        display: none;
+      }
+
+      .compare-row {
+        grid-template-columns: 1fr;
+      }
+
+      .compare-row > div {
+        border-right: 0;
+        border-bottom: 1px solid var(--soft-rule);
+      }
+
+      .compare-row > div:last-child { border-bottom: 0; }
+
+      .tier-map {
+        grid-template-columns: 92px repeat(4, minmax(54px, 1fr));
+      }
+
+      .tier-cell {
+        min-height: 74px;
+        padding: 9px 7px;
+        font-size: 11.5px;
+      }
+
+      .rule-row,
+      .lane,
+      .never-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .result {
+        justify-self: start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <div>
+        <p class="kicker">Shape Rotator OS / transcript handling</p>
+        <h1>Run one shared calendar, capture future transcripts, and send safe insights to the app.</h1>
+        <p class="lede">
+          The goal is operational first: the group gets a real calendar that is easy to update,
+          meetings can create transcript sources automatically, and the app gets useful distilled context.
+        </p>
+        <p class="plain-answer">
+          How it works: Calendar owns the event, Drive stores the raw transcript, AI drafts evidence,
+          humans review it, and Supabase exports only approved insight records to the app-facing layer.
+        </p>
+      </div>
+
+      <div class="flow-board" aria-label="calendar transcript insight flow">
+        <div class="flow-title">
+          <b>System flow</b>
+          <span>calendar -> transcript -> review -> app</span>
+        </div>
+        <div class="flow-chart" role="img" aria-label="Flow chart showing calendar events, private transcript capture, Supabase orchestration, AI processing, human review, and app-safe export">
+          <svg viewBox="0 0 980 620" aria-hidden="true">
+            <defs>
+              <marker id="arrowHead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                <path d="M0,0 L10,5 L0,10 Z" fill="rgba(33, 27, 22, 0.58)"></path>
+              </marker>
+            </defs>
+
+            <rect class="chart-lane private" x="24" y="34" width="300" height="510" rx="12"></rect>
+            <rect class="chart-lane control" x="342" y="34" width="300" height="510" rx="12"></rect>
+            <rect class="chart-lane safe" x="660" y="34" width="296" height="510" rx="12"></rect>
+            <rect class="chart-boundary" x="652" y="22" width="312" height="534" rx="16"></rect>
+
+            <text class="chart-lane-label" x="42" y="58">private capture</text>
+            <text class="chart-lane-label" x="360" y="58">supabase control + compute</text>
+            <text class="chart-lane-label" x="678" y="58">app-safe export</text>
+            <text class="chart-edge-label" x="714" y="578">raw transcript cannot cross this boundary</text>
+
+            <rect class="chart-node" x="54" y="82" width="220" height="82" rx="10"></rect>
+            <text class="chart-small" x="72" y="108">google calendar</text>
+            <text class="chart-title" x="72" y="132">Shared schedule</text>
+            <text class="chart-body" x="72" y="152">time, guests, type, Meet link</text>
+
+            <rect class="chart-node" x="54" y="212" width="220" height="82" rx="10"></rect>
+            <text class="chart-small" x="72" y="238">meet / gemini / otter</text>
+            <text class="chart-title" x="72" y="262">Transcript source</text>
+            <text class="chart-body" x="72" y="282">future capture artifact</text>
+
+            <rect class="chart-node" x="54" y="342" width="220" height="82" rx="10"></rect>
+            <text class="chart-small" x="72" y="368">google drive</text>
+            <text class="chart-title" x="72" y="392">Raw transcript vault</text>
+            <text class="chart-body" x="72" y="412">permissioned source folders</text>
+
+            <rect class="chart-node" x="374" y="82" width="220" height="82" rx="10"></rect>
+            <text class="chart-small" x="392" y="108">source_artifacts</text>
+            <text class="chart-title" x="392" y="132">Source record</text>
+            <text class="chart-body" x="392" y="152">refs, hash, tier, provenance</text>
+
+            <rect class="chart-node" x="374" y="212" width="220" height="82" rx="10"></rect>
+            <text class="chart-small" x="392" y="238">processing_jobs</text>
+            <text class="chart-title" x="392" y="262">Work queue</text>
+            <text class="chart-body" x="392" y="282">capture, process, retry</text>
+
+            <rect class="chart-node compute" x="374" y="342" width="220" height="82" rx="10"></rect>
+            <text class="chart-small" x="392" y="368">private worker</text>
+            <text class="chart-title" x="392" y="392">AI drafts evidence</text>
+            <text class="chart-body" x="392" y="412">cards, risks, asks, summaries</text>
+
+            <rect class="chart-node review" x="374" y="462" width="220" height="58" rx="10"></rect>
+            <text class="chart-title" x="392" y="493">Human review gate</text>
+            <text class="chart-body" x="392" y="512">approve, edit, block</text>
+
+            <rect class="chart-node export" x="698" y="112" width="220" height="82" rx="10"></rect>
+            <text class="chart-small" x="716" y="138">app_transcript_distillations</text>
+            <text class="chart-title" x="716" y="162">Insight DB</text>
+            <text class="chart-body" x="716" y="182">approved summaries</text>
+
+            <rect class="chart-node export" x="698" y="262" width="220" height="82" rx="10"></rect>
+            <text class="chart-small" x="716" y="288">app evidence view</text>
+            <text class="chart-title" x="716" y="312">Evidence DB</text>
+            <text class="chart-body" x="716" y="332">reviewed claims + provenance</text>
+
+            <rect class="chart-node export" x="698" y="412" width="220" height="82" rx="10"></rect>
+            <text class="chart-small" x="716" y="438">reader surfaces</text>
+            <text class="chart-title" x="716" y="462">App / website</text>
+            <text class="chart-body" x="716" y="482">calendar context + insights</text>
+
+            <path class="chart-line private" d="M164 164 L164 204"></path>
+            <path class="chart-line private" d="M164 294 L164 334"></path>
+            <path class="chart-line" d="M274 383 C320 383 326 123 366 123"></path>
+            <path class="chart-line" d="M484 164 L484 204"></path>
+            <path class="chart-line compute" d="M484 294 L484 334"></path>
+            <path class="chart-line compute" d="M484 424 L484 454"></path>
+            <path class="chart-line safe" d="M594 491 C654 491 644 153 690 153"></path>
+            <path class="chart-line safe" d="M594 491 C654 491 644 303 690 303"></path>
+            <path class="chart-line safe" d="M918 303 C942 303 942 453 926 453"></path>
+            <path class="chart-line safe" d="M808 194 L808 254"></path>
+            <path class="chart-line safe" d="M808 344 L808 404"></path>
+          </svg>
+        </div>
+      </div>
+    </header>
+
+    <section aria-labelledby="journey-title">
+      <div class="section-head">
+        <div>
+          <p class="kicker">How to read the chart</p>
+          <h2 id="journey-title">Architecture on the left. Operating step on the right.</h2>
+        </div>
+        <p>The chart shows the components. This table says what each component means in practice.</p>
+      </div>
+
+      <div class="compare-board" aria-label="architecture component to operating step comparison">
+        <div class="compare-row header">
+          <div>Chart component</div>
+          <div>What it means</div>
+          <div>Who or what acts</div>
+        </div>
+        <div class="compare-row">
+          <div>
+            <span class="compare-tag private">calendar</span>
+            <b>Shared schedule</b>
+          </div>
+          <div>
+            <p>The group has one real calendar for sessions, guests, subscribe links, and Meet links.</p>
+          </div>
+          <div>
+            <p>Organizers update the calendar or admin app. The app reads current event state from the synced data.</p>
+          </div>
+        </div>
+        <div class="compare-row">
+          <div>
+            <span class="compare-tag private">capture</span>
+            <b>Transcript source + Drive vault</b>
+          </div>
+          <div>
+            <p>Future meeting transcripts land as private source files. Raw files are named <code>type_project_name_date</code> and stored in permissioned Drive folders.</p>
+          </div>
+          <div>
+            <p>Meet/Gemini/Otter creates the source. Drive permissions decide who can inspect raw material.</p>
+          </div>
+        </div>
+        <div class="compare-row">
+          <div>
+            <span class="compare-tag control">supabase</span>
+            <b>Source record + work queue</b>
+          </div>
+          <div>
+            <p>Supabase stores refs, event links, hashes, tiers, job state, and provenance. It coordinates work without exposing raw transcripts to app users.</p>
+          </div>
+          <div>
+            <p>Scheduled jobs and Edge Functions register files, queue processing, retry failures, and keep audit state.</p>
+          </div>
+        </div>
+        <div class="compare-row">
+          <div>
+            <span class="compare-tag compute">AI</span>
+            <b>Draft evidence</b>
+          </div>
+          <div>
+            <p>AI reads allowed private text and drafts evidence cards, summaries, risks, asks, and follow-ups.</p>
+          </div>
+          <div>
+            <p>The private worker produces drafts only. It does not publish, grant access, or decide visibility.</p>
+          </div>
+        </div>
+        <div class="compare-row">
+          <div>
+            <span class="compare-tag review">review</span>
+            <b>Human gate</b>
+          </div>
+          <div>
+            <p>A reviewer approves, edits, or blocks evidence before it becomes app-visible or public.</p>
+          </div>
+          <div>
+            <p>Admins/coordinators make the trust decision. Missing review means the output stays held.</p>
+          </div>
+        </div>
+        <div class="compare-row">
+          <div>
+            <span class="compare-tag safe">export</span>
+            <b>Insight DB + app</b>
+          </div>
+          <div>
+            <p>Approved summaries and reviewed evidence become the separate app-facing data layer. The app reads distilled records, not vault files.</p>
+          </div>
+          <div>
+            <p>Members see event context and approved insights. Public output stays generalized unless gates allow more.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="compute-title">
+      <div class="section-head">
+        <div>
+          <p class="kicker">AI and security boundary</p>
+          <h2 id="compute-title">AI drafts. Supabase gates. Humans approve.</h2>
+        </div>
+        <p>This is the rule that matters: AI can create drafts from private material, but it cannot publish, grant access, or decide what users can see.</p>
+      </div>
+
+      <div class="split">
+        <div class="callout">
+          <h3>What AI may do</h3>
+          <p>
+            The private worker reads allowed transcript text after the source is registered. It drafts evidence cards,
+            summaries, risks, asks, and follow-ups. Those drafts stay private until review.
+          </p>
+          <p class="plain-answer">
+            AI output is treated as a draft artifact, not as app content.
+          </p>
+        </div>
+
+        <div class="lane-stack">
+          <div class="lane">
+            <span class="lane-mark">draft</span>
+            <div>
+              <b>AI drafts evidence.</b>
+              <p>It extracts claims, decisions, blockers, asks, risks, confidence, and source pointers.</p>
+            </div>
+          </div>
+          <div class="lane">
+            <span class="lane-mark">gate</span>
+            <div>
+              <b>Supabase controls the boundary.</b>
+              <p>RLS, app-safe views, review status, and T0/T1/T2/T3 rules decide what can leave the private lane.</p>
+            </div>
+          </div>
+          <div class="lane">
+            <span class="lane-mark">review</span>
+            <div>
+              <b>Humans make the trust decision.</b>
+              <p>A reviewer approves, edits, or blocks evidence before it reaches the app or website.</p>
+            </div>
+          </div>
+          <div class="lane">
+            <span class="lane-mark">export</span>
+            <div>
+              <b>The app reads only approved views.</b>
+              <p>Approved insights and evidence are exported through app-facing views. Raw transcripts stay in the vault.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="rules" aria-label="database safety rules">
+          <div class="rule-row">
+            <b>Raw source</b>
+            <span><code>source_artifacts</code> stores refs and metadata behind RLS.</span>
+            <span class="result private">private</span>
+          </div>
+          <div class="rule-row">
+            <b>Job state</b>
+            <span><code>processing_jobs</code> is operator/coordinator territory.</span>
+            <span class="result private">private</span>
+          </div>
+          <div class="rule-row">
+            <b>Draft evidence</b>
+            <span><code>evidence_cards</code> are private until reviewed and view-safe.</span>
+            <span class="result hold">review</span>
+          </div>
+          <div class="rule-row">
+            <b>App insight</b>
+            <span><code>app_transcript_distillations</code> exposes approved content only.</span>
+            <span class="result">allowed</span>
+          </div>
+          <div class="rule-row">
+            <b>Public article</b>
+            <span>T3 requires approval gates and no named general insights by default.</span>
+            <span class="result public">gated</span>
+          </div>
+        </div>
+
+        <div class="callout">
+          <h3>What never crosses</h3>
+          <p>
+            App and public views omit raw transcript text, source storage paths, job IDs, private contacts,
+            Google tokens, and service credentials.
+          </p>
+          <p class="plain-answer">
+            If review is missing, a gate fails, or public text names people when it should not, the output stays held.
+          </p>
+        </div>
+      </div>
+
+      <div class="never-strip" aria-label="things the system should never do">
+        <div class="never-item">
+          <b>Never</b>
+          <span>App users read raw transcripts.</span>
+        </div>
+        <div class="never-item">
+          <b>Never</b>
+          <span>The browser receives service keys or Google tokens.</span>
+        </div>
+        <div class="never-item">
+          <b>Never</b>
+          <span>AI publishes public articles without review.</span>
+        </div>
+        <div class="never-item">
+          <b>Never</b>
+          <span>T3 articles name people by default.</span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="tiers-title">
+      <div class="section-head">
+        <div>
+          <p class="kicker">Sharing ceiling</p>
+          <h2 id="tiers-title">The layer depends on the session.</h2>
+        </div>
+        <p>The default is narrow. Wider sharing requires a reviewed derivative, not raw transcript access.</p>
+      </div>
+
+      <div class="tier-map" role="table" aria-label="session sharing tiers">
+        <div class="tier-cell head">Type</div>
+        <div class="tier-cell head">T0 room</div>
+        <div class="tier-cell head">T1 core</div>
+        <div class="tier-cell head">T2 cohort</div>
+        <div class="tier-cell head">T3 public</div>
+
+        <div class="tier-cell head">Weekly standup</div>
+        <div class="tier-cell yes">Raw for people there.</div>
+        <div class="tier-cell yes">Coordinator view.</div>
+        <div class="tier-cell some">Aggregate only.</div>
+        <div class="tier-cell no">No.</div>
+
+        <div class="tier-cell head">Office hours</div>
+        <div class="tier-cell yes">Raw in room.</div>
+        <div class="tier-cell yes">Project/core team.</div>
+        <div class="tier-cell some">Reviewed readout.</div>
+        <div class="tier-cell no">No by default.</div>
+
+        <div class="tier-cell head">Salon / demo</div>
+        <div class="tier-cell yes">Raw in room.</div>
+        <div class="tier-cell yes">Core review.</div>
+        <div class="tier-cell some">Reviewed readout.</div>
+        <div class="tier-cell pub">Only with gates.</div>
+
+        <div class="tier-cell head">R&amp;D / strategy</div>
+        <div class="tier-cell yes">Raw in room.</div>
+        <div class="tier-cell some">Core if needed.</div>
+        <div class="tier-cell no">Usually no.</div>
+        <div class="tier-cell no">No.</div>
+      </div>
+    </section>
+
+    <section aria-labelledby="admin-title">
+      <div class="section-head">
+        <div>
+          <p class="kicker">Admin surface</p>
+          <h2 id="admin-title">What organizers need to operate.</h2>
+        </div>
+        <p>This is the admin checklist. It keeps Calendar, Drive, Supabase, the app, and the site in sync.</p>
+      </div>
+
+      <div class="lane-stack">
+        <div class="lane">
+          <span class="lane-mark">event</span>
+          <div>
+            <b>Calendar event has a type, guests, and a Meet link.</b>
+            <p>The app can show subscribe and join links only when the event has the right calendar data.</p>
+          </div>
+        </div>
+        <div class="lane">
+          <span class="lane-mark">source</span>
+          <div>
+            <b>Transcript lands in the right Drive folder.</b>
+            <p>Name sources <code>type_project_name_date</code>. Admins Tina, Andrew, Dmarz, Michael, Fred, and Albi need admin access to the managed transcript drives.</p>
+          </div>
+        </div>
+        <div class="lane">
+          <span class="lane-mark">guest</span>
+          <div>
+            <b>Cohort guest selection uses a private directory.</b>
+            <p>The admin app should read <code>private_invite_contacts</code>. Public bundles should not contain the full contact list.</p>
+          </div>
+        </div>
+        <div class="lane">
+          <span class="lane-mark">release</span>
+          <div>
+            <b>Updates push from reviewed Supabase rows.</b>
+            <p>The app and website should receive only approved distillations, evidence cards, and public-safe article exports.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="footer-note">
+      Short version: Calendar schedules. Drive stores raw transcripts. AI distills in private.
+      Supabase enforces review and access. The app and website read approved views.
+    </p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,129 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+const SENSITIVE_PATTERNS = [
+  { label: "email address", pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i },
+  { label: "private vault pointer", pattern: /\bprivate-vault:/i },
+  { label: "Drive source ref", pattern: /\bdrive:\/\//i },
+  { label: "source artifact id field", pattern: /"source_artifact_id"\s*:/i },
+  { label: "storage ref field", pattern: /"storage_ref"\s*:/i },
+  { label: "raw transcript marker", pattern: /\braw[-_ ]?transcript\b/i },
+  { label: "source artifacts table marker", pattern: /\bsource_artifacts\b/i },
+  { label: "processing jobs table marker", pattern: /\bprocessing_jobs\b/i },
+  { label: "local user path", pattern: /\b[A-Z]:\\Users\\|\/Users\//i },
+];
+
+const DEFAULT_TARGETS = [
+  "apps/web/cohort-surface.json",
+  "apps/web/calendar.json",
+  "cohort-data/artifacts/public-transcript-articles/generated/manifest.json",
+  "cohort-data/artifacts/public-transcript-articles/generated",
+];
+
+function listFiles(target) {
+  if (!fs.existsSync(target)) return [];
+  const stat = fs.statSync(target);
+  if (stat.isFile()) return [target];
+  const out = [];
+  for (const entry of fs.readdirSync(target, { withFileTypes: true })) {
+    const full = path.join(target, entry.name);
+    if (entry.isDirectory()) out.push(...listFiles(full));
+    else if (entry.isFile() && /\.(json|md|html|txt)$/i.test(entry.name)) out.push(full);
+  }
+  return out;
+}
+
+function lineForIndex(text, index) {
+  return text.slice(0, index).split(/\r?\n/).length;
+}
+
+function scanText(text, file = "<memory>", patterns = SENSITIVE_PATTERNS) {
+  const findings = [];
+  for (const { label, pattern } of patterns) {
+    const match = pattern.exec(text);
+    if (!match) continue;
+    findings.push({
+      file,
+      line: lineForIndex(text, match.index),
+      label,
+      excerpt: match[0].slice(0, 120),
+    });
+  }
+  return findings;
+}
+
+function scanPublicSurfaces({
+  root = ROOT,
+  targets = DEFAULT_TARGETS,
+  patterns = SENSITIVE_PATTERNS,
+} = {}) {
+  const files = Array.from(new Set(
+    targets.flatMap((target) => listFiles(path.resolve(root, target))),
+  )).sort((a, b) => a.localeCompare(b));
+  const findings = [];
+  for (const file of files) {
+    const text = fs.readFileSync(file, "utf8");
+    findings.push(...scanText(text, path.relative(root, file).replace(/\\/g, "/"), patterns));
+  }
+  return { files, findings };
+}
+
+function parseArgs(argv) {
+  const out = { root: ROOT, targets: [] };
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--root") out.root = path.resolve(argv[++index]);
+    else if (arg === "--target") out.targets.push(argv[++index]);
+    else if (arg === "--help" || arg === "-h") out.help = true;
+    else throw new Error(`Unknown argument: ${arg}`);
+  }
+  return out;
+}
+
+function usage() {
+  return [
+    "Usage: node scripts/transcript-surface-leak-scan.mjs [--root DIR] [--target PATH ...]",
+    "",
+    "Scans generated app/public transcript surfaces for private transcript markers.",
+  ].join("\n");
+}
+
+function main(argv = process.argv.slice(2)) {
+  const options = parseArgs(argv);
+  if (options.help) {
+    console.log(usage());
+    return;
+  }
+  const result = scanPublicSurfaces({
+    root: options.root,
+    targets: options.targets.length ? options.targets : DEFAULT_TARGETS,
+  });
+  if (result.findings.length) {
+    console.error(JSON.stringify({
+      ok: false,
+      scanned_files: result.files.length,
+      findings: result.findings,
+    }, null, 2));
+    process.exit(1);
+  }
+  console.log(JSON.stringify({
+    ok: true,
+    scanned_files: result.files.length,
+    findings: [],
+  }, null, 2));
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}
+
+export {
+  DEFAULT_TARGETS,
+  SENSITIVE_PATTERNS,
+  scanPublicSurfaces,
+  scanText,
+};

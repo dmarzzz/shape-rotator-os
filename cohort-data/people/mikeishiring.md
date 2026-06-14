@@ -8,6 +8,7 @@ role: "I Vibe"
 role_class: visiting-scholar
 geo: "London"
 domain: crypto
+email: null
 links:
   github: "mikeishiring"
   x: "mikeishiring"
