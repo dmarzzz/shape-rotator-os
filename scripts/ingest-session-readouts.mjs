@@ -45,6 +45,11 @@ function validateReadout(r, teams, people) {
   assert.match(r?.vault_id || "", SLUG, `${where}: vault_id must be a kebab-case slug`);
   if (r.date != null) assert.match(r.date, /^\d{4}-\d{2}-\d{2}$/, `${where}: date must be ISO or null`);
   assert.ok(r.title && r.one_liner, `${where}: title and one_liner required`);
+  // Editorial fields matching the cohort distillation house style: a punchy
+  // thesis hook and a blogpost-style "60-second version" narrative. Each maps
+  // 1:1 to a render slot (thesis = hero line, summary = lede paragraph).
+  assert.ok(typeof r.thesis === "string" && r.thesis.trim(), `${where}: thesis (one-line hook) required`);
+  assert.ok(typeof r.summary === "string" && r.summary.trim(), `${where}: summary (blogpost-style narrative) required`);
   assert.ok(KINDS.has(r.kind), `${where}: kind must be one of ${[...KINDS].join("|")}`);
   assert.ok(CONSENT.has(r.consent), `${where}: consent must be one of ${[...CONSENT].join("|")}`);
   assert.ok(Array.isArray(r.themes) && r.themes.length, `${where}: themes required`);
@@ -78,7 +83,13 @@ function readoutMarkdown(r) {
     "",
     `# ${r.title}`,
     "",
-    r.one_liner,
+    `**${r.thesis}**`,
+    "",
+    `*${r.one_liner}*`,
+    "",
+    "## the 60-second version",
+    "",
+    r.summary,
     "",
     "## themes",
     "",
@@ -98,8 +109,10 @@ function readoutMarkdown(r) {
       lines.push(ref.href ? `- [${ref.label}](${ref.href})` : `- ${ref.label}`);
     }
   }
+  lines.push("", "## provenance", "",
+    `Distilled from a private-vault transcript (\`${r.vault_id}\`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: \`${r.consent}\`.`);
   if (r.consent === "speaker-pending") {
-    lines.push("", "## consent note", "",
+    lines.push("",
       "This session included external or featured speakers. The readout is held to thematic, unattributed distillation; a richer version requires a speaker consent pass.");
   }
   lines.push("");

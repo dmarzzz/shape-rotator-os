@@ -198,7 +198,29 @@ export function constellationDependencyEdges(teams = [], byRecordId, dependencyR
       edges.push(legacyDependencyEdge(team, dependencyId));
     }
   }
-  return edges;
+  // Collapse mirror pairs. When A→B and B→A both exist they usually describe ONE
+  // relationship declared from both sides (most commonly a typed dependency
+  // record one way and an untyped profile mention the other) — drawing two
+  // opposing arrows and double-counting it in degree/coverage/score. Keep the
+  // typed edge when exactly one side is typed, else the lexicographically-first
+  // endpoint as the canonical direction; flag the survivor `mutual`. Two typed
+  // records (a deliberately authored bidirectional pair) are left as-is.
+  const collapsed = [];
+  const indexByPair = new Map();
+  for (const edge of edges) {
+    const pairKey = collabAffKey(edge.from, edge.to);
+    if (!indexByPair.has(pairKey)) {
+      indexByPair.set(pairKey, collapsed.length);
+      collapsed.push(edge);
+      continue;
+    }
+    const at = indexByPair.get(pairKey);
+    const existing = collapsed[at];
+    if (existing.normalized && edge.normalized) { collapsed.push(edge); continue; }
+    if (edge.normalized && !existing.normalized) collapsed[at] = { ...edge, mutual: true };
+    else collapsed[at] = { ...existing, mutual: true };
+  }
+  return collapsed;
 }
 
 export function constellationIndegree(teams = [], dependencyRecords = []) {
@@ -261,6 +283,26 @@ const COLLAB_CLUSTER_DEFS = [
 ];
 const COLLAB_OTHER_CLUSTER = { id: "other", label: "Other", rank: 8 };
 
+function normalizeSkillAreaToken(value) {
+  return String(value || "").trim().toLowerCase().replace(/[_\s]+/g, "-");
+}
+
+function modelSkillAreas(areas, skillAreaVocab = []) {
+  const vocab = Array.isArray(skillAreaVocab)
+    ? new Set(skillAreaVocab.map(normalizeSkillAreaToken).filter(Boolean))
+    : new Set();
+  const out = [];
+  const seen = new Set();
+  for (const raw of Array.isArray(areas) ? areas : []) {
+    const normalized = normalizeSkillAreaToken(raw);
+    if (!normalized) continue;
+    if ((vocab.size && !vocab.has(normalized)) || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
 function collabTokens(value) {
   const out = new Set();
   const arr = Array.isArray(value) ? value : [value];
@@ -322,7 +364,7 @@ function collabScore(keys, tokenCount = 0, bonus = 0) {
   return conceptScore + Math.min(1.2, tokenCount * 0.3) + bonus;
 }
 
-export function buildCollabModel(teams = [], clusters = [], dependencyRecords = []) {
+export function buildCollabModel(teams = [], clusters = [], dependencyRecords = [], skillAreaVocab = []) {
   const base = constellationModel(teams, clusters, dependencyRecords);
   const ordered = [];
   const seen = new Set();
@@ -349,8 +391,11 @@ export function buildCollabModel(teams = [], clusters = [], dependencyRecords = 
   const seekConceptSet = new Map();
   const offerConceptSet = new Map();
   const skillConceptSet = new Map();
+  const skillsByTeam = new Map();
   for (const { rid, team } of ordered) {
-    const skills = new Set((team.skill_areas || []).map(skill => String(skill).toLowerCase()));
+    const skillAreas = modelSkillAreas(team.skill_areas, skillAreaVocab);
+    skillsByTeam.set(rid, skillAreas);
+    const skills = new Set(skillAreas);
     skillSet.set(rid, skills);
     seekSet.set(rid, collabTokens(team.seeking));
     const offers = collabTokens(team.offering);
@@ -358,7 +403,7 @@ export function buildCollabModel(teams = [], clusters = [], dependencyRecords = 
     offerSet.set(rid, offers);
     seekConceptSet.set(rid, collabConceptSet(team.seeking));
     offerConceptSet.set(rid, collabConceptSet(team.offering));
-    skillConceptSet.set(rid, collabConceptSet(team.skill_areas, team.paper_basis));
+    skillConceptSet.set(rid, collabConceptSet(team.skill_areas, skillAreas, team.paper_basis));
   }
 
   const depByPair = new Map(base.edges.map(edge => [dependencyPairKey(edge.from, edge.to), edge]));
@@ -398,9 +443,7 @@ export function buildCollabModel(teams = [], clusters = [], dependencyRecords = 
       const b = ordered[j];
       const shared = collabInter(skillSet.get(a.rid), skillSet.get(b.rid));
       const sharedConcepts = collabInter(skillConceptSet.get(a.rid), skillConceptSet.get(b.rid));
-      const endorsed = (Array.isArray(a.team.pair_with) && a.team.pair_with.includes(b.rid))
-        || (Array.isArray(b.team.pair_with) && b.team.pair_with.includes(a.rid));
-      if (!shared.length && !sharedConcepts.length && !endorsed) continue;
+      if (!shared.length && !sharedConcepts.length) continue;
       const displayShared = shared.length ? shared : collabConceptLabels(sharedConcepts);
       aff.set(collabAffKey(a.rid, b.rid), {
         a: a.rid,
@@ -409,15 +452,15 @@ export function buildCollabModel(teams = [], clusters = [], dependencyRecords = 
         bName: b.team.name,
         shared: displayShared,
         sharedConcepts,
-        endorsed,
-        score: displayShared.length + (endorsed ? 1.5 : 0),
+        endorsed: false,
+        score: displayShared.length,
       });
     }
   }
 
   const convergenceMap = new Map();
-  for (const { team } of ordered) {
-    for (const skill of (team.skill_areas || [])) {
+  for (const { rid, team } of ordered) {
+    for (const skill of skillsByTeam.get(rid) || []) {
       const key = String(skill).toLowerCase();
       (convergenceMap.get(key) || convergenceMap.set(key, []).get(key)).push(team.name);
     }
@@ -436,9 +479,7 @@ export function buildCollabModel(teams = [], clusters = [], dependencyRecords = 
     .filter(item => collabHasText(item.team.offering))
     .map(item => {
       const matches = (offerMatches.get(item.rid) || []).sort((a, b) => b.score - a.score);
-      const skills = Array.isArray(item.team.skill_areas)
-        ? item.team.skill_areas.map(skill => String(skill || "").trim()).filter(Boolean)
-        : [];
+      const skills = skillsByTeam.get(item.rid) || [];
       const offering = Array.isArray(item.team.offering)
         ? item.team.offering.map(v => String(v || "").trim()).filter(Boolean)[0] || ""
         : String(item.team.offering || "").trim();
@@ -479,8 +520,8 @@ export function buildCollabModel(teams = [], clusters = [], dependencyRecords = 
   const coverage = {
     needs: ordered.filter(item => collabHasText(item.team.seeking)).length,
     offers: ordered.filter(item => collabHasText(item.team.offering)).length,
-    skills: ordered.filter(item => collabHasText(item.team.skill_areas)).length,
-    links: ordered.filter(item => collabHasText(item.team.dependencies) || collabHasText(item.team.pair_with)).length,
+    skills: ordered.filter(item => (skillsByTeam.get(item.rid) || []).length).length,
+    links: ordered.filter(item => collabHasText(item.team.dependencies)).length,
   };
 
   return {
@@ -503,6 +544,7 @@ export function aggregateSkillAreas(cohort = {}) {
   const tagsToTeams = new Map();
   const tagsToPeople = new Map();
   const tagPairs = new Map();
+  const skillAreaVocab = Array.isArray(cohort?.cohort_vocab?.skill_areas) ? cohort.cohort_vocab.skill_areas : [];
 
   const consume = (areas, kind, id) => {
     const uniq = Array.from(new Set((Array.isArray(areas) ? areas : [])
@@ -525,10 +567,10 @@ export function aggregateSkillAreas(cohort = {}) {
   };
 
   for (const team of (Array.isArray(cohort.teams) ? cohort.teams : [])) {
-    consume(team.skill_areas, "team", team.record_id);
+    consume(modelSkillAreas(team.skill_areas, skillAreaVocab), "team", team.record_id);
   }
   for (const person of (Array.isArray(cohort.people) ? cohort.people : [])) {
-    consume(person.skill_areas, "person", person.record_id);
+    consume(modelSkillAreas(person.skill_areas, skillAreaVocab), "person", person.record_id);
   }
 
   const allTags = new Set([...tagsToTeams.keys(), ...tagsToPeople.keys()]);

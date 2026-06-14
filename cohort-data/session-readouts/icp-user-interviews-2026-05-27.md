@@ -11,7 +11,13 @@ source: private-vault:icp-user-interviews-2026-05-27
 
 # Ideal Customer Profiling and User Interviews: Alignment Before Interviews
 
-A founder retrospective on why customer profiling starts with internal and co-founder alignment, and how empathy-driven segment choice plus in-person observation turn user interviews into usable signal.
+**Customer alignment starts with being honest about your own motivations.**
+
+*A founder retrospective on why customer profiling starts with internal and co-founder alignment, and how empathy-driven segment choice plus in-person observation turn user interviews into usable signal.*
+
+## the 60-second version
+
+A founder-led workshop on ideal-customer profiling argued that interviews only yield usable signal after a three-layer alignment cascade — your own motivations, then your co-founders' definition of success, then the customer. Choose the segment by empathy density (the problem you've actually lived), commit to the audience over the product expression, and observe behavior in person rather than collecting polite written opinions.
 
 ## themes
 
@@ -58,3 +64,7 @@ Seed the first interaction — have a prepared participant or an ambient demo ru
 
 - [Principal-agent problem (economics concept applied to buyer-vs-user feedback loops)](https://en.wikipedia.org/wiki/Principal%E2%80%93agent_problem)
 - [Y Combinator's 'make something people want' principle](https://www.ycombinator.com)
+
+## provenance
+
+Distilled from a private-vault transcript (`icp-user-interviews-2026-05-27`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: `cohort-internal`.

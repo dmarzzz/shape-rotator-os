@@ -410,12 +410,17 @@ async function applyCancellationPatches({
 } = {}) {
   const results = [];
   for (const patch of cancellationPatches) {
-    const query = patch.id
-      ? { id: `eq.${patch.id}` }
-      : {
+    // Cancel by the (calendar_connection_id, google_event_id) natural key — the
+    // table's unique constraint — so we also tombstone sessions whose stored id
+    // differs from the deterministic id (webhook-created rows, or rows with an
+    // explicit shape_session_id). Fall back to the deterministic id only when the
+    // natural key is unavailable. (C1-01)
+    const query = (patch.calendar_connection_id && patch.google_event_id)
+      ? {
           calendar_connection_id: `eq.${patch.calendar_connection_id}`,
           google_event_id: `eq.${patch.google_event_id}`,
-        };
+        }
+      : { id: `eq.${patch.id}` };
     const rows = await supabaseServiceRequest({
       supabaseUrl,
       serviceRoleKey,
@@ -796,6 +801,7 @@ if (require.main === module) {
 
 module.exports = {
   alignSessionRowsToExistingGoogleEvents,
+  applyCancellationPatches,
   buildGoogleEventsListUrl,
   fetchGoogleEvents,
   googleEventsToSyncRows,

@@ -241,12 +241,32 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify(built.body),
     });
-    const googleEvent = await googleResponse.json().catch(() => null);
+    let googleEvent = await googleResponse.json().catch(() => null);
     if (!googleResponse.ok) {
-      const error = new Error(`Google Calendar events.insert ${googleResponse.status}`) as Error & { status?: number; body?: unknown };
-      error.status = googleResponse.status;
-      error.body = googleEvent;
-      throw error;
+      // C4-1: the event id is deterministic (stableGoogleEventId(session.id)), so a
+      // prior run that created the Google event but then failed before the Supabase
+      // write leaves a split-brain. On the resulting 409 conflict, fetch the existing
+      // event and continue — the re-run is now idempotent and completes the Supabase
+      // side instead of being permanently stuck.
+      if (googleResponse.status === 409 && built.body.id) {
+        const existingResponse = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(String(built.body.id))}`,
+          { headers: { authorization: `Bearer ${googleAccessToken}` } },
+        );
+        const existingEvent = await existingResponse.json().catch(() => null);
+        if (!existingResponse.ok || !existingEvent?.id) {
+          const error = new Error(`Google Calendar events.insert 409 then events.get ${existingResponse.status}`) as Error & { status?: number; body?: unknown };
+          error.status = existingResponse.status || 409;
+          error.body = existingEvent ?? googleEvent;
+          throw error;
+        }
+        googleEvent = existingEvent;
+      } else {
+        const error = new Error(`Google Calendar events.insert ${googleResponse.status}`) as Error & { status?: number; body?: unknown };
+        error.status = googleResponse.status;
+        error.body = googleEvent;
+        throw error;
+      }
     }
 
     let meetAutoArtifacts = { requested: false, configured: false, reason: "not_requested" };

@@ -19,7 +19,6 @@ import {
   decideApprovalGate,
   fetchCalendarOpsQueue,
   fetchPrivateInviteDirectory,
-  googleCalendarManagedUrl,
   loadCalendarIngressConfig,
   callCreateCalendarEvent,
   mergeAttendeeEmails,
@@ -179,7 +178,6 @@ test("web calendar ingress uses managed calendar and Supabase project defaults",
   assert.equal(loadCalendarIngressConfig(emptyStorage, "test-key").calendarId, DEFAULT_CALENDAR_ID);
   assert.equal(loadCalendarIngressConfig(overrideStorage, "test-key").calendarId, DEFAULT_CALENDAR_ID);
   assert.equal(loadCalendarIngressConfig(emptyStorage, "test-key").supabaseUrl, DEFAULT_SUPABASE_URL);
-  assert.equal(decodeURIComponent(new URL(googleCalendarManagedUrl()).searchParams.get("cid")), DEFAULT_CALENDAR_ID);
 });
 
 test("web calendar ingress does not persist bearer or Google access tokens", () => {

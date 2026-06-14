@@ -47,7 +47,10 @@ html[data-reduce-motion="1"] *, html[data-reduce-motion="1"] *::before, html[dat
 * { box-sizing: border-box; }
 html, body {
   margin: 0; height: 100vh; overflow: hidden;
-  background: radial-gradient(ellipse 110% 70% at 50% -10%, #2C2728 0%, #231F20 60%, #1A1719 100%);
+  /* Page background (the radial wash + its flash-proof solid color) is
+     declared together lower in this file — search "Page-level radial wash"
+     (#1a1612 → #08070a) — so it wins by source order. Declaring background
+     here too would be dead, so this block keeps only layout + type. */
   color: var(--light-1);
   font-family: var(--font-sans);
   font-size: var(--t-13);
@@ -84,6 +87,7 @@ body[data-sidebar="hidden"] #sidebar { display: none; }
 #sidebar { grid-area: nav; }
 #graph   { grid-area: main; }
 #network-view { grid-area: main; }
+#chat-view { grid-area: main; }
 /* These two have no explicit placement; pin them to the content column so
    they don't auto-flow into the nav column. */
 .apps-grid, .links-view { grid-area: main; }
@@ -185,6 +189,16 @@ body:not([data-active-tab="alchemy"]) .alchemy-only { display: none !important; 
 
 /* links-only elements only on the links tab. */
 body:not([data-active-tab="links"]) .links-only { display: none !important; }
+
+/* chat-only elements only on the matrix tab (cohort matrix chat). */
+body:not([data-active-tab="matrix"]) .chat-only { display: none !important; }
+
+/* TEMPORARY: matrix is hidden from the left nav until the homeserver supports
+   password-free login (see docs/MATRIX_DEVICE_LOGIN_REQUEST.md). The tab + all
+   its code still ship — there's just no entry point, so we don't imply it
+   works yet. To re-enable, delete this one rule. */
+.nav-cat[data-tab="matrix"] { display: none !important; }
+
 /* search lives as an overlay inside the Atlas app (formerly its own
  * tab). Shown when on apps→atlas AND data-atlas-search="open". */
 body:not([data-active-tab="apps"]) .search-only,
@@ -205,6 +219,7 @@ body[data-active-tab="atlas"]       #graph,
 body[data-active-tab="alchemy"]     #graph,
 body[data-active-tab="apps"]        #graph,
 body[data-active-tab="links"]       #graph,
+body[data-active-tab="matrix"]      #graph,
 body[data-active-tab="experimental"][data-experimental-mode="cartography"] #graph,
 body[data-active-tab="experimental"][data-experimental-mode="cosmos"]      #graph {
   visibility: hidden;
@@ -340,9 +355,9 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
    route into the editor to make a new one. Click outside to dismiss. */
 .identity-modal-backdrop {
   position: fixed; inset: 0;
-  background: rgba(var(--overlay-rgb), 0.78);
-  backdrop-filter: blur(10px) saturate(1.2);
-  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  background: rgba(var(--overlay-rgb), 0.62);
+  backdrop-filter: var(--lg-blur);
+  -webkit-backdrop-filter: var(--lg-blur);
   z-index: 99;
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
@@ -353,18 +368,25 @@ body[data-active-tab="network"] #metrics-view  { padding-top: 50px; }
    deep void, mono, framed with corner ticks + a one-shot scan reveal). */
 .identity-modal.enroll {
   position: relative;
+  /* Glass enrollment terminal — keeps the ember-on-void identity (oxide
+     radial + corner ticks + glow) but the body is now translucent so the
+     blurred cohort reads behind it, and it carries the cursor sheen. */
   background:
     radial-gradient(120% 80% at 6% -10%, rgba(255,122,61,0.07), transparent 56%),
-    linear-gradient(180deg, rgba(28,22,26,0.97), rgba(14,12,16,0.98));
+    radial-gradient(260px 200px at var(--lg-mx, 24%) var(--lg-my, -6%),
+      rgba(var(--lg-sheen-color), calc(0.26 * var(--lg-sheen))), transparent 60%),
+    linear-gradient(180deg, rgba(28,22,26,0.70), rgba(14,12,16,0.80));
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
   border: 1px solid rgba(255,122,61,0.34);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 26px 30px 22px;
   max-width: 560px; width: 100%;
   max-height: 86vh; overflow: auto;
   color: rgba(var(--ink-rgb),0.92);
   font-family: var(--font-mono);
   box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,0.04),
+    var(--lg-specular),
     inset 0 0 70px rgba(255,122,61,0.04),
     0 0 30px rgba(255,122,61,0.12),
     0 28px 80px rgba(0,0,0,0.7);
@@ -2899,6 +2921,10 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
   letter-spacing: 0.10em;
   color: var(--light-3);
 }
+/* The swf-node-offline state ("idle · swf-node offline") stays in the calm
+ * default dim above — idle, not alarming. Only a genuine post-connection
+ * failure gets a muted amber warning; never an alarm-red or a raw exception. */
+.metrics-status[data-state="error"] { color: #d98a2b; }
 
 .metrics-stat-row {
   display: grid;
@@ -6120,6 +6146,11 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   --cal-ink-3:     #7a7368;
   --cal-ink-4:     #3a3833;
   --cal-oxide:     #8F220E;
+  /* Today-column wash + glow — keyed off --ink-rgb so they invert with the
+     theme (light mode overrides --ink-rgb to dark ink) instead of staying
+     near-white and disappearing on paper. */
+  --cal-today-band: rgba(var(--ink-rgb), 0.05);
+  --cal-today-glow: rgba(var(--ink-rgb), 0.07);
 }
 /* Light-mode alchemy palette — toggled from the profile header (#130).
    Keeps the oxide accent as the brand color; swaps paper/charcoal so the
@@ -6341,11 +6372,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   display: flex; flex-direction: column; gap: 8px;
   height: 100%;
 }
-.alchemy-canvas:has(.alch-constellation),
-.alchemy-canvas:has(.alch-cohort-page) {
-  padding-left: 34px;
-  padding-right: 32px;
-}
+/* Cohort/constellation no longer narrows the canvas gutters (2026-06) —
+   every page shares .alchemy-canvas's standard side padding. Unified. */
 /* ── cohort page shell (2026-06) ─────────────────────────────────────
    Every cohort view renders inside the same shell: page header, then the
    view nav, then ONE controls band, then content. The header and the
@@ -6435,6 +6463,12 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   transform-box: fill-box;
 }
 .alch-constellation-stage svg .ac-node-group:hover .ac-node-shape { transform: scale(1.45); filter: drop-shadow(0 0 10px rgba(143,34,14,0.6)); }
+/* Keyboard focus: these nodes are role=button tabindex=0, but the global cyan
+   :focus-visible ring draws around the inflated hit-bbox and clashes with the
+   warm palette. Suppress it and give an SVG-native warm focus instead. */
+.alch-constellation-stage svg .ac-node-group:focus-visible { outline: none; }
+.alch-constellation-stage svg .ac-node-group:focus-visible .ac-node-shape { transform: scale(1.45); filter: drop-shadow(0 0 11px rgba(214,189,134,0.85)); }
+.alch-constellation-stage svg .ac-node-group:focus-visible .ac-node-label { opacity: 1; }
 .alch-constellation-stage svg .ac-node-group.is-selected .ac-node-shape {
   transform: scale(1.35);
   filter: drop-shadow(0 0 12px rgba(214,189,134,0.50));
@@ -6483,10 +6517,21 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-neighbor .ac-node-shape {
   stroke-width: 1.35;
 }
-.alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-outside,
-.alch-constellation-stage[data-selection-active="true"] svg .ac-jnode.is-selection-outside {
+.alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-outside {
   opacity: 0.12;
 }
+/* PMF scatter: outside-dots stay readable — the scatter has no selection
+ * edges to carry the story, so a 0.12 ghost field reads as a broken page.
+ * The selected dot pops via is-selection-core; the rest recede gently. */
+.alch-constellation-stage[data-selection-active="true"] svg .ac-jnode.is-selection-outside {
+  opacity: 0.45;
+}
+/* Bottleneck isolation recedes non-matching dots instead of removing them, so
+ * the scatter keeps its spatial field. Matched dots stay full + gain a touch of
+ * stroke weight to pop. */
+.alch-journey-stage svg .ac-jnode.is-bn-dim { opacity: 0.18; }
+.alch-journey-stage svg .ac-jnode.is-bn-dim .ac-jnode-label { opacity: 0; }
+.alch-journey-stage svg .ac-jnode.is-bn-match .ac-jdot { stroke-width: 2; }
 /* In the all lens, keep resting edges legible enough to invite inspection
    without letting untyped legacy links dominate the wells. Hover restores them. */
 /* At-rest edge opacity/width per lens also lives in the .ac-edge-dependency
@@ -6677,9 +6722,10 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
-  background: rgba(22,18,19,0.96);
-  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--lg-border);
+  background: var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
 }
 .ac-inspector-status {
   min-width: 0;
@@ -6690,8 +6736,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-inspector-status span {
   color: var(--alchemy-oxide-bright);
   font-family: var(--font-mono);
-  font-size: 7.5px;
-  letter-spacing: 0.18em;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 .ac-inspector-status strong {
@@ -6763,8 +6809,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .ac-inspector-kicker {
   font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 0.18em;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--alchemy-oxide-bright);
 }
@@ -6808,6 +6854,32 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   border-color: rgba(193,168,114,0.34);
   background: rgba(193,168,114,0.04);
   color: var(--alchemy-paper-warm);
+}
+/* Hero's one local action: select the headline corridor's edge in place. */
+.ac-hero-corridor {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  border: 1px solid rgba(143,34,14,0.46);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: rgba(143,34,14,0.10);
+  color: var(--alchemy-paper-warm);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: border-color 160ms var(--ease), background 160ms var(--ease);
+}
+.ac-hero-corridor:hover {
+  border-color: rgba(143,34,14,0.78);
+  background: rgba(143,34,14,0.20);
+}
+.ac-hero-corridor:active { transform: scale(0.97); }
+.ac-hero-corridor:focus-visible {
+  outline: 1px solid rgba(143,34,14,0.78);
+  outline-offset: 2px;
 }
 .ac-inspector-actions {
   display: flex;
@@ -6937,9 +7009,12 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   font-family: var(--font-mono);
   font-size: 10.5px;
   letter-spacing: 0.06em;
-  text-overflow: ellipsis;
   text-transform: uppercase;
-  white-space: nowrap;
+  /* corridor names are the row's payload — wrap to two lines, never "…" */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.35;
 }
 .ac-action-row p,
 .ac-action-card > p {
@@ -7295,6 +7370,22 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   border-color: rgba(193,168,114,0.34);
   background: rgba(193,168,114,0.025);
   transform: none;
+}
+/* Pair rows aren't a single click target — each person name is its own
+   button — so the row shouldn't signal whole-row clickability. */
+.ac-rel-row.is-pair { cursor: default; }
+.ac-rel-row.is-pair:hover { border-color: rgba(var(--ink-rgb), 0.10); background: transparent; }
+/* Pair rows hold two real human names (not team codenames), so override the
+   rel-queue strong treatment: show both names in full + normal case, and let
+   them wrap rather than clip the second name (and its hit area). */
+.ac-rel-row.is-pair .ac-rel-row-top { flex-wrap: wrap; }
+.ac-rel-row.is-pair .ac-rel-row-top strong {
+  display: inline;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  text-transform: none;
 }
 .ac-rel-row-copy {
   display: flex;
@@ -7682,9 +7773,11 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .alch-constellation-stage svg .ac-well-label {
   fill: var(--well-accent, var(--alchemy-ink-mute));
-  opacity: 0.58;
+  /* the well caption IS the grouping claim — keep it readable at rest
+     (was 7.6px / 0.58, squint territory on a 1690px window) */
+  opacity: 0.72;
   font-family: var(--font-mono);
-  font-size: 7.6px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -7695,7 +7788,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   stroke-width: 2.8px;
 }
 .alch-constellation-stage[data-view="map"]:not([data-hover-active="true"]):not([data-selection-active="true"]):not([data-interest-active="true"]) svg .ac-well.is-dense-well .ac-well-label {
-  opacity: 0.46;
+  opacity: 0.58;
 }
 .alch-constellation-stage svg .ac-ring-segment {
   fill: none;
@@ -7708,7 +7801,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   fill: var(--well-accent, var(--alchemy-paper-warm));
   opacity: 0.82;
   font-family: var(--font-mono);
-  font-size: 7.8px;
+  font-size: 8.6px;
   letter-spacing: 0;
   text-transform: uppercase;
   pointer-events: none;
@@ -7764,118 +7857,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   background: transparent;
   border-top: 1px dashed rgba(var(--ink-rgb),0.38);
 }
-/* map lens row — all / relies / works / shared. Re-weights the same map
-   (control-as-claim), so it reads as a claim selector, not a view toggle. */
-.ac-network-scope-row,
-.ac-map-layout-row,
-.ac-lens-row {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.ac-network-scope-row > span,
-.ac-map-layout-row > span,
-.ac-lens-row > span {
-  color: rgba(var(--ink-rgb),0.58);
-  font-family: var(--font-mono);
-  font-size: 7.6px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-.ac-network-scope-btn {
-  appearance: none;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  padding: 3px 0 4px;
-  border: 0;
-  border-bottom: 1px solid transparent;
-  background: transparent;
-  color: var(--alchemy-ink-mute);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  text-transform: lowercase;
-}
-.ac-network-scope-btn strong {
-  color: inherit;
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-.ac-network-scope-btn em {
-  color: rgba(var(--ink-rgb),0.52);
-  font-size: 9px;
-  font-style: normal;
-}
-.ac-network-scope-btn:hover {
-  color: var(--alchemy-paper-warm);
-}
-.ac-network-scope-btn[aria-selected="true"] {
-  border-color: var(--alchemy-oxide-bright);
-  color: var(--alchemy-paper-warm);
-}
-.ac-network-scope-btn[aria-selected="true"] strong {
-  font-weight: 900;
-}
-.ac-network-scope-btn[aria-selected="true"] em {
-  color: var(--alchemy-oxide-bright);
-}
-.ac-map-layout-btn {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  border: 0;
-  border-bottom: 1px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--alchemy-ink-mute);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0;
-  line-height: 1;
-  padding: 3px 0 4px;
-  text-transform: lowercase;
-  transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
-}
-.ac-map-layout-btn:hover {
-  color: var(--alchemy-paper-warm);
-}
-.ac-map-layout-btn[aria-selected="true"] {
-  border-color: rgba(214,189,134,0.82);
-  background: transparent;
-  color: var(--alchemy-paper-warm);
-  font-weight: 800;
-}
-.ac-lens-btn {
-  appearance: none; display: inline-flex; align-items: baseline; gap: 7px;
-  background: transparent; border: 0; border-bottom: 1px solid transparent;
-  border-radius: 0; padding: 3px 0 4px; cursor: pointer;
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.03em; text-transform: lowercase;
-  color: var(--alchemy-ink-mute); transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
-}
-.ac-lens-btn span { white-space: nowrap; }
-.ac-lens-btn em {
-  font-style: normal;
-  color: rgba(193,168,114,0.78);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-}
-.ac-lens-btn:hover { color: var(--alchemy-paper-warm); }
-.ac-lens-btn[aria-selected="true"] { border-color: var(--alchemy-oxide-bright); color: var(--alchemy-oxide-bright); background: transparent; font-weight: 800; }
-.ac-lens-btn[aria-selected="true"] em { color: var(--alchemy-paper-warm); }
-.ac-lens-btn.is-empty {
-  color: rgba(var(--ink-rgb),0.56);
-}
-.ac-lens-btn.is-empty em {
-  color: rgba(var(--ink-rgb),0.58);
-}
-.ac-lens-btn.is-empty[aria-selected="true"] {
-  border-color: rgba(193,168,114,0.46);
-  background: transparent;
-  color: var(--alchemy-paper-warm);
-}
+/* (The map's graph/layout/lens rows were replaced by the sentence bar —
+   see "Sentence bar" in the cohort control band section.) */
 .ac-people-stage {
   min-height: 620px;
 }
@@ -8076,17 +8059,34 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   font: inherit;
   letter-spacing: inherit;
   text-align: left;
-  text-decoration: none;
+  /* the open-record link is the most important nav affordance in every
+     inspector — give it a quiet resting underline so it doesn't read as a
+     static status label (deepens on hover below). Underline is derived from
+     currentColor so it stays visible in BOTH light and dark themes. */
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, currentColor 38%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: color 140ms var(--ease), text-decoration-color 140ms var(--ease);
 }
 .ac-inspector-title-link:hover,
-.ac-inspector-title-link:focus-visible,
 .ac-inspector-name-link:hover,
+.ac-inspector-title-link:focus-visible,
 .ac-inspector-name-link:focus-visible {
-  outline: none;
   color: var(--alchemy-paper-warm);
   text-decoration: underline;
-  text-decoration-color: rgba(193,168,114,0.42);
+  text-decoration-color: color-mix(in oklch, currentColor 72%, transparent);
   text-underline-offset: 4px;
+  transition-duration: 190ms; /* enter slower than exit (140ms) */
+}
+/* Real keyboard focus ring — these links are the sole identity/nav element in
+   team/person heroes and the only targets in the people-pair rows, so focus
+   must read as more than an underline-alpha shift (WCAG 2.4.13). */
+.ac-inspector-title-link:focus-visible,
+.ac-inspector-name-link:focus-visible {
+  outline: 2px solid color-mix(in oklch, currentColor 60%, transparent);
+  outline-offset: 3px;
+  border-radius: 3px;
 }
 .ac-distribution-card {
   display: flex;
@@ -8215,6 +8215,91 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-dist-row.is-selected span {
   color: var(--alchemy-paper-warm);
 }
+/* ── product layer slot · team standing vs their own plan (v0.1) ────
+   Rows of arrows, self-referenced: a center "on plan" line is the team's
+   own goal; the dot is reported standing; behind teams get a catch-up
+   arrow. Rows reuse the .ac-stack-team glass tile (border / sheen / hover
+   lift), tinted by standing colour; layout scoped under .is-goalplan. */
+.ac-stack-view.is-goalplan {
+  display: flex; flex-direction: column; gap: 0;
+  min-width: 0; min-height: 0; border: 0; background: transparent;
+}
+.ac-stack-view.is-goalplan .ac-gp-head {
+  display: grid; grid-template-columns: 132px 1fr 132px; column-gap: 14px;
+  align-items: center; height: 14px; margin: 2px 11px 8px;
+}
+.ac-stack-view.is-goalplan .ac-gp-axis { position: relative; height: 14px; }
+.ac-stack-view.is-goalplan .ac-gp-axis i {
+  position: absolute; top: 0; font-family: var(--font-mono); font-size: 8.5px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--alchemy-ink-mute); font-style: normal;
+}
+/* The axis labels ARE the colour key — a swatch dot before each label keys the
+   row dots' colour without a separate (redundant) legend trough. Colours mirror
+   CONST_GOAL_STANDING in alchemy.js. */
+.ac-stack-view.is-goalplan .ac-gp-axis i::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  margin-right: 6px; vertical-align: middle;
+}
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-l { left: 0; }
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-l::before { background: #c83a48; }
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-c { left: 50%; transform: translateX(-50%); }
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-c::before { background: #7fa05a; }
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-r { right: 0; }
+.ac-stack-view.is-goalplan .ac-gp-axis i.is-r::before { background: #4f9d8f; }
+.ac-stack-view.is-goalplan .ac-gp-goalhead {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute); text-align: right;
+}
+.ac-stack-view.is-goalplan .ac-gp-rows { display: flex; flex-direction: column; gap: 6px; }
+.ac-stack-view.is-goalplan .ac-gp-row {
+  grid-template-columns: 132px 1fr 132px; grid-template-rows: auto;
+  column-gap: 14px; align-items: center; padding: 9px 11px;
+}
+.ac-stack-view.is-goalplan .ac-gp-name {
+  min-width: 0; font-family: var(--font-sans); font-size: 12px; color: var(--alchemy-paper-warm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ac-stack-view.is-goalplan .ac-gp-track { position: relative; height: 22px; min-width: 0; }
+.ac-stack-view.is-goalplan .ac-gp-track::before {
+  content: ""; position: absolute; left: 50%; top: 2px; bottom: 2px; width: 0;
+  border-left: 1px dashed rgba(var(--ink-rgb), 0.22);
+}
+.ac-stack-view.is-goalplan .ac-gp-arrow {
+  position: absolute; top: 50%; height: 2px; transform: translateY(-50%);
+  background: var(--team-color); opacity: 0.78; border-radius: 1px;
+}
+.ac-stack-view.is-goalplan .ac-gp-arrow::after {
+  content: ""; position: absolute; right: -2px; top: 50%; transform: translateY(-50%);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid var(--team-color);
+}
+.ac-stack-view.is-goalplan .ac-gp-dot {
+  position: absolute; top: 50%; width: 12px; height: 12px; transform: translate(-50%, -50%);
+  /* Stage-relative moat ring so the dot separates on BOTH themes: charcoal is
+     dark on dark / paper on cream, so this inverts instead of painting a hard
+     dark ring on the light stage. */
+  border-radius: 50%; background: var(--team-color); box-shadow: 0 0 0 2px color-mix(in srgb, var(--alchemy-charcoal) 70%, transparent), var(--lg-specular);
+}
+.ac-stack-view.is-goalplan .ac-gp-goal {
+  min-width: 0; font-family: var(--font-mono); font-size: 9px; color: var(--alchemy-ink-mute);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right;
+}
+.ac-stack-view.is-goalplan .ac-gp-untracked {
+  margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--lg-border);
+}
+.ac-stack-view.is-goalplan .ac-gp-untracked-head {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.ac-stack-view.is-goalplan .ac-gp-untracked-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ac-stack-view.is-goalplan .ac-gp-chip {
+  display: inline-block; width: auto; grid-template-columns: none; padding: 4px 10px;
+  border-radius: 999px; font-size: 11px; color: var(--alchemy-ink-mute);
+}
+.ac-stack-view.is-goalplan .ac-gp-note {
+  margin: 14px 2px 0; font-family: var(--font-mono); font-size: 9px; line-height: 1.5;
+  color: var(--alchemy-ink-mute); opacity: 0.85;
+}
+
 .ac-stack-stage {
   padding: 8px 0 0;
   overflow: auto;
@@ -8243,21 +8328,32 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   color: var(--alchemy-ink-mute);
   font-size: 12px;
 }
+/* Each product layer is a translucent glass pane that picks up the cursor
+ * sheen (.lg-track). No oxide tint here — it's a repeated content pane, so the
+ * signature wash stays on the singular hero/legend surfaces. */
 .ac-stack-layer {
   min-width: 0;
-  border: 1px solid rgba(var(--ink-rgb),0.06);
-  border-radius: 7px;
-  background: rgba(20,17,18,0.24);
+  border: 1px solid var(--lg-border);
+  border-radius: 12px;
+  background:
+    radial-gradient(240px 200px at var(--lg-mx, 28%) var(--lg-my, -8%),
+      rgba(var(--lg-sheen-color), calc(0.24 * var(--lg-sheen))), transparent 60%),
+    var(--lg-bg);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
   overflow: hidden;
 }
+/* The header reads as a frosted lip on the pane. */
 .ac-stack-layer-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
   padding: 12px 11px 9px;
-  border-bottom: 1px solid rgba(var(--ink-rgb),0.05);
-  background: rgba(20,17,18,0.34);
+  border-bottom: 1px solid var(--lg-border);
+  background: var(--lg-bg-strong);
+  box-shadow: var(--lg-specular);
 }
 .ac-stack-layer-head strong {
   min-width: 0;
@@ -8281,83 +8377,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   gap: 7px;
   padding: 9px;
 }
-.ac-stack-corner,
-.ac-stack-col-head,
-.ac-stack-row-head,
-.ac-stack-cell {
-  border-right: 1px solid rgba(var(--ink-rgb),0.08);
-  border-bottom: 1px solid rgba(var(--ink-rgb),0.08);
-}
-.ac-stack-corner,
-.ac-stack-col-head,
-.ac-stack-row-head {
-  background: rgba(20,17,18,0.72);
-}
-.ac-stack-corner {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 9px;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.ac-stack-corner em {
-  color: var(--alchemy-paper-warm);
-  font-style: normal;
-}
-.ac-stack-col-head {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 5px;
-  justify-content: center;
-  padding: 9px;
-}
-.ac-stack-col-head strong,
-.ac-stack-row-head strong {
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono);
-  font-size: 8.8px;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-}
-.ac-stack-col-head span,
-.ac-stack-row-head span {
-  color: var(--alchemy-ink-mute);
-  font-size: 10px;
-  line-height: 1.25;
-}
-.ac-stack-row-head {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  justify-content: center;
-  padding: 9px;
-}
-.ac-stack-cell {
-  position: relative;
-  min-width: 0;
-  min-height: 88px;
-  padding: 9px 8px 8px;
-  background: rgba(var(--ink-rgb), 0.018);
-}
-.ac-stack-cell-count {
-  position: absolute;
-  top: 5px;
-  right: 6px;
-  color: rgba(var(--ink-rgb),0.46);
-  font-family: var(--font-mono);
-  font-size: 8px;
-}
-.ac-stack-team-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding-right: 14px;
-}
+/* (Unused 2D stack-matrix variant styles removed — .ac-stack-corner /
+   -col-head / -row-head / -cell / -cell-count / -team-list were never emitted;
+   the rendered path is the .ac-stack-view.is-layer-list masonry above.) */
 .ac-stack-team {
   appearance: none;
   display: grid;
@@ -8367,20 +8389,22 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   width: 100%;
   min-width: 0;
   padding: 8px 9px;
-  border: 1px solid rgba(var(--ink-rgb),0.06);
-  border-radius: 5px;
-  background: rgba(20,17,18,0.22);
+  border: 1px solid var(--lg-border);
+  border-radius: 8px;
+  background: rgba(var(--ink-rgb), 0.035);
+  box-shadow: var(--lg-specular);
   color: var(--alchemy-paper-warm);
   cursor: pointer;
   text-align: left;
-  transition: border-color 160ms var(--ease), background 160ms var(--ease), opacity 160ms var(--ease), transform 160ms var(--ease);
+  transition: border-color 160ms var(--ease), background 160ms var(--ease), box-shadow 160ms var(--ease), opacity 160ms var(--ease), transform 160ms var(--ease);
 }
 .ac-stack-team:hover,
 .ac-stack-team:focus-visible,
 .ac-stack-team.is-selected {
   outline: none;
   border-color: var(--team-color, rgba(193,168,114,0.58));
-  background: rgba(193,168,114,0.045);
+  background: color-mix(in oklch, var(--team-color, #D9913D) 16%, rgba(var(--ink-rgb), 0.05));
+  box-shadow: var(--lg-specular), 0 6px 18px rgba(0, 0, 0, 0.22);
   transform: translateY(-1px);
 }
 .ac-stack-team i {
@@ -8490,19 +8514,27 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   opacity: 0.58;
 }
 .alch-constellation-stage[data-selection-active="true"] .ac-stack-team.is-selection-outside {
-  opacity: 0.18;
+  /* The stack has no edges, so selecting a team marks every other tile
+   * "outside". Keep them readable (~0.5) so the layer comparison the view
+   * exists for survives a selection — the picked tile still pops via
+   * is-selection-core (opacity 1) + the .is-selected ring. */
+  opacity: 0.5;
 }
+/* Teams the source data places nowhere (no keyword hits, no domain/proof/market
+ * signal) are grouped here rather than folded into substrate as a false read. */
+.ac-stack-layer.ac-stack-layer-unplaced {
+  opacity: 0.6;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(241, 236, 231, 0.14);
+}
+.ac-stack-layer.ac-stack-layer-unplaced .ac-stack-layer-head strong { font-style: italic; }
 @media (max-width: 820px) {
   .alch-constellation-legend { max-width: 100%; padding-right: 0; }
   .alch-constellation-stage > .ac-distribution-card { position: static; width: auto; margin: 8px; }
 }
 
 @media (max-width: 1180px) {
-  .alchemy-canvas:has(.alch-constellation),
-  .alchemy-canvas:has(.alch-cohort-page) {
-    padding-left: 28px;
-    padding-right: 28px;
-  }
   .alch-const-workbench { grid-template-columns: 1fr; }
   .ac-inspector { position: relative; top: auto; max-height: none; }
 }
@@ -8548,7 +8580,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-stage[data-view="ring"] svg .ac-ring-label {
   opacity: 0.82;
   fill: var(--well-accent, var(--alchemy-paper-warm));
-  font-size: 7px;
+  font-size: 8.6px; /* this view-scoped rule wins over the base .ac-ring-label */
 }
 .alch-constellation-stage[data-view="ring"] svg .ac-node-label {
   opacity: 0;
@@ -8662,7 +8694,8 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-timeline-meta {
   flex: 0 1 auto;
   color: var(--alchemy-ink-mute);
-  font-size: 9px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
 }
@@ -8952,7 +8985,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-journey-stage svg .ac-jaxis-x,
 .alch-journey-stage svg .ac-jaxis-y {
   fill: var(--journey-muted);
-  font-family: var(--font-mono); font-size: 8.8px; letter-spacing: 0.06em; text-transform: lowercase;
+  font-family: var(--font-mono); font-size: 10.2px; letter-spacing: 0.05em; text-transform: lowercase; font-variant-numeric: tabular-nums;
 }
 .alch-journey-stage svg .ac-jaxis-num { fill: var(--journey-ink); font-weight: 600; }
 /* Divider setting the off-track "side project" column apart from idea→scale-fit. */
@@ -8962,7 +8995,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-journey-stage svg .ac-jaxis-x-side { fill: var(--journey-muted); font-style: italic; opacity: 0.86; }
 .alch-journey-stage svg .ac-jaxis-title {
   fill: var(--journey-muted);
-  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
 }
 .alch-journey-stage svg .ac-jnode { cursor: pointer; }
 .alch-journey-stage svg .ac-jnode .ac-jdot {
@@ -8987,6 +9020,14 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   transform: scale(1.25); stroke-width: 1.4;
   filter: drop-shadow(0 0 8px rgba(143,34,14,0.55));
 }
+/* Keyboard focus (jnodes are role=button tabindex=0): warm SVG-native focus
+   instead of the global cyan ring, which mis-renders on the <g>. */
+.alch-journey-stage svg .ac-jnode:focus-visible { outline: none; }
+.alch-journey-stage svg .ac-jnode:focus-visible .ac-jdot {
+  transform: scale(1.25); stroke-width: 1.6;
+  filter: drop-shadow(0 0 9px rgba(214,189,134,0.85));
+}
+.alch-journey-stage svg .ac-jnode:focus-visible .ac-jnode-label { opacity: 1; }
 .alch-journey-stage svg .ac-jnode.is-selected .ac-jdot {
   transform: scale(1.22);
   stroke-width: 1.8;
@@ -8994,7 +9035,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .alch-journey-stage svg .ac-jnode-label {
   fill: var(--journey-ink); opacity: 0;
-  font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
   pointer-events: none;
   paint-order: stroke;
   stroke: rgba(10,9,9,0.74);
@@ -9022,8 +9063,69 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 /* Per-stage count strip across the top of the plot. */
 .alch-journey-stage svg .ac-jcount {
   fill: var(--journey-ink); font-family: var(--font-mono);
-  font-size: 9px; font-weight: 600; opacity: 0.86;
+  font-size: 10px; font-weight: 600; opacity: 0.86; font-variant-numeric: tabular-nums;
 }
+/* Constellation legends ride a quiet glass trough so the color/line key reads
+   as kin to the glass readout above them — and pick up the cursor sheen. The
+   plot/graph itself stays material (SVG can't take backdrop-filter anyway).
+   Material only here; each legend variant keeps its own flex layout. */
+.alch-constellation-legend.lg-track {
+  margin: 2px 0 12px;
+  padding: 9px 13px;
+  border: 1px solid var(--lg-border);
+  border-radius: 11px;
+  background:
+    radial-gradient(220px 140px at var(--lg-mx, 28%) var(--lg-my, -10%),
+      rgba(var(--lg-sheen-color), calc(0.22 * var(--lg-sheen))), transparent 60%),
+    var(--lg-tint),
+    var(--lg-bg);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+.alch-constellation-legend.is-journey-legend {
+  align-items: center;
+  gap: 8px 14px;
+}
+.alch-constellation-legend.is-journey-legend .acl-jfamily {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.alch-constellation-legend.is-journey-legend .acl-jbtn {
+  background: rgba(var(--ink-rgb), 0.05);
+  border-color: var(--lg-border);
+}
+.alch-constellation-legend.is-journey-legend .acl-jkey {
+  border-right-color: var(--lg-border);
+}
+/* Encoding key — static text leading the bottleneck legend; states what the
+   scatter's color and size MEAN. Deliberately not button-shaped so it can't
+   read as one more filter. */
+.alch-constellation-legend .acl-jkey {
+  align-self: center;
+  padding-right: 14px;
+  border-right: 1px solid rgba(var(--ink-rgb), 0.14);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--journey-muted);
+}
+/* Size ramp — shows the "size = market upside" encoding instead of only stating
+   it: a small dot → large dot, neutral fill (size, not colour, is the point). */
+.alch-constellation-legend .acl-jsize {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.alch-constellation-legend .acl-jsize i {
+  display: inline-block;
+  border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.5);
+}
+.alch-constellation-legend .acl-jsize i.sm { width: 5px; height: 5px; }
+.alch-constellation-legend .acl-jsize i.lg { width: 11px; height: 11px; }
 /* Filter bar */
 .alch-journey-filters {
   display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 14px;
@@ -9093,7 +9195,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   background: var(--journey-control-bg-hover);
 }
 /* Tooltip — anchored to the stage, positioned in JS on mousemove. */
-.alch-journey-tip {
+.ac-tip {
   position: absolute; top: 0; left: 0; z-index: 5;
   max-width: 286px; pointer-events: none;
   padding: 11px 12px 12px;
@@ -9151,7 +9253,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   background: rgba(var(--ink-rgb), 0.012);
   color: var(--alchemy-ink-mute);
   font-family: var(--font-mono);
-  font-size: 11px; color: var(--alchemy-oxide-bright);
+  font-size: 11px;
   margin-right: 6px;
 }
 .alch-feed-time {
@@ -9753,9 +9855,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   isolation: isolate;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 30px;
-  padding: 6px 11px 6px 8px;
+  gap: 7px;
+  min-height: 26px;
+  padding: 5px 10px 5px 7px;
   border: 1px solid color-mix(in srgb, var(--alchemy-oxide) 58%, rgba(var(--ink-rgb), 0.18));
   border-radius: 6px;
   background:
@@ -10908,11 +11010,22 @@ button.cb-cell:disabled { cursor: default; }
 }
 
 .alch-collab .alch-cb-section {
-  border: 1px solid var(--alchemy-rule);
+  border: 1px solid var(--lg-border);
   border-radius: 12px;
   background: linear-gradient(180deg, var(--cb-preview-panel) 0%, var(--cb-preview-panel-2) 100%);
   padding: 18px;
-  box-shadow: 0 18px 50px rgba(0,0,0,0.24);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+/* Non-matrix sections (intros, underused offers, convergence) lift to
+ * translucent glass. The matrix section keeps its opaque card so the 200+ cell
+ * scrolling grid never reveals a blur layer behind it (perf + legibility). */
+.alch-collab .alch-cb-section:not(.cb-matrix-section) {
+  background:
+    radial-gradient(280px 200px at var(--lg-mx, 28%) var(--lg-my, -8%),
+      rgba(255, 255, 255, calc(0.16 * var(--lg-sheen))), transparent 60%),
+    linear-gradient(180deg, rgba(30, 25, 27, 0.58), rgba(24, 20, 22, 0.66));
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
 }
 
 .alch-collab .alch-cb-sechead {
@@ -10990,14 +11103,21 @@ button.cb-cell:disabled { cursor: default; }
   max-height: none;
 }
 
+/* The inspector rail floats as glass beside the matrix and carries the cursor
+ * sheen (.lg-track). It's a grid column next to the matrix, not over it, so the
+ * blur layer is bounded and never sits behind the scrolling cells. */
 .alch-collab .cb-matrix-side {
   min-width: 0;
   display: grid;
   grid-template-rows: 128px auto;
-  border-left: 1px solid var(--cb-preview-grid);
+  border-left: 1px solid var(--lg-border);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.006)),
-    rgba(18, 14, 16, 0.78);
+    radial-gradient(240px 220px at var(--lg-mx, 30%) var(--lg-my, -6%),
+      rgba(255, 255, 255, calc(0.20 * var(--lg-sheen))), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.006)),
+    rgba(20, 16, 18, 0.56);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
 }
 
 .alch-collab .cb-matrix-key {
@@ -11100,7 +11220,7 @@ button.cb-cell:disabled { cursor: default; }
 .alch-collab .cb-colhead.is-quiet:focus-visible { opacity: 0.85; }
 
 .alch-collab .cb-grid {
-  --cb-cell: clamp(20px, 2vw, 28px);
+  --cb-cell: clamp(24px, 2vw, 28px);
   --cb-rowhead: clamp(120px, 12vw, 156px);
   min-width: max-content;
   padding-right: 28px;
@@ -11602,6 +11722,48 @@ button.cb-cell:disabled { cursor: default; }
   text-transform: none;
 }
 
+/* Default-inspector trailer — names the board's below-fold sections and
+   scrolls to them; each row is a quiet full-width jump, not a pill. */
+.cb-board-trailer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cb-trailer-link {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+  border: 1px solid rgba(var(--ink-rgb), 0.08);
+  border-radius: 6px;
+  padding: 6px 9px;
+  background: rgba(var(--ink-rgb), 0.018);
+  color: var(--alchemy-ink-mute);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: left;
+  transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
+}
+.cb-trailer-link:hover {
+  color: var(--alchemy-paper-warm);
+  border-color: rgba(var(--ink-rgb), 0.22);
+  background: rgba(var(--ink-rgb), 0.045);
+}
+.cb-trailer-link:active { transform: scale(0.98); }
+.cb-trailer-link:focus-visible {
+  outline: 1px solid rgba(143,34,14,0.78);
+  outline-offset: 2px;
+}
+.cb-trailer-link i {
+  font-style: normal;
+  color: var(--alchemy-oxide-bright);
+}
+
 .cb-inspector-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -11744,160 +11906,6 @@ button.cb-cell:disabled { cursor: default; }
   height: 18px;
   overflow: visible;
 }
-.alch-drawer-tag {
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-  font-family: var(--font-mono); font-size: 10px;
-  letter-spacing: 0.20em; text-transform: uppercase;
-  color: var(--alchemy-ink-mute);
-}
-.alch-drawer-tag .dt-id { color: var(--alchemy-oxide-bright); }
-.alch-drawer-close {
-  background: transparent; border: 1px solid var(--alchemy-rule);
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono); font-size: 10px;
-  letter-spacing: 0.18em; text-transform: uppercase;
-  padding: 4px 10px; border-radius: 999px;
-  cursor: pointer;
-  transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
-}
-.alch-drawer-close:hover {
-  color: var(--alchemy-oxide-bright);
-  border-color: var(--alchemy-rule-warm);
-  background: rgba(143,34,14,0.06);
-}
-.alch-drawer-body {
-  flex: 1; min-height: 0; overflow-y: auto;
-  padding: 22px 28px 32px;
-  display: flex; flex-direction: column; gap: 18px;
-}
-.alch-drawer-name {
-  font-family: var(--ed-display); font-style: italic;
-  font-size: 30px; line-height: 1.08; letter-spacing: -0.01em; font-weight: 500;
-  color: var(--ed-ink-1);
-}
-.alch-drawer-shape {
-  height: 140px;
-  display: grid; place-items: center;
-  border: 1px solid var(--alchemy-rule);
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(143,34,14,0.06), rgba(var(--ink-rgb), 0.005));
-}
-.alch-drawer-shape svg {
-  width: 80%; height: 100%;
-  animation: alchTilt 11s ease-in-out infinite, alchBreathe 9.5s ease-in-out infinite;
-  transform-origin: center;
-}
-.alch-drawer-shape svg .as-fill { fill: var(--alchemy-oxide); }
-.alch-drawer-shape svg .as-stroke { stroke: var(--alchemy-oxide-bright); fill: none; stroke-width: 1; }
-.alch-drawer-shape svg .as-mute { stroke: rgba(var(--ink-rgb), 0.18); fill: none; stroke-width: 0.6; }
-.alch-drawer-rule { height: 1px; background: var(--alchemy-rule-warm); width: 32px; }
-.alch-drawer-section {
-  display: flex; flex-direction: column; gap: 8px;
-}
-/* Section header — editorial italic-serif + underline rule, matching the
-   collab board's .alch-cb-sechead, with an optional terse lowercase sub-label. */
-.alch-drawer-sechead {
-  display: flex; align-items: baseline; gap: 12px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10); padding-bottom: 6px; margin-bottom: 2px;
-}
-.alch-drawer-section h4 {
-  font-family: var(--ed-display); font-style: italic;
-  font-size: 15px; letter-spacing: 0; text-transform: none;
-  color: var(--ed-ink-1);
-  margin: 0;
-  font-weight: normal;
-}
-.alch-drawer-sechead .dr-sub {
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.14em;
-  text-transform: lowercase; color: var(--alchemy-ink-mute);
-}
-.alch-drawer-row {
-  display: grid; grid-template-columns: 100px 1fr; gap: 12px;
-  font-family: var(--font-mono); font-size: 11.5px;
-  letter-spacing: 0.04em;
-}
-.alch-drawer-row .dr-k {
-  color: var(--alchemy-ink-mute); text-transform: uppercase; letter-spacing: 0.16em;
-  font-size: 10px; padding-top: 2px;
-}
-.alch-drawer-row .dr-v { color: var(--alchemy-paper-warm); }
-.alch-drawer-row .dr-v.muted { color: rgba(var(--ink-rgb), 0.40); font-style: italic; }
-.alch-drawer-row .dr-v a { color: var(--alchemy-paper-warm); border-bottom: 1px solid var(--alchemy-rule-warm); text-decoration: none; }
-.alch-drawer-row .dr-v a:hover { color: var(--alchemy-oxide-bright); border-color: var(--alchemy-oxide-bright); }
-.alch-drawer-clusters {
-  display: flex; flex-wrap: wrap; gap: 8px;
-}
-/* Cluster chip — a quiet labelled pill. Cluster identity is the LABEL (matching
-   the map, where cluster = the labeled well, never a color), so no per-cluster
-   hue here — that old hardcoded-by-record_id palette left most chips grey. */
-.alch-drawer-cluster {
-  display: inline-flex; align-items: center;
-  font-family: var(--font-mono); font-size: 9.5px;
-  letter-spacing: 0.12em; text-transform: lowercase;
-  padding: 4px 11px;
-  border-radius: 999px;
-  background: rgba(var(--ink-rgb), 0.04);
-  color: var(--alchemy-paper-warm);
-  border: 1px solid var(--alchemy-rule);
-}
-.alch-drawer-successes {
-  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;
-}
-.alch-drawer-success {
-  display: inline-flex; align-items: center;
-  border-radius: 4px; padding: 4px 8px;
-  border: 1px solid rgba(193,168,114,0.28);
-  background: rgba(193,168,114,0.08);
-  color: rgba(226,207,162,0.95);
-  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.alch-drawer-cluster-cards {
-  display: flex; flex-direction: column; gap: 8px;
-}
-.alch-drawer-cluster-cards .alch-drawer-cluster {
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 4px;
-  border-radius: 5px;
-  padding: 8px 10px;
-  text-transform: none;
-  letter-spacing: 0;
-}
-.alch-drawer-cluster-cards .alch-drawer-cluster span {
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.alch-drawer-cluster-cards .alch-drawer-cluster em {
-  font-style: normal;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-sans);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-/* Roster — the team's people as warm gold-accent chips (the collab board's
-   people shape-grammar: a person reads differently from a team or a cluster). */
-.alch-drawer-people { display: flex; flex-wrap: wrap; gap: 8px; }
-.alch-drawer-person {
-  display: inline-flex; align-items: baseline; gap: 7px;
-  padding: 5px 11px 5px 9px;
-  border-radius: 7px;
-  background: rgba(193,168,114,0.07);
-  border: 1px solid rgba(193,168,114,0.22);
-  border-left: 2px solid rgba(193,168,114,0.7);
-}
-.alch-drawer-person .dp-name {
-  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.02em;
-  color: var(--alchemy-paper-warm);
-}
-.alch-drawer-person .dp-role {
-  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.14em;
-  text-transform: uppercase; color: rgba(193,168,114,0.85);
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
  * THE COOK — deep editorial, gallery-grade.
  *
@@ -12738,8 +12746,96 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   align-items: center;
   gap: 3px;                 /* version sits 2px further left; icon stays pinned right */
 }
+/* Links — quiet footer chip (demoted from the nav 2026-06; it's a static
+ * external bookmark grid, so it lives beside the identity pill with the
+ * other meta affordances rather than as a peer of the OS pages). Routes to
+ * the links tab; lights to full ink when that tab is active. */
+.fg-links-chip {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--sr-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(var(--ink-rgb), 0.46);
+  transition: color 160ms ease, transform 100ms ease;
+}
+.fg-links-chip svg { width: 12px; height: 12px; display: block; opacity: 0.8; }
+.fg-links-chip:hover { color: rgba(var(--ink-rgb), 0.82); }
+.fg-links-chip:active { transform: scale(0.96); }
+body[data-active-tab="links"] .fg-links-chip { color: var(--ink-hi); }
 /* When the side panel is collapsed, the footer goes with it. */
 body[data-sidebar="hidden"] .fg-footer-row { display: none; }
+
+/* ── update banner: "update available!" above the footer row ─────
+ * Same fixed bottom-left strip treatment as .fg-footer-row, parked
+ * directly above it and matching the side panel width. Built in
+ * boot.js (showUpdateBanner); the whole pill is the download button —
+ * no dismiss, it only leaves when the user updates. A slow "breathe"
+ * brightens the pill background to pull the eye (the ::after overlay
+ * animates opacity, so it stays cheap; the global data-reduce-motion
+ * rule kills it for reduced-motion users). */
+.fg-update-banner {
+  position: fixed;
+  left: 16px;               /* align with the footer row's left inset */
+  bottom: 52px;             /* one row above .fg-footer-row (bottom: 16px) */
+  width: calc(270px - 16px - 8px);  /* panel rail minus left/right insets */
+  box-sizing: border-box;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  background: rgba(var(--overlay-rgb), 0.86);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.10),
+              0 8px 24px rgba(0,0,0,0.45);
+  -webkit-app-region: no-drag;
+}
+/* Breathe: a soft light layer over the pill fades in and out. */
+.fg-update-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(var(--ink-rgb), 0.048);
+  pointer-events: none;
+  animation: fg-update-banner-breathe 7.8s ease-in-out infinite;
+}
+@keyframes fg-update-banner-breathe {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; }
+}
+.fg-update-banner-action {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--light-1);
+  text-align: left;
+}
+.fg-update-banner-action:hover { color: var(--c-info); }
+.fg-update-banner-dot {
+  flex: none;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--c-info);
+}
+/* Collapses with the side panel, like the footer row. */
+body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 .identity-pill {
   position: static;
   margin: 0;
@@ -12779,9 +12875,11 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
  * (a permanently reserved slot), so the version's right edge never shifts
  * when a glyph appears. States via data-state:
  *   (empty)   → reserved slot, no glyph
- *   checking  → spinner (animated), set while a check is in flight
- *   ok        → checkmark, transient "you're on the latest" confirmation
- *   available → download icon, a newer build is ready to fetch */
+ *   checking    → spinner (animated), set while a check is in flight
+ *   downloading → live "NN%" readout while the update downloads
+ *   ready       → persistent post-download CTA (restart, or open installer)
+ *   ok          → checkmark, transient "you're on the latest" confirmation
+ *   available   → download icon, a newer build is ready to fetch */
 .fg-update-icon {
   -webkit-app-region: no-drag;
   display: inline-flex;
@@ -12807,6 +12905,52 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
 /* The checking loaders self-animate via SMIL inside the SVG — no CSS
  * animation needed here. */
 .fg-update-icon[data-state^="checking"] { cursor: default; }
+/* downloading + ready → both drop the fixed 12px and widen to fit the number
+ * or glyph. Because the cluster is right-pinned (.fg-footer-vcluster),
+ * the version number eases a few px left while one of these shows, then snaps
+ * back to its reserved-slot position once cleared. */
+.fg-update-icon[data-state="downloading"],
+.fg-update-icon[data-state="ready"] { width: auto; gap: 4px; }
+.fg-update-icon[data-state="downloading"] { cursor: default; }
+.fg-update-icon[data-state="ready"] { cursor: pointer; }
+.fg-update-icon svg.fg-ready-glyph { width: 12px; height: 12px; }
+
+/* Persistent theme toggle in the footer cluster. Subdued at rest (it's a
+ * utility, not status, so it sits quieter than the white update glyph), warms
+ * to full ink on hover. Sized to sit alongside the version stamp + update
+ * icon without crowding them. */
+.fg-theme-toggle {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(var(--ink-rgb), 0.50);
+  cursor: pointer;
+  line-height: 0;
+  border-radius: 5px;
+  transition: color 200ms var(--ease, ease), transform 100ms var(--ease, ease);
+}
+.fg-theme-toggle svg { width: 14px; height: 14px; display: block; }
+.fg-theme-toggle:hover { color: var(--ink-hi); }
+.fg-theme-toggle:active { transform: scale(0.92); }
+/* numeric % / ready label — mono, tabular so the digits don't jitter. */
+.fg-update-pct {
+  font-family: var(--font-mono, "SF Mono", Menlo, ui-monospace, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--ink-hi);
+}
 
 /* ── alchemy host ─────────────────────────────────────────────────── */
 .alchemy-view, #alchemy-view {
@@ -13069,11 +13213,15 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
  * profile section — same heading, row grid, and pill buttons as the
  * record editor above it. The ember "enrollment terminal" look stays
  * exclusive to the first-launch modal. */
+/* One seal info box: identity row + edges + system read share a single
+ * border. The inner blocks are borderless; hairline dividers separate them. */
+.alch-seal-box {
+  border: 1px solid var(--ed-rule-2);
+  background: var(--ed-bg-1);
+}
 .alch-seal-current {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   padding: 16px 18px;
-  border: 1px solid var(--ed-rule-2);
-  background: var(--ed-bg-1);
 }
 .alch-seal-avatar {
   width: 48px; height: 48px; flex: 0 0 48px;
@@ -13103,6 +13251,27 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   color: var(--ed-ink-3);
   overflow-wrap: anywhere;
 }
+/* github + x handles, each prefixed by its platform logo so it's clear
+ * what the handle is. Logo recedes (ink-4); handle text reads as contact. */
+.alch-seal-handles { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.alch-seal-handle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--ed-mono); font-size: 12px; letter-spacing: 0.02em;
+  color: var(--ed-ink-3);
+  text-decoration: none; cursor: pointer;
+  transition: color 140ms ease;
+}
+.alch-seal-handle svg { width: 13px; height: 13px; flex: 0 0 auto; color: var(--ed-ink-4); transition: color 140ms ease; }
+.alch-seal-handle:hover { color: var(--ed-ink-1); }
+.alch-seal-handle:hover svg { color: var(--ed-ink-1); }
+/* Team / project name → opens that record's cohort page in a new tab. */
+.alch-seal-team {
+  color: var(--ed-ink-2);
+  text-decoration: none; cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.alch-seal-team:hover { color: var(--ed-ink-1); border-bottom-color: currentColor; }
 .alch-seal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; align-self: center; }
 .alch-seal-btn {
   background: transparent;
@@ -13161,6 +13330,33 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
   margin: 0;
   font-family: var(--ed-mono); font-size: 11px; line-height: 1.6;
   color: var(--ed-ink-3);
+}
+/* Edges + "system read" — carried over from the retired membrane self
+ * panel. Borderless inner blocks of .alch-seal-box, no internal dividers. */
+.alch-seal-edges {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 4px 18px 11px;
+}
+.alch-seal-edges-k {
+  flex: 0 0 auto;
+  font-family: var(--ed-mono); font-size: 9.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ed-ink-4);
+}
+.alch-seal-edges-v {
+  font-family: var(--ed-mono); font-size: 12px; letter-spacing: 0.04em;
+  color: var(--ed-ink-2);
+}
+.alch-seal-read {
+  padding: 4px 18px 16px;
+}
+.alch-seal-read-h {
+  display: block; margin-bottom: 8px;
+  font-family: var(--ed-mono); font-size: 9.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ed-ink-4);
+}
+.alch-seal-read-body {
+  margin: 0;
+  font-size: 13px; line-height: 1.6; color: var(--ed-ink-2);
 }
 
 /* ── profile · submit row (save · local sync / save · open github PR) ──
@@ -13242,11 +13438,10 @@ body[data-sidebar="hidden"] .fg-footer-row { display: none; }
 }
 
 /* ── modals (identity onboarding) ────────────────────────────────── */
-.identity-modal-backdrop {
-  background: rgba(10, 10, 10, 0.80);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
+/* (The .identity-modal-backdrop glass is owned by its canonical rule near
+   the top of this file + the light-theme override below; the stale
+   blur(8px)/near-black duplicate that used to live here silently shadowed
+   it via source order and was removed.) */
 .identity-modal {
   background: var(--ed-bg-1);
   border: 1px solid var(--ed-rule-2);
@@ -13750,11 +13945,36 @@ html, body { background: var(--ed-bg-0); }
  * bump text contrast everywhere it was below readable.
  * ═══════════════════════════════════════════════════════════════════ */
 
-/* Page-level warm radial wash — slightly brighter at the top centre,
-   fades to near-black at the corners. Gives the whole stage depth
-   without changing the read of the editorial dark theme. */
+/* Page-level radial wash — back to near-black (2026-06-11): the espresso
+   page wash from the warm-elevation pass read as flat gray at laptop
+   brightness; the page returns to the deep near-black field while the
+   panels keep their warm elevation on top. */
 html, body {
   background: radial-gradient(ellipse 140% 100% at 50% -10%, #1a1612 0%, #0e0c0a 55%, #08070a 100%);
+  /* The gradient is a background-IMAGE; the shorthand leaves
+   * background-color transparent, and with no solid color on the root
+   * Chromium composites its default WHITE base background wherever a
+   * frame lands before raster catches up (page switches, resizes) —
+   * the occasional full-window white blink. Pin the solid color to the
+   * gradient's outer stop so any such gap stays dark. */
+  background-color: #08070a;
+}
+/* Flash-proof backdrop. Page switches restyle/repaint nearly the whole
+ * document layer in one frame; when raster misses that frame's deadline
+ * the compositor has nothing dark to show and the window blinks white.
+ * This fixed pseudo-element carries the same wash on its OWN compositor
+ * layer (will-change) — it never invalidates after first raster, so a
+ * dropped content frame composites over the dark backdrop instead of
+ * blowing out to white. Visually identical to the body wash above. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse 140% 100% at 50% -10%, #1a1612 0%, #0e0c0a 55%, #08070a 100%);
+  background-color: #08070a;
+  will-change: transform;
 }
 
 /* Alchemy stage + network/metrics stages get the same gradient so the
@@ -14130,7 +14350,28 @@ html, body {
 }
 .cal-avail-head > div:first-child { display: flex; flex-direction: column; gap: 4px; }
 .cal-avail-head .cal-page-actions { margin-left: auto; }
-.cal-avail-edit { margin-left: 4px; }
+/* Same pill treatment as .cal-action so the presence-head buttons read as
+   one family (was an unstyled native button — white box). */
+.cal-avail-edit {
+  margin-left: 4px;
+  appearance: none;
+  display: inline-flex; align-items: center; gap: 7px;
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.08), rgba(var(--ink-rgb), 0.02));
+  color: var(--ed-ink-1);
+  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-family: var(--ed-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  cursor: pointer;
+}
+.cal-avail-edit:hover {
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.16), rgba(var(--ink-rgb), 0.06));
+  border-color: rgba(var(--ink-rgb), 0.40);
+  box-shadow: 0 0 0 3px rgba(var(--ink-rgb), 0.06);
+}
 
 @media (max-width: 880px) {
   .cal-tw-wrap { grid-template-columns: 1fr; }
@@ -14144,8 +14385,23 @@ html, body {
 .cal-section-presence { max-width: none; }
 .cal-section-presence .cal-scroll {
   overflow-x: auto;
-  overflow-y: hidden;
+  /* The gantt is taller than the .cal-scroll max-height cap — overflow-y
+     must scroll, not hide, or every row below the fold (later teams) is
+     unreachable. */
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+/* Presence gantt blends into the page (2026-06): the scroll panel and the
+ * main canvas are transparent so the page's radial gradient shows through
+ * instead of the old #0b0a08 panel. The pinned freeze panes repaint that
+ * same gradient in JS (see mountGanttFreezePanes) — CSS background-
+ * attachment:fixed can't be used because .alchemy-canvas has a transform. */
+.cal-section-presence .cal-scroll {
+  background: transparent;
+  border-color: transparent;
+}
+html[data-theme="light"] .cal-section-presence .cal-scroll {
+  background: transparent;
 }
 .cal-section-head {
   display: flex; align-items: baseline; gap: 14px;
@@ -14274,6 +14530,23 @@ html, body {
   margin: 0;
 }
 .alch-onb-sub strong { color: var(--ed-ink-1); opacity: 1; font-weight: 500; }
+/* Overall progress — page-level echo of the per-row gold spine. Fills as
+   core steps complete; honours reduced-motion via the global reset. */
+.alch-onb-progress {
+  margin-top: 16px;
+  max-width: 70ch;
+  height: 2px;
+  background: rgba(var(--ink-rgb), 0.10);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.alch-onb-progress-fill {
+  display: block;
+  height: 100%;
+  background: rgba(193, 168, 114, 0.65);
+  border-radius: 1px;
+  transition: width 380ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
 .alch-onb-steps {
   list-style: none; padding: 0; margin: 0 0 28px;
   display: grid; gap: 14px;
@@ -14282,7 +14555,7 @@ html, body {
 .alch-onb-step {
   position: relative;
   display: grid;
-  grid-template-columns: 44px 1fr 24px;
+  grid-template-columns: 44px 1fr;
   gap: 18px;
   align-items: start;
   padding: 16px 18px;
@@ -14325,20 +14598,40 @@ html, body {
   padding: 1px 5px;
   border-radius: 2px;
 }
-.alch-onb-step-mark {
-  align-self: center;
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  background: transparent;
-  border: 1px solid rgba(var(--ink-rgb), 0.20);
+.alch-onb-step-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+/* Primary action — a real boxed command. `.alch-feed-btn` only gets its box
+   under the feed-mode scope, so onboarding supplies its own here (otherwise
+   the mandatory CTA renders as bare mono text). */
+.alch-onb-action {
+  margin-top: 0;
+  min-height: 32px;
+  padding: 7px 13px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  background: rgba(var(--ink-rgb), 0.018);
+  color: var(--ed-ink-1);
+  cursor: pointer;
+  transition: transform 160ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+              border-color 160ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+              background 160ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+              color 160ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
 }
-.alch-onb-step[data-state="complete"] .alch-onb-step-mark {
-  background: rgba(193,168,114,0.55);
-  border-color: rgba(193,168,114,0.55);
+.alch-onb-action:hover {
+  transform: translateY(-1px);
+  border-color: rgba(143, 34, 14, 0.58);
+  background: rgba(143, 34, 14, 0.035);
+  color: var(--ed-ink-1, #f5f3ee);
 }
-.alch-onb-step[data-state="missing"] .alch-onb-step-mark { border-color: #c44025; }
-.alch-onb-action { margin-top: 0; }
-.alch-onb-step-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.alch-onb-action:active { transform: translateY(0) scale(0.985); }
+/* Brand focus ring — beat the global HUD-cyan ring on this editorial surface
+   (mirrors the feed view's red override). */
+.alch-onb-action:focus-visible,
+.alch-onb-secondary:focus-visible,
+.alch-onb-complete:focus-visible {
+  outline: 2px solid rgba(143, 34, 14, 0.72);
+  outline-offset: 3px;
+  box-shadow: none;
+}
 /* Secondary action — a quieter text-link sibling to the primary
  * action button. Used today on the profile step to surface the
  * "ask your agent" path next to the in-app editor button. */
@@ -14363,27 +14656,56 @@ html, body {
   color: var(--ed-ink-1, #f5f3ee);
   text-decoration-color: var(--sr-red, #8f220e);
 }
-.alch-onb-done {
+/* Completion control — ONE per row, pinned right so "do it" (left) and
+   "mark done" (right) read as opposite outcomes, never peers. States:
+     .alch-onb-complete        todo      — outlined neutral pill, hollow ring
+     .alch-onb-complete-on     done      — solid gold pill, reversible (click→undo)
+     .alch-onb-complete-auto   detected  — passive gold chip (system-asserted)
+   The left-edge data-state spine is the single PASSIVE signal; this is the
+   single completion AFFORDANCE — no third encoding of "done" anywhere. */
+.alch-onb-complete {
   appearance: none;
-  background: transparent;
-  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 5px 13px;
   border-radius: 999px;
-  padding: 4px 11px;
+  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  background: transparent;
   font-family: var(--ed-mono);
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: lowercase;
   color: var(--ed-ink-1);
-  opacity: 0.65;
+  opacity: 0.7;
   cursor: pointer;
+  transition: opacity 200ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+              border-color 200ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1)),
+              background 200ms var(--ease-out, cubic-bezier(0.2, 0.7, 0.2, 1));
 }
-.alch-onb-done:hover { opacity: 1; border-color: rgba(var(--ink-rgb), 0.40); }
-.alch-onb-done-on {
-  border-color: rgba(193,168,114,0.65);
-  background: rgba(193,168,114,0.12);
-  color: rgba(229,212,178,0.95);
+.alch-onb-complete:hover { opacity: 1; border-color: rgba(var(--ink-rgb), 0.40); }
+.alch-onb-complete-mark {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0.6;
+}
+.alch-onb-complete-on,
+.alch-onb-complete-auto {
+  opacity: 1;
+  border-color: rgba(193, 168, 114, 0.65);
+  background: rgba(193, 168, 114, 0.12);
+  color: rgba(229, 212, 178, 0.95);
+}
+.alch-onb-complete-on .alch-onb-complete-mark,
+.alch-onb-complete-auto .alch-onb-complete-mark {
+  background: rgba(193, 168, 114, 0.9);
+  border-color: rgba(193, 168, 114, 0.9);
   opacity: 1;
 }
+.alch-onb-complete-auto { cursor: default; }
 /* Brief left-edge pulse on the step the user is being directed to next.
    Added by wireOnboarding after a mark-done click; auto-removed after 1.6s. */
 @keyframes alch-onb-pulse {
@@ -14428,7 +14750,7 @@ html, body {
   border-bottom: 2px solid transparent;
   padding: 10px 16px 12px 16px;
   color: var(--ed-ink-1);
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: pointer;
   display: inline-flex; gap: 10px; align-items: baseline;
 }
@@ -14437,17 +14759,22 @@ html, body {
   opacity: 1;
   border-bottom-color: #c44025;
 }
+.alch-prog-tab[aria-selected="true"] .alch-prog-tab-label {
+  color: var(--alchemy-paper-warm);
+}
 .alch-prog-tab-num {
   font-family: var(--ed-mono);
   font-size: 10px;
   letter-spacing: 0.22em;
   opacity: 0.60;
 }
+/* Mirrors .apv-label (context/cohort view tabs) so the program tabs use
+ * the identical font treatment — same family, style, size, spacing. */
 .alch-prog-tab-label {
   font-family: var(--ed-display);
   font-style: italic;
-  font-size: 16px;
-  letter-spacing: -0.01em;
+  font-size: 16.5px;
+  color: var(--ed-ink-1);
 }
 .alch-prog-page { margin: 0; max-width: 70ch; }
 .alch-prog-page-head {
@@ -14576,10 +14903,11 @@ html, body {
 
 /* ── asks board ──────────────────────────────────────────────────── */
 /* Stack the asks header (title + subtitle + post button) vertically so the
-   button never gets jammed into a narrow grid auto-column. Centered with
-   matching width to the section list below. */
+   button never gets jammed into a narrow grid auto-column. Left-aligned to
+   the canvas gutter (2026-06) so every page shares the same content edge;
+   the max-width still caps the line length for readability. */
 .alch-asks-head {
-  margin: 0 auto 20px;
+  margin: 0 0 20px;
   max-width: 80ch;
   display: flex; flex-direction: column;
   gap: 10px;
@@ -14604,7 +14932,7 @@ html, body {
   opacity: 0.62;
   margin: 0;
 }
-.alch-asks-section { max-width: 84ch; margin: 18px auto; }
+.alch-asks-section { max-width: 84ch; margin: 18px 0; }
 .alch-asks-section-head {
   display: flex; align-items: baseline; gap: 12px;
   padding-bottom: 8px;
@@ -15036,7 +15364,7 @@ html, body {
 .alch-page-view-btn:hover { opacity: 0.85; }
 .alch-page-view-btn[aria-selected="true"] {
   opacity: 1;
-  border-bottom-color: #c44025;
+  border-bottom-color: var(--sr-red);
 }
 .apv-glyph { font-size: 14px; opacity: 0.65; }
 .apv-label {
@@ -15087,6 +15415,56 @@ html, body {
   padding: 0;
   border: 0;
 }
+/* Directory's export action shares the band row with the filter chips —
+ * same chip styling, pushed to the right edge. */
+.alch-view-controls > #dossier-export-png { margin-left: auto; }
+/* Cross-view selection chip — the visible owner of "something is selected".
+ * Sits last in the controls row on every cohort view; clicking clears
+ * (same effect as the Escape shortcut, but discoverable). Oxide-warm so
+ * it reads as kin to the cohort-membership accent, not a filter. */
+.ac-selection-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  min-height: 28px;
+  padding: 4px 12px 4px 14px;
+  background: linear-gradient(
+    color-mix(in srgb, var(--alchemy-oxide-bright) 12%, transparent),
+    color-mix(in srgb, var(--alchemy-oxide-bright) 6%, transparent));
+  border: 1px solid color-mix(in srgb, var(--alchemy-oxide-hot) 45%, transparent);
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.16);
+  color: var(--ed-ink-1);
+  font-family: var(--ed-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  cursor: pointer;
+  transition: background 160ms ease-out, border-color 160ms ease-out;
+}
+.ac-selection-chip span { opacity: 0.6; letter-spacing: 0.18em; }
+.ac-selection-chip strong { font-weight: 500; text-transform: none; letter-spacing: 0.02em; }
+.ac-selection-chip i { font-style: normal; opacity: 0.7; font-size: 12px; line-height: 1; }
+.ac-selection-chip:hover,
+.ac-selection-chip:focus-visible {
+  background: color-mix(in srgb, var(--alchemy-oxide-bright) 18%, transparent);
+  border-color: var(--alchemy-oxide-hot);
+}
+.ac-selection-chip:hover i { opacity: 1; }
+/* Selected-entity readouts (journey/stack) — second-click hint line. */
+.ac-readout-hint {
+  margin: 8px 0 0;
+  font-family: var(--ed-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: rgba(var(--ink-rgb), 0.45);
+}
+.ac-main-readout.is-selected-readout {
+  border-left: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 55%, transparent);
+}
 /* Collab's lens buttons + actions become one space-between band row. */
 .alch-view-controls > .cb-controls {
   display: flex;
@@ -15095,6 +15473,695 @@ html, body {
   align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
+}
+
+/* ── Cohort control band — hairline segmented rails ───────────────
+   One material across all five views (directory, map, journey, stack,
+   collab). Each filter group sits in a quiet rail: faint alpha fill,
+   hairline border — same surface language as the cards below. The
+   active option is a softly lifted thumb; the oxide underline (shared
+   with the view tabs) is the real active signal. Group labels (include)
+   sit inside the rail's left edge as field prefixes. Oxide stays
+   reserved: membership tier, counts, the live dot, and the one action
+   button. (The constellation map's graph/layout/lines rails are the
+   sentence bar now — see below.) */
+
+.alch-view-controls {
+  gap: 8px 12px;
+  margin: 6px 0 18px;
+  padding-bottom: 12px;
+}
+
+/* The rails — every button group becomes one quiet trough: a faint
+   wash and a hairline, nothing carved. (The constellation map's three
+   rails became the sentence bar below.) */
+.alch-view-controls .alch-journey-filters,
+.alch-view-controls .alch-shapes-filter,
+.alch-view-controls .cb-lenses {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0;
+  padding: 2px;
+  min-width: 0;
+  border: 1px solid rgba(var(--ink-rgb), 0.07);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.06));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
+}
+
+/* Etched field prefixes — sit inside the rail's left edge */
+.alch-view-controls .ajf-label {
+  padding: 0 6px 0 10px;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 7.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(var(--ink-rgb), 0.40);
+}
+
+/* Segments — one structure for every filter/lens/toggle button */
+.alch-view-controls .ajf-toggle,
+.alch-view-controls .alch-shapes-chip,
+.alch-view-controls .cb-lens {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 3px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  line-height: 1;
+  color: rgba(var(--ink-rgb), 0.62);
+  opacity: 1;
+  text-decoration: none;
+  transform: none;
+  box-shadow: none;
+  cursor: pointer;
+  transition:
+    color 150ms ease-out,
+    background 150ms ease-out,
+    box-shadow 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+/* Hover — proto-thumb: a faint version of the raised state so the glass
+   reads as responsive before commit */
+.alch-view-controls .ajf-toggle:hover,
+.alch-view-controls .alch-shapes-chip:hover,
+.alch-view-controls .cb-lens:hover {
+  color: var(--alchemy-paper-warm);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.07), rgba(var(--ink-rgb), 0.035));
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transform: none;
+}
+/* Press — glass gives slightly */
+.alch-view-controls .ajf-toggle:active,
+.alch-view-controls .alch-shapes-chip:active,
+.alch-view-controls .cb-lens:active {
+  transform: scale(0.97);
+}
+/* Designed focus — oxide ring hugging the segment */
+.alch-view-controls .ajf-toggle:focus-visible,
+.alch-view-controls .alch-shapes-chip:focus-visible,
+.alch-view-controls .cb-lens:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright);
+  outline-offset: 1px;
+}
+
+/* The active thumb — shared across aria-selected / aria-pressed / .is-on.
+   A soft lift, nothing more: faint top-lit fill and a hairline ring.
+   The micro oxide underline (::after) is the signature — the same
+   "active = oxide underline" the view tabs above carry, scaled down
+   to thumb size. */
+.alch-view-controls .ajf-toggle.is-on,
+.alch-view-controls .alch-shapes-chip[aria-selected="true"],
+.alch-view-controls .cb-lens[aria-pressed="true"] {
+  color: var(--alchemy-paper-warm);
+  font-weight: 600;
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.13), rgba(var(--ink-rgb), 0.065));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(var(--ink-rgb), 0.10),
+    0 1px 2px rgba(0, 0, 0, 0.20);
+  text-decoration: none;
+  opacity: 1;
+}
+/* (ajf-toggle excluded — its multi-select state dot already carries the
+   oxide signal; tick + dot would double-mark one 26px thumb) */
+.alch-view-controls .alch-shapes-chip[aria-selected="true"]::after,
+.alch-view-controls .cb-lens[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 10px;
+  height: 1.5px;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  background: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 4px rgba(217, 83, 54, 0.45);
+}
+
+/* PMF toggles are multi-select — keep the state dot, drop the strikethrough */
+.alch-view-controls .ajf-toggle:not(.is-on) {
+  opacity: 1;
+  text-decoration: none;
+  color: rgba(var(--ink-rgb), 0.46);
+}
+.alch-view-controls .ajf-toggle::before {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.26);
+  transition: background 150ms ease-out, box-shadow 150ms ease-out;
+}
+.alch-view-controls .ajf-toggle.is-on::before {
+  background: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 5px rgba(217, 83, 54, 0.55);
+}
+
+/* Counts — quiet at rest, oxide-lit on the active thumb */
+.alch-view-controls .alch-shapes-chip .ascn,
+.alch-view-controls .cb-lens strong {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  opacity: 0.55;
+}
+.alch-view-controls .alch-shapes-chip[aria-selected="true"] .ascn,
+.alch-view-controls .cb-lens[aria-pressed="true"] strong {
+  color: color-mix(in srgb, var(--alchemy-oxide-bright) 72%, var(--alchemy-paper-warm));
+  opacity: 1;
+}
+
+/* Cohort membership thumb — the one oxide-tinted segment (tier signal,
+   matches the warm tint on cohort cards); its tick reads paper-on-oxide */
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"],
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"] {
+  color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, var(--alchemy-paper-warm));
+  background: linear-gradient(180deg, rgba(180, 58, 25, 0.22), rgba(180, 58, 25, 0.10));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px rgba(180, 58, 25, 0.26),
+    0 1px 2px rgba(0, 0, 0, 0.20);
+}
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"]::after,
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"]::after {
+  background: color-mix(in srgb, var(--alchemy-oxide-bright) 45%, var(--alchemy-paper-warm));
+  box-shadow: 0 0 6px rgba(217, 83, 54, 0.55);
+}
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"]:hover,
+.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"]:hover {
+  color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, var(--alchemy-paper-warm));
+  background: rgba(180, 58, 25, 0.10);
+}
+
+/* ── Sentence bar (constellation map/ring) ─────────────────────────
+   The view controls read as one sentence: "showing projects as wells ·
+   lined by all 76 · backed by 9 on record + 67 unconfirmed". Connector
+   words are quiet sans prose; each swappable word is a stateful token
+   (label = trigger = current value) opening a listbox whose options
+   carry their consequence (hint + live count). The evidence chips are
+   the old LINE SOURCE legend relocated into the sentence — same
+   data-legend-edge hover-isolate contract, plus click-to-pin. */
+.ac-sentence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 8px;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: rgba(var(--ink-rgb), 0.52);
+}
+.ac-sent-word { letter-spacing: 0.01em; white-space: nowrap; }
+/* Generated read clause — continues the filter sentence INLINE (dual-use bar:
+   the one sentence filters AND describes). Takes the remaining row width and
+   wraps internally only if long; same sans family + muted tone, lead clause
+   brighter, em-dash divider. No box, no kicker, no separate row. */
+.ac-sent-read {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.005em;
+  color: rgba(var(--ink-rgb), 0.42);
+}
+.ac-sent-read i {
+  font-style: normal;
+  margin-right: 6px;
+  color: rgba(var(--ink-rgb), 0.3);
+}
+.ac-sent-read b {
+  font-weight: 600;
+  color: rgba(var(--ink-rgb), 0.82);
+}
+.ac-sent-unit { position: relative; display: inline-flex; }
+.ac-sent-tok,
+.ac-sent-evi {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 3px 11px;
+  border: 1px solid rgba(var(--ink-rgb), 0.13);
+  border-radius: 999px;
+  /* Ink-relative fill so the pill keeps the same faint inset on dark AND
+   * doesn't wash to a cold grey on the light cream theme (the old fixed
+   * rgba(0,0,0,…) only read right on dark). Border carries the shape. */
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.05), rgba(var(--ink-rgb), 0.02));
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  line-height: 1;
+  color: var(--alchemy-paper-warm);
+  cursor: pointer;
+  transition:
+    color 150ms ease-out,
+    background 150ms ease-out,
+    border-color 150ms ease-out,
+    box-shadow 150ms ease-out,
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+}
+.ac-sent-tok em,
+.ac-sent-evi em {
+  font-style: normal;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--alchemy-oxide-bright);
+}
+.ac-sent-tok:hover,
+.ac-sent-evi:hover {
+  border-color: rgba(var(--ink-rgb), 0.24);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.07), rgba(var(--ink-rgb), 0.035));
+}
+.ac-sent-tok:active,
+.ac-sent-evi:active { transform: scale(0.97); }
+.ac-sent-tok:focus-visible,
+.ac-sent-evi:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright);
+  outline-offset: 1px;
+}
+.ac-sent-chev {
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4.5px solid rgba(var(--ink-rgb), 0.45);
+  transition: transform 150ms ease-out;
+}
+.ac-sent-tok[aria-expanded="true"] {
+  color: var(--alchemy-paper-warm);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.13), rgba(var(--ink-rgb), 0.065));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.20);
+}
+.ac-sent-tok[aria-expanded="true"] .ac-sent-chev { transform: rotate(180deg); }
+
+/* The listbox — same liquid-glass material as the stage tooltip. Enter
+   eases in (expo-out); exit is instant, like a context menu. */
+.ac-sent-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 80;
+  min-width: 252px;
+  max-width: min(320px, 84vw);
+  padding: 5px;
+  border: 1px solid var(--lg-border);
+  border-radius: 10px;
+  /* Opaque so options stay readable over busy cards — a dropdown over content
+   * can't be see-through regardless of chrome. (The control bar is a plain
+   * hairline strip now, not a glass backdrop ancestor, so blur here would be
+   * a wasted layer anyway.) Glass edge kept via border + specular. */
+  background: var(--lg-solid);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+  animation: ac-sent-menu-in 160ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+@keyframes ac-sent-menu-in {
+  from { opacity: 0; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-sent-menu { animation: none; }
+}
+.ac-sent-opt {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  font-family: var(--ed-mono, var(--font-mono));
+  cursor: pointer;
+  transition: background 130ms ease-out;
+}
+.ac-sent-opt + .ac-sent-opt { margin-top: 1px; }
+.ac-sent-opt:hover { background: rgba(var(--ink-rgb), 0.06); }
+.ac-sent-opt:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright);
+  outline-offset: -1px;
+}
+.ac-sent-opt-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ac-sent-opt b {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: rgba(var(--ink-rgb), 0.66);
+}
+.ac-sent-opt small {
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
+  color: rgba(var(--ink-rgb), 0.48);
+}
+.ac-sent-opt em {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--alchemy-oxide-bright);
+}
+.ac-sent-opt[aria-selected="true"] {
+  background: rgba(var(--ink-rgb), 0.07);
+  box-shadow: inset 2px 0 0 var(--alchemy-oxide-bright);
+}
+.ac-sent-opt[aria-selected="true"] b { color: var(--alchemy-paper-warm); }
+.ac-sent-opt.is-empty b { color: rgba(var(--ink-rgb), 0.36); }
+.ac-sent-opt.is-empty em { color: rgba(193, 168, 114, 0.75); }
+
+/* Evidence chips — the line specimens are drawn exactly as the map draws
+   them (gold solid record / dotted ink mention), so the chip is legend
+   and control at once. Pinned = the band's active-thumb recipe.
+   Scope the line-specimen <i> to the tier chips ONLY: the journey state
+   dot (.ac-sent-dot) and the clear glyph (.ac-sent-x) are also <i> inside
+   .ac-sent-evi, and a bare `.ac-sent-evi i` (0,1,1) would out-specify
+   their single-class rules and collapse them to a 24px×0 box. */
+.ac-sent-evi.is-typed i,
+.ac-sent-evi.is-profile i {
+  display: inline-block;
+  width: 24px;
+  height: 0;
+}
+.ac-sent-evi.is-typed i {
+  border-top: 3px solid rgba(226, 207, 162, 0.96);
+  box-shadow: 0 0 12px rgba(226, 207, 162, 0.22);
+}
+.ac-sent-evi.is-profile i {
+  border-top: 1.5px dotted rgba(var(--ink-rgb), 0.5);
+}
+.ac-sent-evi {
+  position: relative;
+}
+.ac-sent-evi[aria-pressed="true"]:not(.is-include) {
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.13), rgba(var(--ink-rgb), 0.065));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(var(--ink-rgb), 0.10),
+    0 1px 2px rgba(0, 0, 0, 0.20);
+}
+.ac-sent-evi[aria-pressed="true"]:not(.is-include)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 10px;
+  height: 1.5px;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  background: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 4px rgba(217, 83, 54, 0.45);
+}
+/* One chip pinned → its unpinned siblings recede, mirroring the canvas.
+   (Include chips are multi-select: an off chip recedes the same way.) */
+.ac-sentence:has(.ac-sent-evi:not(.is-include)[aria-pressed="true"]) .ac-sent-evi:not(.is-include)[aria-pressed="false"],
+.ac-sentence .ac-sent-evi.is-include[aria-pressed="false"] {
+  opacity: 0.55;
+}
+
+/* Include chips (journey) — multi-select; the oxide state dot is the
+   on/off signal, same vocabulary as the old ajf-toggle. */
+.ac-sent-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.26);
+  transition: background 150ms ease-out, box-shadow 150ms ease-out;
+}
+.ac-sent-evi.is-include[aria-pressed="true"] .ac-sent-dot {
+  background: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 5px rgba(217, 83, 54, 0.55);
+}
+
+/* Domain chips (product layer) — the colored dot is the same coding the
+   tiles below wear. Scoped colors: the legend-scoped .acl-dot rules don't
+   reach into the sentence bar. */
+.ac-sent-evi .acl-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.ac-sent-evi .acl-dot-tee    { background: #C0492E; }
+.ac-sent-evi .acl-dot-ai     { background: #D9913D; }
+.ac-sent-evi .acl-dot-crypto { background: #9A5BA6; }
+.ac-sent-evi .acl-dot-app-ux { background: #3F9B8E; }
+
+/* Clearable chips (active bottleneck / team filter) — an applied filter
+   reads oxide-warm, kin to the selection chip; the × is the affordance. */
+.ac-sent-evi.is-clearable {
+  border-color: rgba(217, 83, 54, 0.38);
+  color: var(--alchemy-paper-warm);
+}
+.ac-sent-evi.is-clearable:hover { border-color: rgba(217, 83, 54, 0.62); }
+.ac-sent-x {
+  margin-left: 2px;
+  font-style: normal;
+  color: rgba(var(--ink-rgb), 0.5);
+}
+.ac-sent-evi.is-clearable:hover .ac-sent-x { color: var(--alchemy-oxide-bright); }
+
+/* Plain stated fact inside a sentence (no control affordance). */
+.ac-sent-fact {
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--alchemy-paper-warm);
+}
+
+/* Collab actions — harmonize the sort select with the rail material;
+   the intake button keeps its own action treatment (it commits, the
+   rails only re-scope) but shares the band height. */
+.alch-view-controls .cb-sort-control select {
+  min-height: 28px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
+  background: linear-gradient(rgba(var(--ink-rgb), 0.05), rgba(var(--ink-rgb), 0.025));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
+  padding: 0 24px 0 12px;
+  font-family: var(--ed-mono, var(--font-mono));
+}
+.alch-view-controls .cb-sort-control select:hover,
+.alch-view-controls .cb-sort-control select:focus {
+  border-color: rgba(217, 83, 54, 0.36);
+  outline: none;
+}
+
+/* Directory's export action — a real button, not a floating label.
+   Same quiet outline material as the sort control; the ID selector
+   outranks the segment rules, so hover is restated here. */
+.alch-view-controls > #dossier-export-png {
+  min-height: 28px;
+  padding: 4px 14px;
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
+  border-radius: 14px;
+  background: linear-gradient(rgba(var(--ink-rgb), 0.045), rgba(var(--ink-rgb), 0.02));
+}
+.alch-view-controls > #dossier-export-png:hover {
+  color: var(--alchemy-paper-warm);
+  border-color: rgba(217, 83, 54, 0.36);
+  background: linear-gradient(rgba(var(--ink-rgb), 0.07), rgba(var(--ink-rgb), 0.035));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alch-view-controls .ajf-toggle,
+  .alch-view-controls .alch-shapes-chip,
+  .alch-view-controls .cb-lens,
+  .ac-sent-tok,
+  .ac-sent-evi,
+  .ac-sent-chev,
+  .ac-sent-opt {
+    transition: none;
+  }
+  .alch-view-controls .ajf-toggle:active,
+  .alch-view-controls .alch-shapes-chip:active,
+  .alch-view-controls .cb-lens:active,
+  .ac-sent-tok:active,
+  .ac-sent-evi:active {
+    transform: none;
+  }
+}
+
+/* ── legend → canvas isolation ────────────────────────────────────
+   Legends are keys, not captions. Every entry carries its count, its
+   swatch mirrors the real mark style exactly, and hovering/focusing an
+   entry isolates that mark type on the canvas below — the mapping is
+   demonstrated, not explained. Pure CSS via :has() so the behavior
+   survives the renderer's innerHTML rebuilds. */
+
+/* Key entries are live: subtle lift on hover, designed focus ring */
+.acl-line-key-row[data-legend-link],
+.acl-line-key-row[data-legend-edge],
+.alch-constellation-legend .acl-item[data-legend-domain],
+.cb-legend span[data-legend-cell] {
+  border-radius: 6px;
+  transition: color 140ms ease-out;
+}
+.acl-line-key-row[data-legend-link]:hover,
+.acl-line-key-row[data-legend-edge]:hover,
+.alch-constellation-legend .acl-item[data-legend-domain]:hover {
+  color: var(--alchemy-paper-warm);
+}
+.acl-line-key-row[data-legend-link]:focus-visible,
+.acl-line-key-row[data-legend-edge]:focus-visible,
+.alch-constellation-legend .acl-item[data-legend-domain]:focus-visible,
+.cb-legend span[data-legend-cell]:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright);
+  outline-offset: 2px;
+}
+
+/* Stack legend counts — same oxide voice as the line-key <em> counts */
+.alch-constellation-legend .acl-item .acl-count {
+  margin-left: 5px;
+  color: var(--alchemy-oxide-bright);
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* People-map swatches now mirror the actual stroke styles (the old key
+   showed profile overlap as ink-dotted and shared context as teal-dashed
+   — exactly swapped relative to the canvas) */
+.alch-constellation-legend.is-line-confidence .acl-line-key-row.is-typed i {
+  border-top: 2px solid rgba(226, 207, 162, 0.72);
+  box-shadow: none;
+}
+.alch-constellation-legend.is-line-confidence .acl-line-key-row.is-profile i {
+  border-top: 1px dashed rgba(79, 163, 160, 0.75);
+}
+.alch-constellation-legend.is-line-confidence .acl-line-key-row.is-shared i {
+  border-top: 1px dotted rgba(var(--ink-rgb), 0.55);
+}
+
+/* People map — each key row isolates its link kind */
+.alch-const-main:has([data-legend-link="same-team"]:hover) .ac-people-stage svg .ac-person-link:not(.is-same-team),
+.alch-const-main:has([data-legend-link="same-team"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-same-team) {
+  opacity: 0.05;
+}
+.alch-const-main:has([data-legend-link="same-team"]:hover) .ac-people-stage svg .ac-person-link.is-same-team,
+.alch-const-main:has([data-legend-link="same-team"]:focus-visible) .ac-people-stage svg .ac-person-link.is-same-team {
+  opacity: 1;
+  stroke-width: 1.6;
+}
+.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link:not(.is-secondary-overlap):not(.is-pair-with),
+.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-secondary-overlap):not(.is-pair-with) {
+  opacity: 0.05;
+}
+.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link.is-secondary-overlap,
+.alch-const-main:has([data-legend-link="profile"]:hover) .ac-people-stage svg .ac-person-link.is-pair-with,
+.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link.is-secondary-overlap,
+.alch-const-main:has([data-legend-link="profile"]:focus-visible) .ac-people-stage svg .ac-person-link.is-pair-with {
+  opacity: 1;
+  stroke-width: 1.5;
+}
+.alch-const-main:has([data-legend-link="shared-context"]:hover) .ac-people-stage svg .ac-person-link:not(.is-shared-context),
+.alch-const-main:has([data-legend-link="shared-context"]:focus-visible) .ac-people-stage svg .ac-person-link:not(.is-shared-context) {
+  opacity: 0.05;
+}
+.alch-const-main:has([data-legend-link="shared-context"]:hover) .ac-people-stage svg .ac-person-link.is-shared-context,
+.alch-const-main:has([data-legend-link="shared-context"]:focus-visible) .ac-people-stage svg .ac-person-link.is-shared-context {
+  opacity: 1;
+  stroke: rgba(var(--ink-rgb), 0.62);
+  stroke-width: 1.3;
+}
+
+/* Product layer — hover a domain chip → other domains' tiles recede.
+   The chips live in the sentence bar (outside .alch-const-main), so the
+   :has scope is the cohort page. */
+.alch-cohort-page:has([data-legend-domain="tee"]:hover) .ac-stack-team:not(.ac-stack-domain-tee),
+.alch-cohort-page:has([data-legend-domain="tee"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-tee),
+.alch-cohort-page:has([data-legend-domain="ai"]:hover) .ac-stack-team:not(.ac-stack-domain-ai),
+.alch-cohort-page:has([data-legend-domain="ai"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-ai),
+.alch-cohort-page:has([data-legend-domain="crypto"]:hover) .ac-stack-team:not(.ac-stack-domain-crypto),
+.alch-cohort-page:has([data-legend-domain="crypto"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-crypto),
+.alch-cohort-page:has([data-legend-domain="app-ux"]:hover) .ac-stack-team:not(.ac-stack-domain-app-ux),
+.alch-cohort-page:has([data-legend-domain="app-ux"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-app-ux) {
+  opacity: 0.22;
+}
+/* Pinned domain — click commits what chip hover previews (data-domain-pin
+   is written on the stack stage by the sentence bar's domain chips). The
+   :not(:has(...:hover)) gate makes the pin yield WHILE a chip is hovered,
+   so hovering a second domain previews it instead of the pin dimming the
+   hovered domain's own tiles (which would leave everything at 0.22). */
+.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="tee"] .ac-stack-team:not(.ac-stack-domain-tee),
+.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="ai"] .ac-stack-team:not(.ac-stack-domain-ai),
+.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="crypto"] .ac-stack-team:not(.ac-stack-domain-crypto),
+.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="app-ux"] .ac-stack-team:not(.ac-stack-domain-app-ux) {
+  opacity: 0.22;
+}
+.alch-const-main .ac-stack-team {
+  transition: opacity 160ms ease-out;
+}
+
+/* Collab matrix — the key teaches by demonstration: dependency / seek-offer
+   isolate their cells; match strength dims the weak tier so the ramp reads;
+   keystone surfaces the dense columns */
+.cb-matrix-section:has([data-legend-cell="dep"]:hover) .cb-cell.has-so:not(.has-dep),
+.cb-matrix-section:has([data-legend-cell="dep"]:focus-within) .cb-cell.has-so:not(.has-dep) {
+  opacity: 0.14;
+}
+.cb-matrix-section:has([data-legend-cell="so"]:hover) .cb-cell.has-dep:not(.has-so),
+.cb-matrix-section:has([data-legend-cell="so"]:focus-within) .cb-cell.has-dep:not(.has-so) {
+  opacity: 0.14;
+}
+.cb-matrix-section:has([data-legend-cell="scale"]:hover) .cb-cell.has-so.s1,
+.cb-matrix-section:has([data-legend-cell="scale"]:hover) .cb-cell.has-so.s2,
+.cb-matrix-section:has([data-legend-cell="scale"]:focus-within) .cb-cell.has-so.s1,
+.cb-matrix-section:has([data-legend-cell="scale"]:focus-within) .cb-cell.has-so.s2 {
+  opacity: 0.22;
+}
+.cb-matrix-section:has([data-legend-cell="key"]:hover) .cb-colhead:not(.is-key),
+.cb-matrix-section:has([data-legend-cell="key"]:focus-within) .cb-colhead:not(.is-key) {
+  opacity: 0.30;
+}
+.cb-matrix-section:has([data-legend-cell="key"]:hover) .cb-colhead.is-key,
+.cb-matrix-section:has([data-legend-cell="key"]:focus-within) .cb-colhead.is-key {
+  color: var(--alchemy-paper-warm);
+}
+.cb-matrix-section .cb-cell,
+.cb-matrix-section .cb-colhead {
+  transition: opacity 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alch-const-main .ac-stack-team,
+  .cb-matrix-section .cb-cell,
+  .cb-matrix-section .cb-colhead {
+    transition: none;
+  }
 }
 
 @media (max-width: 1120px) {
@@ -15223,6 +16290,31 @@ html, body {
   stroke-width: 2.25;
   opacity: 1;
 }
+/* Projects map — hover "on record" → mentions recede; hover
+   "unconfirmed" → records recede and the faint mention tier surfaces.
+   The chips live in the sentence bar (outside .alch-const-main), so the
+   :has scope is the cohort page. Keep after the base dependency-edge
+   rules so same-specificity all/ring at-rest rules do not restore the
+   default opacity and stroke width. */
+.alch-cohort-page:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
+.alch-cohort-page:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.06;
+}
+.alch-cohort-page:has([data-legend-edge="record"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
+.alch-cohort-page:has([data-legend-edge="record"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 1;
+  stroke-width: 1.9;
+}
+.alch-cohort-page:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record,
+.alch-cohort-page:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 0.07;
+}
+.alch-cohort-page:has([data-legend-edge="mention"]:hover) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy,
+.alch-cohort-page:has([data-legend-edge="mention"]:focus-visible) .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.95;
+  stroke: rgba(var(--ink-rgb), 0.70);
+  stroke-width: 1.05;
+}
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record.ac-edge-meaning-reliance,
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record.ac-edge-meaning-collaboration,
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-record.ac-edge-meaning-ecosystem,
@@ -15236,6 +16328,31 @@ html, body {
 .alch-constellation-stage svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy.ac-edge-meaning-unknown {
   stroke: rgba(var(--ink-rgb),0.45);
   stroke-dasharray: 2 5;
+}
+/* Pinned line-source tier — click commits what chip hover previews.
+   data-edge-tier is written on the stage by the sentence bar's evidence
+   chips. The at-rest lens rules carry :not([data-hover-active]):not(
+   [data-selection-active]) (specificity 0,7,1) and data-lens="all" is the
+   DEFAULT, so a bare [data-edge-tier] pin (0,5,1) would LOSE the cascade
+   and the click would silently no-op in the most common state. We mirror
+   the at-rest guards here (to out-rank them and to yield to node hover /
+   selection like they do), and gate on :not(:has([data-legend-edge]
+   :hover)) so a pin yields to an active chip hover-preview of the other
+   tier. */
+.alch-cohort-page:not(:has([data-legend-edge]:hover)) .alch-constellation-stage[data-edge-tier="record"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.06;
+}
+.alch-cohort-page:not(:has([data-legend-edge]:hover)) .alch-constellation-stage[data-edge-tier="record"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 1;
+  stroke-width: 1.9;
+}
+.alch-cohort-page:not(:has([data-legend-edge]:hover)) .alch-constellation-stage[data-edge-tier="mention"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-record {
+  opacity: 0.07;
+}
+.alch-cohort-page:not(:has([data-legend-edge]:hover)) .alch-constellation-stage[data-edge-tier="mention"]:not([data-hover-active="true"]):not([data-selection-active="true"]) svg .ac-edge.ac-edge-dependency.ac-edge-source-legacy {
+  opacity: 0.95;
+  stroke: rgba(var(--ink-rgb), 0.70);
+  stroke-width: 1.05;
 }
 .acl-swatch-dependency {
   background: rgba(193,168,114,0.65);
@@ -15276,10 +16393,13 @@ html, body {
 .alch-prog-title       { font-size: 44px; letter-spacing: -0.02em; line-height: 1.0; margin: 0 0 14px 0; }
 .alch-prog-sub         { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 64ch; margin: 0; opacity: 0.62; }
 
-.alch-prog-tabs        { margin: 24px 0 40px; max-width: 88ch; gap: 0; }
-.alch-prog-tab         { padding: 12px 24px 14px; gap: 12px; }
-.alch-prog-tab-num     { font-size: 11px; letter-spacing: 0.22em; }
-.alch-prog-tab-label   { font-size: 19px; }
+/* Tab metrics mirror .alch-page-view-btn / .apv-label exactly so the
+ * program tabs land at the same y and row height as the context/cohort
+ * view tabs — switching rail pages must not move the tab row. */
+.alch-prog-tabs        { margin: 0 0 40px; max-width: 88ch; gap: 0; }
+.alch-prog-tab         { padding: 6px 17px 9px; gap: 8px; }
+.alch-prog-tab-num     { font-size: 10px; letter-spacing: 0.22em; }
+.alch-prog-tab-label   { font-size: 16.5px; }
 
 .alch-prog-page        { margin: 0; max-width: 80ch; padding: 0 0 96px; }
 .alch-prog-page-head   { margin-bottom: 32px; align-items: baseline; gap: 24px; }
@@ -15317,12 +16437,12 @@ html, body {
 .alch-prog-page-foot   { margin-top: 40px; padding-top: 16px; font-size: 11px; }
 
 /* ── asks ─────────────────────────────────────────────────────────── */
-.alch-asks-head        { margin: 0 auto 18px; max-width: 88ch; padding-top: 12px; gap: 10px; }
+.alch-asks-head        { margin: 0 0 18px; max-width: 88ch; padding-top: 12px; gap: 10px; }
 .alch-asks-title       { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
 .alch-asks-sub         { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 70ch; margin: 0; opacity: 0.62; }
 .alch-asks-head-actions { margin-top: 10px; }
 
-.alch-asks-section     { max-width: 88ch; margin: 18px auto; }
+.alch-asks-section     { max-width: 88ch; margin: 18px 0; }
 .alch-asks-section-head { padding-bottom: 8px; margin-bottom: 10px; gap: 10px; }
 .alch-asks-section-title { font-size: 14px; line-height: 1.20; }
 .alch-asks-section-count { font-size: 11px; letter-spacing: 0.22em; }
@@ -15344,10 +16464,11 @@ html, body {
 .alch-onb-head         { margin: 0 auto 32px; max-width: 88ch; padding-top: 12px; }
 .alch-onb-title        { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
 .alch-onb-sub          { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 70ch; opacity: 0.62; }
+.alch-onb-progress     { max-width: 88ch; }
 
 .alch-onb-steps        { margin: 0 0 36px; max-width: 88ch; gap: 18px; }
 .alch-onb-step         {
-  grid-template-columns: 56px 1fr 28px;
+  grid-template-columns: 56px 1fr;
   gap: 24px;
   padding: 22px 24px;
 }
@@ -15355,9 +16476,8 @@ html, body {
 .alch-onb-step-title   { font-size: 22px; line-height: 1.20; margin: 0 0 10px 0; }
 .alch-onb-step-ask     { font-size: 16px; line-height: 1.6; margin: 0 0 16px 0; opacity: 0.88; }
 .alch-onb-step-ask code { font-size: 12.5px; padding: 2px 6px; }
-.alch-onb-step-mark    { width: 14px; height: 14px; }
 .alch-onb-step-actions { gap: 14px; }
-.alch-onb-done         { font-size: 11px; padding: 6px 14px; letter-spacing: 0.18em; }
+.alch-onb-complete     { font-size: 11px; padding: 6px 14px; letter-spacing: 0.18em; }
 
 /* ── calendar ─────────────────────────────────────────────────────── */
 .cal-page-head         { margin-bottom: 0; }
@@ -15565,7 +16685,7 @@ html, body {
 /* ── asks compose form ────────────────────────────────────────────── */
 .alch-asks-compose {
   max-width: 88ch;
-  margin: 10px auto 24px;
+  margin: 0 0 24px;
   padding: 0;
   background: rgba(var(--ink-rgb), 0.025);
   border: 1px solid rgba(var(--ink-rgb), 0.16);
@@ -15963,7 +17083,6 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .cal-event[data-kind="demo"]              { border-left-color: var(--sr-red); }
 .cal-event[data-state="now"]              { background: rgba(143, 34, 14, 0.07); }
 .alch-onb-step[data-state="missing"]      { border-left-color: var(--sr-red); }
-.alch-onb-step[data-state="missing"] .alch-onb-step-mark { border-color: var(--sr-red); }
 .alch-prog-tab[aria-selected="true"]      { border-bottom-color: var(--sr-red); }
 .cal-subtab[aria-selected="true"]         { border-bottom-color: var(--sr-red); }
 .alch-page-view-btn[aria-selected="true"]{ border-bottom-color: var(--sr-red); }
@@ -16179,13 +17298,88 @@ body[data-blank] .blank-tab { display: flex; }
   transition: color 160ms ease, text-shadow 160ms ease;
 }
 .nav-cat:hover { color: rgba(var(--ink-rgb), 0.98); }
-/* Active category — bright + a soft gaussian glow (no left edge line). */
-body[data-active-tab="alchemy"] .nav-cat[data-tab="alchemy"],
-body[data-active-tab="apps"]    .nav-cat[data-tab="apps"],
-body[data-active-tab="network"] .nav-cat[data-tab="network"],
-body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
+/* Active state lives on the rows, never on the "operating system" group
+ * label. The eyebrow (below) stays quiet even when its tab is active — a
+ * group title is never "the selected thing". Destination rows (apps /
+ * network) carry their own active treatment — red icon + bright label,
+ * matching the OS rail — in the .nav-cat--dest block. The old left-ember
+ * bar + glow were retired here 2026-06: the rail had already dropped its
+ * red edge for the icon tint (see .alchemy-rail-btn::before), so the nav
+ * categories follow suit and the whole column reads as one even list. */
+
+/* ── "operating system" demoted to a quiet eyebrow ─────────────────────
+ * It's the only true header in this column; a header should never compete
+ * with its own children for weight, and should never go bright/glow on
+ * "active". Quiet 11px label, subtle hover only. */
+.primary-nav .nav-cat--eyebrow {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: rgba(var(--ink-rgb), 0.50);
+}
+.primary-nav .nav-cat--eyebrow:hover { color: rgba(var(--ink-rgb), 0.66); }
+
+/* ── apps / network — destination rows in the OS-rail's row grammar ──────
+ * icon · label · hint, matching the rail rows so the column reads as one
+ * even list rather than a header + three orphans. A single small gap below
+ * the rail is the only group boundary — no divider line, no label. */
+.primary-nav .alchemy-rail + .nav-cat--dest { margin-top: 8px; }
+.primary-nav .nav-cat--dest {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 2px;
+  align-items: center;
+  width: 100%;
+  padding: 6px 16px 6px 40px;   /* icon column lines up under the OS-page icons */
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  color: rgba(var(--ink-rgb), 0.80);
+}
+.primary-nav .nav-cat--dest .ar-num {
+  grid-row: 1 / 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  line-height: 0;
+  opacity: 0.72;
+  color: currentColor;
+  transition: opacity 160ms ease, color 160ms ease;
+}
+.primary-nav .nav-cat--dest .ar-num svg { width: 16px; height: 16px; display: block; stroke: currentColor; }
+.primary-nav .nav-cat--dest .ar-label {
+  grid-column: 2;
+  font-family: var(--sr-font-mono);
+  font-size: 14px;
+  letter-spacing: 0.10em;
+  font-weight: 400;
+  text-transform: lowercase;
+  line-height: 1.0;
+  color: rgba(var(--ink-rgb), 0.80);
+}
+.primary-nav .nav-cat--dest .ar-hint {
+  grid-column: 2;
+  font-family: var(--sr-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  color: rgba(var(--ink-rgb), 0.45);
+}
+.primary-nav .nav-cat--dest:hover { color: rgba(var(--ink-rgb), 0.98); }
+.primary-nav .nav-cat--dest:hover .ar-num   { opacity: 0.92; }
+.primary-nav .nav-cat--dest:hover .ar-label { color: rgba(var(--ink-rgb), 0.98); }
+/* active row — red icon + bright label, exactly like the active OS page */
+body[data-active-tab="apps"]    .primary-nav .nav-cat--dest[data-tab="apps"]    .ar-label,
+body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-label {
   color: var(--ink-hi);
-  text-shadow: 0 0 8px rgba(var(--ink-rgb), 0.50);
+  font-weight: 500;
+}
+body[data-active-tab="apps"]    .primary-nav .nav-cat--dest[data-tab="apps"]    .ar-num,
+body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-num {
+  opacity: 1;
+  color: var(--sr-red);
 }
 /* The rail (operating-system sub-pages) nested under its category —
    reset the old stage-column sizing and indent it as a sub-list. */
@@ -16241,7 +17435,6 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
 .cal-tw-h-label,
 .cal-sched-h-label,
 .cal-event-title,
-.alch-prog-tab-label,
 .cal-subtab .cs-label,
 .alch-feed-loading-title {
   font-family: var(--sr-font-sans) !important;
@@ -16286,7 +17479,7 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
 .alch-asks-action,
 .alch-asks-status,
 .alch-onb-step-num,
-.alch-onb-done,
+.alch-onb-complete,
 .alch-onb-inline-line,
 .alch-onb-inline-hint,
 .alch-onb-inline-tag,
@@ -16641,74 +17834,118 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
  * now; future apps slot into the same grid without changing routing. */
 .apps-grid {
   display: grid;
-  grid-template-rows: auto 1fr;
-  padding: 56px 64px;
+  grid-template-rows: auto auto 1fr;
+  align-content: start;
+  padding: 40px clamp(28px, 4vw, 56px) 48px;
   overflow-y: auto;
   height: 100%;
   box-sizing: border-box;
 }
 .apps-grid-head {
-  margin: 0 0 40px 0;
-  max-width: 88ch;
+  display: grid;
+  gap: 8px;
+  margin: 0 0 24px 0;
+  max-width: 760px;
+  padding: 0 0 18px 0;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
 }
 .apps-grid-title {
   font-family: var(--sr-font-sans);
-  font-style: italic;
-  font-size: 38px;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  font-style: normal;
+  font-size: 30px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0;
   color: var(--ed-ink-1, #f5f3ee);
-  margin: 0 0 10px 0;
+  margin: 0;
   text-transform: lowercase;
 }
 .apps-grid-sub {
   font-family: var(--sr-font-sans);
   font-size: 14px;
-  line-height: 1.55;
-  color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78));
+  line-height: 1.45;
+  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.66));
   margin: 0;
+  max-width: 54ch;
 }
 .apps-grid-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(112px, 132px));
-  gap: 28px 20px;
+  grid-template-columns: repeat(3, minmax(0, 220px));
+  gap: 12px;
+  max-width: 760px;
+}
+.apps-grid-list > li {
+  min-width: 0;
 }
 /* App "card" — really just an icon + label, dock-style. No preview,
  * no metadata copy; the visual weight matches a launcher icon, not a
  * marketing tile. Card border surfaces on hover. */
 .app-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 6px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  text-align: center;
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  align-items: end;
+  justify-items: start;
+  gap: 14px;
+  min-height: 132px;
+  padding: 16px;
+  background:
+    linear-gradient(180deg, rgba(var(--ink-rgb), 0.050), rgba(var(--ink-rgb), 0.018));
+  border: 1px solid rgba(var(--ink-rgb), 0.105);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  text-align: left;
   cursor: pointer;
-  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  transition:
+    transform 160ms cubic-bezier(.2, .7, .2, 1),
+    border-color 160ms cubic-bezier(.2, .7, .2, 1),
+    background-color 160ms cubic-bezier(.2, .7, .2, 1),
+    box-shadow 160ms cubic-bezier(.2, .7, .2, 1);
   font: inherit;
   color: inherit;
   width: 100%;
 }
+.app-card::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 13px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(143, 34, 14, 0.72), rgba(var(--ink-rgb), 0.10) 54%, transparent);
+  opacity: 0.72;
+  pointer-events: none;
+}
 .app-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(var(--ink-rgb), 0.18);
-  background: rgba(var(--ink-rgb), 0.03);
+  transform: translateY(-1px);
+  border-color: rgba(143, 34, 14, 0.58);
+  background-color: rgba(143, 34, 14, 0.035);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 14px 26px rgba(0, 0, 0, 0.20);
+}
+.app-card:active {
+  transform: translateY(0) scale(0.985);
+}
+.app-card:focus-visible {
+  outline: 2px solid rgba(143, 34, 14, 0.72);
+  outline-offset: 3px;
 }
 .app-card-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 72px;
-  height: 72px;
-  background: #02010a;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 14px;
+  width: 58px;
+  height: 58px;
+  background: rgba(2, 1, 10, 0.76);
+  border: 1px solid rgba(var(--ink-rgb), 0.13);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 10px 20px rgba(0, 0, 0, 0.18);
   overflow: hidden;
 }
 .app-card-icon svg { display: block; width: 100%; height: 100%; }
@@ -16716,10 +17953,56 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
   display: block;
   font-family: var(--sr-font-sans);
   font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
   letter-spacing: 0;
   color: var(--ed-ink-1, #f5f3ee);
   margin: 0;
   text-transform: lowercase;
+}
+
+@media (max-width: 860px) {
+  .apps-grid {
+    padding: 32px 28px 40px;
+  }
+  .apps-grid-head {
+    margin-bottom: 20px;
+  }
+  .apps-grid-title {
+    font-size: 26px;
+  }
+  .apps-grid-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: none;
+  }
+  .app-card {
+    min-height: 122px;
+  }
+}
+
+@media (max-width: 560px) {
+  .apps-grid {
+    padding: 24px 18px 32px;
+  }
+  .apps-grid-list {
+    grid-template-columns: 1fr;
+  }
+  .app-card {
+    grid-template-columns: 52px 1fr;
+    grid-template-rows: 1fr;
+    align-items: center;
+    min-height: 76px;
+    padding: 12px 14px;
+  }
+  .app-card::before {
+    left: 14px;
+    right: 14px;
+    top: 10px;
+  }
+  .app-card-icon {
+    width: 48px;
+    height: 48px;
+  }
 }
 
 /* ─── links view ───────────────────────────────────────────────────
@@ -16729,55 +18012,56 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
 .links-view {
   display: flex;
   flex-direction: column;
-  padding: 56px 64px 48px;
+  padding: 40px clamp(28px, 4vw, 56px) 48px;
   overflow-y: auto;
   height: 100%;
   box-sizing: border-box;
   background:
-    linear-gradient(180deg, rgba(var(--overlay-rgb), 0.24), rgba(var(--overlay-rgb), 0.02) 42%, transparent);
+    linear-gradient(180deg, rgba(var(--overlay-rgb), 0.16), rgba(var(--overlay-rgb), 0.018) 42%, transparent);
 }
 .links-head {
-  margin: 0 0 32px 0;
-  max-width: 1040px;
-  padding-bottom: 22px;
+  margin: 0 0 24px 0;
+  max-width: 960px;
+  padding-bottom: 18px;
   border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
   position: relative;
 }
 .links-head::after {
-  content: "05 routes · 02 handouts · 02 repos · 01 download";
+  content: "06 routes · 02 handouts · 02 repos · 01 download";
   display: block;
-  margin-top: 18px;
+  margin-top: 14px;
   font-family: var(--sr-font-mono);
   font-size: 10.5px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   text-transform: uppercase;
-  color: var(--ed-ink-4, rgba(var(--ink-rgb), 0.42));
+  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.56));
 }
 .links-eyebrow {
   font-family: var(--sr-font-mono);
   font-size: 11px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0;
   text-transform: uppercase;
-  color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78));
-  margin: 0 0 12px 0;
+  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.62));
+  margin: 0 0 10px 0;
 }
 .links-title {
   font-family: var(--sr-font-sans);
-  font-style: italic;
-  font-size: 38px;
-  line-height: 1.1;
+  font-style: normal;
+  font-size: 30px;
+  font-weight: 650;
+  line-height: 1;
   letter-spacing: 0;
   color: var(--ed-ink-1, #f5f3ee);
-  margin: 0 0 10px 0;
+  margin: 0 0 9px 0;
   text-transform: lowercase;
 }
 .links-sub {
   font-family: var(--sr-font-sans);
   font-size: 14px;
-  line-height: 1.55;
-  color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78));
+  line-height: 1.45;
+  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.68));
   margin: 0;
-  max-width: 66ch;
+  max-width: 62ch;
 }
 .links-grid {
   counter-reset: link-route;
@@ -16785,8 +18069,8 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(292px, 1fr));
+  gap: 12px;
   max-width: 1120px;
 }
 .links-grid > li {
@@ -16798,8 +18082,8 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-height: 210px;
-  padding: 22px 20px 16px;
+  min-height: 182px;
+  padding: 18px 18px 15px;
   background:
     linear-gradient(180deg, rgba(var(--ink-rgb), 0.040), rgba(var(--ink-rgb), 0.012));
   border: 1px solid rgba(var(--ink-rgb), 0.12);
@@ -16808,8 +18092,12 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
   color: inherit;
   box-shadow:
     inset 0 1px 0 rgba(var(--overlay-rgb), 0.20),
-    inset 3px 0 0 rgba(143, 34, 14, 0.26);
-  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    inset 2px 0 0 rgba(143, 34, 14, 0.30);
+  transition:
+    transform 160ms cubic-bezier(.2, .7, .2, 1),
+    border-color 160ms cubic-bezier(.2, .7, .2, 1),
+    background 160ms cubic-bezier(.2, .7, .2, 1),
+    box-shadow 160ms cubic-bezier(.2, .7, .2, 1);
   height: 100%;
   box-sizing: border-box;
 }
@@ -16818,59 +18106,62 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
   align-self: flex-start;
   font-family: var(--sr-font-mono);
   font-size: 10.5px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   color: var(--sr-red, #8f220e);
 }
 .link-card::after {
   content: "open";
   position: absolute;
-  top: 22px;
-  right: 20px;
+  top: 18px;
+  right: 18px;
   font-family: var(--sr-font-mono);
   font-size: 10px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   text-transform: uppercase;
-  color: var(--ed-ink-4, rgba(var(--ink-rgb), 0.42));
-  transition: color 180ms ease, transform 180ms ease;
+  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.50));
+  transition:
+    color 160ms cubic-bezier(.2, .7, .2, 1),
+    transform 160ms cubic-bezier(.2, .7, .2, 1);
 }
 .link-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(var(--ink-rgb), 0.28);
+  transform: translateY(-1px);
+  border-color: rgba(143, 34, 14, 0.58);
   background:
-    linear-gradient(180deg, rgba(var(--ink-rgb), 0.060), rgba(var(--ink-rgb), 0.022));
+    linear-gradient(180deg, rgba(var(--ink-rgb), 0.058), rgba(143, 34, 14, 0.030));
   box-shadow:
     inset 0 1px 0 rgba(var(--overlay-rgb), 0.28),
-    inset 3px 0 0 var(--sr-red, #8f220e),
-    0 16px 44px rgba(0, 0, 0, 0.10);
+    inset 2px 0 0 var(--sr-red, #8f220e),
+    0 14px 28px rgba(0, 0, 0, 0.16);
 }
 .link-card:hover::after {
   color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78));
   transform: translateX(2px);
 }
 .link-card:focus-visible {
-  outline: 1px solid var(--sr-red, #8f220e);
+  outline: 2px solid rgba(143, 34, 14, 0.72);
   outline-offset: 3px;
 }
 .link-card-eyebrow {
   font-family: var(--sr-font-mono);
   font-size: 9.5px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0;
   text-transform: uppercase;
-  color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78));
+  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.64));
 }
 .link-card-title {
   font-family: var(--sr-font-sans);
-  font-size: 20px;
+  font-size: 18px;
+  font-weight: 600;
   letter-spacing: 0;
   color: var(--ed-ink-1, #f5f3ee);
   margin: 0 0 2px;
-  line-height: 1.15;
+  line-height: 1.18;
 }
 .link-card-desc {
   font-family: var(--sr-font-sans);
   font-size: 12.5px;
   line-height: 1.45;
-  color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78));
+  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.66));
   margin: 2px 0 8px;
 }
 .link-card-desc code {
@@ -16882,9 +18173,9 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
 }
 .link-card-url {
   font-family: var(--sr-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.55));
+  font-size: 10.5px;
+  letter-spacing: 0;
+  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.58));
   margin-top: auto;
   line-height: 1.45;
   padding-top: 7px;
@@ -16893,18 +18184,35 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
 }
 .link-card:hover .link-card-url { color: var(--ed-ink-1, #f5f3ee); }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .links-view {
-    padding: 32px 22px 36px;
+    padding: 32px 28px 40px;
   }
   .links-head {
-    margin-bottom: 22px;
+    margin-bottom: 20px;
   }
   .links-title {
-    font-size: 30px;
+    font-size: 26px;
+  }
+  .links-grid {
+    grid-template-columns: 1fr;
+    max-width: none;
   }
   .link-card {
     min-height: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .links-view {
+    padding: 24px 18px 32px;
+  }
+  .link-card {
+    padding: 16px 16px 14px;
+  }
+  .link-card::after {
+    top: 16px;
+    right: 16px;
   }
 }
 
@@ -17987,11 +19295,10 @@ body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
   --status-local:   #0E7C8A;
 }
 
-/* The default body background is a literal radial-gradient declared at
- * the very top of this file (`html, body { background: radial-gradient(
- * ... #2C2728 ... #231F20 ... #1A1719 ...) }`) — a hardcoded dark blend
- * that ignores --ed-bg-0. Need a stronger override so the paper bg
- * actually wins in light mode. */
+/* The default page background is the near-black radial wash declared lower
+ * in this file (search "Page-level radial wash": #1a1612 → #08070a). It is a
+ * hardcoded dark blend that ignores --ed-bg-0, so light mode needs this
+ * higher-specificity override for the paper background to actually win. */
 html[data-theme="light"], html[data-theme="light"] body {
   background: radial-gradient(
     ellipse 110% 70% at 50% -10%,
@@ -17999,7 +19306,23 @@ html[data-theme="light"], html[data-theme="light"] body {
     #F6F6F6 60%,
     #EAEAEA 100%
   );
+  /* Solid fallback under the gradient — same reason as the dark-mode
+   * html,body wash lower in this file (unpainted regions otherwise
+   * composite as the default white base background). */
+  background-color: #EAEAEA;
   color: var(--ed-ink-2);
+}
+/* Light-mode counterpart of the flash-proof body::before backdrop layer
+ * (see the dark rule near the html,body wash) — without this the dark
+ * backdrop would sit on top of the paper body wash in light mode. */
+html[data-theme="light"] body::before {
+  background: radial-gradient(
+    ellipse 110% 70% at 50% -10%,
+    #FFFFFF 0%,
+    #F6F6F6 60%,
+    #EAEAEA 100%
+  );
+  background-color: #EAEAEA;
 }
 html[data-theme="light"] #network-view {
   background: radial-gradient(
@@ -18059,7 +19382,19 @@ html[data-theme="light"] .history-modal {
 /* The identity modal backdrop and the second tab-bar gradient both
  * hardcode near-black; flip them to a translucent paper wash. */
 html[data-theme="light"] .identity-modal-backdrop {
-  background: rgba(var(--overlay-rgb), 0.65);
+  background: rgba(var(--overlay-rgb), 0.55);
+}
+/* Keep the enroll terminal glass in light mode (the generic .identity-modal
+   paper override above would flatten it) — translucent paper body, ember edge,
+   sheen intact; backdrop-filter inherits from the base .enroll rule. */
+html[data-theme="light"] .identity-modal.enroll {
+  background:
+    radial-gradient(120% 80% at 6% -10%, rgba(214,86,40,0.06), transparent 56%),
+    radial-gradient(260px 200px at var(--lg-mx, 24%) var(--lg-my, -6%),
+      rgba(var(--lg-sheen-color), calc(0.5 * var(--lg-sheen))), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.72), rgba(244,239,231,0.82));
+  border-color: rgba(214,86,40,0.40);
+  color: var(--ed-ink-2);
 }
 html[data-theme="light"] #tab-bar.tab-bar {
   background: linear-gradient(180deg, #FFFFFF 0%, var(--ed-bg-0) 100%);
@@ -18119,14 +19454,9 @@ html[data-theme="light"] .os-tab.is-active {
 html[data-theme="light"] .os-tab:hover {
   background: rgba(var(--ink-rgb), 0.04);
 }
-/* Active nav category gets a soft paper glow instead of the white one,
- * which is invisible on a light rail. */
-html[data-theme="light"] body[data-active-tab="alchemy"] .nav-cat[data-tab="alchemy"],
-html[data-theme="light"] body[data-active-tab="apps"]    .nav-cat[data-tab="apps"],
-html[data-theme="light"] body[data-active-tab="network"] .nav-cat[data-tab="network"],
-html[data-theme="light"] body[data-active-tab="links"]   .nav-cat[data-tab="links"] {
-  text-shadow: none;
-}
+/* (The active-nav-category light-theme glow override was retired with the
+ * dark-mode glow itself — active state is now red icon + bright label, which
+ * carries no text-shadow to neutralise. See the .nav-cat--dest block.) */
 html[data-theme="light"] .primary-nav .alchemy-rail-btn[aria-selected="true"] .ar-label {
   text-shadow: none;
 }
@@ -18171,19 +19501,36 @@ html[data-theme="light"] .cb-headrow {
  * warm-charcoal gradients (#15120e…) that ignore the themed --ed vars, so the
  * card body stays dark under the (now paper) shape canvas. Re-skin to paper;
  * the oxide cohort hairline is kept since it reads on both themes. */
+/* Flat fills only — a white-top/colored-bottom gradient here made the card
+   grid read as alternating row stripes (the grey bottom of one card against
+   the white top of the next); see the anti-gradient note above. */
 html[data-theme="light"] .alch-card {
-  background: linear-gradient(180deg, #FFFFFF 0%, #F4EFE6 100%);
-  border-top-color: rgba(var(--ink-rgb), 0.10);
+  background: #FFFFFF;
+  border-color: rgba(var(--ink-rgb), 0.12);
 }
 html[data-theme="light"] .alch-card:hover {
-  background: linear-gradient(180deg, #FFFFFF 0%, #EFE8DD 100%);
-  border-top-color: rgba(var(--ink-rgb), 0.22);
+  background: #F7F7F7;
+  border-color: rgba(var(--ink-rgb), 0.24);
 }
 html[data-theme="light"] .alch-card-membership-cohort {
-  background: linear-gradient(180deg, #FCF7F1 0%, #F3EADF 100%);
+  background: #FCF7F1;
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 36%, transparent);
 }
 html[data-theme="light"] .alch-card-membership-cohort:hover {
-  background: linear-gradient(180deg, #FFFFFF 0%, #F1E6D9 100%);
+  background: #FAF3EB;
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, transparent);
+}
+/* Dossier panel — same paper treatment as the cards in light mode. */
+html[data-theme="light"] .alch-detail-dossier {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F6F1E9 100%);
+  border-color: rgba(var(--ink-rgb), 0.12);
+  box-shadow: none;
+}
+/* Hover-peek anchors — flip the cream/white alphas to dark-ink alphas. */
+html[data-theme="light"] .alch-card-peek {
+  color: rgba(var(--ink-rgb), 0.62);
+  background: rgba(var(--ink-rgb), 0.04);
+  border-color: rgba(var(--ink-rgb), 0.14);
 }
 
 /* Collab board adjacency matrix — the sticky column-header row hardcodes a
@@ -19940,16 +21287,230 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
 
 /* Cohort detail dossier parity with the public web profile pages. */
 .alch-detail-dossier {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(230px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
   min-height: 0;
-  border-top: 1px solid var(--ed-rule, var(--alchemy-rule));
-  border-bottom: 1px solid var(--ed-rule, var(--alchemy-rule));
+  /* June-5 web dossier recipe (a0114d97), verbatim: translucent warm
+   * base + diagonal oxide wash + cream sheen, scanline texture overlay,
+   * rail inset. */
+  border: 1px solid rgba(241, 236, 231, 0.18);
+  border-radius: 8px;
+  overflow: hidden;
+  background:
+    linear-gradient(112deg, rgba(180, 58, 25, 0.16), rgba(180, 58, 25, 0.03) 31%, transparent 54%),
+    linear-gradient(180deg, rgba(247, 241, 236, 0.045), rgba(247, 241, 236, 0.008)),
+    rgba(28, 25, 25, 0.94);
+  padding: 0;
+}
+.alch-detail-dossier::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035), transparent 14%, transparent 86%, rgba(255, 255, 255, 0.018)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 9px);
+  opacity: 0.34;
+}
+.alch-detail-rail,
+.alch-detail-ledger {
+  position: relative;
+  z-index: 1;
+}
+/* Rail type — June-5 values: 36px/500 lowercase upright name, 16px
+ * focus line; the sigil above is the hero at up to 260px, centered. */
+.alch-detail-rail .alch-detail-name {
+  font-size: 36px;
+  font-weight: 500;
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  line-height: 1.2;
+  margin: 8px 0;
+}
+.alch-detail-rail .alch-detail-focus {
+  font-style: normal;
+  font-size: 16px;
+  line-height: 1.35;
+  color: rgba(var(--ink-rgb), 0.74);
+  margin: 0 0 16px;
+}
+.alch-detail-rail .alch-detail-shape {
+  width: min(100%, 260px);
+  justify-self: center;
+  margin: 0 0 16px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.alch-detail-rail .alch-rail-read { display: grid; gap: 8px; }
+/* Reading sizes: prose at a comfortable 13.5/1.7. */
+.alch-detail-prose,
+.alch-detail-prose p {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: rgba(var(--ink-rgb), 0.78);
+}
+.alch-detail-ledger .alch-section-stack { gap: 18px; }
+.alch-detail-flat { padding: 18px 0 10px; }
+.alch-detail-ledger .alch-quick-row { min-height: 42px; padding: 12px 0; }
+/* Directory grid — the original shows three generous columns, not a
+ * five-up dense pack. Rows stretch so card heights match per row.
+ * The min track is width-relative: 26% keeps laptop windows at 3-up
+ * (a fixed 360px floor used to collapse them to two stretched slabs),
+ * the 280px floor lets small windows keep 2-up, and the 440px cap
+ * re-admits 4-up only on ultrawide. */
+.alch-specimens {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(280px, 26%, 440px), 1fr));
+  gap: 22px;
+  align-items: stretch;
+}
+
+/* ══ Liquid glass chrome (2026-06) ═══════════════════════════════════
+ * Glass is reserved for CHROME — the floating controls bar, inspector,
+ * readouts, tooltips — surfaces that hover over scrolling content and
+ * have something to refract. Content panels (cards, dossier) stay
+ * material so the blur stays purposeful. */
+:root {
+  --lg-bg:        rgba(40, 35, 36, 0.60);
+  --lg-bg-strong: rgba(38, 33, 34, 0.72);
+  /* Opaque surface for popovers/menus that open OVER content but sit nested
+   * inside a backdrop-filter ancestor (the glass control bar) — there the
+   * menu's own blur can't reach the page (backdrop-filter ancestor = backdrop
+   * root), so a dropdown must be solid to stay readable. */
+  --lg-solid:     rgb(26, 22, 23);
+  --lg-border:    rgba(241, 236, 231, 0.13);
+  --lg-specular:  inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lg-shadow:    0 8px 28px rgba(0, 0, 0, 0.26);
+  /* Blur scale — three named tiers replace the ~14 ad-hoc radii that had
+   * drifted across the file. sm = chips/cards, md = panels, lg = full chrome. */
+  --lg-blur-sm:   blur(8px) saturate(1.2);
+  --lg-blur:      blur(16px) saturate(1.25);
+  --lg-blur-lg:   blur(24px) saturate(1.35);
+  /* Cohort signature wash — the oxide tint derived from the one accent via
+   * perceptual mixing, replacing the old rgba(180,58,25,0.10) magic literal. */
+  --lg-tint-color: color-mix(in oklch, var(--alchemy-oxide, #8F220E) 14%, transparent);
+  --lg-tint:       linear-gradient(112deg, var(--lg-tint-color), transparent 52%);
+  /* Liquid dose — master intensity for the cursor-tracking specular sheen
+   * (renderer/glass.js moves --lg-mx/--lg-my; CSS paints the glint). Held at a
+   * conservative 0.2; raise toward 1 to scale the whole motif up at once. */
+  --lg-sheen:       0.2;
+  --lg-sheen-color: 255, 255, 255;
+}
+:root[data-theme="light"] {
+  --lg-bg:        rgba(255, 255, 255, 0.52);
+  --lg-bg-strong: rgba(255, 255, 255, 0.74);
+  --lg-solid:     rgb(252, 250, 247);
+  --lg-border:    rgba(27, 20, 17, 0.13);
+  --lg-specular:  inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --lg-shadow:    0 8px 28px rgba(31, 26, 22, 0.12);
+  /* On near-white glass a white glint barely reads — soften the dose. */
+  --lg-sheen:       0.14;
+}
+/* The view controls read as a quiet hairline strip — the SAME material as
+ * the view-tab nav directly above it (.alch-page-views): a single bottom
+ * hairline, no fill / blur / radius / shadow. The filter row and the tabs
+ * then feel like one continuous chrome band instead of a glass bubble
+ * floating over the page, and the visible weight moves to the filter pills
+ * and the generated read below. (Earlier .alch-view-controls blocks at
+ * ~L15225/L15312 carry the flex layout; this one owns the resting skin and
+ * supersedes the retired sticky-glass-bar generation.) */
+.alch-view-controls {
+  padding: 2px 0 12px;
+  margin: 2px 0 16px;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
+}
+/* Inspector + generated/selected readouts share one glass panel family —
+ * consistent box language across map, journey, stack, and people. They carry
+ * the cohort's signature: the oxide tint + a cursor-tracking specular sheen
+ * (glass.js feeds --lg-mx/--lg-my; the sheen amplitude rides --lg-sheen). */
+.ac-inspector,
+.ac-main-readout {
+  border: 1px solid var(--lg-border);
+  border-radius: 12px;
+  background:
+    radial-gradient(260px 200px at var(--lg-mx, 28%) var(--lg-my, -8%),
+      rgba(var(--lg-sheen-color), calc(0.30 * var(--lg-sheen))), transparent 60%),
+    var(--lg-tint),
+    var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+
+/* ── Reusable liquid-glass surfaces ──────────────────────────────────────
+ * One definition each; collab / pmf / stack / map consume these instead of
+ * re-typing the recipe, so the material stays identical across the cohort.
+ * Tag a surface `.lg-track` to give it the cursor-following sheen. Dial the
+ * whole system from the --lg-* tokens above. */
+.lg-bar,
+.lg-card,
+.lg-panel,
+.lg-tip {
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+.lg-bar {
+  border-radius: 11px;
+  background: var(--lg-bg);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
+}
+.lg-tip {
+  border-radius: 10px;
+  background: var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+}
+/* Content cards — lighter blur, keeps tiny text legible (the chrome-vs-content
+ * contract: data surfaces stay material-ish, never see-through frost). */
+.lg-card {
+  border-radius: 12px;
+  background:
+    radial-gradient(220px 180px at var(--lg-mx, 28%) var(--lg-my, -8%),
+      rgba(var(--lg-sheen-color), calc(0.22 * var(--lg-sheen))), transparent 60%),
+    var(--lg-bg);
+  -webkit-backdrop-filter: var(--lg-blur-sm);
+  backdrop-filter: var(--lg-blur-sm);
+}
+/* Hero panels — full blur + oxide tint + the strongest sheen. */
+.lg-panel {
+  border-radius: 12px;
+  background:
+    radial-gradient(260px 200px at var(--lg-mx, 28%) var(--lg-my, -8%),
+      rgba(var(--lg-sheen-color), calc(0.30 * var(--lg-sheen))), transparent 60%),
+    var(--lg-tint),
+    var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+}
+/* Floating tooltips are pure glass. */
+.alch-constellation-stage .ac-tip {
+  border: 1px solid var(--lg-border);
+  border-radius: 10px;
+  background: var(--lg-bg-strong);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+/* Every constellation stage sits in the same material panel as the
+ * dossier — one box language across all cohort views. */
+.alch-constellation-stage {
+  border: 1px solid rgba(241, 236, 231, 0.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(112deg, rgba(180, 58, 25, 0.06), transparent 50%),
+    rgba(28, 25, 25, 0.45);
+}
+html[data-theme="light"] .alch-constellation-stage {
+  border-color: rgba(27, 20, 17, 0.12);
+  background: linear-gradient(180deg, #FFFFFF 0%, #F6F1E9 100%);
 }
 .alch-detail-rail {
   min-width: 0;
-  padding: 28px 28px 28px 0;
-  border-right: 1px solid var(--ed-rule, var(--alchemy-rule));
+  padding: 20px;
+  border-right: 1px solid rgba(241, 236, 231, 0.11);
+  background: linear-gradient(180deg, rgba(13, 12, 10, 0.42), rgba(13, 12, 10, 0.14));
 }
 .alch-detail-rail .alch-detail-shape {
   width: min(100%, 220px);
@@ -19958,13 +21519,34 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   background: transparent;
   border: 0;
 }
+/* Sigil continuity, grid → dossier. The rail hero canvas carries the
+ * view-transition-name statically; openDetail() tags the clicked card's
+ * canvas with the same name and wraps the re-render in
+ * document.startViewTransition (forward only — back stays instant;
+ * reduced-motion guarded at the call site). Old snapshot leaves faster
+ * than the new frame arrives, per the house asymmetric timing. */
+.alch-detail-rail .alch-detail-shape canvas { view-transition-name: sr-sigil; }
+::view-transition-group(sr-sigil),
+::view-transition-old(sr-sigil),
+::view-transition-new(sr-sigil) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+::view-transition-old(sr-sigil),
+::view-transition-new(sr-sigil) {
+  height: 100%;
+}
+::view-transition-old(root) { animation-duration: 140ms; }
+::view-transition-new(root) { animation-duration: 220ms; }
 .alch-rail-read {
   display: grid;
   gap: 14px;
 }
 .alch-rail-kicker {
   font-family: var(--ed-mono, var(--font-mono));
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  /* Caption ink routed through --ink-rgb (flips with theme) at an alpha
+   * that clears AA on both substrates — --ed-ink-4 sat at ~1.6:1. */
+  color: rgba(var(--ink-rgb), 0.58);
   font-size: 10px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -19984,7 +21566,7 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   align-items: baseline;
 }
 .alch-rail-list span:first-child {
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  color: rgba(var(--ink-rgb), 0.58);
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
@@ -19997,9 +21579,12 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   min-width: 0;
 }
 .alch-rail-member button,
-.alch-rail-list .alch-record-token {
+.alch-rail-list .alch-record-token,
+.alch-rail-list .alch-team-token {
   appearance: none;
+  min-height: 0;
   border: 0;
+  border-radius: 0;
   border-bottom: 1px solid var(--ed-rule-2, var(--alchemy-rule-warm));
   background: transparent;
   color: var(--ed-ink-1, var(--alchemy-paper-warm));
@@ -20009,22 +21594,91 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   text-align: left;
 }
 .alch-rail-member button:hover,
-.alch-rail-list .alch-record-token:hover {
+.alch-rail-list .alch-record-token:hover,
+.alch-rail-list .alch-team-token:hover {
   border-bottom-color: var(--ed-ink-1, var(--alchemy-oxide-bright));
 }
+/* The rail's team token carries the mini sigil (it absorbed the old
+ * "team context" quick row) — size the shape to the rail's type scale. */
+.alch-rail-list .alch-team-token { gap: 6px; padding-left: 0; }
+.alch-rail-list .alch-team-token .alch-mini-shape { width: 15px; height: 15px; }
 .alch-rail-member em {
   color: var(--ed-ink-4, var(--alchemy-ink-mute));
   font-style: normal;
 }
 .alch-detail-ledger {
   min-width: 0;
-  padding: 28px 0 32px 32px;
+  padding: 20px 24px 28px;
   display: grid;
   align-content: start;
-  gap: 22px;
+  gap: 20px;
+}
+.alch-ledger-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 .alch-ledger-head .alch-detail-h {
   margin: 0;
+}
+/* Explore toolbar — record actions (calendar, availability, links)
+ * lifted into the read's head as icon buttons: the first actions you
+ * see. Square (shape-grammar: no words inside), hairline at rest, oxide
+ * tint on hover/focus — the dossier's link voice. Mirror of
+ * .cd-explore-* in apps/web/styles/web.css. */
+.alch-explore-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+.alch-explore-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  padding: 0;
+  appearance: none;
+  border: 1px solid rgba(var(--ink-rgb), 0.16);
+  border-radius: 7px;
+  background: rgba(var(--ink-rgb), 0.018);
+  color: var(--ed-ink-2, var(--alchemy-ink));
+  cursor: pointer;
+  transition: color 200ms var(--ease-out, ease-out),
+              border-color 200ms var(--ease-out, ease-out),
+              background 200ms var(--ease-out, ease-out),
+              transform 160ms var(--ease-out, ease-out);
+}
+.alch-explore-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.alch-explore-btn:hover,
+.alch-explore-btn:focus-visible {
+  color: var(--alchemy-oxide-hot, #d05332);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 55%, transparent);
+  background: rgba(180, 58, 25, 0.08);
+}
+.alch-explore-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 38%, transparent);
+}
+.alch-explore-btn:active { transform: scale(0.94); }
+@media (prefers-reduced-motion: reduce) {
+  .alch-explore-btn { transition: none; }
+  .alch-explore-btn:active { transform: none; }
+}
+/* Light theme: the dark-ink glyph carries the contrast, but a 0.16
+ * border washes out on the cream surface (~1:1) — give the resting
+ * button a firmer boundary so it still reads as a button at rest. */
+html[data-theme="light"] .alch-explore-btn {
+  border-color: rgba(var(--ink-rgb), 0.30);
+  background: rgba(var(--ink-rgb), 0.04);
 }
 .alch-detail-quick {
   display: grid;
@@ -20049,7 +21703,7 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
 }
 .alch-quick-k,
 .alch-detail-row .adr-k {
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  color: rgba(var(--ink-rgb), 0.58);
   font-family: var(--ed-mono, var(--font-mono));
   font-size: 10px;
   letter-spacing: 0.18em;
@@ -20069,13 +21723,13 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   min-height: 24px;
   max-width: min(100%, 62ch);
   padding: 3px 8px;
-  border: 1px solid var(--ed-rule-2, var(--alchemy-rule));
+  border: 1px solid rgba(var(--ink-rgb), 0.16);
   border-radius: 4px;
   background: rgba(var(--ink-rgb), 0.018);
   color: var(--ed-ink-1, var(--alchemy-paper-warm));
   font-family: var(--ed-mono, var(--font-mono));
-  font-size: 11px;
-  line-height: 1.3;
+  font-size: 12px;
+  line-height: 1.25;
   overflow-wrap: anywhere;
   text-decoration: none;
 }
@@ -20085,20 +21739,72 @@ button.alch-quick-link {
 }
 .alch-quick-link:hover,
 .alch-quick-link:focus-visible {
-  color: var(--ed-ink-1, var(--alchemy-oxide-bright));
-  border-color: var(--ed-ink-1, var(--alchemy-oxide-bright));
-  background: rgba(var(--ink-rgb), 0.045);
+  color: var(--alchemy-oxide-hot, #d05332);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 55%, transparent);
+  background: rgba(180, 58, 25, 0.08);
 }
 .alch-quick-text {
   color: var(--ed-ink-2, var(--alchemy-ink));
-  border-color: var(--ed-rule, var(--alchemy-rule));
+  border-color: rgba(var(--ink-rgb), 0.11);
+}
+/* ask-me-about chips with matching timeline provenance carry a hover/
+ * focus evidence layer (the matched entry: date — title). The oxide
+ * corner tick marks which chips have it; chips without a match render
+ * plain, so nothing looks layered that isn't. */
+.alch-evidence-chip {
+  position: relative;
+}
+.alch-evidence-chip::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-top: 1px solid var(--alchemy-oxide-bright, #d05332);
+  border-right: 1px solid var(--alchemy-oxide-bright, #d05332);
+  opacity: 0.65;
+}
+.alch-evidence-chip::after {
+  content: "evidence · " attr(data-evidence);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 12;
+  width: max-content;
+  max-width: min(46ch, 70vw);
+  padding: 5px 9px;
+  border: 1px solid rgba(var(--ink-rgb), 0.22);
+  border-radius: 4px;
+  background: var(--ed-bg-1, #221d1a);
+  color: var(--ed-ink-2, var(--alchemy-ink));
+  font-size: 10.5px;
+  line-height: 1.45;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--dur-fast, 120ms) var(--ease-out, ease-out),
+              transform var(--dur-fast, 120ms) var(--ease-out, ease-out);
+}
+.alch-evidence-chip:hover::after,
+.alch-evidence-chip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+  /* enter slower than exit */
+  transition-duration: var(--dur-base, 220ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .alch-evidence-chip::after { transition: none; }
 }
 .alch-quick-text span,
 .alch-quick-pill span {
   margin-right: 6px;
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  color: rgba(var(--ink-rgb), 0.58);
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  /* The pill's overflow-wrap:anywhere may not break the LABEL mid-word
+   * ("FOCU S") — labels are atomic; only the value text wraps. */
+  white-space: nowrap;
 }
 .alch-team-token {
   gap: 7px;
@@ -20120,7 +21826,17 @@ button.alch-quick-link {
   min-height: 0;
   padding: 8px 0;
 }
-.alch-team-quick .alch-quick-link,
+/* Multi-item values: short pills (stage / evidence / upside…) share a
+ * line; prose items each own a full row. Two long items flowing inline
+ * produced a ragged fake second column (the "provides" rows). */
+.alch-team-quick .alch-quick-v {
+  column-gap: 16px;
+  row-gap: 5px;
+}
+.alch-team-quick .alch-quick-text {
+  flex: 1 1 100%;
+  max-width: 72ch;
+}
 .alch-team-quick .alch-quick-pill,
 .alch-team-quick .alch-quick-text {
   min-height: 0;
@@ -20129,9 +21845,6 @@ button.alch-quick-link {
   border-radius: 0;
   background: transparent;
 }
-.alch-team-quick .alch-quick-link {
-  border-bottom: 1px solid var(--ed-rule-2, var(--alchemy-rule-warm));
-}
 .alch-section-stack {
   display: grid;
   gap: 10px;
@@ -20139,6 +21852,32 @@ button.alch-quick-link {
 .alch-priority-stack {
   gap: 0;
 }
+/* Flat section — the dossier's default block (2026-06 restyle): same
+ * hairline + small-label language as the disclosure, but content simply
+ * visible. Nothing about it suggests clicking. */
+.alch-detail-flat {
+  border: 0;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
+  border-radius: 0;
+  background: transparent;
+  padding: 16px 0 6px;
+  position: relative;
+}
+.alch-detail-flat::before {
+  display: none; /* the section-generation gradient hairline would double the border-top */
+}
+.alch-flat-label {
+  margin: 0 0 12px;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10.5px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: rgba(var(--ink-rgb), 0.58);
+}
+.alch-detail-flat .alch-section-body {
+  animation: none;
+}
+
 .alch-detail-disclosure {
   border: 0;
   border-top: 1px solid var(--ed-rule, var(--alchemy-rule));
@@ -20156,8 +21895,8 @@ button.alch-quick-link {
   align-items: center;
   gap: 14px;
   min-height: 42px;
-  padding: 0 6px;
-  border-radius: 4px;
+  padding: 0 8px;
+  border-radius: 8px;
   cursor: pointer;
   list-style: none;
   color: var(--ed-ink-2, var(--alchemy-ink));
@@ -20165,13 +21904,26 @@ button.alch-quick-link {
   font-size: 10.5px;
   letter-spacing: 0.20em;
   text-transform: uppercase;
+  transition: color 200ms var(--ease-out, ease-out),
+              background 200ms var(--ease-out, ease-out),
+              box-shadow 200ms var(--ease-out, ease-out);
 }
 .alch-detail-disclosure summary::-webkit-details-marker {
   display: none;
 }
-.alch-detail-disclosure summary:hover {
+/* Liquid-glass sheen on hover/focus — a translucent fill + 1px inset
+ * specular highlight (gloss, not backdrop blur: the dossier is content,
+ * and blur is reserved for floating chrome). */
+.alch-detail-disclosure summary:hover,
+.alch-detail-disclosure summary:focus-visible {
   color: var(--ed-ink-1, var(--alchemy-paper-warm));
-  background: rgba(var(--ink-rgb), 0.03);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.05), rgba(var(--ink-rgb), 0.018));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.alch-detail-disclosure summary:focus-visible {
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+              0 0 0 2px color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 30%, transparent);
 }
 .alch-section-label {
   min-width: 0;
@@ -20182,27 +21934,78 @@ button.alch-quick-link {
 }
 .alch-section-preview {
   min-width: 0;
-  max-width: min(42ch, 60%);
+  max-width: min(52ch, 68%);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
+  /* Previews now carry actual record content (the now-line, latest
+   * timeline entry, traction snippet) — they must be readable, not
+   * marginalia. --ed-ink-4 measured ~1.6:1 on the dark substrate. */
+  color: rgba(var(--ink-rgb), 0.55);
   font-weight: 400;
   letter-spacing: 0;
-  text-transform: lowercase;
+  text-transform: none;
 }
+/* Open section: the body below owns the content — a preview restating it
+ * would be a duplicate role in the same frame. */
+.alch-detail-disclosure[open] .alch-section-preview {
+  display: none;
+}
+/* The expand affordance: a chevron in a small liquid-glass chip (mirrors
+ * the explore toolbar's icon-chip grammar). Quiet at rest, oxide when
+ * open, chevron rotates 180°. This is what makes a section read as
+ * "expandable" vs an always-visible flat block. */
 .alch-section-mark {
-  color: var(--ed-ink-4, var(--alchemy-ink-mute));
-  font-size: 12px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.07), rgba(var(--ink-rgb), 0.02));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: rgba(var(--ink-rgb), 0.62);
+  transition: color 200ms var(--ease-out, ease-out),
+              border-color 200ms var(--ease-out, ease-out),
+              background 200ms var(--ease-out, ease-out),
+              box-shadow 200ms var(--ease-out, ease-out);
 }
-.alch-section-mark::before {
-  content: "+";
+.alch-section-mark svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  transition: transform 240ms var(--ease-out, cubic-bezier(0.19, 1, 0.22, 1));
 }
-.alch-detail-disclosure[open] .alch-section-mark::before {
-  content: "-";
+.alch-detail-disclosure summary:hover .alch-section-mark,
+.alch-detail-disclosure summary:focus-visible .alch-section-mark {
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+  border-color: rgba(var(--ink-rgb), 0.22);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.12), rgba(var(--ink-rgb), 0.04));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 .alch-detail-disclosure[open] .alch-section-mark {
-  color: var(--alchemy-oxide-bright, #d05332);
+  color: var(--alchemy-oxide-hot, #d05332);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 42%, transparent);
+  background: linear-gradient(180deg, rgba(180, 58, 25, 0.16), rgba(180, 58, 25, 0.05));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.alch-detail-disclosure[open] .alch-section-mark svg {
+  transform: rotate(180deg);
+}
+/* Light theme: the translucent border/fill wash out on the cream surface
+ * (~1:1), so the chip stops reading as a control — firm them up to match
+ * the explore-button light treatment. The dark-ink chevron carries the
+ * glyph contrast; hover stays a step stronger than rest. */
+html[data-theme="light"] .alch-section-mark {
+  border-color: rgba(var(--ink-rgb), 0.30);
+  background: rgba(var(--ink-rgb), 0.04);
+}
+html[data-theme="light"] .alch-detail-disclosure summary:hover .alch-section-mark,
+html[data-theme="light"] .alch-detail-disclosure summary:focus-visible .alch-section-mark {
+  border-color: rgba(var(--ink-rgb), 0.42);
+  background: rgba(var(--ink-rgb), 0.07);
 }
 .alch-detail-disclosure[open] summary {
   color: var(--ed-ink-1, var(--alchemy-paper-warm));
@@ -20216,6 +22019,23 @@ button.alch-quick-link {
 @keyframes alch-section-reveal {
   from { opacity: 0; transform: translateY(-2px); }
   to { opacity: 1; transform: translateY(0); }
+}
+/* Liquid open: animate the body's height (not just the fade) where the
+ * platform supports it. interpolate-size is scoped to the disclosure
+ * subtree — NOT :root — so no other auto-size animation in the app changes
+ * behavior. Unsupported engines fall back to the instant native open + the
+ * fade above; reduced-motion is covered by the global reset at the top. */
+@supports (interpolate-size: allow-keywords) {
+  .alch-detail-disclosure { interpolate-size: allow-keywords; }
+  .alch-detail-disclosure::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition: block-size 260ms var(--ease-out, cubic-bezier(0.19, 1, 0.22, 1)),
+                content-visibility 260ms allow-discrete;
+  }
+  .alch-detail-disclosure[open]::details-content {
+    block-size: auto;
+  }
 }
 .alch-detail-prose {
   max-width: 78ch;
@@ -20258,19 +22078,26 @@ button.alch-quick-link {
   }
 }
 
-/* ─── unified page intro — boxed explainer at the top of each OS page ── */
+/* ─── unified page intro — floating top-right action slot ──────────── */
+/* The boxed explainer text was removed (2026-06) as clutter; the row now
+ * only renders on pages with a functional element to keep top-right
+ * (theme toggle, per-view side actions). It floats out of the flow so it
+ * adds no height — every page's content starts at the same y (the
+ * canvas's 24px top padding). top/right match the standard canvas
+ * padding (24px top; 56px right — cohort/constellation canvases reach
+ * the same 56px via narrower padding + the old strip margin). */
 /* Doubled class beats later-loading per-page rules (e.g. intel.css) on ties. */
 .alch-page-intro.alch-page-intro {
+  position: absolute;
+  top: 24px;
+  right: 56px;
+  z-index: 5;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   box-sizing: border-box;
-  min-height: 64px;
-  border: 1px solid var(--alchemy-rule);
-  border-radius: 4px;
-  padding: 10px 16px;
-  margin: 0 0 24px;
+  margin: 0;
   font-family: var(--font-sans);
   font-size: 13px;
   letter-spacing: 0.01em;
@@ -20284,35 +22111,820 @@ button.alch-quick-link {
  * as floating in dead space. */
 .alchemy-canvas:has(.alch-onb-steps) .alch-callout { margin-left: 0; margin-right: 0; }
 .alchemy-canvas:has(.alch-seal-section) .alch-callout { margin-left: 0; margin-right: 0; max-width: none; }
-/* An intro strip with no text yet keeps its reserved space (same height +
- * spacing as every other page) but hides the rectangle. Adding text to the
- * div makes the outline appear automatically. */
-.alch-page-intro.alch-page-intro:empty { border-color: transparent; }
-/* Constellation + cohort-page canvases use narrower padding (34/32; 28/28
- * under 1180px) for the graph — offset the strip so its edges land at the
- * same 56px as every other page. */
-.alchemy-canvas:has(.alch-constellation) .alch-page-intro,
-.alchemy-canvas:has(.alch-cohort-page) .alch-page-intro { margin-left: 22px; margin-right: 24px; }
-@media (max-width: 1180px) {
-  .alchemy-canvas:has(.alch-constellation) .alch-page-intro,
-  .alchemy-canvas:has(.alch-cohort-page) .alch-page-intro { margin-left: 28px; margin-right: 28px; }
-}
-/* Membrane is a full-bleed stage with zero canvas padding — give the strip
- * explicit margins matching the standard page padding, above the scene. */
-.membrane-host .membrane-page-intro { position: relative; z-index: 6; margin: 24px 56px 0; }
 
-/* ── what's new — Slack-style unread on the OS rail ──────────────────
- * A rail page whose cohort content changed since the user last viewed
- * it renders at full ink, exactly like a Slack/Discord channel with new
- * messages. Color only — no badges, no dots, no text. `.ar-unread` is
- * toggled by alchemy.js (updateRailUnread, fed by whats-new.js) and
- * settles back once the page is actually viewed. Uses the same theme
- * vars as the selected state, so light mode is covered for free. */
-.alchemy-rail-btn.ar-unread { opacity: var(--ed-op-loud); }
-.primary-nav .alchemy-rail-btn.ar-unread .ar-label { color: var(--ink-hi) !important; }
-.primary-nav .alchemy-rail-btn.ar-unread .ar-num   { opacity: 1 !important; }
+/* ── what's new — numbered unread badges on the OS rail ──────────────
+ * A rail page whose content changed since the user last viewed it gets
+ * a small numbered circle in the gutter LEFT of its icon — the count of
+ * new/changed records. The icon and label stay exactly where they are:
+ * the badge is absolutely positioned into the rail's 40px left padding.
+ * `.ar-unread` + the badge element are managed by alchemy.js
+ * (updateRailUnread, fed by whats-new.js) and clear once the page is
+ * actually viewed. overflow must be visible so the badge can escape the
+ * button box into the gutter (base rule clips it). */
+.primary-nav .alchemy-rail-btn { overflow: visible !important; }
+.alchemy-rail-btn .ar-unread-badge {
+  position: absolute;
+  left: -26px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--ink-hi);
+  color: var(--ed-bg-0);
+  font-family: var(--sr-font-mono);
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 13px;
+  text-align: center;
+}
 
 /* Program tab icons — same stroke-icon language as the rail/view navs. */
 .alch-prog-tab-icon { display: inline-flex; align-items: center; align-self: center; opacity: 0.60; }
 .alch-prog-tab-icon svg { width: 15px; height: 15px; display: block; }
 .alch-prog-tab[aria-selected="true"] .alch-prog-tab-icon { opacity: 1; }
+
+/* Network / metrics polish pass: keep the debug density, remove the older
+   glass-and-neon skin, and align the surface with the editorial ink system. */
+body[data-active-tab="network"],
+#network-view,
+#metrics-view {
+  --net-accent: var(--sr-red, var(--accent, #8F220E));
+  --net-panel-bg: rgba(13, 12, 11, 0.72);
+  --net-panel-bg-strong: rgba(19, 17, 15, 0.86);
+  --net-panel-wash: rgba(var(--ink-rgb), 0.030);
+  --net-panel-wash-strong: rgba(var(--ink-rgb), 0.055);
+  --net-rule: rgba(var(--ink-rgb), 0.115);
+  --net-rule-strong: rgba(var(--ink-rgb), 0.20);
+  --net-ink: var(--ed-ink-1, var(--light-1));
+  --net-ink-mid: var(--ed-ink-2, var(--light-2));
+  --net-ink-soft: var(--ed-ink-3, var(--light-3));
+  --net-ink-faint: var(--ed-ink-4, var(--light-4));
+  color: var(--net-ink-mid);
+}
+
+html[data-theme="light"] #network-view,
+html[data-theme="light"] #metrics-view {
+  --net-panel-bg: rgba(255, 255, 255, 0.82);
+  --net-panel-bg-strong: rgba(255, 255, 255, 0.94);
+  --net-panel-wash: rgba(var(--ink-rgb), 0.024);
+  --net-panel-wash-strong: rgba(var(--ink-rgb), 0.045);
+  --net-rule: rgba(var(--ink-rgb), 0.10);
+  --net-rule-strong: rgba(var(--ink-rgb), 0.18);
+}
+
+body[data-active-tab="network"] .network-subtabs {
+  gap: 6px;
+  padding: 10px 22px 0;
+}
+
+body[data-active-tab="network"] .net-subtab {
+  min-height: 30px;
+  border: 1px solid var(--net-rule, rgba(var(--ink-rgb), 0.14));
+  border-bottom-color: var(--net-rule, rgba(var(--ink-rgb), 0.14));
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ed-ink-3, var(--light-3));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+body[data-active-tab="network"] .net-subtab:hover {
+  color: var(--ed-ink-1, var(--light-1));
+  background: var(--net-panel-bg-strong, rgba(var(--overlay-rgb), 0.76));
+}
+
+body[data-active-tab="network"] .net-subtab[aria-selected="true"] {
+  color: var(--net-ink, var(--ed-ink-1));
+  border-color: var(--net-rule-strong, rgba(var(--ink-rgb), 0.22));
+  background: var(--net-panel-bg-strong, rgba(var(--overlay-rgb), 0.78));
+  box-shadow: inset 0 -2px 0 var(--net-accent);
+}
+
+body[data-active-tab="network"] #network-view,
+body[data-active-tab="network"] #metrics-view {
+  padding: 54px 22px 22px;
+}
+
+#network-view .net-header,
+#metrics-view .metrics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 54px;
+  padding: 12px 0 14px;
+  border-bottom: 1px solid var(--net-rule);
+  background: transparent;
+}
+
+#network-view .net-header-mark,
+#metrics-view .metrics-header-mark {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+#network-view .net-header-mark .mark-name,
+#metrics-view .metrics-header-mark .mark-name {
+  color: var(--net-ink);
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 0.96;
+  letter-spacing: 0;
+  text-shadow: none;
+  white-space: normal;
+}
+
+#network-view .net-header-mark .mark-sub,
+#metrics-view .metrics-header-mark .mark-sub {
+  color: var(--net-ink-soft);
+  letter-spacing: 0;
+}
+
+#network-view .net-anon-header {
+  min-height: 36px;
+  border: 1px solid var(--net-rule);
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: var(--net-panel-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+#network-view .net-anon-header .nah-label {
+  color: var(--net-ink-faint);
+}
+
+#network-view .net-anon-header .nah-value {
+  color: var(--net-ink);
+  font-weight: 500;
+}
+
+#network-view .net-anon-header[data-state="met"],
+#network-view .net-anon-header[data-state="unmet"] {
+  text-shadow: none;
+  animation: none;
+}
+
+#network-view .net-anon-header[data-state="met"] {
+  border-color: rgba(111, 163, 122, 0.48);
+  box-shadow: inset 3px 0 0 rgba(111, 163, 122, 0.76);
+}
+
+#network-view .net-anon-header[data-state="unmet"] {
+  border-color: rgba(196, 149, 59, 0.52);
+  box-shadow: inset 3px 0 0 rgba(196, 149, 59, 0.82);
+}
+
+#network-view .net-grid {
+  grid-template-columns: minmax(250px, 0.95fr) minmax(420px, 1.75fr) minmax(300px, 1.15fr);
+  gap: 12px;
+  padding: 14px 0 0;
+}
+
+#network-view .net-col,
+#network-view .livegraph-panel,
+#network-view .net-col-detail,
+#network-view .net-col-center > .events-panel,
+#network-view .net-col-right > .events-panel,
+#metrics-view .metrics-stat,
+#metrics-view .metrics-chart {
+  border: 1px solid var(--net-rule);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, var(--net-panel-bg-strong), var(--net-panel-bg)),
+    var(--net-panel-bg);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+#network-view .net-col-center,
+#network-view .net-col-right {
+  background: transparent;
+  border: 0;
+}
+
+#network-view .net-col-head,
+#network-view .livegraph-head,
+#network-view .events-panel-head,
+#metrics-view .mc-head {
+  min-height: 36px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--net-rule);
+  color: var(--net-ink-soft);
+  background: transparent;
+}
+
+#network-view .net-col-title,
+#network-view .livegraph-head .events-panel-title,
+#network-view .events-panel-title,
+#metrics-view .mc-title {
+  color: var(--net-ink-mid);
+  font-weight: 500;
+}
+
+#network-view .net-col-count,
+#network-view .livegraph-head .events-panel-count,
+#network-view .events-panel-count,
+#metrics-view .mc-meta {
+  color: var(--net-ink-soft);
+  text-shadow: none;
+}
+
+#network-view .net-col-sep,
+#network-view .events-panel-sep {
+  color: var(--net-ink-faint);
+}
+
+#network-view .livegraph-mode-btn,
+#network-view .traffic-chip,
+#metrics-view .metrics-range-btn,
+#metrics-view .metrics-refresh {
+  min-height: 26px;
+  border: 1px solid var(--net-rule);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--net-ink-soft);
+  box-shadow: none;
+  text-shadow: none;
+  transition:
+    color 160ms var(--ease),
+    background 160ms var(--ease),
+    border-color 160ms var(--ease),
+    transform 120ms var(--ease);
+}
+
+#network-view .livegraph-mode-btn:hover,
+#network-view .traffic-chip:hover,
+#metrics-view .metrics-range-btn:hover,
+#metrics-view .metrics-refresh:hover {
+  color: var(--net-ink);
+  border-color: var(--net-rule-strong);
+  background: var(--net-panel-wash);
+}
+
+#network-view .livegraph-mode-btn:active,
+#network-view .traffic-chip:active,
+#metrics-view .metrics-range-btn:active,
+#metrics-view .metrics-refresh:active {
+  transform: scale(0.98);
+}
+
+#network-view .livegraph-mode-btn.selected,
+#network-view .traffic-chip.selected,
+#metrics-view .metrics-range-btn.selected {
+  color: var(--net-ink);
+  border-color: color-mix(in oklch, var(--net-accent) 58%, transparent);
+  background: rgba(143, 34, 14, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(143, 34, 14, 0.18);
+  text-shadow: none;
+}
+
+#network-view .net-peer-card {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+}
+
+#network-view .net-peer-card:hover {
+  background: var(--net-panel-wash);
+}
+
+#network-view .net-peer-card.selected {
+  border-color: var(--net-rule-strong);
+  background: var(--net-panel-wash-strong);
+  box-shadow: inset 3px 0 0 var(--net-accent);
+}
+
+#network-view .net-peer-card .npc-dot {
+  box-shadow: none;
+}
+
+#network-view .net-peer-card .npc-nick {
+  color: var(--net-ink);
+  font-weight: 500;
+}
+
+#network-view .net-peer-card .npc-nick.is-self::after,
+#network-view .net-peer-card .npc-live,
+#network-view .net-router-status .nrs-key,
+#network-view .net-search-row .nsr-qh code {
+  color: var(--net-accent);
+  text-shadow: none;
+}
+
+#network-view .events-row {
+  border-radius: 4px;
+}
+
+#network-view .events-row:hover,
+#network-view .router-row:hover,
+#network-view .rc-row:hover {
+  background: var(--net-panel-wash);
+}
+
+#network-view .events-row.selected,
+#network-view .router-row.selected,
+#network-view .rc-row.selected {
+  background: var(--net-panel-wash-strong);
+  box-shadow: inset 3px 0 0 var(--net-accent);
+}
+
+#network-view .events-row .e-meta,
+#network-view .events-row.kind-manifest_fetched .e-meta,
+#network-view .events-row.kind-pulled .e-meta,
+#network-view .events-row.kind-applied_local .e-meta,
+#network-view .events-row.kind-peer_reachable .e-meta,
+#network-view .events-row.kind-mdns_peer_appeared .e-meta,
+#network-view .events-row.kind-peer_unreachable .e-meta,
+#network-view .events-row.kind-mdns_peer_disappeared .e-meta,
+#network-view .events-row.kind-scraper_error .e-meta,
+#network-view .events-row.kind-web_search_started .e-meta {
+  text-shadow: none;
+}
+
+#network-view .livegraph-tooltip {
+  border: 1px solid var(--net-rule-strong);
+  border-radius: 6px;
+  background: var(--net-panel-bg-strong);
+  color: var(--net-ink);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+}
+
+#network-view .livegraph-empty,
+#network-view .net-peers-empty,
+#network-view .net-detail-empty {
+  color: var(--net-ink-soft);
+}
+
+#metrics-view {
+  gap: 16px;
+}
+
+#metrics-view .metrics-header-controls {
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+#metrics-view .metrics-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#metrics-view .metrics-stat-row {
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  grid-auto-rows: minmax(96px, auto);
+  align-items: stretch;
+  min-height: 96px;
+  height: 96px;
+  gap: 12px;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+#metrics-view .metrics-stat,
+#metrics-view .metrics-stat-row > .metrics-stat:first-child {
+  min-height: 96px;
+  padding: 14px 16px;
+  gap: 6px;
+  border-radius: 8px;
+}
+
+#metrics-view .metrics-stat-row > .metrics-stat:nth-child(n) {
+  grid-column: auto;
+}
+
+#metrics-view .metrics-stat .ms-label {
+  color: var(--net-ink-soft);
+  letter-spacing: 0;
+}
+
+#metrics-view .metrics-stat .ms-value,
+#metrics-view .metrics-stat-row > .metrics-stat:first-child .ms-value {
+  color: var(--net-ink);
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: 0;
+  margin-top: 2px;
+  text-shadow: none;
+}
+
+#metrics-view .metrics-stat .ms-sub,
+#metrics-view .metrics-status,
+#metrics-view .metrics-footnote {
+  color: var(--net-ink-soft);
+  letter-spacing: 0;
+}
+
+#metrics-view .metrics-stat .ms-sub {
+  align-self: flex-start;
+}
+
+#metrics-view .metrics-charts {
+  gap: 12px;
+}
+
+#metrics-view .metrics-chart {
+  min-height: 196px;
+  padding: 0;
+}
+
+#metrics-view .metrics-chart .mc-head {
+  align-items: flex-start;
+  gap: 8px;
+}
+
+#metrics-view .metrics-chart .mc-meta {
+  min-width: 0;
+  white-space: normal;
+}
+
+@media (min-width: 1181px) {
+  #metrics-view .metrics-chart[data-chart="cpu-percent"] {
+    grid-column: 1 / -1;
+    min-height: 176px;
+  }
+
+  #metrics-view .metrics-chart[data-chart="cpu-percent"] .mc-svg {
+    height: 118px;
+  }
+}
+
+#network-view :is(button, [role="button"], .net-peer-card):focus-visible,
+#metrics-view :is(button, [role="button"]):focus-visible,
+body[data-active-tab="network"] .net-subtab:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--net-accent) 68%, transparent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1180px) {
+  #network-view .net-header-mark .mark-name,
+  #metrics-view .metrics-header-mark .mark-name {
+    font-size: 26px;
+  }
+
+  #network-view .net-grid {
+    grid-template-columns: minmax(240px, 0.9fr) minmax(360px, 1.4fr);
+  }
+
+  #metrics-view .metrics-stat-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: 204px;
+    height: 204px;
+  }
+
+  #network-view .net-col-right {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  #network-view .net-col-right > .net-col-detail {
+    min-height: 260px;
+  }
+}
+
+@media (max-width: 860px) {
+  body[data-active-tab="network"] .network-subtabs {
+    padding: 10px 14px 0;
+  }
+
+  body[data-active-tab="network"] #network-view,
+  body[data-active-tab="network"] #metrics-view {
+    padding: 54px 14px 18px;
+    overflow: auto;
+  }
+
+  #network-view .net-header,
+  #metrics-view .metrics-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  #metrics-view .metrics-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 10px;
+  }
+
+  #network-view .net-header-mark .mark-name,
+  #metrics-view .metrics-header-mark .mark-name {
+    font-size: 22px;
+  }
+
+  #network-view .net-anon-header,
+  #metrics-view .metrics-header-controls {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  #metrics-view .metrics-header-controls {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) max-content;
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 8px;
+  }
+
+  #metrics-view .metrics-status {
+    display: none;
+  }
+
+  #network-view .net-grid,
+  #network-view .net-col-right {
+    grid-template-columns: 1fr;
+  }
+
+  #metrics-view .metrics-stat-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: 312px;
+    height: 312px;
+  }
+
+  #network-view .net-col-center .net-livegraph {
+    height: 260px;
+    min-height: 240px;
+  }
+
+  #metrics-view .metrics-chart {
+    min-height: 176px;
+  }
+}
+
+/* Router feed polish pass: the feed empty state should read as an OS work
+   surface, not a landing page with a detached center message. */
+.alchemy-view[data-alch-mode-current="feed"] .alchemy-canvas {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
+  padding: 40px clamp(28px, 4vw, 56px) 48px;
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-head {
+  align-items: end;
+  gap: 18px;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-title {
+  font-style: normal !important;
+  font-weight: 650;
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: 0;
+  margin: 0 0 8px;
+  color: var(--ed-ink-1, #f5f3ee);
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-sub {
+  letter-spacing: 0;
+  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.62));
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-actions {
+  align-self: start;
+  gap: 8px;
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-btn {
+  min-height: 32px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  letter-spacing: 0;
+  background: rgba(var(--ink-rgb), 0.018);
+  transition:
+    transform 160ms cubic-bezier(.2, .7, .2, 1),
+    border-color 160ms cubic-bezier(.2, .7, .2, 1),
+    color 160ms cubic-bezier(.2, .7, .2, 1),
+    background 160ms cubic-bezier(.2, .7, .2, 1);
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(143, 34, 14, 0.58);
+  background: rgba(143, 34, 14, 0.035);
+  color: var(--ed-ink-1, #f5f3ee);
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-btn:active {
+  transform: translateY(0) scale(0.985);
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-btn:focus-visible {
+  outline: 2px solid rgba(143, 34, 14, 0.72);
+  outline-offset: 3px;
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-list,
+.alchemy-view[data-alch-mode-current="feed"] .alch-callout {
+  width: 100%;
+  max-width: 1120px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-empty {
+  align-items: flex-start;
+  align-self: start;
+  justify-self: center;
+  width: min(100%, 540px);
+  min-height: 0;
+  margin: 64px auto 0;
+  padding: 28px;
+  text-align: left;
+  gap: 12px;
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.050), rgba(var(--ink-rgb), 0.018));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-empty-glyph {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(var(--ink-rgb), 0.16);
+  border-radius: 8px;
+  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.58));
+  font-size: 25px;
+  line-height: 1;
+  animation: none;
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-empty-title {
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: var(--ed-ink-1, #f5f3ee);
+}
+
+.alchemy-view[data-alch-mode-current="feed"] .alch-feed-empty-sub {
+  max-width: none;
+  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.66));
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .alchemy-view[data-alch-mode-current="feed"] .alchemy-canvas {
+    padding: 32px 28px 40px;
+  }
+
+  .alchemy-view[data-alch-mode-current="feed"] .alch-feed-head {
+    align-items: stretch;
+    margin-bottom: 20px;
+  }
+
+  .alchemy-view[data-alch-mode-current="feed"] .alch-feed-title {
+    font-size: 26px;
+  }
+
+  .alchemy-view[data-alch-mode-current="feed"] .alch-feed-actions {
+    justify-content: flex-start;
+  }
+
+  .alchemy-view[data-alch-mode-current="feed"] .alch-feed-empty {
+    margin-top: 40px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * TRAILHEAD STRIP — detail-page nav consolidation (2026-06-13)
+ *
+ * Collapses the old three-island detail bar (back pill · record-id tag ·
+ * edit-on-github pill, with a heavy rule + ~60px dead band) into one thin
+ * in-flow nav strip:   ← back   cohort / bitrouter · team
+ *
+ *  · The record id is RE-ROLED from a duplicate of the rail <h2> title into
+ *    a location/path segment (the rail h2 is name||record_id; a naive cut
+ *    loses the id glance when a team has a distinct display name).
+ *  · edit-on-github moves OUT of the bar into the read header's exploreBar
+ *    (its icon-square host) — see alchemy.js EXPLORE_ICONS.source.
+ *  · Kills the COOK-v2 space hog (border + 20px pad + 40px margin) → the
+ *    sigil plate rises into first view (~75px reclaimed).
+ *
+ * Scoped via .alch-trailbar so the bare .alch-detail-bar rule (~12907) still
+ * serves the third consumer with no rail beneath it: renderTimelineMissing-
+ * Detail. Appended last so it wins source-order over the base / COOK-v2 /
+ * COOK-v3 generations without !important.
+ * ═══════════════════════════════════════════════════════════════════ */
+.alch-detail-bar.alch-trailbar {
+  border-bottom: none;
+  padding: 0;
+  margin: 0 0 14px;
+  gap: 14px;
+  min-height: 0;
+  align-items: center;
+}
+
+/* back — the literal word stays the spoken click target (never euphemized);
+   #alch-detail-back id is preserved so closeDetail wiring is untouched.
+   Icon-led rounded rect (shape grammar: not a 999px pill on a word). */
+.alch-trailbar .alch-trail-back {
+  display: inline-flex; align-items: center; gap: 7px;
+  appearance: none; cursor: pointer;
+  padding: 5px 11px 5px 9px;
+  border: 1px solid rgba(var(--ink-rgb), 0.16);
+  border-radius: 8px;
+  background: rgba(var(--ink-rgb), 0.018);
+  color: rgba(var(--ink-rgb), 0.74);
+  font-family: var(--ed-mono);
+  font-size: 10.5px; letter-spacing: 0.20em; text-transform: lowercase;
+  transition: color 200ms cubic-bezier(0.19,1,0.22,1),
+              border-color 200ms cubic-bezier(0.19,1,0.22,1),
+              background 200ms cubic-bezier(0.19,1,0.22,1),
+              transform 150ms cubic-bezier(0.19,1,0.22,1);
+}
+.alch-trailbar .alch-trail-back .atb-glyph { display: inline-flex; }
+.alch-trailbar .alch-trail-back .atb-glyph svg {
+  display: block;
+  transition: transform 200ms cubic-bezier(0.19,1,0.22,1);
+}
+.alch-trailbar .alch-trail-back:hover {
+  color: var(--alchemy-oxide-bright);
+  border-color: rgba(180,58,25,0.50);          /* #B43A19 @ .50 — house oxide */
+  background: rgba(180,58,25,0.07);
+}
+.alch-trailbar .alch-trail-back:hover .atb-glyph svg { transform: translateX(-2px); }
+.alch-trailbar .alch-trail-back:active { transform: scale(0.97); }
+.alch-trailbar .alch-trail-back:focus-visible {
+  outline: none;
+  border-color: var(--alchemy-oxide-bright);
+  box-shadow: 0 0 0 2px rgba(180,58,25,0.35);
+}
+/* light theme: 0.16 border washes out on cream (mirrors the explore-btn fix) */
+html[data-theme="light"] .alch-trailbar .alch-trail-back {
+  border-color: rgba(var(--ink-rgb), 0.30);
+  background: rgba(var(--ink-rgb), 0.04);
+}
+
+/* the trail — fills the former void with real meaning. Non-interactive: the
+   word "back" is the only click target (no redundant second exit, no
+   predictability lie). record_id re-roled to a location/path segment. */
+.alch-trailbar .alch-trail-path {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  min-width: 0; overflow: hidden;
+  font-family: var(--ed-mono);
+  font-size: 11px; letter-spacing: 0.18em; text-transform: lowercase;
+  line-height: 1;
+}
+/* the root crumb ("cohort" / "constellation") is a real back affordance —
+   clicking it returns to the directory (wired to closeDetail). Button reset
+   + interactive hover/focus; the here/kind segments stay inert spans. */
+.alch-trailbar .atb-root {
+  appearance: none; background: none; border: none; padding: 0; margin: 0;
+  font: inherit; letter-spacing: inherit; text-transform: inherit;
+  color: rgba(var(--ink-rgb), 0.52);
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.19,1,0.22,1);
+}
+.alch-trailbar .atb-root:hover { color: var(--alchemy-oxide-bright); }
+.alch-trailbar .atb-root:focus-visible {
+  outline: 2px solid var(--alchemy-oxide-bright);
+  outline-offset: 3px; border-radius: 2px;
+  color: var(--alchemy-oxide-bright);
+}
+.alch-trailbar .atb-sep  { color: rgba(var(--ink-rgb), 0.30); }
+.alch-trailbar .atb-here {
+  color: rgba(var(--ink-rgb), 0.84);          /* the path anchor — brightest */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40ch;
+}
+.alch-trailbar .atb-kind { color: rgba(var(--ink-rgb), 0.52); }
+
+@media (prefers-reduced-motion: reduce) {
+  .alch-trailbar .alch-trail-back,
+  .alch-trailbar .alch-trail-back .atb-glyph svg { transition: color 200ms linear; }
+  .alch-trailbar .alch-trail-back:hover .atb-glyph svg { transform: none; }
+  .alch-trailbar .alch-trail-back:active { transform: none; }
+}
+
+/* narrow canvas: drop the literal word; glyph + crumb still read. One line,
+   never wraps into a second band. */
+@media (max-width: 560px) {
+  .alch-trailbar .alch-trail-back .atb-word { display: none; }
+  .alch-trailbar .alch-trail-back { padding: 6px; }
+}

@@ -38,6 +38,14 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("fg:update-progress", handler);
     return () => ipcRenderer.removeListener("fg:update-progress", handler);
   },
+  // Streams main's periodic-check hits ("fg:update-available") so the
+  // renderer can light the update indicator + raise a toast without the
+  // user ever clicking the version stamp. `cb` receives { version }.
+  onUpdateAvailable: (cb) => {
+    const handler = (_e, info) => { try { cb(info); } catch {} };
+    ipcRenderer.on("fg:update-available", handler);
+    return () => ipcRenderer.removeListener("fg:update-available", handler);
+  },
   // calendar export — PNG (recommended for messaging) or PDF.
   exportCalendar:        (opts)   => ipcRenderer.invoke("fg:export-calendar", opts),
   // bundled swf-node supervisor — see apps/os/swf-node.js. The renderer
@@ -131,5 +139,39 @@ contextBridge.exposeInMainWorld("api", {
   // — the apps card / command palette / onboarding step call this.
   daybook: {
     openWindow: () => ipcRenderer.invoke("daybook:open-window"),
+  },
+
+  // ─── matrix (cohort chat) ────────────────────────────────────────────
+  // The "chat" top-level tab (src/renderer/chat/) drives the main-process
+  // Matrix client. Invoke methods are request/response; on* subscribe to the
+  // live broadcast channels and return an unsubscribe fn (call on unmount).
+  matrix: {
+    status:     () => ipcRenderer.invoke("matrix:get-status"),
+    flows:      (hs) => ipcRenderer.invoke("matrix:flows", hs),
+    loginSSO:   (p) => ipcRenderer.invoke("matrix:login-sso", p),
+    loginDevice: (p) => ipcRenderer.invoke("matrix:login-device", p),
+    loginCode:  (p) => ipcRenderer.invoke("matrix:login-code", p),
+    cancelSSO:  () => ipcRenderer.invoke("matrix:cancel-sso"),
+    login:      (p) => ipcRenderer.invoke("matrix:login", p),
+    loginToken: (p) => ipcRenderer.invoke("matrix:login-token", p),
+    logout:     () => ipcRenderer.invoke("matrix:logout"),
+    rooms:      () => ipcRenderer.invoke("matrix:get-rooms"),
+    messages:   (roomId) => ipcRenderer.invoke("matrix:get-messages", roomId),
+    send:       (roomId, body) => ipcRenderer.invoke("matrix:send", { roomId, body }),
+    onStatus: (cb) => {
+      const handler = (_e, s) => { try { cb(s); } catch {} };
+      ipcRenderer.on("matrix:status", handler);
+      return () => ipcRenderer.removeListener("matrix:status", handler);
+    },
+    onRooms: (cb) => {
+      const handler = (_e, r) => { try { cb(r); } catch {} };
+      ipcRenderer.on("matrix:rooms", handler);
+      return () => ipcRenderer.removeListener("matrix:rooms", handler);
+    },
+    onMessages: (cb) => {
+      const handler = (_e, m) => { try { cb(m); } catch {} };
+      ipcRenderer.on("matrix:messages", handler);
+      return () => ipcRenderer.removeListener("matrix:messages", handler);
+    },
   },
 });

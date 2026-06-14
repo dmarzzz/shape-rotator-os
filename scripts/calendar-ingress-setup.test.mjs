@@ -189,6 +189,11 @@ test("calendar ingress Edge Functions require server-side org authorization befo
   assert.match(createFunction, /autoTranscriptionGeneration/);
   assert.match(createFunction, /autoSmartNotes\s*=\s*body\.auto_smart_notes\s*\?\?\s*body\.autoSmartNotes\s*\?\?\s*null/);
   assert.match(createFunction, /require_auto_artifacts/);
+  // C4-1: idempotent recovery from a partial-failure split-brain — on a 409 from
+  // the deterministic event id, fetch the existing event and continue the Supabase
+  // write rather than failing permanently.
+  assert.match(createFunction, /googleResponse\.status === 409/);
+  assert.match(createFunction, /events\.insert 409 then events\.get/);
   assert.doesNotMatch(createFunction, /body\.policy/);
   assert.doesNotMatch(createFunction, /body\.calendar_id/);
 

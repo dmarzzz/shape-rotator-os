@@ -11,7 +11,13 @@ source: private-vault:shape-rotator-project-map-guests-2026-05-22
 
 # Project Map Walkthrough with Guests: Clusters, Synergies, and PMF Discipline
 
-A guided tour of the living cohort project map with guest founders, tracing how the three project clusters interlock as a supply chain and distilling hard-won lessons on kill criteria and demand signals.
+**The cohort is a supply chain; privacy is the upstream nobody buys alone.**
+
+*A guided tour of the living cohort project map with guest founders, tracing how the three project clusters interlock as a supply chain and distilling hard-won lessons on kill criteria and demand signals.*
+
+## the 60-second version
+
+A guided tour of the living project map traced how the three clusters — consumer/info-markets, privacy infrastructure, and agentic tooling — interlock, exposing that the privacy cluster's real opportunity is supply-chain edges outward rather than synergy within itself. Guest founders supplied the discipline half: define kill metrics before building, validate beyond a friendly in-group, and aim for a position defensible for six months.
 
 ## themes
 
@@ -57,3 +63,7 @@ Vocal user frustration when the tool breaks: people who push for fixes want the 
 ## references
 
 - [The Cold Start Problem by Andrew Chen (atomic networks and marketplace bootstrap)](https://www.coldstart.com)
+
+## provenance
+
+Distilled from a private-vault transcript (`shape-rotator-project-map-guests-2026-05-22`); the raw transcript is held privately per the content policy and never published. Paraphrased throughout — no verbatim speaker quotes. consent tier: `cohort-internal`.

@@ -47,6 +47,7 @@ const ICON_PATHS = {
   apps: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
   network: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
   links: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  matrix: '<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>',
 };
 
 function iconKey(loc) {
@@ -94,6 +95,11 @@ function normalizeLocation(loc) {
   if (loc.tab === "alchemy" && loc.mode === "intel") {
     return { ...loc, mode: "context", contextView: "signals" };
   }
+  // calendar2 graduated to THE calendar (2026-06) — old trial tabs reopen
+  // on the calendar page.
+  if (loc.tab === "alchemy" && loc.mode === "calendar2") {
+    return { ...loc, mode: "calendar" };
+  }
   return loc;
 }
 
@@ -137,6 +143,7 @@ function locTitle(loc) {
   if (loc.tab === "apps") return loc.appsView || "apps";
   if (loc.tab === "network") return loc.netSub === "metrics" ? "metrics" : "network";
   if (loc.tab === "links") return "links";
+  if (loc.tab === "matrix") return "matrix";
   return "tab";
 }
 
@@ -175,6 +182,8 @@ function applyLocation(loc) {
       if (typeof window.__srwkSetNetSub === "function") window.__srwkSetNetSub(loc.netSub || "network");
     } else if (loc.tab === "links") {
       if (typeof window.__srwkGoTab === "function") window.__srwkGoTab("links");
+    } else if (loc.tab === "matrix") {
+      if (typeof window.__srwkGoTab === "function") window.__srwkGoTab("matrix");
     }
   }
   // Release the capture guard once the resulting DOM mutations have settled.
@@ -454,6 +463,14 @@ function restore() {
     return true;
   } catch { return false; }
 }
+
+// Open a location in a NEW tab (foreground) and switch to it. Public hook
+// used by the membrane's "what's new" feed so feed items open as their own
+// OS tab rather than hijacking the current one.
+window.__srwkOpenInNewTab = function openInNewTab(loc) {
+  if (!loc) return;
+  newTab(loc, { after: true });
+};
 
 export function init() {
   stripEl = document.getElementById("os-tabs");

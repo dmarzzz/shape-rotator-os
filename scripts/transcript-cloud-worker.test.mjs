@@ -16,6 +16,22 @@ test("transcript cloud worker can run without a local PC dependency", () => {
   assert.match(workerSource, /https:\/\/www\.googleapis\.com\/drive\/v3\/files/);
 });
 
+test("transcript cloud worker recovers stranded jobs: retry/backoff + stale-lease reclaim (C5-3, C5-4)", () => {
+  const retryMigration = fs.readFileSync(
+    new URL("../supabase/migrations/202606140001_transcript_worker_retry.sql", import.meta.url),
+    "utf8",
+  );
+  // C5-4: transient failures requeue with bounded backoff instead of failing terminally.
+  assert.match(workerSource, /attempts\s*>=\s*maxAttempts/);
+  assert.match(workerSource, /processor_status:\s*"queued"/);
+  assert.match(workerSource, /due_at:\s*new Date\(Date\.now\(\)\s*\+\s*backoffMinutes/);
+  // C5-3: the claim RPC reclaims stale 'running' jobs (a dead worker), counting an attempt.
+  assert.match(retryMigration, /add column if not exists attempts/);
+  assert.match(retryMigration, /attempts < max_attempts/);
+  assert.match(retryMigration, /processor_status = 'running'[\s\S]*started_at < now\(\) - interval '15 minutes'/);
+  assert.match(retryMigration, /attempts = job\.attempts \+ 1/);
+});
+
 test("transcript cloud worker does not return raw transcript text", () => {
   assert.match(workerSource, /Raw transcript text was processed inside the transcript worker/);
   assert.match(workerSource, /redactedText/);
