@@ -8,7 +8,7 @@
 
 This is the review map for the current Shape Rotator OS transcript audit. It separates existing OS coverage from candidate transcript files that match calendar events but should not be submitted raw until their content boundary is approved.
 
-> **2026-06-10 content-boundary update.** Raw transcripts no longer live in this public repo. Per the content policy (raw transcripts are never published beyond attendees), the 13 raw .txt files were removed from `apps/os/src/content/context/raw-scripts/` and moved to the private vault. Their historical canonical-timeline anchors lived in `apps/os/src/content/context/calendar-transcript-matches.js` as `held: "private-vault"` sources carrying a `vault_id` join key and a snapshot of person/team mention hits. Use the current [Transcript Calendar Coverage Index](transcript-calendar-coverage-index.md) for live coverage status.
+> **2026-06-10 content-boundary update.** Raw transcripts no longer live in this public repo. Per the content policy (raw transcripts are never published beyond attendees), the 13 raw .txt files were removed from `apps/os/src/content/context/raw-scripts/` and moved to the private vault. Their canonical-timeline anchors remain in [calendar-transcript-matches.js](../apps/os/src/content/context/calendar-transcript-matches.js) as `held: "private-vault"` sources carrying a `vault_id` join key and a snapshot of person/team mention hits, so person and team timelines keep full fidelity. The only transcript-derived `.txt` still bundled is the distilled WDYDLW recap; formerly redacted excerpts now ship only as paraphrased readouts. Distilled insights (journal articles, recaps, event pages) are unaffected.
 >
 > **Insights pipeline.** Each vault transcript gets a public-safe distilled readout, hardcoded via `npm run ingest:readouts <readouts.json>` ([ingest-session-readouts.mjs](../scripts/ingest-session-readouts.mjs)): canonical structured readouts land in [session-insights.json](../cohort-data/session-insights.json) (shipped in the app surface as `session_insights`), per-team cues append to [constellation-cues.json](../cohort-data/constellation-cues.json) (rendered in constellation inspectors today), and human-readable review copies land in [session-readouts/](../cohort-data/session-readouts/). Sessions with external or featured speakers carry `consent: speaker-pending` and are held to thematic, unattributed distillation until a speaker consent pass.
 
@@ -17,7 +17,7 @@ This is the review map for the current Shape Rotator OS transcript audit. It sep
 ```mermaid
 flowchart LR
   calendar --> existing["Timeline anchors in OS<br/>week 1 / week 2 sessions<br/>raw text held privately"]
-  calendar --> additions["Added redacted excerpts<br/>calendar-matched"]
+  calendar --> additions["Added distilled readouts<br/>calendar-matched"]
   calendar --> missing["Still missing from OS<br/>non-office-hours"]
 
   additions --> selfIntro["Teleport Router onboarding<br/>2026-05-27<br/>confidence: medium"]
@@ -45,15 +45,15 @@ flowchart LR
 | medium | Date and topic line up, but the transcript spans a broader conversation, an adjacent block, or a segment inferred from surrounding context. |
 | low | Do not link. The match is too weak for the app surface. |
 
-## Historical Bundled Public-Safe Files
+## Bundled Public-Safe Files
 
-These were the transcript-derived files referenced by the week 1/2 import review. They are retained here as historical names, not live file links. Use the current [Transcript Calendar Coverage Index](transcript-calendar-coverage-index.md) for live coverage and source status.
+The public repo now carries exactly **one** transcript-derived `.txt` — the distilled WDYDLW recap (reconstructed, not verbatim, and already backed by a consented public journal article). Everything else is published as **distilled readouts** in [session-insights.json](../cohort-data/session-insights.json) / [session-readouts/](../cohort-data/session-readouts/), with raw transcripts held in the private vault.
 
 | file | calendar match | confidence | boundary decision |
 |---|---|---:|---|
-| `Teleport Router Onboarding Privacy Boundaries May 27 Redacted Transcript` | `2026-05-27` Teleport Router onboarding / Q&A | medium | Redacted excerpt only. Raw private PMF/product feedback and customer/business detail are not imported. |
-| `Agentic Tooling Workshop May 28 Redacted Transcript` | `2026-05-28` Agentic Tooling workshops/clinic | medium | Redacted excerpt only. Raw product/investor-style feedback and private event planning are not imported. |
-| `WDYDLW Standup Recap June 8 2026` | `2026-06-08` WDYDLW with Shaw | high | Distilled reconstructed recap, not a verbatim transcript. Source capture stays private. |
+| [WDYDLW Standup Recap June 8 2026](<../apps/os/src/content/context/raw-scripts/WDYDLW Standup Recap June 8 2026.txt>) | `2026-06-08` WDYDLW with Shaw | high | Distilled reconstructed recap, not a verbatim transcript. Source capture stays private. |
+
+> **2026-06-11 redaction-tier cleanup.** The two redacted excerpts (Teleport Router onboarding May 27, Agentic Tooling workshop May 28) previously lived here as near-verbatim `.txt` with `[redacted]` markers. Because an abridged/near-verbatim transcript is a gated-cohort-tier artifact (not a public one), they were distilled into paraphrased readouts (`teleport-router-onboarding-2026-05-27`, `agentic-tooling-workshop-2026-05-28`), their calendar anchors converted to `held: "private-vault"`, and the raw redacted `.txt` moved to the vault. The public repo no longer carries any verbatim or near-verbatim speaker dialogue.
 
 ## Calendar Coverage
 
@@ -72,20 +72,25 @@ Office-hours links are intentionally excluded. This table covers the substantive
 | `2026-05-22` | Founders Journey w/ Shaw | medium | held privately — `friday-shaw-greg-2026-05-22` |
 | `2026-05-26` | Project Intros: Elocute, Dealproof, Wikigen, Crossroads | high | held privately — `elocute-2026-05-26`, `wikigen-crossroads-gil-pmf-2026-05-26` |
 | `2026-05-26` | Lecture: Defining Product Market Fit, Gil Rosen | medium | held privately — `wikigen-crossroads-gil-pmf-2026-05-26` |
-| `2026-05-27` | Teleport Router onboarding / Q&A | medium | bundled redacted excerpt |
+| `2026-05-27` | Teleport Router onboarding / Q&A | medium | held privately — `teleport-router-onboarding-2026-05-27` |
 | `2026-05-27` | Ideal Customer Profiling / User Interviews | high | held privately — `icp-user-interviews-2026-05-27` |
-| `2026-05-28` | Agentic Tooling workshops/clinic | medium | bundled redacted excerpt |
+| `2026-05-28` | Agentic Tooling workshops/clinic | medium | held privately — `agentic-tooling-workshop-2026-05-28` |
 | `2026-06-08` | WDYDLW with Shaw | high | bundled distilled recap |
 
-## Held Privately, No Timeline Anchor
+## Distilled But Without A Calendar Anchor
 
-These raw files were removed from the repo and are not referenced by any calendar match (no timeline impact). They stay in the private vault pending a distillation pass or remain excluded.
+These vault transcripts have **distilled readouts** in the OS but no matching calendar block (undated salons), so they carry no calendar-timeline anchor — they surface only via session insights and constellation cues.
+
+| readout | note |
+|---|---|
+| `tee-dstack-easytee-phala` | TEE/dstack convergence salon, undated. Distilled; no calendar block to anchor to. |
+| `dstack-hangout` | Informal dstack hangout, undated. Distilled; no calendar block to anchor to. |
+
+## Excluded Entirely
 
 | file | note |
 |---|---|
-| Office Hours Transcript | Office-hours material is excluded from the OS by policy. |
-| TEE dstack easyTEE Phala Transcript | No matched calendar block in the current map. Candidate for a future distill + anchor. |
-| dstack hangout Alex Shaw Lsdan Andrew | Informal hangout, no matched calendar block. Candidate for a future distill + anchor. |
+| Office Hours Transcript | Office-hours material (private 1:1 / team feedback) is excluded from the OS by policy — no readout, no cues, no anchor. Held in the private vault only. |
 
 ## Missing Or Unresolved
 

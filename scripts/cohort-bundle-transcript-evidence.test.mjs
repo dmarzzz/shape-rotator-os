@@ -36,6 +36,18 @@ function assertInternalSurfaceOmitsCommittedTranscriptEvidence(surface) {
     0,
     "committed cohort surface must not embed transcript distillations",
   );
+  assert.equal((surface.cohort_intel?.weekly || []).length, 0);
+  assert.equal((surface.cohort_intel?.teams || []).length, 0);
+  assert.equal((surface.cohort_intel?.people || []).length, 0);
+  assert.equal((surface.cohort_intel?.card_signals?.teams || []).length, 0);
+  assert.equal((surface.cohort_intel?.card_signals?.people || []).length, 0);
+  assert.equal((surface.cohort_intel?.field_notes || []).length, 0);
+  assert.equal((surface.cohort_intel?.session_notes || []).length, 0);
+  assert.equal(surface.cohort_intel?.signal_inventory?.total_signal_count ?? 0, 0);
+  assert.equal((surface.cohort_intel?.project_week_snapshots || []).length, 0);
+  assert.equal(surface.cohort_intel?.project_week_snapshot_quality?.snapshot_count ?? 0, 0);
+  assert.equal((surface.cohort_intel?.project_progress_rollups || []).length, 0);
+  assert.equal(surface.cohort_intel?.project_progress_rollup_quality?.rollup_count ?? 0, 0);
 
   // No evidence-card refs or distillation provenance leak into the committed
   // public bundle. (constellation_cues / session_insights private-vault refs
@@ -59,6 +71,16 @@ function assertPublicWebSurfaceExcludesCohortTranscriptEvidence(surface) {
   assert.equal(surface.cohort_intel.weekly.length, 0);
   assert.equal(surface.cohort_intel.teams.length, 0);
   assert.equal(surface.cohort_intel.people.length, 0);
+  assert.equal(surface.cohort_intel.card_signals.teams.length, 0);
+  assert.equal(surface.cohort_intel.card_signals.people.length, 0);
+  assert.equal(surface.cohort_intel.field_notes.length, 0);
+  assert.equal(surface.cohort_intel.session_notes.length, 0);
+  assert.equal(surface.cohort_intel.signal_inventory.total_signal_count, 0);
+  assert.equal(surface.cohort_intel.signal_inventory.sources.length, 0);
+  assert.equal(surface.cohort_intel.project_week_snapshots.length, 0);
+  assert.equal(surface.cohort_intel.project_week_snapshot_quality.snapshot_count, 0);
+  assert.equal(surface.cohort_intel.project_progress_rollups.length, 0);
+  assert.equal(surface.cohort_intel.project_progress_rollup_quality.rollup_count, 0);
   assert.match(surface.cohort_intel.context_policy_note, /public Context should use existing articles only/);
   assert.equal(surface.transcript_distillations.artifact_count, 0);
   assert.equal(surface.transcript_distillations.cohort_count, 0);

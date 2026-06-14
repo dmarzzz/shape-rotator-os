@@ -153,11 +153,15 @@ returning id;
 - [x] Default organizer calendar timezone is `America/New_York`.
 - [x] Default calendar ID is recorded as
   `c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com`.
-- [x] Calendar admins should subscribe to the secondary calendar by its
-  `@group.calendar.google.com` ID, not by the Cube organizer email. Use:
-  `https://calendar.google.com/calendar/r?cid=c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed%40group.calendar.google.com`
-  while signed into a granted admin account. Adding the capture bot attempts
-  to subscribe to its primary calendar and correctly fails.
+- [x] Authorized calendar users should open the ACL-gated Google Calendar
+  subscription URL from deploy/runtime config, not from a committed repo link.
+  The public Google, webcal, and `.ics` links remain read-only feed
+  subscriptions. Adding the capture bot attempts to subscribe to its primary
+  calendar and correctly fails.
+- [x] Web deploys can expose the ACL-gated link by setting
+  `SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL` before `npm run deploy:web`; the writer
+  emits `apps/web/calendar-runtime-config.js` for the deployed artifact without
+  committing the private URL.
 - [ ] Record the owning organizer account as
   `GOOGLE_CALENDAR_ORGANIZER_EMAIL`. Prefer a dedicated account such as
   `calendar@...`, not a human's personal calendar.
