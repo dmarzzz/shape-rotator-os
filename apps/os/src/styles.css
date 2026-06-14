@@ -197,9 +197,7 @@ body:not([data-active-tab="matrix"]) .chat-only { display: none !important; }
    password-free login (see docs/MATRIX_DEVICE_LOGIN_REQUEST.md). The tab + all
    its code still ship — there's just no entry point, so we don't imply it
    works yet. To re-enable, delete this one rule. */
-/* >>> LOCAL TEST ONLY — matrix temporarily UNHIDDEN. DO NOT COMMIT this change.
-   Restore the line below before any commit / PR. <<< */
-/* .nav-cat[data-tab="matrix"] { display: none !important; } */
+.nav-cat[data-tab="matrix"] { display: none !important; }
 
 /* search lives as an overlay inside the Atlas app (formerly its own
  * tab). Shown when on apps→atlas AND data-atlas-search="open". */
@@ -17329,19 +17327,30 @@ body[data-blank] .blank-tab { display: flex; }
 }
 .primary-nav .nav-cat--eyebrow:hover { color: rgba(var(--ink-rgb), 0.66); }
 
-/* ── apps / network — destination rows in the OS-rail's row grammar ──────
- * icon · label · hint, matching the rail rows so the column reads as one
- * even list rather than a header + three orphans. A single small gap below
- * the rail is the only group boundary — no divider line, no label. */
-.primary-nav .alchemy-rail + .nav-cat--dest { margin-top: 8px; }
+/* ── apps / network / links — destination rows in the OS-rail's row grammar.
+ * A faint hairline above the first one separates the OS pages from these
+ * destinations. */
+.primary-nav .alchemy-rail + .nav-cat--dest {
+  position: relative;
+  /* Above the line sits ~25px (context's 9px pad + rail's 14px bottom pad +
+   * 2px flex gap); below is this padding-top. Pull up by 12 so the line lands
+   * ~13px from context AND ~13px from "apps" — equal on both sides. */
+  margin-top: -12px;
+  padding-top: 13px;
+}
+.primary-nav .alchemy-rail + .nav-cat--dest::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 16px; right: 16px; height: 1px;
+  background: rgba(var(--ink-rgb), 0.1);   /* inset hairline, not full width */
+}
 .primary-nav .nav-cat--dest {
   display: grid;
   grid-template-columns: auto 1fr;
   column-gap: 12px;
-  row-gap: 2px;
   align-items: center;
   width: 100%;
-  padding: 6px 16px 6px 40px;   /* icon column lines up under the OS-page icons */
+  padding: 9px 16px 9px 40px;   /* same rhythm as the OS-rail rows; icon aligned */
   text-transform: none;
   letter-spacing: normal;
   font-weight: 400;
@@ -17382,12 +17391,14 @@ body[data-blank] .blank-tab { display: flex; }
 .primary-nav .nav-cat--dest:hover .ar-label { color: rgba(var(--ink-rgb), 0.98); }
 /* active row — red icon + bright label, exactly like the active OS page */
 body[data-active-tab="apps"]    .primary-nav .nav-cat--dest[data-tab="apps"]    .ar-label,
-body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-label {
+body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-label,
+body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   .ar-label {
   color: var(--ink-hi);
   font-weight: 500;
 }
 body[data-active-tab="apps"]    .primary-nav .nav-cat--dest[data-tab="apps"]    .ar-num,
-body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-num {
+body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-num,
+body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   .ar-num {
   opacity: 1;
   color: var(--sr-red);
 }
