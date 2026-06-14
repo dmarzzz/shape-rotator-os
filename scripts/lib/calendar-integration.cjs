@@ -170,13 +170,13 @@ function safeDescription(session, decision) {
   return lines.join("\n");
 }
 
-function buildGoogleCalendarEvent({ session, attendees = [], policy, botEmail, requestMeet } = {}) {
+function buildGoogleCalendarEvent({ session, attendees = [], policy, botEmail } = {}) {
   if (!session || typeof session !== "object") throw new Error("session object is required");
   const decision = policyDecisionForSession(policy, session.session_type);
   const { startsAt, endsAt } = requireSessionTime(session);
   const timezone = session.timezone || "America/New_York";
   const attendeeInputs = [...(attendees || [])];
-  if (session.bot_requested !== false && botEmail) attendeeInputs.push({ email: botEmail, attendee_role: "bot" });
+  if (botEmail) attendeeInputs.push({ email: botEmail, attendee_role: "bot" });
   const normalizedAttendees = normalizeAttendees(attendeeInputs);
 
   const eventId = stableGoogleEventId(session.id || session.session_id);
@@ -203,19 +203,17 @@ function buildGoogleCalendarEvent({ session, attendees = [], policy, botEmail, r
   };
   if (eventId) body.id = eventId;
   if (session.location) body.location = session.location;
-  if (requestMeet !== false) {
-    body.conferenceData = {
-      createRequest: {
-        requestId: `shape-${String(session.id || Date.now()).replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 80)}`,
-        conferenceSolutionKey: { type: "hangoutsMeet" },
-      },
-    };
-  }
+  body.conferenceData = {
+    createRequest: {
+      requestId: `shape-${String(session.id || Date.now()).replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 80)}`,
+      conferenceSolutionKey: { type: "hangoutsMeet" },
+    },
+  };
 
   return {
     query: {
       sendUpdates: "all",
-      conferenceDataVersion: requestMeet === false ? 0 : 1,
+      conferenceDataVersion: 1,
     },
     body,
     decision,

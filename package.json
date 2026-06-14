@@ -21,8 +21,10 @@
     "calendar:backfill:google": "node scripts/backfill-google-calendar.js",
     "calendar:oauth:google": "node scripts/google-calendar-oauth.js",
     "calendar:sync:google": "node scripts/sync-google-calendar-events.js",
-    "calendar:watch:google": "node scripts/setup-google-calendar-watch.js",
+    "calendar:links:google": "node scripts/export-google-calendar-links.js",
     "calendar:list:google": "node scripts/setup-google-calendar-list.js",
+    "calendar:meet:google": "node scripts/ensure-google-calendar-meet-links.js",
+    "calendar:watch:google": "node scripts/setup-google-calendar-watch.js",
     "calendar:meet-links:google": "node scripts/ensure-google-calendar-meet-links.js",
     "calendar:capture-bot:google": "node scripts/ensure-google-calendar-capture-bot.js",
     "calendar:admins:supabase": "node scripts/setup-supabase-admin-organizers.js",
@@ -35,6 +37,7 @@
     "transcripts:rls:check": "node scripts/check-transcript-rls-boundary.mjs",
     "calendar:setup:seed-sql": "node scripts/prepare-calendar-ingress-seed-sql.js",
     "calendar:setup:plan": "node scripts/prepare-calendar-ingress-deploy-plan.js",
+    "calendar:setup:admin-organizers": "node scripts/setup-supabase-admin-organizers.js",
     "check:calendar-policy": "node scripts/check-calendar-ingress-policy-drift.mjs",
     "artifacts:meet": "node scripts/prepare-meet-artifacts.js",
     "artifacts:drive": "node scripts/poll-google-drive-artifacts.js",
@@ -110,7 +113,7 @@
     "test:models": "node --test scripts/test-model-helpers.mjs",
     "keys:gen": "node scripts/keys-gen.js",
     "vendor:web": "node scripts/vendor-web.mjs",
-    "deploy:web": "npm run vendor:web && node scripts/write-web-runtime-config.mjs && cd apps/web && npx --yes vercel deploy --prod --yes",
+    "deploy:web": "npm run vendor:web && cd apps/web && npx --yes vercel deploy --prod --yes",
     "audit:github-releases": "node scripts/check-github-releases.mjs"
   },
   "devDependencies": {

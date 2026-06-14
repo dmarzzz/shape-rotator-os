@@ -2209,6 +2209,10 @@ function build() {
     try { calendar = JSON.parse(fs.readFileSync(calPath, "utf8")); }
     catch (e) { console.warn(`[build-bundles] calendar.json present but unreadable: ${e.message}`); }
   }
+  const calendar_google_events = loadJsonObject(
+    path.join(COHORT_DIR, "calendar-google-events.json"),
+    "calendar-google-events.json",
+  );
 
   // Public transcript-derived context for constellation inspectors. These cues
   // do not create graph edges; they are source snippets shown after a selected
@@ -2258,6 +2262,7 @@ function build() {
     events,
     asks,
     calendar,
+    calendar_google_events: calendar_google_events || {},
     person_timeline: buildPersonTimeline({ people, teams, asks, events, calendar, transcriptEvidence: transcript_evidence }),
     team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar, githubProgressArtifacts: github_progress_artifacts, transcriptEvidence: transcript_evidence }),
     cohort_vocab,

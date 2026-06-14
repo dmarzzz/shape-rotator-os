@@ -92,6 +92,13 @@ npm run calendar:setup:seed-sql -- --env-file .env.calendar.local --out calendar
 - [ ] Before applying the seed SQL, confirm `ADMIN_ORGANIZER_USER_IDS` covers
   the same humans who should have in-app admin event creation access. Google
   calendar ACLs alone do not satisfy Supabase RLS.
+- [ ] If you only have admin organizer emails, reconcile them against Supabase
+  auth users first:
+
+```powershell
+npm run calendar:setup:admin-organizers -- --env-file .env.calendar.local --dry-run
+```
+
 - [ ] Inspect `calendar-ingress-seed.sql` before running it in Supabase.
 - [ ] Generate the deployment runbook:
 
@@ -168,15 +175,11 @@ returning id;
 - [x] Default organizer calendar timezone is `America/New_York`.
 - [x] Default calendar ID is recorded as
   `c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com`.
-- [x] Authorized calendar users should open the ACL-gated Google Calendar
-  subscription URL from deploy/runtime config, not from a committed repo link.
-  The public Google, webcal, and `.ics` links remain read-only feed
-  subscriptions. Adding the capture bot attempts to subscribe to its primary
-  calendar and correctly fails.
-- [x] Web deploys can expose the ACL-gated link by setting
-  `SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL` before `npm run deploy:web`; the writer
-  emits `apps/web/calendar-runtime-config.js` for the deployed artifact without
-  committing the private URL.
+- [x] Calendar admins should subscribe to the secondary calendar by its
+  `@group.calendar.google.com` ID, not by the Cube organizer email. Use:
+  `https://calendar.google.com/calendar/r?cid=c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed%40group.calendar.google.com`
+  while signed into a granted admin account. Adding the capture bot attempts
+  to subscribe to its primary calendar and correctly fails.
 - [ ] Record the owning organizer account as
   `GOOGLE_CALENDAR_ORGANIZER_EMAIL`. Prefer a dedicated account such as
   `calendar@...`, not a human's personal calendar.
@@ -304,8 +307,8 @@ npm run calendar:acl:google -- --env-file .env.calendar.local --role owner --sco
   into app admin memberships from a trusted operator shell:
 
 ```powershell
-npm run calendar:admins:supabase -- --env-file .env.calendar.local --dry-run
-npm run calendar:admins:supabase -- --env-file .env.calendar.local --apply
+npm run calendar:setup:admin-organizers -- --env-file .env.calendar.local --dry-run
+npm run calendar:setup:admin-organizers -- --env-file .env.calendar.local --apply
 ```
 
 - [ ] Only for operators who need direct editing in Google Calendar, verify that
@@ -347,6 +350,13 @@ npm run calendar:acl:google -- --env-file .env.calendar.local --role owner --sco
 - [ ] Confirm the ACL setup reports `inserted`, `updated`, and `unchanged`
   counts and does not downgrade ordinary guests into calendar editors.
 - [ ] Confirm ordinary invitees are only event guests, not calendar editors.
+- [ ] Browser smoke test for normal admins: in the web or Electron calendar
+  ingress panel, submit a dry-run event and then create one non-sensitive test
+  invite through the deployed `create-calendar-event` function.
+- [ ] Browser smoke test for direct Google operators only: in Google Calendar,
+  click Create -> Event, expand the calendar/settings row, and confirm
+  `Shape Rotator OS` appears in the event calendar dropdown. Seeing Shape
+  Rotator events on the grid is not sufficient.
 
 Calendar event invariant:
 

@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildCalendarExportLinks,
-  configuredMemberGoogleHref,
   googleCalendarUrl,
   wireCalendarExportLinks,
 } from "../apps/web/scripts/calendar-links.mjs";
@@ -29,7 +28,6 @@ test("web calendar export links keep Google, Apple/Outlook, and ICS on the read-
   assert.equal(links.adminHref, "#calendar-ingress");
   assert.equal(links.webcalHref, "webcal://shape.example/calendar.ics");
   assert.equal(decodeURIComponent(new URL(links.googleHref).searchParams.get("cid")), "webcal://shape.example/calendar.ics");
-  assert.equal(links.memberGoogleHref, "");
 });
 
 test("web calendar export links wire existing DOM anchors", () => {
@@ -38,7 +36,6 @@ test("web calendar export links wire existing DOM anchors", () => {
     "cal-ics": { href: "" },
     "cal-webcal": { href: "" },
     "cal-google": { href: "" },
-    "cal-google-member": { href: "", hidden: false },
   };
   const documentRef = {
     getElementById: (id) => anchors[id] || null,
@@ -52,40 +49,6 @@ test("web calendar export links wire existing DOM anchors", () => {
   assert.equal(anchors["cal-admin"].href, "#calendar-ingress");
   assert.equal(anchors["cal-ics"].href, "/calendar.ics");
   assert.equal(anchors["cal-webcal"].href, "webcal://shape.example/calendar.ics");
-  assert.equal(decodeURIComponent(new URL(anchors["cal-google"].href).searchParams.get("cid")), "webcal://shape.example/calendar.ics");
-  assert.equal(anchors["cal-google-member"].href, "#");
-  assert.equal(anchors["cal-google-member"].hidden, true);
-});
-
-test("web calendar can expose an ACL-gated Google link from runtime config", () => {
-  const memberHref = "https://calendar.google.com/calendar/r?cid=calendar%40example.com";
-  const anchors = {
-    "cal-admin": { href: "" },
-    "cal-ics": { href: "" },
-    "cal-webcal": { href: "" },
-    "cal-google": { href: "" },
-    "cal-google-member": { href: "", hidden: true },
-  };
-  const documentRef = {
-    getElementById: (id) => anchors[id] || null,
-    querySelector: () => null,
-  };
-
-  const links = wireCalendarExportLinks({
-    documentRef,
-    host: "shape.example",
-    runtime: {
-      SHAPE_CALENDAR_LINKS: {
-        memberGoogleHref: memberHref,
-      },
-    },
-  });
-
-  assert.equal(anchors["cal-admin"].href, "#calendar-ingress");
-  assert.equal(configuredMemberGoogleHref({ documentRef, runtime: { SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL: memberHref } }), memberHref);
-  assert.equal(links.memberGoogleHref, memberHref);
-  assert.equal(anchors["cal-google-member"].href, memberHref);
-  assert.equal(anchors["cal-google-member"].hidden, false);
   assert.equal(decodeURIComponent(new URL(anchors["cal-google"].href).searchParams.get("cid")), "webcal://shape.example/calendar.ics");
 });
 

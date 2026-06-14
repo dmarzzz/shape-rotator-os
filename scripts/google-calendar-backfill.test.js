@@ -68,7 +68,7 @@ test("Google backfill plan splits multi-block cells and skips date headers", () 
   assert.equal(plan.events[0].time_kind, "timed");
   assert.equal(plan.events[1].summary, "Anarchy Day");
   assert.equal(plan.events[1].time_kind, "all_day");
-  assert.match(plan.events[1].uid, /-block-2-anarchy-day@shape-rotator-os$/);
+  assert.match(plan.events[1].uid, /-block-2@shape-rotator-os$/);
   assert.equal(plan.events[2].summary, "Shape Rotator Demo Night");
   assert.deepEqual(plan.events[2].body.end, {
     dateTime: "2026-06-08T22:30:00-04:00",
@@ -126,6 +126,133 @@ test("Google backfill dry-run does not require a token or call Google", async ()
   assert.deepEqual(output.actions.map((action) => action.action), ["dry-run", "dry-run"]);
 });
 
+test("Google backfill plan can be date-bounded to future events", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sr-google-backfill-filter-"));
+  const source = path.join(dir, "calendar.json");
+  fs.writeFileSync(source, JSON.stringify({
+    last_refresh: "2026-06-13T16:12:46.618Z",
+    tabs: {
+      "May 18 Start": [
+        ["Week", "Dates", "Mon", "Tue", "Wed", "Thu"],
+        ["1", "Jun 1-7", "Past event", "", "", ""],
+        ["2", "Jun 15-21", "Mon-Tue: TEE Technical: TEEs/Attestation", "", "15:30-16:00 tea on roof", ""],
+      ],
+    },
+  }, null, 2));
+
+  const plan = buildBackfillPlan({ sourcePath: source, fromDate: "2026-06-16" });
+
+  assert.equal(plan.date_filter.fromDate, "2026-06-16");
+  assert.equal(plan.filtered_out, 1);
+  assert.deepEqual(plan.events.map((event) => event.summary), [
+    "Mon-Tue: TEE Technical: TEEs/Attestation",
+    "tea on roof",
+  ]);
+});
+
+test("Google backfill future-only uses the configured calendar timezone", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sr-google-backfill-future-"));
+  const source = path.join(dir, "calendar.json");
+  fs.writeFileSync(source, JSON.stringify({
+    last_refresh: "2026-06-13T16:12:46.618Z",
+    tabs: {
+      "May 18 Start": [
+        ["Week", "Dates", "Mon", "Tue"],
+        ["1", "Jun 14-20", "Sunday marker", "Monday marker"],
+      ],
+    },
+  }, null, 2));
+
+  const plan = buildBackfillPlan({
+    sourcePath: source,
+    futureOnly: true,
+    timeZone: "America/New_York",
+    now: new Date("2026-06-15T03:30:00Z"),
+  });
+
+  assert.equal(plan.date_filter.fromDate, "2026-06-14");
+  assert.deepEqual(plan.events.map((event) => event.date), ["2026-06-14", "2026-06-15"]);
+});
+
+test("Google backfill check mode reports changes without writing", async () => {
+  const calls = [];
+  const existingUid = "may-18-start-20260602-tue@shape-rotator-os";
+  const fetchImpl = async (url, options = {}) => {
+    const parsed = new URL(String(url));
+    calls.push({ method: options.method || "GET", path: parsed.pathname, query: parsed.searchParams });
+    assert.equal(options.headers.authorization, "Bearer google-token");
+    if (parsed.searchParams.get("iCalUID") === existingUid) {
+      return Response.json({
+        items: [{
+          id: "existing-google-event",
+          status: "confirmed",
+          summary: "Old title",
+          description: "Old body",
+          start: { date: "2026-06-02" },
+          end: { date: "2026-06-03" },
+        }],
+      });
+    }
+    return Response.json({ items: [] });
+  };
+
+  const output = await runGoogleCalendarBackfill({
+    sourcePath: writeFixture(),
+    calendarId: "cohort@example.com",
+    accessToken: "google-token",
+    check: true,
+    fetchImpl,
+  });
+
+  assert.equal(output.apply, false);
+  assert.equal(output.check, true);
+  assert.equal(output.would_insert, 1);
+  assert.equal(output.would_replace, 0);
+  assert.equal(output.would_update, 1);
+  assert.deepEqual(output.actions.map((action) => action.action), ["would_insert", "would_update"]);
+  assert.deepEqual(calls.map((call) => call.method), ["GET", "GET", "GET"]);
+  assert.deepEqual(calls[1].query.getAll("privateExtendedProperty"), [
+    "shape_calendar_base_uid=may-18-start-20260601-mon@shape-rotator-os",
+    "shape_calendar_block_index=1",
+  ]);
+});
+
+test("Google backfill check mode reports all-day/timed shape replacements", async () => {
+  const source = writeFixture();
+  const first = buildBackfillPlan({ sourcePath: source }).events[0];
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    const parsed = new URL(String(url));
+    calls.push({ method: options.method || "GET", path: parsed.pathname });
+    assert.equal((options.method || "GET"), "GET");
+    return Response.json({
+      items: [{
+        id: "old-all-day-google-event",
+        status: "confirmed",
+        summary: "Old all day",
+        description: "Old body",
+        start: { date: "2026-06-01" },
+        end: { date: "2026-06-02" },
+        extendedProperties: first.body.extendedProperties,
+      }],
+    });
+  };
+
+  const output = await runGoogleCalendarBackfill({
+    sourcePath: source,
+    calendarId: "cohort@example.com",
+    accessToken: "google-token",
+    check: true,
+    maxEvents: 1,
+    fetchImpl,
+  });
+
+  assert.equal(output.would_replace, 1);
+  assert.equal(output.updated, 0);
+  assert.equal(output.actions[0].action, "would_replace");
+  assert.deepEqual(calls.map((call) => call.method), ["GET"]);
+});
+
 test("Google backfill imports missing events and patches changed ones", async () => {
   const calls = [];
   const existingUid = "may-18-start-20260602-tue@shape-rotator-os";
@@ -171,9 +298,52 @@ test("Google backfill imports missing events and patches changed ones", async ()
   assert.equal(output.updated, 1);
   assert.equal(output.unchanged, 0);
   assert.deepEqual(output.actions.map((action) => action.action), ["inserted", "updated"]);
-  assert.equal(calls.filter((call) => call.method === "GET").length, 2);
+  assert.equal(calls.filter((call) => call.method === "GET").length, 3);
   assert.equal(calls.some((call) => call.method === "POST" && call.path.endsWith("/events/import")), true);
   assert.equal(calls.some((call) => call.method === "PATCH" && call.path.endsWith("/events/existing-google-event")), true);
+});
+
+test("Google backfill finds existing title-drifted events by private shape metadata", async () => {
+  const source = writeFixture();
+  const first = buildBackfillPlan({ sourcePath: source }).events[0];
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    const parsed = new URL(String(url));
+    const body = options.body ? JSON.parse(options.body) : null;
+    calls.push({ method: options.method || "GET", query: parsed.searchParams, body });
+    if ((options.method || "GET") === "GET") {
+      if (parsed.searchParams.get("iCalUID")) return Response.json({ items: [] });
+      assert.deepEqual(parsed.searchParams.getAll("privateExtendedProperty"), [
+        "shape_calendar_base_uid=may-18-start-20260601-mon@shape-rotator-os",
+        "shape_calendar_block_index=1",
+      ]);
+      return Response.json({
+        items: [{
+          id: "legacy-title-google-event",
+          status: "confirmed",
+          summary: first.body.summary,
+          description: first.body.description,
+          start: first.body.start,
+          end: first.body.end,
+          extendedProperties: first.body.extendedProperties,
+        }],
+      });
+    }
+    throw new Error("matching fallback event should not be written");
+  };
+
+  const output = await runGoogleCalendarBackfill({
+    sourcePath: source,
+    calendarId: "cohort@example.com",
+    accessToken: "google-token",
+    check: true,
+    maxEvents: 1,
+    fetchImpl,
+  });
+
+  assert.equal(output.unchanged, 1);
+  assert.deepEqual(output.actions.map((action) => action.action), ["unchanged"]);
+  assert.deepEqual(calls.map((call) => call.method), ["GET", "GET"]);
 });
 
 test("Google backfill replaces all-day imports when they become timed events", async () => {

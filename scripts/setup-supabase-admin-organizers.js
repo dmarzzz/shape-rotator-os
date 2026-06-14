@@ -171,6 +171,7 @@ async function runSupabaseAdminOrganizersSetup({
     apply: !!apply,
     org_id_present: !!orgId,
     role: normalizedRole,
+    auth_users_scanned: users.length,
     planned: editorEmails.length,
     matched: matched.length,
     missing: missing.length,

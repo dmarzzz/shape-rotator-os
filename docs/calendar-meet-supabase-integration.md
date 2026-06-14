@@ -36,10 +36,11 @@ product can send real invitations.
 
 ## Guest Versus Admin Editing
 
-Google Calendar has two separate permission planes:
+Google Calendar has three permission/state planes:
 
 1. Event guest permissions.
 2. Calendar ACL permissions.
+3. Each admin user's personal CalendarList entry.
 
 For guests, every app-created event should set:
 
@@ -54,20 +55,49 @@ For guests, every app-created event should set:
 This gives guests a normal invitation on their own calendar without letting them
 change the canonical event.
 
-Admin access is two separate grants:
+The normal product split is:
+
+- Admins and coordinators create/approve sessions through Shape Rotator OS.
+  The deployed `create-calendar-event` function writes to the managed organizer
+  calendar with server-held organizer credentials.
+- Cohort members and guests subscribe to the exported Google/webcal/ICS feed as
+  read-only consumers.
+- Direct editing in Google Calendar is optional operator/break-glass access,
+  not the primary admin workflow.
+
+Admin access is therefore two separate grants:
 
 - Supabase `org_memberships` `admin` or `coordinator`: can use the Shape
   Rotator OS event creator and approval path.
 - Google Calendar ACL: can edit directly in Google Calendar when that fallback
   is intentionally needed.
 
-For direct Google Calendar editors, grant calendar-level ACL access:
+For direct Google Calendar operators, grant calendar-level ACL access:
 
 - `writer`: can edit events on the organizer calendar.
 - `owner`: can edit events and manage calendar sharing.
 
 Prefer a Google Group such as `shape-calendar-admins@...` as the ACL subject so
 admin membership is managed outside event payloads.
+
+ACL success alone is not enough to prove the Google Calendar web UI can create
+events on the managed calendar. If someone truly needs direct Google Calendar
+editing, their account must also have the managed secondary calendar in its own
+CalendarList as visible/selected, and the CalendarList entry must report
+`accessRole` of `writer` or `owner`. Otherwise the operator may see Shape
+Rotator events on the grid while the event-creation calendar dropdown only
+offers their personal calendar, making the calendar look read-only. Check this
+only for direct-Google operators with:
+
+```bash
+npm run calendar:list:google -- --calendar-id "$GOOGLE_CALENDAR_ID" --verify
+```
+
+Run that command with the direct operator's OAuth token, not with the organizer
+or capture-bot token. If it reports `would_insert` or `would_update`, rerun with
+`--apply`; if it reports `insufficient_access`, fix the calendar ACL or the
+organizer Workspace sharing policy first. This is not needed for normal admin
+creation through Shape Rotator OS.
 
 ## Event Creation Flow
 

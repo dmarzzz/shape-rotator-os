@@ -61,6 +61,7 @@ test("Supabase admin organizer setup dry-run does not write memberships", async 
   });
 
   assert.equal(result.apply, false);
+  assert.equal(result.auth_users_scanned, 1);
   assert.equal(result.matched, 1);
   assert.equal(result.missing, 1);
   assert.equal(result.upserted, 0);
@@ -101,6 +102,7 @@ test("Supabase admin organizer setup applies matched memberships", async () => {
   });
 
   assert.equal(result.apply, true);
+  assert.equal(result.auth_users_scanned, 1);
   assert.equal(result.upserted, 1);
   assert.deepEqual(calls.map((call) => call.method), ["GET", "POST"]);
 });

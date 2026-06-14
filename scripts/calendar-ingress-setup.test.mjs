@@ -181,6 +181,7 @@ test("package exposes documented calendar ingress operator scripts", () => {
   assert.equal(pkg.scripts["calendar:setup:check"], "node scripts/check-calendar-ingress-setup.js");
   assert.equal(pkg.scripts["calendar:setup:seed-sql"], "node scripts/prepare-calendar-ingress-seed-sql.js");
   assert.equal(pkg.scripts["calendar:setup:plan"], "node scripts/prepare-calendar-ingress-deploy-plan.js");
+  assert.equal(pkg.scripts["calendar:setup:admin-organizers"], "node scripts/setup-supabase-admin-organizers.js");
   assert.equal(pkg.scripts["calendar:oauth:google"], "node scripts/google-calendar-oauth.js");
   assert.equal(pkg.scripts["calendar:backfill:google"], "node scripts/backfill-google-calendar.js");
   assert.equal(pkg.scripts["calendar:acl:google"], "node scripts/setup-google-calendar-acl.js");
@@ -188,6 +189,11 @@ test("package exposes documented calendar ingress operator scripts", () => {
   assert.equal(pkg.scripts["calendar:sync:google"], "node scripts/sync-google-calendar-events.js");
   assert.equal(pkg.scripts["calendar:list:google"], "node scripts/setup-google-calendar-list.js");
   assert.equal(pkg.scripts["calendar:admins:supabase"], "node scripts/setup-supabase-admin-organizers.js");
+  assert.equal(pkg.scripts["calendar:meet:google"], "node scripts/ensure-google-calendar-meet-links.js");
+  assert.equal(pkg.scripts["calendar:capture-bot:google"], "node scripts/ensure-google-calendar-capture-bot.js");
+  assert.equal(pkg.scripts["calendar:capture:audit"], "node scripts/audit-calendar-capture.js");
+  assert.equal(pkg.scripts["meet:auto-artifacts"], "node scripts/configure-meet-auto-artifacts.js");
+  assert.equal(pkg.scripts["artifacts:drive"], "node scripts/poll-google-drive-artifacts.js");
 });
 
 test("calendar ingress deploy plan uses a local worksheet and project-ref placeholder when needed", () => {
@@ -220,7 +226,8 @@ test("calendar ingress Edge Functions require server-side org authorization befo
   assert.match(createFunction, /meet\.googleapis\.com\/v2\/spaces/);
   assert.match(createFunction, /autoTranscriptionGeneration/);
   assert.match(createFunction, /autoSmartNotes\s*=\s*body\.auto_smart_notes\s*\?\?\s*body\.autoSmartNotes\s*\?\?\s*null/);
-  assert.match(createFunction, /require_auto_artifacts/);
+  assert.match(createFunction, /transcript:\s*true/);
+  assert.match(createFunction, /if \(!meetAutoArtifacts\.configured\)/);
   // C4-1: idempotent recovery from a partial-failure split-brain — on a 409 from
   // the deterministic event id, fetch the existing event and continue the Supabase
   // write rather than failing permanently.
