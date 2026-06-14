@@ -4,14 +4,10 @@
  * cohort-data/calendar.ics so the schedule can be imported into / subscribed
  * from Apple Calendar, Google Calendar, Outlook, etc.
  *
- * The Phala schedule is a spreadsheet dump: tabs → rows → freeform cells. A
- * cell like the "Wed" column for week 1 holds multiple lines of times and
- * notes with no reliable machine structure. Rather than guess timed events
- * out of that text (typos like "12:00:14:00", ranges like "Mon-Tue: …"), we
- * emit ONE all-day event per non-empty day cell. The cell text is the event
- * body; the first line is the title. This is lossless and deterministic — a
- * human reading the imported calendar sees exactly the cell they'd see in the
- * grid, on the right day.
+ * The Phala schedule is a spreadsheet dump: tabs -> rows -> freeform cells.
+ * We preserve the day-grid source while expanding clear time-prefixed blocks
+ * into real timed events. Unparseable notes and high-level day markers stay
+ * as all-day events; weekday spans such as "Mon-Tue:" use exclusive DTEND.
  *
  * Dates: the "Dates" column gives the Monday of each week (e.g. "May 18–23").
  * The day columns (Mon…Sun) map to Monday+0 … Monday+6. The cohort year is
@@ -29,6 +25,12 @@
 
 const fs   = require("node:fs");
 const path = require("node:path");
+const {
+  DEFAULT_TIME_ZONE,
+  dateIsoWithOffset,
+  expandCollectedEvent,
+  isoDate,
+} = require("./lib/calendar-event-expander.cjs");
 
 const SRC = path.resolve(__dirname, "..", "cohort-data", "calendar.json");
 const OUT = path.resolve(__dirname, "..", "cohort-data", "calendar.ics");
@@ -41,11 +43,19 @@ const MONTHS = {
 
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
+const compactDate = (dateIso) => String(dateIso || "").replace(/-/g, "");
 
 // RFC 5545 §3.3.5 UTC date-time, e.g. 20260521T183346Z.
 function dtstamp(iso) {
   const d = new Date(iso);
   return `${ymd(d)}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+}
+
+function localDateTime(dateIso, minutes) {
+  const dayOffset = Math.floor(minutes / 1440);
+  const minuteOfDay = ((minutes % 1440) + 1440) % 1440;
+  const localDate = dateIsoWithOffset(dateIso, dayOffset);
+  return `${compactDate(localDate)}T${pad(Math.floor(minuteOfDay / 60))}${pad(minuteOfDay % 60)}00`;
 }
 
 // RFC 5545 §3.3.11 TEXT escaping: backslash, semicolon, comma, newline.
@@ -129,6 +139,10 @@ function collectEvents(json) {
   return events;
 }
 
+function collectIcsEvents(json) {
+  return collectEvents(json).flatMap(expandCollectedEvent);
+}
+
 function generateIcs(json) {
   const stamp = dtstamp(json.last_refresh);
   const lines = [
@@ -138,15 +152,43 @@ function generateIcs(json) {
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "X-WR-CALNAME:Shape Rotator Cohort",
+    `X-WR-TIMEZONE:${DEFAULT_TIME_ZONE}`,
+    "BEGIN:VTIMEZONE",
+    `TZID:${DEFAULT_TIME_ZONE}`,
+    `X-LIC-LOCATION:${DEFAULT_TIME_ZONE}`,
+    "BEGIN:DAYLIGHT",
+    "TZOFFSETFROM:-0500",
+    "TZOFFSETTO:-0400",
+    "TZNAME:EDT",
+    "DTSTART:19700308T020000",
+    "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU",
+    "END:DAYLIGHT",
+    "BEGIN:STANDARD",
+    "TZOFFSETFROM:-0400",
+    "TZOFFSETTO:-0500",
+    "TZNAME:EST",
+    "DTSTART:19701101T020000",
+    "RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU",
+    "END:STANDARD",
+    "END:VTIMEZONE",
   ];
-  for (const e of collectEvents(json)) {
-    const next = new Date(e.date.getTime() + 86400000);
+  for (const e of collectIcsEvents(json)) {
+    const dateIso = isoDate(e.date);
+    const isTimed = e.timeKind === "timed";
+    const endDateIso = dateIsoWithOffset(dateIso, e.allDaySpanDays || 1);
     lines.push(
       "BEGIN:VEVENT",
       `UID:${e.uid}`,
       `DTSTAMP:${stamp}`,
-      `DTSTART;VALUE=DATE:${ymd(e.date)}`,
-      `DTEND;VALUE=DATE:${ymd(next)}`,
+      ...(isTimed
+        ? [
+            `DTSTART;TZID=${DEFAULT_TIME_ZONE}:${localDateTime(dateIso, e.startMinutes)}`,
+            `DTEND;TZID=${DEFAULT_TIME_ZONE}:${localDateTime(dateIso, e.endMinutes)}`,
+          ]
+        : [
+            `DTSTART;VALUE=DATE:${compactDate(dateIso)}`,
+            `DTEND;VALUE=DATE:${compactDate(endDateIso)}`,
+          ]),
       `SUMMARY:${esc(e.summary)}`,
       `DESCRIPTION:${esc(e.description)}`,
       `CATEGORIES:${esc(e.category)}`,
@@ -176,6 +218,6 @@ function main() {
   console.log(`[build-ics] wrote ${rel} (${(ics.match(/BEGIN:VEVENT/g) || []).length} events)`);
 }
 
-module.exports = { generateIcs, collectEvents };
+module.exports = { generateIcs, collectEvents, collectIcsEvents };
 
 if (require.main === module) main();

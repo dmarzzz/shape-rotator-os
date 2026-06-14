@@ -8,6 +8,8 @@ import {
   exportWeekPng,
   openEventDetail,
 } from "@shape-rotator/shape-ui";
+import { wireCalendarExportLinks } from "./calendar-links.mjs";
+import { loadSupabaseCalendarSnapshot } from "./calendar-supabase-source.mjs";
 
 // Web cohort calendar — seed with the bundled snapshot from
 // cohort-surface.json so first paint is instant, then refresh from the
@@ -15,6 +17,7 @@ import {
 // browser CORS headers, so web avoids that doomed cross-origin fetch while
 // Electron can still use the live endpoint through shape-ui's default loader.
 const WEB_CALENDAR_URL = "/calendar.json";
+const CALENDAR_REFRESH_MS = 5 * 60 * 1000;
 
 const state = {
   cohort: null,
@@ -105,6 +108,7 @@ function wire() {
     const retry = e.target.closest?.("[data-cal-retry]");
     if (retry) {
       runLiveFetch(); // re-attempt; renderer flips badge when it resolves
+      runSupabaseFetch();
       return;
     }
     const png = e.target.closest?.("[data-cal-png]");
@@ -114,7 +118,11 @@ function wire() {
       return;
     }
     const evCard = e.target.closest?.("[data-cal-event]");
-    if (evCard) { openEventDetail(evCard); return; }
+    if (evCard) {
+      if (e.target.closest?.("a[href],button")) return;
+      openEventDetail(evCard);
+      return;
+    }
   });
 
   // ← / → / t keyboard nav on the week sub-view.
@@ -137,8 +145,34 @@ async function runLiveFetch() {
   }
 }
 
+async function runSupabaseFetch() {
+  try {
+    const data = await loadSupabaseCalendarSnapshot();
+    if (!data) return;
+    state.data = data;
+    state.source = "supabase";
+    rerender();
+  } catch (err) {
+    console.warn("[calendar] supabase fetch failed", err);
+  }
+}
+
+function refreshCalendarSources() {
+  runLiveFetch();
+  runSupabaseFetch();
+}
+
+function startRefreshLoop() {
+  if (typeof globalThis.setInterval !== "function") return;
+  globalThis.setInterval(() => {
+    if (document.visibilityState === "hidden") return;
+    refreshCalendarSources();
+  }, CALENDAR_REFRESH_MS);
+}
+
 (async function init() {
   if (!mount) return;
+  wireCalendarExportLinks();
   mount.innerHTML = renderSkeletonWeek();
   const r = await fetch("/cohort-surface.json").catch(() => null);
   state.cohort = r && r.ok ? await r.json() : null;
@@ -160,5 +194,6 @@ async function runLiveFetch() {
   wire();
 
   // Then try the live Phala fetch in the background.
-  runLiveFetch();
+  refreshCalendarSources();
+  startRefreshLoop();
 })();

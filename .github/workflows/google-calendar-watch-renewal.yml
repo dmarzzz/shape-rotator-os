@@ -1,0 +1,49 @@
+name: google-calendar-watch-renewal
+
+# Google Calendar push notification channels expire after a short TTL. Renew the
+# managed cohort calendar watch daily, then run an incremental sync so the
+# renewed channel is backed by a known-good Supabase sync state.
+
+on:
+  schedule:
+    - cron: "17 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: google-calendar-watch-renewal
+  cancel-in-progress: false
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+      GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+      GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+      GOOGLE_CALENDAR_WEBHOOK_TOKEN: ${{ secrets.GOOGLE_CALENDAR_WEBHOOK_TOKEN }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ORG_ID: ${{ secrets.ORG_ID }}
+      CALENDAR_CONNECTION_ID: ${{ secrets.CALENDAR_CONNECTION_ID }}
+      SHAPE_CALENDAR_BOT_EMAIL: ${{ secrets.SHAPE_CALENDAR_BOT_EMAIL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: install deps
+        run: npm ci --ignore-scripts
+
+      - name: renew Google Calendar watch
+        run: npm run calendar:watch:google -- --apply
+
+      - name: sync Google Calendar after renewal
+        run: npm run calendar:sync:google -- --apply

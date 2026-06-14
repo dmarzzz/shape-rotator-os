@@ -13,6 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../styles/web.css" />
+  <link rel="stylesheet" href="../styles/calendar-ingress.css" />
   <link rel="stylesheet" href="../shape-ui/src/cohort-card.css" />
   <link rel="stylesheet" href="../shape-ui/src/cohort-calendar-week.css" />
   <!-- TODO: wire cohort-surface.json copy into the deploy step instead of vendoring -->
@@ -36,28 +37,21 @@
   </header>
 
   <main class="page page--calendar">
+    <section class="cal-export" id="cal-export" aria-label="calendar subscription">
+      <div class="cal-export-copy">
+        <span class="cal-export-kicker">calendar feed</span>
+        <strong>Subscribe once for live schedule updates.</strong>
+      </div>
+      <div class="cal-export-actions">
+        <a id="cal-google" class="cal-export-primary" href="#" target="_blank" rel="noopener">subscribe in Google</a>
+        <a id="cal-google-member" href="#" target="_blank" rel="noopener" hidden>team Google</a>
+        <a id="cal-webcal" href="#">Apple / Outlook</a>
+        <a id="cal-ics" href="/calendar.ics" download>download .ics</a>
+      </div>
+    </section>
     <div id="mount" class="page-mount"></div>
-    <p class="cal-export" id="cal-export">
-      add to your calendar:
-      <a id="cal-ics" href="/calendar.ics" download>download .ics</a>
-      <span aria-hidden="true">·</span>
-      <a id="cal-webcal" href="#">subscribe (apple/outlook)</a>
-      <span aria-hidden="true">·</span>
-      <a id="cal-google" href="#" target="_blank" rel="noopener">google calendar</a>
-    </p>
+    <section class="cal-ingress" id="calendar-ingress" aria-label="calendar ingress"></section>
   </main>
-
-  <script>
-    // Build subscribe links from the live host so the same markup works on
-    // any deploy. webcal:// is the subscribe scheme Apple Calendar/Outlook
-    // register; Google takes the same feed URL via ?cid=.
-    {
-      const feed = location.host + "/calendar.ics";
-      document.getElementById("cal-webcal").href = "webcal://" + feed;
-      document.getElementById("cal-google").href =
-        "https://calendar.google.com/calendar/r?cid=" + encodeURIComponent("webcal://" + feed);
-    }
-  </script>
 
   <footer class="site-footer">
     <span>v<span data-version>—</span></span>
@@ -65,7 +59,9 @@
     <a href="https://github.com/dmarzzz/shape-rotator-os">source</a>
   </footer>
 
+  <script src="/calendar-runtime-config.js"></script>
   <script type="module" src="../scripts/nav.js"></script>
   <script type="module" src="../scripts/calendar.js"></script>
+  <script type="module" src="../scripts/calendar-ingress.js?v=supabase-source"></script>
 </body>
 </html>
