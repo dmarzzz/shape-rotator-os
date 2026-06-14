@@ -1,8 +1,14 @@
 # Reviewed Transcript Import Map
 
+> **Status 2026-06-13:** This is now a historical week 1/2 import map. Use
+> [Transcript Calendar Coverage Index](transcript-calendar-coverage-index.md)
+> for the current complete calendar coverage list, missing-session queue,
+> candidate-review queue, and transcript naming audit. The newer index is
+> generated from the current calendar plus private transcript vault plans.
+
 This is the review map for the current Shape Rotator OS transcript audit. It separates existing OS coverage from candidate transcript files that match calendar events but should not be submitted raw until their content boundary is approved.
 
-> **2026-06-10 content-boundary update.** Raw transcripts no longer live in this public repo. Per the content policy (raw transcripts are never published beyond attendees), the 13 raw .txt files were removed from `apps/os/src/content/context/raw-scripts/` and moved to the private vault. Their canonical-timeline anchors remain in [calendar-transcript-matches.js](../apps/os/src/content/context/calendar-transcript-matches.js) as `held: "private-vault"` sources carrying a `vault_id` join key and a snapshot of person/team mention hits, so person and team timelines keep full fidelity. Only public-safe files stay bundled: the two redacted excerpts and the distilled WDYDLW recap. Distilled insights (journal articles, recaps, event pages) are unaffected.
+> **2026-06-10 content-boundary update.** Raw transcripts no longer live in this public repo. Per the content policy (raw transcripts are never published beyond attendees), the 13 raw .txt files were removed from `apps/os/src/content/context/raw-scripts/` and moved to the private vault. Their canonical-timeline anchors remain in [calendar-transcript-matches.js](../apps/os/src/content/context/calendar-transcript-matches.js) as `held: "private-vault"` sources carrying a `vault_id` join key and a snapshot of person/team mention hits, so person and team timelines keep full fidelity. The only transcript-derived `.txt` still bundled is the distilled WDYDLW recap; formerly redacted excerpts now ship only as paraphrased readouts. Distilled insights (journal articles, recaps, event pages) are unaffected.
 >
 > **Insights pipeline.** Each vault transcript gets a public-safe distilled readout, hardcoded via `npm run ingest:readouts <readouts.json>` ([ingest-session-readouts.mjs](../scripts/ingest-session-readouts.mjs)): canonical structured readouts land in [session-insights.json](../cohort-data/session-insights.json) (shipped in the app surface as `session_insights`), per-team cues append to [constellation-cues.json](../cohort-data/constellation-cues.json) (rendered in constellation inspectors today), and human-readable review copies land in [session-readouts/](../cohort-data/session-readouts/). Sessions with external or featured speakers carry `consent: speaker-pending` and are held to thematic, unattributed distillation until a speaker consent pass.
 
@@ -11,7 +17,7 @@ This is the review map for the current Shape Rotator OS transcript audit. It sep
 ```mermaid
 flowchart LR
   calendar --> existing["Timeline anchors in OS<br/>week 1 / week 2 sessions<br/>raw text held privately"]
-  calendar --> additions["Added redacted excerpts<br/>calendar-matched"]
+  calendar --> additions["Added distilled readouts<br/>calendar-matched"]
   calendar --> missing["Still missing from OS<br/>non-office-hours"]
 
   additions --> selfIntro["Teleport Router onboarding<br/>2026-05-27<br/>confidence: medium"]

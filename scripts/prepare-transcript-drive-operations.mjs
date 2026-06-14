@@ -6,6 +6,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_PLAN_PATH = path.join(ROOT, "cohort-data", ".private", "transcript-vault", "transcript-vault-import-plan.json");
 const DEFAULT_OUT_PATH = path.join(ROOT, "cohort-data", ".private", "transcript-vault", "drive-operations-plan.json");
+const ROOT_FOLDER_LEGACY_NAMES = {
+  inbox: ["00_inbox"],
+  raw_transcripts: ["10_raw_transcripts_T0", "raw_transcripts_T0"],
+  calendar_matched: ["20_calendar_matched"],
+  needs_calendar_match: ["30_needs_calendar_match"],
+  operator_review_exports: ["40_derived_review", "40_operator_review_exports"],
+  do_not_publish: ["90_do_not_publish"],
+};
 
 function usage() {
   return [
@@ -68,8 +76,14 @@ function fallbackTargetName(file) {
   return file.preferred_drive_name || file.canonical_name || stripCopyPrefix(file.original_name);
 }
 
+function legacyNamesForFolderPath(folderPath, name) {
+  const pathParts = normalizeDrivePath(folderPath).split("/").filter(Boolean);
+  if (pathParts.length !== 1) return [];
+  return ROOT_FOLDER_LEGACY_NAMES[name] || [];
+}
+
 function isDefaultRawRoot(folderPath) {
-  return normalizeDrivePath(folderPath) === "10_raw_transcripts_T0";
+  return normalizeDrivePath(folderPath) === "raw_transcripts";
 }
 
 function reviewDisposition(file) {
@@ -77,7 +91,7 @@ function reviewDisposition(file) {
   const targetFolderPath = normalizeDrivePath(file.drive_route?.path || "");
   if (
     file.inferred_session_type === "private_1on1"
-    && targetFolderPath === "90_do_not_publish/private_1on1"
+    && targetFolderPath === "do_not_publish/private_1on1"
   ) {
     return "safe_to_apply";
   }
@@ -88,6 +102,9 @@ function reviewDisposition(file) {
 
 function buildFolderOperations(plan) {
   const paths = new Set();
+  for (const folderPath of Object.values(plan.drive_permissions?.root_folders || {})) {
+    paths.add(normalizeDrivePath(folderPath));
+  }
   for (const file of plan.files || []) {
     const route = file.drive_route || {};
     for (const folderPath of [route.path, route.derived_path]) {
@@ -99,10 +116,12 @@ function buildFolderOperations(plan) {
     .sort((a, b) => a.localeCompare(b))
     .map((folderPath) => {
       const parts = folderPath.split("/");
+      const name = parts.at(-1);
       return {
         operation: "ensure_folder",
         path: folderPath,
-        name: parts.at(-1),
+        name,
+        legacy_names: legacyNamesForFolderPath(folderPath, name),
         parent_path: parts.length > 1 ? parts.slice(0, -1).join("/") : null,
         shared_drive_id: plan.source_drive?.shared_drive_id || null,
         known_folder_id: isDefaultRawRoot(folderPath) ? plan.source_drive?.raw_folder_id || null : null,
@@ -124,10 +143,10 @@ function buildAdminOperations(plan) {
 }
 
 function buildFileOperation(file, plan) {
-  const targetFolderPath = normalizeDrivePath(file.drive_route?.path || "30_needs_calendar_match");
+  const targetFolderPath = normalizeDrivePath(file.drive_route?.path || "needs_calendar_match");
   const targetName = fallbackTargetName(file);
   const currentName = file.original_name;
-  const currentFolderPath = "10_raw_transcripts_T0";
+  const currentFolderPath = "raw_transcripts";
   const actions = [];
   if (targetName && targetName !== currentName) actions.push("rename");
   if (targetFolderPath && targetFolderPath !== currentFolderPath) actions.push("move");
@@ -153,6 +172,32 @@ function buildFileOperation(file, plan) {
       shared_drive_id: plan.source_drive?.shared_drive_id || null,
       raw_folder_id: plan.source_drive?.raw_folder_id || null,
     },
+  };
+}
+
+function buildCopyPrefixCleanupOperation(operation) {
+  const strippedName = stripCopyPrefix(operation.current_name);
+  if (!/^Copy of\s+/i.test(operation.current_name || "")) return null;
+  if (!strippedName || strippedName === operation.current_name) return null;
+  if (operation.safe_to_apply) return null;
+  return {
+    operation: "strip_copy_prefix_in_place",
+    drive_file_id: operation.drive_file_id,
+    current_name: operation.current_name,
+    target_name: strippedName,
+    current_folder_path: operation.current_folder_path,
+    final_target_name: operation.target_name,
+    final_target_folder_path: operation.target_folder_path,
+    final_target_path: operation.target_path,
+    inferred_session_type: operation.inferred_session_type,
+    inferred_date: operation.inferred_date,
+    calendar_status: operation.calendar_status,
+    needs_manual_review: operation.needs_manual_review,
+    manual_review_reasons: operation.manual_review_reasons || [],
+    disposition: "copy_prefix_cleanup_only",
+    safe_to_apply: true,
+    actions: ["rename_in_place"],
+    source_drive: operation.source_drive,
   };
 }
 
@@ -184,6 +229,9 @@ export function buildDriveOperationsPlan(importPlan, { generatedAt = new Date().
   });
   const safeFileOperations = fileOperations.filter((operation) => operation.safe_to_apply);
   const reviewFileOperations = fileOperations.filter((operation) => !operation.safe_to_apply);
+  const copyPrefixCleanupOperations = reviewFileOperations
+    .map(buildCopyPrefixCleanupOperation)
+    .filter(Boolean);
 
   return {
     generated_at: generatedAt,
@@ -195,9 +243,11 @@ export function buildDriveOperationsPlan(importPlan, { generatedAt = new Date().
       total_files: fileOperations.length,
       safe_file_operations: safeFileOperations.length,
       review_file_operations: reviewFileOperations.length,
+      copy_prefix_cleanup_operations: copyPrefixCleanupOperations.length,
       folder_ensures: folderOperations.length,
       manager_grants: adminOperations.length,
       rename_actions: fileOperations.filter((operation) => operation.actions.includes("rename")).length,
+      copy_prefix_cleanup_rename_actions: copyPrefixCleanupOperations.length,
       move_actions: fileOperations.filter((operation) => operation.actions.includes("move")).length,
       duplicate_target_paths: duplicateTargets.size,
       by_disposition: countBy(fileOperations, (operation) => operation.disposition),
@@ -207,6 +257,7 @@ export function buildDriveOperationsPlan(importPlan, { generatedAt = new Date().
     admin_operations: adminOperations,
     safe_file_operations: safeFileOperations,
     review_file_operations: reviewFileOperations,
+    copy_prefix_cleanup_operations: copyPrefixCleanupOperations,
   };
 }
 
@@ -223,6 +274,7 @@ export function renderDriveOperationsSummary(plan) {
     `- Files: ${plan.counts.total_files}`,
     `- Safe file operations: ${plan.counts.safe_file_operations}`,
     `- Review-held file operations: ${plan.counts.review_file_operations}`,
+    `- Copy-prefix cleanup operations: ${plan.counts.copy_prefix_cleanup_operations || 0}`,
     `- Folder ensures: ${plan.counts.folder_ensures}`,
     `- Manager grants: ${plan.counts.manager_grants}`,
     `- Rename actions: ${plan.counts.rename_actions}`,
@@ -253,6 +305,15 @@ export function renderDriveOperationsSummary(plan) {
   lines.push("| --- | --- | --- | --- |");
   for (const operation of plan.review_file_operations) {
     lines.push(`| ${operation.current_name.replaceAll("|", "\\|")} | ${operation.target_path.replaceAll("|", "\\|")} | ${operation.disposition} | ${operation.manual_review_reasons.join(", ").replaceAll("|", "\\|")} |`);
+  }
+
+  lines.push("", "## Copy-Prefix Cleanup Operations", "");
+  lines.push("These operations only strip `Copy of ` from review-held files in place. They do not move files or apply the final preferred transcript name.");
+  lines.push("");
+  lines.push("| Current | In-place cleanup name | Final target still pending review | Reasons |");
+  lines.push("| --- | --- | --- | --- |");
+  for (const operation of plan.copy_prefix_cleanup_operations || []) {
+    lines.push(`| ${operation.current_name.replaceAll("|", "\\|")} | ${operation.target_name.replaceAll("|", "\\|")} | ${operation.final_target_path.replaceAll("|", "\\|")} | ${operation.manual_review_reasons.join(", ").replaceAll("|", "\\|")} |`);
   }
   return lines.join("\n");
 }

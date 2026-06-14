@@ -68,10 +68,14 @@ test("builds generated evidence cards and role views without raw transcript leak
   assert.equal(card.review_status, "generated");
   assert.equal(card.source, "private-vault:sample-session-2026-06-08");
   assert.equal(card.sharing_boundary.max_surface, "cohort");
+  assert.equal(card.confidence, "medium");
+  assert.equal(card.confidence_pct, 76);
+  assert.ok(card.confidence_basis.includes("speaker/public clearance pending"));
   assert.equal(card.verbatim, false);
   assert.equal(card.claims.length, 2);
   assert.ok(card.claims.every((claim) => claim.verbatim === false));
   assert.ok(card.claims.every((claim) => claim.source === card.source));
+  assert.ok(card.claims.every((claim) => claim.confidence_pct === card.confidence_pct));
   assert.ok(!hasForbiddenRawPointer(card));
 
   assert.equal(bundle.views.weekly.length, 1);
@@ -98,6 +102,7 @@ test("validates current reviewed session insights against known teams and people
   assert.ok(bundle.views.graph.edges.length > bundle.cards.length);
   assert.ok(bundle.cards.every((card) => card.source.startsWith("private-vault:")));
   assert.ok(bundle.cards.every((card) => card.review_status === "generated"));
+  assert.ok(bundle.cards.every((card) => Number.isFinite(card.confidence_pct)));
   assert.ok(bundle.cards.every((card) => card.sharing_boundary.raw_allowed === false));
   assert.ok(bundle.cards.every((card) => !hasForbiddenRawPointer(card)));
 });

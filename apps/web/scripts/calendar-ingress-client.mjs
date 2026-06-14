@@ -258,7 +258,7 @@ export const DEFAULT_ROUTING_POLICY = {
     },
     office_hours: {
       label: "Office hours",
-      description: "Project or core-team office-hours session.",
+      description: "Project core team or product-based office-hours session.",
       event_basis: "project_core_team_or_product_based",
       max_tier: "T2",
       cohort_mode: "distilled_readout",
@@ -291,7 +291,7 @@ export const DEFAULT_ROUTING_POLICY = {
     },
     rd_jam: {
       label: "R&D / jam",
-      description: "Idea-stage technical session.",
+      description: "Product or technical idea-stage session.",
       event_basis: "product_or_technical_idea_based",
       max_tier: "T2",
       cohort_mode: "team_call_required",
@@ -1094,7 +1094,15 @@ export async function rejectEventRequest({ config, requestId, reviewNotes, fetch
   });
 }
 
-export async function reviewDerivedArtifact({ config, artifactId, reviewStatus, approvalState, notes, fetchImpl = fetch }) {
+export async function reviewDerivedArtifact({
+  config,
+  artifactId,
+  reviewStatus,
+  approvalState,
+  notes,
+  edits,
+  fetchImpl = fetch,
+}) {
   if (!artifactId) throw new Error("artifactId is required");
   if (!["reviewed", "blocked", "published", "needs_review"].includes(reviewStatus)) {
     throw new Error(`unsupported review status: ${reviewStatus}`);
@@ -1108,6 +1116,7 @@ export async function reviewDerivedArtifact({ config, artifactId, reviewStatus, 
       review_status: reviewStatus,
       ...(approvalState ? { approval_state: approvalState } : {}),
       ...(notes ? { notes } : {}),
+      ...(edits && Object.keys(edits).length ? { edits } : {}),
       ...(reviewStatus === "published" ? { publish_public: true } : {}),
     },
     fetchImpl,
@@ -1115,7 +1124,15 @@ export async function reviewDerivedArtifact({ config, artifactId, reviewStatus, 
   return result.artifact ? [result.artifact] : [];
 }
 
-export async function reviewEvidenceCard({ config, cardId, reviewStatus, approvalState, notes, fetchImpl = fetch }) {
+export async function reviewEvidenceCard({
+  config,
+  cardId,
+  reviewStatus,
+  approvalState,
+  notes,
+  edits,
+  fetchImpl = fetch,
+}) {
   if (!cardId) throw new Error("cardId is required");
   if (!["reviewed", "blocked", "published", "needs_review"].includes(reviewStatus)) {
     throw new Error(`unsupported review status: ${reviewStatus}`);
@@ -1129,6 +1146,7 @@ export async function reviewEvidenceCard({ config, cardId, reviewStatus, approva
       review_status: reviewStatus,
       ...(approvalState ? { approval_state: approvalState } : {}),
       ...(notes ? { notes } : {}),
+      ...(edits && Object.keys(edits).length ? { edits } : {}),
       ...(reviewStatus === "published" ? { publish_public: true } : {}),
     },
     fetchImpl,

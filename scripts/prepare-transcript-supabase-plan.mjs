@@ -105,6 +105,42 @@ function isStrongSourceCandidate(file) {
     && file.calendar_match?.status === "matched";
 }
 
+function numberOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function compactObject(value) {
+  return Object.fromEntries(
+    Object.entries(value || {}).filter(([, entry]) => entry !== null && entry !== undefined),
+  );
+}
+
+function confidenceMetadataForFile(file) {
+  const manifest = file.source_artifact_manifest || {};
+  const assessment = file.classification_confidence || manifest.confidence_assessment || null;
+  return compactObject({
+    confidence_schema_version: 1,
+    type_confidence_pct: numberOrNull(file.type_confidence_pct ?? manifest.type_confidence_pct ?? assessment?.type_pct),
+    group_confidence_pct: numberOrNull(file.group_confidence_pct ?? manifest.group_confidence_pct ?? assessment?.group_pct),
+    understanding_confidence_pct: numberOrNull(file.understanding_confidence_pct ?? manifest.understanding_confidence_pct ?? assessment?.understanding_pct),
+    calendar_confidence_pct: numberOrNull(file.calendar_match?.confidence_pct ?? assessment?.calendar_pct),
+    source_confidence_pct: numberOrNull(file.source_confidence_pct ?? manifest.source_confidence_pct ?? assessment?.source_pct),
+    confidence_label: assessment?.label || null,
+    confidence_basis: assessment?.basis || null,
+    source_system: file.source_system || manifest.source_system || null,
+    source_provider: file.source_provider || manifest.source_provider || null,
+    source_confidence: file.source_confidence || manifest.source_confidence || null,
+    inferred_session_type: file.inferred_session_type || manifest.inferred_session_type || null,
+    inferred_date: file.inferred_date || manifest.inferred_date || null,
+    calendar_status: file.calendar_match?.status || null,
+    calendar_confidence: file.calendar_match?.confidence || null,
+    target_drive_route: file.drive_route?.path || manifest.target_drive_route || null,
+    derived_drive_route: file.drive_route?.derived_path || null,
+    preferred_drive_name: file.preferred_drive_name || null,
+  });
+}
+
 function sourceRowForFile({ file, orgId, sessionId }) {
   const manifest = file.source_artifact_manifest || {};
   return {
@@ -119,6 +155,7 @@ function sourceRowForFile({ file, orgId, sessionId }) {
     mime_type: manifest.mime_type || file.mime_type || null,
     size_bytes: manifest.size_bytes || null,
     raw_available_to_server: manifest.raw_available_to_server === true,
+    metadata: confidenceMetadataForFile(file),
   };
 }
 
@@ -137,6 +174,7 @@ function ingestionEventForFile({ file, orgId, sessionId, sourceArtifact, generat
       source_system: file.source_system || file.source_artifact_manifest?.source_system || null,
       source_provider: file.source_provider || file.source_artifact_manifest?.source_provider || null,
       source_confidence: file.source_confidence || file.source_artifact_manifest?.source_confidence || null,
+      source_confidence_pct: file.source_confidence_pct || file.source_artifact_manifest?.source_confidence_pct || null,
       storage_mode: sourceArtifact.storage_mode,
       storage_ref: sourceArtifact.storage_ref,
       drive_file_id: file.drive_file_id || null,
@@ -149,6 +187,11 @@ function ingestionEventForFile({ file, orgId, sessionId, sourceArtifact, generat
       inferred_date: file.inferred_date || null,
       calendar_status: file.calendar_match?.status || null,
       calendar_confidence: file.calendar_match?.confidence || null,
+      calendar_confidence_pct: file.calendar_match?.confidence_pct || null,
+      type_confidence_pct: file.type_confidence_pct || file.source_artifact_manifest?.type_confidence_pct || null,
+      group_confidence_pct: file.group_confidence_pct || file.source_artifact_manifest?.group_confidence_pct || null,
+      understanding_confidence_pct: file.understanding_confidence_pct || file.source_artifact_manifest?.understanding_confidence_pct || null,
+      confidence_basis: file.classification_confidence?.basis || file.source_artifact_manifest?.confidence_assessment?.basis || null,
       max_tier: file.routing?.max_tier || null,
     },
     processing_status: "processed",
@@ -167,6 +210,10 @@ function linkQueueRow(file) {
     inferred_date: file.inferred_date,
     calendar_status: file.calendar_match?.status || null,
     calendar_confidence: file.calendar_match?.confidence || null,
+    calendar_confidence_pct: file.calendar_match?.confidence_pct || null,
+    type_confidence_pct: file.type_confidence_pct || null,
+    group_confidence_pct: file.group_confidence_pct || null,
+    understanding_confidence_pct: file.understanding_confidence_pct || null,
     matched_tokens: file.calendar_match?.matched_tokens || [],
     target_drive_route: file.drive_route?.path || null,
     reason: "session_id_required_before_queueing_processing_job",
@@ -181,6 +228,10 @@ function reviewQueueRow(file) {
     inferred_session_type: file.inferred_session_type,
     inferred_date: file.inferred_date,
     calendar_status: file.calendar_match?.status || null,
+    calendar_confidence_pct: file.calendar_match?.confidence_pct || null,
+    type_confidence_pct: file.type_confidence_pct || null,
+    group_confidence_pct: file.group_confidence_pct || null,
+    understanding_confidence_pct: file.understanding_confidence_pct || null,
     target_drive_route: file.drive_route?.path || null,
     manual_review_reasons: file.manual_review_reasons || [],
   };
@@ -310,17 +361,17 @@ export function renderTranscriptSupabaseSummary(plan) {
   }
 
   lines.push("", "## Session Link Queue", "");
-  lines.push("| File | Type | Date | Reason |");
-  lines.push("| --- | --- | --- | --- |");
+  lines.push("| File | Type | Type % | Group % | Understanding % | Date | Reason |");
+  lines.push("| --- | --- | ---: | ---: | ---: | --- | --- |");
   for (const item of plan.session_link_queue || []) {
-    lines.push(`| ${String(item.preferred_drive_name || item.original_name || "").replaceAll("|", "\\|")} | ${item.inferred_session_type || ""} | ${item.inferred_date || ""} | ${item.reason} |`);
+    lines.push(`| ${String(item.preferred_drive_name || item.original_name || "").replaceAll("|", "\\|")} | ${item.inferred_session_type || ""} | ${item.type_confidence_pct || 0}% | ${item.group_confidence_pct || 0}% | ${item.understanding_confidence_pct || 0}% | ${item.inferred_date || ""} | ${item.reason} |`);
   }
 
   lines.push("", "## Manual Review Queue", "");
-  lines.push("| File | Proposed type | Date | Reasons |");
-  lines.push("| --- | --- | --- | --- |");
+  lines.push("| File | Proposed type | Type % | Group % | Understanding % | Date | Reasons |");
+  lines.push("| --- | --- | ---: | ---: | ---: | --- | --- |");
   for (const item of plan.manual_review_queue || []) {
-    lines.push(`| ${String(item.preferred_drive_name || item.original_name || "").replaceAll("|", "\\|")} | ${item.inferred_session_type || ""} | ${item.inferred_date || ""} | ${String((item.manual_review_reasons || []).join(", ")).replaceAll("|", "\\|")} |`);
+    lines.push(`| ${String(item.preferred_drive_name || item.original_name || "").replaceAll("|", "\\|")} | ${item.inferred_session_type || ""} | ${item.type_confidence_pct || 0}% | ${item.group_confidence_pct || 0}% | ${item.understanding_confidence_pct || 0}% | ${item.inferred_date || ""} | ${String((item.manual_review_reasons || []).join(", ")).replaceAll("|", "\\|")} |`);
   }
 
   return lines.join("\n");

@@ -9,6 +9,8 @@ const DEFAULT_POLICY_PATH = path.join(ROOT, "cohort-data", "policies", "transcri
 const DEFAULT_OUT_DIR = path.join(ROOT, "cohort-data", ".private", "transcript-vault");
 const PRIMARY_TAB = "May 18 Start";
 const DEFAULT_YEAR = 2026;
+const COHORT_START_DATE = "2026-05-18";
+const COHORT_END_DATE = "2026-07-25";
 const DAY_COLUMNS = [
   { index: 2, offset: 0 },
   { index: 3, offset: 1 },
@@ -96,6 +98,15 @@ const SESSION_TYPE_TOKENS = {
   planning_strategy: ["planning", "strategy", "governance", "ops", "fundraising", "data", "room"],
 };
 
+const SOURCE_CONFIDENCE_PCT = {
+  high: 92,
+  moderate: 76,
+  medium: 76,
+  low: 52,
+  none: 0,
+  unknown: 35,
+};
+
 function usage() {
   return [
     "Usage:",
@@ -165,6 +176,221 @@ function tokenize(value) {
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function isWithinCohortDate(date) {
+  return Boolean(date && date >= COHORT_START_DATE && date <= COHORT_END_DATE);
+}
+
+function clampPercent(value, min = 0, max = 100) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return min;
+  return Math.max(min, Math.min(max, Math.round(number)));
+}
+
+function confidencePctForLabel(label) {
+  return SOURCE_CONFIDENCE_PCT[String(label || "").toLowerCase()] ?? SOURCE_CONFIDENCE_PCT.unknown;
+}
+
+function confidenceLabelForPct(percent) {
+  if (percent >= 85) return "high";
+  if (percent >= 70) return "moderate";
+  if (percent > 0) return "low";
+  return "none";
+}
+
+function calendarConfidencePct(match = {}) {
+  const score = Number(match.score || 0);
+  switch (match.status) {
+    case "matched":
+      return clampPercent((match.confidence === "high" ? 82 : 70) + Math.min(14, Math.floor(score / 6)), 70, 96);
+    case "date_only":
+      return clampPercent(48 + Math.min(12, Math.floor(score / 5)), 45, 62);
+    case "title_only_candidate":
+      return clampPercent(45 + Math.min(12, Math.floor(score / 6)), 42, 58);
+    case "date_conflict_title_candidate":
+      return 35;
+    case "no_calendar_block":
+      return 25;
+    case "unknown_date":
+      return 20;
+    default:
+      return 20;
+  }
+}
+
+function sourceConfidencePct(sourceInfo = {}) {
+  return confidencePctForLabel(sourceInfo.confidence);
+}
+
+function hasTypeMarker(name, sessionType) {
+  if (!sessionType) return false;
+  const escaped = String(sessionType).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(String(name || ""));
+}
+
+function includesAnyToken(value, tokens) {
+  const normalized = normalizeText(value);
+  return (tokens || []).some((token) => normalized.includes(normalizeText(token)));
+}
+
+function importantReviewReasons(reasons = []) {
+  return (reasons || []).filter((reason) => ![
+    "drive_copy_prefix_stripped_in_manifest",
+    "visibility_not_labeled_in_filename",
+  ].includes(reason));
+}
+
+export function confidenceAssessmentForFile({
+  file,
+  sessionType,
+  driveRoute,
+  calendarMatch,
+  sourceInfo,
+  manualReviewReasons = [],
+  visibility,
+} = {}) {
+  if (!sessionType) {
+    return {
+      schema_version: 1,
+      type_pct: 0,
+      group_pct: 0,
+      understanding_pct: 0,
+      calendar_pct: calendarConfidencePct(calendarMatch),
+      source_pct: sourceConfidencePct(sourceInfo),
+      label: "none",
+      basis: {
+        type: ["non-transcript/index source"],
+        group: ["no transcript route"],
+        understanding: ["no transcript understanding produced"],
+      },
+    };
+  }
+
+  const sourceName = `${file?.original_name || ""} ${file?.canonical_name || ""}`;
+  const typeTokens = SESSION_TYPE_TOKENS[sessionType] || [];
+  const reviewReasons = importantReviewReasons(manualReviewReasons);
+  const typeBasis = [];
+  const groupBasis = [];
+  const understandingBasis = [];
+
+  let typeScore = 55;
+  if (hasTypeMarker(`${sourceName} ${file?.preferred_drive_name || ""}`, sessionType)) {
+    typeScore += 22;
+    typeBasis.push("explicit type marker");
+  } else if (includesAnyToken(sourceName, typeTokens)) {
+    typeScore += 14;
+    typeBasis.push("type keyword match");
+  } else {
+    typeScore -= 6;
+    typeBasis.push("weak title cues");
+  }
+
+  if (driveRoute?.path && String(driveRoute.path).includes(sessionType)) {
+    typeScore += 8;
+    typeBasis.push("route agrees with type");
+  }
+
+  const calendarPct = calendarConfidencePct(calendarMatch);
+  if (calendarMatch?.status === "matched") {
+    typeScore += 16;
+    typeBasis.push("calendar matched");
+  } else if (calendarMatch?.status === "date_only") {
+    typeScore -= 8;
+    typeBasis.push("date-only calendar match");
+  } else if (calendarMatch?.status === "title_only_candidate") {
+    typeScore -= 6;
+    typeBasis.push("title-only calendar candidate");
+  } else if (calendarMatch?.status === "date_conflict_title_candidate") {
+    typeScore -= 20;
+    typeBasis.push("calendar date conflict");
+  } else if (["unknown_date", "no_calendar_block"].includes(calendarMatch?.status)) {
+    typeScore -= 16;
+    typeBasis.push("calendar unresolved");
+  }
+
+  const calendarScore = Number(calendarMatch?.score || 0);
+  if (calendarScore >= 55) {
+    typeScore += 6;
+    typeBasis.push("strong calendar token score");
+  } else if (calendarScore >= 40) {
+    typeScore += 3;
+    typeBasis.push("moderate calendar token score");
+  }
+
+  if (!reviewReasons.length) {
+    typeScore += 5;
+    typeBasis.push("no manual type hold");
+  } else if (reviewReasons.some((reason) => /ambiguous|conflict|unknown|title_only|date_only|missing/i.test(reason))) {
+    typeScore -= 6;
+    typeBasis.push("manual review reason present");
+  }
+
+  const typePct = clampPercent(typeScore, 35, 96);
+
+  let groupScore = Math.round(typePct * 0.72) + 12;
+  if (driveRoute?.path && String(driveRoute.path).includes(sessionType)) {
+    groupScore += 10;
+    groupBasis.push("Drive route matches inferred type");
+  } else if (driveRoute?.path === "needs_calendar_match") {
+    groupScore -= 18;
+    groupBasis.push("held for calendar route");
+  } else {
+    groupScore -= 4;
+    groupBasis.push("route/type agreement is indirect");
+  }
+  if (
+    ["private_1on1", "planning_strategy"].includes(sessionType)
+    && String(driveRoute?.path || "").startsWith("do_not_publish")
+  ) {
+    groupScore += 8;
+    groupBasis.push("restrictive private route selected");
+  }
+  if (calendarMatch?.status === "matched") groupScore += 8;
+  else groupScore -= 6;
+  if (visibility === "public" && String(driveRoute?.path || "").startsWith("do_not_publish")) {
+    groupScore -= 12;
+    groupBasis.push("public label conflicts with private route");
+  }
+  if (reviewReasons.length) groupScore -= 7;
+  const groupPct = clampPercent(groupScore, 30, 97);
+
+  const sourcePct = sourceConfidencePct(sourceInfo);
+  let understandingScore = Math.round((typePct * 0.35) + (groupPct * 0.25) + (calendarPct * 0.25) + (sourcePct * 0.15));
+  understandingBasis.push(`${calendarPct}% calendar confidence`);
+  understandingBasis.push(`${sourcePct}% source-system confidence`);
+  if (reviewReasons.length) {
+    understandingScore -= 8;
+    understandingBasis.push("manual review still required");
+  }
+  if (sourceInfo?.source_system === "ambiguous") {
+    understandingScore -= 6;
+    understandingBasis.push("ambiguous source-system markers");
+  }
+  const understandingPct = clampPercent(understandingScore, 25, 96);
+
+  return {
+    schema_version: 1,
+    type_pct: typePct,
+    group_pct: groupPct,
+    understanding_pct: understandingPct,
+    calendar_pct: calendarPct,
+    source_pct: sourcePct,
+    label: confidenceLabelForPct(understandingPct),
+    basis: {
+      type: unique(typeBasis).slice(0, 5),
+      group: unique(groupBasis).slice(0, 5),
+      understanding: unique(understandingBasis).slice(0, 5),
+    },
+  };
+}
+
+function averagePct(items, key) {
+  const values = (items || [])
+    .map((item) => Number(item?.[key]))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  if (!values.length) return 0;
+  return clampPercent(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
 function excerpt(value, maxLength = 180) {
@@ -246,8 +472,8 @@ export function canonicalTranscriptName({
 export function driveRouteForSessionType(policy, sessionType) {
   const routes = policy?.drive_vault?.folder_routes || {};
   return routes[sessionType] || routes.unknown || {
-    path: "30_needs_calendar_match",
-    derived_path: "30_needs_calendar_match",
+    path: "needs_calendar_match",
+    derived_path: "needs_calendar_match",
     access_note: "Hold until type, date, and audience are reviewed.",
   };
 }
@@ -350,6 +576,29 @@ export function matchCalendarForFile(file, blocksByDate) {
   const dateInfo = inferDateFromName(file.canonical_name || file.name);
   const titleCandidate = nameTokens.length ? bestTitleMatch(nameTokens, blocksByDate) : null;
   const titleCandidateStrong = titleCandidate && titleCandidate.score >= 42;
+
+  if (
+    dateInfo.date
+    && !isWithinCohortDate(dateInfo.date)
+    && titleCandidateStrong
+    && isWithinCohortDate(titleCandidate.date)
+  ) {
+    return {
+      status: "matched",
+      confidence: titleCandidate.score >= 55 ? "high" : "moderate",
+      inferred_date: titleCandidate.date,
+      date_source: "calendar-title-correction",
+      original_inferred_date: dateInfo.date,
+      original_date_source: dateInfo.source,
+      date_correction: {
+        from: dateInfo.date,
+        to: titleCandidate.date,
+        reason: "filename_date_outside_cohort_but_title_matches_calendar",
+      },
+      candidate: titleCandidate,
+      ...titleCandidate,
+    };
+  }
 
   if (dateInfo.date) {
     const blocks = blocksByDate.get(dateInfo.date) || [];
@@ -521,20 +770,24 @@ export function inferTranscriptSourceSystem(file = {}) {
   const hasOtter = signals.some((signal) => signal.includes("otter"));
   const hasMeet = signals.some((signal) => signal.includes("google_meet"));
   if (hasOtter && !hasMeet) {
+    const confidence = signals.includes("explicit_otter_source") ? "high" : "moderate";
     return {
       source_system: "otter",
       provider: "otter",
       source_kind: inferOtterSourceKind(file),
-      confidence: signals.includes("explicit_otter_source") ? "high" : "moderate",
+      confidence,
+      confidence_pct: confidencePctForLabel(confidence),
       signals: unique(signals),
     };
   }
   if (hasMeet && !hasOtter) {
+    const confidence = signals.includes("explicit_google_meet_source") ? "high" : "moderate";
     return {
       source_system: "google_meet",
       provider: "google_meet",
       source_kind: inferMeetSourceKind(file),
-      confidence: signals.includes("explicit_google_meet_source") ? "high" : "moderate",
+      confidence,
+      confidence_pct: confidencePctForLabel(confidence),
       signals: unique(signals),
     };
   }
@@ -544,6 +797,7 @@ export function inferTranscriptSourceSystem(file = {}) {
       provider: "manual",
       source_kind: "drive_doc",
       confidence: "low",
+      confidence_pct: confidencePctForLabel("low"),
       signals: unique(signals),
     };
   }
@@ -552,6 +806,7 @@ export function inferTranscriptSourceSystem(file = {}) {
     provider: "manual",
     source_kind: "drive_doc",
     confidence: "low",
+    confidence_pct: confidencePctForLabel("low"),
     signals: [],
   };
 }
@@ -676,6 +931,27 @@ export function buildTranscriptVaultImportPlan({
         })
       : null;
     const drive_route = driveRouteForSessionType(policy, sessionType || "unknown");
+    const manualReviewReasons = reviewReasons({
+      file,
+      sessionType,
+      visibility,
+      routing,
+      calendarMatch,
+    });
+    const confidence = confidenceAssessmentForFile({
+      file: { ...file, preferred_drive_name },
+      sessionType,
+      visibility,
+      routing,
+      driveRoute: drive_route,
+      calendarMatch,
+      sourceInfo,
+      manualReviewReasons,
+    });
+    const calendarMatchWithConfidence = {
+      ...calendarMatch,
+      confidence_pct: confidence.calendar_pct,
+    };
     const sourceArtifact = sessionType
       ? {
           kind: sourceInfo.source_kind,
@@ -689,16 +965,17 @@ export function buildTranscriptVaultImportPlan({
           source_system: sourceInfo.source_system,
           source_provider: sourceInfo.provider,
           source_confidence: sourceInfo.confidence,
+          source_confidence_pct: confidence.source_pct,
           source_signals: sourceInfo.signals,
+          inferred_session_type: sessionType,
+          inferred_date: calendarMatch.inferred_date,
+          target_drive_route: drive_route.path,
+          type_confidence_pct: confidence.type_pct,
+          group_confidence_pct: confidence.group_pct,
+          understanding_confidence_pct: confidence.understanding_pct,
+          confidence_assessment: confidence,
         }
       : null;
-    const manualReviewReasons = reviewReasons({
-      file,
-      sessionType,
-      visibility,
-      routing,
-      calendarMatch,
-    });
 
     return {
       ...file,
@@ -712,11 +989,16 @@ export function buildTranscriptVaultImportPlan({
         ? preferredNameMatches(file.original_name, preferred_drive_name)
         : false,
       drive_route,
-      calendar_match: calendarMatch,
+      calendar_match: calendarMatchWithConfidence,
       source_system: sourceInfo.source_system,
       source_provider: sourceInfo.provider,
       source_confidence: sourceInfo.confidence,
+      source_confidence_pct: confidence.source_pct,
       source_signals: sourceInfo.signals,
+      type_confidence_pct: confidence.type_pct,
+      group_confidence_pct: confidence.group_pct,
+      understanding_confidence_pct: confidence.understanding_pct,
+      classification_confidence: confidence,
       source_artifact_manifest: sourceArtifact,
       manual_review_reasons: manualReviewReasons,
       needs_manual_review: manualReviewReasons.some((reason) => ![
@@ -750,6 +1032,14 @@ export function buildTranscriptVaultImportPlan({
     by_source_system: countBy(plannedFiles, (file) => file.source_system || "none"),
     by_source_kind: countBy(sourceArtifacts, (artifact) => artifact.source_kind || "none"),
     rename_recommended: plannedFiles.filter((file) => file.preferred_drive_name && !file.preferred_name_matches).length,
+    confidence_summary: {
+      avg_type_confidence_pct: averagePct(plannedFiles, "type_confidence_pct"),
+      avg_group_confidence_pct: averagePct(plannedFiles, "group_confidence_pct"),
+      avg_understanding_confidence_pct: averagePct(plannedFiles, "understanding_confidence_pct"),
+      type_below_70: plannedFiles.filter((file) => Number(file.type_confidence_pct || 0) > 0 && Number(file.type_confidence_pct) < 70).length,
+      group_below_70: plannedFiles.filter((file) => Number(file.group_confidence_pct || 0) > 0 && Number(file.group_confidence_pct) < 70).length,
+      understanding_below_70: plannedFiles.filter((file) => Number(file.understanding_confidence_pct || 0) > 0 && Number(file.understanding_confidence_pct) < 70).length,
+    },
   };
 
   return {
@@ -771,6 +1061,7 @@ export function buildTranscriptVaultImportPlan({
       shared_drive_name: policy?.drive_vault?.shared_drive_name || "Shape Rotator Transcript Vault",
       admin_role: policy?.drive_vault?.admin_role || "manager",
       admins: policy?.drive_vault?.admins || [],
+      root_folders: policy?.drive_vault?.root_folders || {},
     },
     counts,
     files: plannedFiles,
@@ -801,6 +1092,9 @@ export function renderMarkdownSummary(plan) {
     `- Private-labeled files: ${plan.counts.private_labeled}`,
     `- Unlabeled files defaulted private: ${plan.counts.unlabeled_private_default}`,
     `- Rename recommended: ${plan.counts.rename_recommended}`,
+    `- Avg type confidence: ${plan.counts.confidence_summary?.avg_type_confidence_pct || 0}%`,
+    `- Avg group confidence: ${plan.counts.confidence_summary?.avg_group_confidence_pct || 0}%`,
+    `- Avg understanding confidence: ${plan.counts.confidence_summary?.avg_understanding_confidence_pct || 0}%`,
     "",
     "## Calendar Status",
     "",
@@ -821,11 +1115,11 @@ export function renderMarkdownSummary(plan) {
     lines.push(`- ${admin.name}: ${admin.email}`);
   }
   lines.push("", "## Manual Review Queue", "");
-  lines.push("| Date | Type | Calendar | File | Preferred name | Drive route | Reasons |");
-  lines.push("| --- | --- | --- | --- | --- | --- | --- |");
+  lines.push("| Date | Type | Type % | Group % | Understanding % | Calendar | File | Preferred name | Drive route | Reasons |");
+  lines.push("| --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- |");
   for (const file of plan.files.filter((item) => item.needs_manual_review)) {
     lines.push(
-      `| ${file.inferred_date || ""} | ${file.inferred_session_type || "index"} | ${file.calendar_match.status} | ${file.canonical_name.replaceAll("|", "\\|")} | ${(file.preferred_drive_name || "").replaceAll("|", "\\|")} | ${(file.drive_route?.path || "").replaceAll("|", "\\|")} | ${file.manual_review_reasons.join(", ").replaceAll("|", "\\|")} |`,
+      `| ${file.inferred_date || ""} | ${file.inferred_session_type || "index"} | ${file.type_confidence_pct || 0}% | ${file.group_confidence_pct || 0}% | ${file.understanding_confidence_pct || 0}% | ${file.calendar_match.status} | ${file.canonical_name.replaceAll("|", "\\|")} | ${(file.preferred_drive_name || "").replaceAll("|", "\\|")} | ${(file.drive_route?.path || "").replaceAll("|", "\\|")} | ${file.manual_review_reasons.join(", ").replaceAll("|", "\\|")} |`,
     );
   }
   return lines.join("\n");

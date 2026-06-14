@@ -191,7 +191,7 @@ Lessons worth copying:
 ## Recommended Workflow
 
 1. Inventory the source.
-   Record `vault_id`, date, calendar match, session type, attendees if known, consent tier, and whether external speakers appear.
+   Check the calendar first, then record `vault_id`, confirmed date, calendar match, session type, project/topic basis, attendees if known, consent tier, and whether external speakers appear.
 
 2. Classify sensitivity before summarizing.
    Mark sections as public-safe, cohort-internal, speaker-pending, or hold. If the source contains dense private critique, skip excerpting and produce only a readout.
@@ -213,14 +213,30 @@ Lessons worth copying:
 
 ## Vault Naming And Drive Routes
 
-Canonical transcript files should be named:
+Drive is the raw/source vault for recordings, transcripts, and routing evidence.
+Supabase is the canonical distillation layer: `source_artifacts`,
+`processing_jobs`, `derived_artifacts`, reviews, approval gates, and app-safe
+views/bundles live there. The Drive `operator_review_exports` folder is only an
+optional operator export or review mirror, not the system of record for
+distillation. Drive folder names should be plain semantic names. Do not use
+numeric lifecycle prefixes in folder names; lifecycle order belongs in the
+policy and index.
+
+Always match the transcript to a calendar event before assigning the final type,
+project/topic slug, date, route, or processing queue. A confident calendar match
+can confirm the file; a conflict or missing match sends the file to
+`needs_calendar_match` for human review.
+
+All transcript source files should use this preferred naming convention:
 
 ```text
 type_project-name_YYYY-MM-DD.ext
 ```
 
-This is the operational form of `type_project_name_date`. The type prefix must
-be one of:
+This is the operational form of `type_project_name_date`. Use underscores
+between the main components; use hyphens inside the `project-name` component.
+The date must be the confirmed calendar/session date. Preserve the source
+extension unless conversion is deliberate. The type prefix must be one of:
 
 - `weekly_standup`
 - `office_hours`
@@ -231,6 +247,35 @@ be one of:
 - `user_interview`
 - `planning_strategy`
 
+The primary cohort event types are:
+
+| type | event basis |
+|---|---|
+| `weekly_standup` | individual based |
+| `office_hours` | project core team or product based |
+| `salon` | topic based |
+| `rd_jam` | product or technical idea based |
+| `demo_presentation` | project or product based |
+
+Restricted/special types still exist because they appear in real source
+handling: `private_1on1`, `user_interview`, and `planning_strategy`.
+
+Use these manual checks when the transcript title and calendar title are messy:
+
+| if the calendar/transcript shows | classify as | not as |
+|---|---|---|
+| recurring WDYDLW, status update, individual progress, or coordinator check-in by person | `weekly_standup` | `office_hours` |
+| project support, product feedback, roadmap critique, milestone review, or core-team implementation help | `office_hours` | `rd_jam` |
+| open-ended whiteboarding, architecture exploration, product/technical hypothesis testing, or idea-stage workshop | `rd_jam` | `office_hours` |
+| topic-led discussion, speaker-led room, or salon-style session not centered on one team's operating work | `salon` | `office_hours` |
+| prepared project/product demo, presentation, intro, showcase, or presenter-owned material | `demo_presentation` | `salon` |
+| external customer/user/ICP subject whose participation is research evidence | `user_interview` | `office_hours` |
+| governance, fundraising, internal planning, access policy, or coordinator strategy | `planning_strategy` | `office_hours` |
+
+If two categories seem plausible, use the calendar event as the first anchor.
+If the calendar is ambiguous, choose the more restrictive route and put the file
+in `needs_calendar_match`.
+
 Examples:
 
 - `weekly_standup_shaw_2026-06-08.txt`
@@ -239,18 +284,27 @@ Examples:
 - `salon_info-markets-design_2026-06-09.txt`
 - `demo_presentation_elocute_2026-05-26.txt`
 
-The Drive vault should route raw files by type before review:
+Bad/good pairs:
 
-| type | raw Drive route | rule |
-|---|---|---|
-| `weekly_standup` | `10_raw_transcripts_T0/weekly_standup` | individual detail stays room/core; only aggregate signal reaches cohort |
-| `office_hours` | `10_raw_transcripts_T0/office_hours` | project/core team by default; reviewed cohort readout allowed |
-| `private_1on1` | `90_do_not_publish/private_1on1` | Tina/Andrew/private 1:1, coordinator feedback, and sensitive coaching stay T1; no cohort or public artifact |
-| `salon` | `10_raw_transcripts_T0/salon` | public candidate only after editorial, speaker, and named-person passes |
-| `rd_jam` | `10_raw_transcripts_T0/rd_jam` | cohort only after team call; never public by default |
-| `demo_presentation` | `10_raw_transcripts_T0/demo_presentation` | presenter owns material; public candidate requires presenter approval |
-| `user_interview` | `10_raw_transcripts_T0/user_interview` | core-only raw; aggregate insights may travel |
-| `planning_strategy` | `90_do_not_publish/planning_strategy` | coordinator/core only; never cohort or public |
+| bad | good |
+|---|---|
+| `Conclave office hours final.txt` | `office_hours_conclave_2026-06-10.txt` |
+| `Copy of Product Whiteboarding Jam Jun 9.txt` | `rd_jam_product-whiteboarding_2026-06-09.txt` |
+| `WDYDLW Shaw notes latest.md` | `weekly_standup_shaw_2026-06-08.md` |
+| `Project intros & workflow.txt` | `demo_presentation_project-intros-workflow_2026-05-19.txt` |
+
+The Drive vault should route raw source files by type after the calendar check:
+
+| type | raw Drive route | cohort rule | public rule |
+|---|---|---|---|
+| `weekly_standup` | `raw_transcripts/weekly_standup` | individual detail stays room/core; only aggregate signal reaches cohort | never public |
+| `office_hours` | `raw_transcripts/office_hours` | project/core team by default; reviewed cohort readout allowed | not public by default |
+| `salon` | `raw_transcripts/salon` | reviewed cohort readout allowed | public candidate only after editorial, speaker, and named-person passes |
+| `rd_jam` | `raw_transcripts/rd_jam` | cohort only after team call and hard distillation | never public by default |
+| `demo_presentation` | `raw_transcripts/demo_presentation` | reviewed cohort readout allowed | public candidate requires presenter approval plus editorial and named-person passes |
+| `private_1on1` | `do_not_publish/private_1on1` | no cohort artifact | never public |
+| `user_interview` | `raw_transcripts/user_interview` | only aggregate insights may travel | interview itself never widens |
+| `planning_strategy` | `do_not_publish/planning_strategy` | coordinator/core only | never public |
 
 Drive admins/managers for the transcript vault are Tina, Andrew, Dmarz, Michael,
 Fred, and Albi. Their email targets are supplied through private operator env,
@@ -260,8 +314,8 @@ not committed defaults.
 
 The production path must not depend on Michael's laptop. Local commands are
 debug harnesses; the durable path is Google Drive as the private source vault,
-Supabase as the job/database layer, and a deployed Supabase Edge Function as the
-worker.
+Supabase as the distillation system of record, and a deployed Supabase Edge
+Function as the worker.
 
 The current operator sequence is:
 
@@ -310,8 +364,9 @@ npm run artifacts:worker -- --supabase-url "$SUPABASE_URL" --service-role-key "$
 
 The vault command turns the private Drive inventory into external T0 refs,
 preferred filenames, policy routes, and a manual-review queue. The Drive plan is
-a dry run for folder ensures, manager grants, renames, and moves. The Supabase
-bridge plan is also dry run: it emits apply-ready `sourceArtifacts`,
+a dry run for folder ensures, manager grants, renames, and moves; it is not the
+distillation state machine. The Supabase bridge plan is also dry run: it emits
+apply-ready `sourceArtifacts`,
 `ingestionEvents`, and `processingJobs` only when a matched transcript has a
 resolved high-confidence `session_id`; otherwise it places the transcript in a
 session-link or manual-review queue. The session-map step reads Supabase
@@ -323,6 +378,11 @@ fetches the private Google Drive source in memory, writes `needs_review`
 derived artifacts, creates public approval gates when policy allows T3, and
 marks the job/session state. The function response returns counts, IDs, hashes,
 sizes, and MIME types only, never raw transcript text or draft prose.
+
+The cohort lane should move quickly: a gated T2 readout is the fast lane and
+should normally ship within roughly 48 hours of the session when the policy
+allows it. T3 publication is a separate later step requiring the relevant
+consent, editorial, speaker/presenter, and named-person gates.
 
 After the worker writes `derived_artifacts`, export only reviewed app-safe rows
 by default:

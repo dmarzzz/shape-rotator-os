@@ -2,6 +2,7 @@ import { DEFAULT_ROUTING_POLICY, policyDecisionForSession } from "../_shared/cal
 import { bearerToken, requireOrgRole } from "../_shared/auth.ts";
 import { corsHeaders, errorResponse, jsonResponse, optionalEnv, readJson, requiredEnv } from "../_shared/http.ts";
 import { supabaseRest, supabaseRpc, upsertRows } from "../_shared/supabase_rest.ts";
+import { assertTranscriptSurfaceSafe } from "../_shared/transcript_safety.ts";
 
 const TEXT_SOURCE_KINDS = new Set([
   "manual_upload",
@@ -225,6 +226,17 @@ function wordCount(text: string) {
   return matches ? matches.length : 0;
 }
 
+function fallbackTopic() {
+  return { key: "general_session_context", label: "general session context requiring human review" };
+}
+
+function cardTitleForTopic(label: string) {
+  return String(label || "session evidence")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (ch) => ch.toUpperCase());
+}
+
 function distillTranscriptText(text: string, {
   mode,
   title,
@@ -235,6 +247,7 @@ function distillTranscriptText(text: string, {
   sessionType?: string;
 } = {}) {
   const topics = detectedTopics(text);
+  const candidateTopics = topics.length ? topics : [fallbackTopic()];
   const topicLabels = topics.map((topic) => topic.label);
   const scopedTitle = String(title || "this session").trim();
   const scope = mode === "aggregate_only"
@@ -245,11 +258,34 @@ function distillTranscriptText(text: string, {
     : "general session context requiring human review";
   return {
     summary: [
-      `${scopedTitle} produced a ${scope} across: ${detected}.`,
-      "The cloud worker intentionally stored an abstract draft, not transcript sentences; a reviewer must turn this into evidence cards before cohort or public use.",
+      `${scopedTitle} produced ${candidateTopics.length} reviewer candidate${candidateTopics.length === 1 ? "" : "s"} for ${scope}: ${detected}.`,
+      "The worker stored topic-level synthesis only; a reviewer must verify claims against the private source before cohort or public use.",
       `Source size signal: about ${wordCount(text)} redacted word-like tokens were processed inside the worker.`,
     ],
     themes: topicLabels,
+    reviewer_candidates: candidateTopics.slice(0, 8).map((topic, index) => {
+      const attributionScope = mode === "aggregate_only" ? "aggregate" : "room";
+      const evidenceLevel = mode === "aggregate_only" ? "aggregate" : "inferred";
+      return {
+        claim_type: "insight",
+        title: cardTitleForTopic(topic.label),
+        claim_text: `${scopedTitle} appears to contain a reviewed ${attributionScope} signal about ${topic.label}. Verify this against the private transcript before using it as evidence.`,
+        summary: `${topic.label} surfaced as a candidate reviewed signal.`,
+        evidence_level: evidenceLevel,
+        confidence: Math.max(0.5, 0.68 - index * 0.03),
+        attribution_scope: attributionScope,
+        surface_tier: mode === "aggregate_only" ? "T2" : "T2",
+        source_boundary: "derived_only",
+        review_prompt: `Confirm whether the private source supports this ${evidenceLevel} claim without copying speaker turns.`,
+        content_json: {
+          topic_key: topic.key,
+          topic_label: topic.label,
+          routing_mode: mode || "distilled_readout",
+          source_basis: "redacted topic detector",
+          raw_allowed: false,
+        },
+      };
+    }),
     action_items: [
       "Review the private transcript against Tina's routing policy before changing this artifact from needs_review.",
       "Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.",
@@ -266,6 +302,36 @@ function distillTranscriptText(text: string, {
       "Raw transcript text was processed inside the transcript worker and was not returned in the API response.",
       "The stored draft contains topic-level synthesis only; transcript sentences, timestamps, and raw speaker turns are intentionally excluded.",
       "This deterministic draft remains needs_review until a human creates or approves evidence cards.",
+    ],
+  };
+}
+
+function publicDistillationFor(distillation: ReturnType<typeof distillTranscriptText>) {
+  return {
+    summary: (distillation.summary || []).slice(0, 2),
+    themes: distillation.themes || [],
+    reviewer_candidates: (distillation.reviewer_candidates || []).map((candidate) => ({
+      claim_type: "insight",
+      title: String(candidate.title || "General public insight"),
+      claim_text: String(candidate.summary || candidate.claim_text || "Generalized no-name insight candidate."),
+      summary: String(candidate.summary || candidate.claim_text || "Generalized no-name insight candidate."),
+      evidence_level: "inferred",
+      confidence: candidate.confidence,
+      attribution_scope: "anonymous_public",
+      surface_tier: "T3",
+      source_boundary: "derived_only",
+      public_anonymous: true,
+      public_article_mode: "generalized_no_named_insights",
+      content_json: {
+        topic_key: candidate.content_json?.topic_key || null,
+        topic_label: candidate.content_json?.topic_label || candidate.title || null,
+        article_mode: "generalized_no_named_insights",
+        raw_allowed: false,
+      },
+    })),
+    public_notes: [
+      "Generalized no-name public candidate.",
+      "Publish only after every approval gate is cleared.",
     ],
   };
 }
@@ -294,10 +360,20 @@ function renderDerivedMarkdown({
   session,
   decision,
   distillation,
+  publicSurface = false,
 }: {
   session: Record<string, unknown>;
   decision: ReturnType<typeof policyDecisionForSession>;
-  distillation: ReturnType<typeof distillTranscriptText>;
+  distillation: {
+    summary?: string[];
+    themes?: string[];
+    reviewer_candidates?: Array<Record<string, unknown>>;
+    action_items?: string[];
+    open_questions?: string[];
+    redaction_notes?: string[];
+    public_notes?: string[];
+  };
+  publicSurface?: boolean;
 }) {
   const title = String(session.public_title || session.title || decision.label || "Session readout");
   const lines = [`# ${title}`, ""];
@@ -311,6 +387,12 @@ function renderDerivedMarkdown({
     lines.push("", "## Detected Themes");
     for (const item of distillation.themes) lines.push(`- ${item}`);
   }
+  if (distillation.reviewer_candidates?.length) {
+    lines.push("", "## Reviewer Candidates");
+    for (const item of distillation.reviewer_candidates) {
+      lines.push(`- ${String(item.claim_text || item.summary || item.title || "").trim()}`);
+    }
+  }
   if (distillation.action_items?.length) {
     lines.push("", "## Action Items");
     for (const item of distillation.action_items) lines.push(`- ${item}`);
@@ -319,8 +401,9 @@ function renderDerivedMarkdown({
     lines.push("", "## Open Questions");
     for (const item of distillation.open_questions) lines.push(`- ${item}`);
   }
-  lines.push("", "## Handling");
-  for (const item of distillation.redaction_notes || []) lines.push(`- ${item}`);
+  lines.push("", publicSurface ? "## Publication Boundary" : "## Handling");
+  const notes = publicSurface ? distillation.public_notes || [] : distillation.redaction_notes || [];
+  for (const item of notes) lines.push(`- ${item}`);
   return lines.join("\n");
 }
 
@@ -346,6 +429,7 @@ async function buildDerivedRows({
     title: String(session.public_title || session.title || decision.label || "Session readout"),
     sessionType: decision.session_type,
   });
+  const publicDistillation = publicDistillationFor(distillation);
   const readoutId = await stableUuid(`transcript-worker:readout:${processingJob.id}:${sourceArtifact.id}`);
   const publicId = await stableUuid(`transcript-worker:public:${processingJob.id}:${sourceArtifact.id}`);
   const readout = {
@@ -366,32 +450,33 @@ async function buildDerivedRows({
       session_type: decision.session_type,
       max_tier: decision.max_tier,
       cohort_mode: decision.cohort_mode,
+      confidence_pct: 65,
+      confidence_basis: [
+        "deterministic cloud worker distillation",
+        "review required before cohort/public promotion",
+      ],
       distillation,
     },
     content_md: renderDerivedMarkdown({ session, decision, distillation }),
   };
   const derivedArtifacts = [readout];
   const approvalGates = [];
-  const evidenceCards = [
-    ...(distillation.summary || []),
-    ...(distillation.action_items || []),
-    ...(distillation.open_questions || []),
-  ].slice(0, 12).map(async (text, index) => ({
+  const evidenceCards = (distillation.reviewer_candidates || []).slice(0, 12).map(async (candidate, index) => ({
     id: await stableUuid(`transcript-worker:evidence:${readout.id}:${index + 1}`),
     org_id: orgId,
     session_id: readout.session_id,
     derived_artifact_id: readout.id,
     source_artifact_id: readout.source_artifact_id,
     processing_job_id: readout.processing_job_id,
-    claim_type: claimTypeForEvidenceText(text),
-    title: String(session.public_title || session.title || decision.label || "Session evidence"),
-    claim_text: text,
-    summary: index === 0 ? distillation.summary?.[0] || text : null,
-    evidence_level: decision.cohort_mode === "aggregate_only" ? "aggregate" : "inferred",
-    confidence: readout.confidence,
-    attribution_scope: decision.cohort_mode === "aggregate_only" ? "aggregate" : "room",
-    surface_tier: readout.tier,
-    source_boundary: "derived_only",
+    claim_type: String(candidate.claim_type || claimTypeForEvidenceText(String(candidate.claim_text || ""))),
+    title: String(candidate.title || session.public_title || session.title || decision.label || "Session evidence"),
+    claim_text: String(candidate.claim_text || candidate.summary || "Review this candidate against the private source."),
+    summary: candidate.summary ? String(candidate.summary) : null,
+    evidence_level: String(candidate.evidence_level || (decision.cohort_mode === "aggregate_only" ? "aggregate" : "inferred")),
+    confidence: Number(candidate.confidence ?? readout.confidence),
+    attribution_scope: String(candidate.attribution_scope || (decision.cohort_mode === "aggregate_only" ? "aggregate" : "room")),
+    surface_tier: String(candidate.surface_tier || readout.tier),
+    source_boundary: String(candidate.source_boundary || "derived_only"),
     review_status: "needs_review",
     approval_state: "not_required",
     public_anonymous: false,
@@ -400,7 +485,13 @@ async function buildDerivedRows({
       policy_key: decision.policy_key,
       policy_version: decision.policy_version,
       session_type: decision.session_type,
-      source_note: "Generated from abstract worker distillation; reviewer must verify against private source before weekly use.",
+      confidence_pct: Math.round(Number(candidate.confidence ?? readout.confidence) * 100),
+      confidence_basis: [
+        "generated from structured topic-level worker candidate",
+        "reviewer must verify against private source before weekly use",
+      ],
+      review_prompt: candidate.review_prompt || "Verify support against the private source without copying speaker turns.",
+      ...(candidate.content_json && typeof candidate.content_json === "object" ? candidate.content_json : {}),
       raw_allowed: false,
     },
   }));
@@ -413,36 +504,71 @@ async function buildDerivedRows({
       source_transform: "public_edit",
       review_status: "needs_review",
       approval_state: "pending",
-    };
-    derivedArtifacts.push(publicCandidate);
-    evidenceCards.push(...(distillation.summary || []).slice(0, 6).map(async (text, index) => ({
-      id: await stableUuid(`transcript-worker:public-evidence:${publicCandidate.id}:${index + 1}`),
-      org_id: orgId,
-      session_id: publicCandidate.session_id,
-      derived_artifact_id: publicCandidate.id,
-      source_artifact_id: publicCandidate.source_artifact_id,
-      processing_job_id: publicCandidate.processing_job_id,
-      claim_type: "insight",
-      title: "General public insight",
-      claim_text: text,
-      summary: text,
-      evidence_level: "inferred",
-      confidence: publicCandidate.confidence,
-      attribution_scope: "anonymous_public",
-      surface_tier: "T3",
-      source_boundary: "derived_only",
-      review_status: "needs_review",
-      approval_state: "pending",
-      public_anonymous: true,
-      public_article_mode: "generalized_no_named_insights",
       content_json: {
         policy_key: decision.policy_key,
         policy_version: decision.policy_version,
         session_type: decision.session_type,
-        article_mode: "generalized_no_named_insights",
-        raw_allowed: false,
+        max_tier: "T3",
+        cohort_mode: decision.cohort_mode,
+        confidence_pct: 65,
+        confidence_basis: [
+          "deterministic public candidate from structured topic-level distillation",
+          "public use requires approval gates",
+        ],
+        public_article_mode: "generalized_no_named_insights",
+        distillation: publicDistillation,
       },
-    })));
+      content_md: renderDerivedMarkdown({ session, decision, distillation: publicDistillation, publicSurface: true }),
+    };
+    assertTranscriptSurfaceSafe({
+      content_json: publicCandidate.content_json,
+      content_md: publicCandidate.content_md,
+    }, { scope: "public", label: "public candidate" });
+    derivedArtifacts.push(publicCandidate);
+    evidenceCards.push(...(publicDistillation.reviewer_candidates || []).slice(0, 6).map(async (candidate, index) => {
+      const text = String(candidate.claim_text || candidate.summary || "Generalized public insight candidate.");
+      const publicCard = {
+        id: await stableUuid(`transcript-worker:public-evidence:${publicCandidate.id}:${index + 1}`),
+        org_id: orgId,
+        session_id: publicCandidate.session_id,
+        derived_artifact_id: publicCandidate.id,
+        source_artifact_id: publicCandidate.source_artifact_id,
+        processing_job_id: publicCandidate.processing_job_id,
+        claim_type: "insight",
+        title: String(candidate.title || "General public insight"),
+        claim_text: text,
+        summary: String(candidate.summary || text),
+        evidence_level: "inferred",
+        confidence: Number(candidate.confidence ?? publicCandidate.confidence),
+        attribution_scope: "anonymous_public",
+        surface_tier: "T3",
+        source_boundary: "derived_only",
+        review_status: "needs_review",
+        approval_state: "pending",
+        public_anonymous: true,
+        public_article_mode: "generalized_no_named_insights",
+        content_json: {
+          policy_key: decision.policy_key,
+          policy_version: decision.policy_version,
+          session_type: decision.session_type,
+          confidence_pct: 65,
+          confidence_basis: [
+            "generated from abstract worker distillation",
+            "public use requires approval gates",
+          ],
+          article_mode: "generalized_no_named_insights",
+          ...(candidate.content_json && typeof candidate.content_json === "object" ? candidate.content_json : {}),
+          raw_allowed: false,
+        },
+      };
+      assertTranscriptSurfaceSafe({
+        title: publicCard.title,
+        claim_text: publicCard.claim_text,
+        summary: publicCard.summary,
+        content_json: publicCard.content_json,
+      }, { scope: "public", label: "public evidence card" });
+      return publicCard;
+    }));
     for (const gateKey of decision.required_public_approvals || []) {
       approvalGates.push({
         id: await stableUuid(`transcript-worker:gate:${publicId}:${gateKey}`),

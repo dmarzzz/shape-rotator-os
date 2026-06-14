@@ -346,6 +346,7 @@ function captureArtifactToSourceArtifact({ orgId, sessionId, captureArtifact, so
     mime_type: captureArtifact?.mime_type || metadata.mime_type || metadata.mimeType || null,
     size_bytes: captureArtifact?.size_bytes || metadata.size_bytes || metadata.sizeBytes || null,
     raw_available_to_server: !!fetchedRaw,
+    metadata,
   };
 }
 
@@ -492,6 +493,7 @@ function meetArtifactRowsFromManifest({ orgId, sessionId, manifest, fetchedRaw =
     status: item.status || "detected",
     raw_retention_deadline: item.raw_retention_deadline || item.rawRetentionDeadline || manifest.raw_retention_deadline || null,
     metadata: {
+      ...(item.metadata && typeof item.metadata === "object" ? item.metadata : {}),
       index,
       title: item.title || null,
       generated_at: item.generated_at || item.generatedAt || item.createTime || null,
@@ -632,6 +634,7 @@ function manualSourceArtifactRowsFromManifest({ orgId, sessionId, manifest } = {
       mime_type: item.mime_type || item.mimeType || null,
       size_bytes: item.size_bytes || item.sizeBytes || null,
       raw_available_to_server: !!(item.raw_available_to_server || manifest.raw_available_to_server),
+      metadata: item.metadata && typeof item.metadata === "object" ? item.metadata : {},
     };
   });
   const ingestionEvents = sourceArtifacts.map((artifact) => ({
@@ -828,6 +831,11 @@ function buildDerivedArtifactsFromTranscript({ orgId, session, sourceArtifact, p
       session_type: decision.session_type,
       max_tier: decision.max_tier,
       cohort_mode: decision.cohort_mode,
+      confidence_pct: 65,
+      confidence_basis: [
+        "deterministic local distillation",
+        "review required before cohort/public promotion",
+      ],
       distillation,
     },
     content_md: renderDerivedMarkdown({ session, decision, distillation }),

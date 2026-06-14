@@ -39,15 +39,15 @@ const POLICY = {
       { name: "Albi", email: "admin-six@example.com" },
     ],
     folder_routes: {
-      weekly_standup: { path: "10_raw_transcripts_T0/weekly_standup", derived_path: "40_derived_review/weekly_standup" },
-      office_hours: { path: "10_raw_transcripts_T0/office_hours", derived_path: "40_derived_review/office_hours" },
-      private_1on1: { path: "90_do_not_publish/private_1on1", derived_path: "90_do_not_publish/private_1on1" },
-      salon: { path: "10_raw_transcripts_T0/salon", derived_path: "40_derived_review/salon" },
-      rd_jam: { path: "10_raw_transcripts_T0/rd_jam", derived_path: "40_derived_review/rd_jam" },
-      demo_presentation: { path: "10_raw_transcripts_T0/demo_presentation", derived_path: "40_derived_review/demo_presentation" },
-      user_interview: { path: "10_raw_transcripts_T0/user_interview", derived_path: "40_derived_review/user_interview" },
-      planning_strategy: { path: "90_do_not_publish/planning_strategy", derived_path: "90_do_not_publish/planning_strategy" },
-      unknown: { path: "30_needs_calendar_match", derived_path: "30_needs_calendar_match" },
+      weekly_standup: { path: "raw_transcripts/weekly_standup", derived_path: "operator_review_exports/weekly_standup" },
+      office_hours: { path: "raw_transcripts/office_hours", derived_path: "operator_review_exports/office_hours" },
+      private_1on1: { path: "do_not_publish/private_1on1", derived_path: "do_not_publish/private_1on1" },
+      salon: { path: "raw_transcripts/salon", derived_path: "operator_review_exports/salon" },
+      rd_jam: { path: "raw_transcripts/rd_jam", derived_path: "operator_review_exports/rd_jam" },
+      demo_presentation: { path: "raw_transcripts/demo_presentation", derived_path: "operator_review_exports/demo_presentation" },
+      user_interview: { path: "raw_transcripts/user_interview", derived_path: "operator_review_exports/user_interview" },
+      planning_strategy: { path: "do_not_publish/planning_strategy", derived_path: "do_not_publish/planning_strategy" },
+      unknown: { path: "needs_calendar_match", derived_path: "needs_calendar_match" },
     },
   },
   session_types: {
@@ -180,12 +180,12 @@ test("builds preferred transcript names and drive routes from policy", () => {
     }),
     "rd_jam_flashnet-part-2-of-3_2026-05-27.txt",
   );
-  assert.equal(driveRouteForSessionType(POLICY, "planning_strategy").path, "90_do_not_publish/planning_strategy");
-  assert.equal(driveRouteForSessionType(POLICY, "private_1on1").path, "90_do_not_publish/private_1on1");
-  assert.equal(driveRouteForSessionType(POLICY, "salon").path, "10_raw_transcripts_T0/salon");
+  assert.equal(driveRouteForSessionType(POLICY, "planning_strategy").path, "do_not_publish/planning_strategy");
+  assert.equal(driveRouteForSessionType(POLICY, "private_1on1").path, "do_not_publish/private_1on1");
+  assert.equal(driveRouteForSessionType(POLICY, "salon").path, "raw_transcripts/salon");
 });
 
-test("builds external-ref manifest rows and flags calendar conflicts", () => {
+test("builds external-ref manifest rows and corrects outside-cohort filename dates", () => {
   const plan = buildTranscriptVaultImportPlan({
     generatedAt: "2026-06-13T00:00:00.000Z",
     calendar: CALENDAR,
@@ -208,7 +208,7 @@ test("builds external-ref manifest rows and flags calendar conflicts", () => {
 
   assert.equal(plan.counts.total_files, 3);
   assert.equal(plan.counts.transcript_files, 2);
-  assert.equal(plan.counts.matched, 1);
+  assert.equal(plan.counts.matched, 2);
   assert.equal(plan.counts.rename_recommended, 2);
   assert.equal(plan.drive_permissions.admins.find((admin) => admin.name === "Dmarz").email, "admin-three@example.com");
   assert.equal(plan.manual_artifact_manifest.artifacts[0].storage_mode, "external_ref");
@@ -217,18 +217,26 @@ test("builds external-ref manifest rows and flags calendar conflicts", () => {
 
   const wdydlw = plan.files.find((file) => file.drive_file_id === "drive_wdydlw");
   assert.equal(wdydlw.calendar_match.status, "matched");
+  assert.equal(wdydlw.calendar_match.confidence_pct >= 70, true);
   assert.equal(wdydlw.inferred_session_type, "weekly_standup");
   assert.equal(wdydlw.preferred_drive_name, "weekly_standup_shaw_2026-06-08.txt");
-  assert.equal(wdydlw.drive_route.path, "10_raw_transcripts_T0/weekly_standup");
+  assert.equal(wdydlw.drive_route.path, "raw_transcripts/weekly_standup");
   assert.equal(wdydlw.needs_manual_review, false);
+  assert.equal(wdydlw.type_confidence_pct >= 70, true);
+  assert.equal(wdydlw.group_confidence_pct >= 70, true);
+  assert.equal(wdydlw.understanding_confidence_pct >= 70, true);
+  assert.equal(wdydlw.source_artifact_manifest.type_confidence_pct, wdydlw.type_confidence_pct);
+  assert.equal(wdydlw.source_artifact_manifest.understanding_confidence_pct, wdydlw.understanding_confidence_pct);
 
   const infoMarkets = plan.files.find((file) => file.drive_file_id === "drive_info_markets");
-  assert.equal(infoMarkets.inferred_date, "2026-01-10");
-  assert.equal(infoMarkets.calendar_match.status, "date_conflict_title_candidate");
+  assert.equal(infoMarkets.inferred_date, "2026-06-09");
+  assert.equal(infoMarkets.calendar_match.status, "matched");
+  assert.equal(infoMarkets.calendar_match.original_inferred_date, "2026-01-10");
   assert.equal(infoMarkets.calendar_match.candidate.date, "2026-06-09");
-  assert.equal(infoMarkets.preferred_drive_name, "salon_info-markets-design-b2b_2026-01-10.txt");
-  assert.equal(infoMarkets.drive_route.path, "10_raw_transcripts_T0/salon");
-  assert.equal(infoMarkets.needs_manual_review, true);
+  assert.equal(infoMarkets.calendar_match.date_correction.reason, "filename_date_outside_cohort_but_title_matches_calendar");
+  assert.equal(infoMarkets.preferred_drive_name, "salon_info-markets-design-b2b_2026-06-09.txt");
+  assert.equal(infoMarkets.drive_route.path, "raw_transcripts/salon");
+  assert.equal(infoMarkets.needs_manual_review, false);
 });
 
 test("classifies vault file source systems from metadata without raw transcript text", () => {
@@ -242,6 +250,7 @@ test("classifies vault file source systems from metadata without raw transcript 
       provider: "otter",
       source_kind: "otter_summary",
       confidence: "high",
+      confidence_pct: 92,
       signals: ["explicit_otter_source", "otter_metadata_marker"],
     },
   );
@@ -281,9 +290,11 @@ test("classifies vault file source systems from metadata without raw transcript 
 
   assert.equal(plan.counts.by_source_system.otter, 1);
   assert.equal(plan.counts.by_source_system.google_meet, 1);
+  assert.equal(plan.counts.confidence_summary.avg_understanding_confidence_pct > 0, true);
   assert.deepEqual(
     plan.manual_artifact_manifest.artifacts.map((artifact) => artifact.source_kind),
     ["otter_summary", "meet_transcript"],
   );
+  assert.ok(plan.manual_artifact_manifest.artifacts.every((artifact) => Number.isFinite(artifact.source_confidence_pct)));
   assert.ok(plan.files.every((file) => file.source_artifact_manifest.raw_available_to_server === false));
 });

@@ -14,10 +14,11 @@ const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 function usage() {
   return [
     "Usage:",
-    "  node scripts/apply-transcript-drive-operations.mjs [--plan drive-operations-plan.json] [--env-file .env.calendar.local] [--apply]",
+    "  node scripts/apply-transcript-drive-operations.mjs [--plan drive-operations-plan.json] [--env-file .env.calendar.local] [--apply] [--out apply-result.json]",
     "",
-    "Applies only safe transcript Drive operations: folder ensures and safe file",
-    "rename/move actions. Review-held file operations are never applied.",
+    "Applies safe transcript Drive operations: folder ensures, safe file",
+    "rename/move actions, and in-place Copy-of prefix cleanup for review-held",
+    "files. Review-held final move/classification operations are never applied.",
     "",
     "Environment fallbacks:",
     "  GOOGLE_CALENDAR_ACCESS_TOKEN or GOOGLE_ACCESS_TOKEN",
@@ -36,6 +37,11 @@ function flag(name, argv = process.argv.slice(2)) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(path.resolve(filePath), "utf8"));
+}
+
+function writeJson(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function normalizeDrivePath(value) {
@@ -173,6 +179,19 @@ function safeFileOperations(plan) {
   return (plan.safe_file_operations || []).filter((operation) => operation?.safe_to_apply === true);
 }
 
+function copyPrefixCleanupOperations(plan) {
+  return (plan.copy_prefix_cleanup_operations || [])
+    .filter((operation) => operation?.safe_to_apply === true && operation?.operation === "strip_copy_prefix_in_place");
+}
+
+function unique(values) {
+  return [...new Set((values || []).filter(Boolean))];
+}
+
+function legacyNames(operation) {
+  return unique(operation?.legacy_names || []).filter((name) => name !== operation.name);
+}
+
 function assertPlanSafe(plan) {
   if (!plan || typeof plan !== "object") throw new Error("Drive operations plan is required");
   const operations = safeFileOperations(plan);
@@ -182,9 +201,16 @@ function assertPlanSafe(plan) {
     if (!operation.target_folder_path) throw new Error(`safe operation missing target_folder_path: ${operation.drive_file_id}`);
     if (
       operation.inferred_session_type === "private_1on1"
-      && normalizeDrivePath(operation.target_folder_path) !== "90_do_not_publish/private_1on1"
+      && normalizeDrivePath(operation.target_folder_path) !== "do_not_publish/private_1on1"
     ) {
-      throw new Error(`private_1on1 safe operation must target 90_do_not_publish/private_1on1: ${operation.drive_file_id}`);
+      throw new Error(`private_1on1 safe operation must target do_not_publish/private_1on1: ${operation.drive_file_id}`);
+    }
+  }
+  for (const operation of copyPrefixCleanupOperations(plan)) {
+    if (!operation.drive_file_id) throw new Error(`cleanup operation missing drive_file_id: ${operation.current_name || ""}`);
+    if (!operation.target_name) throw new Error(`cleanup operation missing target_name: ${operation.drive_file_id}`);
+    if (/^Copy of\s+/i.test(operation.target_name)) {
+      throw new Error(`cleanup operation target still has Copy of prefix: ${operation.drive_file_id}`);
     }
   }
 }
@@ -199,7 +225,28 @@ async function ensureFolders({ plan, accessToken, apply = false, fetchImpl = fet
     if (!folderPath) continue;
     if (operation.known_folder_id) {
       folderIds.set(folderPath, operation.known_folder_id);
-      results.push({ path: folderPath, action: "known", id: operation.known_folder_id });
+      if (!apply) {
+        results.push({ path: folderPath, action: "known", id: operation.known_folder_id });
+        continue;
+      }
+      const current = await getFileMetadata({ accessToken, fileId: operation.known_folder_id, fetchImpl });
+      if (current.name === operation.name) {
+        results.push({ path: folderPath, action: "known", id: operation.known_folder_id, name: current.name });
+        continue;
+      }
+      const updated = await updateFile({
+        accessToken,
+        fileId: operation.known_folder_id,
+        body: { name: operation.name },
+        fetchImpl,
+      });
+      results.push({
+        path: folderPath,
+        action: "renamed",
+        id: operation.known_folder_id,
+        previous_name: current.name,
+        name: updated.name,
+      });
       continue;
     }
     const parentPath = normalizeDrivePath(operation.parent_path || "");
@@ -220,7 +267,52 @@ async function ensureFolders({ plan, accessToken, apply = false, fetchImpl = fet
       name: operation.name,
       fetchImpl,
     });
-    const folder = existing[0] || await createFolder({
+    if (existing[0]) {
+      const folder = existing[0];
+      folderIds.set(folderPath, folder.id);
+      results.push({
+        path: folderPath,
+        action: "unchanged",
+        id: folder.id,
+        parent_id: parentId,
+      });
+      continue;
+    }
+
+    let legacyFolder = null;
+    for (const name of legacyNames(operation)) {
+      const matches = await listFoldersByName({
+        accessToken,
+        sharedDriveId,
+        parentId,
+        name,
+        fetchImpl,
+      });
+      if (matches[0]) {
+        legacyFolder = matches[0];
+        break;
+      }
+    }
+    if (legacyFolder) {
+      const updated = await updateFile({
+        accessToken,
+        fileId: legacyFolder.id,
+        body: { name: operation.name },
+        fetchImpl,
+      });
+      folderIds.set(folderPath, legacyFolder.id);
+      results.push({
+        path: folderPath,
+        action: "renamed",
+        id: legacyFolder.id,
+        parent_id: parentId,
+        previous_name: legacyFolder.name,
+        name: updated.name,
+      });
+      continue;
+    }
+
+    const folder = await createFolder({
       accessToken,
       sharedDriveId,
       parentId,
@@ -230,7 +322,7 @@ async function ensureFolders({ plan, accessToken, apply = false, fetchImpl = fet
     folderIds.set(folderPath, folder.id);
     results.push({
       path: folderPath,
-      action: existing[0] ? "unchanged" : "created",
+      action: "created",
       id: folder.id,
       parent_id: parentId,
     });
@@ -288,6 +380,45 @@ async function applyFileOperations({ plan, accessToken, folderIds, apply = false
   return results;
 }
 
+async function applyCopyPrefixCleanupOperations({ plan, accessToken, apply = false, fetchImpl = fetch }) {
+  const results = [];
+  for (const operation of copyPrefixCleanupOperations(plan)) {
+    if (!apply) {
+      results.push({
+        drive_file_id: operation.drive_file_id,
+        action: "would_cleanup_copy_prefix",
+        target_name: operation.target_name,
+      });
+      continue;
+    }
+    const current = await getFileMetadata({ accessToken, fileId: operation.drive_file_id, fetchImpl });
+    if (!/^Copy of\s+/i.test(current.name || "")) {
+      results.push({
+        drive_file_id: operation.drive_file_id,
+        action: "unchanged",
+        name: current.name,
+        reason: "copy_prefix_already_absent",
+      });
+      continue;
+    }
+    const updated = await updateFile({
+      accessToken,
+      fileId: operation.drive_file_id,
+      body: { name: operation.target_name },
+      fetchImpl,
+    });
+    results.push({
+      drive_file_id: operation.drive_file_id,
+      action: "updated",
+      renamed: true,
+      moved: false,
+      name: updated.name,
+      final_target_path_pending_review: operation.final_target_path,
+    });
+  }
+  return results;
+}
+
 export async function runTranscriptDriveOperations({
   plan,
   accessToken,
@@ -304,17 +435,28 @@ export async function runTranscriptDriveOperations({
     apply,
     fetchImpl,
   });
+  const cleanupResults = await applyCopyPrefixCleanupOperations({
+    plan,
+    accessToken,
+    apply,
+    fetchImpl,
+  });
   return {
     apply: !!apply,
     planned_safe_file_operations: safeFileOperations(plan).length,
+    planned_copy_prefix_cleanup_operations: copyPrefixCleanupOperations(plan).length,
     review_file_operations_skipped: (plan.review_file_operations || []).length,
     folders: folderResult.results,
     files: fileResults,
+    copy_prefix_cleanup_files: cleanupResults,
     counts: {
       folders_created: folderResult.results.filter((item) => item.action === "created").length,
+      folders_renamed: folderResult.results.filter((item) => item.action === "renamed").length,
       folders_unchanged: folderResult.results.filter((item) => item.action === "unchanged" || item.action === "known").length,
       files_updated: fileResults.filter((item) => item.action === "updated").length,
       files_unchanged: fileResults.filter((item) => item.action === "unchanged").length,
+      copy_prefix_cleanup_updated: cleanupResults.filter((item) => item.action === "updated").length,
+      copy_prefix_cleanup_unchanged: cleanupResults.filter((item) => item.action === "unchanged").length,
     },
   };
 }
@@ -334,11 +476,15 @@ async function main(argv = process.argv.slice(2)) {
     accessToken,
     apply,
   });
+  const outPath = arg("--out", argv);
+  if (outPath) writeJson(path.resolve(outPath), result);
   console.log(JSON.stringify({
     apply: result.apply,
     planned_safe_file_operations: result.planned_safe_file_operations,
+    planned_copy_prefix_cleanup_operations: result.planned_copy_prefix_cleanup_operations,
     review_file_operations_skipped: result.review_file_operations_skipped,
     counts: result.counts,
+    ...(outPath ? { wrote: path.relative(ROOT, path.resolve(outPath)) } : {}),
   }, null, 2));
 }
 

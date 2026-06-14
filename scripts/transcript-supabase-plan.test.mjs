@@ -34,13 +34,25 @@ const IMPORT_PLAN = {
       routing: { max_tier: "T2" },
       preferred_drive_name: "weekly_standup_shaw_2026-06-08.txt",
       drive_route: {
-        path: "10_raw_transcripts_T0/weekly_standup",
-        derived_path: "40_derived_review/weekly_standup",
+        path: "raw_transcripts/weekly_standup",
+        derived_path: "operator_review_exports/weekly_standup",
       },
       calendar_match: {
         status: "matched",
         confidence: "moderate",
+        confidence_pct: 76,
         matched_tokens: ["shaw"],
+      },
+      type_confidence_pct: 88,
+      group_confidence_pct: 86,
+      understanding_confidence_pct: 82,
+      classification_confidence: {
+        label: "moderate",
+        basis: {
+          type: ["calendar matched"],
+          group: ["Drive route matches inferred type"],
+          understanding: ["76% calendar confidence"],
+        },
       },
       source_artifact_manifest: {
         source_kind: "drive_doc",
@@ -49,6 +61,7 @@ const IMPORT_PLAN = {
         storage_ref: "drive://drive_ready",
         mime_type: "text/plain",
         raw_available_to_server: false,
+        source_confidence_pct: 52,
       },
       needs_manual_review: false,
       manual_review_reasons: ["drive_copy_prefix_stripped_in_manifest"],
@@ -64,8 +77,8 @@ const IMPORT_PLAN = {
       routing: { max_tier: "T3" },
       preferred_drive_name: "salon_agentic-organizations-sreeram_2026-06-08.txt",
       drive_route: {
-        path: "10_raw_transcripts_T0/salon",
-        derived_path: "40_derived_review/salon",
+        path: "raw_transcripts/salon",
+        derived_path: "operator_review_exports/salon",
       },
       calendar_match: {
         status: "matched",
@@ -93,8 +106,8 @@ const IMPORT_PLAN = {
       inferred_session_type: "salon",
       preferred_drive_name: "salon_info-markets-design-b2b_2026-01-10.txt",
       drive_route: {
-        path: "10_raw_transcripts_T0/salon",
-        derived_path: "40_derived_review/salon",
+        path: "raw_transcripts/salon",
+        derived_path: "operator_review_exports/salon",
       },
       calendar_match: { status: "date_conflict_title_candidate" },
       source_artifact_manifest: {
@@ -146,10 +159,15 @@ test("builds apply-ready Supabase rows only when session ids are resolved", () =
   assert.equal(plan.sourceArtifacts[0].storage_mode, "external_ref");
   assert.equal(plan.sourceArtifacts[0].storage_ref, "drive://drive_ready");
   assert.equal(plan.sourceArtifacts[0].raw_available_to_server, false);
+  assert.equal(plan.sourceArtifacts[0].metadata.type_confidence_pct, 88);
+  assert.equal(plan.sourceArtifacts[0].metadata.group_confidence_pct, 86);
+  assert.equal(plan.sourceArtifacts[0].metadata.understanding_confidence_pct, 82);
+  assert.deepEqual(plan.sourceArtifacts[0].metadata.confidence_basis.type, ["calendar matched"]);
 
   assert.equal(plan.ingestionEvents.length, 1);
   assert.equal(plan.ingestionEvents[0].event_type, "drive_doc.submitted");
   assert.equal(plan.ingestionEvents[0].event_json.preferred_drive_name, "weekly_standup_shaw_2026-06-08.txt");
+  assert.equal(plan.ingestionEvents[0].event_json.type_confidence_pct, 88);
 
   assert.equal(plan.processingJobs.length, 1);
   assert.equal(plan.processingJobs[0].source_artifact_id, plan.sourceArtifacts[0].id);

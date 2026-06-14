@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const source = fs.readFileSync("supabase/functions/review-transcript-artifact/index.ts", "utf8");
+const safetySource = fs.readFileSync("supabase/functions/_shared/transcript_safety.ts", "utf8");
 const config = fs.readFileSync("supabase/config.toml", "utf8");
 
 test("transcript review function is JWT-verified and coordinator-only", () => {
@@ -26,10 +27,13 @@ test("transcript review function guards T3 publication", () => {
   assert.match(source, /T3 publication requires approval gates/);
   assert.match(source, /T3 publication gate is not cleared/);
   assert.match(source, /T3 publication requires a public_candidate artifact/);
-  assert.match(source, /assertNoPublicContentLeak/);
-  assert.match(source, /private-vault:/);
-  assert.match(source, /drive:\\\/\\\/|drive:\/\//);
-  assert.match(source, /storage_ref/);
+  assert.match(source, /assertTranscriptSurfaceSafe/);
+  assert.match(source, /assertArtifactSurfaceSafe/);
+  assert.match(source, /assertEvidenceCardSurfaceSafe/);
+  assert.match(safetySource, /private-vault:/);
+  assert.match(safetySource, /drive:\\\/\\\/|drive:\/\//);
+  assert.match(safetySource, /storage_ref/);
+  assert.match(safetySource, /raw\[-_ \]\?transcript/);
 });
 
 test("transcript review function can review evidence cards without direct table writes from the browser", () => {
@@ -38,5 +42,16 @@ test("transcript review function can review evidence cards without direct table 
   assert.match(source, /patchEvidenceCard/);
   assert.match(source, /T3 evidence-card publication requires publish_public=true/);
   assert.match(source, /T3 evidence cards must be no-named generalized insights/);
-  assert.match(source, /assertNoPublicEvidenceCardLeak/);
+  assert.match(source, /evidenceCardEditPatch/);
+  assert.match(source, /content_md/);
+  assert.match(source, /claim_text/);
+  assert.match(source, /confidence must be between 0 and 1/);
+});
+
+test("transcript review function applies edits before promotion checks", () => {
+  assert.match(source, /artifactEditPatch/);
+  assert.match(source, /const candidate = \{ \.\.\.artifact, \.\.\.patch \}/);
+  assert.match(source, /artifact: candidate/);
+  assert.match(source, /const candidate = \{ \.\.\.card, \.\.\.patch \}/);
+  assert.match(source, /fetchEvidenceCardsForArtifact/);
 });

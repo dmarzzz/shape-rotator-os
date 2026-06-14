@@ -590,6 +590,38 @@
   overflow-wrap: anywhere;
 }
 
+.cal-ingress-review-edit {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--space-2);
+}
+
+.cal-ingress-review-edit .span-2 {
+  grid-column: 1 / -1;
+}
+
+.cal-ingress-review-edit textarea {
+  min-height: 84px;
+  max-height: 260px;
+}
+
+.cal-ingress-check {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: end;
+}
+
+.cal-ingress-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #d05332;
+}
+
 .cal-ingress-queue-actions {
   display: flex;
   flex-wrap: wrap;
@@ -608,6 +640,12 @@
   }
   .cal-ingress-queue-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cal-ingress-review-edit {
+    grid-template-columns: 1fr;
+  }
+  .cal-ingress-review-edit .span-2 {
+    grid-column: auto;
   }
   .cal-ingress-side {
     position: static;

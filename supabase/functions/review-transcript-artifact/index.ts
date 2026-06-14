@@ -1,6 +1,7 @@
 import { requireOrgRole } from "../_shared/auth.ts";
 import { corsHeaders, errorResponse, jsonResponse, readJson, requiredEnv } from "../_shared/http.ts";
 import { supabaseRest, upsertRows } from "../_shared/supabase_rest.ts";
+import { assertTranscriptSurfaceSafe } from "../_shared/transcript_safety.ts";
 
 function statusError(message: string, status: number) {
   const error = new Error(message) as Error & { status?: number };
@@ -20,6 +21,117 @@ function reviewDecisionForStatus(status: string) {
   if (status === "blocked") return "block";
   if (status === "needs_review") return "request_changes";
   return "approve";
+}
+
+function hasOwn(value: Record<string, unknown>, key: string) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function editSource(body: Record<string, unknown>) {
+  const edits = body.edits;
+  return edits && typeof edits === "object" && !Array.isArray(edits)
+    ? edits as Record<string, unknown>
+    : body;
+}
+
+function textEdit(source: Record<string, unknown>, keys: string[], {
+  required = false,
+  nullable = false,
+}: {
+  required?: boolean;
+  nullable?: boolean;
+} = {}) {
+  for (const key of keys) {
+    if (!hasOwn(source, key)) continue;
+    const raw = source[key];
+    if (nullable && (raw === null || String(raw || "").trim() === "")) return null;
+    const text = String(raw || "").trim();
+    if (required && !text) throw statusError(`${keys[0]} cannot be empty`, 400);
+    return text;
+  }
+  return undefined;
+}
+
+function confidenceEdit(source: Record<string, unknown>) {
+  if (!hasOwn(source, "confidence")) return undefined;
+  const value = Number(source.confidence);
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw statusError("confidence must be between 0 and 1", 400);
+  }
+  return value;
+}
+
+function jsonEdit(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    if (!hasOwn(source, key)) continue;
+    const value = source[key];
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error("content_json must be an object");
+        }
+        return parsed;
+      } catch {
+        throw statusError(`${keys[0]} must be a JSON object`, 400);
+      }
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw statusError(`${keys[0]} must be an object`, 400);
+    }
+    return value;
+  }
+  return undefined;
+}
+
+function enumEdit(source: Record<string, unknown>, keys: string[], allowed: string[]) {
+  const value = textEdit(source, keys);
+  if (value === undefined) return undefined;
+  if (!allowed.includes(value)) throw statusError(`unsupported ${keys[0]}: ${value}`, 400);
+  return value;
+}
+
+function booleanEdit(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    if (!hasOwn(source, key)) continue;
+    const value = source[key];
+    if (typeof value === "boolean") return value;
+    if (value === "true") return true;
+    if (value === "false") return false;
+    throw statusError(`${keys[0]} must be true or false`, 400);
+  }
+  return undefined;
+}
+
+function compactPatch(entries: Array<[string, unknown]>) {
+  return Object.fromEntries(entries.filter(([, value]) => value !== undefined));
+}
+
+function artifactEditPatch(body: Record<string, unknown>) {
+  const source = editSource(body);
+  return compactPatch([
+    ["content_md", textEdit(source, ["content_md", "contentMd"])],
+    ["content_json", jsonEdit(source, ["content_json", "contentJson"])],
+    ["confidence", confidenceEdit(source)],
+  ]);
+}
+
+function evidenceCardEditPatch(body: Record<string, unknown>) {
+  const source = editSource(body);
+  return compactPatch([
+    ["title", textEdit(source, ["title"], { required: true })],
+    ["claim_text", textEdit(source, ["claim_text", "claimText"], { required: true })],
+    ["summary", textEdit(source, ["summary"], { nullable: true })],
+    ["claim_type", textEdit(source, ["claim_type", "claimType"], { required: true })],
+    ["evidence_level", enumEdit(source, ["evidence_level", "evidenceLevel"], ["observed", "inferred", "aggregate", "reviewed"])],
+    ["confidence", confidenceEdit(source)],
+    ["attribution_scope", enumEdit(source, ["attribution_scope", "attributionScope"], ["room", "team", "person", "aggregate", "anonymous_public"])],
+    ["surface_tier", enumEdit(source, ["surface_tier", "surfaceTier"], ["T1", "T2", "T3"])],
+    ["source_boundary", enumEdit(source, ["source_boundary", "sourceBoundary"], ["private_vault", "derived_only", "public_approved"])],
+    ["public_anonymous", booleanEdit(source, ["public_anonymous", "publicAnonymous"])],
+    ["public_article_mode", textEdit(source, ["public_article_mode", "publicArticleMode"], { nullable: true })],
+    ["content_json", jsonEdit(source, ["content_json", "contentJson"])],
+  ]);
 }
 
 async function fetchOne({
@@ -127,38 +239,46 @@ async function fetchArtifactGates({ supabaseUrl, serviceRoleKey, orgId, artifact
   });
 }
 
-function assertNoPublicContentLeak(artifact: Record<string, unknown>) {
-  const text = JSON.stringify({
-    content_json: artifact.content_json || {},
-    content_md: artifact.content_md || "",
+async function fetchEvidenceCardsForArtifact({ supabaseUrl, serviceRoleKey, orgId, artifactId }: {
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  orgId: string;
+  artifactId: string;
+}) {
+  return await supabaseRest({
+    supabaseUrl,
+    serviceRoleKey,
+    table: "evidence_cards",
+    method: "GET",
+    query: {
+      select: "*",
+      org_id: `eq.${orgId}`,
+      derived_artifact_id: `eq.${artifactId}`,
+      order: "created_at.asc",
+    },
   });
-  const patterns = [
-    /\bprivate-vault:/i,
-    /\bdrive:\/\//i,
-    /"storage_ref"\s*:/i,
-    /\b[A-Za-z]:\\[^\s"]+/,
-  ];
-  const hit = patterns.find((pattern) => pattern.test(text));
-  if (hit) throw statusError(`T3 publication blocked by private-source marker: ${hit}`, 400);
 }
 
-function assertNoPublicEvidenceCardLeak(card: Record<string, unknown>) {
-  const text = JSON.stringify({
+function assertArtifactSurfaceSafe(artifact: Record<string, unknown>, { publicOnly = false } = {}) {
+  assertTranscriptSurfaceSafe({
+    content_json: artifact.content_json || {},
+    content_md: artifact.content_md || "",
+  }, {
+    scope: publicOnly || artifact.tier === "T3" ? "public" : "cohort",
+    label: "derived artifact",
+  });
+}
+
+function assertEvidenceCardSurfaceSafe(card: Record<string, unknown>, { publicOnly = false } = {}) {
+  assertTranscriptSurfaceSafe({
     title: card.title || "",
     claim_text: card.claim_text || "",
     summary: card.summary || "",
     content_json: card.content_json || {},
+  }, {
+    scope: publicOnly || card.surface_tier === "T3" ? "public" : "cohort",
+    label: "evidence card",
   });
-  const patterns = [
-    /\bprivate-vault:/i,
-    /\bdrive:\/\//i,
-    /"source_artifact_id"\s*:/i,
-    /"storage_ref"\s*:/i,
-    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
-    /\b[A-Za-z]:\\[^\s"]+/,
-  ];
-  const hit = patterns.find((pattern) => pattern.test(text));
-  if (hit) throw statusError(`T3 evidence card blocked by private-source marker: ${hit}`, 400);
 }
 
 async function assertT3PublishAllowed({
@@ -188,7 +308,7 @@ async function assertT3PublishAllowed({
   if (!Array.isArray(gates) || !gates.length) throw statusError("T3 publication requires approval gates", 400);
   const blocked = gates.find((gate) => !["approved", "not_required"].includes(String(gate.gate_status || "")));
   if (blocked) throw statusError(`T3 publication gate is not cleared: ${blocked.gate_key || blocked.id}`, 400);
-  assertNoPublicContentLeak(artifact);
+  assertArtifactSurfaceSafe(artifact, { publicOnly: true });
 }
 
 async function patchArtifact({
@@ -418,19 +538,29 @@ async function reviewArtifact({
   }
   if (reviewStatus === "published") {
     if (approvalState !== "approved") throw statusError("published artifacts require approval_state=approved", 400);
+  }
+
+  const edits = artifactEditPatch(body);
+  const patch = {
+    ...edits,
+    review_status: reviewStatus,
+    ...(approvalState ? { approval_state: approvalState } : {}),
+  };
+  const candidate = { ...artifact, ...patch };
+
+  if (["reviewed", "published"].includes(reviewStatus)) {
+    assertArtifactSurfaceSafe(candidate, { publicOnly: reviewStatus === "published" });
+  }
+  if (reviewStatus === "published") {
     await assertT3PublishAllowed({
       supabaseUrl,
       serviceRoleKey,
       orgId,
-      artifact,
+      artifact: candidate,
       publishPublic: body.publish_public === true || body.publishPublic === true,
     });
   }
 
-  const patch = {
-    review_status: reviewStatus,
-    ...(approvalState ? { approval_state: approvalState } : {}),
-  };
   const rows = await patchArtifact({ supabaseUrl, serviceRoleKey, orgId, artifactId, body: patch });
   const after = Array.isArray(rows) ? rows[0] : null;
   const syncedEvidenceCards = await patchEvidenceCardsForArtifact({
@@ -488,23 +618,29 @@ async function reviewEvidenceCard({
   if (approvalState && !["not_required", "pending", "approved", "blocked"].includes(approvalState)) {
     throw statusError(`unsupported approval_state: ${approvalState}`, 400);
   }
-  if (reviewStatus === "published") {
-    if (card.surface_tier !== "T3") throw statusError("only T3 evidence cards can be published", 400);
-    if (approvalState !== "approved") throw statusError("published evidence cards require approval_state=approved", 400);
-    if (body.publish_public !== true && body.publishPublic !== true) {
-      throw statusError("T3 evidence-card publication requires publish_public=true", 400);
-    }
-    if (card.public_anonymous !== true || card.public_article_mode !== "generalized_no_named_insights") {
-      throw statusError("T3 evidence cards must be no-named generalized insights", 400);
-    }
-    assertNoPublicEvidenceCardLeak(card);
-  }
+  const edits = evidenceCardEditPatch(body);
   const patch = {
+    ...edits,
     review_status: reviewStatus,
     ...(approvalState ? { approval_state: approvalState } : {}),
     reviewed_by: actorId,
     reviewed_at: nowIso(),
   };
+  const candidate = { ...card, ...patch };
+
+  if (["reviewed", "published"].includes(reviewStatus)) {
+    assertEvidenceCardSurfaceSafe(candidate, { publicOnly: reviewStatus === "published" });
+  }
+  if (reviewStatus === "published") {
+    if (candidate.surface_tier !== "T3") throw statusError("only T3 evidence cards can be published", 400);
+    if (approvalState !== "approved") throw statusError("published evidence cards require approval_state=approved", 400);
+    if (body.publish_public !== true && body.publishPublic !== true) {
+      throw statusError("T3 evidence-card publication requires publish_public=true", 400);
+    }
+    if (candidate.public_anonymous !== true || candidate.public_article_mode !== "generalized_no_named_insights") {
+      throw statusError("T3 evidence cards must be no-named generalized insights", 400);
+    }
+  }
   const rows = await patchEvidenceCard({ supabaseUrl, serviceRoleKey, orgId, cardId, body: patch });
   const after = Array.isArray(rows) ? rows[0] : null;
   await insertEvidenceAudit({
@@ -594,6 +730,20 @@ async function decideGate({
     const allGates = await fetchArtifactGates({ supabaseUrl, serviceRoleKey, orgId, artifactId });
     const hasPendingOrBlocked = allGates.some((item) => ["pending", "blocked"].includes(String(item.gate_status || "")));
     if (!hasPendingOrBlocked) {
+      const artifactCandidate = {
+        ...(beforeArtifact || {}),
+        review_status: "reviewed",
+        approval_state: "approved",
+      };
+      assertArtifactSurfaceSafe(artifactCandidate);
+      const cards = await fetchEvidenceCardsForArtifact({ supabaseUrl, serviceRoleKey, orgId, artifactId });
+      for (const card of Array.isArray(cards) ? cards : []) {
+        assertEvidenceCardSurfaceSafe({
+          ...card,
+          review_status: "reviewed",
+          approval_state: "approved",
+        });
+      }
       artifactRows = await patchArtifact({
         supabaseUrl,
         serviceRoleKey,
@@ -601,9 +751,9 @@ async function decideGate({
         artifactId,
         body: {
           review_status: "reviewed",
-        approval_state: "approved",
-      },
-    });
+          approval_state: "approved",
+        },
+      });
       evidenceCardRows = await patchEvidenceCardsForArtifact({
         supabaseUrl,
         serviceRoleKey,

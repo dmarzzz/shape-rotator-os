@@ -112,6 +112,34 @@ function confidenceForReadout(readout) {
   return "low";
 }
 
+function confidencePctForLabel(label) {
+  switch (String(label || "").toLowerCase()) {
+    case "high":
+      return 92;
+    case "moderate":
+    case "medium":
+      return 76;
+    case "low":
+      return 52;
+    case "none":
+      return 0;
+    default:
+      return 35;
+  }
+}
+
+function confidenceBasisForReadout(readout) {
+  const basis = [];
+  if (readout.date) basis.push("dated reviewed readout");
+  else basis.push("missing date");
+  if (readout.vault_id) basis.push("vault_id present");
+  else basis.push("missing vault_id");
+  if (normalizeList(readout.insights).length >= 3) basis.push("three or more insights");
+  if (normalizeList(readout.teams).length > 0) basis.push("team reference present");
+  if (String(readout.consent || "").includes("speaker-pending")) basis.push("speaker/public clearance pending");
+  return unique(basis);
+}
+
 function sourceReviewStatus(readout) {
   return readout.review_status || "reviewed_readout";
 }
@@ -161,6 +189,8 @@ function buildEvidenceCard(readout) {
   const people = unique(readout.people);
   const themes = unique(readout.themes);
   const confidence = confidenceForReadout(readout);
+  const confidencePct = confidencePctForLabel(confidence);
+  const confidenceBasis = confidenceBasisForReadout(readout);
   const sharingBoundary = sharingBoundaryFor(readout);
   const attribution = attributionFor(readout);
   const source = `${PRIVATE_SOURCE_PREFIX}${vaultId}`;
@@ -176,6 +206,8 @@ function buildEvidenceCard(readout) {
       source_artifact_id: artifactId,
       evidence_level: "inferred",
       confidence,
+      confidence_pct: confidencePct,
+      confidence_basis: confidenceBasis,
       attribution,
       teams,
       people,
@@ -192,6 +224,8 @@ function buildEvidenceCard(readout) {
         source,
         evidence_level: "inferred",
         confidence,
+        confidence_pct: confidencePct,
+        confidence_basis: confidenceBasis,
         attribution,
         teams,
         people,
@@ -227,6 +261,8 @@ function buildEvidenceCard(readout) {
     source_review_status: sourceReviewStatus(readout),
     evidence_level: "inferred",
     confidence,
+    confidence_pct: confidencePct,
+    confidence_basis: confidenceBasis,
     consent: readout.consent || "unknown",
     sharing_boundary: sharingBoundary,
     attribution,
@@ -402,6 +438,7 @@ function buildRoleViews(cards) {
         claim_type: claim.claim_type,
         source: claim.source,
         confidence: claim.confidence,
+        confidence_pct: claim.confidence_pct,
         evidence_level: claim.evidence_level,
       });
       edges.push(graphEdge(`${claimNode}->${sessionNode}`, claimNode, sessionNode, "claim_from_session"));
@@ -440,6 +477,7 @@ function buildRoleViews(cards) {
         source_artifact_id: card.artifact_id,
         source: item.source,
         confidence: item.confidence,
+        confidence_pct: item.confidence_pct,
       };
       for (const team of card.teams) {
         const teamView = teams.get(team);
@@ -477,6 +515,7 @@ function pickClaimForView(claim, card) {
     source_artifact_id: card.artifact_id,
     source: claim.source,
     confidence: claim.confidence,
+    confidence_pct: claim.confidence_pct,
     evidence_level: claim.evidence_level,
     teams: claim.teams,
     people: claim.people,
@@ -500,6 +539,7 @@ function finalizeView(view) {
     }
   }
   finalized.confidence = confidenceForView(finalized);
+  finalized.confidence_pct = confidencePctForView(finalized);
   finalized.why_we_believe_it = [
     `${finalized.evidence_card_ids.length} generated evidence card(s)`,
     `${finalized.claim_count || finalized.top_claims.length} inferred claim(s)`,
@@ -516,6 +556,14 @@ function confidenceForView(view) {
   return "low";
 }
 
+function confidencePctForView(view) {
+  const evidenceCount = Array.isArray(view.evidence_card_ids) ? view.evidence_card_ids.length : 0;
+  const claimCount = view.claim_count || 0;
+  if (evidenceCount >= 3 && claimCount >= 8) return 76;
+  if (evidenceCount >= 1 && claimCount >= 1) return 52;
+  return 35;
+}
+
 function buildManifest(cards, generatedAt) {
   return {
     schema_version: SCHEMA_VERSION,
@@ -529,6 +577,7 @@ function buildManifest(cards, generatedAt) {
       week_start: card.week_start,
       file: artifactFileName(card),
       review_status: card.review_status,
+      confidence_pct: card.confidence_pct,
       surface_recommendation: card.surface_recommendation,
       sharing_boundary: card.sharing_boundary.max_surface,
     })),

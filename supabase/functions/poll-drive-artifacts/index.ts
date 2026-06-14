@@ -248,6 +248,22 @@ function tokenize(value: unknown) {
     .filter((token) => token.length >= 4 && !["meeting", "transcript", "notes", "google", "meet", "gemini"].includes(token));
 }
 
+function confidencePctForLabel(label: unknown) {
+  switch (String(label || "").toLowerCase()) {
+    case "high":
+      return 92;
+    case "moderate":
+    case "medium":
+      return 76;
+    case "low":
+      return 52;
+    case "none":
+      return 0;
+    default:
+      return 35;
+  }
+}
+
 function classifyDriveArtifact(file: Record<string, unknown>) {
   const name = String(file?.name || "").toLowerCase();
   const mime = String(file?.mimeType || "").toLowerCase();
@@ -260,6 +276,94 @@ function classifyDriveArtifact(file: Record<string, unknown>) {
     return /\b(transcript|captions?)\b/.test(name) ? "transcript" : "smart_notes";
   }
   return null;
+}
+
+function driveMetadataText(file: Record<string, unknown>) {
+  return [
+    file?.name,
+    file?.description,
+    file?.mimeType,
+    file?.webViewLink,
+    file?.webContentLink,
+    file?.provider,
+    file?.source_provider,
+    file?.source_system,
+    file?.source_kind,
+  ].filter(Boolean).join(" ");
+}
+
+function classifyDriveSourceSystem(file: Record<string, unknown>) {
+  const raw = driveMetadataText(file);
+  const lower = raw.toLowerCase();
+  const normalized = lower.replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  const explicitProvider = String(file?.provider || file?.source_provider || file?.source_system || "").toLowerCase();
+  const explicitSourceKind = String(file?.source_kind || "").toLowerCase();
+  const artifactKind = classifyDriveArtifact(file);
+  const signals: string[] = [];
+
+  if (explicitProvider === "otter" || explicitSourceKind.startsWith("otter_")) signals.push("explicit_otter_source");
+  if (/\botter\b|otter\.ai|otter_ai/.test(lower) || /\botter\b/.test(normalized)) signals.push("otter_metadata_marker");
+
+  if (["google_meet", "gmeet", "meet"].includes(explicitProvider) || explicitSourceKind.startsWith("meet_")) {
+    signals.push("explicit_google_meet_source");
+  }
+  if (/\bgoogle meet\b|\bgmeet\b|meet\.google\.com|conferencerecords|conference_records/.test(lower)) {
+    signals.push("google_meet_metadata_marker");
+  }
+  if (/\b(gemini|smart notes|smartnotes)\b/.test(normalized)) signals.push("google_meet_notes_marker");
+  if (artifactKind && !signals.some((signal) => signal.includes("otter"))) signals.push("google_meet_artifact_candidate");
+
+  const hasOtter = signals.some((signal) => signal.includes("otter"));
+  const hasMeet = signals.some((signal) => signal.includes("google_meet"));
+  if (hasOtter && !hasMeet) {
+    const sourceKind = /\b(summary|summaries|notes|recap)\b/.test(normalized)
+      ? "otter_summary"
+      : /\b(slide|slides|screenshot|screenshots|screen capture|screen captures|image|images)\b/.test(normalized)
+        ? "otter_slide"
+        : "otter_transcript";
+    const confidence = signals.includes("explicit_otter_source") ? "high" : "moderate";
+    return {
+      source_system: "otter",
+      source_kind: sourceKind,
+      source_confidence: confidence,
+      source_confidence_pct: confidencePctForLabel(confidence),
+      source_signals: [...new Set(signals)],
+    };
+  }
+  if (hasMeet && !hasOtter) {
+    const sourceKind = artifactKind === "smart_notes" ? "meet_smart_notes" : "meet_transcript";
+    const confidence = signals.some((signal) => [
+      "explicit_google_meet_source",
+      "google_meet_metadata_marker",
+      "google_meet_notes_marker",
+      "google_meet_artifact_candidate",
+    ].includes(signal))
+      ? "high"
+      : "low";
+    return {
+      source_system: "google_meet",
+      source_kind: sourceKind,
+      source_confidence: confidence,
+      source_confidence_pct: confidencePctForLabel(confidence),
+      source_signals: [...new Set(signals)],
+    };
+  }
+  if (hasOtter && hasMeet) {
+    return {
+      source_system: "ambiguous",
+      source_kind: "drive_doc",
+      source_confidence: "low",
+      source_confidence_pct: confidencePctForLabel("low"),
+      source_signals: [...new Set(signals)],
+    };
+  }
+  return {
+    source_system: "drive",
+    source_kind: "drive_doc",
+    source_confidence: "low",
+    source_confidence_pct: confidencePctForLabel("low"),
+    source_signals: [],
+  };
 }
 
 function fileEventTime(file: Record<string, unknown>) {
@@ -323,6 +427,7 @@ function driveExportUri(file: Record<string, unknown>) {
 }
 
 function fileToMeetArtifact(file: Record<string, unknown>, kind: string, score: number) {
+  const sourceInfo = classifyDriveSourceSystem(file);
   return {
     kind,
     provider_resource_name: `drive:${file.id}`,
@@ -336,6 +441,11 @@ function fileToMeetArtifact(file: Record<string, unknown>, kind: string, score: 
     status: "detected",
     match_score: score,
     web_view_link: file.webViewLink || null,
+    metadata: {
+      confidence_schema_version: 1,
+      ...sourceInfo,
+      session_match_score: score,
+    },
   };
 }
 

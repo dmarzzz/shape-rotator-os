@@ -1,0 +1,3481 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shape Rotator Transcript Index</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: oklch(20% 0.025 58);
+      --muted: oklch(47% 0.026 64);
+      --paper: oklch(96% 0.018 78);
+      --line: oklch(80% 0.038 72);
+      --copper: oklch(55% 0.118 47);
+      --olive: oklch(48% 0.074 125);
+      --blue: oklch(43% 0.083 236);
+      --plum: oklch(41% 0.079 332);
+      --red: oklch(47% 0.12 31);
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      --shadow: 0 16px 48px oklch(23% 0.04 58 / 0.1);
+    }
+
+    * { box-sizing: border-box; }
+    html { scrollbar-gutter: stable; scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      overflow-x: clip;
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.42;
+      background:
+        linear-gradient(90deg, oklch(91% 0.028 75 / 0.75) 1px, transparent 1px),
+        linear-gradient(0deg, oklch(91% 0.028 75 / 0.75) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+    }
+
+    a { color: inherit; text-decoration-color: color-mix(in oklch, var(--copper), transparent 45%); text-underline-offset: 0.2em; }
+    a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid color-mix(in oklch, var(--blue), white 18%); outline-offset: 3px; border-radius: 6px; }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    code {
+      max-width: 100%;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: oklch(24% 0.04 60);
+      background: oklch(91% 0.026 80);
+      border: 1px solid color-mix(in oklch, var(--line), white 18%);
+      border-radius: 6px;
+      padding: 0.08rem 0.3rem;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    .emoji {
+      display: inline-block;
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+      line-height: 1;
+      transform: translateY(0.03em);
+    }
+
+    .page { width: min(1220px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 72px; }
+    .shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 28px; align-items: start; }
+    main { min-width: 0; }
+    .rail { position: sticky; top: 20px; border-left: 3px solid var(--copper); padding: 8px 0 10px 16px; }
+    .rail strong { display: block; margin-bottom: 12px; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; }
+    .rail a { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 0; text-decoration: none; border-bottom: 1px solid color-mix(in oklch, var(--line), transparent 55%); }
+    .rail .nav-title { display: inline-flex; align-items: center; gap: 7px; min-width: 0; font-size: 0.86rem; }
+    .rail a code { grid-column: 1 / -1; font-size: 0.68rem; padding: 0; border: 0; background: transparent; color: var(--muted); }
+    .rail a b { font-family: var(--mono); font-size: 0.76rem; color: var(--copper); }
+
+    .hero {
+      min-height: min(560px, 82svh);
+      display: grid;
+      align-content: center;
+      gap: 24px;
+      padding: 28px 0 52px;
+      border-bottom: 1px solid var(--line);
+    }
+    .kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--copper); overflow-wrap: anywhere; }
+    h1, h2, h3 { margin: 0; letter-spacing: 0; text-wrap: balance; }
+    h1 { max-width: 900px; font-family: var(--serif); font-size: clamp(3rem, 7vw, 6rem); line-height: 0.94; }
+    h2 { font-family: var(--serif); font-size: clamp(2rem, 4vw, 3.35rem); line-height: 1; }
+    h3 { font-size: 1.02rem; line-height: 1.16; }
+    p { margin: 0; color: var(--muted); text-wrap: pretty; }
+    .lede { max-width: 760px; font-size: clamp(1.04rem, 1.8vw, 1.32rem); color: oklch(32% 0.035 63); }
+
+    .summary-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .summary-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: oklch(98% 0.012 80);
+      box-shadow: var(--shadow);
+      padding: 13px 14px;
+      min-height: 100px;
+    }
+    .summary-label { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .summary-card b { display: block; margin-top: 8px; font-family: var(--serif); font-size: 2.35rem; line-height: 0.95; }
+
+    .links { display: flex; flex-wrap: wrap; gap: 8px; }
+    .links a { display: inline-flex; min-height: 34px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: oklch(98% 0.012 80); text-decoration: none; font-size: 0.84rem; }
+
+    section { padding: 72px 0 0; }
+    .catalog-console {
+      padding-top: 28px;
+      min-width: 0;
+    }
+    .view-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: end;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: oklch(98% 0.012 80);
+      box-shadow: var(--shadow);
+    }
+    .view-head h2 { font-size: clamp(1.6rem, 2.7vw, 2.5rem); }
+    .view-switch {
+      display: inline-grid;
+      grid-template-columns: repeat(2, minmax(112px, 1fr));
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: oklch(94% 0.018 80);
+    }
+    .view-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 34px;
+      border: 0;
+      border-radius: 8px;
+      padding: 6px 10px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+    .view-button[aria-pressed="true"] {
+      color: var(--ink);
+      background: oklch(99% 0.01 80);
+      box-shadow: 0 1px 8px oklch(24% 0.03 60 / 0.12);
+    }
+    .boundary-note {
+      margin-top: 8px;
+      border: 1px solid color-mix(in oklch, var(--plum), white 56%);
+      border-radius: 8px;
+      overflow: clip;
+      background: color-mix(in oklch, var(--plum), white 94%);
+    }
+    .boundary-title {
+      display: grid;
+      grid-template-columns: minmax(170px, 0.34fr) minmax(0, 1fr);
+      gap: 0;
+      border-bottom: 1px solid color-mix(in oklch, var(--plum), white 66%);
+    }
+    .boundary-title > * {
+      padding: 9px 11px;
+      border-right: 1px solid color-mix(in oklch, var(--plum), white 66%);
+      font-size: 0.82rem;
+    }
+    .boundary-title > *:last-child { border-right: 0; }
+    .boundary-title b {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--plum);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .boundary-title span { color: oklch(31% 0.036 62); }
+    .boundary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1px;
+      background: color-mix(in oklch, var(--plum), white 72%);
+    }
+    .boundary-card {
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+      padding: 10px 11px;
+      background: color-mix(in oklch, var(--plum), white 94%);
+    }
+    .boundary-signal {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 7px;
+      font-size: 0.8rem;
+      color: oklch(31% 0.036 62);
+      line-height: 1.32;
+    }
+    .boundary-decision {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px 8px;
+      align-items: center;
+      font-size: 0.74rem;
+      color: var(--muted);
+    }
+    [data-view-panel][hidden] { display: none; }
+    .table-panel {
+      margin-top: 10px;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: oklch(98% 0.012 80);
+      overflow: clip;
+    }
+    .table-tools {
+      display: grid;
+      grid-template-columns: minmax(260px, 1.4fr) repeat(5, minmax(124px, 0.7fr)) auto;
+      gap: 7px;
+      align-items: end;
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in oklch, var(--paper), white 50%);
+    }
+    .table-tools label {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+    }
+    .table-tools label span {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--copper);
+    }
+    .table-tools input,
+    .table-tools select {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid color-mix(in oklch, var(--line), white 16%);
+      border-radius: 8px;
+      padding: 6px 9px;
+      background: oklch(99% 0.01 80);
+      font-size: 0.84rem;
+    }
+    .clear-button {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 10px;
+      background: oklch(99% 0.01 80);
+      font-size: 0.84rem;
+    }
+    .table-status {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--line);
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      color: var(--muted);
+    }
+    .table-status b { color: var(--ink); }
+    .table-wrap {
+      width: 100%;
+      min-width: 0;
+      overflow-x: auto;
+    }
+    .source-table {
+      width: 100%;
+      min-width: 1260px;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      table-layout: fixed;
+    }
+    .source-table .col-date { width: 92px; }
+    .source-table .col-type { width: 190px; }
+    .source-table .col-source { width: 134px; }
+    .source-table .col-talk { width: 250px; }
+    .source-table .col-route { width: 180px; }
+    .source-table .col-calendar { width: 122px; }
+    .source-table .col-review { width: 148px; }
+    .source-table .col-filename { width: 144px; }
+    .source-table th,
+    .source-table td {
+      padding: 8px 9px;
+      border-bottom: 1px solid color-mix(in oklch, var(--line), transparent 28%);
+      text-align: left;
+      vertical-align: top;
+    }
+    .source-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: oklch(94% 0.018 80);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .source-table th button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--copper);
+      font: inherit;
+      text-transform: inherit;
+      letter-spacing: inherit;
+    }
+    .source-table th[aria-sort="ascending"] button::after { content: "↑"; color: var(--muted); }
+    .source-table th[aria-sort="descending"] button::after { content: "↓"; color: var(--muted); }
+    .source-table td small {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      line-height: 1.28;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .source-table td b {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .source-table td code {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .source-table .chip { min-height: 22px; padding: 2px 7px; }
+    .mono-cell { font-family: var(--mono); color: var(--copper); }
+    .table-type { display: inline-flex; align-items: center; gap: 6px; font-weight: 650; }
+    .confidence-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    .confidence-metric {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 4px;
+      min-height: 20px;
+      padding: 2px 6px;
+      border: 1px solid color-mix(in oklch, var(--line), white 14%);
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 0.66rem;
+      color: var(--muted);
+      background: oklch(97% 0.012 80);
+    }
+    .confidence-metric b { color: var(--ink); font-size: 0.72rem; }
+    .confidence-metric.ok { border-color: color-mix(in oklch, var(--olive), white 58%); color: var(--olive); background: color-mix(in oklch, var(--olive), white 93%); }
+    .confidence-metric.hold { border-color: color-mix(in oklch, var(--plum), white 60%); color: var(--plum); background: color-mix(in oklch, var(--plum), white 94%); }
+    .confidence-metric.review { border-color: color-mix(in oklch, var(--red), white 62%); color: var(--red); background: color-mix(in oklch, var(--red), white 94%); }
+    .empty-table {
+      padding: 18px;
+      font-size: 0.9rem;
+    }
+    .section-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 0.42fr); gap: 28px; align-items: end; margin-bottom: 16px; }
+    .route-title { display: flex; align-items: baseline; gap: 10px; }
+    .route-summary { max-width: 700px; margin-top: 10px; }
+    .route-meta { display: grid; gap: 8px; justify-items: start; }
+    .route-stats { display: flex; flex-wrap: wrap; gap: 6px; }
+    .route-stats span {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 4px;
+      min-height: 26px;
+      padding: 3px 8px;
+      border: 1px solid color-mix(in oklch, var(--line), white 16%);
+      border-radius: 999px;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      background: oklch(98% 0.012 80);
+    }
+    .route-stats b { color: var(--ink); }
+    .talk-list { display: grid; gap: 8px; }
+    .talk-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(240px, 0.62fr);
+      gap: 0;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: clip;
+      background: oklch(98% 0.012 80);
+    }
+    .talk-main, .talk-state { padding: 13px; min-width: 0; }
+    .talk-main { display: grid; gap: 7px; border-right: 1px solid var(--line); }
+    .talk-kicker { display: flex; flex-wrap: wrap; gap: 6px 10px; font-family: var(--mono); font-size: 0.72rem; color: var(--copper); text-transform: uppercase; letter-spacing: 0.08em; }
+    .talk-kicker span { display: inline-flex; align-items: center; gap: 6px; }
+    .talk-state { display: grid; gap: 7px; align-content: start; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: flex-start; }
+    .chip {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      gap: 6px;
+      min-height: 24px;
+      padding: 3px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      background: oklch(96% 0.015 80);
+      white-space: nowrap;
+    }
+    .chip.ok { color: var(--olive); border-color: color-mix(in oklch, var(--olive), white 58%); background: color-mix(in oklch, var(--olive), white 91%); }
+    .chip.hold { color: var(--plum); border-color: color-mix(in oklch, var(--plum), white 58%); background: color-mix(in oklch, var(--plum), white 92%); }
+    .chip.review { color: var(--red); border-color: color-mix(in oklch, var(--red), white 60%); background: color-mix(in oklch, var(--red), white 92%); }
+    .chip.neutral { color: var(--blue); border-color: color-mix(in oklch, var(--blue), white 62%); background: color-mix(in oklch, var(--blue), white 93%); }
+    .chip.source-meet { color: var(--blue); border-color: color-mix(in oklch, var(--blue), white 58%); background: color-mix(in oklch, var(--blue), white 91%); }
+    .chip.source-gemini { color: var(--plum); border-color: color-mix(in oklch, var(--plum), white 58%); background: color-mix(in oklch, var(--plum), white 92%); }
+    .chip.source-otter { color: var(--olive); border-color: color-mix(in oklch, var(--olive), white 58%); background: color-mix(in oklch, var(--olive), white 91%); }
+    .chip.source-drive, .chip.source-unknown { color: var(--muted); border-color: color-mix(in oklch, var(--line), white 16%); background: oklch(96% 0.015 80); }
+    .chip.source-ambiguous { color: var(--red); border-color: color-mix(in oklch, var(--red), white 60%); background: color-mix(in oklch, var(--red), white 92%); }
+    .talk-state p, .talk-state small, details p { font-size: 0.8rem; }
+    .state-note { color: oklch(34% 0.032 62); }
+    .evidence-line { color: var(--muted); font-family: var(--mono); font-size: 0.7rem; line-height: 1.3; }
+    .talk-state small { display: flex; gap: 7px; color: var(--muted); overflow-wrap: anywhere; }
+    details { border-top: 1px solid color-mix(in oklch, var(--line), transparent 30%); padding-top: 8px; }
+    summary { cursor: pointer; width: fit-content; color: var(--ink); font-size: 0.82rem; }
+    summary .emoji { margin-right: 5px; }
+    details p { margin-top: 8px; }
+    footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.82rem; }
+
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: 1fr; }
+      .rail { position: static; display: flex; flex-wrap: wrap; gap: 8px; border-left: 0; border-top: 3px solid var(--copper); padding: 12px 0 0; }
+      .rail strong { flex-basis: 100%; margin-bottom: 2px; }
+      .rail a {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 32px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: oklch(98% 0.012 80);
+      }
+      .rail a code { display: none; }
+      .rail a b { color: var(--ink); }
+      .view-head { grid-template-columns: 1fr; align-items: start; }
+      .view-switch { width: 100%; }
+      .boundary-title { grid-template-columns: 1fr; }
+      .boundary-title > * {
+        border-right: 0;
+        border-bottom: 1px solid color-mix(in oklch, var(--plum), white 66%);
+      }
+      .boundary-title > *:last-child { border-bottom: 0; }
+      .boundary-grid { grid-template-columns: 1fr; }
+      .table-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .clear-button { width: fit-content; }
+      .summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .section-head, .talk-row { grid-template-columns: 1fr; }
+      .talk-main { border-right: 0; border-bottom: 1px solid var(--line); }
+    }
+
+    @media (max-width: 560px) {
+      .page { width: min(100% - 20px, 1220px); }
+      .hero { min-height: auto; padding-top: 18px; }
+      .view-switch { grid-template-columns: 1fr; }
+      .table-tools { grid-template-columns: 1fr; }
+      .table-wrap { overflow-x: visible; }
+      .source-table {
+        display: block;
+        min-width: 0;
+      }
+      .source-table thead { display: none; }
+      .source-table tbody {
+        display: grid;
+        gap: 8px;
+        padding: 8px;
+      }
+      .source-table tr {
+        display: grid;
+        border: 1px solid color-mix(in oklch, var(--line), white 14%);
+        border-radius: 10px;
+        overflow: clip;
+        background: oklch(99% 0.01 80);
+      }
+      .source-table tr[hidden] { display: none; }
+      .source-table td {
+        display: grid;
+        grid-template-columns: 78px minmax(0, 1fr);
+        gap: 10px;
+        padding: 7px 9px;
+        border-bottom: 1px solid color-mix(in oklch, var(--line), transparent 35%);
+      }
+      .source-table td[data-label="Route"],
+      .source-table td[data-label="Filename"] {
+        display: none;
+      }
+      .source-table td small {
+        display: none;
+      }
+      .source-table td:last-child { border-bottom: 0; }
+      .source-table td::before {
+        content: attr(data-label);
+        font-family: var(--mono);
+        font-size: 0.66rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--copper);
+      }
+      .source-table .chip { white-space: normal; }
+      .summary-strip { grid-template-columns: 1fr; }
+      section { padding-top: 56px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="shell">
+      <nav class="rail" aria-label="Drive route menu">
+        <strong>Drive route menu</strong>
+
+    <a href="#raw-transcripts-weekly-standup">
+      <span class="nav-title"><span class="emoji" aria-hidden="true">👤</span>Weekly standups</span>
+      <code>raw_transcripts/weekly_standup</code>
+      <b>1</b>
+    </a>
+
+    <a href="#raw-transcripts-office-hours">
+      <span class="nav-title"><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+      <code>raw_transcripts/office_hours</code>
+      <b>6</b>
+    </a>
+
+    <a href="#raw-transcripts-salon">
+      <span class="nav-title"><span class="emoji" aria-hidden="true">💬</span>Salons</span>
+      <code>raw_transcripts/salon</code>
+      <b>7</b>
+    </a>
+
+    <a href="#raw-transcripts-rd-jam">
+      <span class="nav-title"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jams</span>
+      <code>raw_transcripts/rd_jam</code>
+      <b>13</b>
+    </a>
+
+    <a href="#raw-transcripts-demo-presentation">
+      <span class="nav-title"><span class="emoji" aria-hidden="true">🎬</span>Demos / presentations</span>
+      <code>raw_transcripts/demo_presentation</code>
+      <b>5</b>
+    </a>
+
+    <a href="#raw-transcripts-user-interview">
+      <span class="nav-title"><span class="emoji" aria-hidden="true">🎙️</span>User interviews</span>
+      <code>raw_transcripts/user_interview</code>
+      <b>1</b>
+    </a>
+
+    <a href="#do-not-publish-private-1on1">
+      <span class="nav-title"><span class="emoji" aria-hidden="true">🔒</span>Private 1:1 / do not publish</span>
+      <code>do_not_publish/private_1on1</code>
+      <b>9</b>
+    </a>
+
+      </nav>
+      <main>
+        <header class="hero">
+          <div>
+            <div class="kicker">Shape Rotator OS / transcript source index / generated 2026-06-14</div>
+            <h1>What talks do we have?</h1>
+          </div>
+          <p class="lede">A metadata-only catalog of transcript sources in the Drive vault, grouped by current Drive route. Each row gives the talk line, canonical filename, and whether it confidently matches a calendar event.</p>
+          <div class="summary-strip" aria-label="Transcript catalog summary">
+            <article class="summary-card"><span class="summary-label"><span class="emoji" aria-hidden="true">🗂️</span> Sources</span><b>42</b><p>Metadata rows from the private vault import plan.</p></article>
+            <article class="summary-card"><span class="summary-label"><span class="emoji" aria-hidden="true">✅</span> Matched</span><b>14</b><p>Title/date match to a calendar block.</p></article>
+            <article class="summary-card"><span class="summary-label"><span class="emoji" aria-hidden="true">📅</span> Date only</span><b>26</b><p>Date aligns; session title needs confirmation.</p></article>
+            <article class="summary-card"><span class="summary-label"><span class="emoji" aria-hidden="true">⚠️</span> Review</span><b>28</b><p>Held for calendar, routing, or privacy review.</p></article>
+          </div>
+          <div class="links" aria-label="Related documents">
+            <a href="README.md">Docs hub</a>
+            <a href="INFORMATION_RULES.html">Storage and naming rules</a>
+            <a href="INFORMATION_RULES.md">Rules markdown source</a>
+            <a href="transcript-calendar-coverage-index.md">Calendar coverage index</a>
+          </div>
+        </header>
+
+
+    <section class="catalog-console" aria-label="Catalog views">
+      <div class="view-head">
+        <div>
+          <div class="kicker">Catalog view</div>
+          <h2>Browse by route or inspect as a table.</h2>
+        </div>
+        <div class="view-switch" role="group" aria-label="Choose catalog view">
+          <button type="button" class="view-button" data-view="route" aria-pressed="true"><span class="emoji" aria-hidden="true">🗂️</span> Route view</button>
+          <button type="button" class="view-button" data-view="table" aria-pressed="false"><span class="emoji" aria-hidden="true">📊</span> Table view</button>
+        </div>
+      </div>
+      <div class="boundary-note" aria-label="Transcript type classification boundaries">
+        <div class="boundary-title">
+          <b><span class="emoji" aria-hidden="true">🧭</span> Type boundary</b>
+          <span>Calendar event first. If the signal fits two rows, use the stricter/private route until reviewed.</span>
+        </div>
+        <div class="boundary-grid">
+
+      <div class="boundary-card">
+        <div class="boundary-signal"><span class="emoji" aria-hidden="true">👤</span>Recurring WDYDLW, status update, individual progress, or coordinator check-in by person</div>
+        <div class="boundary-decision"><span>Use <code>weekly_standup</code></span><span>not <code>office_hours</code></span></div>
+      </div>
+
+      <div class="boundary-card">
+        <div class="boundary-signal"><span class="emoji" aria-hidden="true">🧑‍💻</span>Project support, product feedback, roadmap critique, milestone review, or implementation help</div>
+        <div class="boundary-decision"><span>Use <code>office_hours</code></span><span>not <code>rd_jam</code></span></div>
+      </div>
+
+      <div class="boundary-card">
+        <div class="boundary-signal"><span class="emoji" aria-hidden="true">🧪</span>Open-ended whiteboarding, architecture exploration, product/technical hypothesis testing, or idea-stage workshop</div>
+        <div class="boundary-decision"><span>Use <code>rd_jam</code></span><span>not <code>office_hours</code></span></div>
+      </div>
+
+      <div class="boundary-card">
+        <div class="boundary-signal"><span class="emoji" aria-hidden="true">💬</span>Topic-led discussion, speaker-led room, or salon-style session not centered on one team&#39;s operating work</div>
+        <div class="boundary-decision"><span>Use <code>salon</code></span><span>not <code>office_hours</code></span></div>
+      </div>
+
+      <div class="boundary-card">
+        <div class="boundary-signal"><span class="emoji" aria-hidden="true">🎬</span>Prepared project/product demo, presentation, intro, showcase, or presenter-owned material</div>
+        <div class="boundary-decision"><span>Use <code>demo_presentation</code></span><span>not <code>salon</code></span></div>
+      </div>
+
+      <div class="boundary-card">
+        <div class="boundary-signal"><span class="emoji" aria-hidden="true">🎙️</span>External customer/user/ICP subject whose participation is research evidence</div>
+        <div class="boundary-decision"><span>Use <code>user_interview</code></span><span>not <code>office_hours</code></span></div>
+      </div>
+
+      <div class="boundary-card">
+        <div class="boundary-signal"><span class="emoji" aria-hidden="true">🔒</span>Private coaching, sensitive feedback, governance, fundraising, internal planning, or coordinator strategy</div>
+        <div class="boundary-decision"><span>Use <code>private_1on1</code> <code>planning_strategy</code></span><span>not <code>office_hours</code></span></div>
+      </div>
+
+        </div>
+      </div>
+
+      <div class="table-panel" id="table-view" data-view-panel="table" hidden>
+        <div class="table-tools" aria-label="Table filters">
+          <label>
+            <span>Search</span>
+            <input type="search" data-filter="search" placeholder="Talk, source, type, route, filename">
+          </label>
+          <label>
+            <span>Sort</span>
+            <select data-sort-select>
+              <option value="date">Date</option>
+              <option value="type">Type</option>
+              <option value="confidence">Type confidence</option>
+              <option value="source">Source</option>
+              <option value="talk">Talk</option>
+              <option value="route">Route</option>
+              <option value="calendar">Calendar</option>
+              <option value="review">Review</option>
+              <option value="filename">Filename</option>
+            </select>
+          </label>
+          <label>
+            <span>Route</span>
+            <select data-filter="route">
+              <option value="">All routes</option>
+              <option value="raw_transcripts/weekly_standup">👤 Weekly standups (1)</option><option value="raw_transcripts/office_hours">🧑‍💻 Office hours (6)</option><option value="raw_transcripts/salon">💬 Salons (7)</option><option value="raw_transcripts/rd_jam">🧪 R&amp;D / jams (13)</option><option value="raw_transcripts/demo_presentation">🎬 Demos / presentations (5)</option><option value="raw_transcripts/user_interview">🎙️ User interviews (1)</option><option value="do_not_publish/private_1on1">🔒 Private 1:1 / do not publish (9)</option>
+            </select>
+          </label>
+          <label>
+            <span>Source</span>
+            <select data-filter="source">
+              <option value="">All sources</option>
+              <option value="google_meet">🎥 Google Meet (33)</option><option value="manual_drive">📄 Manual Drive (9)</option>
+            </select>
+          </label>
+          <label>
+            <span>Calendar</span>
+            <select data-filter="calendar">
+              <option value="">All calendar states</option>
+              <option value="matched">✅ Matched (14)</option><option value="date_only">📅 Date only (26)</option><option value="title_only_candidate">🔎 Title candidate (1)</option><option value="unknown_date">❓ Unknown date (1)</option>
+            </select>
+          </label>
+          <label>
+            <span>Review</span>
+            <select data-filter="review">
+              <option value="">All review states</option>
+              <option value="ready">✅ Ready (14)</option><option value="review">⚠️ Review (28)</option>
+            </select>
+          </label>
+          <button type="button" class="clear-button" data-clear-filters>Clear</button>
+        </div>
+        <div class="table-status" aria-live="polite"><b data-row-count>42</b> of 42 sources shown</div>
+        <div class="table-wrap">
+          <table class="source-table">
+            <colgroup>
+              <col class="col-date">
+              <col class="col-type">
+              <col class="col-source">
+              <col class="col-talk">
+              <col class="col-route">
+              <col class="col-calendar">
+              <col class="col-review">
+              <col class="col-filename">
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col" aria-sort="ascending"><button type="button" data-sort="date">Date</button></th>
+                <th scope="col"><button type="button" data-sort="type">Type</button></th>
+                <th scope="col"><button type="button" data-sort="source">Source</button></th>
+                <th scope="col"><button type="button" data-sort="talk">Talk</button></th>
+                <th scope="col"><button type="button" data-sort="route">Route</button></th>
+                <th scope="col"><button type="button" data-sort="calendar">Calendar</button></th>
+                <th scope="col"><button type="button" data-sort="review">Review</button></th>
+                <th scope="col"><button type="button" data-sort="filename">Filename</button></th>
+              </tr>
+            </thead>
+            <tbody data-table-body>
+
+    <tr
+      data-date="2026-06-08"
+      data-type="Weekly standup"
+      data-confidence="071"
+      data-talk="Shaw"
+      data-route="raw_transcripts/weekly_standup"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="weekly_standup_shaw_2026-06-08.txt"
+      data-search="2026-06-08 weekly standup 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present shaw weekly standup for shaw. raw_transcripts/weekly_standup weekly standups google meet meet transcript date only review date-only calendar match weekly_standup_shaw_2026-06-08.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-08</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">👤</span>Weekly standup</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Shaw</b><small>Weekly standup for Shaw.</small></td>
+      <td data-label="Route"><code>raw_transcripts/weekly_standup</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>weekly_standup_shaw_2026-06-08.txt</code></td>
+    </tr>
+
+    <tr
+      data-date=""
+      data-type="Office hours"
+      data-confidence="063"
+      data-talk="Unknown Date Router Hermes Context Ingestion Unknown Date"
+      data-route="raw_transcripts/office_hours"
+      data-source="google_meet"
+      data-calendar="unknown_date"
+      data-review="review"
+      data-filename="office_hours_unknown-date-router-hermes-context-ingestion_unknown-date.txt"
+      data-search=" office hours 63% type confidence explicit type marker route agrees with type calendar unresolved manual review reason present unknown date router hermes context ingestion unknown date office hours session for unknown date router hermes context ingestion unknown date. raw_transcripts/office_hours office hours google meet meet transcript unknown date review unknown date office_hours_unknown-date-router-hermes-context-ingestion_unknown-date.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">unknown</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric review"><b>63%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar unresolved; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Unknown Date Router Hermes Context Ingestion Unknown Date</b><small>Office hours session for Unknown Date Router Hermes Context Ingestion Unknown Date.</small></td>
+      <td data-label="Route"><code>raw_transcripts/office_hours</code></td>
+      <td data-label="Calendar"><span class="chip review"><span class="emoji" aria-hidden="true">❓</span>Unknown date</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Unknown date</small></td>
+      <td data-label="Filename"><code>office_hours_unknown-date-router-hermes-context-ingestion_unknown-date.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-26"
+      data-type="Office hours"
+      data-confidence="096"
+      data-talk="Elocute Product Shaw"
+      data-route="raw_transcripts/office_hours"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="office_hours_elocute-product-shaw_2026-05-26.txt"
+      data-search="2026-05-26 office hours 96% type confidence explicit type marker route agrees with type calendar matched moderate calendar token score elocute product shaw office hours session for elocute product shaw. raw_transcripts/office_hours office hours google meet meet transcript matched ready office_hours_elocute-product-shaw_2026-05-26.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-26</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; moderate calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Elocute Product Shaw</b><small>Office hours session for Elocute Product Shaw.</small></td>
+      <td data-label="Route"><code>raw_transcripts/office_hours</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>office_hours_elocute-product-shaw_2026-05-26.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-28"
+      data-type="Office hours"
+      data-confidence="071"
+      data-talk="Teesql Market Validation"
+      data-route="raw_transcripts/office_hours"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="office_hours_teesql-market-validation_2026-05-28.txt"
+      data-search="2026-05-28 office hours 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present teesql market validation office hours session for teesql market validation. raw_transcripts/office_hours office hours google meet meet transcript date only review date-only calendar match office_hours_teesql-market-validation_2026-05-28.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-28</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Teesql Market Validation</b><small>Office hours session for Teesql Market Validation.</small></td>
+      <td data-label="Route"><code>raw_transcripts/office_hours</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>office_hours_teesql-market-validation_2026-05-28.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-30"
+      data-type="Office hours"
+      data-confidence="071"
+      data-talk="Loop Fucory Shashank"
+      data-route="raw_transcripts/office_hours"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="office_hours_loop-fucory-shashank_2026-05-30.txt"
+      data-search="2026-05-30 office hours 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present loop fucory shashank office hours session for loop fucory shashank. raw_transcripts/office_hours office hours google meet meet transcript date only review date-only calendar match office_hours_loop-fucory-shashank_2026-05-30.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-30</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Loop Fucory Shashank</b><small>Office hours session for Loop Fucory Shashank.</small></td>
+      <td data-label="Route"><code>raw_transcripts/office_hours</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>office_hours_loop-fucory-shashank_2026-05-30.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-04"
+      data-type="Office hours"
+      data-confidence="071"
+      data-talk="Conclave PMF"
+      data-route="raw_transcripts/office_hours"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="office_hours_conclave-pmf_2026-06-04.txt"
+      data-search="2026-06-04 office hours 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present conclave pmf office hours session for conclave pmf. raw_transcripts/office_hours office hours google meet meet transcript date only review date-only calendar match office_hours_conclave-pmf_2026-06-04.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-04</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Conclave PMF</b><small>Office hours session for Conclave PMF.</small></td>
+      <td data-label="Route"><code>raw_transcripts/office_hours</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>office_hours_conclave-pmf_2026-06-04.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-05"
+      data-type="Office hours"
+      data-confidence="071"
+      data-talk="Conclave Recato Pre Hackathon"
+      data-route="raw_transcripts/office_hours"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="office_hours_conclave-recato-pre-hackathon_2026-06-05.txt"
+      data-search="2026-06-05 office hours 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present conclave recato pre hackathon office hours session for conclave recato pre hackathon. raw_transcripts/office_hours office hours google meet meet transcript date only review date-only calendar match office_hours_conclave-recato-pre-hackathon_2026-06-05.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-05</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Conclave Recato Pre Hackathon</b><small>Office hours session for Conclave Recato Pre Hackathon.</small></td>
+      <td data-label="Route"><code>raw_transcripts/office_hours</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>office_hours_conclave-recato-pre-hackathon_2026-06-05.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-20"
+      data-type="Salon"
+      data-confidence="096"
+      data-talk="Dstack Intro"
+      data-route="raw_transcripts/salon"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="salon_dstack-intro_2026-05-20.txt"
+      data-search="2026-05-20 salon 96% type confidence explicit type marker route agrees with type calendar matched moderate calendar token score dstack intro salon on dstack intro. raw_transcripts/salon salons google meet meet transcript matched ready salon_dstack-intro_2026-05-20.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-20</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; moderate calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Dstack Intro</b><small>Salon on Dstack Intro.</small></td>
+      <td data-label="Route"><code>raw_transcripts/salon</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>salon_dstack-intro_2026-05-20.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-22"
+      data-type="Salon"
+      data-confidence="096"
+      data-talk="Friday Shaw Greg"
+      data-route="raw_transcripts/salon"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="salon_friday-shaw-greg_2026-05-22.txt"
+      data-search="2026-05-22 salon 96% type confidence explicit type marker route agrees with type calendar matched moderate calendar token score friday shaw greg salon on friday shaw greg. raw_transcripts/salon salons google meet meet transcript matched ready salon_friday-shaw-greg_2026-05-22.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-22</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; moderate calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Friday Shaw Greg</b><small>Salon on Friday Shaw Greg.</small></td>
+      <td data-label="Route"><code>raw_transcripts/salon</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>salon_friday-shaw-greg_2026-05-22.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-22"
+      data-type="Salon"
+      data-confidence="071"
+      data-talk="Shape Rotator Project Map Guests"
+      data-route="raw_transcripts/salon"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="salon_shape-rotator-project-map-guests_2026-05-22.txt"
+      data-search="2026-05-22 salon 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present shape rotator project map guests salon on shape rotator project map guests. raw_transcripts/salon salons google meet meet transcript date only review date-only calendar match salon_shape-rotator-project-map-guests_2026-05-22.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-22</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Shape Rotator Project Map Guests</b><small>Salon on Shape Rotator Project Map Guests.</small></td>
+      <td data-label="Route"><code>raw_transcripts/salon</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>salon_shape-rotator-project-map-guests_2026-05-22.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-29"
+      data-type="Salon"
+      data-confidence="096"
+      data-talk="Shape Rotator Cohort Dinner Sorting Hat Dinner"
+      data-route="raw_transcripts/salon"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="salon_shape-rotator-cohort-dinner-sorting-hat-dinner_2026-05-29.txt"
+      data-search="2026-05-29 salon 96% type confidence explicit type marker route agrees with type calendar matched moderate calendar token score shape rotator cohort dinner sorting hat dinner salon on shape rotator cohort dinner sorting hat dinner. raw_transcripts/salon salons google meet meet transcript matched ready salon_shape-rotator-cohort-dinner-sorting-hat-dinner_2026-05-29.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-29</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; moderate calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Shape Rotator Cohort Dinner Sorting Hat Dinner</b><small>Salon on Shape Rotator Cohort Dinner Sorting Hat Dinner.</small></td>
+      <td data-label="Route"><code>raw_transcripts/salon</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>salon_shape-rotator-cohort-dinner-sorting-hat-dinner_2026-05-29.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-08"
+      data-type="Salon"
+      data-confidence="096"
+      data-talk="Agentic Organizations Sreeram"
+      data-route="raw_transcripts/salon"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="salon_agentic-organizations-sreeram_2026-06-08.txt"
+      data-search="2026-06-08 salon 96% type confidence explicit type marker route agrees with type calendar matched strong calendar token score agentic organizations sreeram salon on agentic organizations sreeram. raw_transcripts/salon salons google meet meet transcript matched ready salon_agentic-organizations-sreeram_2026-06-08.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-08</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; strong calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Agentic Organizations Sreeram</b><small>Salon on Agentic Organizations Sreeram.</small></td>
+      <td data-label="Route"><code>raw_transcripts/salon</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>salon_agentic-organizations-sreeram_2026-06-08.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-09"
+      data-type="Salon"
+      data-confidence="096"
+      data-talk="Info Markets Design B2B"
+      data-route="raw_transcripts/salon"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="salon_info-markets-design-b2b_2026-06-09.txt"
+      data-search="2026-06-09 salon 96% type confidence explicit type marker route agrees with type calendar matched strong calendar token score info markets design b2b salon on info markets design b2b. raw_transcripts/salon salons google meet meet transcript matched ready salon_info-markets-design-b2b_2026-06-09.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-09</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; strong calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Info Markets Design B2B</b><small>Salon on Info Markets Design B2B.</small></td>
+      <td data-label="Route"><code>raw_transcripts/salon</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>salon_info-markets-design-b2b_2026-06-09.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-11"
+      data-type="Salon"
+      data-confidence="096"
+      data-talk="Design Thinking Workshop"
+      data-route="raw_transcripts/salon"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="salon_design-thinking-workshop_2026-06-11.txt"
+      data-search="2026-06-11 salon 96% type confidence explicit type marker route agrees with type calendar matched strong calendar token score design thinking workshop salon on design thinking workshop. raw_transcripts/salon salons google meet meet transcript matched ready salon_design-thinking-workshop_2026-06-11.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-11</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; strong calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Design Thinking Workshop</b><small>Salon on Design Thinking Workshop.</small></td>
+      <td data-label="Route"><code>raw_transcripts/salon</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>salon_design-thinking-workshop_2026-06-11.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-21"
+      data-type="R&amp;D / jam"
+      data-confidence="096"
+      data-talk="Dumb Agent Tricks"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="rd_jam_dumb-agent-tricks_2026-05-21.txt"
+      data-search="2026-05-21 r&amp;d / jam 96% type confidence explicit type marker route agrees with type calendar matched strong calendar token score dumb agent tricks r&amp;d / jam around dumb agent tricks. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript matched ready rd_jam_dumb-agent-tricks_2026-05-21.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-21</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; strong calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Dumb Agent Tricks</b><small>R&amp;D / jam around Dumb Agent Tricks.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>rd_jam_dumb-agent-tricks_2026-05-21.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-27"
+      data-type="R&amp;D / jam"
+      data-confidence="071"
+      data-talk="Dstack Alex Shaw Lsdan Andrew"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="rd_jam_dstack-alex-shaw-lsdan-andrew_2026-05-27.txt"
+      data-search="2026-05-27 r&amp;d / jam 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present dstack alex shaw lsdan andrew r&amp;d / jam around dstack alex shaw lsdan andrew. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript date only review date-only calendar match type boundary check: r&amp;d/jam vs office-hours support rd_jam_dstack-alex-shaw-lsdan-andrew_2026-05-27.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-27</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Dstack Alex Shaw Lsdan Andrew</b><small>R&amp;D / jam around Dstack Alex Shaw Lsdan Andrew.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small></td>
+      <td data-label="Filename"><code>rd_jam_dstack-alex-shaw-lsdan-andrew_2026-05-27.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-27"
+      data-type="R&amp;D / jam"
+      data-confidence="096"
+      data-talk="Flashnet Part 1 Of 3"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="rd_jam_flashnet-part-1-of-3_2026-05-27.txt"
+      data-search="2026-05-27 r&amp;d / jam 96% type confidence explicit type marker route agrees with type calendar matched strong calendar token score flashnet part 1 of 3 r&amp;d / jam around flashnet part 1 of 3. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript matched ready rd_jam_flashnet-part-1-of-3_2026-05-27.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-27</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; strong calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Flashnet Part 1 Of 3</b><small>R&amp;D / jam around Flashnet Part 1 Of 3.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>rd_jam_flashnet-part-1-of-3_2026-05-27.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-27"
+      data-type="R&amp;D / jam"
+      data-confidence="096"
+      data-talk="Flashnet Part 2 Of 3"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="rd_jam_flashnet-part-2-of-3_2026-05-27.txt"
+      data-search="2026-05-27 r&amp;d / jam 96% type confidence explicit type marker route agrees with type calendar matched strong calendar token score flashnet part 2 of 3 r&amp;d / jam around flashnet part 2 of 3. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript matched ready rd_jam_flashnet-part-2-of-3_2026-05-27.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-27</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; strong calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Flashnet Part 2 Of 3</b><small>R&amp;D / jam around Flashnet Part 2 Of 3.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>rd_jam_flashnet-part-2-of-3_2026-05-27.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-27"
+      data-type="R&amp;D / jam"
+      data-confidence="096"
+      data-talk="Flashnet Part 3 Of 3"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="rd_jam_flashnet-part-3-of-3_2026-05-27.txt"
+      data-search="2026-05-27 r&amp;d / jam 96% type confidence explicit type marker route agrees with type calendar matched strong calendar token score flashnet part 3 of 3 r&amp;d / jam around flashnet part 3 of 3. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript matched ready rd_jam_flashnet-part-3-of-3_2026-05-27.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-27</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; strong calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Flashnet Part 3 Of 3</b><small>R&amp;D / jam around Flashnet Part 3 Of 3.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>rd_jam_flashnet-part-3-of-3_2026-05-27.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-27"
+      data-type="R&amp;D / jam"
+      data-confidence="071"
+      data-talk="Tee Dstack Easytee Phala"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="rd_jam_tee-dstack-easytee-phala_2026-05-27.txt"
+      data-search="2026-05-27 r&amp;d / jam 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present tee dstack easytee phala r&amp;d / jam around tee dstack easytee phala. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript date only review date-only calendar match type boundary check: r&amp;d/jam vs office-hours support rd_jam_tee-dstack-easytee-phala_2026-05-27.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-27</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Tee Dstack Easytee Phala</b><small>R&amp;D / jam around Tee Dstack Easytee Phala.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small></td>
+      <td data-label="Filename"><code>rd_jam_tee-dstack-easytee-phala_2026-05-27.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-28"
+      data-type="R&amp;D / jam"
+      data-confidence="071"
+      data-talk="Shaw Vinny"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="rd_jam_shaw-vinny_2026-05-28.txt"
+      data-search="2026-05-28 r&amp;d / jam 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present shaw vinny r&amp;d / jam around shaw vinny. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript date only review date-only calendar match type boundary check: r&amp;d/jam vs office-hours support rd_jam_shaw-vinny_2026-05-28.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-28</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Shaw Vinny</b><small>R&amp;D / jam around Shaw Vinny.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small></td>
+      <td data-label="Filename"><code>rd_jam_shaw-vinny_2026-05-28.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-01"
+      data-type="R&amp;D / jam"
+      data-confidence="071"
+      data-talk="IC3 Hackathon Day Open Hackathon"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="rd_jam_ic3-hackathon-day-open-hackathon_2026-06-01.txt"
+      data-search="2026-06-01 r&amp;d / jam 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present ic3 hackathon day open hackathon r&amp;d / jam around ic3 hackathon day open hackathon. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript date only review public label exceeds policy for inferred session type date-only calendar match type boundary check: r&amp;d/jam vs office-hours support rd_jam_ic3-hackathon-day-open-hackathon_2026-06-01.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-01</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>IC3 Hackathon Day Open Hackathon</b><small>R&amp;D / jam around IC3 Hackathon Day Open Hackathon.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Public Label Exceeds Policy For Inferred Session Type; Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small></td>
+      <td data-label="Filename"><code>rd_jam_ic3-hackathon-day-open-hackathon_2026-06-01.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-02"
+      data-type="R&amp;D / jam"
+      data-confidence="071"
+      data-talk="Eval Pipeline Walk"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="rd_jam_eval-pipeline-walk_2026-06-02.txt"
+      data-search="2026-06-02 r&amp;d / jam 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present eval pipeline walk r&amp;d / jam around eval pipeline walk. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript date only review date-only calendar match type boundary check: r&amp;d/jam vs office-hours support rd_jam_eval-pipeline-walk_2026-06-02.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-02</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Eval Pipeline Walk</b><small>R&amp;D / jam around Eval Pipeline Walk.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small></td>
+      <td data-label="Filename"><code>rd_jam_eval-pipeline-walk_2026-06-02.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-02"
+      data-type="R&amp;D / jam"
+      data-confidence="071"
+      data-talk="Session"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="rd_jam_session_2026-06-02.txt"
+      data-search="2026-06-02 r&amp;d / jam 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present session r&amp;d / jam around session. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript date only review date-only calendar match type boundary check: r&amp;d/jam vs office-hours support rd_jam_session_2026-06-02.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-02</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Session</b><small>R&amp;D / jam around Session.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small></td>
+      <td data-label="Filename"><code>rd_jam_session_2026-06-02.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-02"
+      data-type="R&amp;D / jam"
+      data-confidence="071"
+      data-talk="Skill Marketplace Eval Framework"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="rd_jam_skill-marketplace-eval-framework_2026-06-02.txt"
+      data-search="2026-06-02 r&amp;d / jam 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present skill marketplace eval framework r&amp;d / jam around skill marketplace eval framework. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript date only review date-only calendar match type boundary check: r&amp;d/jam vs office-hours support rd_jam_skill-marketplace-eval-framework_2026-06-02.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-02</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Skill Marketplace Eval Framework</b><small>R&amp;D / jam around Skill Marketplace Eval Framework.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small></td>
+      <td data-label="Filename"><code>rd_jam_skill-marketplace-eval-framework_2026-06-02.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-02"
+      data-type="R&amp;D / jam"
+      data-confidence="071"
+      data-talk="Skills Marketplace Try Before You Buy"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="rd_jam_skills-marketplace-try-before-you-buy_2026-06-02.txt"
+      data-search="2026-06-02 r&amp;d / jam 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present skills marketplace try before you buy r&amp;d / jam around skills marketplace try before you buy. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript date only review date-only calendar match type boundary check: r&amp;d/jam vs office-hours support rd_jam_skills-marketplace-try-before-you-buy_2026-06-02.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-02</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Skills Marketplace Try Before You Buy</b><small>R&amp;D / jam around Skills Marketplace Try Before You Buy.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small></td>
+      <td data-label="Filename"><code>rd_jam_skills-marketplace-try-before-you-buy_2026-06-02.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-03"
+      data-type="R&amp;D / jam"
+      data-confidence="071"
+      data-talk="User Journey"
+      data-route="raw_transcripts/rd_jam"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="rd_jam_user-journey_2026-06-03.txt"
+      data-search="2026-06-03 r&amp;d / jam 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present user journey r&amp;d / jam around user journey. raw_transcripts/rd_jam r&amp;d / jams google meet meet transcript date only review date-only calendar match type boundary check: r&amp;d/jam vs office-hours support rd_jam_user-journey_2026-06-03.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-03</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>User Journey</b><small>R&amp;D / jam around User Journey.</small></td>
+      <td data-label="Route"><code>raw_transcripts/rd_jam</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small></td>
+      <td data-label="Filename"><code>rd_jam_user-journey_2026-06-03.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-19"
+      data-type="Demo / presentation"
+      data-confidence="071"
+      data-talk="Day1"
+      data-route="raw_transcripts/demo_presentation"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="demo_presentation_day1_2026-05-19.txt"
+      data-search="2026-05-19 demo / presentation 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present day1 demo / presentation for day1. raw_transcripts/demo_presentation demos / presentations google meet meet transcript date only review date-only calendar match demo_presentation_day1_2026-05-19.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-19</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🎬</span>Demo / presentation</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Day1</b><small>Demo / presentation for Day1.</small></td>
+      <td data-label="Route"><code>raw_transcripts/demo_presentation</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>demo_presentation_day1_2026-05-19.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-20"
+      data-type="Demo / presentation"
+      data-confidence="096"
+      data-talk="Local First"
+      data-route="raw_transcripts/demo_presentation"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="demo_presentation_local-first_2026-05-20.txt"
+      data-search="2026-05-20 demo / presentation 96% type confidence explicit type marker route agrees with type calendar matched moderate calendar token score local first demo / presentation for local first. raw_transcripts/demo_presentation demos / presentations google meet meet transcript matched ready demo_presentation_local-first_2026-05-20.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-20</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🎬</span>Demo / presentation</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; moderate calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Local First</b><small>Demo / presentation for Local First.</small></td>
+      <td data-label="Route"><code>raw_transcripts/demo_presentation</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>demo_presentation_local-first_2026-05-20.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-21"
+      data-type="Demo / presentation"
+      data-confidence="071"
+      data-talk="Agents Day3"
+      data-route="raw_transcripts/demo_presentation"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="demo_presentation_agents-day3_2026-05-21.txt"
+      data-search="2026-05-21 demo / presentation 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present agents day3 demo / presentation for agents day3. raw_transcripts/demo_presentation demos / presentations google meet meet transcript date only review date-only calendar match demo_presentation_agents-day3_2026-05-21.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-21</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🎬</span>Demo / presentation</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Agents Day3</b><small>Demo / presentation for Agents Day3.</small></td>
+      <td data-label="Route"><code>raw_transcripts/demo_presentation</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>demo_presentation_agents-day3_2026-05-21.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-26"
+      data-type="Demo / presentation"
+      data-confidence="071"
+      data-talk="Elocute"
+      data-route="raw_transcripts/demo_presentation"
+      data-source="google_meet"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="demo_presentation_elocute_2026-05-26.txt"
+      data-search="2026-05-26 demo / presentation 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present elocute demo / presentation for elocute. raw_transcripts/demo_presentation demos / presentations google meet meet transcript date only review date-only calendar match demo_presentation_elocute_2026-05-26.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-26</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🎬</span>Demo / presentation</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Elocute</b><small>Demo / presentation for Elocute.</small></td>
+      <td data-label="Route"><code>raw_transcripts/demo_presentation</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>demo_presentation_elocute_2026-05-26.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-26"
+      data-type="Demo / presentation"
+      data-confidence="096"
+      data-talk="Wikigen Crossroads"
+      data-route="raw_transcripts/demo_presentation"
+      data-source="google_meet"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="demo_presentation_wikigen-crossroads_2026-05-26.txt"
+      data-search="2026-05-26 demo / presentation 96% type confidence explicit type marker route agrees with type calendar matched moderate calendar token score wikigen crossroads demo / presentation for wikigen crossroads. raw_transcripts/demo_presentation demos / presentations google meet meet transcript matched ready demo_presentation_wikigen-crossroads_2026-05-26.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-26</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🎬</span>Demo / presentation</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; moderate calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Wikigen Crossroads</b><small>Demo / presentation for Wikigen Crossroads.</small></td>
+      <td data-label="Route"><code>raw_transcripts/demo_presentation</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>demo_presentation_wikigen-crossroads_2026-05-26.txt</code></td>
+    </tr>
+
+    <tr
+      data-date=""
+      data-type="User interview"
+      data-confidence="079"
+      data-talk="Inference Unknown Date"
+      data-route="raw_transcripts/user_interview"
+      data-source="google_meet"
+      data-calendar="title_only_candidate"
+      data-review="review"
+      data-filename="user_interview_inference_unknown-date.txt"
+      data-search=" user interview 79% type confidence explicit type marker route agrees with type title-only calendar candidate strong calendar token score inference unknown date user interview source for inference unknown date. raw_transcripts/user_interview user interviews google meet meet transcript title candidate review title-only calendar candidate date missing title match needs confirmation user_interview_inference_unknown-date.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">unknown</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🎙️</span>User interview</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>79%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; title-only calendar candidate; strong calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span><small>Meet transcript</small></td>
+      <td data-label="Talk"><b>Inference Unknown Date</b><small>User interview source for Inference Unknown Date.</small></td>
+      <td data-label="Route"><code>raw_transcripts/user_interview</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">🔎</span>Title candidate</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Title-only calendar candidate; Date Missing Title Match Needs Confirmation</small></td>
+      <td data-label="Filename"><code>user_interview_inference_unknown-date.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-25"
+      data-type="Private 1:1"
+      data-confidence="096"
+      data-talk="Office Hours Andrew Drop Mixed Conversations"
+      data-route="do_not_publish/private_1on1"
+      data-source="manual_drive"
+      data-calendar="matched"
+      data-review="ready"
+      data-filename="private_1on1_office-hours-andrew-drop-mixed-conversations_2026-05-25.txt"
+      data-search="2026-05-25 private 1:1 96% type confidence explicit type marker route agrees with type calendar matched moderate calendar token score office hours andrew drop mixed conversations private 1:1 source for office hours andrew drop mixed conversations; held in the private do-not-publish route. do_not_publish/private_1on1 private 1:1 / do not publish manual drive drive doc matched ready private_1on1_office-hours-andrew-drop-mixed-conversations_2026-05-25.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-25</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; calendar matched; moderate calendar token score</small></td>
+      <td data-label="Source"><span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span><small>Drive doc</small></td>
+      <td data-label="Talk"><b>Office Hours Andrew Drop Mixed Conversations</b><small>Private 1:1 source for Office Hours Andrew Drop Mixed Conversations; held in the private do-not-publish route.</small></td>
+      <td data-label="Route"><code>do_not_publish/private_1on1</code></td>
+      <td data-label="Calendar"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span></td>
+      <td data-label="Review"><span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span></td>
+      <td data-label="Filename"><code>private_1on1_office-hours-andrew-drop-mixed-conversations_2026-05-25.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-27"
+      data-type="Private 1:1"
+      data-confidence="071"
+      data-talk="Product Positioning Tina"
+      data-route="do_not_publish/private_1on1"
+      data-source="manual_drive"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="private_1on1_product-positioning-tina_2026-05-27.txt"
+      data-search="2026-05-27 private 1:1 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present product positioning tina private 1:1 source for product positioning tina; held in the private do-not-publish route. do_not_publish/private_1on1 private 1:1 / do not publish manual drive drive doc date only review date-only calendar match private_1on1_product-positioning-tina_2026-05-27.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-27</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span><small>Drive doc</small></td>
+      <td data-label="Talk"><b>Product Positioning Tina</b><small>Private 1:1 source for Product Positioning Tina; held in the private do-not-publish route.</small></td>
+      <td data-label="Route"><code>do_not_publish/private_1on1</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>private_1on1_product-positioning-tina_2026-05-27.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-28"
+      data-type="Private 1:1"
+      data-confidence="071"
+      data-talk="Albi Team"
+      data-route="do_not_publish/private_1on1"
+      data-source="manual_drive"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="private_1on1_albi-team_2026-05-28.txt"
+      data-search="2026-05-28 private 1:1 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present albi team private 1:1 source for albi team; held in the private do-not-publish route. do_not_publish/private_1on1 private 1:1 / do not publish manual drive drive doc date only review date-only calendar match private_1on1_albi-team_2026-05-28.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-28</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span><small>Drive doc</small></td>
+      <td data-label="Talk"><b>Albi Team</b><small>Private 1:1 source for Albi Team; held in the private do-not-publish route.</small></td>
+      <td data-label="Route"><code>do_not_publish/private_1on1</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>private_1on1_albi-team_2026-05-28.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-29"
+      data-type="Private 1:1"
+      data-confidence="071"
+      data-talk="Office Hours Combined Sessions"
+      data-route="do_not_publish/private_1on1"
+      data-source="manual_drive"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="private_1on1_office-hours-combined-sessions_2026-05-29.txt"
+      data-search="2026-05-29 private 1:1 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present office hours combined sessions private 1:1 source for office hours combined sessions; held in the private do-not-publish route. do_not_publish/private_1on1 private 1:1 / do not publish manual drive drive doc date only review date-only calendar match private_1on1_office-hours-combined-sessions_2026-05-29.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-29</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span><small>Drive doc</small></td>
+      <td data-label="Talk"><b>Office Hours Combined Sessions</b><small>Private 1:1 source for Office Hours Combined Sessions; held in the private do-not-publish route.</small></td>
+      <td data-label="Route"><code>do_not_publish/private_1on1</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>private_1on1_office-hours-combined-sessions_2026-05-29.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-29"
+      data-type="Private 1:1"
+      data-confidence="071"
+      data-talk="Session"
+      data-route="do_not_publish/private_1on1"
+      data-source="manual_drive"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="private_1on1_session_2026-05-29.txt"
+      data-search="2026-05-29 private 1:1 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present session private 1:1 source for session; held in the private do-not-publish route. do_not_publish/private_1on1 private 1:1 / do not publish manual drive drive doc date only review date-only calendar match private_1on1_session_2026-05-29.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-29</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span><small>Drive doc</small></td>
+      <td data-label="Talk"><b>Session</b><small>Private 1:1 source for Session; held in the private do-not-publish route.</small></td>
+      <td data-label="Route"><code>do_not_publish/private_1on1</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>private_1on1_session_2026-05-29.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-05-29"
+      data-type="Private 1:1"
+      data-confidence="071"
+      data-talk="Shape Rotator Funding Data Design"
+      data-route="do_not_publish/private_1on1"
+      data-source="manual_drive"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="private_1on1_shape-rotator-funding-data-design_2026-05-29.txt"
+      data-search="2026-05-29 private 1:1 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present shape rotator funding data design private 1:1 source for shape rotator funding data design; held in the private do-not-publish route. do_not_publish/private_1on1 private 1:1 / do not publish manual drive drive doc date only review date-only calendar match private_1on1_shape-rotator-funding-data-design_2026-05-29.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-05-29</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span><small>Drive doc</small></td>
+      <td data-label="Talk"><b>Shape Rotator Funding Data Design</b><small>Private 1:1 source for Shape Rotator Funding Data Design; held in the private do-not-publish route.</small></td>
+      <td data-label="Route"><code>do_not_publish/private_1on1</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>private_1on1_shape-rotator-funding-data-design_2026-05-29.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-04"
+      data-type="Private 1:1"
+      data-confidence="071"
+      data-talk="Tinycloud Fundraising Strategy"
+      data-route="do_not_publish/private_1on1"
+      data-source="manual_drive"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="private_1on1_tinycloud-fundraising-strategy_2026-06-04.txt"
+      data-search="2026-06-04 private 1:1 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present tinycloud fundraising strategy private 1:1 source for tinycloud fundraising strategy; held in the private do-not-publish route. do_not_publish/private_1on1 private 1:1 / do not publish manual drive drive doc date only review date-only calendar match private_1on1_tinycloud-fundraising-strategy_2026-06-04.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-04</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span><small>Drive doc</small></td>
+      <td data-label="Talk"><b>Tinycloud Fundraising Strategy</b><small>Private 1:1 source for Tinycloud Fundraising Strategy; held in the private do-not-publish route.</small></td>
+      <td data-label="Route"><code>do_not_publish/private_1on1</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>private_1on1_tinycloud-fundraising-strategy_2026-06-04.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-05"
+      data-type="Private 1:1"
+      data-confidence="071"
+      data-talk="Shape Rotator Workflow Meta Review"
+      data-route="do_not_publish/private_1on1"
+      data-source="manual_drive"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="private_1on1_shape-rotator-workflow-meta-review_2026-06-05.txt"
+      data-search="2026-06-05 private 1:1 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present shape rotator workflow meta review private 1:1 source for shape rotator workflow meta review; held in the private do-not-publish route. do_not_publish/private_1on1 private 1:1 / do not publish manual drive drive doc date only review date-only calendar match private_1on1_shape-rotator-workflow-meta-review_2026-06-05.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-05</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span><small>Drive doc</small></td>
+      <td data-label="Talk"><b>Shape Rotator Workflow Meta Review</b><small>Private 1:1 source for Shape Rotator Workflow Meta Review; held in the private do-not-publish route.</small></td>
+      <td data-label="Route"><code>do_not_publish/private_1on1</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>private_1on1_shape-rotator-workflow-meta-review_2026-06-05.txt</code></td>
+    </tr>
+
+    <tr
+      data-date="2026-06-09"
+      data-type="Private 1:1"
+      data-confidence="071"
+      data-talk="Cohort Ops Planning"
+      data-route="do_not_publish/private_1on1"
+      data-source="manual_drive"
+      data-calendar="date_only"
+      data-review="review"
+      data-filename="private_1on1_cohort-ops-planning_2026-06-09.txt"
+      data-search="2026-06-09 private 1:1 71% type confidence explicit type marker route agrees with type date-only calendar match manual review reason present cohort ops planning private 1:1 source for cohort ops planning; held in the private do-not-publish route. do_not_publish/private_1on1 private 1:1 / do not publish manual drive drive doc date only review date-only calendar match private_1on1_cohort-ops-planning_2026-06-09.txt"
+    >
+      <td data-label="Date"><span class="mono-cell">2026-06-09</span></td>
+      <td data-label="Type"><span class="table-type"><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+  <small>explicit type marker; route agrees with type; date-only calendar match; manual review reason present</small></td>
+      <td data-label="Source"><span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span><small>Drive doc</small></td>
+      <td data-label="Talk"><b>Cohort Ops Planning</b><small>Private 1:1 source for Cohort Ops Planning; held in the private do-not-publish route.</small></td>
+      <td data-label="Route"><code>do_not_publish/private_1on1</code></td>
+      <td data-label="Calendar"><span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span></td>
+      <td data-label="Review"><span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span><small>Date-only calendar match</small></td>
+      <td data-label="Filename"><code>private_1on1_cohort-ops-planning_2026-06-09.txt</code></td>
+    </tr>
+
+            </tbody>
+          </table>
+          <p class="empty-table" data-empty-table hidden>No transcript sources match those filters.</p>
+        </div>
+      </div>
+    </section>
+
+
+        <div id="route-view" data-view-panel="route">
+
+    <section id="raw-transcripts-weekly-standup" class="route-section">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Drive route</div>
+          <h2 class="route-title"><span class="emoji" aria-hidden="true">👤</span>Weekly standups</h2>
+          <p class="route-summary">Individual status sources. Distill only aggregate signal.</p>
+        </div>
+        <div class="route-meta">
+          <code>raw_transcripts/weekly_standup</code>
+          <div class="route-stats" aria-label="Route counts">
+            <span><b>1</b> source</span>
+            <span><b>0</b> matched</span>
+            <span><b>1</b> review</span>
+          </div>
+        </div>
+      </div>
+      <div class="talk-list">
+
+    <article class="talk-row" id="weekly-standup-shaw-2026-06-08-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">👤</span>Weekly standup</span>
+          <span>2026-06-08</span>
+        </div>
+        <h3>Shaw</h3>
+        <p>Weekly standup for Shaw.</p>
+        <code>weekly_standup_shaw_2026-06-08.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>11:30–13:00 Agentic Organizations with Sreeram @EigenLabs 15:30–16:00 tea on roof 16:00--17:00 WDYDLW with Shaw as Moderator @ the auditorium</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+      </div>
+    </section>
+
+    <section id="raw-transcripts-office-hours" class="route-section">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Drive route</div>
+          <h2 class="route-title"><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</h2>
+          <p class="route-summary">Project support, product feedback, PMF/checkpoint, or implementation help for a team/product.</p>
+        </div>
+        <div class="route-meta">
+          <code>raw_transcripts/office_hours</code>
+          <div class="route-stats" aria-label="Route counts">
+            <span><b>6</b> sources</span>
+            <span><b>1</b> matched</span>
+            <span><b>5</b> review</span>
+          </div>
+        </div>
+      </div>
+      <div class="talk-list">
+
+    <article class="talk-row" id="office-hours-unknown-date-router-hermes-context-ingestion-unknown-date-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+          <span>unknown date</span>
+        </div>
+        <h3>Unknown Date Router Hermes Context Ingestion Unknown Date</h3>
+        <p>Office hours session for Unknown Date Router Hermes Context Ingestion Unknown Date.</p>
+        <code>office_hours_unknown-date-router-hermes-context-ingestion_unknown-date.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip review"><span class="emoji" aria-hidden="true">⚠️</span>63% type</span>
+          <span class="chip review"><span class="emoji" aria-hidden="true">❓</span>Unknown date</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric review"><b>63%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">No reliable date found.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar unresolved; manual review reason present · Vault metadata only.</p>
+
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Unknown date</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="office-hours-elocute-product-shaw-2026-05-26-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+          <span>2026-05-26</span>
+        </div>
+        <h3>Elocute Product Shaw</h3>
+        <p>Office hours session for Elocute Product Shaw.</p>
+        <code>office_hours_elocute-product-shaw_2026-05-26.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / moderate; matched tokens: elocute, product.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; moderate calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>14:30–15:00 tea on roof 15:00-17:00 Project Intros: Elocute, Dealproof, Wikigen, Crossroads - Elocute (Albi) - Dealproof (Kristian) - Wikigen (Wiki) - Crossroads (Chloe Wang) 18...</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="office-hours-teesql-market-validation-2026-05-28-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+          <span>2026-05-28</span>
+        </div>
+        <h3>Teesql Market Validation</h3>
+        <p>Office hours session for Teesql Market Validation.</p>
+        <code>office_hours_teesql-market-validation_2026-05-28.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>15:30–16:00 tea on roof 1600 - 1830: Agentic Tooling workshops/clinic</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="office-hours-loop-fucory-shashank-2026-05-30-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+          <span>2026-05-30</span>
+        </div>
+        <h3>Loop Fucory Shashank</h3>
+        <p>Office hours session for Loop Fucory Shashank.</p>
+        <code>office_hours_loop-fucory-shashank_2026-05-30.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Convent</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="office-hours-conclave-pmf-2026-06-04-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+          <span>2026-06-04</span>
+        </div>
+        <h3>Conclave PMF</h3>
+        <p>Office hours session for Conclave PMF.</p>
+        <code>office_hours_conclave-pmf_2026-06-04.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Thu — group activity, sculpture garden 15:30–16:00 tea on roof</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="office-hours-conclave-recato-pre-hackathon-2026-06-05-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧑‍💻</span>Office hours</span>
+          <span>2026-06-05</span>
+        </div>
+        <h3>Conclave Recato Pre Hackathon</h3>
+        <p>Office hours session for Conclave Recato Pre Hackathon.</p>
+        <code>office_hours_conclave-recato-pre-hackathon_2026-06-05.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Fri — reception at art museum (overlap w/ shaperotator) 15:30–16:00 tea on roof 17:00 &quot;what did you do last week&quot; retro (Andrew hosts)</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+      </div>
+    </section>
+
+    <section id="raw-transcripts-salon" class="route-section">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Drive route</div>
+          <h2 class="route-title"><span class="emoji" aria-hidden="true">💬</span>Salons</h2>
+          <p class="route-summary">Topic-led rooms. Public only after speaker and editorial clearance.</p>
+        </div>
+        <div class="route-meta">
+          <code>raw_transcripts/salon</code>
+          <div class="route-stats" aria-label="Route counts">
+            <span><b>7</b> sources</span>
+            <span><b>6</b> matched</span>
+            <span><b>1</b> review</span>
+          </div>
+        </div>
+      </div>
+      <div class="talk-list">
+
+    <article class="talk-row" id="salon-dstack-intro-2026-05-20-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+          <span>2026-05-20</span>
+        </div>
+        <h3>Dstack Intro</h3>
+        <p>Salon on Dstack Intro.</p>
+        <code>salon_dstack-intro_2026-05-20.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / moderate; matched tokens: salon, dstack.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; moderate calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>12:00:14:00 Tutorial: Dstack 14:00-14:30 tea on roof 16:00 - 19:00 Project Intros (Salon room) Theme: Local/Private first Pramaana, Tinycloud, Bitrouter, TeeSQL, SignalStack 19:...</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="salon-friday-shaw-greg-2026-05-22-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+          <span>2026-05-22</span>
+        </div>
+        <h3>Friday Shaw Greg</h3>
+        <p>Salon on Friday Shaw Greg.</p>
+        <code>salon_friday-shaw-greg_2026-05-22.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / moderate; matched tokens: shaw, greg.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; moderate calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>14:00–14:30 tea on roof 5:15-6:30pm Introduce Tina + interactive recap / Project Mappings 6:30 PMF Roast w/ Tina and Greg The Greek 7:30 - 9:00 Founders Journey w/ Shaw</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="salon-shape-rotator-project-map-guests-2026-05-22-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+          <span>2026-05-22</span>
+        </div>
+        <h3>Shape Rotator Project Map Guests</h3>
+        <p>Salon on Shape Rotator Project Map Guests.</p>
+        <code>salon_shape-rotator-project-map-guests_2026-05-22.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>14:00–14:30 tea on roof 5:15-6:30pm Introduce Tina + interactive recap / Project Mappings 6:30 PMF Roast w/ Tina and Greg The Greek 7:30 - 9:00 Founders Journey w/ Shaw</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="salon-shape-rotator-cohort-dinner-sorting-hat-dinner-2026-05-29-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+          <span>2026-05-29</span>
+        </div>
+        <h3>Shape Rotator Cohort Dinner Sorting Hat Dinner</h3>
+        <p>Salon on Shape Rotator Cohort Dinner Sorting Hat Dinner.</p>
+        <code>salon_shape-rotator-cohort-dinner-sorting-hat-dinner_2026-05-29.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / moderate; matched tokens: dinner, sorting, hat.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; moderate calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>14:30-15:30 router onboarding/workshop 15:30–16:00 tea on roof 19:00: sorting hat dinner (Tina)</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="salon-agentic-organizations-sreeram-2026-06-08-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+          <span>2026-06-08</span>
+        </div>
+        <h3>Agentic Organizations Sreeram</h3>
+        <p>Salon on Agentic Organizations Sreeram.</p>
+        <code>salon_agentic-organizations-sreeram_2026-06-08.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / high; matched tokens: agentic, organizations, sreeram.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; strong calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>11:30–13:00 Agentic Organizations with Sreeram @EigenLabs 15:30–16:00 tea on roof 16:00--17:00 WDYDLW with Shaw as Moderator @ the auditorium</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="salon-info-markets-design-b2b-2026-06-09-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+          <span>2026-06-09</span>
+        </div>
+        <h3>Info Markets Design B2B</h3>
+        <p>Salon on Info Markets Design B2B.</p>
+        <code>salon_info-markets-design-b2b_2026-06-09.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / high; matched tokens: info, markets, design, b2b.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; strong calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>15:30–16:00 tea on roof 16:30--19:30 PMF Checkpoint 20:00--22:30 Info Markets Design Hosted by Vinny / Vishesh / Tina. Enterprise B2B in Agentic Time.</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="salon-design-thinking-workshop-2026-06-11-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">💬</span>Salon</span>
+          <span>2026-06-11</span>
+        </div>
+        <h3>Design Thinking Workshop</h3>
+        <p>Salon on Design Thinking Workshop.</p>
+        <code>salon_design-thinking-workshop_2026-06-11.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / high; matched tokens: design, thinking, workshop.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; strong calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>16:00–16:30 tea on roof 15:30–16:30 ICP research for Private Inference (self-organized) 16:30–19:30 Design Thinking Workshop Agency-preserving private coordination substrate for...</p></details>
+
+      </div>
+    </article>
+
+      </div>
+    </section>
+
+    <section id="raw-transcripts-rd-jam" class="route-section">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Drive route</div>
+          <h2 class="route-title"><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jams</h2>
+          <p class="route-summary">Open-ended whiteboarding, prototype/architecture/workflow exploration. If it is support or feedback for one team, reclassify as office hours.</p>
+        </div>
+        <div class="route-meta">
+          <code>raw_transcripts/rd_jam</code>
+          <div class="route-stats" aria-label="Route counts">
+            <span><b>13</b> sources</span>
+            <span><b>4</b> matched</span>
+            <span><b>9</b> review</span>
+          </div>
+        </div>
+      </div>
+      <div class="talk-list">
+
+    <article class="talk-row" id="rd-jam-dumb-agent-tricks-2026-05-21-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-05-21</span>
+        </div>
+        <h3>Dumb Agent Tricks</h3>
+        <p>R&amp;D / jam around Dumb Agent Tricks.</p>
+        <code>rd_jam_dumb-agent-tricks_2026-05-21.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / high; matched tokens: dumb, agent, tricks.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; strong calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>14:00–14:30 tea on roof 12:00:14:00 Tutorial: Dumb agent tricks, install hermes 14:30-16:00 - More onboarding &amp; on-site registration 16:00-18:00 Project Intros: Agentic Contexto...</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-dstack-alex-shaw-lsdan-andrew-2026-05-27-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-05-27</span>
+        </div>
+        <h3>Dstack Alex Shaw Lsdan Andrew</h3>
+        <p>R&amp;D / jam around Dstack Alex Shaw Lsdan Andrew.</p>
+        <code>rd_jam_dstack-alex-shaw-lsdan-andrew_2026-05-27.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Wed May 27: 14:00-15:30 (James, Andrew) Onboarding for teleport router, q&amp;a 15:30–16:00 tea on roof - 1600-1730 Salon: Ideal Customer Profiling, User Interviews (James) (TAs: Al...</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-flashnet-part-1-of-3-2026-05-27-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-05-27</span>
+        </div>
+        <h3>Flashnet Part 1 Of 3</h3>
+        <p>R&amp;D / jam around Flashnet Part 1 Of 3.</p>
+        <code>rd_jam_flashnet-part-1-of-3_2026-05-27.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / high; matched tokens: jam, flashnet.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; strong calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Wed May 27: 14:00-15:30 (James, Andrew) Onboarding for teleport router, q&amp;a 15:30–16:00 tea on roof - 1600-1730 Salon: Ideal Customer Profiling, User Interviews (James) (TAs: Al...</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-flashnet-part-2-of-3-2026-05-27-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-05-27</span>
+        </div>
+        <h3>Flashnet Part 2 Of 3</h3>
+        <p>R&amp;D / jam around Flashnet Part 2 Of 3.</p>
+        <code>rd_jam_flashnet-part-2-of-3_2026-05-27.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / high; matched tokens: jam, flashnet.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; strong calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Wed May 27: 14:00-15:30 (James, Andrew) Onboarding for teleport router, q&amp;a 15:30–16:00 tea on roof - 1600-1730 Salon: Ideal Customer Profiling, User Interviews (James) (TAs: Al...</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-flashnet-part-3-of-3-2026-05-27-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-05-27</span>
+        </div>
+        <h3>Flashnet Part 3 Of 3</h3>
+        <p>R&amp;D / jam around Flashnet Part 3 Of 3.</p>
+        <code>rd_jam_flashnet-part-3-of-3_2026-05-27.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / high; matched tokens: jam, flashnet.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; strong calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Wed May 27: 14:00-15:30 (James, Andrew) Onboarding for teleport router, q&amp;a 15:30–16:00 tea on roof - 1600-1730 Salon: Ideal Customer Profiling, User Interviews (James) (TAs: Al...</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-tee-dstack-easytee-phala-2026-05-27-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-05-27</span>
+        </div>
+        <h3>Tee Dstack Easytee Phala</h3>
+        <p>R&amp;D / jam around Tee Dstack Easytee Phala.</p>
+        <code>rd_jam_tee-dstack-easytee-phala_2026-05-27.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Wed May 27: 14:00-15:30 (James, Andrew) Onboarding for teleport router, q&amp;a 15:30–16:00 tea on roof - 1600-1730 Salon: Ideal Customer Profiling, User Interviews (James) (TAs: Al...</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-shaw-vinny-2026-05-28-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-05-28</span>
+        </div>
+        <h3>Shaw Vinny</h3>
+        <p>R&amp;D / jam around Shaw Vinny.</p>
+        <code>rd_jam_shaw-vinny_2026-05-28.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>15:30–16:00 tea on roof 1600 - 1830: Agentic Tooling workshops/clinic</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-ic3-hackathon-day-open-hackathon-2026-06-01-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-06-01</span>
+        </div>
+        <h3>IC3 Hackathon Day Open Hackathon</h3>
+        <p>R&amp;D / jam around IC3 Hackathon Day Open Hackathon.</p>
+        <code>rd_jam_ic3-hackathon-day-open-hackathon_2026-06-01.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>15:30–16:00 tea on roof</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Public Label Exceeds Policy For Inferred Session Type; Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-eval-pipeline-walk-2026-06-02-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-06-02</span>
+        </div>
+        <h3>Eval Pipeline Walk</h3>
+        <p>R&amp;D / jam around Eval Pipeline Walk.</p>
+        <code>rd_jam_eval-pipeline-walk_2026-06-02.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>15:30–16:00 tea on roof</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-session-2026-06-02-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-06-02</span>
+        </div>
+        <h3>Session</h3>
+        <p>R&amp;D / jam around Session.</p>
+        <code>rd_jam_session_2026-06-02.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>15:30–16:00 tea on roof</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-skill-marketplace-eval-framework-2026-06-02-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-06-02</span>
+        </div>
+        <h3>Skill Marketplace Eval Framework</h3>
+        <p>R&amp;D / jam around Skill Marketplace Eval Framework.</p>
+        <code>rd_jam_skill-marketplace-eval-framework_2026-06-02.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>15:30–16:00 tea on roof</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-skills-marketplace-try-before-you-buy-2026-06-02-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-06-02</span>
+        </div>
+        <h3>Skills Marketplace Try Before You Buy</h3>
+        <p>R&amp;D / jam around Skills Marketplace Try Before You Buy.</p>
+        <code>rd_jam_skills-marketplace-try-before-you-buy_2026-06-02.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>15:30–16:00 tea on roof</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="rd-jam-user-journey-2026-06-03-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🧪</span>R&amp;D / jam</span>
+          <span>2026-06-03</span>
+        </div>
+        <h3>User Journey</h3>
+        <p>R&amp;D / jam around User Journey.</p>
+        <code>rd_jam_user-journey_2026-06-03.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>15:30–16:00 tea on roof</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match; Type boundary check: R&amp;D/jam vs office-hours support</small>
+      </div>
+    </article>
+
+      </div>
+    </section>
+
+    <section id="raw-transcripts-demo-presentation" class="route-section">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Drive route</div>
+          <h2 class="route-title"><span class="emoji" aria-hidden="true">🎬</span>Demos / presentations</h2>
+          <p class="route-summary">Presenter-owned material. Public requires presenter approval.</p>
+        </div>
+        <div class="route-meta">
+          <code>raw_transcripts/demo_presentation</code>
+          <div class="route-stats" aria-label="Route counts">
+            <span><b>5</b> sources</span>
+            <span><b>2</b> matched</span>
+            <span><b>3</b> review</span>
+          </div>
+        </div>
+      </div>
+      <div class="talk-list">
+
+    <article class="talk-row" id="demo-presentation-day1-2026-05-19-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🎬</span>Demo / presentation</span>
+          <span>2026-05-19</span>
+        </div>
+        <h3>Day1</h3>
+        <p>Demo / presentation for Day1.</p>
+        <code>demo_presentation_day1_2026-05-19.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Tue May 19: 14:00–14:30 tea on roof 16:00-19:00 Project intros&amp;workflow Theme: Info markets &amp; Consumer Daedalus, Prova, Feedling, Etherea (reprise, if time) 19:00 Founder night...</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="demo-presentation-local-first-2026-05-20-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🎬</span>Demo / presentation</span>
+          <span>2026-05-20</span>
+        </div>
+        <h3>Local First</h3>
+        <p>Demo / presentation for Local First.</p>
+        <code>demo_presentation_local-first_2026-05-20.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / moderate; matched tokens: local, first.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; moderate calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>12:00:14:00 Tutorial: Dstack 14:00-14:30 tea on roof 16:00 - 19:00 Project Intros (Salon room) Theme: Local/Private first Pramaana, Tinycloud, Bitrouter, TeeSQL, SignalStack 19:...</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="demo-presentation-agents-day3-2026-05-21-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🎬</span>Demo / presentation</span>
+          <span>2026-05-21</span>
+        </div>
+        <h3>Agents Day3</h3>
+        <p>Demo / presentation for Agents Day3.</p>
+        <code>demo_presentation_agents-day3_2026-05-21.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>14:00–14:30 tea on roof 12:00:14:00 Tutorial: Dumb agent tricks, install hermes 14:30-16:00 - More onboarding &amp; on-site registration 16:00-18:00 Project Intros: Agentic Contexto...</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="demo-presentation-elocute-2026-05-26-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🎬</span>Demo / presentation</span>
+          <span>2026-05-26</span>
+        </div>
+        <h3>Elocute</h3>
+        <p>Demo / presentation for Elocute.</p>
+        <code>demo_presentation_elocute_2026-05-26.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>14:30–15:00 tea on roof 15:00-17:00 Project Intros: Elocute, Dealproof, Wikigen, Crossroads - Elocute (Albi) - Dealproof (Kristian) - Wikigen (Wiki) - Crossroads (Chloe Wang) 18...</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="demo-presentation-wikigen-crossroads-2026-05-26-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🎬</span>Demo / presentation</span>
+          <span>2026-05-26</span>
+        </div>
+        <h3>Wikigen Crossroads</h3>
+        <p>Demo / presentation for Wikigen Crossroads.</p>
+        <code>demo_presentation_wikigen-crossroads_2026-05-26.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / moderate; matched tokens: wikigen, crossroads.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; moderate calendar token score · Vault metadata only.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>14:30–15:00 tea on roof 15:00-17:00 Project Intros: Elocute, Dealproof, Wikigen, Crossroads - Elocute (Albi) - Dealproof (Kristian) - Wikigen (Wiki) - Crossroads (Chloe Wang) 18...</p></details>
+
+      </div>
+    </article>
+
+      </div>
+    </section>
+
+    <section id="raw-transcripts-user-interview" class="route-section">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Drive route</div>
+          <h2 class="route-title"><span class="emoji" aria-hidden="true">🎙️</span>User interviews</h2>
+          <p class="route-summary">External-subject research. Only aggregate insight travels.</p>
+        </div>
+        <div class="route-meta">
+          <code>raw_transcripts/user_interview</code>
+          <div class="route-stats" aria-label="Route counts">
+            <span><b>1</b> source</span>
+            <span><b>0</b> matched</span>
+            <span><b>1</b> review</span>
+          </div>
+        </div>
+      </div>
+      <div class="talk-list">
+
+    <article class="talk-row" id="user-interview-inference-unknown-date-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🎙️</span>User interview</span>
+          <span>unknown date</span>
+        </div>
+        <h3>Inference Unknown Date</h3>
+        <p>User interview source for Inference Unknown Date.</p>
+        <code>user_interview_inference_unknown-date.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-meet"><span class="emoji" aria-hidden="true">🎥</span>Google Meet</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>79% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">🔎</span>Title candidate</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>79%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Likely title candidate; date is not confirmed.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; title-only calendar candidate; strong calendar token score · Vault metadata only.</p>
+
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Title-only calendar candidate; Date Missing Title Match Needs Confirmation</small>
+      </div>
+    </article>
+
+      </div>
+    </section>
+
+    <section id="do-not-publish-private-1on1" class="route-section">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Drive route</div>
+          <h2 class="route-title"><span class="emoji" aria-hidden="true">🔒</span>Private 1:1 / do not publish</h2>
+          <p class="route-summary">Private coaching or sensitive material. Core/private only.</p>
+        </div>
+        <div class="route-meta">
+          <code>do_not_publish/private_1on1</code>
+          <div class="route-stats" aria-label="Route counts">
+            <span><b>9</b> sources</span>
+            <span><b>1</b> matched</span>
+            <span><b>8</b> review</span>
+          </div>
+        </div>
+      </div>
+      <div class="talk-list">
+
+    <article class="talk-row" id="private-1on1-office-hours-andrew-drop-mixed-conversations-2026-05-25-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+          <span>2026-05-25</span>
+        </div>
+        <h3>Office Hours Andrew Drop Mixed Conversations</h3>
+        <p>Private 1:1 source for Office Hours Andrew Drop Mixed Conversations; held in the private do-not-publish route.</p>
+        <code>private_1on1_office-hours-andrew-drop-mixed-conversations_2026-05-25.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>96% type</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Matched</span>
+          <span class="chip ok"><span class="emoji" aria-hidden="true">✅</span>Ready</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric ok"><b>96%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Calendar confirmed / moderate; matched tokens: office, hours, andrew.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; calendar matched; moderate calendar token score · Do not publish.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Memorial Day 16:00-17:30 Andrew office hours (salon room) 19:00 muse dinner</p></details>
+
+      </div>
+    </article>
+
+    <article class="talk-row" id="private-1on1-product-positioning-tina-2026-05-27-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+          <span>2026-05-27</span>
+        </div>
+        <h3>Product Positioning Tina</h3>
+        <p>Private 1:1 source for Product Positioning Tina; held in the private do-not-publish route.</p>
+        <code>private_1on1_product-positioning-tina_2026-05-27.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Do not publish.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Wed May 27: 14:00-15:30 (James, Andrew) Onboarding for teleport router, q&amp;a 15:30–16:00 tea on roof - 1600-1730 Salon: Ideal Customer Profiling, User Interviews (James) (TAs: Al...</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="private-1on1-albi-team-2026-05-28-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+          <span>2026-05-28</span>
+        </div>
+        <h3>Albi Team</h3>
+        <p>Private 1:1 source for Albi Team; held in the private do-not-publish route.</p>
+        <code>private_1on1_albi-team_2026-05-28.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Do not publish.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>15:30–16:00 tea on roof 1600 - 1830: Agentic Tooling workshops/clinic</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="private-1on1-office-hours-combined-sessions-2026-05-29-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+          <span>2026-05-29</span>
+        </div>
+        <h3>Office Hours Combined Sessions</h3>
+        <p>Private 1:1 source for Office Hours Combined Sessions; held in the private do-not-publish route.</p>
+        <code>private_1on1_office-hours-combined-sessions_2026-05-29.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Do not publish.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>14:30-15:30 router onboarding/workshop 15:30–16:00 tea on roof 19:00: sorting hat dinner (Tina)</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="private-1on1-session-2026-05-29-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+          <span>2026-05-29</span>
+        </div>
+        <h3>Session</h3>
+        <p>Private 1:1 source for Session; held in the private do-not-publish route.</p>
+        <code>private_1on1_session_2026-05-29.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Do not publish.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>14:30-15:30 router onboarding/workshop 15:30–16:00 tea on roof 19:00: sorting hat dinner (Tina)</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="private-1on1-shape-rotator-funding-data-design-2026-05-29-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+          <span>2026-05-29</span>
+        </div>
+        <h3>Shape Rotator Funding Data Design</h3>
+        <p>Private 1:1 source for Shape Rotator Funding Data Design; held in the private do-not-publish route.</p>
+        <code>private_1on1_shape-rotator-funding-data-design_2026-05-29.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Do not publish.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>14:30-15:30 router onboarding/workshop 15:30–16:00 tea on roof 19:00: sorting hat dinner (Tina)</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="private-1on1-tinycloud-fundraising-strategy-2026-06-04-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+          <span>2026-06-04</span>
+        </div>
+        <h3>Tinycloud Fundraising Strategy</h3>
+        <p>Private 1:1 source for Tinycloud Fundraising Strategy; held in the private do-not-publish route.</p>
+        <code>private_1on1_tinycloud-fundraising-strategy_2026-06-04.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Do not publish.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Thu — group activity, sculpture garden 15:30–16:00 tea on roof</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="private-1on1-shape-rotator-workflow-meta-review-2026-06-05-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+          <span>2026-06-05</span>
+        </div>
+        <h3>Shape Rotator Workflow Meta Review</h3>
+        <p>Private 1:1 source for Shape Rotator Workflow Meta Review; held in the private do-not-publish route.</p>
+        <code>private_1on1_shape-rotator-workflow-meta-review_2026-06-05.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Do not publish.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>Fri — reception at art museum (overlap w/ shaperotator) 15:30–16:00 tea on roof 17:00 &quot;what did you do last week&quot; retro (Andrew hosts)</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+    <article class="talk-row" id="private-1on1-cohort-ops-planning-2026-06-09-txt">
+      <div class="talk-main">
+        <div class="talk-kicker">
+          <span><span class="emoji" aria-hidden="true">🔒</span>Private 1:1</span>
+          <span>2026-06-09</span>
+        </div>
+        <h3>Cohort Ops Planning</h3>
+        <p>Private 1:1 source for Cohort Ops Planning; held in the private do-not-publish route.</p>
+        <code>private_1on1_cohort-ops-planning_2026-06-09.txt</code>
+      </div>
+      <div class="talk-state">
+        <div class="chip-row" aria-label="Source status">
+          <span class="chip source-drive"><span class="emoji" aria-hidden="true">📄</span>Manual Drive</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📊</span>71% type</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">📅</span>Date only</span>
+          <span class="chip hold"><span class="emoji" aria-hidden="true">⚠️</span>Review</span>
+        </div>
+
+    <span class="confidence-strip" aria-label="Classification confidence">
+      <span class="confidence-metric hold"><b>71%</b>type</span>
+
+
+    </span>
+
+        <p class="state-note">Date fits; title/session still needs a human check.</p>
+        <p class="evidence-line">explicit type marker; route agrees with type; date-only calendar match; manual review reason present · Do not publish.</p>
+        <details><summary><span class="emoji" aria-hidden="true">📅</span> evidence</summary><p>15:30–16:00 tea on roof 16:30--19:30 PMF Checkpoint 20:00--22:30 Info Markets Design Hosted by Vinny / Vishesh / Tina. Enterprise B2B in Agentic Time.</p></details>
+        <small><span class="emoji" aria-hidden="true">⚠️</span> Date-only calendar match</small>
+      </div>
+    </article>
+
+      </div>
+    </section>
+
+        </div>
+
+        <footer>
+          Built from <code>cohort-data/.private/transcript-vault/transcript-vault-import-plan.json</code>. This page uses metadata only and does not include raw transcript text.
+        </footer>
+      </main>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const viewButtons = [...document.querySelectorAll("[data-view]")];
+      const panels = [...document.querySelectorAll("[data-view-panel]")];
+      const rows = [...document.querySelectorAll("[data-table-body] tr")];
+      const body = document.querySelector("[data-table-body]");
+      const count = document.querySelector("[data-row-count]");
+      const empty = document.querySelector("[data-empty-table]");
+      const filters = {
+        search: document.querySelector('[data-filter="search"]'),
+        route: document.querySelector('[data-filter="route"]'),
+        source: document.querySelector('[data-filter="source"]'),
+        calendar: document.querySelector('[data-filter="calendar"]'),
+        review: document.querySelector('[data-filter="review"]'),
+      };
+      const sortSelect = document.querySelector("[data-sort-select]");
+      const sortButtons = [...document.querySelectorAll("[data-sort]")];
+      let sortKey = "date";
+      let sortDir = "asc";
+
+      function setView(view) {
+        viewButtons.forEach((button) => button.setAttribute("aria-pressed", button.dataset.view === view ? "true" : "false"));
+        panels.forEach((panel) => {
+          panel.hidden = panel.dataset.viewPanel !== view;
+        });
+      }
+
+      function valueFor(row, key) {
+        return (row.dataset[key] || "").toLowerCase();
+      }
+
+      function compareRows(a, b) {
+        const av = valueFor(a, sortKey);
+        const bv = valueFor(b, sortKey);
+        if (!av && bv) return 1;
+        if (av && !bv) return -1;
+        const result = av.localeCompare(bv, undefined, { numeric: true, sensitivity: "base" });
+        return sortDir === "asc" ? result : -result;
+      }
+
+      function updateSortState() {
+        sortButtons.forEach((button) => {
+          const th = button.closest("th");
+          if (!th) return;
+          if (button.dataset.sort === sortKey) th.setAttribute("aria-sort", sortDir === "asc" ? "ascending" : "descending");
+          else th.removeAttribute("aria-sort");
+        });
+        if (sortSelect && sortSelect.value !== sortKey) sortSelect.value = sortKey;
+      }
+
+      function applyFilters() {
+        const query = (filters.search?.value || "").trim().toLowerCase();
+        const route = filters.route?.value || "";
+        const source = filters.source?.value || "";
+        const calendar = filters.calendar?.value || "";
+        const review = filters.review?.value || "";
+        const visible = [];
+
+        rows.forEach((row) => {
+          const matches = (!query || row.dataset.search.includes(query))
+            && (!route || row.dataset.route === route)
+            && (!source || row.dataset.source === source)
+            && (!calendar || row.dataset.calendar === calendar)
+            && (!review || row.dataset.review === review);
+          row.hidden = !matches;
+          if (matches) visible.push(row);
+        });
+
+        visible.sort(compareRows).forEach((row) => body.appendChild(row));
+        if (count) count.textContent = String(visible.length);
+        if (empty) empty.hidden = visible.length > 0;
+        updateSortState();
+      }
+
+      viewButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const update = () => setView(button.dataset.view);
+          if (document.startViewTransition) document.startViewTransition(update);
+          else update();
+        });
+      });
+      document.querySelectorAll(".rail a").forEach((link) => {
+        link.addEventListener("click", () => setView("route"));
+      });
+
+      Object.values(filters).forEach((control) => control?.addEventListener("input", applyFilters));
+      sortSelect?.addEventListener("change", () => {
+        sortKey = sortSelect.value;
+        sortDir = "asc";
+        applyFilters();
+      });
+      document.querySelector("[data-clear-filters]")?.addEventListener("click", () => {
+        Object.values(filters).forEach((control) => {
+          if (control) control.value = "";
+        });
+        applyFilters();
+      });
+
+      sortButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const nextKey = button.dataset.sort;
+          if (sortKey === nextKey) sortDir = sortDir === "asc" ? "desc" : "asc";
+          else {
+            sortKey = nextKey;
+            sortDir = "asc";
+          }
+          applyFilters();
+        });
+      });
+
+      setView("route");
+      applyFilters();
+    })();
+  </script>
+</body>
+</html>

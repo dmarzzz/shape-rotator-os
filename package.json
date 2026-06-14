@@ -42,6 +42,8 @@
     "transcripts:drive:fetch": "node scripts/fetch-transcript-drive-sources.mjs",
     "transcripts:sessions:map": "node scripts/prepare-transcript-session-map.mjs",
     "transcripts:supabase:plan": "node scripts/prepare-transcript-supabase-plan.mjs",
+    "transcripts:labels:audit": "node scripts/audit-transcript-labels.mjs",
+    "transcripts:index:html": "node scripts/build-transcript-talk-index-html.mjs",
     "transcripts:worker:vault-sql": "node scripts/prepare-transcript-worker-vault-sql.mjs",
     "transcripts:distillations:export": "node scripts/export-transcript-distillations.mjs",
     "transcripts:distillations:review": "node scripts/review-transcript-distillation.mjs",

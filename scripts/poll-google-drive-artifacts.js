@@ -307,6 +307,22 @@ function countBy(items, keyFn) {
   return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
 }
 
+function confidencePctForLabel(label) {
+  switch (String(label || "").toLowerCase()) {
+    case "high":
+      return 92;
+    case "moderate":
+    case "medium":
+      return 76;
+    case "low":
+      return 52;
+    case "none":
+      return 0;
+    default:
+      return 35;
+  }
+}
+
 function driveMetadataText(file) {
   return [
     file?.name,
@@ -351,25 +367,34 @@ function classifyDriveSourceSystem(file) {
       : /\b(slide|slides|screenshot|screenshots|screen capture|screen captures|image|images)\b/.test(normalized)
         ? "otter_slide"
         : "otter_transcript";
+    const confidence = signals.includes("explicit_otter_source") ? "high" : "moderate";
     return {
       source_system: "otter",
       provider: "otter",
       source_kind: sourceKind,
       artifact_kind: sourceKind === "otter_summary" ? "summary" : sourceKind === "otter_slide" ? "slides" : "transcript",
-      confidence: signals.includes("explicit_otter_source") ? "high" : "moderate",
+      confidence,
+      confidence_pct: confidencePctForLabel(confidence),
       signals: [...new Set(signals)],
     };
   }
   if (hasMeet && !hasOtter) {
     const sourceKind = artifactKind === "smart_notes" ? "meet_smart_notes" : "meet_transcript";
+    const confidence = signals.some((signal) => [
+      "explicit_google_meet_source",
+      "google_meet_metadata_marker",
+      "google_meet_notes_marker",
+      "google_meet_artifact_candidate",
+    ].includes(signal))
+      ? "high"
+      : "low";
     return {
       source_system: "google_meet",
       provider: "google_meet",
       source_kind: sourceKind,
       artifact_kind: artifactKind || "transcript",
-      confidence: signals.some((signal) => signal === "explicit_google_meet_source" || signal === "google_meet_metadata_marker")
-        ? "high"
-        : "low",
+      confidence,
+      confidence_pct: confidencePctForLabel(confidence),
       signals: [...new Set(signals)],
     };
   }
@@ -380,6 +405,7 @@ function classifyDriveSourceSystem(file) {
       source_kind: "drive_doc",
       artifact_kind: artifactKind || null,
       confidence: "low",
+      confidence_pct: confidencePctForLabel("low"),
       signals: [...new Set(signals)],
     };
   }
@@ -389,6 +415,7 @@ function classifyDriveSourceSystem(file) {
     source_kind: "drive_doc",
     artifact_kind: artifactKind || null,
     confidence: "low",
+    confidence_pct: confidencePctForLabel("low"),
     signals: [],
   };
 }
@@ -485,6 +512,7 @@ function driveExportUri(file) {
 }
 
 function driveFileToMeetArtifact(file, { kind, score } = {}) {
+  const sourceInfo = classifyDriveSourceSystem(file);
   return {
     kind,
     provider_resource_name: `drive:${file.id}`,
@@ -498,6 +526,15 @@ function driveFileToMeetArtifact(file, { kind, score } = {}) {
     status: "detected",
     match_score: score,
     web_view_link: file.webViewLink || null,
+    metadata: {
+      confidence_schema_version: 1,
+      source_system: sourceInfo.source_system,
+      source_kind: sourceInfo.source_kind,
+      source_confidence: sourceInfo.confidence,
+      source_confidence_pct: sourceInfo.confidence_pct,
+      source_signals: sourceInfo.signals,
+      session_match_score: score,
+    },
   };
 }
 

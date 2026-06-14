@@ -37,13 +37,24 @@ test("transcript cloud worker does not return raw transcript text", () => {
   assert.match(workerSource, /redactedText/);
   assert.match(workerSource, /stored draft contains topic-level synthesis only/);
   assert.match(workerSource, /detectedTopics/);
+  assert.match(workerSource, /reviewer_candidates/);
+  assert.match(workerSource, /review_prompt/);
   assert.match(workerSource, /derived_artifact_ids/);
   assert.doesNotMatch(workerSource, /summary\s*=\s*sentences\.slice/);
   assert.doesNotMatch(workerSource, /action_items:\s*sentences/);
   assert.doesNotMatch(workerSource, /transcriptText:\s*transcriptText/);
   assert.doesNotMatch(workerSource, /text:\s*fetched\.text/);
   assert.doesNotMatch(workerSource, /transcript_text/);
-  assert.match(workerSource, /source_note: "Generated from abstract worker distillation[\s\S]+raw_allowed: false,\s+},/);
+  assert.match(workerSource, /generated from structured topic-level worker candidate[\s\S]+raw_allowed: false,\s+},/);
+});
+
+test("transcript cloud worker separates internal readouts from public candidates", () => {
+  assert.match(workerSource, /publicDistillationFor/);
+  assert.match(workerSource, /Generalized no-name public candidate/);
+  assert.match(workerSource, /publicSurface: true/);
+  assert.match(workerSource, /assertTranscriptSurfaceSafe/);
+  assert.match(workerSource, /label: "public candidate"/);
+  assert.match(workerSource, /label: "public evidence card"/);
 });
 
 test("transcript cloud worker preserves review gates before app/public visibility", () => {
