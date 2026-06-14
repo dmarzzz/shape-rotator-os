@@ -831,7 +831,518 @@ function buildSignalInventory(evidenceCards) {
   };
 }
 
-function buildIntelDataContract({ cardSignals, fieldNotes, sessionNotes, signalInventory, teams, people, sourceTranscriptCount = 0 }) {
+const PROJECT_WEEK_PRIVACY = {
+  max_surface: "cohort",
+  raw_allowed: false,
+  detail_level: "project-level derived status; raw transcript and person-level detail excluded",
+};
+
+const GENERIC_PROJECT_SIGNAL_TOKENS = new Set([
+  "across", "after", "agent", "agentic", "agents", "apps", "based", "before",
+  "build", "buyer", "buyers", "coding", "cohort", "collaboration", "community",
+  "consumer", "conversion", "customer", "customers", "data", "demo", "design",
+  "aggregation", "broad", "control", "delegate", "distribution", "durable",
+  "either", "enough", "evidence", "first", "giving", "hands",
+  "market", "milestone", "model", "native", "often", "paid", "partner",
+  "people", "privacy", "product", "project", "projects", "quality", "research",
+  "retention", "review", "signal", "single", "solution", "source", "status",
+  "technical", "toward", "users", "without", "workflow", "workflows",
+]);
+
+function projectSnapshotKeywords(team = {}) {
+  const journey = team.journey || {};
+  const values = [
+    ...recordKeywords(team),
+    journey.primary_bottleneck,
+    journey.icp,
+    journey.problem,
+    journey.solution,
+    journey.evidence_notes,
+    journey.next_milestone,
+  ];
+  return Array.from(new Set(values.flatMap(keywordTokens))).slice(0, 80);
+}
+
+function projectIdentityTokens(team = {}) {
+  const journey = team.journey || {};
+  const values = [
+    team.record_id,
+    team.name,
+    team.focus,
+    team.domain,
+    team.now,
+    asArray(team.skill_areas).join(" "),
+    journey.icp,
+    journey.problem,
+    journey.solution,
+    journey.next_milestone,
+  ];
+  return Array.from(new Set(values.flatMap(keywordTokens)))
+    .filter(token => token.length >= 5 && !GENERIC_PROJECT_SIGNAL_TOKENS.has(token))
+    .slice(0, 60);
+}
+
+function projectNames(team = {}, { includeTokens = false } = {}) {
+  const fullNames = [
+    team.record_id,
+    team.name,
+    String(team.name || "").replace(/[^a-z0-9]+/gi, " "),
+  ]
+    .map(value => String(value || "").toLowerCase().trim())
+    .filter(value => value.length >= 3);
+  if (!includeTokens) return fullNames;
+  const tokens = fullNames
+    .flatMap(keywordTokens)
+    .filter(token => token.length >= 5 && !GENERIC_PROJECT_SIGNAL_TOKENS.has(token));
+  return Array.from(new Set([...fullNames, ...tokens]));
+}
+
+function projectClaimMatchDetails(claim, team = {}, peerTeams = []) {
+  const text = String(claim?.text || "").toLowerCase();
+  const directNameMatch = projectNames(team).some(name => text.includes(name));
+  const otherNames = asArray(peerTeams)
+    .filter(peer => String(peer?.record_id || "") !== String(team?.record_id || ""))
+    .flatMap(peer => projectNames(peer, { includeTokens: true }));
+  const directOtherProjectMatch = otherNames.some(name => text.includes(name));
+  const matchedTokens = projectIdentityTokens(team).filter(token => text.includes(token)).slice(0, 12);
+  const teamMentionCount = asArray(claim?.teams).length;
+  const isProjectSpecific = directNameMatch
+    || (!directOtherProjectMatch && matchedTokens.length >= (teamMentionCount > 1 ? 2 : 1))
+    || teamMentionCount <= 1;
+  return {
+    direct_name_match: directNameMatch,
+    direct_other_project_match: directOtherProjectMatch,
+    matched_tokens: matchedTokens,
+    is_project_specific: isProjectSpecific,
+  };
+}
+
+function declaredBottleneckCategory(value) {
+  const text = String(value || "").toLowerCase();
+  if (!text) return "not declared";
+  if (/\b(gtm|icp|market|buyer|customer|retention|monetization|monetisation|sales|distribution)\b/.test(text)) return "GTM / ICP";
+  if (/\b(solution|technical|risk|architecture|security|privacy|verification|proof|quality|infra)\b/.test(text)) return "Solution Quality";
+  if (/\b(product|workflow|demo|prototype|ux|shipping|mvp)\b/.test(text)) return "Product / Workflow";
+  if (/\b(intro|mentor|support|dogfood|partner|collaboration)\b/.test(text)) return "Cohort Support";
+  return labelize(value);
+}
+
+function observedCategoryWeights(claims) {
+  const weights = {
+    "GTM / ICP": 0,
+    "Solution Quality": 0,
+    "Product / Workflow": 0,
+    "Cohort Support": 0,
+  };
+  for (const claim of asArray(claims)) {
+    const type = String(claim.claim_type || "claim");
+    const text = `${type} ${claim.text || ""}`.toLowerCase();
+    if (/\b(user|users|customer|buyer|icp|market|gtm|distribution|paid|paying|pilot|retention|moneti[sz]ation|pricing|signup|conversion|design partner|community|sales)\b/.test(text)) {
+      weights["GTM / ICP"] += type === "market_signal" ? 4 : 3;
+    }
+    if (/\b(technical|architecture|tee|attestation|attested|verify|verification|proof|security|privacy|credential|database|deploy|deployment|enclave|latency|scale|failure|risk|registry|postgres|dstack)\b/.test(text)) {
+      weights["Solution Quality"] += type === "risk" ? 4 : 3;
+    }
+    if (/\b(product|workflow|demo|ship|build|prototype|poc|mvp|feature|ux|agent|tool|app|integration|api|loop|milestone)\b/.test(text)) {
+      weights["Product / Workflow"] += ["product_signal", "action_item", "decision"].includes(type) ? 4 : 2;
+    }
+    if (/\b(ask|intro|mentor|feedback|dogfood|partner|collaboration|office hour|pair|help|route|review)\b/.test(text)) {
+      weights["Cohort Support"] += ["ask", "collaboration_edge"].includes(type) ? 4 : 2;
+    }
+  }
+  return weights;
+}
+
+function topObservedCategory(claims, fallback = "insufficient evidence") {
+  const weights = observedCategoryWeights(claims);
+  const rows = Object.entries(weights).sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return a[0].localeCompare(b[0]);
+  });
+  return rows[0]?.[1] > 0 ? rows[0][0] : fallback;
+}
+
+function observedMovement(claims, observedCategory) {
+  const types = countBy(asArray(claims).map(claim => claim.claim_type || "claim"));
+  const buildCount = (types.action_item || 0) + (types.product_signal || 0) + (types.decision || 0);
+  const pressureCount = (types.risk || 0) + (types.ask || 0);
+  if (!asArray(claims).length) return "insufficient evidence";
+  if (buildCount >= 2 && buildCount >= pressureCount) return "build/proof advanced";
+  if (observedCategory === "GTM / ICP") return "market/ICP learning";
+  if (pressureCount > buildCount) return "blocked or needs decision";
+  if ((types.collaboration_edge || 0) > 0) return "support network forming";
+  return "status signal recorded";
+}
+
+function scoreProjectWeekClaim(claim, team, index = 0, match = projectClaimMatchDetails(claim, team)) {
+  const base = claimSignalScore(claim, index, {
+    kind: "team",
+    recordId: team?.record_id,
+    keywords: projectSnapshotKeywords(team),
+  });
+  const typeBoost = ["action_item", "product_signal", "decision", "market_signal", "risk", "ask"].includes(claim?.claim_type)
+    ? 10
+    : 0;
+  const identityBoost = (match.direct_name_match ? 60 : 0) + (match.matched_tokens.length * 16);
+  const broadPenalty = match.is_project_specific ? 0 : 100;
+  return base + typeBoost + identityBoost - broadPenalty;
+}
+
+function evidenceQualityForProjectWeek({ sourceCount, relevantCount, totalCount, topScore }) {
+  if (relevantCount <= 0) return "weak";
+  if (sourceCount >= 2 && relevantCount >= 3 && topScore >= 60) return "strong";
+  if (sourceCount >= 1 && relevantCount >= 2 && topScore >= 40) return "medium";
+  if (sourceCount >= 1 && relevantCount >= 1 && topScore >= 60) return "medium";
+  if (totalCount >= 4 && topScore >= 70) return "medium";
+  return "weak";
+}
+
+function driftForProjectWeek({ declaredCategory, observedCategory, evidenceQuality, sourceCount, signalCount, declaredBottleneck }) {
+  if (!declaredBottleneck || declaredCategory === "not declared" || evidenceQuality === "weak" || observedCategory === "insufficient evidence") {
+    return {
+      status: "insufficient_evidence",
+      reason: `Evidence is too thin or too broad to compare against the declared ${declaredBottleneck || "status"} this week.`,
+    };
+  }
+  if (declaredCategory === observedCategory) {
+    return {
+      status: "aligned",
+      reason: `Declared bottleneck is ${declaredCategory}; observed evidence from ${sourceCount} source card(s) and ${signalCount} signal(s) points to the same lane.`,
+    };
+  }
+  const status = evidenceQuality === "strong" ? "status_conflict" : "partial_drift";
+  return {
+    status,
+    reason: `Declared bottleneck is ${declaredCategory}, while this week's observed evidence reads more like ${observedCategory}. Treat as a prompt for review, not a verdict.`,
+  };
+}
+
+function projectWeekIntervention({ driftStatus, observedCategory }) {
+  if (driftStatus === "aligned") {
+    return "Keep the declared status, then verify next week that the milestone actually moved.";
+  }
+  if (driftStatus === "insufficient_evidence") {
+    return "Collect one more week of project-specific evidence before changing the declared status.";
+  }
+  if (observedCategory === "GTM / ICP") {
+    return "Run an ICP or user-interview review; ask for buyer, retention, or paid-conversion evidence in the next check-in.";
+  }
+  if (observedCategory === "Solution Quality") {
+    return "Pair with a technical reviewer; ask for a demo, failure mode, or proof artifact that resolves the highest-risk assumption.";
+  }
+  if (observedCategory === "Product / Workflow") {
+    return "Translate the observed build or workflow signal into one demoable weekly milestone.";
+  }
+  if (observedCategory === "Cohort Support") {
+    return "Route the intro, mentor, or dogfood request and verify follow-through in the next weekly snapshot.";
+  }
+  return "Collect one more week of project-level evidence before changing the declared status.";
+}
+
+function buildProjectWeekSnapshots({ evidenceCards = [], teams = [] } = {}) {
+  const teamById = new Map(asArray(teams).map(team => [String(team.record_id || ""), team]));
+  const groups = new Map();
+  for (const card of asArray(evidenceCards)) {
+    if (card?.artifact_kind !== "transcript_evidence_card") continue;
+    const weekStart = card.week_start || isoDate(card.date) || "undated";
+    for (const claim of asArray(card.claims)) {
+      for (const teamId of asArray(claim.teams)) {
+        const team = teamById.get(String(teamId));
+        if (!team) continue;
+        const key = `${teamId}::${weekStart}`;
+        if (!groups.has(key)) {
+          groups.set(key, {
+            team,
+            week_start: weekStart,
+            claims: [],
+            source_card_ids: new Set(),
+          });
+        }
+        const group = groups.get(key);
+        group.claims.push({ claim, card });
+        if (card.artifact_id) group.source_card_ids.add(card.artifact_id);
+      }
+    }
+  }
+
+  return Array.from(groups.values())
+    .map((group) => {
+      const scored = group.claims
+        .map((item, index) => {
+          const peerTeams = asArray(item.claim.teams).map(teamId => teamById.get(String(teamId))).filter(Boolean);
+          const match = projectClaimMatchDetails(item.claim, group.team, peerTeams);
+          return {
+            ...item,
+            match,
+            score: scoreProjectWeekClaim(item.claim, group.team, index, match),
+          };
+        })
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return String(a.claim.claim_id || "").localeCompare(String(b.claim.claim_id || ""));
+        });
+      const relevant = scored.filter(item => item.match.is_project_specific && item.score >= 40);
+      const selected = relevant.slice(0, 6);
+      const observedClaims = selected.map(item => item.claim);
+      const sourceCardIds = Array.from(group.source_card_ids).sort();
+      const sourceCount = sourceCardIds.length;
+      const signalCount = scored.length;
+      const topScore = scored[0]?.score || 0;
+      const evidenceQuality = evidenceQualityForProjectWeek({
+        sourceCount,
+        relevantCount: relevant.length,
+        totalCount: signalCount,
+        topScore,
+      });
+      const journey = group.team.journey || {};
+      const declaredCategory = declaredBottleneckCategory(journey.primary_bottleneck);
+      const observedCategory = selected.length ? topObservedCategory(observedClaims) : "insufficient evidence";
+      const drift = driftForProjectWeek({
+        declaredCategory,
+        observedCategory,
+        evidenceQuality,
+        sourceCount,
+        signalCount,
+        declaredBottleneck: journey.primary_bottleneck,
+      });
+      return {
+        snapshot_id: `project-week:${group.team.record_id}:${group.week_start}`,
+        project_id: group.team.record_id,
+        project_name: group.team.name || group.team.record_id,
+        week_start: group.week_start,
+        declared_state: {
+          stage: journey.stage ?? null,
+          bottleneck: journey.primary_bottleneck || "",
+          bottleneck_category: declaredCategory,
+          confidence: journey.confidence || "",
+          now: compactSignalText(group.team.now, 220),
+          icp: compactSignalText(journey.icp, 220),
+          problem: compactSignalText(journey.problem, 220),
+          solution: compactSignalText(journey.solution, 220),
+          next_milestone: compactSignalText(journey.next_milestone, 240),
+        },
+        observed_state: {
+          movement: observedMovement(observedClaims, observedCategory),
+          inferred_bottleneck: observedCategory,
+          evidence_quality: evidenceQuality,
+          signal_mix: countBy(observedClaims.map(claim => claim.claim_type || "claim")),
+          evidence_summary: selected.length
+            ? `${signalCount} transcript signal(s) across ${sourceCount} source card(s); ${relevant.length} scored as project-specific.`
+            : `${signalCount} transcript signal(s) across ${sourceCount} source card(s), but none were project-specific enough to drive status.`,
+          top_observed_claims: selected.slice(0, 3).map(item => ({
+            claim_id: item.claim.claim_id || "",
+            claim_type: item.claim.claim_type || "claim",
+            label: signalLabel(item.claim.claim_type),
+            text: compactSignalText(item.claim.text, 240),
+            confidence: item.claim.confidence || "low",
+            evidence_level: item.claim.evidence_level || "inferred",
+            source_card_id: item.claim.source_artifact_id || item.card.artifact_id || "",
+            signal_score: Math.round(item.score),
+            matched_tokens: item.match.matched_tokens.slice(0, 5),
+          })),
+        },
+        drift: {
+          status: drift.status,
+          reason: drift.reason,
+        },
+        recommended_intervention: projectWeekIntervention({
+          driftStatus: drift.status,
+          observedCategory,
+        }),
+        evidence: {
+          source_card_count: sourceCount,
+          source_card_ids: sourceCardIds.slice(0, 12),
+          claim_ids: scored.map(item => item.claim.claim_id).filter(Boolean).slice(0, 24),
+          signal_count: signalCount,
+          project_specific_signal_count: relevant.length,
+          signal_type_counts: countBy(scored.map(item => item.claim.claim_type || "claim")),
+        },
+        privacy: PROJECT_WEEK_PRIVACY,
+        sharing_boundary: {
+          max_surface: "cohort",
+          raw_allowed: false,
+          public_requires_approval: true,
+        },
+      };
+    })
+    .sort((a, b) => {
+      const weekCompare = weekSortValue(b.week_start).localeCompare(weekSortValue(a.week_start));
+      if (weekCompare) return weekCompare;
+      return String(a.project_name || a.project_id).localeCompare(String(b.project_name || b.project_id));
+    });
+}
+
+function projectWeekSnapshotQuality(snapshots = []) {
+  const rows = asArray(snapshots);
+  const statuses = countBy(rows.map(snapshot => snapshot.drift?.status || "unknown"));
+  return {
+    snapshot_count: rows.length,
+    project_count: new Set(rows.map(snapshot => snapshot.project_id).filter(Boolean)).size,
+    drift_status_counts: statuses,
+    weak_snapshot_count: rows.filter(snapshot => snapshot.observed_state?.evidence_quality === "weak").length,
+    insufficient_snapshot_count: statuses.insufficient_evidence || 0,
+    cohort_only_count: rows.filter(snapshot => snapshot.privacy?.raw_allowed === false).length,
+  };
+}
+
+function isDatedWeek(value) {
+  return Boolean(isoDate(value));
+}
+
+function sortSnapshotsDesc(a, b) {
+  const ad = isDatedWeek(a?.week_start);
+  const bd = isDatedWeek(b?.week_start);
+  if (ad !== bd) return bd ? 1 : -1;
+  const weekCompare = weekSortValue(b?.week_start).localeCompare(weekSortValue(a?.week_start));
+  if (weekCompare) return weekCompare;
+  return String(a?.snapshot_id || "").localeCompare(String(b?.snapshot_id || ""));
+}
+
+function sortSnapshotsAsc(a, b) {
+  const ad = isDatedWeek(a?.week_start);
+  const bd = isDatedWeek(b?.week_start);
+  if (ad !== bd) return ad ? -1 : 1;
+  const weekCompare = weekSortValue(a?.week_start).localeCompare(weekSortValue(b?.week_start));
+  if (weekCompare) return weekCompare;
+  return String(a?.snapshot_id || "").localeCompare(String(b?.snapshot_id || ""));
+}
+
+function projectProgressAssessment(latest, previous, team = {}) {
+  if (!latest) {
+    return {
+      trajectory: "no_transcript_evidence",
+      intervention_priority: "medium",
+      operator_question: "No reviewed transcript evidence is attached to this project yet; collect a first project-specific check-in before interpreting progress.",
+    };
+  }
+  const status = latest.drift?.status || "insufficient_evidence";
+  const previousStatus = previous?.drift?.status || "";
+  const driftStatuses = new Set(["partial_drift", "status_conflict"]);
+  const declared = latest.declared_state?.bottleneck_category || declaredBottleneckCategory(team.journey?.primary_bottleneck);
+  const observed = latest.observed_state?.inferred_bottleneck || "insufficient evidence";
+  if (!isDatedWeek(latest.week_start)) {
+    return {
+      trajectory: "undated_evidence_gap",
+      intervention_priority: "medium",
+      operator_question: "Evidence exists but is undated; fix source dating before using this project in week-by-week progression views.",
+    };
+  }
+  if (status === "insufficient_evidence") {
+    return {
+      trajectory: previous && previousStatus !== "insufficient_evidence" ? "coverage_regressed" : "coverage_gap",
+      intervention_priority: "medium",
+      operator_question: "The latest week is not project-specific enough to compare with declared status; ask for one concrete project-level update next week.",
+    };
+  }
+  if (status === "status_conflict") {
+    return {
+      trajectory: driftStatuses.has(previousStatus) ? "drift_persisting" : "status_conflict",
+      intervention_priority: "high",
+      operator_question: `Declared status is ${declared}, but observed evidence points to ${observed}; decide whether to update the status or change the intervention.`,
+    };
+  }
+  if (status === "partial_drift") {
+    return {
+      trajectory: driftStatuses.has(previousStatus) ? "drift_persisting" : "drift_emerged",
+      intervention_priority: "medium",
+      operator_question: `Observed evidence is leaning toward ${observed}; review whether the declared ${declared} bottleneck still describes the project.`,
+    };
+  }
+  if (status === "aligned" && driftStatuses.has(previousStatus)) {
+    return {
+      trajectory: "drift_resolved",
+      intervention_priority: "low",
+      operator_question: "The latest evidence is aligned after prior drift; verify the next milestone moved rather than only the label improving.",
+    };
+  }
+  return {
+    trajectory: "on_track",
+    intervention_priority: "low",
+    operator_question: "Declared and observed status are aligned; keep watching next-week movement against the milestone.",
+  };
+}
+
+function buildProjectProgressRollups({ snapshots = [], teams = [], evidenceCards = [] } = {}) {
+  if (!asArray(evidenceCards).length) return [];
+  const snapshotsByProject = new Map();
+  for (const snapshot of asArray(snapshots)) {
+    const id = String(snapshot.project_id || "");
+    if (!id) continue;
+    if (!snapshotsByProject.has(id)) snapshotsByProject.set(id, []);
+    snapshotsByProject.get(id).push(snapshot);
+  }
+  const rows = asArray(teams).map((team) => {
+    const projectSnapshots = asArray(snapshotsByProject.get(String(team.record_id || ""))).slice().sort(sortSnapshotsDesc);
+    const datedSnapshots = projectSnapshots.filter(snapshot => isDatedWeek(snapshot.week_start));
+    const latest = datedSnapshots[0] || projectSnapshots[0] || null;
+    const previous = datedSnapshots[1] || projectSnapshots.find(snapshot => snapshot.snapshot_id !== latest?.snapshot_id) || null;
+    const assessment = projectProgressAssessment(latest, previous, team);
+    const history = projectSnapshots.slice().sort(sortSnapshotsAsc).map(snapshot => ({
+      snapshot_id: snapshot.snapshot_id,
+      week_start: snapshot.week_start,
+      drift_status: snapshot.drift?.status || "insufficient_evidence",
+      evidence_quality: snapshot.observed_state?.evidence_quality || "weak",
+      declared_bottleneck: snapshot.declared_state?.bottleneck_category || "",
+      observed_bottleneck: snapshot.observed_state?.inferred_bottleneck || "insufficient evidence",
+      project_specific_signal_count: snapshot.evidence?.project_specific_signal_count || 0,
+      signal_count: snapshot.evidence?.signal_count || 0,
+    }));
+    const journey = team.journey || {};
+    return {
+      project_id: team.record_id,
+      project_name: team.name || team.record_id,
+      latest_snapshot_id: latest?.snapshot_id || "",
+      latest_week_start: latest?.week_start || "",
+      current_drift_status: latest?.drift?.status || "no_evidence",
+      current_evidence_quality: latest?.observed_state?.evidence_quality || "none",
+      declared_bottleneck: latest?.declared_state?.bottleneck || journey.primary_bottleneck || "",
+      declared_bottleneck_category: latest?.declared_state?.bottleneck_category || declaredBottleneckCategory(journey.primary_bottleneck),
+      observed_bottleneck: latest?.observed_state?.inferred_bottleneck || "no evidence",
+      trajectory: assessment.trajectory,
+      intervention_priority: assessment.intervention_priority,
+      operator_question: assessment.operator_question,
+      recommended_next_check: latest?.recommended_intervention || "Collect first reviewed, project-specific transcript evidence before changing status.",
+      status_history: history,
+      coverage: {
+        snapshot_count: projectSnapshots.length,
+        dated_week_count: datedSnapshots.length,
+        undated_evidence_count: projectSnapshots.filter(snapshot => !isDatedWeek(snapshot.week_start)).length,
+        has_project_specific_evidence: projectSnapshots.some(snapshot => (snapshot.evidence?.project_specific_signal_count || 0) > 0),
+        project_specific_signal_count: projectSnapshots.reduce((sum, snapshot) => sum + (snapshot.evidence?.project_specific_signal_count || 0), 0),
+        signal_count: projectSnapshots.reduce((sum, snapshot) => sum + (snapshot.evidence?.signal_count || 0), 0),
+      },
+      privacy: PROJECT_WEEK_PRIVACY,
+      sharing_boundary: {
+        max_surface: "cohort",
+        raw_allowed: false,
+        public_requires_approval: true,
+      },
+    };
+  });
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  return rows.sort((a, b) => {
+    const priorityCompare = (priorityOrder[a.intervention_priority] ?? 9) - (priorityOrder[b.intervention_priority] ?? 9);
+    if (priorityCompare) return priorityCompare;
+    const weekCompare = weekSortValue(b.latest_week_start).localeCompare(weekSortValue(a.latest_week_start));
+    if (weekCompare) return weekCompare;
+    return String(a.project_name || a.project_id).localeCompare(String(b.project_name || b.project_id));
+  });
+}
+
+function projectProgressRollupQuality(rollups = []) {
+  const rows = asArray(rollups);
+  return {
+    rollup_count: rows.length,
+    priority_counts: countBy(rows.map(row => row.intervention_priority || "unknown")),
+    trajectory_counts: countBy(rows.map(row => row.trajectory || "unknown")),
+    no_evidence_count: rows.filter(row => row.current_drift_status === "no_evidence").length,
+    undated_evidence_project_count: rows.filter(row => (row.coverage?.undated_evidence_count || 0) > 0).length,
+    coverage_gap_count: rows.filter(row => ["coverage_gap", "coverage_regressed", "undated_evidence_gap", "no_transcript_evidence"].includes(row.trajectory)).length,
+    cohort_only_count: rows.filter(row => row.privacy?.raw_allowed === false).length,
+  };
+}
+
+function buildIntelDataContract({ cardSignals, fieldNotes, sessionNotes, signalInventory, projectWeekSnapshots = [], projectWeekQuality = {}, projectProgressRollups = [], projectProgressQuality = {}, teams, people, sourceTranscriptCount = 0 }) {
   return {
     card_signal_inputs: [
       "record_id",
@@ -862,6 +1373,20 @@ function buildIntelDataContract({ cardSignals, fieldNotes, sessionNotes, signalI
       "source card id, review status, confidence, sharing boundary",
       "teams, people, themes attached to each signal",
     ],
+    project_week_snapshot_inputs: [
+      "team.journey.stage/confidence/primary_bottleneck/next_milestone",
+      "team.now and team journey ICP/problem/solution",
+      "transcript evidence card week_start/date",
+      "transcript evidence card claims by project",
+      "source card id, claim id, claim type, confidence, evidence level",
+    ],
+    project_progress_rollup_inputs: [
+      "project_week_snapshots grouped by project_id",
+      "latest dated project-week snapshot",
+      "previous dated project-week snapshot",
+      "snapshot drift status and evidence quality history",
+      "snapshot dated/undated coverage flags",
+    ],
     quality: {
       source_transcript_count: sourceTranscriptCount,
       total_signal_count: signalInventory.total_signal_count || 0,
@@ -874,6 +1399,15 @@ function buildIntelDataContract({ cardSignals, fieldNotes, sessionNotes, signalI
       missing_session_note_count: Math.max(0, sourceTranscriptCount - sessionNotes.length),
       sources_without_claims: asArray(signalInventory.coverage?.sources_without_claims).length,
       sources_without_questions: asArray(signalInventory.coverage?.sources_without_questions).length,
+      project_week_snapshot_count: projectWeekQuality.snapshot_count || asArray(projectWeekSnapshots).length,
+      project_week_project_count: projectWeekQuality.project_count || 0,
+      project_week_drift_count: (projectWeekQuality.drift_status_counts?.partial_drift || 0) + (projectWeekQuality.drift_status_counts?.status_conflict || 0),
+      project_week_weak_count: projectWeekQuality.weak_snapshot_count || 0,
+      project_progress_rollup_count: projectProgressQuality.rollup_count || asArray(projectProgressRollups).length,
+      project_progress_high_priority_count: projectProgressQuality.priority_counts?.high || 0,
+      project_progress_coverage_gap_count: projectProgressQuality.coverage_gap_count || 0,
+      project_progress_no_evidence_count: projectProgressQuality.no_evidence_count || 0,
+      project_progress_undated_count: projectProgressQuality.undated_evidence_project_count || 0,
       missing_team_signal_count: Math.max(0, asArray(teams).length - cardSignals.teams.length),
       missing_person_signal_count: Math.max(0, asArray(people).length - cardSignals.people.length),
     },
@@ -932,6 +1466,10 @@ function buildCohortIntel({ transcriptEvidence, transcriptEvidenceCards = [], se
   const fieldNotes = buildFieldNotes(weekly);
   const sessionNotes = buildSessionNotes(transcriptEvidenceCards);
   const signalInventory = buildSignalInventory(transcriptEvidenceCards);
+  const projectWeekSnapshots = buildProjectWeekSnapshots({ evidenceCards: transcriptEvidenceCards, teams });
+  const projectWeekQuality = projectWeekSnapshotQuality(projectWeekSnapshots);
+  const projectProgressRollups = buildProjectProgressRollups({ snapshots: projectWeekSnapshots, teams, evidenceCards: transcriptEvidenceCards });
+  const projectProgressQuality = projectProgressRollupQuality(projectProgressRollups);
   return {
     schema_version: 1,
     source: "cohort-data/artifacts/transcript-evidence/generated/views.json",
@@ -944,11 +1482,19 @@ function buildCohortIntel({ transcriptEvidence, transcriptEvidenceCards = [], se
     field_notes: fieldNotes,
     session_notes: sessionNotes,
     signal_inventory: signalInventory,
+    project_week_snapshots: projectWeekSnapshots,
+    project_week_snapshot_quality: projectWeekQuality,
+    project_progress_rollups: projectProgressRollups,
+    project_progress_rollup_quality: projectProgressQuality,
     data_contract: buildIntelDataContract({
       cardSignals,
       fieldNotes,
       sessionNotes,
       signalInventory,
+      projectWeekSnapshots,
+      projectWeekQuality,
+      projectProgressRollups,
+      projectProgressQuality,
       teams,
       people,
       sourceTranscriptCount: Number(evidence.source_artifact_count || transcriptEvidenceCards.length || 0),

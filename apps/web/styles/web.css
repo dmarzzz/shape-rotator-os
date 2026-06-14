@@ -1789,11 +1789,14 @@ a.cd-timeline-title:hover {
 .context-mount {
   display: grid;
   gap: var(--space-6);
+  min-width: 0;
 }
 .context-policy {
   display: grid;
   grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.6fr);
   gap: var(--space-5);
+  min-width: 0;
+  max-width: 100%;
   padding: var(--space-4) 0;
   border-block: 1px solid var(--hairline);
 }
@@ -1818,6 +1821,7 @@ a.cd-timeline-title:hover {
 .context-provenance {
   display: grid;
   gap: var(--space-2);
+  min-width: 0;
   margin: 0;
 }
 .context-policy dl div,
@@ -1847,6 +1851,8 @@ a.cd-timeline-title:hover {
 .context-type-counts {
   display: flex;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   gap: var(--space-2);
 }
 .context-summary span,
@@ -1876,6 +1882,8 @@ a.cd-timeline-title:hover {
 .context-section {
   display: grid;
   gap: var(--space-4);
+  min-width: 0;
+  max-width: 100%;
   padding-top: var(--space-6);
   border-top: 1px solid var(--hairline);
 }
@@ -1905,6 +1913,7 @@ a.cd-timeline-title:hover {
 .context-field-note,
 .context-session-note,
 .context-signal-source,
+.context-project-week,
 .context-data-contract {
   border-top: 1px solid rgba(241, 236, 231, 0.12);
   padding-top: var(--space-4);
@@ -1915,6 +1924,7 @@ a.cd-timeline-title:hover {
 .context-field-note:first-of-type,
 .context-session-note:first-of-type,
 .context-signal-source:first-of-type,
+.context-project-week:first-of-type,
 .context-data-contract:first-of-type {
   border-top: 0;
   padding-top: 0;
@@ -1926,9 +1936,11 @@ a.cd-timeline-title:hover {
 .context-field-note,
 .context-session-note,
 .context-signal-inventory,
+.context-project-week-board,
 .context-data-contract {
   display: grid;
   gap: var(--space-4);
+  min-width: 0;
 }
 .context-evidence-head {
   display: grid;
@@ -2041,6 +2053,18 @@ a.context-chip:hover {
 .context-signal-source summary::-webkit-details-marker {
   display: none;
 }
+.context-project-week summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: baseline;
+  min-height: 46px;
+  cursor: pointer;
+  list-style: none;
+}
+.context-project-week summary::-webkit-details-marker {
+  display: none;
+}
 .context-session-note summary > span:first-child {
   min-width: 0;
   color: var(--ink-1);
@@ -2063,9 +2087,21 @@ a.context-chip:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.context-project-week summary > span:first-child {
+  min-width: 0;
+  color: var(--ink-1);
+  font-size: var(--t-15);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .context-record summary > span:last-child,
 .context-session-note summary > span:last-child,
-.context-signal-source summary > span:last-child {
+.context-signal-source summary > span:last-child,
+.context-project-week summary > span:last-child {
   font-family: var(--font-mono);
   font-size: var(--t-11);
   color: var(--ink-4);
@@ -2075,14 +2111,114 @@ a.context-chip:hover {
 .context-record-body,
 .context-distillation,
 .context-session-body,
-.context-signal-source-body {
+.context-signal-source-body,
+.context-project-week-body {
   display: grid;
   gap: var(--space-3);
 }
 .context-record-body,
 .context-session-body,
-.context-signal-source-body {
+.context-signal-source-body,
+.context-project-week-body {
   padding-block: var(--space-3) var(--space-4);
+}
+.context-project-week {
+  --snapshot-accent: rgba(241, 236, 231, 0.22);
+  min-width: 0;
+  max-width: 100%;
+  border-top-color: var(--snapshot-accent);
+}
+.context-drift-aligned {
+  --snapshot-accent: rgba(139, 216, 209, 0.36);
+}
+.context-drift-partial_drift {
+  --snapshot-accent: rgba(231, 181, 100, 0.40);
+}
+.context-drift-status_conflict {
+  --snapshot-accent: rgba(208, 83, 50, 0.50);
+}
+.context-drift-insufficient_evidence {
+  --snapshot-accent: rgba(241, 236, 231, 0.16);
+}
+.context-priority-high {
+  --snapshot-accent: rgba(208, 83, 50, 0.58);
+}
+.context-priority-medium {
+  --snapshot-accent: rgba(231, 181, 100, 0.42);
+}
+.context-priority-low {
+  --snapshot-accent: rgba(139, 216, 209, 0.36);
+}
+.context-project-week summary > span:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--snapshot-accent);
+  vertical-align: 0.08em;
+}
+.context-snapshot-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(220px, 0.62fr);
+  gap: var(--space-4);
+}
+.context-snapshot-lane {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: 1px dashed rgba(241, 236, 231, 0.10);
+}
+.context-snapshot-lane h4 {
+  margin: 0;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  font-weight: 500;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.context-snapshot-lane p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--t-13);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+.context-snapshot-lane b {
+  color: var(--ink-1);
+  font-weight: 500;
+}
+.context-snapshot-action p {
+  color: var(--ink-1);
+}
+.context-progress-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.context-progress-tick {
+  --snapshot-accent: rgba(241, 236, 231, 0.18);
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-height: 24px;
+  padding: 3px var(--space-2);
+  border: 1px solid var(--snapshot-accent);
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  background: rgba(247, 241, 236, 0.012);
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  line-height: 1.25;
+}
+.context-progress-tick b {
+  color: rgba(241, 236, 231, 0.46);
+  font-weight: 500;
 }
 .context-inventory-list {
   display: grid;
@@ -2126,21 +2262,27 @@ a.context-chip:hover {
 .context-block {
   display: grid;
   gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
 }
 .context-block h4 {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 .context-block ul {
   display: grid;
   gap: var(--space-2);
+  min-width: 0;
   margin: 0;
   padding-left: 1.1rem;
   color: var(--ink-2);
+  overflow-wrap: anywhere;
 }
 .context-block li {
   padding-left: var(--space-1);
   font-size: var(--t-13);
   line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
 }
 .context-note-section {
   display: grid;
@@ -2260,6 +2402,8 @@ a.context-chip:hover {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-5);
+  min-width: 0;
+  max-width: 100%;
 }
 @media (max-width: 760px) {
   .context-policy,
@@ -2269,15 +2413,19 @@ a.context-chip:hover {
   .context-record summary,
   .context-session-note summary,
   .context-signal-source summary,
+  .context-project-week summary,
+  .context-snapshot-grid,
   .context-contract-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-1);
   }
   .context-record summary > span:last-child,
   .context-session-note summary > span:first-child,
   .context-session-note summary > span:last-child,
   .context-signal-source summary > span:first-child,
-  .context-signal-source summary > span:last-child {
+  .context-signal-source summary > span:last-child,
+  .context-project-week summary > span:first-child,
+  .context-project-week summary > span:last-child {
     white-space: normal;
   }
 }

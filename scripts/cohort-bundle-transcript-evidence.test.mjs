@@ -37,6 +37,77 @@ function assertInternalSurfaceHasTranscriptEvidence(surface) {
   assert.ok(surface.cohort_intel?.signal_inventory?.sources.every((source) => {
     return source.signals.length === source.claim_signal_count + source.qa_signal_count;
   }));
+  const snapshots = surface.cohort_intel?.project_week_snapshots || [];
+  const snapshotQuality = surface.cohort_intel?.project_week_snapshot_quality || {};
+  const progressRollups = surface.cohort_intel?.project_progress_rollups || [];
+  const progressQuality = surface.cohort_intel?.project_progress_rollup_quality || {};
+  assert.ok(snapshots.length >= 18);
+  assert.equal(snapshotQuality.snapshot_count, snapshots.length);
+  assert.equal(snapshotQuality.cohort_only_count, snapshots.length);
+  assert.ok(snapshotQuality.project_count >= 12);
+  assert.ok(snapshotQuality.weak_snapshot_count >= 1);
+  assert.ok((snapshotQuality.drift_status_counts?.partial_drift || 0) + (snapshotQuality.drift_status_counts?.status_conflict || 0) >= 1);
+  assert.ok(snapshots.every((snapshot) => {
+    return snapshot.project_id
+      && snapshot.week_start
+      && snapshot.declared_state?.bottleneck_category
+      && snapshot.observed_state?.movement
+      && snapshot.observed_state?.inferred_bottleneck
+      && snapshot.drift?.status
+      && snapshot.recommended_intervention
+      && snapshot.privacy?.raw_allowed === false;
+  }));
+  assert.ok(snapshots.every((snapshot) => {
+    return ["aligned", "partial_drift", "status_conflict", "insufficient_evidence"].includes(snapshot.drift.status);
+  }));
+  assert.ok(snapshots
+    .filter((snapshot) => snapshot.observed_state.evidence_quality !== "weak")
+    .every((snapshot) => snapshot.evidence.project_specific_signal_count >= 1 && snapshot.observed_state.top_observed_claims.length >= 1));
+  assert.ok(snapshots
+    .filter((snapshot) => snapshot.observed_state.evidence_quality === "weak")
+    .every((snapshot) => snapshot.drift.status === "insufficient_evidence"));
+  const snapshotNarrativeText = JSON.stringify(snapshots.map((snapshot) => ({
+    declared_state: snapshot.declared_state,
+    observed_state: {
+      movement: snapshot.observed_state.movement,
+      inferred_bottleneck: snapshot.observed_state.inferred_bottleneck,
+      evidence_summary: snapshot.observed_state.evidence_summary,
+      top_observed_claims: snapshot.observed_state.top_observed_claims?.map((claim) => claim.text),
+    },
+    drift: snapshot.drift,
+    recommended_intervention: snapshot.recommended_intervention,
+  })));
+  assert.doesNotMatch(snapshotNarrativeText, /private-vault:/);
+  assert.doesNotMatch(snapshotNarrativeText, /drive:\/\//);
+  assert.equal(progressRollups.length, surface.teams.length);
+  assert.equal(progressQuality.rollup_count, progressRollups.length);
+  assert.equal(progressQuality.cohort_only_count, progressRollups.length);
+  assert.ok(progressQuality.no_evidence_count >= 1);
+  assert.ok(progressQuality.coverage_gap_count >= 1);
+  assert.ok(progressQuality.undated_evidence_project_count >= 1);
+  assert.ok(progressRollups.every((rollup) => {
+    return rollup.project_id
+      && rollup.project_name
+      && rollup.current_drift_status
+      && rollup.trajectory
+      && rollup.intervention_priority
+      && rollup.operator_question
+      && rollup.recommended_next_check
+      && rollup.coverage
+      && rollup.privacy?.raw_allowed === false;
+  }));
+  assert.ok(progressRollups.every((rollup) => ["high", "medium", "low"].includes(rollup.intervention_priority)));
+  assert.ok(progressRollups
+    .filter((rollup) => rollup.current_drift_status === "no_evidence")
+    .every((rollup) => rollup.status_history.length === 0));
+  const progressNarrativeText = JSON.stringify(progressRollups.map((rollup) => ({
+    trajectory: rollup.trajectory,
+    operator_question: rollup.operator_question,
+    recommended_next_check: rollup.recommended_next_check,
+    status_history: rollup.status_history,
+  })));
+  assert.doesNotMatch(progressNarrativeText, /private-vault:/);
+  assert.doesNotMatch(progressNarrativeText, /drive:\/\//);
   assert.ok(surface.cohort_intel?.field_notes.every((note) => note.markdown && note.sections.length >= 1));
   assert.ok(surface.cohort_intel?.field_notes.every((note) => note.source_card_ids?.length >= 1));
   assert.ok(surface.cohort_intel?.session_notes.every((note) => note.markdown && note.source_card_ids?.length === 1));
@@ -47,6 +118,14 @@ function assertInternalSurfaceHasTranscriptEvidence(surface) {
   assert.equal(surface.cohort_intel?.data_contract?.quality?.qa_signal_count, 56);
   assert.equal(surface.cohort_intel?.data_contract?.quality?.session_note_count, 12);
   assert.equal(surface.cohort_intel?.data_contract?.quality?.missing_session_note_count, 0);
+  assert.equal(surface.cohort_intel?.data_contract?.quality?.project_week_snapshot_count, snapshots.length);
+  assert.equal(surface.cohort_intel?.data_contract?.quality?.project_week_project_count, snapshotQuality.project_count);
+  assert.equal(surface.cohort_intel?.data_contract?.quality?.project_week_weak_count, snapshotQuality.weak_snapshot_count);
+  assert.equal(surface.cohort_intel?.data_contract?.quality?.project_progress_rollup_count, progressRollups.length);
+  assert.equal(surface.cohort_intel?.data_contract?.quality?.project_progress_no_evidence_count, progressQuality.no_evidence_count);
+  assert.equal(surface.cohort_intel?.data_contract?.quality?.project_progress_undated_count, progressQuality.undated_evidence_project_count);
+  assert.ok(surface.cohort_intel?.data_contract?.project_week_snapshot_inputs?.length >= 5);
+  assert.ok(surface.cohort_intel?.data_contract?.project_progress_rollup_inputs?.length >= 5);
   assert.equal(surface.cohort_intel.raw_allowed, false);
   assert.match(surface.cohort_intel.context_policy_note, /No transcript readout is public-cleared yet/);
   assert.ok(surface.transcript_distillations?.artifact_count >= 1);
@@ -78,6 +157,10 @@ function assertPublicWebSurfaceExcludesCohortTranscriptEvidence(surface) {
   assert.equal(surface.cohort_intel.session_notes.length, 0);
   assert.equal(surface.cohort_intel.signal_inventory.total_signal_count, 0);
   assert.equal(surface.cohort_intel.signal_inventory.sources.length, 0);
+  assert.equal(surface.cohort_intel.project_week_snapshots.length, 0);
+  assert.equal(surface.cohort_intel.project_week_snapshot_quality.snapshot_count, 0);
+  assert.equal(surface.cohort_intel.project_progress_rollups.length, 0);
+  assert.equal(surface.cohort_intel.project_progress_rollup_quality.rollup_count, 0);
   assert.match(surface.cohort_intel.context_policy_note, /public Context should use existing articles only/);
   assert.equal(surface.transcript_distillations.artifact_count, 0);
   assert.equal(surface.transcript_distillations.cohort_count, 0);

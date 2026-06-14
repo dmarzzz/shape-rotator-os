@@ -180,11 +180,116 @@ test("context renderer keeps claim provenance, confidence, and raw boundary visi
           }],
         }],
       },
+      project_week_snapshots: [{
+        snapshot_id: "project-week:team-a:2026-06-08",
+        project_id: "team-a",
+        project_name: "Team A",
+        week_start: "2026-06-08",
+        declared_state: {
+          stage: 4,
+          bottleneck: "GTM",
+          bottleneck_category: "GTM / ICP",
+          confidence: "Medium",
+          now: "working non-payers toward first paid conversion",
+          next_milestone: "convert the first paid user",
+        },
+        observed_state: {
+          movement: "build/proof advanced",
+          inferred_bottleneck: "Product / Workflow",
+          evidence_quality: "medium",
+          signal_mix: { product_signal: 1 },
+          evidence_summary: "2 transcript signal(s) across 1 source card(s); 2 scored as project-specific.",
+          top_observed_claims: [{
+            claim_id: "source-artifact-1:claim:1",
+            claim_type: "product_signal",
+            label: "product signal",
+            text: "The demo moved, but the paid-conversion signal is still not visible.",
+            confidence: "medium",
+            evidence_level: "inferred",
+            source_card_id: "source-artifact-1",
+            signal_score: 91,
+            matched_tokens: ["demo", "conversion"],
+          }],
+        },
+        drift: {
+          status: "partial_drift",
+          reason: "Declared bottleneck is GTM / ICP, while this week's observed evidence reads more like Product / Workflow.",
+        },
+        recommended_intervention: "Translate the observed build signal into one demoable weekly milestone.",
+        evidence: {
+          source_card_count: 1,
+          source_card_ids: ["source-artifact-1"],
+          claim_ids: ["source-artifact-1:claim:1"],
+          signal_count: 2,
+          project_specific_signal_count: 2,
+          signal_type_counts: { product_signal: 1 },
+        },
+        privacy: {
+          max_surface: "cohort",
+          raw_allowed: false,
+        },
+      }],
+      project_week_snapshot_quality: {
+        snapshot_count: 1,
+        project_count: 1,
+        drift_status_counts: { partial_drift: 1 },
+        weak_snapshot_count: 0,
+        insufficient_snapshot_count: 0,
+        cohort_only_count: 1,
+      },
+      project_progress_rollups: [{
+        project_id: "team-a",
+        project_name: "Team A",
+        latest_snapshot_id: "project-week:team-a:2026-06-08",
+        latest_week_start: "2026-06-08",
+        current_drift_status: "partial_drift",
+        current_evidence_quality: "medium",
+        declared_bottleneck: "GTM",
+        declared_bottleneck_category: "GTM / ICP",
+        observed_bottleneck: "Product / Workflow",
+        trajectory: "drift_emerged",
+        intervention_priority: "medium",
+        operator_question: "Observed evidence is leaning toward Product / Workflow; review whether declared GTM still describes the project.",
+        recommended_next_check: "Translate the observed build signal into one demoable weekly milestone.",
+        status_history: [{
+          snapshot_id: "project-week:team-a:2026-06-08",
+          week_start: "2026-06-08",
+          drift_status: "partial_drift",
+          evidence_quality: "medium",
+          declared_bottleneck: "GTM / ICP",
+          observed_bottleneck: "Product / Workflow",
+          project_specific_signal_count: 2,
+          signal_count: 2,
+        }],
+        coverage: {
+          snapshot_count: 1,
+          dated_week_count: 1,
+          undated_evidence_count: 0,
+          has_project_specific_evidence: true,
+          project_specific_signal_count: 2,
+          signal_count: 2,
+        },
+        privacy: {
+          max_surface: "cohort",
+          raw_allowed: false,
+        },
+      }],
+      project_progress_rollup_quality: {
+        rollup_count: 1,
+        priority_counts: { medium: 1 },
+        trajectory_counts: { drift_emerged: 1 },
+        no_evidence_count: 0,
+        undated_evidence_project_count: 0,
+        coverage_gap_count: 0,
+        cohort_only_count: 1,
+      },
       data_contract: {
         card_signal_inputs: ["record_id", "claim_type"],
         field_note_inputs: ["weekly top_claims by type"],
         session_note_inputs: ["transcript evidence card Q&A"],
         signal_inventory_inputs: ["every transcript evidence card claim"],
+        project_week_snapshot_inputs: ["team.journey.primary_bottleneck", "transcript evidence card claims by project"],
+        project_progress_rollup_inputs: ["project_week_snapshots grouped by project_id"],
         quality: {
           source_transcript_count: 1,
           total_signal_count: 2,
@@ -199,6 +304,13 @@ test("context renderer keeps claim provenance, confidence, and raw boundary visi
           missing_session_note_count: 0,
           sources_without_claims: 0,
           sources_without_questions: 0,
+          project_week_snapshot_count: 1,
+          project_week_project_count: 1,
+          project_week_drift_count: 1,
+          project_week_weak_count: 0,
+          project_progress_rollup_count: 1,
+          project_progress_high_priority_count: 0,
+          project_progress_coverage_gap_count: 0,
         },
         promotion_rule: "Review before promotion.",
       },
@@ -240,9 +352,19 @@ test("context renderer keeps claim provenance, confidence, and raw boundary visi
   assert.match(html, /signal inventory/);
   assert.match(html, /Session signal inventory/);
   assert.match(html, /2 extracted transcript signals/);
+  assert.match(html, /project trajectory rollups/);
+  assert.match(html, /drift emerged/);
+  assert.match(html, /operator question/);
+  assert.match(html, /project-week snapshots/);
+  assert.match(html, /Team A/);
+  assert.match(html, /partial drift/);
+  assert.match(html, /Product \/ Workflow/);
+  assert.match(html, /Translate the observed build signal/);
   assert.match(html, /data contract/);
   assert.match(html, /session note inputs/);
   assert.match(html, /signal inventory inputs/);
+  assert.match(html, /project week snapshot inputs/);
+  assert.match(html, /project progress rollup inputs/);
   assert.match(html, /team signals/);
   assert.match(html, /source-artifact-1/);
   assert.match(html, /private-vault:session-1/);
@@ -252,7 +374,9 @@ test("context renderer keeps claim provenance, confidence, and raw boundary visi
 });
 
 test("current web bundle exposes public-safe context intel inputs", () => {
+  const renderContextSurface = loadContextRenderer();
   const surface = JSON.parse(fs.readFileSync(SURFACE_JSON, "utf8"));
+  const html = renderContextSurface(surface);
 
   assert.equal(surface.surface_visibility, "public-web");
   assert.equal(surface.cohort_intel.raw_allowed, false);
@@ -267,6 +391,12 @@ test("current web bundle exposes public-safe context intel inputs", () => {
   assert.equal(surface.cohort_intel.field_notes.length, 0);
   assert.equal(surface.cohort_intel.session_notes.length, 0);
   assert.equal(surface.cohort_intel.signal_inventory.total_signal_count, 0);
+  assert.equal(surface.cohort_intel.project_week_snapshots.length, 0);
+  assert.equal(surface.cohort_intel.project_week_snapshot_quality.snapshot_count, 0);
+  assert.equal(surface.cohort_intel.project_progress_rollups.length, 0);
+  assert.equal(surface.cohort_intel.project_progress_rollup_quality.rollup_count, 0);
+  assert.doesNotMatch(html, /project trajectory rollups/);
+  assert.doesNotMatch(html, /project-week snapshots/);
   assert.equal(surface.transcript_evidence.source_artifact_count, 0);
   assert.ok(Array.isArray(surface.transcript_distillations.artifacts));
   assert.ok(surface.transcript_distillations.artifacts.every((item) => item.surface === "public"));
