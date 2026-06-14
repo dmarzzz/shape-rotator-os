@@ -32,6 +32,8 @@ on:
     - cron: "23 * * * *"    # hourly at :23 UTC. GitHub may still delay under load.
   workflow_dispatch:        # manual run from the Actions tab
   push:
+    branches:
+      - main
     paths:
       - "scripts/check-github-releases.mjs"
       - "scripts/build-bundles.js"
