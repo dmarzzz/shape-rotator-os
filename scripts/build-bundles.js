@@ -35,6 +35,11 @@ const OUT_PATHS = [
   OS_SURFACE_PATH,
   WEB_SURFACE_PATH,
 ];
+// The web copy is generated for local/static serving and intentionally
+// gitignored. CI should require only the committed OS surface.
+const CHECK_PATHS = [
+  OS_SURFACE_PATH,
+];
 const PRIMARY_OUT_PATH = OUT_PATHS[0];
 
 function readSchema() {
@@ -2138,7 +2143,7 @@ function main() {
   catch (e) { console.error("[build-bundles]", e.message); process.exit(2); }
 
   if (check) {
-    for (const outPath of OUT_PATHS) {
+    for (const outPath of CHECK_PATHS) {
       if (!fs.existsSync(outPath)) {
         console.error(`[build-bundles] --check: ${outPath} does not exist`);
         process.exit(3);
