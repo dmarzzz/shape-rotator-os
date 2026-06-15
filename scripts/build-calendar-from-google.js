@@ -201,6 +201,15 @@ async function main() {
   const token = await accessToken();
   const events = await fetchEvents(calendarId, token, timeMin, timeMax);
   const { rows, placed } = buildTab(meta, events);
+
+  // Safety: a real schedule always has events. If we placed zero, the fetch
+  // almost certainly failed (auth/scope/empty response) — refuse to overwrite
+  // a good calendar.json with an empty one rather than wiping the schedule.
+  if (placed === 0) {
+    console.error("[build-calendar-from-google] 0 events placed — refusing to overwrite calendar.json (likely an auth/fetch problem)");
+    process.exit(2);
+  }
+
   const next = { last_refresh: new Date().toISOString(), tabs: { [meta.tab]: rows } };
 
   const existing = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, "utf8")) : null;

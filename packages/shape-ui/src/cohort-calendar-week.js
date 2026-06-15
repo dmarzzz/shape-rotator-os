@@ -47,7 +47,9 @@
 
 import { escHtml, escAttr } from "./escape.js";
 
-export const CALENDAR_URL = "https://915c8197b20b831c52cf97a9fb7e2e104cdc6ae8-8080.dstack-pha-prod7.phala.network/cadence/calendar.json";
+// Our own schedule feed, served by apps/web (vendor:web copies cohort-data/calendar.json
+// → /calendar.json) and regenerated from our Google calendar by the calendar-sync bot.
+export const CALENDAR_URL = "https://os-web.shaperotator.xyz/calendar.json";
 
 const PRIMARY_TAB     = "May 18 Start";
 const COHORT_START_MS = Date.UTC(2026, 4, 18);                // mon may 18 2026
@@ -1358,7 +1360,7 @@ export function renderWeekView({
           </footer>
 
           <div class="cal-page-foot">
-            <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>phala /cadence/calendar.json</a></span>
+            <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
             <span aria-hidden="true">·</span>
             <span>cohort may 18 → jul 26 2026</span>
           </div>
