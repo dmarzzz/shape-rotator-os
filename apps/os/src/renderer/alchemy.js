@@ -11375,7 +11375,7 @@ const CONTEXT_VIEW_DEK = {
   raw: "The transcripts behind the articles, with review metadata and calendar matches.",
   signals: "Vault-backed reads on cohort moves worth making — grounded, inferred, speculative.",
   data: "The sanitized entity graph behind the signals — people, projects, surfaces.",
-  evidence: "Distilled transcript evidence cards, read live from Supabase — claim, confidence, attribution.",
+  evidence: "Distilled transcript knowledge — named cohort session summaries, or person-anonymized public cards.",
 };
 
 const CONTEXT_VIEWS = [
@@ -11957,14 +11957,75 @@ function contextEvidenceCardHtml(card) {
   `;
 }
 
-function renderContextEvidence(cards) {
-  if (!cards.length) {
-    return `<p class="alch-cv-muted alch-ev-empty">No distilled evidence cards yet. These load live from Supabase once cohort sessions are distilled, reviewed, and published.</p>`;
-  }
+const EVIDENCE_TIER_LS_KEY = "srfg:evidence_tier";
+
+// Detail tier for the Context > evidence view.
+//   T2 (default) = the richer, NAMED cohort session readouts (from the committed
+//     bundle's session_insights — no login required).
+//   T3 = the person-anonymized cards read live from Supabase (the public tier).
+// Default T2; flip to T3 instantly (via the in-view toggle or this localStorage
+// key) if named detail ever needs pulling back. No login is involved either way.
+function contextEvidenceTier() {
+  try {
+    return String(localStorage.getItem(EVIDENCE_TIER_LS_KEY) || "").toUpperCase() === "T3" ? "T3" : "T2";
+  } catch { return "T2"; }
+}
+function setContextEvidenceTier(tier) {
+  const next = tier === "T3" ? "T3" : "T2";
+  try { localStorage.setItem(EVIDENCE_TIER_LS_KEY, next); } catch {}
+  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
+}
+
+function evidenceTierToggleHtml(tier) {
+  const opt = (t, label, hint) =>
+    `<button class="alch-ev-tier-btn${tier === t ? " is-on" : ""}" data-ev-tier="${t}" type="button" aria-pressed="${tier === t}" title="${escAttr(hint)}">${label}</button>`;
+  return `<div class="alch-ev-tier" role="group" aria-label="evidence detail tier">
+    ${opt("T2", "named", "cohort tier — named teams, people, and the full session summary")}
+    ${opt("T3", "generalized", "public tier — person-anonymized, no named teams or people")}
+  </div>`;
+}
+
+// A named cohort session readout (T2) — the summary-section format: thesis hook,
+// the 60-second summary, product insights, themes, and the named teams/people.
+function contextSessionSummaryHtml(s) {
+  const title = String(s.title || "").trim();
+  const thesis = String(s.thesis || "").trim();
+  const summary = String(s.summary || s.one_liner || "").trim();
+  const date = contextEvidenceDate(s.date);
+  const kind = String(s.kind || "").trim();
+  const themes = Array.isArray(s.themes) ? s.themes : [];
+  const insights = Array.isArray(s.insights) ? s.insights : [];
+  const who = [...(Array.isArray(s.teams) ? s.teams : []), ...(Array.isArray(s.people) ? s.people : [])]
+    .map((t) => String(t).replace(/-/g, " ").trim()).filter(Boolean);
+  const meta = [kind, date].filter(Boolean).map(escHtml).join(" · ");
+  const themeChips = themes.slice(0, 6).map((t) => `<span class="alch-ev-chip">${escHtml(String(t))}</span>`).join("");
   return `
-    <p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from Supabase — person-anonymized, team-attributed, published.</p>
-    <div class="alch-ev-grid">${cards.map(contextEvidenceCardHtml).join("")}</div>
+    <article class="alch-ev-sum">
+      ${meta ? `<div class="alch-ev-type">${meta}</div>` : ""}
+      ${title ? `<h3 class="alch-ev-sum-title">${escHtml(title)}</h3>` : ""}
+      ${thesis ? `<p class="alch-ev-sum-thesis">${escHtml(thesis)}</p>` : ""}
+      ${summary ? `<p class="alch-ev-sum-body">${escHtml(summary)}</p>` : ""}
+      ${insights.length ? `<ul class="alch-ev-sum-list">${insights.slice(0, 10).map((i) => `<li>${escHtml(String(i))}</li>`).join("")}</ul>` : ""}
+      ${themeChips ? `<div class="alch-ev-meta">${themeChips}</div>` : ""}
+      ${who.length ? `<div class="alch-ev-sum-who">${who.slice(0, 10).map((w) => `<span class="alch-ev-chip alch-ev-who-chip">${escHtml(w)}</span>`).join("")}</div>` : ""}
+    </article>
   `;
+}
+
+function renderContextEvidence(tier, cards, insights) {
+  const toggle = evidenceTierToggleHtml(tier);
+  if (tier === "T2") {
+    const body = insights.length
+      ? `<p class="alch-ev-lede">${insights.length} cohort session readout${insights.length === 1 ? "" : "s"} — named, with the 60-second summary, themes, and product insights. Switch to <em>generalized</em> for the person-anonymized public view.</p>
+         <div class="alch-ev-grid alch-ev-sum-grid">${insights.map(contextSessionSummaryHtml).join("")}</div>`
+      : `<p class="alch-cv-muted alch-ev-empty">No cohort session readouts yet. Distill sessions into readouts to populate the named tier.</p>`;
+    return `${toggle}${body}`;
+  }
+  const body = cards.length
+    ? `<p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from Supabase — person-anonymized, team-attributed, published.</p>
+       <div class="alch-ev-grid">${cards.map(contextEvidenceCardHtml).join("")}</div>`
+    : `<p class="alch-cv-muted alch-ev-empty">No distilled evidence cards yet. These load live from Supabase once cohort sessions are distilled, reviewed, and published.</p>`;
+  return `${toggle}${body}`;
 }
 
 function renderContextVault() {
@@ -11984,18 +12045,22 @@ function renderContextVault() {
     raw: cv.loaded ? rawScripts.length : undefined,
     signals: intelMeta.signals,
     data: intelMeta.entities,
-    evidence: (state.cohort?.transcript_evidence_cards || []).length || undefined,
+    evidence: (contextEvidenceTier() === "T2"
+      ? (state.cohort?.session_insights || []).length
+      : (state.cohort?.transcript_evidence_cards || []).length) || undefined,
   });
 
   // Evidence view — distilled transcript cards read live from Supabase
   // (cohort-source.js overlays them onto the surface). Full-width under the
   // shared page header, same as the intel views.
   if (view === "evidence") {
+    const tier = contextEvidenceTier();
     const cards = Array.isArray(state.cohort?.transcript_evidence_cards) ? state.cohort.transcript_evidence_cards : [];
+    const insights = Array.isArray(state.cohort?.session_insights) ? state.cohort.session_insights : [];
     state.canvas.innerHTML = `
       <section class="alch-cv">
         ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK.evidence, nav })}
-        ${renderContextEvidence(cards)}
+        ${renderContextEvidence(tier, cards, insights)}
       </section>
     `;
     return;
@@ -12064,6 +12129,9 @@ function renderContextVault() {
 function wireContextVault() {
   for (const btn of state.canvas.querySelectorAll("[data-cv-mode]")) {
     btn.addEventListener("click", () => setContextVaultMode(btn.dataset.cvMode));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-ev-tier]")) {
+    btn.addEventListener("click", () => setContextEvidenceTier(btn.dataset.evTier));
   }
   for (const btn of state.canvas.querySelectorAll("[data-cv-source]")) {
     btn.addEventListener("click", () => selectContextSource(btn.dataset.cvSource));
