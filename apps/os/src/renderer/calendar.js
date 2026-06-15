@@ -21,9 +21,9 @@ import {
 
 const PRIMARY_TAB = "May 18 Start";
 const WEEK_COUNT  = 10;
-const MANAGED_GOOGLE_CALENDAR_ID = "c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com";
 // Public read-only mirror that cohort members/guests subscribe to (guest calendar mirror, PR #361).
-// MANAGED_* above is the admin/source calendar and must NOT be the public subscribe target.
+// This is the only calendar a public subscribe/link should target; the admin/source calendar
+// (GOOGLE_CALENDAR_ID) is intentionally NOT referenced in this public renderer.
 const GUEST_GOOGLE_CALENDAR_ID = "c_230102e62c5e01faa500a92c44251088210cd1f1949dfa9aff3ab11280261d8c@group.calendar.google.com";
 
 const DAY_NAMES_FULL = {
@@ -56,7 +56,7 @@ function calendarShapeKey(baseUid, blockIndex) {
   return baseUid && blockIndex ? `${baseUid}#${blockIndex}` : "";
 }
 
-export function managedGoogleCalendarUrl(calendarId = MANAGED_GOOGLE_CALENDAR_ID) {
+export function managedGoogleCalendarUrl(calendarId = GUEST_GOOGLE_CALENDAR_ID) {
   return `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(calendarId)}`;
 }
 
