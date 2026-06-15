@@ -287,7 +287,7 @@ function distillTranscriptText(text: string, {
       };
     }),
     action_items: [
-      "Review the private transcript against Tina's routing policy before changing this artifact from needs_review.",
+      "Review the private transcript against the routing policy before changing this artifact from needs_review.",
       "Convert any useful points into evidence cards with claim type, confidence, provenance, and sharing boundary.",
       ...(mode === "aggregate_only"
         ? ["Keep individual attribution out of cohort views; promote only aggregate signals."]

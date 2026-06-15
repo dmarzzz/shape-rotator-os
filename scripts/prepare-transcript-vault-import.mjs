@@ -662,8 +662,13 @@ export function inferSessionType(name) {
   if (normalized.includes("transcript index") || normalized.includes("public private map")) return null;
   if (/\b(wdydlw|what did you do|weekly status|standup|retro)\b/.test(normalized)) return "weekly_standup";
   if (/\b(1on1|1 1|one on one|one to one)\b/.test(normalized)) return "private_1on1";
+  const privateHosts = (process.env.TRANSCRIPT_PRIVATE_HOSTS || "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
   if (
-    /\b(tina|andrew)\b/.test(normalized)
+    privateHosts.length
+    && new RegExp(`\\b(${privateHosts.join("|")})\\b`).test(normalized)
     && /\b(private|feedback|coaching|positioning|checkpoint|check in|office hours|drop in|funding|fundraising|data room|strategy|ops)\b/.test(normalized)
   ) {
     return "private_1on1";
