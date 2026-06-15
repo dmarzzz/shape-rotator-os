@@ -1,5 +1,28 @@
 const WEEKLY_CLAIM_LIMIT = 8;
 const ENTITY_CLAIM_LIMIT = 4;
+const DEFAULT_CONTEXT_CONFIG_KEY = "srfg:context_config";
+const CALENDAR_CONFIG_KEY = "srfg:calendar_ingress_config";
+const PUBLIC_EVIDENCE_TABLE = "public_transcript_evidence_cards";
+const DEFAULT_PUBLIC_EVIDENCE_LIMIT = 200;
+const PUBLIC_CONTENT_KEYS = [
+  "claim_type",
+  "date",
+  "named_entities_allowed",
+  "raw_allowed",
+  "source_note",
+  "themes",
+  "week_start",
+];
+const PUBLIC_FORBIDDEN_CONTENT_KEYS = [
+  "teams",
+  "people",
+  "team_id",
+  "person_id",
+  "source_artifact_id",
+  "processing_job_id",
+  "derived_artifact_id",
+  "storage_ref",
+];
 
 function escHtml(value) {
   return String(value ?? "")
@@ -24,6 +47,188 @@ function dateText(value) {
   const raw = String(value || "").trim();
   const match = /^(\d{4}-\d{2}-\d{2})/.exec(raw);
   return match ? match[1] : raw;
+}
+
+function trimSlash(value) {
+  return String(value || "").replace(/\/+$/, "");
+}
+
+function cleanConfigValue(value) {
+  return String(value || "").trim();
+}
+
+function readJsonStorage(storage, key) {
+  if (!storage?.getItem) return null;
+  try {
+    const raw = storage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function loadContextSupabaseConfig({
+  windowRef = globalThis,
+  storage = globalThis.localStorage,
+} = {}) {
+  const runtime = windowRef?.SHAPE_ROTATOR_RUNTIME?.context
+    || windowRef?.SHAPE_ROTATOR_CONTEXT_CONFIG
+    || windowRef?.SHAPE_CONTEXT_CONFIG
+    || null;
+  const stored = readJsonStorage(storage, DEFAULT_CONTEXT_CONFIG_KEY)
+    || readJsonStorage(storage, CALENDAR_CONFIG_KEY)
+    || {};
+  const source = { ...stored, ...(runtime || {}) };
+  const supabaseUrl = cleanConfigValue(source.supabaseUrl || source.supabase_url);
+  const supabaseAnonKey = cleanConfigValue(
+    source.supabaseAnonKey
+      || source.supabase_anon_key
+      || source.anonKey
+      || source.anon_key
+  );
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+  return { supabaseUrl, supabaseAnonKey };
+}
+
+function contextSupabaseUrl(config, table, query = {}) {
+  const url = new URL(`${trimSlash(config.supabaseUrl)}/rest/v1/${table}`);
+  for (const [key, value] of Object.entries(query || {})) {
+    if (value != null && value !== "") url.searchParams.set(key, String(value));
+  }
+  return url;
+}
+
+function contextSupabaseHeaders(config) {
+  return {
+    apikey: config.supabaseAnonKey,
+    authorization: `Bearer ${config.supabaseAnonKey}`,
+  };
+}
+
+function publicSafeContentJson(content = {}) {
+  const source = content && typeof content === "object" && !Array.isArray(content) ? content : {};
+  const safe = {};
+  for (const key of PUBLIC_CONTENT_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) safe[key] = source[key];
+  }
+  for (const key of PUBLIC_FORBIDDEN_CONTENT_KEYS) delete safe[key];
+  safe.raw_allowed = false;
+  safe.named_entities_allowed = false;
+  return safe;
+}
+
+export function sanitizePublicEvidenceRow(row = {}) {
+  const content = publicSafeContentJson(row.content_json);
+  return {
+    id: row.id || "",
+    claim_type: row.claim_type || content.claim_type || "insight",
+    title: row.title || "Public transcript insight",
+    claim_text: row.claim_text || row.summary || row.title || "Reviewed public transcript insight.",
+    summary: row.summary || "",
+    evidence_level: row.evidence_level || "aggregate",
+    confidence: row.confidence,
+    attribution_scope: "anonymous_public",
+    content_json: content,
+    created_at: row.created_at || "",
+  };
+}
+
+export async function fetchPublicTranscriptEvidence({
+  config,
+  fetchImpl = globalThis.fetch,
+  limit = DEFAULT_PUBLIC_EVIDENCE_LIMIT,
+} = {}) {
+  if (!config?.supabaseUrl || !config?.supabaseAnonKey) return [];
+  const url = contextSupabaseUrl(config, PUBLIC_EVIDENCE_TABLE, {
+    select: "id,claim_type,title,claim_text,summary,evidence_level,confidence,attribution_scope,content_json,created_at",
+    order: "created_at.desc",
+    limit,
+  });
+  const response = await fetchImpl(url, {
+    headers: contextSupabaseHeaders(config),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = new Error(`public transcript evidence fetch failed: ${response.status}`);
+    error.status = response.status;
+    error.body = data;
+    throw error;
+  }
+  return Array.isArray(data) ? data.map(sanitizePublicEvidenceRow) : [];
+}
+
+function confidenceText(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const pct = value <= 1 ? value * 100 : value;
+    return `${Math.round(pct)}%`;
+  }
+  return labelize(value || "unknown");
+}
+
+function uniqueValues(values) {
+  return [...new Set(asArray(values).map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+export function publicEvidenceRowsToWeekly(rows = []) {
+  const groups = new Map();
+  for (const rawRow of asArray(rows)) {
+    const row = sanitizePublicEvidenceRow(rawRow);
+    const content = row.content_json && typeof row.content_json === "object" ? row.content_json : {};
+    const weekStart = dateText(content.week_start || content.date || row.created_at) || "undated";
+    if (!groups.has(weekStart)) {
+      groups.set(weekStart, {
+        week_start: weekStart,
+        evidence_card_count: 0,
+        claim_count: 0,
+        confidence: "unknown",
+        sharing_boundary: { max_surface: "public", raw_allowed: false },
+        themes: [],
+        teams: [],
+        people: [],
+        top_claims: [],
+        source_note: "Live anonymous public transcript evidence from Supabase.",
+      });
+    }
+    const group = groups.get(weekStart);
+    const confidence = confidenceText(row.confidence);
+    const themes = uniqueValues(content.themes);
+    group.evidence_card_count += 1;
+    group.claim_count += 1;
+    if (group.confidence === "unknown" && confidence !== "unknown") group.confidence = confidence;
+    group.themes = uniqueValues([...group.themes, ...themes]);
+    group.top_claims.push({
+      claim_type: row.claim_type || content.claim_type || "insight",
+      evidence_level: row.evidence_level || "aggregate",
+      confidence,
+      text: row.claim_text || row.summary || row.title || "Reviewed public evidence card.",
+      source_artifact_id: row.id || "",
+      source: PUBLIC_EVIDENCE_TABLE,
+      teams: [],
+      people: [],
+    });
+  }
+  return Array.from(groups.values()).sort((a, b) => String(b.week_start).localeCompare(String(a.week_start)));
+}
+
+export function mergePublicTranscriptEvidence(cohort = {}, rows = []) {
+  const weekly = publicEvidenceRowsToWeekly(rows);
+  if (!weekly.length) return cohort;
+  const currentIntel = cohort.cohort_intel || {};
+  return {
+    ...cohort,
+    cohort_intel: {
+      ...currentIntel,
+      weekly: weekly.concat(asArray(currentIntel.weekly)),
+      raw_allowed: false,
+      generated_from: currentIntel.generated_from || "anonymous public transcript evidence cards",
+    },
+    transcript_evidence: {
+      ...(cohort.transcript_evidence || {}),
+      public_evidence_card_count: rows.length,
+      source: PUBLIC_EVIDENCE_TABLE,
+      raw_allowed: false,
+    },
+  };
 }
 
 function plural(count, singular, pluralValue = `${singular}s`) {
@@ -827,8 +1032,22 @@ export async function initContextSurface({
     const response = await fetchImpl(surfaceUrl);
     if (!response?.ok) throw new Error(`cohort surface fetch failed: ${response?.status || "no response"}`);
     const cohort = await response.json();
-    mount.innerHTML = renderContextSurface(cohort);
-    return cohort;
+    let rendered = cohort;
+    try {
+      const config = loadContextSupabaseConfig();
+      const publicRows = await fetchPublicTranscriptEvidence({ config, fetchImpl });
+      rendered = mergePublicTranscriptEvidence(cohort, publicRows);
+    } catch (error) {
+      rendered = {
+        ...cohort,
+        transcript_evidence: {
+          ...(cohort.transcript_evidence || {}),
+          public_evidence_error: error?.message || String(error),
+        },
+      };
+    }
+    mount.innerHTML = renderContextSurface(rendered);
+    return rendered;
   } catch (error) {
     mount.innerHTML = `<p class="page-empty">context data unavailable: ${escHtml(error?.message || String(error))}</p>`;
     return null;
