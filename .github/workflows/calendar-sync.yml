@@ -96,6 +96,17 @@ jobs:
           GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
         run: node scripts/build-calendar-from-google.js
 
+      - name: publish calendar grid to Supabase (live source)
+        # The apps read this row LIVE (public_calendar_grid), so a schedule
+        # change reaches users within the hour without waiting on the git PR
+        # merge below or a Vercel deploy. Idempotent: upserts the same grid when
+        # nothing changed. Uses the service-role key the other calendar
+        # workflows already hold; skips cleanly if the secret is absent.
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/publish-calendar-grid-to-supabase.mjs
+
       - name: rebuild apps/os/src/cohort-surface.json
         # cohort-surface.json is the bundled snapshot the web mirror reads
         # at /cohort-surface.json (vendor:web copies it at Vercel build).

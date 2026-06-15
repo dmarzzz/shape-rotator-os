@@ -41,6 +41,7 @@ import {
   contextSourceById as findContextSourceById,
 } from "./context-vault-model.js";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
+import { fetchPublicCalendarGrid } from "./calendar-supabase.mjs";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
@@ -7722,6 +7723,22 @@ function fmtShortDate(d) {
 // the legacy day/week/presence page (cohort-calendar-week.js renderWeekView)
 // was retired with it.
 
+// Live calendar source order: prefer the Supabase grid published by the
+// calendar-sync workflow (fresh within the hour, no git/Vercel round-trip),
+// then fall back to the os-web calendar.json fetch + bundled snapshot. Returns
+// the same { data, source } shape loadCalendarData does so the call sites are
+// unchanged; a Supabase hit reports "live" so the offline banner
+// (source === "bundled") stays hidden.
+async function loadLiveCalendar({ bundled } = {}) {
+  try {
+    const { grid } = await fetchPublicCalendarGrid({ storage: globalThis.localStorage });
+    if (grid && grid.tabs) return { data: grid, source: "live" };
+  } catch {
+    // fall through to the HTTP + bundle path
+  }
+  return loadCalendarData({ bundled });
+}
+
 function seedCalendarData() {
   const cal = state.calendar;
   if (cal.data != null || cal.loading) return;
@@ -7735,7 +7752,7 @@ function seedCalendarData() {
     cal.source = "bundled";
   }
   cal.loading = true;
-  loadCalendarData({ bundled }).then(res => {
+  loadLiveCalendar({ bundled }).then(res => {
     cal.data = res.data || cal.data;
     cal.source = res.source || cal.source;
     cal.loading = false;
@@ -7846,7 +7863,7 @@ function wireCalendar() {
     btn.addEventListener("click", () => {
       cal.loading = true;
       const bundled = state.cohort?.calendar || null;
-      loadCalendarData({ bundled }).then(res => {
+      loadLiveCalendar({ bundled }).then(res => {
         cal.data = res.data || cal.data;
         cal.source = res.source || cal.source;
         cal.loading = false;
