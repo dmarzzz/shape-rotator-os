@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { loadEnvFile } = require("./lib/env-file.cjs");
+const { refreshAccessToken } = require("./google-calendar-oauth.js");
 
 const DEFAULT_EDITOR_EMAILS = [];
 const ROLE_RANK = {
@@ -22,7 +23,7 @@ function usage() {
     "  --calendar-id ID           Google Calendar ID.",
     "  --emails EMAILS            Comma, semicolon, or whitespace separated editor emails.",
     "  --role ROLE                ACL role. Default: owner.",
-    "  --scope-type TYPE          ACL scope type. Default: user. Use group for Google Groups.",
+    "  --scope-type TYPE          ACL scope type. Default: user. Use group for Google Groups or default for public calendar visibility.",
     "  --send-notifications       Ask Google to notify newly shared users/groups.",
     "  --access-token TOKEN       OAuth token with Calendar ACL write access.",
     "  --env-file FILE            Load local KEY=value secrets before env fallbacks.",
@@ -34,8 +35,9 @@ function usage() {
     "  GOOGLE_CALENDAR_ID",
     "  GOOGLE_CALENDAR_EDITOR_EMAILS",
     "  GOOGLE_CALENDAR_ACCESS_TOKEN or GOOGLE_ACCESS_TOKEN",
+    "  GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REFRESH_TOKEN",
     "",
-    "Editor emails must be supplied through --emails or GOOGLE_CALENDAR_EDITOR_EMAILS.",
+    "Editor emails must be supplied through --emails or GOOGLE_CALENDAR_EDITOR_EMAILS unless --scope-type default is used.",
   ].join("\n");
 }
 
@@ -77,7 +79,7 @@ function roleRank(role) {
 
 function normalizeScopeType(value) {
   const scopeType = String(value || "user").trim();
-  if (!["user", "group"].includes(scopeType)) {
+  if (!["user", "group", "default"].includes(scopeType)) {
     throw new Error(`unsupported ACL scope type for editor setup: ${scopeType}`);
   }
   return scopeType;
@@ -121,16 +123,18 @@ async function fetchAclRules({ calendarId, accessToken, fetchImpl = fetch }) {
 }
 
 function aclBody({ email, role = "owner", scopeType = "user" }) {
+  const scope = { type: scopeType };
+  if (scopeType !== "default") scope.value = email;
   return {
     role,
-    scope: {
-      type: scopeType,
-      value: email,
-    },
+    scope,
   };
 }
 
 function matchingAclRule(rules, { email, scopeType = "user" }) {
+  if (scopeType === "default") {
+    return (rules || []).find((rule) => rule?.scope?.type === "default") || null;
+  }
   return (rules || []).find((rule) =>
     rule?.scope?.type === scopeType
     && String(rule?.scope?.value || "").toLowerCase() === email
@@ -146,8 +150,13 @@ function buildAclPlan({
   if (!calendarId) throw new Error("calendarId is required");
   const normalizedRole = normalizeRole(role);
   const normalizedScopeType = normalizeScopeType(scopeType);
-  const editors = parseEmails(emails);
-  if (!editors.length) throw new Error("at least one editor email is required; use --emails or GOOGLE_CALENDAR_EDITOR_EMAILS");
+  if (normalizedScopeType === "default" && !["none", "freeBusyReader", "reader"].includes(normalizedRole)) {
+    throw new Error("default calendar ACL can only use none, freeBusyReader, or reader");
+  }
+  const editors = normalizedScopeType === "default" ? [""] : parseEmails(emails);
+  if (normalizedScopeType !== "default" && !editors.length) {
+    throw new Error("at least one editor email is required; use --emails or GOOGLE_CALENDAR_EDITOR_EMAILS");
+  }
   return {
     calendar_id: calendarId,
     role: normalizedRole,
@@ -155,7 +164,7 @@ function buildAclPlan({
     editors,
     actions: editors.map((email) => ({
       action: "dry-run",
-      email,
+      ...(email ? { email } : {}),
       role: normalizedRole,
       scope_type: normalizedScopeType,
     })),
@@ -210,12 +219,13 @@ async function runGoogleCalendarAclSetup({
   for (const email of plan.editors) {
     const body = aclBody({ email, role: plan.role, scopeType: plan.scope_type });
     const existing = matchingAclRule(existingRules, { email, scopeType: plan.scope_type });
+    const subject = email ? { email } : {};
     if (!existing) {
       if (!apply) {
         result.missing += 1;
         result.actions.push({
           action: "missing",
-          email,
+          ...subject,
           role: plan.role,
           scope_type: plan.scope_type,
         });
@@ -225,8 +235,9 @@ async function runGoogleCalendarAclSetup({
       result.inserted += 1;
       result.actions.push({
         action: "inserted",
-        email,
+        ...subject,
         role: rule?.role || plan.role,
+        scope_type: plan.scope_type,
         acl_id: rule?.id || null,
       });
       continue;
@@ -239,9 +250,10 @@ async function runGoogleCalendarAclSetup({
       result.unchanged += 1;
       result.actions.push({
         action: "unchanged",
-        email,
+        ...subject,
         role: existing.role,
         requested_role: plan.role,
+        scope_type: plan.scope_type,
         acl_id: existing.id || null,
       });
       continue;
@@ -250,9 +262,10 @@ async function runGoogleCalendarAclSetup({
       result.would_update += 1;
       result.actions.push({
         action: "would_update",
-        email,
+        ...subject,
         from_role: existing.role || null,
         role: plan.role,
+        scope_type: plan.scope_type,
         acl_id: existing.id || null,
       });
       continue;
@@ -268,13 +281,44 @@ async function runGoogleCalendarAclSetup({
     result.updated += 1;
     result.actions.push({
       action: "updated",
-      email,
+      ...subject,
       from_role: existing.role || null,
       role: rule?.role || plan.role,
+      scope_type: plan.scope_type,
       acl_id: rule?.id || existing.id || null,
     });
   }
   return result;
+}
+
+async function resolveAccessToken({
+  accessToken,
+  clientId,
+  clientSecret,
+  refreshToken,
+  preferRefresh = false,
+  fetchImpl = fetch,
+} = {}) {
+  if (preferRefresh && clientId && clientSecret && refreshToken) {
+    const token = await refreshAccessToken({
+      clientId,
+      clientSecret,
+      refreshToken,
+      fetchImpl,
+    });
+    if (String(token?.access_token || "").trim()) return token.access_token;
+  }
+  if (String(accessToken || "").trim()) return accessToken;
+  if (clientId && clientSecret && refreshToken) {
+    const token = await refreshAccessToken({
+      clientId,
+      clientSecret,
+      refreshToken,
+      fetchImpl,
+    });
+    if (String(token?.access_token || "").trim()) return token.access_token;
+  }
+  return "";
 }
 
 async function main(argv = process.argv) {
@@ -285,9 +329,17 @@ async function main(argv = process.argv) {
   loadEnvFile(arg("--env-file", argv));
   const apply = flag("--apply", argv) && !flag("--dry-run", argv);
   const verify = !apply && (flag("--verify", argv) || flag("--read-existing", argv));
+  const cliAccessToken = arg("--access-token", argv);
+  const accessToken = await resolveAccessToken({
+    accessToken: cliAccessToken || process.env.GOOGLE_CALENDAR_ACCESS_TOKEN || process.env.GOOGLE_ACCESS_TOKEN,
+    clientId: process.env.GOOGLE_OAUTH_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    refreshToken: process.env.GOOGLE_OAUTH_REFRESH_TOKEN,
+    preferRefresh: !cliAccessToken,
+  });
   const result = await runGoogleCalendarAclSetup({
     calendarId: arg("--calendar-id", argv) || process.env.GOOGLE_CALENDAR_ID,
-    accessToken: arg("--access-token", argv) || process.env.GOOGLE_CALENDAR_ACCESS_TOKEN || process.env.GOOGLE_ACCESS_TOKEN,
+    accessToken,
     emails: arg("--emails", argv) || process.env.GOOGLE_CALENDAR_EDITOR_EMAILS || DEFAULT_EDITOR_EMAILS,
     role: arg("--role", argv) || "owner",
     scopeType: arg("--scope-type", argv) || "user",
@@ -311,5 +363,6 @@ module.exports = {
   DEFAULT_EDITOR_EMAILS,
   buildAclPlan,
   parseEmails,
+  resolveAccessToken,
   runGoogleCalendarAclSetup,
 };
