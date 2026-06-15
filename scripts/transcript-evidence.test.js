@@ -86,12 +86,57 @@ test("builds generated evidence cards and role views without raw transcript leak
   assert.ok(bundle.views.graph.nodes.some((node) => node.id === `claim:${card.claims[0].claim_id}`));
 });
 
-test("validates current reviewed session insights against known teams and people", () => {
-  const readouts = JSON.parse(fs.readFileSync(path.join(ROOT, "cohort-data", "session-insights.json"), "utf8"));
+test("builds a contract-compliant bundle from a multi-session readout fixture", () => {
+  // Distilled session readouts are gated cohort-internal material and no longer
+  // committed to this public repo, so this contract check runs against an inline
+  // multi-session fixture rather than reading cohort-data/session-insights.json.
+  // It still asserts the cross-session aggregation and the private-vault sharing
+  // boundary the builder must guarantee. Team/person ids are validated against
+  // the committed roster so the fixture stays realistic.
+  const teamIds = idsFromMarkdownDir("cohort-data/teams");
+  const personIds = idsFromMarkdownDir("cohort-data/people");
+  const [teamA, teamB] = [...teamIds];
+  const [personA, personB] = [...personIds];
+  const readouts = [
+    {
+      vault_id: "fixture-session-2026-06-08",
+      date: "2026-06-08",
+      title: "Fixture office hours",
+      one_liner: "A reviewed session about onboarding risk and partner asks.",
+      kind: "office_hours",
+      consent: "cohort-internal",
+      themes: ["Onboarding evidence"],
+      insights: [
+        "The next step is to instrument onboarding friction before treating the demo as conversion evidence.",
+        "The team needs help with buyer intros and a sharper partner handoff.",
+      ],
+      qa: [{ q: "What changed?", a: "The team moved to an explicit onboarding measurement plan." }],
+      references: [{ label: "Public project page", href: "https://example.com/project" }],
+      teams: [teamA],
+      people: [personA],
+    },
+    {
+      vault_id: "fixture-session-2026-06-01",
+      date: "2026-06-01",
+      title: "Fixture salon",
+      one_liner: "An earlier session about routing reliability.",
+      kind: "salon",
+      consent: "speaker-pending",
+      themes: ["Routing reliability"],
+      insights: [
+        "Reliability is a launch risk until the fallback path is measured.",
+        "The team decided to standardize the review gate.",
+      ],
+      qa: [{ q: "What is next?", a: "Instrument the fallback path." }],
+      references: [{ label: "Public docs", href: "https://example.com/docs" }],
+      teams: [teamB],
+      people: [personB],
+    },
+  ];
   const bundle = buildEvidenceBundle(readouts, {
     generatedAt: "2026-06-13T00:00:00.000Z",
-    teamIds: idsFromMarkdownDir("cohort-data/teams"),
-    personIds: idsFromMarkdownDir("cohort-data/people"),
+    teamIds,
+    personIds,
   });
 
   assert.equal(bundle.cards.length, readouts.length);

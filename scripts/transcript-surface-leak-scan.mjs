@@ -26,13 +26,28 @@ const SENSITIVE_PATTERNS = [
   { label: "source artifacts table marker", pattern: /\bsource_artifacts\b/i },
   { label: "processing jobs table marker", pattern: /\bprocessing_jobs\b/i },
   { label: "local user path", pattern: /\b[A-Z]:\\Users\\|\/Users\//i },
+  // A parenthesized H:MM:SS is a transcript/recording timecode (e.g. an
+  // attributed quote "… — Tina, Apr 27 (01:47:57)"). Schedule times in these
+  // surfaces are H:MM ranges ("16:00 - 19:00") with no seconds, so requiring
+  // the seconds component inside parentheses avoids matching them.
+  { label: "transcript timecode", pattern: /\([0-9]{1,2}:[0-9]{2}:[0-9]{2}\)/ },
 ];
 
 const DEFAULT_TARGETS = [
+  // The committed, app-shipped surface. This is the bundle that rides inside
+  // the published Electron app, so it is the primary thing that must stay free
+  // of private transcript markers — historically it was NOT scanned.
+  "apps/os/src/cohort-surface.json",
   "apps/web/cohort-surface.json",
   "apps/web/calendar.json",
   "cohort-data/artifacts/public-transcript-articles/generated/manifest.json",
   "cohort-data/artifacts/public-transcript-articles/generated",
+  // Defensive: distilled per-session inputs live outside the public repo
+  // (cohort-data/.private/, gitignored). If any get re-committed at their old
+  // canonical paths these targets catch it. listFiles() tolerates absence.
+  "cohort-data/session-insights.json",
+  "cohort-data/constellation-cues.json",
+  "cohort-data/session-readouts",
 ];
 
 function listFiles(target) {
