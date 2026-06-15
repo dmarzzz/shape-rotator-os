@@ -1,12 +1,15 @@
 name: google-calendar-watch-renewal
 
 # Google Calendar push notification channels expire after a short TTL. Renew the
-# managed cohort calendar watch daily, then run an incremental sync so the
-# renewed channel is backed by a known-good Supabase sync state.
+# managed cohort calendar watch daily. The reconciliation path runs more often
+# so direct admin edits in Google Calendar get Meet links, the capture bot,
+# Meet transcription settings, Supabase sync, and guest-calendar mirroring
+# without an operator command.
 
 on:
   schedule:
     - cron: "17 8 * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -22,14 +25,17 @@ jobs:
     timeout-minutes: 10
     env:
       GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+      GOOGLE_GUEST_CALENDAR_ID: ${{ secrets.GOOGLE_GUEST_CALENDAR_ID }}
       GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
       GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
       GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+      GOOGLE_OAUTH_SCOPES: ${{ secrets.GOOGLE_OAUTH_SCOPES }}
       GOOGLE_CALENDAR_WEBHOOK_TOKEN: ${{ secrets.GOOGLE_CALENDAR_WEBHOOK_TOKEN }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       ORG_ID: ${{ secrets.ORG_ID }}
       CALENDAR_CONNECTION_ID: ${{ secrets.CALENDAR_CONNECTION_ID }}
+      GUEST_CALENDAR_CONNECTION_ID: ${{ secrets.GUEST_CALENDAR_CONNECTION_ID }}
       SHAPE_CALENDAR_BOT_EMAIL: ${{ secrets.SHAPE_CALENDAR_BOT_EMAIL }}
 
     steps:
@@ -42,8 +48,25 @@ jobs:
       - name: install deps
         run: npm ci --ignore-scripts
 
+      - name: compute reconciliation window
+        id: window
+        run: echo "time_min=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: renew Google Calendar watch
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 8 * * *'
         run: npm run calendar:watch:google -- --apply
+
+      - name: ensure future Google Meet links
+        run: npm run calendar:meet-links:google -- --apply --time-min "${{ steps.window.outputs.time_min }}"
+
+      - name: ensure future capture bot
+        run: npm run calendar:capture-bot:google -- --apply --time-min "${{ steps.window.outputs.time_min }}"
+
+      - name: ensure future Meet transcription
+        run: npm run calendar:meet-auto-artifacts:google -- --apply --time-min "${{ steps.window.outputs.time_min }}" --fail-on-error
 
       - name: sync Google Calendar after renewal
         run: npm run calendar:sync:google -- --apply
+
+      - name: mirror guest calendar after sync
+        run: npm run calendar:mirror:google -- --apply --skip-if-unconfigured --stateless-if-missing

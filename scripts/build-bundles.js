@@ -2064,6 +2064,35 @@ function stripTranscriptEvidenceTimeline(timeline) {
   return out;
 }
 
+function publicCalendarGoogleEventRecord(record) {
+  if (!record || typeof record !== "object") return record;
+  const {
+    google_event_id,
+    html_link,
+    ...safe
+  } = record;
+  return safe;
+}
+
+function publicCalendarGoogleEvents(source) {
+  const base = source && typeof source === "object" ? source : {};
+  const out = {
+    schema_version: base.schema_version || 1,
+    generated_at: base.generated_at || null,
+    source: "public-safe-google-calendar-metadata",
+    time_min: base.time_min || null,
+    time_max: base.time_max || null,
+    event_count: Number(base.event_count || 0),
+  };
+  for (const key of ["by_ical_uid", "by_shape_key"]) {
+    const rows = base[key] && typeof base[key] === "object" ? base[key] : {};
+    out[key] = Object.fromEntries(
+      Object.entries(rows).map(([id, record]) => [id, publicCalendarGoogleEventRecord(record)]),
+    );
+  }
+  return out;
+}
+
 // Cap per project so one prolific upstream repo (e.g. elizaOS/eliza, 100+
 // releases) can't crowd out everyone else within the global feed cap.
 const PER_PROJECT_RELEASE_LIMIT = 12;
@@ -2158,6 +2187,7 @@ function publicWebSurface(surface) {
   out.session_insights = publicSessionInsights;
   out.constellation_cues = asArray(out.constellation_cues).filter(publicSafeConstellationCue);
   out.transcript_evidence = emptyTranscriptEvidence(surface.transcript_evidence);
+  out.calendar_google_events = publicCalendarGoogleEvents(out.calendar_google_events);
   out.transcript_distillations = publicTranscriptDistillations(
     surface.transcript_distillations,
     publicArticleBlockedNames({ teams: surface.teams, people: surface.people }),
