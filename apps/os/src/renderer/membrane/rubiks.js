@@ -1,12 +1,16 @@
 import * as THREE from 'three';
-import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+// three addons are imported from the vendored copies under src/vendor/ (NOT
+// 'three/examples/jsm/...'): the renderer bundler aliases bare `three` to the
+// build file, so 'three/examples/jsm/*' can't resolve. scene.js follows the
+// same convention.
+import { TrackballControls } from '../../vendor/three-jsm/controls/TrackballControls.js';
+import { GLTFLoader } from '../../vendor/three-jsm/loaders/GLTFLoader.js';
+import { RoomEnvironment } from '../../vendor/three-jsm/environments/RoomEnvironment.js';
+import { EffectComposer } from '../../vendor/three-jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from '../../vendor/three-jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from '../../vendor/three-jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from '../../vendor/three-jsm/postprocessing/ShaderPass.js';
+import { OutputPass } from '../../vendor/three-jsm/postprocessing/OutputPass.js';
 import Cube from './cube-solver.js';
 
 // ─── Flashbots Rubik's cube — membrane easter-egg module ────────────────────
