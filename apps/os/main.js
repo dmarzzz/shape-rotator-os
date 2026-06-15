@@ -53,7 +53,9 @@ function runSmokeTest() {
   win.webContents.on("preload-error", (_e, p, err) =>
     finish(1, `preload-error ${p}: ${err && err.message}`));
   ipcMain.once("smoke:ready", () => finish(0, "renderer signalled ready"));
-  win.loadFile(path.join(__dirname, "src", "index.html"));
+  // ?smoke=1 lets boot.js emit [smoke-cp] checkpoint markers (surfaced above via
+  // console-message) so a headless-CI boot hang reports HOW FAR boot() got.
+  win.loadFile(path.join(__dirname, "src", "index.html"), { query: { smoke: "1" } });
 }
 
 // One-time userData migration. Electron resolves `app.getPath("userData")`

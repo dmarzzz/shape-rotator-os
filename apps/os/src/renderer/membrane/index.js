@@ -1,5 +1,8 @@
 import { createMembraneScene, CUBE_SCALE, MEMBRANE_FOV, MEMBRANE_CAMERA_Z } from './scene.js';
-import { createRubiksApp } from './rubiks.js';
+// NOTE: rubiks.js (+ its vendored GLTFLoader / cube-solver / postprocessing tree)
+// is imported DYNAMICALLY in ensureRubiks(), NOT statically here. A static import
+// would pull that whole subtree into boot.js's eager module graph, evaluated
+// before boot() runs — keeping the easter egg off the boot critical path.
 import { createSoundDirector } from './sound.js';
 import { BLOB_IDS, BLOB_PROFILES, SHAPE_NAMES, TARGET_R } from './cube.js';
 
@@ -8,6 +11,11 @@ import { BLOB_IDS, BLOB_PROFILES, SHAPE_NAMES, TARGET_R } from './cube.js';
 // The Rubik's cube body is matched to this — then bumped 20% larger by request.
 const DIE_CUBE_EDGE = TARGET_R * (2 / Math.sqrt(3)) * CUBE_SCALE * 1.2;
 import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAuthor, askVerbIconSvg, askVerbVars } from '../asks.js';
+
+// Headless smoke-test boot tracing (gated on ?smoke=1; no-op for real launches).
+// Mirrors boot.js cp(): pinpoints whether the deferred membrane mount blocks.
+const __SMOKE = (() => { try { return new URLSearchParams(location.search).has('smoke'); } catch { return false; } })();
+const cp = (label) => { if (__SMOKE) { try { console.error('[smoke-cp] ' + label); } catch {} } };
 
 function up(s) { return String(s ?? '').toUpperCase(); }
 
@@ -707,6 +715,7 @@ function renderAvatar(profile) {
 }
 
 export function mountMembrane(container, opts = {}) {
+  cp('membrane:mount-start');
   console.log('[membrane] mounting into', container?.id || container?.className);
   container.classList.add('membrane-host');
   // Always start showing the shapes, never the Rubik's cube — clear any stale
@@ -1127,28 +1136,36 @@ export function mountMembrane(container, opts = {}) {
   // second WebGL context near boot is unnecessary cost and was implicated in a
   // headless-CI render hang. The flash + late-load re-seed (rubiks.js) cover the
   // load so the cube is already spinning when the white-out clears.
+  let rubiksLoading = null;   // in-flight import promise (deduped)
   function ensureRubiks() {
-    if (!rubiks) {
-      rubiks = createRubiksApp(rubiksCanvas, {
-        onCycleAway: hideRubiks,
-        onSequencing(on) {
-          if (rubiksScrambleBtn) rubiksScrambleBtn.disabled = on;
-          if (rubiksResetBtn) rubiksResetBtn.disabled = on;
-        },
-        // Match the die's exact framing so the cube is the same on-screen size
-        // as the d6 shape it replaces.
-        matchSize: { fov: MEMBRANE_FOV, distance: MEMBRANE_CAMERA_Z, edge: DIE_CUBE_EDGE },
+    if (rubiks) return Promise.resolve(rubiks);
+    if (!rubiksLoading) {
+      rubiksLoading = import('./rubiks.js').then(({ createRubiksApp }) => {
+        rubiks = createRubiksApp(rubiksCanvas, {
+          onCycleAway: hideRubiks,
+          onSequencing(on) {
+            if (rubiksScrambleBtn) rubiksScrambleBtn.disabled = on;
+            if (rubiksResetBtn) rubiksResetBtn.disabled = on;
+          },
+          // Match the die's exact framing so the cube is the same on-screen size
+          // as the d6 shape it replaces.
+          matchSize: { fov: MEMBRANE_FOV, distance: MEMBRANE_CAMERA_Z, edge: DIE_CUBE_EDGE },
+        });
+        return rubiks;
       });
     }
-    return rubiks;
+    return rubiksLoading;
   }
 
   function revealRubiks() {
-    ensureRubiks();
+    // Fire the flash + label immediately so the white-out covers the lazy
+    // import + model load; arm the reveal spin once the app is ready.
     flashTransition();   // white-out the reveal crossfade
     container.classList.add('membrane-rubiks-active');
-    rubiks.setEnabled(true);   // kicks the load (if not done) + arms the reveal spin behind the flash
     if (shapeNameEl) updateRubiksLabel();
+    ensureRubiks()
+      .then((app) => { if (app) app.setEnabled(true); })
+      .catch((e) => console.warn('[membrane] rubiks load failed:', e));
   }
 
   function hideRubiks() {
@@ -1165,6 +1182,7 @@ export function mountMembrane(container, opts = {}) {
     shapeMetaEl.textContent = '3×3×3 · drag to turn';
   }
 
+  cp('membrane:before-createScene');
   const scene = createMembraneScene(canvas, {
     // Start on the shape we were last showing (remembered across page switches).
     initialFaces: savedFaces,
@@ -1178,6 +1196,7 @@ export function mountMembrane(container, opts = {}) {
     // Every shape has been seen — surface the hidden cube.
     onRubiksReveal() { revealRubiks(); },
   });
+  cp('membrane:after-createScene');
   updateShapeName(scene.getFaces());
 
   if (rubiksScrambleBtn) rubiksScrambleBtn.addEventListener('click', () => rubiks?.scramble());
