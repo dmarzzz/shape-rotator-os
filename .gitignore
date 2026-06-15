@@ -65,6 +65,16 @@ apps/web/calendar.ics
 cohort-data/artifacts/transcript-evidence/generated/
 cohort-data/artifacts/transcript-distillations/generated/
 
+# cohort-internal per-session distillations (consent: cohort-internal /
+# speaker-pending). Same boundary as the evidence above: distilled from the
+# private vault, must not live in the public repo. Source copies are kept under
+# cohort-data/.private/ (gitignored). build:cohort no longer embeds these and
+# tolerates absence; the app will read reviewed distillations from the gated
+# Supabase view at runtime once the engine + cohort auth land.
+cohort-data/session-insights.json
+cohort-data/constellation-cues.json
+cohort-data/session-readouts/
+
 # vercel cli local link metadata
 .vercel
 

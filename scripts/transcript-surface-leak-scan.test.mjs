@@ -22,6 +22,22 @@ test("transcript surface leak scanner detects private transcript markers", () =>
   );
 });
 
+test("transcript surface leak scanner flags parenthesized recording timecodes", () => {
+  // An attributed quote carrying a recording timecode is a transcript artifact.
+  assert.deepEqual(
+    scanText('"the June plan includes week one at IC3" — Tina, Apr 27 (00:14:41)')
+      .map((finding) => finding.label),
+    ["transcript timecode"],
+  );
+
+  // Schedule ranges use H:MM (no seconds) and must NOT trip the timecode rule.
+  assert.deepEqual(
+    scanText("16:00 - 19:00 Project Intros (Salon room)")
+      .filter((finding) => finding.label === "transcript timecode"),
+    [],
+  );
+});
+
 test("transcript surface leak scanner accepts clean generalized article output", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "transcript-leak-scan-"));
   fs.mkdirSync(path.join(root, "public"), { recursive: true });

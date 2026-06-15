@@ -362,6 +362,27 @@ function teamAliases(team, members = []) {
   };
 }
 
+// calendar.json is the bot-synced mirror of the upstream Phala calendar, so a
+// stray cell may carry an attributed quote with a recording timecode
+// ("… — Tina, Apr 27 (01:47:57)") sourced from a private planning transcript.
+// Strip any " · "-joined segment that carries a parenthesized H:MM:SS timecode
+// before the calendar reaches the bundle or the person/team timelines. This is
+// a build-time guard; the durable fix is upstream in the calendar source.
+const TIMECODE_RE = /\([0-9]{1,2}:[0-9]{2}:[0-9]{2}\)/;
+function scrubTimecodeQuotes(value) {
+  if (typeof value === "string") {
+    if (!TIMECODE_RE.test(value)) return value;
+    return value.split(" · ").filter((seg) => !TIMECODE_RE.test(seg)).join(" · ").trim();
+  }
+  if (Array.isArray(value)) return value.map(scrubTimecodeQuotes);
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const [key, inner] of Object.entries(value)) out[key] = scrubTimecodeQuotes(inner);
+    return out;
+  }
+  return value;
+}
+
 function calendarBlocks(calendar) {
   const blocks = [];
   const tabs = calendar?.tabs && typeof calendar.tabs === "object" ? calendar.tabs : {};
@@ -2236,7 +2257,7 @@ function build() {
   const calPath = path.join(COHORT_DIR, "calendar.json");
   let calendar = null;
   if (fs.existsSync(calPath)) {
-    try { calendar = JSON.parse(fs.readFileSync(calPath, "utf8")); }
+    try { calendar = scrubTimecodeQuotes(JSON.parse(fs.readFileSync(calPath, "utf8"))); }
     catch (e) { console.warn(`[build-bundles] calendar.json present but unreadable: ${e.message}`); }
   }
   const calendar_google_events = loadJsonObject(
@@ -2244,16 +2265,17 @@ function build() {
     "calendar-google-events.json",
   );
 
-  // Public transcript-derived context for constellation inspectors. These cues
-  // do not create graph edges; they are source snippets shown after a selected
-  // team/line/ecosystem so the renderer does not own transcript facts as code.
-  const constellation_cues = loadJsonArray(path.join(COHORT_DIR, "constellation-cues.json"), "constellation-cues.json");
-
-  // Distilled per-session readouts hardcoded from private-vault transcripts
-  // via scripts/ingest-session-readouts.mjs. Public-safe by construction —
-  // the raw transcript never enters the repo; vault_id joins back to the
-  // held-private timeline anchors in calendar-transcript-matches.js.
-  const session_insights = loadJsonArray(path.join(COHORT_DIR, "session-insights.json"), "session-insights.json");
+  // Per-session distilled transcript content (constellation cues + session
+  // insights) is no longer embedded in the committed app bundle. It is gated
+  // cohort-internal material and now lives off the public repo (the source
+  // distillations are kept under cohort-data/.private/, gitignored). The app
+  // will read reviewed distillations at runtime from the gated Supabase view
+  // once the transcript engine + cohort auth channel land — the same rail the
+  // T3 evidence-card overlay already uses (apps/os/src/renderer/supabase-
+  // evidence.mjs). Until then these surfaces resolve empty, exactly as the
+  // generator already tolerates absent transcript-evidence artifacts.
+  const constellation_cues = [];
+  const session_insights = [];
   const transcript_evidence = loadJsonObject(
     path.join(COHORT_DIR, "artifacts", "transcript-evidence", "generated", "views.json"),
     "transcript-evidence/generated/views.json",

@@ -328,23 +328,13 @@ async function loadFromGithub() {
     console.warn("[cohort-source] calendar.json fetch/parse failed:", e?.message || e);
   }
 
-  try {
-    const cueRaw = await fetchRaw("cohort-data/constellation-cues.json");
-    const cues = JSON.parse(cueRaw);
-    out.constellation_cues = Array.isArray(cues) ? cues : [];
-  } catch (e) {
-    console.warn("[cohort-source] constellation-cues.json fetch/parse failed:", e?.message || e);
-    out.constellation_cues = [];
-  }
-
-  try {
-    const insightsRaw = await fetchRaw("cohort-data/session-insights.json");
-    const insights = JSON.parse(insightsRaw);
-    out.session_insights = Array.isArray(insights) ? insights : [];
-  } catch (e) {
-    console.warn("[cohort-source] session-insights.json fetch/parse failed:", e?.message || e);
-    out.session_insights = [];
-  }
+  // Per-session distilled transcript content (constellation cues + session
+  // insights) is gated cohort-internal material and no longer published to the
+  // public repo, so there is nothing to fetch here. These resolve empty until
+  // the app reads reviewed distillations at runtime from the gated Supabase
+  // view (the rail applyEvidenceOverlay already uses for T3 evidence cards).
+  out.constellation_cues = [];
+  out.session_insights = [];
 
   // Generated read models that do not fully live in cohort-data/*.md. The live
   // markdown builder above cannot reconstruct Git-derived per-record timelines,
