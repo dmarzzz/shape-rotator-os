@@ -5,8 +5,19 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+// Google Calendar system identifiers (shared "group", subscribed "import", and
+// room/equipment "resource" calendars) are email-shaped — `<id>@group.calendar.
+// google.com` — but they are calendar IDs, not personal email addresses, so they
+// are not PII. The `$` anchor is load-bearing: it prevents a real address smuggled
+// as `victim@group.calendar.google.com.attacker.com` from being silently allowed.
+const CALENDAR_SYSTEM_ID = /@(?:group|import|resource)\.calendar\.google\.com$/i;
+
 const SENSITIVE_PATTERNS = [
-  { label: "email address", pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i },
+  {
+    label: "email address",
+    pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+    allow: CALENDAR_SYSTEM_ID,
+  },
   { label: "private vault pointer", pattern: /\bprivate-vault:/i },
   { label: "Drive source ref", pattern: /\bdrive:\/\//i },
   { label: "source artifact id field", pattern: /"source_artifact_id"\s*:/i },
@@ -41,15 +52,27 @@ function lineForIndex(text, index) {
   return text.slice(0, index).split(/\r?\n/).length;
 }
 
+// Returns the first match that is NOT cleared by `allow`. When an allowlist is
+// present we must iterate every match (not just the first) so a real leak later
+// in the text is not masked by an allowlisted match earlier in the text.
+function firstReportableMatch(text, { pattern, allow }) {
+  if (!allow) return pattern.exec(text);
+  const global = pattern.global ? pattern : new RegExp(pattern.source, `${pattern.flags}g`);
+  for (const match of text.matchAll(global)) {
+    if (!allow.test(match[0])) return match;
+  }
+  return null;
+}
+
 function scanText(text, file = "<memory>", patterns = SENSITIVE_PATTERNS) {
   const findings = [];
-  for (const { label, pattern } of patterns) {
-    const match = pattern.exec(text);
+  for (const entry of patterns) {
+    const match = firstReportableMatch(text, entry);
     if (!match) continue;
     findings.push({
       file,
       line: lineForIndex(text, match.index),
-      label,
+      label: entry.label,
       excerpt: match[0].slice(0, 120),
     });
   }

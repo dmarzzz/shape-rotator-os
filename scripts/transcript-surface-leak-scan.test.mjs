@@ -49,3 +49,30 @@ test("current generated app/public transcript surfaces do not expose private tra
   assert.ok(result.files.length >= 2);
   assert.deepEqual(result.findings, []);
 });
+
+test("email allowlist clears Google Calendar system IDs but still flags real PII", () => {
+  // A shared Google Calendar group ID is email-shaped (c_<hash>@group.calendar.
+  // google.com) but is NOT a personal email address, so it must be allowlisted.
+  // This is a DATA-INDEPENDENT contract test: unlike the live-surface test above,
+  // it holds even if the generated artifact stops containing a calendar ID, and it
+  // fails loudly if a future edit weakens the allowlist (e.g. drops the `$` anchor).
+  const emailFindings = (text) =>
+    scanText(text).filter((finding) => finding.label === "email address");
+
+  // 1. A bare Google Calendar system ID is not PII -> allowlisted, no finding.
+  assert.deepEqual(emailFindings("c_d3c5ef@group.calendar.google.com"), []);
+  assert.deepEqual(emailFindings("room@resource.calendar.google.com"), []);
+
+  // 2. A genuine personal email is still flagged.
+  assert.equal(emailFindings("reach alice@acme.io for access").length, 1);
+
+  // 3. Anchor guard: a real domain suffixed after the calendar host must NOT be
+  //    cleared by the allowlist. If the `$` anchor is ever dropped, this fails.
+  assert.equal(emailFindings("evil@group.calendar.google.com.attacker.com").length, 1);
+
+  // 4. A calendar ID and a real email on the same line: the real one still
+  //    surfaces, proving we iterate every match instead of stopping at the first.
+  const mixed = emailFindings("cal c_x@group.calendar.google.com owner jane@corp.io");
+  assert.equal(mixed.length, 1);
+  assert.equal(mixed[0].excerpt, "jane@corp.io");
+});
