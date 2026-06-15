@@ -236,7 +236,7 @@ export const DEFAULT_ROUTING_POLICY = {
       public_allowed: false,
       default_auto_transcript: false,
       required_public_approvals: [],
-      notes: "Tina/Andrew/private 1:1 material stays coordinator/core-only; no cohort or public derived artifact should be generated.",
+      notes: "Private 1:1 material stays coordinator/core-only; no cohort or public derived artifact should be generated.",
     },
     salon: {
       label: "Salon",
