@@ -43,8 +43,16 @@ function runSmokeTest() {
       contextIsolation: true, sandbox: false, nodeIntegration: false,
     },
   });
-  win.webContents.on("console-message", (_e, lvl, msg) => {
-    if (lvl >= 2) log(`renderer error: ${msg}`); // surface boot exceptions
+  win.webContents.on("console-message", (_e, a, b) => {
+    // Electron 33 emits (event, MessageDetails{level:number, message}); older
+    // builds emit (event, level:number, message, …). Handle BOTH — the old
+    // handler read the details OBJECT as `lvl`, so `lvl >= 2` was always false
+    // and NO renderer output (errors, warnings, [smoke-cp] checkpoints) was ever
+    // surfaced. That blindness is why a boot hang showed only the bare timeout.
+    let lvl, msg;
+    if (a && typeof a === "object") { lvl = a.level; msg = a.message; }
+    else { lvl = a; msg = b; }
+    if (lvl >= 2) log(`renderer: ${msg}`); // surface warnings, errors + [smoke-cp]
   });
   win.webContents.on("did-fail-load", (_e, ec, desc, url) =>
     finish(1, `did-fail-load ${ec} ${desc} ${url}`));
