@@ -1122,11 +1122,11 @@ export function mountMembrane(container, opts = {}) {
     flashEl.classList.add('is-bursting');
   }
 
-  // Create the Rubik's app (loads its ~1.3 MB model + builds the cube) once.
-  // Called eagerly in the background after mount so the model is READY before
-  // the reveal — otherwise the load starts at reveal time, the cube isn't on
-  // screen until after the flash, and it looks frozen. setEnabled stays false
-  // until revealed, so this costs only the background load, not a render loop.
+  // Create the Rubik's app (loads its model + builds the cube) once, lazily on
+  // first reveal. We deliberately do NOT pre-create it at mount: spinning up a
+  // second WebGL context near boot is unnecessary cost and was implicated in a
+  // headless-CI render hang. The flash + late-load re-seed (rubiks.js) cover the
+  // load so the cube is already spinning when the white-out clears.
   function ensureRubiks() {
     if (!rubiks) {
       rubiks = createRubiksApp(rubiksCanvas, {
@@ -1147,7 +1147,7 @@ export function mountMembrane(container, opts = {}) {
     ensureRubiks();
     flashTransition();   // white-out the reveal crossfade
     container.classList.add('membrane-rubiks-active');
-    rubiks.setEnabled(true);   // model already built (pre-loaded) → spins instantly behind the flash
+    rubiks.setEnabled(true);   // kicks the load (if not done) + arms the reveal spin behind the flash
     if (shapeNameEl) updateRubiksLabel();
   }
 
@@ -1182,11 +1182,6 @@ export function mountMembrane(container, opts = {}) {
 
   if (rubiksScrambleBtn) rubiksScrambleBtn.addEventListener('click', () => rubiks?.scramble());
   if (rubiksResetBtn) rubiksResetBtn.addEventListener('click', () => rubiks?.reset());
-  // Pre-load the easter-egg cube in the background (deferred so it doesn't stall
-  // mount). The die takes several whips to cycle through every shape before the
-  // reveal, so the model is built and ready well before then — the reveal is
-  // instant and already spinning behind the flash instead of a cold load.
-  (window.requestIdleCallback || ((f) => setTimeout(f, 600)))(() => { try { ensureRubiks(); } catch (e) {} });
   renderAgenda();
   renderFeed();
   console.log('[membrane] scene mounted; cube active:', scene.getActiveBlobId());
