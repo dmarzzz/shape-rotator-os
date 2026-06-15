@@ -887,6 +887,31 @@ function renderMembrane() {
 }
 
 // Today's timed events from the Phala calendar GRID (cohort.calendar.tabs).
+// Extract every timed line from a grid cell block. A block can hold a header
+// line plus several timed lines (e.g. "Mon-Tue: TEE Technical\n…\n15:30–16:00
+// tea on roof\n17:00 retro") — reading only the FIRST line dropped today's tea
+// (line 3) and Friday's retro (line 2) from the agenda entirely. Emit one
+// {time,title} per line that leads with a clock time.
+function parseTimedGridLines(block) {
+  const out = [];
+  for (const raw of String(block).split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    let time = "", rest = "";
+    const range = line.match(/^(\d{1,2}:\d{2})\s*[-–—:]\s*(\d{1,2}:\d{2})(.*)$/);
+    if (range) { time = `${range[1]}–${range[2]}`; rest = range[3]; }
+    else {
+      const single = line.match(/^(\d{1,2}:\d{2})(.*)$/);
+      if (!single) continue;           // line doesn't lead with a clock time → not an event line
+      time = single[1]; rest = single[2];
+    }
+    rest = rest.replace(/^[\s.·:–—-]+/, "").trim();
+    if (!rest) continue;
+    out.push({ time, title: rest });
+  }
+  return out;
+}
+
 // The daily schedule (sessions, dinners) lives in the grid cells, not in
 // cohort.events — so the membrane events panel needs to parse today's cell
 // to surface things like "19:00 muse dinner". Reuses the calendar module's
@@ -912,18 +937,7 @@ function todayGridEvents(cal) {
     if (!today) return [];
     const out = [];
     for (const block of (today.blocks || [])) {
-      const first = String(block).split("\n")[0].trim();
-      let time = "", rest = "";
-      const range = first.match(/^(\d{1,2}:\d{2})\s*[-–—:]\s*(\d{1,2}:\d{2})(.*)$/);
-      if (range) { time = `${range[1]}–${range[2]}`; rest = range[3]; }
-      else {
-        const single = first.match(/^(\d{1,2}:\d{2})(.*)$/);
-        if (!single) continue;           // no leading time → not a scheduled event
-        time = single[1]; rest = single[2];
-      }
-      rest = rest.replace(/^[\s.·:–—-]+/, "").trim();
-      if (!rest) continue;
-      out.push({ time, title: rest, sub: "" });
+      for (const ev of parseTimedGridLines(block)) out.push({ time: ev.time, title: ev.title, sub: "" });
     }
     return out;
   } catch { return []; }
@@ -958,18 +972,7 @@ function upcomingGridEvents(cal, days = 28) {
         const ld = new Date(localStart);
         const date = `${ld.getFullYear()}-${String(ld.getMonth() + 1).padStart(2, "0")}-${String(ld.getDate()).padStart(2, "0")}`;
         for (const block of (d.blocks || [])) {
-          const first = String(block).split("\n")[0].trim();
-          let time = "", rest = "";
-          const range = first.match(/^(\d{1,2}:\d{2})\s*[-–—:]\s*(\d{1,2}:\d{2})(.*)$/);
-          if (range) { time = `${range[1]}–${range[2]}`; rest = range[3]; }
-          else {
-            const single = first.match(/^(\d{1,2}:\d{2})(.*)$/);
-            if (!single) continue;
-            time = single[1]; rest = single[2];
-          }
-          rest = rest.replace(/^[\s.·:–—-]+/, "").trim();
-          if (!rest) continue;
-          out.push({ date, dayOffset, time, title: rest, sub: "", source: "grid" });
+          for (const ev of parseTimedGridLines(block)) out.push({ date, dayOffset, time: ev.time, title: ev.title, sub: "", source: "grid" });
         }
       }
     }
@@ -1345,10 +1348,19 @@ function computeMembraneData() {
   const todayStartMs = todayStart.getTime();
   const tomorrowMs = todayStartMs + DAY_MS;
   const gridItems = todayGridEvents(c.calendar);
+  // Spans (daily tea, office hours) carry no start clock of their own — the
+  // time, if any, lives only in the human subtitle ("14:00 · the only prepared
+  // daily ritual"). Lift a valid leading HH:MM so the membrane incoming-watch
+  // can give the ritual a proximity ping; "" when there's no parseable clock.
+  const spanClock = (e) => {
+    const m = String(e?.subtitle || '').match(/(\d{1,2}):(\d{2})/) || String(e?.title || '').match(/(\d{1,2}):(\d{2})/);
+    if (!m) return '';
+    return (+m[1] < 24 && +m[2] < 60) ? `${m[1]}:${m[2]}` : '';
+  };
   const spanItems = spans
     .filter((u) => u.startMs < tomorrowMs && u.endMs >= todayStartMs)
     .map((u) => ({
-      time: '',
+      time: spanClock(u.e),
       title: u.e.title || u.e.name || 'untitled',
       sub: u.e.subtitle || '',
       ongoing: (u.endMs - u.startMs) > 12 * 60 * 60 * 1000,
@@ -1385,7 +1397,7 @@ function computeMembraneData() {
         pushUp(off, {
           date: `${ld.getFullYear()}-${String(ld.getMonth() + 1).padStart(2, '0')}-${String(ld.getDate()).padStart(2, '0')}`,
           dayOffset: off,
-          time: '',
+          time: spanClock(u.e),
           title: u.e.title || u.e.name || 'untitled',
           sub: u.e.subtitle || '',
           ongoing: (u.endMs - u.startMs) > 12 * 60 * 60 * 1000,
@@ -1535,6 +1547,9 @@ function computeMembraneData() {
       peopleList: people,
       askIdentity,
     },
+    // Roster passed through so the membrane's incoming-watch can greet
+    // arrivals / returns (a people diff — the calendar grid has no attendees).
+    people,
     // Prefer the build-time feed bundled in the surface (full, stable);
     // fall back to the live builder if it's somehow absent.
     feed: (Array.isArray(c.whats_new) && c.whats_new.length) ? c.whats_new : buildWhatsNewFeed(c),

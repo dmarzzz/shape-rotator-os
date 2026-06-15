@@ -106,6 +106,11 @@ html[data-theme="light"] .mfeed-commit     { --mfeed-color: #7a6aa6; }  /* viole
 html[data-theme="light"] .mfeed-transcript { --mfeed-color: #4d6bb0; }  /* lapis */
 html[data-theme="light"] .mfeed-ask        { --mfeed-color: #b9821f; }  /* amber */
 html[data-theme="light"] .mfeed-event      { --mfeed-color: #3f8a72; }  /* teal */
+/* Incoming-watch kinds — darkened so they read on white (V3 Crisp Heavy). */
+html[data-theme="light"] .mfeed-event-soon    { --mfeed-color: #c2562a; }  /* ember */
+html[data-theme="light"] .mfeed-person-soon   { --mfeed-color: #b04a6a; }  /* rose */
+html[data-theme="light"] .mfeed-event-new     { --mfeed-color: #3f8a72; }  /* teal */
+html[data-theme="light"] .mfeed-event-changed { --mfeed-color: #b9821f; }  /* amber */
 
 /* Agenda cards: lift tint + darken category hues so events read on white.
    The default --c2-acc tier sits on the element that carries data-cat: the
@@ -715,6 +720,11 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
 .mfeed-transcript { --mfeed-color: rgba(153, 180, 235, 0.95); }  /* transcripts — lapis */
 .mfeed-ask        { --mfeed-color: rgba(238, 196, 126, 0.95); }  /* asks — amber */
 .mfeed-event      { --mfeed-color: rgba(140, 204, 183, 0.95); }  /* events — teal */
+/* Incoming-watch kinds — the forward-looking band atop the rail. */
+.mfeed-event-soon    { --mfeed-color: rgba(255, 142,  92, 0.95); }  /* event imminent (tea) — warm ember */
+.mfeed-person-soon   { --mfeed-color: rgba(232, 156, 178, 0.95); }  /* person arriving/returning — rose */
+.mfeed-event-new     { --mfeed-color: rgba(140, 204, 183, 0.95); }  /* new event — teal */
+.mfeed-event-changed { --mfeed-color: rgba(238, 196, 126, 0.95); }  /* time changed — amber */
 
 .membrane-stage {
   position: absolute;
