@@ -15,7 +15,10 @@ import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAutho
 // Headless smoke-test boot tracing (gated on ?smoke=1; no-op for real launches).
 // Mirrors boot.js cp(): pinpoints whether the deferred membrane mount blocks.
 const __SMOKE = (() => { try { return new URLSearchParams(location.search).has('smoke'); } catch { return false; } })();
-const cp = (label) => { if (__SMOKE) { try { console.error('[smoke-cp] ' + label); } catch {} } };
+const cp = (label) => {
+  try { window.api?.smokeTrace?.(label); } catch {}
+  if (__SMOKE) { try { console.error('[smoke-cp] ' + label); } catch {} }
+};
 
 function up(s) { return String(s ?? '').toUpperCase(); }
 
