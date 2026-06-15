@@ -43,6 +43,7 @@ import {
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
+import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
 import { enrichPeople } from "./gh-user.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
@@ -74,7 +75,6 @@ const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "p
 const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "works" | "substrate"
 const CONST_TIER_LS_KEY = "srwk:const_tier";  // pinned line-source tier: "all" | "record" | "mention"
 const CONST_PEOPLE_LINK_LS_KEY = "srwk:const_people_link"; // pinned people-map link family: "all" | "same-team" | "profile" | "shared-context"
-const CONST_DOMAIN_LS_KEY = "srwk:const_domain"; // pinned domain on product layer: "all" | tee | ai | crypto | app-ux
 const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem view: cluster record_id | "all"
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
@@ -146,6 +146,7 @@ const state = {
   collabSort: "cluster",           // "cluster" | "intro" | "dependency" — ordering for the collab matrix
   collabSelection: null,           // { type: "team"|"pair"|"cluster", ... } — pinned inspector state
   goalStandingFilter: "all",       // "all" | "behind" | "onplan" | "ahead" — standing legend/filter
+  goalMomentumFilter: "all",       // "all" | "rising" | "slipping" | "flat" — momentum legend/filter on the goal views
   renderToken: 0,                  // invalidates pending cross-fade swaps when a newer render starts
   mounted: false,
   active: false,
@@ -168,6 +169,7 @@ const state = {
   cohortTimeline: null,         // generated timeline read model; snapshots carry public cohort surfaces
   cohortTimelineLoading: false,
   cohortTimelineError: "",
+  standingWeekly: null,         // per-week PMF stage/standing (Supabase team_standing_weekly → cohort-standing-weekly.json); drives the goal-view timeline + momentum
   constellationTimelineIdx: null,  // selected snapshot index within cohortTimeline.snapshots
   constellationShowDelta: false,
   profile: null,       // local-only: { user, editor state, ... }
@@ -230,7 +232,6 @@ export function mount(container) {
     state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
     state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
     state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
-    state.constDomainPin = constNormalizeDomainPin(localStorage.getItem(CONST_DOMAIN_LS_KEY));
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
     const savedProgramPage = localStorage.getItem(PROGRAM_PAGE_LS_KEY);
@@ -415,7 +416,7 @@ export function mount(container) {
     state.canvas.innerHTML = `<p class="alch-callout"><strong>cohort data unavailable</strong><br/>${escHtml(err.message || String(err))}</p>`;
   });
   loadCohortTimeline().then(() => {
-    if (state.mounted && (state.mode === "constellation" || state.detailReturnMode === "constellation")) render();
+    if (state.mounted && (state.mode === "constellation" || state.mode === "shapes" || state.detailReturnMode === "constellation")) render();
   }).catch(() => {});
   state.unsubscribe = subscribeToCohortChanges(() => {
     loadCohort().then(() => render({ instant: true })).catch(() => {});
@@ -593,6 +594,7 @@ async function loadCohortTimeline() {
   state.cohortTimelineLoading = true;
   try {
     state.cohortTimeline = await getCohortTimeline();
+    try { state.standingWeekly = await getStandingWeekly(); } catch (e) { state.standingWeekly = null; }
     state.cohortTimelineError = "";
     ensureConstellationTimelineIdx();
   } catch (err) {
@@ -1680,38 +1682,15 @@ const PERSON_ROLE_CHIPS = [
   { id: "all",              label: "all",               hint: "everyone in the directory", match: () => true },
 ];
 
-// Shared generated-read clause — one bare claim that CONTINUES the view's
-// filter sentence inline (dual-use bar: the same sentence filters AND
-// describes). An em-dash sets it off from the dials; the lead clause carries
-// the weight, the muted tail adds the qualifier. No panel, no kicker, no
-// separate row — it reads as the back half of the same sentence.
-function constReadLine(claim, tail) {
-  if (!claim) return "";
-  return `<span class="ac-sent-read"><i aria-hidden="true">—</i><b>${escHtml(claim)}</b>${tail ? ` · ${escHtml(tail)}` : ""}</span>`;
-}
-
-// Directory read — names the cohort's domain lean (works) or the project
-// spread (people). The dials already carry the counts (teams & projects N,
-// cohort teams M), so the read states only what they can't: the skew.
-function constDirectoryReadLine({ filter, sourceRecords }) {
-  if (filter === "people") {
-    const teamCount = new Set(sourceRecords.map(p => p.team).filter(Boolean)).size;
-    return constReadLine(`spread across ${teamCount} project group${teamCount === 1 ? "" : "s"}`, null);
-  }
-  const tally = new Map();
-  for (const t of sourceRecords) {
-    const d = constDomainClass(t.domain);
-    if (d === "other") continue;
-    tally.set(d, (tally.get(d) || 0) + 1);
-  }
-  const lead = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([d]) => CONST_DOMAIN_LABEL[d] || d);
-  return constReadLine(lead.length ? `cohort leans ${lead.join(" + ")}` : "mixed domains", null);
-}
+// (The generated read-clause sub-lines were removed — views are "filter +
+// visual" only; momentum insight lives in the chart.)
 
 function renderShapes() {
-  const allTeams  = state.cohort.teams  || [];
-  const allPeople = state.cohort.people || [];
-  const weekNow = currentProgramWeek();
+  // Timeline-aware: "as of [week]" rewinds the roster to that snapshot's surface
+  // (Total = today's live cohort). Same machinery the constellation views use.
+  const cohort = activeConstellationCohort();
+  const allTeams  = cohort.teams  || [];
+  const allPeople = cohort.people || [];
   const nWorks  = allTeams.length;
   const nPeople = allPeople.length;
   // Migrate legacy filter values ("all" | "team" | "project" → "works",
@@ -1743,21 +1722,21 @@ function renderShapes() {
   for (const chip of chipSet) {
     counts.set(chip.id, sourceRecords.filter(r => chip.match(r)).length);
   }
-  // Sentence bar — "listing teams & projects 41 · cohort teams 32". Kind
-  // and membership are stateful tokens; their menus carry each bucket's
-  // count and a one-line meaning (the cohort-vs-visiting distinction the
-  // old tab row left implicit).
+  // Sentence bar — "listing teams & projects · cohort teams 32". The kind token
+  // carries NO count (the full-pool counts live in its menu); only the membership
+  // token shows a count, because that one equals the cards on screen. Both are
+  // stateful tokens whose menus carry each bucket's count + a one-line meaning.
   const kindUnit = constSentenceUnit({
     menu: "dir-kind",
     ariaMenu: "directory kind",
     token: constSentenceToken({
       menu: "dir-kind",
       label: filter === "people" ? "individuals" : "teams & projects",
-      count: filter === "people" ? nPeople : nWorks,
+      count: null,
       aria: `kind: ${filter === "people" ? "individuals" : "teams & projects"} — change what is listed`,
     }),
     options: [
-      constSentenceOption({ attr: "data-shapes-filter", value: "works", selected: filter !== "people", label: "teams & projects", note: "teams, projects, and side projects", count: nWorks }),
+      constSentenceOption({ attr: "data-shapes-filter", value: "works", selected: filter !== "people", label: "teams & projects", note: "every team and project, side projects included", count: nWorks }),
       constSentenceOption({ attr: "data-shapes-filter", value: "people", selected: filter === "people", label: "individuals", note: "everyone on and around the teams", count: nPeople }),
     ].join(""),
   });
@@ -1778,17 +1757,17 @@ function renderShapes() {
   });
   const chips = `
     <div class="alch-view-controls" data-shape-occluder>
+      ${constTimelineDropdownHtml()}
       <div class="ac-sentence" role="group" aria-label="directory filters">
         <span class="ac-sent-word">listing</span>
         ${kindUnit}
         <span class="ac-sent-word">·</span>
         ${memberUnit}
-        ${constDirectoryReadLine({ filter, sourceRecords, counts, cohortChipId: chipSet[0].id, nWorks, nPeople })}
       </div>
-      <button id="dossier-export-png" class="alch-shapes-chip" type="button">export dossier (png)</button>
+      <button id="dossier-export-png" class="alch-shapes-chip" type="button" title="render the full cohort roster as a PNG (ignores the filters above)">export full roster (png)</button>
     </div>
   `;
-  const cardCtx = { people: state.cohort?.people || [], teams: state.cohort?.teams || [] };
+  const cardCtx = { people: cohort.people || [], teams: cohort.teams || [] };
   const cards = records.map((r, idx) => {
     if (r._kind === "person") return personCardHtml(r, idx, cardCtx);
     return teamCardHtml(r, idx, cardCtx);
@@ -1802,8 +1781,6 @@ function renderShapes() {
       ${cohortPageHead("directory")}
       ${chips}
       ${grid}
-      <p class="alch-callout"><strong>cohort directory · v0.2</strong><br/>
-      Each card is a team, project or individual in its current shape (week ${weekNow}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them). The other views above — relationship map, pmf evidence, standing, collab board — read these same records from different angles.</p>
     </div>
   `;
   // Sentence tokens (kind + membership) open their menus.
@@ -2154,14 +2131,15 @@ const CONST_VIEWS = [
   { mode: "directory", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', label: "directory", hint: "every team, project & person — the roster" },
   { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "relationship map", hint: "project wells and evidence-backed connections" },
   { mode: "journey", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>', label: "pmf evidence", hint: "coverage of explicit product-market-fit reads" },
-  { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "how each team is tracking against its own goals" },
-  { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "matrix, intros, and convergence" },
+  { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "each team's trajectory toward graduation" },
+  { mode: "targets", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>', label: "targets", hint: "current stage vs each team's target — the gap to close" },
+  { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "matrix, intros, and shared focus areas" },
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
   if (mode === "circle") return "ring";
   if (mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
-  if (mode === "ring" || mode === "journey" || mode === "stack" || mode === "collab") return mode;
+  if (mode === "ring" || mode === "journey" || mode === "stack" || mode === "collab" || mode === "targets") return mode;
   return "map";
 }
 function constellationNav(active) {
@@ -2171,33 +2149,22 @@ function constellationNav(active) {
   return `
     <nav class="alch-page-views" role="tablist" aria-label="cohort view">
       ${CONST_VIEWS.map(v => `
-        <button class="alch-page-view-btn" data-const-mode="${v.mode}" role="tab" aria-selected="${activeTop === v.mode}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
+        <button class="alch-page-view-btn" data-const-mode="${v.mode}" role="tab" aria-selected="${activeTop === v.mode}" tabindex="${activeTop === v.mode ? "0" : "-1"}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
           <span class="apv-glyph" aria-hidden="true">${v.glyph}</span><span class="apv-label">${v.label}</span>
         </button>`).join("")}
     </nav>`;
 }
 
-// One-line purpose statement per cohort view — rendered in the shared page
-// header so every view states what it's for before showing anything.
-const COHORT_VIEW_DEK = {
-  directory: "Every team, project, and person in the cohort — the roster.",
-  map: "How the cohort connects — declared relationships across ecosystem wells.",
-  ring: "Every relationship line at once — the cohort as one ring.",
-  journey: "Where each project sits on the road to product-market fit.",
-  stack: "How each team is tracking against its own declared goals.",
-  collab: "Who depends on whom, and the intros worth making.",
-};
-
 // Shared page header — same structure on the cohort and context pages so
 // the OS's two "understanding" surfaces read as one design. `side` is
 // optional per-view meta or actions (kept to one quiet element at rest).
 function pageHeadHtml({ kicker, title, dek, side = "", nav = "" }) {
-  // Strip-style header (2026-06 design pass): no kicker/title/dek — the
-  // rail already names the page and the boxed explainer strip was removed
-  // as clutter. Only per-view side actions render (right-aligned row); the
-  // view nav follows. One block (row + nav together) so host pages with
-  // their own flex gaps can't change the head→nav rhythm. kicker/title/dek
-  // are accepted for call-site compatibility but intentionally not rendered.
+  // Strip-style header: the rail names the page and — by house rule — each
+  // view's description lives WITH its filter (the sentence bar IS the heading),
+  // not as a separate stacked dek line. So kicker/title/dek are accepted for
+  // call-site compatibility but intentionally not rendered; only per-view side
+  // actions + the view nav show. (A separate dek line was tried and pulled: it
+  // added ~3 lines of vertical chrome and duplicated the filter sentence.)
   void kicker; void title; void dek;
   return `
     <div class="alch-page-headgroup">
@@ -2206,14 +2173,10 @@ function pageHeadHtml({ kicker, title, dek, side = "", nav = "" }) {
     </div>`;
 }
 
-function cohortPageHead(view, { side = "", dek = "" } = {}) {
-  return pageHeadHtml({
-    kicker: "shape rotator cohort",
-    title: "cohort",
-    dek: dek || COHORT_VIEW_DEK[view] || COHORT_VIEW_DEK.directory,
-    side,
-    nav: constellationNav(view),
-  });
+function cohortPageHead(view, { side = "" } = {}) {
+  // No dek/title: by house rule each view's description lives WITH its filter
+  // (the sentence bar IS the heading); pageHeadHtml renders only side + nav.
+  return pageHeadHtml({ side, nav: constellationNav(view) });
 }
 
 // Cross-view selection cue. state.constSelection survives view switches by
@@ -2248,13 +2211,47 @@ function constSelectionChipHtml() {
     </button>`;
 }
 
+// "As of [Total ▾]" timeline selector — shown on every cohort view. Total =
+// today's overall (live) surface; the rest rewind the WHOLE cohort to a weekly
+// snapshot via the existing snapshot machinery (activeConstellationCohort).
+// Built on the sentence-token chrome so it reads as one control with the rest.
+// Today only relationships vary across the bundled snapshots; real per-week
+// journey/standing data is meant to be populated from Supabase — when it is,
+// the goal views animate week-to-week with no further wiring.
+function constTimelineDropdownHtml() {
+  const snapshots = constellationSnapshots();
+  const last = snapshots.length - 1;
+  const idx = snapshots.length ? ensureConstellationTimelineIdx() : null;
+  const isTotal = idx == null || idx >= last;
+  const curLabel = isTotal ? "Total" : (snapshots[idx]?.label || snapshots[idx]?.id || "week");
+  const opt = (value, label, note, selected) => `
+        <button type="button" class="ac-sent-opt" data-const-timeline="${escAttr(String(value))}" role="option" aria-selected="${selected ? "true" : "false"}">
+          <span class="ac-sent-opt-main"><b>${escHtml(label)}</b>${note ? `<small>${escHtml(note)}</small>` : ""}</span>
+        </button>`;
+  let options = opt(snapshots.length ? last : "total", "Total", "today’s overall view", isTotal);
+  for (let i = 0; i < last; i++) {
+    options += opt(i, snapshots[i].label || snapshots[i].id, timelineSnapshotDate(snapshots[i]), !isTotal && idx === i);
+  }
+  const clock = '<svg class="ac-tl-glyph" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  return `
+    <span class="ac-timeline-ctl">
+      <span class="ac-sent-word">as of</span>
+      <span class="ac-sent-unit ac-timeline-unit">
+        <button type="button" class="ac-sent-tok ac-timeline-tok${isTotal ? "" : " is-rewound"}" data-sent-menu="timeline" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(`viewing ${curLabel} — rewind the cohort to a week`)}">
+          ${clock}<span>${escHtml(curLabel)}</span><i class="ac-sent-chev" aria-hidden="true"></i>
+        </button>
+        <div class="ac-sent-menu" data-sent-menu-for="timeline" role="listbox" aria-label="cohort timeline" hidden>${options}</div>
+      </span>
+    </span>`;
+}
+
 const CONST_MAP_LAYOUTS = [
-  { mode: "map", label: "wells", hint: "ecosystem placement" },
+  { mode: "map", label: "ecosystems", hint: "grouped into the ecosystem each builds on" },
   { mode: "ring", label: "ring", hint: "all relationship lines" },
 ];
 const CONST_NETWORK_SCOPES = [
-  { scope: "projects", label: "projects", hint: "team/project relationship records" },
-  { scope: "people", label: "people", hint: "person-to-person relationship context" },
+  { scope: "projects", label: "projects", hint: "team / project relationships (this map)" },
+  { scope: "people", label: "people", hint: "switch to the person-to-person network" },
 ];
 function constNormalizeNetworkScope(raw) {
   return String(raw || "").toLowerCase() === "people" ? "people" : "projects";
@@ -2417,16 +2414,12 @@ function constellationSentenceBar({ view = "map", scope = "projects", lens = "al
       ${scopeUnit}
       <span class="ac-sent-word">as</span>
       ${layoutUnit}
-      ${lensUnit ? `<span class="ac-sent-word">· lined by</span>${lensUnit}` : ""}
+      ${lensUnit ? `<span class="ac-sent-word">· lines</span>${lensUnit}` : ""}
       <span class="ac-sent-word">· backed by</span>
-      ${tierChip("record", "is-typed", recordCount, "on record", "relationship records — typed, with status and evidence")}
+      ${tierChip("record", "is-typed", recordCount, "confirmed", "relationship records — typed, with status and evidence")}
       <span class="ac-sent-word">+</span>
       ${tierChip("mention", "is-profile", mentionCount, "unconfirmed", "profile mentions — leads that need confirmation")}
     </div>`;
-}
-function constNormalizeDomainPin(raw) {
-  const k = String(raw || "").toLowerCase();
-  return CONST_DOMAIN_KEYS.includes(k) ? k : "all";
 }
 // Multi-select include chip (journey's teams/projects/side toggles): the
 // oxide state dot carries on/off — the same vocabulary the old ajf-toggle
@@ -2455,6 +2448,15 @@ function wireConstSentenceTokens() {
       menu.hidden = false;
       tok.setAttribute("aria-expanded", "true");
       menu.querySelector('[role="option"][aria-selected="true"]')?.focus();
+    });
+  }
+  // Timeline dropdown options ("Total" + each weekly snapshot). The menu
+  // open/close is handled by the loop above (shared chrome); selecting an
+  // option rewinds the whole cohort surface via setConstellationTimelineIdx.
+  for (const opt of state.canvas.querySelectorAll("[data-const-timeline]")) {
+    opt.addEventListener("click", () => {
+      closeConstSentenceMenus();
+      setConstellationTimelineIdx(opt.dataset.constTimeline);
     });
   }
   wireConstSentenceDismiss();
@@ -3273,7 +3275,7 @@ function constInterestSummaryHtml(ctx) {
   const focusEdges = (ctx?.edges || []).filter(edge => constInterestOwnsEdge(edge, interest));
   const skillChips = interest.topSkills.length
     ? `<div class="ac-view-chips">${interest.topSkills.map(item => `<span>${escHtml(item.skill)}<em>${escHtml(String(item.count))}</em></span>`).join("")}</div>`
-    : `<p class="ac-inspector-empty">no shared source tags declared by the core teams.</p>`;
+    : `<p class="ac-inspector-empty">no shared skill areas declared by the core teams.</p>`;
   const clusterChips = interest.relatedClusters.length
     ? `<div class="ac-view-clusters">${interest.relatedClusters.slice(0, 3).map(cl => `
         <button type="button" class="ac-view-chip" data-const-interest="${escAttr(cl.id)}">
@@ -3288,9 +3290,7 @@ function constInterestSummaryHtml(ctx) {
   };
   return `
     <section class="ac-inspector-section is-ecosystem-view">
-      <h4>current ecosystem view</h4>
       <div class="ac-view-summary">
-        <strong>${escHtml(constClusterLabel(interest.cluster))}</strong>
         <p>${escHtml(constShortText(interest.cluster.description, 135) || "no cluster description declared.")}</p>
       </div>
       <div class="ac-inspector-pills is-summary">
@@ -3311,7 +3311,7 @@ function constInterestSummaryHtml(ctx) {
           ${teamPills(neighbors, interest.neighborTeams.length, "no adjacent teams from declared connections or shared source tags.")}
         </div>
         <div>
-          <span>shared source tags</span>
+          <span>shared skill areas</span>
           ${skillChips}
         </div>
         <div>
@@ -3340,15 +3340,8 @@ function constellationTeamNavOrder(ctx) {
 function constConstellationCoverage(teams = [], edges = []) {
   const list = Array.isArray(teams) ? teams : [];
   const edgeList = Array.isArray(edges) ? edges : [];
-  const typedEdges = edgeList.filter(e => e.normalized).length;
-  const meaningMissing = Math.max(0, edgeList.length - typedEdges);
   const assessed = list.filter(journeyAssessed).length;
-  const activeContext = list.filter(t => constText(t.now) || constText(t.weekly_goals)).length;
-  const proofy = list.filter(t =>
-    constText(t.traction)
-    || constList(t.prior_shipping).length
-    || constList(t.paper_basis).length).length;
-  return { teams: list.length, edges: edgeList.length, typedEdges, meaningMissing, assessed, activeContext, proofy };
+  return { teams: list.length, edges: edgeList.length, assessed };
 }
 
 function constMapDistributionRows(wells = [], accentById = new Map()) {
@@ -3830,70 +3823,6 @@ function constStackPlacementHtml(team, ctx) {
     </section>`;
 }
 
-function constStackTeamButtonHtml(item, fallbackLabel = "") {
-  const domain = constDomainClass(item.team.domain);
-  const color = CONST_DOMAIN_COLORS[domain] || CONST_DOMAIN_COLORS.other;
-  const relationshipSurface = item.typed + item.profile;
-  const relationship = item.typed
-    ? `${item.typed} relationship record${item.typed === 1 ? "" : "s"}`
-    : (relationshipSurface ? `${item.profile} profile mention${item.profile === 1 ? "" : "s"}` : "no relationship lines");
-  const sourceSignal = item.evidence.key === "profile" ? "profile data" : item.evidence.label;
-  const title = `${item.team.name || item.team.record_id}: ${item.team.focus || item.team.now || item.role.reason || fallbackLabel}`;
-  return `
-                <button type="button" class="ac-stack-team ac-stack-domain-${escAttr(domain)}" data-const-team="${escAttr(item.team.record_id)}" title="${escAttr(title)}" aria-label="${escAttr(title)}" style="--team-color:${escAttr(color)};--team-size:12px">
-                  <i aria-hidden="true"></i>
-                  <span>${escHtml(item.team.name || item.team.record_id)}</span>
-                  <p>${escHtml(constShortText(item.team.focus || item.team.now || item.role.reason, 124))}</p>
-                  <em>${escHtml(sourceSignal)}</em>
-                  <small>${escHtml(relationship)}</small>
-                </button>`;
-}
-
-function constProductStackHtml(model) {
-  const layerRows = model.columns
-    .map(col => {
-      const items = model.teamRows
-        .filter(item => item.role.key === col.key)
-        .slice()
-        .sort((a, b) =>
-          (b.evidence.value || 0) - (a.evidence.value || 0)
-          || b.typed - a.typed
-          || (b.inbound + b.outbound) - (a.inbound + a.outbound)
-          || String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id)));
-      return { col, items };
-    })
-    .filter(group => group.items.length);
-  const unplaced = model.teamRows
-    .filter(item => item.role.key === "unplaced")
-    .slice()
-    .sort((a, b) => String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id)));
-  if (!layerRows.length && !unplaced.length) return `<p class="ac-stack-empty">no companies to place yet.</p>`;
-  const unplacedHtml = unplaced.length ? `
-        <section class="ac-stack-layer ac-stack-layer-unplaced lg-track">
-          <header class="ac-stack-layer-head">
-            <strong>no stack signal yet</strong>
-            <span>${escHtml(constTeamCountText(unplaced.length))}</span>
-          </header>
-          <div class="ac-stack-layer-list">
-            ${unplaced.map(item => constStackTeamButtonHtml(item, "no stack signal yet")).join("")}
-          </div>
-        </section>` : "";
-  return `
-    <div class="ac-stack-view is-layer-list">
-      ${layerRows.map(({ col, items }) => `
-        <section class="ac-stack-layer ac-stack-col-${escAttr(col.key)} lg-track">
-          <header class="ac-stack-layer-head">
-            <strong>${escHtml(col.label)}</strong>
-            <span>${escHtml(constTeamCountText(items.length))}</span>
-          </header>
-          <div class="ac-stack-layer-list">
-            ${items.map(item => constStackTeamButtonHtml(item, col.label)).join("")}
-          </div>
-        </section>`).join("")}
-      ${unplacedHtml}
-    </div>`;
-}
-
 function constStackSummaryHtml(ctx) {
   const model = ctx?.stackModel;
   if (!model) return "";
@@ -3933,36 +3862,6 @@ function constStackReadoutHtml(ctx) {
     </section>`;
 }
 
-// PMF read — the distribution claim (where the cohort mass sits, who leads),
-// continuing the "plotting …" sentence inline.
-function constJourneyReadLine(visibleTeams = [], allTeams = visibleTeams) {
-  const cohortTeams = (Array.isArray(allTeams) ? allTeams : []).filter(team => teamKind(team) !== "person");
-  const assessed = cohortTeams.filter(journeyAssessed);
-  if (!assessed.length) return constReadLine("no explicit PMF reads yet", "every dot is profile context until a team adds a journey read");
-  const stageTally = new Map();
-  for (const team of assessed) {
-    const stage = journeyFor(team).stage;
-    stageTally.set(stage, (stageTally.get(stage) || 0) + 1);
-  }
-  let modal = null;
-  for (const [stage, count] of stageTally) {
-    if (!modal || count > modal.count || (count === modal.count && stage < modal.stage)) modal = { stage, count };
-  }
-  const leader = assessed.slice().sort((a, b) => {
-    const aj = journeyFor(a);
-    const bj = journeyFor(b);
-    return bj.stage - aj.stage
-      || bj.evidence_quality - aj.evidence_quality
-      || String(a.name || a.record_id).localeCompare(String(b.name || b.record_id));
-  })[0];
-  const leaderStage = leader ? journeyFor(leader).stage : null;
-  let claim = `cohort mass sits at ${JOURNEY_STAGE_LABELS[modal.stage] || `stage ${modal.stage}`}`;
-  if (leader && leaderStage > modal.stage) {
-    claim += ` · ${leader.name || leader.record_id} leads at ${JOURNEY_STAGE_LABELS[leaderStage] || `stage ${leaderStage}`}`;
-  }
-  // No coverage tail — the dials already show the team/project counts.
-  return constReadLine(claim, null);
-}
 
 function constStackSelectedReadoutHtml(ctx) {
   const sel = state.constSelection;
@@ -4193,9 +4092,10 @@ function constMapReadout(ctx) {
     : (scoped
       ? `No cross-world ${lensSpec.label} lines (${lensSpec.meaning}) connect ecosystems yet. Set lines to all to read every declared corridor.`
       : "No cross-world corridor is strong enough to headline yet; inspect the relationship rows first.");
-  // Counts live in the sentence bar's evidence chips now; the caveat keeps
-  // only the teaching the chips can't carry (what solid vs dotted means).
-  const caveat = `Solid lines have a relationship record; dotted lines are profile mentions — leads to verify${scoped ? ` under the ${lensSpec.label} lens` : ""}.`;
+  // The solid-vs-dotted contract is taught by the sentence bar's evidence chips
+  // ("backed by N confirmed + M unconfirmed") and the body's line-basis text, so
+  // the readout no longer re-states it — one home for the encoding, not four.
+  const caveat = "";
   return { title, body, caveat, top, corridors, breakdown, lens, lensSpec, scoped };
 }
 
@@ -4214,7 +4114,7 @@ function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
       <div class="ac-inspector-pills">
         <button type="button" class="ac-hero-corridor" data-const-edge-from="${escAttr(topEdge.from)}" data-const-edge-to="${escAttr(topEdge.to)}">inspect corridor →</button>
       </div>` : ""}
-      <p class="ac-rel-queue-more">${escHtml(read.caveat)}</p>
+      ${read.caveat ? `<p class="ac-rel-queue-more">${escHtml(read.caveat)}</p>` : ""}
     </div>`;
 }
 
@@ -4992,7 +4892,7 @@ function constellationInspectorDefaultHtml(ctx) {
   }
   if (ctx?.mode === "ring" && !ctx?.interest?.active) {
     return `
-      ${constMapReadoutHeroHtml(ctx, "circle readout")}
+      ${constMapReadoutHeroHtml(ctx, "ring readout")}
       ${constCorridorReadoutHtml(ctx)}
       ${constDataCoverageHtml(ctx)}`;
   }
@@ -5117,9 +5017,6 @@ function renderJourney() {
   // them — a positional scatter loses its meaning if you drop the field it
   // plots against.
   const bnFocus = jf.bottleneck || null;
-  // Stage distribution over the filtered set (drives the per-column counts).
-  const stageCounts = new Array(9).fill(0);
-  for (const t of teams) stageCounts[journeyFor(t).stage]++;
   const minStage = sideEligible ? 0 : 1;
   const W = 1120, H = 560;
   // Plot area inset: leave room for axis labels (left = evidence, bottom = stage).
@@ -5245,8 +5142,7 @@ function renderJourney() {
     const labelX = label ? label.x : 0;
     const labelY = label ? label.y : -r - 8;
     const labelAnchor = label ? label.anchor : "middle";
-    return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}${bnClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${t.name || t.record_id} journey`)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
-        <title>${escHtml(title)}</title>
+    return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}${bnClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(title)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
         <circle class="ac-jhit" r="${Math.max(18, r + 9).toFixed(1)}"/>
         <circle class="${dotClass}" r="${r.toFixed(1)}"/>
         <text class="ac-jnode-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="${labelAnchor}">${escHtml(t.name)}</text>
@@ -5263,7 +5159,11 @@ function renderJourney() {
     const b = journeyFor(t).primary_bottleneck;
     if (bottleneckCounts.has(b)) bottleneckCounts.set(b, bottleneckCounts.get(b) + 1);
   }
-  const legendKey = `<span class="acl-jkey">color = primary bottleneck · size = market upside<span class="acl-jsize" aria-hidden="true"><i class="sm"></i><i class="lg"></i></span></span>`;
+  // A dashed/ghost dot means "no explicit PMF read yet" (profile-context only,
+  // seeded at the idea·vibes default). It was a whole class of marks the legend
+  // never explained — every faded dot is a placeholder, not a real placement.
+  const ghostSwatch = `<svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" style="vertical-align:-1px"><circle cx="5.5" cy="5.5" r="3.6" fill="rgba(241,236,231,0.24)" stroke="rgba(214,189,134,0.58)" stroke-width="1" stroke-dasharray="2 2"/></svg>`;
+  const legendKey = `<span class="acl-jkey">color = primary bottleneck · size = market upside<span class="acl-jsize" aria-hidden="true"><i class="sm"></i><i class="lg"></i></span></span><span class="acl-jkey acl-jghost-key">${ghostSwatch}&nbsp;dashed = profile only, no PMF read yet</span>`;
   const legend = legendKey + JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => `
     <div class="acl-jfamily">
       <span class="acl-jfam-head"><span class="acl-jswatch ac-jfam-${fi}"></span>${escHtml(fam.label)}</span>
@@ -5292,21 +5192,26 @@ function renderJourney() {
     <button type="button" class="ac-sent-evi is-clearable" data-jbottleneck="${escAttr(jf.bottleneck)}" aria-label="${escAttr(`clear bottleneck filter: ${jf.bottleneck}`)}">
       ${escHtml(jf.bottleneck)}<i class="ac-sent-x" aria-hidden="true">×</i>
     </button>` : "";
+  // Honesty fact: how many plotted records have an EXPLICIT pmf read vs. sit at
+  // the seeded default — otherwise the bottom-left default cluster reads as real.
+  const assessedCount = teams.filter(journeyAssessed).length;
   const filterBar = `
     <div class="ac-sentence" role="group" aria-label="pmf evidence filters">
-      <span class="ac-sent-word">plotting</span>
+      <span class="ac-sent-word">PMF read for</span>
       ${includeChip("teams", "teams")}
       <span class="ac-sent-word">+</span>
       ${includeChip("projects", "projects")}
       ${sideEligible ? `<span class="ac-sent-word">+</span>${includeChip("side", "side projects")}` : ""}
+      <span class="ac-sent-word">·</span>
+      <strong class="ac-sent-fact">${assessedCount}/${teams.length}</strong>
+      <span class="ac-sent-word">with an explicit read</span>
       ${bottleneckChip}
-      ${constJourneyReadLine(teams, all)}
     </div>`;
 
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="journey">
     ${cohortPageHead("journey")}
-    <div class="alch-view-controls" data-shape-occluder>${filterBar}${constSelectionChipHtml()}</div>
+    <div class="alch-view-controls" data-shape-occluder>${constTimelineDropdownHtml()}${filterBar}${constSelectionChipHtml()}</div>
     <div class="alch-constellation" data-constellation-view="journey">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
@@ -5345,18 +5250,86 @@ function renderJourney() {
 // oxide/TEE/nav red family (H~10) that co-renders in the same viewport —
 // so the danger dot never reads as the brand accent or the active-tab mark.
 const CONST_GOAL_STANDING = {
-  behind: { label: "behind plan", x: 0.18, color: "#c83a48" },
-  onplan: { label: "on plan", x: 0.5, color: "#7fa05a" },
-  ahead: { label: "ahead", x: 0.82, color: "#4f9d8f" },
+  behind: { label: "behind plan", color: "#c83a48" },
+  onplan: { label: "on plan", color: "#7fa05a" },
+  ahead: { label: "ahead", color: "#4f9d8f" },
 };
 const CONST_GOAL_STANDING_KEYS = Object.keys(CONST_GOAL_STANDING);
 function constNormalizeGoalStandingFilter(raw) {
   const key = String(raw || "").toLowerCase();
   return CONST_GOAL_STANDING_KEYS.includes(key) ? key : "all";
 }
+const GOAL_MOMENTUM_KEYS = ["rising", "slipping", "flat"];
+function constNormalizeGoalMomentumFilter(raw) {
+  const key = String(raw || "").toLowerCase();
+  return GOAL_MOMENTUM_KEYS.includes(key) ? key : "all";
+}
+// ── per-week standing (Supabase-backed) ──────────────────────────────────
+// state.standingWeekly carries each team's PMF stage + confidence per program
+// week (source of truth: Supabase team_standing_weekly → cohort-standing-weekly
+// .json). The goal views read the week the timeline dropdown points at, so the
+// "as of [week]" control moves them, and the trajectory is REAL movement — which
+// unlocks momentum (who's climbing vs slipping), the goal views' core insight.
+function standingWeeklyTeam(rid) { return state.standingWeekly?.byTeam?.[rid] || null; }
+function standingWeeklyWeeks() { return Array.isArray(state.standingWeekly?.weeks) ? state.standingWeekly.weeks : []; }
+// The program_week the timeline currently points at (Total / latest = max week).
+function activeStandingWeek() {
+  const weeks = standingWeeklyWeeks();
+  if (!weeks.length) return null;
+  const maxWk = weeks[weeks.length - 1].program_week;
+  const snaps = constellationSnapshots();
+  if (!snaps.length) return maxWk;
+  const idx = ensureConstellationTimelineIdx();
+  if (idx == null || idx >= snaps.length - 1) return maxWk;
+  return Math.max(weeks[0].program_week, Math.min(maxWk, idx));
+}
+// Week objects from the start through the active week — the visible window.
+function standingVisibleWeeks() {
+  const weeks = standingWeeklyWeeks();
+  const active = activeStandingWeek();
+  if (!weeks.length || active == null) return [];
+  return weeks.filter(w => w.program_week <= active);
+}
+function standingWeekLabel(week) {
+  return (standingWeeklyWeeks().find(w => w.program_week === week)?.label) || "Latest";
+}
+// {stage, confidence} for a team at a program_week — falls back to live journey.
+function teamWeekRead(team, week) {
+  const e = week != null ? standingWeeklyTeam(team?.record_id)?.weeks?.[week] : null;
+  if (e) return { stage: e.stage, confidence: e.confidence };
+  const j = journeyFor(team);
+  return { stage: j.stage, confidence: j.confidence };
+}
+// Real per-week stage series for a team over the given week objects.
+function teamStageSeries(team, weekList) {
+  const t = standingWeeklyTeam(team?.record_id);
+  const fallback = journeyFor(team).stage;
+  return weekList.map(w => { const e = t?.weeks?.[w.program_week]; return e ? e.stage : fallback; });
+}
+// Momentum over the visible window = stage(last) − stage(first). null if <2 pts.
+function teamMomentum(team) {
+  const wk = standingVisibleWeeks();
+  if (wk.length < 2) return null;
+  const s = teamStageSeries(team, wk);
+  return Math.round((s[s.length - 1] - s[0]) * 10) / 10;
+}
+function momentumKind(d) { return d == null ? "flat" : (d > 0 ? "rising" : (d < 0 ? "slipping" : "flat")); }
+const MOMENTUM = {
+  rising:   { color: "#4f9d8f", glyph: "▲", word: "climbing" },
+  slipping: { color: "#c83a48", glyph: "▼", word: "slipping" },
+  flat:     { color: "#9a9488", glyph: "→", word: "steady" },
+};
+function momentumDeltaLabel(d) { return d == null ? "" : (d > 0 ? `+${d}` : `${d}`); }
+
 function constTeamStanding(team) {
-  if (!journeyAssessed(team)) return null;
-  const c = constText(journeyFor(team).confidence).toLowerCase();
+  // Classify by the confidence the team declared AT THE ACTIVE WEEK (per-week
+  // data from Supabase). Falls back to the raw live confidence — never the
+  // "Low" default — so an unrated team is "no read yet", not falsely "behind".
+  const wk = activeStandingWeek();
+  const e = wk != null ? standingWeeklyTeam(team?.record_id)?.weeks?.[wk] : null;
+  const raw = e ? e.confidence
+    : (team && typeof team.journey === "object" && team.journey) ? team.journey.confidence : undefined;
+  const c = constText(raw).toLowerCase();
   if (c === "low") return "behind";
   if (c === "high") return "ahead";
   if (c === "medium") return "onplan";
@@ -5368,118 +5341,301 @@ function constTeamGoalText(team) {
     || constText(team?.graduation_target) || constText(team?.monthly_milestones) || "";
 }
 function constGoalPlanModel(teams = []) {
+  const active = activeStandingWeek();
   const rows = (Array.isArray(teams) ? teams : [])
     .filter(team => team?.record_id && teamKind(team) !== "person")
-    .map(team => ({
-      team,
-      standing: constTeamStanding(team),
-      goalText: constTeamGoalText(team),
-      domain: constDomainClass(team?.domain),
-    }));
+    .map(team => {
+      const read = teamWeekRead(team, active);
+      const momentum = teamMomentum(team);
+      const aim = constStandingTarget(team, read.stage);
+      return {
+        team,
+        standing: constTeamStanding(team),
+        stage: read.stage,
+        confidence: read.confidence,
+        momentum,
+        momentumKind: momentumKind(momentum),
+        target: aim.value,
+        targetDeclared: aim.declared,
+        goalText: constTeamGoalText(team),
+        domain: constDomainClass(team?.domain),
+      };
+    });
   const order = { behind: 0, onplan: 1, ahead: 2 };
   const byName = (a, b) => String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id));
   const tracked = rows.filter(r => r.standing).sort((a, b) => order[a.standing] - order[b.standing] || byName(a, b));
   const untracked = rows.filter(r => !r.standing).sort(byName);
   const counts = { behind: 0, onplan: 0, ahead: 0 };
   for (const r of tracked) counts[r.standing] += 1;
+  // Momentum summary — the insight the per-week data unlocks: who's climbing,
+  // who's slipping, where the cohort median sits, the fastest mover to celebrate
+  // and the steepest slip to watch.
+  const mom = { rising: 0, slipping: 0, flat: 0 };
+  for (const r of tracked) mom[r.momentumKind] += 1;
+  const med = (arr) => arr.length ? arr[Math.floor((arr.length - 1) / 2)] : null;
+  const medianStage = med(tracked.map(r => r.stage).sort((a, b) => a - b));
+  const movers = tracked.filter(r => r.momentum != null);
+  const topMover = movers.slice().sort((a, b) => b.momentum - a.momentum)[0] || null;
+  const topSlip = movers.filter(r => r.momentum < 0).sort((a, b) => a.momentum - b.momentum)[0] || null;
+  // Needs-attention queue — slipping teams (declining) plus behind-and-stalled
+  // (low confidence, no climb). The intervention list a coordinator acts on.
+  const atRisk = tracked
+    .filter(r => r.momentumKind === "slipping" || (r.standing === "behind" && r.momentumKind === "flat" && r.momentum != null))
+    .sort((a, b) => (a.momentum ?? 0) - (b.momentum ?? 0));
+  // Cohort trend — this week's median stage vs the previous visible week's.
+  const vis = standingVisibleWeeks();
+  const prevPw = vis.length >= 2 ? vis[vis.length - 2].program_week : null;
+  const medianPrev = prevPw != null ? med(tracked.map(r => teamWeekRead(r.team, prevPw).stage).sort((a, b) => a - b)) : null;
+  const trend = (medianStage != null && medianPrev != null) ? Math.round((medianStage - medianPrev) * 10) / 10 : null;
+  const summary = { counts, mom, medianStage, trend, topMover, topSlip, atRisk, week: active, weekLabel: standingWeekLabel(active), hasWeekly: standingWeeklyWeeks().length > 0 };
   // teamRows keep the stack hover tooltip (constStackItemForTeam) consistent.
   const teamRows = rows.map(r => ({
     team: r.team,
     role: {
       key: r.standing || "untracked",
       label: r.standing ? CONST_GOAL_STANDING[r.standing].label : "no standing read yet",
-      secondary: null,
+      secondary: r.momentum != null && r.momentum !== 0 ? `${MOMENTUM[r.momentumKind].glyph} ${momentumDeltaLabel(r.momentum)} over ${standingVisibleWeeks().length - 1}w` : null,
       reason: r.goalText ? `goal: ${r.goalText}` : "no goal declared yet",
     },
-    evidence: { key: "profile", label: r.standing ? "self-reported confidence" : "no journey read", value: 0 },
+    evidence: { key: "profile", label: r.standing ? `stage ${r.stage}/8 · ${r.confidence || "—"}` : "no journey read", value: 0 },
   }));
-  return { rows, tracked, untracked, counts, teamRows };
+  return { rows, tracked, untracked, counts, teamRows, summary };
 }
 
-// Bare cohort read — the standing distribution (how many are behind their
-// OWN plan), the self-referenced glance PMF can't give.
-function constGoalPlanReadLine(model) {
-  const tracked = model?.tracked?.length || 0;
-  if (!tracked) return constReadLine("no team standing declared yet", null);
-  const c = model.counts;
-  const untracked = model?.untracked?.length || 0;
-  return constReadLine(`${c.behind} behind · ${c.onplan} on track · ${c.ahead} ahead`, untracked ? `${untracked} with no plan read yet` : null);
+// Cohort momentum insight — a compact, visual summary (climbing / slipping /
+// steady, median stage, fastest mover, steepest slip) shown above both goal
+// views. NOT the removed generated read-clause: it's a genuinely additive,
+// at-a-glance read the chart alone can't give, and it changes as you scrub weeks.
+function constGoalInsightHtml(summary, momentumFilter = "all") {
+  if (!summary || !summary.counts) return "";
+  const mf = constNormalizeGoalMomentumFilter(momentumFilter);
+  // Momentum chips double as filters — click to isolate climbers / slippers /
+  // steady (click again to clear). Orthogonal to the standing chips in the bar.
+  const chip = (kind, n) => `<button type="button" class="ac-gi-chip is-${kind}${mf === kind ? " is-active" : ""}" data-momentum-filter="${kind}" aria-pressed="${mf === kind ? "true" : "false"}" aria-label="${escAttr(`${n} ${MOMENTUM[kind].word}${mf === kind ? " — filtered; click to clear" : " — click to isolate"}`)}"><i aria-hidden="true">${MOMENTUM[kind].glyph}</i><em>${n}</em>${MOMENTUM[kind].word}</button>`;
+  const trendStr = summary.trend != null && summary.trend !== 0
+    ? ` <span class="ac-gi-trend is-${summary.trend > 0 ? "rising" : "slipping"}">${summary.trend > 0 ? MOMENTUM.rising.glyph : MOMENTUM.slipping.glyph}${momentumDeltaLabel(summary.trend)} this week</span>` : "";
+  const median = summary.medianStage != null ? `<span class="ac-gi-stat">median stage <b>${summary.medianStage}</b><small>/8</small>${trendStr}</span>` : "";
+  const mover = summary.topMover && summary.topMover.momentum > 0
+    ? `<button type="button" class="ac-gi-call is-rising" data-const-team="${escAttr(summary.topMover.team.record_id)}">fastest <b>${escHtml(summary.topMover.team.name || summary.topMover.team.record_id)}</b> ${MOMENTUM.rising.glyph}${momentumDeltaLabel(summary.topMover.momentum)}</button>` : "";
+  const risk = (summary.atRisk || []).slice(0, 3);
+  const more = (summary.atRisk || []).length - risk.length;
+  const attention = risk.length
+    ? `<span class="ac-gi-attention" role="group" aria-label="needs attention"><i aria-hidden="true">⚠</i>needs attention ${risk.map(r => `<button type="button" class="ac-gi-team" data-const-team="${escAttr(r.team.record_id)}" aria-label="${escAttr(`open ${r.team.name || r.team.record_id}`)}">${escHtml(r.team.name || r.team.record_id)}</button>`).join("")}${more > 0 ? `<span class="ac-gi-more">+${more}</span>` : ""}</span>` : "";
+  return `
+    <div class="ac-gi" role="group" aria-label="cohort momentum summary">
+      ${chip("rising", summary.mom.rising)}${chip("slipping", summary.mom.slipping)}${chip("flat", summary.mom.flat)}
+      ${median}${mover}${attention}
+      <span class="ac-gi-src" title="per-week PMF reads, sourced from Supabase team_standing_weekly">via Supabase · ${escHtml(summary.weekLabel)}</span>
+    </div>`;
 }
 
-// Rows of arrows, self-referenced: a center "on plan" line is each team's
-// own goal; the dot is where they report standing; behind teams show a
-// catch-up arrow to the line. Sorted behind-first so who-needs-help leads.
-function constGoalPlanHtml(model, standingFilter = "all") {
+// Visible weeks for the trajectory x-axis — the real program-week snapshots from
+// the Supabase-backed standing data, up through the week the timeline points at.
+// No seeding: stages come straight from the per-week reads.
+function constStandingWeeks() {
+  const vis = standingVisibleWeeks();
+  if (vis.length) return vis;
+  return [{ program_week: currentProgramWeek(), label: "now" }];
+}
+
+// Real per-week stage series for a team across the visible week objects.
+function constStandingTrajectory(team, weeks) {
+  return teamStageSeries(team, weeks);
+}
+
+// Standing = trajectory toward graduation. Each tracked team is a line rising
+// (over recent weeks) toward the graduation target (PMF stage 8); the aim is
+// the shared dashed line at the top, "how they're against it" is the gap below
+// it. Lines are dashed + faint at rest (signalling "illustrative until momentum
+// is wired") and solidify on hover; the standing filter dims off-standing teams.
+function constGoalPlanHtml(model, standingFilter = "all", momentumFilter = "all") {
   const tracked = model?.tracked || [];
   const untracked = model?.untracked || [];
   const activeFilter = constNormalizeGoalStandingFilter(standingFilter);
-  const visibleTracked = activeFilter === "all"
-    ? tracked
-    : tracked.filter((r) => r.standing === activeFilter);
+  const momFilter = constNormalizeGoalMomentumFilter(momentumFilter);
   if (!tracked.length && !untracked.length) return `<p class="ac-stack-empty">no teams to track yet.</p>`;
-  const head = `
-    <div class="ac-gp-head" aria-hidden="true">
-      <span></span>
-      <span class="ac-gp-axis"><i class="is-l">behind plan</i><i class="is-c">on plan</i><i class="is-r">ahead</i></span>
-      <span class="ac-gp-goalhead">their goal</span>
-    </div>`;
-  const row = (r) => {
-    const spec = CONST_GOAL_STANDING[r.standing];
-    const x = (spec.x * 100).toFixed(1);
-    const arrow = r.standing === "behind"
-      ? `<span class="ac-gp-arrow" style="left:${x}%;width:${((0.5 - spec.x) * 100).toFixed(1)}%"></span>`
-      : "";
-    const goal = r.goalText ? escHtml(constShortText(r.goalText, 48)) : "—";
-    const aria = `${r.team.name || r.team.record_id}: ${spec.label}${r.goalText ? `, goal: ${constShortText(r.goalText, 60)}` : ""}`;
+
+  const summary = model?.summary || null;
+  const weeks = constStandingWeeks();
+  const n = weeks.length;
+  const maxWk = weeks[n - 1].program_week;
+  const W = 920, H = 440, PAD_L = 48, PAD_R = 134, PAD_T = 22, PAD_B = 34;
+  const plotW = W - PAD_L - PAD_R, plotH = H - PAD_T - PAD_B;
+  const xFor = (i) => PAD_L + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  const yFor = (st) => PAD_T + (1 - Math.max(0, Math.min(8, st)) / 8) * plotH;
+
+  const grid = [0, 2, 4, 6, 8].map(st => `
+      <line class="ac-traj-grid${st === 8 ? " is-goal" : ""}" x1="${PAD_L}" y1="${yFor(st).toFixed(1)}" x2="${(W - PAD_R).toFixed(1)}" y2="${yFor(st).toFixed(1)}"/>
+      <text class="ac-traj-ylab" x="${PAD_L - 8}" y="${(yFor(st) + 3).toFixed(1)}" text-anchor="end">${st}</text>`).join("");
+  const goalLab = `<text class="ac-traj-goal-lab" x="${(W - PAD_R + 7).toFixed(1)}" y="${(yFor(8) + 3).toFixed(1)}">graduation</text>`;
+  const wkShort = (w) => w.program_week === maxWk ? "now" : (w.program_week === 0 ? "start" : `w${w.program_week}`);
+  const xlabs = weeks.map((w, i) => `<text class="ac-traj-xlab" x="${xFor(i).toFixed(1)}" y="${H - 12}" text-anchor="middle">${escHtml(wkShort(w))}</text>`).join("");
+
+  const moverId = summary?.topMover?.team?.record_id;
+  const slipId = summary?.topSlip?.team?.record_id;
+  const lines = tracked.map(r => {
+    const color = CONST_GOAL_STANDING[r.standing].color;
+    const pts = constStandingTrajectory(r.team, weeks);
+    const poly = pts.map((st, i) => `${xFor(i).toFixed(1)},${yFor(st).toFixed(1)}`).join(" ");
+    const endX = xFor(n - 1), endY = yFor(pts[n - 1]);
+    const dim = ((activeFilter !== "all" && activeFilter !== r.standing) || (momFilter !== "all" && momFilter !== r.momentumKind)) ? " is-dim" : "";
+    const emphasis = r.team.record_id === moverId ? " is-mover" : (r.team.record_id === slipId ? " is-slip" : "");
+    const mk = MOMENTUM[r.momentumKind];
+    const name = r.team.name || r.team.record_id;
+    const delta = momentumDeltaLabel(r.momentum);
+    const showDelta = r.momentum != null && r.momentum !== 0;
     return `
-      <button type="button" class="ac-stack-team ac-gp-row is-${escAttr(r.standing)}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${spec.color}" aria-label="${escAttr(aria)}">
-        <span class="ac-gp-name">${escHtml(r.team.name || r.team.record_id)}</span>
-        <span class="ac-gp-track">
-          ${arrow}
-          <span class="ac-gp-dot" style="left:${x}%"></span>
-        </span>
-        <span class="ac-gp-goal">${goal}</span>
-      </button>`;
-  };
+      <g class="ac-traj-team is-${escAttr(r.standing)}${dim}${emphasis}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color}" tabindex="0" role="button" aria-label="${escAttr(`${name}: stage ${pts[n - 1]} of 8${r.momentum != null ? `, ${mk.word}${showDelta ? " " + delta : ""} over ${n - 1} week${n - 1 === 1 ? "" : "s"}` : ""}`)}">
+        <title>${escHtml(name)} — stage ${escHtml(String(pts[n - 1]))}/8 · ${escHtml(mk.word)}${showDelta ? " " + escHtml(delta) : ""}</title>
+        <polyline class="ac-traj-hit" points="${poly}"/>
+        <polyline class="ac-traj-line" points="${poly}"/>
+        <text class="ac-traj-mom" x="${(endX + 7).toFixed(1)}" y="${(endY + 3.5).toFixed(1)}">${mk.glyph}</text>
+        <text class="ac-traj-endlab" x="${(W - PAD_R + 18).toFixed(1)}" y="${(endY + 3).toFixed(1)}">${escHtml(constShortText(name, 13))}</text>
+      </g>`;
+  }).join("");
+
   const untrackedHtml = untracked.length ? `
       <div class="ac-gp-untracked">
-        <span class="ac-gp-untracked-head">no standing read yet</span>
+        <span class="ac-gp-untracked-head">${untracked.length} team${untracked.length === 1 ? "" : "s"} with no standing read yet</span>
         <div class="ac-gp-untracked-list">
           ${untracked.map(r => `<button type="button" class="ac-stack-team ac-gp-chip" data-const-team="${escAttr(r.team.record_id)}" aria-label="${escAttr((r.team.name || r.team.record_id) + ": no standing read yet")}">${escHtml(r.team.name || r.team.record_id)}</button>`).join("")}
         </div>
       </div>` : "";
-  const emptyFiltered = activeFilter === "all" || visibleTracked.length ? "" : `
-      <p class="ac-stack-empty ac-gp-filter-empty">no ${escHtml(CONST_GOAL_STANDING[activeFilter].label)} teams in this read.</p>`;
+
   return `
-    <div class="ac-stack-view is-goalplan" data-standing-filter="${escAttr(activeFilter)}">
-      ${head}
-      <div class="ac-gp-rows">
-        ${visibleTracked.map(row).join("")}
-        ${emptyFiltered}
+    <div class="ac-stack-view is-trajectory" data-standing-filter="${escAttr(activeFilter)}">
+      ${constGoalInsightHtml(summary, momFilter)}
+      <div class="ac-traj-chart">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Team PMF-stage trajectories over recent weeks toward graduation at stage 8, coloured by standing with momentum markers">
+          ${grid}${goalLab}${xlabs}
+          ${lines}
+        </svg>
       </div>
-      ${activeFilter === "all" ? untrackedHtml : ""}
-      <p class="ac-gp-note">v0.1 · standing is self-reported confidence against each team's own goal — not a shared spectrum. Week-over-week momentum (recovering / slipping) lights up once transcripts feed the loop.</p>
+      ${untrackedHtml}
+      <p class="ac-gp-note">Each line = a team's PMF stage week over week · colour = standing. Hover a line to read a team.</p>
     </div>`;
+}
+
+// Target stage for the "targets" view — the team's aim, with provenance.
+// Prefers a REAL declared target (Supabase team_standing_weekly.target_stage,
+// surfaced via the standing-weekly artifact) and reports it as declared:true.
+// When no target is set there (target_stage NULL → the team hasn't declared
+// one) it falls back to a stable derived aim 1–3 stages ahead of current and
+// reports declared:false, so the view renders it as an estimate rather than
+// passing a guess off as a real goal. Returns { value, declared }.
+function constStandingTarget(team, current) {
+  const t = standingWeeklyTeam(team?.record_id);
+  if (t && Number.isFinite(t.target_stage)) {
+    return { value: Math.max(current, Math.min(8, t.target_stage)), declared: true };
+  }
+  const head = 1 + Math.round(2 * ((journeyJitter(team.record_id, "target") + 1) / 2));
+  return { value: Math.max(current, Math.min(8, current + head)), declared: false };
+}
+
+// Targets view (option B): current stage (●) vs each team's target (▽) on a
+// shared 0→8 axis; the bar is the gap left to close. Sorted by largest gap so
+// who-has-furthest-to-go leads. Standing filter dims off-standing rows. Snapshot
+// counterpart to the standing trajectory (which shows movement over time).
+function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "all") {
+  const tracked = model?.tracked || [];
+  const untracked = model?.untracked || [];
+  const activeFilter = constNormalizeGoalStandingFilter(standingFilter);
+  const momFilter = constNormalizeGoalMomentumFilter(momentumFilter);
+  if (!tracked.length && !untracked.length) return `<p class="ac-stack-empty">no teams to track yet.</p>`;
+  const summary = model?.summary || null;
+  const pct = (st) => Math.round(Math.max(0, Math.min(8, st)) / 8 * 1000) / 10;
+  const rows = tracked.map(r => ({ r, cur: r.stage, tgt: r.target, declared: r.targetDeclared, gap: Math.max(0, r.target - r.stage) }))
+    .sort((a, b) => b.gap - a.gap || String(a.r.team.name || "").localeCompare(String(b.r.team.name || "")));
+  // Tick names match the canonical JOURNEY_STAGE_LABELS (stage 4 = mvp, 6 =
+  // emerging pmf) anchored to their stage number, so the axis reads on the same
+  // 0–8 scale as the "cur → tgt" values and never contradicts the PMF view.
+  const ticks = [{ v: 0, l: "0" }, { v: 4, l: "mvp · 4" }, { v: 6, l: "pmf · 6" }, { v: 8, l: "grad · 8" }];
+  const axis = `<div class="ac-tgt-axis"><span></span><div class="ac-tgt-ticks">${ticks.map(t => `<span class="ac-tgt-tick" style="left:${pct(t.v)}%">${t.l}</span>`).join("")}</div><span></span></div>`;
+  const rowHtml = rows.map(({ r, cur, tgt, gap, declared }) => {
+    const color = CONST_GOAL_STANDING[r.standing].color;
+    // Momentum still dims rows (the insight strip's momentum chips filter here),
+    // but momentum is the trajectory view's job — this view stays on the gap.
+    const dim = ((activeFilter !== "all" && activeFilter !== r.standing) || (momFilter !== "all" && momFilter !== r.momentumKind)) ? " is-dim" : "";
+    // Provenance: a real declared aim (Supabase) renders authoritative; a derived
+    // backup renders as an estimate (hollow ▽, dashed gap, "est" tag) so the view
+    // never passes a placeholder off as a real goal.
+    const tcls = declared ? " is-declared" : " is-derived";
+    const name = r.team.name || r.team.record_id;
+    const gapL = pct(cur), gapW = Math.round((pct(tgt) - pct(cur)) * 10) / 10;
+    return `<button type="button" class="ac-stack-team ac-tgt-row is-${escAttr(r.standing)}${dim}${tcls}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color}" aria-label="${escAttr(`${name}: stage ${cur} of 8, ${declared ? "target" : "estimated target"} ${tgt}, gap ${gap}`)}">
+      <span class="ac-tgt-name">${escHtml(name)}</span>
+      <span class="ac-tgt-track">
+        <span class="ac-tgt-base"></span>
+        ${gapW > 0 ? `<span class="ac-tgt-gap" style="left:${gapL}%;width:${gapW}%"></span>` : ""}
+        <span class="ac-tgt-cur" style="left:${pct(cur)}%" aria-hidden="true"></span>
+        <span class="ac-tgt-target" style="left:${pct(tgt)}%" aria-hidden="true">▽</span>
+      </span>
+      <span class="ac-tgt-val">${cur}<span class="ac-tgt-tval"> → ${tgt}${declared ? "" : `<i>est</i>`}</span></span>
+    </button>`;
+  }).join("");
+  const untrackedHtml = untracked.length ? `
+      <div class="ac-gp-untracked">
+        <span class="ac-gp-untracked-head">${untracked.length} team${untracked.length === 1 ? "" : "s"} with no standing read yet</span>
+        <div class="ac-gp-untracked-list">
+          ${untracked.map(r => `<button type="button" class="ac-stack-team ac-gp-chip" data-const-team="${escAttr(r.team.record_id)}" aria-label="${escAttr((r.team.name || r.team.record_id) + ": no standing read yet")}">${escHtml(r.team.name || r.team.record_id)}</button>`).join("")}
+        </div>
+      </div>` : "";
+  return `
+    <div class="ac-stack-view is-targets" data-standing-filter="${escAttr(activeFilter)}">
+      ${constGoalInsightHtml(summary, momFilter)}
+      ${axis}
+      <div class="ac-tgt-rows">${rowHtml}</div>
+      ${untrackedHtml}
+      <p class="ac-gp-note">● current stage · ▽ target (faded = estimated) · bar = gap to close. Hover a row to read a team.</p>
+    </div>`;
+}
+
+function renderTargets() {
+  const cohort = activeConstellationCohort();
+  const teams = cohort.teams || [];
+  const goalModel = constGoalPlanModel(state.cohort?.teams || teams);
+  const standingFilter = constNormalizeGoalStandingFilter(state.goalStandingFilter);
+  const momentumFilter = constNormalizeGoalMomentumFilter(state.goalMomentumFilter);
+  const standingChip = (key) => {
+    const spec = CONST_GOAL_STANDING[key];
+    const count = goalModel.counts[key] || 0;
+    return `<button type="button" class="ac-sent-evi is-standing is-standing-${escAttr(key)}" data-standing-filter="${escAttr(key)}" aria-pressed="${standingFilter === key ? "true" : "false"}" aria-label="${escAttr(`${spec.label}: ${count} teams${standingFilter === key ? " — click to clear" : " — click to isolate"}`)}">
+      <i class="ac-sent-dot" aria-hidden="true"></i><em>${escHtml(String(count))}</em>&nbsp;${escHtml(spec.label)}
+    </button>`;
+  };
+  const sentenceBar = `
+    <div class="ac-sentence" role="group" aria-label="team target gaps">
+      <span class="ac-sent-word">aiming</span>
+      <strong class="ac-sent-fact">${goalModel.tracked.length} teams</strong>
+      <span class="ac-sent-word">at a target stage</span>
+      <span class="ac-sent-word">· by standing</span>
+      ${CONST_GOAL_STANDING_KEYS.map(standingChip).join("")}
+    </div>`;
+  state.canvas.innerHTML = `
+    <div class="alch-cohort-page" data-cohort-view="targets">
+    ${cohortPageHead("targets")}
+    <div class="alch-view-controls" data-shape-occluder>${constTimelineDropdownHtml()}${sentenceBar}${constSelectionChipHtml()}</div>
+    <div class="alch-constellation" data-constellation-view="targets">
+      <div class="alch-const-workbench is-single">
+        <div class="alch-const-main">
+          <div class="alch-constellation-stage ac-stack-stage" data-view="targets" data-lens="all" tabindex="0" aria-label="team current stage versus target">
+            ${constGoalTargetsHtml(goalModel, standingFilter, momentumFilter)}
+            <div class="ac-tip" hidden></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  `;
+  markConstellationSelection(state.constSelection);
 }
 
 function renderProductStack() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
-  const clusters = cohort.clusters || [];
-  const teamById = new Map(teams.filter(t => t?.record_id).map(t => [t.record_id, t]));
-  const edges = constellationDependencyEdges(teams, teamById, cohort?.dependencies || [])
-    .filter(e => teamById.has(e.from) && teamById.has(e.to));
-  const baseCtx = {
-    ...constellationInspectorContext(teams, edges, cohort?.people || []),
-    clusters,
-    mode: "stack",
-    lens: "all",
-    interest: constInterestContext(teams, clusters, edges, state.constInterest),
-  };
-  const goalModel = constGoalPlanModel(teams);
-  const inspectorCtx = { ...baseCtx, stackModel: goalModel };
-  const domainPin = "";
+  const goalModel = constGoalPlanModel(state.cohort?.teams || teams);
   const standingFilter = constNormalizeGoalStandingFilter(state.goalStandingFilter);
+  const momentumFilter = constNormalizeGoalMomentumFilter(state.goalMomentumFilter);
   const standingChip = (key) => {
     const spec = CONST_GOAL_STANDING[key];
     const count = goalModel.counts[key] || 0;
@@ -5493,21 +5649,20 @@ function renderProductStack() {
     <div class="ac-sentence" role="group" aria-label="team standing summary">
       <span class="ac-sent-word">tracking</span>
       <strong class="ac-sent-fact">${goalModel.tracked.length} teams</strong>
-      <span class="ac-sent-word">against their own declared goals</span>
-      <span class="ac-sent-word">· keyed by</span>
+      <span class="ac-sent-word">toward graduation</span>
+      <span class="ac-sent-word">· by standing</span>
       ${CONST_GOAL_STANDING_KEYS.map(standingChip).join("")}
-      ${constGoalPlanReadLine(goalModel)}
     </div>`;
   const selectionChip = constSelectionChipHtml();
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="stack">
     ${cohortPageHead("stack")}
-    <div class="alch-view-controls" data-shape-occluder>${sentenceBar}${selectionChip}</div>
+    <div class="alch-view-controls" data-shape-occluder>${constTimelineDropdownHtml()}${sentenceBar}${selectionChip}</div>
     <div class="alch-constellation" data-constellation-view="stack">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
-          <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" data-domain-pin="${escAttr(domainPin)}" tabindex="0" aria-label="team standing against plan">
-            ${constGoalPlanHtml(goalModel, standingFilter)}
+          <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" tabindex="0" aria-label="team standing against plan">
+            ${constGoalPlanHtml(goalModel, standingFilter, momentumFilter)}
             <div class="ac-tip" hidden></div>
           </div>
         </div>
@@ -5695,21 +5850,6 @@ function constPersonTipHTML(person, model, ctx) {
   return html;
 }
 
-// Relationship-map read — the network's actual shape (people / project groups
-// / inferred links), continuing the "showing people" sentence inline.
-function constMapReadLine(model, peopleLinkFilter = "all") {
-  const nPeople = model?.personPositions?.size || 0;
-  const nGroups = (model?.groups || []).filter(g => g.kind !== "unattached").length;
-  const activeFilter = constNormalizePeopleLinkFilter(peopleLinkFilter);
-  const counts = constPeopleLinkCounts(model?.edges || []);
-  const nLinks = activeFilter === "all" ? counts.total : (counts[activeFilter] || 0);
-  const filterSpec = constPeopleLinkSpec(activeFilter);
-  if (!nPeople) return "";
-  return constReadLine(
-    `${nGroups} project group${nGroups === 1 ? "" : "s"}`,
-    nLinks ? `${nLinks} ${filterSpec ? `${filterSpec.label} ` : ""}inferred link${nLinks === 1 ? "" : "s"}, conversation leads` : null
-  );
-}
 
 function renderConstellationPeople(teams, people, clusters, edges) {
   const W = 1120, H = 620;
@@ -5766,10 +5906,10 @@ function renderConstellationPeople(teams, people, clusters, edges) {
   }).join("");
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="map">
-      ${cohortPageHead("map", { dek: "How people connect — grouped by project, linked by shared work and overlapping context." })}
+      ${cohortPageHead("map")}
       <div class="alch-view-controls" data-shape-occluder>
+        ${constTimelineDropdownHtml()}
         ${constellationSentenceBar({ scope: "people", metrics: { total: peopleLinkCounts.total, peopleLinkCounts }, peopleLinkFilter })}
-        ${constMapReadLine(model, peopleLinkFilter)}
         ${constSelectionChipHtml()}
       </div>
       <div class="alch-constellation" data-constellation-view="map" data-constellation-scope="people">
@@ -6001,7 +6141,10 @@ function setConstellationTimelineIdx(rawIdx) {
   if (state.mode === "constellation") {
     renderConstellation();
     wireConstellationHover();
+    return;
   }
+  // Directory (shapes) and any other timeline-aware view re-render generically.
+  render();
 }
 
 function wireConstellationTimelineControls(root = state.canvas) {
@@ -6087,25 +6230,6 @@ function renderConstellationDeltaLedger(delta) {
     </section>`;
 }
 
-// Project-network read — cluster structure + the most-depended-on team, the
-// shape the "showing projects as wells…" sentence doesn't already state.
-// Continues that sentence inline.
-function constConstellationReadLine(teams, clusters, edges) {
-  const nTeams = (teams || []).filter(t => t?.record_id && teamKind(t) !== "person").length;
-  const nClusters = (clusters || []).length;
-  if (!nTeams) return "";
-  const indeg = new Map();
-  for (const e of (edges || [])) indeg.set(e.to, (indeg.get(e.to) || 0) + 1);
-  let keystone = null, kmax = 0;
-  for (const [rid, n] of indeg) if (n > kmax) { kmax = n; keystone = rid; }
-  const kName = keystone ? ((teams.find(t => t.record_id === keystone)?.name) || keystone) : null;
-  // Lead with the keystone (the shape the "lined by N" dial can't show); the
-  // dials already carry the team and relationship counts.
-  const clustersLabel = `${nClusters} cluster${nClusters === 1 ? "" : "s"}`;
-  return (kName && kmax > 1)
-    ? constReadLine(`${kName} most depended-on (${kmax})`, clustersLabel)
-    : constReadLine(clustersLabel, null);
-}
 
 function renderConstellation() {
   const cohort = activeConstellationCohort();
@@ -6119,6 +6243,7 @@ function renderConstellation() {
   if (mode === "collab") { renderCollab(); return; }
   if (mode === "journey") { renderJourney(); return; }
   if (mode === "stack") { renderProductStack(); return; }
+  if (mode === "targets") { renderTargets(); return; }
 
   const lens = constNormalizeConstellationLens(state.constellationLens);
   state.constellationLens = lens;
@@ -6309,8 +6434,8 @@ function renderConstellation() {
     ${cohortPageHead(viewMode)}
     ${viewMode === "map" || viewMode === "ring" ? `
       <div class="alch-view-controls" data-shape-occluder>
+        ${constTimelineDropdownHtml()}
         ${constellationSentenceBar({ view: viewMode, scope: "projects", lens, metrics: { edges: coverage.edges, ...relationshipBreakdown }, tier: edgeTier })}
-        ${constConstellationReadLine(teams, clusters, edges)}
         ${constSelectionChipHtml()}
       </div>` : ""}
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
@@ -7206,15 +7331,6 @@ function wireConstellationHover() {
       render();
     });
   }
-  // Domain chips (product layer): hover previews, click pins the domain.
-  for (const chip of state.canvas.querySelectorAll("[data-domain-pin-toggle]")) {
-    chip.addEventListener("click", () => {
-      const k = constNormalizeDomainPin(chip.dataset.domainPinToggle);
-      state.constDomainPin = state.constDomainPin === k ? "all" : k;
-      try { localStorage.setItem(CONST_DOMAIN_LS_KEY, state.constDomainPin); } catch {}
-      render();
-    });
-  }
   for (const target of state.canvas.querySelectorAll(".ac-distribution-card [data-const-interest]")) {
     const selectDistributionInterest = (e) => {
       e.preventDefault();
@@ -7264,6 +7380,15 @@ function wireConstellationHover() {
     btn.addEventListener("click", () => {
       const next = constNormalizeGoalStandingFilter(btn.dataset.standingFilter);
       state.goalStandingFilter = state.goalStandingFilter === next ? "all" : next;
+      render();
+    });
+  }
+  // Momentum chips in the insight strip filter by movement (climbing/slipping/
+  // steady) — orthogonal to the standing filter; both dim together.
+  for (const btn of state.canvas.querySelectorAll("[data-momentum-filter]")) {
+    btn.addEventListener("click", () => {
+      const next = constNormalizeGoalMomentumFilter(btn.dataset.momentumFilter);
+      state.goalMomentumFilter = state.goalMomentumFilter === next ? "all" : next;
       render();
     });
   }
@@ -7525,6 +7650,23 @@ function wireConstellationModeNav() {
       } catch {}
       syncRailSelection();
       render();
+    });
+  }
+  // Roving-tabindex tablist keyboard contract: arrows/Home/End move focus
+  // between tabs (manual activation — Enter/Space fires the native click above
+  // to switch the view), matching the role="tablist" the markup promises.
+  const tabs = [...state.canvas.querySelectorAll(".alch-page-view-btn[data-const-mode]")];
+  for (const btn of tabs) {
+    btn.addEventListener("keydown", (e) => {
+      const i = tabs.indexOf(btn);
+      let j = -1;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") j = (i + 1) % tabs.length;
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") j = (i - 1 + tabs.length) % tabs.length;
+      else if (e.key === "Home") j = 0;
+      else if (e.key === "End") j = tabs.length - 1;
+      else return;
+      e.preventDefault();
+      tabs[j].focus();
     });
   }
 }
@@ -9103,7 +9245,17 @@ function collabVisibleOrder(m, filter = "all", sort = "cluster") {
     return ((k?.inbound?.length || 0) * 2) + (k?.outbound?.length || 0);
   };
   const introPotential = (o) => intro.get(o.rid)?.score || 0;
-  const out = m.ordered.filter(teamHas);
+  // Collapse the default board to teams that actually carry a matrix signal —
+  // a dependency (either direction) or a matched seek/offer. A 26×26 grid whose
+  // densest layer fills ~12% of cells reads as empty; a team with no signal is
+  // an all-blank row + column. Render and wiring share this function, so the
+  // dropped indices stay consistent everywhere. Explicit scope filters
+  // (seeking / offering) still show every team that DECLARED that field —
+  // matched or not — so those token counts stay honest.
+  const signalled = new Set();
+  for (const key of m.deps) { const gt = key.indexOf(">"); signalled.add(key.slice(0, gt)); signalled.add(key.slice(gt + 1)); }
+  for (const s of m.seekOffer) { signalled.add(s.seeker); signalled.add(s.offerer); }
+  const out = m.ordered.filter(o => teamHas(o) && (filter !== "all" || signalled.has(o.rid)));
   if (sort === "intro") {
     return out.sort((a, b) =>
       introPotential(b) - introPotential(a)
@@ -9274,7 +9426,7 @@ function collabLegendHtml(lens = "all") {
       ${filterEntry({ cell: "dep", lens: "deps", mark: "dep", label: "dependency", desc: "This row team relies on the column team to do its work. Read it as: row needs column." })}
       ${filterEntry({ cell: "so", lens: "needs", mark: "so", label: "seek / offer", desc: "The row team is seeking something the column team has offered. Read it as: row seeks → column provides. A concrete match to introduce." })}
       ${keyEntry({ cell: "scale", mark: "so-scale", label: "match strength", desc: "How strong a seek/offer match is, shown by the cell's teal depth: paler = fewer shared terms, darker = more overlap." })}
-      ${keyEntry({ cell: "key", mark: "key", label: "keystone", desc: "A team many others depend on; its column is densely filled." })}
+      ${keyEntry({ cell: "key", mark: "key", label: "most depended-on", desc: "A team many others depend on; its column is densely filled." })}
     </div>`;
 }
 
@@ -9297,8 +9449,8 @@ function collabInspectorDefaultHtml(m) {
   const convergenceCount = (m.convergence || []).length;
   const trailerLinks = [
     introCount ? { id: "intros", label: `${introCount} intro${introCount === 1 ? "" : "s"} to make` } : null,
-    underusedCount ? { id: "offers", label: `${underusedCount} underused offer${underusedCount === 1 ? "" : "s"}` } : null,
-    convergenceCount ? { id: "convergence", label: `${convergenceCount} convergence area${convergenceCount === 1 ? "" : "s"}` } : null,
+    underusedCount ? { id: "offers", label: `${underusedCount} unmatched offer${underusedCount === 1 ? "" : "s"}` } : null,
+    convergenceCount ? { id: "convergence", label: `${convergenceCount} shared focus area${convergenceCount === 1 ? "" : "s"}` } : null,
   ].filter(Boolean);
   const hero = best
     ? `
@@ -9308,7 +9460,7 @@ function collabInspectorDefaultHtml(m) {
     : `
         <div class="cb-inspector-kicker">collab context</div>
         <h4 class="cb-inspector-title">select a signal</h4>
-        <p class="cb-inspector-copy">Click a row, column, cluster band, or cell to inspect who is involved, why the connection exists, and where to route next.</p>`;
+        <p class="cb-inspector-copy">Click a row, column, cluster band, or cell to inspect who is involved, why the connection exists, and what to do next.</p>`;
   return `
     <div class="cb-inspector-hero">
       <div class="cb-inspector-identity">${hero}
@@ -10325,7 +10477,7 @@ function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = nu
   // Single mark; the strongest signal's CSS styles its shape (triangle = dep,
   // diamond = seek/offer). Under an active lens the shape is forced to that
   // lens's signal so the filtered view is internally consistent.
-  return `<button type="button" class="${cls}" data-row="${ri}" data-col="${ci}" ${actionAttr} title="${escAttr(title)}"><span class="cb-mark" aria-hidden="true"></span></button>`;
+  return `<button type="button" class="${cls}" data-row="${ri}" data-col="${ci}" ${actionAttr} aria-label="${escAttr(`${R.team.name} → ${C.team.name}: ${lines.join("; ")}`)}" title="${escAttr(title)}"><span class="cb-mark" aria-hidden="true"></span></button>`;
 }
 
 function collabGroupBand(ordered, colN, selected = null) {
@@ -10343,26 +10495,6 @@ function collabGroupBand(ordered, colN, selected = null) {
   return `<div class="cb-row cb-bandrow" style="${colN}"><div class="cb-band-corner" aria-hidden="true"></div>${cells}</div>`;
 }
 
-// Bare collab read — a cohort-level orientation line for the matrix, which
-// otherwise fills the whole viewport with no stage-width "what am I looking
-// at". Summarises the board's two mark types (ready intros · declared
-// dependencies) and where the cohort converges. Deliberately distinct from
-// the inspector's pairwise "top intro X → Y" hero, so neither hollows the
-// other — the read is the macro shape, the inspector is the specific signal.
-function constCollabReadLine(m) {
-  const deps = m?.deps?.size || 0;
-  const pairs = new Set();
-  for (const s of (m?.seekOffer || [])) pairs.add(collabAffKey(s.seeker, s.offerer));
-  const intros = pairs.size;
-  if (!intros && !deps) return constReadLine("no collaboration signals yet", null);
-  const conv = (m?.convergence || []).slice().sort((a, b) => b.count - a.count)[0] || null;
-  // "ready intros" is the actionable deduped count (not the raw signal total
-  // the dial shows); the deps count lives in the lens, so it's dropped here.
-  return constReadLine(
-    `${intros} ready intro${intros === 1 ? "" : "s"}`,
-    conv ? `converges on ${conv.skill} (${conv.count} teams)` : null
-  );
-}
 
 function renderCollab() {
   const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
@@ -10378,6 +10510,11 @@ function renderCollab() {
   const ordered = collabVisibleOrder(m, teamFilter, sort);
   const N = ordered.length;
   const totalN = m.ordered.length;
+  // The default board now hides teams with no matrix signal (see
+  // collabVisibleOrder). boardAllN = how many remain on the "all teams" board;
+  // hiddenN = how many were dropped, owned honestly in a note under the grid.
+  const boardAllN = collabVisibleOrder(m, "all", sort).length;
+  const hiddenN = Math.max(0, totalN - boardAllN);
   const lens = state.collabLens || "all";
   const selected = collabSelectionVisible(state.collabSelection, ordered, m);
   if (state.collabSelection && !selected) state.collabSelection = null;
@@ -10396,7 +10533,7 @@ function renderCollab() {
   ];
   const sortMeta = [
     { key: "cluster", label: "cluster", note: "rows grouped by ecosystem cluster" },
-    { key: "intro", label: "intro potential", note: "strongest seek ↔ offer matches first" },
+    { key: "intro", label: "best matches first", note: "strongest seek ↔ offer matches first" },
     { key: "dependency", label: "dependency pressure", note: "most-depended-on teams first" },
   ];
   const activeLensMeta = lensMeta.find(l => l.key === lens) || lensMeta[0];
@@ -10426,7 +10563,7 @@ function renderCollab() {
   const teamsSeeking = m.ordered.filter(o => collabHasText(o.team.seeking)).length;
   const teamsOffering = m.ordered.filter(o => collabHasText(o.team.offering)).length;
   const teamMeta = [
-    { key: "all",    label: "all teams",      note: "every team on the board", count: totalN },
+    { key: "all",    label: "all teams",      note: "every team with a signal on the board", count: boardAllN },
     { key: "needs",  label: "teams seeking",  note: "have a declared seek",     count: teamsSeeking },
     { key: "offers", label: "teams offering", note: "have a declared offer",    count: teamsOffering },
   ];
@@ -10442,6 +10579,7 @@ function renderCollab() {
   });
   const controlBar = `
     <div class="cb-controls">
+      ${constTimelineDropdownHtml()}
       <div class="ac-sentence" role="group" aria-label="collab board controls">
         <span class="ac-sent-word">showing</span>
         ${lensUnit}
@@ -10449,7 +10587,6 @@ function renderCollab() {
         ${teamUnit}
         <span class="ac-sent-word">· sorted by</span>
         ${sortUnit}
-        ${constCollabReadLine(m)}
       </div>
       <div class="cb-control-actions">
         <button class="cb-intake-open" type="button" data-collab-intake-open>
@@ -10490,10 +10627,14 @@ function renderCollab() {
   const inspectorHtml = selected ? collabInspectorHtmlForSelection(selected, m) : collabInspectorDefaultHtml(m);
   const inspector = `<aside class="cb-inspector" data-collab-inspector aria-live="polite">${inspectorHtml}</aside>`;
   const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div><div class="cb-matrix-side lg-track"><div class="cb-matrix-key">${collabLegendHtml(lens)}</div>${inspector}</div>`;
+  const matrixNote = hiddenN
+    ? `<p class="cb-hint cb-grid-hidden">${hiddenN} team${hiddenN === 1 ? "" : "s"} with no declared signal yet — find them in the directory.</p>`
+    : "";
   const matrix = `
-    <section class="alch-cb-section cb-matrix-section" aria-label="collaboration signal board">
+    <section class="alch-cb-section cb-matrix-section" data-cb-section="grid" aria-label="dependency and seek/offer grid">
+      <div class="alch-cb-sechead"><h3>Who needs whom</h3><span class="cb-sub">rows need, columns provide</span></div>
       <div class="cb-scroll">${matrixBody}</div>
-      <p class="cb-hint">hover a name to preview · click a cell or team for detail</p>
+      ${matrixNote}
     </section>`;
 
   // intros to make — strongest seek↔offer per unordered pair
@@ -10515,7 +10656,7 @@ function renderCollab() {
   }).join("");
   const introSection = `
     <section class="alch-cb-section" data-cb-section="intros">
-      <div class="alch-cb-sechead"><h3>Intros to make</h3><span class="cb-sub">strongest seek ↔ offer overlaps — the conversations to schedule</span></div>
+      <div class="alch-cb-sechead"><h3>Intros to make</h3><span class="cb-sub">seek ↔ offer overlaps</span></div>
       <div class="cb-intro-grid">${introCards || '<p class="cb-empty">no overlaps found.</p>'}</div>
     </section>`;
 
@@ -10539,7 +10680,7 @@ function renderCollab() {
   }).join("");
   const underusedSection = `
     <section class="alch-cb-section" data-cb-section="offers">
-      <div class="alch-cb-sechead"><h3>Underused offers</h3><span class="cb-sub">declared help with the lowest matched demand — useful supply to route better</span></div>
+      <div class="alch-cb-sechead"><h3>Unmatched offers</h3><span class="cb-sub">no team matched yet</span></div>
       <div class="cb-intro-grid">${underusedCards || '<p class="cb-empty">no underused offers found.</p>'}</div>
     </section>`;
 
@@ -10556,7 +10697,7 @@ function renderCollab() {
   }).join("");
   const convSection = `
     <section class="alch-cb-section" data-cb-section="convergence">
-      <div class="alch-cb-sechead"><h3>Convergence</h3><span class="cb-sub">skill areas shared by 3+ teams — where the cohort concentrates</span></div>
+      <div class="alch-cb-sechead"><h3>Shared focus areas</h3><span class="cb-sub">shared by 3+ teams</span></div>
       <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
     </section>`;
 
@@ -10567,9 +10708,11 @@ function renderCollab() {
     <div class="alch-collab">
       ${matrix}
       ${introSection}
-      ${underusedSection}
-      ${convSection}
-      <p class="alch-callout"><strong>collaboration board · v0.1</strong><br/>Self-asserted only — affinities are shared <code>skill_areas</code>, intros are <code>seeking</code>↔<code>offering</code> term overlaps. No inferred or private scoring.</p>
+      <div class="cb-cohort-shape">
+        ${convSection}
+        ${underusedSection}
+      </div>
+      <p class="alch-callout">Everything here is self-declared by teams — shared focus areas, seeks, and offers come straight from profiles. Nothing is inferred or privately scored.</p>
     </div>
     </div>`;
 }
@@ -11370,14 +11513,6 @@ function contextNormalizeView(raw) {
   return (v === "articles" || v === "raw" || v === "signals" || v === "data" || v === "evidence") ? v : "articles";
 }
 
-const CONTEXT_VIEW_DEK = {
-  articles: "Reader-facing drafts distilled from the cohort's context vault.",
-  raw: "The transcripts behind the articles, with review metadata and calendar matches.",
-  signals: "Vault-backed reads on cohort moves worth making — grounded, inferred, speculative.",
-  data: "The sanitized entity graph behind the signals — people, projects, surfaces.",
-  evidence: "Distilled transcript knowledge — named cohort session summaries, or person-anonymized public cards.",
-};
-
 const CONTEXT_VIEWS = [
   { view: "articles", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>', label: "articles", hint: "reader-facing drafts from the vault" },
   { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "raw source transcripts with review metadata" },
@@ -12059,7 +12194,7 @@ function renderContextVault() {
     const insights = Array.isArray(state.cohort?.session_insights) ? state.cohort.session_insights : [];
     state.canvas.innerHTML = `
       <section class="alch-cv">
-        ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK.evidence, nav })}
+        ${pageHeadHtml({ nav })}
         ${renderContextEvidence(tier, cards, insights)}
       </section>
     `;
@@ -12071,7 +12206,7 @@ function renderContextVault() {
   if (view === "signals" || view === "data") {
     state.canvas.innerHTML = `
       <section class="alch-cv">
-        ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK[view], nav })}
+        ${pageHeadHtml({ nav })}
         <div class="alch-cv-intel"></div>
       </section>
     `;
@@ -12110,7 +12245,7 @@ function renderContextVault() {
 
   state.canvas.innerHTML = `
     <section class="alch-cv">
-      ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK[view], nav })}
+      ${pageHeadHtml({ nav })}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
       <div class="alch-cv-layout">

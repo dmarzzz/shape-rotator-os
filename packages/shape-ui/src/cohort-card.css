@@ -192,31 +192,21 @@
   gap: 6px;
   margin-top: 3px;
 }
+/* Inert hint, not a control. After the hover popover was removed (the bio
+   lives in the detail view), the pill border + oxide-hot hover made a no-op
+   span read as a button. Stripped to a plain quiet label so it stops
+   advertising an interaction it doesn't have. */
 .alch-card-peek {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
   font-family: var(--ed-mono);
   font-size: 9px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--ed-ink-1);
-  opacity: 0.5;
-  background: rgba(241, 236, 231, 0.03);
-  border: 1px solid rgba(241, 236, 231, 0.10);
-  border-radius: 999px;
+  opacity: 0.4;
   cursor: default;
   user-select: none;
-  transition: opacity 150ms ease-out, color 150ms ease-out,
-              background 150ms ease-out, border-color 150ms ease-out;
-}
-.alch-card-peek:hover,
-.alch-card-peek:focus-visible {
-  opacity: 1;
-  color: var(--alchemy-oxide-hot);
-  background: color-mix(in srgb, var(--alchemy-oxide-hot) 12%, transparent);
-  border-color: color-mix(in srgb, var(--alchemy-oxide-hot) 50%, transparent);
-  outline: none;
 }
 
 /* ─── title block ─────────────────────────────────────────────────── */

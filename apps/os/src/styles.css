@@ -6541,9 +6541,9 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .alch-constellation-stage svg .ac-node-shape { fill: var(--alchemy-oxide); stroke: var(--alchemy-oxide-bright); stroke-width: 0.8; }
 .alch-constellation-stage svg .ac-node-mentor { fill: transparent; stroke: var(--alchemy-paper-warm); stroke-width: 1; opacity: 0.85; }
 .alch-constellation-stage svg .ac-node-label {
-  fill: rgba(245,243,238,0.72);
-  opacity: 0.64;
-  font-family: var(--font-mono); font-size: 7px; letter-spacing: 0; text-transform: uppercase;
+  fill: rgba(245,243,238,0.82);
+  opacity: 0.8;
+  font-family: var(--font-mono); font-size: 8px; letter-spacing: 0; text-transform: uppercase;
   paint-order: stroke;
   stroke: rgba(10,9,9,0.86);
   stroke-width: 2.6px;
@@ -6557,10 +6557,10 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   stroke-width: 3px;
 }
 .alch-constellation-stage[data-view="map"] svg .ac-node-group.is-secondary-label .ac-node-label {
-  fill: rgba(245,243,238,0.68);
-  opacity: 0.64;
-  font-size: 6.8px;
-  stroke-width: 2.4px;
+  fill: rgba(245,243,238,0.78);
+  opacity: 0.82;
+  font-size: 8px;
+  stroke-width: 2.6px;
 }
 .alch-constellation-stage[data-view="map"] svg .ac-node-group.is-secondary-label:hover .ac-node-label,
 .alch-constellation-stage[data-view="map"] svg .ac-node-group.is-secondary-label.is-selected .ac-node-label,
@@ -8215,87 +8215,234 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-dist-row.is-selected span {
   color: var(--alchemy-paper-warm);
 }
-/* ── product layer slot · team standing vs their own plan (v0.1) ────
-   Rows of arrows, self-referenced: a center "on plan" line is the team's
-   own goal; the dot is reported standing; behind teams get a catch-up
-   arrow. Rows reuse the .ac-stack-team glass tile (border / sheen / hover
-   lift), tinted by standing colour; layout scoped under .is-goalplan. */
-.ac-stack-view.is-goalplan {
+/* ── team standing · trajectory toward graduation ──────────────────────
+   Standing is drawn as a line chart: each tracked team's PMF stage over recent
+   weeks, rising toward the shared graduation target (the dashed line at stage
+   8). "Aim" = that line; "how they're against it" = the gap below it. Lines are
+   dashed + faint at rest (signalling ILLUSTRATIVE until week-over-week momentum
+   is wired) and solidify on hover; only the rightmost point is real today. The
+   standing filter dims off-standing teams. Colours mirror CONST_GOAL_STANDING. */
+.ac-stack-view.is-trajectory {
   display: flex; flex-direction: column; gap: 0;
   min-width: 0; min-height: 0; border: 0; background: transparent;
 }
-.ac-stack-view.is-goalplan .ac-gp-head {
-  display: grid; grid-template-columns: 132px 1fr 132px; column-gap: 14px;
-  align-items: center; height: 14px; margin: 2px 11px 8px;
+.ac-stack-view.is-trajectory .ac-traj-chart { width: 100%; }
+.ac-stack-view.is-trajectory .ac-traj-chart svg { width: 100%; height: auto; display: block; }
+.ac-stack-view.is-trajectory .ac-traj-grid { stroke: rgba(var(--ink-rgb), 0.08); stroke-width: 1; }
+.ac-stack-view.is-trajectory .ac-traj-grid.is-goal {
+  stroke: color-mix(in srgb, #4f9d8f 60%, transparent); stroke-width: 1.3; stroke-dasharray: 5 4;
 }
-.ac-stack-view.is-goalplan .ac-gp-axis { position: relative; height: 14px; }
-.ac-stack-view.is-goalplan .ac-gp-axis i {
-  position: absolute; top: 0; font-family: var(--font-mono); font-size: 8.5px;
-  letter-spacing: 0.12em; text-transform: uppercase; color: var(--alchemy-ink-mute); font-style: normal;
+.ac-stack-view.is-trajectory .ac-traj-ylab,
+.ac-stack-view.is-trajectory .ac-traj-xlab {
+  font-family: var(--font-mono); font-size: 9px; fill: rgba(var(--ink-rgb), 0.5);
 }
-/* The axis labels ARE the colour key — a swatch dot before each label keys the
-   row dots' colour without a separate (redundant) legend trough. Colours mirror
-   CONST_GOAL_STANDING in alchemy.js. */
-.ac-stack-view.is-goalplan .ac-gp-axis i::before {
-  content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-  margin-right: 6px; vertical-align: middle;
+.ac-stack-view.is-trajectory .ac-traj-goal-lab {
+  font-family: var(--font-mono); font-size: 9px; fill: color-mix(in srgb, #4f9d8f 75%, var(--alchemy-paper-warm));
 }
-.ac-stack-view.is-goalplan .ac-gp-axis i.is-l { left: 0; }
-.ac-stack-view.is-goalplan .ac-gp-axis i.is-l::before { background: #c83a48; }
-.ac-stack-view.is-goalplan .ac-gp-axis i.is-c { left: 50%; transform: translateX(-50%); }
-.ac-stack-view.is-goalplan .ac-gp-axis i.is-c::before { background: #7fa05a; }
-.ac-stack-view.is-goalplan .ac-gp-axis i.is-r { right: 0; }
-.ac-stack-view.is-goalplan .ac-gp-axis i.is-r::before { background: #4f9d8f; }
-.ac-stack-view.is-goalplan .ac-gp-goalhead {
-  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
-  text-transform: uppercase; color: var(--alchemy-ink-mute); text-align: right;
+.ac-stack-view.is-trajectory .ac-traj-team { cursor: pointer; }
+.ac-stack-view.is-trajectory .ac-traj-hit { fill: none; stroke: transparent; stroke-width: 12; }
+.ac-stack-view.is-trajectory .ac-traj-line {
+  fill: none; stroke: var(--team-color); stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round;
+  opacity: 0.55; transition: opacity 160ms ease-out, stroke-width 160ms ease-out;
 }
-.ac-stack-view.is-goalplan .ac-gp-rows { display: flex; flex-direction: column; gap: 6px; }
-.ac-stack-view.is-goalplan .ac-gp-row {
-  grid-template-columns: 132px 1fr 132px; grid-template-rows: auto;
-  column-gap: 14px; align-items: center; padding: 9px 11px;
+/* Momentum marker is monochrome ink, NOT --mom-color: line colour already
+   encodes standing, and standing/momentum share the same red/green hues — a
+   coloured marker would put two variables on one colour channel. The ▲▼→ glyph
+   shape carries direction; colour stays free to mean standing alone. */
+.ac-stack-view.is-trajectory .ac-traj-mom {
+  fill: rgba(var(--ink-rgb), 0.62); font-family: var(--font-mono); font-size: 9px; opacity: 0.85; transition: opacity 140ms ease-out;
 }
-.ac-stack-view.is-goalplan .ac-gp-name {
-  min-width: 0; font-family: var(--font-sans); font-size: 12px; color: var(--alchemy-paper-warm);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.ac-stack-view.is-trajectory .ac-traj-endlab {
+  font-family: var(--font-mono); font-size: 9px; fill: var(--team-color); opacity: 0; transition: opacity 140ms ease-out;
 }
-.ac-stack-view.is-goalplan .ac-gp-track { position: relative; height: 22px; min-width: 0; }
-.ac-stack-view.is-goalplan .ac-gp-track::before {
-  content: ""; position: absolute; left: 50%; top: 2px; bottom: 2px; width: 0;
-  border-left: 1px dashed rgba(var(--ink-rgb), 0.22);
+.ac-stack-view.is-trajectory .ac-traj-team:hover .ac-traj-line,
+.ac-stack-view.is-trajectory .ac-traj-team:focus-visible .ac-traj-line {
+  opacity: 1; stroke-width: 2.6;
 }
-.ac-stack-view.is-goalplan .ac-gp-arrow {
-  position: absolute; top: 50%; height: 2px; transform: translateY(-50%);
-  background: var(--team-color); opacity: 0.78; border-radius: 1px;
+.ac-stack-view.is-trajectory .ac-traj-team:hover .ac-traj-endlab,
+.ac-stack-view.is-trajectory .ac-traj-team:focus-visible .ac-traj-endlab,
+.ac-stack-view.is-trajectory .ac-traj-team:hover .ac-traj-mom,
+.ac-stack-view.is-trajectory .ac-traj-team:focus-visible .ac-traj-mom { opacity: 1; }
+/* The fastest mover + steepest slip lead at rest so the eye lands on them. */
+.ac-stack-view.is-trajectory .ac-traj-team.is-mover .ac-traj-line,
+.ac-stack-view.is-trajectory .ac-traj-team.is-slip .ac-traj-line { opacity: 0.95; stroke-width: 2.5; }
+.ac-stack-view.is-trajectory .ac-traj-team.is-mover .ac-traj-endlab,
+.ac-stack-view.is-trajectory .ac-traj-team.is-slip .ac-traj-endlab { opacity: 0.8; }
+.ac-stack-view.is-trajectory .ac-traj-team.is-dim { opacity: 0.2; }
+.ac-stack-view.is-trajectory .ac-gp-untracked {
+  margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--lg-border);
 }
-.ac-stack-view.is-goalplan .ac-gp-arrow::after {
-  content: ""; position: absolute; right: -2px; top: 50%; transform: translateY(-50%);
-  border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid var(--team-color);
-}
-.ac-stack-view.is-goalplan .ac-gp-dot {
-  position: absolute; top: 50%; width: 12px; height: 12px; transform: translate(-50%, -50%);
-  /* Stage-relative moat ring so the dot separates on BOTH themes: charcoal is
-     dark on dark / paper on cream, so this inverts instead of painting a hard
-     dark ring on the light stage. */
-  border-radius: 50%; background: var(--team-color); box-shadow: 0 0 0 2px color-mix(in srgb, var(--alchemy-charcoal) 70%, transparent), var(--lg-specular);
-}
-.ac-stack-view.is-goalplan .ac-gp-goal {
-  min-width: 0; font-family: var(--font-mono); font-size: 9px; color: var(--alchemy-ink-mute);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right;
-}
-.ac-stack-view.is-goalplan .ac-gp-untracked {
-  margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--lg-border);
-}
-.ac-stack-view.is-goalplan .ac-gp-untracked-head {
+.ac-stack-view.is-trajectory .ac-gp-untracked-head {
   font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--alchemy-ink-mute);
 }
-.ac-stack-view.is-goalplan .ac-gp-untracked-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.ac-stack-view.is-goalplan .ac-gp-chip {
-  display: inline-block; width: auto; grid-template-columns: none; padding: 4px 10px;
-  border-radius: 999px; font-size: 11px; color: var(--alchemy-ink-mute);
+.ac-stack-view.is-trajectory .ac-gp-untracked-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.ac-stack-view.is-trajectory .ac-gp-chip {
+  display: inline-block; width: auto; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--lg-border); background: transparent;
+  font-family: var(--font-sans); font-size: 11px; color: var(--alchemy-ink-mute); cursor: pointer;
 }
-.ac-stack-view.is-goalplan .ac-gp-note {
+.ac-stack-view.is-trajectory .ac-gp-chip:hover {
+  color: var(--alchemy-paper-warm); border-color: color-mix(in srgb, var(--alchemy-paper-warm) 28%, transparent);
+}
+.ac-stack-view.is-trajectory .ac-gp-note {
+  margin: 14px 2px 0; font-family: var(--font-mono); font-size: 9px; line-height: 1.5;
+  color: var(--alchemy-ink-mute); opacity: 0.85;
+}
+
+/* ── team targets · current stage vs target (gap to close) ─────────────
+   Snapshot counterpart to the trajectory: a shared 0→8 axis with a current
+   marker (●, real) and a target marker (▽, placeholder) per team; the bar is
+   the gap to close, longest first. Standing filter dims off-standing rows. */
+.ac-stack-view.is-targets {
+  display: flex; flex-direction: column; gap: 0; min-width: 0; border: 0; background: transparent;
+}
+.ac-stack-view.is-targets .ac-tgt-axis,
+.ac-stack-view.is-targets .ac-tgt-row {
+  display: grid; grid-template-columns: 104px minmax(0, 1fr) 54px; gap: 12px; align-items: center;
+}
+.ac-stack-view.is-targets .ac-tgt-axis { margin: 2px 0 8px; }
+.ac-stack-view.is-targets .ac-tgt-ticks { position: relative; height: 12px; }
+.ac-stack-view.is-targets .ac-tgt-tick {
+  position: absolute; transform: translateX(-50%); font-family: var(--font-mono); font-size: 9px;
+  color: var(--alchemy-ink-mute); white-space: nowrap;
+}
+/* Clamp the end ticks so "0" and "grad" sit inside the track instead of
+   clipping half-past its edges. */
+.ac-stack-view.is-targets .ac-tgt-tick:first-child { transform: translateX(0); }
+.ac-stack-view.is-targets .ac-tgt-tick:last-child { transform: translateX(-100%); }
+.ac-stack-view.is-targets .ac-tgt-rows { display: flex; flex-direction: column; gap: 4px; }
+.ac-stack-view.is-targets .ac-tgt-row {
+  width: 100%; text-align: left; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent;
+  cursor: pointer; transition: background 140ms ease-out, opacity 160ms ease-out;
+}
+.ac-stack-view.is-targets .ac-tgt-row:hover { background: rgba(var(--ink-rgb), 0.04); }
+/* Focus parity with the trajectory's lines: the row is a border:0 button, which
+   nullifies the global focus-ring, so give it its own inset ring on focus. */
+.ac-stack-view.is-targets .ac-tgt-row:focus-visible {
+  outline: none; background: rgba(var(--ink-rgb), 0.06);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--team-color) 70%, transparent);
+}
+.ac-stack-view.is-targets .ac-tgt-row.is-dim { opacity: 0.2; }
+.ac-stack-view.is-targets .ac-tgt-name {
+  font-family: var(--font-sans); font-size: 12px; color: var(--alchemy-paper-warm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ac-stack-view.is-targets .ac-tgt-track { position: relative; height: 16px; min-width: 0; }
+.ac-stack-view.is-targets .ac-tgt-base {
+  position: absolute; left: 0; right: 0; top: 50%; height: 3px; transform: translateY(-50%);
+  border-radius: 2px; background: rgba(var(--ink-rgb), 0.1);
+}
+.ac-stack-view.is-targets .ac-tgt-gap {
+  position: absolute; top: 50%; height: 5px; transform: translateY(-50%); border-radius: 3px;
+  background: var(--team-color); opacity: 0.5;
+}
+.ac-stack-view.is-targets .ac-tgt-cur {
+  position: absolute; top: 50%; width: 11px; height: 11px; transform: translate(-50%, -50%);
+  border-radius: 50%; background: var(--team-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--alchemy-charcoal) 70%, transparent);
+}
+.ac-stack-view.is-targets .ac-tgt-target {
+  position: absolute; top: 50%; transform: translate(-50%, -54%); font-size: 12px; line-height: 1; color: var(--team-color);
+}
+.ac-stack-view.is-targets .ac-tgt-val {
+  font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-ink-mute); text-align: right;
+}
+/* The target half of "cur → tgt" is the secondary number — render it quieter so
+   the real current stage reads as the authoritative one. Provenance (declared vs
+   derived) refines this below. */
+.ac-stack-view.is-targets .ac-tgt-tval { opacity: 0.6; }
+/* ── target provenance: declared (real) vs derived (estimate) ───────────
+   A declared target is a team-set aim from Supabase — render it as solidly as
+   the ● 'now' mark. A derived target is the renderer's placeholder backup until
+   a team sets one — render it tentative (hollow/desaturated ▽, dashed gap, "est"
+   tag) so a guess never reads as a real goal. The outline + dash carry the
+   signal, so it survives the .is-dim 0.2 standing-filter multiplier. */
+.ac-stack-view.is-targets .ac-tgt-row.is-declared .ac-tgt-target { color: var(--team-color); opacity: 1; }
+.ac-stack-view.is-targets .ac-tgt-row.is-declared .ac-tgt-tval { opacity: 0.72; }
+.ac-stack-view.is-targets .ac-tgt-row.is-derived .ac-tgt-target {
+  color: color-mix(in srgb, var(--team-color) 46%, transparent); opacity: 0.7;
+}
+.ac-stack-view.is-targets .ac-tgt-row.is-derived .ac-tgt-gap {
+  opacity: 0.3; background: repeating-linear-gradient(90deg, var(--team-color) 0 5px, transparent 5px 9px);
+}
+.ac-stack-view.is-targets .ac-tgt-row.is-derived .ac-tgt-tval { opacity: 0.42; font-style: italic; }
+.ac-stack-view.is-targets .ac-tgt-row.is-derived .ac-tgt-tval i {
+  font-style: normal; margin-left: 3px; font-size: 8px; letter-spacing: 0.04em;
+  text-transform: uppercase; vertical-align: 0.4em; color: color-mix(in srgb, var(--alchemy-ink-mute) 85%, transparent);
+}
+
+/* ── cohort momentum insight strip — above both goal views ──────────────
+   Climbing / slipping / steady chips + median stage + the fastest mover and
+   steepest slip, with a quiet Supabase-source tag. Changes as you scrub weeks;
+   this is the at-a-glance read the chart alone can't give. */
+.ac-gi {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 7px 10px; margin: 0 0 14px;
+  font-family: var(--font-sans); font-size: 12px; color: var(--alchemy-ink-mute);
+}
+.ac-gi-chip {
+  appearance: none; display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--gi-color, var(--alchemy-paper-warm)) 32%, transparent);
+  background: color-mix(in srgb, var(--gi-color, var(--alchemy-paper-warm)) 11%, transparent);
+  color: var(--alchemy-paper-warm); font-family: var(--font-sans); font-size: 11.5px; cursor: pointer;
+  transition: background 140ms ease-out, border-color 140ms ease-out;
+}
+.ac-gi-chip:hover { border-color: color-mix(in srgb, var(--gi-color) 55%, transparent); }
+.ac-gi-chip.is-active {
+  background: color-mix(in srgb, var(--gi-color) 26%, transparent);
+  border-color: color-mix(in srgb, var(--gi-color) 72%, transparent);
+}
+.ac-gi-chip i { font-style: normal; font-size: 9px; color: var(--gi-color); }
+.ac-gi-chip em { font-style: normal; font-family: var(--font-mono); font-weight: 600; color: var(--alchemy-paper-warm); }
+.ac-gi-chip.is-rising { --gi-color: #4f9d8f; }
+.ac-gi-chip.is-slipping { --gi-color: #c83a48; }
+.ac-gi-chip.is-flat { --gi-color: #9a9488; }
+.ac-gi-stat { font-size: 11.5px; color: var(--alchemy-ink-mute); }
+.ac-gi-stat b { font-family: var(--font-mono); color: var(--alchemy-paper-warm); font-weight: 600; }
+.ac-gi-trend { font-family: var(--font-mono); font-size: 10.5px; margin-left: 3px; }
+.ac-gi-trend.is-rising { color: #6fb8a8; }
+.ac-gi-trend.is-slipping { color: #d56b76; }
+.ac-gi-call {
+  appearance: none; display: inline-flex; align-items: center; gap: 4px; padding: 2px 5px; border: 0;
+  background: transparent; font-family: var(--font-sans); font-size: 11.5px; color: #6fb8a8; cursor: pointer; border-radius: 6px;
+}
+.ac-gi-call:hover { background: rgba(var(--ink-rgb), 0.05); }
+.ac-gi-call b { color: var(--alchemy-paper-warm); font-weight: 500; }
+/* Needs-attention queue — the intervention list, clickable team buttons. */
+.ac-gi-attention {
+  display: inline-flex; align-items: center; flex-wrap: wrap; gap: 5px; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #c83a48 38%, transparent); background: color-mix(in srgb, #c83a48 10%, transparent);
+  font-size: 11px; color: var(--alchemy-ink-mute);
+}
+.ac-gi-attention > i { font-style: normal; color: #e07a86; }
+.ac-gi-team {
+  appearance: none; border: 0; background: transparent; padding: 0 2px; border-radius: 4px;
+  font-family: var(--font-sans); font-size: 11px; color: #f0c0c6; font-weight: 500; cursor: pointer;
+}
+.ac-gi-team:hover { color: #fff; text-decoration: underline; }
+.ac-gi-more { font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-ink-mute); }
+.ac-gi-src {
+  margin-left: auto; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--alchemy-ink-mute) 80%, transparent); white-space: nowrap; cursor: help;
+}
+@media (max-width: 640px) { .ac-gi-src { margin-left: 0; } }
+.ac-stack-view.is-targets .ac-gp-untracked {
+  margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--lg-border);
+}
+.ac-stack-view.is-targets .ac-gp-untracked-head {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.ac-stack-view.is-targets .ac-gp-untracked-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.ac-stack-view.is-targets .ac-gp-chip {
+  display: inline-block; width: auto; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--lg-border); background: transparent;
+  font-family: var(--font-sans); font-size: 11px; color: var(--alchemy-ink-mute); cursor: pointer;
+}
+.ac-stack-view.is-targets .ac-gp-chip:hover {
+  color: var(--alchemy-paper-warm); border-color: color-mix(in srgb, var(--alchemy-paper-warm) 28%, transparent);
+}
+.ac-stack-view.is-targets .ac-gp-note {
   margin: 14px 2px 0; font-family: var(--font-mono); font-size: 9px; line-height: 1.5;
   color: var(--alchemy-ink-mute); opacity: 0.85;
 }
@@ -9060,11 +9207,6 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   vertical-align: middle; margin-right: 6px;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.36);
 }
-/* Per-stage count strip across the top of the plot. */
-.alch-journey-stage svg .ac-jcount {
-  fill: var(--journey-ink); font-family: var(--font-mono);
-  font-size: 10px; font-weight: 600; opacity: 0.86; font-variant-numeric: tabular-nums;
-}
 /* Constellation legends ride a quiet glass trough so the color/line key reads
    as kin to the glass readout above them — and pick up the cursor sheen. The
    plot/graph itself stays material (SVG can't take backdrop-filter anyway).
@@ -9098,6 +9240,11 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .alch-constellation-legend.is-journey-legend .acl-jkey {
   border-right-color: var(--lg-border);
+}
+/* The ghost-dot key is a SECOND .acl-jkey, so it inherits the divider border —
+   drop it so only one divider separates "keys | families". */
+.alch-constellation-legend .acl-jghost-key {
+  border-right: 0; padding-right: 0;
 }
 /* Encoding key — static text leading the bottleneck legend; states what the
    scatter's color and size MEAN. Deliberately not button-shaped so it can't
@@ -11123,6 +11270,7 @@ button.cb-cell:disabled { cursor: default; }
   background: rgba(255,255,255,0.018);
   border-color: var(--alchemy-rule);
   border-radius: 8px;
+  padding: 11px 13px;
 }
 /* ── Intros to make — polish ─────────────────────────────────────────────
    Colour the role labels to the seek/offer palette (needs = teal, provides =
@@ -12687,6 +12835,14 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   letter-spacing: 0;
   text-transform: none;
   font-size: 11.5px;
+}
+/* The hidden-teams caveat is a data footnote, not an interaction hint — set it
+   apart from the "hover a name…" line above with a hairline + quieter ink. */
+.alch-collab .cb-grid-hidden {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.06);
+  color: var(--alchemy-ink-mute);
 }
 
 /* intros */
@@ -15428,16 +15584,10 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   font-style: italic;
   font-size: 16.5px;
   color: var(--ed-ink-1);
+  white-space: nowrap;
 }
 .alch-page-view-btn[aria-selected="true"] .apv-label {
   color: var(--alchemy-paper-warm);
-}
-.apv-hint {
-  font-family: var(--ed-mono);
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: lowercase;
-  opacity: 0.55;
 }
 .apv-count {
   align-self: center;
@@ -15528,7 +15678,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 16px;
+  gap: 9px 22px;
 }
 
 /* ── Cohort control band — hairline segmented rails ───────────────
@@ -15744,29 +15894,17 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   color: rgba(var(--ink-rgb), 0.52);
 }
 .ac-sent-word { letter-spacing: 0.01em; white-space: nowrap; }
-/* Generated read clause — continues the filter sentence INLINE (dual-use bar:
-   the one sentence filters AND describes). Takes the remaining row width and
-   wraps internally only if long; same sans family + muted tone, lead clause
-   brighter, em-dash divider. No box, no kicker, no separate row. */
-.ac-sent-read {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-family: var(--font-sans);
-  font-size: 12px;
-  line-height: 1.4;
-  letter-spacing: 0.005em;
-  color: rgba(var(--ink-rgb), 0.42);
-}
-.ac-sent-read i {
-  font-style: normal;
-  margin-right: 6px;
-  color: rgba(var(--ink-rgb), 0.3);
-}
-.ac-sent-read b {
-  font-weight: 600;
-  color: rgba(var(--ink-rgb), 0.82);
-}
 .ac-sent-unit { position: relative; display: inline-flex; }
+/* "as of [Total ▾]" timeline control — a temporal selector shown on every view.
+   Reuses the sentence-token chrome; the clock glyph + "as of" word mark it as
+   distinct from the filters, and the token tints brass when rewound off Total. */
+.ac-timeline-ctl { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(var(--ink-rgb), 0.5); white-space: nowrap; }
+.ac-tl-glyph { opacity: 0.55; flex: none; }
+.ac-timeline-tok.is-rewound {
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #c1a872) 50%, transparent);
+  background: color-mix(in srgb, var(--alchemy-oxide-bright, #c1a872) 12%, rgba(var(--ink-rgb), 0.04));
+  color: var(--alchemy-paper-warm);
+}
 .ac-sent-tok,
 .ac-sent-evi {
   appearance: none;
@@ -16230,30 +16368,6 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   stroke-width: 1.3;
 }
 
-/* Product layer — hover a domain chip → other domains' tiles recede.
-   The chips live in the sentence bar (outside .alch-const-main), so the
-   :has scope is the cohort page. */
-.alch-cohort-page:has([data-legend-domain="tee"]:hover) .ac-stack-team:not(.ac-stack-domain-tee),
-.alch-cohort-page:has([data-legend-domain="tee"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-tee),
-.alch-cohort-page:has([data-legend-domain="ai"]:hover) .ac-stack-team:not(.ac-stack-domain-ai),
-.alch-cohort-page:has([data-legend-domain="ai"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-ai),
-.alch-cohort-page:has([data-legend-domain="crypto"]:hover) .ac-stack-team:not(.ac-stack-domain-crypto),
-.alch-cohort-page:has([data-legend-domain="crypto"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-crypto),
-.alch-cohort-page:has([data-legend-domain="app-ux"]:hover) .ac-stack-team:not(.ac-stack-domain-app-ux),
-.alch-cohort-page:has([data-legend-domain="app-ux"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-app-ux) {
-  opacity: 0.22;
-}
-/* Pinned domain — click commits what chip hover previews (data-domain-pin
-   is written on the stack stage by the sentence bar's domain chips). The
-   :not(:has(...:hover)) gate makes the pin yield WHILE a chip is hovered,
-   so hovering a second domain previews it instead of the pin dimming the
-   hovered domain's own tiles (which would leave everything at 0.22). */
-.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="tee"] .ac-stack-team:not(.ac-stack-domain-tee),
-.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="ai"] .ac-stack-team:not(.ac-stack-domain-ai),
-.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="crypto"] .ac-stack-team:not(.ac-stack-domain-crypto),
-.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="app-ux"] .ac-stack-team:not(.ac-stack-domain-app-ux) {
-  opacity: 0.22;
-}
 .alch-const-main .ac-stack-team {
   transition: opacity 160ms ease-out;
 }
@@ -16303,7 +16417,6 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
     padding-left: 10px;
     padding-right: 10px;
   }
-  .apv-hint,
   .apv-count {
     display: none;
   }
