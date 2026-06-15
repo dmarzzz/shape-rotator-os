@@ -8364,10 +8364,16 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   font-family: var(--font-sans); font-size: 12px; color: var(--alchemy-ink-mute);
 }
 .ac-gi-chip {
-  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px;
+  appearance: none; display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--gi-color, var(--alchemy-paper-warm)) 32%, transparent);
   background: color-mix(in srgb, var(--gi-color, var(--alchemy-paper-warm)) 11%, transparent);
-  color: var(--alchemy-paper-warm); font-size: 11.5px;
+  color: var(--alchemy-paper-warm); font-family: var(--font-sans); font-size: 11.5px; cursor: pointer;
+  transition: background 140ms ease-out, border-color 140ms ease-out;
+}
+.ac-gi-chip:hover { border-color: color-mix(in srgb, var(--gi-color) 55%, transparent); }
+.ac-gi-chip.is-active {
+  background: color-mix(in srgb, var(--gi-color) 26%, transparent);
+  border-color: color-mix(in srgb, var(--gi-color) 72%, transparent);
 }
 .ac-gi-chip i { font-style: normal; font-size: 9px; color: var(--gi-color); }
 .ac-gi-chip em { font-style: normal; font-family: var(--font-mono); font-weight: 600; color: var(--alchemy-paper-warm); }
@@ -8376,10 +8382,28 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-gi-chip.is-flat { --gi-color: #9a9488; }
 .ac-gi-stat { font-size: 11.5px; color: var(--alchemy-ink-mute); }
 .ac-gi-stat b { font-family: var(--font-mono); color: var(--alchemy-paper-warm); font-weight: 600; }
-.ac-gi-call { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; }
+.ac-gi-trend { font-family: var(--font-mono); font-size: 10.5px; margin-left: 3px; }
+.ac-gi-trend.is-rising { color: #6fb8a8; }
+.ac-gi-trend.is-slipping { color: #d56b76; }
+.ac-gi-call {
+  appearance: none; display: inline-flex; align-items: center; gap: 4px; padding: 2px 5px; border: 0;
+  background: transparent; font-family: var(--font-sans); font-size: 11.5px; color: #6fb8a8; cursor: pointer; border-radius: 6px;
+}
+.ac-gi-call:hover { background: rgba(var(--ink-rgb), 0.05); }
 .ac-gi-call b { color: var(--alchemy-paper-warm); font-weight: 500; }
-.ac-gi-call.is-rising { color: #6fb8a8; }
-.ac-gi-call.is-slipping { color: #d56b76; }
+/* Needs-attention queue — the intervention list, clickable team buttons. */
+.ac-gi-attention {
+  display: inline-flex; align-items: center; flex-wrap: wrap; gap: 5px; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #c83a48 38%, transparent); background: color-mix(in srgb, #c83a48 10%, transparent);
+  font-size: 11px; color: var(--alchemy-ink-mute);
+}
+.ac-gi-attention > i { font-style: normal; color: #e07a86; }
+.ac-gi-team {
+  appearance: none; border: 0; background: transparent; padding: 0 2px; border-radius: 4px;
+  font-family: var(--font-sans); font-size: 11px; color: #f0c0c6; font-weight: 500; cursor: pointer;
+}
+.ac-gi-team:hover { color: #fff; text-decoration: underline; }
+.ac-gi-more { font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-ink-mute); }
 .ac-gi-src {
   margin-left: auto; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
   color: color-mix(in srgb, var(--alchemy-ink-mute) 80%, transparent); white-space: nowrap; cursor: help;

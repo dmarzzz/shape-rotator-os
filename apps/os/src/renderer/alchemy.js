@@ -147,6 +147,7 @@ const state = {
   collabSort: "cluster",           // "cluster" | "intro" | "dependency" — ordering for the collab matrix
   collabSelection: null,           // { type: "team"|"pair"|"cluster", ... } — pinned inspector state
   goalStandingFilter: "all",       // "all" | "behind" | "onplan" | "ahead" — standing legend/filter
+  goalMomentumFilter: "all",       // "all" | "rising" | "slipping" | "flat" — momentum legend/filter on the goal views
   renderToken: 0,                  // invalidates pending cross-fade swaps when a newer render starts
   mounted: false,
   active: false,
@@ -5350,6 +5351,11 @@ function constNormalizeGoalStandingFilter(raw) {
   const key = String(raw || "").toLowerCase();
   return CONST_GOAL_STANDING_KEYS.includes(key) ? key : "all";
 }
+const GOAL_MOMENTUM_KEYS = ["rising", "slipping", "flat"];
+function constNormalizeGoalMomentumFilter(raw) {
+  const key = String(raw || "").toLowerCase();
+  return GOAL_MOMENTUM_KEYS.includes(key) ? key : "all";
+}
 // ── per-week standing (Supabase-backed) ──────────────────────────────────
 // state.standingWeekly carries each team's PMF stage + confidence per program
 // week (source of truth: Supabase team_standing_weekly → cohort-standing-weekly
@@ -5456,12 +5462,22 @@ function constGoalPlanModel(teams = []) {
   // and the steepest slip to watch.
   const mom = { rising: 0, slipping: 0, flat: 0 };
   for (const r of tracked) mom[r.momentumKind] += 1;
-  const stages = tracked.map(r => r.stage).sort((a, b) => a - b);
-  const medianStage = stages.length ? stages[Math.floor((stages.length - 1) / 2)] : null;
+  const med = (arr) => arr.length ? arr[Math.floor((arr.length - 1) / 2)] : null;
+  const medianStage = med(tracked.map(r => r.stage).sort((a, b) => a - b));
   const movers = tracked.filter(r => r.momentum != null);
   const topMover = movers.slice().sort((a, b) => b.momentum - a.momentum)[0] || null;
   const topSlip = movers.filter(r => r.momentum < 0).sort((a, b) => a.momentum - b.momentum)[0] || null;
-  const summary = { counts, mom, medianStage, topMover, topSlip, week: active, weekLabel: standingWeekLabel(active), hasWeekly: standingWeeklyWeeks().length > 0 };
+  // Needs-attention queue — slipping teams (declining) plus behind-and-stalled
+  // (low confidence, no climb). The intervention list a coordinator acts on.
+  const atRisk = tracked
+    .filter(r => r.momentumKind === "slipping" || (r.standing === "behind" && r.momentumKind === "flat" && r.momentum != null))
+    .sort((a, b) => (a.momentum ?? 0) - (b.momentum ?? 0));
+  // Cohort trend — this week's median stage vs the previous visible week's.
+  const vis = standingVisibleWeeks();
+  const prevPw = vis.length >= 2 ? vis[vis.length - 2].program_week : null;
+  const medianPrev = prevPw != null ? med(tracked.map(r => teamWeekRead(r.team, prevPw).stage).sort((a, b) => a - b)) : null;
+  const trend = (medianStage != null && medianPrev != null) ? Math.round((medianStage - medianPrev) * 10) / 10 : null;
+  const summary = { counts, mom, medianStage, trend, topMover, topSlip, atRisk, week: active, weekLabel: standingWeekLabel(active), hasWeekly: standingWeeklyWeeks().length > 0 };
   // teamRows keep the stack hover tooltip (constStackItemForTeam) consistent.
   const teamRows = rows.map(r => ({
     team: r.team,
@@ -5480,18 +5496,25 @@ function constGoalPlanModel(teams = []) {
 // steady, median stage, fastest mover, steepest slip) shown above both goal
 // views. NOT the removed generated read-clause: it's a genuinely additive,
 // at-a-glance read the chart alone can't give, and it changes as you scrub weeks.
-function constGoalInsightHtml(summary) {
+function constGoalInsightHtml(summary, momentumFilter = "all") {
   if (!summary || !summary.counts) return "";
-  const chip = (kind, n) => `<span class="ac-gi-chip is-${kind}"><i aria-hidden="true">${MOMENTUM[kind].glyph}</i><em>${n}</em>${MOMENTUM[kind].word}</span>`;
+  const mf = constNormalizeGoalMomentumFilter(momentumFilter);
+  // Momentum chips double as filters — click to isolate climbers / slippers /
+  // steady (click again to clear). Orthogonal to the standing chips in the bar.
+  const chip = (kind, n) => `<button type="button" class="ac-gi-chip is-${kind}${mf === kind ? " is-active" : ""}" data-momentum-filter="${kind}" aria-pressed="${mf === kind ? "true" : "false"}" aria-label="${escAttr(`${n} ${MOMENTUM[kind].word}${mf === kind ? " — filtered; click to clear" : " — click to isolate"}`)}"><i aria-hidden="true">${MOMENTUM[kind].glyph}</i><em>${n}</em>${MOMENTUM[kind].word}</button>`;
+  const trendStr = summary.trend != null && summary.trend !== 0
+    ? ` <span class="ac-gi-trend is-${summary.trend > 0 ? "rising" : "slipping"}">${summary.trend > 0 ? MOMENTUM.rising.glyph : MOMENTUM.slipping.glyph}${momentumDeltaLabel(summary.trend)} this week</span>` : "";
+  const median = summary.medianStage != null ? `<span class="ac-gi-stat">median stage <b>${summary.medianStage}</b><small>/8</small>${trendStr}</span>` : "";
   const mover = summary.topMover && summary.topMover.momentum > 0
-    ? `<span class="ac-gi-call is-rising">fastest <b>${escHtml(summary.topMover.team.name || summary.topMover.team.record_id)}</b> ${MOMENTUM.rising.glyph}${momentumDeltaLabel(summary.topMover.momentum)}</span>` : "";
-  const slip = summary.topSlip
-    ? `<span class="ac-gi-call is-slipping">watch <b>${escHtml(summary.topSlip.team.name || summary.topSlip.team.record_id)}</b> ${MOMENTUM.slipping.glyph}${momentumDeltaLabel(summary.topSlip.momentum)}</span>` : "";
-  const median = summary.medianStage != null ? `<span class="ac-gi-stat">median stage <b>${summary.medianStage}</b><small>/8</small></span>` : "";
+    ? `<button type="button" class="ac-gi-call is-rising" data-const-team="${escAttr(summary.topMover.team.record_id)}">fastest <b>${escHtml(summary.topMover.team.name || summary.topMover.team.record_id)}</b> ${MOMENTUM.rising.glyph}${momentumDeltaLabel(summary.topMover.momentum)}</button>` : "";
+  const risk = (summary.atRisk || []).slice(0, 3);
+  const more = (summary.atRisk || []).length - risk.length;
+  const attention = risk.length
+    ? `<span class="ac-gi-attention" role="group" aria-label="needs attention"><i aria-hidden="true">⚠</i>needs attention ${risk.map(r => `<button type="button" class="ac-gi-team" data-const-team="${escAttr(r.team.record_id)}" aria-label="${escAttr(`open ${r.team.name || r.team.record_id}`)}">${escHtml(r.team.name || r.team.record_id)}</button>`).join("")}${more > 0 ? `<span class="ac-gi-more">+${more}</span>` : ""}</span>` : "";
   return `
     <div class="ac-gi" role="group" aria-label="cohort momentum summary">
       ${chip("rising", summary.mom.rising)}${chip("slipping", summary.mom.slipping)}${chip("flat", summary.mom.flat)}
-      ${median}${mover}${slip}
+      ${median}${mover}${attention}
       <span class="ac-gi-src" title="per-week PMF reads, sourced from Supabase team_standing_weekly">via Supabase · ${escHtml(summary.weekLabel)}</span>
     </div>`;
 }
@@ -5515,10 +5538,11 @@ function constStandingTrajectory(team, weeks) {
 // the shared dashed line at the top, "how they're against it" is the gap below
 // it. Lines are dashed + faint at rest (signalling "illustrative until momentum
 // is wired") and solidify on hover; the standing filter dims off-standing teams.
-function constGoalPlanHtml(model, standingFilter = "all") {
+function constGoalPlanHtml(model, standingFilter = "all", momentumFilter = "all") {
   const tracked = model?.tracked || [];
   const untracked = model?.untracked || [];
   const activeFilter = constNormalizeGoalStandingFilter(standingFilter);
+  const momFilter = constNormalizeGoalMomentumFilter(momentumFilter);
   if (!tracked.length && !untracked.length) return `<p class="ac-stack-empty">no teams to track yet.</p>`;
 
   const summary = model?.summary || null;
@@ -5544,7 +5568,7 @@ function constGoalPlanHtml(model, standingFilter = "all") {
     const pts = constStandingTrajectory(r.team, weeks);
     const poly = pts.map((st, i) => `${xFor(i).toFixed(1)},${yFor(st).toFixed(1)}`).join(" ");
     const endX = xFor(n - 1), endY = yFor(pts[n - 1]);
-    const dim = (activeFilter !== "all" && activeFilter !== r.standing) ? " is-dim" : "";
+    const dim = ((activeFilter !== "all" && activeFilter !== r.standing) || (momFilter !== "all" && momFilter !== r.momentumKind)) ? " is-dim" : "";
     const emphasis = r.team.record_id === moverId ? " is-mover" : (r.team.record_id === slipId ? " is-slip" : "");
     const mk = MOMENTUM[r.momentumKind];
     const name = r.team.name || r.team.record_id;
@@ -5570,7 +5594,7 @@ function constGoalPlanHtml(model, standingFilter = "all") {
 
   return `
     <div class="ac-stack-view is-trajectory" data-standing-filter="${escAttr(activeFilter)}">
-      ${constGoalInsightHtml(summary)}
+      ${constGoalInsightHtml(summary, momFilter)}
       <div class="ac-traj-chart">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Team PMF-stage trajectories over recent weeks toward graduation at stage 8, coloured by standing with momentum markers">
           ${grid}${goalLab}${xlabs}
@@ -5596,10 +5620,11 @@ function constStandingTarget(team, current) {
 // shared 0→8 axis; the bar is the gap left to close. Sorted by largest gap so
 // who-has-furthest-to-go leads. Standing filter dims off-standing rows. Snapshot
 // counterpart to the standing trajectory (which shows movement over time).
-function constGoalTargetsHtml(model, standingFilter = "all") {
+function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "all") {
   const tracked = model?.tracked || [];
   const untracked = model?.untracked || [];
   const activeFilter = constNormalizeGoalStandingFilter(standingFilter);
+  const momFilter = constNormalizeGoalMomentumFilter(momentumFilter);
   if (!tracked.length && !untracked.length) return `<p class="ac-stack-empty">no teams to track yet.</p>`;
   const summary = model?.summary || null;
   const pct = (st) => Math.round(Math.max(0, Math.min(8, st)) / 8 * 1000) / 10;
@@ -5609,7 +5634,7 @@ function constGoalTargetsHtml(model, standingFilter = "all") {
   const axis = `<div class="ac-tgt-axis"><span></span><div class="ac-tgt-ticks">${ticks.map(t => `<span class="ac-tgt-tick" style="left:${pct(t.v)}%">${t.l}</span>`).join("")}</div><span></span></div>`;
   const rowHtml = rows.map(({ r, cur, tgt, gap }) => {
     const color = CONST_GOAL_STANDING[r.standing].color;
-    const dim = (activeFilter !== "all" && activeFilter !== r.standing) ? " is-dim" : "";
+    const dim = ((activeFilter !== "all" && activeFilter !== r.standing) || (momFilter !== "all" && momFilter !== r.momentumKind)) ? " is-dim" : "";
     const name = r.team.name || r.team.record_id;
     const gapL = pct(cur), gapW = Math.round((pct(tgt) - pct(cur)) * 10) / 10;
     const mk = MOMENTUM[r.momentumKind];
@@ -5636,7 +5661,7 @@ function constGoalTargetsHtml(model, standingFilter = "all") {
       </div>` : "";
   return `
     <div class="ac-stack-view is-targets" data-standing-filter="${escAttr(activeFilter)}">
-      ${constGoalInsightHtml(summary)}
+      ${constGoalInsightHtml(summary, momFilter)}
       ${axis}
       <div class="ac-tgt-rows">${rowHtml}</div>
       ${untrackedHtml}
@@ -5661,6 +5686,7 @@ function renderTargets() {
   void baseCtx;
   const goalModel = constGoalPlanModel(state.cohort?.teams || teams);
   const standingFilter = constNormalizeGoalStandingFilter(state.goalStandingFilter);
+  const momentumFilter = constNormalizeGoalMomentumFilter(state.goalMomentumFilter);
   const standingChip = (key) => {
     const spec = CONST_GOAL_STANDING[key];
     const count = goalModel.counts[key] || 0;
@@ -5684,7 +5710,7 @@ function renderTargets() {
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
           <div class="alch-constellation-stage ac-stack-stage" data-view="targets" data-lens="all" tabindex="0" aria-label="team current stage versus target">
-            ${constGoalTargetsHtml(goalModel, standingFilter)}
+            ${constGoalTargetsHtml(goalModel, standingFilter, momentumFilter)}
             <div class="ac-tip" hidden></div>
           </div>
         </div>
@@ -5713,6 +5739,7 @@ function renderProductStack() {
   const inspectorCtx = { ...baseCtx, stackModel: goalModel };
   const domainPin = "";
   const standingFilter = constNormalizeGoalStandingFilter(state.goalStandingFilter);
+  const momentumFilter = constNormalizeGoalMomentumFilter(state.goalMomentumFilter);
   const standingChip = (key) => {
     const spec = CONST_GOAL_STANDING[key];
     const count = goalModel.counts[key] || 0;
@@ -5739,7 +5766,7 @@ function renderProductStack() {
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
           <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" data-domain-pin="${escAttr(domainPin)}" tabindex="0" aria-label="team standing against plan">
-            ${constGoalPlanHtml(goalModel, standingFilter)}
+            ${constGoalPlanHtml(goalModel, standingFilter, momentumFilter)}
             <div class="ac-tip" hidden></div>
           </div>
         </div>
@@ -7466,6 +7493,15 @@ function wireConstellationHover() {
     btn.addEventListener("click", () => {
       const next = constNormalizeGoalStandingFilter(btn.dataset.standingFilter);
       state.goalStandingFilter = state.goalStandingFilter === next ? "all" : next;
+      render();
+    });
+  }
+  // Momentum chips in the insight strip filter by movement (climbing/slipping/
+  // steady) — orthogonal to the standing filter; both dim together.
+  for (const btn of state.canvas.querySelectorAll("[data-momentum-filter]")) {
+    btn.addEventListener("click", () => {
+      const next = constNormalizeGoalMomentumFilter(btn.dataset.momentumFilter);
+      state.goalMomentumFilter = state.goalMomentumFilter === next ? "all" : next;
       render();
     });
   }
