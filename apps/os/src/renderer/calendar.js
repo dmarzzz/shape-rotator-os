@@ -16,7 +16,7 @@
 import {
   escHtml, escAttr,
   parseWeekRow, parseRecurring, currentWeekIdx, phaseFor,
-  CALENDAR_URL, buildEventCalendarActions,
+  CALENDAR_URL,
 } from "@shape-rotator/shape-ui";
 
 const PRIMARY_TAB = "May 18 Start";
@@ -58,6 +58,25 @@ function calendarShapeKey(baseUid, blockIndex) {
 
 export function managedGoogleCalendarUrl(calendarId = GUEST_GOOGLE_CALENDAR_ID) {
   return `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(calendarId)}`;
+}
+
+// Universal "add to your own calendar" link (Google TEMPLATE). Built inline (no shape-ui
+// dependency) so the renderer bundle stays self-contained; works for any subscriber.
+export function googleAddEventUrl({ title, details, dayMs, timing } = {}) {
+  if (!Number.isFinite(dayMs)) return "";
+  const ymd = compactDay(dayMs);
+  const url = new URL("https://calendar.google.com/calendar/render");
+  url.searchParams.set("action", "TEMPLATE");
+  url.searchParams.set("text", String(title || "Shape Rotator event"));
+  if (details) url.searchParams.set("details", String(details));
+  url.searchParams.set("ctz", "America/New_York");
+  const hms = (min) => `${String(Math.floor(min / 60)).padStart(2, "0")}${String(min % 60).padStart(2, "0")}00`;
+  if (timing && Number.isFinite(timing.startMin) && Number.isFinite(timing.endMin)) {
+    url.searchParams.set("dates", `${ymd}T${hms(timing.startMin)}/${ymd}T${hms(timing.endMin)}`);
+  } else {
+    url.searchParams.set("dates", `${ymd}/${compactDay(dayMs + 86400000)}`);
+  }
+  return url.toString();
 }
 
 export function calendarGoogleEventLinkForItem(item = {}, calendarGoogleEvents = {}) {
@@ -745,10 +764,12 @@ export function openCalendarEvent(ref) {
   const googleLink = calendarGoogleEventLinkForItem(item, _model.calendarGoogleEvents);
   // Universal "add to your calendar" link (Google TEMPLATE) — works for any subscriber,
   // unlike the admin event html_link above which needs source-calendar access.
-  const addBlockText = isAnchor ? title : (item.block || title);
-  const addAction = Number.isFinite(day.dayMs)
-    ? buildEventCalendarActions({ blockText: addBlockText, dayMs: day.dayMs })
-    : null;
+  const addEventHref = googleAddEventUrl({
+    title,
+    details: isAnchor ? title : (item.block || title),
+    dayMs: day.dayMs,
+    timing: item.timing,
+  });
 
   document.querySelector(".c2-modal")?.remove();
   const overlay = document.createElement("div");
@@ -762,9 +783,9 @@ export function openCalendarEvent(ref) {
         : ""}
       <h3 class="c2-modal-title"><em>${escHtml(title)}</em></h3>
       ${details.length ? `<ul class="c2-modal-details">${details.map(d => `<li>${escHtml(d)}</li>`).join("")}</ul>` : ""}
-      ${(addAction?.googleHref || googleLink) ? `
+      ${(addEventHref || googleLink) ? `
         <div class="c2-modal-actions">
-          ${addAction?.googleHref ? `<a class="c2-modal-google" href="${escAttr(addAction.googleHref)}" data-external>
+          ${addEventHref ? `<a class="c2-modal-google" href="${escAttr(addEventHref)}" data-external>
             <span aria-hidden="true">+</span>
             <strong>add to Google Calendar</strong>
           </a>` : ""}
