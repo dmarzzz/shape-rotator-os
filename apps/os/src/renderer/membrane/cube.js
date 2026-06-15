@@ -16,7 +16,7 @@ export const MAX_FACES = 20;
 // The shapes the die may become, in cycle order. Removed counts
 // (9/10/11/13/14/15/16/17/18/19) are simply absent here, so spinning skips them.
 export const ALLOWED_FACES = [6, 7, 8, 12, 20];
-const TARGET_R = 1.45; // bounding-sphere radius every shape is scaled to
+export const TARGET_R = 1.45; // bounding-sphere radius every shape is scaled to
 
 // Human-readable names per face count — shown on screen so shapes can be
 // referenced by name. Dice tags for the Platonic ones.
@@ -228,7 +228,7 @@ function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
-export function createPsyCube({ isLight = false } = {}) {
+export function createPsyCube({ isLight = false, initialFaces = null } = {}) {
   const profile = BLOB_PROFILES.self;
   // On white the light cream rim/edges vanish — drive the accent (fresnel rim +
   // glowing edge lines) from the darker domain baseColor in light mode so the
@@ -254,6 +254,10 @@ export function createPsyCube({ isLight = false } = {}) {
   // The shapes the die cycles through, in order. Spinning steps along this
   // list (wrapping); counts not listed here are skipped entirely.
   let faceIndex = ALLOWED_FACES.length - 1; // boots as the d20 (last entry)
+  if (initialFaces != null) {
+    const i = ALLOWED_FACES.indexOf(initialFaces);
+    if (i >= 0) faceIndex = i;   // restore a remembered shape (persists across membrane re-mounts)
+  }
   let faces = ALLOWED_FACES[faceIndex];
 
   const bodyMat = new THREE.ShaderMaterial({
@@ -421,7 +425,11 @@ export function createPsyCube({ isLight = false } = {}) {
       radialFieldInto(geo, toR);
       morphing = true;
       morphT = 0;
-      lineFadeTarget = 0; // hide the crisp lines while the blob reshapes
+      // Hide the crisp edge-lines for the whole morph. Snap to 0 instantly
+      // (not eased) so the OLD shape's lines don't linger/lag over the
+      // reshaping body; they fade back in on the new shape once it settles.
+      lineFadeTarget = 0;
+      lineFade = 0;
       if (pendingGeo) pendingGeo.dispose();
       pendingGeo = geo;
       // Hand the body to the deforming icosphere for the transition.

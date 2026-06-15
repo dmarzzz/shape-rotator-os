@@ -2,6 +2,95 @@
 
 Succinct log of shipped features. Newest first.
 
+## Membrane: hidden Rubik's-cube easter egg (2026-06-15)
+
+A playable Flashbots Rubik's cube hides at the end of the membrane die's shape
+cycle. Spin the centre shape fast to morph it; after every regular shape has
+been shown (d20 → d12 → d8 → d7 → d6), the next fast spin reveals the cube
+instead of wrapping. Spin the revealed cube fast again to cycle back to the
+shapes.
+
+- **Self-contained module** ([rubiks.js](apps/os/src/renderer/membrane/rubiks.js)):
+  a direct port of the standalone cube (`rubiks-cube-web/`) — its own renderer,
+  lights, RoomEnvironment, NeutralToneMapping and two-pass layer-selective bloom,
+  plus all the tuned plastic colours, inverted-normal fixes and gated feature
+  glows (white X / blue eyes / yellow bolt). It renders to its **own transparent
+  canvas** overlaid on the die (`.membrane-rubiks-canvas`); reconciling it into
+  the membrane's ACES/threshold-bloom scene would have wrecked those colours.
+- **Fully playable**: drag a cubie face to turn that layer (short drag past ~15°
+  commits a quarter turn), drag empty space to orbit. **Scramble + Reset** buttons
+  fade in under the cube (Reset animates the inverse-move replay). When untouched
+  the cube does a slow idle camera-orbit so it tumbles "like the other shapes".
+- **Sized to match the die**: the cube renders with the die's exact camera (fov
+  `MEMBRANE_FOV` + look-at distance `MEMBRANE_CAMERA_Z`, exported from scene.js)
+  and its 3×3 body edge is scaled to the die's d6 edge
+  (`TARGET_R · 2/√3 · CUBE_SCALE`), so it reads the same on-screen size as the
+  cube shape it replaces. Zoom is locked (`noZoom`) so it stays that size.
+- **Glow gated strictly by emissive (no reflection leak)**: the selective-bloom
+  pass blanks each glow mesh's albedo to black but kept the `MeshStandardMaterial`,
+  so `scene.environment` still lit it **specularly** — that reflection bloomed
+  independently of emissive, leaving a feature faintly glowing even when its glow
+  was gated off (e.g. the X with the back face unsolved). Fixed by nulling
+  `scene.environment` for the duration of the bloom pass (restored for the final
+  pass), so the bloom captures ONLY emissive. Now glow strictly follows the gate:
+  emissiveIntensity 0 ⇒ zero bloom. Applied to **both** the membrane module and the
+  standalone (`rubiks-cube-web/index.html` + regenerated `rubiks-cube-standalone.html`).
+- **Cube interaction = camera-orbit (object stays at identity)**: an attempt to
+  make the cube rotate as an OBJECT (to match the die's spin/inherit it on reveal)
+  was REVERTED — rotating the cube tumbled its faces through the fixed lights, so
+  the tuned face colours shifted with orientation, and it complicated layer-turn
+  dragging. The cube stays at identity and the **camera orbits** (TrackballControls)
+  for the idle tumble + free spin; a sustained-fast background spin still fires
+  `onCycleAway` to return to the shapes. This keeps lighting fixed relative to the
+  cube (stable colours) and the layer-turn drag math in world == cube-local space.
+  Kept from that pass: `releasePointerCapture` guarded in try/catch (can't abort a
+  turn's finalize), and the cube body sized to the die's d6 edge **× 1.2** (20%
+  larger, by request).
+- **Reset does the minimal turns**: instead of replaying every recorded turn, the
+  move history is collapsed first (`reduceMoves`: merges consecutive same-layer
+  turns, cancels turn-and-turn-back, cascading). The reduced sequence has the same
+  net effect, so its inverse still solves it — in far fewer turns when the play had
+  redundancy. (Both versions. Note: a fully-random scramble has little redundancy,
+  so those turns are genuinely needed; this isn't a from-scratch optimal solver.)
+- **X keeps a 30% glow floor**: the back-X glow never drops to 0 — it holds a
+  constant 30% (uniform emissive wash) when unsolved and ramps to 100% when the X
+  is assembled. The even wash masks any residual paint-shade mismatch on the back
+  cubies. (Both versions; eyes/bolt still gate 0→100%.)
+- **X paint shades consistently (inverted-normal fix)**: several back cubies ship
+  with inward-pointing `Vit_X` normals (the same model defect that washed out
+  other colors), so the white X paint shaded a *different color* on those pieces
+  ("some X parts white, others gray" when the X isn't assembled). The original
+  `NORMAL_FIX_CUBIES` pass deliberately excluded `Vit_X`; now the flat X gets the
+  same per-vertex outward-normal correction (`dot(normal, position) < 0` → flip)
+  on every back cubie. Verified: all 9 X pieces now have uniform outward normals
+  (0 inward) → consistent shading. Applied to both the membrane module and the
+  standalone (+ regenerated single-file).
+- **Clean back-face "X" glow**: the white X glows ONLY when the full back face is
+  assembled (gated on all 9 back cubies solved), and only the X stroke itself
+  glows. The model's white shells wrap onto the cubies' side/front faces, so every
+  back cubie's shell is split per-triangle — only the **outermost (most-negative-Z)
+  back wall** glows; the inner wall, side walls, and the rest stay matte white.
+  Selecting by position (plus `|normal.z| > 0.5` to drop side walls) rather than by
+  normal direction matters because several back cubies ship with inverted normals
+  (model defect) — a normal-only test glowed their inner wall, leaving the visible
+  outer wall matte and depth-occluded from rear views (one corner read dim). Now all
+  four corners glow symmetrically from any angle, with no glow bleeding through the
+  body from the front. (Previously corners glowed their whole shell, leaking white
+  onto non-X faces whenever the back happened to be assembled.)
+- **Gating** ([scene.js](apps/os/src/renderer/membrane/scene.js)): the scene
+  counts morphs since boot; once all shapes are seen it fires `onRubiksReveal`
+  (suppressing further die morphs). The cube's own sustained-fast background spin
+  fires `onCycleAway` → `resumeFromRubiks()`, which morphs the die on into the
+  next shape. Reveal/hide cross-fades the two canvases via a `membrane-rubiks-active`
+  class ([membrane.css](apps/os/src/renderer/membrane/membrane.css)); the module
+  is built lazily on first reveal (no cost until then).
+- **Uncompressed model**: the OS app's CSP forbids the blob-URL worker three's
+  `DRACOLoader` needs, so the bundled `rubiks_cube.glb` is **Draco-decoded** to a
+  plain GLB (built offline by
+  [decompress-glb.cjs](rubiks-cube-web/decompress-glb.cjs) using the Draco decoder
+  that ships with three) and loaded worker-free with plain `GLTFLoader`. The
+  standalone keeps its small Draco file.
+
 ## Membrane: light mode support (2026-06-13)
 
 - The membrane page was dark-only; it now follows the app's `html[data-theme="light"]`

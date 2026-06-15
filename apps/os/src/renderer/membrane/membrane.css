@@ -732,6 +732,152 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   z-index: 1;
 }
 
+/* Easter-egg Rubik's cube — its own transparent canvas overlaid on the die.
+   Hidden (and not rendering) until the die has cycled through every shape;
+   then it fades in, becomes interactive, and the psy-die fades out under it. */
+.membrane-rubiks-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: transparent;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 700ms ease;
+}
+.membrane-rubiks-active .membrane-rubiks-canvas {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Keep this canvas visible while the cube shows — the die MESH is hidden in the
+   scene (scene.js), but the starfield keeps rendering here and shows through
+   behind the Rubik's overlay. Just stop it catching pointers. */
+.membrane-rubiks-active .membrane-canvas {
+  pointer-events: none;
+}
+
+.membrane-rubiks-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 7%;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 700ms ease;
+}
+.membrane-rubiks-active .membrane-rubiks-controls {
+  opacity: 0.4;
+}
+.membrane-rubiks-active .membrane-rubiks-controls button {
+  pointer-events: auto;
+}
+
+/* Bright bloom flash that masks the die<->Rubik's swap — a real light source:
+   a hot opaque-white core easing through a long, smooth tail to zero alpha
+   (closest-side so the falloff completes inside the box → no disc, no ring, no
+   cap, no hard border), plus a twinkling glimmer so it feels magical. Fired
+   ONLY by revealRubiks()/hideRubiks() — the normal shape morphs never touch it.
+   Self-contained: only .membrane-flash, its ::before glimmer, and the two
+   membrane-flash-* keyframes. Centered child of .membrane-stage; only
+   opacity/transform animate → GPU compositor. */
+.membrane-flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 92vmin;
+  height: 92vmin;
+  transform: translate(-50%, -50%) scale(0.86);
+  transform-origin: center;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  will-change: opacity, transform;
+  background: radial-gradient(circle closest-side at 50% 50%,
+    #ffffff 0%,
+    #ffffff 30%,
+    rgba(255, 255, 255, 0.82) 40%,
+    rgba(255, 255, 255, 0.52) 52%,
+    rgba(255, 255, 255, 0.28) 64%,
+    rgba(255, 255, 255, 0.12) 77%,
+    rgba(255, 255, 255, 0.04) 88%,
+    rgba(255, 255, 255, 0.01) 95%,
+    rgba(255, 255, 255, 0) 100%);
+}
+/* Magical glimmer — scattered soft glints suspended in the glow that twinkle as
+   it blooms. Points (never lines), placed in the mid-halo so they read against
+   the softer glow rather than getting lost in the white core. */
+.membrane-flash::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background:
+    radial-gradient(circle 2.5px at 50% 22%, #fff 0%, rgba(255,255,255,0) 62%),
+    radial-gradient(circle 3.5px at 69% 32%, #fff 0%, rgba(255,255,255,0) 62%),
+    radial-gradient(circle 2px   at 31% 37%, #fff 0%, rgba(255,255,255,0) 62%),
+    radial-gradient(circle 3px   at 73% 61%, #fff 0%, rgba(255,255,255,0) 62%),
+    radial-gradient(circle 2px   at 29% 63%, #fff 0%, rgba(255,255,255,0) 62%),
+    radial-gradient(circle 2.5px at 55% 73%, #fff 0%, rgba(255,255,255,0) 62%),
+    radial-gradient(circle 1.5px at 43% 28%, #fff 0%, rgba(255,255,255,0) 62%),
+    radial-gradient(circle 1.5px at 64% 48%, #fff 0%, rgba(255,255,255,0) 62%),
+    radial-gradient(circle 2px   at 24% 50%, #fff 0%, rgba(255,255,255,0) 62%);
+  filter: blur(0.5px);
+}
+.membrane-flash.is-bursting { animation: membrane-flash 680ms ease-out forwards; }
+.membrane-flash.is-bursting::before { animation: membrane-flash-glimmer 680ms ease-out forwards; }
+/* Snap to bright + opaque by ~8% (~55ms) to cover the swap, hold, then bloom
+   out and fade — a real light flaring up, no hard cut. */
+@keyframes membrane-flash {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.86); }
+  8%   { opacity: 1; transform: translate(-50%, -50%) scale(0.94); }
+  32%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.24); }
+}
+/* Glints twinkle in/out a couple of times with a slow drift so they sparkle. */
+@keyframes membrane-flash-glimmer {
+  0%   { opacity: 0;    transform: scale(0.8) rotate(0deg); }
+  16%  { opacity: 0.95; transform: scale(0.98) rotate(2deg); }
+  40%  { opacity: 0.4;  transform: scale(1.08) rotate(4deg); }
+  62%  { opacity: 0.9;  transform: scale(1.16) rotate(7deg); }
+  100% { opacity: 0;    transform: scale(1.32) rotate(11deg); }
+}
+
+.membrane-rubiks-controls button {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e7e9ee;
+  backdrop-filter: blur(8px);
+  transition: background 0.15s, border-color 0.15s, transform 0.06s, opacity 0.15s;
+}
+.membrane-rubiks-controls button svg { width: 16px; height: 16px; display: block; }
+.membrane-rubiks-controls button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.membrane-rubiks-controls button:active { transform: translateY(1px) scale(0.96); }
+.membrane-rubiks-controls button.primary {
+  border-color: rgba(245, 208, 32, 0.45);
+  color: #f5d020;
+}
+.membrane-rubiks-controls button.primary:hover {
+  background: rgba(245, 208, 32, 0.12);
+  border-color: rgba(245, 208, 32, 0.7);
+}
+.membrane-rubiks-controls button:disabled { opacity: 0.4; cursor: default; }
+
 /* Left-side panel — sits over the canvas in the negative space.
    Calm typography, no chrome borders, no glassmorphism. */
 /* Reading gutter — softer now, since the panel itself does the heavy
