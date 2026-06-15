@@ -11509,7 +11509,8 @@ function contextNormalizeView(raw) {
   const v = String(raw || "").toLowerCase();
   if (v === "transcripts") return "raw";
   if (v === "intel") return "signals";
-  return (v === "articles" || v === "raw" || v === "signals" || v === "data") ? v : "articles";
+  if (v === "cards") return "evidence";
+  return (v === "articles" || v === "raw" || v === "signals" || v === "data" || v === "evidence") ? v : "articles";
 }
 
 const CONTEXT_VIEWS = [
@@ -11517,6 +11518,7 @@ const CONTEXT_VIEWS = [
   { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "raw source transcripts with review metadata" },
   { view: "signals",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>', label: "signals", hint: "vault-backed reads on cohort moves" },
   { view: "data",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>', label: "data", hint: "sanitized entity graph behind the signals" },
+  { view: "evidence", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>', label: "evidence", hint: "distilled evidence cards, live from Supabase" },
 ];
 
 function contextViewNav(active, counts = {}) {
@@ -12050,6 +12052,117 @@ This page was drafted from Context Vault. Private inputs stay local; publish onl
   };
 }
 
+function contextEvidenceDate(value) {
+  if (!value) return "";
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  } catch { return ""; }
+}
+
+function contextEvidenceCardHtml(card) {
+  const type = String(card.claim_type || "insight");
+  const title = String(card.title || "").trim();
+  const claim = String(card.claim_text || "").trim();
+  const summary = String(card.summary || "").trim();
+  const evidence = String(card.evidence_level || "").trim();
+  const scope = String(card.attribution_scope || "").trim();
+  const confNum = Number(card.confidence);
+  const conf = Number.isFinite(confNum) ? `${Math.round(confNum * 100)}%` : "";
+  const topic = String(card.content_json?.topic_label || "").trim();
+  const when = contextEvidenceDate(card.created_at);
+  const chips = [evidence, scope].filter(Boolean)
+    .map(c => `<span class="alch-ev-chip">${escHtml(c.replace(/_/g, " "))}</span>`).join("");
+  const prov = [topic, "distilled", "T3 public", when].filter(Boolean).map(escHtml).join(" · ");
+  return `
+    <article class="alch-ev-card" data-claim-type="${escAttr(type)}">
+      <header class="alch-ev-head">
+        <span class="alch-ev-type">${escHtml(type.replace(/_/g, " "))}</span>
+        ${conf ? `<span class="alch-ev-conf" title="confidence">${escHtml(conf)}</span>` : ""}
+      </header>
+      ${title ? `<h3 class="alch-ev-title">${escHtml(title)}</h3>` : ""}
+      ${claim ? `<p class="alch-ev-claim">${escHtml(claim)}</p>` : ""}
+      ${summary && summary !== claim ? `<p class="alch-ev-summary">${escHtml(summary)}</p>` : ""}
+      <footer class="alch-ev-meta">
+        ${chips}
+        <span class="alch-ev-prov">${prov}</span>
+      </footer>
+    </article>
+  `;
+}
+
+const EVIDENCE_TIER_LS_KEY = "srfg:evidence_tier";
+
+// Detail tier for the Context > evidence view.
+//   T2 (default) = the richer, NAMED cohort session readouts (from the committed
+//     bundle's session_insights — no login required).
+//   T3 = the person-anonymized cards read live from Supabase (the public tier).
+// Default T2; flip to T3 instantly (via the in-view toggle or this localStorage
+// key) if named detail ever needs pulling back. No login is involved either way.
+function contextEvidenceTier() {
+  try {
+    return String(localStorage.getItem(EVIDENCE_TIER_LS_KEY) || "").toUpperCase() === "T3" ? "T3" : "T2";
+  } catch { return "T2"; }
+}
+function setContextEvidenceTier(tier) {
+  const next = tier === "T3" ? "T3" : "T2";
+  try { localStorage.setItem(EVIDENCE_TIER_LS_KEY, next); } catch {}
+  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
+}
+
+function evidenceTierToggleHtml(tier) {
+  const opt = (t, label, hint) =>
+    `<button class="alch-ev-tier-btn${tier === t ? " is-on" : ""}" data-ev-tier="${t}" type="button" aria-pressed="${tier === t}" title="${escAttr(hint)}">${label}</button>`;
+  return `<div class="alch-ev-tier" role="group" aria-label="evidence detail tier">
+    ${opt("T2", "named", "cohort tier — named teams, people, and the full session summary")}
+    ${opt("T3", "generalized", "public tier — person-anonymized, no named teams or people")}
+  </div>`;
+}
+
+// A named cohort session readout (T2) — the summary-section format: thesis hook,
+// the 60-second summary, product insights, themes, and the named teams/people.
+function contextSessionSummaryHtml(s) {
+  const title = String(s.title || "").trim();
+  const thesis = String(s.thesis || "").trim();
+  const summary = String(s.summary || s.one_liner || "").trim();
+  const date = contextEvidenceDate(s.date);
+  const kind = String(s.kind || "").trim();
+  const themes = Array.isArray(s.themes) ? s.themes : [];
+  const insights = Array.isArray(s.insights) ? s.insights : [];
+  const who = [...(Array.isArray(s.teams) ? s.teams : []), ...(Array.isArray(s.people) ? s.people : [])]
+    .map((t) => String(t).replace(/-/g, " ").trim()).filter(Boolean);
+  const meta = [kind, date].filter(Boolean).map(escHtml).join(" · ");
+  const themeChips = themes.slice(0, 6).map((t) => `<span class="alch-ev-chip">${escHtml(String(t))}</span>`).join("");
+  return `
+    <article class="alch-ev-sum">
+      ${meta ? `<div class="alch-ev-type">${meta}</div>` : ""}
+      ${title ? `<h3 class="alch-ev-sum-title">${escHtml(title)}</h3>` : ""}
+      ${thesis ? `<p class="alch-ev-sum-thesis">${escHtml(thesis)}</p>` : ""}
+      ${summary ? `<p class="alch-ev-sum-body">${escHtml(summary)}</p>` : ""}
+      ${insights.length ? `<ul class="alch-ev-sum-list">${insights.slice(0, 10).map((i) => `<li>${escHtml(String(i))}</li>`).join("")}</ul>` : ""}
+      ${themeChips ? `<div class="alch-ev-meta">${themeChips}</div>` : ""}
+      ${who.length ? `<div class="alch-ev-sum-who">${who.slice(0, 10).map((w) => `<span class="alch-ev-chip alch-ev-who-chip">${escHtml(w)}</span>`).join("")}</div>` : ""}
+    </article>
+  `;
+}
+
+function renderContextEvidence(tier, cards, insights) {
+  const toggle = evidenceTierToggleHtml(tier);
+  if (tier === "T2") {
+    const body = insights.length
+      ? `<p class="alch-ev-lede">${insights.length} cohort session readout${insights.length === 1 ? "" : "s"} — named, with the 60-second summary, themes, and product insights. Switch to <em>generalized</em> for the person-anonymized public view.</p>
+         <div class="alch-ev-grid alch-ev-sum-grid">${insights.map(contextSessionSummaryHtml).join("")}</div>`
+      : `<p class="alch-cv-muted alch-ev-empty">No cohort session readouts yet. Distill sessions into readouts to populate the named tier.</p>`;
+    return `${toggle}${body}`;
+  }
+  const body = cards.length
+    ? `<p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from Supabase — person-anonymized, team-attributed, published.</p>
+       <div class="alch-ev-grid">${cards.map(contextEvidenceCardHtml).join("")}</div>`
+    : `<p class="alch-cv-muted alch-ev-empty">No distilled evidence cards yet. These load live from Supabase once cohort sessions are distilled, reviewed, and published.</p>`;
+  return `${toggle}${body}`;
+}
+
 function renderContextVault() {
   const cv = state.contextVault;
   const view = contextNormalizeView(cv.mode);
@@ -12067,7 +12180,26 @@ function renderContextVault() {
     raw: cv.loaded ? rawScripts.length : undefined,
     signals: intelMeta.signals,
     data: intelMeta.entities,
+    evidence: (contextEvidenceTier() === "T2"
+      ? (state.cohort?.session_insights || []).length
+      : (state.cohort?.transcript_evidence_cards || []).length) || undefined,
   });
+
+  // Evidence view — distilled transcript cards read live from Supabase
+  // (cohort-source.js overlays them onto the surface). Full-width under the
+  // shared page header, same as the intel views.
+  if (view === "evidence") {
+    const tier = contextEvidenceTier();
+    const cards = Array.isArray(state.cohort?.transcript_evidence_cards) ? state.cohort.transcript_evidence_cards : [];
+    const insights = Array.isArray(state.cohort?.session_insights) ? state.cohort.session_insights : [];
+    state.canvas.innerHTML = `
+      <section class="alch-cv">
+        ${pageHeadHtml({ nav })}
+        ${renderContextEvidence(tier, cards, insights)}
+      </section>
+    `;
+    return;
+  }
 
   // Intel views — the embedded signals/data module renders below the same
   // page header the vault views use.
@@ -12132,6 +12264,9 @@ function renderContextVault() {
 function wireContextVault() {
   for (const btn of state.canvas.querySelectorAll("[data-cv-mode]")) {
     btn.addEventListener("click", () => setContextVaultMode(btn.dataset.cvMode));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-ev-tier]")) {
+    btn.addEventListener("click", () => setContextEvidenceTier(btn.dataset.evTier));
   }
   for (const btn of state.canvas.querySelectorAll("[data-cv-source]")) {
     btn.addEventListener("click", () => selectContextSource(btn.dataset.cvSource));

@@ -197,9 +197,7 @@ body:not([data-active-tab="matrix"]) .chat-only { display: none !important; }
    password-free login (see docs/MATRIX_DEVICE_LOGIN_REQUEST.md). The tab + all
    its code still ship — there's just no entry point, so we don't imply it
    works yet. To re-enable, delete this one rule. */
-/* >>> LOCAL TEST ONLY — matrix temporarily UNHIDDEN. DO NOT COMMIT this change.
-   Restore the line below before any commit / PR. <<< */
-/* .nav-cat[data-tab="matrix"] { display: none !important; } */
+.nav-cat[data-tab="matrix"] { display: none !important; }
 
 /* search lives as an overlay inside the Atlas app (formerly its own
  * tab). Shown when on apps→atlas AND data-atlas-search="open". */
@@ -17566,19 +17564,30 @@ body[data-blank] .blank-tab { display: flex; }
 }
 .primary-nav .nav-cat--eyebrow:hover { color: rgba(var(--ink-rgb), 0.66); }
 
-/* ── apps / network — destination rows in the OS-rail's row grammar ──────
- * icon · label · hint, matching the rail rows so the column reads as one
- * even list rather than a header + three orphans. A single small gap below
- * the rail is the only group boundary — no divider line, no label. */
-.primary-nav .alchemy-rail + .nav-cat--dest { margin-top: 8px; }
+/* ── apps / network / links — destination rows in the OS-rail's row grammar.
+ * A faint hairline above the first one separates the OS pages from these
+ * destinations. */
+.primary-nav .alchemy-rail + .nav-cat--dest {
+  position: relative;
+  /* Above the line sits ~25px (context's 9px pad + rail's 14px bottom pad +
+   * 2px flex gap); below is this padding-top. Pull up by 12 so the line lands
+   * ~13px from context AND ~13px from "apps" — equal on both sides. */
+  margin-top: -12px;
+  padding-top: 13px;
+}
+.primary-nav .alchemy-rail + .nav-cat--dest::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 16px; right: 16px; height: 1px;
+  background: rgba(var(--ink-rgb), 0.1);   /* inset hairline, not full width */
+}
 .primary-nav .nav-cat--dest {
   display: grid;
   grid-template-columns: auto 1fr;
   column-gap: 12px;
-  row-gap: 2px;
   align-items: center;
   width: 100%;
-  padding: 6px 16px 6px 40px;   /* icon column lines up under the OS-page icons */
+  padding: 9px 16px 9px 40px;   /* same rhythm as the OS-rail rows; icon aligned */
   text-transform: none;
   letter-spacing: normal;
   font-weight: 400;
@@ -17619,12 +17628,14 @@ body[data-blank] .blank-tab { display: flex; }
 .primary-nav .nav-cat--dest:hover .ar-label { color: rgba(var(--ink-rgb), 0.98); }
 /* active row — red icon + bright label, exactly like the active OS page */
 body[data-active-tab="apps"]    .primary-nav .nav-cat--dest[data-tab="apps"]    .ar-label,
-body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-label {
+body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-label,
+body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   .ar-label {
   color: var(--ink-hi);
   font-weight: 500;
 }
 body[data-active-tab="apps"]    .primary-nav .nav-cat--dest[data-tab="apps"]    .ar-num,
-body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-num {
+body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-num,
+body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   .ar-num {
   opacity: 1;
   color: var(--sr-red);
 }
@@ -23214,3 +23225,143 @@ html[data-theme="light"] .alch-trailbar .alch-trail-back {
   .alch-trailbar .alch-trail-back .atb-word { display: none; }
   .alch-trailbar .alch-trail-back { padding: 6px; }
 }
+
+/* --- Context › evidence: distilled transcript cards, read live from Supabase.
+   Neutral ink tokens (theme-adaptive); data (confidence) in mono tabular-nums;
+   expo-out hover per the house motion vocabulary. --- */
+.alch-ev-lede {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--light-3);
+  letter-spacing: 0.01em;
+}
+.alch-ev-empty { margin-top: 18px; max-width: 52ch; }
+.alch-ev-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(264px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.alch-ev-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  border-radius: 12px;
+  background: rgba(var(--ink-rgb), 0.025);
+  transition: background 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              border-color 200ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alch-ev-card:hover {
+  background: rgba(var(--ink-rgb), 0.05);
+  border-color: rgba(var(--ink-rgb), 0.20);
+}
+.alch-ev-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.alch-ev-type {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(var(--ink-rgb), 0.55);
+}
+.alch-ev-conf {
+  font-family: "SF Mono", Menlo, ui-monospace, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--ink-rgb), 0.5);
+}
+.alch-ev-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--light-1);
+  text-wrap: balance;
+}
+.alch-ev-claim {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--light-1);
+  text-wrap: pretty;
+}
+.alch-ev-summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--light-3);
+}
+.alch-ev-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.alch-ev-chip {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(var(--ink-rgb), 0.06);
+  color: rgba(var(--ink-rgb), 0.7);
+}
+.alch-ev-prov {
+  font-size: 10px;
+  color: rgba(var(--ink-rgb), 0.42);
+  margin-left: auto;
+}
+
+/* --- Context › evidence: T2/T3 detail toggle (segmented pill) + named session
+   summaries (the T2 tier). --- */
+.alch-ev-tier {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  margin: 0 0 14px;
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
+  border-radius: 999px;
+  background: rgba(var(--ink-rgb), 0.03);
+}
+.alch-ev-tier-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(var(--ink-rgb), 0.55);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 4px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 160ms cubic-bezier(0.19, 1, 0.22, 1), color 160ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alch-ev-tier-btn:hover { color: var(--light-1); }
+.alch-ev-tier-btn.is-on { background: rgba(var(--ink-rgb), 0.10); color: var(--light-1); }
+.alch-ev-sum-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.alch-ev-sum {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px 18px;
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  border-radius: 12px;
+  background: rgba(var(--ink-rgb), 0.025);
+  transition: background 200ms cubic-bezier(0.19, 1, 0.22, 1), border-color 200ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alch-ev-sum:hover { background: rgba(var(--ink-rgb), 0.05); border-color: rgba(var(--ink-rgb), 0.20); }
+.alch-ev-sum-title { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--light-1); text-wrap: balance; }
+.alch-ev-sum-thesis { margin: 0; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--light-1); }
+.alch-ev-sum-body { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--light-3); text-wrap: pretty; }
+.alch-ev-sum-list { margin: 2px 0 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
+.alch-ev-sum-list li { font-size: 12px; line-height: 1.45; color: var(--light-1); }
+.alch-ev-sum-who { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+.alch-ev-who-chip { background: rgba(var(--ink-rgb), 0.09); color: rgba(var(--ink-rgb), 0.85); font-weight: 600; }

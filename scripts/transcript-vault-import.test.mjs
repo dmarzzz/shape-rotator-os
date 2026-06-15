@@ -138,8 +138,8 @@ test("normalizes Drive copies and infers dates/session types from filenames", ()
   assert.equal(inferSessionType(name), "weekly_standup");
   assert.equal(inferSessionType("Copy of Product Whiteboarding Jam Jun 9.txt"), "rd_jam");
   assert.equal(inferSessionType("Copy of 1-1 May 29 Transcript.txt"), "private_1on1");
-  assert.equal(inferSessionType("Copy of Product Positioning Coaching w/ Tina feedback private.txt"), "private_1on1");
-  assert.equal(inferSessionType("Copy of 2026-05-25__office-hours__andrew-drop-in-mixed-conversations.txt"), "private_1on1");
+  assert.equal(inferSessionType("Copy of Quarterly 1-1 Coaching Notes.txt"), "private_1on1");
+  assert.equal(inferSessionType("Copy of 2026-01-15__1on1__strategy-sync.txt"), "private_1on1");
   assert.equal(vaultIdForName(name), "wdydlw-shaw-8");
 });
 
@@ -164,12 +164,12 @@ test("builds preferred transcript names and drive routes from policy", () => {
   );
   assert.equal(
     canonicalTranscriptName({
-      name: "Copy of Product Positioning Coaching w/ Tina feedback private.txt",
+      name: "Copy of Roadmap Review Coaching w/ Jordan feedback private.txt",
       sessionType: "private_1on1",
-      date: "2026-05-27",
+      date: "2026-01-15",
       policy: POLICY,
     }),
-    "private_1on1_product-positioning-tina_2026-05-27.txt",
+    "private_1on1_roadmap-review-jordan_2026-01-15.txt",
   );
   assert.equal(
     canonicalTranscriptName({

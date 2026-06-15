@@ -25,6 +25,7 @@
 
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
+import { fetchPublicEvidenceCards } from "./supabase-evidence.mjs";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
 const GH_BRANCH   = "main";
@@ -137,6 +138,7 @@ function _writeSurfaceLs(surface) {
       calendar_google_events: surface.calendar_google_events || {},
       constellation_cues: surface.constellation_cues || [],
       session_insights: surface.session_insights || [],
+      transcript_evidence_cards: surface.transcript_evidence_cards || [],
       whats_new: surface.whats_new || [],
       person_timeline: surface.person_timeline || {},
       team_timeline: surface.team_timeline || {},
@@ -164,6 +166,7 @@ function emptyShape() {
     calendar_google_events: {},
     constellation_cues: [],
     session_insights: [],
+    transcript_evidence_cards: [],
     whats_new: [],
     person_timeline: {},
     team_timeline: {},
@@ -212,6 +215,12 @@ function normalize(data) {
     // scripts/ingest-session-readouts.mjs). Not rendered yet — passed
     // through so a future insights surface needs no data-plane change.
     session_insights: Array.isArray(data?.session_insights) ? data.session_insights : [],
+    // Distilled transcript evidence cards read LIVE from Supabase at runtime
+    // (the public, person-anonymized T3 layer). Empty in the committed bundle
+    // by design — populated by the Supabase overlay in the background refresh
+    // (see applyEvidenceOverlay). Passed through here so an LS-cached set
+    // survives a reboot's first paint.
+    transcript_evidence_cards: Array.isArray(data?.transcript_evidence_cards) ? data.transcript_evidence_cards : [],
     // Build-time "what's new" feed (membrane left edge). Bundled in the
     // surface so the feed reads full without depending on the live
     // team_timeline refresh from main.
@@ -319,23 +328,13 @@ async function loadFromGithub() {
     console.warn("[cohort-source] calendar.json fetch/parse failed:", e?.message || e);
   }
 
-  try {
-    const cueRaw = await fetchRaw("cohort-data/constellation-cues.json");
-    const cues = JSON.parse(cueRaw);
-    out.constellation_cues = Array.isArray(cues) ? cues : [];
-  } catch (e) {
-    console.warn("[cohort-source] constellation-cues.json fetch/parse failed:", e?.message || e);
-    out.constellation_cues = [];
-  }
-
-  try {
-    const insightsRaw = await fetchRaw("cohort-data/session-insights.json");
-    const insights = JSON.parse(insightsRaw);
-    out.session_insights = Array.isArray(insights) ? insights : [];
-  } catch (e) {
-    console.warn("[cohort-source] session-insights.json fetch/parse failed:", e?.message || e);
-    out.session_insights = [];
-  }
+  // Per-session distilled transcript content (constellation cues + session
+  // insights) is gated cohort-internal material and no longer published to the
+  // public repo, so there is nothing to fetch here. These resolve empty until
+  // the app reads reviewed distillations at runtime from the gated Supabase
+  // view (the rail applyEvidenceOverlay already uses for T3 evidence cards).
+  out.constellation_cues = [];
+  out.session_insights = [];
 
   // Generated read models that do not fully live in cohort-data/*.md. The live
   // markdown builder above cannot reconstruct Git-derived per-record timelines,
@@ -685,6 +684,26 @@ async function mergeSyncOverBaseline(baseline, overlay) {
 // Cheap change signature: counts + sorted record_ids per bucket. Used
 // by the refresh loop to skip re-render when GitHub returned identical
 // data (the usual case between merges).
+// Apply the live Supabase T3 evidence overlay on top of a merged surface.
+// The app reads the public, person-anonymized transcript cards LIVE from
+// Supabase (public_transcript_evidence_cards) so the distillation engine's
+// output shows up without a repo rebuild or a committed bundle. On a Supabase
+// outage — or when no anon key is configured — the surface keeps whatever
+// cards it already carries (committed bundle or a prior LS-cached set), so the
+// app degrades gracefully instead of going dark.
+async function applyEvidenceOverlay(surface) {
+  try {
+    const { cards, source } = await fetchPublicEvidenceCards();
+    if (source === "supabase") {
+      surface.transcript_evidence_cards = cards;
+      surface._evidenceSource = "supabase-live";
+    }
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
 function signatureOf(grouped) {
   const hash = (value) => {
     const s = String(value ?? "");
@@ -717,7 +736,7 @@ function signatureOf(grouped) {
     .map(([id, items]) => `${id}:${Array.isArray(items) ? items.length : 0}:${fp(JSON.stringify(items || []))}`)
     .sort()
     .join("|");
-  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
+  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#te:${(grouped.transcript_evidence_cards || []).length}:${arraySig(grouped.transcript_evidence_cards || [])}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
 }
 
 // Dev preview override. Setting `localStorage.setItem("srfg:cohort_source", "local")`
@@ -850,6 +869,7 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
       if (!baseline) return; // nothing to merge against
 
       const merged = await applySyncOverlayCached(baseline);
+      await applyEvidenceOverlay(merged);
       merged._sig = signatureOf(merged);
       // Did anything actually change? If not, no subscriber notify.
       const prevSig = _cache?._sig;

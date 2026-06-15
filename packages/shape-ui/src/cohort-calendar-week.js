@@ -5,9 +5,10 @@
 // bundled fallback), state, and event delegation. The shape mirrors how
 // cohort-card.js works — strings out, hooks attached by the consumer.
 //
-// Data source: the JSON shipped at the Phala URL embedded below (also
-// mirrored into the surface bundle every 30 minutes by the calendar-sync
-// GitHub Action — see scripts/sync-calendar.js).
+// Data source: the JSON shipped at the CALENDAR_URL below — our own
+// schedule, regenerated from the Shape Rotator admin Google Calendar and
+// mirrored into the surface bundle hourly by the calendar-sync GitHub
+// Action (see scripts/build-calendar-from-google.js).
 //
 // Shape of the JSON:
 //   {
@@ -19,12 +20,12 @@
 //         <10 week rows: [weekNum, "dates\n\ntheme", Mon..Sun, onsite, fb, notes]>,
 //         <recurring rows from index 12 onward>
 //       ],
-//       "Weekly Themes": [...]
+//       "Weekly Themes": [...]   // legacy — no longer emitted; only "May 18 Start" is built + rendered
 //     }
 //   }
 //
 // API:
-//   CALENDAR_URL                      — public Phala endpoint
+//   CALENDAR_URL                      — our calendar.json feed (os-web.shaperotator.xyz)
 //   PROGRAM_START_MS / PROGRAM_END_MS — cohort window
 //   currentWeekIdx()                  — 0..9 clamped
 //   phaseFor(week1Based)              — "m1" | "m2" | "m3"
@@ -47,7 +48,9 @@
 
 import { escHtml, escAttr } from "./escape.js";
 
-export const CALENDAR_URL = "https://915c8197b20b831c52cf97a9fb7e2e104cdc6ae8-8080.dstack-pha-prod7.phala.network/cadence/calendar.json";
+// Our own schedule feed, served by apps/web (vendor:web copies cohort-data/calendar.json
+// → /calendar.json) and regenerated from our Google calendar by the calendar-sync bot.
+export const CALENDAR_URL = "https://os-web.shaperotator.xyz/calendar.json";
 
 const PRIMARY_TAB     = "May 18 Start";
 const COHORT_START_MS = Date.UTC(2026, 4, 18);                // mon may 18 2026
@@ -385,7 +388,7 @@ function splitLeadingTime(line) {
 // narrow day cards (the previous layout) was clipping titles after two
 // characters; pulling time off the title line frees the whole card
 // width for the words that actually identify the event.
-// Collapse consecutive identical lines within a block. The upstream Phala
+// Collapse consecutive identical lines within a block. The upstream
 // calendar occasionally repeats a line verbatim (e.g. an "[All Day] Anarchy
 // Day…" note stored twice). Left alone that renders as an italic title PLUS a
 // duplicate sub-line, which both reads wrong and inflates the day column's
@@ -756,7 +759,7 @@ function renderCalendarKeyBar() {
   return `<div class="cal-keybar" role="group" aria-label="filter by event category">${keys}<button class="cal-key cal-key--tbc" type="button" data-cal-filter="tbc" data-cat="tbc" aria-pressed="true"><span class="cal-key-dot"></span>TBC (tentative)</button></div>`;
 }
 
-// Parse one week's row from the Phala tab structure. Returns:
+// Parse one week's row from the calendar tab structure. Returns:
 //   { dateRange, theme, weekStartMs, days: [{ name, date, isToday, isEmpty, blocks[], anchors[] }] }
 export function parseWeekRow(row, weekIdx, eventsByDayMs = new Map()) {
   const meta = (row && row[1] != null ? String(row[1]) : "").split("\n");
@@ -1121,7 +1124,7 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase, transcriptMatches 
 
 // renderWeekView({ data, weekIdx, dayIdx, sub, source, events, transcriptMatches, presenceHtml, surface })
 //
-//   data         — the raw Phala JSON (live or bundled)
+//   data         — the raw calendar JSON (live or bundled)
 //   weekIdx      — 0..9
 //   sub          — "week" | "presence"
 //   source       — "live" | "bundled" | null (null = no data; banner suppressed)
@@ -1358,7 +1361,7 @@ export function renderWeekView({
           </footer>
 
           <div class="cal-page-foot">
-            <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>phala /cadence/calendar.json</a></span>
+            <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
             <span aria-hidden="true">·</span>
             <span>cohort may 18 → jul 26 2026</span>
           </div>

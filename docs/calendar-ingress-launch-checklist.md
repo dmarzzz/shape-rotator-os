@@ -33,7 +33,7 @@ config.
 
 - Calendar name: `Shape Rotator OS`
 - Calendar ID:
-  `c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com`
+  `c_REPLACE_WITH_GOOGLE_CALENDAR_ID@group.calendar.google.com`
 - Calendar timezone: `America/New_York`
 - Desired editor/admin emails are supplied through private env, not committed
   defaults.
@@ -161,7 +161,7 @@ insert into public.calendar_connections (
 ) values (
   'ORG_ID',
   'google',
-  'c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com',
+  'c_REPLACE_WITH_GOOGLE_CALENDAR_ID@group.calendar.google.com',
   'calendar@your-domain.example',
   'oauth_organizer',
   'active'
@@ -174,10 +174,10 @@ returning id;
 - [x] Default organizer calendar exists: `Shape Rotator OS`.
 - [x] Default organizer calendar timezone is `America/New_York`.
 - [x] Default calendar ID is recorded as
-  `c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com`.
+  `c_REPLACE_WITH_GOOGLE_CALENDAR_ID@group.calendar.google.com`.
 - [x] Calendar admins should subscribe to the secondary calendar by its
   `@group.calendar.google.com` ID, not by the Cube organizer email. Use:
-  `https://calendar.google.com/calendar/r?cid=c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed%40group.calendar.google.com`
+  `https://calendar.google.com/calendar/r?cid=c_REPLACE_WITH_GOOGLE_CALENDAR_ID%40group.calendar.google.com`
   while signed into a granted admin account. Adding the capture bot attempts
   to subscribe to its primary calendar and correctly fails.
 - [ ] Record the owning organizer account as
@@ -202,7 +202,7 @@ explicitly need token assignment lines.
 Process-local PowerShell setup for a trusted operator shell:
 
 ```powershell
-$env:GOOGLE_CALENDAR_ID = "c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com"
+$env:GOOGLE_CALENDAR_ID = "c_REPLACE_WITH_GOOGLE_CALENDAR_ID@group.calendar.google.com"
 $env:GOOGLE_CALENDAR_EDITOR_EMAILS = "admin-one@example.com,admin-two@example.com"
 $env:GOOGLE_OAUTH_REDIRECT_URI = "http://127.0.0.1:8787/oauth2callback"
 # Paste these only when the real values exist:

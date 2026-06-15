@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com; connect-src 'self' http://127.0.0.1:* http://localhost:* https://raw.githubusercontent.com https://api.github.com https://*.phala.network; font-src 'self' data: https://fonts.gstatic.com;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com; connect-src 'self' http://127.0.0.1:* http://localhost:* https://raw.githubusercontent.com https://api.github.com https://*.shaperotator.xyz https://*.phala.network; font-src 'self' data: https://fonts.gstatic.com;" />
     <title>Shape Rotator OS</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <!-- Canonical Shape Rotator font pair (matches shaperotator.xyz). -->
@@ -110,7 +110,6 @@
       <button class="nav-cat nav-cat--dest" data-tab="apps" type="button" aria-selected="false">
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></span>
         <span class="nav-cat-label ar-label">apps</span>
-        <span class="ar-hint">atlas · easel · daybook</span>
       </button>
       <!-- matrix tab temporarily hidden for this release (chat almost works;
            re-enable after the next round of fixes). Tab logic stays wired. -->
@@ -122,7 +121,10 @@
       <button class="nav-cat nav-cat--dest" data-tab="network" type="button" aria-selected="false">
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg></span>
         <span class="nav-cat-label ar-label">network</span>
-        <span class="ar-hint">peers · sync · metrics</span>
+      </button>
+      <button class="nav-cat nav-cat--dest" data-tab="links" type="button" aria-selected="false">
+        <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></span>
+        <span class="nav-cat-label ar-label">links</span>
       </button>
     </aside>
 

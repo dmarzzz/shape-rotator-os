@@ -65,6 +65,23 @@ import * as Glass from "./glass.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
 import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.js";
 
+// ── headless smoke-test boot tracing (gated; no-op for real launches) ──
+// main.js loads index.html with ?smoke=1 for the --smoke-test boot. When set,
+// cp() emits "[smoke-cp] <label>" via console.error, which the smoke harness
+// surfaces (console-message lvl>=2). If boot() hangs on CI, the LAST checkpoint
+// printed pinpoints which phase blocked — turning a silent 45s timeout into a
+// located failure. Reaching here at all proves the static import graph
+// evaluated without hanging.
+const __SMOKE = (() => { try { return new URLSearchParams(location.search).has("smoke"); } catch { return false; } })();
+const cp = (label) => {
+  // IPC path is UNCONDITIONAL (no-op without a main-side listener, i.e. outside
+  // --smoke-test) so tracing never depends on the ?smoke query reaching the
+  // renderer. console path stays gated to avoid log spam in normal launches.
+  try { window.api?.smokeTrace?.(label); } catch {}
+  if (__SMOKE) { try { console.error("[smoke-cp] " + label); } catch {} }
+};
+cp("module-eval:boot.js");
+
 // Small Notion-style sync chip pinned to the bottom-left. Subscribes
 // to cohort-source's sync lifecycle and fades in while a background
 // refresh is in flight, fades out a beat after it resolves. Replaces
@@ -466,7 +483,9 @@ async function onUpdateIconClick() {
 
 
 async function boot() {
+  cp("boot:start");
   const env = await (window.api?.env?.() ?? Promise.resolve({}));
+  cp("boot:after-env");
   if (env?.serverUrl) srwk.serverUrl = env.serverUrl;
 
   srwk.spriteTex = makeSpriteTex();
@@ -542,6 +561,7 @@ async function boot() {
   // onboarding modal. Pill is mounted immediately (paints as
   // "claim profile" until cohort loads); modal fires once cohort
   // bundles are available so there's actually something to pick from.
+  cp("boot:before-identity-import");
   try {
     const { mountIdentityPill, maybeShowOnboarding } = await import("./identity.js");
     mountIdentityPill(document.getElementById("tab-bar"));
@@ -550,6 +570,7 @@ async function boot() {
   } catch (e) {
     console.warn("[boot] identity module failed to load:", e?.message || e);
   }
+  cp("boot:after-identity-import");
 
   // App version + auto-update chip (electron-updater + GitHub Releases).
   // Paints "v0.x" in the top-right; click checks for an update and walks
@@ -572,23 +593,8 @@ async function boot() {
       document.body.appendChild(row);
       row.appendChild(pill);
 
-      // Links — demoted from the nav rail to a quiet footer chip (2026-06).
-      // It's a static external bookmark grid, so it sits with the other meta
-      // affordances rather than as a peer of the OS pages. Routes to the
-      // links tab the same way a nav category did.
-      const linksChip = document.createElement("button");
-      linksChip.id = "fg-links-chip";
-      linksChip.className = "fg-links-chip";
-      linksChip.type = "button";
-      linksChip.title = "important links — handouts, repos, downloads";
-      linksChip.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg><span class="fg-links-label">links</span>`;
-      linksChip.addEventListener("click", () => {
-        if (document.body.dataset.activeTab === "links") return;
-        Alchemy.closeMembraneMenu();
-        morphActiveTab("links", () => applyActiveTab("links"));
-        try { localStorage.setItem(TAB_LS_KEY, "links"); } catch {}
-      });
-      row.appendChild(linksChip);
+      // links moved back into the left nav (under network) 2026-06; no longer
+      // a footer chip.
 
       // Update status icon — empty at rest; shows a spinner while checking,
       // a checkmark when up to date, or a download glyph when an update is
@@ -647,7 +653,9 @@ async function boot() {
     }
   });
   wireMetricsTab();
-  wireTabs();
+  cp("boot:before-wireTabs");
+  wireTabs();          // applyActiveTab(initial) → schedules the default-view (membrane) mount
+  cp("boot:after-wireTabs");
   Tabs.init();
   Find.init();
   Glass.init();
@@ -664,6 +672,7 @@ async function boot() {
   // was the bug behind the "INDREX EMPTY · no pages yet" card showing
   // up when the actual state was "swf-node unreachable".
   let daemonReachableAtBoot = false;
+  cp("boot:before-loadGraph");
   try {
     await loadGraph();
     daemonReachableAtBoot = true;
@@ -700,7 +709,9 @@ async function boot() {
     showAtlasEmpty();
   }
   // else: catch fired (offline); offline panel stays shown, empty stays hidden.
+  cp("boot:after-loadGraph");
   try { buildSim(); } catch (e) { console.warn("[boot] buildSim failed:", e); }
+  cp("boot:after-buildSim");
   try { subscribeEvents(); } catch (e) { console.warn("[boot] subscribeEvents failed:", e); }
   wirePeersPanel();
   wireEventsPanel();
@@ -753,6 +764,7 @@ async function boot() {
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
+  cp("boot:end");   // boot() about to resolve → signalReady() fires next
 }
 
 async function loadGraph() {
