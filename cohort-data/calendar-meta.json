@@ -1,0 +1,146 @@
+{
+  "_comment": "Owned schedule metadata that is NOT in Google Calendar. Day-by-day events are generated from our admin calendar by scripts/build-calendar-from-google.js; this file supplies week themes, support columns, headers, and the recurring section. Edit here to change those.",
+  "tab": "May 18 Start",
+  "header_rows": [
+    [
+      "Week",
+      "Dates",
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun",
+      "On-Site / Available for Team Support",
+      "Feedback loop goals",
+      "Notes"
+    ],
+    [
+      "",
+      "",
+      "  ",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Andrew arrives May 15",
+      "",
+      ""
+    ]
+  ],
+  "weeks": [
+    {
+      "week": 1,
+      "date_range": "May 18–23",
+      "theme": "Orientation and Onboarding week",
+      "on_site": "",
+      "feedback_goals": "",
+      "notes": "Bloomberg center requires more planning of catering"
+    },
+    {
+      "week": 2,
+      "date_range": "May 25–30",
+      "theme": "·(Memorial Day May 25)",
+      "on_site": "",
+      "feedback_goals": "Who are you building for? Choosing ICP Exercise",
+      "notes": "Andrew at half marathon Sat May 30 — out for the day (CT Sat May 30 = no Andrew, first regular CT Sat for cohort)"
+    },
+    {
+      "week": 3,
+      "date_range": "Jun 1–6",
+      "theme": "",
+      "on_site": "",
+      "feedback_goals": "",
+      "notes": ""
+    },
+    {
+      "week": 4,
+      "date_range": "Jun 8–13",
+      "theme": "",
+      "on_site": "",
+      "feedback_goals": "9:00 -- ~17:00 Submission + judging \n\nSubmission 9 AM: judging & ceremony to ~5 PM (@ethglobal)\n\n17:30 -- 10:30 Shape Rotator Demo Night \n\nBack running ETH NY. Short timed demos + friendly - investor feedback.",
+      "notes": "Feed"
+    },
+    {
+      "week": 5,
+      "date_range": "Jun 15–20",
+      "theme": "",
+      "on_site": "",
+      "feedback_goals": "Feedback loop goal:",
+      "notes": "Plan for team evaluations / progress checks ever 2 weeks"
+    },
+    {
+      "week": 6,
+      "date_range": "Jun 22–27",
+      "theme": "",
+      "on_site": "",
+      "feedback_goals": "Feed feedback into commons as knowledge base",
+      "notes": "Andrew moving to Baltimore Sat Jun 27 → Mon Jun 29 — out of cohort that weekend (CT Sat Jun 27 = no Andrew, cohort still has access)"
+    },
+    {
+      "week": 7,
+      "date_range": "Jun 29–Jul 4",
+      "theme": "·(July 4 Sat)",
+      "on_site": "",
+      "feedback_goals": "",
+      "notes": ""
+    },
+    {
+      "week": 8,
+      "date_range": "Jul 6–11",
+      "theme": "",
+      "on_site": "",
+      "feedback_goals": "",
+      "notes": ""
+    },
+    {
+      "week": 9,
+      "date_range": "Jul 13–18",
+      "theme": "",
+      "on_site": "",
+      "feedback_goals": "",
+      "notes": "Andrew to Berlin Jul 18; returns for W10 Demo Day #2"
+    },
+    {
+      "week": 10,
+      "date_range": "Jul 20–25",
+      "theme": "",
+      "on_site": "Andrew back from Berlin",
+      "feedback_goals": "",
+      "notes": ""
+    }
+  ],
+  "recurring_rows": [
+    [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "",
+      "RECURRING (all weeks): Weekly Show & Tell (Andrew hosts) — open sign-up for demos, tool exchange, IRL experiences (Novel TBD). Self-organized.",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ]
+  ]
+}
