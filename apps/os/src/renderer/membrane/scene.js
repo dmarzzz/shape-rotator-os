@@ -3,13 +3,18 @@ import { EffectComposer } from '../../vendor/three-jsm/postprocessing/EffectComp
 import { RenderPass } from '../../vendor/three-jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../../vendor/three-jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../../vendor/three-jsm/postprocessing/OutputPass.js';
-import { createPsyCube, BLOB_IDS } from './cube.js';
+import { createPsyCube, BLOB_IDS, ALLOWED_FACES } from './cube.js';
 import { createStarField } from './starfield.js';
 import { getTheme } from '../theme.js';
 
 // The cube is the centerpiece — it sits at the world origin (the camera's
 // look-at point), dead center of the stage at every aspect ratio.
 export const CUBE_SCALE = 0.42;
+
+// Camera framing — exported so the easter-egg Rubik's cube can match the die's
+// exact on-screen size (same fov + look-at distance → identical apparent size).
+export const MEMBRANE_FOV = 38;
+export const MEMBRANE_CAMERA_Z = 4.8;
 
 export function createMembraneScene(canvas, opts = {}) {
   // Theme read once at mount. The toggle lives on the profile page, so
@@ -34,8 +39,8 @@ export function createMembraneScene(canvas, opts = {}) {
   // starfield is additive points. (The blob cluster needed both; dropping
   // them cuts init cost and per-frame uniform uploads.)
 
-  const cameraZ = 4.8;
-  const fov = 38;
+  const cameraZ = MEMBRANE_CAMERA_Z;
+  const fov = MEMBRANE_FOV;
   const camera = new THREE.PerspectiveCamera(fov, 1, 0.1, 100);
   camera.position.set(0, 0, cameraZ);
   camera.lookAt(0, 0, 0);
@@ -55,7 +60,7 @@ export function createMembraneScene(canvas, opts = {}) {
   composer.addPass(bloomPass);
   composer.addPass(new OutputPass());
 
-  const cube = createPsyCube({ isLight });
+  const cube = createPsyCube({ isLight, initialFaces: opts.initialFaces });
   scene.add(cube.group);
 
   let activeId = 'self';
@@ -124,6 +129,14 @@ export function createMembraneScene(canvas, opts = {}) {
   const SHAPE_SUSTAIN_SEC = 0.5;    // must stay fast this long before it morphs
   let shapeArmed = true;
   let fastTime = 0;                 // seconds spent above the trigger speed
+
+  // Easter egg: once every regular shape has been cycled through, the NEXT
+  // fast-spin doesn't wrap back to the first shape — it reveals the Flashbots
+  // Rubik's cube (rendered by an overlaid module; this scene just gates when).
+  // Booting shows the last shape (d20), so showing all of them needs
+  // ALLOWED_FACES.length - 1 more morphs; the morph after that triggers reveal.
+  let morphsSinceCube = 0;
+  let rubiksMode = false;           // the cube is showing; suppress die morphs
 
   function rotateBy(yawRad, pitchRad) {
     _dq.setFromAxisAngle(_axis.set(0, 1, 0), yawRad);
@@ -293,14 +306,30 @@ export function createMembraneScene(canvas, opts = {}) {
     // above the trigger speed for SHAPE_SUSTAIN_SEC, then fires once (one
     // per fast burst — it must slow back down past the re-arm speed before
     // it can fire again). Uses the angular VELOCITY, frame-rate independent.
-    const spinSpeed = spinVel.length();
+    // While the Rubik's cube is revealed it owns its own spin gesture (the
+    // overlaid module fires onCycleAway), so the die morph is suppressed here.
+    const spinSpeed = rubiksMode ? 0 : spinVel.length();
     fastTime = spinSpeed > SHAPE_TRIGGER_SPEED ? fastTime + dt : 0;
     if (shapeArmed && fastTime >= SHAPE_SUSTAIN_SEC) {
-      const newCount = cube.cycleFaces(-1);
-      wiggleStart = nowMs;
-      if (newCount != null && opts.onFacesChange) opts.onFacesChange(newCount);
-      shapeArmed = false;
-      fastTime = 0;
+      if (morphsSinceCube >= ALLOWED_FACES.length - 1) {
+        // Every shape has been seen — reveal the easter-egg cube instead of
+        // wrapping. Hide the die mesh but keep this canvas rendering: the
+        // starfield stays on screen, showing through behind the Rubik's overlay.
+        rubiksMode = true;
+        cube.group.visible = false;
+        shapeArmed = false;
+        fastTime = 0;
+        opts.onRubiksReveal?.();
+      } else {
+        const newCount = cube.cycleFaces(-1);
+        wiggleStart = nowMs;
+        if (newCount != null) {
+          morphsSinceCube += 1;
+          if (opts.onFacesChange) opts.onFacesChange(newCount);
+        }
+        shapeArmed = false;
+        fastTime = 0;
+      }
     } else if (!shapeArmed && spinSpeed < SHAPE_REARM_SPEED) {
       shapeArmed = true;
     }
@@ -334,6 +363,19 @@ export function createMembraneScene(canvas, opts = {}) {
     setActiveBlob,
     getActiveBlobId: () => activeId,
     getFaces: () => cube.getFaces(),
+    // Called when the user spins the revealed Rubik's cube away: the die
+    // resumes the regular cycle, morphing one step on into the next shape.
+    resumeFromRubiks() {
+      if (!rubiksMode) return;
+      rubiksMode = false;
+      cube.group.visible = true;   // die mesh returns as the cube is dismissed
+      morphsSinceCube = 0;
+      shapeArmed = false;
+      fastTime = 0;
+      const newCount = cube.cycleFaces(-1);
+      wiggleStart = performance.now();
+      if (newCount != null && opts.onFacesChange) opts.onFacesChange(newCount);
+    },
     destroy() {
       running = false;
       if (rafId) cancelAnimationFrame(rafId);

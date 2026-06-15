@@ -1,9 +1,22 @@
-import { createMembraneScene } from './scene.js';
+import { createMembraneScene, CUBE_SCALE, MEMBRANE_FOV, MEMBRANE_CAMERA_Z } from './scene.js';
+import { createRubiksApp } from './rubiks.js';
 import { createSoundDirector } from './sound.js';
-import { BLOB_IDS, BLOB_PROFILES, SHAPE_NAMES } from './cube.js';
+import { BLOB_IDS, BLOB_PROFILES, SHAPE_NAMES, TARGET_R } from './cube.js';
+
+// World edge-length of the die's d6 (the cube shape the easter egg replaces):
+// a unit BoxGeometry normalized to bounding-sphere TARGET_R, then group-scaled.
+// The Rubik's cube body is matched to this — then bumped 20% larger by request.
+const DIE_CUBE_EDGE = TARGET_R * (2 / Math.sqrt(3)) * CUBE_SCALE * 1.2;
 import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAuthor, askVerbIconSvg, askVerbVars } from '../asks.js';
 
 function up(s) { return String(s ?? '').toUpperCase(); }
+
+// Remembered die shape, module-scoped so it survives leaving + returning to the
+// membrane page (the scene is destroyed/re-mounted but this module stays loaded).
+// Restored as the die's starting shape on mount; updated on every morph. The
+// Rubik's cube is deliberately NOT persisted — leaving and coming back drops back
+// to the shapes (a fresh scene), which is the only way to reset the cube.
+let savedFaces = null;
 
 // ── dismissable ambient notifications ──────────────────────────────────────
 // The left feed and right agenda are peripheral notification rails. Each card
@@ -696,6 +709,10 @@ function renderAvatar(profile) {
 export function mountMembrane(container, opts = {}) {
   console.log('[membrane] mounting into', container?.id || container?.className);
   container.classList.add('membrane-host');
+  // Always start showing the shapes, never the Rubik's cube — clear any stale
+  // reveal state left on the (reused) container from a previous visit, so the
+  // cube overlay and its Scramble/Reset controls don't linger after coming back.
+  container.classList.remove('membrane-rubiks-active');
   // The panel is retired — start folded so it never flashes in before the
   // fold state below settles (see the "fold state" note further down).
   container.classList.add('membrane-folded');
@@ -712,6 +729,27 @@ export function mountMembrane(container, opts = {}) {
       <div class="membrane-agenda" data-agenda role="region" aria-label="today's agenda"></div>
       <div class="membrane-feed" data-feed role="region" aria-label="what's new"></div>
       <canvas class="membrane-canvas"></canvas>
+      <canvas class="membrane-rubiks-canvas" aria-hidden="true"></canvas>
+      <!-- Bright light flash that blankets the die<->Rubik's swap. Fired ONLY by
+           revealRubiks()/hideRubiks() — the normal shape morphs never touch it. -->
+      <div class="membrane-flash" aria-hidden="true"></div>
+      <div class="membrane-rubiks-controls" aria-hidden="true">
+        <button type="button" class="primary" data-rubiks-scramble aria-label="Scramble">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/>
+            <path d="m18 2 4 4-4 4"/>
+            <path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/>
+            <path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/>
+            <path d="m18 14 4 4-4 4"/>
+          </svg>
+        </button>
+        <button type="button" data-rubiks-reset aria-label="Reset">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+        </button>
+      </div>
       <div class="membrane-shape-name" aria-hidden="true">
         <span class="msn-name" data-shape-name></span>
         <span class="msn-meta" data-shape-meta></span>
@@ -1062,15 +1100,93 @@ export function mountMembrane(container, opts = {}) {
   const fieldRow = panel.querySelector('[data-membrane-field-row]');
   (fieldRow || panelFoot || panel).prepend(foldBtn);
 
+  // ─── easter-egg Rubik's cube ───────────────────────────────────────────
+  // Lazily built on first reveal (loads a ~1.3 MB model) so the membrane has
+  // no extra cost until the die has been cycled through every shape. Lives on
+  // its own overlaid canvas; revealing it fades the psy-die out under it.
+  const rubiksCanvas = container.querySelector('.membrane-rubiks-canvas');
+  const rubiksControls = container.querySelector('.membrane-rubiks-controls');
+  const rubiksScrambleBtn = container.querySelector('[data-rubiks-scramble]');
+  const rubiksResetBtn = container.querySelector('[data-rubiks-reset]');
+  let rubiks = null;
+
+  // Bright light flash that blankets the die<->Rubik's swap so the crossfade is
+  // never seen. Restart-on-demand: strip the class, force a reflow, re-add — so
+  // each transition (in OR out) replays the flash from frame 0. Used ONLY by
+  // revealRubiks/hideRubiks; the normal shape morphs never call it.
+  const flashEl = container.querySelector('.membrane-flash');
+  function flashTransition() {
+    if (!flashEl) return;
+    flashEl.classList.remove('is-bursting');
+    void flashEl.offsetWidth;   // reflow so the keyframes restart
+    flashEl.classList.add('is-bursting');
+  }
+
+  // Create the Rubik's app (loads its ~1.3 MB model + builds the cube) once.
+  // Called eagerly in the background after mount so the model is READY before
+  // the reveal — otherwise the load starts at reveal time, the cube isn't on
+  // screen until after the flash, and it looks frozen. setEnabled stays false
+  // until revealed, so this costs only the background load, not a render loop.
+  function ensureRubiks() {
+    if (!rubiks) {
+      rubiks = createRubiksApp(rubiksCanvas, {
+        onCycleAway: hideRubiks,
+        onSequencing(on) {
+          if (rubiksScrambleBtn) rubiksScrambleBtn.disabled = on;
+          if (rubiksResetBtn) rubiksResetBtn.disabled = on;
+        },
+        // Match the die's exact framing so the cube is the same on-screen size
+        // as the d6 shape it replaces.
+        matchSize: { fov: MEMBRANE_FOV, distance: MEMBRANE_CAMERA_Z, edge: DIE_CUBE_EDGE },
+      });
+    }
+    return rubiks;
+  }
+
+  function revealRubiks() {
+    ensureRubiks();
+    flashTransition();   // white-out the reveal crossfade
+    container.classList.add('membrane-rubiks-active');
+    rubiks.setEnabled(true);   // model already built (pre-loaded) → spins instantly behind the flash
+    if (shapeNameEl) updateRubiksLabel();
+  }
+
+  function hideRubiks() {
+    flashTransition();   // white-out the exit crossfade back to the shapes
+    container.classList.remove('membrane-rubiks-active');
+    if (rubiks) rubiks.setEnabled(false);
+    scene.resumeFromRubiks();   // die morphs on into the next regular shape
+  }
+
+  // The shape label reads "flashbots cube" while the easter egg is up.
+  function updateRubiksLabel() {
+    if (!shapeNameEl) return;
+    shapeNameEl.textContent = 'flashbots cube';
+    shapeMetaEl.textContent = '3×3×3 · drag to turn';
+  }
+
   const scene = createMembraneScene(canvas, {
+    // Start on the shape we were last showing (remembered across page switches).
+    initialFaces: savedFaces,
     // No onEmptyClick: clicking the void no longer summons the panel. The
     // membrane is a pure ambient view now; identity moved to profile ›
     // "your seal". (The die still stops on click / morphs on fast spin —
     // see scene.js.)
-    // The die changed shape (triggered by a fast spin) — update the label.
-    onFacesChange(faces) { updateShapeName(faces); },
+    // The die changed shape (triggered by a fast spin) — update the label and
+    // remember the shape so it persists when leaving + returning to the page.
+    onFacesChange(faces) { savedFaces = faces; updateShapeName(faces); },
+    // Every shape has been seen — surface the hidden cube.
+    onRubiksReveal() { revealRubiks(); },
   });
   updateShapeName(scene.getFaces());
+
+  if (rubiksScrambleBtn) rubiksScrambleBtn.addEventListener('click', () => rubiks?.scramble());
+  if (rubiksResetBtn) rubiksResetBtn.addEventListener('click', () => rubiks?.reset());
+  // Pre-load the easter-egg cube in the background (deferred so it doesn't stall
+  // mount). The die takes several whips to cycle through every shape before the
+  // reveal, so the model is built and ready well before then — the reveal is
+  // instant and already spinning behind the flash instead of a cold load.
+  (window.requestIdleCallback || ((f) => setTimeout(f, 600)))(() => { try { ensureRubiks(); } catch (e) {} });
   renderAgenda();
   renderFeed();
   console.log('[membrane] scene mounted; cube active:', scene.getActiveBlobId());
@@ -1123,9 +1239,11 @@ export function mountMembrane(container, opts = {}) {
     sound,
     destroy() {
       clearInterval(agendaTimer);
+      if (rubiks) rubiks.dispose();
       scene.destroy();
       sound.destroy();
       container.classList.remove('membrane-host');
+      container.classList.remove('membrane-rubiks-active');
       container.innerHTML = '';
     },
   };
