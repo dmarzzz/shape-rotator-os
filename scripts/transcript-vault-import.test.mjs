@@ -164,12 +164,12 @@ test("builds preferred transcript names and drive routes from policy", () => {
   );
   assert.equal(
     canonicalTranscriptName({
-      name: "Copy of Product Positioning Coaching w/ Tina feedback private.txt",
+      name: "Copy of Roadmap Review Coaching w/ Jordan feedback private.txt",
       sessionType: "private_1on1",
-      date: "2026-05-27",
+      date: "2026-01-15",
       policy: POLICY,
     }),
-    "private_1on1_product-positioning-tina_2026-05-27.txt",
+    "private_1on1_roadmap-review-jordan_2026-01-15.txt",
   );
   assert.equal(
     canonicalTranscriptName({

@@ -6,7 +6,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_PLAN_PATH = path.join(ROOT, "cohort-data", ".private", "transcript-vault", "transcript-vault-import-plan.json");
 const DEFAULT_AUDIT_PATH = path.join(ROOT, "cohort-data", ".private", "transcript-vault", "drive-artifact-audit.json");
-const DEFAULT_OUT_PATH = path.join(ROOT, "docs", "INFORMATION_INDEX.html");
+// Private-by-default: the full catalog is built from the private vault and stays in it.
+// The metadata itself (names, dates, topics, filenames) is sensitive for do_not_publish routes,
+// so this artifact must never default to a public, committed location. Pass --out / --public
+// explicitly to emit a public-safe copy (do_not_publish routes are stripped — see main()).
+const DEFAULT_OUT_PATH = path.join(ROOT, "cohort-data", ".private", "transcript-vault", "INFORMATION_INDEX.html");
 
 const TYPE_META = {
   weekly_standup: { label: "Weekly standup", icon: "👤" },
@@ -999,8 +1003,12 @@ function renderCatalogConsole({ files, groups, statusCounts }) {
   `;
 }
 
-export function renderTranscriptTalkIndex(plan, { generatedAt = new Date().toISOString(), sourceAudit = null } = {}) {
-  const files = normalizeFiles(plan, { sourceAudit });
+export function renderTranscriptTalkIndex(plan, { generatedAt = new Date().toISOString(), sourceAudit = null, publicSafe = false } = {}) {
+  const allFiles = normalizeFiles(plan, { sourceAudit });
+  // Public-safe mode never emits do_not_publish/* sessions (private 1:1, planning/strategy).
+  const files = publicSafe
+    ? allFiles.filter((file) => !String(file.route).startsWith("do_not_publish"))
+    : allFiles;
   const byRoute = new Map();
   for (const file of files) {
     if (!byRoute.has(file.route)) byRoute.set(file.route, []);
@@ -1696,11 +1704,16 @@ function main(argv = process.argv.slice(2)) {
   const planPath = path.resolve(arg("--plan", argv) || DEFAULT_PLAN_PATH);
   const auditPath = path.resolve(arg("--source-audit", argv) || DEFAULT_AUDIT_PATH);
   const outPath = path.resolve(arg("--out", argv) || DEFAULT_OUT_PATH);
+  // Any output under docs/ (public, committed) is forced public-safe so do_not_publish
+  // routes can never be emitted to the public repo, even via an explicit --out.
+  const relOut = path.relative(ROOT, outPath);
+  const isPublicLocation = /(^|[\\/])docs[\\/]/.test(relOut);
+  const publicSafe = isPublicLocation || hasFlag("--public", argv);
   const plan = readJson(planPath);
   const sourceAudit = fs.existsSync(auditPath) ? readJson(auditPath) : null;
-  const html = renderTranscriptTalkIndex(plan, { sourceAudit });
+  const html = renderTranscriptTalkIndex(plan, { sourceAudit, publicSafe });
   writeText(outPath, html);
-  console.log(`wrote ${path.relative(ROOT, outPath)}`);
+  console.log(`wrote ${relOut}${publicSafe ? " (public-safe: do_not_publish routes excluded)" : ""}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
