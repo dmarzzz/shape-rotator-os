@@ -5439,6 +5439,7 @@ function constGoalPlanModel(teams = []) {
     .map(team => {
       const read = teamWeekRead(team, active);
       const momentum = teamMomentum(team);
+      const aim = constStandingTarget(team, read.stage);
       return {
         team,
         standing: constTeamStanding(team),
@@ -5446,7 +5447,8 @@ function constGoalPlanModel(teams = []) {
         confidence: read.confidence,
         momentum,
         momentumKind: momentumKind(momentum),
-        target: constStandingTarget(team, read.stage),
+        target: aim.value,
+        targetDeclared: aim.declared,
         goalText: constTeamGoalText(team),
         domain: constDomainClass(team?.domain),
       };
@@ -5606,14 +5608,20 @@ function constGoalPlanHtml(model, standingFilter = "all", momentumFilter = "all"
     </div>`;
 }
 
-// Target stage for the "targets" view — the team's declared aim. Reads the
-// Supabase-backed target_stage (team_standing_weekly) when present; falls back to
-// a stable derived aim 1–3 stages ahead of current until a real target is set.
+// Target stage for the "targets" view — the team's aim, with provenance.
+// Prefers a REAL declared target (Supabase team_standing_weekly.target_stage,
+// surfaced via the standing-weekly artifact) and reports it as declared:true.
+// When no target is set there (target_stage NULL → the team hasn't declared
+// one) it falls back to a stable derived aim 1–3 stages ahead of current and
+// reports declared:false, so the view renders it as an estimate rather than
+// passing a guess off as a real goal. Returns { value, declared }.
 function constStandingTarget(team, current) {
   const t = standingWeeklyTeam(team?.record_id);
-  if (t && Number.isFinite(t.target_stage)) return Math.max(current, Math.min(8, t.target_stage));
+  if (t && Number.isFinite(t.target_stage)) {
+    return { value: Math.max(current, Math.min(8, t.target_stage)), declared: true };
+  }
   const head = 1 + Math.round(2 * ((journeyJitter(team.record_id, "target") + 1) / 2));
-  return Math.max(current, Math.min(8, current + head));
+  return { value: Math.max(current, Math.min(8, current + head)), declared: false };
 }
 
 // Targets view (option B): current stage (●) vs each team's target (▽) on a
@@ -5628,19 +5636,23 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
   if (!tracked.length && !untracked.length) return `<p class="ac-stack-empty">no teams to track yet.</p>`;
   const summary = model?.summary || null;
   const pct = (st) => Math.round(Math.max(0, Math.min(8, st)) / 8 * 1000) / 10;
-  const rows = tracked.map(r => ({ r, cur: r.stage, tgt: r.target, gap: Math.max(0, r.target - r.stage) }))
+  const rows = tracked.map(r => ({ r, cur: r.stage, tgt: r.target, declared: r.targetDeclared, gap: Math.max(0, r.target - r.stage) }))
     .sort((a, b) => b.gap - a.gap || String(a.r.team.name || "").localeCompare(String(b.r.team.name || "")));
   const ticks = [{ v: 0, l: "0" }, { v: 4, l: "pilot" }, { v: 6, l: "traction" }, { v: 8, l: "grad" }];
   const axis = `<div class="ac-tgt-axis"><span></span><div class="ac-tgt-ticks">${ticks.map(t => `<span class="ac-tgt-tick" style="left:${pct(t.v)}%">${t.l}</span>`).join("")}</div><span></span></div>`;
-  const rowHtml = rows.map(({ r, cur, tgt, gap }) => {
+  const rowHtml = rows.map(({ r, cur, tgt, gap, declared }) => {
     const color = CONST_GOAL_STANDING[r.standing].color;
     const dim = ((activeFilter !== "all" && activeFilter !== r.standing) || (momFilter !== "all" && momFilter !== r.momentumKind)) ? " is-dim" : "";
+    // Provenance: a real declared aim (Supabase) renders authoritative; a derived
+    // backup renders as an estimate (hollow ▽, dashed gap, "est" tag) so the view
+    // never passes a placeholder off as a real goal.
+    const tcls = declared ? " is-declared" : " is-derived";
     const name = r.team.name || r.team.record_id;
     const gapL = pct(cur), gapW = Math.round((pct(tgt) - pct(cur)) * 10) / 10;
     const mk = MOMENTUM[r.momentumKind];
     const showDelta = r.momentum != null && r.momentum !== 0;
     const momHtml = showDelta ? `<span class="ac-tgt-mom is-${r.momentumKind}">${mk.glyph}${momentumDeltaLabel(r.momentum)}</span>` : `<span class="ac-tgt-mom is-flat"></span>`;
-    return `<button type="button" class="ac-stack-team ac-tgt-row is-${escAttr(r.standing)}${dim}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color};--mom-color:${mk.color}" aria-label="${escAttr(`${name}: stage ${cur} of 8, target ${tgt}, gap ${gap}${showDelta ? `, ${mk.word} ${momentumDeltaLabel(r.momentum)} this window` : ""}`)}">
+    return `<button type="button" class="ac-stack-team ac-tgt-row is-${escAttr(r.standing)}${dim}${tcls}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color};--mom-color:${mk.color}" aria-label="${escAttr(`${name}: stage ${cur} of 8, ${declared ? "target" : "estimated target"} ${tgt}, gap ${gap}${showDelta ? `, ${mk.word} ${momentumDeltaLabel(r.momentum)} this window` : ""}`)}">
       <span class="ac-tgt-name">${escHtml(name)}</span>
       <span class="ac-tgt-track">
         <span class="ac-tgt-base"></span>
@@ -5649,7 +5661,7 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
         <span class="ac-tgt-target" style="left:${pct(tgt)}%" aria-hidden="true">▽</span>
       </span>
       ${momHtml}
-      <span class="ac-tgt-val">${cur}<span class="ac-tgt-tval"> → ${tgt}</span></span>
+      <span class="ac-tgt-val">${cur}<span class="ac-tgt-tval"> → ${tgt}${declared ? "" : `<i>est</i>`}</span></span>
     </button>`;
   }).join("");
   const untrackedHtml = untracked.length ? `
@@ -5665,7 +5677,7 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
       ${axis}
       <div class="ac-tgt-rows">${rowHtml}</div>
       ${untrackedHtml}
-      <p class="ac-gp-note">● current stage · ▽ target · bar = gap to close (longest first) · ▲▼ = momentum this window. Hover a row to read a team.</p>
+      <p class="ac-gp-note">● current stage · ▽ target (faded + "est" = estimated, no target set yet) · bar = gap to close (longest first) · ▲▼ = momentum this window. Hover a row to read a team.</p>
     </div>`;
 }
 

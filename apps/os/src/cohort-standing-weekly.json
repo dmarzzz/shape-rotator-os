@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated": "seed",
+  "generated": "supabase",
   "note": "Per-week PMF stage seed (mixed momentum). Replace with real reads from Supabase team_standing_weekly.",
   "weeks": [
     {
@@ -26,7 +26,7 @@
   ],
   "byTeam": {
     "abra": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 0,
@@ -48,10 +48,11 @@
           "stage": 3,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "bitrouter": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 4,
@@ -73,10 +74,11 @@
           "stage": 4,
           "confidence": "Medium"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "conclave": {
-      "target_stage": 4,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 1,
@@ -98,10 +100,11 @@
           "stage": 3,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "contexto": {
-      "target_stage": 4,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 0,
@@ -123,10 +126,11 @@
           "stage": 3,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "crossroads": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 4,
@@ -148,10 +152,11 @@
           "stage": 3,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "daedalus": {
-      "target_stage": 3,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 2,
@@ -173,10 +178,11 @@
           "stage": 2,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "dcnet": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 0,
@@ -198,7 +204,8 @@
           "stage": 2,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "dealproof": {
       "target_stage": 6,
@@ -223,10 +230,11 @@
           "stage": 4,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "declared"
     },
     "elizaos": {
-      "target_stage": 8,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 8,
@@ -248,10 +256,11 @@
           "stage": 7,
           "confidence": "High"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "elocute": {
-      "target_stage": 7,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 3,
@@ -273,10 +282,11 @@
           "stage": 5,
           "confidence": "Medium"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "enclave": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 4,
@@ -298,10 +308,11 @@
           "stage": 2,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "etherea": {
-      "target_stage": 6,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 6,
@@ -323,10 +334,11 @@
           "stage": 4,
           "confidence": "Medium"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "feedling": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 0,
@@ -348,10 +360,11 @@
           "stage": 2,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "jjhub": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 2,
@@ -373,10 +386,11 @@
           "stage": 4,
           "confidence": "Medium"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "pramaana": {
-      "target_stage": 8,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 3,
@@ -398,10 +412,11 @@
           "stage": 5,
           "confidence": "Medium"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "prova": {
-      "target_stage": 8,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 2,
@@ -423,10 +438,11 @@
           "stage": 5,
           "confidence": "Medium"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "searxng-wth-frnds": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 2,
@@ -448,10 +464,11 @@
           "stage": 2,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "shake": {
-      "target_stage": 7,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 4,
@@ -473,10 +490,11 @@
           "stage": 4,
           "confidence": "Medium"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "shape-rotator-os": {
-      "target_stage": 3,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 2,
@@ -498,10 +516,11 @@
           "stage": 2,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "signalstack": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 1,
@@ -523,10 +542,11 @@
           "stage": 4,
           "confidence": "Medium"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "teesql": {
-      "target_stage": 7,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 4,
@@ -548,10 +568,11 @@
           "stage": 4,
           "confidence": "Medium"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "teleport-router": {
-      "target_stage": 4,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 3,
@@ -573,10 +594,11 @@
           "stage": 3,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "tinycloud": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 2,
@@ -598,10 +620,11 @@
           "stage": 4,
           "confidence": "Medium"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "trustless-tee": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 0,
@@ -623,10 +646,11 @@
           "stage": 2,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "tvee-rl": {
-      "target_stage": 4,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 2,
@@ -648,10 +672,11 @@
           "stage": 2,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     },
     "wikigen": {
-      "target_stage": 5,
+      "target_stage": null,
       "weeks": {
         "0": {
           "stage": 0,
@@ -673,7 +698,9 @@
           "stage": 3,
           "confidence": "Low"
         }
-      }
+      },
+      "target_source": "derived"
     }
-  }
+  },
+  "source": "team_standing_weekly"
 }

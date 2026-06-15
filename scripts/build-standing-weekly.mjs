@@ -22,7 +22,7 @@ if (!KEY) {
 const WEEK_LABELS = { 0: "Program start", 1: "Week 1", 2: "Week 2", 3: "Week 3", 4: "Latest" };
 
 const res = await fetch(
-  `${URL_BASE}/rest/v1/team_standing_weekly?select=record_id,program_week,stage,confidence,target_stage&order=record_id,program_week`,
+  `${URL_BASE}/rest/v1/team_standing_weekly?select=record_id,program_week,stage,confidence,target_stage,target_source&order=record_id,program_week`,
   { headers: { apikey: KEY, authorization: `Bearer ${KEY}` } }
 );
 if (!res.ok) {
@@ -35,8 +35,12 @@ const weeksSet = new Set();
 const byTeam = {};
 for (const r of rows) {
   weeksSet.add(Number(r.program_week));
-  const t = byTeam[r.record_id] || (byTeam[r.record_id] = { target_stage: r.target_stage, weeks: {} });
+  // target_stage NULL = no declared target → the renderer derives a placeholder;
+  // target_source ('declared'|'derived') records provenance so the targets view
+  // styles a real aim authoritative and an estimate tentative.
+  const t = byTeam[r.record_id] || (byTeam[r.record_id] = { target_stage: r.target_stage ?? null, target_source: r.target_source || null, weeks: {} });
   if (r.target_stage != null) t.target_stage = r.target_stage;
+  if (r.target_source) t.target_source = r.target_source;
   t.weeks[r.program_week] = { stage: r.stage, confidence: r.confidence };
 }
 const weeks = [...weeksSet].sort((a, b) => a - b).map((pw) => ({ program_week: pw, label: WEEK_LABELS[pw] || `Week ${pw}` }));

@@ -8346,9 +8346,29 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 .ac-stack-view.is-targets .ac-tgt-val {
   font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-ink-mute); text-align: right;
 }
-/* The target half of "cur → tgt" is the placeholder — render it quieter so the
-   real current stage reads as the authoritative number. */
+/* The target half of "cur → tgt" is the secondary number — render it quieter so
+   the real current stage reads as the authoritative one. Provenance (declared vs
+   derived) refines this below. */
 .ac-stack-view.is-targets .ac-tgt-tval { opacity: 0.6; }
+/* ── target provenance: declared (real) vs derived (estimate) ───────────
+   A declared target is a team-set aim from Supabase — render it as solidly as
+   the ● 'now' mark. A derived target is the renderer's placeholder backup until
+   a team sets one — render it tentative (hollow/desaturated ▽, dashed gap, "est"
+   tag) so a guess never reads as a real goal. The outline + dash carry the
+   signal, so it survives the .is-dim 0.2 standing-filter multiplier. */
+.ac-stack-view.is-targets .ac-tgt-row.is-declared .ac-tgt-target { color: var(--team-color); opacity: 1; }
+.ac-stack-view.is-targets .ac-tgt-row.is-declared .ac-tgt-tval { opacity: 0.72; }
+.ac-stack-view.is-targets .ac-tgt-row.is-derived .ac-tgt-target {
+  color: color-mix(in srgb, var(--team-color) 46%, transparent); opacity: 0.7;
+}
+.ac-stack-view.is-targets .ac-tgt-row.is-derived .ac-tgt-gap {
+  opacity: 0.3; background: repeating-linear-gradient(90deg, var(--team-color) 0 5px, transparent 5px 9px);
+}
+.ac-stack-view.is-targets .ac-tgt-row.is-derived .ac-tgt-tval { opacity: 0.42; font-style: italic; }
+.ac-stack-view.is-targets .ac-tgt-row.is-derived .ac-tgt-tval i {
+  font-style: normal; margin-left: 3px; font-size: 8px; letter-spacing: 0.04em;
+  text-transform: uppercase; vertical-align: 0.4em; color: color-mix(in srgb, var(--alchemy-ink-mute) 85%, transparent);
+}
 .ac-stack-view.is-targets .ac-tgt-mom {
   font-family: var(--font-mono); font-size: 10px; color: var(--mom-color); text-align: right;
   white-space: nowrap; overflow: hidden; text-overflow: clip;
