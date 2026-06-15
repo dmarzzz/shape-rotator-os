@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildTab } = require("./build-calendar-from-google.js");
+const { buildTab, normalizeDescription, countPopulatedCells, eventBlock } = require("./build-calendar-from-google.js");
 
 const META = {
   tab: "May 18 Start",
@@ -47,6 +47,28 @@ test("buildTab merges calendar day-blocks with owned metadata into the weekly gr
   // weeks with no meta entry still render (empty), and recurring row is appended last
   assert.equal(rows[2][0], "2");
   assert.deepEqual(rows[rows.length - 1], META.recurring_rows[0]);
+});
+
+test("normalizeDescription converts HTML/entities and leaves plain text intact", () => {
+  // plain text (the common case) is untouched
+  assert.equal(normalizeDescription("12:00–14:00 onboarding\n    - follow the field guide"), "12:00–14:00 onboarding\n    - follow the field guide");
+  // HTML from the rich editor becomes plain text
+  assert.equal(normalizeDescription("12:00 talk<br>Tom &amp; Jerry"), "12:00 talk\nTom & Jerry");
+  assert.equal(normalizeDescription("<ul><li>one</li><li>two</li></ul>"), "- one\n- two");
+  assert.equal(normalizeDescription("a<br><br><br>b"), "a\n\nb"); // blank-line runs collapsed
+  assert.equal(normalizeDescription("&lt;tag&gt; it&#39;s &nbsp;fine"), "<tag> it's  fine");
+  // eventBlock uses it
+  assert.equal(eventBlock({ description: "16:00 demo<br>- ship it" }), "16:00 demo\n- ship it");
+});
+
+test("countPopulatedCells counts only day-cells with schedule text", () => {
+  const cal = { tabs: { t: [
+    ["Week", "Dates", "Mon"], [], // header rows 0,1 ignored
+    ["1", "May 18–23", "Mon: a", "", "Wed: c", "", "", "", ""], // 2 populated day-cells
+    ["2", "May 25–30", "", "Tue: b", "", "", "", "", ""], // 1 populated
+  ] } };
+  assert.equal(countPopulatedCells(cal, "t"), 3);
+  assert.equal(countPopulatedCells(null, "t"), 0);
 });
 
 test("buildTab places multiple same-day events as separate blocks", () => {

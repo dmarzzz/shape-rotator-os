@@ -90,6 +90,7 @@ async function fetchEvents(calendarId, token, timeMin, timeMax) {
     u.searchParams.set("singleEvents", "true");
     u.searchParams.set("orderBy", "startTime");
     u.searchParams.set("maxResults", "2500");
+    u.searchParams.set("timeZone", TIME_ZONE); // normalize all event times to the cohort tz
     if (pageToken) u.searchParams.set("pageToken", pageToken);
     const res = await fetch(u, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) });
     if (!res.ok) throw new Error(`events fetch HTTP ${res.status}`);
@@ -119,10 +120,31 @@ function fmtTime(dateTime) {
   return m ? `${m[1]}:${m[2]}` : "";
 }
 
-// Block text for one event: prefer the rich description (it already carries
-// time + title + bullets verbatim from the schedule); else synthesize a line.
+// Google Calendar descriptions can be HTML (the web rich-text editor stores
+// markup). Convert to the plain-text block format the renderer expects. Plain
+// descriptions pass through unchanged.
+function normalizeDescription(value) {
+  return String(value || "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "\n- ")
+    .replace(/<\/(p|div|ul|ol|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0*39;|&apos;|&rsquo;/gi, "'")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+// Block text for one event: prefer the rich description (it carries time +
+// title + bullets verbatim from the schedule); else synthesize a line.
 function eventBlock(event) {
-  const desc = String(event.description || "").trim();
+  const desc = normalizeDescription(event.description);
   if (desc) return desc;
   const start = fmtTime(event.start?.dateTime);
   const end = fmtTime(event.end?.dateTime);
@@ -179,6 +201,19 @@ function buildTab(meta, events) {
   return { rows, placed };
 }
 
+// Count day-cells (10 weeks × Mon–Sun) that carry schedule text. Used to detect
+// a suspicious collapse vs the previously-committed calendar.
+function countPopulatedCells(cal, tab) {
+  const rows = (cal && cal.tabs && cal.tabs[tab]) || [];
+  let n = 0;
+  for (let r = 2; r < 12; r += 1) {
+    for (let c = 2; c <= 8; c += 1) {
+      if (String((rows[r] || [])[c] || "").trim()) n += 1;
+    }
+  }
+  return n;
+}
+
 function fmt(json) {
   return JSON.stringify(json, null, 2) + "\n";
 }
@@ -213,6 +248,16 @@ async function main() {
   const next = { last_refresh: new Date().toISOString(), tabs: { [meta.tab]: rows } };
 
   const existing = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, "utf8")) : null;
+
+  // Anti-shrink guard: never replace a healthy committed schedule with a
+  // drastically smaller one (e.g. a fetch that returned only part of the data).
+  const existingCells = countPopulatedCells(existing, meta.tab);
+  const newCells = countPopulatedCells(next, meta.tab);
+  if (existingCells >= 10 && newCells < existingCells * 0.5) {
+    console.error(`[build-calendar-from-google] refusing: schedule would shrink from ${existingCells} to ${newCells} populated days — likely a partial/failed fetch`);
+    process.exit(2);
+  }
+
   const drift = !existing || JSON.stringify(strip(existing)) !== JSON.stringify(strip(next));
 
   if (hasFlag("--check")) {
@@ -234,7 +279,7 @@ async function main() {
   console.log(`[build-calendar-from-google] wrote ${path.relative(ROOT, outPath)} — ${events.length} events, ${placed} placed into ${WEEK_COUNT} weeks`);
 }
 
-module.exports = { buildTab, eventBlock, eventDateIso, dayHeader, COHORT_START, WEEK_COUNT, DAY_NAMES };
+module.exports = { buildTab, eventBlock, normalizeDescription, countPopulatedCells, eventDateIso, dayHeader, COHORT_START, WEEK_COUNT, DAY_NAMES };
 
 if (require.main === module) {
   main().catch((e) => {

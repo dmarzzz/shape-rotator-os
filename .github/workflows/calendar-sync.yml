@@ -4,7 +4,7 @@ name: calendar-sync
 # (scripts/build-calendar-from-google.js) into both cohort-data/calendar.json
 # (the audit copy) AND apps/os/src/cohort-surface.json (the bundled snapshot
 # the Electron app + web mirror read at boot for offline / pre-fetch first
-# paint). Runs every 2 hours; on drift, opens/updates an automated PR and
+# paint). Runs hourly; on drift, opens/updates an automated PR and
 # asks GitHub to auto-merge it after required checks pass.
 #
 # Why PR + auto-merge (not direct push):
@@ -14,13 +14,12 @@ name: calendar-sync
 #   checks can run. A stable automation branch plus auto-merge keeps the same
 #   no-human happy path while respecting branch protection.
 #
-# Why every 2 hours (not the old 30 min):
-#   The schedule is human-edited, not high-frequency. 2h is fresh enough
-#   that a same-day edit ships well within the working day, and slow
-#   enough that we don't burn Vercel build credits on no-op rebuilds
-#   (a no-op deploy still costs a build minute even though the artifact
-#   is identical; build-calendar-from-google.js writes byte-identical files on
-#   no-op so the drift check below short-circuits there).
+# Why hourly (was 2h):
+#   The schedule is human-edited; hourly keeps a same-day edit live within the
+#   hour. It does not burn Vercel build credits on no-op runs:
+#   build-calendar-from-google.js writes byte-identical files when nothing
+#   changed, so the drift check below short-circuits (no commit, no deploy) and
+#   an unchanged schedule never triggers a rebuild.
 #
 # Why it doesn't loop:
 #   The sync branch push does not match this workflow's output paths, and the
@@ -34,8 +33,8 @@ name: calendar-sync
 
 on:
   schedule:
-    # every 2 hours, on the hour. GitHub may delay scheduled runs under load.
-    - cron: "0 */2 * * *"
+    # every hour, on the hour. GitHub may delay scheduled runs under load.
+    - cron: "0 * * * *"
   workflow_dispatch:        # manual run from the Actions tab
   push:
     branches:
