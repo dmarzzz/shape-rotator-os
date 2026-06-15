@@ -23,7 +23,11 @@ import {
   persistableCalendarIngressConfig,
   postEventRequest,
   saveCalendarIngressConfig as saveWebCalendarIngressConfig,
-} from "../../../web/scripts/calendar-ingress-client.mjs";
+  // Vendored copy — see ../vendor/calendar-ingress-client.mjs. The web original
+  // is outside apps/os and isn't packaged into the asar; importing it across
+  // packages broke the packaged renderer's module graph (boot never ran). Keep
+  // the vendored copy in sync with apps/web/scripts/calendar-ingress-client.mjs.
+} from "../vendor/calendar-ingress-client.mjs";
 
 export {
   DEFAULT_CALENDAR_TIMEZONE,
