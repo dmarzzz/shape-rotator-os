@@ -8247,8 +8247,12 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   fill: none; stroke: var(--team-color); stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round;
   opacity: 0.55; transition: opacity 160ms ease-out, stroke-width 160ms ease-out;
 }
+/* Momentum marker is monochrome ink, NOT --mom-color: line colour already
+   encodes standing, and standing/momentum share the same red/green hues — a
+   coloured marker would put two variables on one colour channel. The ▲▼→ glyph
+   shape carries direction; colour stays free to mean standing alone. */
 .ac-stack-view.is-trajectory .ac-traj-mom {
-  fill: var(--mom-color); font-family: var(--font-mono); font-size: 9px; opacity: 0.85; transition: opacity 140ms ease-out;
+  fill: rgba(var(--ink-rgb), 0.62); font-family: var(--font-mono); font-size: 9px; opacity: 0.85; transition: opacity 140ms ease-out;
 }
 .ac-stack-view.is-trajectory .ac-traj-endlab {
   font-family: var(--font-mono); font-size: 9px; fill: var(--team-color); opacity: 0; transition: opacity 140ms ease-out;
@@ -8297,7 +8301,7 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
 }
 .ac-stack-view.is-targets .ac-tgt-axis,
 .ac-stack-view.is-targets .ac-tgt-row {
-  display: grid; grid-template-columns: 104px minmax(0, 1fr) 46px 54px; gap: 12px; align-items: center;
+  display: grid; grid-template-columns: 104px minmax(0, 1fr) 54px; gap: 12px; align-items: center;
 }
 .ac-stack-view.is-targets .ac-tgt-axis { margin: 2px 0 8px; }
 .ac-stack-view.is-targets .ac-tgt-ticks { position: relative; height: 12px; }
@@ -8369,11 +8373,6 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   font-style: normal; margin-left: 3px; font-size: 8px; letter-spacing: 0.04em;
   text-transform: uppercase; vertical-align: 0.4em; color: color-mix(in srgb, var(--alchemy-ink-mute) 85%, transparent);
 }
-.ac-stack-view.is-targets .ac-tgt-mom {
-  font-family: var(--font-mono); font-size: 10px; color: var(--mom-color); text-align: right;
-  white-space: nowrap; overflow: hidden; text-overflow: clip;
-}
-.ac-stack-view.is-targets .ac-tgt-mom.is-flat { visibility: hidden; }
 
 /* ── cohort momentum insight strip — above both goal views ──────────────
    Climbing / slipping / steady chips + median stage + the fastest mover and
@@ -9209,11 +9208,6 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   display: inline-block; flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%;
   vertical-align: middle; margin-right: 6px;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.36);
-}
-/* Per-stage count strip across the top of the plot. */
-.alch-journey-stage svg .ac-jcount {
-  fill: var(--journey-ink); font-family: var(--font-mono);
-  font-size: 10px; font-weight: 600; opacity: 0.86; font-variant-numeric: tabular-nums;
 }
 /* Constellation legends ride a quiet glass trough so the color/line key reads
    as kin to the glass readout above them — and pick up the cursor sheen. The
@@ -16376,30 +16370,6 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   stroke-width: 1.3;
 }
 
-/* Product layer — hover a domain chip → other domains' tiles recede.
-   The chips live in the sentence bar (outside .alch-const-main), so the
-   :has scope is the cohort page. */
-.alch-cohort-page:has([data-legend-domain="tee"]:hover) .ac-stack-team:not(.ac-stack-domain-tee),
-.alch-cohort-page:has([data-legend-domain="tee"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-tee),
-.alch-cohort-page:has([data-legend-domain="ai"]:hover) .ac-stack-team:not(.ac-stack-domain-ai),
-.alch-cohort-page:has([data-legend-domain="ai"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-ai),
-.alch-cohort-page:has([data-legend-domain="crypto"]:hover) .ac-stack-team:not(.ac-stack-domain-crypto),
-.alch-cohort-page:has([data-legend-domain="crypto"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-crypto),
-.alch-cohort-page:has([data-legend-domain="app-ux"]:hover) .ac-stack-team:not(.ac-stack-domain-app-ux),
-.alch-cohort-page:has([data-legend-domain="app-ux"]:focus-visible) .ac-stack-team:not(.ac-stack-domain-app-ux) {
-  opacity: 0.22;
-}
-/* Pinned domain — click commits what chip hover previews (data-domain-pin
-   is written on the stack stage by the sentence bar's domain chips). The
-   :not(:has(...:hover)) gate makes the pin yield WHILE a chip is hovered,
-   so hovering a second domain previews it instead of the pin dimming the
-   hovered domain's own tiles (which would leave everything at 0.22). */
-.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="tee"] .ac-stack-team:not(.ac-stack-domain-tee),
-.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="ai"] .ac-stack-team:not(.ac-stack-domain-ai),
-.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="crypto"] .ac-stack-team:not(.ac-stack-domain-crypto),
-.alch-cohort-page:not(:has([data-legend-domain]:hover)) .ac-stack-stage[data-domain-pin="app-ux"] .ac-stack-team:not(.ac-stack-domain-app-ux) {
-  opacity: 0.22;
-}
 .alch-const-main .ac-stack-team {
   transition: opacity 160ms ease-out;
 }

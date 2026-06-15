@@ -75,7 +75,6 @@ const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "p
 const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "works" | "substrate"
 const CONST_TIER_LS_KEY = "srwk:const_tier";  // pinned line-source tier: "all" | "record" | "mention"
 const CONST_PEOPLE_LINK_LS_KEY = "srwk:const_people_link"; // pinned people-map link family: "all" | "same-team" | "profile" | "shared-context"
-const CONST_DOMAIN_LS_KEY = "srwk:const_domain"; // pinned domain on product layer: "all" | tee | ai | crypto | app-ux
 const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem view: cluster record_id | "all"
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
@@ -233,7 +232,6 @@ export function mount(container) {
     state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
     state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
     state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
-    state.constDomainPin = constNormalizeDomainPin(localStorage.getItem(CONST_DOMAIN_LS_KEY));
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
     const savedProgramPage = localStorage.getItem(PROGRAM_PAGE_LS_KEY);
@@ -1684,10 +1682,8 @@ const PERSON_ROLE_CHIPS = [
   { id: "all",              label: "all",               hint: "everyone in the directory", match: () => true },
 ];
 
-// (Removed: the generated read-clause sub-line family — constReadLine /
-// constDirectoryReadLine / constJourneyReadLine / constMapReadLine /
-// constConstellationReadLine / constCollabReadLine + the .ac-sent-read style.
-// Views are now "filter + visual" only; momentum insight lives in the chart.)
+// (The generated read-clause sub-lines were removed — views are "filter +
+// visual" only; momentum insight lives in the chart.)
 
 function renderShapes() {
   // Timeline-aware: "as of [week]" rewinds the roster to that snapshot's surface
@@ -1726,21 +1722,21 @@ function renderShapes() {
   for (const chip of chipSet) {
     counts.set(chip.id, sourceRecords.filter(r => chip.match(r)).length);
   }
-  // Sentence bar — "listing teams & projects 41 · cohort teams 32". Kind
-  // and membership are stateful tokens; their menus carry each bucket's
-  // count and a one-line meaning (the cohort-vs-visiting distinction the
-  // old tab row left implicit).
+  // Sentence bar — "listing teams & projects · cohort teams 32". The kind token
+  // carries NO count (the full-pool counts live in its menu); only the membership
+  // token shows a count, because that one equals the cards on screen. Both are
+  // stateful tokens whose menus carry each bucket's count + a one-line meaning.
   const kindUnit = constSentenceUnit({
     menu: "dir-kind",
     ariaMenu: "directory kind",
     token: constSentenceToken({
       menu: "dir-kind",
       label: filter === "people" ? "individuals" : "teams & projects",
-      count: filter === "people" ? nPeople : nWorks,
+      count: null,
       aria: `kind: ${filter === "people" ? "individuals" : "teams & projects"} — change what is listed`,
     }),
     options: [
-      constSentenceOption({ attr: "data-shapes-filter", value: "works", selected: filter !== "people", label: "teams & projects", note: "teams, projects, and side projects", count: nWorks }),
+      constSentenceOption({ attr: "data-shapes-filter", value: "works", selected: filter !== "people", label: "teams & projects", note: "every team and project, side projects included", count: nWorks }),
       constSentenceOption({ attr: "data-shapes-filter", value: "people", selected: filter === "people", label: "individuals", note: "everyone on and around the teams", count: nPeople }),
     ].join(""),
   });
@@ -1768,7 +1764,7 @@ function renderShapes() {
         <span class="ac-sent-word">·</span>
         ${memberUnit}
       </div>
-      <button id="dossier-export-png" class="alch-shapes-chip" type="button">export dossier (png)</button>
+      <button id="dossier-export-png" class="alch-shapes-chip" type="button" title="render the full cohort roster as a PNG (ignores the filters above)">export full roster (png)</button>
     </div>
   `;
   const cardCtx = { people: cohort.people || [], teams: cohort.teams || [] };
@@ -2159,18 +2155,6 @@ function constellationNav(active) {
     </nav>`;
 }
 
-// One-line purpose statement per cohort view — rendered in the shared page
-// header so every view states what it's for before showing anything.
-const COHORT_VIEW_DEK = {
-  directory: "Every team, project, and person in the cohort — the roster.",
-  map: "Teams grouped by the ecosystem they build on; confirmed dependencies are drawn as lines.",
-  ring: "Every relationship line at once — the cohort as one ring.",
-  journey: "Where each project sits on the road to product-market fit.",
-  stack: "How each team is tracking against its own declared goals.",
-  targets: "Where each team is aiming and the gap left to close.",
-  collab: "Who depends on whom, and the intros worth making.",
-};
-
 // Shared page header — same structure on the cohort and context pages so
 // the OS's two "understanding" surfaces read as one design. `side` is
 // optional per-view meta or actions (kept to one quiet element at rest).
@@ -2189,14 +2173,10 @@ function pageHeadHtml({ kicker, title, dek, side = "", nav = "" }) {
     </div>`;
 }
 
-function cohortPageHead(view, { side = "", dek = "" } = {}) {
-  return pageHeadHtml({
-    kicker: "shape rotator cohort",
-    title: "cohort",
-    dek: dek || COHORT_VIEW_DEK[view] || COHORT_VIEW_DEK.directory,
-    side,
-    nav: constellationNav(view),
-  });
+function cohortPageHead(view, { side = "" } = {}) {
+  // No dek/title: by house rule each view's description lives WITH its filter
+  // (the sentence bar IS the heading); pageHeadHtml renders only side + nav.
+  return pageHeadHtml({ side, nav: constellationNav(view) });
 }
 
 // Cross-view selection cue. state.constSelection survives view switches by
@@ -2270,8 +2250,8 @@ const CONST_MAP_LAYOUTS = [
   { mode: "ring", label: "ring", hint: "all relationship lines" },
 ];
 const CONST_NETWORK_SCOPES = [
-  { scope: "projects", label: "projects", hint: "team/project relationship records" },
-  { scope: "people", label: "people", hint: "person-to-person relationship context" },
+  { scope: "projects", label: "projects", hint: "team / project relationships (this map)" },
+  { scope: "people", label: "people", hint: "switch to the person-to-person network" },
 ];
 function constNormalizeNetworkScope(raw) {
   return String(raw || "").toLowerCase() === "people" ? "people" : "projects";
@@ -2440,10 +2420,6 @@ function constellationSentenceBar({ view = "map", scope = "projects", lens = "al
       <span class="ac-sent-word">+</span>
       ${tierChip("mention", "is-profile", mentionCount, "unconfirmed", "profile mentions — leads that need confirmation")}
     </div>`;
-}
-function constNormalizeDomainPin(raw) {
-  const k = String(raw || "").toLowerCase();
-  return CONST_DOMAIN_KEYS.includes(k) ? k : "all";
 }
 // Multi-select include chip (journey's teams/projects/side toggles): the
 // oxide state dot carries on/off — the same vocabulary the old ajf-toggle
@@ -3364,15 +3340,8 @@ function constellationTeamNavOrder(ctx) {
 function constConstellationCoverage(teams = [], edges = []) {
   const list = Array.isArray(teams) ? teams : [];
   const edgeList = Array.isArray(edges) ? edges : [];
-  const typedEdges = edgeList.filter(e => e.normalized).length;
-  const meaningMissing = Math.max(0, edgeList.length - typedEdges);
   const assessed = list.filter(journeyAssessed).length;
-  const activeContext = list.filter(t => constText(t.now) || constText(t.weekly_goals)).length;
-  const proofy = list.filter(t =>
-    constText(t.traction)
-    || constList(t.prior_shipping).length
-    || constList(t.paper_basis).length).length;
-  return { teams: list.length, edges: edgeList.length, typedEdges, meaningMissing, assessed, activeContext, proofy };
+  return { teams: list.length, edges: edgeList.length, assessed };
 }
 
 function constMapDistributionRows(wells = [], accentById = new Map()) {
@@ -3854,70 +3823,6 @@ function constStackPlacementHtml(team, ctx) {
     </section>`;
 }
 
-function constStackTeamButtonHtml(item, fallbackLabel = "") {
-  const domain = constDomainClass(item.team.domain);
-  const color = CONST_DOMAIN_COLORS[domain] || CONST_DOMAIN_COLORS.other;
-  const relationshipSurface = item.typed + item.profile;
-  const relationship = item.typed
-    ? `${item.typed} relationship record${item.typed === 1 ? "" : "s"}`
-    : (relationshipSurface ? `${item.profile} profile mention${item.profile === 1 ? "" : "s"}` : "no relationship lines");
-  const sourceSignal = item.evidence.key === "profile" ? "profile data" : item.evidence.label;
-  const title = `${item.team.name || item.team.record_id}: ${item.team.focus || item.team.now || item.role.reason || fallbackLabel}`;
-  return `
-                <button type="button" class="ac-stack-team ac-stack-domain-${escAttr(domain)}" data-const-team="${escAttr(item.team.record_id)}" title="${escAttr(title)}" aria-label="${escAttr(title)}" style="--team-color:${escAttr(color)};--team-size:12px">
-                  <i aria-hidden="true"></i>
-                  <span>${escHtml(item.team.name || item.team.record_id)}</span>
-                  <p>${escHtml(constShortText(item.team.focus || item.team.now || item.role.reason, 124))}</p>
-                  <em>${escHtml(sourceSignal)}</em>
-                  <small>${escHtml(relationship)}</small>
-                </button>`;
-}
-
-function constProductStackHtml(model) {
-  const layerRows = model.columns
-    .map(col => {
-      const items = model.teamRows
-        .filter(item => item.role.key === col.key)
-        .slice()
-        .sort((a, b) =>
-          (b.evidence.value || 0) - (a.evidence.value || 0)
-          || b.typed - a.typed
-          || (b.inbound + b.outbound) - (a.inbound + a.outbound)
-          || String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id)));
-      return { col, items };
-    })
-    .filter(group => group.items.length);
-  const unplaced = model.teamRows
-    .filter(item => item.role.key === "unplaced")
-    .slice()
-    .sort((a, b) => String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id)));
-  if (!layerRows.length && !unplaced.length) return `<p class="ac-stack-empty">no companies to place yet.</p>`;
-  const unplacedHtml = unplaced.length ? `
-        <section class="ac-stack-layer ac-stack-layer-unplaced lg-track">
-          <header class="ac-stack-layer-head">
-            <strong>no stack signal yet</strong>
-            <span>${escHtml(constTeamCountText(unplaced.length))}</span>
-          </header>
-          <div class="ac-stack-layer-list">
-            ${unplaced.map(item => constStackTeamButtonHtml(item, "no stack signal yet")).join("")}
-          </div>
-        </section>` : "";
-  return `
-    <div class="ac-stack-view is-layer-list">
-      ${layerRows.map(({ col, items }) => `
-        <section class="ac-stack-layer ac-stack-col-${escAttr(col.key)} lg-track">
-          <header class="ac-stack-layer-head">
-            <strong>${escHtml(col.label)}</strong>
-            <span>${escHtml(constTeamCountText(items.length))}</span>
-          </header>
-          <div class="ac-stack-layer-list">
-            ${items.map(item => constStackTeamButtonHtml(item, col.label)).join("")}
-          </div>
-        </section>`).join("")}
-      ${unplacedHtml}
-    </div>`;
-}
-
 function constStackSummaryHtml(ctx) {
   const model = ctx?.stackModel;
   if (!model) return "";
@@ -4187,9 +4092,10 @@ function constMapReadout(ctx) {
     : (scoped
       ? `No cross-world ${lensSpec.label} lines (${lensSpec.meaning}) connect ecosystems yet. Set lines to all to read every declared corridor.`
       : "No cross-world corridor is strong enough to headline yet; inspect the relationship rows first.");
-  // Counts live in the sentence bar's evidence chips now; the caveat keeps
-  // only the teaching the chips can't carry (what solid vs dotted means).
-  const caveat = `Solid lines have a relationship record; dotted lines are profile mentions — leads to verify${scoped ? ` under the ${lensSpec.label} lens` : ""}.`;
+  // The solid-vs-dotted contract is taught by the sentence bar's evidence chips
+  // ("backed by N confirmed + M unconfirmed") and the body's line-basis text, so
+  // the readout no longer re-states it — one home for the encoding, not four.
+  const caveat = "";
   return { title, body, caveat, top, corridors, breakdown, lens, lensSpec, scoped };
 }
 
@@ -4208,7 +4114,7 @@ function constMapReadoutHeroHtml(ctx, kicker = "generated readout") {
       <div class="ac-inspector-pills">
         <button type="button" class="ac-hero-corridor" data-const-edge-from="${escAttr(topEdge.from)}" data-const-edge-to="${escAttr(topEdge.to)}">inspect corridor →</button>
       </div>` : ""}
-      <p class="ac-rel-queue-more">${escHtml(read.caveat)}</p>
+      ${read.caveat ? `<p class="ac-rel-queue-more">${escHtml(read.caveat)}</p>` : ""}
     </div>`;
 }
 
@@ -4986,7 +4892,7 @@ function constellationInspectorDefaultHtml(ctx) {
   }
   if (ctx?.mode === "ring" && !ctx?.interest?.active) {
     return `
-      ${constMapReadoutHeroHtml(ctx, "circle readout")}
+      ${constMapReadoutHeroHtml(ctx, "ring readout")}
       ${constCorridorReadoutHtml(ctx)}
       ${constDataCoverageHtml(ctx)}`;
   }
@@ -5111,9 +5017,6 @@ function renderJourney() {
   // them — a positional scatter loses its meaning if you drop the field it
   // plots against.
   const bnFocus = jf.bottleneck || null;
-  // Stage distribution over the filtered set (drives the per-column counts).
-  const stageCounts = new Array(9).fill(0);
-  for (const t of teams) stageCounts[journeyFor(t).stage]++;
   const minStage = sideEligible ? 0 : 1;
   const W = 1120, H = 560;
   // Plot area inset: leave room for axis labels (left = evidence, bottom = stage).
@@ -5239,8 +5142,7 @@ function renderJourney() {
     const labelX = label ? label.x : 0;
     const labelY = label ? label.y : -r - 8;
     const labelAnchor = label ? label.anchor : "middle";
-    return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}${bnClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${t.name || t.record_id} journey`)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
-        <title>${escHtml(title)}</title>
+    return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}${bnClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(title)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
         <circle class="ac-jhit" r="${Math.max(18, r + 9).toFixed(1)}"/>
         <circle class="${dotClass}" r="${r.toFixed(1)}"/>
         <text class="ac-jnode-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="${labelAnchor}">${escHtml(t.name)}</text>
@@ -5290,13 +5192,19 @@ function renderJourney() {
     <button type="button" class="ac-sent-evi is-clearable" data-jbottleneck="${escAttr(jf.bottleneck)}" aria-label="${escAttr(`clear bottleneck filter: ${jf.bottleneck}`)}">
       ${escHtml(jf.bottleneck)}<i class="ac-sent-x" aria-hidden="true">×</i>
     </button>` : "";
+  // Honesty fact: how many plotted records have an EXPLICIT pmf read vs. sit at
+  // the seeded default — otherwise the bottom-left default cluster reads as real.
+  const assessedCount = teams.filter(journeyAssessed).length;
   const filterBar = `
     <div class="ac-sentence" role="group" aria-label="pmf evidence filters">
-      <span class="ac-sent-word">plotting</span>
+      <span class="ac-sent-word">PMF read for</span>
       ${includeChip("teams", "teams")}
       <span class="ac-sent-word">+</span>
       ${includeChip("projects", "projects")}
       ${sideEligible ? `<span class="ac-sent-word">+</span>${includeChip("side", "side projects")}` : ""}
+      <span class="ac-sent-word">·</span>
+      <strong class="ac-sent-fact">${assessedCount}/${teams.length}</strong>
+      <span class="ac-sent-word">with an explicit read</span>
       ${bottleneckChip}
     </div>`;
 
@@ -5577,12 +5485,12 @@ function constGoalPlanHtml(model, standingFilter = "all", momentumFilter = "all"
     const delta = momentumDeltaLabel(r.momentum);
     const showDelta = r.momentum != null && r.momentum !== 0;
     return `
-      <g class="ac-traj-team is-${escAttr(r.standing)}${dim}${emphasis}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color};--mom-color:${mk.color}" tabindex="0" role="button" aria-label="${escAttr(`${name}: stage ${pts[n - 1]} of 8${r.momentum != null ? `, ${mk.word}${showDelta ? " " + delta : ""} over ${n - 1} week${n - 1 === 1 ? "" : "s"}` : ""}`)}">
+      <g class="ac-traj-team is-${escAttr(r.standing)}${dim}${emphasis}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color}" tabindex="0" role="button" aria-label="${escAttr(`${name}: stage ${pts[n - 1]} of 8${r.momentum != null ? `, ${mk.word}${showDelta ? " " + delta : ""} over ${n - 1} week${n - 1 === 1 ? "" : "s"}` : ""}`)}">
         <title>${escHtml(name)} — stage ${escHtml(String(pts[n - 1]))}/8 · ${escHtml(mk.word)}${showDelta ? " " + escHtml(delta) : ""}</title>
         <polyline class="ac-traj-hit" points="${poly}"/>
         <polyline class="ac-traj-line" points="${poly}"/>
         <text class="ac-traj-mom" x="${(endX + 7).toFixed(1)}" y="${(endY + 3.5).toFixed(1)}">${mk.glyph}</text>
-        <text class="ac-traj-endlab" x="${(W - PAD_R + 18).toFixed(1)}" y="${(endY + 3).toFixed(1)}">${escHtml(constShortText(name, 13))}${showDelta ? ` ${delta}` : ""}</text>
+        <text class="ac-traj-endlab" x="${(W - PAD_R + 18).toFixed(1)}" y="${(endY + 3).toFixed(1)}">${escHtml(constShortText(name, 13))}</text>
       </g>`;
   }).join("");
 
@@ -5604,7 +5512,7 @@ function constGoalPlanHtml(model, standingFilter = "all", momentumFilter = "all"
         </svg>
       </div>
       ${untrackedHtml}
-      <p class="ac-gp-note">Each line = a team's PMF stage week over week · colour = standing · ▲ climbing ▼ slipping → steady · ‑‑ graduation (stage 8). Hover a line to read a team.</p>
+      <p class="ac-gp-note">Each line = a team's PMF stage week over week · colour = standing. Hover a line to read a team.</p>
     </div>`;
 }
 
@@ -5638,10 +5546,15 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
   const pct = (st) => Math.round(Math.max(0, Math.min(8, st)) / 8 * 1000) / 10;
   const rows = tracked.map(r => ({ r, cur: r.stage, tgt: r.target, declared: r.targetDeclared, gap: Math.max(0, r.target - r.stage) }))
     .sort((a, b) => b.gap - a.gap || String(a.r.team.name || "").localeCompare(String(b.r.team.name || "")));
-  const ticks = [{ v: 0, l: "0" }, { v: 4, l: "pilot" }, { v: 6, l: "traction" }, { v: 8, l: "grad" }];
+  // Tick names match the canonical JOURNEY_STAGE_LABELS (stage 4 = mvp, 6 =
+  // emerging pmf) anchored to their stage number, so the axis reads on the same
+  // 0–8 scale as the "cur → tgt" values and never contradicts the PMF view.
+  const ticks = [{ v: 0, l: "0" }, { v: 4, l: "mvp · 4" }, { v: 6, l: "pmf · 6" }, { v: 8, l: "grad · 8" }];
   const axis = `<div class="ac-tgt-axis"><span></span><div class="ac-tgt-ticks">${ticks.map(t => `<span class="ac-tgt-tick" style="left:${pct(t.v)}%">${t.l}</span>`).join("")}</div><span></span></div>`;
   const rowHtml = rows.map(({ r, cur, tgt, gap, declared }) => {
     const color = CONST_GOAL_STANDING[r.standing].color;
+    // Momentum still dims rows (the insight strip's momentum chips filter here),
+    // but momentum is the trajectory view's job — this view stays on the gap.
     const dim = ((activeFilter !== "all" && activeFilter !== r.standing) || (momFilter !== "all" && momFilter !== r.momentumKind)) ? " is-dim" : "";
     // Provenance: a real declared aim (Supabase) renders authoritative; a derived
     // backup renders as an estimate (hollow ▽, dashed gap, "est" tag) so the view
@@ -5649,10 +5562,7 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
     const tcls = declared ? " is-declared" : " is-derived";
     const name = r.team.name || r.team.record_id;
     const gapL = pct(cur), gapW = Math.round((pct(tgt) - pct(cur)) * 10) / 10;
-    const mk = MOMENTUM[r.momentumKind];
-    const showDelta = r.momentum != null && r.momentum !== 0;
-    const momHtml = showDelta ? `<span class="ac-tgt-mom is-${r.momentumKind}">${mk.glyph}${momentumDeltaLabel(r.momentum)}</span>` : `<span class="ac-tgt-mom is-flat"></span>`;
-    return `<button type="button" class="ac-stack-team ac-tgt-row is-${escAttr(r.standing)}${dim}${tcls}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color};--mom-color:${mk.color}" aria-label="${escAttr(`${name}: stage ${cur} of 8, ${declared ? "target" : "estimated target"} ${tgt}, gap ${gap}${showDelta ? `, ${mk.word} ${momentumDeltaLabel(r.momentum)} this window` : ""}`)}">
+    return `<button type="button" class="ac-stack-team ac-tgt-row is-${escAttr(r.standing)}${dim}${tcls}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color}" aria-label="${escAttr(`${name}: stage ${cur} of 8, ${declared ? "target" : "estimated target"} ${tgt}, gap ${gap}`)}">
       <span class="ac-tgt-name">${escHtml(name)}</span>
       <span class="ac-tgt-track">
         <span class="ac-tgt-base"></span>
@@ -5660,7 +5570,6 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
         <span class="ac-tgt-cur" style="left:${pct(cur)}%" aria-hidden="true"></span>
         <span class="ac-tgt-target" style="left:${pct(tgt)}%" aria-hidden="true">▽</span>
       </span>
-      ${momHtml}
       <span class="ac-tgt-val">${cur}<span class="ac-tgt-tval"> → ${tgt}${declared ? "" : `<i>est</i>`}</span></span>
     </button>`;
   }).join("");
@@ -5677,25 +5586,13 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
       ${axis}
       <div class="ac-tgt-rows">${rowHtml}</div>
       ${untrackedHtml}
-      <p class="ac-gp-note">● current stage · ▽ target (faded + "est" = estimated, no target set yet) · bar = gap to close (longest first) · ▲▼ = momentum this window. Hover a row to read a team.</p>
+      <p class="ac-gp-note">● current stage · ▽ target (faded = estimated) · bar = gap to close. Hover a row to read a team.</p>
     </div>`;
 }
 
 function renderTargets() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
-  const clusters = cohort.clusters || [];
-  const teamById = new Map(teams.filter(t => t?.record_id).map(t => [t.record_id, t]));
-  const edges = constellationDependencyEdges(teams, teamById, cohort?.dependencies || [])
-    .filter(e => teamById.has(e.from) && teamById.has(e.to));
-  const baseCtx = {
-    ...constellationInspectorContext(teams, edges, cohort?.people || []),
-    clusters,
-    mode: "targets",
-    lens: "all",
-    interest: constInterestContext(teams, clusters, edges, state.constInterest),
-  };
-  void baseCtx;
   const goalModel = constGoalPlanModel(state.cohort?.teams || teams);
   const standingFilter = constNormalizeGoalStandingFilter(state.goalStandingFilter);
   const momentumFilter = constNormalizeGoalMomentumFilter(state.goalMomentumFilter);
@@ -5711,7 +5608,7 @@ function renderTargets() {
       <span class="ac-sent-word">aiming</span>
       <strong class="ac-sent-fact">${goalModel.tracked.length} teams</strong>
       <span class="ac-sent-word">at a target stage</span>
-      <span class="ac-sent-word">· filter</span>
+      <span class="ac-sent-word">· by standing</span>
       ${CONST_GOAL_STANDING_KEYS.map(standingChip).join("")}
     </div>`;
   state.canvas.innerHTML = `
@@ -5736,20 +5633,7 @@ function renderTargets() {
 function renderProductStack() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
-  const clusters = cohort.clusters || [];
-  const teamById = new Map(teams.filter(t => t?.record_id).map(t => [t.record_id, t]));
-  const edges = constellationDependencyEdges(teams, teamById, cohort?.dependencies || [])
-    .filter(e => teamById.has(e.from) && teamById.has(e.to));
-  const baseCtx = {
-    ...constellationInspectorContext(teams, edges, cohort?.people || []),
-    clusters,
-    mode: "stack",
-    lens: "all",
-    interest: constInterestContext(teams, clusters, edges, state.constInterest),
-  };
   const goalModel = constGoalPlanModel(state.cohort?.teams || teams);
-  const inspectorCtx = { ...baseCtx, stackModel: goalModel };
-  const domainPin = "";
   const standingFilter = constNormalizeGoalStandingFilter(state.goalStandingFilter);
   const momentumFilter = constNormalizeGoalMomentumFilter(state.goalMomentumFilter);
   const standingChip = (key) => {
@@ -5766,7 +5650,7 @@ function renderProductStack() {
       <span class="ac-sent-word">tracking</span>
       <strong class="ac-sent-fact">${goalModel.tracked.length} teams</strong>
       <span class="ac-sent-word">toward graduation</span>
-      <span class="ac-sent-word">· filter</span>
+      <span class="ac-sent-word">· by standing</span>
       ${CONST_GOAL_STANDING_KEYS.map(standingChip).join("")}
     </div>`;
   const selectionChip = constSelectionChipHtml();
@@ -5777,7 +5661,7 @@ function renderProductStack() {
     <div class="alch-constellation" data-constellation-view="stack">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
-          <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" data-domain-pin="${escAttr(domainPin)}" tabindex="0" aria-label="team standing against plan">
+          <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" tabindex="0" aria-label="team standing against plan">
             ${constGoalPlanHtml(goalModel, standingFilter, momentumFilter)}
             <div class="ac-tip" hidden></div>
           </div>
@@ -6022,7 +5906,7 @@ function renderConstellationPeople(teams, people, clusters, edges) {
   }).join("");
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="map">
-      ${cohortPageHead("map", { dek: "How people connect — grouped by project, linked by shared work and overlapping context." })}
+      ${cohortPageHead("map")}
       <div class="alch-view-controls" data-shape-occluder>
         ${constTimelineDropdownHtml()}
         ${constellationSentenceBar({ scope: "people", metrics: { total: peopleLinkCounts.total, peopleLinkCounts }, peopleLinkFilter })}
@@ -7444,15 +7328,6 @@ function wireConstellationHover() {
       const next = constNormalizePeopleLinkFilter(chip.dataset.peopleLinkToggle);
       state.constPeopleLinkFilter = state.constPeopleLinkFilter === next ? "all" : next;
       try { localStorage.setItem(CONST_PEOPLE_LINK_LS_KEY, state.constPeopleLinkFilter); } catch {}
-      render();
-    });
-  }
-  // Domain chips (product layer): hover previews, click pins the domain.
-  for (const chip of state.canvas.querySelectorAll("[data-domain-pin-toggle]")) {
-    chip.addEventListener("click", () => {
-      const k = constNormalizeDomainPin(chip.dataset.domainPinToggle);
-      state.constDomainPin = state.constDomainPin === k ? "all" : k;
-      try { localStorage.setItem(CONST_DOMAIN_LS_KEY, state.constDomainPin); } catch {}
       render();
     });
   }
@@ -10757,9 +10632,8 @@ function renderCollab() {
     : "";
   const matrix = `
     <section class="alch-cb-section cb-matrix-section" data-cb-section="grid" aria-label="dependency and seek/offer grid">
-      <div class="alch-cb-sechead"><h3>Who needs whom</h3><span class="cb-sub">the full grid — rows need, columns provide · ▲ dependency, ◆ seek ↔ offer match</span></div>
+      <div class="alch-cb-sechead"><h3>Who needs whom</h3><span class="cb-sub">rows need, columns provide</span></div>
       <div class="cb-scroll">${matrixBody}</div>
-      <p class="cb-hint">hover a name to preview · click a cell or team for detail</p>
       ${matrixNote}
     </section>`;
 
@@ -10782,7 +10656,7 @@ function renderCollab() {
   }).join("");
   const introSection = `
     <section class="alch-cb-section" data-cb-section="intros">
-      <div class="alch-cb-sechead"><h3>Intros to make</h3><span class="cb-sub">strongest seek ↔ offer overlaps — the conversations to schedule</span></div>
+      <div class="alch-cb-sechead"><h3>Intros to make</h3><span class="cb-sub">seek ↔ offer overlaps</span></div>
       <div class="cb-intro-grid">${introCards || '<p class="cb-empty">no overlaps found.</p>'}</div>
     </section>`;
 
@@ -10806,7 +10680,7 @@ function renderCollab() {
   }).join("");
   const underusedSection = `
     <section class="alch-cb-section" data-cb-section="offers">
-      <div class="alch-cb-sechead"><h3>Unmatched offers</h3><span class="cb-sub">declared help no team has matched yet — good supply going unused</span></div>
+      <div class="alch-cb-sechead"><h3>Unmatched offers</h3><span class="cb-sub">no team matched yet</span></div>
       <div class="cb-intro-grid">${underusedCards || '<p class="cb-empty">no underused offers found.</p>'}</div>
     </section>`;
 
@@ -10823,7 +10697,7 @@ function renderCollab() {
   }).join("");
   const convSection = `
     <section class="alch-cb-section" data-cb-section="convergence">
-      <div class="alch-cb-sechead"><h3>Shared focus areas</h3><span class="cb-sub">skill areas shared by 3+ teams — where the cohort concentrates</span></div>
+      <div class="alch-cb-sechead"><h3>Shared focus areas</h3><span class="cb-sub">shared by 3+ teams</span></div>
       <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
     </section>`;
 
@@ -10838,7 +10712,7 @@ function renderCollab() {
         ${convSection}
         ${underusedSection}
       </div>
-      <p class="alch-callout">Self-asserted only — shared focus areas are declared <code>skill_areas</code>, intros are <code>seeking</code> ↔ <code>offering</code> term overlaps. No inferred or private scoring.</p>
+      <p class="alch-callout">Everything here is self-declared by teams — shared focus areas, seeks, and offers come straight from profiles. Nothing is inferred or privately scored.</p>
     </div>
     </div>`;
 }
@@ -11638,13 +11512,6 @@ function contextNormalizeView(raw) {
   return (v === "articles" || v === "raw" || v === "signals" || v === "data") ? v : "articles";
 }
 
-const CONTEXT_VIEW_DEK = {
-  articles: "Reader-facing drafts distilled from the cohort's context vault.",
-  raw: "The transcripts behind the articles, with review metadata and calendar matches.",
-  signals: "Vault-backed reads on cohort moves worth making — grounded, inferred, speculative.",
-  data: "The sanitized entity graph behind the signals — people, projects, surfaces.",
-};
-
 const CONTEXT_VIEWS = [
   { view: "articles", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>', label: "articles", hint: "reader-facing drafts from the vault" },
   { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "raw source transcripts with review metadata" },
@@ -12207,7 +12074,7 @@ function renderContextVault() {
   if (view === "signals" || view === "data") {
     state.canvas.innerHTML = `
       <section class="alch-cv">
-        ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK[view], nav })}
+        ${pageHeadHtml({ nav })}
         <div class="alch-cv-intel"></div>
       </section>
     `;
@@ -12246,7 +12113,7 @@ function renderContextVault() {
 
   state.canvas.innerHTML = `
     <section class="alch-cv">
-      ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK[view], nav })}
+      ${pageHeadHtml({ nav })}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
       <div class="alch-cv-layout">
