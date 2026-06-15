@@ -10,6 +10,10 @@ const evidenceOpsMigration = readFileSync(
   new URL("../supabase/migrations/20260614025719_transcript_evidence_operations.sql", import.meta.url),
   "utf8",
 );
+const publicEvidenceMigration = readFileSync(
+  new URL("../supabase/migrations/202606150000_public_transcript_evidence_cards.sql", import.meta.url),
+  "utf8",
+);
 
 test("source artifacts are coordinator-only at the RLS boundary", () => {
   assert.match(migration, /drop policy if exists "source artifact private read"/);
@@ -78,6 +82,24 @@ test("evidence cards keep private provenance behind coordinator-only table acces
   ]) {
     assert.doesNotMatch(viewSql, new RegExp(`\\b${privateColumn}\\b`));
   }
+});
+
+test("anonymous public evidence-card view strips routing and provenance fields", () => {
+  assert.match(publicEvidenceMigration, /create view public\.public_transcript_evidence_cards/);
+  assert.match(publicEvidenceMigration, /grant select on public\.public_transcript_evidence_cards to anon, authenticated, service_role/);
+  assert.match(publicEvidenceMigration, /surface_tier = 'T3'/);
+  assert.match(publicEvidenceMigration, /review_status = 'published'/);
+  assert.match(publicEvidenceMigration, /approval_state = 'approved'/);
+  assert.match(publicEvidenceMigration, /public_anonymous = true/);
+  assert.match(publicEvidenceMigration, /public_article_mode = 'generalized_no_named_insights'/);
+  assert.match(publicEvidenceMigration, /'anonymous_public'::text as attribution_scope/);
+  assert.match(publicEvidenceMigration, /'named_entities_allowed', false/);
+  assert.match(publicEvidenceMigration, /'raw_allowed', false/);
+  assert.doesNotMatch(publicEvidenceMigration, /'teams'/);
+  assert.doesNotMatch(publicEvidenceMigration, /'people'/);
+  assert.doesNotMatch(publicEvidenceMigration, /source_artifact_id/);
+  assert.doesNotMatch(publicEvidenceMigration, /processing_job_id/);
+  assert.doesNotMatch(publicEvidenceMigration, /storage_ref/);
 });
 
 test("private invite contacts are coordinator/admin-only and never anonymous", () => {
