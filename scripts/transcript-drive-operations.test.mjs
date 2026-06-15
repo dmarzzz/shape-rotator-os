@@ -157,6 +157,39 @@ test("separates safe file operations from review-held operations", () => {
   assert.deepEqual(privateOneOnOne.manual_review_reasons, ["drive_copy_prefix_stripped_in_manifest", "calendar_date_only"]);
 });
 
+test("auto-files leadership meetings into the locked do_not_publish route", () => {
+  const plan = buildDriveOperationsPlan({
+    ...IMPORT_PLAN,
+    files: [
+      {
+        drive_file_id: "drive_leadership",
+        original_name: "Copy of Leadership Sync Andrew Tina Jun 12.txt",
+        canonical_name: "Leadership Sync Andrew Tina Jun 12.txt",
+        preferred_drive_name: "leadership_meeting_sync-andrew-tina_2026-06-12.txt",
+        inferred_session_type: "leadership_meeting",
+        inferred_date: "2026-06-12",
+        calendar_match: { status: "date_only" },
+        drive_route: {
+          path: "do_not_publish/leadership_meeting",
+          derived_path: "do_not_publish/leadership_meeting",
+        },
+        manual_review_reasons: ["calendar_date_only"],
+        needs_manual_review: true,
+      },
+    ],
+  }, { generatedAt: "2026-06-13T00:00:00.000Z" });
+
+  // Even though the file is flagged needs_manual_review, the locked-folder special-case
+  // auto-files it: a do_not_publish destination cannot leak, so it should not linger in raw/inbox.
+  const leadership = plan.safe_file_operations.find((operation) => operation.drive_file_id === "drive_leadership");
+  assert.ok(leadership, "leadership meeting should be a safe file operation");
+  assert.equal(leadership.safe_to_apply, true);
+  assert.equal(leadership.disposition, "safe_to_apply");
+  assert.equal(leadership.target_folder_path, "do_not_publish/leadership_meeting");
+  // The folder itself is materialized from policy routes, so the apply step creates it.
+  assert.ok(plan.folder_operations.some((operation) => operation.path === "do_not_publish/leadership_meeting"));
+});
+
 test("renders a human-readable dry-run summary", () => {
   const plan = buildDriveOperationsPlan(IMPORT_PLAN, { generatedAt: "2026-06-13T00:00:00.000Z" });
   const summary = renderDriveOperationsSummary(plan);

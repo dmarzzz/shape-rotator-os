@@ -95,6 +95,12 @@ function reviewDisposition(file) {
   ) {
     return "safe_to_apply";
   }
+  if (
+    file.inferred_session_type === "leadership_meeting"
+    && targetFolderPath === "do_not_publish/leadership_meeting"
+  ) {
+    return "safe_to_apply";
+  }
   if (reasons.includes("planning_strategy_stops_at_core")) return "quarantine_review";
   if (file.needs_manual_review) return "review_required";
   return "safe_to_apply";

@@ -115,6 +115,7 @@ Transcript source types route as follows:
 | `private_1on1` | private/coaching based | `do_not_publish/private_1on1` | `do_not_publish/private_1on1` | Core/private only. No cohort or public artifact. |
 | `user_interview` | external-subject based | `raw_transcripts/user_interview` | `operator_review_exports/user_interview` | Raw stays core; aggregate insights may travel; interview itself never widens. |
 | `planning_strategy` | coordinator/governance based | `do_not_publish/planning_strategy` | `do_not_publish/planning_strategy` | Coordinator/core only; not cohort, not public. |
+| `leadership_meeting` | leadership/project-direction based | `do_not_publish/leadership_meeting` | `do_not_publish/leadership_meeting` | Leadership/admins only (Andrew, Tina, Dmarz, core admins). Tightest-held route; never distilled, not cohort, not public. |
 | `unknown` | unconfirmed | `needs_calendar_match` | `needs_calendar_match` | Hold until calendar/type/audience are reviewed. |
 
 Manual classification checks:
@@ -127,6 +128,7 @@ Manual classification checks:
 | topic-led discussion, speaker-led room, or salon-style session not centered on one team's operating work | `salon` | `office_hours` |
 | prepared project/product demo, presentation, intro, showcase, or presenter-owned material | `demo_presentation` | `salon` |
 | external customer/user/ICP subject whose participation is research evidence | `user_interview` | `office_hours` |
+| leadership/steering conversation among the principals (Andrew, Tina, Dmarz, core admins) about Shape Rotator's own direction, roadmap, people, or partner decisions | `leadership_meeting` | `planning_strategy` |
 | governance, fundraising, internal planning, access policy, or coordinator strategy | `planning_strategy` | `office_hours` |
 
 If a transcript fits two rows, use the calendar event as the first anchor. If the calendar is ambiguous, prefer the more restrictive type and route to `needs_calendar_match` for review.
@@ -198,6 +200,7 @@ Allowed type prefixes:
 - `demo_presentation`
 - `user_interview`
 - `planning_strategy`
+- `leadership_meeting`
 
 Examples:
 
@@ -206,6 +209,7 @@ Examples:
 - `private_1on1_tina-positioning_2026-05-27.txt`
 - `salon_info-markets-design_2026-06-09.txt`
 - `demo_presentation_elocute_2026-05-26.txt`
+- `leadership_meeting_andrew-tina-direction_2026-05-30.txt`
 
 Bad/good pairs:
 

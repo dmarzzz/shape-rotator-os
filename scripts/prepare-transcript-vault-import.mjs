@@ -85,6 +85,7 @@ const DEFAULT_TYPE_SLUGS = {
   demo_presentation: "demo_presentation",
   user_interview: "user_interview",
   planning_strategy: "planning_strategy",
+  leadership_meeting: "leadership_meeting",
 };
 
 const SESSION_TYPE_TOKENS = {
@@ -96,6 +97,7 @@ const SESSION_TYPE_TOKENS = {
   demo_presentation: ["demo", "presentation", "project", "intro", "intros"],
   user_interview: ["user", "interview", "interviews", "icp", "customer", "research"],
   planning_strategy: ["planning", "strategy", "governance", "ops", "fundraising", "data", "room"],
+  leadership_meeting: ["leadership", "steering", "exec", "founder"],
 };
 
 const SOURCE_CONFIDENCE_PCT = {
@@ -340,7 +342,7 @@ export function confidenceAssessmentForFile({
     groupBasis.push("route/type agreement is indirect");
   }
   if (
-    ["private_1on1", "planning_strategy"].includes(sessionType)
+    ["private_1on1", "planning_strategy", "leadership_meeting"].includes(sessionType)
     && String(driveRoute?.path || "").startsWith("do_not_publish")
   ) {
     groupScore += 8;
@@ -661,6 +663,13 @@ export function inferSessionType(name) {
   const normalized = normalizeText(stripCopyPrefix(name));
   if (normalized.includes("transcript index") || normalized.includes("public private map")) return null;
   if (/\b(wdydlw|what did you do|weekly status|standup|retro)\b/.test(normalized)) return "weekly_standup";
+  if (
+    /\bleadership\b/.test(normalized)
+    || /\b(founder sync|founders sync|steering|exec sync|project direction|program direction|direction setting)\b/.test(normalized)
+    || (/\bandrew\b/.test(normalized) && /\btina\b/.test(normalized))
+  ) {
+    return "leadership_meeting";
+  }
   if (/\b(1on1|1 1|one on one|one to one)\b/.test(normalized)) return "private_1on1";
   if (
     /\b(tina|andrew)\b/.test(normalized)

@@ -56,7 +56,8 @@
       "rd_jam": "rd_jam",
       "demo_presentation": "demo_presentation",
       "user_interview": "user_interview",
-      "planning_strategy": "planning_strategy"
+      "planning_strategy": "planning_strategy",
+      "leadership_meeting": "leadership_meeting"
     }
   },
   "drive_vault": {
@@ -135,6 +136,11 @@
         "derived_path": "do_not_publish/planning_strategy",
         "access_note": "Admins only by default; stops at core and never reaches cohort/public surfaces."
       },
+      "leadership_meeting": {
+        "path": "do_not_publish/leadership_meeting",
+        "derived_path": "do_not_publish/leadership_meeting",
+        "access_note": "Leadership/admins only (Andrew, Tina, Dmarz, core admins); candid program-direction discussion. Tightest-held route; never distilled, never reaches cohort/public surfaces."
+      },
       "unknown": {
         "path": "needs_calendar_match",
         "derived_path": "needs_calendar_match",
@@ -175,7 +181,8 @@
     "restricted_or_special_types": [
       "private_1on1",
       "user_interview",
-      "planning_strategy"
+      "planning_strategy",
+      "leadership_meeting"
     ]
   },
   "manual_classification_checks": [
@@ -208,6 +215,11 @@
       "when": "external customer/user/ICP subject whose participation is research evidence",
       "classify_as": "user_interview",
       "not_as": "office_hours"
+    },
+    {
+      "when": "leadership/steering conversation among the principals (Andrew, Tina, Dmarz, core admins) about Shape Rotator's own direction, roadmap, people, or partner decisions",
+      "classify_as": "leadership_meeting",
+      "not_as": "planning_strategy"
     },
     {
       "when": "governance, fundraising, internal planning, access policy, or coordinator strategy",
@@ -312,6 +324,17 @@
       "default_auto_transcript": false,
       "required_public_approvals": [],
       "notes": "Coordinator-internal governance stops at core."
+    },
+    "leadership_meeting": {
+      "label": "Leadership meeting",
+      "description": "Candid leadership/steering conversation among the principals about Shape Rotator's own direction.",
+      "event_basis": "leadership_or_project_direction_based",
+      "max_tier": "T1",
+      "cohort_mode": "never",
+      "public_allowed": false,
+      "default_auto_transcript": false,
+      "required_public_approvals": [],
+      "notes": "Andrew/Tina/Dmarz/core-admin direction-setting. Tightest-held route; admins/leadership only, never distilled to cohort or public. Distinct from planning_strategy: this is the unfiltered principals' conversation, not shared governance/ops work product. The policy locks where the transcript lands and how far it travels; whether a Meet recording is created is governed separately by the calendar Meet-artifacts reconciler."
     }
   }
 }

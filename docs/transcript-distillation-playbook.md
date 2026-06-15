@@ -246,6 +246,7 @@ extension unless conversion is deliberate. The type prefix must be one of:
 - `demo_presentation`
 - `user_interview`
 - `planning_strategy`
+- `leadership_meeting`
 
 The primary cohort event types are:
 
@@ -258,7 +259,12 @@ The primary cohort event types are:
 | `demo_presentation` | project or product based |
 
 Restricted/special types still exist because they appear in real source
-handling: `private_1on1`, `user_interview`, and `planning_strategy`.
+handling: `private_1on1`, `user_interview`, `planning_strategy`, and
+`leadership_meeting`. `leadership_meeting` is the tightest-held route: candid
+leadership/steering talk among the principals (Andrew, Tina, Dmarz, core admins)
+about Shape Rotator's own direction. It is distinct from `planning_strategy`,
+which is shared governance/ops work product; the leadership route is the
+unfiltered principals' conversation and never leaves the locked folder.
 
 Use these manual checks when the transcript title and calendar title are messy:
 
@@ -270,6 +276,7 @@ Use these manual checks when the transcript title and calendar title are messy:
 | topic-led discussion, speaker-led room, or salon-style session not centered on one team's operating work | `salon` | `office_hours` |
 | prepared project/product demo, presentation, intro, showcase, or presenter-owned material | `demo_presentation` | `salon` |
 | external customer/user/ICP subject whose participation is research evidence | `user_interview` | `office_hours` |
+| leadership/steering conversation among the principals (Andrew, Tina, Dmarz, core admins) about Shape Rotator's own direction, roadmap, people, or partner decisions | `leadership_meeting` | `planning_strategy` |
 | governance, fundraising, internal planning, access policy, or coordinator strategy | `planning_strategy` | `office_hours` |
 
 If two categories seem plausible, use the calendar event as the first anchor.
@@ -283,6 +290,7 @@ Examples:
 - `private_1on1_tina-positioning_2026-05-27.txt`
 - `salon_info-markets-design_2026-06-09.txt`
 - `demo_presentation_elocute_2026-05-26.txt`
+- `leadership_meeting_andrew-tina-direction_2026-05-30.txt`
 
 Bad/good pairs:
 
@@ -305,6 +313,7 @@ The Drive vault should route raw source files by type after the calendar check:
 | `private_1on1` | `do_not_publish/private_1on1` | no cohort artifact | never public |
 | `user_interview` | `raw_transcripts/user_interview` | only aggregate insights may travel | interview itself never widens |
 | `planning_strategy` | `do_not_publish/planning_strategy` | coordinator/core only | never public |
+| `leadership_meeting` | `do_not_publish/leadership_meeting` | leadership/admins only; never distilled | never public |
 
 Drive admins/managers for the transcript vault are Tina, Andrew, Dmarz, Michael,
 Fred, and Albi. Their email targets are supplied through private operator env,

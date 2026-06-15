@@ -25,6 +25,7 @@ const POLICY = {
       demo_presentation: "demo_presentation",
       user_interview: "user_interview",
       planning_strategy: "planning_strategy",
+      leadership_meeting: "leadership_meeting",
     },
   },
   drive_vault: {
@@ -47,6 +48,7 @@ const POLICY = {
       demo_presentation: { path: "raw_transcripts/demo_presentation", derived_path: "operator_review_exports/demo_presentation" },
       user_interview: { path: "raw_transcripts/user_interview", derived_path: "operator_review_exports/user_interview" },
       planning_strategy: { path: "do_not_publish/planning_strategy", derived_path: "do_not_publish/planning_strategy" },
+      leadership_meeting: { path: "do_not_publish/leadership_meeting", derived_path: "do_not_publish/leadership_meeting" },
       unknown: { path: "needs_calendar_match", derived_path: "needs_calendar_match" },
     },
   },
@@ -107,6 +109,13 @@ const POLICY = {
       default_auto_transcript: false,
       required_public_approvals: [],
     },
+    leadership_meeting: {
+      max_tier: "T1",
+      cohort_mode: "never",
+      public_allowed: false,
+      default_auto_transcript: false,
+      required_public_approvals: [],
+    },
   },
 };
 
@@ -141,6 +150,30 @@ test("normalizes Drive copies and infers dates/session types from filenames", ()
   assert.equal(inferSessionType("Copy of Product Positioning Coaching w/ Tina feedback private.txt"), "private_1on1");
   assert.equal(inferSessionType("Copy of 2026-05-25__office-hours__andrew-drop-in-mixed-conversations.txt"), "private_1on1");
   assert.equal(vaultIdForName(name), "wdydlw-shaw-8");
+});
+
+test("routes leadership meetings to the locked do_not_publish folder ahead of planning_strategy and 1:1", () => {
+  // Explicit leadership/steering markers and Andrew+Tina co-occurrence classify as leadership_meeting.
+  assert.equal(inferSessionType("Copy of Leadership Sync Andrew Tina Jun 12.txt"), "leadership_meeting");
+  assert.equal(inferSessionType("Andrew + Tina Project Direction May 30.txt"), "leadership_meeting");
+  assert.equal(inferSessionType("Steering Committee Notes Jun 2.txt"), "leadership_meeting");
+  // A generic 1:1 with no principals named stays private_1on1.
+  assert.equal(inferSessionType("Copy of 1-1 May 29 Transcript.txt"), "private_1on1");
+  // Governance/ops work product without leadership or both principals stays planning_strategy.
+  assert.equal(inferSessionType("Fundraising Data Room Jun 9.txt"), "planning_strategy");
+  // Single-principal coaching is still a private 1:1, not a leadership meeting.
+  assert.equal(inferSessionType("Copy of Product Positioning Coaching w/ Tina feedback private.txt"), "private_1on1");
+
+  assert.equal(driveRouteForSessionType(POLICY, "leadership_meeting").path, "do_not_publish/leadership_meeting");
+  assert.equal(
+    canonicalTranscriptName({
+      name: "Copy of Leadership Sync Andrew Tina Jun 12.txt",
+      sessionType: "leadership_meeting",
+      date: "2026-06-12",
+      policy: POLICY,
+    }),
+    "leadership_meeting_sync-andrew-tina_2026-06-12.txt",
+  );
 });
 
 test("builds preferred transcript names and drive routes from policy", () => {
