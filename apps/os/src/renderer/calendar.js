@@ -16,12 +16,15 @@
 import {
   escHtml, escAttr,
   parseWeekRow, parseRecurring, currentWeekIdx, phaseFor,
-  CALENDAR_URL,
+  CALENDAR_URL, buildEventCalendarActions,
 } from "@shape-rotator/shape-ui";
 
 const PRIMARY_TAB = "May 18 Start";
 const WEEK_COUNT  = 10;
 const MANAGED_GOOGLE_CALENDAR_ID = "c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com";
+// Public read-only mirror that cohort members/guests subscribe to (guest calendar mirror, PR #361).
+// MANAGED_* above is the admin/source calendar and must NOT be the public subscribe target.
+const GUEST_GOOGLE_CALENDAR_ID = "c_230102e62c5e01faa500a92c44251088210cd1f1949dfa9aff3ab11280261d8c@group.calendar.google.com";
 
 const DAY_NAMES_FULL = {
   mon: "monday", tue: "tuesday", wed: "wednesday", thu: "thursday",
@@ -475,7 +478,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </button>
     </nav>`;
   const subscribeAction = `
-    <a class="c2-subscribe" href="${escAttr(managedGoogleCalendarUrl())}" data-external aria-label="Subscribe to Google Calendar">
+    <a class="c2-subscribe" href="${escAttr(managedGoogleCalendarUrl(GUEST_GOOGLE_CALENDAR_ID))}" data-external aria-label="Subscribe to the Shape Rotator guest calendar">
       <span class="c2-subscribe-glyph" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v5"/><path d="M9.5 16.5h5"/>
@@ -740,6 +743,12 @@ export function openCalendarEvent(ref) {
     ? (item.subtitle ? [item.subtitle] : [])
     : item.content.details;
   const googleLink = calendarGoogleEventLinkForItem(item, _model.calendarGoogleEvents);
+  // Universal "add to your calendar" link (Google TEMPLATE) — works for any subscriber,
+  // unlike the admin event html_link above which needs source-calendar access.
+  const addBlockText = isAnchor ? title : (item.block || title);
+  const addAction = Number.isFinite(day.dayMs)
+    ? buildEventCalendarActions({ blockText: addBlockText, dayMs: day.dayMs })
+    : null;
 
   document.querySelector(".c2-modal")?.remove();
   const overlay = document.createElement("div");
@@ -753,12 +762,16 @@ export function openCalendarEvent(ref) {
         : ""}
       <h3 class="c2-modal-title"><em>${escHtml(title)}</em></h3>
       ${details.length ? `<ul class="c2-modal-details">${details.map(d => `<li>${escHtml(d)}</li>`).join("")}</ul>` : ""}
-      ${googleLink ? `
+      ${(addAction?.googleHref || googleLink) ? `
         <div class="c2-modal-actions">
-          <a class="c2-modal-google" href="${escAttr(googleLink)}" data-external>
+          ${addAction?.googleHref ? `<a class="c2-modal-google" href="${escAttr(addAction.googleHref)}" data-external>
+            <span aria-hidden="true">+</span>
+            <strong>add to Google Calendar</strong>
+          </a>` : ""}
+          ${googleLink ? `<a class="c2-modal-google c2-modal-google--open" href="${escAttr(googleLink)}" data-external>
             <span aria-hidden="true">↗</span>
             <strong>open in Google Calendar</strong>
-          </a>
+          </a>` : ""}
         </div>` : ""}
     </div>`;
   const close = () => { overlay.remove(); document.removeEventListener("keydown", onKey); };
