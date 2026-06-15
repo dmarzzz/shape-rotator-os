@@ -10,18 +10,23 @@ const CONTEXT_SCRIPT = path.join(ROOT, "apps", "web", "scripts", "context.js");
 const CONTEXT_PAGE = path.join(ROOT, "apps", "web", "context", "index.html");
 const SURFACE_JSON = path.join(ROOT, "apps", "web", "cohort-surface.json");
 
-function loadContextRenderer() {
+function loadContextSandbox() {
   const source = fs.readFileSync(CONTEXT_SCRIPT, "utf8");
   assert.match(source, /addPreviewVersion\("\.\.\/cohort-surface\.json"\)/);
   const runnable = source.replace(/\bexport\s+(async\s+function|function)\s+/g, "$1 ");
   const sandbox = {
     console,
+    URL,
     URLSearchParams,
     location: { search: "" },
   };
   vm.runInNewContext(runnable, sandbox, { filename: CONTEXT_SCRIPT });
   assert.equal(typeof sandbox.renderContextSurface, "function");
-  return sandbox.renderContextSurface;
+  return sandbox;
+}
+
+function loadContextRenderer() {
+  return loadContextSandbox().renderContextSurface;
 }
 
 test("context page is wired to the static context renderer", () => {
@@ -371,6 +376,61 @@ test("context renderer keeps claim provenance, confidence, and raw boundary visi
   assert.match(html, /medium/);
   assert.match(html, /raw transcript hidden/);
   assert.match(html, /Cohort-safe synthesis/);
+});
+
+test("public Supabase evidence hydration strips entity and private provenance keys", async () => {
+  const sandbox = loadContextSandbox();
+  const calls = [];
+  const rows = await sandbox.fetchPublicTranscriptEvidence({
+    config: { supabaseUrl: "https://project.supabase.co", supabaseAnonKey: "anon" },
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      return {
+        ok: true,
+        json: async () => [{
+          id: "card-1",
+          claim_type: "insight",
+          title: "Public-safe signal",
+          claim_text: "Teams are converging on reusable coordination patterns.",
+          summary: "A reusable insight from public transcript evidence.",
+          evidence_level: "aggregate",
+          confidence: 0.6,
+          attribution_scope: "team",
+          content_json: {
+            week_start: "2026-06-08",
+            themes: ["coordination"],
+            teams: ["teleport-router"],
+            people: ["person-a"],
+            source_artifact_id: "source-artifact-1",
+            storage_ref: "private-transcripts/session.txt",
+            raw_allowed: true,
+            named_entities_allowed: true,
+          },
+          created_at: "2026-06-10T00:00:00Z",
+        }],
+      };
+    },
+  });
+
+  assert.match(calls[0], /\/rest\/v1\/public_transcript_evidence_cards/);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].attribution_scope, "anonymous_public");
+  assert.equal(rows[0].content_json.raw_allowed, false);
+  assert.equal(rows[0].content_json.named_entities_allowed, false);
+  assert.equal(rows[0].content_json.teams, undefined);
+  assert.equal(rows[0].content_json.people, undefined);
+  assert.equal(rows[0].content_json.source_artifact_id, undefined);
+  assert.equal(rows[0].content_json.storage_ref, undefined);
+
+  const merged = sandbox.mergePublicTranscriptEvidence({
+    cohort_intel: { weekly: [] },
+    transcript_evidence: {},
+  }, rows);
+  assert.equal(merged.transcript_evidence.public_evidence_card_count, 1);
+  assert.equal(merged.cohort_intel.weekly[0].teams.length, 0);
+  assert.equal(merged.cohort_intel.weekly[0].people.length, 0);
+  assert.equal(merged.cohort_intel.weekly[0].top_claims[0].teams.length, 0);
+  assert.equal(merged.cohort_intel.weekly[0].top_claims[0].people.length, 0);
 });
 
 test("current web bundle exposes public-safe context intel inputs", () => {
