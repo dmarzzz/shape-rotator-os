@@ -41,6 +41,24 @@ export function buildUpsertRequest({ url, grid, rowId = ROW_ID, now }) {
   };
 }
 
+// Fail-closed leak gate (security review #2). The grid is built from the admin
+// source calendar, so before it reaches the anon-readable public row we scan the
+// rendered text for content that must never be public. A hit throws — the
+// publish step fails and the app keeps serving the last good row (safe stale),
+// rather than leaking. Patterns are precise to avoid tripping on times/dates;
+// names are reported, never the matched value (so the CI log can't echo it).
+const LEAK_PATTERNS = [
+  ["email address", /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/],
+  ["video-call link", /\b(?:meet\.google\.com|zoom\.us|teams\.microsoft\.com|webex\.com)\b/i],
+  ["private routing marker", /\b(?:do_not_publish|private_1on1|leadership_meeting)\b/i],
+  ["candid leadership note", /Goals\s*[—–-]\s*(?:Andrew|Tina|James)|Notion draft/i],
+];
+
+export function scanGridForLeaks(grid) {
+  const text = JSON.stringify(grid || {});
+  return LEAK_PATTERNS.filter(([, re]) => re.test(text)).map(([name]) => name);
+}
+
 // Upsert the grid. Resolves { skipped:true } when Supabase env is absent (local
 // dev / unconfigured) so the calendar build never hard-fails on the publish
 // step; throws only on a real HTTP error so CI surfaces a misconfiguration.
@@ -53,6 +71,10 @@ export async function publishGrid({
 } = {}) {
   if (!url || !key) {
     return { skipped: true, reason: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set" };
+  }
+  const leaks = scanGridForLeaks(grid);
+  if (leaks.length) {
+    throw new Error(`refusing to publish — grid contains content that must not be public: ${leaks.join(", ")}`);
   }
   const { url: reqUrl, body } = buildUpsertRequest({ url, grid, now });
   const res = await fetchImpl(reqUrl, {

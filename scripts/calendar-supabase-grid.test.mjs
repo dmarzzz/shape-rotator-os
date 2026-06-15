@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildUpsertRequest, publishGrid } from "./publish-calendar-grid-to-supabase.mjs";
+import { buildUpsertRequest, publishGrid, scanGridForLeaks } from "./publish-calendar-grid-to-supabase.mjs";
 import {
   publicCalendarGridUrl,
   normalizeGrid,
@@ -35,6 +35,29 @@ test("buildUpsertRequest rejects a missing url or a non-grid", () => {
   assert.throws(() => buildUpsertRequest({ url: "", grid: GRID }), /SUPABASE_URL is required/);
   assert.throws(() => buildUpsertRequest({ url: "https://x", grid: {} }), /tabs/);
   assert.throws(() => buildUpsertRequest({ url: "https://x", grid: null }), /tabs/);
+});
+
+// ── writer: leak gate (security review #2) ──────────────────────────────
+test("scanGridForLeaks passes a clean schedule grid (incl. times/dates)", () => {
+  const clean = { tabs: { "May 18 Start": [["Week", "Dates"], ["1", "May 18-23", "16:00-17:30 Onboarding"]] } };
+  assert.deepEqual(scanGridForLeaks(clean), []);
+});
+
+test("scanGridForLeaks catches emails, video links, private markers, candid notes", () => {
+  assert.deepEqual(scanGridForLeaks({ tabs: { t: [["ping a@b.com"]] } }), ["email address"]);
+  assert.deepEqual(scanGridForLeaks({ tabs: { t: [["join meet.google.com/xyz"]] } }), ["video-call link"]);
+  assert.deepEqual(scanGridForLeaks({ tabs: { t: [["leadership_meeting prep"]] } }), ["private routing marker"]);
+  assert.deepEqual(scanGridForLeaks({ tabs: { t: [["Goals — Tina: pivot"]] } }), ["candid leadership note"]);
+});
+
+test("publishGrid refuses to upsert a grid that trips the leak gate (no fetch)", async () => {
+  let fetched = false;
+  const fetchImpl = async () => { fetched = true; return { ok: true, status: 201 }; };
+  await assert.rejects(
+    () => publishGrid({ url: "https://x", key: "k", grid: { tabs: { t: [["call zoom.us/j/1"]] } }, fetchImpl, now: "t" }),
+    /refusing to publish.*video-call link/,
+  );
+  assert.equal(fetched, false, "must not reach Supabase when the gate trips");
 });
 
 // ── writer: publishGrid ─────────────────────────────────────────────────
