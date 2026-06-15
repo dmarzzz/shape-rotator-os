@@ -40,6 +40,12 @@ calendar-ingress-deploy-plan.md
 # private signing keys — NEVER commit
 cohort-data/.private/
 
+# full transcript/talk metadata catalog — built from the private vault, belongs
+# vault-only. scripts/build-transcript-talk-index-html.mjs now defaults its output
+# to cohort-data/.private/. This backstop blocks re-committing a public copy that
+# would expose do_not_publish session titles, participants, and filenames.
+docs/INFORMATION_INDEX.html
+
 # screenshots
 screenshots/
 *.png

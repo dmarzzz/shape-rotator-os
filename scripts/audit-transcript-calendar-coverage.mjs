@@ -655,13 +655,21 @@ function renderCoverageTable(rows, { privateMode = false } = {}) {
     "| --- | --- | --- | --- | --- | --- | --- |",
   ];
   for (const row of rows) {
-    lines.push(`| ${row.date} | ${escapeMd(row.time)} | ${escapeMd(row.title)} | ${row.expectation} | ${row.coverage_status} | ${escapeMd(coverageEvidence(row, { privateMode }))} | ${escapeMd(row.next_action)} |`);
+    // Public docs never expose the title or evidence of expected_private sessions.
+    const withhold = !privateMode && row.expectation === "expected_private";
+    const title = withhold ? "(private — title withheld)" : row.title;
+    const evidence = withhold ? "(private — withheld)" : coverageEvidence(row, { privateMode });
+    lines.push(`| ${row.date} | ${escapeMd(row.time)} | ${escapeMd(title)} | ${row.expectation} | ${row.coverage_status} | ${escapeMd(evidence)} | ${escapeMd(row.next_action)} |`);
   }
   return lines.join("\n");
 }
 
-function renderTitleIssues(rows) {
-  const issues = rows.flatMap((row) => row.title_issues.map((issue) => ({ row, ...issue })));
+function renderTitleIssues(rows, { privateMode = false } = {}) {
+  // Public docs omit expected_private events from the title audit entirely.
+  const issues = rows.flatMap((row) =>
+    !privateMode && row.expectation === "expected_private"
+      ? []
+      : row.title_issues.map((issue) => ({ row, ...issue })));
   const lines = [
     "| Date | Time | Calendar title | Issue | Detail |",
     "| --- | --- | --- | --- | --- |",
@@ -830,7 +838,7 @@ function renderPrivateDoc({ generatedAt, auditDate, calendar, importPlan, sessio
     "",
     "## Calendar Title Audit",
     "",
-    renderTitleIssues(rows),
+    renderTitleIssues(rows, { privateMode: true }),
   ];
   return lines.join("\n");
 }
