@@ -23101,3 +23101,97 @@ html[data-theme="light"] .alch-trailbar .alch-trail-back {
   .alch-trailbar .alch-trail-back .atb-word { display: none; }
   .alch-trailbar .alch-trail-back { padding: 6px; }
 }
+
+/* --- Context › evidence: distilled transcript cards, read live from Supabase.
+   Neutral ink tokens (theme-adaptive); data (confidence) in mono tabular-nums;
+   expo-out hover per the house motion vocabulary. --- */
+.alch-ev-lede {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--light-3);
+  letter-spacing: 0.01em;
+}
+.alch-ev-empty { margin-top: 18px; max-width: 52ch; }
+.alch-ev-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(264px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.alch-ev-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  border-radius: 12px;
+  background: rgba(var(--ink-rgb), 0.025);
+  transition: background 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              border-color 200ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alch-ev-card:hover {
+  background: rgba(var(--ink-rgb), 0.05);
+  border-color: rgba(var(--ink-rgb), 0.20);
+}
+.alch-ev-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.alch-ev-type {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(var(--ink-rgb), 0.55);
+}
+.alch-ev-conf {
+  font-family: "SF Mono", Menlo, ui-monospace, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--ink-rgb), 0.5);
+}
+.alch-ev-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--light-1);
+  text-wrap: balance;
+}
+.alch-ev-claim {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--light-1);
+  text-wrap: pretty;
+}
+.alch-ev-summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--light-3);
+}
+.alch-ev-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.alch-ev-chip {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(var(--ink-rgb), 0.06);
+  color: rgba(var(--ink-rgb), 0.7);
+}
+.alch-ev-prov {
+  font-size: 10px;
+  color: rgba(var(--ink-rgb), 0.42);
+  margin-left: auto;
+}
