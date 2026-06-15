@@ -19,7 +19,12 @@
 import {
   DEFAULT_SUPABASE_URL,
   DEFAULT_CALENDAR_CONFIG_KEY,
-} from "../../../web/scripts/calendar-ingress-client.mjs";
+  // Vendored copy of apps/web/scripts/calendar-ingress-client.mjs. The original
+  // lives OUTSIDE apps/os and is NOT in the packaged asar, so the cross-package
+  // import made the renderer's module graph fail to load in packaged builds —
+  // boot() never ran (mac smoke-test hang). Keep this copy in sync with the web
+  // original.
+} from "../vendor/calendar-ingress-client.mjs";
 
 // The Supabase ANON key is safe to embed in a client — it is designed to ship
 // publicly, and RLS (not key secrecy) is the security boundary. It grants only
