@@ -73,7 +73,13 @@ import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.
 // located failure. Reaching here at all proves the static import graph
 // evaluated without hanging.
 const __SMOKE = (() => { try { return new URLSearchParams(location.search).has("smoke"); } catch { return false; } })();
-const cp = (label) => { if (__SMOKE) { try { console.error("[smoke-cp] " + label); } catch {} } };
+const cp = (label) => {
+  // IPC path is UNCONDITIONAL (no-op without a main-side listener, i.e. outside
+  // --smoke-test) so tracing never depends on the ?smoke query reaching the
+  // renderer. console path stays gated to avoid log spam in normal launches.
+  try { window.api?.smokeTrace?.(label); } catch {}
+  if (__SMOKE) { try { console.error("[smoke-cp] " + label); } catch {} }
+};
 cp("module-eval:boot.js");
 
 // Small Notion-style sync chip pinned to the bottom-left. Subscribes

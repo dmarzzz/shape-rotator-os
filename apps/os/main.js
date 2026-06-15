@@ -60,6 +60,10 @@ function runSmokeTest() {
     finish(1, `render-process-gone: ${d && d.reason}`));
   win.webContents.on("preload-error", (_e, p, err) =>
     finish(1, `preload-error ${p}: ${err && err.message}`));
+  // Boot breadcrumbs from preload/boot.js over IPC — reliable on headless CI
+  // where renderer console-message capture is not. The last one logged before
+  // the timeout pinpoints the blocking phase.
+  ipcMain.on("smoke:trace", (_e, label) => log(`cp:${label}`));
   ipcMain.once("smoke:ready", () => finish(0, "renderer signalled ready"));
   // ?smoke=1 lets boot.js emit [smoke-cp] checkpoint markers (surfaced above via
   // console-message) so a headless-CI boot hang reports HOW FAR boot() got.
