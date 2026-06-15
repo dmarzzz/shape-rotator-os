@@ -138,8 +138,8 @@ test("normalizes Drive copies and infers dates/session types from filenames", ()
   assert.equal(inferSessionType(name), "weekly_standup");
   assert.equal(inferSessionType("Copy of Product Whiteboarding Jam Jun 9.txt"), "rd_jam");
   assert.equal(inferSessionType("Copy of 1-1 May 29 Transcript.txt"), "private_1on1");
-  assert.equal(inferSessionType("Copy of Product Positioning Coaching w/ Tina feedback private.txt"), "private_1on1");
-  assert.equal(inferSessionType("Copy of 2026-05-25__office-hours__andrew-drop-in-mixed-conversations.txt"), "private_1on1");
+  assert.equal(inferSessionType("Copy of Quarterly 1-1 Coaching Notes.txt"), "private_1on1");
+  assert.equal(inferSessionType("Copy of 2026-01-15__1on1__strategy-sync.txt"), "private_1on1");
   assert.equal(vaultIdForName(name), "wdydlw-shaw-8");
 });
 
