@@ -73,6 +73,7 @@ const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" |
 const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "people"
 const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "works" | "substrate"
 const CONST_TIER_LS_KEY = "srwk:const_tier";  // pinned line-source tier: "all" | "record" | "mention"
+const CONST_PEOPLE_LINK_LS_KEY = "srwk:const_people_link"; // pinned people-map link family: "all" | "same-team" | "profile" | "shared-context"
 const CONST_DOMAIN_LS_KEY = "srwk:const_domain"; // pinned domain on product layer: "all" | tee | ai | crypto | app-ux
 const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem view: cluster record_id | "all"
 const PROFILE_LS_KEY  = "srwk:profile_v1";
@@ -144,6 +145,7 @@ const state = {
   collabTeamFilter: "all",         // "all" | "needs" | "offers" — which teams are visible in the collab matrix
   collabSort: "cluster",           // "cluster" | "intro" | "dependency" — ordering for the collab matrix
   collabSelection: null,           // { type: "team"|"pair"|"cluster", ... } — pinned inspector state
+  goalStandingFilter: "all",       // "all" | "behind" | "onplan" | "ahead" — standing legend/filter
   renderToken: 0,                  // invalidates pending cross-fade swaps when a newer render starts
   mounted: false,
   active: false,
@@ -176,6 +178,7 @@ const state = {
   constellationMode: "map",   // top-level constellation view: "map" | "ring" | "journey" | "stack" | "collab"
   constellationScope: "projects", // network entity layer: projects/teams vs people-to-project membership
   constellationLens: "all",   // map line lens: "all" | "relies" | "works" | "substrate" — changes which relationship claim is foregrounded
+  constPeopleLinkFilter: "all", // people-map legend/filter: "all" | "same-team" | "profile" | "shared-context"
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
   constSelection: null,       // persistent constellation inspector selection: { type:"team"|"person", rid } | { type:"edge", from, to }
   renderSeq: 0,               // monotonic render guard; stale delayed swaps must not overwrite the latest view
@@ -226,6 +229,7 @@ export function mount(container) {
     state.constellationScope = constNormalizeNetworkScope(localStorage.getItem(CONST_SCOPE_LS_KEY));
     state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
     state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
+    state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
     state.constDomainPin = constNormalizeDomainPin(localStorage.getItem(CONST_DOMAIN_LS_KEY));
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
@@ -2259,6 +2263,53 @@ function constNormalizeEdgeTier(raw) {
   const tier = String(raw || "").toLowerCase();
   return tier === "record" || tier === "mention" ? tier : "all";
 }
+const CONST_PEOPLE_LINK_FILTERS = [
+  {
+    key: "same-team",
+    label: "same project",
+    note: "same primary project group",
+    kinds: ["same-team"],
+    swatch: "is-people-same",
+  },
+  {
+    key: "profile",
+    label: "profile overlap",
+    note: "secondary project or pair_with fields",
+    kinds: ["secondary-overlap", "pair-with"],
+    swatch: "is-people-profile",
+  },
+  {
+    key: "shared-context",
+    label: "shared context",
+    note: "shared declared skills, themes, or work context",
+    kinds: ["shared-context"],
+    swatch: "is-people-shared",
+  },
+];
+const CONST_PEOPLE_LINK_KEYS = CONST_PEOPLE_LINK_FILTERS.map(spec => spec.key);
+function constNormalizePeopleLinkFilter(raw) {
+  const key = String(raw || "").toLowerCase();
+  return CONST_PEOPLE_LINK_KEYS.includes(key) ? key : "all";
+}
+function constPeopleLinkSpec(key) {
+  return CONST_PEOPLE_LINK_FILTERS.find(spec => spec.key === key) || null;
+}
+function constPeopleLinkFamily(kind) {
+  const k = String(kind || "");
+  if (k === "same-team") return "same-team";
+  if (k === "secondary-overlap" || k === "pair-with") return "profile";
+  if (k === "shared-context") return "shared-context";
+  return "all";
+}
+function constPeopleLinkCounts(edges = []) {
+  const counts = Object.fromEntries(CONST_PEOPLE_LINK_FILTERS.map(spec => [spec.key, 0]));
+  for (const edge of Array.isArray(edges) ? edges : []) {
+    const family = constPeopleLinkFamily(edge?.kind);
+    if (family !== "all" && Object.prototype.hasOwnProperty.call(counts, family)) counts[family]++;
+  }
+  counts.total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  return counts;
+}
 
 // ── Sentence bar ─────────────────────────────────────────────────────
 // The view controls read as one sentence — "showing projects as wells ·
@@ -2291,7 +2342,7 @@ function constSentenceUnit({ menu, token, ariaMenu, options }) {
       <div class="ac-sent-menu" data-sent-menu-for="${escAttr(menu)}" role="listbox" aria-label="${escAttr(ariaMenu)}" hidden>${options}</div>
     </span>`;
 }
-function constellationSentenceBar({ view = "map", scope = "projects", lens = "all", metrics = {}, tier = "all" } = {}) {
+function constellationSentenceBar({ view = "map", scope = "projects", lens = "all", metrics = {}, tier = "all", peopleLinkFilter = "all" } = {}) {
   const isRing = view === "ring";
   const activeScope = constNormalizeNetworkScope(scope);
   const scopeUnit = constSentenceUnit({
@@ -2303,13 +2354,26 @@ function constellationSentenceBar({ view = "map", scope = "projects", lens = "al
       label: v.label, note: v.hint,
     })).join(""),
   });
-  // People network keeps the short form: the dek above already explains
-  // grouping and line meaning, and its legend stays beside the stage.
+  // People network uses the same consolidated key-as-filter pattern as the
+  // project map. These chips are not decoration: hover previews the link
+  // family, click pins it, and the counts say what the filter will isolate.
   if (activeScope === "people") {
+    const activePeopleLink = constNormalizePeopleLinkFilter(peopleLinkFilter);
+    const linkCounts = metrics.peopleLinkCounts || constPeopleLinkCounts([]);
+    const linkChip = (spec) => {
+      const count = Number(linkCounts[spec.key]) || 0;
+      const pressed = activePeopleLink === spec.key;
+      return `
+        <button type="button" class="ac-sent-evi is-people-link ${spec.swatch}" data-legend-link="${escAttr(spec.key)}" data-people-link-toggle="${escAttr(spec.key)}" aria-pressed="${pressed ? "true" : "false"}" aria-label="${escAttr(`${spec.label}: ${count} ${spec.note}${pressed ? " — pinned; click to show all people links" : " — hover previews, click isolates"}`)}">
+          <i aria-hidden="true"></i><em>${escHtml(String(count))}</em><span class="ac-sent-evi-label">${escHtml(spec.label)}</span>
+        </button>`;
+    };
     return `
       <div class="ac-sentence" role="group" aria-label="people map filters">
         <span class="ac-sent-word">showing</span>
         ${scopeUnit}
+        <span class="ac-sent-word">· linked by</span>
+        ${CONST_PEOPLE_LINK_FILTERS.map(linkChip).join("")}
       </div>`;
   }
   const activeLayout = isRing ? "ring" : "map";
@@ -5193,13 +5257,20 @@ function renderJourney() {
   // each family's members still individually clickable to isolate that one.
   // Led by the encoding key: without it nothing on the view says what color
   // or size MEAN, and both encodings are otherwise hover-only knowledge. ──
+  const bottleneckCounts = new Map(JOURNEY_BOTTLENECKS.map((b) => [b, 0]));
+  for (const t of teams) {
+    if (!journeyAssessed(t)) continue;
+    const b = journeyFor(t).primary_bottleneck;
+    if (bottleneckCounts.has(b)) bottleneckCounts.set(b, bottleneckCounts.get(b) + 1);
+  }
   const legendKey = `<span class="acl-jkey">color = primary bottleneck · size = market upside<span class="acl-jsize" aria-hidden="true"><i class="sm"></i><i class="lg"></i></span></span>`;
   const legend = legendKey + JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => `
     <div class="acl-jfamily">
       <span class="acl-jfam-head"><span class="acl-jswatch ac-jfam-${fi}"></span>${escHtml(fam.label)}</span>
-      ${fam.members.map(b =>
-        `<button type="button" class="acl-jbtn ${jf.bottleneck === b ? "is-active" : ""} ${jf.bottleneck && jf.bottleneck !== b ? "is-dim" : ""}" data-jbottleneck="${escAttr(b)}">${escHtml(b)}</button>`
-      ).join("")}
+      ${fam.members.map((b) => {
+        const count = bottleneckCounts.get(b) || 0;
+        return `<button type="button" class="acl-jbtn ${jf.bottleneck === b ? "is-active" : ""} ${jf.bottleneck && jf.bottleneck !== b ? "is-dim" : ""}" data-jbottleneck="${escAttr(b)}" data-legend-bottleneck="${escAttr(b)}" aria-pressed="${jf.bottleneck === b ? "true" : "false"}" aria-label="${escAttr(`${b}: ${count} plotted records${jf.bottleneck === b ? " — click to clear" : " — click to isolate"}`)}">${escHtml(b)}<em>${escHtml(String(count))}</em></button>`;
+      }).join("")}
     </div>`).join("");
 
   // ── sentence bar — "plotting teams + projects + side projects" ──
@@ -5278,6 +5349,11 @@ const CONST_GOAL_STANDING = {
   onplan: { label: "on plan", x: 0.5, color: "#7fa05a" },
   ahead: { label: "ahead", x: 0.82, color: "#4f9d8f" },
 };
+const CONST_GOAL_STANDING_KEYS = Object.keys(CONST_GOAL_STANDING);
+function constNormalizeGoalStandingFilter(raw) {
+  const key = String(raw || "").toLowerCase();
+  return CONST_GOAL_STANDING_KEYS.includes(key) ? key : "all";
+}
 function constTeamStanding(team) {
   if (!journeyAssessed(team)) return null;
   const c = constText(journeyFor(team).confidence).toLowerCase();
@@ -5333,9 +5409,13 @@ function constGoalPlanReadLine(model) {
 // Rows of arrows, self-referenced: a center "on plan" line is each team's
 // own goal; the dot is where they report standing; behind teams show a
 // catch-up arrow to the line. Sorted behind-first so who-needs-help leads.
-function constGoalPlanHtml(model) {
+function constGoalPlanHtml(model, standingFilter = "all") {
   const tracked = model?.tracked || [];
   const untracked = model?.untracked || [];
+  const activeFilter = constNormalizeGoalStandingFilter(standingFilter);
+  const visibleTracked = activeFilter === "all"
+    ? tracked
+    : tracked.filter((r) => r.standing === activeFilter);
   if (!tracked.length && !untracked.length) return `<p class="ac-stack-empty">no teams to track yet.</p>`;
   const head = `
     <div class="ac-gp-head" aria-hidden="true">
@@ -5368,13 +5448,16 @@ function constGoalPlanHtml(model) {
           ${untracked.map(r => `<button type="button" class="ac-stack-team ac-gp-chip" data-const-team="${escAttr(r.team.record_id)}" aria-label="${escAttr((r.team.name || r.team.record_id) + ": no standing read yet")}">${escHtml(r.team.name || r.team.record_id)}</button>`).join("")}
         </div>
       </div>` : "";
+  const emptyFiltered = activeFilter === "all" || visibleTracked.length ? "" : `
+      <p class="ac-stack-empty ac-gp-filter-empty">no ${escHtml(CONST_GOAL_STANDING[activeFilter].label)} teams in this read.</p>`;
   return `
-    <div class="ac-stack-view is-goalplan">
+    <div class="ac-stack-view is-goalplan" data-standing-filter="${escAttr(activeFilter)}">
       ${head}
       <div class="ac-gp-rows">
-        ${tracked.map(row).join("")}
+        ${visibleTracked.map(row).join("")}
+        ${emptyFiltered}
       </div>
-      ${untrackedHtml}
+      ${activeFilter === "all" ? untrackedHtml : ""}
       <p class="ac-gp-note">v0.1 · standing is self-reported confidence against each team's own goal — not a shared spectrum. Week-over-week momentum (recovering / slipping) lights up once transcripts feed the loop.</p>
     </div>`;
 }
@@ -5396,13 +5479,23 @@ function renderProductStack() {
   const goalModel = constGoalPlanModel(teams);
   const inspectorCtx = { ...baseCtx, stackModel: goalModel };
   const domainPin = "";
-  // Sentence bar frames the view; the standing distribution lives in the
-  // readout below, so it isn't repeated here.
+  const standingFilter = constNormalizeGoalStandingFilter(state.goalStandingFilter);
+  const standingChip = (key) => {
+    const spec = CONST_GOAL_STANDING[key];
+    const count = goalModel.counts[key] || 0;
+    return `<button type="button" class="ac-sent-evi is-standing is-standing-${escAttr(key)}" data-standing-filter="${escAttr(key)}" aria-pressed="${standingFilter === key ? "true" : "false"}" aria-label="${escAttr(`${spec.label}: ${count} teams${standingFilter === key ? " — click to clear" : " — click to isolate"}`)}">
+      <i class="ac-sent-dot" aria-hidden="true"></i><em>${escHtml(String(count))}</em>&nbsp;${escHtml(spec.label)}
+    </button>`;
+  };
+  // Sentence bar frames the view and carries the legend/filter chips, matching
+  // the relationship map's "encoding key is the control" pattern.
   const sentenceBar = `
     <div class="ac-sentence" role="group" aria-label="team standing summary">
       <span class="ac-sent-word">tracking</span>
       <strong class="ac-sent-fact">${goalModel.tracked.length} teams</strong>
       <span class="ac-sent-word">against their own declared goals</span>
+      <span class="ac-sent-word">· keyed by</span>
+      ${CONST_GOAL_STANDING_KEYS.map(standingChip).join("")}
       ${constGoalPlanReadLine(goalModel)}
     </div>`;
   const selectionChip = constSelectionChipHtml();
@@ -5414,7 +5507,7 @@ function renderProductStack() {
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
           <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" data-domain-pin="${escAttr(domainPin)}" tabindex="0" aria-label="team standing against plan">
-            ${constGoalPlanHtml(goalModel)}
+            ${constGoalPlanHtml(goalModel, standingFilter)}
             <div class="ac-tip" hidden></div>
           </div>
         </div>
@@ -5604,20 +5697,25 @@ function constPersonTipHTML(person, model, ctx) {
 
 // Relationship-map read — the network's actual shape (people / project groups
 // / inferred links), continuing the "showing people" sentence inline.
-function constMapReadLine(model) {
+function constMapReadLine(model, peopleLinkFilter = "all") {
   const nPeople = model?.personPositions?.size || 0;
   const nGroups = (model?.groups || []).filter(g => g.kind !== "unattached").length;
-  const nLinks = (model?.edges || []).length;
+  const activeFilter = constNormalizePeopleLinkFilter(peopleLinkFilter);
+  const counts = constPeopleLinkCounts(model?.edges || []);
+  const nLinks = activeFilter === "all" ? counts.total : (counts[activeFilter] || 0);
+  const filterSpec = constPeopleLinkSpec(activeFilter);
   if (!nPeople) return "";
   return constReadLine(
     `${nGroups} project group${nGroups === 1 ? "" : "s"}`,
-    nLinks ? `${nLinks} inferred link${nLinks === 1 ? "" : "s"}, conversation leads` : null
+    nLinks ? `${nLinks} ${filterSpec ? `${filterSpec.label} ` : ""}inferred link${nLinks === 1 ? "" : "s"}, conversation leads` : null
   );
 }
 
 function renderConstellationPeople(teams, people, clusters, edges) {
   const W = 1120, H = 620;
   const model = constPeopleNetworkModel(people, teams, W, H);
+  const peopleLinkFilter = constNormalizePeopleLinkFilter(state.constPeopleLinkFilter);
+  const peopleLinkCounts = constPeopleLinkCounts(model.edges);
   const inspectorCtx = {
     ...constellationInspectorContext(teams, edges, people),
     clusters,
@@ -5666,30 +5764,18 @@ function renderConstellationPeople(teams, people, clusters, edges) {
         <text class="ac-person-initial" y="2.6" text-anchor="middle">${escHtml(constPersonInitials(person))}</text>
       </g>`;
   }).join("");
-  // Each key row carries its count and isolates its lines on hover/focus
-  // (pure CSS via :has, see "legend → canvas isolation" in styles.css).
-  const linkCount = (...kinds) => model.edges.filter(e => kinds.includes(e.kind)).length;
-  const legend = `
-    <div class="acl-line-key">
-      <strong>People links</strong>
-      <span class="acl-line-key-row is-typed" data-legend-link="same-team" tabindex="0"><i></i><b>same project</b> <em>${linkCount("same-team")}</em></span>
-      <span class="acl-line-key-row is-profile" data-legend-link="profile" tabindex="0"><i></i><b>profile overlap</b> <em>${linkCount("secondary-overlap", "pair-with")}</em></span>
-      <span class="acl-line-key-row is-shared" data-legend-link="shared-context" tabindex="0"><i></i><b>shared context</b> <em>${linkCount("shared-context")}</em></span>
-    </div>
-    <div class="acl-line-note">Circles are primary project groups; line colour shows how each link was inferred.</div>`;
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="map">
       ${cohortPageHead("map", { dek: "How people connect — grouped by project, linked by shared work and overlapping context." })}
       <div class="alch-view-controls" data-shape-occluder>
-        ${constellationSentenceBar({ scope: "people" })}
-        ${constMapReadLine(model)}
+        ${constellationSentenceBar({ scope: "people", metrics: { total: peopleLinkCounts.total, peopleLinkCounts }, peopleLinkFilter })}
+        ${constMapReadLine(model, peopleLinkFilter)}
         ${constSelectionChipHtml()}
       </div>
       <div class="alch-constellation" data-constellation-view="map" data-constellation-scope="people">
         <div class="alch-const-workbench">
           <div class="alch-const-main">
-            <div class="alch-constellation-legend is-line-confidence lg-track">${legend}</div>
-            <div class="alch-constellation-stage ac-people-stage" data-view="people" data-lens="people" tabindex="0" aria-label="people connected to projects">
+            <div class="alch-constellation-stage ac-people-stage" data-view="people" data-lens="people" data-people-link-filter="${escAttr(peopleLinkFilter)}" tabindex="0" aria-label="people connected to projects">
               <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
                 <g class="ac-person-wells">${groupMarkup}</g>
                 <g class="ac-person-links">${edgeMarkup}</g>
@@ -7111,6 +7197,15 @@ function wireConstellationHover() {
       render();
     });
   }
+  // People-map link chips: hover previews a link family, click pins it.
+  for (const chip of state.canvas.querySelectorAll("[data-people-link-toggle]")) {
+    chip.addEventListener("click", () => {
+      const next = constNormalizePeopleLinkFilter(chip.dataset.peopleLinkToggle);
+      state.constPeopleLinkFilter = state.constPeopleLinkFilter === next ? "all" : next;
+      try { localStorage.setItem(CONST_PEOPLE_LINK_LS_KEY, state.constPeopleLinkFilter); } catch {}
+      render();
+    });
+  }
   // Domain chips (product layer): hover previews, click pins the domain.
   for (const chip of state.canvas.querySelectorAll("[data-domain-pin-toggle]")) {
     chip.addEventListener("click", () => {
@@ -7162,6 +7257,13 @@ function wireConstellationHover() {
       if (!jf) return;
       const b = btn.dataset.jbottleneck;
       jf.bottleneck = jf.bottleneck === b ? null : b;
+      render();
+    });
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-standing-filter]")) {
+    btn.addEventListener("click", () => {
+      const next = constNormalizeGoalStandingFilter(btn.dataset.standingFilter);
+      state.goalStandingFilter = state.goalStandingFilter === next ? "all" : next;
       render();
     });
   }
@@ -7651,6 +7753,7 @@ function paintCalendarView({ wire = false } = {}) {
   const presence = cal.view === "presence";
   state.canvas.innerHTML = renderCalendarPage({
     data: cal.data,
+    calendarGoogleEvents: state.cohort?.calendar_google_events || {},
     weekIdx: cal.weekIdx,
     source: cal.source,
     view: cal.view,
@@ -9158,15 +9261,20 @@ function collabTeamRouteRailHtml({ outbound, inbound, getsHelpFrom, givesHelpTo 
   </div>`;
 }
 
-function collabLegendHtml() {
+function collabLegendHtml(lens = "all") {
   // data-legend-cell drives hover-isolation on the matrix (CSS :has):
   // touching a key entry surfaces exactly the cells it describes.
+  const lensKey = COLLAB_LENSES.has(lens) ? lens : "all";
+  const filterEntry = ({ cell, lens: nextLens, mark, label, desc }) => `
+      <button type="button" data-legend-cell="${escAttr(cell)}" data-collab-lens="${escAttr(nextLens)}" data-collab-legend-lens="${escAttr(nextLens)}" data-desc="${escAttr(desc)}" aria-pressed="${lensKey === nextLens ? "true" : "false"}" aria-label="${escAttr(`${label}: ${lensKey === nextLens ? "active filter; click to show all signals" : "click to filter"}`)}"><i class="cb-legend-mark ${escAttr(mark)}"></i><b>${escHtml(label)}</b></button>`;
+  const keyEntry = ({ cell, mark, label, desc }) => `
+      <span tabindex="0" data-legend-cell="${escAttr(cell)}" data-desc="${escAttr(desc)}"><i class="cb-legend-mark ${escAttr(mark)}"></i><b>${escHtml(label)}</b></span>`;
   return `
     <div class="cb-legend" aria-label="collab board legend">
-      <span tabindex="0" data-legend-cell="dep" data-desc="This row team relies on the column team to do its work. Read it as: row needs column."><i class="cb-legend-mark dep"></i><b>dependency</b></span>
-      <span tabindex="0" data-legend-cell="so" data-desc="The row team is seeking something the column team has offered. Read it as: row seeks → column provides. A concrete match to introduce."><i class="cb-legend-mark so"></i><b>seek / offer</b></span>
-      <span tabindex="0" data-legend-cell="scale" data-desc="How strong a seek/offer match is, shown by the cell's teal depth: paler = fewer shared terms, darker = more overlap."><i class="cb-legend-mark so-scale"></i><b>match strength</b></span>
-      <span tabindex="0" data-legend-cell="key" data-desc="A team many others depend on; its column is densely filled."><i class="cb-legend-mark key"></i><b>keystone</b></span>
+      ${filterEntry({ cell: "dep", lens: "deps", mark: "dep", label: "dependency", desc: "This row team relies on the column team to do its work. Read it as: row needs column." })}
+      ${filterEntry({ cell: "so", lens: "needs", mark: "so", label: "seek / offer", desc: "The row team is seeking something the column team has offered. Read it as: row seeks → column provides. A concrete match to introduce." })}
+      ${keyEntry({ cell: "scale", mark: "so-scale", label: "match strength", desc: "How strong a seek/offer match is, shown by the cell's teal depth: paler = fewer shared terms, darker = more overlap." })}
+      ${keyEntry({ cell: "key", mark: "key", label: "keystone", desc: "A team many others depend on; its column is densely filled." })}
     </div>`;
 }
 
@@ -10381,7 +10489,7 @@ function renderCollab() {
   });
   const inspectorHtml = selected ? collabInspectorHtmlForSelection(selected, m) : collabInspectorDefaultHtml(m);
   const inspector = `<aside class="cb-inspector" data-collab-inspector aria-live="polite">${inspectorHtml}</aside>`;
-  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div><div class="cb-matrix-side lg-track"><div class="cb-matrix-key">${collabLegendHtml()}</div>${inspector}</div>`;
+  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div><div class="cb-matrix-side lg-track"><div class="cb-matrix-key">${collabLegendHtml(lens)}</div>${inspector}</div>`;
   const matrix = `
     <section class="alch-cb-section cb-matrix-section" aria-label="collaboration signal board">
       <div class="cb-scroll">${matrixBody}</div>
@@ -10518,7 +10626,16 @@ function wireCollab() {
   for (const btn of state.canvas.querySelectorAll("[data-collab-lens]")) {
     btn.addEventListener("click", () => {
       const next = btn.getAttribute("data-collab-lens") || "all";
-      if (next === state.collabLens && state.collabTeamFilter === "all") { closeConstSentenceMenus(); return; }
+      if (next === state.collabLens && state.collabTeamFilter === "all") {
+        if (btn.hasAttribute("data-collab-legend-lens") && next !== "all") {
+          state.collabLens = "all";
+          closeConstSentenceMenus();
+          render({ instant: true });
+          return;
+        }
+        closeConstSentenceMenus();
+        return;
+      }
       state.collabLens = next;
       state.collabTeamFilter = "all";
       render({ instant: true });
@@ -11249,7 +11366,8 @@ function contextNormalizeView(raw) {
   const v = String(raw || "").toLowerCase();
   if (v === "transcripts") return "raw";
   if (v === "intel") return "signals";
-  return (v === "articles" || v === "raw" || v === "signals" || v === "data") ? v : "articles";
+  if (v === "cards") return "evidence";
+  return (v === "articles" || v === "raw" || v === "signals" || v === "data" || v === "evidence") ? v : "articles";
 }
 
 const CONTEXT_VIEW_DEK = {
@@ -11257,6 +11375,7 @@ const CONTEXT_VIEW_DEK = {
   raw: "The transcripts behind the articles, with review metadata and calendar matches.",
   signals: "Vault-backed reads on cohort moves worth making — grounded, inferred, speculative.",
   data: "The sanitized entity graph behind the signals — people, projects, surfaces.",
+  evidence: "Distilled transcript knowledge — named cohort session summaries, or person-anonymized public cards.",
 };
 
 const CONTEXT_VIEWS = [
@@ -11264,6 +11383,7 @@ const CONTEXT_VIEWS = [
   { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "raw source transcripts with review metadata" },
   { view: "signals",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>', label: "signals", hint: "vault-backed reads on cohort moves" },
   { view: "data",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>', label: "data", hint: "sanitized entity graph behind the signals" },
+  { view: "evidence", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>', label: "evidence", hint: "distilled evidence cards, live from Supabase" },
 ];
 
 function contextViewNav(active, counts = {}) {
@@ -11797,6 +11917,117 @@ This page was drafted from Context Vault. Private inputs stay local; publish onl
   };
 }
 
+function contextEvidenceDate(value) {
+  if (!value) return "";
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  } catch { return ""; }
+}
+
+function contextEvidenceCardHtml(card) {
+  const type = String(card.claim_type || "insight");
+  const title = String(card.title || "").trim();
+  const claim = String(card.claim_text || "").trim();
+  const summary = String(card.summary || "").trim();
+  const evidence = String(card.evidence_level || "").trim();
+  const scope = String(card.attribution_scope || "").trim();
+  const confNum = Number(card.confidence);
+  const conf = Number.isFinite(confNum) ? `${Math.round(confNum * 100)}%` : "";
+  const topic = String(card.content_json?.topic_label || "").trim();
+  const when = contextEvidenceDate(card.created_at);
+  const chips = [evidence, scope].filter(Boolean)
+    .map(c => `<span class="alch-ev-chip">${escHtml(c.replace(/_/g, " "))}</span>`).join("");
+  const prov = [topic, "distilled", "T3 public", when].filter(Boolean).map(escHtml).join(" · ");
+  return `
+    <article class="alch-ev-card" data-claim-type="${escAttr(type)}">
+      <header class="alch-ev-head">
+        <span class="alch-ev-type">${escHtml(type.replace(/_/g, " "))}</span>
+        ${conf ? `<span class="alch-ev-conf" title="confidence">${escHtml(conf)}</span>` : ""}
+      </header>
+      ${title ? `<h3 class="alch-ev-title">${escHtml(title)}</h3>` : ""}
+      ${claim ? `<p class="alch-ev-claim">${escHtml(claim)}</p>` : ""}
+      ${summary && summary !== claim ? `<p class="alch-ev-summary">${escHtml(summary)}</p>` : ""}
+      <footer class="alch-ev-meta">
+        ${chips}
+        <span class="alch-ev-prov">${prov}</span>
+      </footer>
+    </article>
+  `;
+}
+
+const EVIDENCE_TIER_LS_KEY = "srfg:evidence_tier";
+
+// Detail tier for the Context > evidence view.
+//   T2 (default) = the richer, NAMED cohort session readouts (from the committed
+//     bundle's session_insights — no login required).
+//   T3 = the person-anonymized cards read live from Supabase (the public tier).
+// Default T2; flip to T3 instantly (via the in-view toggle or this localStorage
+// key) if named detail ever needs pulling back. No login is involved either way.
+function contextEvidenceTier() {
+  try {
+    return String(localStorage.getItem(EVIDENCE_TIER_LS_KEY) || "").toUpperCase() === "T3" ? "T3" : "T2";
+  } catch { return "T2"; }
+}
+function setContextEvidenceTier(tier) {
+  const next = tier === "T3" ? "T3" : "T2";
+  try { localStorage.setItem(EVIDENCE_TIER_LS_KEY, next); } catch {}
+  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
+}
+
+function evidenceTierToggleHtml(tier) {
+  const opt = (t, label, hint) =>
+    `<button class="alch-ev-tier-btn${tier === t ? " is-on" : ""}" data-ev-tier="${t}" type="button" aria-pressed="${tier === t}" title="${escAttr(hint)}">${label}</button>`;
+  return `<div class="alch-ev-tier" role="group" aria-label="evidence detail tier">
+    ${opt("T2", "named", "cohort tier — named teams, people, and the full session summary")}
+    ${opt("T3", "generalized", "public tier — person-anonymized, no named teams or people")}
+  </div>`;
+}
+
+// A named cohort session readout (T2) — the summary-section format: thesis hook,
+// the 60-second summary, product insights, themes, and the named teams/people.
+function contextSessionSummaryHtml(s) {
+  const title = String(s.title || "").trim();
+  const thesis = String(s.thesis || "").trim();
+  const summary = String(s.summary || s.one_liner || "").trim();
+  const date = contextEvidenceDate(s.date);
+  const kind = String(s.kind || "").trim();
+  const themes = Array.isArray(s.themes) ? s.themes : [];
+  const insights = Array.isArray(s.insights) ? s.insights : [];
+  const who = [...(Array.isArray(s.teams) ? s.teams : []), ...(Array.isArray(s.people) ? s.people : [])]
+    .map((t) => String(t).replace(/-/g, " ").trim()).filter(Boolean);
+  const meta = [kind, date].filter(Boolean).map(escHtml).join(" · ");
+  const themeChips = themes.slice(0, 6).map((t) => `<span class="alch-ev-chip">${escHtml(String(t))}</span>`).join("");
+  return `
+    <article class="alch-ev-sum">
+      ${meta ? `<div class="alch-ev-type">${meta}</div>` : ""}
+      ${title ? `<h3 class="alch-ev-sum-title">${escHtml(title)}</h3>` : ""}
+      ${thesis ? `<p class="alch-ev-sum-thesis">${escHtml(thesis)}</p>` : ""}
+      ${summary ? `<p class="alch-ev-sum-body">${escHtml(summary)}</p>` : ""}
+      ${insights.length ? `<ul class="alch-ev-sum-list">${insights.slice(0, 10).map((i) => `<li>${escHtml(String(i))}</li>`).join("")}</ul>` : ""}
+      ${themeChips ? `<div class="alch-ev-meta">${themeChips}</div>` : ""}
+      ${who.length ? `<div class="alch-ev-sum-who">${who.slice(0, 10).map((w) => `<span class="alch-ev-chip alch-ev-who-chip">${escHtml(w)}</span>`).join("")}</div>` : ""}
+    </article>
+  `;
+}
+
+function renderContextEvidence(tier, cards, insights) {
+  const toggle = evidenceTierToggleHtml(tier);
+  if (tier === "T2") {
+    const body = insights.length
+      ? `<p class="alch-ev-lede">${insights.length} cohort session readout${insights.length === 1 ? "" : "s"} — named, with the 60-second summary, themes, and product insights. Switch to <em>generalized</em> for the person-anonymized public view.</p>
+         <div class="alch-ev-grid alch-ev-sum-grid">${insights.map(contextSessionSummaryHtml).join("")}</div>`
+      : `<p class="alch-cv-muted alch-ev-empty">No cohort session readouts yet. Distill sessions into readouts to populate the named tier.</p>`;
+    return `${toggle}${body}`;
+  }
+  const body = cards.length
+    ? `<p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from Supabase — person-anonymized, team-attributed, published.</p>
+       <div class="alch-ev-grid">${cards.map(contextEvidenceCardHtml).join("")}</div>`
+    : `<p class="alch-cv-muted alch-ev-empty">No distilled evidence cards yet. These load live from Supabase once cohort sessions are distilled, reviewed, and published.</p>`;
+  return `${toggle}${body}`;
+}
+
 function renderContextVault() {
   const cv = state.contextVault;
   const view = contextNormalizeView(cv.mode);
@@ -11814,7 +12045,26 @@ function renderContextVault() {
     raw: cv.loaded ? rawScripts.length : undefined,
     signals: intelMeta.signals,
     data: intelMeta.entities,
+    evidence: (contextEvidenceTier() === "T2"
+      ? (state.cohort?.session_insights || []).length
+      : (state.cohort?.transcript_evidence_cards || []).length) || undefined,
   });
+
+  // Evidence view — distilled transcript cards read live from Supabase
+  // (cohort-source.js overlays them onto the surface). Full-width under the
+  // shared page header, same as the intel views.
+  if (view === "evidence") {
+    const tier = contextEvidenceTier();
+    const cards = Array.isArray(state.cohort?.transcript_evidence_cards) ? state.cohort.transcript_evidence_cards : [];
+    const insights = Array.isArray(state.cohort?.session_insights) ? state.cohort.session_insights : [];
+    state.canvas.innerHTML = `
+      <section class="alch-cv">
+        ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK.evidence, nav })}
+        ${renderContextEvidence(tier, cards, insights)}
+      </section>
+    `;
+    return;
+  }
 
   // Intel views — the embedded signals/data module renders below the same
   // page header the vault views use.
@@ -11879,6 +12129,9 @@ function renderContextVault() {
 function wireContextVault() {
   for (const btn of state.canvas.querySelectorAll("[data-cv-mode]")) {
     btn.addEventListener("click", () => setContextVaultMode(btn.dataset.cvMode));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-ev-tier]")) {
+    btn.addEventListener("click", () => setContextEvidenceTier(btn.dataset.evTier));
   }
   for (const btn of state.canvas.querySelectorAll("[data-cv-source]")) {
     btn.addEventListener("click", () => selectContextSource(btn.dataset.cvSource));

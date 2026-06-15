@@ -236,7 +236,7 @@ export const DEFAULT_ROUTING_POLICY = {
       public_allowed: false,
       default_auto_transcript: false,
       required_public_approvals: [],
-      notes: "Tina/Andrew/private 1:1 material stays coordinator/core-only; no cohort or public derived artifact should be generated.",
+      notes: "Private 1:1 material stays coordinator/core-only; no cohort or public derived artifact should be generated.",
     },
     salon: {
       label: "Salon",
@@ -391,12 +391,12 @@ function safeDescription(session, decision) {
   return lines.join("\n");
 }
 
-export function buildGoogleCalendarEvent({ session, attendees = [], policy, botEmail, requestMeet } = {}) {
+export function buildGoogleCalendarEvent({ session, attendees = [], policy, botEmail } = {}) {
   if (!session || typeof session !== "object") throw new Error("session object is required");
   const decision = policyDecisionForSession(policy || DEFAULT_ROUTING_POLICY, session.session_type);
   const { startsAt, endsAt } = requireSessionTime(session);
   const attendeeInputs = [...(attendees || [])];
-  if (session.bot_requested !== false && botEmail) attendeeInputs.push({ email: botEmail });
+  if (botEmail) attendeeInputs.push({ email: botEmail });
   const defaults = decision.calendar_event_defaults;
   const body = {
     summary: session.public_title || session.title,
@@ -421,18 +421,16 @@ export function buildGoogleCalendarEvent({ session, attendees = [], policy, botE
   const eventId = stableGoogleEventId(session.id || session.session_id);
   if (eventId) body.id = eventId;
   if (session.location) body.location = session.location;
-  if (requestMeet !== false) {
-    body.conferenceData = {
-      createRequest: {
-        requestId: `shape-${String(session.id || Date.now()).replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 80)}`,
-        conferenceSolutionKey: { type: "hangoutsMeet" },
-      },
-    };
-  }
+  body.conferenceData = {
+    createRequest: {
+      requestId: `shape-${String(session.id || Date.now()).replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 80)}`,
+      conferenceSolutionKey: { type: "hangoutsMeet" },
+    },
+  };
   return {
     query: {
       sendUpdates: "all",
-      conferenceDataVersion: requestMeet === false ? 0 : 1,
+      conferenceDataVersion: 1,
     },
     body,
     decision,

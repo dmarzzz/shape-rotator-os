@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url);
 const {
   buildCalendarIngressSeedSql,
   buildSetupReport,
+  parseUuidList,
   parseEnvText,
   renderDeployPlan,
 } = require("./lib/calendar-ingress-setup.cjs");
@@ -24,6 +25,17 @@ test("calendar ingress setup parses env files without shelling out", () => {
   assert.equal(parsed.GOOGLE_CALENDAR_ID, "calendar@example.com");
   assert.equal(parsed.EMPTY, "");
   assert.equal(parsed["BAD KEY"], undefined);
+});
+
+test("calendar ingress setup parses admin organizer user id lists", () => {
+  assert.deepEqual(
+    parseUuidList("00000000-0000-0000-0000-000000000001, 00000000-0000-0000-0000-000000000002;00000000-0000-0000-0000-000000000001"),
+    [
+      "00000000-0000-0000-0000-000000000001",
+      "00000000-0000-0000-0000-000000000002",
+    ],
+  );
+  assert.throws(() => parseUuidList("not-a-user-id"), /invalid Supabase auth user id/);
 });
 
 test("calendar ingress setup report separates baseline secrets from post-seed ids", () => {
@@ -72,6 +84,7 @@ test("calendar ingress seed SQL is idempotent and embeds routing policy", () => 
       ORG_SLUG: "shape-test",
       ORG_NAME: "Shape Test",
       ADMIN_USER_ID: "00000000-0000-0000-0000-000000000001",
+      ADMIN_ORGANIZER_USER_IDS: "00000000-0000-0000-0000-000000000002 00000000-0000-0000-0000-000000000001",
       GOOGLE_CALENDAR_ID: "calendar@example.com",
       GOOGLE_CALENDAR_ORGANIZER_EMAIL: "calendar@example.com",
     },
@@ -99,6 +112,9 @@ test("calendar ingress seed SQL is idempotent and embeds routing policy", () => 
   assert.match(sql, /on conflict \(slug\) do update/);
   assert.match(sql, /insert into public.routing_policies/);
   assert.match(sql, /insert into public.org_memberships/);
+  assert.match(sql, /'00000000-0000-0000-0000-000000000001'::uuid/);
+  assert.match(sql, /'00000000-0000-0000-0000-000000000002'::uuid/);
+  assert.equal(sql.match(/00000000-0000-0000-0000-000000000001/g)?.length, 1);
   assert.match(sql, /insert into public.calendar_connections/);
   assert.match(sql, /calendar@example.com/);
   assert.match(sql, /"policy_key":"transcript-routing"/);
@@ -140,6 +156,8 @@ test("calendar ingress deploy plan gives run order without leaking secret values
   assert.match(plan, /--role owner --scope-type user --send-notifications --apply/);
   assert.match(plan, /calendar:backfill:google -- --calendar-id "\$GOOGLE_CALENDAR_ID" --apply/);
   assert.match(plan, /calendar:acl:google -- --calendar-id "\$GOOGLE_CALENDAR_ID" --apply/);
+  assert.match(plan, /calendar:admins:supabase -- --env-file \.env\.calendar\.local --dry-run/);
+  assert.match(plan, /calendar:admins:supabase -- --env-file \.env\.calendar\.local --apply/);
   assert.match(plan, /transcripts:worker:vault-sql -- --env-file \.env\.calendar\.local/);
   assert.match(plan, /curl -sS -X POST "\$SUPABASE_URL\/functions\/v1\/process-transcript-jobs"/);
   assert.match(plan, /Authorization: Bearer \$TRANSCRIPT_WORKER_TOKEN/);
@@ -156,6 +174,26 @@ test("calendar ingress deploy plan gives run order without leaking secret values
   assert.doesNotMatch(plan, /oauth-client-secret-value/);
   assert.doesNotMatch(plan, /oauth-refresh-secret-value/);
   assert.doesNotMatch(plan, /worker-token-secret-value/);
+});
+
+test("package exposes documented calendar ingress operator scripts", () => {
+  const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(pkg.scripts["calendar:setup:check"], "node scripts/check-calendar-ingress-setup.js");
+  assert.equal(pkg.scripts["calendar:setup:seed-sql"], "node scripts/prepare-calendar-ingress-seed-sql.js");
+  assert.equal(pkg.scripts["calendar:setup:plan"], "node scripts/prepare-calendar-ingress-deploy-plan.js");
+  assert.equal(pkg.scripts["calendar:setup:admin-organizers"], "node scripts/setup-supabase-admin-organizers.js");
+  assert.equal(pkg.scripts["calendar:oauth:google"], "node scripts/google-calendar-oauth.js");
+  assert.equal(pkg.scripts["calendar:backfill:google"], "node scripts/backfill-google-calendar.js");
+  assert.equal(pkg.scripts["calendar:acl:google"], "node scripts/setup-google-calendar-acl.js");
+  assert.equal(pkg.scripts["calendar:launch:google"], "node scripts/apply-google-calendar-launch.js");
+  assert.equal(pkg.scripts["calendar:sync:google"], "node scripts/sync-google-calendar-events.js");
+  assert.equal(pkg.scripts["calendar:list:google"], "node scripts/setup-google-calendar-list.js");
+  assert.equal(pkg.scripts["calendar:admins:supabase"], "node scripts/setup-supabase-admin-organizers.js");
+  assert.equal(pkg.scripts["calendar:meet:google"], "node scripts/ensure-google-calendar-meet-links.js");
+  assert.equal(pkg.scripts["calendar:capture-bot:google"], "node scripts/ensure-google-calendar-capture-bot.js");
+  assert.equal(pkg.scripts["calendar:capture:audit"], "node scripts/audit-calendar-capture.js");
+  assert.equal(pkg.scripts["meet:auto-artifacts"], "node scripts/configure-meet-auto-artifacts.js");
+  assert.equal(pkg.scripts["artifacts:drive"], "node scripts/poll-google-drive-artifacts.js");
 });
 
 test("calendar ingress deploy plan uses a local worksheet and project-ref placeholder when needed", () => {
@@ -188,7 +226,8 @@ test("calendar ingress Edge Functions require server-side org authorization befo
   assert.match(createFunction, /meet\.googleapis\.com\/v2\/spaces/);
   assert.match(createFunction, /autoTranscriptionGeneration/);
   assert.match(createFunction, /autoSmartNotes\s*=\s*body\.auto_smart_notes\s*\?\?\s*body\.autoSmartNotes\s*\?\?\s*null/);
-  assert.match(createFunction, /require_auto_artifacts/);
+  assert.match(createFunction, /transcript:\s*true/);
+  assert.match(createFunction, /if \(!meetAutoArtifacts\.configured\)/);
   // C4-1: idempotent recovery from a partial-failure split-brain — on a 409 from
   // the deterministic event id, fetch the existing event and continue the Supabase
   // write rather than failing permanently.

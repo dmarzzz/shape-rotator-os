@@ -2,7 +2,7 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "buildCommand": "cd ../.. && npm run vendor:web",
-  "installCommand": "echo 'skip — vendor:web has no npm deps'",
+  "installCommand": "cd ../.. && npm ci",
   "outputDirectory": ".",
   "headers": [
     { "source": "/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=60, must-revalidate" }] }

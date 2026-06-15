@@ -362,6 +362,27 @@ function teamAliases(team, members = []) {
   };
 }
 
+// calendar.json is the bot-synced mirror of the upstream Phala calendar, so a
+// stray cell may carry an attributed quote with a recording timecode
+// ("… — Tina, Apr 27 (01:47:57)") sourced from a private planning transcript.
+// Strip any " · "-joined segment that carries a parenthesized H:MM:SS timecode
+// before the calendar reaches the bundle or the person/team timelines. This is
+// a build-time guard; the durable fix is upstream in the calendar source.
+const TIMECODE_RE = /\([0-9]{1,2}:[0-9]{2}:[0-9]{2}\)/;
+function scrubTimecodeQuotes(value) {
+  if (typeof value === "string") {
+    if (!TIMECODE_RE.test(value)) return value;
+    return value.split(" · ").filter((seg) => !TIMECODE_RE.test(seg)).join(" · ").trim();
+  }
+  if (Array.isArray(value)) return value.map(scrubTimecodeQuotes);
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const [key, inner] of Object.entries(value)) out[key] = scrubTimecodeQuotes(inner);
+    return out;
+  }
+  return value;
+}
+
 function calendarBlocks(calendar) {
   const blocks = [];
   const tabs = calendar?.tabs && typeof calendar.tabs === "object" ? calendar.tabs : {};
@@ -2064,6 +2085,35 @@ function stripTranscriptEvidenceTimeline(timeline) {
   return out;
 }
 
+function publicCalendarGoogleEventRecord(record) {
+  if (!record || typeof record !== "object") return record;
+  const {
+    google_event_id,
+    html_link,
+    ...safe
+  } = record;
+  return safe;
+}
+
+function publicCalendarGoogleEvents(source) {
+  const base = source && typeof source === "object" ? source : {};
+  const out = {
+    schema_version: base.schema_version || 1,
+    generated_at: base.generated_at || null,
+    source: "public-safe-google-calendar-metadata",
+    time_min: base.time_min || null,
+    time_max: base.time_max || null,
+    event_count: Number(base.event_count || 0),
+  };
+  for (const key of ["by_ical_uid", "by_shape_key"]) {
+    const rows = base[key] && typeof base[key] === "object" ? base[key] : {};
+    out[key] = Object.fromEntries(
+      Object.entries(rows).map(([id, record]) => [id, publicCalendarGoogleEventRecord(record)]),
+    );
+  }
+  return out;
+}
+
 // Cap per project so one prolific upstream repo (e.g. elizaOS/eliza, 100+
 // releases) can't crowd out everyone else within the global feed cap.
 const PER_PROJECT_RELEASE_LIMIT = 12;
@@ -2158,6 +2208,7 @@ function publicWebSurface(surface) {
   out.session_insights = publicSessionInsights;
   out.constellation_cues = asArray(out.constellation_cues).filter(publicSafeConstellationCue);
   out.transcript_evidence = emptyTranscriptEvidence(surface.transcript_evidence);
+  out.calendar_google_events = publicCalendarGoogleEvents(out.calendar_google_events);
   out.transcript_distillations = publicTranscriptDistillations(
     surface.transcript_distillations,
     publicArticleBlockedNames({ teams: surface.teams, people: surface.people }),
@@ -2206,20 +2257,25 @@ function build() {
   const calPath = path.join(COHORT_DIR, "calendar.json");
   let calendar = null;
   if (fs.existsSync(calPath)) {
-    try { calendar = JSON.parse(fs.readFileSync(calPath, "utf8")); }
+    try { calendar = scrubTimecodeQuotes(JSON.parse(fs.readFileSync(calPath, "utf8"))); }
     catch (e) { console.warn(`[build-bundles] calendar.json present but unreadable: ${e.message}`); }
   }
+  const calendar_google_events = loadJsonObject(
+    path.join(COHORT_DIR, "calendar-google-events.json"),
+    "calendar-google-events.json",
+  );
 
-  // Public transcript-derived context for constellation inspectors. These cues
-  // do not create graph edges; they are source snippets shown after a selected
-  // team/line/ecosystem so the renderer does not own transcript facts as code.
-  const constellation_cues = loadJsonArray(path.join(COHORT_DIR, "constellation-cues.json"), "constellation-cues.json");
-
-  // Distilled per-session readouts hardcoded from private-vault transcripts
-  // via scripts/ingest-session-readouts.mjs. Public-safe by construction —
-  // the raw transcript never enters the repo; vault_id joins back to the
-  // held-private timeline anchors in calendar-transcript-matches.js.
-  const session_insights = loadJsonArray(path.join(COHORT_DIR, "session-insights.json"), "session-insights.json");
+  // Per-session distilled transcript content (constellation cues + session
+  // insights) is no longer embedded in the committed app bundle. It is gated
+  // cohort-internal material and now lives off the public repo (the source
+  // distillations are kept under cohort-data/.private/, gitignored). The app
+  // will read reviewed distillations at runtime from the gated Supabase view
+  // once the transcript engine + cohort auth channel land — the same rail the
+  // T3 evidence-card overlay already uses (apps/os/src/renderer/supabase-
+  // evidence.mjs). Until then these surfaces resolve empty, exactly as the
+  // generator already tolerates absent transcript-evidence artifacts.
+  const constellation_cues = [];
+  const session_insights = [];
   const transcript_evidence = loadJsonObject(
     path.join(COHORT_DIR, "artifacts", "transcript-evidence", "generated", "views.json"),
     "transcript-evidence/generated/views.json",
@@ -2258,6 +2314,7 @@ function build() {
     events,
     asks,
     calendar,
+    calendar_google_events: calendar_google_events || {},
     person_timeline: buildPersonTimeline({ people, teams, asks, events, calendar, transcriptEvidence: transcript_evidence }),
     team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar, githubProgressArtifacts: github_progress_artifacts, transcriptEvidence: transcript_evidence }),
     cohort_vocab,

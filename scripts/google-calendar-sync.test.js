@@ -180,6 +180,7 @@ test("live calendar sync can refresh OAuth access token", async () => {
     supabaseUrl: "https://project.supabase.co",
     serviceRoleKey: "service",
     calendarConnectionId: CONNECTION_ID,
+    accessToken: "stale-google-token",
     oauthClientId: "client-id",
     oauthClientSecret: "client-secret",
     oauthRefreshToken: "refresh-token",

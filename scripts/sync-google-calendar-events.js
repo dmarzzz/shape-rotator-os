@@ -151,7 +151,6 @@ async function resolveGoogleAccessToken({
   refreshToken,
   fetchImpl = fetch,
 } = {}) {
-  if (String(accessToken || "").trim()) return accessToken;
   if (clientId && clientSecret && refreshToken) {
     const token = await refreshAccessToken({
       clientId,
@@ -161,6 +160,7 @@ async function resolveGoogleAccessToken({
     });
     if (String(token?.access_token || "").trim()) return token.access_token;
   }
+  if (String(accessToken || "").trim()) return accessToken;
   throw new Error("accessToken or GOOGLE_OAUTH_CLIENT_ID/GOOGLE_OAUTH_CLIENT_SECRET/GOOGLE_OAUTH_REFRESH_TOKEN is required");
 }
 

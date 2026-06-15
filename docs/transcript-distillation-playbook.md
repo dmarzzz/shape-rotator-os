@@ -280,7 +280,7 @@ Examples:
 
 - `weekly_standup_shaw_2026-06-08.txt`
 - `office_hours_conclave_2026-06-10.md`
-- `private_1on1_tina-positioning_2026-05-27.txt`
+- `private_1on1_career-coaching_2026-01-15.txt`
 - `salon_info-markets-design_2026-06-09.txt`
 - `demo_presentation_elocute_2026-05-26.txt`
 

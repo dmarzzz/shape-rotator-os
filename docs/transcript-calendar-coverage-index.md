@@ -78,7 +78,7 @@ The detailed transcript filename/original-name queue is private at `cohort-data/
 | 2026-05-21 | 14:30-16:00 | More onboarding & on-site registration | expected | missing |  | Find source transcript/recording or mark explicitly unavailable. |
 | 2026-05-28 | 16:00-18:30 | Agentic Tooling workshops/clinic | expected | missing |  | Find source transcript/recording or mark explicitly unavailable. |
 | 2026-05-29 | 14:30-15:30 | router onboarding/workshop | expected | missing |  | Find source transcript/recording or mark explicitly unavailable. |
-| 2026-06-09 | 16:30-19:30 | PMF Checkpoint | expected_private | missing |  | Find source transcript/recording or mark explicitly unavailable. |
+| 2026-06-09 | 16:30-19:30 | (private — title withheld) | expected_private | missing |  | Find source transcript/recording or mark explicitly unavailable. |
 | 2026-06-10 | 16:30-17:00 | Team-led sessions | expected | missing |  | Find source transcript/recording or mark explicitly unavailable. |
 | 2026-06-12 | 16:30-19:30 | Internal ETH NY product review \| Demo review + hackathon team goal-setting. | expected | missing |  | Find source transcript/recording or mark explicitly unavailable. |
 
@@ -86,10 +86,10 @@ The detailed transcript filename/original-name queue is private at `cohort-data/
 
 | Date | Time | Calendar title | Expectation | Coverage | Evidence | Next action |
 | --- | --- | --- | --- | --- | --- | --- |
-| 2026-05-25 | 16:00-17:30 | Andrew office hours (salon room) | expected_private | candidate_needs_review | private vault candidate (private_1on1) (review_link) | Review session/date match and policy route before queueing processing. |
+| 2026-05-25 | 16:00-17:30 | (private — title withheld) | expected_private | candidate_needs_review | private vault candidate (review pending) | Review session/date match and policy route before queueing processing. |
 | 2026-05-27 | 14:00-15:30 | (James, Andrew) Onboarding for teleport router, q&a | expected | candidate_needs_review | rd_jam_dstack-alex-shaw-lsdan-andrew_2026-05-27.txt (manual_review) | Review session/date match and policy route before queueing processing. |
 | 2026-06-09 | 20:00-22:30 | Info Markets Design | expected | candidate_needs_review | salon_info-markets-design-b2b_2026-01-10.txt (manual_review) | Review session/date match and policy route before queueing processing. |
-| 2026-06-11 | 15:30-16:30 | ICP research for Private Inference (self-organized) | expected_private | candidate_needs_review | user_interview_inference_unknown-date.txt (manual_review) | Review session/date match and policy route before queueing processing. |
+| 2026-06-11 | 15:30-16:30 | (private — title withheld) | expected_private | candidate_needs_review | user_interview_inference_unknown-date.txt (manual_review) | Review session/date match and policy route before queueing processing. |
 
 ## Calendar Title Audit
 
@@ -122,7 +122,7 @@ The detailed transcript filename/original-name queue is private at `cohort-data/
 | 2026-05-22 | 14:00-14:30 | tea on roof | not_expected | not_expected |  | No transcript expected. |
 | 2026-05-22 | 17:15-18:30 | Introduce Tina + interactive recap / Project Mappings | optional | covered | salon_shape-rotator-project-map-guests_2026-05-22.txt (safe_link)<br>cohort-data/session-readouts/shape-rotator-project-map-guests-2026-05-22.md | No transcript action; continue review/publish flow if needed. |
 | 2026-05-25 | all day | Memorial Day | not_expected | not_expected |  | No transcript expected. |
-| 2026-05-25 | 16:00-17:30 | Andrew office hours (salon room) | expected_private | candidate_needs_review | private vault candidate (private_1on1) (review_link) | Review session/date match and policy route before queueing processing. |
+| 2026-05-25 | 16:00-17:30 | (private — title withheld) | expected_private | candidate_needs_review | private vault candidate (review pending) | Review session/date match and policy route before queueing processing. |
 | 2026-05-25 | 19:00-19:30 | muse dinner | not_expected | not_expected |  | No transcript expected. |
 | 2026-05-26 | 14:30-15:00 | tea on roof | not_expected | not_expected |  | No transcript expected. |
 | 2026-05-26 | 15:00-17:00 | Project Intros: Elocute, Dealproof, Wikigen, Crossroads | expected | derived_readout | demo_presentation_wikigen-crossroads_2026-05-26.txt (review_link)<br>demo_presentation_elocute_2026-05-26.txt (review_link)<br>office_hours_elocute-product-shaw_2026-05-26.txt (review_link)<br>cohort-data/session-readouts/wikigen-crossroads-gil-pmf-2026-05-26.md<br>cohort-data/session-readouts/elocute-2026-05-26.md | Source readout exists; verify raw source link if full source coverage is required. |
@@ -149,12 +149,12 @@ The detailed transcript filename/original-name queue is private at `cohort-data/
 | 2026-06-08 | 15:30-16:00 | tea on roof | not_expected | not_expected |  | No transcript expected. |
 | 2026-06-08 | 16:00-17:00 | WDYDLW with Shaw as Moderator @ the auditorium | expected | covered | weekly_standup_shaw_2026-06-08.txt (safe_link) | No transcript action; continue review/publish flow if needed. |
 | 2026-06-09 | 15:30-16:00 | tea on roof | not_expected | not_expected |  | No transcript expected. |
-| 2026-06-09 | 16:30-19:30 | PMF Checkpoint | expected_private | missing |  | Find source transcript/recording or mark explicitly unavailable. |
+| 2026-06-09 | 16:30-19:30 | (private — title withheld) | expected_private | missing |  | Find source transcript/recording or mark explicitly unavailable. |
 | 2026-06-09 | 20:00-22:30 | Info Markets Design | expected | candidate_needs_review | salon_info-markets-design-b2b_2026-01-10.txt (manual_review) | Review session/date match and policy route before queueing processing. |
 | 2026-06-10 | all day | Anarchy Day protected build time. No Shape Rotator programming. | not_expected | not_expected |  | No transcript expected. |
 | 2026-06-10 | 16:00-16:30 | tea on roof | not_expected | not_expected |  | No transcript expected. |
 | 2026-06-10 | 16:30-17:00 | Team-led sessions | expected | missing |  | Find source transcript/recording or mark explicitly unavailable. |
-| 2026-06-11 | 15:30-16:30 | ICP research for Private Inference (self-organized) | expected_private | candidate_needs_review | user_interview_inference_unknown-date.txt (manual_review) | Review session/date match and policy route before queueing processing. |
+| 2026-06-11 | 15:30-16:30 | (private — title withheld) | expected_private | candidate_needs_review | user_interview_inference_unknown-date.txt (manual_review) | Review session/date match and policy route before queueing processing. |
 | 2026-06-11 | 16:00-16:30 | tea on roof | not_expected | not_expected |  | No transcript expected. |
 | 2026-06-11 | 16:30-19:30 | Design Thinking Workshop | expected | covered | salon_design-thinking-workshop_2026-06-11.txt (safe_link) | No transcript action; continue review/publish flow if needed. |
 | 2026-06-11 | 19:30-22:30 | Open Jams / Muse Dinner \| Hackathon team open jams + dinner at the Convent. | not_expected | not_expected |  | No transcript expected. |

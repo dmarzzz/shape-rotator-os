@@ -115,8 +115,11 @@ export function renderCalendarIngressPanel({ config = {} } = {}) {
         <label><span>end</span><input name="ends_at" type="datetime-local" value="${esc(defaultCalendarDateTimeValue(25))}" /></label>
         <label><span>timezone</span><input name="timezone" value="${esc(DEFAULT_CALENDAR_TIMEZONE)}" /></label>
         <label><span>attendees</span><textarea name="attendee_emails"></textarea></label>
-        <label><input name="request_meet" type="checkbox" checked /><span>Google Meet</span></label>
-        <label><input name="bot_requested" type="checkbox" checked /><span>capture bot</span></label>
+        <div class="cal-ingress-toggles">
+          <span>Google Meet</span>
+          <span>transcript on</span>
+          <span>Cube invited</span>
+        </div>
         <div class="cal-ingress-actions">
           <button type="submit" data-cal-action="request">submit request</button>
           <button type="button" data-cal-action="create">create invite</button>
@@ -131,7 +134,7 @@ export function renderCalendarIngressPanel({ config = {} } = {}) {
         <label><span>org id</span><input name="orgId" value="${esc(c.orgId || "")}" /></label>
         <label><span>calendar connection</span><input name="calendarConnectionId" value="${esc(c.calendarConnectionId || "")}" /></label>
         <label><span>capture bot email</span><input name="botEmail" value="${esc(c.botEmail || DEFAULT_CAPTURE_BOT_EMAIL)}" /></label>
-        <div class="cal-ingress-managed-calendar"><span>managed calendar</span><code>${esc(c.calendarId || DEFAULT_CALENDAR_ID)}</code></div>
+        <div class="cal-ingress-managed-calendar"><span>managed event target</span><code>${esc(c.calendarId || DEFAULT_CALENDAR_ID)}</code></div>
         <button type="button" data-cal-config-save>save connection</button>
       </aside>
       <section class="cal-ingress-source" aria-label="source ingress">

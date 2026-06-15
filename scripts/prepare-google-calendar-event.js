@@ -45,7 +45,6 @@ function main() {
     attendees,
     policy,
     botEmail: arg("--bot-email"),
-    requestMeet: !process.argv.includes("--no-meet"),
   });
   process.stdout.write(JSON.stringify(payload, null, 2) + "\n");
 }
