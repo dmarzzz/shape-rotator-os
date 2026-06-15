@@ -693,7 +693,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         ${legend}
         ${recurringHtml}
         <div class="c2-source">
-          <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>phala /cadence/calendar.json</a></span>
+          <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
           <span aria-hidden="true">·</span>
           <span>cohort may 18 → jul 26 2026</span>
         </div>
