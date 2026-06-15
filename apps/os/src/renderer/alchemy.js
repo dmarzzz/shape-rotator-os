@@ -11366,7 +11366,8 @@ function contextNormalizeView(raw) {
   const v = String(raw || "").toLowerCase();
   if (v === "transcripts") return "raw";
   if (v === "intel") return "signals";
-  return (v === "articles" || v === "raw" || v === "signals" || v === "data") ? v : "articles";
+  if (v === "cards") return "evidence";
+  return (v === "articles" || v === "raw" || v === "signals" || v === "data" || v === "evidence") ? v : "articles";
 }
 
 const CONTEXT_VIEW_DEK = {
@@ -11374,6 +11375,7 @@ const CONTEXT_VIEW_DEK = {
   raw: "The transcripts behind the articles, with review metadata and calendar matches.",
   signals: "Vault-backed reads on cohort moves worth making — grounded, inferred, speculative.",
   data: "The sanitized entity graph behind the signals — people, projects, surfaces.",
+  evidence: "Distilled transcript evidence cards, read live from Supabase — claim, confidence, attribution.",
 };
 
 const CONTEXT_VIEWS = [
@@ -11381,6 +11383,7 @@ const CONTEXT_VIEWS = [
   { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "raw source transcripts with review metadata" },
   { view: "signals",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>', label: "signals", hint: "vault-backed reads on cohort moves" },
   { view: "data",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>', label: "data", hint: "sanitized entity graph behind the signals" },
+  { view: "evidence", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>', label: "evidence", hint: "distilled evidence cards, live from Supabase" },
 ];
 
 function contextViewNav(active, counts = {}) {
@@ -11914,6 +11917,56 @@ This page was drafted from Context Vault. Private inputs stay local; publish onl
   };
 }
 
+function contextEvidenceDate(value) {
+  if (!value) return "";
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  } catch { return ""; }
+}
+
+function contextEvidenceCardHtml(card) {
+  const type = String(card.claim_type || "insight");
+  const title = String(card.title || "").trim();
+  const claim = String(card.claim_text || "").trim();
+  const summary = String(card.summary || "").trim();
+  const evidence = String(card.evidence_level || "").trim();
+  const scope = String(card.attribution_scope || "").trim();
+  const confNum = Number(card.confidence);
+  const conf = Number.isFinite(confNum) ? `${Math.round(confNum * 100)}%` : "";
+  const topic = String(card.content_json?.topic_label || "").trim();
+  const when = contextEvidenceDate(card.created_at);
+  const chips = [evidence, scope].filter(Boolean)
+    .map(c => `<span class="alch-ev-chip">${escHtml(c.replace(/_/g, " "))}</span>`).join("");
+  const prov = [topic, "distilled", "T3 public", when].filter(Boolean).map(escHtml).join(" · ");
+  return `
+    <article class="alch-ev-card" data-claim-type="${escAttr(type)}">
+      <header class="alch-ev-head">
+        <span class="alch-ev-type">${escHtml(type.replace(/_/g, " "))}</span>
+        ${conf ? `<span class="alch-ev-conf" title="confidence">${escHtml(conf)}</span>` : ""}
+      </header>
+      ${title ? `<h3 class="alch-ev-title">${escHtml(title)}</h3>` : ""}
+      ${claim ? `<p class="alch-ev-claim">${escHtml(claim)}</p>` : ""}
+      ${summary && summary !== claim ? `<p class="alch-ev-summary">${escHtml(summary)}</p>` : ""}
+      <footer class="alch-ev-meta">
+        ${chips}
+        <span class="alch-ev-prov">${prov}</span>
+      </footer>
+    </article>
+  `;
+}
+
+function renderContextEvidence(cards) {
+  if (!cards.length) {
+    return `<p class="alch-cv-muted alch-ev-empty">No distilled evidence cards yet. These load live from Supabase once cohort sessions are distilled, reviewed, and published.</p>`;
+  }
+  return `
+    <p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from Supabase — person-anonymized, team-attributed, published.</p>
+    <div class="alch-ev-grid">${cards.map(contextEvidenceCardHtml).join("")}</div>
+  `;
+}
+
 function renderContextVault() {
   const cv = state.contextVault;
   const view = contextNormalizeView(cv.mode);
@@ -11931,7 +11984,22 @@ function renderContextVault() {
     raw: cv.loaded ? rawScripts.length : undefined,
     signals: intelMeta.signals,
     data: intelMeta.entities,
+    evidence: (state.cohort?.transcript_evidence_cards || []).length || undefined,
   });
+
+  // Evidence view — distilled transcript cards read live from Supabase
+  // (cohort-source.js overlays them onto the surface). Full-width under the
+  // shared page header, same as the intel views.
+  if (view === "evidence") {
+    const cards = Array.isArray(state.cohort?.transcript_evidence_cards) ? state.cohort.transcript_evidence_cards : [];
+    state.canvas.innerHTML = `
+      <section class="alch-cv">
+        ${pageHeadHtml({ kicker: "local context vault", title: "context", dek: CONTEXT_VIEW_DEK.evidence, nav })}
+        ${renderContextEvidence(cards)}
+      </section>
+    `;
+    return;
+  }
 
   // Intel views — the embedded signals/data module renders below the same
   // page header the vault views use.

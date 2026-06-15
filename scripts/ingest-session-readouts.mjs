@@ -91,13 +91,13 @@ function readoutMarkdown(r) {
     "",
     r.summary,
     "",
-    "## themes",
-    "",
-    ...(r.themes || []).map(t => `- ${t}`),
-    "",
     "## insights",
     "",
     ...(r.insights || []).map(i => `- ${i}`),
+    "",
+    "## themes",
+    "",
+    ...(r.themes || []).map(t => `- ${t}`),
   ];
   if ((r.qa || []).length) {
     lines.push("", "## q&a", "");
