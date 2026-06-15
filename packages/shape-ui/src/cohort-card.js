@@ -292,11 +292,12 @@ export function personCardHtml(p, idx, ctx = {}) {
     : new Map((Array.isArray(ctx.teams) ? ctx.teams : []).filter(t => t?.record_id).map(t => [t.record_id, t]));
   const team = p.team ? teamById.get(p.team) : null;
   const teamLabel = team?.name || p.team || "";
-  const role = p.role || "";
-  const teamRoleValue = teamLabel && role
-    ? `${teamLabel} · ${role}`
-    : (teamLabel || role || "—");
-  const teamRoleLabel = teamLabel ? "team" : "role";
+  // Role appears once — as the title sub-line under the name (alch-card-sub
+  // below). The meta ledger carries only the team, so a person with team + role
+  // never prints their role twice ~40px apart. The row is already gated on
+  // teamLabel, so the role-only fallback is never reached.
+  const teamRoleValue = teamLabel;
+  const teamRoleLabel = "team";
   const peeks = cardPeeks(p);
   return `
     <article class="alch-card is-clickable alch-card-person alch-card-role-${escAttr(roleClass)}" data-record-id="${escHtml(p.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(p.name)} — open profile">

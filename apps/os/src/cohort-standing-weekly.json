@@ -1,0 +1,679 @@
+{
+  "schema_version": 1,
+  "generated": "seed",
+  "note": "Per-week PMF stage seed (mixed momentum). Replace with real reads from Supabase team_standing_weekly.",
+  "weeks": [
+    {
+      "program_week": 0,
+      "label": "Program start"
+    },
+    {
+      "program_week": 1,
+      "label": "Week 1"
+    },
+    {
+      "program_week": 2,
+      "label": "Week 2"
+    },
+    {
+      "program_week": 3,
+      "label": "Week 3"
+    },
+    {
+      "program_week": 4,
+      "label": "Latest"
+    }
+  ],
+  "byTeam": {
+    "abra": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 0,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 3,
+          "confidence": "Low"
+        }
+      }
+    },
+    "bitrouter": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "1": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "2": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 4,
+          "confidence": "Medium"
+        }
+      }
+    },
+    "conclave": {
+      "target_stage": 4,
+      "weeks": {
+        "0": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 3,
+          "confidence": "Low"
+        }
+      }
+    },
+    "contexto": {
+      "target_stage": 4,
+      "weeks": {
+        "0": {
+          "stage": 0,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 3,
+          "confidence": "Low"
+        }
+      }
+    },
+    "crossroads": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "1": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "2": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 3,
+          "confidence": "Low"
+        }
+      }
+    },
+    "daedalus": {
+      "target_stage": 3,
+      "weeks": {
+        "0": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 2,
+          "confidence": "Low"
+        }
+      }
+    },
+    "dcnet": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 0,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 2,
+          "confidence": "Low"
+        }
+      }
+    },
+    "dealproof": {
+      "target_stage": 6,
+      "weeks": {
+        "0": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 4,
+          "confidence": "Low"
+        }
+      }
+    },
+    "elizaos": {
+      "target_stage": 8,
+      "weeks": {
+        "0": {
+          "stage": 8,
+          "confidence": "High"
+        },
+        "1": {
+          "stage": 8,
+          "confidence": "High"
+        },
+        "2": {
+          "stage": 7,
+          "confidence": "High"
+        },
+        "3": {
+          "stage": 7,
+          "confidence": "High"
+        },
+        "4": {
+          "stage": 7,
+          "confidence": "High"
+        }
+      }
+    },
+    "elocute": {
+      "target_stage": 7,
+      "weeks": {
+        "0": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "1": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "2": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 5,
+          "confidence": "Medium"
+        }
+      }
+    },
+    "enclave": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "1": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "2": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 2,
+          "confidence": "Low"
+        }
+      }
+    },
+    "etherea": {
+      "target_stage": 6,
+      "weeks": {
+        "0": {
+          "stage": 6,
+          "confidence": "High"
+        },
+        "1": {
+          "stage": 6,
+          "confidence": "High"
+        },
+        "2": {
+          "stage": 5,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 4,
+          "confidence": "Medium"
+        }
+      }
+    },
+    "feedling": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 0,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 0,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 2,
+          "confidence": "Low"
+        }
+      }
+    },
+    "jjhub": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "2": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 4,
+          "confidence": "Medium"
+        }
+      }
+    },
+    "pramaana": {
+      "target_stage": 8,
+      "weeks": {
+        "0": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "1": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "2": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 5,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 5,
+          "confidence": "Medium"
+        }
+      }
+    },
+    "prova": {
+      "target_stage": 8,
+      "weeks": {
+        "0": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "2": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 5,
+          "confidence": "Medium"
+        }
+      }
+    },
+    "searxng-wth-frnds": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 2,
+          "confidence": "Low"
+        }
+      }
+    },
+    "shake": {
+      "target_stage": 7,
+      "weeks": {
+        "0": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "1": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "2": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 4,
+          "confidence": "Medium"
+        }
+      }
+    },
+    "shape-rotator-os": {
+      "target_stage": 3,
+      "weeks": {
+        "0": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 2,
+          "confidence": "Low"
+        }
+      }
+    },
+    "signalstack": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 4,
+          "confidence": "Medium"
+        }
+      }
+    },
+    "teesql": {
+      "target_stage": 7,
+      "weeks": {
+        "0": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "1": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "2": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 4,
+          "confidence": "Medium"
+        }
+      }
+    },
+    "teleport-router": {
+      "target_stage": 4,
+      "weeks": {
+        "0": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "1": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "2": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 3,
+          "confidence": "Low"
+        }
+      }
+    },
+    "tinycloud": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 3,
+          "confidence": "Medium"
+        },
+        "3": {
+          "stage": 4,
+          "confidence": "Medium"
+        },
+        "4": {
+          "stage": 4,
+          "confidence": "Medium"
+        }
+      }
+    },
+    "trustless-tee": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 0,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 2,
+          "confidence": "Low"
+        }
+      }
+    },
+    "tvee-rl": {
+      "target_stage": 4,
+      "weeks": {
+        "0": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 2,
+          "confidence": "Low"
+        }
+      }
+    },
+    "wikigen": {
+      "target_stage": 5,
+      "weeks": {
+        "0": {
+          "stage": 0,
+          "confidence": "Low"
+        },
+        "1": {
+          "stage": 1,
+          "confidence": "Low"
+        },
+        "2": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "3": {
+          "stage": 2,
+          "confidence": "Low"
+        },
+        "4": {
+          "stage": 3,
+          "confidence": "Low"
+        }
+      }
+    }
+  }
+}

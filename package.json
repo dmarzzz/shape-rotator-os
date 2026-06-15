@@ -11,6 +11,7 @@
     "os": "npm --workspace @shape-rotator/os start",
     "os:dev": "npm --workspace @shape-rotator/os run dev",
     "build:cohort": "node scripts/build-bundles.js",
+    "build:standing-weekly": "node scripts/build-standing-weekly.mjs",
     "check:cohort": "node scripts/build-bundles.js --check",
     "check:cohort-detail-parity": "node scripts/check-cohort-detail-parity.mjs",
     "build:ics": "node scripts/build-ics.js",
