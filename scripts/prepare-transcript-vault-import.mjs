@@ -657,15 +657,34 @@ export function matchCalendarForFile(file, blocksByDate) {
   };
 }
 
+// Coordinator/host names that mark a named coaching/feedback/strategy session as a
+// private 1:1. Resolved at runtime so the names are NOT hardcoded in this public repo:
+// from TRANSCRIPT_PRIVATE_HOSTS (comma-separated), or — when that is unset — a
+// gitignored private file. Returns [] only when neither source is configured.
+function resolvePrivateHosts() {
+  const fromEnv = (process.env.TRANSCRIPT_PRIVATE_HOSTS || "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+  if (fromEnv.length) return fromEnv;
+  try {
+    const parsed = JSON.parse(
+      fs.readFileSync(path.join(ROOT, "cohort-data", ".private", "transcript-routing-hosts.json"), "utf8"),
+    );
+    return (Array.isArray(parsed) ? parsed : parsed.private_hosts || [])
+      .map((host) => String(host).trim().toLowerCase())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export function inferSessionType(name) {
   const normalized = normalizeText(stripCopyPrefix(name));
   if (normalized.includes("transcript index") || normalized.includes("public private map")) return null;
   if (/\b(wdydlw|what did you do|weekly status|standup|retro)\b/.test(normalized)) return "weekly_standup";
   if (/\b(1on1|1 1|one on one|one to one)\b/.test(normalized)) return "private_1on1";
-  const privateHosts = (process.env.TRANSCRIPT_PRIVATE_HOSTS || "")
-    .split(",")
-    .map((host) => host.trim().toLowerCase())
-    .filter(Boolean);
+  const privateHosts = resolvePrivateHosts();
   if (
     privateHosts.length
     && new RegExp(`\\b(${privateHosts.join("|")})\\b`).test(normalized)
