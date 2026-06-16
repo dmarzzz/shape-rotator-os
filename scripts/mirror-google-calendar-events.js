@@ -469,23 +469,22 @@ async function runGuestCalendarMirror({
 
   for (const session of sessions || []) {
     if (!session?.google_event_id) continue;
-    if (DO_NOT_PUBLISH_SESSION_TYPES.has(session.session_type)) {
-      actions.push({
-        action: "skip-do-not-publish-session-type",
-        source_google_event_id: session.google_event_id,
-        session_type: session.session_type,
-      });
-      continue;
-    }
     const mapping = mappingBySourceEventId.get(session.google_event_id) || null;
-    const desiredBody = session.status === "cancelled"
+    const doNotPublish = DO_NOT_PUBLISH_SESSION_TYPES.has(session.session_type);
+    const desiredBody = session.status === "cancelled" || doNotPublish
       ? null
       : buildGuestMirrorEventBody({ session, mirrorCalendarId });
 
-    if (session.status === "cancelled") {
+    if (session.status === "cancelled" || doNotPublish) {
       const mirrorEventId = mapping?.mirror_google_event_id || (statelessMode ? stableMirrorEventId(session) : null);
       if (!mirrorEventId) {
-        actions.push({ action: "skip-cancelled-without-mirror", source_google_event_id: session.google_event_id });
+        actions.push(doNotPublish
+          ? {
+              action: "skip-do-not-publish-session-type",
+              source_google_event_id: session.google_event_id,
+              session_type: session.session_type,
+            }
+          : { action: "skip-cancelled-without-mirror", source_google_event_id: session.google_event_id });
         continue;
       }
       if (apply) {
@@ -500,6 +499,8 @@ async function runGuestCalendarMirror({
         action: apply ? "deleted" : "delete",
         source_google_event_id: session.google_event_id,
         mirror_google_event_id: mirrorEventId,
+        reason: doNotPublish ? "do-not-publish-session-type" : "cancelled",
+        session_type: session.session_type,
       });
       if (!statelessMode) {
         rowsToUpsert.push(mappingRowForSession({

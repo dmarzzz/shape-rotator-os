@@ -147,6 +147,81 @@ test("guest mirror skips do_not_publish session types so private titles never re
   assert.equal(byEvent.get("strategy_evt"), "skip-do-not-publish-session-type");
 });
 
+test("guest mirror deletes stale mirrors when sessions become do_not_publish", async () => {
+  const result = await runGuestCalendarMirror({
+    sessions: [
+      session({
+        google_event_id: "private_evt",
+        session_type: "private_1on1",
+        public_title: "Career coaching",
+        title: "1:1 coaching",
+      }),
+    ],
+    mappings: [{
+      id: "map_private",
+      org_id: ORG_ID,
+      source_calendar_connection_id: SOURCE_CONNECTION_ID,
+      source_google_event_id: "private_evt",
+      source_google_etag: "\"old\"",
+      mirror_calendar_connection_id: MIRROR_CONNECTION_ID,
+      mirror_google_calendar_id: MIRROR_CALENDAR_ID,
+      mirror_google_event_id: "mirror_private",
+      mirror_status: "active",
+    }],
+    sourceCalendarConnectionId: SOURCE_CONNECTION_ID,
+    mirrorCalendarConnectionId: MIRROR_CONNECTION_ID,
+    mirrorCalendarId: MIRROR_CALENDAR_ID,
+  });
+
+  assert.equal(result.deleted, 1);
+  assert.equal(result.actions[0].action, "delete");
+  assert.equal(result.actions[0].reason, "do-not-publish-session-type");
+  assert.equal(result.actions[0].mirror_google_event_id, "mirror_private");
+});
+
+test("apply deletes stale do_not_publish mirror events", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    const parsed = new URL(String(url));
+    const body = options.body ? JSON.parse(options.body) : null;
+    calls.push({ method: options.method || "GET", path: parsed.pathname, body });
+    if (parsed.hostname === "www.googleapis.com" && options.method === "DELETE") {
+      return new Response(null, { status: 204 });
+    }
+    if (parsed.pathname.endsWith("/calendar_event_mirrors") && options.method === "POST") {
+      assert.equal(body[0].mirror_status, "cancelled");
+      return Response.json(body);
+    }
+    return Response.json({ error: `unexpected ${options.method || "GET"} ${url}` }, { status: 404 });
+  };
+
+  const result = await runGuestCalendarMirror({
+    sessions: [session({ session_type: "planning_strategy" })],
+    mappings: [{
+      id: "map_private",
+      org_id: ORG_ID,
+      source_calendar_connection_id: SOURCE_CONNECTION_ID,
+      source_google_event_id: "admin_evt_1",
+      source_google_etag: "\"old\"",
+      mirror_calendar_connection_id: MIRROR_CONNECTION_ID,
+      mirror_google_calendar_id: MIRROR_CALENDAR_ID,
+      mirror_google_event_id: "mirror_private",
+      mirror_status: "active",
+    }],
+    supabaseUrl: "https://project.supabase.co",
+    serviceRoleKey: "service",
+    sourceCalendarConnectionId: SOURCE_CONNECTION_ID,
+    mirrorCalendarConnectionId: MIRROR_CONNECTION_ID,
+    mirrorCalendarId: MIRROR_CALENDAR_ID,
+    accessToken: "google-token",
+    apply: true,
+    fetchImpl,
+  });
+
+  assert.equal(result.deleted, 1);
+  assert.ok(calls.some((call) => call.method === "DELETE" && call.path.includes("/events/mirror_private")));
+});
+
 test("apply inserts safe guest event and persists mirror mapping", async () => {
   const calls = [];
   const fetchImpl = async (url, options = {}) => {

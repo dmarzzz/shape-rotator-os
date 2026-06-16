@@ -81,6 +81,7 @@ begin
     coalesce(new.title, '') || ' ' ||
     coalesce(new.dek, '') || ' ' ||
     coalesce(new.body_markdown, '') || ' ' ||
+    coalesce(new.tags::text, '') || ' ' ||
     coalesce(new.source_refs::text, '') || ' ' ||
     coalesce(new.metadata::text, '')
   ) then
@@ -157,6 +158,7 @@ where surface_tier = 'public'
   and not private.transcript_public_text_has_private_markers(
     coalesce(title, '') || ' ' ||
     coalesce(dek, '') || ' ' ||
+    coalesce(tags::text, '') || ' ' ||
     coalesce(body_markdown, '')
   );
 
