@@ -406,11 +406,19 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   filter: blur(6px);
   max-height: 0;
   margin-top: -7px;
-  transition: transform 340ms cubic-bezier(0.65, 0, 0.05, 1),
-              opacity 300ms cubic-bezier(0.65, 0, 0.05, 1),
-              filter 300ms ease,
+  /* Mirror of the feed exit — quicker out (240ms) than the arrival (280ms). */
+  transition: transform 240ms cubic-bezier(0.65, 0, 0.05, 1),
+              opacity 220ms cubic-bezier(0.65, 0, 0.05, 1),
+              filter 220ms ease,
               max-height 260ms cubic-bezier(0.4, 0, 0.2, 1) 130ms,
               margin-top 260ms cubic-bezier(0.4, 0, 0.2, 1) 130ms;
+}
+/* Mirror of the feed enter — a new agenda card slides in from the right edge
+   (this rail's own edge) as it fades up. Added in JS only to new cards. */
+.membrane-agenda .magenda-up.is-entering { animation: magenda-enter 280ms cubic-bezier(0.19, 1, 0.22, 1); }
+@keyframes magenda-enter {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 .membrane-agenda .magenda-up-event {
   box-sizing: border-box;
@@ -576,11 +584,28 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   filter: blur(6px);
   max-height: 0;
   margin-top: -7px;
-  transition: transform 340ms cubic-bezier(0.65, 0, 0.05, 1),
-              opacity 300ms cubic-bezier(0.65, 0, 0.05, 1),
-              filter 300ms ease,
+  /* Recede a touch quicker than a card arrives (240ms out vs 280ms in) so the
+     dismissal reads decisive and the arrival reads considered — the house
+     asymmetric-timing law. The signature fold curve is preserved; only the
+     duration tightens. Height/margin still collapse after a 130ms beat so
+     siblings close once the card is gone. */
+  transition: transform 240ms cubic-bezier(0.65, 0, 0.05, 1),
+              opacity 220ms cubic-bezier(0.65, 0, 0.05, 1),
+              filter 220ms ease,
               max-height 260ms cubic-bezier(0.4, 0, 0.2, 1) 130ms,
               margin-top 260ms cubic-bezier(0.4, 0, 0.2, 1) 130ms;
+}
+/* A new card arrives by sliding in from the rail's left edge as it fades up —
+   the headline "alive" moment on a notification surface. Calmer than the exit
+   (no rotateY/blur), slightly slower (280ms) per the asymmetric-timing law.
+   The class is added in JS only to genuinely-new rows (keyed diff), so the
+   stream does NOT re-animate on the once-a-minute rebuild. New cards always
+   enter at the top (incoming sorts first), never in the faded tail, so the
+   0→1 fade never fights the tail-taper opacity. */
+.mfeed-row.is-entering { animation: mfeed-enter 280ms cubic-bezier(0.19, 1, 0.22, 1); }
+@keyframes mfeed-enter {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 .mfeed-item {
@@ -2126,6 +2151,10 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   .membrane-agenda .magenda-up:focus-within .magenda-dismiss { transform: scale(1); }
   .mfeed-row.is-dismissing,
   .membrane-agenda .magenda-up.is-dismissing { filter: none; transform: none; }
+  /* New-card entrance is neutralized too (the JS gate also skips adding the
+     class under reduced-motion; this is the belt-and-suspenders CSS guard). */
+  .mfeed-row.is-entering,
+  .membrane-agenda .magenda-up.is-entering { animation: none !important; }
 }
 
 /* Small floating mode pill — lets the user toggle back to legacy view

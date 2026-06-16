@@ -82,6 +82,39 @@ function makeDismissStore(key, kind = 'session') {
 // collapsing the wait to a tick. Exit styles live on the `.is-dismissing`
 // class. Removing-then-rendering also lets renderFeed/renderAgenda skip a
 // rebuild while any card is mid-recede (so the fold is never snapped).
+// Source-of-truth reduced-motion check: the in-app toggle (data-reduce-motion
+// on <html>, what motion.js/ux.js read) OR the OS-level media query.
+function prefersReducedMotion() {
+  try {
+    if (document.documentElement.getAttribute('data-reduce-motion') === '1') return true;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch { return false; }
+}
+
+// After a notification stream re-renders (the render path replaces innerHTML
+// wholesale), slide in ONLY the rows whose stable data-row-key wasn't present
+// last pass — so the once-a-minute rebuild doesn't re-animate the whole
+// stream. Returns the new key set to store for next time. prevKeys === null
+// (first render after mount / switching into the membrane) marks nothing: the
+// surface populates instantly on entry, and only cards that arrive WHILE you
+// are watching animate in. Honors reduced-motion.
+function markEnteringRows(rootEl, prevKeys, selector) {
+  if (!rootEl) return prevKeys;
+  const current = new Set();
+  const reduce = prefersReducedMotion();
+  rootEl.querySelectorAll(`${selector}[data-row-key]`).forEach((row) => {
+    const k = row.getAttribute('data-row-key');
+    if (k == null) return;
+    current.add(k);
+    if (prevKeys && !reduce && !prevKeys.has(k)) row.classList.add('is-entering');
+  });
+  // Never promote null → empty: if we've never tracked cards and still see
+  // none (data not loaded yet), stay in the "first render" state so the
+  // eventual first population is instant, not a stagger-storm.
+  if (prevKeys === null && current.size === 0) return null;
+  return current;
+}
+
 function dismissCard(el, done) {
   if (!el) { done?.(); return; }
   let reduce = false;
@@ -825,6 +858,9 @@ export function mountMembrane(container, opts = {}) {
   // once a minute (so the now-line and time window track the clock).
   const agendaEl = container.querySelector('[data-agenda]');
   const agendaDismissed = makeDismissStore('srwk:membrane:dismissed:agenda');
+  // Keys rendered last pass, so a re-render slides in only genuinely-new cards
+  // (null until the first render — see markEnteringRows).
+  let agendaPrevKeys = null;
   function renderAgenda() {
     if (!agendaEl) return;
     // Don't rebuild while a card is mid-recede — the once-a-minute timer or a
@@ -897,7 +933,7 @@ export function mountMembrane(container, opts = {}) {
       const key = n ? `${base}#${n}` : base;
       if (agendaDismissed.has(key)) return '';
       const ek = escHtml(key);
-      return `<div class="magenda-up" data-cat="${agendaCat(title)}">
+      return `<div class="magenda-up" data-cat="${agendaCat(title)}" data-row-key="${ek}">
         <button type="button" class="magenda-up-event" data-up-key="${ek}">
           <span class="magenda-event-title">${escHtml(title || 'untitled')}</span>${sub ? `<span class="magenda-event-time">${escHtml(sub)}</span>` : ''}
         </button>
@@ -926,6 +962,7 @@ export function mountMembrane(container, opts = {}) {
     if (todayEmpty && !allDay.length && !groups.length) html += `<div class="magenda-quiet">clear ahead</div>`;
 
     agendaEl.innerHTML = html;
+    agendaPrevKeys = markEnteringRows(agendaEl, agendaPrevKeys, '.magenda-up');
   }
   // Once-a-minute tick advances the agenda now-line AND recomputes the incoming
   // band (so "tea — in 12 min" counts down live, not just on a cohort refresh).
@@ -953,6 +990,7 @@ export function mountMembrane(container, opts = {}) {
   // a colored dot, a short label, a relative age. Newest first.
   const feedEl = container.querySelector('[data-feed]');
   const feedDismissed = makeDismissStore('srwk:membrane:dismissed:feed');
+  let feedPrevKeys = null;
   // Incoming-watch cards are also remembered locally so a 60s re-render between
   // cohort refreshes can't resurrect a just-dismissed card; dismissing one ALSO
   // acknowledges it in the watch ledger (acknowledgeIncoming) so a fresh compute
@@ -986,7 +1024,7 @@ export function mountMembrane(container, opts = {}) {
     // No section header — incoming notices flow into the same stream as the
     // rest of the feed (forward-looking items just sort to the top). One feed.
     return cards.map((c, i) => `
-      <div class="mfeed-row">
+      <div class="mfeed-row" data-row-key="${escHtml('inc:' + c.seenKey)}">
         <button type="button" class="mfeed-item mfeed-${escHtml(c.kind)}" data-incoming-i="${i}">
           ${feedIcon(c.icon)}
           <span class="mfeed-body">
@@ -1018,12 +1056,15 @@ export function mountMembrane(container, opts = {}) {
         return { it, key: n ? `${base}#${n}` : base };
       })
       .filter(({ key }) => !feedDismissed.has(key));
+    // Leave feedPrevKeys untouched here: if data hasn't loaded yet (first
+    // render is empty), prevKeys stays null so the first real population is
+    // instant (no stagger-storm) rather than treating every card as "new".
     if (!incoming.length && !items.length) { feedEl.innerHTML = ''; return; }
     // Each item is wrapped in a positioned row so a quiet dismiss control can
     // sit on the card's inner corner (hidden at rest, revealed on hover/focus
     // — the "subtle hidden feature" — see .mfeed-dismiss in membrane.css).
     const feedHtml = items.map(({ it, key }, i) => `
-      <div class="mfeed-row">
+      <div class="mfeed-row" data-row-key="${escHtml('feed:' + key)}">
         <button type="button" class="mfeed-item mfeed-${escHtml(it.kind)}" data-feed-i="${i}">
           ${feedIcon(it.kind)}
           <span class="mfeed-body">
@@ -1037,6 +1078,7 @@ export function mountMembrane(container, opts = {}) {
     // One stream: incoming (forward-looking) flows straight into the activity
     // feed — no section labels, the rows just sort by relevance.
     feedEl.innerHTML = incHtml + feedHtml;
+    feedPrevKeys = markEnteringRows(feedEl, feedPrevKeys, '.mfeed-row');
     // Incoming card → open the arriving person's profile, else the calendar.
     feedEl.querySelectorAll('[data-incoming-i]').forEach((btn) => {
       btn.addEventListener('click', () => {

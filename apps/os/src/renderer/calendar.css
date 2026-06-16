@@ -199,9 +199,13 @@
   color: var(--ed-ink-3);
   font-family: var(--ed-mono); font-size: 9px;
   display: inline-flex; align-items: center; justify-content: center;
-  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease,
+              transform 110ms cubic-bezier(0.19, 1, 0.22, 1);
 }
 .c2-scrub-dot:hover { color: var(--ed-ink-1); border-color: var(--ed-rule-3); }
+/* Press feedback — match the press grammar the events/buttons already have, so
+   the week navigation feels as physical as everything else on the surface. */
+.c2-scrub-dot:active { transform: scale(0.92); }
 /* the week containing today — small dot under the circle, always visible */
 .c2-scrub-dot.is-now { color: var(--ed-ink-1); }
 .c2-scrub-dot.is-now::after {
@@ -226,9 +230,11 @@
   color: var(--ed-ink-3);
   font-family: var(--ed-mono); font-size: 22px;
   display: inline-flex; align-items: center; justify-content: center;
-  transition: color 140ms ease, border-color 140ms ease;
+  transition: color 140ms ease, border-color 140ms ease,
+              transform 110ms cubic-bezier(0.19, 1, 0.22, 1);
 }
 .c2-scrub-arrow:hover:not(:disabled) { color: var(--ed-ink-1); border-color: var(--ed-rule-3); }
+.c2-scrub-arrow:active:not(:disabled) { transform: scale(0.92); }
 .c2-scrub-arrow:disabled { opacity: 0.3; cursor: default; }
 
 /* ── stale banner / loading ─────────────────────────────────────────── */
@@ -327,8 +333,12 @@
   transition:
     background 150ms cubic-bezier(0.16, 1, 0.3, 1),
     border-color 150ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 110ms cubic-bezier(0.19, 1, 0.22, 1);
 }
+/* All-day chips were the one clickable that lacked a press — give them the
+   same scale(0.97) as the timed .c2-ev so clicking either feels alike. */
+.c2-chip:active { transform: scale(0.97); }
 .c2-chip:hover {
   background: color-mix(in srgb, var(--c2-acc) 28%, var(--ed-bg-2));
   border-color: color-mix(in srgb, var(--c2-acc) 60%, transparent);
@@ -551,6 +561,10 @@
   z-index: 4;
   pointer-events: none;
 }
+/* Once placed, the now-line eases between its 30s updates (smooth-out — it's a
+   subtle marker). The class is added AFTER the first placement so the initial
+   position doesn't slide in from top:0. */
+.c2-now.is-tracking { transition: top 300ms cubic-bezier(0.22, 1, 0.36, 1); }
 .c2-now-dot {
   position: absolute; left: -4px; top: -4.5px;
   width: 8px; height: 8px; border-radius: 50%;
@@ -759,6 +773,21 @@
   from { opacity: 0; transform: translate(-50%, calc(-50% + 5px)) scale(0.985); }
   to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
+/* Exit — reverse of the enter, quicker (110ms out vs 150ms in) per the
+   asymmetric-timing law: the open reads considered, the close decisive. JS
+   adds .is-closing, then removes the node on animationend (timeout backstop). */
+.c2-modal.is-closing { animation: c2-modal-overlay-out 110ms ease forwards; }
+.c2-modal.is-closing .c2-modal-panel { animation: c2-modal-out 110ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.c2-modal.is-closing.is-centered .c2-modal-panel { animation-name: c2-modal-centered-out; }
+@keyframes c2-modal-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(3px) scale(0.985); }
+}
+@keyframes c2-modal-centered-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to   { opacity: 0; transform: translate(-50%, calc(-50% + 3px)) scale(0.985); }
+}
+@keyframes c2-modal-overlay-out { from { opacity: 1; } to { opacity: 0; } }
 
 /* ── narrow widths ──────────────────────────────────────────────────── */
 @media (max-width: 900px) {
@@ -802,4 +831,11 @@
     transition: background 160ms ease, border-color 160ms ease;
   }
   .c2-modal-panel { animation: none; }
+  /* Drop the added presses, modal exit, and now-line tracking. */
+  .c2-scrub-dot:active,
+  .c2-scrub-arrow:active:not(:disabled),
+  .c2-chip:active { transform: none; }
+  .c2-modal.is-closing,
+  .c2-modal.is-closing .c2-modal-panel { animation: none; }
+  .c2-now.is-tracking { transition: none; }
 }
