@@ -69,12 +69,15 @@ export async function publishGrid({
   fetchImpl = globalThis.fetch,
   now,
 } = {}) {
-  if (!url || !key) {
-    return { skipped: true, reason: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set" };
-  }
+  // Leak-scan ALWAYS runs, before the credential check, so a leak throws even when
+  // the publish target is unconfigured — a rotated/missing secret can't silently
+  // disable the only inline privacy gate.
   const leaks = scanGridForLeaks(grid);
   if (leaks.length) {
     throw new Error(`refusing to publish — grid contains content that must not be public: ${leaks.join(", ")}`);
+  }
+  if (!url || !key) {
+    return { skipped: true, reason: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set" };
   }
   const { url: reqUrl, body } = buildUpsertRequest({ url, grid, now });
   const res = await fetchImpl(reqUrl, {

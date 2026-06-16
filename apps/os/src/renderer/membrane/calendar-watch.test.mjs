@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeIncoming, acknowledgeIncoming } from './calendar-watch.js';
+import { computeIncoming, acknowledgeIncoming } from './calendar-watch.mjs';
 
 // "HH:MM" offsetMin minutes after nowMs (local clock) — keeps the proximity
 // assertions timezone-independent. ymdAfterDays gives a local YYYY-MM-DD.

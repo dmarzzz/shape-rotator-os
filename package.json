@@ -70,7 +70,7 @@
     "ingest:readouts": "node scripts/ingest-session-readouts.mjs",
     "transcripts:evidence": "node scripts/build-transcript-evidence.js",
     "build:web-journal": "node scripts/build-web-journal.js",
-    "test": "node --test \"scripts/**/*.test.js\" \"scripts/**/*.test.mjs\"",
+    "test": "node --test \"scripts/**/*.test.js\" \"scripts/**/*.test.mjs\" \"apps/os/**/*.test.mjs\"",
     "test:calendar-integration": "node --test scripts/calendar-integration.test.js",
     "test:calendar-sync": "node --test scripts/google-calendar-sync.test.js",
     "test:calendar-mirror": "node --test scripts/google-calendar-mirror.test.js",

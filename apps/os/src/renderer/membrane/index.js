@@ -11,7 +11,7 @@ import { BLOB_IDS, BLOB_PROFILES, SHAPE_NAMES, TARGET_R } from './cube.js';
 // The Rubik's cube body is matched to this — then bumped 20% larger by request.
 const DIE_CUBE_EDGE = TARGET_R * (2 / Math.sqrt(3)) * CUBE_SCALE * 1.2;
 import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAuthor, askVerbIconSvg, askVerbVars } from '../asks.js';
-import { computeIncoming, acknowledgeIncoming } from './calendar-watch.js';
+import { computeIncoming, acknowledgeIncoming } from './calendar-watch.mjs';
 
 // Headless smoke-test boot tracing (gated on ?smoke=1; no-op for real launches).
 // Mirrors boot.js cp(): pinpoints whether the deferred membrane mount blocks.
