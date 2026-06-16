@@ -146,14 +146,15 @@ function buildCalendarGoogleEventsExport({
     if (event?.status === "cancelled") continue;
     const record = googleEventLinkRecord(event);
     if (!record.google_event_id || !record.html_link) continue;
-    if (record.ical_uid) byIcalUid[record.ical_uid] = record;
-    if (record.shape_key) byShapeKey[record.shape_key] = record;
+    const { google_event_id: _gid, html_link: _hl, ...safe } = record;
+    if (record.ical_uid) byIcalUid[record.ical_uid] = safe;
+    if (record.shape_key) byShapeKey[record.shape_key] = safe;
   }
   return {
     schema_version: 1,
     generated_at: generatedAt,
     source: "google-calendar-events.list",
-    calendar_id: calendarId || null,
+    calendar_id: null,
     time_min: timeMin,
     time_max: timeMax,
     event_count: Object.keys(byIcalUid).length,

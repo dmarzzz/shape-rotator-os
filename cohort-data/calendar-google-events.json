@@ -2,14 +2,12 @@
   "schema_version": 1,
   "generated_at": "2026-06-14T11:55:28.658Z",
   "source": "google-calendar-events.list",
-  "calendar_id": "c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com",
+  "calendar_id": null,
   "time_min": "2026-05-18T00:00:00-04:00",
   "time_max": "2026-07-27T00:00:00-04:00",
   "event_count": 99,
   "by_ical_uid": {
     "may-18-start-20260518-mon@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h70mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzBtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260518-mon@shape-rotator-os",
       "summary": "onboarding",
       "status": "confirmed",
@@ -27,8 +25,6 @@
       "shape_key": "may-18-start-20260518-mon@shape-rotator-os#1"
     },
     "may-18-start-20260518-mon-block-2-tea-on-roof@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h70mmqrre5lh6orr3dcmj4bbkclgiqrre5lp6urr681pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzBtbXFycmU1bGg2b3JyM2RjbWo0YmJrY2xnaXFycmU1bHA2dXJyNjgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260518-mon-block-2-tea-on-roof@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -46,8 +42,6 @@
       "shape_key": "may-18-start-20260518-mon@shape-rotator-os#2"
     },
     "may-18-start-20260518-mon-block-3-onboarding-cont-d@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h70mmqrre5lh6orr3dcmj6bbfdph6uobichkmsppdcdnmst1dch076q31e1iiqsjfehgn8rri5lnn6",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzBtbXFycmU1bGg2b3JyM2RjbWo2YmJmZHBoNnVvYmljaGttc3BwZGNkbm1zdDFkY2gwNzZxMzFlMWlpcXNqZmVoZ244cnJpNWxubjYgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260518-mon-block-3-onboarding-cont-d@shape-rotator-os",
       "summary": "onboarding (cont'd)",
       "status": "confirmed",
@@ -65,8 +59,6 @@
       "shape_key": "may-18-start-20260518-mon@shape-rotator-os#3"
     },
     "may-18-start-20260518-mon-block-4-kickoff-dinner-auditorium@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h70mmqrre5lh6orr3dcmj8bbbd5hmmrr6comm8qbedpin4bb1eli6it3fe9knara0edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzBtbXFycmU1bGg2b3JyM2RjbWo4YmJiZDVobW1ycjZjb21tOHFiZWRwaW40YmIxZWxpNml0M2ZlOWtuYXJhMGVkazYyczM1NWxwNnV0MzFlaG5uNGJiZmVjIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260518-mon-block-4-kickoff-dinner-auditorium@shape-rotator-os",
       "summary": "kickoff dinner @ Auditorium",
       "status": "confirmed",
@@ -84,8 +76,6 @@
       "shape_key": "may-18-start-20260518-mon@shape-rotator-os#4"
     },
     "may-18-start-20260519-tue@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h74mn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzRtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260519-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -103,8 +93,6 @@
       "shape_key": "may-18-start-20260519-tue@shape-rotator-os#1"
     },
     "may-18-start-20260519-tue-block-2-project-intros-workflow@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h74mn8tb55lh6orr3dcmj4bbge9nmkpb3egmmirjke9nn6bbndtp6mpjcdtrk0sr8c5o6abbidtq62t3fe8mmuso",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzRtbjh0YjU1bGg2b3JyM2RjbWo0YmJnZTlubWtwYjNlZ21taXJqa2U5bm42YmJuZHRwNm1wamNkdHJrMHNyOGM1bzZhYmJpZHRxNjJ0M2ZlOG1tdXNvIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260519-tue-block-2-project-intros-workflow@shape-rotator-os",
       "summary": "Project intros&workflow",
       "status": "confirmed",
@@ -122,8 +110,6 @@
       "shape_key": "may-18-start-20260519-tue@shape-rotator-os#2"
     },
     "may-18-start-20260519-tue-block-3-founder-night-carter-cleveland@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h74mn8tb55lh6orr3dcmj6bb6dtqmsp35e8mmsqb7d1q2qor1e9q6ashdcdm6atj5dhgmsp20edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzRtbjh0YjU1bGg2b3JyM2RjbWo2YmI2ZHRxbXNwMzVlOG1tc3FiN2QxcTJxb3IxZTlxNmFzaGRjZG02YXRqNWRoZ21zcDIwZWRrNjJzMzU1bHA2dXQzMWVobm40YmJmZWMgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260519-tue-block-3-founder-night-carter-cleveland@shape-rotator-os",
       "summary": "Founder night - Carter Cleveland",
       "status": "confirmed",
@@ -141,8 +127,6 @@
       "shape_key": "may-18-start-20260519-tue@shape-rotator-os#3"
     },
     "may-18-start-20260520-wed@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i60mnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjBtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260520-wed@shape-rotator-os",
       "summary": "Tutorial: Dstack",
       "status": "confirmed",
@@ -160,8 +144,6 @@
       "shape_key": "may-18-start-20260520-wed@shape-rotator-os#1"
     },
     "may-18-start-20260520-wed-block-2-tea-on-roof@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i60mnepb45lh6orr3dcmj4bbkclgiqrre5lp6urr681pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjBtbmVwYjQ1bGg2b3JyM2RjbWo0YmJrY2xnaXFycmU1bHA2dXJyNjgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260520-wed-block-2-tea-on-roof@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -179,8 +161,6 @@
       "shape_key": "may-18-start-20260520-wed@shape-rotator-os#2"
     },
     "may-18-start-20260520-wed-block-3-project-intros-salon-room@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i60mnepb45lh6orr3dcmj6bbge9nmkpb3egmmirjke9nn6bbjc5m6urhde9nmura0edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjBtbmVwYjQ1bGg2b3JyM2RjbWo2YmJnZTlubWtwYjNlZ21taXJqa2U5bm42YmJqYzVtNnVyaGRlOW5tdXJhMGVkazYyczM1NWxwNnV0MzFlaG5uNGJiZmVjIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260520-wed-block-3-project-intros-salon-room@shape-rotator-os",
       "summary": "Project Intros (Salon room)",
       "status": "confirmed",
@@ -198,8 +178,6 @@
       "shape_key": "may-18-start-20260520-wed@shape-rotator-os#3"
     },
     "may-18-start-20260520-wed-block-4-founder-s-journey-auditorium@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i60mnepb45lh6orr3dcmj8bb6dtqmsp35e8mn6bbadtqn4rj5f4mm2tb4d5q6usj9elmk0sr8c5o6abbidtq62t3fe8mmuso",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjBtbmVwYjQ1bGg2b3JyM2RjbWo4YmI2ZHRxbXNwMzVlOG1uNmJiYWR0cW40cmo1ZjRtbTJ0YjRkNXE2dXNqOWVsbWswc3I4YzVvNmFiYmlkdHE2MnQzZmU4bW11c28gY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260520-wed-block-4-founder-s-journey-auditorium@shape-rotator-os",
       "summary": "Founder's journey (Auditorium)",
       "status": "confirmed",
@@ -217,8 +195,6 @@
       "shape_key": "may-18-start-20260520-wed@shape-rotator-os#4"
     },
     "may-18-start-20260521-thu-block-2-tutorial-dumb-agent-tricks-install-h@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i64mn8q3l5lh6orr3dcmj4bbkelq6usj9c5m2qp3ldlh2qob7cln78bbke9km6qrj5lkmssrkc5m6obb881pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjRtbjhxM2w1bGg2b3JyM2RjbWo0YmJrZWxxNnVzajljNW0ycXAzbGRsaDJxb2I3Y2xuNzhiYmtlOWttNnFyajVsa21zc3JrYzVtNm9iYjg4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260521-thu-block-2-tutorial-dumb-agent-tricks-install-h@shape-rotator-os",
       "summary": "Tutorial: Dumb agent tricks, install hermes",
       "status": "confirmed",
@@ -236,8 +212,6 @@
       "shape_key": "may-18-start-20260521-thu@shape-rotator-os#2"
     },
     "may-18-start-20260521-thu@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i64mn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjRtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260521-thu@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -255,8 +229,6 @@
       "shape_key": "may-18-start-20260521-thu@shape-rotator-os#1"
     },
     "may-18-start-20260521-thu-block-3-more-onboarding-on-site-reigstration@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i64mn8q3l5lh6orr3dcmj6bbddtp6abbfdph6uobichkmsppddtn2qsr9ehiiqsj5d5jn6t3ic5q6irre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjRtbjhxM2w1bGg2b3JyM2RjbWo2YmJkZHRwNmFiYmZkcGg2dW9iaWNoa21zcHBkZHRuMnFzcjllaGlpcXNqNWQ1am42dDNpYzVxNmlycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260521-thu-block-3-more-onboarding-on-site-reigstration@shape-rotator-os",
       "summary": "More onboarding & on-site reigstration",
       "status": "confirmed",
@@ -274,8 +246,6 @@
       "shape_key": "may-18-start-20260521-thu@shape-rotator-os#3"
     },
     "may-18-start-20260521-thu-block-4-project-intros@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i64mn8q3l5lh6orr3dcmj8bbge9nmkpb3egmmirjke9nn6g3jd1gn0p9de9nn8obkdtp2qrrj",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjRtbjhxM2w1bGg2b3JyM2RjbWo4YmJnZTlubWtwYjNlZ21taXJqa2U5bm42ZzNqZDFnbjBwOWRlOW5uOG9ia2R0cDJxcnJqIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260521-thu-block-4-project-intros@shape-rotator-os",
       "summary": "Project Intros",
       "status": "confirmed",
@@ -293,8 +263,6 @@
       "shape_key": "may-18-start-20260521-thu@shape-rotator-os#4"
     },
     "may-18-start-20260521-thu-block-5-yoga@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i64mn8q3l5lh6orr3dcmjabbpdtjm2g3jd1gn0p9de9nn8obkdtp2qrrj",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjRtbjhxM2w1bGg2b3JyM2RjbWphYmJwZHRqbTJnM2pkMWduMHA5ZGU5bm44b2JrZHRwMnFycmogY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260521-thu-block-5-yoga@shape-rotator-os",
       "summary": "Yoga",
       "status": "confirmed",
@@ -312,8 +280,6 @@
       "shape_key": "may-18-start-20260521-thu@shape-rotator-os#5"
     },
     "may-18-start-20260522-fri-block-3-pmf-roast-w-tina-and-greg-the-greek@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i68mmcsj95lh6orr3dcmj6bbgdlj2qsjfc5pn8bbn5lq6irj15lgmsp1dctp6appdehk6abb7e9imaqq0edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjhtbWNzajk1bGg2b3JyM2RjbWo2YmJnZGxqMnFzamZjNXBuOGJibjVscTZpcmoxNWxnbXNwMWRjdHA2YXBwZGVoazZhYmI3ZTlpbWFxcTBlZGs2MnMzNTVscDZ1dDMxZWhubjRiYmZlYyBjX2QzYzUxZjllZjI4MzUxYmQwZTkyNDQ5YTlkMGZhN2Y0YmYyN2M4YTI4NjYzMDlmOTZjNmUyMTc2YTUwYjAzZWRAZw",
       "ical_uid": "may-18-start-20260522-fri-block-3-pmf-roast-w-tina-and-greg-the-greek@shape-rotator-os",
       "summary": "PMF Roast w/ Tina and Greg The Greek",
       "status": "confirmed",
@@ -331,8 +297,6 @@
       "shape_key": "may-18-start-20260522-fri@shape-rotator-os#3"
     },
     "may-18-start-20260522-fri-block-4-founders-journey-w-shaw@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i68mmcsj95lh6orr3dcmj8bb6dtqmsp35e9piqqjfelp6spbp5lriqsr8c5rk0sr8c5o6abbidtq62t3fe8mmuso",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjhtbWNzajk1bGg2b3JyM2RjbWo4YmI2ZHRxbXNwMzVlOXBpcXFqZmVscDZzcGJwNWxyaXFzcjhjNXJrMHNyOGM1bzZhYmJpZHRxNjJ0M2ZlOG1tdXNvIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260522-fri-block-4-founders-journey-w-shaw@shape-rotator-os",
       "summary": "Founders Journey w/ Shaw",
       "status": "confirmed",
@@ -350,8 +314,6 @@
       "shape_key": "may-18-start-20260522-fri@shape-rotator-os#4"
     },
     "may-18-start-20260522-fri@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i68mmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjhtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260522-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -369,8 +331,6 @@
       "shape_key": "may-18-start-20260522-fri@shape-rotator-os#1"
     },
     "may-18-start-20260522-fri-block-2-introduce-tina@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i68mmcsj95lh6orr3dcmj4bb9dpq74rr4elhmabbkd5n62g3jd1gn0p9de9nn8obkdtp2qrrj",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjhtbWNzajk1bGg2b3JyM2RjbWo0YmI5ZHBxNzRycjRlbGhtYWJia2Q1bjYyZzNqZDFnbjBwOWRlOW5uOG9ia2R0cDJxcnJqIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260522-fri-block-2-introduce-tina@shape-rotator-os",
       "summary": "Introduce Tina,",
       "status": "confirmed",
@@ -388,8 +348,6 @@
       "shape_key": "may-18-start-20260522-fri@shape-rotator-os#2"
     },
     "may-18-start-20260525-mon@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6kmmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNmttbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260525-mon@shape-rotator-os",
       "summary": "Memorial Day",
       "status": "confirmed",
@@ -405,8 +363,6 @@
       "shape_key": "may-18-start-20260525-mon@shape-rotator-os#1"
     },
     "may-18-start-20260525-mon-block-2-andrew-has-office-hours-in-salon-roo@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6kmmqrre5lh6orr3dcmj4bb1dpi74pbn5lk62spddtj6cqb3ckmmgrrle9piqqbe5lpm2r3fdomn4rrf81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNmttbXFycmU1bGg2b3JyM2RjbWo0YmIxZHBpNzRwYm41bGs2MnNwZGR0ajZjcWIzY2ttbWdycmxlOXBpcXFiZTVscG0ycjNmZG9tbjRycmY4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260525-mon-block-2-andrew-has-office-hours-in-salon-roo@shape-rotator-os",
       "summary": ". Andrew has office hours (in salon room)",
       "status": "confirmed",
@@ -424,8 +380,6 @@
       "shape_key": "may-18-start-20260525-mon@shape-rotator-os#2"
     },
     "may-18-start-20260525-mon-block-3-muse-dinner@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6kmmqrre5lh6orr3dcmj6bbdelpmabb4d5n6spbi81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNmttbXFycmU1bGg2b3JyM2RjbWo2YmJkZWxwbWFiYjRkNW42c3BiaTgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260525-mon-block-3-muse-dinner@shape-rotator-os",
       "summary": "muse dinner",
       "status": "confirmed",
@@ -443,8 +397,6 @@
       "shape_key": "may-18-start-20260525-mon@shape-rotator-os#3"
     },
     "may-18-start-20260526-tue@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6omn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNm9tbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260526-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -462,8 +414,6 @@
       "shape_key": "may-18-start-20260526-tue@shape-rotator-os#1"
     },
     "may-18-start-20260526-tue-block-2-project-intros@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6omn8tb55lh6orr3dcmj4bbge9nmkpb3egmmirjke9nn6g3jd1gn0p9de9nn8obkdtp2qrrj",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNm9tbjh0YjU1bGg2b3JyM2RjbWo0YmJnZTlubWtwYjNlZ21taXJqa2U5bm42ZzNqZDFnbjBwOWRlOW5uOG9ia2R0cDJxcnJqIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260526-tue-block-2-project-intros@shape-rotator-os",
       "summary": "Project Intros",
       "status": "confirmed",
@@ -481,8 +431,6 @@
       "shape_key": "may-18-start-20260526-tue@shape-rotator-os#2"
     },
     "may-18-start-20260526-tue-block-3-lecture-defining-product-market-fit@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6omn8tb55lh6orr3dcmj6bbcclhn8tbickmm8pb6d5n6irj75lo74rr4elhn8bbdc5p6mpbk5lj6it20edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNm9tbjh0YjU1bGg2b3JyM2RjbWo2YmJjY2xobjh0Ymlja21tOHBiNmQ1bjZpcmo3NWxvNzRycjRlbGhuOGJiZGM1cDZtcGJrNWxqNml0MjBlZGs2MnMzNTVscDZ1dDMxZWhubjRiYmZlYyBjX2QzYzUxZjllZjI4MzUxYmQwZTkyNDQ5YTlkMGZhN2Y0YmYyN2M4YTI4NjYzMDlmOTZjNmUyMTc2YTUwYjAzZWRAZw",
       "ical_uid": "may-18-start-20260526-tue-block-3-lecture-defining-product-market-fit@shape-rotator-os",
       "summary": "Lecture - Defining Product Market Fit",
       "status": "confirmed",
@@ -500,8 +448,6 @@
       "shape_key": "may-18-start-20260526-tue@shape-rotator-os#3"
     },
     "may-18-start-20260526-tue-block-4-community-dinner-in-auditorium-chef-@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6omn8tb55lh6orr3dcmj8bb3dtmmqtbed5q7ibb4d5n6spbi5lkmsbb1eli6it3fe9knar9dcdk6aphd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNm9tbjh0YjU1bGg2b3JyM2RjbWo4YmIzZHRtbXF0YmVkNXE3aWJiNGQ1bjZzcGJpNWxrbXNiYjFlbGk2aXQzZmU5a25hcjlkY2RrNmFwaGQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260526-tue-block-4-community-dinner-in-auditorium-chef-@shape-rotator-os",
       "summary": "Community Dinner in auditorium (Chef Matt presents)",
       "status": "confirmed",
@@ -519,8 +465,6 @@
       "shape_key": "may-18-start-20260526-tue@shape-rotator-os#4"
     },
     "may-18-start-20260527-wed@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6smnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNnNtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260527-wed@shape-rotator-os",
       "summary": "(James, Andrew) Onboarding for teleport router, q&a",
       "status": "confirmed",
@@ -538,8 +482,6 @@
       "shape_key": "may-18-start-20260527-wed@shape-rotator-os#1"
     },
     "may-18-start-20260527-wed-block-2-tea-on-roof@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6smnepb45lh6orr3dcmj4bbkclgiqrre5lp6urr681pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNnNtbmVwYjQ1bGg2b3JyM2RjbWo0YmJrY2xnaXFycmU1bHA2dXJyNjgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260527-wed-block-2-tea-on-roof@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -557,8 +499,6 @@
       "shape_key": "may-18-start-20260527-wed@shape-rotator-os#2"
     },
     "may-18-start-20260527-wed-block-3-salon-ideal-customer-profiling-user-@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6smnepb45lh6orr3dcmj6bbjc5m6urhdd5i6aobc5lhnasrkdtmmashde1p6upj9dhkmsppdelpmashd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNnNtbmVwYjQ1bGg2b3JyM2RjbWo2YmJqYzVtNnVyaGRkNWk2YW9iYzVsaG5hc3JrZHRtbWFzaGRlMXA2dXBqOWRoa21zcHBkZWxwbWFzaGQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260527-wed-block-3-salon-ideal-customer-profiling-user-@shape-rotator-os",
       "summary": "Salon: Ideal Customer Profiling, User Interviews (James)",
       "status": "confirmed",
@@ -576,8 +516,6 @@
       "shape_key": "may-18-start-20260527-wed@shape-rotator-os#3"
     },
     "may-18-start-20260527-wed-block-4-flashnet-jam-dmarz@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6smnepb45lh6orr3dcmj8bb6dhgn6q3eclq2qqj1dkmm8rb1e9t40sr8c5o6abbidtq62t3fe8mmuso",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNnNtbmVwYjQ1bGg2b3JyM2RjbWo4YmI2ZGhnbjZxM2VjbHEycXFqMWRrbW04cmIxZTl0NDBzcjhjNW82YWJiaWR0cTYydDNmZThtbXVzbyBjX2QzYzUxZjllZjI4MzUxYmQwZTkyNDQ5YTlkMGZhN2Y0YmYyN2M4YTI4NjYzMDlmOTZjNmUyMTc2YTUwYjAzZWRAZw",
       "ical_uid": "may-18-start-20260527-wed-block-4-flashnet-jam-dmarz@shape-rotator-os",
       "summary": "Flashnet jam (Dmarz)",
       "status": "confirmed",
@@ -595,8 +533,6 @@
       "shape_key": "may-18-start-20260527-wed@shape-rotator-os#4"
     },
     "may-18-start-20260527-wed-block-5-low-key-dinner-auditorium@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6smnepb45lh6orr3dcmjabbcdtriqqr5f4mm8qbedpin4bb1eli6it3fe9knara0edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNnNtbmVwYjQ1bGg2b3JyM2RjbWphYmJjZHRyaXFxcjVmNG1tOHFiZWRwaW40YmIxZWxpNml0M2ZlOWtuYXJhMGVkazYyczM1NWxwNnV0MzFlaG5uNGJiZmVjIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260527-wed-block-5-low-key-dinner-auditorium@shape-rotator-os",
       "summary": "low key dinner (auditorium)",
       "status": "confirmed",
@@ -614,8 +550,6 @@
       "shape_key": "may-18-start-20260527-wed@shape-rotator-os#5"
     },
     "may-18-start-20260528-thu@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i70mn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNzBtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260528-thu@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -633,8 +567,6 @@
       "shape_key": "may-18-start-20260528-thu@shape-rotator-os#1"
     },
     "may-18-start-20260528-thu-block-2-agentic-tooling-workshops-clinic@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i70mn8q3l5lh6orr3dcmj4bb1ctimst39ccmn8rrfdhkmsppdetnn4qrjd1nn0spdcdm6irj9cd076q31e1iiqsjfehgn8rri5lnn6",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNzBtbjhxM2w1bGg2b3JyM2RjbWo0YmIxY3RpbXN0MzljY21uOHJyZmRoa21zcHBkZXRubjRxcmpkMW5uMHNwZGNkbTZpcmo5Y2QwNzZxMzFlMWlpcXNqZmVoZ244cnJpNWxubjYgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260528-thu-block-2-agentic-tooling-workshops-clinic@shape-rotator-os",
       "summary": "Agentic Tooling workshops/clinic",
       "status": "confirmed",
@@ -652,8 +584,6 @@
       "shape_key": "may-18-start-20260528-thu@shape-rotator-os#2"
     },
     "may-18-start-20260529-fri@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i74mmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNzRtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260529-fri@shape-rotator-os",
       "summary": "router onboarding/workshop",
       "status": "confirmed",
@@ -671,8 +601,6 @@
       "shape_key": "may-18-start-20260529-fri@shape-rotator-os#1"
     },
     "may-18-start-20260529-fri-block-2-tea-on-roof@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i74mmcsj95lh6orr3dcmj4bbkclgiqrre5lp6urr681pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNzRtbWNzajk1bGg2b3JyM2RjbWo0YmJrY2xnaXFycmU1bHA2dXJyNjgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260529-fri-block-2-tea-on-roof@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -690,8 +618,6 @@
       "shape_key": "may-18-start-20260529-fri@shape-rotator-os#2"
     },
     "may-18-start-20260529-fri-block-3-sorting-hat-dinner-tina@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i74mmcsj95lh6orr3dcmj6bbjdtp78qbecsmmgobk5li6irjeclp2qt39dpgk0sr8c5o6abbidtq62t3fe8mmuso",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNzRtbWNzajk1bGg2b3JyM2RjbWo2YmJqZHRwNzhxYmVjc21tZ29iazVsaTZpcmplY2xwMnF0MzlkcGdrMHNyOGM1bzZhYmJpZHRxNjJ0M2ZlOG1tdXNvIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260529-fri-block-3-sorting-hat-dinner-tina@shape-rotator-os",
       "summary": "sorting hat dinner (Tina)",
       "status": "confirmed",
@@ -709,8 +635,6 @@
       "shape_key": "may-18-start-20260529-fri@shape-rotator-os#3"
     },
     "may-18-start-20260530-sat@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9j60mn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlqNjBtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260530-sat@shape-rotator-os",
       "summary": "Convent",
       "status": "confirmed",
@@ -726,8 +650,6 @@
       "shape_key": "may-18-start-20260530-sat@shape-rotator-os#1"
     },
     "may-18-start-20260601-mon@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg64mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNjRtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260601-mon@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -745,8 +667,6 @@
       "shape_key": "may-18-start-20260601-mon@shape-rotator-os#1"
     },
     "may-18-start-20260602-tue@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg68mn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNjhtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260602-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -764,8 +684,6 @@
       "shape_key": "may-18-start-20260602-tue@shape-rotator-os#1"
     },
     "may-18-start-20260603-wed@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg6cmnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNmNtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260603-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -783,8 +701,6 @@
       "shape_key": "may-18-start-20260603-wed@shape-rotator-os#1"
     },
     "may-18-start-20260604-thu@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg6gmn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNmdtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260604-thu@shape-rotator-os",
       "summary": "Thu — group activity, sculpture garden",
       "status": "confirmed",
@@ -800,8 +716,6 @@
       "shape_key": "may-18-start-20260604-thu@shape-rotator-os#1"
     },
     "may-18-start-20260605-fri@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg6kmmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNmttbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260605-fri@shape-rotator-os",
       "summary": "Fri — reception at art museum (overlap w/ shaperotator)",
       "status": "confirmed",
@@ -817,8 +731,6 @@
       "shape_key": "may-18-start-20260605-fri@shape-rotator-os#1"
     },
     "may-18-start-20260607-sun@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg6smn6tbe81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNnNtbjZ0YmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260607-sun@shape-rotator-os",
       "summary": "Eth Global hackathon due",
       "status": "confirmed",
@@ -836,8 +748,6 @@
       "shape_key": "may-18-start-20260607-sun@shape-rotator-os#1"
     },
     "may-18-start-20260608-mon@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg70mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzBtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260608-mon@shape-rotator-os",
       "summary": "Agentic Organizations with Sreeram @EigenLabs",
       "status": "confirmed",
@@ -855,8 +765,6 @@
       "shape_key": "may-18-start-20260608-mon@shape-rotator-os#1"
     },
     "may-18-start-20260608-mon-block-2-tea-on-roof@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg70mmqrre5lh6orr3dcmj4bbkclgiqrre5lp6urr681pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzBtbXFycmU1bGg2b3JyM2RjbWo0YmJrY2xnaXFycmU1bHA2dXJyNjgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260608-mon-block-2-tea-on-roof@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -874,8 +782,6 @@
       "shape_key": "may-18-start-20260608-mon@shape-rotator-os#2"
     },
     "may-18-start-20260608-mon-block-3-wdydlw-with-shaw-as-moderator-the-au@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg70mmqrre5lh6orr3dcmj6bbnchsm8r3n5lrmit385lpmgobn5lgn6bbddti6asj1ehnn4bbkd1iiqobl81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzBtbXFycmU1bGg2b3JyM2RjbWo2YmJuY2hzbThyM241bHJtaXQzODVscG1nb2JuNWxnbjZiYmRkdGk2YXNqMWVobm40YmJrZDFpaXFvYmw4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260608-mon-block-3-wdydlw-with-shaw-as-moderator-the-au@shape-rotator-os",
       "summary": "WDYDLW with Shaw as Moderator @ the auditorium",
       "status": "confirmed",
@@ -893,8 +799,6 @@
       "shape_key": "may-18-start-20260608-mon@shape-rotator-os#3"
     },
     "may-18-start-20260609-tue@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg74mn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzRtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260609-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -912,8 +816,6 @@
       "shape_key": "may-18-start-20260609-tue@shape-rotator-os#1"
     },
     "may-18-start-20260609-tue-block-2-pmf-check-point@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg74mn8tb55lh6orr3dcmj4bbgdlj2qor8clhmmbbgdtkmst20edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzRtbjh0YjU1bGg2b3JyM2RjbWo0YmJnZGxqMnFvcjhjbGhtbWJiZ2R0a21zdDIwZWRrNjJzMzU1bHA2dXQzMWVobm40YmJmZWMgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260609-tue-block-2-pmf-check-point@shape-rotator-os",
       "summary": "PMF Checkpoint",
       "status": "confirmed",
@@ -931,8 +833,6 @@
       "shape_key": "may-18-start-20260609-tue@shape-rotator-os#2"
     },
     "may-18-start-20260609-tue-block-3-info-markets-design-hosted-by-vinny-@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg74mn8tb55lh6orr3dcmj6bb9dpj6ubbdc5p6mpbkecmm8pbjd5jmsbb8dtpn8pb45lh7ibbmd5n6su9d81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzRtbjh0YjU1bGg2b3JyM2RjbWo2YmI5ZHBqNnViYmRjNXA2bXBia2VjbW04cGJqZDVqbXNiYjhkdHBuOHBiNDVsaDdpYmJtZDVuNnN1OWQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260609-tue-block-3-info-markets-design-hosted-by-vinny-@shape-rotator-os",
       "summary": "Info Markets Design",
       "status": "confirmed",
@@ -950,8 +850,6 @@
       "shape_key": "may-18-start-20260609-tue@shape-rotator-os#3"
     },
     "may-18-start-20260610-wed-block-2-anarchy-day-protected-build-time-no-@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh60mnepb45lh6orr3dcmj4bb1dpgn4or8f4mm8obp5lo74rrkclhn8pb45lh7aqbccgmn8qbdckmmsrpd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjBtbmVwYjQ1bGg2b3JyM2RjbWo0YmIxZHBnbjRvcjhmNG1tOG9icDVsbzc0cnJrY2xobjhwYjQ1bGg3YXFiY2NnbW44cWJkY2ttbXNycGQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260610-wed-block-2-anarchy-day-protected-build-time-no-@shape-rotator-os",
       "summary": "Anarchy Day protected build time. No Shape Rotator programming.",
       "status": "confirmed",
@@ -967,8 +865,6 @@
       "shape_key": "may-18-start-20260610-wed@shape-rotator-os#2"
     },
     "may-18-start-20260610-wed@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh60mnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjBtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260610-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -986,8 +882,6 @@
       "shape_key": "may-18-start-20260610-wed@shape-rotator-os#1"
     },
     "may-18-start-20260610-wed-block-3-team-led-sessions-teams-encouraged-t@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh60mnepb45lh6orr3dcmj6bbkclgmqbbccli2qsr5edpmirreecmn8pb1dlpiqpbecdnnasj1ctim8bbk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjBtbmVwYjQ1bGg2b3JyM2RjbWo2YmJrY2xnbXFiYmNjbGkycXNyNWVkcG1pcnJlZWNtbjhwYjFkbHBpcXBiZWNkbm5hc2oxY3RpbThiYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260610-wed-block-3-team-led-sessions-teams-encouraged-t@shape-rotator-os",
       "summary": "Team-led sessions",
       "status": "confirmed",
@@ -1005,8 +899,6 @@
       "shape_key": "may-18-start-20260610-wed@shape-rotator-os#3"
     },
     "may-18-start-20260611-thu-block-2-icp-research-for-private-inference-s@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh64mn8q3l5lh6orr3dcmj4bb9cdo2qsj5edim2sj3d0mmcrri5lo74qbmc5q6abb9dpj6asj5dphmabbj81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjRtbjhxM2w1bGg2b3JyM2RjbWo0YmI5Y2RvMnFzajVlZGltMnNqM2QwbW1jcnJpNWxvNzRxYm1jNXE2YWJiOWRwajZhc2o1ZHBobWFiYmo4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260611-thu-block-2-icp-research-for-private-inference-s@shape-rotator-os",
       "summary": "ICP research for Private Inference (self-organized)",
       "status": "confirmed",
@@ -1024,8 +916,6 @@
       "shape_key": "may-18-start-20260611-thu@shape-rotator-os#2"
     },
     "may-18-start-20260611-thu@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh64mn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjRtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260611-thu@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1043,8 +933,6 @@
       "shape_key": "may-18-start-20260611-thu@shape-rotator-os#1"
     },
     "may-18-start-20260611-thu-block-3-design-thinking-workshop-agency-pres@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh64mn8q3l5lh6orr3dcmj6bb4clpmipre5lq6gqbeddkmsppdetnn4qrjd1nn0bb1ctimsorp5lo74pbj81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjRtbjhxM2w1bGg2b3JyM2RjbWo2YmI0Y2xwbWlwcmU1bHE2Z3FiZWRka21zcHBkZXRubjRxcmpkMW5uMGJiMWN0aW1zb3JwNWxvNzRwYmo4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260611-thu-block-3-design-thinking-workshop-agency-pres@shape-rotator-os",
       "summary": "Design Thinking Workshop",
       "status": "confirmed",
@@ -1062,8 +950,6 @@
       "shape_key": "may-18-start-20260611-thu@shape-rotator-os#3"
     },
     "may-18-start-20260611-thu-block-4-open-jams-muse-dinner-hackathon-team@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh64mn8q3l5lh6orr3dcmj8bbfe1imsbbac5mn6bbdelpmabb4d5n6spbi5lk62orbc5q6grre5lq6aobd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjRtbjhxM2w1bGg2b3JyM2RjbWo4YmJmZTFpbXNiYmFjNW1uNmJiZGVscG1hYmI0ZDVuNnNwYmk1bGs2Mm9yYmM1cTZncnJlNWxxNmFvYmQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260611-thu-block-4-open-jams-muse-dinner-hackathon-team@shape-rotator-os",
       "summary": "Open Jams / Muse Dinner | Hackathon team open jams + dinner at the Convent.",
       "status": "confirmed",
@@ -1081,8 +967,6 @@
       "shape_key": "may-18-start-20260611-thu@shape-rotator-os#4"
     },
     "may-18-start-20260612-fri-block-3-friday-night-hacking-begins-at-the-e@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh68mmcsj95lh6orr3dcmj6bb6e9km8obp5ln6ipr8egmmgob3ddkmsppdc9imeqbeecmm2t1dehk6abb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjhtbWNzajk1bGg2b3JyM2RjbWo2YmI2ZTlrbThvYnA1bG42aXByOGVnbW1nb2IzZGRrbXNwcGRjOWltZXFiZWVjbW0ydDFkZWhrNmFiYjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260612-fri-block-3-friday-night-hacking-begins-at-the-e@shape-rotator-os",
       "summary": "Friday night > Hacking begins | At the ETH NY venue or the Convent.",
       "status": "confirmed",
@@ -1098,8 +982,6 @@
       "shape_key": "may-18-start-20260612-fri@shape-rotator-os#3"
     },
     "may-18-start-20260612-fri@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh68mmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjhtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260612-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1117,8 +999,6 @@
       "shape_key": "may-18-start-20260612-fri@shape-rotator-os#1"
     },
     "may-18-start-20260612-fri-block-2-internal-eth-ny-product-review-demo-@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh68mmcsj95lh6orr3dcmj4bb9dpq6asjec5m2qpbkd0mmsu9de1p6up3lcdq2qsj5epkmatpdchimqrpd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjhtbWNzajk1bGg2b3JyM2RjbWo0YmI5ZHBxNmFzamVjNW0ycXBia2QwbW1zdTlkZTFwNnVwM2xjZHEycXNqNWVwa21hdHBkY2hpbXFycGQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260612-fri-block-2-internal-eth-ny-product-review-demo-@shape-rotator-os",
       "summary": "Internal ETH NY product review | Demo review + hackathon team goal-setting.",
       "status": "confirmed",
@@ -1136,8 +1016,6 @@
       "shape_key": "may-18-start-20260612-fri@shape-rotator-os#2"
     },
     "may-18-start-20260613-sat-block-2-ship-something-used-eth-ny-venue-or-@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6cmn6obk5lh6orr3dcmj4bbjd1kn0bbjdtmmat38d5n6ebbledim8bb5ehk2qrjp5lr6arjlckmmushd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNmNtbjZvYms1bGg2b3JyM2RjbWo0YmJqZDFrbjBiYmpkdG1tYXQzOGQ1bjZlYmJsZWRpbThiYjVlaGsycXJqcDVscjZhcmpsY2ttbXVzaGQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260613-sat-block-2-ship-something-used-eth-ny-venue-or-@shape-rotator-os",
       "summary": "Ship something used. ETH NY venue or the Convent.",
       "status": "confirmed",
@@ -1153,8 +1031,6 @@
       "shape_key": "may-18-start-20260613-sat@shape-rotator-os#2"
     },
     "may-18-start-20260613-sat@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6cmn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNmNtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260613-sat@shape-rotator-os",
       "summary": "All day / night Build",
       "status": "confirmed",
@@ -1170,8 +1046,6 @@
       "shape_key": "may-18-start-20260613-sat@shape-rotator-os#1"
     },
     "may-18-start-20260614-sun-submission-judging@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6gmn6tbe5lpnaojdd5pn6qbfdommktb4ctkmspq0edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNmdtbjZ0YmU1bHBuYW9qZGQ1cG42cWJmZG9tbWt0YjRjdGttc3BxMGVkazYyczM1NWxwNnV0MzFlaG5uNGJiZmVjIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260614-sun-submission-judging@shape-rotator-os",
       "summary": "Submission + judging",
       "status": "confirmed",
@@ -1189,8 +1063,6 @@
       "shape_key": "may-18-start-20260614-sun@shape-rotator-os#1"
     },
     "may-18-start-20260614-sun-shape-rotator-demo-night@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6gmn6tbe5lpmgobgckmn4rrkc5q6ushdchimqrpddpkmeq3k81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNmdtbjZ0YmU1bHBtZ29iZ2NrbW40cnJrYzVxNnVzaGRjaGltcXJwZGRwa21lcTNrODFwbWdvYmdja21uNHJya2M1cTZ1c2hkZHRwZyBjX2QzYzUxZjllZjI4MzUxYmQwZTkyNDQ5YTlkMGZhN2Y0YmYyN2M4YTI4NjYzMDlmOTZjNmUyMTc2YTUwYjAzZWRAZw",
       "ical_uid": "may-18-start-20260614-sun-shape-rotator-demo-night@shape-rotator-os",
       "summary": "Shape Rotator Demo Night",
       "status": "confirmed",
@@ -1208,8 +1080,6 @@
       "shape_key": "may-18-start-20260614-sun@shape-rotator-os#2"
     },
     "may-18-start-20260615-mon@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6kmmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNmttbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260615-mon@shape-rotator-os",
       "summary": "Mon-Tue: TEE Technical - AI and LLM Inference",
       "status": "confirmed",
@@ -1225,8 +1095,6 @@
       "shape_key": "may-18-start-20260615-mon@shape-rotator-os#1"
     },
     "may-18-start-20260616-tue@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6omn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNm9tbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260616-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1244,8 +1112,6 @@
       "shape_key": "may-18-start-20260616-tue@shape-rotator-os#1"
     },
     "may-18-start-20260617-wed@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6smnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNnNtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260617-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1263,8 +1129,6 @@
       "shape_key": "may-18-start-20260617-wed@shape-rotator-os#1"
     },
     "may-18-start-20260619-fri@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh74mmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNzRtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260619-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1282,8 +1146,6 @@
       "shape_key": "may-18-start-20260619-fri@shape-rotator-os#1"
     },
     "may-18-start-20260620-sat@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi60mn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNjBtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260620-sat@shape-rotator-os",
       "summary": "Convent",
       "status": "confirmed",
@@ -1299,8 +1161,6 @@
       "shape_key": "may-18-start-20260620-sat@shape-rotator-os#1"
     },
     "may-18-start-20260622-mon@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi68mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNjhtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260622-mon@shape-rotator-os",
       "summary": "Mon-Tue: Lecture: Go-to-Market (Eshita Nandini)",
       "status": "confirmed",
@@ -1316,8 +1176,6 @@
       "shape_key": "may-18-start-20260622-mon@shape-rotator-os#1"
     },
     "may-18-start-20260623-tue@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi6cmn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNmNtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260623-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1335,8 +1193,6 @@
       "shape_key": "may-18-start-20260623-tue@shape-rotator-os#1"
     },
     "may-18-start-20260624-wed@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi6gmnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNmdtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260624-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1354,8 +1210,6 @@
       "shape_key": "may-18-start-20260624-wed@shape-rotator-os#1"
     },
     "may-18-start-20260625-thu@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi6kmn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNmttbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260625-thu@shape-rotator-os",
       "summary": "Thu-Fri: Salon: Content and Marketing (Liz, Albi)",
       "status": "confirmed",
@@ -1371,8 +1225,6 @@
       "shape_key": "may-18-start-20260625-thu@shape-rotator-os#1"
     },
     "may-18-start-20260626-fri@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi6ommcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNm9tbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260626-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1390,8 +1242,6 @@
       "shape_key": "may-18-start-20260626-fri@shape-rotator-os#1"
     },
     "may-18-start-20260627-sat@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi6smn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNnNtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260627-sat@shape-rotator-os",
       "summary": "Convent",
       "status": "confirmed",
@@ -1407,8 +1257,6 @@
       "shape_key": "may-18-start-20260627-sat@shape-rotator-os#1"
     },
     "may-18-start-20260629-mon@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi74mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNzRtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260629-mon@shape-rotator-os",
       "summary": "Mon-Tue: Lecture: Legal and Policy (speaker via Gil)",
       "status": "confirmed",
@@ -1424,8 +1272,6 @@
       "shape_key": "may-18-start-20260629-mon@shape-rotator-os#1"
     },
     "may-18-start-20260630-tue@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhj60mn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhqNjBtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260630-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1443,8 +1289,6 @@
       "shape_key": "may-18-start-20260630-tue@shape-rotator-os#1"
     },
     "may-18-start-20260701-wed@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg64mnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNjRtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260701-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1462,8 +1306,6 @@
       "shape_key": "may-18-start-20260701-wed@shape-rotator-os#1"
     },
     "may-18-start-20260702-thu@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg68mn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNjhtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260702-thu@shape-rotator-os",
       "summary": "Thu-Fri: Cohort Builds itself Demo Day",
       "status": "confirmed",
@@ -1479,8 +1321,6 @@
       "shape_key": "may-18-start-20260702-thu@shape-rotator-os#1"
     },
     "may-18-start-20260703-fri@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg6cmmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNmNtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260703-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1498,8 +1338,6 @@
       "shape_key": "may-18-start-20260703-fri@shape-rotator-os#1"
     },
     "may-18-start-20260704-sat@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg6gmn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNmdtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260704-sat@shape-rotator-os",
       "summary": "Convent + Cornell Tech",
       "status": "confirmed",
@@ -1515,8 +1353,6 @@
       "shape_key": "may-18-start-20260704-sat@shape-rotator-os#1"
     },
     "may-18-start-20260706-mon@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg6ommqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNm9tbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260706-mon@shape-rotator-os",
       "summary": "Mon-Tue: Lecture: Fundraising + Incentive Design (speakers via Gil)",
       "status": "confirmed",
@@ -1532,8 +1368,6 @@
       "shape_key": "may-18-start-20260706-mon@shape-rotator-os#1"
     },
     "may-18-start-20260707-tue@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg6smn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNnNtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260707-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1551,8 +1385,6 @@
       "shape_key": "may-18-start-20260707-tue@shape-rotator-os#1"
     },
     "may-18-start-20260708-wed@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg70mnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNzBtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260708-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1570,8 +1402,6 @@
       "shape_key": "may-18-start-20260708-wed@shape-rotator-os#1"
     },
     "may-18-start-20260709-thu@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg74mn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNzRtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260709-thu@shape-rotator-os",
       "summary": "Thu-Fri: TEE Technical: P2P and Self-Host Day (dmarz et al.)",
       "status": "confirmed",
@@ -1587,8 +1417,6 @@
       "shape_key": "may-18-start-20260709-thu@shape-rotator-os#1"
     },
     "may-18-start-20260710-fri@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph60mmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNjBtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260710-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1606,8 +1434,6 @@
       "shape_key": "may-18-start-20260710-fri@shape-rotator-os#1"
     },
     "may-18-start-20260711-sat@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph64mn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNjRtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260711-sat@shape-rotator-os",
       "summary": "Convent + Cornell Tech",
       "status": "confirmed",
@@ -1623,8 +1449,6 @@
       "shape_key": "may-18-start-20260711-sat@shape-rotator-os#1"
     },
     "may-18-start-20260713-mon@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph6cmmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNmNtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260713-mon@shape-rotator-os",
       "summary": "Mon-Tue: People Ops + Business Development",
       "status": "confirmed",
@@ -1640,8 +1464,6 @@
       "shape_key": "may-18-start-20260713-mon@shape-rotator-os#1"
     },
     "may-18-start-20260714-tue@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph6gmn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNmdtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260714-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1659,8 +1481,6 @@
       "shape_key": "may-18-start-20260714-tue@shape-rotator-os#1"
     },
     "may-18-start-20260715-wed@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph6kmnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNmttbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260715-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1678,8 +1498,6 @@
       "shape_key": "may-18-start-20260715-wed@shape-rotator-os#1"
     },
     "may-18-start-20260716-thu@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph6omn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNm9tbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260716-thu@shape-rotator-os",
       "summary": "Thu-Fri: Pitch practice + VC intros",
       "status": "confirmed",
@@ -1695,8 +1513,6 @@
       "shape_key": "may-18-start-20260716-thu@shape-rotator-os#1"
     },
     "may-18-start-20260717-fri@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph6smmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNnNtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260717-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1714,8 +1530,6 @@
       "shape_key": "may-18-start-20260717-fri@shape-rotator-os#1"
     },
     "may-18-start-20260718-sat@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph70mn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNzBtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260718-sat@shape-rotator-os",
       "summary": "Convent + Cornell Tech · Sat Jul 18 (Andrew → Berlin)",
       "status": "confirmed",
@@ -1731,8 +1545,6 @@
       "shape_key": "may-18-start-20260718-sat@shape-rotator-os#1"
     },
     "may-18-start-20260720-mon@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi60mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNjBtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260720-mon@shape-rotator-os",
       "summary": "Mon-Tue: Convergence: investor + partner feedback · Final product polish",
       "status": "confirmed",
@@ -1748,8 +1560,6 @@
       "shape_key": "may-18-start-20260720-mon@shape-rotator-os#1"
     },
     "may-18-start-20260721-tue@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi64mn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNjRtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260721-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1767,8 +1577,6 @@
       "shape_key": "may-18-start-20260721-tue@shape-rotator-os#1"
     },
     "may-18-start-20260722-wed@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi68mnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNjhtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260722-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1786,8 +1594,6 @@
       "shape_key": "may-18-start-20260722-wed@shape-rotator-os#1"
     },
     "may-18-start-20260723-thu@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi6cmn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNmNtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260723-thu@shape-rotator-os",
       "summary": "Thu-Fri: **Final Demo Day #2 (Thu Jul 23 or Fri Jul 24)**",
       "status": "confirmed",
@@ -1803,8 +1609,6 @@
       "shape_key": "may-18-start-20260723-thu@shape-rotator-os#1"
     },
     "may-18-start-20260724-fri@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi6gmmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNmdtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260724-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1822,8 +1626,6 @@
       "shape_key": "may-18-start-20260724-fri@shape-rotator-os#1"
     },
     "may-18-start-20260725-sat@shape-rotator-os": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi6kmn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNmttbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260725-sat@shape-rotator-os",
       "summary": "Convent + Cornell Tech · Demo Day weekend",
       "status": "confirmed",
@@ -1841,8 +1643,6 @@
   },
   "by_shape_key": {
     "may-18-start-20260518-mon@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h70mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzBtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260518-mon@shape-rotator-os",
       "summary": "onboarding",
       "status": "confirmed",
@@ -1860,8 +1660,6 @@
       "shape_key": "may-18-start-20260518-mon@shape-rotator-os#1"
     },
     "may-18-start-20260518-mon@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h70mmqrre5lh6orr3dcmj4bbkclgiqrre5lp6urr681pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzBtbXFycmU1bGg2b3JyM2RjbWo0YmJrY2xnaXFycmU1bHA2dXJyNjgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260518-mon-block-2-tea-on-roof@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1879,8 +1677,6 @@
       "shape_key": "may-18-start-20260518-mon@shape-rotator-os#2"
     },
     "may-18-start-20260518-mon@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h70mmqrre5lh6orr3dcmj6bbfdph6uobichkmsppdcdnmst1dch076q31e1iiqsjfehgn8rri5lnn6",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzBtbXFycmU1bGg2b3JyM2RjbWo2YmJmZHBoNnVvYmljaGttc3BwZGNkbm1zdDFkY2gwNzZxMzFlMWlpcXNqZmVoZ244cnJpNWxubjYgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260518-mon-block-3-onboarding-cont-d@shape-rotator-os",
       "summary": "onboarding (cont'd)",
       "status": "confirmed",
@@ -1898,8 +1694,6 @@
       "shape_key": "may-18-start-20260518-mon@shape-rotator-os#3"
     },
     "may-18-start-20260518-mon@shape-rotator-os#4": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h70mmqrre5lh6orr3dcmj8bbbd5hmmrr6comm8qbedpin4bb1eli6it3fe9knara0edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzBtbXFycmU1bGg2b3JyM2RjbWo4YmJiZDVobW1ycjZjb21tOHFiZWRwaW40YmIxZWxpNml0M2ZlOWtuYXJhMGVkazYyczM1NWxwNnV0MzFlaG5uNGJiZmVjIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260518-mon-block-4-kickoff-dinner-auditorium@shape-rotator-os",
       "summary": "kickoff dinner @ Auditorium",
       "status": "confirmed",
@@ -1917,8 +1711,6 @@
       "shape_key": "may-18-start-20260518-mon@shape-rotator-os#4"
     },
     "may-18-start-20260519-tue@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h74mn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzRtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260519-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -1936,8 +1728,6 @@
       "shape_key": "may-18-start-20260519-tue@shape-rotator-os#1"
     },
     "may-18-start-20260519-tue@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h74mn8tb55lh6orr3dcmj4bbge9nmkpb3egmmirjke9nn6bbndtp6mpjcdtrk0sr8c5o6abbidtq62t3fe8mmuso",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzRtbjh0YjU1bGg2b3JyM2RjbWo0YmJnZTlubWtwYjNlZ21taXJqa2U5bm42YmJuZHRwNm1wamNkdHJrMHNyOGM1bzZhYmJpZHRxNjJ0M2ZlOG1tdXNvIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260519-tue-block-2-project-intros-workflow@shape-rotator-os",
       "summary": "Project intros&workflow",
       "status": "confirmed",
@@ -1955,8 +1745,6 @@
       "shape_key": "may-18-start-20260519-tue@shape-rotator-os#2"
     },
     "may-18-start-20260519-tue@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9h74mn8tb55lh6orr3dcmj6bb6dtqmsp35e8mmsqb7d1q2qor1e9q6ashdcdm6atj5dhgmsp20edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDloNzRtbjh0YjU1bGg2b3JyM2RjbWo2YmI2ZHRxbXNwMzVlOG1tc3FiN2QxcTJxb3IxZTlxNmFzaGRjZG02YXRqNWRoZ21zcDIwZWRrNjJzMzU1bHA2dXQzMWVobm40YmJmZWMgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260519-tue-block-3-founder-night-carter-cleveland@shape-rotator-os",
       "summary": "Founder night - Carter Cleveland",
       "status": "confirmed",
@@ -1974,8 +1762,6 @@
       "shape_key": "may-18-start-20260519-tue@shape-rotator-os#3"
     },
     "may-18-start-20260520-wed@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i60mnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjBtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260520-wed@shape-rotator-os",
       "summary": "Tutorial: Dstack",
       "status": "confirmed",
@@ -1993,8 +1779,6 @@
       "shape_key": "may-18-start-20260520-wed@shape-rotator-os#1"
     },
     "may-18-start-20260520-wed@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i60mnepb45lh6orr3dcmj4bbkclgiqrre5lp6urr681pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjBtbmVwYjQ1bGg2b3JyM2RjbWo0YmJrY2xnaXFycmU1bHA2dXJyNjgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260520-wed-block-2-tea-on-roof@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2012,8 +1796,6 @@
       "shape_key": "may-18-start-20260520-wed@shape-rotator-os#2"
     },
     "may-18-start-20260520-wed@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i60mnepb45lh6orr3dcmj6bbge9nmkpb3egmmirjke9nn6bbjc5m6urhde9nmura0edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjBtbmVwYjQ1bGg2b3JyM2RjbWo2YmJnZTlubWtwYjNlZ21taXJqa2U5bm42YmJqYzVtNnVyaGRlOW5tdXJhMGVkazYyczM1NWxwNnV0MzFlaG5uNGJiZmVjIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260520-wed-block-3-project-intros-salon-room@shape-rotator-os",
       "summary": "Project Intros (Salon room)",
       "status": "confirmed",
@@ -2031,8 +1813,6 @@
       "shape_key": "may-18-start-20260520-wed@shape-rotator-os#3"
     },
     "may-18-start-20260520-wed@shape-rotator-os#4": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i60mnepb45lh6orr3dcmj8bb6dtqmsp35e8mn6bbadtqn4rj5f4mm2tb4d5q6usj9elmk0sr8c5o6abbidtq62t3fe8mmuso",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjBtbmVwYjQ1bGg2b3JyM2RjbWo4YmI2ZHRxbXNwMzVlOG1uNmJiYWR0cW40cmo1ZjRtbTJ0YjRkNXE2dXNqOWVsbWswc3I4YzVvNmFiYmlkdHE2MnQzZmU4bW11c28gY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260520-wed-block-4-founder-s-journey-auditorium@shape-rotator-os",
       "summary": "Founder's journey (Auditorium)",
       "status": "confirmed",
@@ -2050,8 +1830,6 @@
       "shape_key": "may-18-start-20260520-wed@shape-rotator-os#4"
     },
     "may-18-start-20260521-thu@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i64mn8q3l5lh6orr3dcmj4bbkelq6usj9c5m2qp3ldlh2qob7cln78bbke9km6qrj5lkmssrkc5m6obb881pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjRtbjhxM2w1bGg2b3JyM2RjbWo0YmJrZWxxNnVzajljNW0ycXAzbGRsaDJxb2I3Y2xuNzhiYmtlOWttNnFyajVsa21zc3JrYzVtNm9iYjg4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260521-thu-block-2-tutorial-dumb-agent-tricks-install-h@shape-rotator-os",
       "summary": "Tutorial: Dumb agent tricks, install hermes",
       "status": "confirmed",
@@ -2069,8 +1847,6 @@
       "shape_key": "may-18-start-20260521-thu@shape-rotator-os#2"
     },
     "may-18-start-20260521-thu@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i64mn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjRtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260521-thu@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2088,8 +1864,6 @@
       "shape_key": "may-18-start-20260521-thu@shape-rotator-os#1"
     },
     "may-18-start-20260521-thu@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i64mn8q3l5lh6orr3dcmj6bbddtp6abbfdph6uobichkmsppddtn2qsr9ehiiqsj5d5jn6t3ic5q6irre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjRtbjhxM2w1bGg2b3JyM2RjbWo2YmJkZHRwNmFiYmZkcGg2dW9iaWNoa21zcHBkZHRuMnFzcjllaGlpcXNqNWQ1am42dDNpYzVxNmlycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260521-thu-block-3-more-onboarding-on-site-reigstration@shape-rotator-os",
       "summary": "More onboarding & on-site reigstration",
       "status": "confirmed",
@@ -2107,8 +1881,6 @@
       "shape_key": "may-18-start-20260521-thu@shape-rotator-os#3"
     },
     "may-18-start-20260521-thu@shape-rotator-os#4": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i64mn8q3l5lh6orr3dcmj8bbge9nmkpb3egmmirjke9nn6g3jd1gn0p9de9nn8obkdtp2qrrj",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjRtbjhxM2w1bGg2b3JyM2RjbWo4YmJnZTlubWtwYjNlZ21taXJqa2U5bm42ZzNqZDFnbjBwOWRlOW5uOG9ia2R0cDJxcnJqIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260521-thu-block-4-project-intros@shape-rotator-os",
       "summary": "Project Intros",
       "status": "confirmed",
@@ -2126,8 +1898,6 @@
       "shape_key": "may-18-start-20260521-thu@shape-rotator-os#4"
     },
     "may-18-start-20260521-thu@shape-rotator-os#5": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i64mn8q3l5lh6orr3dcmjabbpdtjm2g3jd1gn0p9de9nn8obkdtp2qrrj",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjRtbjhxM2w1bGg2b3JyM2RjbWphYmJwZHRqbTJnM2pkMWduMHA5ZGU5bm44b2JrZHRwMnFycmogY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260521-thu-block-5-yoga@shape-rotator-os",
       "summary": "Yoga",
       "status": "confirmed",
@@ -2145,8 +1915,6 @@
       "shape_key": "may-18-start-20260521-thu@shape-rotator-os#5"
     },
     "may-18-start-20260522-fri@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i68mmcsj95lh6orr3dcmj6bbgdlj2qsjfc5pn8bbn5lq6irj15lgmsp1dctp6appdehk6abb7e9imaqq0edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjhtbWNzajk1bGg2b3JyM2RjbWo2YmJnZGxqMnFzamZjNXBuOGJibjVscTZpcmoxNWxnbXNwMWRjdHA2YXBwZGVoazZhYmI3ZTlpbWFxcTBlZGs2MnMzNTVscDZ1dDMxZWhubjRiYmZlYyBjX2QzYzUxZjllZjI4MzUxYmQwZTkyNDQ5YTlkMGZhN2Y0YmYyN2M4YTI4NjYzMDlmOTZjNmUyMTc2YTUwYjAzZWRAZw",
       "ical_uid": "may-18-start-20260522-fri-block-3-pmf-roast-w-tina-and-greg-the-greek@shape-rotator-os",
       "summary": "PMF Roast w/ Tina and Greg The Greek",
       "status": "confirmed",
@@ -2164,8 +1932,6 @@
       "shape_key": "may-18-start-20260522-fri@shape-rotator-os#3"
     },
     "may-18-start-20260522-fri@shape-rotator-os#4": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i68mmcsj95lh6orr3dcmj8bb6dtqmsp35e9piqqjfelp6spbp5lriqsr8c5rk0sr8c5o6abbidtq62t3fe8mmuso",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjhtbWNzajk1bGg2b3JyM2RjbWo4YmI2ZHRxbXNwMzVlOXBpcXFqZmVscDZzcGJwNWxyaXFzcjhjNXJrMHNyOGM1bzZhYmJpZHRxNjJ0M2ZlOG1tdXNvIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260522-fri-block-4-founders-journey-w-shaw@shape-rotator-os",
       "summary": "Founders Journey w/ Shaw",
       "status": "confirmed",
@@ -2183,8 +1949,6 @@
       "shape_key": "may-18-start-20260522-fri@shape-rotator-os#4"
     },
     "may-18-start-20260522-fri@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i68mmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjhtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260522-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2202,8 +1966,6 @@
       "shape_key": "may-18-start-20260522-fri@shape-rotator-os#1"
     },
     "may-18-start-20260522-fri@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i68mmcsj95lh6orr3dcmj4bb9dpq74rr4elhmabbkd5n62g3jd1gn0p9de9nn8obkdtp2qrrj",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNjhtbWNzajk1bGg2b3JyM2RjbWo0YmI5ZHBxNzRycjRlbGhtYWJia2Q1bjYyZzNqZDFnbjBwOWRlOW5uOG9ia2R0cDJxcnJqIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260522-fri-block-2-introduce-tina@shape-rotator-os",
       "summary": "Introduce Tina,",
       "status": "confirmed",
@@ -2221,8 +1983,6 @@
       "shape_key": "may-18-start-20260522-fri@shape-rotator-os#2"
     },
     "may-18-start-20260525-mon@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6kmmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNmttbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260525-mon@shape-rotator-os",
       "summary": "Memorial Day",
       "status": "confirmed",
@@ -2238,8 +1998,6 @@
       "shape_key": "may-18-start-20260525-mon@shape-rotator-os#1"
     },
     "may-18-start-20260525-mon@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6kmmqrre5lh6orr3dcmj4bb1dpi74pbn5lk62spddtj6cqb3ckmmgrrle9piqqbe5lpm2r3fdomn4rrf81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNmttbXFycmU1bGg2b3JyM2RjbWo0YmIxZHBpNzRwYm41bGs2MnNwZGR0ajZjcWIzY2ttbWdycmxlOXBpcXFiZTVscG0ycjNmZG9tbjRycmY4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260525-mon-block-2-andrew-has-office-hours-in-salon-roo@shape-rotator-os",
       "summary": ". Andrew has office hours (in salon room)",
       "status": "confirmed",
@@ -2257,8 +2015,6 @@
       "shape_key": "may-18-start-20260525-mon@shape-rotator-os#2"
     },
     "may-18-start-20260525-mon@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6kmmqrre5lh6orr3dcmj6bbdelpmabb4d5n6spbi81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNmttbXFycmU1bGg2b3JyM2RjbWo2YmJkZWxwbWFiYjRkNW42c3BiaTgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260525-mon-block-3-muse-dinner@shape-rotator-os",
       "summary": "muse dinner",
       "status": "confirmed",
@@ -2276,8 +2032,6 @@
       "shape_key": "may-18-start-20260525-mon@shape-rotator-os#3"
     },
     "may-18-start-20260526-tue@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6omn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNm9tbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260526-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2295,8 +2049,6 @@
       "shape_key": "may-18-start-20260526-tue@shape-rotator-os#1"
     },
     "may-18-start-20260526-tue@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6omn8tb55lh6orr3dcmj4bbge9nmkpb3egmmirjke9nn6g3jd1gn0p9de9nn8obkdtp2qrrj",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNm9tbjh0YjU1bGg2b3JyM2RjbWo0YmJnZTlubWtwYjNlZ21taXJqa2U5bm42ZzNqZDFnbjBwOWRlOW5uOG9ia2R0cDJxcnJqIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260526-tue-block-2-project-intros@shape-rotator-os",
       "summary": "Project Intros",
       "status": "confirmed",
@@ -2314,8 +2066,6 @@
       "shape_key": "may-18-start-20260526-tue@shape-rotator-os#2"
     },
     "may-18-start-20260526-tue@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6omn8tb55lh6orr3dcmj6bbcclhn8tbickmm8pb6d5n6irj75lo74rr4elhn8bbdc5p6mpbk5lj6it20edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNm9tbjh0YjU1bGg2b3JyM2RjbWo2YmJjY2xobjh0Ymlja21tOHBiNmQ1bjZpcmo3NWxvNzRycjRlbGhuOGJiZGM1cDZtcGJrNWxqNml0MjBlZGs2MnMzNTVscDZ1dDMxZWhubjRiYmZlYyBjX2QzYzUxZjllZjI4MzUxYmQwZTkyNDQ5YTlkMGZhN2Y0YmYyN2M4YTI4NjYzMDlmOTZjNmUyMTc2YTUwYjAzZWRAZw",
       "ical_uid": "may-18-start-20260526-tue-block-3-lecture-defining-product-market-fit@shape-rotator-os",
       "summary": "Lecture - Defining Product Market Fit",
       "status": "confirmed",
@@ -2333,8 +2083,6 @@
       "shape_key": "may-18-start-20260526-tue@shape-rotator-os#3"
     },
     "may-18-start-20260526-tue@shape-rotator-os#4": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6omn8tb55lh6orr3dcmj8bb3dtmmqtbed5q7ibb4d5n6spbi5lkmsbb1eli6it3fe9knar9dcdk6aphd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNm9tbjh0YjU1bGg2b3JyM2RjbWo4YmIzZHRtbXF0YmVkNXE3aWJiNGQ1bjZzcGJpNWxrbXNiYjFlbGk2aXQzZmU5a25hcjlkY2RrNmFwaGQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260526-tue-block-4-community-dinner-in-auditorium-chef-@shape-rotator-os",
       "summary": "Community Dinner in auditorium (Chef Matt presents)",
       "status": "confirmed",
@@ -2352,8 +2100,6 @@
       "shape_key": "may-18-start-20260526-tue@shape-rotator-os#4"
     },
     "may-18-start-20260527-wed@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6smnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNnNtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260527-wed@shape-rotator-os",
       "summary": "(James, Andrew) Onboarding for teleport router, q&a",
       "status": "confirmed",
@@ -2371,8 +2117,6 @@
       "shape_key": "may-18-start-20260527-wed@shape-rotator-os#1"
     },
     "may-18-start-20260527-wed@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6smnepb45lh6orr3dcmj4bbkclgiqrre5lp6urr681pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNnNtbmVwYjQ1bGg2b3JyM2RjbWo0YmJrY2xnaXFycmU1bHA2dXJyNjgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260527-wed-block-2-tea-on-roof@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2390,8 +2134,6 @@
       "shape_key": "may-18-start-20260527-wed@shape-rotator-os#2"
     },
     "may-18-start-20260527-wed@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6smnepb45lh6orr3dcmj6bbjc5m6urhdd5i6aobc5lhnasrkdtmmashde1p6upj9dhkmsppdelpmashd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNnNtbmVwYjQ1bGg2b3JyM2RjbWo2YmJqYzVtNnVyaGRkNWk2YW9iYzVsaG5hc3JrZHRtbWFzaGRlMXA2dXBqOWRoa21zcHBkZWxwbWFzaGQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260527-wed-block-3-salon-ideal-customer-profiling-user-@shape-rotator-os",
       "summary": "Salon: Ideal Customer Profiling, User Interviews (James)",
       "status": "confirmed",
@@ -2409,8 +2151,6 @@
       "shape_key": "may-18-start-20260527-wed@shape-rotator-os#3"
     },
     "may-18-start-20260527-wed@shape-rotator-os#4": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6smnepb45lh6orr3dcmj8bb6dhgn6q3eclq2qqj1dkmm8rb1e9t40sr8c5o6abbidtq62t3fe8mmuso",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNnNtbmVwYjQ1bGg2b3JyM2RjbWo4YmI2ZGhnbjZxM2VjbHEycXFqMWRrbW04cmIxZTl0NDBzcjhjNW82YWJiaWR0cTYydDNmZThtbXVzbyBjX2QzYzUxZjllZjI4MzUxYmQwZTkyNDQ5YTlkMGZhN2Y0YmYyN2M4YTI4NjYzMDlmOTZjNmUyMTc2YTUwYjAzZWRAZw",
       "ical_uid": "may-18-start-20260527-wed-block-4-flashnet-jam-dmarz@shape-rotator-os",
       "summary": "Flashnet jam (Dmarz)",
       "status": "confirmed",
@@ -2428,8 +2168,6 @@
       "shape_key": "may-18-start-20260527-wed@shape-rotator-os#4"
     },
     "may-18-start-20260527-wed@shape-rotator-os#5": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i6smnepb45lh6orr3dcmjabbcdtriqqr5f4mm8qbedpin4bb1eli6it3fe9knara0edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNnNtbmVwYjQ1bGg2b3JyM2RjbWphYmJjZHRyaXFxcjVmNG1tOHFiZWRwaW40YmIxZWxpNml0M2ZlOWtuYXJhMGVkazYyczM1NWxwNnV0MzFlaG5uNGJiZmVjIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260527-wed-block-5-low-key-dinner-auditorium@shape-rotator-os",
       "summary": "low key dinner (auditorium)",
       "status": "confirmed",
@@ -2447,8 +2185,6 @@
       "shape_key": "may-18-start-20260527-wed@shape-rotator-os#5"
     },
     "may-18-start-20260528-thu@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i70mn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNzBtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260528-thu@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2466,8 +2202,6 @@
       "shape_key": "may-18-start-20260528-thu@shape-rotator-os#1"
     },
     "may-18-start-20260528-thu@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i70mn8q3l5lh6orr3dcmj4bb1ctimst39ccmn8rrfdhkmsppdetnn4qrjd1nn0spdcdm6irj9cd076q31e1iiqsjfehgn8rri5lnn6",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNzBtbjhxM2w1bGg2b3JyM2RjbWo0YmIxY3RpbXN0MzljY21uOHJyZmRoa21zcHBkZXRubjRxcmpkMW5uMHNwZGNkbTZpcmo5Y2QwNzZxMzFlMWlpcXNqZmVoZ244cnJpNWxubjYgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260528-thu-block-2-agentic-tooling-workshops-clinic@shape-rotator-os",
       "summary": "Agentic Tooling workshops/clinic",
       "status": "confirmed",
@@ -2485,8 +2219,6 @@
       "shape_key": "may-18-start-20260528-thu@shape-rotator-os#2"
     },
     "may-18-start-20260529-fri@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i74mmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNzRtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260529-fri@shape-rotator-os",
       "summary": "router onboarding/workshop",
       "status": "confirmed",
@@ -2504,8 +2236,6 @@
       "shape_key": "may-18-start-20260529-fri@shape-rotator-os#1"
     },
     "may-18-start-20260529-fri@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i74mmcsj95lh6orr3dcmj4bbkclgiqrre5lp6urr681pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNzRtbWNzajk1bGg2b3JyM2RjbWo0YmJrY2xnaXFycmU1bHA2dXJyNjgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260529-fri-block-2-tea-on-roof@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2523,8 +2253,6 @@
       "shape_key": "may-18-start-20260529-fri@shape-rotator-os#2"
     },
     "may-18-start-20260529-fri@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9i74mmcsj95lh6orr3dcmj6bbjdtp78qbecsmmgobk5li6irjeclp2qt39dpgk0sr8c5o6abbidtq62t3fe8mmuso",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlpNzRtbWNzajk1bGg2b3JyM2RjbWo2YmJqZHRwNzhxYmVjc21tZ29iazVsaTZpcmplY2xwMnF0MzlkcGdrMHNyOGM1bzZhYmJpZHRxNjJ0M2ZlOG1tdXNvIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260529-fri-block-3-sorting-hat-dinner-tina@shape-rotator-os",
       "summary": "sorting hat dinner (Tina)",
       "status": "confirmed",
@@ -2542,8 +2270,6 @@
       "shape_key": "may-18-start-20260529-fri@shape-rotator-os#3"
     },
     "may-18-start-20260530-sat@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30d9j60mn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZDlqNjBtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260530-sat@shape-rotator-os",
       "summary": "Convent",
       "status": "confirmed",
@@ -2559,8 +2285,6 @@
       "shape_key": "may-18-start-20260530-sat@shape-rotator-os#1"
     },
     "may-18-start-20260601-mon@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg64mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNjRtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260601-mon@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2578,8 +2302,6 @@
       "shape_key": "may-18-start-20260601-mon@shape-rotator-os#1"
     },
     "may-18-start-20260602-tue@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg68mn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNjhtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260602-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2597,8 +2319,6 @@
       "shape_key": "may-18-start-20260602-tue@shape-rotator-os#1"
     },
     "may-18-start-20260603-wed@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg6cmnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNmNtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260603-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2616,8 +2336,6 @@
       "shape_key": "may-18-start-20260603-wed@shape-rotator-os#1"
     },
     "may-18-start-20260604-thu@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg6gmn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNmdtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260604-thu@shape-rotator-os",
       "summary": "Thu — group activity, sculpture garden",
       "status": "confirmed",
@@ -2633,8 +2351,6 @@
       "shape_key": "may-18-start-20260604-thu@shape-rotator-os#1"
     },
     "may-18-start-20260605-fri@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg6kmmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNmttbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260605-fri@shape-rotator-os",
       "summary": "Fri — reception at art museum (overlap w/ shaperotator)",
       "status": "confirmed",
@@ -2650,8 +2366,6 @@
       "shape_key": "may-18-start-20260605-fri@shape-rotator-os#1"
     },
     "may-18-start-20260607-sun@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg6smn6tbe81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNnNtbjZ0YmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260607-sun@shape-rotator-os",
       "summary": "Eth Global hackathon due",
       "status": "confirmed",
@@ -2669,8 +2383,6 @@
       "shape_key": "may-18-start-20260607-sun@shape-rotator-os#1"
     },
     "may-18-start-20260608-mon@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg70mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzBtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260608-mon@shape-rotator-os",
       "summary": "Agentic Organizations with Sreeram @EigenLabs",
       "status": "confirmed",
@@ -2688,8 +2400,6 @@
       "shape_key": "may-18-start-20260608-mon@shape-rotator-os#1"
     },
     "may-18-start-20260608-mon@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg70mmqrre5lh6orr3dcmj4bbkclgiqrre5lp6urr681pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzBtbXFycmU1bGg2b3JyM2RjbWo0YmJrY2xnaXFycmU1bHA2dXJyNjgxcG1nb2JnY2ttbjRycmtjNXE2dXNoZGR0cGcgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260608-mon-block-2-tea-on-roof@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2707,8 +2417,6 @@
       "shape_key": "may-18-start-20260608-mon@shape-rotator-os#2"
     },
     "may-18-start-20260608-mon@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg70mmqrre5lh6orr3dcmj6bbnchsm8r3n5lrmit385lpmgobn5lgn6bbddti6asj1ehnn4bbkd1iiqobl81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzBtbXFycmU1bGg2b3JyM2RjbWo2YmJuY2hzbThyM241bHJtaXQzODVscG1nb2JuNWxnbjZiYmRkdGk2YXNqMWVobm40YmJrZDFpaXFvYmw4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260608-mon-block-3-wdydlw-with-shaw-as-moderator-the-au@shape-rotator-os",
       "summary": "WDYDLW with Shaw as Moderator @ the auditorium",
       "status": "confirmed",
@@ -2726,8 +2434,6 @@
       "shape_key": "may-18-start-20260608-mon@shape-rotator-os#3"
     },
     "may-18-start-20260609-tue@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg74mn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzRtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260609-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2745,8 +2451,6 @@
       "shape_key": "may-18-start-20260609-tue@shape-rotator-os#1"
     },
     "may-18-start-20260609-tue@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg74mn8tb55lh6orr3dcmj4bbgdlj2qor8clhmmbbgdtkmst20edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzRtbjh0YjU1bGg2b3JyM2RjbWo0YmJnZGxqMnFvcjhjbGhtbWJiZ2R0a21zdDIwZWRrNjJzMzU1bHA2dXQzMWVobm40YmJmZWMgY19kM2M1MWY5ZWYyODM1MWJkMGU5MjQ0OWE5ZDBmYTdmNGJmMjdjOGEyODY2MzA5Zjk2YzZlMjE3NmE1MGIwM2VkQGc",
       "ical_uid": "may-18-start-20260609-tue-block-2-pmf-check-point@shape-rotator-os",
       "summary": "PMF Checkpoint",
       "status": "confirmed",
@@ -2764,8 +2468,6 @@
       "shape_key": "may-18-start-20260609-tue@shape-rotator-os#2"
     },
     "may-18-start-20260609-tue@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhg74mn8tb55lh6orr3dcmj6bb9dpj6ubbdc5p6mpbkecmm8pbjd5jmsbb8dtpn8pb45lh7ibbmd5n6su9d81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhnNzRtbjh0YjU1bGg2b3JyM2RjbWo2YmI5ZHBqNnViYmRjNXA2bXBia2VjbW04cGJqZDVqbXNiYjhkdHBuOHBiNDVsaDdpYmJtZDVuNnN1OWQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260609-tue-block-3-info-markets-design-hosted-by-vinny-@shape-rotator-os",
       "summary": "Info Markets Design",
       "status": "confirmed",
@@ -2783,8 +2485,6 @@
       "shape_key": "may-18-start-20260609-tue@shape-rotator-os#3"
     },
     "may-18-start-20260610-wed@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh60mnepb45lh6orr3dcmj4bb1dpgn4or8f4mm8obp5lo74rrkclhn8pb45lh7aqbccgmn8qbdckmmsrpd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjBtbmVwYjQ1bGg2b3JyM2RjbWo0YmIxZHBnbjRvcjhmNG1tOG9icDVsbzc0cnJrY2xobjhwYjQ1bGg3YXFiY2NnbW44cWJkY2ttbXNycGQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260610-wed-block-2-anarchy-day-protected-build-time-no-@shape-rotator-os",
       "summary": "Anarchy Day protected build time. No Shape Rotator programming.",
       "status": "confirmed",
@@ -2800,8 +2500,6 @@
       "shape_key": "may-18-start-20260610-wed@shape-rotator-os#2"
     },
     "may-18-start-20260610-wed@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh60mnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjBtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260610-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2819,8 +2517,6 @@
       "shape_key": "may-18-start-20260610-wed@shape-rotator-os#1"
     },
     "may-18-start-20260610-wed@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh60mnepb45lh6orr3dcmj6bbkclgmqbbccli2qsr5edpmirreecmn8pb1dlpiqpbecdnnasj1ctim8bbk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjBtbmVwYjQ1bGg2b3JyM2RjbWo2YmJrY2xnbXFiYmNjbGkycXNyNWVkcG1pcnJlZWNtbjhwYjFkbHBpcXBiZWNkbm5hc2oxY3RpbThiYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260610-wed-block-3-team-led-sessions-teams-encouraged-t@shape-rotator-os",
       "summary": "Team-led sessions",
       "status": "confirmed",
@@ -2838,8 +2534,6 @@
       "shape_key": "may-18-start-20260610-wed@shape-rotator-os#3"
     },
     "may-18-start-20260611-thu@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh64mn8q3l5lh6orr3dcmj4bb9cdo2qsj5edim2sj3d0mmcrri5lo74qbmc5q6abb9dpj6asj5dphmabbj81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjRtbjhxM2w1bGg2b3JyM2RjbWo0YmI5Y2RvMnFzajVlZGltMnNqM2QwbW1jcnJpNWxvNzRxYm1jNXE2YWJiOWRwajZhc2o1ZHBobWFiYmo4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260611-thu-block-2-icp-research-for-private-inference-s@shape-rotator-os",
       "summary": "ICP research for Private Inference (self-organized)",
       "status": "confirmed",
@@ -2857,8 +2551,6 @@
       "shape_key": "may-18-start-20260611-thu@shape-rotator-os#2"
     },
     "may-18-start-20260611-thu@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh64mn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjRtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260611-thu@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2876,8 +2568,6 @@
       "shape_key": "may-18-start-20260611-thu@shape-rotator-os#1"
     },
     "may-18-start-20260611-thu@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh64mn8q3l5lh6orr3dcmj6bb4clpmipre5lq6gqbeddkmsppdetnn4qrjd1nn0bb1ctimsorp5lo74pbj81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjRtbjhxM2w1bGg2b3JyM2RjbWo2YmI0Y2xwbWlwcmU1bHE2Z3FiZWRka21zcHBkZXRubjRxcmpkMW5uMGJiMWN0aW1zb3JwNWxvNzRwYmo4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260611-thu-block-3-design-thinking-workshop-agency-pres@shape-rotator-os",
       "summary": "Design Thinking Workshop",
       "status": "confirmed",
@@ -2895,8 +2585,6 @@
       "shape_key": "may-18-start-20260611-thu@shape-rotator-os#3"
     },
     "may-18-start-20260611-thu@shape-rotator-os#4": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh64mn8q3l5lh6orr3dcmj8bbfe1imsbbac5mn6bbdelpmabb4d5n6spbi5lk62orbc5q6grre5lq6aobd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjRtbjhxM2w1bGg2b3JyM2RjbWo4YmJmZTFpbXNiYmFjNW1uNmJiZGVscG1hYmI0ZDVuNnNwYmk1bGs2Mm9yYmM1cTZncnJlNWxxNmFvYmQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260611-thu-block-4-open-jams-muse-dinner-hackathon-team@shape-rotator-os",
       "summary": "Open Jams / Muse Dinner | Hackathon team open jams + dinner at the Convent.",
       "status": "confirmed",
@@ -2914,8 +2602,6 @@
       "shape_key": "may-18-start-20260611-thu@shape-rotator-os#4"
     },
     "may-18-start-20260612-fri@shape-rotator-os#3": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh68mmcsj95lh6orr3dcmj6bb6e9km8obp5ln6ipr8egmmgob3ddkmsppdc9imeqbeecmm2t1dehk6abb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjhtbWNzajk1bGg2b3JyM2RjbWo2YmI2ZTlrbThvYnA1bG42aXByOGVnbW1nb2IzZGRrbXNwcGRjOWltZXFiZWVjbW0ydDFkZWhrNmFiYjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260612-fri-block-3-friday-night-hacking-begins-at-the-e@shape-rotator-os",
       "summary": "Friday night > Hacking begins | At the ETH NY venue or the Convent.",
       "status": "confirmed",
@@ -2931,8 +2617,6 @@
       "shape_key": "may-18-start-20260612-fri@shape-rotator-os#3"
     },
     "may-18-start-20260612-fri@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh68mmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjhtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260612-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -2950,8 +2634,6 @@
       "shape_key": "may-18-start-20260612-fri@shape-rotator-os#1"
     },
     "may-18-start-20260612-fri@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh68mmcsj95lh6orr3dcmj4bb9dpq6asjec5m2qpbkd0mmsu9de1p6up3lcdq2qsj5epkmatpdchimqrpd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNjhtbWNzajk1bGg2b3JyM2RjbWo0YmI5ZHBxNmFzamVjNW0ycXBia2QwbW1zdTlkZTFwNnVwM2xjZHEycXNqNWVwa21hdHBkY2hpbXFycGQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260612-fri-block-2-internal-eth-ny-product-review-demo-@shape-rotator-os",
       "summary": "Internal ETH NY product review | Demo review + hackathon team goal-setting.",
       "status": "confirmed",
@@ -2969,8 +2651,6 @@
       "shape_key": "may-18-start-20260612-fri@shape-rotator-os#2"
     },
     "may-18-start-20260613-sat@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6cmn6obk5lh6orr3dcmj4bbjd1kn0bbjdtmmat38d5n6ebbledim8bb5ehk2qrjp5lr6arjlckmmushd81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNmNtbjZvYms1bGg2b3JyM2RjbWo0YmJqZDFrbjBiYmpkdG1tYXQzOGQ1bjZlYmJsZWRpbThiYjVlaGsycXJqcDVscjZhcmpsY2ttbXVzaGQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260613-sat-block-2-ship-something-used-eth-ny-venue-or-@shape-rotator-os",
       "summary": "Ship something used. ETH NY venue or the Convent.",
       "status": "confirmed",
@@ -2986,8 +2666,6 @@
       "shape_key": "may-18-start-20260613-sat@shape-rotator-os#2"
     },
     "may-18-start-20260613-sat@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6cmn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNmNtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260613-sat@shape-rotator-os",
       "summary": "All day / night Build",
       "status": "confirmed",
@@ -3003,8 +2681,6 @@
       "shape_key": "may-18-start-20260613-sat@shape-rotator-os#1"
     },
     "may-18-start-20260614-sun@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6gmn6tbe5lpnaojdd5pn6qbfdommktb4ctkmspq0edk62s355lp6ut31ehnn4bbfec",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNmdtbjZ0YmU1bHBuYW9qZGQ1cG42cWJmZG9tbWt0YjRjdGttc3BxMGVkazYyczM1NWxwNnV0MzFlaG5uNGJiZmVjIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260614-sun-submission-judging@shape-rotator-os",
       "summary": "Submission + judging",
       "status": "confirmed",
@@ -3022,8 +2698,6 @@
       "shape_key": "may-18-start-20260614-sun@shape-rotator-os#1"
     },
     "may-18-start-20260614-sun@shape-rotator-os#2": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6gmn6tbe5lpmgobgckmn4rrkc5q6ushdchimqrpddpkmeq3k81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNmdtbjZ0YmU1bHBtZ29iZ2NrbW40cnJrYzVxNnVzaGRjaGltcXJwZGRwa21lcTNrODFwbWdvYmdja21uNHJya2M1cTZ1c2hkZHRwZyBjX2QzYzUxZjllZjI4MzUxYmQwZTkyNDQ5YTlkMGZhN2Y0YmYyN2M4YTI4NjYzMDlmOTZjNmUyMTc2YTUwYjAzZWRAZw",
       "ical_uid": "may-18-start-20260614-sun-shape-rotator-demo-night@shape-rotator-os",
       "summary": "Shape Rotator Demo Night",
       "status": "confirmed",
@@ -3041,8 +2715,6 @@
       "shape_key": "may-18-start-20260614-sun@shape-rotator-os#2"
     },
     "may-18-start-20260615-mon@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6kmmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNmttbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260615-mon@shape-rotator-os",
       "summary": "Mon-Tue: TEE Technical - AI and LLM Inference",
       "status": "confirmed",
@@ -3058,8 +2730,6 @@
       "shape_key": "may-18-start-20260615-mon@shape-rotator-os#1"
     },
     "may-18-start-20260616-tue@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6omn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNm9tbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260616-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3077,8 +2747,6 @@
       "shape_key": "may-18-start-20260616-tue@shape-rotator-os#1"
     },
     "may-18-start-20260617-wed@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh6smnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNnNtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260617-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3096,8 +2764,6 @@
       "shape_key": "may-18-start-20260617-wed@shape-rotator-os#1"
     },
     "may-18-start-20260619-fri@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhh74mmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhoNzRtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260619-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3115,8 +2781,6 @@
       "shape_key": "may-18-start-20260619-fri@shape-rotator-os#1"
     },
     "may-18-start-20260620-sat@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi60mn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNjBtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260620-sat@shape-rotator-os",
       "summary": "Convent",
       "status": "confirmed",
@@ -3132,8 +2796,6 @@
       "shape_key": "may-18-start-20260620-sat@shape-rotator-os#1"
     },
     "may-18-start-20260622-mon@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi68mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNjhtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260622-mon@shape-rotator-os",
       "summary": "Mon-Tue: Lecture: Go-to-Market (Eshita Nandini)",
       "status": "confirmed",
@@ -3149,8 +2811,6 @@
       "shape_key": "may-18-start-20260622-mon@shape-rotator-os#1"
     },
     "may-18-start-20260623-tue@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi6cmn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNmNtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260623-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3168,8 +2828,6 @@
       "shape_key": "may-18-start-20260623-tue@shape-rotator-os#1"
     },
     "may-18-start-20260624-wed@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi6gmnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNmdtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260624-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3187,8 +2845,6 @@
       "shape_key": "may-18-start-20260624-wed@shape-rotator-os#1"
     },
     "may-18-start-20260625-thu@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi6kmn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNmttbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260625-thu@shape-rotator-os",
       "summary": "Thu-Fri: Salon: Content and Marketing (Liz, Albi)",
       "status": "confirmed",
@@ -3204,8 +2860,6 @@
       "shape_key": "may-18-start-20260625-thu@shape-rotator-os#1"
     },
     "may-18-start-20260626-fri@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi6ommcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNm9tbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260626-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3223,8 +2877,6 @@
       "shape_key": "may-18-start-20260626-fri@shape-rotator-os#1"
     },
     "may-18-start-20260627-sat@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi6smn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNnNtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260627-sat@shape-rotator-os",
       "summary": "Convent",
       "status": "confirmed",
@@ -3240,8 +2892,6 @@
       "shape_key": "may-18-start-20260627-sat@shape-rotator-os#1"
     },
     "may-18-start-20260629-mon@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhi74mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhpNzRtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260629-mon@shape-rotator-os",
       "summary": "Mon-Tue: Lecture: Legal and Policy (speaker via Gil)",
       "status": "confirmed",
@@ -3257,8 +2907,6 @@
       "shape_key": "may-18-start-20260629-mon@shape-rotator-os#1"
     },
     "may-18-start-20260630-tue@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dhj60mn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZGhqNjBtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260630-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3276,8 +2924,6 @@
       "shape_key": "may-18-start-20260630-tue@shape-rotator-os#1"
     },
     "may-18-start-20260701-wed@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg64mnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNjRtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260701-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3295,8 +2941,6 @@
       "shape_key": "may-18-start-20260701-wed@shape-rotator-os#1"
     },
     "may-18-start-20260702-thu@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg68mn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNjhtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260702-thu@shape-rotator-os",
       "summary": "Thu-Fri: Cohort Builds itself Demo Day",
       "status": "confirmed",
@@ -3312,8 +2956,6 @@
       "shape_key": "may-18-start-20260702-thu@shape-rotator-os#1"
     },
     "may-18-start-20260703-fri@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg6cmmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNmNtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260703-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3331,8 +2973,6 @@
       "shape_key": "may-18-start-20260703-fri@shape-rotator-os#1"
     },
     "may-18-start-20260704-sat@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg6gmn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNmdtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260704-sat@shape-rotator-os",
       "summary": "Convent + Cornell Tech",
       "status": "confirmed",
@@ -3348,8 +2988,6 @@
       "shape_key": "may-18-start-20260704-sat@shape-rotator-os#1"
     },
     "may-18-start-20260706-mon@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg6ommqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNm9tbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260706-mon@shape-rotator-os",
       "summary": "Mon-Tue: Lecture: Fundraising + Incentive Design (speakers via Gil)",
       "status": "confirmed",
@@ -3365,8 +3003,6 @@
       "shape_key": "may-18-start-20260706-mon@shape-rotator-os#1"
     },
     "may-18-start-20260707-tue@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg6smn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNnNtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260707-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3384,8 +3020,6 @@
       "shape_key": "may-18-start-20260707-tue@shape-rotator-os#1"
     },
     "may-18-start-20260708-wed@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg70mnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNzBtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260708-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3403,8 +3037,6 @@
       "shape_key": "may-18-start-20260708-wed@shape-rotator-os#1"
     },
     "may-18-start-20260709-thu@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpg74mn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBnNzRtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260709-thu@shape-rotator-os",
       "summary": "Thu-Fri: TEE Technical: P2P and Self-Host Day (dmarz et al.)",
       "status": "confirmed",
@@ -3420,8 +3052,6 @@
       "shape_key": "may-18-start-20260709-thu@shape-rotator-os#1"
     },
     "may-18-start-20260710-fri@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph60mmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNjBtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260710-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3439,8 +3069,6 @@
       "shape_key": "may-18-start-20260710-fri@shape-rotator-os#1"
     },
     "may-18-start-20260711-sat@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph64mn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNjRtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260711-sat@shape-rotator-os",
       "summary": "Convent + Cornell Tech",
       "status": "confirmed",
@@ -3456,8 +3084,6 @@
       "shape_key": "may-18-start-20260711-sat@shape-rotator-os#1"
     },
     "may-18-start-20260713-mon@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph6cmmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNmNtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260713-mon@shape-rotator-os",
       "summary": "Mon-Tue: People Ops + Business Development",
       "status": "confirmed",
@@ -3473,8 +3099,6 @@
       "shape_key": "may-18-start-20260713-mon@shape-rotator-os#1"
     },
     "may-18-start-20260714-tue@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph6gmn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNmdtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260714-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3492,8 +3116,6 @@
       "shape_key": "may-18-start-20260714-tue@shape-rotator-os#1"
     },
     "may-18-start-20260715-wed@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph6kmnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNmttbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260715-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3511,8 +3133,6 @@
       "shape_key": "may-18-start-20260715-wed@shape-rotator-os#1"
     },
     "may-18-start-20260716-thu@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph6omn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNm9tbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260716-thu@shape-rotator-os",
       "summary": "Thu-Fri: Pitch practice + VC intros",
       "status": "confirmed",
@@ -3528,8 +3148,6 @@
       "shape_key": "may-18-start-20260716-thu@shape-rotator-os#1"
     },
     "may-18-start-20260717-fri@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph6smmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNnNtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260717-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3547,8 +3165,6 @@
       "shape_key": "may-18-start-20260717-fri@shape-rotator-os#1"
     },
     "may-18-start-20260718-sat@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dph70mn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBoNzBtbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260718-sat@shape-rotator-os",
       "summary": "Convent + Cornell Tech · Sat Jul 18 (Andrew → Berlin)",
       "status": "confirmed",
@@ -3564,8 +3180,6 @@
       "shape_key": "may-18-start-20260718-sat@shape-rotator-os#1"
     },
     "may-18-start-20260720-mon@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi60mmqrre81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNjBtbXFycmU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260720-mon@shape-rotator-os",
       "summary": "Mon-Tue: Convergence: investor + partner feedback · Final product polish",
       "status": "confirmed",
@@ -3581,8 +3195,6 @@
       "shape_key": "may-18-start-20260720-mon@shape-rotator-os#1"
     },
     "may-18-start-20260721-tue@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi64mn8tb581pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNjRtbjh0YjU4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260721-tue@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3600,8 +3212,6 @@
       "shape_key": "may-18-start-20260721-tue@shape-rotator-os#1"
     },
     "may-18-start-20260722-wed@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi68mnepb481pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNjhtbmVwYjQ4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260722-wed@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3619,8 +3229,6 @@
       "shape_key": "may-18-start-20260722-wed@shape-rotator-os#1"
     },
     "may-18-start-20260723-thu@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi6cmn8q3l81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNmNtbjhxM2w4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260723-thu@shape-rotator-os",
       "summary": "Thu-Fri: **Final Demo Day #2 (Thu Jul 23 or Fri Jul 24)**",
       "status": "confirmed",
@@ -3636,8 +3244,6 @@
       "shape_key": "may-18-start-20260723-thu@shape-rotator-os#1"
     },
     "may-18-start-20260724-fri@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi6gmmcsj981pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNmdtbWNzajk4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260724-fri@shape-rotator-os",
       "summary": "tea on roof",
       "status": "confirmed",
@@ -3655,8 +3261,6 @@
       "shape_key": "may-18-start-20260724-fri@shape-rotator-os#1"
     },
     "may-18-start-20260725-sat@shape-rotator-os#1": {
-      "google_event_id": "_dlgnib9h70mn6t31e9q2qchg68r30dpi6kmn6obk81pmgobgckmn4rrkc5q6ushddtpg",
-      "html_link": "https://www.google.com/calendar/event?eid=X2RsZ25pYjloNzBtbjZ0MzFlOXEycWNoZzY4cjMwZHBpNmttbjZvYms4MXBtZ29iZ2NrbW40cnJrYzVxNnVzaGRkdHBnIGNfZDNjNTFmOWVmMjgzNTFiZDBlOTI0NDlhOWQwZmE3ZjRiZjI3YzhhMjg2NjMwOWY5NmM2ZTIxNzZhNTBiMDNlZEBn",
       "ical_uid": "may-18-start-20260725-sat@shape-rotator-os",
       "summary": "Convent + Cornell Tech · Demo Day weekend",
       "status": "confirmed",
