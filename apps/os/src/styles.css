@@ -61,27 +61,24 @@ html, body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-:root { --tab-bar-h: 35px; --nav-w: 280px; --content-top-h: 35px; }
+:root { --tab-bar-h: 0px; --nav-w: 280px; --content-top-h: 35px; }
 /* App shell (2026-06): a persistent left navigation (#primary-nav) in the
-   `nav` column and the content in `main`. The (now empty) window bar spans
-   both columns up top. Below it, the right column gets a persistent strip
-   (`ctop` → #content-top) that's present on every tab — reserved for a
-   future row of tabs. Every top-level view used to span the full width
+   `nav` column and the content in `main`. The right column gets a persistent
+   browser-tab strip (`ctop` → #content-top) on every tab. Every top-level view
+   used to span the full width
    (`grid-area: sidebar / sidebar / main / main`); they're now pinned to
    `main` so both the nav column and the top strip stay clear on every tab. */
 body {
   display: grid;
   grid-template-columns: var(--nav-w) 1fr;
-  grid-template-rows: var(--tab-bar-h) var(--content-top-h) 1fr;
+  grid-template-rows: var(--content-top-h) 1fr;
   grid-template-areas:
-    "tabbar tabbar"
     "nav    ctop"
     "nav    main";
 }
 body[data-sidebar="hidden"] { grid-template-columns: 0 1fr; }
 body[data-sidebar="hidden"] #sidebar { display: none; }
 
-#tab-bar { grid-area: tabbar; }
 #primary-nav { grid-area: nav; }
 #content-top { grid-area: ctop; }
 #sidebar { grid-area: nav; }
@@ -234,7 +231,7 @@ body[data-active-tab="experimental"][data-experimental-mode="cosmos"]      #grap
  * z-index 5 (above atlas-stage at 3) with backdrop blur. Animated in. */
 #search-view {
   position: absolute;
-  top: var(--tab-bar-h, 56px);
+  top: var(--content-top-h, 35px);
   left: 0; right: 0; bottom: 0;
   z-index: 5;
   background:
@@ -3253,7 +3250,7 @@ button:focus:not(:focus-visible) { outline: none; }
 /* ── toast stack ── */
 .ux-toasts {
   position: fixed;
-  top: calc(var(--tab-bar-h) + var(--space-3));
+  top: calc(var(--content-top-h) + var(--space-3));
   right: var(--space-4);
   z-index: 10000;
   display: flex;
@@ -17408,8 +17405,8 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   background: rgba(0, 0, 0, 0.18);
   border-right: 1px solid var(--hairline, rgba(var(--ink-rgb), 0.08));
 }
-/* Persistent right-column top strip — always present (every tab), reserved
-   for a future row of tabs. Empty for now; just the band + hairline. */
+/* Persistent right-column browser tab strip. Empty areas stay draggable so the
+   retired title strip does not cost vertical space just to move the window. */
 .content-top {
   display: flex;
   align-items: stretch;
@@ -17417,6 +17414,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   box-sizing: border-box;
   background: var(--ed-bg-0, #0c0a09);
   border-bottom: 1px solid var(--ed-rule, rgba(var(--ink-rgb), 0.10));
+  -webkit-app-region: drag;
   /* Grid item in the 1fr column (shared with `main`). Without this it keeps
      `min-width: auto` and the tab strip's intrinsic width forces the whole
      column — and the page content — wider. Pinning to 0 lets the strip's own
@@ -17427,6 +17425,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 
 /* ── browser-style OS tabs (live in #content-top) ─────────────────────── */
 .os-tabs {
+  -webkit-app-region: drag;
   display: flex;
   align-items: stretch;
   width: 100%;
@@ -17439,6 +17438,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 }
 .os-tabs::-webkit-scrollbar { display: none; }
 .os-tab {
+  -webkit-app-region: no-drag;
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -17470,6 +17470,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .os-tab-icon svg { width: 14px; height: 14px; display: block; }
 .os-tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
 .os-tab-close {
+  -webkit-app-region: no-drag;
   flex: 0 0 auto;
   width: 16px; height: 16px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -17479,6 +17480,7 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 /* Hover the × → just turn it white, no box/background. */
 .os-tab-close:hover { opacity: 1; color: var(--ink-hi); background: transparent; }
 .os-tab-new {
+  -webkit-app-region: no-drag;
   flex: 0 0 auto;
   width: 30px; height: 100%;
   border: 0; background: transparent;
@@ -20896,7 +20898,7 @@ body[data-net-view-mode="glance"] #network-view { display: none !important; }
   flex-direction: column;
   align-self: start;
   min-height: 0;
-  max-height: calc(100vh - var(--tab-bar-h, 40px) - 76px);
+  max-height: calc(100vh - var(--content-top-h, 35px) - 76px);
   padding: 14px 24px 12px 0;
   border-right: 1px solid rgba(var(--ink-rgb), 0.08);
 }
