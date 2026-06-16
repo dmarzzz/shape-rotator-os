@@ -9,7 +9,7 @@ import {
   openEventDetail,
 } from "@shape-rotator/shape-ui";
 import { wireCalendarExportLinks } from "./calendar-links.mjs";
-import { loadSupabaseCalendarSnapshot } from "./calendar-supabase-source.mjs";
+import { fetchPublicCalendarGrid } from "./calendar-supabase-grid.mjs";
 
 // Web cohort calendar — seed with the bundled snapshot from
 // cohort-surface.json so first paint is instant, then refresh from the
@@ -135,7 +135,9 @@ function wire() {
   });
 }
 
-async function runLiveFetch() {
+// Same-origin committed snapshot (/calendar.json) — the fallback when the live
+// Supabase grid is unavailable (offline, outage, or unconfigured key).
+async function runSnapshotFetch() {
   const bundled = state.cohort?.calendar || null;
   const res = await loadCalendar({ bundled, url: WEB_CALENDAR_URL, source: "snapshot" });
   if (res.data) {
@@ -145,21 +147,24 @@ async function runLiveFetch() {
   }
 }
 
-async function runSupabaseFetch() {
+// Live source order: the Supabase public_calendar_grid row (authoritative,
+// refreshed within the hour by the calendar-sync workflow) → the same-origin
+// /calendar.json snapshot → the bundled cohort-surface already painted. Mirrors
+// the OS reader (apps/os/src/renderer/calendar-supabase.mjs) so web + app agree.
+async function refreshCalendarSources() {
+  let grid = null;
   try {
-    const data = await loadSupabaseCalendarSnapshot();
-    if (!data) return;
-    state.data = data;
-    state.source = "supabase";
-    rerender();
+    ({ grid } = await fetchPublicCalendarGrid({ storage: globalThis.localStorage }));
   } catch (err) {
     console.warn("[calendar] supabase fetch failed", err);
   }
-}
-
-function refreshCalendarSources() {
-  runLiveFetch();
-  runSupabaseFetch();
+  if (grid && grid.tabs) {
+    state.data = grid;
+    state.source = "live";
+    rerender();
+    return;
+  }
+  await runSnapshotFetch();
 }
 
 function startRefreshLoop() {
