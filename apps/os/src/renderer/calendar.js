@@ -497,13 +497,15 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </button>
     </nav>`;
   const subscribeAction = `
-    <a class="c2-subscribe" href="${escAttr(managedGoogleCalendarUrl(GUEST_GOOGLE_CALENDAR_ID))}" data-external aria-label="Subscribe to the Shape Rotator guest calendar">
+    <a class="c2-subscribe" href="${escAttr(managedGoogleCalendarUrl(GUEST_GOOGLE_CALENDAR_ID))}" data-external
+       aria-label="Subscribe to the read-only Shape Rotator Google Calendar"
+       title="Subscribe to the read-only Shape Rotator Google Calendar">
       <span class="c2-subscribe-glyph" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v5"/><path d="M9.5 16.5h5"/>
         </svg>
       </span>
-      <span class="c2-subscribe-copy"><strong>subscribe</strong><small>Google Calendar</small></span>
+      <span class="c2-subscribe-copy"><strong>subscribe</strong><small>read-only Google</small></span>
     </a>`;
   const masthead = `
     <div class="c2-toolbar">
@@ -741,9 +743,71 @@ export function attachCalendarPageBehavior(root, { scrollToNow = true } = {}) {
   return function teardown() { clearInterval(timer); };
 }
 
+function clamp(n, min, max) {
+  return Math.min(Math.max(n, min), max);
+}
+
+function rectFromAnchor(anchor) {
+  try {
+    return anchor?.getBoundingClientRect?.() || null;
+  } catch {
+    return null;
+  }
+}
+
+function clearCalendarEventSelection() {
+  if (typeof document === "undefined") return;
+  for (const selected of document.querySelectorAll(".c2-ev.is-selected, .c2-chip.is-selected")) {
+    selected.classList.remove("is-selected");
+  }
+}
+
+function positionEventPanel(overlay, anchorRect) {
+  const panel = overlay?.querySelector?.(".c2-modal-panel");
+  if (!panel || !anchorRect || !Number.isFinite(anchorRect.left)) {
+    overlay?.classList?.add("is-centered");
+    return;
+  }
+
+  const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 768;
+  const margin = vw < 640 ? 12 : 16;
+  const gap = vw < 640 ? 8 : 20;
+  const panelRect = panel.getBoundingClientRect();
+  const maxX = Math.max(margin, vw - panelRect.width - margin);
+  const maxY = Math.max(margin, vh - panelRect.height - margin);
+
+  let placement = anchorRect.left + anchorRect.width / 2 < vw / 2 ? "right" : "left";
+  let x = placement === "right"
+    ? anchorRect.right + gap
+    : anchorRect.left - panelRect.width - gap;
+
+  if (x + panelRect.width > vw - margin) {
+    placement = "left";
+    x = anchorRect.left - panelRect.width - gap;
+  }
+  if (x < margin) {
+    placement = "right";
+    x = anchorRect.right + gap;
+  }
+  if (x < margin || x + panelRect.width > vw - margin) {
+    placement = "center";
+    x = anchorRect.left + anchorRect.width / 2 - panelRect.width / 2;
+  }
+
+  const yAnchor = anchorRect.height > panelRect.height
+    ? anchorRect.top + Math.min(24, anchorRect.height * 0.18)
+    : anchorRect.top - 12;
+  const y = clamp(yAnchor, margin, maxY);
+
+  panel.dataset.placement = placement;
+  panel.style.setProperty("--c2-modal-x", `${Math.round(clamp(x, margin, maxX))}px`);
+  panel.style.setProperty("--c2-modal-y", `${Math.round(y)}px`);
+}
+
 // ── event modal ──────────────────────────────────────────────────────
 // ref = "t:<dayIdx>:<timedIdx>" | "a:<dayIdx>:<alldayIdx>" from data-c2-ev.
-export function openCalendarEvent(ref) {
+export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}) {
   if (!_model || typeof document === "undefined") return;
   const m = String(ref || "").match(/^([ta]):(\d+):(\d+)$/);
   if (!m) return;
@@ -770,32 +834,50 @@ export function openCalendarEvent(ref) {
     dayMs: day.dayMs,
     timing: item.timing,
   });
+  const eventAnchor = anchor || null;
+  const eventAnchorRect = anchorRect || rectFromAnchor(eventAnchor);
 
   document.querySelector(".c2-modal")?.remove();
+  clearCalendarEventSelection();
+  eventAnchor?.classList?.add?.("is-selected");
   const overlay = document.createElement("div");
   overlay.className = "c2-modal";
   overlay.innerHTML = `
     <div class="c2-modal-panel" data-cat="${escAttr(item.cat.key)}" role="dialog" aria-modal="true" aria-label="event details">
       <button class="c2-modal-close" type="button" aria-label="close">×</button>
-      <div class="c2-modal-when">${escHtml(weekday)} · ${escHtml(day.date)} · ${escHtml(timeLabel)}</div>
-      ${item.cat.label || item.cat.tbc
-        ? `<div class="c2-modal-cat"><i class="c2-chip-dot" aria-hidden="true"></i>${escHtml(item.cat.label)}${item.cat.tbc ? `<i class="c2-ev-tbc">tbc</i>` : ""}</div>`
-        : ""}
+      <div class="c2-modal-meta">
+        <div class="c2-modal-when">${escHtml(weekday)} · ${escHtml(day.date)} · ${escHtml(timeLabel)}</div>
+        ${item.cat.label || item.cat.tbc
+          ? `<div class="c2-modal-cat"><i class="c2-chip-dot" aria-hidden="true"></i>${escHtml(item.cat.label)}${item.cat.tbc ? `<i class="c2-ev-tbc">tbc</i>` : ""}</div>`
+          : ""}
+      </div>
       <h3 class="c2-modal-title"><em>${escHtml(title)}</em></h3>
       ${details.length ? `<ul class="c2-modal-details">${details.map(d => `<li>${escHtml(d)}</li>`).join("")}</ul>` : ""}
       ${(addEventHref || googleLink) ? `
         <div class="c2-modal-actions">
           ${addEventHref ? `<a class="c2-modal-google" href="${escAttr(addEventHref)}" data-external>
-            <span aria-hidden="true">+</span>
-            <strong>add to Google Calendar</strong>
+            <span class="c2-action-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v5"/><path d="M9.5 16.5h5"/>
+              </svg>
+            </span>
+            <span class="c2-action-copy"><strong>add to Google</strong><small>personal calendar</small></span>
           </a>` : ""}
           ${googleLink ? `<a class="c2-modal-google c2-modal-google--open" href="${escAttr(googleLink)}" data-external>
-            <span aria-hidden="true">↗</span>
-            <strong>open in Google Calendar</strong>
+            <span class="c2-action-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              </svg>
+            </span>
+            <span class="c2-action-copy"><strong>open in Google</strong><small>source event</small></span>
           </a>` : ""}
         </div>` : ""}
     </div>`;
-  const close = () => { overlay.remove(); document.removeEventListener("keydown", onKey); };
+  const close = () => {
+    overlay.remove();
+    clearCalendarEventSelection();
+    document.removeEventListener("keydown", onKey);
+  };
   function onKey(e) { if (e.key === "Escape") close(); }
   overlay.addEventListener("click", (e) => {
     const external = e.target?.closest?.("a[data-external]");
@@ -813,4 +895,6 @@ export function openCalendarEvent(ref) {
   overlay.querySelector(".c2-modal-close")?.addEventListener("click", close);
   document.addEventListener("keydown", onKey);
   document.body.appendChild(overlay);
+  positionEventPanel(overlay, eventAnchorRect);
+  overlay.querySelector(".c2-modal-close")?.focus?.({ preventScroll: true });
 }

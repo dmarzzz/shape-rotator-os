@@ -8013,7 +8013,7 @@ function wireCalendar() {
   }
 
   for (const card of state.canvas.querySelectorAll("[data-c2-ev]")) {
-    card.addEventListener("click", () => openCalendarEvent(card.dataset.c2Ev));
+    card.addEventListener("click", (event) => openCalendarEvent(card.dataset.c2Ev, { anchor: event.currentTarget }));
   }
 
   for (const btn of state.canvas.querySelectorAll("[data-c2-retry]")) {
