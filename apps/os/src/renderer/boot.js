@@ -40,7 +40,6 @@ import {
   replayLaunch,
 } from "./signature.js";
 import * as Tabs from "./tabs.js";
-import * as Find from "./find.js";
 import * as Glass from "./glass.js";
 import {
   Alchemy,
@@ -54,6 +53,8 @@ import {
   warmTabModule,
   wireRendererWarmupHints,
 } from "./lazy-renderers.js";
+import { createLazyModule } from "./lazy-module.js";
+import { loadStylesheetOnce } from "./stylesheet-loader.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
 import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.js";
 
@@ -73,6 +74,46 @@ const cp = (label) => {
   if (__SMOKE) { try { console.error("[smoke-cp] " + label); } catch {} }
 };
 cp("module-eval:boot.js");
+
+const findLazy = createLazyModule(() =>
+  Promise.all([
+    loadStylesheetOnce("renderer/find.css"),
+    import("./find.js"),
+  ]).then(([, module]) => module));
+let findInitialized = false;
+
+function loadFind({ open = false, query = null } = {}) {
+  return findLazy.load()
+    .then((module) => {
+      if (!findInitialized) {
+        module.init();
+        findInitialized = true;
+      }
+      if (open) module.openWithQuery(query);
+      return module;
+    })
+    .catch((error) => {
+      console.warn("[find] failed to load:", error?.message || error);
+      throw error;
+    });
+}
+
+function wireFindLazyLoad() {
+  document.addEventListener("keydown", (e) => {
+    const isModF = (e.metaKey || e.ctrlKey) && (e.key === "f" || e.key === "F");
+    if (!isModF) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    loadFind({ open: true }).catch(() => {});
+  }, true);
+
+  const loadForBlankTab = () => {
+    if (document.body.hasAttribute("data-blank")) loadFind().catch(() => {});
+  };
+  const obs = new MutationObserver(loadForBlankTab);
+  obs.observe(document.body, { attributes: true, attributeFilter: ["data-blank"] });
+  loadForBlankTab();
+}
 
 // Small Notion-style sync chip pinned to the bottom-left. Subscribes
 // to cohort-source's sync lifecycle and fades in while a background
@@ -625,7 +666,7 @@ async function boot() {
   Tabs.configureAlchemy(Alchemy);
   cp("boot:after-wireTabs");
   Tabs.init();
-  Find.init();
+  wireFindLazyLoad();
   Glass.init();
   wireAppsGrid();
   wireSwarmPanelLauncher();

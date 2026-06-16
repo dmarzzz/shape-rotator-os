@@ -447,19 +447,23 @@ function buildBlankBar() {
   blankInputEl = wrap.querySelector(".os-find-blank-input");
   blankResultsEl = wrap.querySelector(".os-find-blank-results");
   const list = attachListSearch(blankInputEl, blankResultsEl);
+  const refreshBlank = () => {
+    catalog = buildCatalog();
+    list.render();
+    requestAnimationFrame(() => blankInputEl.focus());
+    loadCohort().then(() => { catalog = buildCatalog(); list.render(); });
+  };
 
   // Focus + refresh whenever a blank tab becomes the active tab.
   const obs = new MutationObserver(() => {
     if (document.body.hasAttribute("data-blank")) {
-      catalog = buildCatalog();
-      list.render();
-      requestAnimationFrame(() => blankInputEl.focus());
-      loadCohort().then(() => { catalog = buildCatalog(); list.render(); });
+      refreshBlank();
     } else {
       blankInputEl.value = "";
     }
   });
   obs.observe(document.body, { attributes: true, attributeFilter: ["data-blank"] });
+  if (document.body.hasAttribute("data-blank")) refreshBlank();
 }
 
 // ─── keyboard ─────────────────────────────────────────────────────────────────
