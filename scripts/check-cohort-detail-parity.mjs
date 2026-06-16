@@ -126,7 +126,7 @@ for (const field of electronOnlyTeamFields) {
   }
 }
 
-for (const field of ["person_timeline", "team_timeline"]) {
+for (const field of ["person_timeline", "team_timeline", "cohort_insights"]) {
   if (!hasToken(cohortSource, field)) {
     failures.push(`Electron cohort-source data boundary does not preserve generated field ${field}`);
   }

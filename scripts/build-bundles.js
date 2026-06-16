@@ -26,11 +26,16 @@ const {
   publicArticleCandidateFromReadout,
   sanitizePublicArticleText,
 } = require("./lib/public-article-policy.cjs");
+const {
+  buildCohortInsightBundle,
+  publicCohortInsights,
+} = require("./lib/cohort-insight-engine.cjs");
 
 const REPO_ROOT  = path.resolve(__dirname, "..");
 const COHORT_DIR = path.join(REPO_ROOT, "cohort-data");
 const OS_SURFACE_PATH = path.join(REPO_ROOT, "apps", "os", "src", "cohort-surface.json");
 const WEB_SURFACE_PATH = path.join(REPO_ROOT, "apps", "web", "cohort-surface.json");
+const INCLUDE_INTERNAL_TRANSCRIPT_SURFACE = process.env.SHAPE_INCLUDE_INTERNAL_TRANSCRIPT_SURFACE === "1";
 const OUT_PATHS = [
   OS_SURFACE_PATH,
   WEB_SURFACE_PATH,
@@ -2171,6 +2176,7 @@ function publicWebSurface(surface) {
   out.cohort_intel.context_policy_note = out.transcript_distillations.public_count
     ? "Public-approved transcript distillations may be used for Context."
     : "No transcript readout is public-cleared yet; public Context should use existing articles only.";
+  out.cohort_insights = publicCohortInsights(out.cohort_insights);
   out.person_timeline = stripTranscriptEvidenceTimeline(out.person_timeline);
   out.team_timeline = stripTranscriptEvidenceTimeline(out.team_timeline);
   out.surface_visibility = "public-web";
@@ -2220,15 +2226,27 @@ function build() {
   // the raw transcript never enters the repo; vault_id joins back to the
   // held-private timeline anchors in calendar-transcript-matches.js.
   const session_insights = loadJsonArray(path.join(COHORT_DIR, "session-insights.json"), "session-insights.json");
-  const transcript_evidence = loadJsonObject(
+  const loaded_transcript_evidence = loadJsonObject(
     path.join(COHORT_DIR, "artifacts", "transcript-evidence", "generated", "views.json"),
     "transcript-evidence/generated/views.json",
   );
-  const transcript_evidence_cards = loadTranscriptEvidenceCards();
-  const transcript_distillations = sanitizeTranscriptDistillationsForApp(loadJsonObject(
+  const loaded_transcript_distillations = loadJsonObject(
     path.join(COHORT_DIR, "artifacts", "transcript-distillations", "generated", "manifest.json"),
     "transcript-distillations/generated/manifest.json",
-  ));
+  );
+  // The committed app/web surfaces must not embed cohort-internal transcript
+  // evidence or distillations. Runtime app access comes from gated Supabase
+  // views; local operators can opt into an internal diagnostic surface with
+  // SHAPE_INCLUDE_INTERNAL_TRANSCRIPT_SURFACE=1.
+  const transcript_evidence = INCLUDE_INTERNAL_TRANSCRIPT_SURFACE
+    ? loaded_transcript_evidence
+    : emptyTranscriptEvidence(loaded_transcript_evidence);
+  const transcript_evidence_cards = INCLUDE_INTERNAL_TRANSCRIPT_SURFACE
+    ? loadTranscriptEvidenceCards()
+    : [];
+  const transcript_distillations = INCLUDE_INTERNAL_TRANSCRIPT_SURFACE
+    ? sanitizeTranscriptDistillationsForApp(loaded_transcript_distillations)
+    : sanitizeTranscriptDistillationsForApp(null);
   const cohort_intel = buildCohortIntel({
     transcriptEvidence: transcript_evidence,
     transcriptEvidenceCards: transcript_evidence_cards,
@@ -2238,6 +2256,14 @@ function build() {
   });
   const github_progress_artifacts = loadGithubProgressArtifacts();
   const github_release_artifacts = loadGithubReleaseArtifacts();
+  const cohort_insights = buildCohortInsightBundle({
+    teams,
+    clusters,
+    dependencies,
+    githubProgressArtifacts: github_progress_artifacts,
+    githubReleaseArtifacts: github_release_artifacts,
+    generatedAt: null,
+  });
   const program_start = readProgramStart();
   const release_feed_items = releaseFeedItems(github_release_artifacts, teams, program_start);
 
@@ -2266,6 +2292,7 @@ function build() {
     transcript_evidence,
     transcript_distillations,
     cohort_intel,
+    cohort_insights,
     whats_new: buildWhatsNew({ teams, releaseItems: release_feed_items, githubProgressArtifacts: github_progress_artifacts, asks, events, since: program_start }),
     // Normalized release feed items, also exposed standalone so the renderer's
     // runtime fallback (alchemy.js buildWhatsNewFeed) can rebuild the feed
@@ -2334,7 +2361,7 @@ function main() {
   const evidenceViews = built.transcript_evidence
     ? `${built.transcript_evidence.weekly?.length || 0} weekly/${built.transcript_evidence.teams?.length || 0} team/${built.transcript_evidence.people?.length || 0} person`
     : "none";
-  console.log(`[build-bundles] wrote ${OUT_PATHS.length} surface JSON files, primary=${PRIMARY_OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.dependencies.length} dependencies, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.constellation_cues.length} constellation cues, ${built.session_insights.length} session insights, transcript evidence=${evidenceViews}, transcript distillations=${built.transcript_distillations.artifact_count}, cohort intel=${built.cohort_intel.weekly.length} weeks, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
+  console.log(`[build-bundles] wrote ${OUT_PATHS.length} surface JSON files, primary=${PRIMARY_OUT_PATH} (${built.teams.length} teams, ${built.people.length} people, ${built.clusters.length} clusters, ${built.dependencies.length} dependencies, ${built.program.length} program pages, ${built.events.length} events, ${built.asks.length} asks, ${built.constellation_cues.length} constellation cues, ${built.session_insights.length} session insights, transcript evidence=${evidenceViews}, transcript distillations=${built.transcript_distillations.artifact_count}, cohort intel=${built.cohort_intel.weekly.length} weeks, cohort insights=${built.cohort_insights?.quality?.card_count || 0} cards, ${built.calendar ? `calendar=${calTabs} tabs` : "no calendar"})`);
 }
 
 main();

@@ -6,12 +6,14 @@ const PRIVATE_TABLES = [
   "processing_jobs",
   "derived_artifacts",
   "evidence_cards",
+  "cohort_insight_cards",
   "private_invite_contacts",
 ];
 
 const APP_VIEWS = [
   "app_transcript_distillations",
   "app_transcript_evidence_cards",
+  "app_cohort_insight_cards",
 ];
 
 function arg(argv, name, fallback = null) {

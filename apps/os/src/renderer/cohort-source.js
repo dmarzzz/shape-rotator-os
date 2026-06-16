@@ -141,6 +141,7 @@ function _writeSurfaceLs(surface) {
       transcript_evidence: surface.transcript_evidence || {},
       transcript_distillations: surface.transcript_distillations || {},
       cohort_intel: surface.cohort_intel || {},
+      cohort_insights: surface.cohort_insights || {},
       person_timeline: surface.person_timeline || {},
       team_timeline: surface.team_timeline || {},
       _generated_at: surface._generated_at || null,
@@ -171,6 +172,7 @@ function emptyShape() {
     transcript_evidence: {},
     transcript_distillations: {},
     cohort_intel: {},
+    cohort_insights: {},
     person_timeline: {},
     team_timeline: {},
   };
@@ -226,6 +228,7 @@ function normalize(data) {
     transcript_evidence: objectMap(data?.transcript_evidence),
     transcript_distillations: objectMap(data?.transcript_distillations),
     cohort_intel: objectMap(data?.cohort_intel),
+    cohort_insights: objectMap(data?.cohort_insights),
     person_timeline: timelineMap(data?.person_timeline),
     team_timeline: timelineMap(data?.team_timeline),
     // Pre-baked calendar bundle from the GH `cohort-data/program/calendar.json`
@@ -244,7 +247,7 @@ function mergeGeneratedSurfaceExtras(out, generated) {
   if (!out || !generated || typeof generated !== "object") return;
   if (Array.isArray(generated.whats_new) && generated.whats_new.length) out.whats_new = generated.whats_new;
   if (Array.isArray(generated.github_releases) && generated.github_releases.length) out.github_releases = generated.github_releases;
-  for (const field of ["transcript_evidence", "transcript_distillations", "cohort_intel"]) {
+  for (const field of ["transcript_evidence", "transcript_distillations", "cohort_intel", "cohort_insights"]) {
     const value = objectMap(generated[field]);
     if (Object.keys(value).length) out[field] = value;
   }
@@ -738,7 +741,7 @@ function signatureOf(grouped) {
     .sort()
     .join("|");
   const objectSig = (value) => fp(JSON.stringify(value || {}));
-  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#wn:${(grouped.whats_new || []).length}:${arraySig(grouped.whats_new || [])}#gr:${(grouped.github_releases || []).length}:${arraySig(grouped.github_releases || [])}#te:${objectSig(grouped.transcript_evidence)}#td:${objectSig(grouped.transcript_distillations)}#ci:${objectSig(grouped.cohort_intel)}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
+  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#wn:${(grouped.whats_new || []).length}:${arraySig(grouped.whats_new || [])}#gr:${(grouped.github_releases || []).length}:${arraySig(grouped.github_releases || [])}#te:${objectSig(grouped.transcript_evidence)}#td:${objectSig(grouped.transcript_distillations)}#ci:${objectSig(grouped.cohort_intel)}#ins:${objectSig(grouped.cohort_insights)}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
 }
 
 // Dev preview override. Setting `localStorage.setItem("srfg:cohort_source", "local")`
