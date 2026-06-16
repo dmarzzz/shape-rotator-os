@@ -82,14 +82,14 @@ const findLazy = createLazyModule(() =>
   ]).then(([, module]) => module));
 let findInitialized = false;
 
-function loadFind({ open = false, query = null } = {}) {
+function loadFind({ shortcut = false } = {}) {
   return findLazy.load()
     .then((module) => {
       if (!findInitialized) {
-        module.init();
+        module.init({ shortcut: false });
         findInitialized = true;
       }
-      if (open) module.openWithQuery(query);
+      if (shortcut) module.toggleFromShortcut();
       return module;
     })
     .catch((error) => {
@@ -104,7 +104,7 @@ function wireFindLazyLoad() {
     if (!isModF) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    loadFind({ open: true }).catch(() => {});
+    loadFind({ shortcut: true }).catch(() => {});
   }, true);
 
   const loadForBlankTab = () => {
