@@ -328,13 +328,6 @@
         },
         {
           "kind": "github_progress_artifact",
-          "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-06-08",
-          "record_id": "dealproof",
-          "week_start": "2026-06-08",
-          "source_repo": "kkoci/Dealproof"
-        },
-        {
-          "kind": "github_progress_artifact",
           "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-06-01",
           "record_id": "dealproof",
           "week_start": "2026-06-01",
@@ -342,9 +335,9 @@
         },
         {
           "kind": "github_progress_artifact",
-          "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-06-01",
+          "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-05-25",
           "record_id": "dealproof",
-          "week_start": "2026-06-01",
+          "week_start": "2026-05-25",
           "source_repo": "kkoci/Dealproof"
         }
       ],
@@ -354,10 +347,10 @@
         "shipped": "GitHub movement observed; no release artifact observed.",
         "observed_status": "public_signal_observed",
         "latest_week_start": "2026-06-08",
-        "progress_artifact_count": 6,
+        "progress_artifact_count": 3,
         "release_artifact_count": 0,
         "release_count": 0,
-        "useful_commit_count": 34,
+        "useful_commit_count": 17,
         "latest_examples": [
           "fix: audit_report dict fields, null memory_write_hash on no-op writes, surface audit_error in response",
           "refactor: scope AuditorAgent to qualitative-only, remove monotonic_convergence and within_bounds from LLM prompt",
@@ -1030,13 +1023,6 @@
         },
         {
           "kind": "github_progress_artifact",
-          "artifact_id": "github-progress:teleport-router:jameslbarnes-teleport-router:2026-05-25",
-          "record_id": "teleport-router",
-          "week_start": "2026-05-25",
-          "source_repo": "jameslbarnes/teleport-router"
-        },
-        {
-          "kind": "github_progress_artifact",
           "artifact_id": "github-progress:teleport-router:jameslbarnes-teleport-router:2026-05-18",
           "record_id": "teleport-router",
           "week_start": "2026-05-18",
@@ -1049,10 +1035,10 @@
         "shipped": "GitHub movement observed; no release artifact observed.",
         "observed_status": "public_signal_observed",
         "latest_week_start": "2026-05-25",
-        "progress_artifact_count": 3,
+        "progress_artifact_count": 2,
         "release_artifact_count": 0,
         "release_count": 0,
-        "useful_commit_count": 39,
+        "useful_commit_count": 28,
         "latest_examples": [
           "fix: add phala operation cancel recovery",
           "feat: guide router onboarding through settings",
@@ -5067,13 +5053,6 @@
           },
           {
             "kind": "github_progress_artifact",
-            "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-06-08",
-            "record_id": "dealproof",
-            "week_start": "2026-06-08",
-            "source_repo": "kkoci/Dealproof"
-          },
-          {
-            "kind": "github_progress_artifact",
             "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-06-01",
             "record_id": "dealproof",
             "week_start": "2026-06-01",
@@ -5081,9 +5060,9 @@
           },
           {
             "kind": "github_progress_artifact",
-            "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-06-01",
+            "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-05-25",
             "record_id": "dealproof",
-            "week_start": "2026-06-01",
+            "week_start": "2026-05-25",
             "source_repo": "kkoci/Dealproof"
           }
         ],
@@ -5093,10 +5072,10 @@
           "shipped": "GitHub movement observed; no release artifact observed.",
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-06-08",
-          "progress_artifact_count": 6,
+          "progress_artifact_count": 3,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 34,
+          "useful_commit_count": 17,
           "latest_examples": [
             "fix: audit_report dict fields, null memory_write_hash on no-op writes, surface audit_error in response",
             "refactor: scope AuditorAgent to qualitative-only, remove monotonic_convergence and within_bounds from LLM prompt",
@@ -5769,13 +5748,6 @@
           },
           {
             "kind": "github_progress_artifact",
-            "artifact_id": "github-progress:teleport-router:jameslbarnes-teleport-router:2026-05-25",
-            "record_id": "teleport-router",
-            "week_start": "2026-05-25",
-            "source_repo": "jameslbarnes/teleport-router"
-          },
-          {
-            "kind": "github_progress_artifact",
             "artifact_id": "github-progress:teleport-router:jameslbarnes-teleport-router:2026-05-18",
             "record_id": "teleport-router",
             "week_start": "2026-05-18",
@@ -5788,10 +5760,10 @@
           "shipped": "GitHub movement observed; no release artifact observed.",
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-05-25",
-          "progress_artifact_count": 3,
+          "progress_artifact_count": 2,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 39,
+          "useful_commit_count": 28,
           "latest_examples": [
             "fix: add phala operation cancel recovery",
             "feat: guide router onboarding through settings",
@@ -9271,14 +9243,14 @@
       "rotation": 0
     },
     "team_count": 26,
-    "public_progress_artifact_count": 23,
+    "public_progress_artifact_count": 19,
     "public_release_artifact_count": 4,
     "latent_overlap_candidate_count": 40,
     "unobserved_say_did_shipped_count": 18
   },
   "policy": {
     "app_surface": "Cohort app may render generated cards with generated/review status visible.",
-    "public_web": "Public web should exclude cards unless surface_tier is public and approval_state is approved.",
+    "public_web": "Public web should exclude cards unless surface_tier is public, review_status is published, and approval_state is approved.",
     "rotation": "Do not generate or publish named-team rotation judgments without reviewed model provenance."
   }
 }
