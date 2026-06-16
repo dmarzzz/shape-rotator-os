@@ -114,9 +114,28 @@
   --ease-in-out:  cubic-bezier(0.65, 0, 0.35, 1);
   --ease-snap:    cubic-bezier(0.32, 0.72, 0, 1);
   --ease-breathe: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Canonical house-style motion curves (BenjiStripe). Additive — the
+   * legacy --ease-out alias above is intentionally left at 0.16/0.3 so the
+   * existing ~hundreds of transitions keep their tuning. New "feels alive"
+   * polish on the rail / notifications / calendar adopts these:
+   *   expo      → default entrance, expand/collapse, position
+   *   smooth    → subtle markers (now-line, indicators)
+   *   overshoot → PUNCTUATION ONLY (badges, count pops) — never default enter */
+  --ease-expo:      cubic-bezier(0.19, 1, 0.22, 1);
+  --ease-smooth:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1);
   --dur-fast: 120ms;
   --dur-base: 220ms;
   --dur-slow: 380ms;
+  /* Asymmetric enter/exit pairs — house law: enter ALWAYS slower than exit.
+   * Use the matched pair so an element's appear reads considered and its
+   * dismiss reads quick. -lg for larger surfaces (panels, grid mount). */
+  --dur-enter:    260ms;
+  --dur-exit:     180ms;
+  --dur-enter-lg: 400ms;
+  --dur-exit-lg:  240ms;
+  --press-scale:    0.97;  /* control press (rail items, pills, dots) */
+  --press-scale-lg: 0.92;  /* large-surface press */
   --motion-micro:   180ms;
   --motion-breathe: 12s;
   --motion-drift:   16s;
