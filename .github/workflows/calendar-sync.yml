@@ -53,7 +53,11 @@ on:
       - main
     paths:
       - "scripts/build-calendar-from-google.js"
+      - "scripts/publish-calendar-grid-to-supabase.mjs"
+      - "scripts/build-ics.js"
       - "cohort-data/calendar-meta.json"
+      - "scripts/build-cohort-insights.mjs"
+      - "scripts/lib/cohort-insight-engine.cjs"
       - "scripts/build-bundles.js"
       - ".github/workflows/calendar-sync.yml"
 

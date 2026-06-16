@@ -1228,8 +1228,8 @@ export function renderWeekView({
   const isLive    = source === "live";
   const isSnapshot = source === "snapshot";
   const isBundled = source === "bundled";
-  const isStale   = isBundled; // any non-live source is "stale"; refine later if we add a third tier
-  const syncStateClass = isLive || isSnapshot ? "is-live" : isBundled ? "is-bundled" : "is-unknown";
+  const isStale   = isSnapshot || isBundled;
+  const syncStateClass = isLive ? "is-live" : isSnapshot ? "is-snapshot" : isBundled ? "is-bundled" : "is-unknown";
   const syncLabel = (() => {
     if (source == null) return "no calendar data yet";
     const stamp = fmtSyncStamp(data?.last_refresh) || "—";
