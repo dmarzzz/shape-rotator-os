@@ -1,6 +1,15 @@
 export const DEFAULT_CALENDAR_CONFIG_KEY = "srfg:calendar_ingress_config";
 export const DEFAULT_CALENDAR_ID = "c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com";
 export const DEFAULT_SUPABASE_URL = "https://txjntzwksiluvqcpccpc.supabase.co";
+// The Supabase ANON key — safe to embed in a client (designed to ship publicly;
+// RLS, not key secrecy, is the boundary). It grants only what the `anon` role is
+// granted: SELECT on the public_* projections (public_calendar_grid,
+// public_transcript_evidence_cards). It cannot read any gated table or write.
+// Shared source of truth for both the web and OS readers (a per-deployment key
+// in the calendar-ingress config still overrides it). NOT a secret — service-role
+// / OAuth / worker tokens stay in env + Supabase Vault, never in git.
+export const DEFAULT_PUBLIC_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4am50endrc2lsdXZxY3BjY3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzA1NzEsImV4cCI6MjA5Njk0NjU3MX0.XjXEUnw3jq1E7PwIOvhr7a3OpO2lyZv6S_Hn3JqogBA";
 export const DEFAULT_CALENDAR_TIMEZONE = "America/New_York";
 export const DEFAULT_CAPTURE_BOT_EMAIL = "cube@shaperotator.xyz";
 export const DEFAULT_CALENDAR_ADMINS = Object.freeze([]);
