@@ -5809,8 +5809,9 @@ function renderSayDidShipped() {
   const sentenceBar = `
     <div class="ac-sentence" role="group" aria-label="say did shipped summary">
       <strong class="ac-sent-fact">${escHtml(cardCount)}</strong>
-      <span class="ac-sent-word">· public cohort + repo metadata</span>
-      ${constReadLine(`${observed}/${rows.length || teams.length} with build signal`, buildSummary)}
+      <span class="ac-sent-word">· public cohort + repo metadata ·</span>
+      <strong class="ac-sent-fact">${observed}/${rows.length || teams.length}</strong>
+      <span class="ac-sent-word">with build signal · ${escHtml(buildSummary)}</span>
     </div>`;
   // One card per team: a scannable identity lead (what it is / who it serves, with a
   // domain-colored accent) over the say -> did -> shipped proof strip. Observed build
