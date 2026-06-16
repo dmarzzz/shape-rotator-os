@@ -8508,7 +8508,21 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 }
 .alch-constellation-legend.is-journey-legend {
   align-items: center;
-  gap: 8px 14px;
+  gap: 6px 12px;
+}
+/* The pmf legend is the encoding key PLUS the bottleneck FILTER chips — it
+   belongs with the controls, not in its own glass panel. Float it (drop the
+   box) and tighten it into one quiet row so it reads as filters and the
+   scatter sits higher. Pairs with the floated stage below it. */
+.alch-constellation-legend.is-journey-legend.lg-track {
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
 }
 .alch-constellation-legend.is-journey-legend .acl-jfamily {
   display: inline-flex;
@@ -10503,6 +10517,24 @@ button.cb-cell:disabled { cursor: default; }
     rgba(20, 16, 18, 0.56);
   -webkit-backdrop-filter: var(--lg-blur-sm);
   backdrop-filter: var(--lg-blur-sm);
+}
+
+/* Float the collab board to match the other cohort plots: drop the opaque
+   matrix card (fill + border + radius + shadow + padding) so the grid sits on
+   the page substrate and starts higher; the side column (legend + inspector)
+   loses its glass fill too, keeping only the hairline left-rule as separator.
+   The cells carry their own fills, so legibility is unaffected. */
+.alch-collab .cb-matrix-section {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+.alch-collab .cb-matrix-section .cb-matrix-side {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .alch-collab .cb-matrix-key {
@@ -15176,6 +15208,39 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   outline: 1px solid var(--alchemy-oxide-bright);
   outline-offset: 1px;
 }
+
+/* Standing projection toggle (trajectory ⇄ gap to target) — a segmented pill
+   in the same family as the sentence chips. Two mutually-exclusive options
+   kept side-by-side (you compare, then pick), per the segmented-pill pattern. */
+.ac-proj-toggle {
+  display: inline-flex;
+  border: 1px solid rgba(var(--ink-rgb), 0.13);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.ac-proj-btn {
+  appearance: none;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  font-family: var(--ed-mono, var(--font-mono));
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  color: rgba(var(--ink-rgb), 0.55);
+  padding: 4px 12px;
+  line-height: 1;
+  transition: color 150ms var(--ease), background 150ms var(--ease);
+}
+.ac-proj-btn + .ac-proj-btn { border-left: 1px solid rgba(var(--ink-rgb), 0.10); }
+.ac-proj-btn:hover { color: var(--alchemy-paper-warm); }
+.ac-proj-btn[aria-pressed="true"] {
+  color: var(--alchemy-paper-warm);
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.13), rgba(var(--ink-rgb), 0.065));
+}
+.ac-proj-btn:active { transform: scale(0.97); }
+.ac-proj-btn:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 .ac-sent-chev {
   width: 0;
   height: 0;
@@ -16992,6 +17057,115 @@ body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   
 /* Red active edge retired 2026-06 — active state is now a soft glow
    (see .primary-nav rules). Keep the ::before element but never paint it. */
 .alchemy-rail-btn[aria-selected="true"]::before { background: transparent; }
+
+/* ── rail + destination motion polish (2026-06) ────────────────────────────
+   Last word on rail motion (this block intentionally follows the museum-tone
+   hover rules above so it wins the cascade). Keeps the quiet tone — no neon,
+   no accent bar (the even-list reading is deliberate) — but makes the rail
+   feel responsive to the cohort-pill standard:
+     · the active icon-tint + label brighten now EASE in on page-switch
+       (previously snapped) — color/opacity are added to the transition
+     · a calm 2px rightward hover nudge, the vertical-list idiom that echoes
+       the membrane feed rows, instead of an opacity-only hover
+     · a real press (slight inward scale) so selecting a page feels physical
+   transform/opacity only, so it layers over the palette untouched. */
+.alchemy-rail-btn {
+  transition:
+    opacity 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease,
+    transform var(--dur-fast) cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alchemy-rail-btn .ar-num,
+.alchemy-rail-btn .ar-label,
+.alchemy-rail-btn .ar-hint,
+.primary-nav .nav-cat--dest .ar-num,
+.primary-nav .nav-cat--dest .ar-label {
+  transition: color 220ms cubic-bezier(0.19, 1, 0.22, 1), opacity 220ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.primary-nav .nav-cat,
+.primary-nav .nav-cat--dest {
+  transition:
+    color 160ms ease,
+    text-shadow 160ms ease,
+    transform var(--dur-fast) cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alchemy-rail-btn:hover,
+.primary-nav .nav-cat--dest:hover { transform: translateX(2px); }
+.alchemy-rail-btn:active,
+.primary-nav .nav-cat--dest:active { transform: translateX(1px) scale(0.97); }
+.primary-nav .nav-cat--eyebrow:active { transform: scale(0.97); }
+html[data-reduce-motion="1"] .alchemy-rail-btn:hover,
+html[data-reduce-motion="1"] .alchemy-rail-btn:active,
+html[data-reduce-motion="1"] .primary-nav .nav-cat--dest:hover,
+html[data-reduce-motion="1"] .primary-nav .nav-cat--dest:active,
+html[data-reduce-motion="1"] .primary-nav .nav-cat--eyebrow:active { transform: none; }
+
+/* In-page view tabs (cohort directory / relationship-map / standing / …, and
+   the calendar/presence switch) already crossfade their underline via the
+   border-color transition; give them the same press grammar as every other
+   control so clicking a sub-view feels physical. transform added to the
+   transition so the press eases rather than snaps. */
+.alch-page-view-btn {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 110ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alch-page-view-btn:active { transform: scale(0.97); }
+html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
+
+/* ── "alive while selected" — looping cues for the picked data mark across the
+   cohort node / scatter / standing / collab views (NOT directory). A slow,
+   low-amplitude breathe + glow so a live selection reads as alive without
+   distracting from the rest of the field. SVG marks breathe via transform
+   (compositor-cheap, centered by transform-box:fill-box); DOM marks glow via
+   filter:drop-shadow so it LAYERS over their box-shadow instead of replacing
+   it. Only the selected element(s) animate (1-few), so cost is negligible.
+   The global reduced-motion reset zeroes animation-duration → these collapse
+   to static automatically. ──────────────────────────────────────────────── */
+@keyframes ac-sel-node-pulse {
+  0%, 100% { transform: scale(1.13); filter: drop-shadow(0 0 8px rgba(214, 189, 134, 0.30)); }
+  50%      { transform: scale(1.20); filter: drop-shadow(0 0 18px rgba(214, 189, 134, 0.55)); }
+}
+@keyframes ac-sel-node-pulse-lg {
+  0%, 100% { transform: scale(1.28); filter: drop-shadow(0 0 9px rgba(226, 207, 162, 0.32)); }
+  50%      { transform: scale(1.37); filter: drop-shadow(0 0 19px rgba(226, 207, 162, 0.56)); }
+}
+@keyframes ac-sel-edge-glow {
+  0%, 100% { filter: drop-shadow(0 0 2px color-mix(in oklch, var(--team-color, #c1a872) 16%, transparent)); }
+  50%      { filter: drop-shadow(0 0 8px color-mix(in oklch, var(--team-color, #c1a872) 52%, transparent)); }
+}
+@keyframes ac-sel-line-breathe {
+  0%, 100% { opacity: 0.95; }
+  50%      { opacity: 0.66; }
+}
+/* map / pmf / ring — selected node shape + scatter dot */
+.alch-constellation-stage[data-selection-active="true"] svg .ac-node-group.is-selection-core .ac-node-shape,
+.alch-constellation-stage[data-selection-active="true"] svg .ac-jnode.is-selection-core .ac-jdot {
+  animation: ac-sel-node-pulse 2.6s ease-in-out infinite;
+}
+/* people dots + project anchors — larger resting scale */
+.alch-constellation-stage[data-selection-active="true"] svg .ac-person-node.is-selection-core .ac-person-dot,
+.alch-constellation-stage[data-selection-active="true"] svg .ac-project-anchor.is-selection-core .ac-project-anchor-mark {
+  animation: ac-sel-node-pulse-lg 2.6s ease-in-out infinite;
+}
+/* standing — selected tile / gap row breathes a soft edge glow */
+.alch-constellation-stage[data-selection-active="true"] .ac-stack-team.is-selection-core,
+.ac-stack-team.is-selected {
+  animation: ac-sel-edge-glow 2.6s ease-in-out infinite;
+}
+/* standing trajectory — the selected team's line gently breathes */
+.ac-stack-view.is-trajectory .ac-traj-team.is-selection-core .ac-traj-line {
+  animation: ac-sel-line-breathe 2.4s ease-in-out infinite;
+}
+/* collab board — the picked row / column header pulses a soft edge glow */
+.alch-collab .cb-rowhead.is-selected,
+.alch-collab .cb-colhead.is-selected {
+  animation: ac-sel-edge-glow 2.6s ease-in-out infinite;
+}
 
 /* ── this-week dateline — confirms the app knows the date ─────────── */
 .cal-tw-dateline {
@@ -19856,6 +20030,20 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   backdrop-filter: var(--lg-blur);
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
+/* …but the relationship-map inspector is a readout COLUMN beside the now-
+   floating graph, not a glass card over it — float it to match, leaving the
+   base rule's hairline left-rule as the only separation. So the graph + its
+   readout read as one surface on the page substrate. (.ac-main-readout keeps
+   the glass — it can overlay content on other views.) */
+.ac-inspector {
+  border: 0;
+  border-left: 1px solid rgba(var(--ink-rgb), 0.10);
+  border-radius: 0;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
 
 /* ── Reusable liquid-glass surfaces ──────────────────────────────────────
  * One definition each; collab / pmf / stack / map consume these instead of
@@ -19914,16 +20102,19 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
 }
 /* Every constellation stage sits in the same material panel as the
  * dossier — one box language across all cohort views. */
+/* Float the plots — drop the card chrome (fill + border + radius) so the data
+   sits directly on the page substrate (the reference look: marks on black, zero
+   container clutter; house rule: chart ink should be 100% data-bearing). The
+   focus-ring (inset shadow) and SVG gridlines/axes are kept — they're a11y +
+   data, not chrome. directory cards are unaffected (cards should be cards). */
 .alch-constellation-stage {
-  border: 1px solid rgba(241, 236, 231, 0.12);
-  border-radius: 8px;
-  background:
-    linear-gradient(112deg, rgba(180, 58, 25, 0.06), transparent 50%),
-    rgba(28, 25, 25, 0.45);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 html[data-theme="light"] .alch-constellation-stage {
-  border-color: rgba(27, 20, 17, 0.12);
-  background: linear-gradient(180deg, #FFFFFF 0%, #F6F1E9 100%);
+  border-color: transparent;
+  background: transparent;
 }
 .alch-detail-rail {
   min-width: 0;

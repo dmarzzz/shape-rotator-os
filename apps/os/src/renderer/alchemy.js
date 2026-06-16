@@ -177,6 +177,7 @@ const state = {
   collabSelection: null,           // { type: "team"|"pair"|"cluster", ... } — pinned inspector state
   goalStandingFilter: "all",       // "all" | "behind" | "onplan" | "ahead" — standing legend/filter
   goalMomentumFilter: "all",       // "all" | "rising" | "slipping" | "flat" — momentum legend/filter on the goal views
+  standingProjection: "trajectory", // "trajectory" | "targets" — standing view projection (targets folded in 2026-06)
   renderToken: 0,                  // invalidates pending cross-fade swaps when a newer render starts
   mounted: false,
   active: false,
@@ -2227,8 +2228,11 @@ const CONST_VIEWS = [
   { mode: "directory", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', label: "directory", hint: "teams, projects, people" },
   { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "relationship map", hint: "declared links by ecosystem" },
   { mode: "journey", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>', label: "pmf evidence", hint: "market-fit signal coverage" },
-  { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "team status against plan" },
-  { mode: "targets", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>', label: "targets", hint: "stage gap to close" },
+  { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "status + gap to target" },
+  // "targets" folded into "standing" as a projection toggle (2026-06): same
+  // goal model, same chips — it was a second tab for one dataset. The gap view
+  // is now the "gap to target" toggle inside standing. Mode kept valid in
+  // constNormalizeConstellationMode so old deep-links still resolve.
   { mode: "shipped", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>', label: "say / did / shipped", hint: "intent vs public proof" },
   { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "asks, offers, dependencies" },
 ];
@@ -5940,15 +5944,28 @@ function renderProductStack() {
       ${CONST_GOAL_STANDING_KEYS.map(standingChip).join("")}
     </div>`;
   const selectionChip = constSelectionChipHtml();
+  // targets folded in: ONE view, two projections of the same goal model —
+  // "trajectory" (movement over weeks toward graduation) and "gap to target"
+  // (current stage → target). A segmented toggle switches between them so the
+  // gap framing keeps its home without a redundant top-level tab.
+  const projection = state.standingProjection === "targets" ? "targets" : "trajectory";
+  const projToggle = `
+    <div class="ac-proj-toggle" role="group" aria-label="standing projection">
+      <button type="button" class="ac-proj-btn" data-standing-projection="trajectory" aria-pressed="${projection === "trajectory" ? "true" : "false"}">trajectory</button>
+      <button type="button" class="ac-proj-btn" data-standing-projection="targets" aria-pressed="${projection === "targets" ? "true" : "false"}">gap to target</button>
+    </div>`;
+  const bodyHtml = projection === "targets"
+    ? constGoalTargetsHtml(goalModel, standingFilter, momentumFilter)
+    : constGoalPlanHtml(goalModel, standingFilter, momentumFilter);
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="stack">
     ${cohortPageHead("stack")}
-    <div class="alch-view-controls" data-shape-occluder>${constTimelineDropdownHtml()}${sentenceBar}${selectionChip}</div>
+    <div class="alch-view-controls" data-shape-occluder>${constTimelineDropdownHtml()}${sentenceBar}${projToggle}${selectionChip}</div>
     <div class="alch-constellation" data-constellation-view="stack">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
-          <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-lens="all" tabindex="0" aria-label="team standing against plan">
-            ${constGoalPlanHtml(goalModel, standingFilter, momentumFilter)}
+          <div class="alch-constellation-stage ac-stack-stage" data-view="stack" data-projection="${escAttr(projection)}" data-lens="all" tabindex="0" aria-label="team standing — ${projection === "targets" ? "gap to target" : "trajectory toward graduation"}">
+            ${bodyHtml}
             <div class="ac-tip" hidden></div>
           </div>
         </div>
@@ -6529,7 +6546,16 @@ function renderConstellation() {
   if (mode === "collab") { renderCollab(); return; }
   if (mode === "journey") { renderJourney(); return; }
   if (mode === "stack") { renderProductStack(); return; }
-  if (mode === "targets") { renderTargets(); return; }
+  // Legacy "targets" mode (old deep-links / saved state) → standing with the
+  // gap-to-target projection preselected. Migrate the mode to "stack" so the
+  // projection toggle sticks afterward (otherwise every re-render would force
+  // it back to targets). The tab is gone; the toggle owns it.
+  if (mode === "targets") {
+    state.constellationMode = "stack";
+    state.standingProjection = "targets";
+    renderProductStack();
+    return;
+  }
   if (mode === "shipped") { renderSayDidShipped(); return; }
 
   const lens = constNormalizeConstellationLens(state.constellationLens);
@@ -7670,6 +7696,16 @@ function wireConstellationHover() {
     btn.addEventListener("click", () => {
       const next = constNormalizeGoalStandingFilter(btn.dataset.standingFilter);
       state.goalStandingFilter = state.goalStandingFilter === next ? "all" : next;
+      render();
+    });
+  }
+  // Standing projection toggle (trajectory ⇄ gap to target) — the folded-in
+  // "targets" view, now a lens within standing.
+  for (const btn of state.canvas.querySelectorAll("[data-standing-projection]")) {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.standingProjection === "targets" ? "targets" : "trajectory";
+      if (state.standingProjection === next) return;
+      state.standingProjection = next;
       render();
     });
   }
