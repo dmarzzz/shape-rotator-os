@@ -41,6 +41,8 @@ test("migrations create the cohort article relations queried by the renderer", (
   assert.match(migration, /create table if not exists public\.cohort_articles/i);
   assert.match(migration, /create view public\.app_cohort_articles/i);
   assert.match(migration, /create view public\.public_cohort_articles/i);
+  assert.match(migration, /coalesce\(new\.tags::text, ''\)/i);
+  assert.match(migration, /coalesce\(tags::text, ''\)/i);
   assert.match(migration, /grant select on public\.public_cohort_articles to anon, authenticated, service_role/i);
 });
 
