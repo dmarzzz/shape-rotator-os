@@ -281,11 +281,14 @@ function evaluateEvidenceCardAudit({
   publicResult = null,
   anonEvidenceResult = null,
   appResult = null,
+  insightPublicResult = null,
+  anonInsightResult = null,
   entityDictionary = [],
   strict = false,
 } = {}) {
   const evidenceRows = evidenceResult?.rows || [];
   const publicRows = publicResult?.rows || [];
+  const insightPublicRows = insightPublicResult?.rows || [];
   const schema = { failures: [], warnings: [] };
   const privacy = { failures: [], warnings: [] };
   const insight = { failures: [], warnings: [], metrics: evidenceMetrics(evidenceRows), public_metrics: evidenceMetrics(publicRows) };
@@ -293,9 +296,13 @@ function evaluateEvidenceCardAudit({
   if (!evidenceResult?.ok) schema.failures.push(`cannot query evidence_cards with service role: ${evidenceResult?.status || "not queried"}`);
   if (!publicResult?.ok) schema.failures.push(`cannot query public_transcript_evidence_cards with anon key: ${publicResult?.status || "not queried"}`);
   if (appResult && !appResult.ok) schema.warnings.push(`cannot query app_transcript_evidence_cards with service role: ${appResult.status}`);
+  if (insightPublicResult && !insightPublicResult.ok) schema.warnings.push(`cannot query public_cohort_insight_cards with anon key: ${insightPublicResult.status}`);
 
   if (anonEvidenceResult?.ok && (anonEvidenceResult.rows || []).length > 0) {
     privacy.failures.push(`anon can read evidence_cards (${anonEvidenceResult.rows.length} row(s) returned)`);
+  }
+  if (anonInsightResult?.ok && (anonInsightResult.rows || []).length > 0) {
+    privacy.failures.push(`anon can read cohort_insight_cards (${anonInsightResult.rows.length} row(s) returned)`);
   }
 
   const t3Bad = evidenceRows.filter((row) =>
@@ -318,6 +325,15 @@ function evaluateEvidenceCardAudit({
 
   const publicPrivateMarkers = privateMarkerHits(publicRows);
   if (publicPrivateMarkers.length) privacy.failures.push(`${publicPrivateMarkers.length} public row(s) contain private markers`);
+
+  const insightForbidden = insightPublicRows
+    .map((row) => ({ id: row.id, hits: scanForbiddenKeys(row.content_json) }))
+    .filter((item) => item.hits.length);
+  if (insightForbidden.length) {
+    privacy.failures.push(`${insightForbidden.length} public insight row(s) expose entity/provenance keys in content_json`);
+  }
+  const insightPrivateMarkers = privateMarkerHits(insightPublicRows);
+  if (insightPrivateMarkers.length) privacy.failures.push(`${insightPrivateMarkers.length} public insight row(s) contain private markers`);
 
   const nonAnonymousScope = publicRows.filter((row) => row.attribution_scope && row.attribution_scope !== "anonymous_public");
   if (nonAnonymousScope.length) privacy.warnings.push(`${nonAnonymousScope.length} public row(s) expose non-anonymous attribution_scope`);
@@ -368,8 +384,10 @@ function evaluateEvidenceCardAudit({
     counts: {
       evidence_cards: evidenceResult?.count ?? evidenceRows.length,
       public_transcript_evidence_cards: publicResult?.count ?? publicRows.length,
+      public_cohort_insight_cards: insightPublicResult?.count ?? insightPublicRows.length,
       app_transcript_evidence_cards: appResult?.count ?? (appResult?.rows || []).length,
       anon_evidence_cards_rows: (anonEvidenceResult?.rows || []).length,
+      anon_cohort_insight_cards_rows: (anonInsightResult?.rows || []).length,
     },
   };
 }
@@ -409,7 +427,7 @@ async function runLiveEvidenceCardAudit({
   ].join(",");
   const publicSelect = "id,claim_type,title,claim_text,summary,evidence_level,confidence,attribution_scope,content_json,created_at";
 
-  const [evidenceResult, publicResult, anonEvidenceResult, appResult] = await Promise.all([
+  const [evidenceResult, publicResult, anonEvidenceResult, appResult, insightPublicResult, anonInsightResult] = await Promise.all([
     restSelect({
       supabaseUrl,
       key: serviceRoleKey,
@@ -446,6 +464,24 @@ async function runLiveEvidenceCardAudit({
       limit,
       fetchImpl,
     }),
+    restSelect({
+      supabaseUrl,
+      key: anonKey,
+      table: "public_cohort_insight_cards",
+      select: "id,kind,subject_type,title,claim_text,summary,content_json,created_at",
+      query: { order: "created_at.desc" },
+      limit,
+      fetchImpl,
+    }),
+    restSelect({
+      supabaseUrl,
+      key: anonKey,
+      table: "cohort_insight_cards",
+      select: "id",
+      query: { order: "created_at.desc" },
+      limit: 1,
+      fetchImpl,
+    }),
   ]);
 
   return evaluateEvidenceCardAudit({
@@ -453,6 +489,8 @@ async function runLiveEvidenceCardAudit({
     publicResult,
     anonEvidenceResult,
     appResult,
+    insightPublicResult,
+    anonInsightResult,
     entityDictionary: loadEntityDictionary(),
     strict,
   });

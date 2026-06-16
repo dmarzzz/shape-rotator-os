@@ -63,6 +63,47 @@ test("audit fails public rows that expose entity/provenance keys", () => {
   assert.match(result.privacy.failures.join("\n"), /public row\(s\) expose entity\/provenance keys/);
 });
 
+const cleanInsightRow = {
+  id: "insight-1",
+  kind: "latent_overlap",
+  subject_type: "cohort",
+  title: "Shared coordination pattern",
+  claim_text: "Multiple projects converge on a reusable pattern.",
+  summary: "Public-safe synthesis.",
+  content_json: { themes: ["coordination"], raw_allowed: false, named_entities_allowed: false },
+  created_at: "2026-06-12T00:00:00Z",
+};
+
+test("audit accepts a clean public insight view + locked base insight table", () => {
+  const result = evaluateEvidenceCardAudit({
+    evidenceResult: okResult("evidence_cards", [baseEvidenceRow]),
+    publicResult: okResult("public_transcript_evidence_cards", [baseEvidenceRow]),
+    anonEvidenceResult: okResult("evidence_cards", []),
+    appResult: okResult("app_transcript_evidence_cards", []),
+    insightPublicResult: okResult("public_cohort_insight_cards", [cleanInsightRow]),
+    anonInsightResult: okResult("cohort_insight_cards", []),
+  });
+  assert.ok(!result.privacy.failures.join("\n").includes("insight"));
+  assert.ok(!result.privacy.failures.join("\n").includes("anon can read cohort_insight_cards"));
+});
+
+test("audit fails when the public insight view leaks entity keys or anon can read the base insight table", () => {
+  const result = evaluateEvidenceCardAudit({
+    evidenceResult: okResult("evidence_cards", [baseEvidenceRow]),
+    publicResult: okResult("public_transcript_evidence_cards", [baseEvidenceRow]),
+    anonEvidenceResult: okResult("evidence_cards", []),
+    appResult: okResult("app_transcript_evidence_cards", []),
+    insightPublicResult: okResult("public_cohort_insight_cards", [{
+      ...cleanInsightRow,
+      content_json: { ...cleanInsightRow.content_json, teams: ["teleport-router"] },
+    }]),
+    anonInsightResult: okResult("cohort_insight_cards", [{ id: "leaked" }]),
+  });
+  assert.equal(result.status, "fail");
+  assert.match(result.privacy.failures.join("\n"), /public insight row\(s\) expose entity\/provenance keys/);
+  assert.match(result.privacy.failures.join("\n"), /anon can read cohort_insight_cards/);
+});
+
 test("audit warns when privacy passes but insight signal is too flat", () => {
   const rows = Array.from({ length: 12 }, (_, index) => ({
     ...baseEvidenceRow,
