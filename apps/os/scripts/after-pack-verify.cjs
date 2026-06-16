@@ -18,12 +18,16 @@
 //   1. every relative require("./x") in main.js + preload.js resolves
 //      to a file that's really in the asar
 //   2. every relative ES import/export ("./x", "../y") between bundled
-//      src/ modules resolves to a file in the asar (catches v0.2.14:
-//      a renderer module importing a sibling that didn't get packaged)
+//      src/ modules resolves to a file in the asar (including
+//      string-literal dynamic import("./x") calls, which lazy renderers use)
+//      (catches v0.2.14: a renderer module importing a sibling that didn't
+//      get packaged)
 //   3. no bundled src/ file imports three/examples/jsm or three/addons —
 //      the importmap routes those to node_modules/three/, which the
 //      packer strips; they must be vendored into src/vendor/ instead
-//   4. a small anchor allowlist (entrypoints + index.html + boot.js)
+//   4. lazy stylesheets loaded with loadStylesheetOnce("x.css") exist in
+//      the asar next to index.html
+//   5. a small anchor allowlist (entrypoints + index.html + boot.js)
 //
 // Optionally (SROS_SMOKE_TEST=1, host arch matches the packed arch) it
 // also boots the packed binary headless via scripts/smoke-test.cjs and
@@ -80,9 +84,16 @@ exports.default = async function afterPack(context) {
   }
 
   // ── 2. relative ES import/export graph across bundled src/ modules ─
-  // Matches: import ... from "x" | import "x" | export ... from "x".
-  // Only string-literal specifiers; dynamic import(expr) is skipped.
+  // Matches: import ... from "x" | import "x" | export ... from "x" |
+  // string-literal import("x"). Dynamic import(expr) is intentionally
+  // skipped; there is no path to resolve statically.
   const STATIC_SPEC = /(?:^|[\s;])(?:import|export)\b[^'"]*?from\s*['"]([^'"]+)['"]|(?:^|[\s;])import\s*['"]([^'"]+)['"]/g;
+  const DYNAMIC_SPEC = /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  const resolveSrcRelativeSpec = (fromEntry, spec) => {
+    const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(fromEntry), spec));
+    if (!resolved.startsWith("src/")) return null; // escapes into node_modules etc. — not our graph
+    return resolveEntry(resolved);
+  };
   for (const e of entries) {
     if (!e.startsWith("src/") || !e.endsWith(".js")) continue;
     let src;
@@ -91,10 +102,17 @@ exports.default = async function afterPack(context) {
     while ((m = STATIC_SPEC.exec(src)) !== null) {
       const spec = m[1] || m[2];
       if (!spec || !spec.startsWith(".")) continue; // bare specifier → importmap/node_modules, out of scope here
-      const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(e), spec));
-      if (!resolved.startsWith("src/")) continue; // escapes into node_modules etc. — not our graph
-      if (!resolveEntry(resolved)) {
-        problems.push(`${e} imports "${spec}" → ${resolved} which is not in the asar`);
+      if (!resolveSrcRelativeSpec(e, spec)) {
+        const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(e), spec));
+        problems.push(`${e} imports "${spec}" -> ${resolved} which is not in the asar`);
+      }
+    }
+    while ((m = DYNAMIC_SPEC.exec(src)) !== null) {
+      const spec = m[1];
+      if (!spec || !spec.startsWith(".")) continue;
+      if (!resolveSrcRelativeSpec(e, spec)) {
+        const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(e), spec));
+        problems.push(`${e} dynamically imports "${spec}" -> ${resolved} which is not in the asar`);
       }
     }
   }
@@ -105,7 +123,7 @@ exports.default = async function afterPack(context) {
   // three/examples/jsm (or the three/addons alias) is a dead reference
   // in the package. Vendor into src/vendor/ instead. (The vendored
   // copies may reference three/addons in JSDoc — they're excluded.)
-  const STRIPPED_IMPORT = /from\s+['"](three\/examples\/jsm|three\/addons)\//;
+  const STRIPPED_IMPORT = /(?:from\s+|import\s*\(\s*|(?:^|[\s;])import\s*)['"](three\/examples\/jsm|three\/addons)\//m;
   for (const e of entries) {
     if (!e.startsWith("src/") || !e.endsWith(".js")) continue;
     if (e.startsWith("src/vendor/")) continue;
@@ -116,7 +134,26 @@ exports.default = async function afterPack(context) {
     }
   }
 
-  // ── 4. anchor allowlist — the load-bearing files must exist ───────
+  // ── 4. lazy stylesheet assets loaded by renderer modules ──────────
+  const STYLESHEET_SPEC = /loadStylesheetOnce\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  for (const e of entries) {
+    if (!e.startsWith("src/") || !e.endsWith(".js")) continue;
+    let src;
+    try { src = readText(e); } catch { continue; }
+    let m;
+    while ((m = STYLESHEET_SPEC.exec(src)) !== null) {
+      const href = m[1];
+      if (!href || /^(?:https?:|data:|file:|app:|#)/.test(href)) continue;
+      const resolved = path.posix.normalize(path.posix.join("src", href));
+      if (!resolved.startsWith("src/")) {
+        problems.push(`${e} lazy-loads stylesheet "${href}" outside src/`);
+      } else if (!entries.has(resolved)) {
+        problems.push(`${e} lazy-loads stylesheet "${href}" -> ${resolved} which is not in the asar`);
+      }
+    }
+  }
+
+  // ── 5. anchor allowlist — the load-bearing files must exist ───────
   const MUST_EXIST = ["main.js", "preload.js", "swarm-node.js", "swf-node.js", "src/index.html", "src/renderer/boot.js",
     // router pop-out: host adapter + vendored pipeline + verbatim renderer/shim
     "daybook-main.js", "daybook/redact.js", "daybook/draft.js", "daybook/link.js",
@@ -147,10 +184,10 @@ exports.default = async function afterPack(context) {
   }
 
   console.log(
-    `[afterPack] verify-asar OK · ${entries.size} asar entries · entrypoint requires + src import graph resolve · no stripped-addon imports`
+    `[afterPack] verify-asar OK · ${entries.size} asar entries · entrypoint requires + src import graph + lazy stylesheets resolve · no stripped-addon imports`
   );
 
-  // ── 5. optional live boot smoke (opt-in, host-arch only) ──────────
+  // ── 6. optional live boot smoke (opt-in, host-arch only) ──────────
   // SROS_SMOKE_TEST=1 boots the just-packed binary headless and waits
   // for the renderer's ready sentinel. Skipped for cross-arch packs
   // (can't run an x64 binary on an arm64 host reliably) so it never

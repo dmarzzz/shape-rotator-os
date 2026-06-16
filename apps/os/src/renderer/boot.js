@@ -1,28 +1,16 @@
-// BOOT — wires lens + shape + dimension + materialization into a running viz.
+// BOOT — wires graph data, network telemetry, and app navigation.
 //
 // What this does:
 //  - Fetches /graph from the community server
-//  - Builds 3d-force-graph with sprite-per-node rendering
-//  - Subscribes to /events SSE for live materialization
-//  - Listens to lens/shape dropdown changes → re-applies dimensions + relayouts
-//  - Heavy damping; idle camera drift
-
-import * as THREE from "three";
-import { UnrealBloomPass } from "../vendor/three-extras/postprocessing/UnrealBloomPass.js";
+//  - Keeps graph data current for atlas/network surfaces
+//  - Subscribes to /events SSE for live peer/network state
 
 import { applyStoredTheme } from "./theme.js";
 // Apply the persisted light/dark choice at module load — before any
 // alchemy surface paints — so launches never flash the wrong palette.
 applyStoredTheme();
 
-import { LENSES, LENS_LIST } from "./lenses.js";
-import { SHAPES, SHAPE_LIST, easeOutQuart } from "./shapes.js";
-import { applyAllDimensions, applyDimensions } from "./dimensions.js";
-import { DAMP, dampPosition } from "./damping.js";
-import { materialize } from "./materialize.js";
-import { syncLabels, fadeLabelsByDistance } from "./labels.js";
 import { stableHue } from "./colors.js";
-import { mountChat } from "./chat/chat.js";
 import {
   toast,
   mountConnectionIndicator,
@@ -51,17 +39,22 @@ import {
   mountPaletteMark,
   replayLaunch,
 } from "./signature.js";
-// graph2 + cosmos archived 2026-05-09 — see _archive/experimental/.
-// Kept as no-op stubs so existing call sites (all wrapped in try/catch
-// already) continue to compile without ceremony.
-const Graph2 = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode() {} };
-const Cosmos = { mount() {}, setActive() {}, notifyDataChanged() {}, pulseNode() {} };
-import * as Atlas from "./atlas.js";
-import * as Easel from "./easel.js";
-import * as Alchemy from "./alchemy.js";
 import * as Tabs from "./tabs.js";
-import * as Find from "./find.js";
 import * as Glass from "./glass.js";
+import {
+  Alchemy,
+  Atlas,
+  Easel,
+  loadAtlasModule,
+  loadEaselModule,
+  mountChatLazy,
+  schedulePostBootWarmups,
+  warmAppModule,
+  warmTabModule,
+  wireRendererWarmupHints,
+} from "./lazy-renderers.js";
+import { createLazyModule } from "./lazy-module.js";
+import { loadStylesheetOnce } from "./stylesheet-loader.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
 import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.js";
 
@@ -81,6 +74,67 @@ const cp = (label) => {
   if (__SMOKE) { try { console.error("[smoke-cp] " + label); } catch {} }
 };
 cp("module-eval:boot.js");
+
+const findLazy = createLazyModule(() =>
+  Promise.all([
+    loadStylesheetOnce("renderer/find.css"),
+    import("./find.js"),
+  ]).then(([, module]) => module));
+let findInitialized = false;
+
+const networkGlanceLazy = createLazyModule(() => import("./network-glance.js"));
+
+function loadFind({ shortcut = false } = {}) {
+  return findLazy.load()
+    .then((module) => {
+      if (!findInitialized) {
+        module.init({ shortcut: false });
+        findInitialized = true;
+      }
+      if (shortcut) module.toggleFromShortcut();
+      return module;
+    })
+    .catch((error) => {
+      console.warn("[find] failed to load:", error?.message || error);
+      throw error;
+    });
+}
+
+function wireFindLazyLoad() {
+  document.addEventListener("keydown", (e) => {
+    const isModF = (e.metaKey || e.ctrlKey) && (e.key === "f" || e.key === "F");
+    if (!isModF) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    loadFind({ shortcut: true }).catch(() => {});
+  }, true);
+
+  const loadForBlankTab = () => {
+    if (document.body.hasAttribute("data-blank")) loadFind().catch(() => {});
+  };
+  const obs = new MutationObserver(loadForBlankTab);
+  obs.observe(document.body, { attributes: true, attributeFilter: ["data-blank"] });
+  loadForBlankTab();
+}
+
+function loadNetworkGlanceModule() {
+  return networkGlanceLazy.load()
+    .then((module) => {
+      module.initNetworkGlance({ srwk, setIntervalVisible });
+      return module;
+    })
+    .catch((error) => {
+      console.warn("[glance] failed to load:", error?.message || error);
+      throw error;
+    });
+}
+
+function wireNetworkGlanceLazy() {
+  const force = () => loadNetworkGlanceModule()
+    .then((module) => module.forceNetworkGlance());
+  force.__lazyNetworkGlance = true;
+  window.__forceGlance = force;
+}
 
 // Small Notion-style sync chip pinned to the bottom-left. Subscribes
 // to cohort-source's sync lifecycle and fades in while a background
@@ -157,28 +211,23 @@ function tick(elOrId, n, fmt) {
   tickNumber(el, n, { format: fmt || ((v) => String(Math.round(v))) });
 }
 
+function updateGraphCounts() {
+  tick("node-count", srwk.nodes.length);
+  tick("edge-count", srwk.edges.length);
+  tick("peer-count", srwk.peers.size);
+}
+
+const DEFAULT_GRAPH_LENS_ID = "contributor";
+
 const srwk = {
-  G: null,
-  scene: null,
   serverUrl: "http://127.0.0.1:7777",  // swf-node default; main.js overrides via env:get
   graph: null,
   nodes: [],
   edges: [],
   peers: new Map(),
   nodeMap: new Map(),
-  spriteTex: null, haloTex: null,
-  startTime: performance.now(),
-  bounds: { radius: 600 },
-  lens: LENSES.contributor,       // peer-territory view — most legible default
-  shape: SHAPES.cluster,
-  shapeTransition: null,         // {start, duration, source: Map, target: Map}
-  groupCentroids: new Map(),
-  driftBase: { x: 0, y: 0, z: 0 },
-  lastUserT: 0,
   lastEventId: 0,                // for SSE replay on reconnect
   eventSource: null,
-  clusters: [],                  // server-computed cluster labels
-  labelMap: new Map(),           // key → THREE.Sprite
   liveSeen: new Map(),           // pubkey → ms-timestamp of last contribution event
 };
 
@@ -488,25 +537,6 @@ async function boot() {
   cp("boot:after-env");
   if (env?.serverUrl) srwk.serverUrl = env.serverUrl;
 
-  srwk.spriteTex = makeSpriteTex();
-  srwk.haloTex = makeHaloTex();
-
-  // populate dropdowns
-  const lensSel = document.getElementById("lens-select");
-  for (const l of LENS_LIST) {
-    const opt = document.createElement("option");
-    opt.value = l.id; opt.textContent = l.label; lensSel.appendChild(opt);
-  }
-  const shapeSel = document.getElementById("shape-select");
-  for (const s of SHAPE_LIST) {
-    const opt = document.createElement("option");
-    opt.value = s.id; opt.textContent = s.label; shapeSel.appendChild(opt);
-  }
-  lensSel.value = srwk.lens.id;
-  shapeSel.value = srwk.shape.id;
-  lensSel.addEventListener("change", () => switchLens(LENSES[lensSel.value]));
-  shapeSel.addEventListener("change", () => switchShape(SHAPES[shapeSel.value]));
-
   // Signature first-launch animation — the rotor glyph assembles from
   // four scattered dots and the SHAPE ROTATOR wordmark resolves. Lives
   // in signature.js. Skippable on Esc / Enter / pointerdown / Space.
@@ -630,8 +660,9 @@ async function boot() {
 
   // Check for a newer build automatically on launch / refresh (previously
   // this only ran when the version stamp was clicked). Silent — it only
-  // lights up the download icon if something's actually available.
-  checkForUpdate({ showSpinner: false });
+  // lights up the download icon if something's actually available. Skip in
+  // smoke mode so packaged boot validation doesn't depend on update metadata.
+  if (!__SMOKE) checkForUpdate({ showSpinner: false });
 
   // Wire tabs + search-overlay FIRST so the UI is navigable even if the
   // swf-node graph fetch fails. Previously a `Failed to fetch` from
@@ -653,20 +684,24 @@ async function boot() {
   });
   wireMetricsTab();
   cp("boot:before-wireTabs");
-  wireTabs();          // applyActiveTab(initial) → schedules the default-view (membrane) mount
+  wireTabs();
+  Tabs.configureAlchemy(Alchemy);
   cp("boot:after-wireTabs");
   Tabs.init();
-  Find.init();
+  wireFindLazyLoad();
+  wireNetworkGlanceLazy();
   Glass.init();
   wireAppsGrid();
+  wireSwarmPanelLauncher();
+  wireRendererWarmupHints();
   initNavHistory();
   wireAtlasOfflinePanel();
 
-  setStatus("composing graph…");
+  setStatus("loading graph data…");
   // Track whether the initial /graph fetch actually worked. We can't
   // use `srwk.graph` truthiness as the discriminator because the catch
   // block below sets it to an empty placeholder so downstream callers
-  // (buildSim, Atlas.notifyDataChanged, ...) don't NPE on undefined.
+  // (Atlas.notifyDataChanged, network panels, ...) don't NPE on undefined.
   // Conflating "placeholder due to error" with "real empty response"
   // was the bug behind the "INDREX EMPTY · no pages yet" card showing
   // up when the actual state was "swf-node unreachable".
@@ -687,10 +722,9 @@ async function boot() {
     srwk.graph = { nodes: [], edges: [], clusters: [], peers: [] };
     srwk.nodes = [];
     srwk.edges = [];
-    srwk.clusters = [];
     showAtlasOffline();
   }
-  // Clear the "composing graph…" only on success; if the catch fired
+  // Clear the graph-data status only on success; if the catch fired
   // above, that status message is the one we want to keep visible.
   if (daemonReachableAtBoot && srwk.nodes && srwk.nodes.length > 0) {
     setStatus("");
@@ -699,7 +733,7 @@ async function boot() {
   } else if (daemonReachableAtBoot && srwk.graph && (!srwk.nodes || srwk.nodes.length === 0)) {
     // Daemon reachable (we got a real /graph response) but the indrex
     // has zero indexed pages. Fresh-install case. Show a friendly empty
-    // panel instead of leaving the black 3D scene + "composing graph…"
+    // panel instead of leaving a stale loading status stuck.
     // status stuck. Panel auto-clears once a single node lands via the
     // reconcile poll. Critically gated on `daemonReachableAtBoot` so
     // an offline boot does NOT trip this branch.
@@ -709,10 +743,9 @@ async function boot() {
   }
   // else: catch fired (offline); offline panel stays shown, empty stays hidden.
   cp("boot:after-loadGraph");
-  try { buildSim(); } catch (e) { console.warn("[boot] buildSim failed:", e); }
-  cp("boot:after-buildSim");
   try { subscribeEvents(); } catch (e) { console.warn("[boot] subscribeEvents failed:", e); }
   wirePeersPanel();
+  startPeerDataRefresh();
   wireEventsPanel();
   wireTrafficPanel();
   wireTicketsPanel();
@@ -727,845 +760,26 @@ async function boot() {
   try { renderNetRouterStatus(); } catch {}
   try { renderNetSearchPanel(); } catch {}
   try { renderNetRecordsPanel(); } catch {}
-  wireAnonBadge();
-  wireTimeline();
+  startAnonSetHealthPoll();
   wireLiveGraph();
-  wireSearch();
-  wireSourceFilter();
   startGraphReconcile();
   startConnectionProbe();
 
-  // idle drift — only if buildSim succeeded and srwk.G exists.
-  const mark = () => { srwk.lastUserT = performance.now(); };
-  try {
-    const ctrls = srwk.G?.controls?.();
-    if (ctrls?.addEventListener) {
-      ctrls.addEventListener("start", mark);
-      ctrls.addEventListener("change", mark);
-    }
-  } catch {}
-  const graphEl = document.getElementById("graph");
-  if (graphEl) graphEl.addEventListener("wheel", mark, { passive: true });
-
-  // animation loop
-  let last = performance.now();
-  function tick(now) {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    advanceShapeTransition(dt);
-    ambientCameraDrift(dt);
-    if (srwk.G) {
-      // _fadeLabels is the search-aware wrapper installed at module
-      // scope; fall back to the plain fadeLabelsByDistance if for any
-      // reason the wrapper isn't yet defined (e.g. early boot).
-      const fade = srwk._fadeLabels || fadeLabelsByDistance;
-      fade(srwk.G.camera(), srwk.labelMap);
-    }
-    requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
   cp("boot:end");   // boot() about to resolve → signalReady() fires next
+  schedulePostBootWarmups();
 }
 
 async function loadGraph() {
-  const r = await fetch(`${srwk.serverUrl}/graph?lens=${srwk.lens.id}`);
+  const r = await fetch(`${srwk.serverUrl}/graph?lens=${DEFAULT_GRAPH_LENS_ID}`);
   if (!r.ok) throw new Error(`graph fetch failed: ${r.status}`);
   srwk.graph = await r.json();
   srwk.nodes = srwk.graph.nodes;
   srwk.edges = srwk.graph.edges;
-  srwk.clusters = srwk.graph.clusters || [];
   for (const n of srwk.nodes) srwk.nodeMap.set(n.id, n);
   for (const p of srwk.graph.peers || []) srwk.peers.set(p.pubkey, p);
-  // mark-count is a compound string; not amenable to animated-counter.
-  document.getElementById("mark-count").textContent =
-    `${srwk.nodes.length}n · ${srwk.edges.length}e`;
-  tick("node-count", srwk.nodes.length);
-  tick("edge-count", srwk.edges.length);
-  tick("peer-count", srwk.peers.size);
-  pushConnPeers();
-  applyAllDimensions(srwk.nodes, srwk.lens);
-  if (typeof renderPeersPanel === "function") renderPeersPanel();
-}
-
-function buildSim() {
-  const container = document.getElementById("graph");
-  const G = ForceGraph3D({ controlType: "orbit" })(container)
-    .backgroundColor("rgba(10,6,18,1)")
-    .showNavInfo(false)
-    .nodeId("id")
-    .nodeThreeObject((n) => buildNodeObject(srwk.nodeMap.get(n.id) || n))
-    .nodeThreeObjectExtend(false)
-    .linkSource("source").linkTarget("target")
-    .linkColor((l) => _linkColor(l))
-    .linkOpacity(0.45)
-    .linkWidth((l) => _linkWidth(l))
-    .linkCurvature(0.18)                  // gentle bezier — organic, not wire
-    .linkCurveRotation(() => Math.random() * Math.PI * 2)
-    .linkDirectionalParticles((l) => _linkParticles(l))
-    .linkDirectionalParticleSpeed((l) => Math.min(0.012, 0.003 + (l.weight || 1) * 0.0015))
-    .linkDirectionalParticleWidth((l) => _linkParticleWidth(l))
-    .linkDirectionalParticleColor((l) => _linkParticleColor(l))
-    .enableNodeDrag(false)
-    .nodeLabel((n) => `<div class="node-tooltip">
-        <div class="t-title">${escHtml((n.title || n.id).slice(0, 80))}</div>
-        <div class="t-host">${escHtml(n.host || "")}</div>
-      </div>`)
-    .onNodeClick((n) => onNodeClick(n))
-    .d3AlphaDecay(DAMP.alphaDecay)
-    .d3VelocityDecay(DAMP.velocityDecay)
-    .cooldownTicks(DAMP.cooldownTicks || 600)
-    .graphData({ nodes: srwk.nodes, links: srwk.edges });
-
-  applyForcesForLens(G, srwk.lens);
-  srwk.G = G;
-  srwk.scene = G.scene();
-
-  // ACES filmic tone mapping is the canonical recipe for HDR + bloom
-  // scenes. Without it, additive sprite stacks clamp to white in the
-  // sRGB OutputPass. With it, values >1 compress gracefully toward white
-  // instead of saturating.
-  const renderer = G.renderer();
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.85;
-
-  // Bloom amplifies bright pixels; we let it do the glowing rather than
-  // multiplying per-sprite intensity. Strength + radius produce the diffuse
-  // bleed; threshold lets only halo cores through.
-  // strength 0.18 + threshold 0.82 — bloom is barely perceptible, just
-  // a faint sheen on the brightest cores. Glow accumulation in dense
-  // territories was visually obliterating the underlying structure.
-  const bloom = new UnrealBloomPass(
-    new THREE.Vector2(container.clientWidth, container.clientHeight),
-    0.18, 0.75, 0.82,
-  );
-  G.postProcessingComposer().addPass(bloom);
-
-  // Volumetric fog — distant nodes recede into haze, gives 3D depth cue
-  srwk.scene.fog = new THREE.FogExp2(0x05031a, 0.00038);
-
-  // Ambient dust-mote field. ~3000 particles in a large volume, slow drift.
-  // Independent of the data graph — pure atmosphere, sets the "deep space"
-  // feel and makes the camera drift legible.
-  buildAtmosphere(srwk.scene);
-
-  G.width(container.clientWidth).height(container.clientHeight);
-  bloom.setSize(container.clientWidth, container.clientHeight);
-
-  let _densityTick = 0;
-  G.onEngineTick(() => {
-    // Density is expensive (O(n²)); only refresh every 4th tick.
-    _densityTick = (_densityTick + 1) % 4;
-    if (_densityTick === 0) updateLocalDensity();
-    updateGroupCentroids();
-    syncLabels({
-      scene: srwk.scene,
-      clusterDefs: srwk.clusters,
-      labelMap: srwk.labelMap,
-      groupCentroids: srwk.groupCentroids,
-    });
-  });
-
-  // The new shell-radial layout spans ~3600 units across; fit camera once
-  // the sim has had time to settle into its territories.
-  setTimeout(() => {
-    if (srwk.G && typeof srwk.G.zoomToFit === "function") {
-      srwk.G.zoomToFit(1600, 80);
-    }
-  }, 1500);
-  setTimeout(() => {
-    if (srwk.G && typeof srwk.G.zoomToFit === "function") {
-      srwk.G.zoomToFit(1800, 100);
-    }
-  }, 4500);
-}
-
-// ─── edge styling helpers ────────────────────────────────────────────────
-// A "bridging" edge is one whose source and target have different
-// primary_contributor. Those are the visible threads of cross-peer
-// shared knowledge — render brighter, wider, more particles.
-
-function _bridging(l) {
-  const s = typeof l.source === "object" ? l.source : srwk.nodeMap.get(l.source);
-  const t = typeof l.target === "object" ? l.target : srwk.nodeMap.get(l.target);
-  if (!s || !t) return false;
-  return s.primary_contributor && t.primary_contributor &&
-         s.primary_contributor !== t.primary_contributor;
-}
-function _linkColor(l) {
-  if (_bridging(l)) return "rgba(255, 240, 220, 0.85)";  // warm white for bridges
-  return "rgba(180, 200, 255, 0.28)";
-}
-function _linkWidth(l) {
-  const w = l.weight || 1;
-  return _bridging(l) ? 1.6 + Math.min(2.4, w * 0.4)
-                      : 0.6 + Math.min(1.2, w * 0.2);
-}
-function _linkParticles(l) {
-  const w = l.weight || 1;
-  if (_bridging(l)) return Math.min(5, 2 + Math.floor(w / 2));
-  return w >= 2 ? 2 : 1;
-}
-function _linkParticleWidth(l) {
-  return _bridging(l) ? 2.4 : 1.2;
-}
-function _linkParticleColor(l) {
-  if (_bridging(l)) return "#FFFFFF";
-  return "rgba(180, 220, 255, 0.85)";
-}
-
-function applyForcesForLens(G, lens) {
-  // Tuned charge: modest, with distanceMax so charge doesn't push every
-  // node away from every other node across the whole volume. This lets
-  // peer territories actually settle near their anchors instead of all
-  // three pushing each other into corners.
-  G.d3Force("link")
-    .distance((e) => 35 + (1 / Math.sqrt(Math.max(1, e.weight || 1))) * 22)
-    .strength((e) => Math.min(0.7, 0.25 + (e.weight || 1) * 0.1));
-  const charge = G.d3Force("charge");
-  // Mid-range charge (-110) + capped distance so it provides local
-  // separation but doesn't fight macro/micro pulls at long range.
-  charge.strength((n) => -110 - Math.sqrt(n.degree || 0) * 6);
-  if (typeof charge.distanceMax === "function") charge.distanceMax(140);
-  if (typeof charge.distanceMax === "function") charge.distanceMax(800);
-  if (typeof charge.theta === "function")       charge.theta(0.9);
-
-  // Collide: octree-based hard floor preventing nodes from occupying
-  // the same coordinate. This is what stops "all-150-in-bucket stack
-  // at the anchor point" — radial pull wants stack, collide forbids it.
-  let collide = G.d3Force("collide");
-  if (!collide) {
-    // 3d-force-graph delegates to d3-force-3d which exposes forceCollide
-    // via the forceCollide import. Construct it lazily here.
-    collide = _forceCollide3d((n) => Math.max(8, ((n._dims?.size) || 30) * 0.5));
-    G.d3Force("collide", collide);
-  }
-  if (typeof collide.radius === "function") {
-    // Larger collide radius forces nodes to spread out more — this is
-    // what makes a territory READ as a constellation rather than a tight
-    // blob. Each node "owns" a region of size×0.85.
-    collide.radius((n) => Math.max(8, ((n._dims?.size) || 18) * 0.75))
-           .strength?.(0.95)
-           .iterations?.(2);
-  }
-
-  // Macro pull — soft point-attraction (gravity well per peer territory).
-  // forceCollide stops nodes from stacking at the same coordinate, so
-  // we don't need shell-radial. Net effect: each peer's nodes form a
-  // solid blob around its vertex with internal sub-cluster structure
-  // from the link force.
-  computeHierarchicalAnchors(srwk.nodes, lens);
-  // kMacro = 0.04 — strong enough that 3 peer territories stay visibly
-  // separate (otherwise charge dominates and the whole graph merges into
-  // one nebula). Supernova at high macro pull is prevented by forceCollide
-  // + density-aware halo fade in the renderer, so we can afford the bump.
-  const kMacro = 0.04;
-  // macroPull = soft tug toward the peer's territory; microPull =
-  // stronger tug toward each sub-cluster's anchor so sub-clusters
-  // form visible pockets inside the territory rather than blending.
-  G.d3Force("macroPull", (alpha) => {
-    const k = kMacro * alpha * 1.5;
-    for (const n of srwk.nodes) {
-      if (n._macroX == null) continue;
-      n.vx = (n.vx || 0) + (n._macroX - n.x) * k;
-      n.vy = (n.vy || 0) + (n._macroY - n.y) * k;
-      n.vz = (n.vz || 0) + (n._macroZ - n.z) * k;
-    }
-  });
-  // microPull is 8× macroPull and grows quadratically with distance from
-  // the sub-cluster anchor — so a node that drifts twice as far gets
-  // pulled back four times as hard. This is what actually makes
-  // sub-clusters cluster instead of just biasing position.
-  G.d3Force("microPull", (alpha) => {
-    const k = kMacro * alpha * 8.0;
-    for (const n of srwk.nodes) {
-      if (n._microX == null) continue;
-      const dx = n._microX - n.x, dy = n._microY - n.y, dz = n._microZ - n.z;
-      const d = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
-      const pull = Math.min(1.0, d / 80);  // ramps up over 80 units
-      n.vx = (n.vx || 0) + dx * k * pull;
-      n.vy = (n.vy || 0) + dy * k * pull;
-      n.vz = (n.vz || 0) + dz * k * pull;
-    }
-  });
-  // Note: micro radial pull is intentionally REMOVED. Sub-clustering by
-  // host/topic emerges from edge structure + charge + collide, not from
-  // a second point-spring. If the data has same-host nodes that aren't
-  // edge-linked, they'll still cluster locally via charge interactions
-  // within their peer's shell.
-}
-
-// Tiny inline forceCollide for 3D — d3-force ships only 2D forceCollide
-// and I don't want to pull in d3-force-3d as a separate import. This is
-// a simplified Barnes-Hut-free O(N²) version. For 500 nodes that's fine
-// (~250k pairs/tick at low alpha).
-function _forceCollide3d(radiusFn) {
-  let nodes = [];
-  let radius = radiusFn || (() => 10);
-  let strength = 0.9;
-  let iterations = 2;
-  function force(alpha) {
-    const n = nodes.length;
-    for (let iter = 0; iter < iterations; iter++) {
-      for (let i = 0; i < n; i++) {
-        const a = nodes[i];
-        const ra = radius(a);
-        for (let j = i + 1; j < n; j++) {
-          const b = nodes[j];
-          const rb = radius(b);
-          const minD = ra + rb;
-          let dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
-          let d2 = dx*dx + dy*dy + dz*dz;
-          if (d2 >= minD * minD || d2 === 0) continue;
-          const d = Math.sqrt(d2) || 0.001;
-          const overlap = (minD - d) * strength * alpha * 0.5;
-          dx = (dx / d) * overlap;
-          dy = (dy / d) * overlap;
-          dz = (dz / d) * overlap;
-          a.vx = (a.vx || 0) - dx; a.vy = (a.vy || 0) - dy; a.vz = (a.vz || 0) - dz;
-          b.vx = (b.vx || 0) + dx; b.vy = (b.vy || 0) + dy; b.vz = (b.vz || 0) + dz;
-        }
-      }
-    }
-  }
-  force.initialize = (ns) => { nodes = ns; };
-  force.radius = (fn) => { if (fn === undefined) return radius; radius = typeof fn === "function" ? fn : (() => fn); return force; };
-  force.strength = (s) => { if (s === undefined) return strength; strength = s; return force; };
-  force.iterations = (i) => { if (i === undefined) return iterations; iterations = i; return force; };
-  return force;
-}
-
-// Polyhedron vertices: tetrahedron for ≤4 macro groups, octahedron for ≤6,
-// cube for ≤8, dodecahedron for ≤12, icosahedron for ≤20. For >20 we fall
-// back to a Fibonacci sphere (still better than nothing). Vertices are
-// returned at unit radius; caller scales.
-function _polyhedronVertices(n) {
-  if (n <= 4) {
-    // tetrahedron
-    return [
-      [ 1,  1,  1], [ 1, -1, -1], [-1,  1, -1], [-1, -1,  1],
-    ].slice(0, Math.max(2, n)).map(v => {
-      const r = Math.hypot(v[0], v[1], v[2]);
-      return [v[0]/r, v[1]/r, v[2]/r];
-    });
-  }
-  if (n <= 6) {
-    return [
-      [1,0,0], [-1,0,0], [0,1,0], [0,-1,0], [0,0,1], [0,0,-1],
-    ].slice(0, n);
-  }
-  if (n <= 8) {
-    const s = 1/Math.sqrt(3);
-    return [
-      [s,s,s], [s,s,-s], [s,-s,s], [s,-s,-s],
-      [-s,s,s], [-s,s,-s], [-s,-s,s], [-s,-s,-s],
-    ].slice(0, n);
-  }
-  // 9..20: dodecahedron vertices (20 of them)
-  if (n <= 20) {
-    const phi = (1 + Math.sqrt(5)) / 2;
-    const a = 1, b = 1/phi, c = phi;
-    const verts = [
-      [a,a,a],[a,a,-a],[a,-a,a],[a,-a,-a],
-      [-a,a,a],[-a,a,-a],[-a,-a,a],[-a,-a,-a],
-      [0,b,c],[0,b,-c],[0,-b,c],[0,-b,-c],
-      [b,c,0],[b,-c,0],[-b,c,0],[-b,-c,0],
-      [c,0,b],[c,0,-b],[-c,0,b],[-c,0,-b],
-    ];
-    return verts.slice(0, n).map(v => {
-      const r = Math.hypot(v[0], v[1], v[2]);
-      return [v[0]/r, v[1]/r, v[2]/r];
-    });
-  }
-  // >20: Fibonacci sphere fallback
-  const out = [];
-  const phi2 = Math.PI * (3 - Math.sqrt(5));
-  for (let i = 0; i < n; i++) {
-    const y = 1 - (i / Math.max(1, n - 1)) * 2;
-    const r = Math.sqrt(1 - y * y);
-    const t = phi2 * i;
-    out.push([Math.cos(t) * r, y, Math.sin(t) * r]);
-  }
-  return out;
-}
-
-// Pick a micro grouping that won't collapse to "1 group per peer".
-// If the lens groups by primary_contributor (same as macro), fall back
-// to topic→host so sub-clusters actually exist visually within each
-// peer territory.
-function _microKeyFor(lens, n) {
-  const k = lens.groupBy ? lens.groupBy(n) : null;
-  if (lens.id !== "contributor") return k || "(none)";
-  return n.topic || n.host || "(none)";
-}
-
-function computeHierarchicalAnchors(nodes, lens) {
-  // 1) Group by macro = primary_contributor.
-  const macroBuckets = new Map();
-  for (const n of nodes) {
-    const m = n.primary_contributor || "(orphan)";
-    if (!macroBuckets.has(m)) macroBuckets.set(m, []);
-    macroBuckets.get(m).push(n);
-  }
-  const macroKeys = [...macroBuckets.keys()];
-  const Mn = Math.max(1, macroKeys.length);
-
-  // Macro anchors at polyhedron vertices, scaled into a real volume
-  // (not a thin shell). Spacing scales with √N — tighter for few peers,
-  // wider for many.
-  const macroR = 620 + Math.sqrt(Mn) * 100;
-  const verts = _polyhedronVertices(Mn);
-  const macroAnchor = new Map();
-  macroKeys.forEach((mk, i) => {
-    const v = verts[i] || [0, 0, 0];
-    macroAnchor.set(mk, { x: v[0] * macroR, y: v[1] * macroR, z: v[2] * macroR });
-  });
-
-  // 2) Within each macro bucket, group by micro = lens.groupBy.
-  // Place micro anchors on a local sphere around the macro anchor.
-  // Sphere radius scales with √N per peer so big peers (e.g. 400 nodes)
-  // get a proportionally larger territory and don't pack-saturate the
-  // bloom. Without this, alice's 400 nodes pile into the same volume as
-  // bob's 30 and the cumulative bloom blows out to white.
-  for (const [mk, ns] of macroBuckets) {
-    const anchor = macroAnchor.get(mk);
-    const microR = Math.max(macroR * 0.32, 70 + Math.sqrt(ns.length) * 22);
-    const microGroups = new Map();
-    for (const n of ns) {
-      const k = _microKeyFor(lens, n);
-      n._microKey = k;
-      if (!microGroups.has(k)) microGroups.set(k, []);
-      microGroups.get(k).push(n);
-    }
-    const microKeys = [...microGroups.keys()];
-    const Mi = Math.max(1, microKeys.length);
-    const phi = Math.PI * (3 - Math.sqrt(5));
-    microKeys.forEach((mik, i) => {
-      const y = Mi === 1 ? 0 : (1 - (i / (Mi - 1)) * 2);
-      const r = Math.sqrt(1 - y * y);
-      const theta = phi * i;
-      // Vary radial depth per micro-group so anchors fill the volume
-      // (cube-root distribution = uniform fill of the ball). Without
-      // this, all anchors sit on the shell and big peers bloom-flood
-      // their hollow center.
-      const depth = Mi === 1 ? 0 : Math.cbrt(0.15 + 0.85 * (i / (Mi - 1)));
-      const rr = microR * depth;
-      const mx = anchor.x + Math.cos(theta) * r * rr;
-      const my = anchor.y + y * rr;
-      const mz = anchor.z + Math.sin(theta) * r * rr;
-      for (const n of microGroups.get(mik)) {
-        n._macroX = anchor.x; n._macroY = anchor.y; n._macroZ = anchor.z;
-        n._microX = mx;       n._microY = my;       n._microZ = mz;
-      }
-    });
-  }
-}
-
-// Cache of CanvasTextures keyed by sorted "color1,color2,..." string.
-// Multi-contributor sprites get a procedurally-painted radial gradient
-// where each contributor occupies an equal angular slice. Single-contributor
-// nodes still use the global solid spriteTex.
-const _gradientTexCache = new Map();
-function getGradientTex(colors) {
-  // colors: array of "#RRGGBB" strings, sorted for cache stability
-  const key = colors.join(",");
-  if (_gradientTexCache.has(key)) return _gradientTexCache.get(key);
-  const SIZE = 256;
-  const c = document.createElement("canvas");
-  c.width = c.height = SIZE;
-  const ctx = c.getContext("2d");
-  ctx.clearRect(0, 0, SIZE, SIZE);
-  // n equal angular wedges, each tinted by one contributor's color, with
-  // a soft radial falloff. Wedges blend at the center via additive blending
-  // when the sprite is rendered.
-  const cx = SIZE / 2, cy = SIZE / 2;
-  const r = SIZE / 2;
-  const n = colors.length;
-  const sweep = (Math.PI * 2) / n;
-  for (let i = 0; i < n; i++) {
-    const a0 = -Math.PI / 2 + i * sweep;
-    const a1 = a0 + sweep;
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    grad.addColorStop(0,    `${colors[i]}EE`);
-    grad.addColorStop(0.10, `${colors[i]}88`);
-    grad.addColorStop(0.20, `${colors[i]}22`);
-    grad.addColorStop(0.30, `${colors[i]}00`);
-    grad.addColorStop(1,    `${colors[i]}00`);
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, a0, a1);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.needsUpdate = true;
-  _gradientTexCache.set(key, tex);
-  return tex;
-}
-
-// Stable hash → small float in [-0.5, 0.5]. Used to derive a per-cluster
-// hue offset within a peer's color, so sub-clusters share a family but
-// look distinct up close.
-function _hashUnit(s) {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
-  return ((h % 10000) / 10000) - 0.5;
-}
-
-function buildNodeObject(n) {
-  const d = n._dims || applyDimensions(n, srwk.lens);
-  const baseColor = new THREE.Color(d.color || "#888");
-  // Per-cluster hue offset: ±0.045 (≈ ±16°) and ±5% lightness around the
-  // peer's signature color. Same peer reads as one color from far away;
-  // sub-clusters separate visually as you zoom in.
-  const microKey = n._microKey || "";
-  const macroKey = n.primary_contributor || "";
-  const seed = `${macroKey}::${microKey}`;
-  // ±0.10 hue (≈ ±36°), ±0.18 lightness, ±0.20 saturation: each
-  // sub-cluster within a peer reads as a distinct shade — coral vs
-  // rose vs salmon under the "pink" umbrella, not a single uniform pink.
-  const hueDelta   = _hashUnit(seed) * 0.20;
-  const lightDelta = _hashUnit(seed + "L") * 0.36;
-  const satDelta   = _hashUnit(seed + "S") * 0.40;
-  const hsl = { h: 0, s: 0, l: 0 };
-  baseColor.getHSL(hsl);
-  baseColor.setHSL(
-    (hsl.h + hueDelta + 1) % 1,
-    Math.max(0.30, Math.min(1.0, hsl.s + satDelta)),
-    Math.max(0.30, Math.min(0.85, hsl.l + lightDelta)),
-  );
-  const baseSize = d.size || 30;
-
-  // Resolve every contributor's signature_color so we can paint the
-  // sprite multi-tone if the page has more than one contributor.
-  const contribColors = (n.contributors || [])
-    .map((pk) => srwk.peers.get(pk)?.signature_color || stableHue(pk))
-    .filter(Boolean);
-  const uniqueColors = [...new Set(contribColors)].sort();
-  const isMulti = uniqueColors.length >= 2;
-
-  // Core texture: solid for single-contributor, multi-slice for shared.
-  const coreTex = isMulti ? getGradientTex(uniqueColors) : srwk.spriteTex;
-  // When gradient texture is used, the material color is white (the
-  // gradient brings its own color); otherwise we tint by baseColor.
-  const coreMatColor = isMulti ? new THREE.Color("#FFFFFF") : baseColor.clone();
-
-  // Core uses NormalBlending — does NOT accumulate when sprites overlap.
-  // 100 stacked cores still equal one core. This is what kills the
-  // "white sun" pathology. Halos stay additive for the bioluminescent
-  // glow effect; only the inner core is non-accumulating.
-  const coreMat = new THREE.SpriteMaterial({
-    map: coreTex, color: coreMatColor,
-    transparent: true, depthWrite: false,
-    blending: THREE.NormalBlending, fog: false,
-  });
-  const haloMat = new THREE.SpriteMaterial({
-    map: srwk.haloTex, color: baseColor.clone(),
-    transparent: true, depthWrite: false,
-    blending: THREE.AdditiveBlending, fog: false,
-  });
-  // Third "atmospheric" halo: very large, very dim, gives every node a
-  // diffuse field around it. Bioluminescent jellyfish vibe.
-  const atmosMat = new THREE.SpriteMaterial({
-    map: srwk.haloTex, color: baseColor.clone(),
-    transparent: true, depthWrite: false,
-    blending: THREE.AdditiveBlending, fog: false,
-  });
-
-  const sizeMultiplier = isMulti ? 1.15 + 0.06 * (uniqueColors.length - 2) : 1.0;
-  const coreSize = baseSize * sizeMultiplier;
-  const haloSize = baseSize * 3.6 * sizeMultiplier;
-  const atmosSize = baseSize * 2.8 * sizeMultiplier;
-
-  const core = new THREE.Sprite(coreMat); core.scale.set(coreSize, coreSize, 1);
-  const halo = new THREE.Sprite(haloMat); halo.scale.set(haloSize, haloSize, 1);
-  const atmos = new THREE.Sprite(atmosMat); atmos.scale.set(atmosSize, atmosSize, 1);
-
-  const group = new THREE.Group();
-  group.add(atmos);
-  group.add(halo);
-  group.add(core);
-  // Per-node breathing period randomized 3-7s (sets ω = 2π/period).
-  // Desynced breathing reads as a coral reef; synced reads as a screensaver.
-  // Slight skew: more popular nodes breathe a bit faster.
-  const period = 3.5 + Math.random() * 3.5;
-  const degBoost = Math.min(1.4, 1.0 - Math.sqrt(n.degree || 0) * 0.05);
-  const breathOmega = (2 * Math.PI / period) * (1 / Math.max(0.7, degBoost));
-  group.userData = {
-    n, baseColor, baseSize: coreSize,
-    coreMat, haloMat, atmosMat, core, halo, atmos,
-    isMulti,
-    contribCount: uniqueColors.length,
-    phase: Math.random() * Math.PI * 2,
-    breathOmega,
-  };
-  group.onBeforeRender = () => updateNodeRender(group);
-
-  n.__obj = group;
-  return group;
-}
-
-function updateNodeRender(group) {
-  const ud = group.userData;
-  const t = (performance.now() - srwk.startTime) / 1000;
-  // Per-node ω from period (3-7s); halos breathe slower for organic feel.
-  const w = ud.breathOmega || 1.0;
-  const breath = 0.84 + 0.16 * Math.sin(t * w + ud.phase);
-  const haloBreath = 0.80 + 0.20 * Math.sin(t * w * 0.6 + ud.phase * 0.7);
-  const atmosBreath = 0.74 + 0.26 * Math.sin(t * w * 0.35 + ud.phase * 1.3);
-  const dims = ud.n._dims || {};
-  const glow = (dims.glow || 0);
-  // Aggressive density fade. With 30+ neighbors within 90 units, halo
-  // drops to ~9% of its lonely value so densest pixels don't accumulate
-  // to bloom-threshold-saturation.
-  const density = (ud.n._density || 0);
-  // Glow is now a faint accent, not the dominant visual. Cores carry
-  // the structure; halos just add a touch of warmth at low density and
-  // disappear entirely at high density.
-  const densityFade = 1.0 / (1.0 + 1.2 * density);
-  const haloKill    = density > 6 ? 0 : 1;
-  const atmosKill   = density > 3 ? 0 : 1;
-  const coreDensityFade = 1.0 / (1.0 + 0.18 * density);
-  let coreI  = Math.min(0.80, 0.45 + glow * 0.30) * coreDensityFade;
-  let haloI  = Math.min(0.12, 0.06 + glow * 0.06) * densityFade * haloKill;
-  let atmosI = Math.min(0.025, 0.012 + glow * 0.012) * densityFade * densityFade * atmosKill;
-
-  // Activity pulse: nodes that arrived in the last 60s get a subtle
-  // halo intensity boost decaying with τ=30s, so they read as "freshly
-  // ingested" without shouting. Stops contributing entirely past 60s.
-  const ingestedAt = ud.n._recentlyIngestedAt;
-  if (ingestedAt) {
-    const ageMs = Date.now() - ingestedAt;
-    if (ageMs < 60000) {
-      const boost = 1 + 0.4 * Math.exp(-ageMs / 30000);
-      haloI  *= boost;
-      atmosI *= boost;
-    }
-  }
-
-  // Search treatment: sprite-level opacity. We never rebuild the graph,
-  // so the sim and breathing keep running undisturbed.
-  const search = srwk.search;
-  let coreScaleMul = 1.0;
-  let haloScaleMul = 1.0;
-  let atmosScaleMul = 1.0;
-  let coreOpacity = 1.0, haloOpacity = 1.0, atmosOpacity = 1.0;
-  if (search && search.active) {
-    const matches = search.matchSet;
-    const isMatch = matches && matches.has(ud.n.id);
-    if (!isMatch) {
-      coreOpacity = 0.15;
-      haloOpacity = 0;
-      atmosOpacity = 0;
-    } else {
-      // Match boost: scale halo up so the white outline halo reads as a
-      // ring around the core. We apply via the existing halo sprite,
-      // not a new layer, to keep memory flat.
-      haloScaleMul = 1.55;
-      haloI = Math.max(haloI, 0.32);
-    }
-  }
-
-  // Peer-territory pulse: triggered by clicks in the peers panel. Lerps
-  // a 1.5× halo scale boost in/out over ~2s using the existing breath
-  // machinery so it doesn't fight per-node breathing.
-  const pulse = srwk.peerPulse;
-  if (pulse && pulse.contributor && ud.n.primary_contributor === pulse.contributor) {
-    const elapsed = (performance.now() - pulse.start) / pulse.duration;
-    if (elapsed < 1) {
-      // 0..0.25 ramp up, 0.25..0.6 hold, 0.6..1 lerp out
-      let amt;
-      if (elapsed < 0.25) amt = elapsed / 0.25;
-      else if (elapsed < 0.6) amt = 1;
-      else amt = Math.max(0, 1 - (elapsed - 0.6) / 0.4);
-      haloScaleMul *= 1 + 0.5 * amt;
-      atmosScaleMul *= 1 + 0.5 * amt;
-      haloI = Math.max(haloI, 0.20 * amt);
-    }
-  }
-
-  ud.core.scale.set(ud.baseSize * breath * coreScaleMul, ud.baseSize * breath * coreScaleMul, 1);
-  ud.halo.scale.set(ud.baseSize * 1.8 * haloBreath * haloScaleMul, ud.baseSize * 1.8 * haloBreath * haloScaleMul, 1);
-  ud.atmos.scale.set(ud.baseSize * 1.4 * atmosBreath * atmosScaleMul, ud.baseSize * 1.4 * atmosBreath * atmosScaleMul, 1);
-
-  ud.coreMat.opacity = coreOpacity;
-  ud.haloMat.opacity = haloOpacity;
-  ud.atmosMat.opacity = atmosOpacity;
-
-  if (ud.isMulti) {
-    const v = Math.min(1.0, 0.55 + 0.18 * coreI);
-    ud.coreMat.color.setRGB(v, v, v);
-  } else {
-    ud.coreMat.color.setRGB(ud.baseColor.r * coreI, ud.baseColor.g * coreI, ud.baseColor.b * coreI);
-  }
-  ud.haloMat.color.setRGB(ud.baseColor.r * haloI, ud.baseColor.g * haloI, ud.baseColor.b * haloI);
-  ud.atmosMat.color.setRGB(ud.baseColor.r * atmosI, ud.baseColor.g * atmosI, ud.baseColor.b * atmosI);
-}
-
-// Density map: per-node count of neighbors within DENSITY_RADIUS.
-// Recomputed each engine tick, used by updateNodeRender to fade halos
-// in dense regions so they don't sum to white.
-const DENSITY_RADIUS = 90;
-const DENSITY_RADIUS_SQ = DENSITY_RADIUS * DENSITY_RADIUS;
-function updateLocalDensity() {
-  const ns = srwk.nodes;
-  for (const n of ns) n._density = 0;
-  // O(n²) is fine for ~500 nodes (< 250k pairs/tick).
-  for (let i = 0; i < ns.length; i++) {
-    const a = ns[i];
-    if (a.x == null) continue;
-    for (let j = i + 1; j < ns.length; j++) {
-      const b = ns[j];
-      if (b.x == null) continue;
-      const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
-      const d2 = dx*dx + dy*dy + dz*dz;
-      if (d2 < DENSITY_RADIUS_SQ) {
-        a._density++; b._density++;
-      }
-    }
-  }
-}
-
-function updateGroupCentroids() {
-  const counts = new Map();
-  const sums = new Map();
-  for (const n of srwk.nodes) {
-    if (n.x == null) continue;
-    const k = srwk.lens.groupBy(n);
-    if (!sums.has(k)) { sums.set(k, { x: 0, y: 0, z: 0 }); counts.set(k, 0); }
-    const s = sums.get(k);
-    s.x += n.x; s.y += n.y; s.z += n.z;
-    counts.set(k, counts.get(k) + 1);
-  }
-  srwk.groupCentroids.clear();
-  for (const [k, s] of sums) {
-    const c = counts.get(k);
-    srwk.groupCentroids.set(k, { x: s.x / c, y: s.y / c, z: s.z / c });
-  }
-}
-
-// ─── lens / shape switching ───────────────────────────────────────────────
-
-async function switchLens(newLens) {
-  if (!newLens || newLens === srwk.lens) return;
-  srwk.lens = newLens;
-  setStatus("re-grouping…");
-  try {
-    // re-fetch so server-side recomputes any per-lens fields and we get
-    // any pages that arrived since the last snapshot
-    const r = await fetch(`${srwk.serverUrl}/graph?lens=${newLens.id}`);
-    if (r.ok) {
-      const fresh = await r.json();
-      mergeFreshGraph(fresh);
-    }
-  } catch (e) {
-    console.warn("[lens] graph refetch failed:", e);
-  }
-  applyAllDimensions(srwk.nodes, srwk.lens);
-  for (const n of srwk.nodes) {
-    if (!n.__obj) continue;
-    const d = n._dims;
-    const ud = n.__obj.userData;
-    if (d.color)  ud.baseColor = new THREE.Color(d.color);
-    if (d.accent) ud.accent    = new THREE.Color(d.accent);
-    if (d.size)   ud.baseSize  = d.size;
-  }
-  applyForcesForLens(srwk.G, srwk.lens);
-  // unpin anything pinned by a previous shape transition
-  for (const n of srwk.nodes) { n.fx = n.fy = n.fz = undefined; }
-  if (srwk.G && typeof srwk.G.d3ReheatSimulation === "function") srwk.G.d3ReheatSimulation();
-  setStatus("");
-}
-
-function mergeFreshGraph(fresh) {
-  for (const p of fresh.peers || []) srwk.peers.set(p.pubkey, p);
-  for (const n of fresh.nodes) {
-    if (srwk.nodeMap.has(n.id)) continue;
-    srwk.nodeMap.set(n.id, n);
-    srwk.nodes.push(n);
-  }
-  srwk.edges = fresh.edges;
-  srwk.clusters = fresh.clusters || [];
-  if (srwk.G) {
-    srwk.G.graphData({ nodes: srwk.nodes, links: srwk.edges });
-  }
-  tick("node-count", srwk.nodes.length);
-  tick("edge-count", srwk.edges.length);
-  document.getElementById("mark-count").textContent =
-    `${srwk.nodes.length}n · ${srwk.edges.length}e`;
-  tick("peer-count", srwk.peers.size);
+  updateGraphCounts();
   pushConnPeers();
   if (typeof renderPeersPanel === "function") renderPeersPanel();
-  // The cartography tab bakes its own buffer geometry from srwk.nodes/edges;
-  // give it a debounced poke so it reconciles without rebuilding every tick.
-  try { Graph2.notifyDataChanged(); } catch {}
-  try { Cosmos.notifyDataChanged(); } catch {}
-  try { Atlas.notifyDataChanged(); } catch {}
-}
-
-function switchShape(newShape) {
-  if (!newShape || newShape === srwk.shape) return;
-  const oldId = srwk.shape.id;
-  srwk.shape = newShape;
-  if (newShape.id === "cluster") {
-    // resume sim from current positions
-    srwk.shapeTransition = null;
-    if (typeof srwk.G.d3ReheatSimulation === "function") srwk.G.d3ReheatSimulation();
-    return;
-  }
-  // pause sim by raising velocity decay temporarily (or just set alpha to 0)
-  // and lerp positions to target layout
-  const target = newShape.layout(srwk.nodes, srwk.lens, srwk.bounds);
-  if (!target) return;
-  const source = new Map();
-  for (const n of srwk.nodes) source.set(n.id, { x: n.x || 0, y: n.y || 0, z: n.z || 0 });
-  srwk.shapeTransition = { start: performance.now(), duration: 1800, source, target };
-}
-
-function advanceShapeTransition(dt) {
-  if (!srwk.shapeTransition) return;
-  const { start, duration, source, target } = srwk.shapeTransition;
-  const t = (performance.now() - start) / duration;
-  const e = easeOutQuart(Math.min(1, t));
-  for (const n of srwk.nodes) {
-    const a = source.get(n.id), b = target.get(n.id);
-    if (!a || !b) continue;
-    n.x = a.x + (b.x - a.x) * e;
-    n.y = a.y + (b.y - a.y) * e;
-    n.z = a.z + (b.z - a.z) * e;
-    if (n.__obj) n.__obj.position.set(n.x, n.y, n.z);
-    // pin in sim
-    n.fx = n.x; n.fy = n.y; n.fz = n.z;
-  }
-  if (t >= 1) {
-    // freeze positions; sim is paused for non-cluster shapes
-    srwk.shapeTransition = null;
-  }
-}
-
-// ─── camera drift ─────────────────────────────────────────────────────────
-
-function ambientCameraDrift(dt) {
-  if (performance.now() - srwk.lastUserT < 2200) return;
-  const ctrls = srwk.G?.controls();
-  if (!ctrls?.target) return;
-  const t = (performance.now() - srwk.startTime) / 1000;
-  // 4× amplitude vs the original — the camera should noticeably drift
-  // around the volume, not just shimmy. Period unchanged so the motion
-  // stays slow and meditative.
-  const A = 24, B = 16, C = 20;
-  // Bias the drift toward whichever territory had the most recent
-  // contribution, so the camera eddies near "where the action is."
-  const bias = srwk.recentTerritory || { x: 0, y: 0, z: 0 };
-  const bx = bias.x * 0.15, by = bias.y * 0.15, bz = bias.z * 0.15;
-  const tx = srwk.driftBase.x + bx + A * Math.sin(t * 0.07);
-  const ty = srwk.driftBase.y + by + B * Math.sin(t * 0.05 + 1.1);
-  const tz = srwk.driftBase.z + bz + C * Math.sin(t * 0.03 + 2.3);
-  const k = Math.min(1, dt * 0.5);
-  ctrls.target.x += (tx - ctrls.target.x) * k;
-  ctrls.target.y += (ty - ctrls.target.y) * k;
-  ctrls.target.z += (tz - ctrls.target.z) * k;
-  ctrls.update?.();
 }
 
 // ─── SSE event subscription ───────────────────────────────────────────────
@@ -1594,9 +808,6 @@ function subscribeEvents() {
     srwk.peers.set(peer.pubkey, peer);
     srwk.liveSeen.set(peer.pubkey, performance.now());
     refreshLiveCount();
-    // bias camera drift toward whichever territory just got fresh activity
-    const sample = (data.pages || []).map(p => srwk.nodeMap.get(p.url)).find(n => n && n._macroX != null);
-    if (sample) srwk.recentTerritory = { x: sample._macroX, y: sample._macroY, z: sample._macroZ };
     handleContributionMerged(data, peer);
     const ev2 = { kind: "contribution_merged", payload: data, ts: Date.now() };
     appendEvent(ev2);
@@ -1631,18 +842,6 @@ function subscribeEvents() {
       pushConnPeers();
       if (typeof renderPeersPanel === "function") renderPeersPanel();
     }
-    // attribution toast for the new peer
-    const el = document.getElementById("incoming-toast");
-    if (!el) return;
-    const color = stableHue(data.contributor);
-    el.querySelector(".t-dot").style.background = color;
-    el.querySelector(".t-dot").style.boxShadow = `0 0 12px 2px ${color}`;
-    el.querySelector(".t-body").innerHTML =
-      `<strong>${escHtml(data.nickname || "anon")}</strong> joined the hive`;
-    el.hidden = false;
-    el.classList.remove("fade");
-    setTimeout(() => el.classList.add("fade"), 4200);
-    setTimeout(() => { el.hidden = true; el.classList.remove("fade"); }, 6500);
     appendEvent({ kind: "peer_joined", payload: data, ts: Date.now() });
   });
 
@@ -1734,7 +933,7 @@ function subscribeEvents() {
     // Self-heal: refetch the graph so any nodes we missed during the
     // disconnect (e.g. server restart) reappear. Cheap; only runs on (re)open.
     try {
-      const r = await fetch(`${srwk.serverUrl}/graph?lens=${srwk.lens.id}`);
+      const r = await fetch(`${srwk.serverUrl}/graph?lens=${DEFAULT_GRAPH_LENS_ID}`);
       if (r.ok) mergeFreshGraph(await r.json());
     } catch (e) { /* swallow; next event will trigger another try */ }
   };
@@ -1781,14 +980,11 @@ function startConnectionProbe() {
   setIntervalVisible(probe, 5000);
 }
 
-// Threshold above which we skip the per-page materialize() animation
-// (BufferGeometry + ShaderMaterial + RAF loop per page) and fall back
-// to a bulk /graph refetch + merge. Cinematic juice is reserved for
-// genuine drips ("alice contributed 3 papers"); a 930-page first
-// scrape from a fresh peer goes through the efficient path. The
-// server now caps contribution_merged at 64 pages/event so this
-// fallback rarely fires under normal operation — it's a safety net
-// for older servers, mis-chunked events, or future regressions.
+// Threshold above which contribution events fall back to a bulk /graph
+// refetch + merge. A large first scrape is cheaper as one authoritative
+// snapshot than hundreds of per-page local insertions. The server now caps
+// contribution_merged at 64 pages/event, so this is mostly a safety net for
+// older servers, mis-chunked events, or future regressions.
 const BIG_BURST_THRESHOLD = 64;
 
 async function handleContributionMerged(data, peer) {
@@ -1800,7 +996,7 @@ async function handleContributionMerged(data, peer) {
     // including pages we couldn't have known about from this event
     // alone (e.g. backfilled hosts/topics).
     try {
-      const r = await fetch(`${srwk.serverUrl}/graph?lens=${srwk.lens.id}`);
+      const r = await fetch(`${srwk.serverUrl}/graph?lens=${DEFAULT_GRAPH_LENS_ID}`);
       if (r.ok) mergeFreshGraph(await r.json());
     } catch (e) { console.warn("[contribution_merged] bulk refetch failed:", e); }
     return;
@@ -1811,8 +1007,7 @@ async function handleContributionMerged(data, peer) {
       primary_contributor: peer.pubkey, contributors: [peer.pubkey],
       degree: 0, fetched_at: new Date().toISOString(), last_visited: null,
     };
-    applyDimensions(node, srwk.lens);
-    materialize({ scene: srwk.scene, srwk, page: node, peer, addPageToGraph });
+    addPageToGraph(node);
   }
 }
 
@@ -1820,31 +1015,14 @@ function addPageToGraph(node) {
   if (srwk.nodeMap.has(node.id)) return;
   srwk.nodeMap.set(node.id, node);
   srwk.nodes.push(node);
-  // add to graph data
-  const data = srwk.G.graphData();
-  data.nodes.push(node);
-  srwk.G.graphData(data);
-  tick("node-count", srwk.nodes.length);
-  document.getElementById("mark-count").textContent =
-    `${srwk.nodes.length}n · ${srwk.edges.length}e`;
-  // pulse the cartography view: pick an edge incident on this node and
-  // ride a runner-head along it. Also schedules a debounced rebuild so the
-  // new node enters the streamline mesh.
-  try {
-    Graph2.pulseNode(node.id);
-    Graph2.notifyDataChanged();
-  } catch {}
-  try {
-    Cosmos.pulseNode(node.id);
-    Cosmos.notifyDataChanged();
-  } catch {}
+  updateGraphCounts();
   try {
     Atlas.pulseNode(node.id);
     Atlas.notifyDataChanged();
   } catch {}
   // Defensive: the empty / offline cards are owned by boot's first-load
   // logic but every path that grows node count needs to clear them
-  // (SSE arrival, peer pull, materialize, reconcile). Otherwise a fresh
+  // (SSE arrival, peer pull, reconcile). Otherwise a fresh
   // install that first sees data via SSE rather than the initial /graph
   // leaves the "no pages yet" card stuck behind real data.
   try { hideAtlasOffline(); } catch {}
@@ -1856,8 +1034,7 @@ function addPageToGraph(node) {
 // event might list pages that the server's view-builder later filters out
 // (orphan pruning, lens-aware row sets, etc.), so a renderer that only adds
 // nodes via SSE accumulates ghosts. Refetch /graph on a slow interval to
-// reconcile. materialize() still drives the cinematic per-page animation;
-// this just nudges in-memory state back toward server truth.
+// reconcile. This nudges in-memory state back toward server truth.
 const RECONCILE_INTERVAL_MS = 30000;
 
 function startGraphReconcile() {
@@ -1870,7 +1047,7 @@ function startGraphReconcile() {
 
 async function reconcileGraph() {
   try {
-    const r = await fetch(`${srwk.serverUrl}/graph?lens=${srwk.lens.id}`);
+    const r = await fetch(`${srwk.serverUrl}/graph?lens=${DEFAULT_GRAPH_LENS_ID}`);
     if (!r.ok) return;
     const fresh = await r.json();
     // Drop ghosts: nodes in our local set that aren't in the server's
@@ -1908,28 +1085,20 @@ async function reconcileGraph() {
       }
     }
     srwk.edges = fresh.edges;
-    srwk.clusters = fresh.clusters || [];
     for (const p of fresh.peers || []) srwk.peers.set(p.pubkey, p);
-    if (srwk.G) srwk.G.graphData({ nodes: srwk.nodes, links: srwk.edges });
-    tick("node-count", srwk.nodes.length);
-    tick("edge-count", srwk.edges.length);
-    document.getElementById("mark-count").textContent =
-      `${srwk.nodes.length}n · ${srwk.edges.length}e`;
-    tick("peer-count", srwk.peers.size);
+    updateGraphCounts();
     pushConnPeers();
     if (typeof renderPeersPanel === "function") renderPeersPanel();
     if (added || removed) {
       console.log(`[reconcile] +${added} -${removed} → ${srwk.nodes.length}n`);
     }
     // Whenever reconcile changes the corpus, poke the atlas (and any
-    // other live renderers) so they re-cluster against the new node set.
+    // Atlas so it re-clusters against the new node set.
     // Without this, atlas could miss results the SSE stream didn't
-    // already materialize via the per-page path — e.g. when boot's
+    // already see via SSE — e.g. when boot's
     // initial loadGraph failed and recovery happens entirely here.
     if (added || removed) {
       try { Atlas.notifyDataChanged(); } catch {}
-      try { Graph2.notifyDataChanged(); } catch {}
-      try { Cosmos.notifyDataChanged(); } catch {}
       // Recovered from cold-start failure: clear the "offline" status.
       // Same path also clears the "indrex empty" panel if a first page
       // just landed (fresh install pulling its first page from a peer).
@@ -2072,14 +1241,17 @@ function wirePeersPanel() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !panel.hidden) hide();
   });
+}
+
+function startPeerDataRefresh() {
   // Fetch our own well-known once and cache for the session. We need
   // `pubkey` to mark "you" in the list and `name` / `fingerprint` to
   // populate the local-node header. The endpoint is unauthenticated and
   // lives on the same origin.
   refreshWellKnownCache().then(() => {
     renderPeersPanel();
-    // Live graph layout depends on selfPubkey; refresh it now so the
-    // self node is correctly excluded from the perimeter once known.
+    // Live graph layout depends on selfPubkey; refresh it now so the self
+    // node is correctly excluded from the perimeter once known.
     if (typeof recomputeLayout === "function") {
       try { recomputeLayout(); } catch {}
     }
@@ -2100,7 +1272,8 @@ function wirePeersPanel() {
   // panels — cheap to repaint, and the manifest counts the user sees
   // there should be no more than 10s stale.
   setIntervalVisible(() => {
-    if (!panel.hidden) {
+    const panel = document.getElementById("peers-panel");
+    if (panel && !panel.hidden) {
       refreshManifestCache().finally(() => renderPeersPanel());
     } else if (document.body.dataset.activeTab === "network") {
       refreshManifestCache().finally(() => {
@@ -2114,7 +1287,8 @@ function wirePeersPanel() {
   // refreshes that happen via cohort-source's own poll loop).
   try {
     subscribeToCohortChanges(() => {
-      if (!panel.hidden) renderPeersPanel();
+      const panel = document.getElementById("peers-panel");
+      if (panel && !panel.hidden) renderPeersPanel();
       if (document.body.dataset.activeTab === "network") {
         try { renderNetRouterStatus(); } catch {}
         try { renderNetRecordsPanel(); } catch {}
@@ -2412,12 +1586,6 @@ function renderPeersPanel() {
   // Render the network-tab peers list whenever the popup peers list
   // refreshes — same data, two surfaces.
   if (typeof renderNetPeersList === "function") renderNetPeersList();
-  // Issue #43 PR D: source-filter chip bar shares the peers map.
-  // Rebuild chips on every peers refresh so newly-discovered peers
-  // pick up a chip without a page reload.
-  if (typeof renderSourceFilterChips === "function") {
-    try { renderSourceFilterChips(); } catch {}
-  }
   // The live propagation graph is also keyed off the peers map; recompute
   // its layout so newly-discovered peers slot into the perimeter. Cheap.
   if (typeof recomputeLayout === "function") {
@@ -2454,8 +1622,8 @@ function renderPeersPanel() {
     empty.textContent = "no peers yet — the network is quiet.";
     list.appendChild(empty);
   } else {
-    // Derive page count from the live node set so it tracks materialize()
-    // additions, not just the last /graph snapshot's stale value.
+    // Derive page count from the live node set, not just the last /graph
+    // snapshot's stale value.
     const liveCounts = new Map();
     for (const n of srwk.nodes) {
       const pk = n.primary_contributor;
@@ -3265,236 +2433,6 @@ function formatPeerLastSeen(secsAgo) {
   return `${Math.round(secsAgo / 86400)}d ago`;
 }
 
-// ─── interaction ──────────────────────────────────────────────────────────
-
-function onNodeClick(n) {
-  n.last_visited = new Date().toISOString();
-  applyDimensions(n, srwk.lens);
-  renderDetailPanel(n);
-  if (n.x != null && srwk.G) {
-    const d = 90;
-    const len = Math.hypot(n.x, n.y, n.z) || 1;
-    const r = 1 + d / len;
-    srwk.G.cameraPosition({ x: n.x * r, y: n.y * r, z: n.z * r }, n, 1100);
-  }
-}
-
-function renderDetailPanel(n) {
-  const el = document.getElementById("detail");
-  if (!el) return;
-  const cid = n.content_cid || null;
-  const visited = n.last_visited ? new Date(n.last_visited).toLocaleString() : "—";
-
-  // Resolve every contributor and build a multi-dot row.
-  const contribIds = (n.contributors && n.contributors.length)
-    ? n.contributors
-    : (n.primary_contributor ? [n.primary_contributor] : []);
-  const contribsHtml = contribIds.length
-    ? contribIds.map((pk) => {
-        const p = srwk.peers.get(pk);
-        const color = p?.signature_color || stableHue(pk);
-        const label = p?.nickname || pk.slice(0, 10);
-        const isPrimary = pk === n.primary_contributor;
-        return `<span class="d-contrib${isPrimary ? " primary" : ""}" title="${escHtml(label)}${isPrimary ? " · first to contribute" : ""}">
-          <span class="d-dot" style="background:${color};box-shadow:0 0 8px ${color}"></span>
-          ${escHtml(label)}
-        </span>`;
-      }).join("")
-    : '<span class="v">—</span>';
-  const overlapBadge = contribIds.length >= 2
-    ? `<div class="d-overlap">↔ shared by ${contribIds.length} peers</div>`
-    : "";
-
-  // Issue #43 PR D: "scraped from" row. When the page came from a
-  // peer pull, show who and color it with their signature_color.
-  // Self-fetched rows get a neutral cyan dot + "self" label. The
-  // server emits is_self / source_pubkey / source_label per node.
-  let scrapedHtml = "";
-  if (n.is_self === true) {
-    scrapedHtml = `<div class="d-scraped is-self">
-      <span class="sc-dot" style="background:#5AE6E6;color:#5AE6E6"></span>
-      <span>self</span>
-    </div>`;
-  } else if (n.source_pubkey) {
-    const peer = srwk.peers?.get(n.source_pubkey);
-    const color = peer?.signature_color || stableHue(n.source_pubkey);
-    const label = n.source_label || peer?.nickname ||
-                  n.source_pubkey.slice(0, 12);
-    const scrapedAt = n.scraped_at
-      ? new Date(n.scraped_at).toLocaleString() : "";
-    scrapedHtml = `<div class="d-scraped" title="${escHtml(scrapedAt || n.source_pubkey)}">
-      <span class="sc-dot" style="background:${color};color:${color}"></span>
-      <span>scraped from ${escHtml(label)}</span>
-    </div>`;
-  }
-
-  el.innerHTML = `
-    <div class="d-title" title="${escHtml(n.title || n.id)}">${escHtml((n.title || n.id).slice(0, 160))}</div>
-    <div class="d-host">${escHtml(n.host || "")}</div>
-    ${scrapedHtml}
-    <div class="d-actions">
-      <button class="d-btn primary" data-act="open">open ↗</button>
-      <button class="d-btn" data-act="copy-url">copy url</button>
-      ${cid ? `<button class="d-btn" data-act="copy-cid">copy cid</button>` : ""}
-    </div>
-    <div class="d-grid">
-      <span class="k">topic</span><span class="v">${escHtml(n.topic || "—")}</span>
-      <span class="k">degree</span><span class="v">${n.degree || 0}</span>
-      <span class="k">contrib</span>
-      <span class="v d-contrib-list">${contribsHtml}</span>
-      <span class="k">last seen</span><span class="v">${escHtml(visited)}</span>
-    </div>
-    ${overlapBadge}
-    ${cid ? `<div class="d-cid"><span class="k">cid</span><code class="v" title="${cid}">${cid.slice(0, 14)}…${cid.slice(-6)}</code></div>` : ""}
-  `;
-  el.querySelector('[data-act="open"]')?.addEventListener("click", () => {
-    if (window.api?.openExternal) window.api.openExternal(n.id);
-    else window.open(n.id, "_blank");
-  });
-  el.querySelector('[data-act="copy-url"]')?.addEventListener("click", () => {
-    navigator.clipboard?.writeText(n.id).catch(() => {});
-  });
-  el.querySelector('[data-act="copy-cid"]')?.addEventListener("click", () => {
-    if (cid) navigator.clipboard?.writeText(cid).catch(() => {});
-  });
-}
-
-// ─── procedural textures ──────────────────────────────────────────────────
-
-function makeSpriteTex() {
-  // Hard core + soft falloff. The opaque inner disc is what the eye locks
-  // onto on a large display — without it, bloom looks like fog. This is
-  // the Pixar/teamLab/Refik recipe: a 1-2px solid white pixel at the
-  // center, with a Gaussian-soft falloff around it.
-  const SIZE = 256;
-  const c = document.createElement("canvas"); c.width = c.height = SIZE;
-  const ctx = c.getContext("2d");
-  // Tight pinpoint core. The previous version had a wide soft falloff
-  // (alpha 0.18 at 30% radius) which meant overlapping cores in dense
-  // regions blended into a soft glow. Now: hard 8% disc + extremely
-  // narrow falloff that drops to zero by 22% radius, so 400 packed
-  // sprites read as 400 distinct dots instead of one cyan blob.
-  const g = ctx.createRadialGradient(SIZE/2, SIZE/2, 0, SIZE/2, SIZE/2, SIZE/2);
-  g.addColorStop(0,    "rgba(255,255,255,0.85)");
-  g.addColorStop(0.08, "rgba(255,255,255,0.55)");
-  g.addColorStop(0.18, "rgba(255,255,255,0.10)");
-  g.addColorStop(0.28, "rgba(255,255,255,0.00)");
-  g.addColorStop(1,    "rgba(255,255,255,0.00)");
-  ctx.fillStyle = g; ctx.fillRect(0, 0, SIZE, SIZE);
-  ctx.fillStyle = "rgba(255,255,255,1.0)";
-  ctx.beginPath();
-  ctx.arc(SIZE/2, SIZE/2, SIZE * 0.08, 0, Math.PI * 2);
-  ctx.fill();
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-function makeHaloTex() {
-  const SIZE = 512;
-  const c = document.createElement("canvas"); c.width = c.height = SIZE;
-  const ctx = c.getContext("2d");
-  const g = ctx.createRadialGradient(SIZE/2, SIZE/2, 0, SIZE/2, SIZE/2, SIZE/2);
-  g.addColorStop(0,    "rgba(255,255,255,0.32)");
-  g.addColorStop(0.15, "rgba(255,255,255,0.18)");
-  g.addColorStop(0.40, "rgba(255,255,255,0.06)");
-  g.addColorStop(0.75, "rgba(255,255,255,0.02)");
-  g.addColorStop(1,    "rgba(255,255,255,0.00)");
-  ctx.fillStyle = g; ctx.fillRect(0, 0, SIZE, SIZE);
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-// ─── atmospheric dust-mote field ──────────────────────────────────────────
-// 3000 particles in a large volume around the graph. Slow rotation. The
-// motes are very dim and very small individually; together they produce
-// the perception of "this knowledge sits inside a larger deep-space field"
-// rather than "this graph floats in a flat indigo void."
-
-function buildAtmosphere(scene) {
-  const N = 3000;
-  const RADIUS = 4500;
-  const positions = new Float32Array(N * 3);
-  const phases    = new Float32Array(N);
-  const sizes     = new Float32Array(N);
-  for (let i = 0; i < N; i++) {
-    // sample inside a sphere (cube-root for uniform volume distribution)
-    const u = Math.random();
-    const r = RADIUS * Math.cbrt(u);
-    const theta = Math.random() * Math.PI * 2;
-    const phi   = Math.acos(2 * Math.random() - 1);
-    positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    positions[i * 3 + 2] = r * Math.cos(phi);
-    phases[i] = Math.random() * Math.PI * 2;
-    sizes[i]  = 0.6 + Math.random() * 1.6;
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
-  geo.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
-  const mat = new THREE.ShaderMaterial({
-    uniforms: {
-      uTime:       { value: 0 },
-      uPixelRatio: { value: window.devicePixelRatio || 1 },
-    },
-    vertexShader: `
-      attribute float aPhase;
-      attribute float aSize;
-      uniform float uTime;
-      uniform float uPixelRatio;
-      varying float vTwinkle;
-      void main() {
-        vTwinkle = 0.55 + 0.45 * sin(uTime * 0.4 + aPhase);
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = aSize * uPixelRatio * (220.0 / max(0.001, -mv.z));
-        gl_Position = projectionMatrix * mv;
-      }
-    `,
-    fragmentShader: `
-      precision highp float;
-      varying float vTwinkle;
-      void main() {
-        vec2 p = gl_PointCoord * 2.0 - 1.0;
-        float r = dot(p, p);
-        if (r > 1.0) discard;
-        float core = exp(-r * 5.0);
-        vec3 col = vec3(0.42, 0.55, 0.95) * core * vTwinkle;
-        gl_FragColor = vec4(col, core * vTwinkle * 0.42);
-      }
-    `,
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    fog: false,
-  });
-  const pts = new THREE.Points(geo, mat);
-  pts.frustumCulled = false;
-  pts.renderOrder = -10;
-  scene.add(pts);
-  srwk.atmosphere = { points: pts, mat };
-  // animate via requestAnimationFrame so it drifts even when sim is paused
-  const t0 = performance.now();
-  let _atmoArmed = false;
-  function tick() {
-    // Don't schedule when the document is hidden — keeps the GPU + main
-    // thread idle when SROS is in the background. Re-armed on
-    // visibilitychange below.
-    if (document.hidden) { _atmoArmed = false; return; }
-    const t = (performance.now() - t0) / 1000;
-    mat.uniforms.uTime.value = t;
-    pts.rotation.y = t * 0.012;
-    pts.rotation.x = Math.sin(t * 0.005) * 0.05;
-    requestAnimationFrame(tick);
-  }
-  _atmoArmed = true;
-  requestAnimationFrame(tick);
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && !_atmoArmed) {
-      _atmoArmed = true;
-      requestAnimationFrame(tick);
-    }
-  });
-}
-
 // ─── tiny helpers ─────────────────────────────────────────────────────────
 
 function escHtml(s) {
@@ -4245,25 +3183,9 @@ function _providerHue(pkShort) {
 }
 
 // ─── anonymity-set indicator ──────────────────────────────────────────────
-function wireAnonBadge() {
-  const badge = document.getElementById("anon-badge");
-  const popover = document.getElementById("anon-popover");
-  if (!badge || !popover) return;
-  const open = () => {
-    badge.setAttribute("aria-expanded", "true");
-    popover.hidden = false;
-    renderAnonPopover();
-  };
-  const close = () => {
-    badge.setAttribute("aria-expanded", "false");
-    popover.hidden = true;
-  };
-  badge.addEventListener("click", () => popover.hidden ? open() : close());
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !popover.hidden) close();
-  });
-  // Light /health poll to seed the popover with active_circle data when no
-  // SSE event has arrived yet. Skipped if we already received a fresh
+function startAnonSetHealthPoll() {
+  // Light /health poll to seed the Network header with active_circle data
+  // when no SSE event has arrived yet. Skipped if we already received a fresh
   // anonymity_set_changed.
   setIntervalVisible(async () => {
     if (Date.now() - dcnetState.lastSetTs < 30000) return;
@@ -4291,63 +3213,7 @@ function wireAnonBadge() {
 function onAnonymitySetChanged(p) {
   dcnetState.lastSet = p;
   dcnetState.lastSetTs = Date.now();
-  renderAnonBadge();
-  // Re-render popover live if it's open.
-  const pop = document.getElementById("anon-popover");
-  if (pop && !pop.hidden) renderAnonPopover();
-}
-
-function renderAnonBadge() {
-  // Mirror the same state into the prominent network-tab header.
   if (typeof renderNetAnonHeader === "function") renderNetAnonHeader();
-  const badge = document.getElementById("anon-badge");
-  if (!badge) return;
-  const valEl = badge.querySelector(".ab-value");
-  const markEl = badge.querySelector(".ab-mark");
-  const p = dcnetState.lastSet;
-  if (!p || (p.active_peer_count == null && p.min_anonymity_set == null)) {
-    badge.dataset.state = "idle";
-    if (valEl) valEl.textContent = "idle";
-    if (markEl) markEl.textContent = "";
-    badge.title = "no DC-net round in flight";
-    return;
-  }
-  const a = p.active_peer_count ?? 0;
-  const m = p.min_anonymity_set ?? 0;
-  const met = (p.met === true) || (a >= m && m > 0);
-  badge.dataset.state = met ? "met" : "unmet";
-  if (valEl) valEl.textContent = `${a}/${m}`;
-  if (markEl) markEl.textContent = met ? "✓" : "⚠";
-  badge.title = met
-    ? `LAN_FRIEND_DCNET active · ${a} peers in circle (min ${m})`
-    : `LAN_FRIEND_DCNET cannot be reported until min anonymity set is reached (${a}/${m})`;
-}
-
-function renderAnonPopover() {
-  const pop = document.getElementById("anon-popover");
-  if (!pop) return;
-  const p = dcnetState.lastSet || {};
-  const ep = dcnetState.lastEpoch || {};
-  const tk = (k) => p[k] != null ? escHtml(String(p[k])) : "—";
-  const epoch = ep.new_epoch_id || ep.epoch_id || p.epoch_id || "—";
-  const transport = p.transport_kind || "lan_friend_dcnet_round";
-  const claim = p.requester_anonymity_claim || "anonymous_within_lan_circle_query_visible";
-  const roster = p.member_roster_commitment || p.roster_commitment;
-  const rosterShort = roster ? `${String(roster).slice(0, 14)}…` : "—";
-  const a = p.active_peer_count, m = p.min_anonymity_set;
-  const met = (p.met === true) || (a != null && m != null && a >= m && m > 0);
-  pop.innerHTML = `
-    <div class="ap-title">active circle</div>
-    <div class="ap-grid">
-      <span class="k">circle</span><span class="v">${tk("circle_id")}</span>
-      <span class="k">epoch</span><span class="v">${escHtml(String(epoch))}</span>
-      <span class="k">members</span><span class="v">${a ?? "—"}/${m ?? "—"} ${met ? "✓" : "⚠"}</span>
-      <span class="k">roster</span><span class="v"><code>${escHtml(rosterShort)}</code></span>
-      <span class="k">transport</span><span class="v">${escHtml(transport)}</span>
-      <span class="k">claim</span><span class="v">${escHtml(claim)}</span>
-    </div>
-    ${met ? "" : `<div class="ap-warn">LAN_FRIEND_DCNET cannot be reported until min anonymity set is reached.</div>`}
-  `;
 }
 
 // ─── DC-net round tracking (consumed by traffic-row clicks) ──────────────
@@ -4511,7 +3377,6 @@ function onEpochRotated(p) {
   receiptsState.total = 0;
   renderTicketsPanel();
   renderReceiptsPanel();
-  renderAnonPopover();
 }
 
 function wireTicketsPanel() {
@@ -4918,51 +3783,18 @@ function renderWebSearchDetail(p, ts) {
   `;
 }
 
-// ─── wire-style timeline (bottom of graph) ────────────────────────────────
-// Per-peer swimlanes spanning the last 60s of traffic. Each event = a tick
-// mark, x-positioned by age (newest on right), y-positioned by lane.
-// Ring-buffered to ~500 ticks across all lanes.
+// ─── traffic replay buffer ────────────────────────────────────────────────
+// Bounded event ring used by livegraph replay. The old DOM swimlane timeline
+// was archived with the graph stage; keeping this as data only avoids a
+// per-event requestAnimationFrame no-op.
 
-const TIMELINE_LS_KEY = "srwk:timeline:visible";
 const TIMELINE_WINDOW_MS = 60000;
 const TIMELINE_MAX_TICKS = 500;
 const SYSTEM_LANE_KEY = "__system__";
 
 const timelineState = {
-  visible: true,
   buffer: [],            // ring of {ts, kind, pubkey, payload, color, took}
-  rafScheduled: false,
-  hoveredEvent: null,
 };
-
-function wireTimeline() {
-  const strip = document.getElementById("timeline-strip");
-  const toggle = document.getElementById("timeline-toggle");
-  if (!strip || !toggle) return;
-  let visible = true;
-  try {
-    const v = localStorage.getItem(TIMELINE_LS_KEY);
-    if (v === "false") visible = false;
-  } catch {}
-  const apply = () => {
-    timelineState.visible = visible;
-    strip.setAttribute("aria-hidden", visible ? "false" : "true");
-    toggle.setAttribute("aria-pressed", visible ? "true" : "false");
-  };
-  apply();
-  toggle.addEventListener("click", () => {
-    visible = !visible;
-    try { localStorage.setItem(TIMELINE_LS_KEY, visible ? "true" : "false"); } catch {}
-    apply();
-    if (visible) scheduleTimelineRender();
-  });
-  // Render on every animation frame so ticks march left smoothly.
-  function tick() {
-    if (timelineState.visible) renderTimeline();
-    requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-}
 
 function pushTimelineTick(evt) {
   const p = evt.payload || {};
@@ -4998,142 +3830,18 @@ function pushTimelineTick(evt) {
   if (timelineState.buffer.length > TIMELINE_MAX_TICKS) {
     timelineState.buffer.splice(0, timelineState.buffer.length - TIMELINE_MAX_TICKS);
   }
-  scheduleTimelineRender();
-}
-
-function scheduleTimelineRender() {
-  if (timelineState.rafScheduled) return;
-  timelineState.rafScheduled = true;
-  requestAnimationFrame(() => {
-    timelineState.rafScheduled = false;
-    if (timelineState.visible) renderTimeline();
-  });
-}
-
-function renderTimeline() {
-  const lanesEl = document.getElementById("timeline-lanes");
-  const strip = document.getElementById("timeline-strip");
-  if (!lanesEl || !strip) return;
   const now = Date.now();
   const cutoff = now - TIMELINE_WINDOW_MS;
-  // Drop expired ticks from the ring buffer.
   while (timelineState.buffer.length && timelineState.buffer[0].ts < cutoff) {
     timelineState.buffer.shift();
   }
-  // Compute active lanes (peers with at least one tick in window, +
-  // a system lane if any system event is present).
-  const laneSet = new Map();      // key → label
-  let hasSystem = false;
-  for (const t of timelineState.buffer) {
-    if (t.pubkey === SYSTEM_LANE_KEY) { hasSystem = true; continue; }
-    if (!laneSet.has(t.pubkey)) {
-      const peer = srwk.peers.get(t.pubkey);
-      const label = peer?.nickname || `peer-${String(t.pubkey).slice(0, 6)}`;
-      laneSet.set(t.pubkey, label);
-    }
-  }
-  const peerLanes = [...laneSet.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  if (hasSystem) peerLanes.push([SYSTEM_LANE_KEY, "system"]);
-  const laneCount = Math.max(1, peerLanes.length);
-  const stripH = strip.clientHeight || 80;
-  const stripW = strip.clientWidth || 800;
-  const padTop = 6, padBot = 6;
-  const usable = stripH - padTop - padBot;
-  const laneStep = usable / laneCount;
-  // Fast clear; with ≤500 nodes this is cheap.
-  lanesEl.innerHTML = "";
-  // Lane labels + rules
-  peerLanes.forEach(([key, label], i) => {
-    const y = padTop + laneStep * (i + 0.5);
-    const ruler = document.createElement("div");
-    ruler.className = "timeline-lane-rule";
-    ruler.style.top = `${padTop + laneStep * (i + 1)}px`;
-    if (i < peerLanes.length - 1) lanesEl.appendChild(ruler);
-    const labelEl = document.createElement("div");
-    labelEl.className = "timeline-lane-label";
-    labelEl.textContent = label;
-    labelEl.style.top = `${y}px`;
-    lanesEl.appendChild(labelEl);
-  });
-  // Map peer key → lane index for tick placement.
-  const laneIndex = new Map();
-  peerLanes.forEach(([key], i) => laneIndex.set(key, i));
-  const labelGutter = 96;
-  const usableW = Math.max(40, stripW - labelGutter - 8);
-  for (const t of timelineState.buffer) {
-    const lane = laneIndex.get(t.pubkey);
-    if (lane == null) continue;
-    const ageFrac = (now - t.ts) / TIMELINE_WINDOW_MS;  // 0 = now, 1 = oldest
-    const x = labelGutter + usableW * (1 - ageFrac);
-    const y = padTop + laneStep * (lane + 0.5);
-    const tick = document.createElement("div");
-    tick.className = `timeline-tick kind-${t.kind}`;
-    tick.style.left = `${x}px`;
-    tick.style.top = `${y}px`;
-    tick.style.background = t.color;
-    tick.style.boxShadow = `0 0 8px ${t.color}`;
-    // Width: log-scaled by took_ms for slice_scraped (4-22px); fixed 4 otherwise.
-    let w = 4;
-    if (t.kind === "slice_scraped" && t.took > 0) {
-      w = Math.max(4, Math.min(22, 4 + Math.log10(t.took) * 7));
-    } else if (t.kind === "contribution_merged") {
-      w = 5;
-    }
-    tick.style.width = `${w}px`;
-    // Fade ticks as they march toward the left edge.
-    tick.style.opacity = `${(1 - ageFrac * 0.85).toFixed(3)}`;
-    tick.dataset.ts = String(t.ts);
-    tick.addEventListener("mouseenter", (e) => showTimelineTooltip(t, e.target));
-    tick.addEventListener("mouseleave", hideTimelineTooltip);
-    tick.addEventListener("click", () => {
-      hideTimelineTooltip();
-      // Surface the event in the .detail pane via the same pathway as a
-      // traffic-row click. This treats traffic + ingest events uniformly.
-      if (t.kind === "contribution_merged") {
-        // Reuse the events-panel detail renderer.
-        renderEventDetail(t.evt);
-        // Clear traffic selection if any.
-        for (const sib of document.querySelectorAll("#traffic-panel-list .events-row.selected")) {
-          sib.classList.remove("selected");
-        }
-      } else {
-        renderTrafficDetail(t.evt);
-      }
-    });
-    lanesEl.appendChild(tick);
-  }
-}
-
-function showTimelineTooltip(tick, el) {
-  const tip = document.getElementById("timeline-tooltip");
-  if (!tip) return;
-  const peer = srwk.peers.get(tick.pubkey);
-  const nick = peer?.nickname || (tick.pubkey === SYSTEM_LANE_KEY ? "system" : `peer-${String(tick.pubkey).slice(0, 6)}`);
-  const ts = formatEventTs(tick.ts);
-  tip.innerHTML =
-    `<span class="tt-kind">${escHtml(tick.kind)}</span> ` +
-    `· <span class="tt-peer">${escHtml(nick)}</span>` +
-    `<span class="tt-ts">${escHtml(ts)}</span>`;
-  tip.hidden = false;
-  // Position above the tick.
-  const stripRect = document.getElementById("timeline-strip").getBoundingClientRect();
-  const tickRect = el.getBoundingClientRect();
-  const xRel = tickRect.left + tickRect.width / 2 - stripRect.left;
-  tip.style.left = `${Math.round(xRel)}px`;
-}
-
-function hideTimelineTooltip() {
-  const tip = document.getElementById("timeline-tooltip");
-  if (!tip) return;
-  tip.hidden = true;
 }
 
 // ─── live propagation mini-graph (Network tab) ───────────────────────────
 // Self-contained 2D canvas force-graph showing peers as nodes and animating
 // pulses along edges as SSE events flow in. Self node sits in the center,
 // peers arrange in a circle around it. This is intentionally vanilla canvas
-// — the 3d-force-graph bundle is heavy enough that pulling in another
-// graph lib for a 280px panel is bad ROI.
+// so the Network panel stays dependency-free and cheap to mount.
 //
 // State:
 //   livegraphState.pulses    — FIFO queue, capped at LIVEGRAPH_MAX_PULSES
@@ -5560,30 +4268,9 @@ function drawLiveGraph(now) {
   }
 }
 
-// ─── peer-row selection (camera fly + territory pulse) ──────────────────
-// Clicking a peer row in the peers panel flies the camera to that peer's
-// territory and pulses their nodes' halos for ~2s. Reuses the same
-// camera-fly API as onNodeClick so the motion feels uniform.
-
-function _peerCentroid(pubkey) {
-  // Prefer the macro anchor (every node has _macroX/Y/Z assigned at
-  // computeHierarchicalAnchors). Fall back to live position centroid if
-  // anchors aren't yet computed (e.g. first frame).
-  let ax = 0, ay = 0, az = 0, n = 0;
-  let hasAnchor = false;
-  for (const node of srwk.nodes) {
-    if (node.primary_contributor !== pubkey) continue;
-    if (node._macroX != null) {
-      // All nodes for this peer share the same macro anchor; one
-      // sample is enough.
-      return { x: node._macroX, y: node._macroY, z: node._macroZ, hasAnchor: true };
-    }
-    if (node.x == null) continue;
-    ax += node.x; ay += node.y; az += node.z; n++;
-  }
-  if (n === 0) return null;
-  return { x: ax / n, y: ay / n, z: az / n, hasAnchor };
-}
+// ─── peer-row selection ──────────────────────────────────────────────────
+// Keep the legacy peers popup selection state in sync when the optional
+// popup DOM exists.
 
 function selectPeerRow(row, peer) {
   const list = document.getElementById("peers-panel-list");
@@ -5593,369 +4280,16 @@ function selectPeerRow(row, peer) {
     }
   }
   row.classList.add("selected");
-  flyToPeerTerritory(peer.pubkey);
 }
-
-function flyToPeerTerritory(pubkey) {
-  if (!pubkey || !srwk.G) return;
-  const c = _peerCentroid(pubkey);
-  if (!c) return;
-  // Place the camera slightly outside the centroid, looking at it. Same
-  // recipe used in onNodeClick.
-  const len = Math.hypot(c.x, c.y, c.z) || 1;
-  const offset = 320;
-  const r = 1 + offset / len;
-  srwk.G.cameraPosition(
-    { x: c.x * r, y: c.y * r, z: c.z * r },
-    { x: c.x, y: c.y, z: c.z },
-    1100,
-  );
-  // Trigger a 2s territory pulse for this peer's nodes; updateNodeRender
-  // reads srwk.peerPulse each frame and lerps halo scale up/down.
-  srwk.peerPulse = {
-    contributor: pubkey,
-    start: performance.now(),
-    duration: 2000,
-  };
-}
-
-// ─── search wiring ────────────────────────────────────────────────────────
-// Substring filter against title + host + url. Match → keep color, halo
-// boost; non-match → opacity drop. Edges + cluster labels dim too. Cmd/Ctrl-F
-// focuses; Esc clears. Counter chip shows "N/total" and cycles matches.
-
-const SEARCH_DEBOUNCE_MS = 150;
-
-function wireSearch() {
-  const input = document.getElementById("search");
-  const counter = document.getElementById("search-counter");
-  if (!input) return;
-  srwk.search = {
-    active: false,
-    query: "",
-    matchSet: new Set(),
-    matchOrder: [],     // ordered list of matching node ids
-    cycleIdx: -1,
-    debounceTimer: null,
-  };
-  const apply = () => applySearch(input.value);
-  input.addEventListener("input", () => {
-    if (srwk.search.debounceTimer) clearTimeout(srwk.search.debounceTimer);
-    srwk.search.debounceTimer = setTimeout(apply, SEARCH_DEBOUNCE_MS);
-  });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      input.value = "";
-      applySearch("");
-      input.blur();
-    }
-    if (e.key === "Enter" && srwk.search.active && srwk.search.matchOrder.length) {
-      e.preventDefault();
-      cycleToNextMatch();
-    }
-  });
-  if (counter) {
-    counter.addEventListener("click", () => {
-      if (!srwk.search.matchOrder.length) return;
-      cycleToNextMatch();
-    });
-  }
-  // Global keyboard: Cmd/Ctrl+F focuses. Don't fight when user is in
-  // another editable element (we have only the search input today, but
-  // future editable surfaces should still take focus precedence).
-  document.addEventListener("keydown", (e) => {
-    const isModF = (e.metaKey || e.ctrlKey) && (e.key === "f" || e.key === "F");
-    if (!isModF) return;
-    e.preventDefault();
-    input.focus();
-    input.select();
-  });
-  // Esc anywhere on the page clears search if the input has a value.
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (srwk.search.active) {
-      input.value = "";
-      applySearch("");
-    }
-  });
-}
-
-function applySearch(rawQuery) {
-  const q = (rawQuery || "").trim().toLowerCase();
-  const counter = document.getElementById("search-counter");
-  if (!q) {
-    srwk.search.active = false;
-    srwk.search.query = "";
-    srwk.search.matchSet = new Set();
-    srwk.search.matchOrder = [];
-    srwk.search.cycleIdx = -1;
-    if (counter) counter.hidden = true;
-    applyEdgeAndLabelDimming();
-    return;
-  }
-  const matches = new Set();
-  const order = [];
-  for (const n of srwk.nodes) {
-    const hay = `${n.title || ""} ${n.host || ""} ${n.id || ""}`.toLowerCase();
-    if (hay.includes(q)) {
-      matches.add(n.id);
-      order.push(n.id);
-    }
-  }
-  srwk.search.active = true;
-  srwk.search.query = q;
-  srwk.search.matchSet = matches;
-  srwk.search.matchOrder = order;
-  srwk.search.cycleIdx = -1;
-  if (counter) {
-    counter.hidden = false;
-    counter.textContent = `${order.length} / ${srwk.nodes.length}`;
-    counter.classList.toggle("zero", order.length === 0);
-  }
-  applyEdgeAndLabelDimming();
-}
-
-function applyEdgeAndLabelDimming() {
-  const G = srwk.G;
-  const search = srwk.search;
-  // Re-install the search-aware link color callback. 3d-force-graph
-  // re-evaluates per-link colors when an accessor is set, so this is
-  // how we get edges to refresh. searchAwareLinkColor returns the
-  // unmodified base when search is inactive.
-  if (G && typeof G.linkColor === "function") {
-    G.linkColor((l) => searchAwareLinkColor(l));
-  }
-  // Labels: dim non-match cluster labels. We compare the cluster's
-  // groupKey to whether any matched node belongs to that group.
-  const labelMap = srwk.labelMap;
-  if (labelMap) {
-    let matchGroups = null;
-    if (search.active) {
-      matchGroups = new Set();
-      for (const n of srwk.nodes) {
-        if (!search.matchSet.has(n.id)) continue;
-        const k = srwk.lens.groupBy(n);
-        if (k) matchGroups.add(k);
-      }
-    }
-    for (const [key, sprite] of labelMap) {
-      // labels.js fadeLabelsByDistance overrides opacity each frame, so
-      // we encode the search dim factor into a userData multiplier and
-      // wrap the fade logic. Simpler: just stash a flag, applied below
-      // via a frame hook injected in boot's tick.
-      sprite.userData._searchDim = matchGroups ? !matchGroups.has(key) : false;
-    }
-  }
-}
-
-function searchAwareLinkColor(l) {
-  const base = _linkColor(l);
-  const search = srwk.search;
-  const sourceFilter = srwk.sourceFilter;
-  const searchActive = search && search.active;
-  const sourceActive = sourceFilter && sourceFilter.mode !== "all";
-  if (!searchActive && !sourceActive) return base;
-  const sId = typeof l.source === "object" ? l.source.id : l.source;
-  const tId = typeof l.target === "object" ? l.target.id : l.target;
-  // A link is "kept" iff its endpoints satisfy BOTH active filters.
-  // (When only one filter is active, the other contributes "true" by
-  // default — see sourceFilterMatches.)
-  const keepBySearch = !searchActive
-    || search.matchSet.has(sId) || search.matchSet.has(tId);
-  const keepBySource = !sourceActive
-    || sourceFilterMatches(sId) || sourceFilterMatches(tId);
-  if (keepBySearch && keepBySource) return base;
-  if (base.startsWith("rgba(")) return base.replace(/,\s*[0-9.]+\)$/, ", 0.04)");
-  if (base.startsWith("rgb("))  return base.replace(/^rgb\(/, "rgba(").replace(/\)$/, ", 0.04)");
-  return base;
-}
-
-// ─── Issue #43 PR D: source filter (All / Mine / per-peer) ──────────
-//
-// Source filter is parallel to the search filter: a node passes only
-// when BOTH filters keep it. Default state is `mode: "all"` (no-op).
-// `mode: "mine"` keeps nodes where `is_self === true` (or, on legacy
-// graphs without is_self, where source_pubkey === selfPubkey).
-// `mode: "<pubkey>"` keeps nodes from that peer.
-
-function ensureSourceFilterState() {
-  if (srwk.sourceFilter) return srwk.sourceFilter;
-  srwk.sourceFilter = { mode: "all" };
-  return srwk.sourceFilter;
-}
-
-function sourceFilterMatches(idOrNode) {
-  const sf = srwk.sourceFilter;
-  if (!sf || sf.mode === "all") return true;
-  const n = (typeof idOrNode === "string")
-    ? srwk.nodeMap?.get(idOrNode)
-    : idOrNode;
-  if (!n) return false;
-  if (sf.mode === "mine") {
-    if (typeof n.is_self === "boolean") return n.is_self;
-    return n.source_pubkey === srwk.selfPubkey ||
-           n.primary_contributor === srwk.selfPubkey;
-  }
-  // mode is a pubkey — match either source_pubkey or primary_contributor.
-  return n.source_pubkey === sf.mode || n.primary_contributor === sf.mode;
-}
-
-function wireSourceFilter() {
-  ensureSourceFilterState();
-  const bar = document.getElementById("source-filter-bar");
-  if (!bar) return;
-  bar.addEventListener("click", (e) => {
-    const btn = e.target.closest(".source-chip");
-    if (!btn) return;
-    const mode = btn.dataset.source || "all";
-    setSourceFilter(mode);
-  });
-  // Render per-peer chips whenever the peers map changes. Cheap; we
-  // call this on the same triggers that drive renderPeersPanel.
-  renderSourceFilterChips();
-}
-
-function renderSourceFilterChips() {
-  const bar = document.getElementById("source-filter-bar");
-  if (!bar) return;
-  // Drop existing per-peer chips (those past the static "all" + "mine").
-  const fixed = bar.querySelectorAll(
-    '.source-chip[data-source="all"], .source-chip[data-source="mine"]'
-  );
-  bar.innerHTML = "";
-  fixed.forEach((b) => bar.appendChild(b));
-  const peers = (srwk.peers && [...srwk.peers.values()]) || [];
-  if (!peers.length) return;
-  // Per-peer page counts from the live node set so chips don't show
-  // peers with zero pages we've ingested yet.
-  const counts = new Map();
-  for (const n of (srwk.nodes || [])) {
-    const pk = n.source_pubkey || n.primary_contributor;
-    if (!pk) continue;
-    counts.set(pk, (counts.get(pk) || 0) + 1);
-  }
-  // Sort: page count desc, then nickname.
-  peers.sort((a, b) => {
-    if (a.pubkey === srwk.selfPubkey) return -1;  // hide via filter below
-    if (b.pubkey === srwk.selfPubkey) return 1;
-    const ac = counts.get(a.pubkey) || 0;
-    const bc = counts.get(b.pubkey) || 0;
-    if (ac !== bc) return bc - ac;
-    return (a.nickname || "").localeCompare(b.nickname || "");
-  });
-  for (const p of peers) {
-    if (p.pubkey === srwk.selfPubkey) continue;  // "mine" covers self
-    if (!counts.get(p.pubkey)) continue;          // skip empty peers
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "source-chip";
-    btn.dataset.source = p.pubkey;
-    btn.title = `${p.nickname || p.pubkey.slice(0, 12)}: ${counts.get(p.pubkey)} pages`;
-    const dot = document.createElement("span");
-    dot.className = "sc-dot";
-    dot.style.color = p.signature_color || stableHue(p.pubkey);
-    dot.style.background = p.signature_color || stableHue(p.pubkey);
-    btn.appendChild(dot);
-    btn.appendChild(document.createTextNode(
-      (p.nickname || p.pubkey.slice(0, 8)).slice(0, 12)
-    ));
-    if (srwk.sourceFilter && srwk.sourceFilter.mode === p.pubkey) {
-      btn.classList.add("selected");
-    }
-    bar.appendChild(btn);
-  }
-}
-
-function setSourceFilter(mode) {
-  ensureSourceFilterState();
-  srwk.sourceFilter.mode = mode;
-  // Reflect selection in the UI.
-  const bar = document.getElementById("source-filter-bar");
-  if (bar) {
-    bar.querySelectorAll(".source-chip").forEach((b) => {
-      b.classList.toggle("selected", b.dataset.source === mode);
-    });
-  }
-  // Re-run the dimming pass so non-matching nodes/edges fade out.
-  applyEdgeAndLabelDimming();
-}
-
-function cycleToNextMatch() {
-  const order = srwk.search.matchOrder;
-  if (!order.length || !srwk.G) return;
-  srwk.search.cycleIdx = (srwk.search.cycleIdx + 1) % order.length;
-  const id = order[srwk.search.cycleIdx];
-  const n = srwk.nodeMap.get(id);
-  if (!n || n.x == null) return;
-  const len = Math.hypot(n.x, n.y, n.z) || 1;
-  const r = 1 + 90 / len;
-  srwk.G.cameraPosition({ x: n.x * r, y: n.y * r, z: n.z * r }, n, 900);
-  const counter = document.getElementById("search-counter");
-  if (counter) {
-    counter.textContent = `${srwk.search.cycleIdx + 1} / ${order.length}`;
-  }
-}
-
-// Hook into the per-frame label fade pass: if a label was tagged
-// _searchDim, multiply its computed opacity by 0.18. Keeps labels.js
-// blissfully unaware of search.
-const _labelFadeOrig = fadeLabelsByDistance;
-function fadeLabelsWithSearch(camera, labelMap) {
-  _labelFadeOrig(camera, labelMap);
-  if (!srwk.search || !srwk.search.active) return;
-  for (const sprite of labelMap.values()) {
-    if (sprite.userData?._searchDim) {
-      sprite.material.opacity *= 0.18;
-    }
-  }
-}
-// Replace the global handle used by tick() to point at our wrapped fn.
-// (boot's tick imports fadeLabelsByDistance directly, so we install a
-// shim by overriding srwk's tick path: re-bind at the call site.)
-srwk._fadeLabels = fadeLabelsWithSearch;
-
-// ─── timeline auto-show on first traffic event ───────────────────────────
-// First traffic SSE event after boot auto-shows the timeline, but only
-// if the user has never explicitly toggled it (LS key absent). Also
-// fades a one-time toast above the toggle so people know what just
-// appeared.
-
-const TIMELINE_TOAST_KEY = "srwk:timeline:autoshown";
 
 function maybeAutoShowTimeline() {
-  if (srwk._timelineAutoShown) return;
-  srwk._timelineAutoShown = true;
-  let pref = null;
-  try { pref = localStorage.getItem(TIMELINE_LS_KEY); } catch {}
-  // Already explicitly set (true or false) → respect it. Only auto-show
-  // when the user has never expressed a preference.
-  if (pref === "true" || pref === "false") return;
-  const strip = document.getElementById("timeline-strip");
-  const toggle = document.getElementById("timeline-toggle");
-  if (!strip || !toggle) return;
-  timelineState.visible = true;
-  strip.setAttribute("aria-hidden", "false");
-  toggle.setAttribute("aria-pressed", "true");
-  try { localStorage.setItem(TIMELINE_LS_KEY, "true"); } catch {}
-  showTimelineAutoToast();
+  // Retained as a compatibility no-op for traffic paths that still call it.
 }
 
-function showTimelineAutoToast() {
-  const toast = document.getElementById("timeline-toast");
-  if (!toast) return;
-  toast.innerHTML = `<span class="tt-dot"></span>live LAN traffic<span class="tt-arrow"></span>`;
-  toast.hidden = false;
-  toast.classList.remove("fade");
-  setTimeout(() => toast.classList.add("fade"), 4000);
-  setTimeout(() => { toast.hidden = true; toast.classList.remove("fade"); }, 4800);
-}
-
-// ─── tab bar (atlas | alchemy | network | metrics) ─────────
-// ATLAS is the primary tab — the production wall map of the corpus, with
-// the network search input embedded in it (search is no longer its own
-// top-level tab as of 2026-05-09). The three legacy renderers (graph /
-// cartography / cosmos) and the EXPERIMENTAL tab were archived; see
-// _archive/experimental/.
+// ─── tab bar ─────────────────────────────────────────────────────────────
+// Current top-level surfaces are Alchemy, Apps, Network, Links, and Matrix.
+// Legacy Atlas/Search/Graph localStorage values are migrated into the Apps
+// or Network sub-view model below.
 const TAB_LS_KEY = "srwk:active_tab";
 const NET_SUB_LS_KEY = "srwk:network_sub";
 const TOP_TABS = new Set(["alchemy", "apps", "network", "links", "matrix"]);
@@ -6029,6 +4363,7 @@ function wireTabs() {
         applyActiveTab("apps");
         return;
       }
+      warmTabModule(t);
       Alchemy.closeMembraneMenu();
       morphActiveTab(t, () => applyActiveTab(t));
       try { localStorage.setItem(TAB_LS_KEY, t); } catch {}
@@ -6052,6 +4387,7 @@ function wireTabs() {
         applyActiveTab("apps");
         return;
       }
+      warmTabModule(t);
       Alchemy.closeMembraneMenu();
       morphActiveTab(t, () => applyActiveTab(t));
       try { localStorage.setItem(TAB_LS_KEY, t); } catch {}
@@ -6111,9 +4447,10 @@ function wireAppsGrid() {
       // router opens as a pop-out window, not an apps-stage sub-view.
       if (key === "daybook") { openRouter(); return; }
       if (!APPS_VIEWS.has(key)) return;
+      warmAppModule(key);
       document.body.dataset.appsView = key;
       try { localStorage.setItem(APPS_LS_KEY, key); } catch {}
-      // Re-apply so the active tab's mount logic runs (Atlas.mount etc).
+      // Re-apply so the active tab's mount logic runs after apps-view changes.
       applyActiveTab("apps");
       return;
     }
@@ -6345,10 +4682,6 @@ function initNavHistory() {
 // palette entries. Called from boot() before subscribeEvents so the palette
 // and `?` overlay are immediately functional.
 function registerVisualizerShortcutsAndCommands() {
-  const focusGraphSearch = () => {
-    // No-op since graph2 was archived; left as a stub so any external
-    // callers continue to compile.
-  };
   // Search is now a panel inside atlas (toggled via openAtlasSearch in
   // boot init). Cmd+/ from anywhere lands on atlas + opens the panel.
   const focusSearchTabInput = () => {
@@ -6366,6 +4699,7 @@ function registerVisualizerShortcutsAndCommands() {
   };
   const goTab = (t) => {
     if (!TOP_TABS.has(t)) return;
+    warmTabModule(t);
     morphActiveTab(t, () => applyActiveTab(t));
     try { localStorage.setItem(TAB_LS_KEY, t); } catch {}
   };
@@ -6376,6 +4710,7 @@ function registerVisualizerShortcutsAndCommands() {
     // router is a pop-out window, not an apps-stage view.
     if (key === "daybook") { openRouter(); return; }
     if (!APPS_VIEWS.has(key)) return;
+    warmAppModule(key);
     document.body.dataset.appsView = key;
     try { localStorage.setItem(APPS_LS_KEY, key); } catch {}
     morphActiveTab("apps", () => applyActiveTab("apps"));
@@ -6468,8 +4803,6 @@ function registerVisualizerShortcutsAndCommands() {
       } },
     { id: "search.focus.tab",   group: "Search", label: "Focus Search input",
       keywords: ["search","input","focus"], run: focusSearchTabInput },
-    { id: "search.focus.graph", group: "Search", label: "Focus Graph filter (search nodes)",
-      hint: "filter by title/host", keys: ["⌘","F"], keywords: ["filter","find"], run: focusGraphSearch },
     { id: "ui.shortcuts", group: "Help", label: "Show keyboard shortcuts",
       keys: ["?"], keywords: ["help","keys","shortcuts"],
       run: () => openKeyboardOverlay() },
@@ -6519,7 +4852,7 @@ function registerVisualizerShortcutsAndCommands() {
       keywords: ["graph","reload","refresh","reconcile"],
       run: async () => {
         try {
-          const r = await fetch(`${srwk.serverUrl}/graph?lens=${srwk.lens.id}`);
+          const r = await fetch(`${srwk.serverUrl}/graph?lens=${DEFAULT_GRAPH_LENS_ID}`);
           if (r.ok) {
             mergeFreshGraph(await r.json());
             toast({ kind: "success", message: "graph reconciled" });
@@ -6577,7 +4910,11 @@ function applyActiveTab(tab) {
   // + initial sync fetch don't run for users who never open it.
   if (tab === "matrix" && !_chatMounted) {
     const host = document.getElementById("chat-view");
-    if (host) { try { mountChat(host); _chatMounted = true; } catch (e) { console.error("[matrix] mount failed", e); } }
+    if (host) {
+      mountChatLazy(host)
+        .then(() => { _chatMounted = true; })
+        .catch((e) => { console.error("[matrix] mount failed", e); });
+    }
   }
   // Stale: experimental tab archived 2026-05-09. Variables retained as
   // false so any leftover branches below are no-ops without further edits.
@@ -6655,13 +4992,17 @@ function applyActiveTab(tab) {
     requestFrameOrTimeout(() => {
       const stage = document.getElementById("atlas-stage");
       if (!stage) return;
-      try {
-        Atlas.mount(stage);
-        Atlas.setActive(true);
-        requestFrameOrTimeout(() => Atlas.notifyDataChanged());
-      } catch (e) {
-        console.error("[atlas] mount failed:", e);
-      }
+      loadAtlasModule()
+        .then((module) => {
+          if (document.body.dataset.activeTab !== "apps" || document.body.dataset.appsView !== "atlas") {
+            module.setActive(false);
+            return;
+          }
+          module.mount(stage);
+          module.setActive(true);
+          requestFrameOrTimeout(() => module.notifyDataChanged());
+        })
+        .catch((e) => { console.error("[atlas] mount failed:", e); });
     });
   } else {
     try { Atlas.setActive(false); } catch {}
@@ -6674,12 +5015,16 @@ function applyActiveTab(tab) {
     requestFrameOrTimeout(() => {
       const stage = document.getElementById("easel-stage");
       if (!stage) return;
-      try {
-        Easel.mount(stage);
-        Easel.setActive(true);
-      } catch (e) {
-        console.error("[easel] mount failed:", e);
-      }
+      loadEaselModule()
+        .then((module) => {
+          if (document.body.dataset.activeTab !== "apps" || document.body.dataset.appsView !== "easel") {
+            module.setActive(false);
+            return;
+          }
+          module.mount(stage);
+          module.setActive(true);
+        })
+        .catch((e) => { console.error("[easel] mount failed:", e); });
     });
   } else {
     try { Easel.setActive(false); } catch {}
@@ -6692,28 +5037,32 @@ function applyActiveTab(tab) {
     requestFrameOrTimeout(() => {
       const stage = document.getElementById("alchemy-view");
       if (!stage) return;
-      try {
-        // First mount of the alchemy tab is what the progressive launch
-        // overlay (boot.js: mountLaunchOverlay) is waiting on. Advance
-        // the status bar before mount, then call ready() once the first
-        // data-driven render has been kicked off so the splash dismisses
-        // on a real handoff rather than a guess.
-        const launch = window.__srfgLaunch;
-        if (launch?.setStatus) launch.setStatus("mounting cohort view", 0.80);
-        Alchemy.mount(stage);
-        Alchemy.setActive(true);
-        requestFrameOrTimeout(() => {
-          Alchemy.notifyDataChanged();
-          if (launch?.ready) {
-            launch.setStatus("ready", 1.0);
-            launch.ready();
-            window.__srfgLaunch = null;
+      // First mount of the alchemy tab is what the progressive launch
+      // overlay (boot.js: mountLaunchOverlay) is waiting on. Load the large
+      // cohort module only when this tab is activated, then dismiss the
+      // splash after its first data-driven render has been kicked off.
+      const launch = window.__srfgLaunch;
+      if (launch?.setStatus) launch.setStatus("mounting cohort view", 0.80);
+      Alchemy.mount(stage)
+        .then(() => {
+          if (document.body.dataset.activeTab !== "alchemy") {
+            Alchemy.setActive(false);
+            return;
           }
+          Alchemy.setActive(true);
+          requestFrameOrTimeout(() => {
+            Alchemy.notifyDataChanged();
+            if (launch?.ready) {
+              launch.setStatus("ready", 1.0);
+              launch.ready();
+              window.__srfgLaunch = null;
+            }
+          });
+        })
+        .catch((e) => {
+          console.error("[alchemy] mount failed:", e);
+          try { window.__srfgLaunch?.skip(); window.__srfgLaunch = null; } catch {}
         });
-      } catch (e) {
-        console.error("[alchemy] mount failed:", e);
-        try { window.__srfgLaunch?.skip(); window.__srfgLaunch = null; } catch {}
-      }
     });
   } else {
     try { Alchemy.setActive(false); } catch {}
@@ -6867,7 +5216,7 @@ function wireSearchTab() {
     persistSearchPrefs();
   });
   // ASK MY AGENT button — legacy "copy prompt to clipboard" behavior is
-  // superseded by the swarm panel (see `setupSwarmPanel` at end of file,
+  // superseded by the lazy swarm panel launcher wired below,
   // which attaches its own click handler that opens an actual agent run).
   // The prompt helper is exposed on window so the swarm panel can still
   // reuse the framing if we ever want a "copy prompt" fallback inside it.
@@ -6909,6 +5258,52 @@ function buildAskAgentPrompt(q) {
     ``,
     `Then give me a concise digest: top results (title + host + 1-line why-relevant), and the route that delivered them (delivery_path).`,
   ].join("\n");
+}
+
+let swarmPanelPromise = null;
+function loadSwarmPanel() {
+  if (!swarmPanelPromise) {
+    swarmPanelPromise = import("./swarm-panel.js").catch((e) => {
+      swarmPanelPromise = null;
+      throw e;
+    });
+  }
+  return swarmPanelPromise;
+}
+
+function warmSwarmPanel() {
+  loadSwarmPanel()
+    .then((module) => module.warmSwarmPanel?.())
+    .catch((e) => { console.warn("[swarm] warmup failed:", e?.message || e); });
+}
+
+function openSwarmPanelFromLauncher(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  loadSwarmPanel()
+    .then((module) => module.openSwarmPanel())
+    .catch((err) => {
+      console.error("[swarm] panel failed:", err);
+      toast({ kind: "error", message: `swarm failed: ${err?.message || err}` });
+    });
+}
+
+function wireSwarmPanelLauncher() {
+  const askBtn = document.getElementById("search-ask-agent");
+  if (askBtn) {
+    askBtn.addEventListener("pointerover", warmSwarmPanel, { passive: true });
+    askBtn.addEventListener("focus", warmSwarmPanel);
+    askBtn.addEventListener("click", openSwarmPanelFromLauncher);
+  }
+  document.addEventListener("keydown", (e) => {
+    if (!((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "a" || e.key === "A"))) return;
+    const searchView = document.getElementById("search-view");
+    if (searchView && !searchView.hidden) {
+      openSwarmPanelFromLauncher(e);
+    }
+  });
 }
 
 function installSearchRecentStrip() {
@@ -7534,7 +5929,6 @@ function buildNetPeerCard(p, now, liveCounts, recordCounts) {
       sib.classList.remove("selected");
     }
     card.classList.add("selected");
-    flyToPeerTerritory(p.pubkey);
   });
   card.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -7719,9 +6113,8 @@ function renderNetRecordsPanel() {
 }
 
 // ─── network-tab anonymity header ─────────────────────────────────────────
-// Mirrors the same dcnetState the corner badge reads. Kept in sync via a
-// shim around onAnonymitySetChanged + renderAnonBadge, plus a manual call
-// when the network tab is activated.
+// Mirrors dcnetState into the prominent Network header. Kept in sync by
+// onAnonymitySetChanged plus a manual call when the network tab activates.
 function renderNetAnonHeader() {
   const el = document.getElementById("net-anon-header");
   if (!el) return;
@@ -8458,982 +6851,3 @@ boot().then(() => {
   console.error("[boot]", e);
   setStatus("boot failed: " + e.message, true);
 });
-
-// ─── NETWORK · GLANCE VIEW renderers (v0.2.12) ───────────────────────
-//
-// The new default view of the network tab — cohort at a glance.
-// Reads from the same `srwk` state as the existing tab, so SSE updates
-// are picked up automatically. Existing tab is preserved as `Debug` mode.
-//
-// Mode toggle persists in localStorage. Periodic refresh on a 5s timer
-// (independent of the existing 10s peer-list refresh) so glance stays
-// live without re-architecting the existing render call sites.
-
-(function setupGlanceView() {
-  const LS_KEY = "sros.net-view-mode";
-
-  // Search-event ring buffer for the rhythm sparkline. We attach our own
-  // listener to the SSE EventSource (srwk.eventSource) on first refresh
-  // — no mutation of the existing appendEvent pipeline, no risk of
-  // breaking the existing renderer.
-  const searchHistory = []; // {ts: epoch_ms}
-  const SEARCH_HISTORY_MAX = 500;
-  let _searchListenerAttached = false;
-
-  function recordSearch(tsMs) {
-    searchHistory.push({ ts: tsMs });
-    if (searchHistory.length > SEARCH_HISTORY_MAX) searchHistory.shift();
-  }
-
-  function maybeAttachSearchListener() {
-    if (_searchListenerAttached) return;
-    const es = (typeof srwk !== "undefined") && srwk && srwk.eventSource;
-    if (!es || !es.addEventListener) return;
-    const handler = () => recordSearch(Date.now());
-    try {
-      es.addEventListener("web_search_completed", handler);
-      es.addEventListener("web_search_started", handler);
-      _searchListenerAttached = true;
-    } catch {}
-  }
-
-  // ─── helpers ─────────────────────────────────────────────────────
-
-  function peerStateFor(p, nowMs) {
-    // Self is always live by definition — the local node, talking to
-    // itself, doesn't send itself SSE events, so liveSeen has no entry.
-    // Without this guard the headline read "you're the only one here"
-    // even when you were actively driving searches, and the live count
-    // showed 0 in a tab whose whole job is to display "who's online".
-    if (p.pubkey && p.pubkey === srwk.selfPubkey) return "live";
-    // LIVE: SSE activity in last 60s OR successful_pulls advanced very recently.
-    // RECENT: any activity in last 6h.
-    // OFFLINE: nothing in 6h+.
-    const lastSeen = srwk.liveSeen && srwk.liveSeen.get(p.pubkey);
-    const ageMs = lastSeen != null ? (performance.now() - lastSeen) : Infinity;
-    if (ageMs < 60_000) return "live";
-    if (ageMs < 6 * 3600_000) return "recent";
-    // Fall back to peer's last_seen_at wall-clock if set
-    if (p.last_seen_at) {
-      try {
-        const wallAge = Date.now() - Date.parse(p.last_seen_at);
-        if (wallAge < 60_000) return "live";
-        if (wallAge < 6 * 3600_000) return "recent";
-      } catch {}
-    }
-    return "offline";
-  }
-
-  const GLANCE_HUES = [
-    "var(--gpeer-sage)", "var(--gpeer-ochre)", "var(--gpeer-azure)",
-    "var(--gpeer-plum)", "var(--gpeer-teal)",  "var(--gpeer-amber)",
-    "var(--gpeer-violet)", "var(--gpeer-moss)", "var(--gpeer-rose)",
-  ];
-  function peerHue(pubkey, idx) {
-    if (pubkey === srwk.selfPubkey) return "var(--gpeer-self)";
-    // Deterministic — based on pubkey hash so colors are stable across reloads
-    if (!pubkey) return GLANCE_HUES[idx % GLANCE_HUES.length];
-    let h = 0;
-    for (let i = 0; i < pubkey.length; i++) h = (h * 31 + pubkey.charCodeAt(i)) | 0;
-    return GLANCE_HUES[Math.abs(h) % GLANCE_HUES.length];
-  }
-
-  function fmtRelative(deltaMs) {
-    if (deltaMs == null || !isFinite(deltaMs)) return "—";
-    const s = Math.floor(deltaMs / 1000);
-    if (s < 5)        return "just now";
-    if (s < 60)       return `${s}s`;
-    const m = Math.floor(s / 60);
-    if (m < 60)       return `${m}m`;
-    const h = Math.floor(m / 60);
-    if (h < 24)       return `${h}h`;
-    const d = Math.floor(h / 24);
-    return `${d}d`;
-  }
-
-  function lastSeenMs(p) {
-    const sse = srwk.liveSeen && srwk.liveSeen.get(p.pubkey);
-    if (sse != null) return performance.now() - sse;
-    if (p.last_seen_at) {
-      try { return Date.now() - Date.parse(p.last_seen_at); } catch {}
-    }
-    return null;
-  }
-
-  function pageCountFor(pubkey) {
-    if (!srwk.nodes) return 0;
-    let n = 0;
-    for (const node of srwk.nodes) {
-      if (node.primary_contributor === pubkey) n++;
-    }
-    return n;
-  }
-
-  // ─── sub-renderers ───────────────────────────────────────────────
-
-  function renderGlanceHero() {
-    const peers = [...(srwk.peers ? srwk.peers.values() : [])];
-    const now = performance.now();
-    const live = peers.filter(p => peerStateFor(p, now) === "live").length;
-    const total = peers.length;
-
-    const stateEl = document.getElementById("glance-state-line");
-    if (stateEl) stateEl.textContent = `${live} live · ${total} reachable`;
-
-    const prefixEl = document.getElementById("glance-headline-prefix");
-    const emphEl = document.getElementById("glance-headline-emphasis");
-    if (prefixEl && emphEl) {
-      if (live <= 1) {
-        prefixEl.textContent = "You're the only one";
-        emphEl.textContent = "here right now.";
-      } else if (live === 2) {
-        prefixEl.textContent = "Two of us are";
-        emphEl.textContent = "here right now.";
-      } else {
-        const names = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
-        const word = live <= 10 ? names[live] : String(live);
-        prefixEl.textContent = `${word} of us are`;
-        emphEl.textContent = "here right now.";
-      }
-    }
-  }
-
-  function renderGlanceNumbers() {
-    const peers = [...(srwk.peers ? srwk.peers.values() : [])];
-    const now = performance.now();
-    const live = peers.filter(p => peerStateFor(p, now) === "live").length;
-    const recent = peers.filter(p => peerStateFor(p, now) === "recent").length;
-    const total = peers.length;
-
-    let shared = 0, pulled = 0;
-    if (srwk.nodes) {
-      for (const n of srwk.nodes) {
-        if (!n.primary_contributor) continue;
-        if (n.primary_contributor === srwk.selfPubkey) shared++;
-        else pulled++;
-      }
-    }
-
-    const c = document.getElementById("glance-num-cohort"); if (c) c.textContent = String(total);
-    const csub = document.getElementById("glance-cohort-sub");
-    if (csub) csub.textContent = `peers known · ${live} live now · ${live + recent} active today`;
-
-    const s = document.getElementById("glance-num-shared"); if (s) s.textContent = String(shared);
-    const p = document.getElementById("glance-num-pulled"); if (p) p.textContent = String(pulled);
-
-    // Queries today: count search events in last 24h from our ring buffer
-    const dayAgo = Date.now() - 24 * 3600_000;
-    const todayQueries = searchHistory.filter(e => e.ts > dayAgo).length;
-    const totalHits = todayQueries; // TODO v0.2.13: also surface hit_count from events
-    const q = document.getElementById("glance-num-queries"); if (q) q.textContent = String(todayQueries);
-    const qf = document.getElementById("glance-num-queries-frac");
-    if (qf) qf.textContent = totalHits > 0 ? ` · ${totalHits} hits` : "";
-  }
-
-  function renderGlanceRing() {
-    const peersList = [...(srwk.peers ? srwk.peers.values() : [])];
-    // Exclude self from the ring — self sits at center
-    const peers = peersList.filter(p => p.pubkey !== srwk.selfPubkey);
-
-    const raysG = document.getElementById("glance-rays");
-    const peersG = document.getElementById("glance-peers");
-    if (!raysG || !peersG) return;
-    raysG.innerHTML = "";
-    peersG.innerHTML = "";
-
-    const total = Math.max(1, peers.length);
-    const now = performance.now();
-
-    // Position peers around the ring deterministically (by pubkey hash)
-    const positions = peers.map((p, i) => {
-      let h = 0;
-      const k = p.pubkey || String(i);
-      for (let j = 0; j < k.length; j++) h = (h * 31 + k.charCodeAt(j)) | 0;
-      const a = (Math.abs(h) % 1000) / 1000 * Math.PI * 2 - Math.PI / 2;
-      return { p, a, x: Math.cos(a) * 95, y: Math.sin(a) * 95, idx: i };
-    });
-
-    // First pass: rays
-    for (const { p, x, y, idx } of positions) {
-      const state = peerStateFor(p, now);
-      const color = state === "offline" ? null : peerHue(p.pubkey, idx);
-      const r = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      r.setAttribute("class", "ray " + state);
-      r.setAttribute("x1", 0); r.setAttribute("y1", 0);
-      r.setAttribute("x2", x * 0.92); r.setAttribute("y2", y * 0.92);
-      if (color) r.setAttribute("stroke", color);
-      r.setAttribute("opacity", state === "live" ? 0.55 : state === "recent" ? 0.28 : 0.18);
-      raysG.appendChild(r);
-    }
-
-    // Chord lines between live peers — "we're all connected right now"
-    const live = positions.filter(({ p }) => peerStateFor(p, now) === "live");
-    for (let i = 0; i < live.length; i++) {
-      for (let j = i + 1; j < live.length; j++) {
-        const a = live[i], b = live[j];
-        const chord = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        const mx = (a.x + b.x) * 0.3, my = (a.y + b.y) * 0.3;
-        chord.setAttribute("d", `M ${a.x * 0.9} ${a.y * 0.9} Q ${mx} ${my} ${b.x * 0.9} ${b.y * 0.9}`);
-        chord.setAttribute("fill", "none");
-        chord.setAttribute("stroke", "var(--goxide-soft)");
-        chord.setAttribute("stroke-width", "0.6");
-        chord.setAttribute("opacity", "0.35");
-        raysG.appendChild(chord);
-      }
-    }
-
-    // Second pass: halo + dot for each peer
-    let liveN = 0, recentN = 0, offN = 0;
-    for (const { p, x, y, idx } of positions) {
-      const state = peerStateFor(p, now);
-      const color = state === "offline" ? null : peerHue(p.pubkey, idx);
-      if (state === "live" && color) {
-        liveN++;
-        const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        halo.setAttribute("class", "peer-halo");
-        halo.setAttribute("cx", x); halo.setAttribute("cy", y);
-        halo.setAttribute("r", 7);
-        halo.setAttribute("fill", color);
-        halo.setAttribute("opacity", "0.25");
-        peersG.appendChild(halo);
-      } else if (state === "recent") recentN++;
-      else offN++;
-
-      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      c.setAttribute("class", "peer-dot " + state);
-      c.setAttribute("cx", x); c.setAttribute("cy", y);
-      c.setAttribute("r", state === "live" ? 4 : state === "recent" ? 3 : 2.4);
-      if (color) c.setAttribute("fill", color);
-      peersG.appendChild(c);
-    }
-
-    const legL = document.getElementById("glance-legend-live");
-    const legR = document.getElementById("glance-legend-recent");
-    const legO = document.getElementById("glance-legend-offline");
-    if (legL) legL.textContent = String(liveN);
-    if (legR) legR.textContent = String(recentN);
-    if (legO) legO.textContent = String(offN);
-
-    // self host label
-    const hostEl = document.getElementById("glance-self-host");
-    if (hostEl) {
-      const selfPeer = srwk.peers && srwk.peers.get(srwk.selfPubkey);
-      const host = (selfPeer && selfPeer.nickname) || "self";
-      hostEl.textContent = host;
-    }
-  }
-
-  function renderGlancePeerList() {
-    const list = document.getElementById("glance-peer-list");
-    if (!list) return;
-    const peers = [...(srwk.peers ? srwk.peers.values() : [])];
-    const now = performance.now();
-
-    // Sort: self first, then live, then recent, then by last-seen-age
-    peers.sort((a, b) => {
-      if (a.pubkey === srwk.selfPubkey) return -1;
-      if (b.pubkey === srwk.selfPubkey) return 1;
-      const order = { live: 0, recent: 1, offline: 2 };
-      const sa = order[peerStateFor(a, now)] ?? 3;
-      const sb = order[peerStateFor(b, now)] ?? 3;
-      if (sa !== sb) return sa - sb;
-      const la = lastSeenMs(a) ?? Infinity;
-      const lb = lastSeenMs(b) ?? Infinity;
-      return la - lb;
-    });
-
-    list.innerHTML = "";
-    const liveOrRecent = peers.filter(p => peerStateFor(p, now) !== "offline");
-    const visible = liveOrRecent.slice(0, 6); // show top 6 by default
-    for (let idx = 0; idx < visible.length; idx++) {
-      const p = visible[idx];
-      const state = peerStateFor(p, now);
-      const isSelf = p.pubkey === srwk.selfPubkey;
-      const color = peerHue(p.pubkey, idx);
-
-      const card = document.createElement("div");
-      card.className = "glance-peer-card";
-      card.style.color = color;
-
-      const dot = document.createElement("span");
-      dot.className = "glance-peer-pdot " + state;
-      dot.style.background = state === "offline" ? "transparent" : color;
-      card.appendChild(dot);
-
-      const name = document.createElement("span");
-      name.className = "glance-peer-name" + (isSelf ? " is-self" : "");
-      name.textContent = isSelf ? "you" : (p.nickname || `peer-${(p.pubkey || "").slice(0, 8)}`);
-      card.appendChild(name);
-
-      const pages = document.createElement("span");
-      pages.className = "glance-peer-pages";
-      pages.textContent = `${pageCountFor(p.pubkey) || 0}p`;
-      card.appendChild(pages);
-
-      const when = document.createElement("span");
-      when.className = "glance-peer-when";
-      when.textContent = isSelf ? "live" : fmtRelative(lastSeenMs(p));
-      card.appendChild(when);
-
-      const what = document.createElement("span");
-      what.className = "glance-peer-what";
-      what.textContent = isSelf
-        ? "indexing locally · sharing to the cohort"
-        : (state === "live" ? "live · responding to pulls"
-           : state === "recent" ? "connected · last contact " + fmtRelative(lastSeenMs(p))
-           : "offline");
-      card.appendChild(what);
-
-      list.appendChild(card);
-    }
-
-    // counts for header + show-more
-    const liveCount = peers.filter(p => peerStateFor(p, now) === "live").length;
-    const recentCount = peers.filter(p => peerStateFor(p, now) === "recent").length;
-    const offCount = peers.filter(p => peerStateFor(p, now) === "offline").length;
-    const numEl = document.getElementById("glance-peer-strip-num");
-    if (numEl) numEl.textContent = `${liveCount} / ${peers.length}`;
-    const moreN = document.getElementById("glance-show-more-n");
-    const moreI = document.getElementById("glance-show-more-i");
-    if (moreN) moreN.textContent = String(recentCount);
-    if (moreI) moreI.textContent = String(offCount);
-  }
-
-  function renderGlanceTopics() {
-    // v0.2.12 stub: group pages by URL host, surface top 10 buckets.
-    // TODO v0.2.13: replace with daemon-side topic classification.
-    const flow = document.getElementById("glance-topics-flow");
-    const meta = document.getElementById("glance-topics-meta");
-    if (!flow) return;
-
-    const byHost = new Map();
-    if (srwk.nodes) {
-      for (const n of srwk.nodes) {
-        const host = (n.host || "").replace(/^www\./, "");
-        if (!host) continue;
-        if (!byHost.has(host)) byHost.set(host, { count: 0, contrib: n.primary_contributor });
-        byHost.get(host).count++;
-      }
-    }
-    const buckets = [...byHost.entries()]
-      .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 12);
-
-    flow.innerHTML = "";
-    const totalPages = srwk.nodes ? srwk.nodes.length : 0;
-    if (meta) meta.textContent = `across ${totalPages} pages · last 7d`;
-
-    if (buckets.length === 0) {
-      const empty = document.createElement("span");
-      empty.className = "glance-topic size-1";
-      empty.textContent = "no pages yet — index a few searches to populate this";
-      flow.appendChild(empty);
-      return;
-    }
-
-    for (const [host, data] of buckets) {
-      const t = document.createElement("span");
-      // size by relative count (1-4 scale)
-      const maxN = buckets[0][1].count;
-      const ratio = data.count / maxN;
-      const size = ratio > 0.66 ? 4 : ratio > 0.4 ? 3 : ratio > 0.2 ? 2 : 1;
-      t.className = `glance-topic size-${size}`;
-      const peerObj = srwk.peers && srwk.peers.get(data.contrib);
-      if (peerObj) {
-        const idx = [...srwk.peers.keys()].indexOf(data.contrib);
-        t.style.borderColor = peerHue(data.contrib, idx);
-        t.style.color = peerHue(data.contrib, idx);
-      }
-      t.innerHTML = `${host} <span class="ct">${data.count}</span>`;
-      flow.appendChild(t);
-    }
-  }
-
-  function renderGlanceReach() {
-    // v0.2.12 stub: surface peer cursors from /sync/manifest as a proxy
-    // for "how stale each peer's view of my bundle is."
-    // TODO v0.2.13: real daemon-side access-log for "who pulled what when".
-    const wrap = document.getElementById("glance-reach");
-    const meta = document.getElementById("glance-reach-meta");
-    if (!wrap) return;
-
-    const peers = [...(srwk.peers ? srwk.peers.values() : [])]
-      .filter(p => p.pubkey !== srwk.selfPubkey);
-    const now = performance.now();
-    const visible = peers
-      .filter(p => peerStateFor(p, now) !== "offline")
-      .slice(0, 5);
-
-    wrap.innerHTML = "";
-    if (meta) meta.textContent = `latest bundle · ${visible.length} peers visible`;
-
-    if (visible.length === 0) {
-      const empty = document.createElement("div");
-      empty.style.color = "var(--gpaper-faint)";
-      empty.style.fontSize = "12px";
-      empty.textContent = "no peers reachable right now — waiting for cohort to come online.";
-      wrap.appendChild(empty);
-      return;
-    }
-
-    for (let i = 0; i < visible.length; i++) {
-      const p = visible[i];
-      const color = peerHue(p.pubkey, i);
-      const ageMs = lastSeenMs(p);
-      // Reach approximation: live = 100%, recent decays by age
-      const pct = ageMs == null ? 0
-        : ageMs < 60_000 ? 100
-        : ageMs < 600_000 ? 80
-        : ageMs < 3600_000 ? 60
-        : 30;
-
-      const bar = document.createElement("div");
-      bar.className = "glance-reach-bar";
-      bar.style.color = color;
-      bar.innerHTML = `
-        <div class="nm"><span class="sw" style="background: ${color}"></span>${p.nickname || `peer-${(p.pubkey || "").slice(0,8)}`}</div>
-        <div class="track"><div class="fill" style="width: ${pct}%"></div></div>
-        <div class="pct">${pct}%</div>
-      `;
-      wrap.appendChild(bar);
-    }
-  }
-
-  function renderGlanceRhythm() {
-    const rh = document.getElementById("glance-rhythm");
-    const summary = document.getElementById("glance-rhythm-summary");
-    if (!rh) return;
-
-    // 24 buckets, one per hour. Counted from searchHistory ring buffer.
-    const now = Date.now();
-    const data = new Array(24).fill(0);
-    for (const e of searchHistory) {
-      const ageMs = now - e.ts;
-      if (ageMs < 0 || ageMs >= 24 * 3600_000) continue;
-      const bucket = 23 - Math.floor(ageMs / 3600_000);
-      if (bucket >= 0 && bucket < 24) data[bucket]++;
-    }
-    const peak = Math.max(1, ...data);
-    const nowHour = 23;
-    const peakHour = data.indexOf(peak);
-
-    rh.innerHTML = "";
-    data.forEach((v, i) => {
-      const bar = document.createElement("div");
-      bar.className = "glance-rhythm-bar" + (i === nowHour ? " now" : i === peakHour && v > 0 ? " peak" : "");
-      bar.style.height = (Math.max(2, (v / peak) * 100)) + "%";
-      bar.title = `${24 - i}h ago — ${v} ${v === 1 ? "query" : "queries"}`;
-      rh.appendChild(bar);
-    });
-
-    if (summary) {
-      const totalToday = data.reduce((a, b) => a + b, 0);
-      if (totalToday === 0) {
-        summary.textContent = "Quiet day so far — no queries yet.";
-      } else {
-        const peakAgo = 24 - peakHour;
-        summary.innerHTML = `${totalToday} ${totalToday === 1 ? "query" : "queries"} today · peak ${peakAgo}h ago (<strong style="color: var(--gpaper)">${peak}</strong> ${peak === 1 ? "query" : "queries"} that hour).`;
-      }
-    }
-  }
-
-  function renderGlanceTicker() {
-    const line = document.getElementById("glance-ticker-line");
-    const when = document.getElementById("glance-ticker-when");
-    if (!line) return;
-
-    // Find the most recent contribution_merged event in the renderer's
-    // appendEvent ring. We don't have direct access to it as a global,
-    // so peek at srwk.recentEvents if present, otherwise fall back to a
-    // calm static line.
-    const ring = (srwk && srwk.recentEvents) || [];
-    let mostRecent = null;
-    for (let i = ring.length - 1; i >= 0; i--) {
-      if (ring[i].kind === "contribution_merged" || ring[i].kind === "page_added") {
-        mostRecent = ring[i];
-        break;
-      }
-    }
-    if (mostRecent) {
-      const p = mostRecent.payload || {};
-      const page = (p.pages && p.pages[0]) || p;
-      const contrib = p.contributor || p.source_pubkey;
-      const isSelf = contrib === srwk.selfPubkey;
-      const peerObj = contrib && srwk.peers ? srwk.peers.get(contrib) : null;
-      const who = isSelf ? "you" : (peerObj && peerObj.nickname) || "a peer";
-      const title = page.title || page.url || "a new page";
-      line.innerHTML = `${who} ${isSelf ? "indexed" : "shared"} <em>${escapeHtmlSafe(title.slice(0, 80))}</em>${title.length > 80 ? "…" : ""}`;
-      if (when) when.textContent = fmtRelative(Date.now() - (mostRecent.ts || Date.now()));
-    } else {
-      line.textContent = "awaiting cohort activity…";
-      if (when) when.textContent = "—";
-    }
-  }
-
-  function escapeHtmlSafe(s) {
-    if (s == null) return "";
-    return String(s).replace(/[&<>"']/g, c => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-    }[c]));
-  }
-
-  function renderGlanceHealth() {
-    const d = document.getElementById("glance-health-daemon");
-    if (d) d.textContent = "v0.13.4 · :7777";
-
-    const cursor = (srwk._manifest && srwk._manifest.cursor != null)
-      ? `@${srwk._manifest.cursor}` : "@—";
-    const cEl = document.getElementById("glance-health-cursor");
-    if (cEl) cEl.textContent = cursor;
-
-    // Find most recent contribution_merged from self
-    const ring = (srwk && srwk.recentEvents) || [];
-    let lastPub = null;
-    for (let i = ring.length - 1; i >= 0; i--) {
-      if (ring[i].kind === "contribution_merged" &&
-          ring[i].payload && ring[i].payload.contributor === srwk.selfPubkey) {
-        lastPub = ring[i];
-        break;
-      }
-    }
-    const pubEl = document.getElementById("glance-health-publish");
-    if (pubEl) pubEl.textContent = lastPub ? fmtRelative(Date.now() - lastPub.ts) : "—";
-
-    // latency p50 — use existing connection probe rtt if available
-    const latEl = document.getElementById("glance-health-lat");
-    if (latEl && srwk._lastRttMs != null) {
-      latEl.textContent = `${Math.round(srwk._lastRttMs)}ms`;
-    }
-
-    // errors 1h — count peer_unreachable / scraper_error events
-    const errEl = document.getElementById("glance-health-err");
-    if (errEl) {
-      const hourAgo = Date.now() - 3600_000;
-      const errs = ring.filter(e => e.ts > hourAgo &&
-        (e.kind === "peer_unreachable" || e.kind === "scraper_error")).length;
-      errEl.textContent = errs > 0 ? `${errs} · check log` : "0";
-    }
-  }
-
-  function renderGlanceAll() {
-    if (document.body.dataset.netViewMode !== "glance") return;
-    if (document.body.dataset.activeTab !== "network") return;
-    maybeAttachSearchListener();
-    try { renderGlanceHero(); } catch (e) { console.warn("[glance hero]", e); }
-    try { renderGlanceNumbers(); } catch (e) { console.warn("[glance numbers]", e); }
-    try { renderGlanceRing(); } catch (e) { console.warn("[glance ring]", e); }
-    try { renderGlancePeerList(); } catch (e) { console.warn("[glance peers]", e); }
-    try { renderGlanceTopics(); } catch (e) { console.warn("[glance topics]", e); }
-    try { renderGlanceReach(); } catch (e) { console.warn("[glance reach]", e); }
-    try { renderGlanceRhythm(); } catch (e) { console.warn("[glance rhythm]", e); }
-    try { renderGlanceTicker(); } catch (e) { console.warn("[glance ticker]", e); }
-    try { renderGlanceHealth(); } catch (e) { console.warn("[glance health]", e); }
-  }
-
-  // ─── mode toggle init ────────────────────────────────────────────
-
-  function initModeToggle() {
-    const stored = (() => {
-      try { return localStorage.getItem(LS_KEY); } catch { return null; }
-    })();
-    // Force "debug" (the existing 3-column tab with the live peer ring
-    // as the centerpiece). The "glance" composition got pushed back on
-    // — too much hero copy, peer activity demoted to the corner,
-    // headline went "you're the only one here" because self wasn't
-    // being counted as live. Keep glance code in place for later
-    // iteration but ship debug as the only visible mode so the network
-    // tab still has the peer-diagram-in-the-middle that makes the
-    // cohort feel alive.
-    //
-    // We ignore `stored` here because: (a) the toggle UI is hidden in
-    // this build so users can't change it; (b) anyone who clicked the
-    // toggle in a prior session has "glance" saved in localStorage and
-    // would otherwise be stuck on the broken view. Anyone debugging
-    // glance can still flip it via `window.__forceGlance()` (defined
-    // below) or by editing localStorage manually before reload.
-    const mode = "debug";
-    if (stored && stored !== mode) {
-      try { localStorage.setItem(LS_KEY, mode); } catch {}
-    }
-    window.__forceGlance = function () {
-      try { localStorage.setItem(LS_KEY, "glance"); } catch {}
-      document.body.dataset.netViewMode = "glance";
-      if (typeof renderGlanceAll === "function") renderGlanceAll();
-    };
-    document.body.dataset.netViewMode = mode;
-
-    const btns = document.querySelectorAll(".net-mode-btn");
-    btns.forEach(b => {
-      const isOn = b.dataset.mode === mode;
-      b.classList.toggle("is-active", isOn);
-      b.setAttribute("aria-pressed", isOn ? "true" : "false");
-      b.addEventListener("click", () => {
-        const newMode = b.dataset.mode;
-        document.body.dataset.netViewMode = newMode;
-        try { localStorage.setItem(LS_KEY, newMode); } catch {}
-        btns.forEach(bb => {
-          const on = bb.dataset.mode === newMode;
-          bb.classList.toggle("is-active", on);
-          bb.setAttribute("aria-pressed", on ? "true" : "false");
-        });
-        if (newMode === "glance") renderGlanceAll();
-      });
-    });
-  }
-
-  // Wait for DOM, then init + start periodic refresh.
-  function bootstrap() {
-    initModeToggle();
-    renderGlanceAll();
-    setIntervalVisible(renderGlanceAll, 5000);
-  }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", bootstrap, { once: true });
-  } else {
-    bootstrap();
-  }
-})();
-
-// ─── Atlas help tooltip (v0.2.13) ───────────────────────────────────
-// A small "(?)" in the corner of the cohort atlas. Click toggles a
-// folded-handbill explainer with: how the clustering works (countries
-// = peers, towns = pages), and what the underlying stack is
-// (searxng-wth-frnds — P2P meta search engine forked from SearXNG).
-(function setupAtlasHelp() {
-  function init() {
-    const btn = document.getElementById("atlas-help-toggle");
-    const panel = document.getElementById("atlas-help-panel");
-    if (!btn || !panel) return;
-    const closeBtn = panel.querySelector(".ahp-close");
-
-    function open() {
-      panel.hidden = false;
-      btn.setAttribute("aria-expanded", "true");
-      // dismiss on outside click + Esc — installed lazily
-      setTimeout(() => {
-        document.addEventListener("mousedown", onOutside, true);
-        document.addEventListener("keydown", onKey, true);
-      }, 0);
-    }
-    function close() {
-      panel.hidden = true;
-      btn.setAttribute("aria-expanded", "false");
-      document.removeEventListener("mousedown", onOutside, true);
-      document.removeEventListener("keydown", onKey, true);
-    }
-    function toggle() {
-      if (panel.hidden) open(); else close();
-    }
-    function onOutside(e) {
-      if (panel.hidden) return;
-      if (panel.contains(e.target) || btn.contains(e.target)) return;
-      close();
-    }
-    function onKey(e) {
-      if (e.key === "Escape") { e.preventDefault(); close(); }
-    }
-
-    btn.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
-    if (closeBtn) closeBtn.addEventListener("click", close);
-
-    // Auto-close when the view leaves Atlas, so the panel doesn't linger.
-    const obs = new MutationObserver(() => {
-      const inAtlas = document.body.dataset.activeTab === "apps" && document.body.dataset.appsView === "atlas";
-      if (!inAtlas && !panel.hidden) close();
-    });
-    obs.observe(document.body, { attributes: true, attributeFilter: ["data-active-tab", "data-apps-view"] });
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init, { once: true });
-  } else {
-    init();
-  }
-})();
-
-// ─── Swarm panel wiring (v0.2.13) ────────────────────────────────────
-// Opens on ASK MY AGENT click (overrides the legacy copy-prompt
-// behaviour). Renders a streaming trace of the research-agent
-// subprocess. Settings sub-modal handles Anthropic API key (encrypted
-// via main-process safeStorage) + Ollama base URL config. All IPC
-// shape is in apps/os/preload.js (window.api.swarm*).
-
-(function setupSwarmPanel() {
-  function $(id) { return document.getElementById(id); }
-
-  function init() {
-    const panel        = $("swarm-panel");
-    const askBtn       = $("search-ask-agent");
-    if (!panel || !askBtn) return;
-
-    const form         = $("swarm-form");
-    const queryEl      = $("swarm-query");
-    const modelEl      = $("swarm-model");
-    const parallelEl   = $("swarm-parallel");
-    const startBtn     = $("swarm-start-btn");
-    const stopBtn      = $("swarm-stop-btn");
-    const statusDot    = $("swarm-status-dot");
-    const statusLine   = $("swarm-status-line");
-    const traceEl      = $("swarm-trace");
-    const traceEmpty   = $("swarm-trace-empty");
-    const preMsg       = $("swarm-pre-message");
-    const settingsBtn  = $("swarm-settings-btn");
-    const settingsEl   = $("swarm-settings");
-    const settingsClose= $("swarm-settings-close");
-    const keyInput     = $("swarm-anthropic-key");
-    const baseInput    = $("swarm-ollama-base");
-    const saveBtn      = $("swarm-settings-save");
-    const settingsStat = $("swarm-settings-status");
-
-    let _currentRequestId = null;
-    let _outputDispose = null;
-    let _statusDispose = null;
-
-    function open() {
-      panel.hidden = false;
-      panel.setAttribute("aria-hidden", "false");
-      // pre-fill query from the search box if it has content
-      try {
-        const searchInput = document.getElementById("search-input");
-        if (searchInput && searchInput.value && !queryEl.value) {
-          queryEl.value = searchInput.value;
-        }
-      } catch {}
-      setTimeout(() => queryEl.focus(), 60);
-      window.addEventListener("keydown", onKey, true);
-      // Pull saved config + agent install state. If research-agent isn't
-      // on disk, surface that immediately so the start button doesn't
-      // just silently fail.
-      refreshAgentReadiness();
-    }
-    function close() {
-      panel.hidden = true;
-      panel.setAttribute("aria-hidden", "true");
-      window.removeEventListener("keydown", onKey, true);
-      // closing while running keeps the subprocess alive in the background
-      // — open the panel again and you'll pick up the stream. Hit stop to
-      // actually cancel.
-    }
-    function onKey(e) {
-      if (e.key === "Escape") {
-        if (!settingsEl.hidden) { closeSettings(); return; }
-        close();
-      }
-    }
-
-    function openSettings() {
-      settingsEl.hidden = false;
-      settingsEl.setAttribute("aria-hidden", "false");
-      settingsStat.textContent = "";
-      settingsStat.className = "swarm-settings-status";
-      // refresh values from main
-      window.api.getSwarmConfig().then((cfg) => {
-        keyInput.value = "";
-        keyInput.placeholder = cfg.hasApiKey
-          ? "sk-ant-… (saved · type new key to replace)"
-          : "sk-ant-…  (stored encrypted in your keychain)";
-        baseInput.value = cfg.lmApiBase || "";
-        if (!cfg.safeStorageAvailable) {
-          settingsStat.textContent = "warning · safeStorage not available; key would be stored plaintext";
-          settingsStat.className = "swarm-settings-status is-error";
-        }
-      }).catch(() => {});
-      setTimeout(() => keyInput.focus(), 60);
-    }
-    function closeSettings() {
-      settingsEl.hidden = true;
-      settingsEl.setAttribute("aria-hidden", "true");
-    }
-
-    async function refreshAgentReadiness() {
-      try {
-        const cfg = await window.api.getSwarmConfig();
-        // Pre-select the saved model
-        if (cfg.lmModel) {
-          const opt = [...modelEl.options].find(o => o.value === cfg.lmModel);
-          if (opt) modelEl.value = cfg.lmModel;
-        }
-        if (!cfg.agent.binFound) {
-          startBtn.disabled = true;
-          setPreMsg(`research-agent binary not found. Install at ~/research-swarm (git clone dmarzzz/research-swarm; uv sync) or set RESEARCH_AGENT_BIN. The swarm needs the Python CLI to run.`, "error");
-          return;
-        }
-        startBtn.disabled = false;
-        // If anthropic selected but no key, surface that
-        if (modelEl.value.startsWith("anthropic/") && !cfg.hasApiKey) {
-          setPreMsg("Anthropic model selected but no API key configured. Click the ⚙ icon to add one.", "info");
-        } else {
-          setPreMsg("");
-        }
-      } catch (e) {
-        setPreMsg(`config check failed: ${e.message}`, "error");
-      }
-    }
-
-    function setStatus(state, line) {
-      statusDot.dataset.state = state;
-      statusLine.textContent = line;
-    }
-    function setPreMsg(msg, kind) {
-      preMsg.textContent = msg || "";
-      preMsg.className = "swarm-pre-message" + (kind ? ` is-${kind}` : "");
-    }
-    function clearTrace() {
-      traceEl.innerHTML = "";
-      const e = document.createElement("div");
-      e.className = "swarm-trace-empty";
-      e.id = "swarm-trace-empty";
-      e.textContent = "starting swarm…";
-      traceEl.appendChild(e);
-    }
-    function appendTraceLine(stream, text) {
-      // remove the empty placeholder on first real line
-      const empty = traceEl.querySelector("#swarm-trace-empty");
-      if (empty) empty.remove();
-      const line = document.createElement("span");
-      line.className = "swarm-trace-line" + (stream === "stderr" ? " is-stderr" : "");
-      line.textContent = text;
-      traceEl.appendChild(line);
-      traceEl.appendChild(document.createTextNode("\n"));
-      // auto-scroll to bottom unless user has scrolled up
-      const nearBottom = (traceEl.scrollHeight - traceEl.scrollTop - traceEl.clientHeight) < 80;
-      if (nearBottom) traceEl.scrollTop = traceEl.scrollHeight;
-    }
-    function appendDivider() {
-      const div = document.createElement("div");
-      div.className = "swarm-trace-line is-divider";
-      traceEl.appendChild(div);
-    }
-
-    async function startRun(e) {
-      if (e) e.preventDefault();
-      const q = (queryEl.value || "").trim();
-      if (!q) { setPreMsg("type a question first.", "info"); return; }
-      setPreMsg("");
-
-      // Tear down any previous stream listeners
-      if (_outputDispose) { _outputDispose(); _outputDispose = null; }
-      if (_statusDispose) { _statusDispose(); _statusDispose = null; }
-      clearTrace();
-      setStatus("running", "spawning…");
-      startBtn.hidden = true;
-      stopBtn.hidden = false;
-
-      const requestId = `req_${Math.random().toString(36).slice(2, 10)}_${Date.now()}`;
-      _currentRequestId = requestId;
-
-      // Persist the model selection so next launch defaults to it
-      try { await window.api.setSwarmConfig({ lmModel: modelEl.value }); } catch {}
-
-      // Subscribe to output BEFORE start (avoid missing the first lines)
-      _outputDispose = window.api.onSwarmOutput((p) => {
-        if (p.requestId !== _currentRequestId) return;
-        appendTraceLine(p.stream, p.line);
-      });
-      _statusDispose = window.api.onSwarmStatus((s) => {
-        if (s.state === "running") {
-          setStatus("running", `running · ${s.requestId.slice(0, 16)}`);
-        } else if (s.state === "idle") {
-          // Final exit
-          if (s.exitCode === 0) {
-            setStatus("done", `done · ${Math.round((s.durationMs || 0) / 1000)}s`);
-          } else if (s.signal === "SIGTERM" || s.signal === "SIGKILL") {
-            setStatus("idle", `cancelled · ${s.signal}`);
-          } else {
-            setStatus("error", `exited code=${s.exitCode}`);
-          }
-          startBtn.hidden = false;
-          stopBtn.hidden = true;
-          appendDivider();
-        }
-      });
-
-      try {
-        const res = await window.api.swarmStart({
-          requestId,
-          query: q,
-          lmModel: modelEl.value,
-          parallel: !!parallelEl.checked,
-          workers: 3,
-        });
-        if (!res || !res.ok) {
-          setStatus("error", `failed · ${res?.reason || "unknown"}`);
-          setPreMsg(`start failed: ${res?.detail || res?.reason || "unknown"}`, "error");
-          startBtn.hidden = false;
-          stopBtn.hidden = true;
-        }
-      } catch (err) {
-        setStatus("error", `failed · ${err.message}`);
-        setPreMsg(`start threw: ${err.message}`, "error");
-        startBtn.hidden = false;
-        stopBtn.hidden = true;
-      }
-    }
-
-    async function stopRun() {
-      try { await window.api.swarmStop(); } catch (e) { /* ignore */ }
-    }
-
-    // ── Wire events ────────────────────────────────────────────────
-    askBtn.removeEventListener("click", askBtn.__legacyHandler || (() => {}));
-    askBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      open();
-    });
-
-    // close (backdrop + X buttons)
-    panel.querySelectorAll("[data-swarm-close]").forEach(el => {
-      el.addEventListener("click", close);
-    });
-
-    form.addEventListener("submit", startRun);
-    stopBtn.addEventListener("click", stopRun);
-
-    settingsBtn.addEventListener("click", openSettings);
-    settingsClose.addEventListener("click", closeSettings);
-    saveBtn.addEventListener("click", async () => {
-      const opts = { lmApiBase: baseInput.value.trim() };
-      const keyVal = keyInput.value.trim();
-      if (keyVal) opts.lmApiKey = keyVal; // only persist if changed
-      try {
-        const res = await window.api.setSwarmConfig(opts);
-        if (res && res.ok) {
-          settingsStat.textContent = "saved.";
-          settingsStat.className = "swarm-settings-status is-saved";
-          keyInput.value = "";
-          setTimeout(closeSettings, 700);
-          refreshAgentReadiness();
-        } else {
-          settingsStat.textContent = "save failed";
-          settingsStat.className = "swarm-settings-status is-error";
-        }
-      } catch (e) {
-        settingsStat.textContent = `save failed: ${e.message}`;
-        settingsStat.className = "swarm-settings-status is-error";
-      }
-    });
-
-    modelEl.addEventListener("change", () => {
-      // re-check anthropic-key-required prompt
-      refreshAgentReadiness();
-    });
-
-    // Re-bind ⌘/Ctrl+Shift+A to ALSO open the panel (legacy did clipboard)
-    document.addEventListener("keydown", (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "a" || e.key === "A")) {
-        const sv = document.getElementById("search-view");
-        if (sv && !sv.hidden) {
-          e.preventDefault();
-          open();
-        }
-      }
-    });
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init, { once: true });
-  } else {
-    init();
-  }
-})();

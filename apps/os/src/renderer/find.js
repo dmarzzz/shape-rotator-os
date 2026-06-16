@@ -39,6 +39,7 @@ let scope = "global";       // "global" | "page"
 let overlayEl, inputEl, counterEl, prevEl, nextEl, resultsEl, scopeBtns = [];
 // blank-tab refs
 let blankInputEl, blankResultsEl;
+let initialized = false;
 
 // find-in-page state
 const pageFind = { marks: [], idx: -1 };
@@ -377,6 +378,11 @@ function toggleOverlay() {
   }
 }
 
+export function toggleFromShortcut() {
+  if (!overlayEl) return;
+  toggleOverlay();
+}
+
 // ─── DOM construction ─────────────────────────────────────────────────────────
 const SEARCH_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
@@ -447,32 +453,38 @@ function buildBlankBar() {
   blankInputEl = wrap.querySelector(".os-find-blank-input");
   blankResultsEl = wrap.querySelector(".os-find-blank-results");
   const list = attachListSearch(blankInputEl, blankResultsEl);
+  const refreshBlank = () => {
+    catalog = buildCatalog();
+    list.render();
+    requestAnimationFrame(() => blankInputEl.focus());
+    loadCohort().then(() => { catalog = buildCatalog(); list.render(); });
+  };
 
   // Focus + refresh whenever a blank tab becomes the active tab.
   const obs = new MutationObserver(() => {
     if (document.body.hasAttribute("data-blank")) {
-      catalog = buildCatalog();
-      list.render();
-      requestAnimationFrame(() => blankInputEl.focus());
-      loadCohort().then(() => { catalog = buildCatalog(); list.render(); });
+      refreshBlank();
     } else {
       blankInputEl.value = "";
     }
   });
   obs.observe(document.body, { attributes: true, attributeFilter: ["data-blank"] });
+  if (document.body.hasAttribute("data-blank")) refreshBlank();
 }
 
 // ─── keyboard ─────────────────────────────────────────────────────────────────
-function wireKeys() {
-  // Capture phase + stopImmediatePropagation so we own ⌘/Ctrl+F ahead of the
-  // network graph filter's handler in boot.js.
-  document.addEventListener("keydown", (e) => {
-    const isModF = (e.metaKey || e.ctrlKey) && (e.key === "f" || e.key === "F");
-    if (!isModF) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    toggleOverlay();
-  }, true);
+function wireKeys({ shortcut = true } = {}) {
+  if (shortcut) {
+    // Capture phase + stopImmediatePropagation so we own ⌘/Ctrl+F ahead of the
+    // network graph filter's handler in boot.js.
+    document.addEventListener("keydown", (e) => {
+      const isModF = (e.metaKey || e.ctrlKey) && (e.key === "f" || e.key === "F");
+      if (!isModF) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      toggleOverlay();
+    }, true);
+  }
 
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
@@ -491,10 +503,12 @@ function wireKeys() {
   });
 }
 
-export function init() {
+export function init({ shortcut = true } = {}) {
+  if (initialized) return;
+  initialized = true;
   try { scope = localStorage.getItem(SCOPE_LS_KEY) === "page" ? "page" : "global"; } catch {}
   buildOverlay();
   buildBlankBar();
-  wireKeys();
+  wireKeys({ shortcut });
   loadCohort();
 }

@@ -10,8 +10,7 @@
 // alchemist-only fields (class, archetype, status, etc.) live on the
 // alchemist app's depth-bundle path and never enter this bundle.
 //
-// Public API matches atlas.js / cosmos.js / graph2.js so boot.js can
-// mount this the same way:
+// Public API matches the other lazily-mounted renderer modules:
 //   mount(container)        - idempotent
 //   setActive(bool)         - pause/resume any animations
 //   notifyDataChanged()     - rebuild from latest data
@@ -41,12 +40,9 @@ import {
   contextSourceById as findContextSourceById,
 } from "./context-vault-model.js";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
-import { fetchPublicCalendarGrid } from "./calendar-supabase.mjs";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
-import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
-import { enrichPeople } from "./gh-user.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
@@ -56,18 +52,8 @@ import {
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
   askVerbVars, askVerbIconSvg,
 } from "./asks.js";
-// Membrane mode — 2026-05 redesign. Pressurized-membrane object that replaces
-// the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
-// "membrane" so the legacy modes stay reachable while we evaluate.
-import { mountMembrane } from "./membrane/index.js";
-// The calendar page — one-view week timeline + presence tab (2026-06
-// redesign; replaced the day/week/presence sub-tabbed page).
-import {
-  renderCalendarPage,
-  attachCalendarPageBehavior,
-  openCalendarEvent,
-} from "./calendar.js";
-import { renderIntelEmbedded, wireIntelEmbedded, intelSnapshotMeta } from "./intel/intel.js";
+import { createLazyModule } from "./lazy-module.js";
+import { loadStylesheetOnce } from "./stylesheet-loader.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles" | "raw" | "signals" | "data"
@@ -97,6 +83,45 @@ const CONSTELLATION_TIMELINE_LS_KEY = "srwk:constellation_timeline_idx_v1";
 // saved locations that still say "collab" are normalized on restore.
 const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "profile", "onboarding", "program", "asks", "context"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
+const membraneLazy = createLazyModule(() =>
+  Promise.all([
+    loadStylesheetOnce("renderer/membrane/membrane.css"),
+    import("./membrane/index.js"),
+  ]).then(([, module]) => module));
+const intelLazy = createLazyModule(() =>
+  Promise.all([
+    loadStylesheetOnce("renderer/intel/intel.css"),
+    import("./intel/intel.js"),
+  ]).then(([, module]) => module));
+const calendarLazy = createLazyModule(() =>
+  Promise.all([
+    loadStylesheetOnce("vendor/shape-ui/cohort-calendar-week.css"),
+    loadStylesheetOnce("renderer/calendar.css"),
+    import("./calendar.js"),
+  ]).then(([, , module]) => module));
+const calendarSupabaseLazy = createLazyModule(() => import("./calendar-supabase.mjs"));
+const githubUserLazy = createLazyModule(() => import("./gh-user.js"));
+const githubForkLazy = createLazyModule(() => import("./gh-fork.js"));
+let intelMetaCache = null;
+
+function warmLazySurface(label, lazy) {
+  return lazy.load().catch((error) => {
+    console.warn(`[alchemy:${label}] warmup failed:`, error?.message || error);
+    return null;
+  });
+}
+
+export function warmMode(mode) {
+  const normalized = mode === "intel" ? "context"
+    : mode === "calendar2" ? "calendar"
+    : mode === "pulse" ? "shapes"
+    : mode === "collab" ? "constellation"
+    : mode;
+  if (normalized === "membrane") return warmLazySurface("membrane", membraneLazy);
+  if (normalized === "calendar") return warmLazySurface("calendar", calendarLazy);
+  if (normalized === "context") return warmLazySurface("context", intelLazy);
+  return Promise.resolve(null);
+}
 
 const WEEKS_TOTAL = 10;
 function currentProgramWeek() {
@@ -412,6 +437,7 @@ export function mount(container) {
   });
   syncRailSelection();
   startContextAutoRefresh();
+  setTimeout(() => { warmMode(state.mode).catch(() => {}); }, 0);
   loadCohort().then(render).catch(err => {
     console.error("[alchemy] cohort load failed:", err);
     state.canvas.innerHTML = `<p class="alch-callout"><strong>cohort data unavailable</strong><br/>${escHtml(err.message || String(err))}</p>`;
@@ -577,16 +603,23 @@ async function loadCohort() {
   // per device. Triggers a re-render whenever a record gets new data
   // so the first-render placeholders update as fetches complete.
   if (state.cohort?.people) {
-    enrichPeople(state.cohort.people, {
-      onUpdate: () => {
-        // Debounce: gather a few enrichments before re-rendering so a
-        // cold-cache cohort doesn't trigger 50 paints in a row.
-        clearTimeout(state._ghEnrichRenderTimer);
-        state._ghEnrichRenderTimer = setTimeout(() => {
-          if (state.mounted && state.active) render();
-        }, 350);
-      },
-    });
+    const people = state.cohort.people;
+    githubUserLazy.load()
+      .then((module) => {
+        module.enrichPeople(people, {
+          onUpdate: () => {
+            // Debounce: gather a few enrichments before re-rendering so a
+            // cold-cache cohort doesn't trigger 50 paints in a row.
+            clearTimeout(state._ghEnrichRenderTimer);
+            state._ghEnrichRenderTimer = setTimeout(() => {
+              if (state.mounted && state.active) render();
+            }, 350);
+          },
+        });
+      })
+      .catch((error) => {
+        console.warn("[alchemy] github enrichment failed to load:", error?.message || error);
+      });
   }
 }
 
@@ -883,7 +916,28 @@ function renderMembrane() {
     state.membraneController.setData(computeMembraneData());
     return;
   }
-  state.membraneController = mountMembrane(state.canvas);
+  const membraneModule = membraneLazy.peek();
+  if (!membraneModule) {
+    const membraneModuleError = membraneLazy.error();
+    if (membraneModuleError) {
+      state.canvas.innerHTML = `<p class="alch-callout"><strong>membrane failed to load: ${escHtml(membraneModuleError?.message || String(membraneModuleError))}</strong></p>`;
+      return;
+    }
+    state.canvas.innerHTML = `<p class="alch-callout"><strong>loading membrane...</strong></p>`;
+    membraneLazy.load()
+      .then(() => {
+        if (!state.mounted || state.mode !== "membrane" || state.detailRecordId) return;
+        render({ instant: true });
+      })
+      .catch((error) => {
+        console.warn("[alchemy] membrane load failed:", error?.message || error);
+        if (state.mounted && state.mode === "membrane" && !state.detailRecordId) {
+          renderMembrane();
+        }
+      });
+    return;
+  }
+  state.membraneController = membraneModule.mountMembrane(state.canvas);
   state.membraneController.setData(computeMembraneData());
 }
 
@@ -6500,7 +6554,8 @@ function renderConstellation() {
 export async function launchPRFlow({ kind, path, value }) {
   let res;
   try {
-    res = await resolvePRForCurrentUser({ kind, path, value });
+    const githubFork = await githubForkLazy.load();
+    res = await githubFork.resolvePRForCurrentUser({ kind, path, value });
   } catch (e) {
     console.warn("[pr-launcher] resolve failed:", e?.message || e);
     return { ok: false, reason: "resolve-failed" };
@@ -6552,7 +6607,9 @@ function showForkPrompt({ forkUrl, canonicalUrl, handle, retryHint }) {
   });
   overlay.querySelector("#fp-retry")?.addEventListener("click", () => {
     // Bust the cache so the next launchPRFlow rechecks the api.
-    clearForkCache(handle);
+    githubForkLazy.load()
+      .then((module) => module.clearForkCache(handle))
+      .catch((error) => console.warn("[pr-launcher] clear fork cache failed:", error?.message || error));
     close();
     // Don't re-launch automatically — user might have moved on. They'll
     // click submit again from the original form.
@@ -7888,6 +7945,7 @@ function fmtShortDate(d) {
 // (source === "bundled") stays hidden.
 async function loadLiveCalendar({ bundled } = {}) {
   try {
+    const { fetchPublicCalendarGrid } = await calendarSupabaseLazy.load();
     const { grid } = await fetchPublicCalendarGrid({ storage: globalThis.localStorage });
     if (grid && grid.tabs) return { data: grid, source: "live" };
   } catch {
@@ -7917,15 +7975,49 @@ function seedCalendarData() {
   }).catch(() => { cal.loading = false; });
 }
 
+function renderCalendarLoadState(error = null) {
+  if (!state.canvas) return;
+  const message = error
+    ? `calendar failed to load: ${escHtml(error?.message || String(error))}`
+    : "loading calendar...";
+  state.canvas.innerHTML = `<p class="alch-callout"><strong>${message}</strong></p>`;
+}
+
+function ensureCalendarSurfaceLoaded() {
+  const loadError = calendarLazy.error();
+  if (loadError) {
+    renderCalendarLoadState(loadError);
+    return;
+  }
+
+  renderCalendarLoadState();
+  calendarLazy.load()
+    .then(() => {
+      if (!state.mounted || state.mode !== "calendar" || state.detailRecordId) return;
+      render({ instant: true });
+    })
+    .catch((error) => {
+      console.warn("[alchemy] calendar surface failed to load:", error?.message || error);
+      if (state.mounted && state.mode === "calendar" && !state.detailRecordId) {
+        renderCalendarLoadState(error);
+      }
+    });
+}
+
 function paintCalendarView({ wire = false } = {}) {
   seedCalendarData();
+  const calendarModule = calendarLazy.peek();
+  if (!calendarModule) {
+    ensureCalendarSurfaceLoaded();
+    return;
+  }
   const cal = state.calendar;
   if (cal.weekIdx == null) cal.weekIdx = calendarCurrentWeekIdx();
   // Tear down the previous now-line ticker before swapping markup so
   // intervals don't stack across repaints.
   if (cal.detach) { cal.detach(); cal.detach = null; }
   const presence = cal.view === "presence";
-  state.canvas.innerHTML = renderCalendarPage({
+  state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
     weekIdx: cal.weekIdx,
@@ -7937,7 +8029,7 @@ function paintCalendarView({ wire = false } = {}) {
     mountAvailabilityCanvas();
     applyPresenceFocus();
   } else {
-    cal.detach = attachCalendarPageBehavior(state.canvas, { scrollToNow: cal.initialMount });
+    cal.detach = calendarModule.attachCalendarPageBehavior(state.canvas, { scrollToNow: cal.initialMount });
     cal.initialMount = false;
   }
   if (wire) wireCalendar();
@@ -8013,7 +8105,9 @@ function wireCalendar() {
   }
 
   for (const card of state.canvas.querySelectorAll("[data-c2-ev]")) {
-    card.addEventListener("click", (event) => openCalendarEvent(card.dataset.c2Ev, { anchor: event.currentTarget }));
+    card.addEventListener("click", (event) => {
+      calendarLazy.peek()?.openCalendarEvent?.(card.dataset.c2Ev, { anchor: event.currentTarget });
+    });
   }
 
   for (const btn of state.canvas.querySelectorAll("[data-c2-retry]")) {
@@ -12195,6 +12289,62 @@ function renderContextEvidence(tier, cards, insights) {
   return `${toggle}${body}`;
 }
 
+function contextIntelHooks() {
+  return {
+    onPanelChange: (panel) => {
+      const next = panel === "data" ? "data" : "signals";
+      if (state.contextVault.mode !== next) setContextVaultMode(next);
+    },
+  };
+}
+
+function contextIntelMeta() {
+  const intelModule = intelLazy.peek();
+  if (!intelModule) return intelMetaCache || {};
+  intelMetaCache = intelModule.intelSnapshotMeta?.() || {};
+  return intelMetaCache;
+}
+
+function renderContextIntel(view) {
+  const host = state.canvas?.querySelector(".alch-cv-intel");
+  if (!host) return;
+  const intelModule = intelLazy.peek();
+  if (intelModule) {
+    intelMetaCache = intelModule.intelSnapshotMeta?.() || intelMetaCache;
+    intelModule.renderIntelEmbedded?.(host, view);
+    return;
+  }
+
+  const loadError = intelLazy.error();
+  if (loadError) {
+    host.innerHTML = `<p class="alch-callout"><strong>context signals failed to load: ${escHtml(loadError?.message || String(loadError))}</strong></p>`;
+    return;
+  }
+
+  host.innerHTML = `<p class="alch-callout"><strong>loading context signals...</strong></p>`;
+  intelLazy.load()
+    .then((module) => {
+      intelMetaCache = module.intelSnapshotMeta?.() || intelMetaCache;
+      if (!state.mounted || state.mode !== "context" || state.detailRecordId) return;
+      const activeView = contextNormalizeView(state.contextVault.mode);
+      if (activeView !== "signals" && activeView !== "data") return;
+      renderContextVault();
+      wireContextVault();
+    })
+    .catch((error) => {
+      console.warn("[alchemy] context signals failed to load:", error?.message || error);
+      if (state.mounted && state.mode === "context" && !state.detailRecordId) {
+        renderContextIntel(view);
+      }
+    });
+}
+
+function wireContextIntel(host) {
+  const intelModule = intelLazy.peek();
+  if (!host || !intelModule) return;
+  intelModule.wireIntelEmbedded?.(host, contextIntelHooks());
+}
+
 function renderContextVault() {
   const cv = state.contextVault;
   const view = contextNormalizeView(cv.mode);
@@ -12206,7 +12356,7 @@ function renderContextVault() {
   const manifest = cv.manifest || null;
   const sources = manifest?.sources || [];
   const rawScripts = manifest?.raw_scripts || [];
-  const intelMeta = intelSnapshotMeta();
+  const intelMeta = contextIntelMeta();
   const nav = contextViewNav(view, {
     articles: cv.loaded ? sources.length : undefined,
     raw: cv.loaded ? rawScripts.length : undefined,
@@ -12242,7 +12392,7 @@ function renderContextVault() {
         <div class="alch-cv-intel"></div>
       </section>
     `;
-    renderIntelEmbedded(state.canvas.querySelector(".alch-cv-intel"), view);
+    renderContextIntel(view);
     return;
   }
 
@@ -12310,12 +12460,7 @@ function wireContextVault() {
   // nav stays in sync when an intel cross-link jumps data → signals.
   const intelHost = state.canvas.querySelector(".alch-cv-intel");
   if (intelHost) {
-    wireIntelEmbedded(intelHost, {
-      onPanelChange: (panel) => {
-        const next = panel === "data" ? "data" : "signals";
-        if (state.contextVault.mode !== next) setContextVaultMode(next);
-      },
-    });
+    wireContextIntel(intelHost);
   }
   wireContextVaultDetailActions(state.canvas);
 }

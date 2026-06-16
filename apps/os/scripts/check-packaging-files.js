@@ -32,6 +32,11 @@ function resolveLocalRequire(fromFile, specifier) {
 }
 
 const requirePattern = /(?:^|[^\w.])require\s*\(\s*["']([^"']+)["']\s*\)/g;
+const staticImportPattern = /(?:^|[\s;])(?:import|export)\b[^"']*?from\s*["']([^"']+)["']|(?:^|[\s;])import\s*["']([^"']+)["']/g;
+const dynamicImportPattern = /import\s*\(\s*["']([^"']+)["']\s*\)/g;
+const stylesheetPattern = /loadStylesheetOnce\s*\(\s*["']([^"']+)["']\s*\)/g;
+const htmlAssetPattern = /(?:src|href)=["']([^"']+)["']/g;
+const strippedThreeImportPattern = /(?:from\s+|import\s*\(\s*|(?:^|[\s;])import\s*)["'](three\/examples\/jsm|three\/addons)\//m;
 const seen = new Set();
 const requiredFiles = new Set();
 
@@ -89,10 +94,105 @@ function isCovered(rel) {
 
 const missing = [...requiredFiles].filter((rel) => !isCovered(rel));
 
-if (missing.length) {
+function walkFiles(rootDir, extensions) {
+  const files = [];
+  const stack = [rootDir];
+  while (stack.length) {
+    const current = stack.pop();
+    let stat;
+    try { stat = fs.statSync(current); } catch { continue; }
+    if (stat.isDirectory()) {
+      for (const entry of fs.readdirSync(current)) stack.push(path.join(current, entry));
+      continue;
+    }
+    if (extensions.has(path.extname(current))) files.push(current);
+  }
+  return files;
+}
+
+function resolveLocalAsset(fromFile, specifier) {
+  const base = path.resolve(path.dirname(fromFile), specifier);
+  const candidates = path.extname(base)
+    ? [base]
+    : [base + ".js", base + ".mjs", base + ".cjs", base + ".json", base + ".css", path.join(base, "index.js"), path.join(base, "index.mjs")];
+
+  return candidates.find((candidate) => {
+    try {
+      return isInsideApp(candidate) && fs.statSync(candidate).isFile();
+    } catch {
+      return false;
+    }
+  }) || null;
+}
+
+function stripUrlSuffix(specifier) {
+  return specifier.split(/[?#]/, 1)[0];
+}
+
+function isLocalBrowserAsset(specifier) {
+  return specifier &&
+    !/^(?:https?:|data:|file:|app:|mailto:|#)/.test(specifier) &&
+    !specifier.startsWith("/");
+}
+
+function requireCoveredAsset(problems, ownerRel, label, absPath) {
+  if (!absPath || !isInsideApp(absPath)) {
+    problems.push(`${ownerRel} references missing ${label}`);
+    return;
+  }
+  const rel = relPath(absPath);
+  if (!isCovered(rel)) problems.push(`${ownerRel} references ${label} ${rel}, but build.files does not include it`);
+}
+
+const sourceProblems = [];
+const srcRoot = path.join(appRoot, "src");
+if (fs.existsSync(srcRoot)) {
+  for (const absFile of walkFiles(srcRoot, new Set([".js", ".mjs"]))) {
+    const rel = relPath(absFile);
+    const source = fs.readFileSync(absFile, "utf8");
+
+    if (!rel.startsWith("src/vendor/") && strippedThreeImportPattern.test(source)) {
+      sourceProblems.push(`${rel} imports three/examples/jsm or three/addons; package those modules under src/vendor instead`);
+    }
+
+    for (const match of source.matchAll(staticImportPattern)) {
+      const specifier = match[1] || match[2];
+      if (!specifier || !specifier.startsWith(".")) continue;
+      requireCoveredAsset(sourceProblems, rel, `static import "${specifier}"`, resolveLocalAsset(absFile, specifier));
+    }
+
+    for (const match of source.matchAll(dynamicImportPattern)) {
+      const specifier = match[1];
+      if (!specifier || !specifier.startsWith(".")) continue;
+      requireCoveredAsset(sourceProblems, rel, `dynamic import "${specifier}"`, resolveLocalAsset(absFile, specifier));
+    }
+
+    for (const match of source.matchAll(stylesheetPattern)) {
+      const href = stripUrlSuffix(match[1]);
+      if (!isLocalBrowserAsset(href)) continue;
+      requireCoveredAsset(sourceProblems, rel, `lazy stylesheet "${href}"`, path.join(srcRoot, href));
+    }
+  }
+
+  for (const absFile of walkFiles(srcRoot, new Set([".html"]))) {
+    const rel = relPath(absFile);
+    const source = fs.readFileSync(absFile, "utf8");
+    for (const match of source.matchAll(htmlAssetPattern)) {
+      const specifier = stripUrlSuffix(match[1]);
+      if (!isLocalBrowserAsset(specifier)) continue;
+      requireCoveredAsset(sourceProblems, rel, `HTML asset "${specifier}"`, resolveLocalAsset(absFile, specifier));
+    }
+  }
+}
+
+if (missing.length || sourceProblems.length) {
   console.error("[check-packaging-files] build.files misses required main-process files:");
   for (const rel of missing) console.error(`  - ${rel}`);
+  if (sourceProblems.length) {
+    console.error("[check-packaging-files] renderer package references are not covered:");
+    for (const problem of sourceProblems) console.error(`  - ${problem}`);
+  }
   process.exit(1);
 }
 
-console.log(`[check-packaging-files] ok: ${requiredFiles.size} required main-process files covered`);
+console.log(`[check-packaging-files] ok: ${requiredFiles.size} required main-process files covered; renderer imports/styles/assets covered`);
