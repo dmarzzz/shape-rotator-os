@@ -84,7 +84,14 @@ function listJsonFilesRecursive(dir) {
 }
 
 function progressArtifactKey(artifact) {
-  return `${artifact.record_id}|${isoDate(artifact.date || artifact.week_start)}`;
+  const repo = String(
+    artifact.source_repo
+      || artifact.sourceRepo
+      || artifact.repository
+      || artifact.repo
+      || "",
+  ).trim().toLowerCase();
+  return `${artifact.record_id}|${repo}|${isoDate(artifact.date || artifact.week_start)}`;
 }
 
 function preferProgressArtifact(existing, candidate) {

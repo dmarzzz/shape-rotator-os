@@ -7,6 +7,7 @@ import {
 } from "../apps/web/scripts/calendar-links.mjs";
 import {
   buildEventCalendarActions,
+  eventDetailActionNote,
   extractJoinLink,
   renderWeekView,
 } from "../packages/shape-ui/src/cohort-calendar-week.js";
@@ -142,6 +143,18 @@ test("web calendar event renderer turns Meet markers into join links", () => {
   assert.doesNotMatch(html, /cal-event-extra">Meet:/);
   assert.doesNotMatch(html, /calendar\.google\.com\/calendar\/render/);
   assert.doesNotMatch(html, /cal-add-link/);
+});
+
+test("web calendar event detail omits add-copy for join-only Meet cards", () => {
+  assert.equal(eventDetailActionNote({ addHref: "", actionTitle: "Demo" }), "");
+  assert.equal(
+    eventDetailActionNote({ addHref: "https://calendar.google.com/calendar/render", actionTitle: "Demo" }),
+    "adds Demo to your own calendar",
+  );
+  assert.equal(
+    eventDetailActionNote({ addHref: "https://calendar.google.com/calendar/r", addMode: "guest_calendar" }),
+    "opens the shared guest calendar",
+  );
 });
 
 test("web calendar Meet add action opens the shared guest calendar when configured", () => {

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 import {
   appCohortArticlesUrl,
@@ -32,6 +33,15 @@ test("cohort article URLs target app and public article views", () => {
   for (const gated of ["org_id", "source_refs", "metadata", "reviewed_by"]) {
     assert.ok(!publicCols.includes(gated), `public select must not include ${gated}`);
   }
+});
+
+test("migrations create the cohort article relations queried by the renderer", () => {
+  const migration = fs.readFileSync("supabase/migrations/20260616150000_cohort_articles.sql", "utf8");
+
+  assert.match(migration, /create table if not exists public\.cohort_articles/i);
+  assert.match(migration, /create view public\.app_cohort_articles/i);
+  assert.match(migration, /create view public\.public_cohort_articles/i);
+  assert.match(migration, /grant select on public\.public_cohort_articles to anon, authenticated, service_role/i);
 });
 
 test("readSupabaseArticleConfig reads member token from session storage", () => {

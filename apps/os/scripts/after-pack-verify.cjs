@@ -227,16 +227,34 @@ function findPackedBinary(appOutDir, platformName, productName) {
       return exe ? path.join(appOutDir, exe) : null;
     } catch { return null; }
   }
-  // linux: the unpacked executable sits at appOutDir root, no extension,
-  // and is marked executable.
+  // linux: the unpacked app executable sits at appOutDir root alongside
+  // executable Electron helpers. Prefer the product binary and never launch a
+  // helper such as chrome-sandbox with --smoke-test.
   try {
-    for (const f of fs.readdirSync(appOutDir)) {
-      const full = path.join(appOutDir, f);
-      try {
-        const st = fs.statSync(full);
-        if (st.isFile() && (st.mode & 0o111)) return full;
-      } catch {}
-    }
+    const helperNames = new Set(["chrome-sandbox", "chrome_crashpad_handler"]);
+    const isExecutable = (st) => process.platform === "win32" || (st.mode & 0o111);
+    const executableFiles = fs.readdirSync(appOutDir)
+      .map((file) => ({ file, full: path.join(appOutDir, file) }))
+      .filter(({ file, full }) => {
+        if (helperNames.has(file)) return false;
+        if (/\.(so|pak|bin|dat)$/i.test(file)) return false;
+        try {
+          const st = fs.statSync(full);
+          return st.isFile() && isExecutable(st);
+        } catch {
+          return false;
+        }
+      });
+    const exact = executableFiles.find(({ file }) => file === productName);
+    if (exact) return exact.full;
+    const normalizedProduct = String(productName || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const normalized = executableFiles.find(({ file }) =>
+      file.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") === normalizedProduct
+    );
+    if (normalized) return normalized.full;
+    return executableFiles[0]?.full || null;
   } catch {}
   return null;
 }
+
+exports.findPackedBinary = findPackedBinary;

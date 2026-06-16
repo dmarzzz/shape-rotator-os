@@ -11,7 +11,7 @@ const WEB_PUBLIC_LEAK_PATTERNS = [
   { label: "calendar operator runbook command", pattern: /\b(?:admin ACL check|calendar:acl:google|calendar:sync:google|artifacts:drive)\b/i },
   { label: "browser credential prompt", pattern: /\b(?:Supabase anon key|signed-in access token|access token \(not saved\)|calendar connection ID)\b/i },
   { label: "calendar admin endpoint or table", pattern: /\b(?:private_invite_contacts|event_requests|processing_jobs|approval_gates|create-calendar-event|review-transcript-artifact|ingest-artifacts)\b/i },
-  { label: "private source marker", pattern: /\braw[-_ ]?transcripts?\b|drive:\/\/|"(?:source_artifact_id|storage_ref)"\s*:|\.(?:source_artifact_id|storage_ref)\b/i },
+  { label: "private source marker", pattern: /\braw[-_ ]?transcripts?\b|drive:\/\/|["']?(?:source_artifact_id|storage_ref)["']?\s*:|\.(?:source_artifact_id|storage_ref)\b/i },
   { label: "local user path", pattern: /\b[A-Z]:\\Users\\|\/Users\//i },
 ];
 
@@ -19,7 +19,7 @@ const DEFAULT_TARGETS = [
   "apps/web",
 ];
 
-const TEXT_EXTENSIONS = /\.(css|html|js|json|mjs|txt|xml)$/i;
+const TEXT_EXTENSIONS = /\.(css|html|js|json|md|markdown|mjs|txt|xml)$/i;
 
 function listFiles(target) {
   if (!fs.existsSync(target)) return [];

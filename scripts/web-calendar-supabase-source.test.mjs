@@ -23,6 +23,22 @@ test("public web calendar page does not mount operator ingress", () => {
 
   assert.doesNotMatch(html, /calendar-ingress/i);
   assert.doesNotMatch(html, /operator controls|operator setup|Supabase anon key|signed-in access token/i);
+  assert.match(html, /calendar-runtime-config\.js/);
+  assert.ok(
+    html.indexOf("calendar-runtime-config.js") < html.indexOf("../scripts/calendar.js"),
+    "runtime config must load before calendar.js reads SHAPE_CALENDAR_LINKS",
+  );
+});
+
+test("public web calendar starts snapshot fallback before awaiting Supabase", () => {
+  const source = read("apps/web/scripts/calendar.js");
+  const snapshotIndex = source.indexOf("const snapshotPromise = loadSnapshotCalendar()");
+  const liveIndex = source.indexOf("await fetchPublicCalendarGrid");
+  const awaitSnapshotIndex = source.indexOf("await snapshotPromise");
+
+  assert.ok(snapshotIndex > 0);
+  assert.ok(liveIndex > snapshotIndex);
+  assert.ok(awaitSnapshotIndex > liveIndex);
 });
 
 test("public web app does not ship Supabase/operator calendar source bundles", () => {

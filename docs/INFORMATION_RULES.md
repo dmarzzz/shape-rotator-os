@@ -302,7 +302,7 @@ Use this workflow when turning incoming information into durable OS knowledge:
 
 6. Publish
    - Update the canonical markdown/data record.
-   - Rebuild the local transcript catalog (private build output) after transcript source inventory changes.
+   - Refresh the private audit/plan outputs under `cohort-data/.private/transcript-vault/` after transcript source inventory changes.
    - Rebuild generated app bundles from canonical sources.
 
 7. Archive or hold
@@ -377,7 +377,7 @@ Before committing or promoting information:
 - The canonical slug matches `record_id` where possible.
 - Public/cohort-visible material contains no raw private transcript text.
 - Derived material has provenance, confidence, consent/review status, and audience boundary.
-- The local transcript catalog (private build output) was rebuilt after any transcript source, route, or review queue change.
+- The private audit/plan outputs under `cohort-data/.private/transcript-vault/` were refreshed after any transcript source, route, or review queue change.
 - Generated material is either ignored, clearly generated, or intentionally tracked.
 - Links point to canonical records, not `tmp/` or local private files.
 - The change does not duplicate an existing person, team, event, session, article, or policy.
