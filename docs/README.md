@@ -8,7 +8,6 @@ This folder is the durable human-readable operating layer for Shape Rotator OS. 
 
 | Doc | Use it for | Status |
 | --- | --- | --- |
-| [Transcript source index](INFORMATION_INDEX.html) | Visual catalog of transcript/talk sources, grouped by Drive route with calendar and review state. | Current generated HTML |
 | [Information rules](INFORMATION_RULES.html) | Visual guide for storage, naming, routing, privacy, and promotion rules. | Current operating policy |
 | [Information rules markdown](INFORMATION_RULES.md) | Markdown source for the same operating policy. | Current operating policy |
 

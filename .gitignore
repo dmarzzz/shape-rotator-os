@@ -40,11 +40,11 @@ calendar-ingress-deploy-plan.md
 # private signing keys — NEVER commit
 cohort-data/.private/
 
-# full transcript/talk metadata catalog — built from the private vault, belongs
-# vault-only. scripts/build-transcript-talk-index-html.mjs now defaults its output
-# to cohort-data/.private/. This backstop blocks re-committing a public copy that
-# would expose do_not_publish session titles, participants, and filenames.
+# generated transcript catalog — build output only, written under cohort-data/.private/
+# by scripts/build-transcript-talk-index-html.mjs; not tracked in this repo.
 docs/INFORMATION_INDEX.html
+docs/INFORMATION_INDEX.md
+docs/INFORMATION_INDEX_preview.pdf
 
 # screenshots
 screenshots/
@@ -64,6 +64,10 @@ apps/web/calendar.ics
 # app_transcript_evidence_cards view at runtime; build:cohort tolerates absence.
 cohort-data/artifacts/transcript-evidence/generated/
 cohort-data/artifacts/transcript-distillations/generated/
+
+# local cohort-internal working artifacts (drafts / working models) — not for the public repo
+cohort-data/artifacts/midterm-awards/
+Midterm Awards Mobile Copies/
 
 # cohort-internal per-session distillations (consent: cohort-internal /
 # speaker-pending). Same boundary as the evidence above: distilled from the

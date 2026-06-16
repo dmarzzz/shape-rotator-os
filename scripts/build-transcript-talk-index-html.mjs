@@ -241,7 +241,7 @@ const REVIEW_REASONS = {
 function usage() {
   return [
     "Usage:",
-    "  node scripts/build-transcript-talk-index-html.mjs [--plan import-plan.json] [--out docs/INFORMATION_INDEX.html]",
+    "  node scripts/build-transcript-talk-index-html.mjs [--plan import-plan.json] [--out OUTPUT.html]",
     "",
     "Builds a metadata-only transcript/talk catalog HTML from the private vault import plan.",
   ].join("\n");

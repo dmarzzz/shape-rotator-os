@@ -10,9 +10,9 @@ Local-first desktop app for the [Shape Rotator](https://shaperotator.xyz) cohort
 
 The cohort itself lives at **[shaperotator.xyz](https://shaperotator.xyz)**; this repo is the data + the desktop client.
 
-## information index
+## docs
 
-Start with the **[docs hub](docs/README.md)**. The visual **[transcript index](docs/INFORMATION_INDEX.html)** lists transcript/talk sources grouped by Drive route with calendar-match and review status. Storage, naming, sorting, and privacy rules live in **[information rules](docs/INFORMATION_RULES.html)**; the markdown rules source is [docs/INFORMATION_RULES.md](docs/INFORMATION_RULES.md).
+Start with the **[docs hub](docs/README.md)**. Storage, naming, sorting, and privacy rules live in **[information rules](docs/INFORMATION_RULES.html)**; the markdown rules source is [docs/INFORMATION_RULES.md](docs/INFORMATION_RULES.md).
 
 ## download
 

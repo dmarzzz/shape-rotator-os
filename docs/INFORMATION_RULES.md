@@ -4,7 +4,7 @@ Status: draft operating policy
 Last reviewed: 2026-06-14
 Applies to: this repository, the Shape Rotator Google Drive vault, generated app bundles, and operator working files
 
-Related: [docs hub](README.md), [visual rules page](INFORMATION_RULES.html), [transcript source index](INFORMATION_INDEX.html), [calendar coverage index](transcript-calendar-coverage-index.md)
+Related: [docs hub](README.md), [visual rules page](INFORMATION_RULES.html), [calendar coverage index](transcript-calendar-coverage-index.md)
 
 ## Core Rule
 
@@ -82,13 +82,13 @@ node scripts/audit-transcript-labels.mjs --env-file .env.calendar.local --fetch
 
 If credentials are unavailable, run it without `--fetch` and report any `content_not_available` or `fetch_failed` gaps. The audit output belongs under `cohort-data/.private/transcript-vault/` and must not include raw transcript text in committed docs.
 
-Bot rule: whenever a bot checks, classifies, reviews, processes, or changes transcript source inventory, it must regenerate [`docs/INFORMATION_INDEX.html`](INFORMATION_INDEX.html) with:
+Bot rule: whenever a bot checks, classifies, reviews, processes, or changes transcript source inventory, it may rebuild the local transcript catalog as private build output with:
 
 ```bash
 node scripts/build-transcript-talk-index-html.mjs
 ```
 
-If the underlying private import plan changed, regenerate the plan first with `node scripts/prepare-transcript-vault-import.mjs --files cohort-data/.private/transcript-vault/vault-files.json`, then rebuild the Index HTML. Do not report transcript routing/index work as complete while the Index HTML is stale.
+The catalog is written under `cohort-data/.private/` and is not committed to this repo. If the underlying private import plan changed, regenerate the plan first with `node scripts/prepare-transcript-vault-import.mjs --files cohort-data/.private/transcript-vault/vault-files.json`, then rebuild the local catalog.
 
 ## Drive Vault Routes
 
@@ -308,7 +308,7 @@ Use this workflow when turning incoming information into durable OS knowledge:
 
 6. Publish
    - Update the canonical markdown/data record.
-   - Regenerate `docs/INFORMATION_INDEX.html` after transcript source inventory changes.
+   - Rebuild the local transcript catalog (private build output) after transcript source inventory changes.
    - Rebuild generated app bundles from canonical sources.
 
 7. Archive or hold
@@ -383,7 +383,7 @@ Before committing or promoting information:
 - The canonical slug matches `record_id` where possible.
 - Public/cohort-visible material contains no raw private transcript text.
 - Derived material has provenance, confidence, consent/review status, and audience boundary.
-- `docs/INFORMATION_INDEX.html` was regenerated after any transcript source, route, or review queue change.
+- The local transcript catalog (private build output) was rebuilt after any transcript source, route, or review queue change.
 - Generated material is either ignored, clearly generated, or intentionally tracked.
 - Links point to canonical records, not `tmp/` or local private files.
 - The change does not duplicate an existing person, team, event, session, article, or policy.
