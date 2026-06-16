@@ -69,7 +69,7 @@ import { renderIntelEmbedded, wireIntelEmbedded, intelSnapshotMeta } from "./int
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles" | "raw" | "signals" | "data"
-const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "collab"
+const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "shipped" | "collab"
 const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "people"
 const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "works" | "substrate"
 const CONST_TIER_LS_KEY = "srwk:const_tier";  // pinned line-source tier: "all" | "record" | "mention"
@@ -175,7 +175,7 @@ const state = {
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
   openAskComposer: false, // one-shot landing state when membrane sends someone to post
-  constellationMode: "map",   // top-level constellation view: "map" | "ring" | "journey" | "stack" | "collab"
+  constellationMode: "map",   // top-level constellation view: "map" | "ring" | "journey" | "stack" | "shipped" | "collab"
   constellationScope: "projects", // network entity layer: projects/teams vs people-to-project membership
   constellationLens: "all",   // map line lens: "all" | "relies" | "works" | "substrate" — changes which relationship claim is foregrounded
   constPeopleLinkFilter: "all", // people-map legend/filter: "all" | "same-team" | "profile" | "shared-context"
@@ -1802,7 +1802,7 @@ function renderShapes() {
       ${chips}
       ${grid}
       <p class="alch-callout"><strong>cohort directory · v0.2</strong><br/>
-      Each card is a team, project or individual in its current shape (week ${weekNow}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them). The other views above — relationship map, pmf evidence, standing, collab board — read these same records from different angles.</p>
+      Each card is a team, project or individual in its current shape (week ${weekNow}). Teams render as their starting domain shape; projects share the team vocabulary with a stitched rim; individuals render as a portrait medallion. Cards tinted with the cohort accent are formally-invited cohort teams (and the people on them). The other views above — relationship map, pmf evidence, standing, say / did / shipped, collab board — read these same records from different angles.</p>
     </div>
   `;
   // Sentence tokens (kind + membership) open their menus.
@@ -2145,6 +2145,7 @@ function journeyDetailSection(rec) {
 //   map layouts: wells = ecosystem placement; ring = who bridges worlds.
 // journey = where is the product-market-fit journey?
 // stack = where does the project enter the product/market stack?
+// shipped = what did teams say / do / ship, per engine-generated cards?
 // collab = who can unblock whom?
 // The cohort page's views. "directory" is the roster grid (shapes mode);
 // the rest are the constellation perspectives on the same records. One
@@ -2154,13 +2155,14 @@ const CONST_VIEWS = [
   { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "relationship map", hint: "project wells and evidence-backed connections" },
   { mode: "journey", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>', label: "pmf evidence", hint: "coverage of explicit product-market-fit reads" },
   { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "how each team is tracking against its own goals" },
+  { mode: "shipped", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>', label: "say / did / shipped", hint: "declared intent, observed public work, and release signal" },
   { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "matrix, intros, and convergence" },
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
   if (mode === "circle") return "ring";
   if (mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
-  if (mode === "ring" || mode === "journey" || mode === "stack" || mode === "collab") return mode;
+  if (mode === "ring" || mode === "journey" || mode === "stack" || mode === "shipped" || mode === "collab") return mode;
   return "map";
 }
 function constellationNav(active) {
@@ -2184,6 +2186,7 @@ const COHORT_VIEW_DEK = {
   ring: "Every relationship line at once — the cohort as one ring.",
   journey: "Where each project sits on the road to product-market fit.",
   stack: "How each team is tracking against its own declared goals.",
+  shipped: "What teams said they were doing, what public build traces show, and what shipped.",
   collab: "Who depends on whom, and the intros worth making.",
 };
 
@@ -5461,6 +5464,158 @@ function constGoalPlanHtml(model, standingFilter = "all") {
     </div>`;
 }
 
+const COHORT_INSIGHT_READ_MODELS = {
+  say_did_shipped: "say_did_shipped",
+  latent_overlap: "latent_overlaps",
+};
+
+function cohortInsightsModel() {
+  const active = activeConstellationCohort?.() || state.cohort || {};
+  return active?.cohort_insights || state.cohort?.cohort_insights || {};
+}
+
+function insightArray(value) {
+  if (Array.isArray(value)) return value.map(constText).filter(Boolean);
+  return constList(value);
+}
+
+function cohortInsightCards(kind) {
+  const insights = cohortInsightsModel();
+  const readKey = COHORT_INSIGHT_READ_MODELS[kind] || kind;
+  const readModelCards = insights?.read_models?.[readKey];
+  const cards = Array.isArray(readModelCards) && readModelCards.length
+    ? readModelCards
+    : (Array.isArray(insights?.cards) ? insights.cards.filter(card => card?.kind === kind) : []);
+  return cards.filter(card => card && (!kind || card.kind === kind));
+}
+
+function cohortInsightSubjectMap(kind) {
+  const out = new Map();
+  for (const card of cohortInsightCards(kind)) {
+    const ids = Array.isArray(card.subject_ids) ? card.subject_ids : [];
+    const key = ids[0] ? String(ids[0]) : "";
+    if (key && !out.has(key)) out.set(key, card);
+  }
+  return out;
+}
+
+function insightContent(card) {
+  return card?.content_json && typeof card.content_json === "object" ? card.content_json : {};
+}
+
+function insightStatusText(card) {
+  const status = [card?.review_status, card?.approval_state]
+    .map(constText)
+    .filter(Boolean)
+    .join(" / ");
+  return status || "generated";
+}
+
+function sdsObserved(card) {
+  const content = insightContent(card);
+  return content.observed_status === "public_signal_observed" || card?.evidence_level === "observed_public_metadata";
+}
+
+function sdsNumber(content, key) {
+  const value = Number(content?.[key]);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function sdsEvidenceLabel(card) {
+  const content = insightContent(card);
+  const releases = sdsNumber(content, "release_count");
+  const commits = sdsNumber(content, "useful_commit_count");
+  const artifacts = sdsNumber(content, "progress_artifact_count");
+  const parts = [];
+  if (releases) parts.push(`${releases} release${releases === 1 ? "" : "s"}`);
+  if (commits) parts.push(`${commits} useful commit${commits === 1 ? "" : "s"}`);
+  if (artifacts) parts.push(`${artifacts} progress artifact${artifacts === 1 ? "" : "s"}`);
+  if (content.latest_week_start) parts.push(`latest ${content.latest_week_start}`);
+  return parts.length ? parts.join(" · ") : "declared-only card";
+}
+
+function renderSayDidShipped() {
+  const cohort = activeConstellationCohort();
+  const teams = (cohort.teams || []).filter(t => t && t.record_id && teamKind(t) !== "person");
+  const cardByTeam = cohortInsightSubjectMap("say_did_shipped");
+  const rows = teams
+    .map(team => ({ team, card: cardByTeam.get(team.record_id) || null }))
+    .filter(row => row.card)
+    .sort((a, b) => {
+      const ac = insightContent(a.card);
+      const bc = insightContent(b.card);
+      return Number(sdsObserved(b.card)) - Number(sdsObserved(a.card))
+        || sdsNumber(bc, "release_count") - sdsNumber(ac, "release_count")
+        || sdsNumber(bc, "useful_commit_count") - sdsNumber(ac, "useful_commit_count")
+        || String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id));
+    });
+  const observed = rows.filter(row => sdsObserved(row.card)).length;
+  const releases = rows.reduce((sum, row) => sum + sdsNumber(insightContent(row.card), "release_count"), 0);
+  const commits = rows.reduce((sum, row) => sum + sdsNumber(insightContent(row.card), "useful_commit_count"), 0);
+  const sentenceBar = `
+    <div class="ac-sentence" role="group" aria-label="say did shipped summary">
+      <span class="ac-sent-word">reading</span>
+      <strong class="ac-sent-fact">${escHtml(String(rows.length))} engine cards</strong>
+      <span class="ac-sent-word">· public bundle only</span>
+      ${constReadLine(`${observed}/${rows.length || teams.length} with public build signal`, releases ? `${releases} release rows observed` : `${commits} useful commits observed`)}
+    </div>`;
+  const rowHtml = rows.map(({ team, card }) => {
+    const content = insightContent(card);
+    const observedClass = sdsObserved(card) ? " is-observed" : " is-declared";
+    const domain = domainLabel(team.domain) || team.domain || "team";
+    const meta = [domain, team.geo].filter(Boolean).join(" · ");
+    const status = sdsObserved(card) ? "observed public signal" : "declared only";
+    return `
+      <button type="button" class="ac-sds-row${observedClass}" data-const-open-record="${escAttr(team.record_id)}" title="${escAttr(`open ${team.name || team.record_id}`)}">
+        <span class="ac-sds-team">
+          <strong>${escHtml(team.name || team.record_id)}</strong>
+          ${meta ? `<em>${escHtml(meta)}</em>` : ""}
+        </span>
+        <span class="ac-sds-cell">
+          <b>say</b>
+          <span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 210))}</span>
+        </span>
+        <span class="ac-sds-cell">
+          <b>did</b>
+          <span>${escHtml(constShortText(content.did || "not observed", 210))}</span>
+        </span>
+        <span class="ac-sds-cell">
+          <b>shipped</b>
+          <span>${escHtml(constShortText(content.shipped || "not observed", 180))}</span>
+        </span>
+        <span class="ac-sds-proof">
+          <strong>${escHtml(status)}</strong>
+          <em>${escHtml(card.confidence || "unknown confidence")}</em>
+          <small>${escHtml(sdsEvidenceLabel(card))}</small>
+          <small>${escHtml(insightStatusText(card))}</small>
+        </span>
+      </button>`;
+  }).join("");
+  const empty = rows.length ? "" : `
+    <p class="ac-stack-empty">no say / did / shipped cards found. Run <code>npm run build:cohort-insights</code> before using this view.</p>`;
+  state.canvas.innerHTML = `
+    <div class="alch-cohort-page" data-cohort-view="shipped">
+      ${cohortPageHead("shipped")}
+      <div class="alch-view-controls" data-shape-occluder>${sentenceBar}</div>
+      <div class="alch-constellation" data-constellation-view="shipped">
+        <div class="alch-const-workbench is-single">
+          <div class="alch-const-main">
+            <div class="alch-constellation-stage ac-sds-stage" data-view="shipped" tabindex="0" aria-label="say did shipped engine cards">
+              <div class="ac-stack-view is-sds">
+                <div class="ac-sds-head" aria-hidden="true">
+                  <span>team</span><span>say</span><span>did</span><span>shipped</span><span>evidence</span>
+                </div>
+                ${rowHtml}
+                ${empty}
+              </div>
+              <div class="ac-tip" hidden></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderProductStack() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
@@ -6118,6 +6273,7 @@ function renderConstellation() {
   if (mode === "collab") { renderCollab(); return; }
   if (mode === "journey") { renderJourney(); return; }
   if (mode === "stack") { renderProductStack(); return; }
+  if (mode === "shipped") { renderSayDidShipped(); return; }
 
   const lens = constNormalizeConstellationLens(state.constellationLens);
   state.constellationLens = lens;
@@ -9276,6 +9432,70 @@ function collabLegendHtml(lens = "all") {
     </div>`;
 }
 
+function collabLatentOverlapCards() {
+  return cohortInsightCards("latent_overlap")
+    .slice()
+    .sort((a, b) =>
+      sdsNumber(insightContent(b), "score") - sdsNumber(insightContent(a), "score")
+      || String(a.title || "").localeCompare(String(b.title || "")));
+}
+
+function collabLatentOverlapSectionHtml() {
+  const cards = collabLatentOverlapCards().slice(0, 12);
+  const teams = new Map((state.cohort?.teams || []).filter(t => t?.record_id).map(t => [t.record_id, t]));
+  const cardHtml = cards.map((card) => {
+    const ids = Array.isArray(card.subject_ids) ? card.subject_ids.map(String) : [];
+    const a = teams.get(ids[0]);
+    const b = teams.get(ids[1]);
+    const aName = a?.name || ids[0] || "team A";
+    const bName = b?.name || ids[1] || "team B";
+    const content = insightContent(card);
+    const clusters = content.clusters && typeof content.clusters === "object" ? content.clusters : {};
+    const aMeta = [clusters[ids[0]]?.label, a ? domainLabel(a.domain) : "", a?.geo].filter(Boolean).join(" · ");
+    const bMeta = [clusters[ids[1]]?.label, b ? domainLabel(b.domain) : "", b?.geo].filter(Boolean).join(" · ");
+    const chips = [
+      ...insightArray(content.shared_skill_areas),
+      content.shared_domain,
+      ...insightArray(content.shared_dependency_targets),
+      ...insightArray(content.shared_public_terms),
+    ].map(constText).filter(Boolean);
+    const uniqueChips = [...new Set(chips)].slice(0, 7);
+    const reasons = insightArray(content.reasons).slice(0, 2);
+    const actions = insightArray(content.suggested_actions).slice(0, 2);
+    const score = sdsNumber(content, "score");
+    return `
+      <article class="cb-intro cb-latent-overlap">
+        <div class="cb-latent-top">
+          <span class="cb-intro-role">engine overlap</span>
+          <span class="cb-underused-count">score ${escHtml(String(score))}</span>
+        </div>
+        <div class="cb-intro-flow">
+          <button type="button" class="cb-latent-team cb-intro-side" data-collab-cohort-open="${escAttr(ids[0] || "")}" title="${escAttr(`show ${aName} in directory`)}">
+            <span class="cb-intro-team">${escHtml(aName)}</span>
+            ${aMeta ? `<span class="cb-intro-meta">${escHtml(aMeta)}</span>` : ""}
+          </button>
+          <div class="cb-intro-arrow" aria-hidden="true">&harr;</div>
+          <button type="button" class="cb-latent-team cb-intro-side" data-collab-cohort-open="${escAttr(ids[1] || "")}" title="${escAttr(`show ${bName} in directory`)}">
+            <span class="cb-intro-team">${escHtml(bName)}</span>
+            ${bMeta ? `<span class="cb-intro-meta">${escHtml(bMeta)}</span>` : ""}
+          </button>
+        </div>
+        <p class="cb-latent-summary">${escHtml(card.summary || card.claim_text || "Generated public-data overlap; verify before routing.")}</p>
+        ${uniqueChips.length ? `<div class="cb-intro-chips">${uniqueChips.map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("")}</div>` : ""}
+        ${reasons.length ? `<div class="cb-latent-reasons">${reasons.map(r => `<span>${escHtml(r)}</span>`).join("")}</div>` : ""}
+        <div class="cb-latent-actions">
+          <span>${escHtml(card.confidence || "unknown")} confidence · ${escHtml(insightStatusText(card))}</span>
+          ${actions.map(action => `<span>${escHtml(action)}</span>`).join("")}
+        </div>
+      </article>`;
+  }).join("");
+  return `
+    <section class="alch-cb-section" data-cb-section="latent">
+      <div class="alch-cb-sechead"><h3>Latent overlaps</h3><span class="cb-sub">engine-generated public-bundle prompts — verify before routing or recording a dependency</span></div>
+      <div class="cb-intro-grid">${cardHtml || '<p class="cb-empty">no engine overlap cards found.</p>'}</div>
+    </section>`;
+}
+
 function collabInspectorDefaultHtml(m) {
   const top = m.keystones.slice(0, 3).map(k => collabTeamMini(k.team, `${k.inbound.length} inbound`)).join("");
   // At-rest readout, not a bare empty-state: lead with the board's strongest
@@ -9291,10 +9511,12 @@ function collabInspectorDefaultHtml(m) {
   const best = intros[0] || null;
   // Counts mirror the page sections exactly (both cap at 12 cards).
   const introCount = Math.min(intros.length, 12);
+  const latentCount = Math.min(collabLatentOverlapCards().length, 12);
   const underusedCount = Math.min((m.underusedOffers || []).length, 12);
   const convergenceCount = (m.convergence || []).length;
   const trailerLinks = [
     introCount ? { id: "intros", label: `${introCount} intro${introCount === 1 ? "" : "s"} to make` } : null,
+    latentCount ? { id: "latent", label: `${latentCount} generated overlap${latentCount === 1 ? "" : "s"}` } : null,
     underusedCount ? { id: "offers", label: `${underusedCount} underused offer${underusedCount === 1 ? "" : "s"}` } : null,
     convergenceCount ? { id: "convergence", label: `${convergenceCount} convergence area${convergenceCount === 1 ? "" : "s"}` } : null,
   ].filter(Boolean);
@@ -10352,13 +10574,18 @@ function constCollabReadLine(m) {
   const pairs = new Set();
   for (const s of (m?.seekOffer || [])) pairs.add(collabAffKey(s.seeker, s.offerer));
   const intros = pairs.size;
-  if (!intros && !deps) return constReadLine("no collaboration signals yet", null);
+  const latent = collabLatentOverlapCards().length;
+  if (!intros && !deps) {
+    return latent
+      ? constReadLine("no confirmed collaboration signals yet", `${latent} generated overlap${latent === 1 ? "" : "s"} need review`)
+      : constReadLine("no collaboration signals yet", null);
+  }
   const conv = (m?.convergence || []).slice().sort((a, b) => b.count - a.count)[0] || null;
   // "ready intros" is the actionable deduped count (not the raw signal total
   // the dial shows); the deps count lives in the lens, so it's dropped here.
   return constReadLine(
     `${intros} ready intro${intros === 1 ? "" : "s"}`,
-    conv ? `converges on ${conv.skill} (${conv.count} teams)` : null
+    latent ? `${latent} generated overlap${latent === 1 ? "" : "s"} need review` : (conv ? `converges on ${conv.skill} (${conv.count} teams)` : null)
   );
 }
 
@@ -10516,6 +10743,7 @@ function renderCollab() {
       <div class="alch-cb-sechead"><h3>Intros to make</h3><span class="cb-sub">strongest seek ↔ offer overlaps — the conversations to schedule</span></div>
       <div class="cb-intro-grid">${introCards || '<p class="cb-empty">no overlaps found.</p>'}</div>
     </section>`;
+  const latentSection = collabLatentOverlapSectionHtml();
 
   // underused offers — declared help with the lowest routed demand
   const underused = (m.underusedOffers || []).slice(0, 12);
@@ -10565,9 +10793,10 @@ function renderCollab() {
     <div class="alch-collab">
       ${matrix}
       ${introSection}
+      ${latentSection}
       ${underusedSection}
       ${convSection}
-      <p class="alch-callout"><strong>collaboration board · v0.1</strong><br/>Self-asserted only — affinities are shared <code>skill_areas</code>, intros are <code>seeking</code>↔<code>offering</code> term overlaps. No inferred or private scoring.</p>
+      <p class="alch-callout"><strong>collaboration board · v0.1</strong><br/>Matrix cells and intro cards are self-asserted fields: shared <code>skill_areas</code> plus <code>seeking</code>↔<code>offering</code>. Latent overlaps are engine-generated public-bundle prompts and need review before routing or recording as dependencies. No private scoring.</p>
     </div>
     </div>`;
 }

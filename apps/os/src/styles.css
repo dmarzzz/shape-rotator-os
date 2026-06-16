@@ -8328,6 +8328,107 @@ body[data-active-tab="experimental"] #sidebar { padding-top: 0; }
   color: var(--alchemy-ink-mute);
   font-size: 12px;
 }
+.ac-sds-stage {
+  padding: 8px 0 0;
+  overflow: auto;
+}
+.ac-stack-view.is-sds {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 980px;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+.ac-sds-head,
+.ac-sds-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.85fr) repeat(3, minmax(180px, 1.12fr)) minmax(150px, 0.78fr);
+  gap: 10px;
+  align-items: stretch;
+}
+.ac-sds-head {
+  padding: 0 11px 4px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--alchemy-ink-mute);
+}
+.ac-sds-row {
+  appearance: none;
+  width: 100%;
+  min-height: 82px;
+  padding: 10px 11px;
+  border: 1px solid var(--lg-border);
+  border-radius: 6px;
+  background: var(--lg-bg);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms var(--ease), background 160ms var(--ease), transform 160ms var(--ease);
+}
+.ac-sds-row:hover,
+.ac-sds-row:focus-visible {
+  border-color: rgba(214,189,134,0.34);
+  background: var(--lg-bg-strong);
+  transform: translateY(-1px);
+  outline: none;
+}
+.ac-sds-row.is-observed {
+  border-left: 3px solid #4f9d8f;
+}
+.ac-sds-row.is-declared {
+  border-left: 3px solid rgba(var(--ink-rgb), 0.20);
+}
+.ac-sds-team,
+.ac-sds-cell,
+.ac-sds-proof {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ac-sds-team strong {
+  color: var(--alchemy-paper-warm);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.ac-sds-team em,
+.ac-sds-cell b,
+.ac-sds-proof em,
+.ac-sds-proof small {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--alchemy-ink-mute);
+  font-style: normal;
+}
+.ac-sds-cell span {
+  color: var(--alchemy-paper-warm);
+  font-size: 11.5px;
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.ac-sds-proof strong {
+  color: var(--alchemy-paper-warm);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ac-sds-proof small {
+  line-height: 1.25;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
 /* Each product layer is a translucent glass pane that picks up the cursor
  * sheen (.lg-track). No oxide tint here — it's a repeated content pane, so the
  * signature wash stays on the singular hero/legend surfaces. */
@@ -12702,6 +12803,72 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
+}
+.cb-latent-overlap {
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.cb-latent-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cb-latent-team {
+  appearance: none;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cb-latent-team:last-child {
+  text-align: right;
+}
+.cb-latent-team:hover .cb-intro-team,
+.cb-latent-team:focus-visible .cb-intro-team {
+  color: var(--alchemy-oxide-bright);
+}
+.cb-latent-team:focus-visible {
+  outline: 1px solid rgba(214,189,134,0.42);
+  outline-offset: 3px;
+}
+.cb-latent-summary {
+  margin: 0;
+  color: var(--alchemy-paper-warm);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.cb-latent-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
+}
+.cb-latent-reasons span {
+  color: var(--alchemy-ink-mute);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+.cb-latent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.cb-latent-actions span {
+  border: 1px solid rgba(var(--ink-rgb), 0.11);
+  border-radius: 3px;
+  padding: 2px 6px;
+  color: var(--alchemy-ink-mute);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* convergence */
