@@ -65,6 +65,10 @@ apps/web/calendar.ics
 cohort-data/artifacts/transcript-evidence/generated/
 cohort-data/artifacts/transcript-distillations/generated/
 
+# local cohort-internal working artifacts (drafts / working models) — not for the public repo
+cohort-data/artifacts/midterm-awards/
+Midterm Awards Mobile Copies/
+
 # cohort-internal per-session distillations (consent: cohort-internal /
 # speaker-pending). Same boundary as the evidence above: distilled from the
 # private vault, must not live in the public repo. Source copies are kept under
