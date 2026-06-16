@@ -219,6 +219,169 @@ function releaseRows(artifact) {
     .sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")));
 }
 
+function firstText(...values) {
+  for (const value of values) {
+    const text = compactText(value, 260);
+    if (text) return text;
+  }
+  return "";
+}
+
+function previewList(value, { limit = 4, max = 180 } = {}) {
+  return asArray(value)
+    .map(item => compactText(item, max))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+const PROJECT_DOMAIN_LABELS = {
+  tee: "trusted compute",
+  ai: "agent infrastructure",
+  crypto: "crypto",
+  "app-ux": "application UX",
+  "bd-gtm": "go-to-market",
+};
+
+function identityDomainLabel(value) {
+  const key = String(value || "").toLowerCase();
+  return PROJECT_DOMAIN_LABELS[key] || compactText(value, 60);
+}
+
+function teamKindLabel(team) {
+  const journey = team?.journey || {};
+  const companyType = compactText(journey.company_type, 60);
+  const domain = identityDomainLabel(team?.domain);
+  const focus = compactText(team?.focus, 100);
+  if (companyType && domain && focus) return `${companyType} project in ${domain} focused on ${focus}`;
+  if (companyType && focus) return `${companyType} project focused on ${focus}`;
+  if (domain && focus) return `${domain} project focused on ${focus}`;
+  if (focus) return `project focused on ${focus}`;
+  if (companyType || domain) return `${companyType || domain} project`;
+  return "cohort project";
+}
+
+function projectIdentityConfidence({ team, progress, releases }) {
+  const journey = team?.journey || {};
+  let score = 0;
+  if (team?.focus || team?.domain || journey.company_type) score += 1;
+  if (journey.problem) score += 1;
+  if (journey.solution || team?.now) score += 1;
+  if (journey.icp) score += 1;
+  if (previewList(team?.skill_areas).length || previewList(team?.paper_basis).length) score += 1;
+  if (previewList(team?.seeking).length || previewList(team?.offering).length || previewList(team?.dependencies).length) score += 1;
+  if (team?.traction || previewList(team?.prior_shipping).length) score += 1;
+  if (asArray(progress).length || asArray(releases).length) score += 1;
+  if (score >= 7) return "high";
+  if (score >= 5) return "medium";
+  if (score >= 3) return "low-medium";
+  return "low";
+}
+
+function buildProjectIdentityCards({ teams = [], githubProgressArtifacts = [], githubReleaseArtifacts = [] } = {}) {
+  const progressByTeam = groupBy(githubProgressArtifacts, artifact => artifact.record_id);
+  const releasesByTeam = groupBy(githubReleaseArtifacts, artifact => artifact.record_id);
+  return asArray(teams)
+    .filter(team => team?.record_id)
+    .slice()
+    .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)))
+    .map((team) => {
+      const progress = asArray(progressByTeam.get(team.record_id))
+        .slice()
+        .sort((a, b) => {
+          const dateCompare = isoDate(b.date || b.week_start).localeCompare(isoDate(a.date || a.week_start));
+          if (dateCompare) return dateCompare;
+          return String(a.artifact_id || "").localeCompare(String(b.artifact_id || ""));
+        });
+      const releaseArtifacts = asArray(releasesByTeam.get(team.record_id));
+      const releases = releaseArtifacts.flatMap(releaseRows).sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")));
+      const latest = progress[0] || null;
+      const journey = team.journey || {};
+      const name = team.name || team.record_id;
+      const whatItIs = teamKindLabel(team);
+      const whatItDoes = firstText(journey.solution, team.now, team.weekly_goals, team.focus);
+      const whoItServes = firstText(journey.icp);
+      const problem = firstText(journey.problem);
+      const observed = Boolean(latest || releases.length);
+      const sourceRefs = [
+        sourceRef("team_record", {
+          record_id: team.record_id,
+          path: `cohort-data/teams/${team.record_id}.md`,
+        }),
+        ...progress.slice(0, 3).map(artifact => sourceRef("github_progress_artifact", {
+          artifact_id: artifact.artifact_id || "",
+          record_id: artifact.record_id,
+          week_start: isoDate(artifact.week_start || artifact.date),
+          source_repo: artifact.source_repo || "",
+        })),
+        ...releaseArtifacts.slice(0, 2).map(artifact => sourceRef("github_release_artifact", {
+          artifact_id: artifact.artifact_id || "",
+          record_id: artifact.record_id,
+          source_repo: artifact.source_repo || "",
+        })),
+      ];
+      const publicLinkTypes = Object.entries(team.links || {})
+        .filter(([, value]) => Boolean(value))
+        .map(([key]) => key)
+        .sort((a, b) => a.localeCompare(b));
+      const releaseNames = releases.slice(0, 3).map(release => release.name || release.tag).filter(Boolean);
+      const latestExamples = previewList(latest?.evidence?.examples, { limit: 3, max: 160 });
+      const totalUsefulCommits = progress.reduce((sum, artifact) => sum + usefulCommitCount(artifact), 0);
+      return makeInsightCard({
+        id: `cohort-insight:project-identity:${slugPart(team.record_id)}`,
+        kind: "project_identity",
+        subjectType: "team",
+        subjectIds: [team.record_id],
+        title: `${name}: what it is / what it does`,
+        claimText: `${name} is ${whatItIs}; it does ${whatItDoes || "work that has not been declared clearly enough yet"}.`,
+        summary: whoItServes
+          ? `${name} serves ${whoItServes}. Core action: ${whatItDoes || "not clearly declared yet"}.`
+          : `${name} is ${whatItIs}. Core action: ${whatItDoes || "not clearly declared yet"}.`,
+        evidenceLevel: observed ? "observed_public_metadata" : "declared_only",
+        confidence: projectIdentityConfidence({ team, progress, releases }),
+        sourceRefs,
+        contentJson: {
+          what_it_is: whatItIs,
+          what_it_does: whatItDoes,
+          who_it_serves: whoItServes,
+          problem,
+          solution: firstText(journey.solution),
+          current_work: firstText(team.now, team.weekly_goals),
+          focus: compactText(team.focus, 160),
+          domain: compactText(team.domain, 80),
+          company_type: compactText(journey.company_type, 80),
+          stage: Number.isFinite(Number(journey.stage)) ? Number(journey.stage) : null,
+          evidence_quality: Number.isFinite(Number(journey.evidence_quality)) ? Number(journey.evidence_quality) : null,
+          market_upside: Number.isFinite(Number(journey.market_upside)) ? Number(journey.market_upside) : null,
+          primary_bottleneck: compactText(journey.primary_bottleneck, 120),
+          declared_confidence: compactText(journey.confidence, 40),
+          next_milestone: firstText(journey.next_milestone),
+          skill_areas: previewList(team.skill_areas, { limit: 8, max: 80 }),
+          paper_basis: previewList(team.paper_basis, { limit: 4, max: 140 }),
+          success_dimensions: previewList(team.success_dimensions, { limit: 4, max: 80 }),
+          dependencies: previewList(team.dependencies, { limit: 8, max: 80 }),
+          seeking: previewList(team.seeking, { limit: 5, max: 180 }),
+          offering: previewList(team.offering, { limit: 5, max: 180 }),
+          traction: compactText(team.traction, 220),
+          prior_shipping: previewList(team.prior_shipping, { limit: 4, max: 180 }),
+          public_link_types: publicLinkTypes,
+          public_activity: {
+            observed_status: observed ? "public_signal_observed" : "declared_only",
+            latest_week_start: isoDate(latest?.week_start || latest?.date),
+            latest_summary: compactText(latest?.summary, 220),
+            latest_examples: latestExamples,
+            progress_artifact_count: progress.length,
+            release_artifact_count: releaseArtifacts.length,
+            release_count: releases.length,
+            release_names: releaseNames,
+            useful_commit_count: totalUsefulCommits,
+          },
+          recommended_views: ["journey", "collab", "shipped"],
+          source_policy: "public cohort surface fields plus public GitHub/release artifacts only",
+        },
+      });
+    });
+}
+
 function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], githubReleaseArtifacts = [] } = {}) {
   const progressByTeam = groupBy(githubProgressArtifacts, artifact => artifact.record_id);
   const releasesByTeam = groupBy(githubReleaseArtifacts, artifact => artifact.record_id);
@@ -512,10 +675,11 @@ function buildCohortInsightBundle({
   githubReleaseArtifacts = [],
   generatedAt = null,
 } = {}) {
+  const projectIdentity = buildProjectIdentityCards({ teams, githubProgressArtifacts, githubReleaseArtifacts });
   const sayDidShipped = buildSayDidShippedCards({ teams, githubProgressArtifacts, githubReleaseArtifacts });
   const latentOverlaps = buildLatentOverlapCards({ teams, clusters, dependencies });
   const rotation = buildRotationReadModel();
-  const cards = [...sayDidShipped, ...latentOverlaps];
+  const cards = [...projectIdentity, ...sayDidShipped, ...latentOverlaps];
   return {
     schema_version: INSIGHT_SCHEMA_VERSION,
     artifact_kind: "cohort_insight_bundle",
@@ -538,6 +702,7 @@ function buildCohortInsightBundle({
       }, {}),
     },
     read_models: {
+      project_identity: projectIdentity,
       say_did_shipped: sayDidShipped,
       latent_overlaps: latentOverlaps,
       rotation,
@@ -545,6 +710,7 @@ function buildCohortInsightBundle({
     quality: {
       card_count: cards.length,
       kind_counts: {
+        project_identity: projectIdentity.length,
         say_did_shipped: sayDidShipped.length,
         latent_overlap: latentOverlaps.length,
         rotation: 0,
@@ -552,6 +718,7 @@ function buildCohortInsightBundle({
       team_count: asArray(teams).length,
       public_progress_artifact_count: asArray(githubProgressArtifacts).length,
       public_release_artifact_count: asArray(githubReleaseArtifacts).length,
+      project_identity_card_count: projectIdentity.length,
       latent_overlap_candidate_count: latentOverlaps.length,
       unobserved_say_did_shipped_count: sayDidShipped.filter(card => card.content_json?.observed_status === "unobserved").length,
     },
@@ -580,6 +747,7 @@ function publicCohortInsights(source) {
       by_subject: {},
     },
     read_models: {
+      project_identity: [],
       say_did_shipped: [],
       latent_overlaps: [],
       rotation: buildRotationReadModel(),
@@ -587,6 +755,7 @@ function publicCohortInsights(source) {
     quality: {
       card_count: cards.length,
       kind_counts: {
+        project_identity: 0,
         say_did_shipped: 0,
         latent_overlap: 0,
         rotation: 0,
@@ -600,6 +769,7 @@ module.exports = {
   GENERATED_BY,
   buildCohortInsightBundle,
   buildLatentOverlapCards,
+  buildProjectIdentityCards,
   buildRotationReadModel,
   buildSayDidShippedCards,
   loadCohortInsightInputs,

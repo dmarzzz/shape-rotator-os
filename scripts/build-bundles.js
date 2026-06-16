@@ -2044,7 +2044,7 @@ function emptyTranscriptEvidence(source) {
       nodes: [],
       edges: [],
     },
-    generated_at: source?.generated_at || null,
+    generated_at: null,
     public_web_policy: "cohort-only transcript evidence is excluded from the public static bundle",
   };
 }
@@ -2281,11 +2281,12 @@ function build() {
   // generator already tolerates absent transcript-evidence artifacts.
   const constellation_cues = [];
   const session_insights = [];
-  const transcript_evidence = loadJsonObject(
+  const transcript_evidence_source = loadJsonObject(
     path.join(COHORT_DIR, "artifacts", "transcript-evidence", "generated", "views.json"),
     "transcript-evidence/generated/views.json",
   );
-  const transcript_evidence_cards = loadTranscriptEvidenceCards();
+  const transcript_evidence = emptyTranscriptEvidence(transcript_evidence_source);
+  const transcript_evidence_cards = [];
   const transcript_distillations = sanitizeTranscriptDistillationsForApp(loadJsonObject(
     path.join(COHORT_DIR, "artifacts", "transcript-distillations", "generated", "manifest.json"),
     "transcript-distillations/generated/manifest.json",

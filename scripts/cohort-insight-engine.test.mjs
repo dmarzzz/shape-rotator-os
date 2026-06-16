@@ -15,7 +15,22 @@ const teams = [
     weekly_goals: "demo attestation flow",
     skill_areas: ["tee", "attestation", "agentic"],
     dependencies: [],
+    paper_basis: ["NDAI Agreements"],
+    traction: "public demo shipped",
+    prior_shipping: ["agent contract prototype"],
     offering: ["TEE attestation review"],
+    journey: {
+      stage: 3,
+      evidence_quality: 2,
+      market_upside: 4,
+      primary_bottleneck: "Solution Quality",
+      company_type: "Infra",
+      confidence: "Medium",
+      icp: "agent builders that need verifiable contract execution",
+      problem: "agent contract execution is hard to trust without attestations",
+      solution: "an attestation-backed contract runtime for agent workflows",
+      next_milestone: "validate the flow with one integration partner",
+    },
   },
   {
     record_id: "beta",
@@ -101,11 +116,37 @@ test("cohort insight bundle separates deterministic cards from gated rotation", 
 
   assert.equal(bundle.artifact_kind, "cohort_insight_bundle");
   assert.equal(bundle.raw_allowed, false);
+  assert.equal(bundle.quality.kind_counts.project_identity, teams.length);
   assert.equal(bundle.quality.kind_counts.say_did_shipped, teams.length);
   assert.ok(bundle.quality.kind_counts.latent_overlap >= 1);
   assert.equal(bundle.quality.kind_counts.rotation, 0);
+  assert.equal(bundle.read_models.project_identity.length, teams.length);
   assert.equal(bundle.read_models.rotation.status, "not_generated");
   assert.match(bundle.read_models.rotation.reason, /reviewed semantic-distance/);
+});
+
+test("project identity cards describe what teams are and do from public cohort fields", () => {
+  const cards = engine.buildProjectIdentityCards({
+    teams,
+    githubProgressArtifacts: progress,
+    githubReleaseArtifacts: releases,
+  });
+  const bySubject = new Map(cards.map(card => [card.subject_ids[0], card]));
+  const alpha = bySubject.get("alpha");
+  const beta = bySubject.get("beta");
+
+  assert.equal(cards.length, teams.length);
+  assert.equal(alpha.kind, "project_identity");
+  assert.equal(alpha.subject_type, "team");
+  assert.equal(alpha.evidence_level, "observed_public_metadata");
+  assert.match(alpha.claim_text, /Alpha Lab is Infra project in trusted compute focused on TEE contract runtime/);
+  assert.equal(alpha.content_json.what_it_does, "an attestation-backed contract runtime for agent workflows");
+  assert.equal(alpha.content_json.who_it_serves, "agent builders that need verifiable contract execution");
+  assert.deepEqual(alpha.content_json.skill_areas, ["tee", "attestation", "agentic"]);
+  assert.equal(alpha.content_json.public_activity.useful_commit_count, 3);
+  assert.equal(alpha.content_json.public_activity.release_count, 1);
+  assert.deepEqual(alpha.content_json.recommended_views, ["journey", "collab", "shipped"]);
+  assert.equal(beta.evidence_level, "declared_only");
 });
 
 test("say/did/shipped cards distinguish observed public movement from unobserved state", () => {
@@ -181,6 +222,7 @@ test("public cohort insights exclude generated cohort cards unless explicitly ap
 
   assert.equal(publicBundle.raw_allowed, false);
   assert.equal(publicBundle.cards.length, 0);
+  assert.equal(publicBundle.read_models.project_identity.length, 0);
   assert.equal(publicBundle.read_models.say_did_shipped.length, 0);
   assert.equal(publicBundle.read_models.latent_overlaps.length, 0);
 });
