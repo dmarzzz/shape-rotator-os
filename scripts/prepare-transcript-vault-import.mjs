@@ -168,6 +168,10 @@ function normalizeText(value) {
     .trim();
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function tokenize(value) {
   return normalizeText(value)
     .split(" ")
@@ -225,7 +229,7 @@ function sourceConfidencePct(sourceInfo = {}) {
 
 function hasTypeMarker(name, sessionType) {
   if (!sessionType) return false;
-  const escaped = String(sessionType).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escaped = escapeRegExp(sessionType);
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(String(name || ""));
 }
 
@@ -661,22 +665,36 @@ export function matchCalendarForFile(file, blocksByDate) {
 // private 1:1. Resolved at runtime so the names are NOT hardcoded in this public repo:
 // from TRANSCRIPT_PRIVATE_HOSTS (comma-separated), or — when that is unset — a
 // gitignored private file. Returns [] only when neither source is configured.
+function normalizePrivateHosts(hosts = []) {
+  return unique(
+    hosts
+      .map((host) => normalizeText(host))
+      .filter(Boolean),
+  );
+}
+
 function resolvePrivateHosts() {
   const fromEnv = (process.env.TRANSCRIPT_PRIVATE_HOSTS || "")
-    .split(",")
-    .map((host) => host.trim().toLowerCase())
-    .filter(Boolean);
-  if (fromEnv.length) return fromEnv;
+    .split(",");
+  const normalizedEnvHosts = normalizePrivateHosts(fromEnv);
+  if (normalizedEnvHosts.length) return normalizedEnvHosts;
   try {
     const parsed = JSON.parse(
       fs.readFileSync(path.join(ROOT, "cohort-data", ".private", "transcript-routing-hosts.json"), "utf8"),
     );
-    return (Array.isArray(parsed) ? parsed : parsed.private_hosts || [])
-      .map((host) => String(host).trim().toLowerCase())
-      .filter(Boolean);
+    return normalizePrivateHosts(Array.isArray(parsed) ? parsed : parsed.private_hosts || []);
   } catch {
     return [];
   }
+}
+
+function privateHostPattern(hosts) {
+  return hosts.map(escapeRegExp).join("|");
+}
+
+function isPrivateHostedSession(normalizedName, privateHosts = []) {
+  const pattern = privateHostPattern(privateHosts);
+  return Boolean(pattern) && new RegExp(`\\b(${pattern})\\b`).test(normalizedName);
 }
 
 export function inferSessionType(name) {
@@ -686,8 +704,7 @@ export function inferSessionType(name) {
   if (/\b(1on1|1 1|one on one|one to one)\b/.test(normalized)) return "private_1on1";
   const privateHosts = resolvePrivateHosts();
   if (
-    privateHosts.length
-    && new RegExp(`\\b(${privateHosts.join("|")})\\b`).test(normalized)
+    isPrivateHostedSession(normalized, privateHosts)
     && /\b(private|feedback|coaching|positioning|checkpoint|check in|office hours|drop in|funding|fundraising|data room|strategy|ops)\b/.test(normalized)
   ) {
     return "private_1on1";
