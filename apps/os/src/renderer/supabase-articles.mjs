@@ -36,7 +36,6 @@ const PUBLIC_ARTICLE_COLUMNS = [
   "article_kind",
   "article_mode",
   "source_boundary",
-  "metadata",
   "generated_at",
   "created_at",
   "updated_at",
@@ -156,7 +155,7 @@ export function normalizeCohortArticleRow(row, { source = "supabase-public" } = 
   const title = clean(row.title);
   const body = clean(row.body_markdown);
   if (!id || !title || !body) return null;
-  if (containsPrivateMarker([title, row.dek, body, row.metadata])) return null;
+  if (containsPrivateMarker([title, row.dek, body, source === "supabase-public" ? null : row.metadata])) return null;
   const slug = clean(row.slug) || id.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   const generatedAt = row.generated_at || row.updated_at || row.created_at || null;
   return {
@@ -182,9 +181,11 @@ export function normalizeCohortArticleRow(row, { source = "supabase-public" } = 
     surface_tier: clean(row.surface_tier || (source === "supabase-public" ? "public" : "cohort")),
     approval_state: clean(row.approval_state || (source === "supabase-public" ? "approved" : "")),
     tags: Array.isArray(row.tags) ? row.tags.map(String).filter(Boolean) : [],
-    source_refs: safeSourceRefs(row.source_refs),
-    support_count: Array.isArray(row.source_refs) ? row.source_refs.length : 0,
-    metadata: row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {},
+    ...(source === "supabase-public" ? {} : {
+      source_refs: safeSourceRefs(row.source_refs),
+      support_count: Array.isArray(row.source_refs) ? row.source_refs.length : 0,
+      metadata: row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {},
+    }),
   };
 }
 
