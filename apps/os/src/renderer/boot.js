@@ -82,6 +82,8 @@ const findLazy = createLazyModule(() =>
   ]).then(([, module]) => module));
 let findInitialized = false;
 
+const networkGlanceLazy = createLazyModule(() => import("./network-glance.js"));
+
 function loadFind({ shortcut = false } = {}) {
   return findLazy.load()
     .then((module) => {
@@ -113,6 +115,25 @@ function wireFindLazyLoad() {
   const obs = new MutationObserver(loadForBlankTab);
   obs.observe(document.body, { attributes: true, attributeFilter: ["data-blank"] });
   loadForBlankTab();
+}
+
+function loadNetworkGlanceModule() {
+  return networkGlanceLazy.load()
+    .then((module) => {
+      module.initNetworkGlance({ srwk, setIntervalVisible });
+      return module;
+    })
+    .catch((error) => {
+      console.warn("[glance] failed to load:", error?.message || error);
+      throw error;
+    });
+}
+
+function wireNetworkGlanceLazy() {
+  const force = () => loadNetworkGlanceModule()
+    .then((module) => module.forceNetworkGlance());
+  force.__lazyNetworkGlance = true;
+  window.__forceGlance = force;
 }
 
 // Small Notion-style sync chip pinned to the bottom-left. Subscribes
@@ -668,6 +689,7 @@ async function boot() {
   cp("boot:after-wireTabs");
   Tabs.init();
   wireFindLazyLoad();
+  wireNetworkGlanceLazy();
   Glass.init();
   wireAppsGrid();
   wireSwarmPanelLauncher();

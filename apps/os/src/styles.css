@@ -145,6 +145,12 @@ body:not([data-active-tab="network"]) .metrics-only { display: none !important; 
 body:not([data-active-tab="network"]) .network-tab-only { display: none !important; }
 body[data-active-tab="network"][data-net-sub="metrics"] .net-only { display: none !important; }
 body[data-active-tab="network"]:not([data-net-sub="metrics"]) .metrics-only { display: none !important; }
+/* Dormant network glance surface. Kept in DOM for debug/future iteration, but
+ * hidden unless renderer/network-glance.js explicitly flips data-net-view-mode. */
+.net-view-mode { display: none !important; }
+#network-glance-view { display: none; }
+body[data-net-view-mode="glance"] #network-glance-view { display: block; }
+body[data-net-view-mode="glance"] #network-view { display: none !important; }
 /* Apps tab visibility model:
  *   "apps" tab landing is the app-grid (#apps-grid). Click a card →
  *   data-apps-view is set to that app's key ("atlas") and the matching
