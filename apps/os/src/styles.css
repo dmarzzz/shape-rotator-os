@@ -5550,6 +5550,20 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   transform: translateY(0);
   transition: opacity 220ms var(--ease), transform 220ms var(--ease);
 }
+.alchemy-view[data-alch-mode-current="membrane"] .alchemy-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+  color: #f1ece7;
+}
+html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alchemy-canvas {
+  background: #f6f6f6;
+  color: #1a1a1a;
+}
 .alchemy-canvas.is-leaving {
   opacity: 0;
   transform: translateY(8px);

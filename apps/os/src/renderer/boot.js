@@ -694,7 +694,6 @@ async function boot() {
   wireAppsGrid();
   wireSwarmPanelLauncher();
   wireRendererWarmupHints();
-  schedulePostBootWarmups();
   initNavHistory();
   wireAtlasOfflinePanel();
 
@@ -767,6 +766,7 @@ async function boot() {
   startConnectionProbe();
 
   cp("boot:end");   // boot() about to resolve → signalReady() fires next
+  schedulePostBootWarmups();
 }
 
 async function loadGraph() {

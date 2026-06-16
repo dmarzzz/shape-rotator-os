@@ -107,6 +107,34 @@ export function warmAlchemyModule() {
   warmLazyModule("alchemy", alchemyLazy);
 }
 
+function warmAlchemyMode(mode) {
+  if (!mode) return;
+  loadAlchemyModule()
+    .then((module) => module.warmMode?.(mode))
+    .catch((e) => {
+      console.warn(`[alchemy:${mode}] warmup failed:`, e?.message || e);
+    });
+}
+
+function warmCurrentAlchemySurface() {
+  const loc = alchemyLazy.peek()?.getLocation?.() || alchemyLocationFallback();
+  warmAlchemyMode(loc.mode || "membrane");
+}
+
+function warmAlchemyFirstRing() {
+  const loc = alchemyLazy.peek()?.getLocation?.() || alchemyLocationFallback();
+  const current = loc.mode || "membrane";
+  const modes = [current, "membrane", "calendar", "context"];
+  const seen = new Set();
+  let delay = 0;
+  for (const mode of modes) {
+    if (!mode || seen.has(mode)) continue;
+    seen.add(mode);
+    setTimeout(() => warmAlchemyMode(mode), delay);
+    delay += 450;
+  }
+}
+
 export function warmChatModule() {
   loadChatStylesheet();
   warmLazyModule("matrix", chatLazy);
@@ -124,9 +152,10 @@ export function warmTabModule(tab) {
 }
 
 function warmFromIntentTarget(target) {
-  const el = target?.closest?.("[data-app-key],[data-tab]");
+  const el = target?.closest?.("[data-app-key],[data-tab],[data-alch-mode]");
   if (!el) return;
-  if (el.dataset.appKey) warmAppModule(el.dataset.appKey);
+  if (el.dataset.alchMode) warmAlchemyMode(el.dataset.alchMode);
+  else if (el.dataset.appKey) warmAppModule(el.dataset.appKey);
   else if (el.dataset.tab) warmTabModule(el.dataset.tab);
 }
 
@@ -138,11 +167,10 @@ export function wireRendererWarmupHints() {
 
 export function schedulePostBootWarmups() {
   afterFirstPaint(() => {
-    scheduleIdleWork("renderer-warmup", () => {
-      if (document.body.dataset.activeTab !== "alchemy") warmAlchemyModule();
-      if (document.body.dataset.activeTab === "apps" && !document.body.dataset.appsView) {
-        warmAppModule("atlas");
-      }
-    }, 2000);
+    scheduleIdleWork("alchemy-current-warmup", warmCurrentAlchemySurface, 650);
+    setTimeout(() => scheduleIdleWork("alchemy-first-ring-warmup", warmAlchemyFirstRing, 1200), 500);
+    setTimeout(() => scheduleIdleWork("atlas-warmup", () => warmAppModule("atlas"), 1400), 1100);
+    setTimeout(() => scheduleIdleWork("matrix-warmup", warmChatModule, 1600), 1700);
+    setTimeout(() => scheduleIdleWork("easel-warmup", () => warmAppModule("easel"), 1800), 2400);
   });
 }

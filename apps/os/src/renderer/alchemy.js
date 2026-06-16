@@ -104,6 +104,25 @@ const githubUserLazy = createLazyModule(() => import("./gh-user.js"));
 const githubForkLazy = createLazyModule(() => import("./gh-fork.js"));
 let intelMetaCache = null;
 
+function warmLazySurface(label, lazy) {
+  return lazy.load().catch((error) => {
+    console.warn(`[alchemy:${label}] warmup failed:`, error?.message || error);
+    return null;
+  });
+}
+
+export function warmMode(mode) {
+  const normalized = mode === "intel" ? "context"
+    : mode === "calendar2" ? "calendar"
+    : mode === "pulse" ? "shapes"
+    : mode === "collab" ? "constellation"
+    : mode;
+  if (normalized === "membrane") return warmLazySurface("membrane", membraneLazy);
+  if (normalized === "calendar") return warmLazySurface("calendar", calendarLazy);
+  if (normalized === "context") return warmLazySurface("context", intelLazy);
+  return Promise.resolve(null);
+}
+
 const WEEKS_TOTAL = 10;
 function currentProgramWeek() {
   try { return Math.max(1, Math.min(WEEKS_TOTAL, calendarCurrentWeekIdx() + 1)); }
@@ -418,6 +437,7 @@ export function mount(container) {
   });
   syncRailSelection();
   startContextAutoRefresh();
+  setTimeout(() => { warmMode(state.mode).catch(() => {}); }, 0);
   loadCohort().then(render).catch(err => {
     console.error("[alchemy] cohort load failed:", err);
     state.canvas.innerHTML = `<p class="alch-callout"><strong>cohort data unavailable</strong><br/>${escHtml(err.message || String(err))}</p>`;
