@@ -15663,31 +15663,74 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 
 /* ── page view nav (cohort + context) ───────────────────────────────── */
 .alch-page-views {
-  display: flex; gap: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
   margin: 0 0 8px 0;
+  min-height: 42px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--ink-rgb), 0.22) transparent;
   border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
+}
+.alch-page-views::-webkit-scrollbar { height: 7px; }
+.alch-page-views::-webkit-scrollbar-thumb {
+  background: rgba(var(--ink-rgb), 0.18);
+  border-radius: 999px;
 }
 .alch-page-view-btn {
   appearance: none;
   background: transparent;
   border: 0;
   border-bottom: 2px solid transparent;
-  padding: 6px 17px 9px 17px;
-  display: inline-flex; gap: 8px; align-items: baseline;
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 8px 13px 10px;
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
   color: var(--ed-ink-1);
   opacity: 0.45;
   cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease;
 }
-.alch-page-view-btn:hover { opacity: 0.85; }
+.alch-page-view-btn:hover {
+  opacity: 0.85;
+  background: rgba(var(--ink-rgb), 0.035);
+}
+.alch-page-view-btn:focus-visible {
+  outline: 1px solid rgba(var(--ink-rgb), 0.34);
+  outline-offset: -3px;
+}
 .alch-page-view-btn[aria-selected="true"] {
   opacity: 1;
   border-bottom-color: var(--sr-red);
 }
-.apv-glyph { font-size: 14px; opacity: 0.65; }
+.apv-glyph {
+  flex: 0 0 auto;
+  font-size: 14px;
+  opacity: 0.65;
+}
 .apv-label {
   font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 16.5px;
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--ed-ink-1);
 }
 .alch-page-view-btn[aria-selected="true"] .apv-label {
@@ -15797,12 +15840,17 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-view-controls > .cb-controls .cb-control-actions {
   justify-self: end;
 }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .alch-view-controls > .cb-controls {
     grid-template-columns: 1fr;
   }
   .alch-view-controls > .cb-controls .cb-control-actions {
+    width: 100%;
     justify-self: stretch;
+  }
+  .alch-view-controls > .cb-controls .cb-intake-open {
+    width: 100%;
+    justify-content: center;
   }
 }
 
@@ -16573,10 +16621,10 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 
 @media (max-width: 1120px) {
   .alch-page-view-btn {
-    flex: 1 1 0;
-    justify-content: center;
-    padding-left: 10px;
-    padding-right: 10px;
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    padding-left: 11px;
+    padding-right: 11px;
   }
   .apv-hint,
   .apv-count {

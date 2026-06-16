@@ -212,6 +212,7 @@ const state = {
   },
   unsubscribe: null,
   refreshTimer: null,
+  viewScrollFrame: 0,
 };
 
 export function mount(container) {
@@ -407,6 +408,13 @@ export function mount(container) {
     const next = (cur + (e.key === "ArrowRight" ? 1 : -1) + btns.length) % btns.length;
     e.preventDefault();
     btns[next].click();
+  });
+  window.addEventListener("resize", () => {
+    if (state.viewScrollFrame) cancelAnimationFrame(state.viewScrollFrame);
+    state.viewScrollFrame = requestAnimationFrame(() => {
+      state.viewScrollFrame = 0;
+      scrollActivePageViewIntoView();
+    });
   });
   syncRailSelection();
   startContextAutoRefresh();
@@ -835,6 +843,7 @@ function renderModeContent() {
     // Mount shape shaders LAST — every <canvas data-shape-fam> emitted by the
     // renderers above gets one WebGL2 context here.
     mountAllShapes();
+    requestAnimationFrame(scrollActivePageViewIntoView);
     // What's-new: painting a mode while the OS tab is in front counts as
     // reading it — settle its unread color. Guarded so a background data
     // refresh (subscription re-render while the user is on another tab or
@@ -856,6 +865,17 @@ function renderModeContent() {
     console.error(`[alchemy] render failed for ${renderLabel}:`, err);
     canvas.innerHTML = `<p class="alch-callout"><strong>${escHtml(renderLabel)} failed to render</strong><br/>${escHtml(err?.message || String(err))}</p>`;
   }
+}
+
+function scrollActivePageViewIntoView() {
+  const strip = state.canvas?.querySelector(".alch-page-views");
+  const active = strip?.querySelector('.alch-page-view-btn[aria-selected="true"]');
+  if (!strip || !active || strip.scrollWidth <= strip.clientWidth) return;
+  const stripRect = strip.getBoundingClientRect();
+  const activeRect = active.getBoundingClientRect();
+  const pad = 12;
+  if (activeRect.left >= stripRect.left + pad && activeRect.right <= stripRect.right - pad) return;
+  strip.scrollLeft = active.offsetLeft - Math.max(0, (strip.clientWidth - active.offsetWidth) / 2);
 }
 
 function destroyAllShapes() {
