@@ -5882,46 +5882,6 @@ function renderSayDidShipped() {
     </div>`;
 }
 
-function renderTargets() {
-  const cohort = activeConstellationCohort();
-  const teams = cohort.teams || [];
-  const goalModel = constGoalPlanModel(state.cohort?.teams || teams);
-  const standingFilter = constNormalizeGoalStandingFilter(state.goalStandingFilter);
-  const momentumFilter = constNormalizeGoalMomentumFilter(state.goalMomentumFilter);
-  const standingChip = (key) => {
-    const spec = CONST_GOAL_STANDING[key];
-    const count = goalModel.counts[key] || 0;
-    return `<button type="button" class="ac-sent-evi is-standing is-standing-${escAttr(key)}" data-standing-filter="${escAttr(key)}" aria-pressed="${standingFilter === key ? "true" : "false"}" aria-label="${escAttr(`${spec.label}: ${count} teams${standingFilter === key ? " — click to clear" : " — click to isolate"}`)}">
-      <i class="ac-sent-dot" aria-hidden="true"></i><em>${escHtml(String(count))}</em>&nbsp;${escHtml(spec.label)}
-    </button>`;
-  };
-  const sentenceBar = `
-    <div class="ac-sentence" role="group" aria-label="team target gaps">
-      <span class="ac-sent-word">aiming</span>
-      <strong class="ac-sent-fact">${goalModel.tracked.length} teams</strong>
-      <span class="ac-sent-word">at a target stage</span>
-      <span class="ac-sent-word">· by standing</span>
-      ${CONST_GOAL_STANDING_KEYS.map(standingChip).join("")}
-    </div>`;
-  state.canvas.innerHTML = `
-    <div class="alch-cohort-page" data-cohort-view="targets">
-    ${cohortPageHead("targets")}
-    <div class="alch-view-controls" data-shape-occluder>${constTimelineDropdownHtml()}${sentenceBar}${constSelectionChipHtml()}</div>
-    <div class="alch-constellation" data-constellation-view="targets">
-      <div class="alch-const-workbench is-single">
-        <div class="alch-const-main">
-          <div class="alch-constellation-stage ac-stack-stage" data-view="targets" data-lens="all" tabindex="0" aria-label="team current stage versus target">
-            ${constGoalTargetsHtml(goalModel, standingFilter, momentumFilter)}
-            <div class="ac-tip" hidden></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    </div>
-  `;
-  markConstellationSelection(state.constSelection);
-}
-
 function renderProductStack() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];

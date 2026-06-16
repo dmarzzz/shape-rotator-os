@@ -10041,6 +10041,9 @@ textarea.cb-intake-input {
 }
 .ac-sds-state { color: rgba(214,189,134,0.6); }
 .ac-sds-card.is-declared .ac-sds-state { color: rgba(var(--ink-rgb), 0.42); }
+/* Review state (confidence · approval) is secondary to the status pill and
+   orthogonal to observed signal — keep it the most-muted element in the foot. */
+.ac-sds-review { color: rgba(var(--ink-rgb), 0.40); }
 @media (max-width: 640px) { .ac-sds-grid { grid-template-columns: 1fr; } }
 
 /* Latent-overlap cards — visually related to intro cards, but clearly prompts. */
