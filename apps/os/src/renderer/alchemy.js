@@ -57,13 +57,6 @@ import {
 } from "./asks.js";
 import { createLazyModule } from "./lazy-module.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
-// The calendar page — one-view week timeline + presence tab (2026-06
-// redesign; replaced the day/week/presence sub-tabbed page).
-import {
-  renderCalendarPage,
-  attachCalendarPageBehavior,
-  openCalendarEvent,
-} from "./calendar.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles" | "raw" | "signals" | "data"
@@ -103,6 +96,12 @@ const intelLazy = createLazyModule(() =>
     loadStylesheetOnce("renderer/intel/intel.css"),
     import("./intel/intel.js"),
   ]).then(([, module]) => module));
+const calendarLazy = createLazyModule(() =>
+  Promise.all([
+    loadStylesheetOnce("vendor/shape-ui/cohort-calendar-week.css"),
+    loadStylesheetOnce("renderer/calendar.css"),
+    import("./calendar.js"),
+  ]).then(([, , module]) => module));
 let intelMetaCache = null;
 
 const WEEKS_TOTAL = 10;
@@ -7945,15 +7944,49 @@ function seedCalendarData() {
   }).catch(() => { cal.loading = false; });
 }
 
+function renderCalendarLoadState(error = null) {
+  if (!state.canvas) return;
+  const message = error
+    ? `calendar failed to load: ${escHtml(error?.message || String(error))}`
+    : "loading calendar...";
+  state.canvas.innerHTML = `<p class="alch-callout"><strong>${message}</strong></p>`;
+}
+
+function ensureCalendarSurfaceLoaded() {
+  const loadError = calendarLazy.error();
+  if (loadError) {
+    renderCalendarLoadState(loadError);
+    return;
+  }
+
+  renderCalendarLoadState();
+  calendarLazy.load()
+    .then(() => {
+      if (!state.mounted || state.mode !== "calendar" || state.detailRecordId) return;
+      render({ instant: true });
+    })
+    .catch((error) => {
+      console.warn("[alchemy] calendar surface failed to load:", error?.message || error);
+      if (state.mounted && state.mode === "calendar" && !state.detailRecordId) {
+        renderCalendarLoadState(error);
+      }
+    });
+}
+
 function paintCalendarView({ wire = false } = {}) {
   seedCalendarData();
+  const calendarModule = calendarLazy.peek();
+  if (!calendarModule) {
+    ensureCalendarSurfaceLoaded();
+    return;
+  }
   const cal = state.calendar;
   if (cal.weekIdx == null) cal.weekIdx = calendarCurrentWeekIdx();
   // Tear down the previous now-line ticker before swapping markup so
   // intervals don't stack across repaints.
   if (cal.detach) { cal.detach(); cal.detach = null; }
   const presence = cal.view === "presence";
-  state.canvas.innerHTML = renderCalendarPage({
+  state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
     weekIdx: cal.weekIdx,
@@ -7965,7 +7998,7 @@ function paintCalendarView({ wire = false } = {}) {
     mountAvailabilityCanvas();
     applyPresenceFocus();
   } else {
-    cal.detach = attachCalendarPageBehavior(state.canvas, { scrollToNow: cal.initialMount });
+    cal.detach = calendarModule.attachCalendarPageBehavior(state.canvas, { scrollToNow: cal.initialMount });
     cal.initialMount = false;
   }
   if (wire) wireCalendar();
@@ -8041,7 +8074,9 @@ function wireCalendar() {
   }
 
   for (const card of state.canvas.querySelectorAll("[data-c2-ev]")) {
-    card.addEventListener("click", (event) => openCalendarEvent(card.dataset.c2Ev, { anchor: event.currentTarget }));
+    card.addEventListener("click", (event) => {
+      calendarLazy.peek()?.openCalendarEvent?.(card.dataset.c2Ev, { anchor: event.currentTarget });
+    });
   }
 
   for (const btn of state.canvas.querySelectorAll("[data-c2-retry]")) {

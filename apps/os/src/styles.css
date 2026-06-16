@@ -1,8 +1,8 @@
 @import "vendor/shape-ui/tokens.css";
 @import "vendor/shape-ui/cohort-card.css";
-/* cohort-calendar-week.css is loaded via a <link> tag in index.html so it
- * wins the cascade against the legacy .cal-* rules deeper in this file
- * (which will be pruned in a follow-up cleanup pass). */
+/* Calendar mode lazy-loads cohort-calendar-week.css before renderer/calendar.css
+ * so those page-local rules still win the cascade when the calendar surface is
+ * mounted, without charging every boot for the calendar stylesheets. */
 
 /* ─── type ─────────────────────────────────────────────────────────────────
  * Space Grotesk + JetBrains Mono, matching shaperotator.xyz. Loaded via
