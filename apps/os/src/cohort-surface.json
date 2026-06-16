@@ -26382,7 +26382,7 @@
     },
     "policy": {
       "app_surface": "Cohort app may render generated cards with generated/review status visible.",
-      "public_web": "Public web should exclude cards unless surface_tier is public and approval_state is approved.",
+      "public_web": "Public web should exclude cards unless surface_tier is public, review_status is published, and approval_state is approved.",
       "rotation": "Do not generate or publish named-team rotation judgments without reviewed model provenance."
     }
   },

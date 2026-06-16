@@ -51,6 +51,7 @@ test("cohort insight migration keeps base table private and views scoped", () =>
   assert.match(migration, /public\.is_org_member\(card\.org_id\)/);
   assert.match(migration, /surface_tier = 'cohort'/);
   assert.match(migration, /surface_tier = 'public'/);
+  assert.match(migration, /review_status = 'published'/);
   assert.match(migration, /approval_state = 'approved'/);
   assert.match(migration, /source_boundary = 'public_bundle'/);
 });
