@@ -11,6 +11,25 @@ import {
   renderWeekView,
 } from "../packages/shape-ui/src/cohort-calendar-week.js";
 
+function withCalendarLinks(runtimeLinks, callback) {
+  const previousLinks = globalThis.SHAPE_CALENDAR_LINKS;
+  const previousMember = globalThis.SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL;
+  const previousAuthorized = globalThis.SHAPE_CALENDAR_AUTHORIZED_SUBSCRIBE_URL;
+  globalThis.SHAPE_CALENDAR_LINKS = runtimeLinks;
+  delete globalThis.SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL;
+  delete globalThis.SHAPE_CALENDAR_AUTHORIZED_SUBSCRIBE_URL;
+  try {
+    return callback();
+  } finally {
+    if (previousLinks === undefined) delete globalThis.SHAPE_CALENDAR_LINKS;
+    else globalThis.SHAPE_CALENDAR_LINKS = previousLinks;
+    if (previousMember === undefined) delete globalThis.SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL;
+    else globalThis.SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL = previousMember;
+    if (previousAuthorized === undefined) delete globalThis.SHAPE_CALENDAR_AUTHORIZED_SUBSCRIBE_URL;
+    else globalThis.SHAPE_CALENDAR_AUTHORIZED_SUBSCRIBE_URL = previousAuthorized;
+  }
+}
+
 test("web calendar Google link subscribes to the read-only public feed", () => {
   const href = googleCalendarUrl("webcal://shape.example/calendar.ics");
 
@@ -98,4 +117,32 @@ test("web calendar event renderer turns Meet markers into join links", () => {
   assert.match(html, /join event/);
   assert.match(html, new RegExp(`data-cal-join-href="${meetUrl}"`));
   assert.doesNotMatch(html, /cal-event-extra">Meet:/);
+  assert.doesNotMatch(html, /calendar\.google\.com\/calendar\/render/);
+  assert.doesNotMatch(html, /cal-add-link/);
+});
+
+test("web calendar Meet add action opens the shared guest calendar when configured", () => {
+  const meetUrl = "https://meet.google.com/abc-defg-hij";
+  const memberGoogleHref = "https://calendar.google.com/calendar/r?cid=guest%40example.com";
+  const html = withCalendarLinks({ memberGoogleHref }, () => renderWeekView({
+    weekIdx: 0,
+    sub: "week",
+    source: "supabase",
+    data: {
+      last_refresh: "2026-06-13T12:00:00Z",
+      tabs: {
+        "May 18 Start": [
+          ["Week", "Dates", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+          [],
+          ["1", "May 18-24", `16:00-17:00 Demo\nMeet: ${meetUrl}`, "", "", "", "", "", ""],
+        ],
+      },
+    },
+  }));
+
+  assert.match(html, /team Google/);
+  assert.match(html, /data-cal-add-mode="guest_calendar"/);
+  assert.match(html, /data-cal-add-note="opens the shared guest calendar"/);
+  assert.ok(html.includes(`href="${memberGoogleHref}"`));
+  assert.doesNotMatch(html, /calendar\.google\.com\/calendar\/render/);
 });
