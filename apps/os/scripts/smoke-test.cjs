@@ -34,12 +34,18 @@ const OUTER_TIMEOUT = APP_TIMEOUT + 30000;
 let cmd = binary;
 let args = ["--smoke-test"];
 
+// Hosted Linux runners often lack a usable Chromium setuid sandbox. This is
+// test-only process wiring; the packaged app itself is unchanged.
+if (process.platform === "linux") {
+  args = ["--no-sandbox", ...args];
+}
+
 // Linux headless: prepend xvfb-run if there's no display and it exists.
 if (process.platform === "linux" && !process.env.DISPLAY) {
   const hasXvfb = spawnSync("which", ["xvfb-run"]).status === 0;
   if (hasXvfb) {
     cmd = "xvfb-run";
-    args = ["-a", "--server-args=-screen 0 1280x800x24", binary, "--smoke-test"];
+    args = ["-a", "--server-args=-screen 0 1280x800x24", binary, ...args];
     console.log("[smoke] no DISPLAY — wrapping in xvfb-run");
   } else {
     console.log("[smoke] warning: no DISPLAY and no xvfb-run; launch may fail");
