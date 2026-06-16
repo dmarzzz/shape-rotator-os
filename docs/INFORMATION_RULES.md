@@ -82,13 +82,7 @@ node scripts/audit-transcript-labels.mjs --env-file .env.calendar.local --fetch
 
 If credentials are unavailable, run it without `--fetch` and report any `content_not_available` or `fetch_failed` gaps. The audit output belongs under `cohort-data/.private/transcript-vault/` and must not include raw transcript text in committed docs.
 
-Bot rule: whenever a bot checks, classifies, reviews, processes, or changes transcript source inventory, it may rebuild the local transcript catalog as private build output with:
-
-```bash
-node scripts/build-transcript-talk-index-html.mjs
-```
-
-The catalog is written under `cohort-data/.private/` and is not committed to this repo. If the underlying private import plan changed, regenerate the plan first with `node scripts/prepare-transcript-vault-import.mjs --files cohort-data/.private/transcript-vault/vault-files.json`, then rebuild the local catalog.
+Bot rule: whenever a bot checks, classifies, reviews, processes, or changes transcript source inventory, keep the review output in the private audit/plan files under `cohort-data/.private/transcript-vault/`. If the underlying private import plan changed, regenerate it with `node scripts/prepare-transcript-vault-import.mjs --files cohort-data/.private/transcript-vault/vault-files.json`.
 
 ## Drive Vault Routes
 

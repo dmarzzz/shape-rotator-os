@@ -7,6 +7,14 @@ test("transcript app update script is exposed through npm", () => {
   assert.equal(pkg.scripts["transcripts:app:update"], "node scripts/update-transcript-app-surfaces.mjs");
 });
 
+test("package scripts do not expose transcript HTML index output", () => {
+  const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  assert.equal(pkg.scripts["transcripts:index:html"], undefined);
+  assert.ok(
+    Object.values(pkg.scripts).every((script) => !String(script).includes("build-transcript-talk-index-html.mjs")),
+  );
+});
+
 test("transcript app update keeps the required pipeline order", () => {
   const source = fs.readFileSync("scripts/update-transcript-app-surfaces.mjs", "utf8");
   const exportIndex = source.indexOf("export-transcript-distillations.mjs");
