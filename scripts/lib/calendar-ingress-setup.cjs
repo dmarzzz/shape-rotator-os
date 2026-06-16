@@ -38,6 +38,7 @@ const LIVE_CLIENT_ENV = [
 const OPTIONAL_ENV = [
   "SUPABASE_PROJECT_REF",
   "ADMIN_USER_ID",
+  "ADMIN_ORGANIZER_USER_IDS",
   "GOOGLE_CALENDAR_ORGANIZER_EMAIL",
   "GOOGLE_CALENDAR_EDITOR_EMAILS",
   "GOOGLE_OAUTH_CLIENT_ID",
@@ -67,7 +68,7 @@ const REQUIRED_FILES = [
   "supabase/functions/review-transcript-artifact/index.ts",
   "scripts/run-local-distillation-worker.js",
   "scripts/poll-google-drive-artifacts.js",
-  "apps/web/scripts/calendar-ingress-client.mjs",
+  "apps/os/src/vendor/calendar-ingress-client.mjs",
   "apps/os/src/renderer/calendar-ingress.mjs",
 ];
 
@@ -245,6 +246,22 @@ function envValue(env, key, fallback = "") {
   return String(env?.[key] || fallback).trim();
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseUuidList(value) {
+  const input = Array.isArray(value) ? value.join(",") : String(value || "");
+  const seen = new Set();
+  const out = [];
+  for (const item of input.split(/[\s,;]+/)) {
+    const id = item.trim().toLowerCase();
+    if (!id || seen.has(id)) continue;
+    if (!UUID_PATTERN.test(id)) throw new Error(`invalid Supabase auth user id: ${id}`);
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
 function buildCalendarIngressSeedSql({
   env = process.env,
   repoRoot = path.resolve(__dirname, "..", ".."),
@@ -253,6 +270,7 @@ function buildCalendarIngressSeedSql({
   const orgSlug = envValue(env, "ORG_SLUG", "shape-rotator");
   const orgName = envValue(env, "ORG_NAME", "Shape Rotator");
   const adminUserId = envValue(env, "ADMIN_USER_ID");
+  const adminOrganizerUserIds = parseUuidList([adminUserId, envValue(env, "ADMIN_ORGANIZER_USER_IDS")]);
   const calendarId = envValue(env, "GOOGLE_CALENDAR_ID", "GOOGLE_CALENDAR_ID");
   const organizerEmail = envValue(env, "GOOGLE_CALENDAR_ORGANIZER_EMAIL", "calendar@your-domain.example");
   const authMode = envValue(env, "GOOGLE_CALENDAR_AUTH_MODE", "oauth_organizer");
@@ -262,7 +280,7 @@ function buildCalendarIngressSeedSql({
 
   lines.push("-- Calendar ingress seed SQL.");
   lines.push("-- Safe to inspect and rerun after applying the calendar ingress migrations.");
-  lines.push("-- Fill ADMIN_USER_ID in the env file to emit the admin membership insert.");
+  lines.push("-- Fill ADMIN_USER_ID or ADMIN_ORGANIZER_USER_IDS to emit admin organizer memberships.");
   lines.push("");
   lines.push("begin;");
   lines.push("");
@@ -288,16 +306,21 @@ function buildCalendarIngressSeedSql({
   lines.push(`  and version <> ${sqlString(policyVersion)};`);
   lines.push("");
 
-  if (adminUserId) {
+  if (adminOrganizerUserIds.length) {
     lines.push("with org_ref as (");
     lines.push(`  select id from public.orgs where slug = ${sqlString(orgSlug)}`);
+    lines.push("), admin_users(user_id) as (");
+    lines.push("  values");
+    lines.push(adminOrganizerUserIds.map((id) => `    (${sqlString(id)}::uuid)`).join(",\n"));
     lines.push(")");
     lines.push("insert into public.org_memberships (org_id, user_id, role)");
-    lines.push(`select id, ${sqlString(adminUserId)}::uuid, 'admin' from org_ref`);
+    lines.push("select org_ref.id, admin_users.user_id, 'admin'");
+    lines.push("from org_ref");
+    lines.push("cross join admin_users");
     lines.push("on conflict (org_id, user_id) do update set role = excluded.role;");
     lines.push("");
   } else {
-    lines.push("-- Admin membership skipped: set ADMIN_USER_ID to the Supabase auth.users.id for the first admin.");
+    lines.push("-- Admin memberships skipped: set ADMIN_USER_ID or ADMIN_ORGANIZER_USER_IDS to Supabase auth.users IDs.");
     lines.push("");
   }
 
@@ -424,7 +447,16 @@ function renderDeployPlan({
   lines.push("");
   lines.push("Run `calendar-ingress-seed.sql` in the Supabase SQL editor. Copy the returned `org_id` and `calendar_connection_id` back into the env worksheet.");
   lines.push("");
-  lines.push("5. Deploy Edge Functions.");
+  lines.push("5. Reconcile admin organizer memberships.");
+  lines.push("");
+  lines.push("Google calendar editor ACLs and Supabase app roles are separate. If the auth users already exist, map the configured editor emails into org admin memberships:");
+  lines.push("");
+  lines.push("```bash");
+  lines.push(`npm run calendar:admins:supabase -- --env-file ${worksheetTarget} --dry-run`);
+  lines.push(`npm run calendar:admins:supabase -- --env-file ${worksheetTarget} --apply`);
+  lines.push("```");
+  lines.push("");
+  lines.push("6. Deploy Edge Functions.");
   lines.push("");
   lines.push("```bash");
   for (const fn of EDGE_FUNCTIONS) {
@@ -433,7 +465,7 @@ function renderDeployPlan({
   }
   lines.push("```");
   lines.push("");
-  lines.push("6. Set Edge Function secrets.");
+  lines.push("7. Set Edge Function secrets.");
   lines.push("");
   lines.push("Set these in Supabase function secrets from the filled env worksheet:");
   lines.push("");
@@ -441,7 +473,7 @@ function renderDeployPlan({
   lines.push("");
   lines.push("Do not paste the Supabase service-role key into the web or Electron app. Only Edge Functions get it.");
   lines.push("");
-  lines.push("7. Seed transcript worker Vault secrets.");
+  lines.push("8. Seed transcript worker Vault secrets.");
   lines.push("");
   lines.push("```bash");
   lines.push(`npm run transcripts:worker:vault-sql -- --env-file ${worksheetTarget}`);
@@ -449,7 +481,7 @@ function renderDeployPlan({
   lines.push("");
   lines.push("Run the generated private SQL from `cohort-data/.private/transcript-vault/transcript-worker-vault-secrets.sql` in the Supabase SQL editor. Do not commit or print that SQL.");
   lines.push("");
-  lines.push("8. Configure browser-safe app fields.");
+  lines.push("9. Configure browser-safe app fields.");
   lines.push("");
   lines.push("Use these values in the web/Electron connection panel:");
   lines.push("");
@@ -459,7 +491,7 @@ function renderDeployPlan({
   lines.push(`- ORG_ID: ${valueStatus(env, "ORG_ID")}`);
   lines.push(`- CALENDAR_CONNECTION_ID: ${valueStatus(env, "CALENDAR_CONNECTION_ID")}`);
   lines.push("");
-  lines.push("9. Verify live behavior.");
+  lines.push("10. Verify live behavior.");
   lines.push("");
   lines.push("```bash");
   lines.push(`npm run calendar:setup:check -- --env-file ${worksheetTarget}`);
@@ -530,6 +562,7 @@ module.exports = {
   EDGE_FUNCTIONS,
   FUNCTION_SECRET_KEYS,
   parseEnvText,
+  parseUuidList,
   readEnvFile,
   mergeEnv,
   checkEnv,

@@ -1,47 +1,59 @@
 name: calendar-sync
 
-# Mirrors the live cohort schedule (served at the public Phala URL
-# hard-coded in scripts/sync-calendar.js) into both cohort-data/calendar.json
-# (the audit copy) AND apps/os/src/cohort-surface.json (the bundled snapshot
-# the Electron app + web mirror read at boot for offline / pre-fetch first
-# paint). Runs every 2 hours; on drift, opens/updates an automated PR and
-# asks GitHub to auto-merge it after required checks pass.
+# Hourly, two outputs:
+#   1. LIVE source (the one that matters for freshness): build the schedule from
+#      OUR admin Google Calendar (scripts/build-calendar-from-google.js) and
+#      publish the grid to Supabase (public_calendar_grid). The OS + web apps
+#      read that row anonymously, so a schedule edit reaches users within the
+#      hour — no PR, no merge, no Vercel deploy.
+#   2. OFFLINE BUNDLE (fallback only): regenerate the committed
+#      cohort-data/calendar.json, calendar.ics, and apps/os/src/cohort-surface.json
+#      that the apps use for first-paint / offline, and on drift open a PR for a
+#      human to merge. Not the live path, so there is NO auto-merge — a stale
+#      bundle just means a brief old-then-live flash on a cold load, corrected
+#      the moment Supabase responds.
 #
-# Why PR + auto-merge (not direct push):
-#   The Phala endpoint is the canonical source of truth for the schedule —
-#   we don't want human review as the normal sync path. But main is branch
-#   protected, so direct pushes from GITHUB_TOKEN are rejected before required
-#   checks can run. A stable automation branch plus auto-merge keeps the same
-#   no-human happy path while respecting branch protection.
+# Why a PR for the bundle (not direct push):
+#   main is branch-protected, so the bundle refresh rides an automation branch +
+#   PR like any other change. It is low-priority (Supabase is the live source),
+#   so a human merges it when convenient.
 #
-# Why every 2 hours (not the old 30 min):
-#   The schedule is human-edited, not high-frequency. 2h is fresh enough
-#   that a same-day edit ships well within the working day, and slow
-#   enough that we don't burn Vercel build credits on no-op rebuilds
-#   (a no-op deploy still costs a build minute even though the artifact
-#   is identical; sync-calendar.js writes byte-identical files on no-op
-#   so the drift check below short-circuits there).
+# Why hourly (was 2h):
+#   The schedule is human-edited; hourly keeps a same-day edit live within the
+#   hour. It does not burn Vercel build credits on no-op runs:
+#   build-calendar-from-google.js writes byte-identical files when nothing
+#   changed, so the drift check below short-circuits (no commit, no deploy) and
+#   an unchanged schedule never triggers a rebuild.
 #
 # Why it doesn't loop:
-#   The sync branch push does not match this workflow's output paths, and the
-#   merge commit message carries `[skip ci]` for push-triggered CI. Vercel
-#   still deploys the merged main branch artifact.
+#   The sync branch push does not match this workflow's push-trigger paths, and
+#   a squash-merge discards the bot's branch commit — so the merged main commit
+#   is an ordinary calendar.json change the path filter ignores. We deliberately
+#   do NOT tag the commit `[skip ci]`: that would also suppress the required PR
+#   status check, leaving every sync PR stuck "expected — waiting for status".
+#   Vercel still deploys the merged main branch artifact.
 #
 # Auth model:
-#   The Phala endpoint is publicly readable. This workflow needs no secrets
-#   beyond the default GITHUB_TOKEN, but it does need pull-request write
-#   permission to maintain the automation PR.
+#   Reads our admin Google Calendar via OAuth (GOOGLE_CALENDAR_ID + the
+#   GOOGLE_OAUTH_* secrets the other calendar workflows already use). Also needs
+#   pull-request write permission to maintain the automation PR.
+#
+# Operational note: opening the bundle PR needs the repo's "Allow GitHub Actions
+# to create pull requests" setting; without it the automation branch still
+# pushes and a human opens the PR. The LIVE Supabase publish above does not
+# depend on any of this — it just upserts the row.
 
 on:
   schedule:
-    # every 2 hours, on the hour. GitHub may delay scheduled runs under load.
-    - cron: "0 */2 * * *"
+    # every hour, on the hour. GitHub may delay scheduled runs under load.
+    - cron: "0 * * * *"
   workflow_dispatch:        # manual run from the Actions tab
   push:
     branches:
       - main
     paths:
-      - "scripts/sync-calendar.js"
+      - "scripts/build-calendar-from-google.js"
+      - "cohort-data/calendar-meta.json"
       - "scripts/build-bundles.js"
       - ".github/workflows/calendar-sync.yml"
 
@@ -74,8 +86,24 @@ jobs:
         # cheap on a clean GH runner; lockfile pins it.
         run: npm ci --ignore-scripts
 
-      - name: fetch upstream → cohort-data/calendar.json
-        run: node scripts/sync-calendar.js
+      - name: build cohort-data/calendar.json from our Google calendar
+        env:
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+        run: node scripts/build-calendar-from-google.js
+
+      - name: publish calendar grid to Supabase (live source)
+        # The apps read this row LIVE (public_calendar_grid), so a schedule
+        # change reaches users within the hour without waiting on the git PR
+        # merge below or a Vercel deploy. Idempotent: upserts the same grid when
+        # nothing changed. Uses the service-role key the other calendar
+        # workflows already hold; skips cleanly if the secret is absent.
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/publish-calendar-grid-to-supabase.mjs
 
       - name: rebuild apps/os/src/cohort-surface.json
         # cohort-surface.json is the bundled snapshot the web mirror reads
@@ -102,7 +130,7 @@ jobs:
             git --no-pager diff --stat cohort-data/calendar.json cohort-data/calendar.ics apps/os/src/cohort-surface.json
           fi
 
-      - name: commit + open/update sync PR
+      - name: refresh committed offline bundle (on drift)
         if: steps.drift.outputs.drift == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -113,21 +141,26 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$SYNC_BRANCH"
           git add cohort-data/calendar.json cohort-data/calendar.ics apps/os/src/cohort-surface.json
-          git commit -m "chore(calendar): sync schedule from Phala [skip ci]" \
-                     -m "Automated 2-hourly refresh. cohort-data/calendar.json mirrors the Phala upstream; apps/os/src/cohort-surface.json is regenerated by scripts/build-bundles.js so the bundled snapshot the web mirror serves matches. Triggered by .github/workflows/calendar-sync.yml."
+          git commit -m "chore(calendar): refresh offline calendar bundle" \
+                     -m "Automated hourly refresh of the OFFLINE fallback (cohort-data/calendar.json + calendar.ics + apps/os/src/cohort-surface.json). The LIVE schedule is published to Supabase (public_calendar_grid) in the same run; this commit only keeps the committed first-paint/offline snapshot current. Triggered by .github/workflows/calendar-sync.yml."
+          # actions/checkout only fetched main, so there is no remote-tracking
+          # ref for $SYNC_BRANCH and --force-with-lease rejects with "stale info".
+          # Fetch it first so the lease is valid (|| true for the first-ever run
+          # when the branch does not exist remotely yet).
+          git fetch origin "$SYNC_BRANCH" 2>/dev/null || true
           git push --force-with-lease origin "$SYNC_BRANCH"
 
-          title="chore(calendar): sync schedule from Phala"
+          title="chore(calendar): sync schedule from our Google calendar"
           body="$(cat <<'BODY'
-          Automated 2-hourly calendar refresh.
+          Automated refresh of the OFFLINE calendar bundle (first-paint / offline fallback).
 
-          This PR is opened by `.github/workflows/calendar-sync.yml` after the Phala schedule changes. It updates:
+          The LIVE schedule is published to Supabase (`public_calendar_grid`) in the same workflow run, so this PR is **not** on the freshness critical path — merge it when convenient to keep the committed snapshot current. It updates:
 
           - `cohort-data/calendar.json`
           - `cohort-data/calendar.ics`
           - `apps/os/src/cohort-surface.json`
 
-          The PR is safe to auto-merge after required checks pass; branch protection blocks direct pushes to `main`.
+          Branch protection blocks direct pushes to `main`.
           BODY
           )"
 
@@ -146,7 +179,4 @@ jobs:
             fi
           fi
 
-          echo "calendar sync PR #$pr_number"
-          if ! gh pr merge "$pr_number" --auto --squash; then
-            echo "::warning::Could not enable auto-merge for PR #$pr_number. Check whether repository auto-merge is enabled."
-          fi
+          echo "offline-bundle PR #$pr_number — merge when convenient (Supabase is the live source; no auto-merge)"

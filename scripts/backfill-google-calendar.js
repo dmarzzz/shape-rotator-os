@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { collectEvents } = require("./build-ics.js");
 const { loadEnvFile } = require("./lib/env-file.cjs");
+const { refreshAccessToken } = require("./google-calendar-oauth.js");
 const {
   DEFAULT_TIME_ZONE,
   dateIsoWithOffset,
@@ -18,21 +19,27 @@ function usage() {
     "Usage:",
     "  node scripts/backfill-google-calendar.js --calendar-id CALENDAR_ID [--access-token TOKEN] [--apply]",
     "  node scripts/backfill-google-calendar.js --source cohort-data/calendar.json --calendar-id CALENDAR_ID --dry-run",
+    "  node scripts/backfill-google-calendar.js --calendar-id CALENDAR_ID --check --future-only",
     "",
     "Options:",
     "  --apply                 Write missing/changed events to Google Calendar. Default is dry-run.",
+    "  --check                 Compare against Google Calendar without writing. Requires a token.",
     "  --dry-run               Print the plan without writing. This is the default.",
     "  --source FILE           calendar.json source. Default: cohort-data/calendar.json",
     "  --calendar-id ID        Google Calendar ID to backfill.",
     "  --access-token TOKEN    OAuth token with Calendar event write access.",
     "  --env-file FILE         Load local KEY=value secrets before env fallbacks.",
     "  --time-zone ZONE        Timezone for parsed timed events. Default: America/New_York.",
+    "  --from-date YYYY-MM-DD  Only include events overlapping this date or later.",
+    "  --to-date YYYY-MM-DD    Only include events starting on this date or earlier.",
     "  --max-events N          Safety cap. Default: 2500.",
+    "  --future-only           Shorthand for --from-date today in --time-zone.",
     "",
     "Environment fallbacks:",
     "  GOOGLE_CALENDAR_ID",
     "  GOOGLE_CALENDAR_TIMEZONE",
     "  GOOGLE_CALENDAR_ACCESS_TOKEN or GOOGLE_ACCESS_TOKEN",
+    "  GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REFRESH_TOKEN",
   ].join("\n");
 }
 
@@ -51,6 +58,88 @@ function numberArg(name, fallback, argv = process.argv) {
   const number = Number(value);
   if (!Number.isInteger(number) || number < 1) throw new Error(`${name} must be a positive integer`);
   return number;
+}
+
+async function resolveGoogleAccessToken({
+  accessToken,
+  clientId,
+  clientSecret,
+  refreshToken,
+  preferRefresh = false,
+  fetchImpl = fetch,
+} = {}) {
+  if (preferRefresh && clientId && clientSecret && refreshToken) {
+    const token = await refreshAccessToken({
+      clientId,
+      clientSecret,
+      refreshToken,
+      fetchImpl,
+    });
+    if (String(token?.access_token || "").trim()) return token.access_token;
+  }
+  if (String(accessToken || "").trim()) return accessToken;
+  if (clientId && clientSecret && refreshToken) {
+    const token = await refreshAccessToken({
+      clientId,
+      clientSecret,
+      refreshToken,
+      fetchImpl,
+    });
+    if (String(token?.access_token || "").trim()) return token.access_token;
+  }
+  return accessToken || "";
+}
+
+function validateDateFilter(value, label) {
+  if (value == null || value === "") return null;
+  const text = String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw new Error(`${label} must be YYYY-MM-DD`);
+  const date = new Date(`${text}T00:00:00Z`);
+  if (Number.isNaN(date.getTime()) || isoDate(date) !== text) throw new Error(`${label} must be a valid YYYY-MM-DD date`);
+  return text;
+}
+
+function todayIsoForTimeZone(timeZone = DEFAULT_TIME_ZONE, now = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(now)
+    .filter((part) => part.type !== "literal")
+    .map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function eventEndDateInclusive(event) {
+  const startIso = isoDate(event.date);
+  if (event.timeKind === "timed") {
+    const endMinutes = Number.isFinite(event.endMinutes) ? event.endMinutes : 0;
+    return dateIsoWithOffset(startIso, Math.max(0, Math.floor((endMinutes - 1) / 1440)));
+  }
+  return dateIsoWithOffset(startIso, Math.max(0, (event.allDaySpanDays || 1) - 1));
+}
+
+function eventOverlapsDateRange(event, { fromDate, toDate } = {}) {
+  const startIso = isoDate(event.date);
+  const endIso = eventEndDateInclusive(event);
+  return (!fromDate || endIso >= fromDate) && (!toDate || startIso <= toDate);
+}
+
+function resolveDateFilters({
+  fromDate,
+  toDate,
+  futureOnly = false,
+  timeZone = DEFAULT_TIME_ZONE,
+  now = new Date(),
+} = {}) {
+  const resolvedFromDate = validateDateFilter(fromDate || (futureOnly ? todayIsoForTimeZone(timeZone, now) : null), "fromDate");
+  const resolvedToDate = validateDateFilter(toDate, "toDate");
+  if (resolvedFromDate && resolvedToDate && resolvedToDate < resolvedFromDate) {
+    throw new Error("toDate must be on or after fromDate");
+  }
+  return { fromDate: resolvedFromDate, toDate: resolvedToDate };
 }
 
 function timeZoneOffsetMinutes(dateIso, minutes, timeZone) {
@@ -189,7 +278,18 @@ async function googleRequest({ url, accessToken, method = "GET", body, fetchImpl
   return data;
 }
 
-async function findExistingEvent({ calendarId, accessToken, iCalUID, fetchImpl = fetch }) {
+function shapePrivateProperties(body = {}) {
+  const privateProps = body?.extendedProperties?.private || {};
+  const baseUid = privateProps.shape_calendar_base_uid || null;
+  const blockIndex = privateProps.shape_calendar_block_index || null;
+  if (!baseUid || !blockIndex) return null;
+  return {
+    shape_calendar_base_uid: baseUid,
+    shape_calendar_block_index: blockIndex,
+  };
+}
+
+async function findExistingEventByICalUID({ calendarId, accessToken, iCalUID, fetchImpl = fetch }) {
   const url = googleEventsUrl(calendarId);
   url.searchParams.set("iCalUID", iCalUID);
   url.searchParams.set("singleEvents", "false");
@@ -197,6 +297,30 @@ async function findExistingEvent({ calendarId, accessToken, iCalUID, fetchImpl =
   url.searchParams.set("maxResults", "10");
   const data = await googleRequest({ url, accessToken, fetchImpl });
   return (data.items || []).find((item) => item.status !== "cancelled") || null;
+}
+
+async function findExistingEventByShapeProperties({ calendarId, accessToken, privateProperties, fetchImpl = fetch }) {
+  if (!privateProperties) return null;
+  const url = googleEventsUrl(calendarId);
+  url.searchParams.set("singleEvents", "false");
+  url.searchParams.set("showDeleted", "false");
+  url.searchParams.set("maxResults", "10");
+  for (const [key, value] of Object.entries(privateProperties)) {
+    url.searchParams.append("privateExtendedProperty", `${key}=${value}`);
+  }
+  const data = await googleRequest({ url, accessToken, fetchImpl });
+  return (data.items || []).find((item) => item.status !== "cancelled") || null;
+}
+
+async function findExistingEvent({ calendarId, accessToken, iCalUID, body, fetchImpl = fetch }) {
+  const byUid = await findExistingEventByICalUID({ calendarId, accessToken, iCalUID, fetchImpl });
+  if (byUid) return byUid;
+  return findExistingEventByShapeProperties({
+    calendarId,
+    accessToken,
+    privateProperties: shapePrivateProperties(body),
+    fetchImpl,
+  });
 }
 
 async function importGoogleEvent({ calendarId, accessToken, body, fetchImpl = fetch }) {
@@ -240,12 +364,26 @@ function eventDateShapeChanged(existing, desired) {
     || dateFieldKind(existing?.end) !== dateFieldKind(desired?.end);
 }
 
-function buildBackfillPlan({ sourcePath = DEFAULT_SOURCE, maxEvents = DEFAULT_MAX_EVENTS, timeZone = DEFAULT_TIME_ZONE } = {}) {
+function buildBackfillPlan({
+  sourcePath = DEFAULT_SOURCE,
+  maxEvents = DEFAULT_MAX_EVENTS,
+  timeZone = DEFAULT_TIME_ZONE,
+  fromDate,
+  toDate,
+  futureOnly = false,
+  now = new Date(),
+} = {}) {
   const json = loadCalendarJson(sourcePath);
-  const events = collectEvents(json).flatMap(expandCollectedEvent).slice(0, maxEvents);
+  const filters = resolveDateFilters({ fromDate, toDate, futureOnly, timeZone, now });
+  const expandedEvents = collectEvents(json).flatMap(expandCollectedEvent);
+  const filteredEvents = expandedEvents.filter((event) => eventOverlapsDateRange(event, filters));
+  const events = filteredEvents.slice(0, maxEvents);
   return {
     source: path.resolve(sourcePath),
     last_refresh: json.last_refresh || null,
+    date_filter: filters.fromDate || filters.toDate ? filters : null,
+    filtered_out: expandedEvents.length - filteredEvents.length,
+    capped: filteredEvents.length > events.length,
     events: events.map((event) => ({
       uid: event.uid,
       category: event.category,
@@ -262,25 +400,37 @@ async function runGoogleCalendarBackfill({
   calendarId,
   accessToken,
   apply = false,
+  check = false,
   maxEvents = DEFAULT_MAX_EVENTS,
   timeZone = DEFAULT_TIME_ZONE,
+  fromDate,
+  toDate,
+  futureOnly = false,
+  now = new Date(),
   fetchImpl = fetch,
 } = {}) {
   if (!calendarId) throw new Error("calendarId is required");
-  if (apply && !accessToken) throw new Error("accessToken is required with apply=true");
-  const plan = buildBackfillPlan({ sourcePath, maxEvents, timeZone });
+  if ((apply || check) && !accessToken) throw new Error("accessToken is required with apply=true or check=true");
+  const plan = buildBackfillPlan({ sourcePath, maxEvents, timeZone, fromDate, toDate, futureOnly, now });
   const result = {
     source: plan.source,
     last_refresh: plan.last_refresh,
     calendar_id: calendarId,
     apply: !!apply,
+    check: !!check,
+    date_filter: plan.date_filter,
+    filtered_out: plan.filtered_out,
+    capped: plan.capped,
     planned: plan.events.length,
     inserted: 0,
     updated: 0,
     unchanged: 0,
+    would_insert: 0,
+    would_update: 0,
+    would_replace: 0,
     actions: [],
   };
-  if (!apply) {
+  if (!apply && !check) {
     result.actions = plan.events.map((event) => ({
       action: "dry-run",
       uid: event.uid,
@@ -295,9 +445,21 @@ async function runGoogleCalendarBackfill({
       calendarId,
       accessToken,
       iCalUID: event.uid,
+      body: event.body,
       fetchImpl,
     });
     if (!existing) {
+      if (check) {
+        result.would_insert += 1;
+        result.actions.push({
+          action: "would_insert",
+          uid: event.uid,
+          date: event.date,
+          time_kind: event.time_kind,
+          summary: event.summary,
+        });
+        continue;
+      }
       let googleEvent;
       try {
         googleEvent = await importGoogleEvent({
@@ -341,6 +503,19 @@ async function runGoogleCalendarBackfill({
       continue;
     }
     if (eventDateShapeChanged(existing, event.body)) {
+      if (check) {
+        result.would_replace += 1;
+        result.actions.push({
+          action: "would_replace",
+          uid: event.uid,
+          date: event.date,
+          time_kind: event.time_kind,
+          summary: event.summary,
+          google_event_id: existing.id || null,
+          changed: diff,
+        });
+        continue;
+      }
       let googleEvent;
       try {
         await deleteGoogleEvent({
@@ -376,6 +551,19 @@ async function runGoogleCalendarBackfill({
         summary: event.summary,
         google_event_id: googleEvent?.id || null,
         replaced_google_event_id: existing.id || null,
+        changed: diff,
+      });
+      continue;
+    }
+    if (check) {
+      result.would_update += 1;
+      result.actions.push({
+        action: "would_update",
+        uid: event.uid,
+        date: event.date,
+        time_kind: event.time_kind,
+        summary: event.summary,
+        google_event_id: existing.id || null,
         changed: diff,
       });
       continue;
@@ -422,13 +610,28 @@ async function main(argv = process.argv) {
   }
   loadEnvFile(arg("--env-file", argv));
   const apply = flag("--apply", argv) && !flag("--dry-run", argv);
+  const check = flag("--check", argv) && !apply;
+  const cliAccessToken = arg("--access-token", argv);
+  const accessToken = (apply || check)
+    ? await resolveGoogleAccessToken({
+      accessToken: cliAccessToken || process.env.GOOGLE_CALENDAR_ACCESS_TOKEN || process.env.GOOGLE_ACCESS_TOKEN,
+      clientId: process.env.GOOGLE_OAUTH_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+      refreshToken: process.env.GOOGLE_OAUTH_REFRESH_TOKEN,
+      preferRefresh: !cliAccessToken,
+    })
+    : cliAccessToken || process.env.GOOGLE_CALENDAR_ACCESS_TOKEN || process.env.GOOGLE_ACCESS_TOKEN;
   const result = await runGoogleCalendarBackfill({
     sourcePath: arg("--source", argv) || DEFAULT_SOURCE,
     calendarId: arg("--calendar-id", argv) || process.env.GOOGLE_CALENDAR_ID,
-    accessToken: arg("--access-token", argv) || process.env.GOOGLE_CALENDAR_ACCESS_TOKEN || process.env.GOOGLE_ACCESS_TOKEN,
+    accessToken,
     apply,
+    check,
     maxEvents: numberArg("--max-events", DEFAULT_MAX_EVENTS, argv),
     timeZone: arg("--time-zone", argv) || process.env.GOOGLE_CALENDAR_TIMEZONE || DEFAULT_TIME_ZONE,
+    fromDate: arg("--from-date", argv),
+    toDate: arg("--to-date", argv),
+    futureOnly: flag("--future-only", argv),
   });
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 }
@@ -443,7 +646,10 @@ if (require.main === module) {
 
 module.exports = {
   buildBackfillPlan,
+  eventOverlapsDateRange,
   expandCollectedEvent,
   googleEventBodyFromCollectedEvent,
+  resolveGoogleAccessToken,
   runGoogleCalendarBackfill,
+  todayIsoForTimeZone,
 };

@@ -36,7 +36,7 @@ test("context page is wired to the static context renderer", () => {
   assert.match(html, /src="\.\.\/scripts\/context\.js"/);
 });
 
-test("context renderer keeps claim provenance, confidence, and raw boundary visible", () => {
+test("context renderer keeps confidence and source boundary visible without private provenance IDs", () => {
   const renderContextSurface = loadContextRenderer();
   const html = renderContextSurface({
     teams: [{ record_id: "team-a", name: "Team A" }],
@@ -44,7 +44,7 @@ test("context renderer keeps claim provenance, confidence, and raw boundary visi
     cohort_intel: {
       raw_allowed: false,
       generated_from: "reviewed transcript evidence cards",
-      context_policy_note: "Raw transcript blobs stay private.",
+      context_policy_note: "Private source text stays private.",
       weekly: [{
         week_start: "2026-06-08",
         evidence_card_count: 1,
@@ -336,7 +336,7 @@ test("context renderer keeps claim provenance, confidence, and raw boundary visi
         review_status: "reviewed",
         approval_state: "not_required",
         confidence: 0.72,
-        summary: ["Cohort-safe synthesis, not raw transcript text."],
+        summary: ["Cohort-safe synthesis, not private source text."],
         themes: ["routing"],
         action_items: ["Promote evidence cards after review."],
         provenance: {
@@ -348,7 +348,7 @@ test("context renderer keeps claim provenance, confidence, and raw boundary visi
     },
   });
 
-  assert.match(html, /Raw transcripts are not app-visible/);
+  assert.match(html, /Private source text is not app-visible/);
   assert.match(html, /Cohort field note: week of 2026-06-08/);
   assert.match(html, /copyable field note markdown/);
   assert.match(html, /Session note: routing review/);
@@ -371,10 +371,11 @@ test("context renderer keeps claim provenance, confidence, and raw boundary visi
   assert.match(html, /project week snapshot inputs/);
   assert.match(html, /project progress rollup inputs/);
   assert.match(html, /team signals/);
-  assert.match(html, /source-artifact-1/);
-  assert.match(html, /private-vault:session-1/);
+  assert.match(html, /1 reviewed source/);
+  assert.doesNotMatch(html, /source-artifact-1/);
+  assert.doesNotMatch(html, /private-vault:session-1/);
   assert.match(html, /medium/);
-  assert.match(html, /raw transcript hidden/);
+  assert.match(html, /source text hidden/);
   assert.match(html, /Cohort-safe synthesis/);
 });
 

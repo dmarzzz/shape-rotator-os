@@ -15,6 +15,9 @@ test("calendar-sync respects protected main by using a PR sync branch", () => {
   assert.match(workflowText, /SYNC_BRANCH:\s*automation\/calendar-sync/);
   assert.match(workflowText, /gh pr create --base main --head "\$SYNC_BRANCH"/);
   assert.match(workflowText, /Could not create calendar sync PR/);
-  assert.match(workflowText, /gh pr merge "\$pr_number" --auto --squash/);
+  // Live source is the Supabase publish; the git PR is now just the offline
+  // bundle refresh, so there is no auto-merge.
+  assert.match(workflowText, /publish-calendar-grid-to-supabase/);
+  assert.doesNotMatch(workflowText, /--auto --squash/);
   assert.doesNotMatch(workflowText, /git push origin HEAD:main/);
 });

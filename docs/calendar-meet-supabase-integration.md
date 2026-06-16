@@ -36,10 +36,11 @@ product can send real invitations.
 
 ## Guest Versus Admin Editing
 
-Google Calendar has two separate permission planes:
+Google Calendar has three permission/state planes:
 
 1. Event guest permissions.
 2. Calendar ACL permissions.
+3. Each admin user's personal CalendarList entry.
 
 For guests, every app-created event should set:
 
@@ -54,13 +55,49 @@ For guests, every app-created event should set:
 This gives guests a normal invitation on their own calendar without letting them
 change the canonical event.
 
-For admins, grant calendar-level ACL access:
+The normal product split is:
+
+- Admins and coordinators create/approve sessions through Shape Rotator OS.
+  The deployed `create-calendar-event` function writes to the managed organizer
+  calendar with server-held organizer credentials.
+- Cohort members and guests subscribe to the exported Google/webcal/ICS feed as
+  read-only consumers.
+- Direct editing in Google Calendar is optional operator/break-glass access,
+  not the primary admin workflow.
+
+Admin access is therefore two separate grants:
+
+- Supabase `org_memberships` `admin` or `coordinator`: can use the Shape
+  Rotator OS event creator and approval path.
+- Google Calendar ACL: can edit directly in Google Calendar when that fallback
+  is intentionally needed.
+
+For direct Google Calendar operators, grant calendar-level ACL access:
 
 - `writer`: can edit events on the organizer calendar.
 - `owner`: can edit events and manage calendar sharing.
 
 Prefer a Google Group such as `shape-calendar-admins@...` as the ACL subject so
 admin membership is managed outside event payloads.
+
+ACL success alone is not enough to prove the Google Calendar web UI can create
+events on the managed calendar. If someone truly needs direct Google Calendar
+editing, their account must also have the managed secondary calendar in its own
+CalendarList as visible/selected, and the CalendarList entry must report
+`accessRole` of `writer` or `owner`. Otherwise the operator may see Shape
+Rotator events on the grid while the event-creation calendar dropdown only
+offers their personal calendar, making the calendar look read-only. Check this
+only for direct-Google operators with:
+
+```bash
+npm run calendar:list:google -- --calendar-id "$GOOGLE_CALENDAR_ID" --verify
+```
+
+Run that command with the direct operator's OAuth token, not with the organizer
+or capture-bot token. If it reports `would_insert` or `would_update`, rerun with
+`--apply`; if it reports `insufficient_access`, fix the calendar ACL or the
+organizer Workspace sharing policy first. This is not needed for normal admin
+creation through Shape Rotator OS.
 
 ## Event Creation Flow
 
@@ -331,23 +368,17 @@ The repo now has the credential-free pieces needed to wire the live integration:
   manifests, plus manual/local source manifests, inserts ingestion/capture/source
   rows, queues typed fetch/review/distillation jobs, and marks sessions
   `source_ready`.
-- `apps/web/calendar/index.html`, `apps/web/scripts/calendar-ingress.js`, and
-  `apps/web/scripts/calendar-ingress-client.mjs` add the first web calendar
-  ingress surface. It can submit pending `event_requests`, call the
-  create-calendar Edge Function for coordinators, and preview the Google event
-  payload locally without leaking the private title into the public invite. It
-  also has a basic operator queue for event request approval, processing-job
-  visibility, derived-artifact review, and public approval gates.
-- `apps/web/scripts/calendar-supabase-source.mjs` adds an optional live web
-  read path from Supabase `sessions`. If browser-safe Supabase config is absent,
-  the calendar keeps using the existing static GitHub/exported bundle.
+- `apps/web/calendar/index.html` and `apps/web/scripts/calendar.js` intentionally
+  stay read-only: they render the public calendar grid/snapshot and subscription
+  links. Operator ingress, signed-in Supabase config, queue review, and worker
+  runbook copy must not ship in `apps/web`.
 - `apps/os/src/renderer/calendar-ingress.mjs` and
-  `apps/os/src/renderer/calendar-ingress.css` port the same request/create
-  workflow and operator queue into the Electron calendar tab. The desktop
-  surface stores only browser-safe Supabase config, never a service-role key.
-- `scripts/calendar-ingress-parity.test.mjs` guards the web and Electron
-  ingress adapters so they keep producing the same core session/request/event
-  payloads.
+  `apps/os/src/renderer/calendar-ingress.css` carry the request/create workflow
+  and operator queue in the Electron calendar tab. The desktop surface stores
+  only browser-safe Supabase config, never a service-role key.
+- `apps/os/src/vendor/calendar-ingress-client.mjs` is the packaged desktop
+  operator client, and `scripts/calendar-ingress-parity.test.mjs` guards that
+  Electron keeps producing the same core session/request/event payloads.
 
 Useful local commands:
 
@@ -417,8 +448,11 @@ custom `policy`.
    org and deployed create-calendar Edge Function.
 8. Verify the operator queue can approve one pending request, reject one pending
    request, review one derived artifact, and approve/block public gates.
-9. Grant admins/coordinators calendar ACL `writer` or `owner` on the organizer
-   calendar.
+9. Add every admin organizer to Supabase `org_memberships` as `admin` or
+   `coordinator`, then grant the same people calendar ACL `writer` or `owner`
+   on the organizer calendar. The Supabase membership is what unlocks the
+   normal Shape Rotator OS event creator; the Google ACL is only for direct
+   Google Calendar editing and operational fallback.
 10. Configure `GOOGLE_DRIVE_ARTIFACT_FOLDER_ID` and run
    `scripts/poll-google-drive-artifacts.js` after meetings; replace or trigger
    it with Workspace Events later if the organizer account supports it.

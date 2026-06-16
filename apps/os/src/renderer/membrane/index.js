@@ -1,9 +1,34 @@
-import { createMembraneScene } from './scene.js';
+import { createMembraneScene, CUBE_SCALE, MEMBRANE_FOV, MEMBRANE_CAMERA_Z } from './scene.js';
+// NOTE: rubiks.js (+ its vendored GLTFLoader / cube-solver / postprocessing tree)
+// is imported DYNAMICALLY in ensureRubiks(), NOT statically here. A static import
+// would pull that whole subtree into boot.js's eager module graph, evaluated
+// before boot() runs — keeping the easter egg off the boot critical path.
 import { createSoundDirector } from './sound.js';
-import { BLOB_IDS, BLOB_PROFILES, SHAPE_NAMES } from './cube.js';
+import { BLOB_IDS, BLOB_PROFILES, SHAPE_NAMES, TARGET_R } from './cube.js';
+
+// World edge-length of the die's d6 (the cube shape the easter egg replaces):
+// a unit BoxGeometry normalized to bounding-sphere TARGET_R, then group-scaled.
+// The Rubik's cube body is matched to this — then bumped 20% larger by request.
+const DIE_CUBE_EDGE = TARGET_R * (2 / Math.sqrt(3)) * CUBE_SCALE * 1.2;
 import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAuthor, askVerbIconSvg, askVerbVars } from '../asks.js';
+import { computeIncoming, acknowledgeIncoming } from './calendar-watch.js';
+
+// Headless smoke-test boot tracing (gated on ?smoke=1; no-op for real launches).
+// Mirrors boot.js cp(): pinpoints whether the deferred membrane mount blocks.
+const __SMOKE = (() => { try { return new URLSearchParams(location.search).has('smoke'); } catch { return false; } })();
+const cp = (label) => {
+  try { window.api?.smokeTrace?.(label); } catch {}
+  if (__SMOKE) { try { console.error('[smoke-cp] ' + label); } catch {} }
+};
 
 function up(s) { return String(s ?? '').toUpperCase(); }
+
+// Remembered die shape, module-scoped so it survives leaving + returning to the
+// membrane page (the scene is destroyed/re-mounted but this module stays loaded).
+// Restored as the die's starting shape on mount; updated on every morph. The
+// Rubik's cube is deliberately NOT persisted — leaving and coming back drops back
+// to the shapes (a fresh scene), which is the only way to reset the cube.
+let savedFaces = null;
 
 // ── dismissable ambient notifications ──────────────────────────────────────
 // The left feed and right agenda are peripheral notification rails. Each card
@@ -223,6 +248,12 @@ const FEED_ICON_PATHS = {
   transcript: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
   ask: '<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
   event: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  // incoming-watch glyphs (keyed by card.icon): clock / user / calendar-plus /
+  // refresh-cw — for event-soon, person-soon, event-new, event-changed.
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  plus: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v4"/><path d="M10 16h4"/>',
+  swap: '<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>',
 };
 function feedIcon(kind) {
   const p = FEED_ICON_PATHS[kind];
@@ -397,7 +428,7 @@ function renderSelfCard(data, tpl) {
   const profile = data?.profile || {};
   const connections = Array.isArray(data?.connections) ? data.connections : [];
   const name = profile.name || profile.display_name || profile.handle || profile.gh_handle || profile.record_id || 'unclaimed';
-  const claimed = !!(profile.record_id || profile.handle || profile.name || profile.gh_handle);
+  const claimed = data?.claimed === true;
   const handle = profile.handle || profile.gh_handle || (profile.links && profile.links.github) || '';
   const role = profile.role || profile.title || (profile.is_mentor ? 'mentor' : '');
   const circle = profile.team || (profile.kind === 'team' ? profile.record_id : '') || '—';
@@ -694,8 +725,13 @@ function renderAvatar(profile) {
 }
 
 export function mountMembrane(container, opts = {}) {
+  cp('membrane:mount-start');
   console.log('[membrane] mounting into', container?.id || container?.className);
   container.classList.add('membrane-host');
+  // Always start showing the shapes, never the Rubik's cube — clear any stale
+  // reveal state left on the (reused) container from a previous visit, so the
+  // cube overlay and its Scramble/Reset controls don't linger after coming back.
+  container.classList.remove('membrane-rubiks-active');
   // The panel is retired — start folded so it never flashes in before the
   // fold state below settles (see the "fold state" note further down).
   container.classList.add('membrane-folded');
@@ -712,6 +748,27 @@ export function mountMembrane(container, opts = {}) {
       <div class="membrane-agenda" data-agenda role="region" aria-label="today's agenda"></div>
       <div class="membrane-feed" data-feed role="region" aria-label="what's new"></div>
       <canvas class="membrane-canvas"></canvas>
+      <canvas class="membrane-rubiks-canvas" aria-hidden="true"></canvas>
+      <!-- Bright light flash that blankets the die<->Rubik's swap. Fired ONLY by
+           revealRubiks()/hideRubiks() — the normal shape morphs never touch it. -->
+      <div class="membrane-flash" aria-hidden="true"></div>
+      <div class="membrane-rubiks-controls" aria-hidden="true">
+        <button type="button" class="primary" data-rubiks-scramble aria-label="Scramble">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/>
+            <path d="m18 2 4 4-4 4"/>
+            <path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/>
+            <path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/>
+            <path d="m18 14 4 4-4 4"/>
+          </svg>
+        </button>
+        <button type="button" data-rubiks-reset aria-label="Reset">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+        </button>
+      </div>
       <div class="membrane-shape-name" aria-hidden="true">
         <span class="msn-name" data-shape-name></span>
         <span class="msn-meta" data-shape-meta></span>
@@ -870,7 +927,9 @@ export function mountMembrane(container, opts = {}) {
 
     agendaEl.innerHTML = html;
   }
-  const agendaTimer = setInterval(renderAgenda, 60 * 1000);
+  // Once-a-minute tick advances the agenda now-line AND recomputes the incoming
+  // band (so "tea — in 12 min" counts down live, not just on a cohort refresh).
+  const agendaTimer = setInterval(() => { renderAgenda(); renderFeed(); }, 60 * 1000);
   // Clicking a dismiss control closes that notification; clicking the card
   // itself opens the calendar in a new OS tab (same as clicking through from
   // the calendar view).
@@ -894,6 +953,11 @@ export function mountMembrane(container, opts = {}) {
   // a colored dot, a short label, a relative age. Newest first.
   const feedEl = container.querySelector('[data-feed]');
   const feedDismissed = makeDismissStore('srwk:membrane:dismissed:feed');
+  // Incoming-watch cards are also remembered locally so a 60s re-render between
+  // cohort refreshes can't resurrect a just-dismissed card; dismissing one ALSO
+  // acknowledges it in the watch ledger (acknowledgeIncoming) so a fresh compute
+  // won't resurface it across launches.
+  const incomingDismissed = makeDismissStore('srwk:membrane:dismissed:incoming', 'local');
   function feedAge(date) {
     const then = Date.parse(date);
     if (!Number.isFinite(then)) return '';
@@ -904,10 +968,41 @@ export function mountMembrane(container, opts = {}) {
     return `${Math.floor(days / 7)}w`;
   }
   const feedKey = (it) => `${it.kind || ''}|${it.date || ''}|${it.label || ''}|${it.meta || ''}`;
+  // Forward-looking "incoming" band atop the same left rail as "what's new".
+  // Derives tea-time / arrival / new-event / time-change cards from the agenda
+  // the membrane already holds (see calendar-watch.js) — recomputed on every
+  // render + the 60s tick so "in N min" stays live.
+  function incomingCards() {
+    const ev = dataStore.events || {};
+    return computeIncoming({
+      eventsToday: ev.eventsToday,
+      eventsUpcoming: ev.eventsUpcoming,
+      people: dataStore.people,
+      nowMs: Date.now(),
+    }).cards.filter((c) => !incomingDismissed.has(c.seenKey));
+  }
+  function incomingRowsHtml(cards) {
+    if (!cards.length) return '';
+    // No section header — incoming notices flow into the same stream as the
+    // rest of the feed (forward-looking items just sort to the top). One feed.
+    return cards.map((c, i) => `
+      <div class="mfeed-row">
+        <button type="button" class="mfeed-item mfeed-${escHtml(c.kind)}" data-incoming-i="${i}">
+          ${feedIcon(c.icon)}
+          <span class="mfeed-body">
+            <span class="mfeed-label">${escHtml(c.title || '')}</span>
+            <span class="mfeed-meta">${escHtml(c.detail || '')}</span>
+          </span>
+        </button>
+        <button type="button" class="mfeed-dismiss" data-incoming-key="${escHtml(c.seenKey)}" aria-label="dismiss ${escHtml(c.title || 'notification')}" title="dismiss">${DISMISS_X}</button>
+      </div>`).join('');
+  }
   function renderFeed() {
     if (!feedEl) return;
     // Don't rebuild while a card is mid-recede (see renderAgenda).
     if (feedEl.querySelector('.is-dismissing')) return;
+    const incoming = incomingCards();
+    const incHtml = incomingRowsHtml(incoming);
     // Transcript chips are hidden for now: they dead-end on the generic
     // context "raw" view (the session readouts aren't wired to a per-item
     // surface yet). Every other kind (release / ask / event) still shows.
@@ -923,11 +1018,11 @@ export function mountMembrane(container, opts = {}) {
         return { it, key: n ? `${base}#${n}` : base };
       })
       .filter(({ key }) => !feedDismissed.has(key));
-    if (!items.length) { feedEl.innerHTML = ''; return; }
+    if (!incoming.length && !items.length) { feedEl.innerHTML = ''; return; }
     // Each item is wrapped in a positioned row so a quiet dismiss control can
     // sit on the card's inner corner (hidden at rest, revealed on hover/focus
     // — the "subtle hidden feature" — see .mfeed-dismiss in membrane.css).
-    feedEl.innerHTML = items.map(({ it, key }, i) => `
+    const feedHtml = items.map(({ it, key }, i) => `
       <div class="mfeed-row">
         <button type="button" class="mfeed-item mfeed-${escHtml(it.kind)}" data-feed-i="${i}">
           ${feedIcon(it.kind)}
@@ -939,6 +1034,21 @@ export function mountMembrane(container, opts = {}) {
         </button>
         <button type="button" class="mfeed-dismiss" data-dismiss-key="${escHtml(key)}" aria-label="dismiss ${escHtml(it.label || 'notification')}" title="dismiss">${DISMISS_X}</button>
       </div>`).join('');
+    // One stream: incoming (forward-looking) flows straight into the activity
+    // feed — no section labels, the rows just sort by relevance.
+    feedEl.innerHTML = incHtml + feedHtml;
+    // Incoming card → open the arriving person's profile, else the calendar.
+    feedEl.querySelectorAll('[data-incoming-i]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const c = incoming[+btn.dataset.incomingI];
+        if (!c) return;
+        if (c.recordId && typeof window.__srwkAlchemyShowRecord === 'function') {
+          window.__srwkAlchemyShowRecord(c.recordId, 'shapes');
+        } else if (c.nav && typeof window.__srwkOpenInNewTab === 'function') {
+          window.__srwkOpenInNewTab({ tab: 'alchemy', ...c.nav });
+        }
+      });
+    });
     feedEl.querySelectorAll('[data-feed-i]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const it = items[+btn.dataset.feedI]?.it;
@@ -948,13 +1058,17 @@ export function mountMembrane(container, opts = {}) {
         }
       });
     });
+    // Dismiss — incoming cards acknowledge + local-hide; feed cards use the
+    // session ledger. The quiet control is shared markup (.mfeed-dismiss).
     feedEl.querySelectorAll('.mfeed-dismiss').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         // Record synchronously (by stable key, not list position) so a
         // re-render mid-animation can never resurrect the card.
-        feedDismissed.add(btn.dataset.dismissKey);
+        const incKey = btn.dataset.incomingKey;
+        if (incKey) { incomingDismissed.add(incKey); acknowledgeIncoming(incKey); }
+        else { feedDismissed.add(btn.dataset.dismissKey); }
         dismissCard(btn.closest('.mfeed-row'), () => renderFeed());
       });
     });
@@ -997,6 +1111,15 @@ export function mountMembrane(container, opts = {}) {
       btn.addEventListener('click', () => {
         if (typeof window.__srwkAlchemyJump === 'function') {
           window.__srwkAlchemyJump('shapes');
+        }
+      });
+    });
+    panelContent.querySelectorAll('[data-crewid-claim]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (typeof window.__srwkOpenIdentityFlow === 'function') {
+          window.__srwkOpenIdentityFlow();
+        } else if (typeof window.__srwkAlchemyJump === 'function') {
+          window.__srwkAlchemyJump('profile');
         }
       });
     });
@@ -1053,15 +1176,98 @@ export function mountMembrane(container, opts = {}) {
   const fieldRow = panel.querySelector('[data-membrane-field-row]');
   (fieldRow || panelFoot || panel).prepend(foldBtn);
 
+  // ─── easter-egg Rubik's cube ───────────────────────────────────────────
+  // Lazily built on first reveal (loads a ~1.3 MB model) so the membrane has
+  // no extra cost until the die has been cycled through every shape. Lives on
+  // its own overlaid canvas; revealing it fades the psy-die out under it.
+  const rubiksCanvas = container.querySelector('.membrane-rubiks-canvas');
+  const rubiksControls = container.querySelector('.membrane-rubiks-controls');
+  const rubiksScrambleBtn = container.querySelector('[data-rubiks-scramble]');
+  const rubiksResetBtn = container.querySelector('[data-rubiks-reset]');
+  let rubiks = null;
+
+  // Bright light flash that blankets the die<->Rubik's swap so the crossfade is
+  // never seen. Restart-on-demand: strip the class, force a reflow, re-add — so
+  // each transition (in OR out) replays the flash from frame 0. Used ONLY by
+  // revealRubiks/hideRubiks; the normal shape morphs never call it.
+  const flashEl = container.querySelector('.membrane-flash');
+  function flashTransition() {
+    if (!flashEl) return;
+    flashEl.classList.remove('is-bursting');
+    void flashEl.offsetWidth;   // reflow so the keyframes restart
+    flashEl.classList.add('is-bursting');
+  }
+
+  // Create the Rubik's app (loads its model + builds the cube) once, lazily on
+  // first reveal. We deliberately do NOT pre-create it at mount: spinning up a
+  // second WebGL context near boot is unnecessary cost and was implicated in a
+  // headless-CI render hang. The flash + late-load re-seed (rubiks.js) cover the
+  // load so the cube is already spinning when the white-out clears.
+  let rubiksLoading = null;   // in-flight import promise (deduped)
+  function ensureRubiks() {
+    if (rubiks) return Promise.resolve(rubiks);
+    if (!rubiksLoading) {
+      rubiksLoading = import('./rubiks.js').then(({ createRubiksApp }) => {
+        rubiks = createRubiksApp(rubiksCanvas, {
+          onCycleAway: hideRubiks,
+          onSequencing(on) {
+            if (rubiksScrambleBtn) rubiksScrambleBtn.disabled = on;
+            if (rubiksResetBtn) rubiksResetBtn.disabled = on;
+          },
+          // Match the die's exact framing so the cube is the same on-screen size
+          // as the d6 shape it replaces.
+          matchSize: { fov: MEMBRANE_FOV, distance: MEMBRANE_CAMERA_Z, edge: DIE_CUBE_EDGE },
+        });
+        return rubiks;
+      });
+    }
+    return rubiksLoading;
+  }
+
+  function revealRubiks() {
+    // Fire the flash + label immediately so the white-out covers the lazy
+    // import + model load; arm the reveal spin once the app is ready.
+    flashTransition();   // white-out the reveal crossfade
+    container.classList.add('membrane-rubiks-active');
+    if (shapeNameEl) updateRubiksLabel();
+    ensureRubiks()
+      .then((app) => { if (app) app.setEnabled(true); })
+      .catch((e) => console.warn('[membrane] rubiks load failed:', e));
+  }
+
+  function hideRubiks() {
+    flashTransition();   // white-out the exit crossfade back to the shapes
+    container.classList.remove('membrane-rubiks-active');
+    if (rubiks) rubiks.setEnabled(false);
+    scene.resumeFromRubiks();   // die morphs on into the next regular shape
+  }
+
+  // The shape label reads "flashbots cube" while the easter egg is up.
+  function updateRubiksLabel() {
+    if (!shapeNameEl) return;
+    shapeNameEl.textContent = 'flashbots cube';
+    shapeMetaEl.textContent = '3×3×3 · drag to turn';
+  }
+
+  cp('membrane:before-createScene');
   const scene = createMembraneScene(canvas, {
+    // Start on the shape we were last showing (remembered across page switches).
+    initialFaces: savedFaces,
     // No onEmptyClick: clicking the void no longer summons the panel. The
     // membrane is a pure ambient view now; identity moved to profile ›
     // "your seal". (The die still stops on click / morphs on fast spin —
     // see scene.js.)
-    // The die changed shape (triggered by a fast spin) — update the label.
-    onFacesChange(faces) { updateShapeName(faces); },
+    // The die changed shape (triggered by a fast spin) — update the label and
+    // remember the shape so it persists when leaving + returning to the page.
+    onFacesChange(faces) { savedFaces = faces; updateShapeName(faces); },
+    // Every shape has been seen — surface the hidden cube.
+    onRubiksReveal() { revealRubiks(); },
   });
+  cp('membrane:after-createScene');
   updateShapeName(scene.getFaces());
+
+  if (rubiksScrambleBtn) rubiksScrambleBtn.addEventListener('click', () => rubiks?.scramble());
+  if (rubiksResetBtn) rubiksResetBtn.addEventListener('click', () => rubiks?.reset());
   renderAgenda();
   renderFeed();
   console.log('[membrane] scene mounted; cube active:', scene.getActiveBlobId());
@@ -1114,9 +1320,11 @@ export function mountMembrane(container, opts = {}) {
     sound,
     destroy() {
       clearInterval(agendaTimer);
+      if (rubiks) rubiks.dispose();
       scene.destroy();
       sound.destroy();
       container.classList.remove('membrane-host');
+      container.classList.remove('membrane-rubiks-active');
       container.innerHTML = '';
     },
   };

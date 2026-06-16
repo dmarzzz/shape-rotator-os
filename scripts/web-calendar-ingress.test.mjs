@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import {
   DEFAULT_CALENDAR_ID,
   DEFAULT_SUPABASE_URL,
@@ -19,6 +18,7 @@ import {
   decideApprovalGate,
   fetchCalendarOpsQueue,
   fetchPrivateInviteDirectory,
+  googleCalendarManagedUrl,
   loadCalendarIngressConfig,
   callCreateCalendarEvent,
   mergeAttendeeEmails,
@@ -29,9 +29,7 @@ import {
   saveCalendarIngressConfig,
   reviewDerivedArtifact,
   reviewEvidenceCard,
-} from "../apps/web/scripts/calendar-ingress-client.mjs";
-
-const webIngressSource = fs.readFileSync(new URL("../apps/web/scripts/calendar-ingress.js", import.meta.url), "utf8");
+} from "../apps/os/src/vendor/calendar-ingress-client.mjs";
 
 test("web calendar ingress parses and deduplicates attendee emails", () => {
   assert.deepEqual(parseAttendees("Guest <Guest@example.com>, guest@example.com\nsecond@example.com"), [
@@ -178,6 +176,7 @@ test("web calendar ingress uses managed calendar and Supabase project defaults",
   assert.equal(loadCalendarIngressConfig(emptyStorage, "test-key").calendarId, DEFAULT_CALENDAR_ID);
   assert.equal(loadCalendarIngressConfig(overrideStorage, "test-key").calendarId, DEFAULT_CALENDAR_ID);
   assert.equal(loadCalendarIngressConfig(emptyStorage, "test-key").supabaseUrl, DEFAULT_SUPABASE_URL);
+  assert.equal(decodeURIComponent(new URL(googleCalendarManagedUrl()).searchParams.get("cid")), DEFAULT_CALENDAR_ID);
 });
 
 test("web calendar ingress does not persist bearer or Google access tokens", () => {
@@ -262,8 +261,13 @@ test("web calendar ingress create body and preview preserve non-editable guests"
   assert.equal(body.calendar_connection_id, "cal_1");
   assert.equal(body.calendar_id, undefined);
   assert.equal(body.session.status, "scheduled");
+  assert.equal(body.session.bot_requested, true);
+  assert.equal(body.request_meet, true);
+  assert.equal(body.auto_transcript, true);
+  assert.equal(body.require_auto_artifacts, true);
   assert.equal(body.dry_run, true);
   assert.equal(preview.summary, "Planning");
+  assert.equal(preview.conferenceData.createRequest.conferenceSolutionKey.type, "hangoutsMeet");
   assert.equal(preview.guestsCanModify, false);
   assert.equal(preview.guestsCanInviteOthers, false);
   assert.equal(preview.attendees.length, 2);
@@ -479,6 +483,9 @@ test("web calendar ingress approval creates the invite before marking request ap
       assert.equal(calls[0].body.session.status, "scheduled");
       assert.equal(calls[0].body.calendar_connection_id, "cal_1");
       assert.equal(calls[0].body.event_request_id, "req_1");
+      assert.equal(calls[0].body.request_meet, true);
+      assert.equal(calls[0].body.auto_transcript, true);
+      assert.equal(calls[0].body.require_auto_artifacts, true);
       return Response.json({ session: { id: "sess_1" } });
     }
     if (String(url).includes("/rest/v1/event_requests")) {
@@ -625,15 +632,6 @@ test("web calendar ingress evidence-card reviews use the server-side review func
   assert.equal(calls[0].body.publish_public, true);
   assert.equal(calls[0].body.edits.claim_text, "Teams need reviewed evidence before publication.");
   assert.equal(calls[0].body.edits.public_anonymous, true);
-});
-
-test("web calendar ingress queue has editable review fields", () => {
-  assert.match(webIngressSource, /data-cal-review-field="content_md"/);
-  assert.match(webIngressSource, /data-cal-review-field="claim_text"/);
-  assert.match(webIngressSource, /data-cal-review-field="attribution_scope"/);
-  assert.match(webIngressSource, /readQueueEdits/);
-  assert.match(webIngressSource, /reviewDerivedArtifact\(\{[\s\S]+edits/);
-  assert.match(webIngressSource, /reviewEvidenceCard\(\{[\s\S]+edits/);
 });
 
 test("web calendar ingress mutations require a signed-in access token", async () => {

@@ -21,11 +21,140 @@ import {
 
 const PRIMARY_TAB = "May 18 Start";
 const WEEK_COUNT  = 10;
+// Public read-only mirror that cohort members/guests subscribe to (guest calendar mirror, PR #361).
+// This is the only calendar a public subscribe/link should target; the admin/source calendar
+// (GOOGLE_CALENDAR_ID) is intentionally NOT referenced in this public renderer.
+const GUEST_GOOGLE_CALENDAR_ID = "c_230102e62c5e01faa500a92c44251088210cd1f1949dfa9aff3ab11280261d8c@group.calendar.google.com";
 
 const DAY_NAMES_FULL = {
   mon: "monday", tue: "tuesday", wed: "wednesday", thu: "thursday",
   fri: "friday", sat: "saturday", sun: "sunday",
 };
+
+function slug(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function compactDay(dayMs) {
+  const d = new Date(dayMs);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
+}
+
+function isoDay(dayMs) {
+  const compact = compactDay(dayMs);
+  return `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}`;
+}
+
+function calendarBaseUid(dayMs, dayName) {
+  return `${slug(PRIMARY_TAB)}-${compactDay(dayMs)}-${dayName}@shape-rotator-os`;
+}
+
+function calendarShapeKey(baseUid, blockIndex) {
+  return baseUid && blockIndex ? `${baseUid}#${blockIndex}` : "";
+}
+
+export function managedGoogleCalendarUrl(calendarId = GUEST_GOOGLE_CALENDAR_ID) {
+  return `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(calendarId)}`;
+}
+
+// Universal "add to your own calendar" link (Google TEMPLATE). Built inline (no shape-ui
+// dependency) so the renderer bundle stays self-contained; works for any subscriber.
+export function googleAddEventUrl({ title, details, dayMs, timing } = {}) {
+  if (!Number.isFinite(dayMs)) return "";
+  const ymd = compactDay(dayMs);
+  const url = new URL("https://calendar.google.com/calendar/render");
+  url.searchParams.set("action", "TEMPLATE");
+  url.searchParams.set("text", String(title || "Shape Rotator event"));
+  if (details) url.searchParams.set("details", String(details));
+  url.searchParams.set("ctz", "America/New_York");
+  const hms = (min) => `${String(Math.floor(min / 60)).padStart(2, "0")}${String(min % 60).padStart(2, "0")}00`;
+  if (timing && Number.isFinite(timing.startMin) && Number.isFinite(timing.endMin)) {
+    url.searchParams.set("dates", `${ymd}T${hms(timing.startMin)}/${ymd}T${hms(timing.endMin)}`);
+  } else {
+    url.searchParams.set("dates", `${ymd}/${compactDay(dayMs + 86400000)}`);
+  }
+  return url.toString();
+}
+
+export function calendarGoogleEventLinkForItem(item = {}, calendarGoogleEvents = {}) {
+  const byShapeKey = calendarGoogleEvents?.by_shape_key || {};
+  const byIcalUid = calendarGoogleEvents?.by_ical_uid || {};
+  const calendar = item.calendar || {};
+  const record = byShapeKey[calendar.shapeKey] || byIcalUid[calendar.uid] || null;
+  return record?.html_link || "";
+}
+
+function googleRecordStartIso(record = {}) {
+  const start = record.start || {};
+  return String(start.dateTime || start.date || "").slice(0, 10);
+}
+
+function googleDateTimeMinutes(value) {
+  const match = String(value || "").match(/T(\d{2}):(\d{2})/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function googleRecordTiming(record = {}) {
+  const start = record.start || {};
+  const end = record.end || {};
+  if (!start.dateTime || !end.dateTime) return null;
+  const startMin = googleDateTimeMinutes(start.dateTime);
+  let endMin = googleDateTimeMinutes(end.dateTime);
+  if (startMin == null || endMin == null) return null;
+  if (endMin <= startMin) endMin = startMin + 30;
+  return { startMin, endMin };
+}
+
+function googleRecordBlockText(record = {}) {
+  const title = String(record.summary || "Calendar event").trim();
+  const timing = googleRecordTiming(record);
+  return timing ? `${fmtMin(timing.startMin)} – ${fmtMin(timing.endMin)} ${title}` : title;
+}
+
+function googleRecordShapeKey(record = {}) {
+  return record.shape_key || calendarShapeKey(record.shape_calendar_base_uid, record.shape_calendar_block_index);
+}
+
+function uidForGoogleRecord(record = {}, blockIndex = 1) {
+  if (record.ical_uid) return record.ical_uid;
+  const baseUid = record.shape_calendar_base_uid || "";
+  if (!baseUid) return "";
+  return blockIndex === 1 ? baseUid : baseUid.replace("@", `-block-${blockIndex}@`);
+}
+
+function addGoogleOnlyManagedEvents(days = [], calendarGoogleEvents = {}, seenShapeKeys = new Set()) {
+  const dayByIso = new Map(days.map((day) => [isoDay(day.dayMs), day]));
+  const records = Object.values(calendarGoogleEvents?.by_shape_key || {});
+  for (const record of records) {
+    const shapeKey = googleRecordShapeKey(record);
+    if (!shapeKey || seenShapeKeys.has(shapeKey)) continue;
+    const day = dayByIso.get(googleRecordStartIso(record));
+    if (!day) continue;
+    const block = googleRecordBlockText(record);
+    const timing = googleRecordTiming(record);
+    const blockIndex = Number(record.shape_calendar_block_index) || 1;
+    const item = {
+      kind: "event",
+      block,
+      content: c2ParseBlock(block),
+      cat: c2Category(block),
+      timing,
+      calendar: {
+        baseUid: record.shape_calendar_base_uid || "",
+        blockIndex,
+        shapeKey,
+        uid: uidForGoogleRecord(record, blockIndex),
+      },
+      googleOnly: true,
+    };
+    if (timing) day.timed.push(item); else day.allday.push(item);
+    seenShapeKeys.add(shapeKey);
+  }
+}
 
 // ── category heuristics ──────────────────────────────────────────────
 // Mirrors cohort-calendar-week.js's eventCategory (module-local there, so
@@ -187,7 +316,7 @@ let _model = null;
 // view: "cal" (the timeline grid) | "presence" (caller-supplied availability
 // gantt — the same renderer the legacy calendar page uses, passed in as
 // presenceHtml so this module stays presentation-only).
-export function renderCalendarPage({ data, weekIdx = 0, source = null, view = "cal", presenceHtml = "" } = {}) {
+export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "" } = {}) {
   const tab = data?.tabs?.[PRIMARY_TAB] || [];
   const safeWeekIdx = Math.max(0, Math.min(WEEK_COUNT - 1, weekIdx | 0));
   const week = parseWeekRow(tab[2 + safeWeekIdx] || [], safeWeekIdx);
@@ -195,18 +324,34 @@ export function renderCalendarPage({ data, weekIdx = 0, source = null, view = "c
   const recurring = parseRecurring(tab);
 
   // ── per-day model: split timed vs all-day, classify, layout overlaps ─
+  const seenShapeKeys = new Set();
   const days = week.days.map((d, di) => {
     const timed = [];
     const allday = [];
+    const baseUid = calendarBaseUid(d.dayMs, d.name);
     for (const a of (d.anchors || [])) {
       allday.push({ kind: "anchor", title: a.title, subtitle: a.subtitle, cat: { key: "default", label: "", tbc: false } });
     }
-    d.blocks.forEach((block) => {
+    d.blocks.forEach((block, blockIndex) => {
       const timing = c2BlockTiming(block);
-      const item = { kind: "event", block, content: c2ParseBlock(block), cat: c2Category(block), timing };
+      const blockNumber = blockIndex + 1;
+      const shapeKey = calendarShapeKey(baseUid, blockNumber);
+      seenShapeKeys.add(shapeKey);
+      const item = {
+        kind: "event",
+        block,
+        content: c2ParseBlock(block),
+        cat: c2Category(block),
+        timing,
+        calendar: {
+          baseUid,
+          blockIndex: blockNumber,
+          shapeKey,
+          uid: blockNumber === 1 ? baseUid : `${baseUid.replace("@", `-block-${blockNumber}@`)}`,
+        },
+      };
       if (timing) timed.push(item); else allday.push(item);
     });
-    layoutTimed(timed);
     return { ...d, di, timed, allday };
   });
 
@@ -245,7 +390,10 @@ export function renderCalendarPage({ data, weekIdx = 0, source = null, view = "c
     }
   }
 
-  _model = { days, weekIdx: safeWeekIdx };
+  addGoogleOnlyManagedEvents(days, calendarGoogleEvents, seenShapeKeys);
+  for (const day of days) layoutTimed(day.timed);
+
+  _model = { days, weekIdx: safeWeekIdx, calendarGoogleEvents };
 
   // ── hour window hugs the week's actual content ──────────────────────
   // No fixed 8–22 frame: the grid starts at the first event's hour and
@@ -348,8 +496,22 @@ export function renderCalendarPage({ data, weekIdx = 0, source = null, view = "c
         <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span><span class="apv-label">presence</span>
       </button>
     </nav>`;
+  const subscribeAction = `
+    <a class="c2-subscribe" href="${escAttr(managedGoogleCalendarUrl(GUEST_GOOGLE_CALENDAR_ID))}" data-external
+       aria-label="Subscribe to the read-only Shape Rotator Google Calendar"
+       title="Subscribe to the read-only Shape Rotator Google Calendar">
+      <span class="c2-subscribe-glyph" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v5"/><path d="M9.5 16.5h5"/>
+        </svg>
+      </span>
+      <span class="c2-subscribe-copy"><strong>subscribe</strong><small>read-only Google</small></span>
+    </a>`;
   const masthead = `
-    ${viewTabs}
+    <div class="c2-toolbar">
+      ${viewTabs}
+      ${subscribeAction}
+    </div>
     ${isPresence ? "" : `
     <header class="c2-masthead">
       <div class="c2-scrub" role="tablist" aria-label="program week">
@@ -398,12 +560,15 @@ export function renderCalendarPage({ data, weekIdx = 0, source = null, view = "c
       <div class="c2-gutter-cell">all-day</div>
       ${days.map((d, di) => `
         <div class="c2-allday-cell ${d.isToday ? "is-today" : ""}">
-          ${d.allday.map((item, ai) => `
-            <button class="c2-chip" data-cat="${escAttr(item.cat.key)}" data-c2-ev="a:${di}:${ai}" type="button"
+          ${d.allday.map((item, ai) => {
+            const googleLink = calendarGoogleEventLinkForItem(item, calendarGoogleEvents);
+            return `
+            <button class="c2-chip${googleLink ? " has-google-link" : ""}" data-cat="${escAttr(item.cat.key)}" data-c2-ev="a:${di}:${ai}" type="button"
                     title="${escAttr(item.kind === "anchor" ? item.title : item.content.title)}">
               <span class="c2-chip-dot" aria-hidden="true"></span>
               <span class="c2-chip-label">${escHtml(item.kind === "anchor" ? item.title : item.content.title)}</span>
-            </button>`).join("")}
+            </button>`;
+          }).join("")}
         </div>`).join("")}
     </div>` : "";
 
@@ -473,11 +638,12 @@ export function renderCalendarPage({ data, weekIdx = 0, source = null, view = "c
       // is tall enough (container query in CSS) — no click needed.
       const shownDetails = ev.content.details.slice(0, 6);
       const moreCount = ev.content.details.length - shownDetails.length;
+      const googleLink = calendarGoogleEventLinkForItem(ev, calendarGoogleEvents);
       const body = shownDetails.length
         ? `<span class="c2-ev-body">${shownDetails.map(t => `<i>${escHtml(t)}</i>`).join("")}${moreCount > 0 ? `<i class="c2-ev-more">+${moreCount} more</i>` : ""}</span>`
         : "";
       return `
-        <button class="c2-ev${ev.cat.tbc ? " is-tbc" : ""}" data-cat="${escAttr(ev.cat.key)}"
+        <button class="c2-ev${ev.cat.tbc ? " is-tbc" : ""}${googleLink ? " has-google-link" : ""}" data-cat="${escAttr(ev.cat.key)}"
                 data-c2-ev="t:${di}:${ti}" type="button"
                 style="top:${top}%;height:${height}%;left:${left}%;width:calc(${width}% - 2px)"
                 aria-label="${escAttr(`${timeLabel} ${ev.content.title}`)}">
@@ -529,7 +695,7 @@ export function renderCalendarPage({ data, weekIdx = 0, source = null, view = "c
         ${legend}
         ${recurringHtml}
         <div class="c2-source">
-          <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>phala /cadence/calendar.json</a></span>
+          <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
           <span aria-hidden="true">·</span>
           <span>cohort may 18 → jul 26 2026</span>
         </div>
@@ -577,9 +743,71 @@ export function attachCalendarPageBehavior(root, { scrollToNow = true } = {}) {
   return function teardown() { clearInterval(timer); };
 }
 
+function clamp(n, min, max) {
+  return Math.min(Math.max(n, min), max);
+}
+
+function rectFromAnchor(anchor) {
+  try {
+    return anchor?.getBoundingClientRect?.() || null;
+  } catch {
+    return null;
+  }
+}
+
+function clearCalendarEventSelection() {
+  if (typeof document === "undefined") return;
+  for (const selected of document.querySelectorAll(".c2-ev.is-selected, .c2-chip.is-selected")) {
+    selected.classList.remove("is-selected");
+  }
+}
+
+function positionEventPanel(overlay, anchorRect) {
+  const panel = overlay?.querySelector?.(".c2-modal-panel");
+  if (!panel || !anchorRect || !Number.isFinite(anchorRect.left)) {
+    overlay?.classList?.add("is-centered");
+    return;
+  }
+
+  const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 768;
+  const margin = vw < 640 ? 12 : 16;
+  const gap = vw < 640 ? 8 : 20;
+  const panelRect = panel.getBoundingClientRect();
+  const maxX = Math.max(margin, vw - panelRect.width - margin);
+  const maxY = Math.max(margin, vh - panelRect.height - margin);
+
+  let placement = anchorRect.left + anchorRect.width / 2 < vw / 2 ? "right" : "left";
+  let x = placement === "right"
+    ? anchorRect.right + gap
+    : anchorRect.left - panelRect.width - gap;
+
+  if (x + panelRect.width > vw - margin) {
+    placement = "left";
+    x = anchorRect.left - panelRect.width - gap;
+  }
+  if (x < margin) {
+    placement = "right";
+    x = anchorRect.right + gap;
+  }
+  if (x < margin || x + panelRect.width > vw - margin) {
+    placement = "center";
+    x = anchorRect.left + anchorRect.width / 2 - panelRect.width / 2;
+  }
+
+  const yAnchor = anchorRect.height > panelRect.height
+    ? anchorRect.top + Math.min(24, anchorRect.height * 0.18)
+    : anchorRect.top - 12;
+  const y = clamp(yAnchor, margin, maxY);
+
+  panel.dataset.placement = placement;
+  panel.style.setProperty("--c2-modal-x", `${Math.round(clamp(x, margin, maxX))}px`);
+  panel.style.setProperty("--c2-modal-y", `${Math.round(y)}px`);
+}
+
 // ── event modal ──────────────────────────────────────────────────────
 // ref = "t:<dayIdx>:<timedIdx>" | "a:<dayIdx>:<alldayIdx>" from data-c2-ev.
-export function openCalendarEvent(ref) {
+export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}) {
   if (!_model || typeof document === "undefined") return;
   const m = String(ref || "").match(/^([ta]):(\d+):(\d+)$/);
   if (!m) return;
@@ -597,24 +825,76 @@ export function openCalendarEvent(ref) {
   const details = isAnchor
     ? (item.subtitle ? [item.subtitle] : [])
     : item.content.details;
+  const googleLink = calendarGoogleEventLinkForItem(item, _model.calendarGoogleEvents);
+  // Universal "add to your calendar" link (Google TEMPLATE) — works for any subscriber,
+  // unlike the admin event html_link above which needs source-calendar access.
+  const addEventHref = googleAddEventUrl({
+    title,
+    details: isAnchor ? title : (item.block || title),
+    dayMs: day.dayMs,
+    timing: item.timing,
+  });
+  const eventAnchor = anchor || null;
+  const eventAnchorRect = anchorRect || rectFromAnchor(eventAnchor);
 
   document.querySelector(".c2-modal")?.remove();
+  clearCalendarEventSelection();
+  eventAnchor?.classList?.add?.("is-selected");
   const overlay = document.createElement("div");
   overlay.className = "c2-modal";
   overlay.innerHTML = `
     <div class="c2-modal-panel" data-cat="${escAttr(item.cat.key)}" role="dialog" aria-modal="true" aria-label="event details">
       <button class="c2-modal-close" type="button" aria-label="close">×</button>
-      <div class="c2-modal-when">${escHtml(weekday)} · ${escHtml(day.date)} · ${escHtml(timeLabel)}</div>
-      ${item.cat.label || item.cat.tbc
-        ? `<div class="c2-modal-cat"><i class="c2-chip-dot" aria-hidden="true"></i>${escHtml(item.cat.label)}${item.cat.tbc ? `<i class="c2-ev-tbc">tbc</i>` : ""}</div>`
-        : ""}
+      <div class="c2-modal-meta">
+        <div class="c2-modal-when">${escHtml(weekday)} · ${escHtml(day.date)} · ${escHtml(timeLabel)}</div>
+        ${item.cat.label || item.cat.tbc
+          ? `<div class="c2-modal-cat"><i class="c2-chip-dot" aria-hidden="true"></i>${escHtml(item.cat.label)}${item.cat.tbc ? `<i class="c2-ev-tbc">tbc</i>` : ""}</div>`
+          : ""}
+      </div>
       <h3 class="c2-modal-title"><em>${escHtml(title)}</em></h3>
       ${details.length ? `<ul class="c2-modal-details">${details.map(d => `<li>${escHtml(d)}</li>`).join("")}</ul>` : ""}
+      ${(addEventHref || googleLink) ? `
+        <div class="c2-modal-actions">
+          ${addEventHref ? `<a class="c2-modal-google" href="${escAttr(addEventHref)}" data-external>
+            <span class="c2-action-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v5"/><path d="M9.5 16.5h5"/>
+              </svg>
+            </span>
+            <span class="c2-action-copy"><strong>add to Google</strong><small>personal calendar</small></span>
+          </a>` : ""}
+          ${googleLink ? `<a class="c2-modal-google c2-modal-google--open" href="${escAttr(googleLink)}" data-external>
+            <span class="c2-action-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              </svg>
+            </span>
+            <span class="c2-action-copy"><strong>open in Google</strong><small>source event</small></span>
+          </a>` : ""}
+        </div>` : ""}
     </div>`;
-  const close = () => { overlay.remove(); document.removeEventListener("keydown", onKey); };
+  const close = () => {
+    overlay.remove();
+    clearCalendarEventSelection();
+    document.removeEventListener("keydown", onKey);
+  };
   function onKey(e) { if (e.key === "Escape") close(); }
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.addEventListener("click", (e) => {
+    const external = e.target?.closest?.("a[data-external]");
+    if (external) {
+      e.preventDefault();
+      e.stopPropagation();
+      const url = external.getAttribute("href");
+      if (url && url !== "#") {
+        try { window.api?.openExternal?.(url); } catch {}
+      }
+      return;
+    }
+    if (e.target === overlay) close();
+  });
   overlay.querySelector(".c2-modal-close")?.addEventListener("click", close);
   document.addEventListener("keydown", onKey);
   document.body.appendChild(overlay);
+  positionEventPanel(overlay, eventAnchorRect);
+  overlay.querySelector(".c2-modal-close")?.focus?.({ preventScroll: true });
 }

@@ -54,7 +54,6 @@ async function main() {
     attendees,
     policy,
     botEmail: arg("--bot-email") || process.env.SHAPE_CALENDAR_BOT_EMAIL,
-    requestMeet: !process.argv.includes("--no-meet"),
   });
   const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`);
   url.searchParams.set("sendUpdates", payload.query.sendUpdates);

@@ -5,9 +5,10 @@
 // bundled fallback), state, and event delegation. The shape mirrors how
 // cohort-card.js works — strings out, hooks attached by the consumer.
 //
-// Data source: the JSON shipped at the Phala URL embedded below (also
-// mirrored into the surface bundle every 30 minutes by the calendar-sync
-// GitHub Action — see scripts/sync-calendar.js).
+// Data source: the JSON shipped at the CALENDAR_URL below — our own
+// schedule, regenerated from the Shape Rotator admin Google Calendar and
+// mirrored into the surface bundle hourly by the calendar-sync GitHub
+// Action (see scripts/build-calendar-from-google.js).
 //
 // Shape of the JSON:
 //   {
@@ -19,12 +20,12 @@
 //         <10 week rows: [weekNum, "dates\n\ntheme", Mon..Sun, onsite, fb, notes]>,
 //         <recurring rows from index 12 onward>
 //       ],
-//       "Weekly Themes": [...]
+//       "Weekly Themes": [...]   // legacy — no longer emitted; only "May 18 Start" is built + rendered
 //     }
 //   }
 //
 // API:
-//   CALENDAR_URL                      — public Phala endpoint
+//   CALENDAR_URL                      — our calendar.json feed (os-web.shaperotator.xyz)
 //   PROGRAM_START_MS / PROGRAM_END_MS — cohort window
 //   currentWeekIdx()                  — 0..9 clamped
 //   phaseFor(week1Based)              — "m1" | "m2" | "m3"
@@ -47,7 +48,9 @@
 
 import { escHtml, escAttr } from "./escape.js";
 
-export const CALENDAR_URL = "https://915c8197b20b831c52cf97a9fb7e2e104cdc6ae8-8080.dstack-pha-prod7.phala.network/cadence/calendar.json";
+// Our own schedule feed, served by apps/web (vendor:web copies cohort-data/calendar.json
+// → /calendar.json) and regenerated from our Google calendar by the calendar-sync bot.
+export const CALENDAR_URL = "https://os-web.shaperotator.xyz/calendar.json";
 
 const PRIMARY_TAB     = "May 18 Start";
 const COHORT_START_MS = Date.UTC(2026, 4, 18);                // mon may 18 2026
@@ -276,6 +279,23 @@ function cleanUrlMatch(value) {
   return String(value || "").replace(/[),.;\]]+$/g, "");
 }
 
+export function configuredGuestCalendarHref(runtime = globalThis) {
+  const direct = String(
+    runtime?.SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL
+      || runtime?.SHAPE_CALENDAR_AUTHORIZED_SUBSCRIBE_URL
+      || "",
+  ).trim();
+  if (direct) return direct;
+  const links = runtime?.SHAPE_CALENDAR_LINKS;
+  if (!links || typeof links !== "object") return "";
+  return String(
+    links.memberGoogleHref
+      || links.authorizedGoogleHref
+      || links.authorizedSubscribeUrl
+      || "",
+  ).trim();
+}
+
 export function extractJoinLink(blockText) {
   const text = String(blockText || "");
   const marker = text.match(/(?:^|\n)\s*(?:meet|join)\s*:\s*(https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}[^\s<]*)/i);
@@ -288,7 +308,12 @@ function isJoinLine(value) {
   return !!extractJoinLink(value) && /^\s*(?:[-*]\s*)?(?:meet|join)\s*:/i.test(String(value || ""));
 }
 
-export function buildEventCalendarActions({ blockText, dayMs, timeZone = CALENDAR_TIME_ZONE } = {}) {
+export function buildEventCalendarActions({
+  blockText,
+  dayMs,
+  timeZone = CALENDAR_TIME_ZONE,
+  guestCalendarHref = "",
+} = {}) {
   if (!Number.isFinite(dayMs)) return null;
   const dateIso = dayIso(dayMs);
   const details = String(blockText || "").trim();
@@ -331,22 +356,50 @@ export function buildEventCalendarActions({ blockText, dayMs, timeZone = CALENDA
     );
   }
   icsLines.push("END:VEVENT", "END:VCALENDAR");
+  const joinHref = extractJoinLink(details);
   return {
     title,
     timeKind: timing ? "timed" : "all_day",
     googleHref: google.toString(),
+    guestCalendarHref: joinHref ? String(guestCalendarHref || "").trim() : "",
     icsHref: `data:text/calendar;charset=utf-8,${encodeURIComponent(`${icsLines.join("\r\n")}\r\n`)}`,
     icsFilename: `${safeFileSlug(title)}-${dateIso}.ics`,
   };
 }
 
+function eventAddAction(actions, joinHref) {
+  if (!actions) return null;
+  if (joinHref) {
+    if (!actions.guestCalendarHref) return null;
+    return {
+      href: actions.guestCalendarHref,
+      label: "team Google",
+      mode: "guest_calendar",
+      note: "opens the shared guest calendar",
+      aria: `open shared guest calendar for ${actions.title}`,
+    };
+  }
+  return {
+    href: actions.googleHref,
+    label: "add",
+    mode: "template",
+    note: `adds ${actions.title} to your own calendar`,
+    aria: `add ${actions.title} to Google Calendar`,
+  };
+}
+
 function renderEventInlineActions(blockText, dayMs) {
-  const actions = buildEventCalendarActions({ blockText, dayMs });
+  const actions = buildEventCalendarActions({
+    blockText,
+    dayMs,
+    guestCalendarHref: configuredGuestCalendarHref(),
+  });
   const joinHref = extractJoinLink(blockText);
+  const addAction = eventAddAction(actions, joinHref);
   if (!actions && !joinHref) return "";
   return `<span class="cal-event-actions" data-kind="${escAttr(actions?.timeKind || "join")}">
     ${joinHref ? `<a class="cal-join-link" href="${escAttr(joinHref)}" target="_blank" rel="noopener" aria-label="${escAttr(`join ${actions?.title || "event"}`)}">join event</a>` : ""}
-    ${actions ? `<a class="cal-add-link" href="${escAttr(actions.googleHref)}" target="_blank" rel="noopener" aria-label="${escAttr(`add ${actions.title} to Google Calendar`)}">add</a>` : ""}
+    ${addAction ? `<a class="cal-add-link" href="${escAttr(addAction.href)}" target="_blank" rel="noopener" data-cal-add-mode="${escAttr(addAction.mode)}" aria-label="${escAttr(addAction.aria)}">${escHtml(addAction.label)}</a>` : ""}
   </span>`;
 }
 
@@ -385,7 +438,7 @@ function splitLeadingTime(line) {
 // narrow day cards (the previous layout) was clipping titles after two
 // characters; pulling time off the title line frees the whole card
 // width for the words that actually identify the event.
-// Collapse consecutive identical lines within a block. The upstream Phala
+// Collapse consecutive identical lines within a block. The upstream
 // calendar occasionally repeats a line verbatim (e.g. an "[All Day] Anarchy
 // Day…" note stored twice). Left alone that renders as an italic title PLUS a
 // duplicate sub-line, which both reads wrong and inflates the day column's
@@ -490,15 +543,24 @@ function eventCategory(text) {
 // Wrap one event block in a color-coded card with a category chip (+ TBC pill).
 function renderEventCard(blockText, sources = [], { dayMs } = {}) {
   const cat = eventCategory(blockText);
-  const actions = buildEventCalendarActions({ blockText, dayMs });
+  const actions = buildEventCalendarActions({
+    blockText,
+    dayMs,
+    guestCalendarHref: configuredGuestCalendarHref(),
+  });
   const joinHref = extractJoinLink(blockText);
-  const actionAttrs = actions
+  const addAction = eventAddAction(actions, joinHref);
+  const actionAttrs = addAction
     ? [
-        `data-cal-add-google="${escAttr(actions.googleHref)}"`,
-        `data-cal-add-ics="${escAttr(actions.icsHref)}"`,
-        `data-cal-add-filename="${escAttr(actions.icsFilename)}"`,
+        `data-cal-add-href="${escAttr(addAction.href)}"`,
+        `data-cal-add-label="${escAttr(addAction.label)}"`,
+        `data-cal-add-mode="${escAttr(addAction.mode)}"`,
+        `data-cal-add-note="${escAttr(addAction.note)}"`,
         `data-cal-add-title="${escAttr(actions.title)}"`,
         `data-cal-add-kind="${escAttr(actions.timeKind)}"`,
+        addAction.mode === "template" ? `data-cal-add-google="${escAttr(actions.googleHref)}"` : "",
+        addAction.mode === "template" ? `data-cal-add-ics="${escAttr(actions.icsHref)}"` : "",
+        addAction.mode === "template" ? `data-cal-add-filename="${escAttr(actions.icsFilename)}"` : "",
       ].join(" ")
     : "";
   const joinAttrs = joinHref ? `data-cal-join-href="${escAttr(joinHref)}"` : "";
@@ -517,17 +579,23 @@ export function openEventDetail(cardEl) {
   const dow = dayEl?.querySelector(".cdh-name")?.textContent?.trim() || "";
   const date = dayEl?.querySelector(".cdh-date")?.textContent?.trim() || "";
   const cat = cardEl.getAttribute("data-cat") || "default";
-  const googleHref = cardEl.getAttribute("data-cal-add-google") || "";
+  const addHref = cardEl.getAttribute("data-cal-add-href") || cardEl.getAttribute("data-cal-add-google") || "";
+  const addLabel = cardEl.getAttribute("data-cal-add-label") || "add to Google";
+  const addMode = cardEl.getAttribute("data-cal-add-mode") || "template";
+  const addNote = cardEl.getAttribute("data-cal-add-note") || "";
   const icsHref = cardEl.getAttribute("data-cal-add-ics") || "";
   const icsFilename = cardEl.getAttribute("data-cal-add-filename") || "shape-rotator-event.ics";
   const actionTitle = cardEl.getAttribute("data-cal-add-title") || "this event";
   const joinHref = cardEl.getAttribute("data-cal-join-href") || "";
-  const actionsHtml = joinHref || googleHref
+  const note = addMode === "guest_calendar"
+    ? (addNote || "opens the shared guest calendar")
+    : `adds ${actionTitle} to your own calendar`;
+  const actionsHtml = joinHref || addHref
     ? `<div class="cem-actions" aria-label="event calendar actions">
          ${joinHref ? `<a class="cem-action is-primary is-join" href="${escAttr(joinHref)}" target="_blank" rel="noopener">join event</a>` : ""}
-         ${googleHref ? `<a class="cem-action ${joinHref ? "" : "is-primary"}" href="${escAttr(googleHref)}" target="_blank" rel="noopener">add to Google</a>` : ""}
+         ${addHref ? `<a class="cem-action ${joinHref ? "" : "is-primary"}" href="${escAttr(addHref)}" target="_blank" rel="noopener">${escHtml(addLabel)}</a>` : ""}
          ${icsHref ? `<a class="cem-action" href="${escAttr(icsHref)}" download="${escAttr(icsFilename)}">download .ics</a>` : ""}
-         <span class="cem-action-note">adds ${escHtml(actionTitle)} to your own calendar</span>
+         <span class="cem-action-note">${escHtml(note)}</span>
        </div>`
     : "";
   document.querySelector(".cal-event-modal")?.remove();
@@ -756,7 +824,7 @@ function renderCalendarKeyBar() {
   return `<div class="cal-keybar" role="group" aria-label="filter by event category">${keys}<button class="cal-key cal-key--tbc" type="button" data-cal-filter="tbc" data-cat="tbc" aria-pressed="true"><span class="cal-key-dot"></span>TBC (tentative)</button></div>`;
 }
 
-// Parse one week's row from the Phala tab structure. Returns:
+// Parse one week's row from the calendar tab structure. Returns:
 //   { dateRange, theme, weekStartMs, days: [{ name, date, isToday, isEmpty, blocks[], anchors[] }] }
 export function parseWeekRow(row, weekIdx, eventsByDayMs = new Map()) {
   const meta = (row && row[1] != null ? String(row[1]) : "").split("\n");
@@ -1121,7 +1189,7 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase, transcriptMatches 
 
 // renderWeekView({ data, weekIdx, dayIdx, sub, source, events, transcriptMatches, presenceHtml, surface })
 //
-//   data         — the raw Phala JSON (live or bundled)
+//   data         — the raw calendar JSON (live or bundled)
 //   weekIdx      — 0..9
 //   sub          — "week" | "presence"
 //   source       — "live" | "bundled" | null (null = no data; banner suppressed)
@@ -1358,7 +1426,7 @@ export function renderWeekView({
           </footer>
 
           <div class="cal-page-foot">
-            <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>phala /cadence/calendar.json</a></span>
+            <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
             <span aria-hidden="true">·</span>
             <span>cohort may 18 → jul 26 2026</span>
           </div>

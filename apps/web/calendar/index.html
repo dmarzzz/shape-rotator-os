@@ -13,7 +13,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../styles/web.css" />
-  <link rel="stylesheet" href="../styles/calendar-ingress.css" />
   <link rel="stylesheet" href="../shape-ui/src/cohort-card.css" />
   <link rel="stylesheet" href="../shape-ui/src/cohort-calendar-week.css" />
   <!-- TODO: wire cohort-surface.json copy into the deploy step instead of vendoring -->
@@ -37,20 +36,18 @@
   </header>
 
   <main class="page page--calendar">
-    <section class="cal-export" id="cal-export" aria-label="calendar subscription">
+    <section class="cal-export" id="cal-export" aria-label="calendar access">
       <div class="cal-export-copy">
-        <span class="cal-export-kicker">calendar feed</span>
-        <strong>Subscribe once for live schedule updates.</strong>
+        <span class="cal-export-kicker">calendar access</span>
+        <strong>Admins create managed invites; everyone else subscribes read-only.</strong>
       </div>
       <div class="cal-export-actions">
-        <a id="cal-google" class="cal-export-primary" href="#" target="_blank" rel="noopener">subscribe in Google</a>
-        <a id="cal-google-member" href="#" target="_blank" rel="noopener" hidden>team Google</a>
-        <a id="cal-webcal" href="#">Apple / Outlook</a>
+        <a id="cal-google" class="cal-export-primary" href="#" target="_blank" rel="noopener">Google read-only</a>
+        <a id="cal-webcal" href="#">Apple / Outlook read-only</a>
         <a id="cal-ics" href="/calendar.ics" download>download .ics</a>
       </div>
     </section>
     <div id="mount" class="page-mount"></div>
-    <section class="cal-ingress" id="calendar-ingress" aria-label="calendar ingress"></section>
   </main>
 
   <footer class="site-footer">
@@ -59,9 +56,7 @@
     <a href="https://github.com/dmarzzz/shape-rotator-os">source</a>
   </footer>
 
-  <script src="/calendar-runtime-config.js"></script>
   <script type="module" src="../scripts/nav.js"></script>
   <script type="module" src="../scripts/calendar.js"></script>
-  <script type="module" src="../scripts/calendar-ingress.js?v=supabase-source"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 {
   "name": "@shape-rotator/os",
   "productName": "Shape Rotator OS",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "private": true,
   "main": "main.js",
   "type": "commonjs",
@@ -26,8 +26,6 @@
     "bundle:check": "node scripts/bundle-renderer.cjs --check"
   },
   "dependencies": {
-    "@cosmos.gl/graph": "^2.6.4",
-    "3d-force-graph": "^1.80.0",
     "electron-updater": "^6.8.3",
     "three": "^0.184.0"
   },
@@ -44,6 +42,7 @@
     "productName": "Shape Rotator OS",
     "artifactName": "ShapeRotatorOS-${version}-${os}-${arch}.${ext}",
     "electronVersion": "33.4.11",
+    "npmRebuild": false,
     "nodeGypRebuild": false,
     "buildDependenciesFromSource": false,
     "files": [

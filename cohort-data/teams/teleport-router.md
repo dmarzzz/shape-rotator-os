@@ -11,7 +11,7 @@ focus: cross-network routing
 members_count: 3
 geo: null
 domain: crypto
-shape: meridian
+shape: prism
 is_mentor: false
 links:
   github: null

@@ -4,6 +4,7 @@ const {
   DEFAULT_EDITOR_EMAILS,
   buildAclPlan,
   parseEmails,
+  resolveAccessToken,
   runGoogleCalendarAclSetup,
 } = require("./setup-google-calendar-acl.js");
 
@@ -237,4 +238,73 @@ test("Google calendar ACL setup can target a Google Group", async () => {
   assert.equal(output.inserted, 1);
   assert.equal(calls[1].body.scope.type, "group");
   assert.equal(calls[1].body.role, "writer");
+});
+
+test("Google calendar ACL setup can make a guest calendar public read-only", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    const body = options.body ? JSON.parse(options.body) : null;
+    calls.push({ method: options.method || "GET", body });
+    if ((options.method || "GET") === "GET") return Response.json({ items: [] });
+    return Response.json({ id: "default", role: body.role, scope: body.scope });
+  };
+
+  const output = await runGoogleCalendarAclSetup({
+    calendarId: "guest-calendar@example.com",
+    accessToken: "google-token",
+    emails: "",
+    scopeType: "default",
+    role: "reader",
+    apply: true,
+    fetchImpl,
+  });
+
+  assert.equal(output.inserted, 1);
+  assert.equal(calls[1].body.scope.type, "default");
+  assert.equal(calls[1].body.scope.value, undefined);
+  assert.equal(calls[1].body.role, "reader");
+  assert.equal(output.actions[0].scope_type, "default");
+});
+
+test("Google calendar ACL setup rejects public writer ACLs", () => {
+  assert.throws(
+    () => buildAclPlan({
+      calendarId: "guest-calendar@example.com",
+      scopeType: "default",
+      role: "writer",
+    }),
+    /default calendar ACL can only use/,
+  );
+});
+
+test("Google calendar ACL token resolution prefers refresh creds for unattended env runs", async () => {
+  let calls = 0;
+  const token = await resolveAccessToken({
+    accessToken: "stale-token",
+    clientId: "client-id",
+    clientSecret: "client-secret",
+    refreshToken: "refresh-token",
+    preferRefresh: true,
+    fetchImpl: async () => {
+      calls += 1;
+      return Response.json({ access_token: "fresh-token" });
+    },
+  });
+
+  assert.equal(token, "fresh-token");
+  assert.equal(calls, 1);
+});
+
+test("Google calendar ACL token resolution keeps explicit access tokens", async () => {
+  const token = await resolveAccessToken({
+    accessToken: "explicit-token",
+    clientId: "client-id",
+    clientSecret: "client-secret",
+    refreshToken: "refresh-token",
+    fetchImpl: async () => {
+      throw new Error("explicit token should not refresh");
+    },
+  });
+
+  assert.equal(token, "explicit-token");
 });

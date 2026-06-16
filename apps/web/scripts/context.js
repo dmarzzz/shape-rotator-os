@@ -201,8 +201,7 @@ export function publicEvidenceRowsToWeekly(rows = []) {
       evidence_level: row.evidence_level || "aggregate",
       confidence,
       text: row.claim_text || row.summary || row.title || "Reviewed public evidence card.",
-      source_artifact_id: row.id || "",
-      source: PUBLIC_EVIDENCE_TABLE,
+      source: "reviewed public evidence",
       teams: [],
       people: [],
     });
@@ -282,7 +281,7 @@ function renderEntityLinks(ids, kind, map, limit = 12) {
 
 function boundaryText(boundary = {}) {
   const maxSurface = boundary?.max_surface || "cohort";
-  const raw = boundary?.raw_allowed === true ? "raw transcript allowed" : "raw transcript hidden";
+  const raw = boundary?.raw_allowed === true ? "source text allowed" : "source text hidden";
   return `${labelize(maxSurface)} max surface / ${raw}`;
 }
 
@@ -305,26 +304,33 @@ function renderMetrics(items) {
 }
 
 function renderSourceCards(ids, label = "sources") {
-  const rows = asArray(ids).slice(0, 8);
-  if (!rows.length) return "";
+  const count = asArray(ids).filter(Boolean).length;
+  if (!count) return "";
   return `
     <div class="context-source-strip">
       <span>${escHtml(label)}</span>
-      <p>${rows.map(id => `<code>${escHtml(id)}</code>`).join("")}</p>
+      <p>${escHtml(countLabel(count, "reviewed source"))}</p>
     </div>
   `;
 }
 
 function renderProvenance(claim, boundary) {
-  const sourceId = claim?.source_artifact_id || claim?.provenance?.source_artifact_id || "";
-  const source = claim?.source || claim?.provenance?.source_access || "";
+  const source = publicSourceLabel(claim?.source || claim?.provenance?.source_access || "");
   return `
     <dl class="context-provenance">
-      ${sourceId ? `<div><dt>source artifact</dt><dd>${escHtml(sourceId)}</dd></div>` : ""}
       ${source ? `<div><dt>source</dt><dd>${escHtml(source)}</dd></div>` : ""}
       <div><dt>boundary</dt><dd>${escHtml(boundaryText(boundary))}</dd></div>
     </dl>
   `;
+}
+
+function publicSourceLabel(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const lower = text.toLowerCase();
+  if (lower.includes("private") || lower.includes("vault") || lower === "restricted") return "";
+  if (text === PUBLIC_EVIDENCE_TABLE) return "reviewed public evidence";
+  return labelize(text);
 }
 
 function renderClaimCard(claim, boundary, maps) {
@@ -424,10 +430,10 @@ function renderPolicy(intel, distillations) {
     <section class="context-policy" aria-label="transcript routing policy">
       <div>
         <span>routing policy</span>
-        <p>Raw transcripts are not app-visible. This page renders reviewed evidence cards and exported distillations only.</p>
+        <p>Private source text is not app-visible. This page renders reviewed evidence cards and exported distillations only.</p>
       </div>
       <dl>
-        <div><dt>raw allowed</dt><dd>${rawAllowed ? "yes" : "no"}</dd></div>
+        <div><dt>source text</dt><dd>${rawAllowed ? "allowed" : "hidden"}</dd></div>
         <div><dt>intel source</dt><dd>${escHtml(generated)}</dd></div>
         <div><dt>distillation export</dt><dd>${escHtml(distillationPolicy)}</dd></div>
         ${intel?.context_policy_note ? `<div><dt>context note</dt><dd>${escHtml(intel.context_policy_note)}</dd></div>` : ""}
@@ -801,7 +807,7 @@ function renderInventorySource(source, maps) {
   return `
     <details class="context-signal-source">
       <summary>
-        <span>${escHtml(source.title || source.source_card_id || "transcript source")}</span>
+        <span>${escHtml(source.title || "reviewed source")}</span>
         <span>${escHtml(summaryMeta)}</span>
       </summary>
       <div class="context-signal-source-body">
@@ -835,7 +841,7 @@ function renderSignalInventory(intel = {}, maps = { teams: new Map(), people: ne
   const body = `
     <article class="context-signal-inventory">
       ${renderMetrics([
-        renderMetric("source transcripts", inventory.source_card_count ?? 0),
+        renderMetric("source records", inventory.source_card_count ?? 0),
         renderMetric("total signals", inventory.total_signal_count ?? 0),
         renderMetric("claim signals", inventory.claim_signal_count ?? 0),
         renderMetric("q&a signals", inventory.qa_signal_count ?? 0),
@@ -922,7 +928,7 @@ function renderDataContract(intel = {}) {
 }
 
 function renderDistillationArtifact(artifact) {
-  const boundary = artifact.provenance || { raw_allowed: false, source_access: "private-vault" };
+  const boundary = artifact.provenance || { raw_allowed: false, source_access: "restricted" };
   const metrics = renderMetrics([
     renderMetric("surface", labelize(artifact.surface || "cohort")),
     renderMetric("tier", artifact.tier || ""),

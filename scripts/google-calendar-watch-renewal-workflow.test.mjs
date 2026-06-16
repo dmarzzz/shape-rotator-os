@@ -10,6 +10,7 @@ const workflow = yaml.load(workflowText);
 
 test("Google Calendar watch renewal workflow uses durable OAuth refresh credentials", () => {
   assert.match(workflowText, /cron:\s*"17 8 \* \* \*"/);
+  assert.match(workflowText, /cron:\s*"\*\/30 \* \* \* \*"/);
   assert.equal(workflow.permissions.contents, "read");
   assert.equal(workflow.concurrency.group, "google-calendar-watch-renewal");
   assert.equal(workflow.concurrency["cancel-in-progress"], false);
@@ -17,19 +18,27 @@ test("Google Calendar watch renewal workflow uses durable OAuth refresh credenti
   const env = workflow.jobs.renew.env;
   for (const secretName of [
     "GOOGLE_CALENDAR_ID",
+    "GOOGLE_GUEST_CALENDAR_ID",
     "GOOGLE_OAUTH_CLIENT_ID",
     "GOOGLE_OAUTH_CLIENT_SECRET",
     "GOOGLE_OAUTH_REFRESH_TOKEN",
+    "GOOGLE_OAUTH_SCOPES",
     "GOOGLE_CALENDAR_WEBHOOK_TOKEN",
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
     "ORG_ID",
     "CALENDAR_CONNECTION_ID",
+    "GUEST_CALENDAR_CONNECTION_ID",
   ]) {
     assert.equal(env[secretName], `\${{ secrets.${secretName} }}`);
   }
 
+  assert.match(workflowText, /github\.event\.schedule == '17 8 \* \* \*'/);
   assert.match(workflowText, /npm run calendar:watch:google -- --apply/);
+  assert.match(workflowText, /npm run calendar:meet-links:google -- --apply --time-min/);
+  assert.match(workflowText, /npm run calendar:capture-bot:google -- --apply --time-min/);
+  assert.match(workflowText, /npm run calendar:meet-auto-artifacts:google -- --apply --time-min .* --fail-on-error/);
   assert.match(workflowText, /npm run calendar:sync:google -- --apply/);
+  assert.match(workflowText, /npm run calendar:mirror:google -- --apply --skip-if-unconfigured --stateless-if-missing/);
   assert.doesNotMatch(workflowText, /GOOGLE_CALENDAR_ACCESS_TOKEN/);
 });

@@ -17,9 +17,30 @@
 //     blank?: true  // a fresh empty tab
 //   }
 
-import * as Alchemy from "./alchemy.js";
-
 const TABS_LS_KEY = "srwk:tabs_v1";
+
+const alchemyFallback = {
+  getLocation() {
+    const view = document.getElementById("alchemy-view");
+    return {
+      mode: view?.dataset.alchModeCurrent || null,
+      constellationMode: view?.dataset.constModeCurrent || null,
+      contextView: view?.dataset.contextView || null,
+      programPage: view?.dataset.alchProgramPage || null,
+      recordId: view?.dataset.alchDetail || null,
+    };
+  },
+  getRecordTitle() { return null; },
+  applyLocation() {},
+};
+let Alchemy = alchemyFallback;
+
+export function configureAlchemy(adapter = {}) {
+  Alchemy = {
+    ...alchemyFallback,
+    ...adapter,
+  };
+}
 
 const MODE_LABEL = {
   membrane: "membrane", shapes: "cohort",

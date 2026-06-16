@@ -5,6 +5,10 @@ contextBridge.exposeInMainWorld("api", {
   // calls this once boot() resolves; main's smoke path waits for it and
   // exits 0. Fire-and-forget; ignored when not in smoke mode.
   signalReady:  () => { try { ipcRenderer.send("smoke:ready"); } catch {} },
+  // Boot-trace breadcrumb for --smoke-test, over IPC (the channel proven to
+  // reach main even on headless CI — console-message capture is unreliable
+  // there). main logs each only while smoke-testing; a no-op otherwise.
+  smokeTrace:   (label) => { try { ipcRenderer.send("smoke:trace", String(label)); } catch {} },
   loadPrefs:    () => ipcRenderer.invoke("prefs:load"),
   savePrefs:    (d) => ipcRenderer.invoke("prefs:save", d),
   env:          () => ipcRenderer.invoke("env:get"),
@@ -151,6 +155,7 @@ contextBridge.exposeInMainWorld("api", {
     loginSSO:   (p) => ipcRenderer.invoke("matrix:login-sso", p),
     loginDevice: (p) => ipcRenderer.invoke("matrix:login-device", p),
     loginCode:  (p) => ipcRenderer.invoke("matrix:login-code", p),
+    loginAccessToken: (p) => ipcRenderer.invoke("matrix:login-access-token", p),
     cancelSSO:  () => ipcRenderer.invoke("matrix:cancel-sso"),
     login:      (p) => ipcRenderer.invoke("matrix:login", p),
     loginToken: (p) => ipcRenderer.invoke("matrix:login-token", p),
@@ -175,3 +180,9 @@ contextBridge.exposeInMainWorld("api", {
     },
   },
 });
+
+// Earliest possible boot breadcrumb: preload runs before any renderer script.
+// If main (during --smoke-test) logs "cp:preload" but no later checkpoints, the
+// page's module graph is what hangs; if even this never arrives, the renderer
+// process isn't executing JS at all. No-op outside smoke (no listener).
+try { ipcRenderer.send("smoke:trace", "preload"); } catch {}

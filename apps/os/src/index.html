@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com; connect-src 'self' http://127.0.0.1:* http://localhost:* https://raw.githubusercontent.com https://api.github.com https://*.phala.network; font-src 'self' data: https://fonts.gstatic.com;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com; connect-src 'self' http://127.0.0.1:* http://localhost:* https://raw.githubusercontent.com https://api.github.com https://*.shaperotator.xyz https://*.phala.network; font-src 'self' data: https://fonts.gstatic.com;" />
     <title>Shape Rotator OS</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <!-- Canonical Shape Rotator font pair (matches shaperotator.xyz). -->
@@ -10,26 +10,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
-    <!-- Loaded after styles.css so it wins the cascade vs. legacy .cal-* rules. -->
-    <link rel="stylesheet" href="vendor/shape-ui/cohort-calendar-week.css" />
-    <!-- calendar — one-view timeline page (2026-06 redesign). -->
-    <link rel="stylesheet" href="renderer/calendar.css" />
-    <!-- Membrane mode (2026-05 redesign). Scoped via .membrane-host so it
-         doesn't leak into legacy alchemy modes. -->
-    <link rel="stylesheet" href="renderer/membrane/membrane.css" />
-    <link rel="stylesheet" href="renderer/intel/intel.css" />
-    <!-- Cohort chat (matrix) — the "chat" top-level tab. Scoped under
-         .chat-view so it doesn't leak into other surfaces. -->
-    <link rel="stylesheet" href="renderer/chat/chat.css" />
-    <!-- Global search overlay (⌘/Ctrl+F) + new-tab launcher. Scoped under
-         .os-find / .os-find-blank so it doesn't leak into the rest of the OS. -->
-    <link rel="stylesheet" href="renderer/find.css" />
     <script type="importmap">
       {
         "imports": {
           "three": "../node_modules/three/build/three.module.js",
           "three/": "../node_modules/three/",
-          "@cosmos.gl/graph": "../node_modules/@cosmos.gl/graph/dist/index.js",
           "@shape-rotator/shape-ui": "./vendor/shape-ui/index.js",
           "js-yaml": "./vendor/js-yaml.mjs"
         }
@@ -37,19 +22,11 @@
     </script>
   </head>
   <body data-active-tab="alchemy" data-net-sub="network">
-    <nav id="tab-bar" class="tab-bar" aria-label="reserved">
-      <!-- Primary navigation moved into the left side panel (#primary-nav)
-           2026-06. This bar is intentionally kept (height + window drag
-           region) and left empty to host a future row of tabs. -->
-      <span id="tab-indicator" class="tab-indicator" aria-hidden="true"></span>
-      <button id="atlas-search-toggle" class="atlas-search-toggle atlas-only" type="button"
-              title="search the network (⌘/)" aria-label="open search">
-        <span class="ast-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></span>
-        <span class="ast-label">search</span>
-        <span class="ast-kbd" aria-hidden="true">⌘/</span>
-      </button>
+    <div id="chrome-staging" hidden>
+      <!-- Boot-only staging. The version chip is moved into the rail footer
+           once renderer boot finishes; visible tabs live in #content-top. -->
       <button id="fg-version-chip" class="fg-version-chip" type="button" title="check for app updates">v—</button>
-    </nav>
+    </div>
 
     <!-- Primary navigation. Top-level categories (operating system / apps /
          network / links) switch the active tab; the operating-system pages
@@ -110,9 +87,10 @@
       <button class="nav-cat nav-cat--dest" data-tab="apps" type="button" aria-selected="false">
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></span>
         <span class="nav-cat-label ar-label">apps</span>
-        <span class="ar-hint">atlas · easel · daybook</span>
       </button>
-      <button class="nav-cat nav-cat--dest" data-tab="matrix" type="button" aria-selected="false">
+      <!-- matrix tab temporarily hidden for this release (chat almost works;
+           re-enable after the next round of fixes). Tab logic stays wired. -->
+      <button class="nav-cat nav-cat--dest" data-tab="matrix" type="button" aria-selected="false" hidden style="display:none">
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
         <span class="nav-cat-label ar-label">matrix</span>
         <span class="ar-hint">chat · cohort · e2ee</span>
@@ -120,7 +98,10 @@
       <button class="nav-cat nav-cat--dest" data-tab="network" type="button" aria-selected="false">
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg></span>
         <span class="nav-cat-label ar-label">network</span>
-        <span class="ar-hint">peers · sync · metrics</span>
+      </button>
+      <button class="nav-cat nav-cat--dest" data-tab="links" type="button" aria-selected="false">
+        <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></span>
+        <span class="nav-cat-label ar-label">links</span>
       </button>
     </aside>
 
@@ -135,115 +116,6 @@
     <div id="blank-tab" class="blank-tab" aria-hidden="true">
       <!-- new-tab search launcher is injected here by renderer/find.js -->
     </div>
-
-    <aside id="sidebar" class="graph-only">
-      <header class="titlebar">
-        <div class="mark">
-          <div class="mark-row mark-row-primary">
-            <span class="mark-name">SHAPE ROTATOR</span>
-            <span class="mark-count" id="mark-count">—</span>
-          </div>
-          <span class="mark-sub">OS</span>
-        </div>
-      </header>
-
-      <section class="controls">
-        <label class="control-row">
-          <span class="control-label">lens</span>
-          <select id="lens-select"></select>
-        </label>
-        <label class="control-row">
-          <span class="control-label">shape</span>
-          <select id="shape-select"></select>
-        </label>
-        <div class="control-row source-row" role="tablist" aria-label="source filter">
-          <span class="control-label">source</span>
-          <div id="source-filter-bar" class="source-filter-bar">
-            <button class="source-chip selected" data-source="all" type="button" title="all peers">all</button>
-            <button class="source-chip" data-source="mine" type="button" title="this peer only">mine</button>
-            <!-- per-peer chips appear here at runtime, one per known peer -->
-          </div>
-        </div>
-        <label class="input-wrap">
-          <input id="search" type="search" placeholder="filter the graph.  ⌘F" autocomplete="off" spellcheck="false" />
-          <button id="search-counter" class="search-counter" type="button" hidden title="cycle to next match"></button>
-        </label>
-      </section>
-
-      <section id="events-panel" class="events-panel" data-collapsed="true">
-        <button id="events-panel-head" class="events-panel-head" type="button" aria-expanded="false" title="toggle activity log">
-          <span class="events-panel-title">events</span>
-          <span class="events-panel-sep">·</span>
-          <span id="events-panel-count" class="events-panel-count">0</span>
-          <span class="events-panel-chev" aria-hidden="true">▾</span>
-        </button>
-        <div id="events-panel-list" class="events-panel-list" role="log" aria-live="polite"></div>
-      </section>
-
-      <div id="detail" class="detail"></div>
-
-      <footer class="footer-meta">
-        <span id="node-count">·</span><span class="dim">&nbsp;papers</span>
-        <span class="sep">/</span>
-        <span id="edge-count">·</span><span class="dim">&nbsp;edges</span>
-        <span class="sep">/</span>
-        <span id="live-count" class="live">·</span><span class="dim">&nbsp;live</span>
-        <span class="sep">/</span>
-        <button id="peer-count-btn" class="peer-count-btn" type="button" aria-expanded="false" title="show peer identities">
-          <span id="peer-count">·</span><span class="dim">&nbsp;peers</span>
-        </button>
-      </footer>
-
-      <div id="peers-panel" class="peers-panel" hidden>
-        <header class="peers-panel-head">
-          <span class="peers-panel-title">peers</span>
-          <button id="peers-panel-close" class="peers-panel-close" type="button" aria-label="close">×</button>
-        </header>
-        <div id="peers-panel-list" class="peers-panel-list"></div>
-      </div>
-    </aside>
-
-    <main id="graph" class="graph-only">
-      <div id="cine-fade" class="cine-fade"></div>
-      <div id="incoming-toast" class="incoming-toast" hidden>
-        <span class="t-dot"></span>
-        <span class="t-body"></span>
-      </div>
-      <div id="status" class="status">connecting.</div>
-      <button id="anon-badge" class="anon-badge" type="button" data-state="idle" aria-expanded="false" title="anonymity-set state">
-        <span class="ab-label">circle</span>
-        <span class="ab-sep">:</span>
-        <span class="ab-value">idle</span>
-        <span class="ab-mark" aria-hidden="true"></span>
-      </button>
-      <div id="anon-popover" class="anon-popover" hidden></div>
-      <button id="timeline-toggle" class="timeline-toggle" type="button" aria-pressed="true" title="toggle wire timeline">◢</button>
-      <div id="timeline-toast" class="timeline-toast" hidden></div>
-      <div id="timeline-strip" class="timeline-strip" aria-hidden="false">
-        <div id="timeline-lanes" class="timeline-lanes"></div>
-        <div id="timeline-now" class="timeline-now"></div>
-        <div id="timeline-tooltip" class="timeline-tooltip" hidden></div>
-      </div>
-    </main>
-
-    <section id="cartography-view" class="cartography-view cart-only">
-      <div id="g2-stage" class="g2-stage"></div>
-    </section>
-
-    <section id="cosmos-view" class="cosmos-view cosmos-only">
-      <div id="cosmos-stage" class="cosmos-stage"></div>
-      <div id="cosmos-caption" class="cosmos-caption">
-        <span class="cosmos-cap-tag">cosmos</span>
-        <span class="cosmos-cap-sep">·</span>
-        <span class="cosmos-cap-text">gpu force simulation · click+drag to pan · scroll to zoom</span>
-      </div>
-      <div id="cosmos-modes" class="cosmos-modes" role="tablist" aria-label="layout mode">
-        <button class="cosmos-mode-btn" data-mode="force" type="button" title="default force layout">force</button>
-        <button class="cosmos-mode-btn selected" data-mode="cluster" type="button" title="cluster by peer">cluster</button>
-        <button class="cosmos-mode-btn" data-mode="radial" type="button" title="pin peers on a ring">radial</button>
-      </div>
-      <div id="cosmos-hover" class="cosmos-hover" hidden></div>
-    </section>
 
     <!-- Apps tab: a grid of small tools. Clicking a card swaps the
          visible view to that app via body[data-apps-view="<key>"]. -->
@@ -632,7 +504,7 @@
       </div>
     </nav>
 
-    <!-- ─── GLANCE VIEW · default · cohort at a glance ───────────── -->
+    <!-- ─── GLANCE VIEW · dormant cohort-at-a-glance surface ───────── -->
     <section id="network-glance-view" class="glance-view net-only" data-view-mode="glance">
       <header class="glance-hero">
         <div class="glance-hero-meta">
@@ -675,8 +547,8 @@
         <div class="glance-ring-stage">
           <svg class="glance-bgring" viewBox="-110 -110 220 220" aria-hidden="true">
             <circle cx="0" cy="0" r="100" class="g-r1"/>
-            <circle cx="0" cy="0" r="78"  class="g-r2"/>
-            <circle cx="0" cy="0" r="48"  class="g-r3"/>
+            <circle cx="0" cy="0" r="78" class="g-r2"/>
+            <circle cx="0" cy="0" r="48" class="g-r3"/>
           </svg>
           <svg class="glance-ring-svg" viewBox="-110 -110 220 220" aria-hidden="true">
             <g id="glance-rays"></g>
@@ -705,19 +577,12 @@
       <section class="glance-insights">
         <div class="glance-insight">
           <h3><span>Topics flowing</span><span class="glance-insight-meta" id="glance-topics-meta">across — pages</span></h3>
-          <div class="glance-topics-flow" id="glance-topics-flow">
-            <!-- TODO v0.2.13: drive from real topic classification.
-                 For now we group by URL host and surface the top buckets. -->
-          </div>
+          <div class="glance-topics-flow" id="glance-topics-flow"></div>
         </div>
 
         <div class="glance-insight">
           <h3><span>Your reach</span><span class="glance-insight-meta" id="glance-reach-meta">latest bundle</span></h3>
-          <div class="glance-reach" id="glance-reach">
-            <!-- TODO v0.2.13: daemon-side access-log endpoint needed for
-                 real "who pulled my latest bundle" data. For now we infer
-                 from /sync/manifest peer cursors. -->
-          </div>
+          <div class="glance-reach" id="glance-reach"></div>
         </div>
 
         <div class="glance-insight">
@@ -853,6 +718,7 @@
           <section class="net-col-detail" aria-label="detail">
             <header class="net-col-head"><span class="net-col-title">detail</span></header>
             <div id="net-detail-host" class="net-detail-host">
+              <div id="detail" class="detail"></div>
               <div class="net-detail-empty">pick a row to inspect.</div>
             </div>
           </section>
@@ -1034,7 +900,6 @@
       </div>
     </section>
 
-    <script src="../node_modules/3d-force-graph/dist/3d-force-graph.min.js"></script>
     <script type="module" src="renderer/boot.js"></script>
   </body>
 </html>

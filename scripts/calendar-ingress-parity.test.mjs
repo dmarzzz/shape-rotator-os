@@ -7,7 +7,7 @@ import {
   buildEventRequestRow as buildWebEventRequestRow,
   buildGoogleEventPreview as buildWebPreview,
   parseAttendees as parseWebAttendees,
-} from "../apps/web/scripts/calendar-ingress-client.mjs";
+} from "../apps/os/src/vendor/calendar-ingress-client.mjs";
 import {
   DEFAULT_ROUTING_POLICY as OS_ROUTING_POLICY,
   buildCalendarIngressPayload as buildOsPayload,

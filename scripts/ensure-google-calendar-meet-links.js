@@ -4,6 +4,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { loadEnvFile } = require("./lib/env-file.cjs");
 const {
+  runMeetAutoArtifactConfig,
+} = require("./configure-meet-auto-artifacts.js");
+const {
   refreshAccessToken,
   updateEnvFile,
 } = require("./google-calendar-oauth.js");
@@ -28,6 +31,8 @@ function usage() {
     "  --max-results N                 Google page size, default 2500.",
     "  --max-events N                  Patch at most N missing events.",
     "  --include-all-day               Also patch all-day events. Default: timed events only.",
+    "  --configure-transcripts         Also set future timed Meet spaces to auto-transcript ON.",
+    "  --now ISO_DATETIME              Clock for future-event transcript selection.",
     "  --env-file FILE                 Load local KEY=value secrets before env fallbacks.",
     "  --update-env-file FILE          Persist refreshed access token without printing it.",
     "  --no-refresh                    Do not refresh GOOGLE_OAUTH_REFRESH_TOKEN first.",
@@ -156,6 +161,17 @@ function isCancelled(event) {
   return event?.status === "cancelled";
 }
 
+function eventStartMs(event) {
+  const value = event?.start?.dateTime || event?.start?.date || "";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.getTime() : NaN;
+}
+
+function isFutureEvent(event, now = new Date()) {
+  const startMs = eventStartMs(event);
+  return Number.isFinite(startMs) && startMs >= now.getTime();
+}
+
 function isPatchableEvent(event, { includeAllDay = false } = {}) {
   if (!event?.id) return false;
   if (isCancelled(event)) return false;
@@ -194,6 +210,38 @@ function summarizeEvent(event) {
     start: event?.start?.dateTime || event?.start?.date || null,
     time_kind: isTimedEvent(event) ? "timed" : isAllDayEvent(event) ? "all_day" : "unknown",
     has_meet: hasGoogleMeet(event),
+  };
+}
+
+function eventMeetUrl(event) {
+  return event?.hangoutLink || eventVideoUri(event) || null;
+}
+
+function transcriptConfigurableEvent(event, { includeAllDay = false, now = new Date() } = {}) {
+  if (!event?.id) return false;
+  if (isCancelled(event)) return false;
+  if (!isFutureEvent(event, now)) return false;
+  if (!(isTimedEvent(event) || (includeAllDay && isAllDayEvent(event)))) return false;
+  return !!eventMeetUrl(event);
+}
+
+function buildTranscriptConfigPlan(events, { includeAllDay = false, now = new Date(), maxEvents } = {}) {
+  const items = Array.isArray(events) ? events : [];
+  const configurable = items.filter((event) => transcriptConfigurableEvent(event, { includeAllDay, now }));
+  const selected = maxEvents ? configurable.slice(0, maxEvents) : configurable;
+  const futureTimed = items.filter((event) => !isCancelled(event) && isFutureEvent(event, now) && isTimedEvent(event));
+  return {
+    counts: {
+      future_timed_events: futureTimed.length,
+      future_timed_events_with_meet: futureTimed.filter((event) => !!eventMeetUrl(event)).length,
+      future_timed_events_without_meet: futureTimed.filter((event) => !eventMeetUrl(event)).length,
+    },
+    selected,
+    actions: selected.map((event) => ({
+      action: "would_configure_transcript",
+      ...summarizeEvent(event),
+      meet_url: eventMeetUrl(event),
+    })),
   };
 }
 
@@ -276,6 +324,12 @@ async function runEnsureGoogleCalendarMeetLinks({
   maxResults = DEFAULT_MAX_RESULTS,
   maxEvents,
   includeAllDay = false,
+  configureTranscripts = false,
+  now = new Date(),
+  transcript = true,
+  recording = false,
+  smartNotes = null,
+  env = process.env,
   apply = false,
   fetchImpl = fetch,
 } = {}) {
@@ -315,12 +369,25 @@ async function runEnsureGoogleCalendarMeetLinks({
     patched: 0,
     failed: 0,
     actions: plan.actions,
+    transcript_selected_for_config: 0,
+    transcripts_configured: 0,
+    transcripts_failed: 0,
+    transcript_actions: [],
   };
 
-  if (!apply) return result;
+  if (!apply) {
+    if (configureTranscripts) {
+      const transcriptPlan = buildTranscriptConfigPlan(payload.items, { includeAllDay, now, maxEvents });
+      result.transcript_selected_for_config = transcriptPlan.selected.length;
+      result.transcript_actions = transcriptPlan.actions;
+      Object.assign(result, transcriptPlan.counts);
+    }
+    return result;
+  }
   if (!calendarId || !tokenInfo.accessToken) throw new Error("--apply requires calendarId and an access token");
 
   result.actions = [];
+  const eventsAfterMeetPatch = [...payload.items];
   for (const event of plan.selected) {
     try {
       const patched = await patchGoogleMeetLink({
@@ -336,6 +403,8 @@ async function runEnsureGoogleCalendarMeetLinks({
         request_id: stableConferenceRequestId(event),
         meet_url: patched?.hangoutLink || eventVideoUri(patched) || null,
       });
+      const idx = eventsAfterMeetPatch.findIndex((item) => item?.id === event.id);
+      if (idx >= 0) eventsAfterMeetPatch[idx] = patched || event;
     } catch (error) {
       result.failed += 1;
       result.actions.push({
@@ -344,6 +413,44 @@ async function runEnsureGoogleCalendarMeetLinks({
         request_id: stableConferenceRequestId(event),
         error: error?.body?.error?.message || error?.message || String(error),
       });
+    }
+  }
+
+  if (configureTranscripts) {
+    const transcriptPlan = buildTranscriptConfigPlan(eventsAfterMeetPatch, { includeAllDay, now, maxEvents });
+    result.transcript_selected_for_config = transcriptPlan.selected.length;
+    result.transcript_actions = [];
+    Object.assign(result, transcriptPlan.counts);
+    for (const event of transcriptPlan.selected) {
+      const meetUrl = eventMeetUrl(event);
+      try {
+        const configured = await runMeetAutoArtifactConfig({
+          meetUrl,
+          accessToken: tokenInfo.accessToken,
+          recording,
+          transcript,
+          smartNotes,
+          apply: true,
+          env,
+          fetchImpl,
+        });
+        result.transcripts_configured += 1;
+        result.transcript_actions.push({
+          action: "configured_transcript",
+          ...summarizeEvent(event),
+          meet_url: meetUrl,
+          meeting_code: configured.meeting_code || null,
+          update_mask: configured.update_mask || null,
+        });
+      } catch (error) {
+        result.transcripts_failed += 1;
+        result.transcript_actions.push({
+          action: "transcript_failed",
+          ...summarizeEvent(event),
+          meet_url: meetUrl,
+          error: error?.body?.error?.message || error?.message || String(error),
+        });
+      }
     }
   }
   return result;
@@ -356,6 +463,7 @@ async function main(argv = process.argv) {
   }
   loadEnvFile(arg("--env-file", argv));
   const eventsPath = arg("--events", argv);
+  const nowArg = arg("--now", argv);
   const result = await runEnsureGoogleCalendarMeetLinks({
     events: eventsPath ? readJson(eventsPath) : null,
     calendarId: arg("--calendar-id", argv) || process.env.GOOGLE_CALENDAR_ID,
@@ -370,6 +478,8 @@ async function main(argv = process.argv) {
     maxResults: numberArg("--max-results", DEFAULT_MAX_RESULTS, argv),
     maxEvents: numberArg("--max-events", null, argv),
     includeAllDay: flag("--include-all-day", argv),
+    configureTranscripts: flag("--configure-transcripts", argv),
+    now: nowArg ? new Date(nowArg) : new Date(),
     apply: flag("--apply", argv) && !flag("--dry-run", argv),
   });
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
@@ -386,12 +496,15 @@ if (require.main === module) {
 module.exports = {
   buildEnsureMeetPlan,
   buildMeetPatchBody,
+  buildTranscriptConfigPlan,
+  eventMeetUrl,
   eventVideoUri,
   fetchGoogleCalendarEvents,
   googleEventPatchUrl,
   googleEventsListUrl,
   hasGoogleMeet,
   isAllDayEvent,
+  isFutureEvent,
   isPatchableEvent,
   isTimedEvent,
   runEnsureGoogleCalendarMeetLinks,
