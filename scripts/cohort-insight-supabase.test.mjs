@@ -12,6 +12,10 @@ const migration = fs.readFileSync(
   new URL("../supabase/migrations/202606160000_cohort_insight_cards.sql", import.meta.url),
   "utf8",
 );
+const projectIdentityKindMigration = fs.readFileSync(
+  new URL("../supabase/migrations/20260616143000_cohort_insight_project_identity_kind.sql", import.meta.url),
+  "utf8",
+);
 
 const sampleCard = {
   id: "cohort-insight:say-did-shipped:alpha",
@@ -40,6 +44,12 @@ test("cohort insight migration creates base table with app and public views", ()
   assert.match(migration, /create policy "coordinators manage cohort insight cards"/);
   assert.match(migration, /create view public\.app_cohort_insight_cards/);
   assert.match(migration, /create view public\.public_cohort_insight_cards/);
+});
+
+test("cohort insight migration allows project identity cards", () => {
+  assert.match(projectIdentityKindMigration, /drop constraint if exists cohort_insight_cards_kind_check/);
+  assert.match(projectIdentityKindMigration, /add constraint cohort_insight_cards_kind_check/);
+  assert.match(projectIdentityKindMigration, /'project_identity'/);
 });
 
 test("cohort insight migration keeps base table private and views scoped", () => {
