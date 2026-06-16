@@ -128,6 +128,25 @@ test("dry-run plans insert, update, delete, and unchanged mirror actions", async
   ]);
 });
 
+test("guest mirror skips do_not_publish session types so private titles never reach the public calendar", async () => {
+  const rows = [
+    session({ google_event_id: "demo_evt", session_type: "demo_presentation" }),
+    session({ google_event_id: "private_evt", session_type: "private_1on1", public_title: "Career coaching", title: "1:1 coaching" }),
+    session({ google_event_id: "strategy_evt", session_type: "planning_strategy", public_title: "Fundraising strategy" }),
+  ];
+  const result = await runGuestCalendarMirror({
+    sessions: rows,
+    mappings: [],
+    sourceCalendarConnectionId: SOURCE_CONNECTION_ID,
+    mirrorCalendarConnectionId: MIRROR_CONNECTION_ID,
+    mirrorCalendarId: MIRROR_CALENDAR_ID,
+  });
+  const byEvent = new Map(result.actions.map((action) => [action.source_google_event_id, action.action]));
+  assert.equal(byEvent.get("demo_evt"), "insert");
+  assert.equal(byEvent.get("private_evt"), "skip-do-not-publish-session-type");
+  assert.equal(byEvent.get("strategy_evt"), "skip-do-not-publish-session-type");
+});
+
 test("apply inserts safe guest event and persists mirror mapping", async () => {
   const calls = [];
   const fetchImpl = async (url, options = {}) => {

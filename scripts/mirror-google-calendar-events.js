@@ -9,6 +9,11 @@ const { refreshAccessToken } = require("./google-calendar-oauth.js");
 const DEFAULT_LIMIT = 10000;
 const DEFAULT_TIME_ZONE = "America/New_York";
 
+// Session types that must never reach the PUBLIC guest calendar (do_not_publish
+// routes per cohort-data/policies/transcript-routing-policy.json). The guest mirror
+// is automated, so this is the gate that keeps private/coordinator sessions off it.
+const DO_NOT_PUBLISH_SESSION_TYPES = new Set(["private_1on1", "planning_strategy"]);
+
 function usage() {
   return [
     "Usage:",
@@ -464,6 +469,14 @@ async function runGuestCalendarMirror({
 
   for (const session of sessions || []) {
     if (!session?.google_event_id) continue;
+    if (DO_NOT_PUBLISH_SESSION_TYPES.has(session.session_type)) {
+      actions.push({
+        action: "skip-do-not-publish-session-type",
+        source_google_event_id: session.google_event_id,
+        session_type: session.session_type,
+      });
+      continue;
+    }
     const mapping = mappingBySourceEventId.get(session.google_event_id) || null;
     const desiredBody = session.status === "cancelled"
       ? null
