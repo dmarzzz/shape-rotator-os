@@ -557,14 +557,13 @@ async function boot() {
   wireGlobalKeyboard();
   registerVisualizerShortcutsAndCommands();
 
-  // Identity pill in the top-right of the tab bar + first-launch
-  // onboarding modal. Pill is mounted immediately (paints as
-  // "claim profile" until cohort loads); modal fires once cohort
-  // bundles are available so there's actually something to pick from.
+  // Identity pill + first-launch onboarding modal. The pill is staged
+  // offscreen first (paints as "claim profile" until cohort loads), then
+  // moved into the rail footer below with the version chip.
   cp("boot:before-identity-import");
   try {
     const { mountIdentityPill, maybeShowOnboarding } = await import("./identity.js");
-    mountIdentityPill(document.getElementById("tab-bar"));
+    mountIdentityPill(document.getElementById("chrome-staging") || document.body);
     // Defer onboarding past the boot crunch so it lands on a settled UI.
     setTimeout(() => { maybeShowOnboarding(); }, 1200);
   } catch (e) {
@@ -5984,7 +5983,6 @@ function migrateLegacyTab(t) {
 
 function wireTabs() {
   const bar = document.getElementById("tab-bar");
-  if (!bar) return;
   let initial = "alchemy";
   try {
     const v = localStorage.getItem(TAB_LS_KEY);
@@ -6011,29 +6009,31 @@ function wireTabs() {
     if (av && APPS_VIEWS.has(av)) document.body.dataset.appsView = av;
   } catch {}
   applyActiveTab(initial);
-  bar.addEventListener("click", (e) => {
-    const btn = e.target.closest(".tab-btn");
-    if (!btn) return;
-    const t = btn.dataset.tab;
-    if (!TOP_TABS.has(t)) return;
-    if (t === "alchemy" && document.body.dataset.activeTab === "alchemy") {
-      if (Alchemy.toggleMembraneMenuFromTopTab()) return;
-    }
-    // Clicking the apps tab while already inside an app sub-view (atlas/easel)
-    // bounces back to the apps grid — a reliable escape when a sub-app is a dead
-    // end (e.g. atlas with swf-node down). The tab bar sits outside the sub-app
-    // stage, so this works even if the sub-app itself is unresponsive.
-    if (t === "apps" && document.body.dataset.activeTab === "apps" && document.body.dataset.appsView) {
-      delete document.body.dataset.appsView;
-      try { localStorage.removeItem(APPS_LS_KEY); } catch {}
+  if (bar) {
+    bar.addEventListener("click", (e) => {
+      const btn = e.target.closest(".tab-btn");
+      if (!btn) return;
+      const t = btn.dataset.tab;
+      if (!TOP_TABS.has(t)) return;
+      if (t === "alchemy" && document.body.dataset.activeTab === "alchemy") {
+        if (Alchemy.toggleMembraneMenuFromTopTab()) return;
+      }
+      // Clicking the apps tab while already inside an app sub-view (atlas/easel)
+      // bounces back to the apps grid — a reliable escape when a sub-app is a dead
+      // end (e.g. atlas with swf-node down). The tab bar sits outside the sub-app
+      // stage, so this works even if the sub-app itself is unresponsive.
+      if (t === "apps" && document.body.dataset.activeTab === "apps" && document.body.dataset.appsView) {
+        delete document.body.dataset.appsView;
+        try { localStorage.removeItem(APPS_LS_KEY); } catch {}
+        Alchemy.closeMembraneMenu();
+        applyActiveTab("apps");
+        return;
+      }
       Alchemy.closeMembraneMenu();
-      applyActiveTab("apps");
-      return;
-    }
-    Alchemy.closeMembraneMenu();
-    morphActiveTab(t, () => applyActiveTab(t));
-    try { localStorage.setItem(TAB_LS_KEY, t); } catch {}
-  });
+      morphActiveTab(t, () => applyActiveTab(t));
+      try { localStorage.setItem(TAB_LS_KEY, t); } catch {}
+    });
+  }
 
   // Primary-nav (left side panel) — top-level category buttons switch the
   // active tab, same semantics as the (now retired) top tab-bar. The
@@ -6092,10 +6092,12 @@ function wireTabs() {
     });
   }
 
-  for (const btn of bar.querySelectorAll(".tab-btn")) {
-    magnetize(btn, { strength: 4, dampen: 0.35 });
+  if (bar) {
+    for (const btn of bar.querySelectorAll(".tab-btn")) {
+      magnetize(btn, { strength: 4, dampen: 0.35 });
+    }
+    mountTabIndicator();
   }
-  mountTabIndicator();
 }
 
 // Apps tab landing — wires the grid's app cards (data-app-key) and the

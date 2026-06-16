@@ -37,19 +37,11 @@
     </script>
   </head>
   <body data-active-tab="alchemy" data-net-sub="network">
-    <nav id="tab-bar" class="tab-bar" aria-label="reserved">
-      <!-- Primary navigation moved into the left side panel (#primary-nav)
-           2026-06. This bar is intentionally kept (height + window drag
-           region) and left empty to host a future row of tabs. -->
-      <span id="tab-indicator" class="tab-indicator" aria-hidden="true"></span>
-      <button id="atlas-search-toggle" class="atlas-search-toggle atlas-only" type="button"
-              title="search the network (⌘/)" aria-label="open search">
-        <span class="ast-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></span>
-        <span class="ast-label">search</span>
-        <span class="ast-kbd" aria-hidden="true">⌘/</span>
-      </button>
+    <div id="chrome-staging" hidden>
+      <!-- Boot-only staging. The version chip is moved into the rail footer
+           once renderer boot finishes; visible tabs live in #content-top. -->
       <button id="fg-version-chip" class="fg-version-chip" type="button" title="check for app updates">v—</button>
-    </nav>
+    </div>
 
     <!-- Primary navigation. Top-level categories (operating system / apps /
          network / links) switch the active tab; the operating-system pages

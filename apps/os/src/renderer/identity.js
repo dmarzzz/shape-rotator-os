@@ -115,8 +115,8 @@ export async function resolveIdentityLabel() {
 }
 
 // ─── identity pill ───────────────────────────────────────────────────
-// Mounted into #tab-bar, then relocated by boot.js into the footer row
-// overlaying the bottom of the left side panel. Click → open the profile
+// Mounted into a hidden staging host, then relocated by boot.js into the
+// footer row overlaying the bottom of the left side panel. Click → open the profile
 // page (alchemy mode "profile"), which hosts the inline re-seal card.
 // (alchemy.js exposes window-level helpers `__srwkGoProfilePage()` /
 // `__srwkOpenProfile(id)` so we can route without importing it and
@@ -124,8 +124,8 @@ export async function resolveIdentityLabel() {
 
 let _pillEl = null;
 
-export function mountIdentityPill(tabBar) {
-  if (!tabBar || _pillEl) return;
+export function mountIdentityPill(host) {
+  if (!host || _pillEl) return;
   const pill = document.createElement("button");
   pill.id = "identity-pill";
   pill.className = "identity-pill";
@@ -136,11 +136,7 @@ export function mountIdentityPill(tabBar) {
     <span class="ip-label">claim profile</span>
   `;
   pill.addEventListener("click", openIdentityFlow);
-  // Insert before the version footer (.tab-bar-foot) so it sits to its
-  // left; if absent, just append to the end of the tab bar.
-  const foot = tabBar.querySelector(".tab-bar-foot");
-  if (foot) tabBar.insertBefore(pill, foot);
-  else tabBar.appendChild(pill);
+  host.appendChild(pill);
   _pillEl = pill;
   paintIdentityPill();
   onIdentityChanged(paintIdentityPill);

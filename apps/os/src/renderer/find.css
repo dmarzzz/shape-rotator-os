@@ -16,9 +16,8 @@
 /* ─── drop-down overlay (top-right) ───────────────────────────────────────── */
 .os-find {
   position: fixed;
-  /* Flush under the tab strip: top edge == bottom of #content-top
-     (#tab-bar height + #content-top height). */
-  top: calc(var(--tab-bar-h) + var(--content-top-h));
+  /* Flush under the browser-style tab strip. */
+  top: var(--content-top-h);
   right: 12px;
   z-index: 10000;
   width: 266px;                 /* 0.7× the previous 380px */
