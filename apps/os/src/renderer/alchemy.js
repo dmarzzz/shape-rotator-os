@@ -5511,6 +5511,20 @@ function insightStatusText(card) {
   return status || "generated";
 }
 
+function insightReviewLabel(card) {
+  const approval = constText(card?.approval_state).replace(/[_-]+/g, " ");
+  const review = constText(card?.review_status).replace(/[_-]+/g, " ");
+  if (approval === "approved") return "approved";
+  if (approval === "rejected") return "rejected";
+  if (approval === "not reviewed" || review === "generated") return "needs review";
+  return approval || review || "needs review";
+}
+
+function insightConfidenceLabel(card) {
+  const confidence = constText(card?.confidence).replace(/[_-]+/g, " ");
+  return confidence ? `${confidence} confidence` : "confidence unknown";
+}
+
 function sdsObserved(card) {
   const content = insightContent(card);
   return content.observed_status === "public_signal_observed" || card?.evidence_level === "observed_public_metadata";
@@ -5521,17 +5535,27 @@ function sdsNumber(content, key) {
   return Number.isFinite(value) ? value : 0;
 }
 
-function sdsEvidenceLabel(card) {
+function sdsEvidenceParts(card) {
   const content = insightContent(card);
   const releases = sdsNumber(content, "release_count");
   const commits = sdsNumber(content, "useful_commit_count");
   const artifacts = sdsNumber(content, "progress_artifact_count");
-  const parts = [];
-  if (releases) parts.push(`${releases} release${releases === 1 ? "" : "s"}`);
-  if (commits) parts.push(`${commits} useful commit${commits === 1 ? "" : "s"}`);
-  if (artifacts) parts.push(`${artifacts} progress artifact${artifacts === 1 ? "" : "s"}`);
-  if (content.latest_week_start) parts.push(`latest ${content.latest_week_start}`);
-  return parts.length ? parts.join(" · ") : "declared-only card";
+  const latest = constText(content.latest_week_start);
+  const primary = releases
+    ? `${releases} release${releases === 1 ? "" : "s"}`
+    : (commits
+      ? `${commits} useful commit${commits === 1 ? "" : "s"}`
+      : (artifacts ? `${artifacts} progress artifact${artifacts === 1 ? "" : "s"}` : "no public trace yet"));
+  const detail = [];
+  if (releases && commits) detail.push(`${commits} useful commit${commits === 1 ? "" : "s"}`);
+  if ((releases || commits) && artifacts) detail.push(`${artifacts} progress artifact${artifacts === 1 ? "" : "s"}`);
+  if (latest) detail.push(`latest ${latest}`);
+  return {
+    status: sdsObserved(card) ? "public signal" : "declared only",
+    primary,
+    detail: detail.join(" · "),
+    review: `${insightConfidenceLabel(card)} · ${insightReviewLabel(card)}`,
+  };
 }
 
 function renderSayDidShipped() {
@@ -5559,7 +5583,7 @@ function renderSayDidShipped() {
   const sentenceBar = `
     <div class="ac-sentence" role="group" aria-label="say did shipped summary">
       <strong class="ac-sent-fact">${escHtml(cardCount)}</strong>
-      <span class="ac-sent-word">· public only</span>
+      <span class="ac-sent-word">· public cohort + repo metadata</span>
       ${constReadLine(`${observed}/${rows.length || teams.length} with build signal`, buildSummary)}
     </div>`;
   const rowHtml = rows.map(({ team, card }) => {
@@ -5567,7 +5591,7 @@ function renderSayDidShipped() {
     const observedClass = sdsObserved(card) ? " is-observed" : " is-declared";
     const domain = domainLabel(team.domain) || team.domain || "team";
     const meta = [domain, team.geo].filter(Boolean).join(" · ");
-    const status = sdsObserved(card) ? "public signal" : "declared";
+    const proof = sdsEvidenceParts(card);
     return `
       <button type="button" class="ac-sds-row${observedClass}" data-const-open-record="${escAttr(team.record_id)}" title="${escAttr(`open ${team.name || team.record_id}`)}">
         <span class="ac-sds-team">
@@ -5587,10 +5611,10 @@ function renderSayDidShipped() {
           <span>${escHtml(constShortText(content.shipped || "not observed", 180))}</span>
         </span>
         <span class="ac-sds-proof">
-          <strong>${escHtml(status)}</strong>
-          <em>${escHtml(card.confidence || "unknown confidence")}</em>
-          <small>${escHtml(sdsEvidenceLabel(card))}</small>
-          <small>${escHtml(insightStatusText(card))}</small>
+          <strong>${escHtml(proof.status)}</strong>
+          <span>${escHtml(proof.primary)}</span>
+          ${proof.detail ? `<small>${escHtml(proof.detail)}</small>` : ""}
+          <em>${escHtml(proof.review)}</em>
         </span>
       </button>`;
   }).join("");
@@ -9443,6 +9467,43 @@ function collabLatentOverlapCards() {
       || String(a.title || "").localeCompare(String(b.title || "")));
 }
 
+function latentReadableList(values, cap = 3) {
+  const list = [...new Set(insightArray(values).map(constText).filter(Boolean))];
+  if (list.length <= cap) return list.join(", ");
+  return `${list.slice(0, cap).join(", ")}, +${list.length - cap} more`;
+}
+
+function latentOverlapSummary(content, card) {
+  const clauses = [];
+  const skills = latentReadableList(content.shared_skill_areas, 3);
+  const domain = constText(content.shared_domain);
+  const dependencyTargets = latentReadableList(content.shared_dependency_targets, 2);
+  const publicTerms = latentReadableList(content.shared_public_terms, 3);
+  if (skills) clauses.push(`shared skills: ${skills}`);
+  if (domain) clauses.push(`same domain: ${domain}`);
+  if (dependencyTargets) clauses.push(`dependency target: ${dependencyTargets}`);
+  if (!clauses.length && publicTerms) clauses.push(`public terms: ${publicTerms}`);
+  if (clauses.length) return clauses.map(clause => clause.replace(/^./, c => c.toUpperCase())).join(". ") + ".";
+  const fallback = constShortText(card?.summary || card?.claim_text || "", 160)
+    .replace(/^No direct dependency record exists;\s*/i, "")
+    .replace(/^the engine found\s*/i, "");
+  return fallback || "Public overlap prompt; verify before routing.";
+}
+
+function latentActionText(action) {
+  const text = constText(action);
+  const key = text.toLowerCase();
+  if (key === "verify overlap with the teams") return "verify with teams";
+  if (key === "stage an intro if both sides want it") return "stage intro if wanted";
+  if (key === "create a dependency record if the overlap is real") return "record dependency if real";
+  if (key === "dismiss as false positive") return "dismiss false positive";
+  return text;
+}
+
+function latentReviewLine(card) {
+  return `${insightConfidenceLabel(card)} · ${insightReviewLabel(card)}`;
+}
+
 function collabLatentOverlapSectionHtml() {
   const cards = collabLatentOverlapCards().slice(0, 12);
   const teams = new Map((state.cohort?.teams || []).filter(t => t?.record_id).map(t => [t.record_id, t]));
@@ -9460,16 +9521,19 @@ function collabLatentOverlapSectionHtml() {
       ...insightArray(content.shared_skill_areas),
       content.shared_domain,
       ...insightArray(content.shared_dependency_targets),
-      ...insightArray(content.shared_public_terms),
     ].map(constText).filter(Boolean);
-    const uniqueChips = [...new Set(chips)].slice(0, 7);
-    const reasons = insightArray(content.reasons).slice(0, 2);
-    const actions = insightArray(content.suggested_actions).slice(0, 2);
+    const uniqueChips = [...new Set(chips)].slice(0, 6);
+    const publicTerms = latentReadableList(content.shared_public_terms, 3);
+    const reasons = publicTerms ? [`Public terms: ${publicTerms}`] : [];
+    const actions = insightArray(content.suggested_actions).map(latentActionText).slice(0, 3);
     const score = sdsNumber(content, "score");
+    const dependencyLine = content.existing_dependency
+      ? "recorded dependency exists; cross-check before routing."
+      : "not recorded as a dependency.";
     return `
       <article class="cb-intro cb-latent-overlap">
         <div class="cb-latent-top">
-          <span class="cb-intro-role">overlap</span>
+          <span class="cb-intro-role">prompt</span>
           <span class="cb-underused-count">score ${escHtml(String(score))}</span>
         </div>
         <div class="cb-intro-flow">
@@ -9483,18 +9547,19 @@ function collabLatentOverlapSectionHtml() {
             ${bMeta ? `<span class="cb-intro-meta">${escHtml(bMeta)}</span>` : ""}
           </button>
         </div>
-        <p class="cb-latent-summary">${escHtml(card.summary || card.claim_text || "Public-data overlap; verify before routing.")}</p>
+        <p class="cb-latent-summary">${escHtml(latentOverlapSummary(content, card))}</p>
+        <p class="cb-latent-context">${escHtml(dependencyLine)}</p>
         ${uniqueChips.length ? `<div class="cb-intro-chips">${uniqueChips.map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("")}</div>` : ""}
-        ${reasons.length ? `<div class="cb-latent-reasons">${reasons.map(r => `<span>${escHtml(r)}</span>`).join("")}</div>` : ""}
+        ${reasons.length ? `<div class="cb-latent-reasons"><b>public trace</b>${reasons.map(r => `<span>${escHtml(r)}</span>`).join("")}</div>` : ""}
         <div class="cb-latent-actions">
-          <span>${escHtml(card.confidence || "unknown")} confidence · ${escHtml(insightStatusText(card))}</span>
+          <span class="cb-latent-review">${escHtml(latentReviewLine(card))}</span>
           ${actions.map(action => `<span>${escHtml(action)}</span>`).join("")}
         </div>
       </article>`;
   }).join("");
   return `
     <section class="alch-cb-section" data-cb-section="latent">
-      <div class="alch-cb-sechead"><h3>Latent overlaps</h3><span class="cb-sub">public prompts; verify before routing</span></div>
+      <div class="alch-cb-sechead"><h3>Latent overlaps</h3><span class="cb-sub">public overlap prompts; verify before routing</span></div>
       <div class="cb-intro-grid">${cardHtml || '<p class="cb-empty">no overlap prompts.</p>'}</div>
     </section>`;
 }
