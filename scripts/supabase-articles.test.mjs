@@ -29,7 +29,7 @@ test("cohort article URLs target app and public article views", () => {
   assert.equal(publicUrl.searchParams.get("limit"), "25");
 
   const publicCols = (publicUrl.searchParams.get("select") || "").split(",");
-  for (const gated of ["org_id", "source_refs", "reviewed_by"]) {
+  for (const gated of ["org_id", "source_refs", "metadata", "reviewed_by"]) {
     assert.ok(!publicCols.includes(gated), `public select must not include ${gated}`);
   }
 });
@@ -69,6 +69,8 @@ test("normalizeCohortArticleRow maps Supabase rows into context article sources"
   assert.equal(article.article_section, "session");
   assert.equal(article.status, "published");
   assert.equal(article.source_kind, "supabase-public");
+  assert.equal(Object.prototype.hasOwnProperty.call(article, "metadata"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(article, "source_refs"), false);
 });
 
 test("normalizeCohortArticleRow rejects rows with private-looking markers", () => {
