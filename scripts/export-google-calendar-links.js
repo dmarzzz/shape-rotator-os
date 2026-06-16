@@ -144,6 +144,9 @@ function buildCalendarGoogleEventsExport({
   const byShapeKey = {};
   for (const event of events || []) {
     if (event?.status === "cancelled") continue;
+    // Mirror build-calendar-from-google.js: never surface explicitly-private admin
+    // events. Default-visibility events still pass, same as the sibling exporter.
+    if (event?.visibility === "private" || event?.visibility === "confidential") continue;
     const record = googleEventLinkRecord(event);
     if (!record.google_event_id || !record.html_link) continue;
     const { google_event_id: _gid, html_link: _hl, ...safe } = record;
