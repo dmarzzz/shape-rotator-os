@@ -46,6 +46,19 @@ test("migrations create the cohort article relations queried by the renderer", (
   assert.match(migration, /grant select on public\.public_cohort_articles to anon, authenticated, service_role/i);
 });
 
+test("follow-up migration applies article tag boundary to deployed databases", () => {
+  const migration = fs.readFileSync(
+    "supabase/migrations/20260616153000_cohort_article_tag_boundary_followup.sql",
+    "utf8",
+  );
+
+  assert.match(migration, /create or replace function public\.enforce_cohort_article_boundary/i);
+  assert.match(migration, /coalesce\(new\.tags::text, ''\)/i);
+  assert.match(migration, /create or replace view public\.public_cohort_articles/i);
+  assert.match(migration, /coalesce\(tags::text, ''\)/i);
+  assert.match(migration, /grant select on public\.public_cohort_articles to anon, authenticated, service_role/i);
+});
+
 test("readSupabaseArticleConfig reads member token from session storage", () => {
   const cfg = readSupabaseArticleConfig({
     config: { url: "https://project.supabase.co", anonKey: "anon" },
