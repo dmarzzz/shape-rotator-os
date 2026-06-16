@@ -779,7 +779,7 @@ function compactPills(items) {
           return `
             <li>
               <p>${escHtml(claim.text || "")}</p>
-              <span>${escHtml(meta || "transcript evidence")} · ${escHtml(claim.source_artifact_id || "evidence card")}</span>
+              <span>${escHtml(meta || "transcript evidence")}</span>
             </li>
           `;
         }).join("")}
@@ -802,7 +802,7 @@ function compactPills(items) {
         <div class="cd-evidence-meta">${stats.map(item => `<span>${escHtml(item)}</span>`).join("")}</div>
         ${themes.length ? `<div class="cd-evidence-themes">${themes.map(theme => `<span>${escHtml(theme)}</span>`).join("")}</div>` : ""}
         ${renderEvidenceClaimList(view)}
-        <p class="cd-evidence-note">${escHtml(view.source_note || "Compiled from generated transcript evidence cards, not raw transcript blobs.")}</p>
+        <p class="cd-evidence-note">${escHtml(view.source_note || "Compiled from reviewed evidence cards, not private source text.")}</p>
       </div>
     `;
   }

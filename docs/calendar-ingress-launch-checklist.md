@@ -710,16 +710,16 @@ The current placement is acceptable for a credential-gated scaffold:
 | Server-side calendar/artifact helpers | `scripts/lib/calendar-integration.cjs` and `supabase/functions/_shared/calendar.ts` | Runtime boundary: Node CLI and Deno Edge Functions cannot share one file directly without a build step. |
 | Supabase schema | `supabase/migrations/20260612_calendar_meet_sessions.sql` and `supabase/migrations/202606130000_calendar_ingress_api_grants.sql` | Correct place for operational product database shape and API-role privileges. |
 | Edge Functions | `supabase/functions/*` | Correct place for service-role keys and Google tokens. |
-| Web ingress UI | `apps/web/calendar/index.html`, `apps/web/scripts/calendar-ingress*.mjs`, `apps/web/styles/calendar-ingress.css` | Static web runtime needs local assets under `apps/web`. |
-| Electron ingress UI | `apps/os/src/renderer/calendar-ingress.mjs`, `apps/os/src/renderer/calendar-ingress.css` | Electron packaging only ships `apps/os/src/**/*`. |
+| Public web calendar | `apps/web/calendar/index.html`, `apps/web/scripts/calendar.js` | Read-only calendar rendering and subscription links only; no operator ingress, Supabase auth config, review queue, or worker runbook ships in the static site. |
+| Electron ingress UI | `apps/os/src/renderer/calendar-ingress.mjs`, `apps/os/src/renderer/calendar-ingress.css`, `apps/os/src/vendor/calendar-ingress-client.mjs` | Operator-only request/create/review workflow ships with the desktop app, not the public web bundle. |
 | CLI/manual ingestion | `scripts/prepare-*`, `scripts/run-local-distillation-worker.js`, `scripts/sync-google-calendar-events.js`, `scripts/export-supabase-calendar.js` | Correct for credentialed operator workflows outside browser clients. |
 | Operator setup | `scripts/check-calendar-ingress-setup.js`, `scripts/prepare-calendar-ingress-seed-sql.js`, `scripts/prepare-calendar-ingress-deploy-plan.js`, `docs/calendar-ingress.env.example` | Turns the human credential checklist into runnable checks, inspectable seed SQL, and a secret-safe deploy runbook. |
 | Launch plan | `docs/calendar-meet-supabase-integration.md` and this checklist | Keeps product direction separate from implementation files. |
 
-One intentional compromise remains: web and Electron each need their own runtime
-client file because their deployed file roots are different. The parity test
-`scripts/calendar-ingress-parity.test.mjs` now guards the behavior that must not
-drift across those two surfaces.
+One intentional boundary remains: public web renders read-only calendar data,
+while Electron owns the credentialed operator workflow. The parity test
+`scripts/calendar-ingress-parity.test.mjs` guards the request/create policy
+behavior that must not drift inside the desktop operator surface.
 
 ## What Still Needs Product Planning
 

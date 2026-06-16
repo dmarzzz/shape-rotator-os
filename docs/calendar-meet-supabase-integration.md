@@ -368,23 +368,17 @@ The repo now has the credential-free pieces needed to wire the live integration:
   manifests, plus manual/local source manifests, inserts ingestion/capture/source
   rows, queues typed fetch/review/distillation jobs, and marks sessions
   `source_ready`.
-- `apps/web/calendar/index.html`, `apps/web/scripts/calendar-ingress.js`, and
-  `apps/web/scripts/calendar-ingress-client.mjs` add the first web calendar
-  ingress surface. It can submit pending `event_requests`, call the
-  create-calendar Edge Function for coordinators, and preview the Google event
-  payload locally without leaking the private title into the public invite. It
-  also has a basic operator queue for event request approval, processing-job
-  visibility, derived-artifact review, and public approval gates.
-- `apps/web/scripts/calendar-supabase-source.mjs` adds an optional live web
-  read path from Supabase `sessions`. If browser-safe Supabase config is absent,
-  the calendar keeps using the existing static GitHub/exported bundle.
+- `apps/web/calendar/index.html` and `apps/web/scripts/calendar.js` intentionally
+  stay read-only: they render the public calendar grid/snapshot and subscription
+  links. Operator ingress, signed-in Supabase config, queue review, and worker
+  runbook copy must not ship in `apps/web`.
 - `apps/os/src/renderer/calendar-ingress.mjs` and
-  `apps/os/src/renderer/calendar-ingress.css` port the same request/create
-  workflow and operator queue into the Electron calendar tab. The desktop
-  surface stores only browser-safe Supabase config, never a service-role key.
-- `scripts/calendar-ingress-parity.test.mjs` guards the web and Electron
-  ingress adapters so they keep producing the same core session/request/event
-  payloads.
+  `apps/os/src/renderer/calendar-ingress.css` carry the request/create workflow
+  and operator queue in the Electron calendar tab. The desktop surface stores
+  only browser-safe Supabase config, never a service-role key.
+- `apps/os/src/vendor/calendar-ingress-client.mjs` is the packaged desktop
+  operator client, and `scripts/calendar-ingress-parity.test.mjs` guards that
+  Electron keeps producing the same core session/request/event payloads.
 
 Useful local commands:
 

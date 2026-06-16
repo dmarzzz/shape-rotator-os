@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import {
   DEFAULT_CALENDAR_ID,
   DEFAULT_SUPABASE_URL,
@@ -30,9 +29,7 @@ import {
   saveCalendarIngressConfig,
   reviewDerivedArtifact,
   reviewEvidenceCard,
-} from "../apps/web/scripts/calendar-ingress-client.mjs";
-
-const webIngressSource = fs.readFileSync(new URL("../apps/web/scripts/calendar-ingress.js", import.meta.url), "utf8");
+} from "../apps/os/src/vendor/calendar-ingress-client.mjs";
 
 test("web calendar ingress parses and deduplicates attendee emails", () => {
   assert.deepEqual(parseAttendees("Guest <Guest@example.com>, guest@example.com\nsecond@example.com"), [
@@ -635,15 +632,6 @@ test("web calendar ingress evidence-card reviews use the server-side review func
   assert.equal(calls[0].body.publish_public, true);
   assert.equal(calls[0].body.edits.claim_text, "Teams need reviewed evidence before publication.");
   assert.equal(calls[0].body.edits.public_anonymous, true);
-});
-
-test("web calendar ingress queue has editable review fields", () => {
-  assert.match(webIngressSource, /data-cal-review-field="content_md"/);
-  assert.match(webIngressSource, /data-cal-review-field="claim_text"/);
-  assert.match(webIngressSource, /data-cal-review-field="attribution_scope"/);
-  assert.match(webIngressSource, /readQueueEdits/);
-  assert.match(webIngressSource, /reviewDerivedArtifact\(\{[\s\S]+edits/);
-  assert.match(webIngressSource, /reviewEvidenceCard\(\{[\s\S]+edits/);
 });
 
 test("web calendar ingress mutations require a signed-in access token", async () => {
