@@ -39,6 +39,10 @@ import {
   contextRawScriptById as findContextRawScriptById,
   contextSourceById as findContextSourceById,
 } from "./context-vault-model.js";
+import {
+  contextArticleSourceById as findMergedContextArticleSourceById,
+  mergeContextArticleSources,
+} from "./context-articles.mjs";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
@@ -11848,8 +11852,7 @@ let contextScanTimer = null;
 
 function contextVaultFingerprints() {
   const m = state.contextVault?.manifest;
-  if (!m) return [];
-  return fingerprintItems([...(m.sources || []), ...(m.raw_scripts || [])]);
+  return fingerprintItems([...contextArticleSources(m), ...((m?.raw_scripts) || [])]);
 }
 
 // What's-new channel for the calendar. The calendar page renders the
@@ -11996,11 +11999,22 @@ async function selectContextRawScript(sourceId) {
 }
 
 function contextSourceById(id) {
-  return findContextSourceById(state.contextVault.manifest, id);
+  return findMergedContextArticleSourceById(
+    state.contextVault.manifest?.sources || [],
+    state.cohort?.cohort_articles || [],
+    id,
+  ) || findContextSourceById(state.contextVault.manifest, id);
 }
 
 function contextRawScriptById(id) {
   return findContextRawScriptById(state.contextVault.manifest, id);
+}
+
+function contextArticleSources(manifest = state.contextVault.manifest) {
+  return mergeContextArticleSources(
+    manifest?.sources || [],
+    state.cohort?.cohort_articles || [],
+  );
 }
 
 function normalizeContextPath(pathValue) {
@@ -12658,7 +12672,7 @@ function renderContextVault() {
     setTimeout(() => loadContextVault({ scan: false }), 0);
   }
   const manifest = cv.manifest || null;
-  const sources = manifest?.sources || [];
+  const sources = contextArticleSources(manifest);
   const rawScripts = manifest?.raw_scripts || [];
   const intelMeta = contextIntelMeta();
   const nav = contextViewNav(view, {
