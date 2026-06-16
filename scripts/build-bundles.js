@@ -2327,7 +2327,7 @@ function build() {
     events,
     asks,
     calendar,
-    calendar_google_events: calendar_google_events || {},
+    calendar_google_events: publicCalendarGoogleEvents(calendar_google_events || {}),
     person_timeline: buildPersonTimeline({ people, teams, asks, events, calendar, transcriptEvidence: transcript_evidence }),
     team_timeline: buildTeamTimeline({ teams, people, asks, events, calendar, githubProgressArtifacts: github_progress_artifacts, transcriptEvidence: transcript_evidence }),
     cohort_vocab,
