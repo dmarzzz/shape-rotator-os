@@ -639,8 +639,9 @@ async function boot() {
 
   // Check for a newer build automatically on launch / refresh (previously
   // this only ran when the version stamp was clicked). Silent — it only
-  // lights up the download icon if something's actually available.
-  checkForUpdate({ showSpinner: false });
+  // lights up the download icon if something's actually available. Skip in
+  // smoke mode so packaged boot validation doesn't depend on update metadata.
+  if (!__SMOKE) checkForUpdate({ showSpinner: false });
 
   // Wire tabs + search-overlay FIRST so the UI is navigable even if the
   // swf-node graph fetch fails. Previously a `Failed to fetch` from

@@ -280,7 +280,7 @@ jobs:
           # Skip publish when triggered manually with pack-only=true.
           # Tag-triggered builds always publish.
           EB_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.pack-only && 'never' || 'onTagOrDraft' }}
-          # Live boot smoke test (scripts/after-pack-verify.cjs §5). Enabled
+          # Live boot smoke test (scripts/after-pack-verify.cjs §6). Enabled
           # on mac only: macos runners have a window server so the hidden
           # BrowserWindow boots cleanly, and the v0.2.13/v0.2.14 blank-pane
           # regressions both shipped on mac. The hook only smokes the

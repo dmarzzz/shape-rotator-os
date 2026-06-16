@@ -42,6 +42,7 @@
     "productName": "Shape Rotator OS",
     "artifactName": "ShapeRotatorOS-${version}-${os}-${arch}.${ext}",
     "electronVersion": "33.4.11",
+    "npmRebuild": false,
     "nodeGypRebuild": false,
     "buildDependenciesFromSource": false,
     "files": [
