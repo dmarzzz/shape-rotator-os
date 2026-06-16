@@ -55,10 +55,9 @@ import {
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
   askVerbVars, askVerbIconSvg,
 } from "./asks.js";
-// Membrane mode — 2026-05 redesign. Pressurized-membrane object that replaces
-// the 7-rail nav with a 4-blob constellation. Lives behind data-alch-mode
-// "membrane" so the legacy modes stay reachable while we evaluate.
-import { mountMembrane } from "./membrane/index.js";
+// Membrane mode is loaded on first entry. It owns Three/WebGL/audio machinery,
+// so keep it out of alchemy.js's eager module graph until the membrane surface
+// actually renders.
 // The calendar page — one-view week timeline + presence tab (2026-06
 // redesign; replaced the day/week/presence sub-tabbed page).
 import {
@@ -876,13 +875,55 @@ function mountAllShapes() {
 // RAF loop + audio scaffold; render() teardown is handled by the
 // `state.membraneController.destroy()` call that fires when switching out
 // of membrane mode (see the render() prelude above).
+let membraneModule = null;
+let membraneModulePromise = null;
+let membraneModuleError = null;
+
+function loadMembraneModule() {
+  if (membraneModule) return Promise.resolve(membraneModule);
+  if (!membraneModulePromise) {
+    membraneModuleError = null;
+    membraneModulePromise = import("./membrane/index.js").then(
+      (module) => {
+        membraneModule = module;
+        return module;
+      },
+      (error) => {
+        membraneModulePromise = null;
+        membraneModuleError = error;
+        throw error;
+      },
+    );
+  }
+  return membraneModulePromise;
+}
+
 function renderMembrane() {
   if (!state.canvas) return;
   if (state.membraneController) {
     state.membraneController.setData(computeMembraneData());
     return;
   }
-  state.membraneController = mountMembrane(state.canvas);
+  if (!membraneModule) {
+    if (membraneModuleError) {
+      state.canvas.innerHTML = `<p class="alch-callout"><strong>membrane failed to load: ${escHtml(membraneModuleError?.message || String(membraneModuleError))}</strong></p>`;
+      return;
+    }
+    state.canvas.innerHTML = `<p class="alch-callout"><strong>loading membrane...</strong></p>`;
+    loadMembraneModule()
+      .then(() => {
+        if (!state.mounted || state.mode !== "membrane" || state.detailRecordId) return;
+        render({ instant: true });
+      })
+      .catch((error) => {
+        console.warn("[alchemy] membrane load failed:", error?.message || error);
+        if (state.mounted && state.mode === "membrane" && !state.detailRecordId) {
+          renderMembrane();
+        }
+      });
+    return;
+  }
+  state.membraneController = membraneModule.mountMembrane(state.canvas);
   state.membraneController.setData(computeMembraneData());
 }
 
