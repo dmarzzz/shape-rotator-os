@@ -83,23 +83,38 @@ function listJsonFilesRecursive(dir) {
   return out.sort((a, b) => a.localeCompare(b));
 }
 
+function progressArtifactKey(artifact) {
+  return `${artifact.record_id}|${isoDate(artifact.date || artifact.week_start)}`;
+}
+
+function preferProgressArtifact(existing, candidate) {
+  if (!existing) return candidate;
+  if (existing.review_status !== "reviewed" && candidate.review_status === "reviewed") return candidate;
+  return existing;
+}
+
+function sortProgressArtifacts(a, b) {
+  const dateCompare = isoDate(b.date || b.week_start).localeCompare(isoDate(a.date || a.week_start));
+  if (dateCompare) return dateCompare;
+  return String(a.artifact_id || "").localeCompare(String(b.artifact_id || ""));
+}
+
 function loadGithubProgressArtifacts(root = DEFAULT_REPO_ROOT) {
   const dir = path.join(root, "cohort-data", "artifacts", "github-progress");
-  return listJsonFilesRecursive(dir)
-    .map(file => {
-      try {
-        return readJson(file);
-      } catch {
-        return null;
-      }
-    })
-    .filter(artifact => artifact?.artifact_kind === "github_progress_weekly_summary")
-    .filter(artifact => artifact.record_type === "team" && artifact.record_id)
-    .sort((a, b) => {
-      const dateCompare = isoDate(b.date || b.week_start).localeCompare(isoDate(a.date || a.week_start));
-      if (dateCompare) return dateCompare;
-      return String(a.artifact_id || "").localeCompare(String(b.artifact_id || ""));
-    });
+  const byKey = new Map();
+  for (const file of listJsonFilesRecursive(dir)) {
+    let artifact = null;
+    try {
+      artifact = readJson(file);
+    } catch {
+      continue;
+    }
+    if (artifact?.artifact_kind !== "github_progress_weekly_summary") continue;
+    if (artifact.record_type !== "team" || !artifact.record_id) continue;
+    const key = progressArtifactKey(artifact);
+    byKey.set(key, preferProgressArtifact(byKey.get(key), artifact));
+  }
+  return [...byKey.values()].sort(sortProgressArtifacts);
 }
 
 function loadGithubReleaseArtifacts(root = DEFAULT_REPO_ROOT) {
@@ -542,7 +557,7 @@ function buildCohortInsightBundle({
     },
     policy: {
       app_surface: "Cohort app may render generated cards with generated/review status visible.",
-      public_web: "Public web should exclude cards unless surface_tier is public and approval_state is approved.",
+      public_web: "Public web should exclude cards unless surface_tier is public, review_status is published, and approval_state is approved.",
       rotation: "Do not generate or publish named-team rotation judgments without reviewed model provenance.",
     },
   };
@@ -551,7 +566,7 @@ function buildCohortInsightBundle({
 function publicCohortInsights(source) {
   const base = source && typeof source === "object" ? source : {};
   const cards = asArray(base.cards)
-    .filter(card => card.surface_tier === "public" && card.approval_state === "approved");
+    .filter(card => card.surface_tier === "public" && card.review_status === "published" && card.approval_state === "approved");
   return {
     schema_version: base.schema_version || INSIGHT_SCHEMA_VERSION,
     artifact_kind: base.artifact_kind || "cohort_insight_bundle",
@@ -577,7 +592,7 @@ function publicCohortInsights(source) {
         rotation: 0,
       },
     },
-    public_web_policy: "Cohort insight cards are excluded from public web unless explicitly public-approved.",
+    public_web_policy: "Cohort insight cards are excluded from public web unless explicitly public, published, and approved.",
   };
 }
 
@@ -588,5 +603,6 @@ module.exports = {
   buildRotationReadModel,
   buildSayDidShippedCards,
   loadCohortInsightInputs,
+  loadGithubProgressArtifacts,
   publicCohortInsights,
 };

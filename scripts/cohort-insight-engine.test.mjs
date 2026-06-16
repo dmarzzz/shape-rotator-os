@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import engine from "./lib/cohort-insight-engine.cjs";
 
 const teams = [
@@ -120,6 +123,40 @@ test("say/did/shipped cards distinguish observed public movement from unobserved
   assert.equal(bySubject.get("beta").evidence_level, "declared_only");
 });
 
+test("github progress loader deduplicates generated/reviewed team-week copies", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cohort-insight-progress-"));
+  const generatedDir = path.join(root, "cohort-data", "artifacts", "github-progress", "generated");
+  const reviewedDir = path.join(root, "cohort-data", "artifacts", "github-progress", "reviewed");
+  fs.mkdirSync(generatedDir, { recursive: true });
+  fs.mkdirSync(reviewedDir, { recursive: true });
+
+  const base = {
+    artifact_kind: "github_progress_weekly_summary",
+    record_type: "team",
+    record_id: "alpha",
+    date: "2026-06-01",
+    week_start: "2026-06-01",
+  };
+  fs.writeFileSync(path.join(generatedDir, "alpha-generated.json"), JSON.stringify({
+    ...base,
+    artifact_id: "github-progress:alpha:generated:2026-06-01",
+    review_status: "generated",
+    evidence: { useful_commit_count: 3 },
+  }));
+  fs.writeFileSync(path.join(reviewedDir, "alpha-reviewed.json"), JSON.stringify({
+    ...base,
+    artifact_id: "github-progress:alpha:reviewed:2026-06-01",
+    review_status: "reviewed",
+    evidence: { useful_commit_count: 5 },
+  }));
+
+  const artifacts = engine.loadGithubProgressArtifacts(root);
+
+  assert.equal(artifacts.length, 1);
+  assert.equal(artifacts[0].artifact_id, "github-progress:alpha:reviewed:2026-06-01");
+  assert.equal(artifacts[0].evidence.useful_commit_count, 5);
+});
+
 test("latent overlap cards skip declared dependencies and same-cluster pairs", () => {
   const cards = engine.buildLatentOverlapCards({ teams, clusters, dependencies });
   const pairIds = cards.map(card => card.subject_ids.slice().sort().join("|"));
@@ -146,6 +183,47 @@ test("public cohort insights exclude generated cohort cards unless explicitly ap
   assert.equal(publicBundle.cards.length, 0);
   assert.equal(publicBundle.read_models.say_did_shipped.length, 0);
   assert.equal(publicBundle.read_models.latent_overlaps.length, 0);
+});
+
+test("public cohort insights require published approval, not approval alone", () => {
+  const bundle = {
+    schema_version: 1,
+    artifact_kind: "cohort_insight_bundle",
+    cards: [
+      {
+        id: "reviewed-public",
+        kind: "say_did_shipped",
+        subject_type: "team",
+        subject_ids: ["alpha"],
+        surface_tier: "public",
+        review_status: "reviewed",
+        approval_state: "approved",
+      },
+      {
+        id: "published-public",
+        kind: "say_did_shipped",
+        subject_type: "team",
+        subject_ids: ["beta"],
+        surface_tier: "public",
+        review_status: "published",
+        approval_state: "approved",
+      },
+      {
+        id: "published-unapproved",
+        kind: "say_did_shipped",
+        subject_type: "team",
+        subject_ids: ["gamma"],
+        surface_tier: "public",
+        review_status: "published",
+        approval_state: "pending",
+      },
+    ],
+  };
+
+  const publicBundle = engine.publicCohortInsights(bundle);
+
+  assert.deepEqual(publicBundle.cards.map(card => card.id), ["published-public"]);
+  assert.equal(publicBundle.quality.card_count, 1);
 });
 
 test("cohort insight cards do not carry transcript/private-source markers", () => {

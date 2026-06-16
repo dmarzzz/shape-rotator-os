@@ -68,6 +68,29 @@ test("web calendar export links wire existing DOM anchors", () => {
   assert.equal(decodeURIComponent(new URL(anchors["cal-google"].href).searchParams.get("cid")), "webcal://shape.example/calendar.ics");
 });
 
+test("web calendar snapshot fallback renders a stale-source banner", () => {
+  const html = renderWeekView({
+    weekIdx: 0,
+    sub: "week",
+    source: "snapshot",
+    surface: "web",
+    data: {
+      last_refresh: "2026-06-13T12:00:00Z",
+      tabs: {
+        "May 18 Start": [
+          ["Week", "Dates", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+          [],
+          ["1", "May 18-24", "16:00-17:00 Demo", "", "", "", "", "", ""],
+        ],
+      },
+    },
+  });
+
+  assert.match(html, /class="cal-stale"/);
+  assert.match(html, /dates may be partially out of sync/);
+  assert.match(html, /download the app for the latest/);
+});
+
 test("web calendar event add link builds a Google timed event", () => {
   const actions = buildEventCalendarActions({
     blockText: "15:30-16:00 tea on roof",
