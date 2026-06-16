@@ -19,11 +19,8 @@
 import {
   DEFAULT_SUPABASE_URL,
   DEFAULT_CALENDAR_CONFIG_KEY,
-  // Vendored copy of apps/web/scripts/calendar-ingress-client.mjs. The original
-  // lives OUTSIDE apps/os and is NOT in the packaged asar, so the cross-package
-  // import made the renderer's module graph fail to load in packaged builds —
-  // boot() never ran (mac smoke-test hang). Keep this copy in sync with the web
-  // original.
+  // Vendored operator client. Keep these shared Supabase defaults packaged with
+  // apps/os; the public web bundle must not import the operator workflow client.
 } from "../vendor/calendar-ingress-client.mjs";
 
 // The Supabase ANON key is safe to embed in a client — it is designed to ship

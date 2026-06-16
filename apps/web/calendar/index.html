@@ -13,7 +13,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../styles/web.css" />
-  <link rel="stylesheet" href="../styles/calendar-ingress.css" />
   <link rel="stylesheet" href="../shape-ui/src/cohort-card.css" />
   <link rel="stylesheet" href="../shape-ui/src/cohort-calendar-week.css" />
   <!-- TODO: wire cohort-surface.json copy into the deploy step instead of vendoring -->
@@ -43,14 +42,12 @@
         <strong>Admins create managed invites; everyone else subscribes read-only.</strong>
       </div>
       <div class="cal-export-actions">
-        <a id="cal-admin" class="cal-export-primary" href="#calendar-ingress">admin create</a>
-        <a id="cal-google" href="#" target="_blank" rel="noopener">Google read-only</a>
+        <a id="cal-google" class="cal-export-primary" href="#" target="_blank" rel="noopener">Google read-only</a>
         <a id="cal-webcal" href="#">Apple / Outlook read-only</a>
         <a id="cal-ics" href="/calendar.ics" download>download .ics</a>
       </div>
     </section>
     <div id="mount" class="page-mount"></div>
-    <section class="cal-ingress" id="calendar-ingress" aria-label="calendar ingress"></section>
   </main>
 
   <footer class="site-footer">
@@ -61,6 +58,5 @@
 
   <script type="module" src="../scripts/nav.js"></script>
   <script type="module" src="../scripts/calendar.js"></script>
-  <script type="module" src="../scripts/calendar-ingress.js?v=supabase-source"></script>
 </body>
 </html>

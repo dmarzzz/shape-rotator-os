@@ -2,12 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  DEFAULT_PUBLIC_ANON_KEY,
+  DEFAULT_SUPABASE_URL,
   publicCalendarGridUrl,
   normalizeGrid,
   fetchPublicCalendarGrid,
   readSupabaseConfig,
 } from "../apps/web/scripts/calendar-supabase-grid.mjs";
-import { DEFAULT_SUPABASE_URL, DEFAULT_PUBLIC_ANON_KEY } from "../apps/web/scripts/calendar-ingress-client.mjs";
 
 const GRID = { last_refresh: "2026-06-16T00:00:00.000Z", tabs: { "May 18 Start": [["Week", "Dates"]] } };
 const CONFIG = { url: "https://x.supabase.co", anonKey: "anon-key" };

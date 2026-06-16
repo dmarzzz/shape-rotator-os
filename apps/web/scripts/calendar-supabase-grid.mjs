@@ -7,14 +7,13 @@
 // calendar.json, and RLS grants anon only SELECT on this one row, so an anon
 // read here cannot leak more than the public calendar already did.
 
-import {
-  DEFAULT_SUPABASE_URL,
-  DEFAULT_PUBLIC_ANON_KEY,
-  DEFAULT_CALENDAR_CONFIG_KEY,
-} from "./calendar-ingress-client.mjs";
+export const DEFAULT_CALENDAR_CONFIG_KEY = "srfg:calendar_ingress_config";
+export const DEFAULT_SUPABASE_URL = "https://txjntzwksiluvqcpccpc.supabase.co";
+export const DEFAULT_PUBLIC_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4am50endrc2lsdXZxY3BjY3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzA1NzEsImV4cCI6MjA5Njk0NjU3MX0.XjXEUnw3jq1E7PwIOvhr7a3OpO2lyZv6S_Hn3JqogBA";
 
-// Resolve { url, anonKey } from the calendar-ingress config (a per-deployment
-// key overrides), falling back to the published project URL + baked anon key.
+// Resolve { url, anonKey } from per-deployment calendar config, falling back to
+// the published project URL plus the public anon JWT.
 export function readSupabaseConfig(storage = globalThis.localStorage) {
   let cfg = {};
   try {

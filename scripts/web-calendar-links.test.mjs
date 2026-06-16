@@ -9,7 +9,7 @@ import {
   buildEventCalendarActions,
   extractJoinLink,
   renderWeekView,
-} from "../apps/web/shape-ui/src/cohort-calendar-week.js";
+} from "../packages/shape-ui/src/cohort-calendar-week.js";
 
 test("web calendar Google link subscribes to the read-only public feed", () => {
   const href = googleCalendarUrl("webcal://shape.example/calendar.ics");
@@ -25,14 +25,12 @@ test("web calendar export links keep Google, Apple/Outlook, and ICS on the read-
   });
 
   assert.equal(links.icsHref, "/calendar.ics");
-  assert.equal(links.adminHref, "#calendar-ingress");
   assert.equal(links.webcalHref, "webcal://shape.example/calendar.ics");
   assert.equal(decodeURIComponent(new URL(links.googleHref).searchParams.get("cid")), "webcal://shape.example/calendar.ics");
 });
 
 test("web calendar export links wire existing DOM anchors", () => {
   const anchors = {
-    "cal-admin": { href: "" },
     "cal-ics": { href: "" },
     "cal-webcal": { href: "" },
     "cal-google": { href: "" },
@@ -46,7 +44,6 @@ test("web calendar export links wire existing DOM anchors", () => {
     host: "shape.example",
   });
 
-  assert.equal(anchors["cal-admin"].href, "#calendar-ingress");
   assert.equal(anchors["cal-ics"].href, "/calendar.ics");
   assert.equal(anchors["cal-webcal"].href, "webcal://shape.example/calendar.ics");
   assert.equal(decodeURIComponent(new URL(anchors["cal-google"].href).searchParams.get("cid")), "webcal://shape.example/calendar.ics");

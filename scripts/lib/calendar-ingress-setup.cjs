@@ -68,7 +68,7 @@ const REQUIRED_FILES = [
   "supabase/functions/review-transcript-artifact/index.ts",
   "scripts/run-local-distillation-worker.js",
   "scripts/poll-google-drive-artifacts.js",
-  "apps/web/scripts/calendar-ingress-client.mjs",
+  "apps/os/src/vendor/calendar-ingress-client.mjs",
   "apps/os/src/renderer/calendar-ingress.mjs",
 ];
 
