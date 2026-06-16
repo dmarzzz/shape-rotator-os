@@ -95,7 +95,14 @@ async function fetchEvents(calendarId, token, timeMin, timeMax) {
     const res = await fetch(u, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) });
     if (!res.ok) throw new Error(`events fetch HTTP ${res.status}`);
     const json = await res.json();
-    items.push(...(json.items || []).filter((e) => e.status !== "cancelled"));
+    // Privacy filter: never surface cancelled events, and drop anything the
+    // organizer marked private/confidential in Google — its title/description
+    // must not reach the public grid (the calendar is built from the admin
+    // source calendar, which can hold non-public sessions). See the leak-scan
+    // gate in publish-calendar-grid-to-supabase.mjs for the fail-closed backstop.
+    items.push(...(json.items || []).filter(
+      (e) => e.status !== "cancelled" && e.visibility !== "private" && e.visibility !== "confidential",
+    ));
     pageToken = json.nextPageToken || null;
   } while (pageToken);
   return items;
