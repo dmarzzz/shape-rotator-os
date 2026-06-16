@@ -1227,7 +1227,7 @@
             <div class="flow-step"><span><span class="emoji" aria-hidden="true">📌</span>03</span><b>Anchor</b><p>Create safe metadata in events, Supabase source metadata, or a manifest.</p></div>
             <div class="flow-step"><span><span class="emoji" aria-hidden="true">🧠</span>04</span><b>Distill</b><p>Store canonical distillation state in Supabase. Ship T2 fast lane when allowed.</p></div>
             <div class="flow-step"><span><span class="emoji" aria-hidden="true">✅</span>05</span><b>Review</b><p>Mark generated output; below 70% stays review-held unless a human overrides.</p></div>
-            <div class="flow-step"><span><span class="emoji" aria-hidden="true">🌐</span>06</span><b>Publish</b><p>Update canonical records, rebuild generated app bundles, and refresh <code>INFORMATION_INDEX.html</code>.</p></div>
+            <div class="flow-step"><span><span class="emoji" aria-hidden="true">🌐</span>06</span><b>Publish</b><p>Update canonical records, rebuild generated app bundles, and refresh the local transcript catalog (private build output).</p></div>
             <div class="flow-step"><span><span class="emoji" aria-hidden="true">🚫</span>07</span><b>Archive or hold</b><p>Move private or blocked material to the correct private/held location.</p></div>
           </div>
         </section>
@@ -1293,7 +1293,7 @@
                 <li>Transcript/source records include type, group, and understanding confidence percentages.</li>
                 <li>Public/cohort-visible material contains no raw private transcript text.</li>
                 <li>Derived material has provenance, confidence, review status, and audience boundary.</li>
-                <li><code>docs/INFORMATION_INDEX.html</code> was regenerated after any transcript source, route, or review queue change.</li>
+                <li>The local transcript catalog (private build output) was rebuilt after any transcript source, route, or review queue change.</li>
                 <li>Script-enforced rules live in schema or policy, not only prose.</li>
               </ul>
             </article>
@@ -1312,7 +1312,6 @@
 
           <div class="footer-links" aria-label="Related source documents">
             <a href="README.md">Docs hub</a>
-            <a href="INFORMATION_INDEX.html">Transcript source index</a>
             <a href="INFORMATION_RULES.md">Markdown source</a>
             <a href="../cohort-data/policies/transcript-routing-policy.json">Machine-readable routing policy</a>
             <a href="transcript-distillation-playbook.md">Transcript distillation playbook</a>

@@ -712,7 +712,7 @@ function renderPublicDoc({ generatedAt, auditDate, calendar, importPlan, session
     `Audit date: ${auditDate}`,
     `Calendar source refresh: ${calendar?.last_refresh || "unknown"}`,
     "",
-    "Related: [Docs hub](README.md) · [Transcript source index](INFORMATION_INDEX.html) · [Information rules](INFORMATION_RULES.html)",
+    "Related: [Docs hub](README.md) · [Information rules](INFORMATION_RULES.html)",
     "",
     "This index lists every expanded calendar block from `cohort-data/calendar.json` and records whether a transcript source, reviewed readout, or candidate source exists. It uses metadata only; it does not read or publish raw transcript text.",
     "",

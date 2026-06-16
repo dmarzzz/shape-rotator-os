@@ -4,7 +4,7 @@ Generated: 2026-06-14T00:10:00.436Z
 Audit date: 2026-06-14
 Calendar source refresh: 2026-06-13T16:12:46.618673+00:00
 
-Related: [Docs hub](README.md) · [Transcript source index](INFORMATION_INDEX.html) · [Information rules](INFORMATION_RULES.html)
+Related: [Docs hub](README.md) · [Information rules](INFORMATION_RULES.html)
 
 This index lists every expanded calendar block from `cohort-data/calendar.json` and records whether a transcript source, reviewed readout, or candidate source exists. It uses metadata only; it does not read or publish raw transcript text.
 
