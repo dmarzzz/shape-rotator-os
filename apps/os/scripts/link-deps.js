@@ -5,20 +5,20 @@
 // Why this is needed: npm workspaces hoist shared deps to the repo root
 // `/node_modules/`, so `apps/os/node_modules/` ends up empty for
 // any package that's also used by another workspace. The renderer's
-// `<script type="importmap">` and the static `<script src="../node_modules/...">`
-// tag both expect those packages at `apps/os/node_modules/<pkg>`,
-// which works inside the packaged .app bundle (electron-builder writes a
-// per-app layout) but breaks in a workspace-installed dev tree.
+// `<script type="importmap">` expects those packages at
+// `apps/os/node_modules/<pkg>`, which works inside the packaged .app bundle
+// (electron-builder writes a per-app layout) but breaks in a
+// workspace-installed dev tree.
 //
 // We fix that by symlinking the few packages the renderer pulls directly
-// (three, @cosmos.gl, 3d-force-graph) from the per-app node_modules dir
-// up to the hoisted copies. Idempotent; safe to re-run.
+// (currently just three for Membrane mode) from the per-app node_modules dir
+// up to the hoisted copy. Idempotent; safe to re-run.
 
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
 
-const PKGS = ["three", "@cosmos.gl", "3d-force-graph"];
+const PKGS = ["three"];
 
 const APP_DIR = path.resolve(__dirname, "..");
 const APP_NM  = path.join(APP_DIR, "node_modules");

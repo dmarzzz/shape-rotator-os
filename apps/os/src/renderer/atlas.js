@@ -39,7 +39,7 @@
 //   hash within their country. Same dataset → pixel-identical render.
 //   New page → previous render + one new dot, nothing moves.
 //
-// Public API (mirrors graph2 / cosmos):
+// Public API:
 //   mount(container)          — idempotent
 //   setActive(active)         — visibility-hidden friendly; pauses rAF
 //   notifyDataChanged()       — debounced rebuild
@@ -49,6 +49,9 @@
 // Reads from window.srwk.{nodes, edges, peers, selfPubkey}.
 
 import { stableHue } from "./colors.js";
+import { initAtlasHelp, warmAtlasHelp } from "./atlas-help.js";
+
+warmAtlasHelp();
 
 // ─── module state ────────────────────────────────────────────────────────
 
@@ -367,6 +370,7 @@ const GOLDEN = (1 + Math.sqrt(5)) / 2;
 // ─── public API ──────────────────────────────────────────────────────────
 
 export function mount(container) {
+  initAtlasHelp();
   if (state.mounted) {
     if (state.container !== container) state.container = container;
     return;

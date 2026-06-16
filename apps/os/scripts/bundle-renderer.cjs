@@ -19,8 +19,6 @@
 //   three                 → node_modules/three/build/three.module.js
 //   js-yaml               → src/vendor/js-yaml.mjs
 //   @shape-rotator/shape-ui → src/vendor/shape-ui/index.js
-// ForceGraph3D is a UMD global from the <script> tag in index.html (never
-// imported), so esbuild leaves it as a free global reference — correct.
 //
 // NOTE: this does NOT yet swap the shipped runtime over to the bundle —
 // that cutover (drop the importmap + node_modules-in-asar reliance) needs

@@ -10,8 +10,7 @@
 // alchemist-only fields (class, archetype, status, etc.) live on the
 // alchemist app's depth-bundle path and never enter this bundle.
 //
-// Public API matches atlas.js / cosmos.js / graph2.js so boot.js can
-// mount this the same way:
+// Public API matches the other lazily-mounted renderer modules:
 //   mount(container)        - idempotent
 //   setActive(bool)         - pause/resume any animations
 //   notifyDataChanged()     - rebuild from latest data
