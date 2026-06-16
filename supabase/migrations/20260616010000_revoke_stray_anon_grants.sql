@@ -5,5 +5,13 @@
 -- wider than its intended surface (SELECT on the public_* projections only).
 -- Found during the public_calendar_grid security review; applied to project
 -- txjntzwksiluvqcpccpc.
-revoke truncate, references, trigger on public.calendar_event_mirrors from anon;
-revoke truncate, references, trigger on public.team_standing_weekly from anon;
+do $$
+begin
+  if to_regclass('public.calendar_event_mirrors') is not null then
+    revoke truncate, references, trigger on public.calendar_event_mirrors from anon;
+  end if;
+
+  if to_regclass('public.team_standing_weekly') is not null then
+    revoke truncate, references, trigger on public.team_standing_weekly from anon;
+  end if;
+end $$;

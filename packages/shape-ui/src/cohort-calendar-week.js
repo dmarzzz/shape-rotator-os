@@ -367,6 +367,13 @@ export function buildEventCalendarActions({
   };
 }
 
+export function eventDetailActionNote({ addHref = "", addMode = "template", addNote = "", actionTitle = "this event" } = {}) {
+  if (!addHref) return "";
+  return addMode === "guest_calendar"
+    ? (addNote || "opens the shared guest calendar")
+    : `adds ${actionTitle} to your own calendar`;
+}
+
 function eventAddAction(actions, joinHref) {
   if (!actions) return null;
   if (joinHref) {
@@ -587,15 +594,13 @@ export function openEventDetail(cardEl) {
   const icsFilename = cardEl.getAttribute("data-cal-add-filename") || "shape-rotator-event.ics";
   const actionTitle = cardEl.getAttribute("data-cal-add-title") || "this event";
   const joinHref = cardEl.getAttribute("data-cal-join-href") || "";
-  const note = addMode === "guest_calendar"
-    ? (addNote || "opens the shared guest calendar")
-    : `adds ${actionTitle} to your own calendar`;
+  const note = eventDetailActionNote({ addHref, addMode, addNote, actionTitle });
   const actionsHtml = joinHref || addHref
     ? `<div class="cem-actions" aria-label="event calendar actions">
          ${joinHref ? `<a class="cem-action is-primary is-join" href="${escAttr(joinHref)}" target="_blank" rel="noopener">join event</a>` : ""}
          ${addHref ? `<a class="cem-action ${joinHref ? "" : "is-primary"}" href="${escAttr(addHref)}" target="_blank" rel="noopener">${escHtml(addLabel)}</a>` : ""}
          ${icsHref ? `<a class="cem-action" href="${escAttr(icsHref)}" download="${escAttr(icsFilename)}">download .ics</a>` : ""}
-         <span class="cem-action-note">${escHtml(note)}</span>
+         ${note ? `<span class="cem-action-note">${escHtml(note)}</span>` : ""}
        </div>`
     : "";
   document.querySelector(".cal-event-modal")?.remove();

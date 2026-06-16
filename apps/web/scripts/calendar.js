@@ -137,9 +137,13 @@ function wire() {
 
 // Same-origin committed snapshot (/calendar.json) — the fallback when the live
 // Supabase grid is unavailable (offline, outage, or unconfigured key).
-async function runSnapshotFetch() {
+async function loadSnapshotCalendar() {
   const bundled = state.cohort?.calendar || null;
-  const res = await loadCalendar({ bundled, url: WEB_CALENDAR_URL, source: "snapshot" });
+  return await loadCalendar({ bundled, url: WEB_CALENDAR_URL, source: "snapshot" });
+}
+
+async function runSnapshotFetch() {
+  const res = await loadSnapshotCalendar();
   if (res.data) {
     state.data = res.data;
     state.source = res.source;
@@ -152,6 +156,7 @@ async function runSnapshotFetch() {
 // /calendar.json snapshot → the bundled cohort-surface already painted. Mirrors
 // the OS reader (apps/os/src/renderer/calendar-supabase.mjs) so web + app agree.
 async function refreshCalendarSources() {
+  const snapshotPromise = loadSnapshotCalendar();
   let grid = null;
   try {
     ({ grid } = await fetchPublicCalendarGrid({ storage: globalThis.localStorage }));
@@ -164,7 +169,12 @@ async function refreshCalendarSources() {
     rerender();
     return;
   }
-  await runSnapshotFetch();
+  const snapshot = await snapshotPromise;
+  if (snapshot.data) {
+    state.data = snapshot.data;
+    state.source = snapshot.source;
+    rerender();
+  }
 }
 
 function startRefreshLoop() {

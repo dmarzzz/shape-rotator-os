@@ -61,9 +61,21 @@ test("web public surface scanner handles custom roots", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "web-public-leak-scan-"));
   fs.mkdirSync(path.join(root, "apps", "web", "calendar"), { recursive: true });
   fs.writeFileSync(path.join(root, "apps", "web", "calendar", "index.html"), "<div>calendar</div>\n");
+  fs.writeFileSync(path.join(root, "apps", "web", "calendar", "notes.md"), "public calendar note\n");
+
+  const result = scanWebPublicSurface({ root });
+
+  assert.equal(result.files.length, 2);
+  assert.deepEqual(result.findings, []);
+});
+
+test("web public surface scanner includes shipped Markdown pages", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "web-public-md-scan-"));
+  fs.mkdirSync(path.join(root, "apps", "web", "workspace"), { recursive: true });
+  fs.writeFileSync(path.join(root, "apps", "web", "workspace", "index.md"), "source_artifact_id: abc\n");
 
   const result = scanWebPublicSurface({ root });
 
   assert.equal(result.files.length, 1);
-  assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.findings.map((finding) => finding.label), ["private source marker"]);
 });

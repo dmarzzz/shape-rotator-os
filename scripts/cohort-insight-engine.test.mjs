@@ -181,21 +181,32 @@ test("github progress loader deduplicates generated/reviewed team-week copies", 
   fs.writeFileSync(path.join(generatedDir, "alpha-generated.json"), JSON.stringify({
     ...base,
     artifact_id: "github-progress:alpha:generated:2026-06-01",
+    source_repo: "owner/alpha",
     review_status: "generated",
     evidence: { useful_commit_count: 3 },
   }));
   fs.writeFileSync(path.join(reviewedDir, "alpha-reviewed.json"), JSON.stringify({
     ...base,
     artifact_id: "github-progress:alpha:reviewed:2026-06-01",
+    source_repo: "owner/alpha",
     review_status: "reviewed",
     evidence: { useful_commit_count: 5 },
+  }));
+  fs.writeFileSync(path.join(generatedDir, "alpha-other-repo.json"), JSON.stringify({
+    ...base,
+    artifact_id: "github-progress:alpha:other:2026-06-01",
+    source_repo: "owner/other",
+    review_status: "generated",
+    evidence: { useful_commit_count: 7 },
   }));
 
   const artifacts = engine.loadGithubProgressArtifacts(root);
 
-  assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].artifact_id, "github-progress:alpha:reviewed:2026-06-01");
-  assert.equal(artifacts[0].evidence.useful_commit_count, 5);
+  assert.equal(artifacts.length, 2);
+  const byRepo = new Map(artifacts.map((artifact) => [artifact.source_repo, artifact]));
+  assert.equal(byRepo.get("owner/alpha").artifact_id, "github-progress:alpha:reviewed:2026-06-01");
+  assert.equal(byRepo.get("owner/alpha").evidence.useful_commit_count, 5);
+  assert.equal(byRepo.get("owner/other").evidence.useful_commit_count, 7);
 });
 
 test("latent overlap cards skip declared dependencies and same-cluster pairs", () => {
