@@ -13,6 +13,16 @@ const PUBLIC_CONTENT_KEYS = [
   "themes",
   "week_start",
 ];
+const PUBLIC_FORBIDDEN_CONTENT_KEYS = [
+  "teams",
+  "people",
+  "team_id",
+  "person_id",
+  "source_artifact_id",
+  "processing_job_id",
+  "derived_artifact_id",
+  "storage_ref",
+];
 
 function escHtml(value) {
   return String(value ?? "")
@@ -101,6 +111,7 @@ function publicSafeContentJson(content = {}) {
   for (const key of PUBLIC_CONTENT_KEYS) {
     if (Object.prototype.hasOwnProperty.call(source, key)) safe[key] = source[key];
   }
+  for (const key of PUBLIC_FORBIDDEN_CONTENT_KEYS) delete safe[key];
   safe.raw_allowed = false;
   safe.named_entities_allowed = false;
   return safe;

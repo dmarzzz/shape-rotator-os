@@ -3,15 +3,17 @@
 // only; never shipped. Serves apps/os at the repo-relative root so the
 // renderer's `../node_modules/...` importmap paths resolve.
 //
-//   node scripts/preview-os.cjs [port]   (default 5061)
+//   node scripts/preview-os.cjs [port]   (default 5177)
 
 "use strict";
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const ROOT = path.resolve(__dirname, "..", "apps", "os");
-const PORT = Number(process.argv[2] || 5061);
+const REPO_ROOT = path.resolve(__dirname, "..");
+const ROOT = path.join(REPO_ROOT, "apps", "os");
+const NODE_MODULES = path.join(REPO_ROOT, "node_modules");
+const PORT = Number(process.argv[2] || 5177);
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -30,9 +32,17 @@ const MIME = {
 http.createServer((req, res) => {
   try {
     const urlPath = decodeURIComponent(new URL(req.url, "http://x").pathname);
-    let rel = urlPath === "/" ? "/src/index.html" : urlPath;
-    const file = path.normalize(path.join(ROOT, rel));
-    if (!file.startsWith(ROOT)) {
+    if (urlPath === "/") {
+      res.writeHead(302, { location: "/src/index.html" }).end();
+      return;
+    }
+
+    const base = urlPath.startsWith("/node_modules/") ? NODE_MODULES : ROOT;
+    const rel = urlPath.startsWith("/node_modules/")
+      ? urlPath.slice("/node_modules".length)
+      : urlPath;
+    const file = path.normalize(path.join(base, rel));
+    if (!file.startsWith(base)) {
       res.writeHead(403).end("forbidden");
       return;
     }

@@ -45,5 +45,7 @@ test("RLS checker queries app views and private tables for supplied role tokens"
   assert.equal(result.roles[0].status, "warn");
   assert.ok(calls.some((call) => call.url.includes("/source_artifacts")));
   assert.ok(calls.some((call) => call.url.includes("/app_transcript_distillations")));
+  assert.ok(calls.some((call) => call.url.includes("/cohort_insight_cards")));
+  assert.ok(calls.some((call) => call.url.includes("/app_cohort_insight_cards")));
   assert.ok(calls.every((call) => call.options.headers.authorization === "Bearer member-token"));
 });

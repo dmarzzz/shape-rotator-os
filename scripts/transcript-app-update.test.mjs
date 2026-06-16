@@ -13,11 +13,13 @@ test("transcript app update keeps the required pipeline order", () => {
   const articleIndex = source.indexOf("build-public-transcript-articles.mjs");
   const scanIndex = source.indexOf("transcript-surface-leak-scan.mjs");
   const vendorIndex = source.indexOf("vendor-web.mjs");
+  const insightIndex = source.indexOf("build-cohort-insights.mjs");
   const checkIndex = source.indexOf("build-bundles.js\"), [\"--check\"]");
 
   assert.ok(exportIndex > 0);
   assert.ok(articleIndex > exportIndex);
   assert.ok(scanIndex > articleIndex);
   assert.ok(vendorIndex > scanIndex);
-  assert.ok(checkIndex > vendorIndex);
+  assert.ok(insightIndex > vendorIndex);
+  assert.ok(checkIndex > insightIndex);
 });

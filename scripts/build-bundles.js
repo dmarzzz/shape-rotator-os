@@ -26,6 +26,10 @@ const {
   publicArticleCandidateFromReadout,
   sanitizePublicArticleText,
 } = require("./lib/public-article-policy.cjs");
+const {
+  buildCohortInsightBundle,
+  publicCohortInsights,
+} = require("./lib/cohort-insight-engine.cjs");
 
 const REPO_ROOT  = path.resolve(__dirname, "..");
 const COHORT_DIR = path.join(REPO_ROOT, "cohort-data");
@@ -2222,6 +2226,7 @@ function publicWebSurface(surface) {
   out.cohort_intel.context_policy_note = out.transcript_distillations.public_count
     ? "Public-approved transcript distillations may be used for Context."
     : "No transcript readout is public-cleared yet; public Context should use existing articles only.";
+  out.cohort_insights = publicCohortInsights(out.cohort_insights);
   out.person_timeline = stripTranscriptEvidenceTimeline(out.person_timeline);
   out.team_timeline = stripTranscriptEvidenceTimeline(out.team_timeline);
   out.surface_visibility = "public-web";
@@ -2294,6 +2299,14 @@ function build() {
   });
   const github_progress_artifacts = loadGithubProgressArtifacts();
   const github_release_artifacts = loadGithubReleaseArtifacts();
+  const cohort_insights = buildCohortInsightBundle({
+    teams,
+    clusters,
+    dependencies,
+    githubProgressArtifacts: github_progress_artifacts,
+    githubReleaseArtifacts: github_release_artifacts,
+    generatedAt: null,
+  });
   const program_start = readProgramStart();
   const release_feed_items = releaseFeedItems(github_release_artifacts, teams, program_start);
 
@@ -2323,6 +2336,7 @@ function build() {
     transcript_evidence,
     transcript_distillations,
     cohort_intel,
+    cohort_insights,
     whats_new: buildWhatsNew({ teams, releaseItems: release_feed_items, githubProgressArtifacts: github_progress_artifacts, asks, events, since: program_start }),
     // Normalized release feed items, also exposed standalone so the renderer's
     // runtime fallback (alchemy.js buildWhatsNewFeed) can rebuild the feed

@@ -140,6 +140,11 @@ function _writeSurfaceLs(surface) {
       session_insights: surface.session_insights || [],
       transcript_evidence_cards: surface.transcript_evidence_cards || [],
       whats_new: surface.whats_new || [],
+      github_releases: surface.github_releases || [],
+      transcript_evidence: surface.transcript_evidence || {},
+      transcript_distillations: surface.transcript_distillations || {},
+      cohort_intel: surface.cohort_intel || {},
+      cohort_insights: surface.cohort_insights || {},
       person_timeline: surface.person_timeline || {},
       team_timeline: surface.team_timeline || {},
       _generated_at: surface._generated_at || null,
@@ -168,6 +173,11 @@ function emptyShape() {
     session_insights: [],
     transcript_evidence_cards: [],
     whats_new: [],
+    github_releases: [],
+    transcript_evidence: {},
+    transcript_distillations: {},
+    cohort_intel: {},
+    cohort_insights: {},
     person_timeline: {},
     team_timeline: {},
   };
@@ -225,6 +235,11 @@ function normalize(data) {
     // surface so the feed reads full without depending on the live
     // team_timeline refresh from main.
     whats_new: Array.isArray(data?.whats_new) ? data.whats_new : [],
+    github_releases: Array.isArray(data?.github_releases) ? data.github_releases : [],
+    transcript_evidence: objectMap(data?.transcript_evidence),
+    transcript_distillations: objectMap(data?.transcript_distillations),
+    cohort_intel: objectMap(data?.cohort_intel),
+    cohort_insights: objectMap(data?.cohort_insights),
     person_timeline: timelineMap(data?.person_timeline),
     team_timeline: timelineMap(data?.team_timeline),
     // Pre-baked calendar bundle from the GH `cohort-data/program/calendar.json`
@@ -238,6 +253,16 @@ function normalize(data) {
   };
   if (typeof data?._generated_at === "string") out._generated_at = data._generated_at;
   return out;
+}
+
+function mergeGeneratedSurfaceExtras(out, generated) {
+  if (!out || !generated || typeof generated !== "object") return;
+  if (Array.isArray(generated.whats_new) && generated.whats_new.length) out.whats_new = generated.whats_new;
+  if (Array.isArray(generated.github_releases) && generated.github_releases.length) out.github_releases = generated.github_releases;
+  for (const field of ["transcript_evidence", "transcript_distillations", "cohort_intel", "cohort_insights"]) {
+    const value = objectMap(generated[field]);
+    if (Object.keys(value).length) out[field] = value;
+  }
 }
 
 // In-browser equivalent of scripts/build-bundles.js: enumerate the
@@ -353,18 +378,19 @@ async function loadFromGithub() {
     // The "what's new" feed is build-time generated. Prefer main's copy once
     // it carries one; otherwise keep the bundled fixture's (full) feed so the
     // membrane reads full even before the rebuilt surface ships to main.
-    if (Array.isArray(generated?.whats_new) && generated.whats_new.length) {
-      out.whats_new = generated.whats_new;
-    } else {
+    mergeGeneratedSurfaceExtras(out, generated);
+    if (!Array.isArray(out.whats_new) || !out.whats_new.length) {
       const fixture = await loadFromFixture();
-      out.whats_new = Array.isArray(fixture?.whats_new) ? fixture.whats_new : [];
+      mergeGeneratedSurfaceExtras(out, fixture);
+      out.whats_new = Array.isArray(out.whats_new) ? out.whats_new : [];
     }
   } catch (e) {
     try {
       const fixture = await loadFromFixture();
       out.person_timeline = timelineMap(fixture?.person_timeline);
       out.team_timeline = timelineMap(fixture?.team_timeline);
-      out.whats_new = Array.isArray(fixture?.whats_new) ? fixture.whats_new : [];
+      mergeGeneratedSurfaceExtras(out, fixture);
+      out.whats_new = Array.isArray(out.whats_new) ? out.whats_new : [];
     } catch {
       console.warn("[cohort-source] generated timeline maps unavailable:", e?.message || e);
     }
@@ -732,11 +758,12 @@ function signatureOf(grouped) {
   const eventSig = recordSig;
   const cueSig = arraySig;
   const insightSig = arraySig;
+  const objectSig = (value) => fp(JSON.stringify(value || {}));
   const timelineSig = (map) => Object.entries(map || {})
     .map(([id, items]) => `${id}:${Array.isArray(items) ? items.length : 0}:${fp(JSON.stringify(items || []))}`)
     .sort()
     .join("|");
-  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#te:${(grouped.transcript_evidence_cards || []).length}:${arraySig(grouped.transcript_evidence_cards || [])}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
+  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#wn:${(grouped.whats_new || []).length}:${arraySig(grouped.whats_new || [])}#gr:${(grouped.github_releases || []).length}:${arraySig(grouped.github_releases || [])}#tec:${(grouped.transcript_evidence_cards || []).length}:${arraySig(grouped.transcript_evidence_cards || [])}#te:${objectSig(grouped.transcript_evidence)}#td:${objectSig(grouped.transcript_distillations)}#ci:${objectSig(grouped.cohort_intel)}#ins:${objectSig(grouped.cohort_insights)}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
 }
 
 // Dev preview override. Setting `localStorage.setItem("srfg:cohort_source", "local")`
