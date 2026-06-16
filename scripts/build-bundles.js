@@ -29,6 +29,7 @@ const {
 const {
   buildCohortInsightBundle,
   publicCohortInsights,
+  loadEditorialAwardCategories,
 } = require("./lib/cohort-insight-engine.cjs");
 
 const REPO_ROOT  = path.resolve(__dirname, "..");
@@ -2306,6 +2307,7 @@ function build() {
     dependencies,
     githubProgressArtifacts: github_progress_artifacts,
     githubReleaseArtifacts: github_release_artifacts,
+    editorialCategories: loadEditorialAwardCategories(),
     generatedAt: null,
   });
   const program_start = readProgramStart();

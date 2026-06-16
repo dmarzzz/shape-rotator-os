@@ -96,7 +96,7 @@ function main(argv = process.argv.slice(2)) {
     }
   }
   fs.writeFileSync(opts.out, next);
-  console.log(`[build-cohort-insights] wrote ${opts.out} (${bundle.quality.card_count} cards: ${bundle.quality.kind_counts.project_identity} project identity, ${bundle.quality.kind_counts.say_did_shipped} say/did/shipped, ${bundle.quality.kind_counts.latent_overlap} latent overlaps)`);
+  console.log(`[build-cohort-insights] wrote ${opts.out} (${bundle.quality.card_count} cards: ${bundle.quality.kind_counts.say_did_shipped} say/did/shipped, ${bundle.quality.kind_counts.latent_overlap} latent overlaps, ${bundle.quality.kind_counts.award} award scaffolds)`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
