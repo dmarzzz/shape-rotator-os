@@ -716,6 +716,7 @@ export function attachCalendarPageBehavior(root, { scrollToNow = true } = {}) {
   let segs = [];
   try { segs = JSON.parse(grid.dataset.c2Segs || "[]"); } catch {}
 
+  let placedOnce = false;
   function placeNow() {
     const line = grid.querySelector(".c2-now");
     if (!line) return;
@@ -725,6 +726,10 @@ export function attachCalendarPageBehavior(root, { scrollToNow = true } = {}) {
     if (!seg) { line.style.display = "none"; return; }
     line.style.display = "";
     line.style.top = (seg.y0 + (seg.y1 - seg.y0) * ((m - seg.s) / (seg.e - seg.s))).toFixed(3) + "%";
+    // Enable the eased glide only AFTER the first placement, so the line
+    // doesn't slide in from top:0 on mount.
+    if (placedOnce) line.classList.add("is-tracking");
+    placedOnce = true;
   }
   placeNow();
   const timer = setInterval(placeNow, 30000);
@@ -733,9 +738,17 @@ export function attachCalendarPageBehavior(root, { scrollToNow = true } = {}) {
     requestAnimationFrame(() => {
       const line = grid.querySelector(".c2-now");
       if (line && line.style.display !== "none") {
-        // Park the now-line a third of the way down the viewport so the
-        // next few hours are what the eye lands on.
-        scroll.scrollTop = Math.max(0, line.offsetTop - scroll.clientHeight * 0.35);
+        // Park the now-line a third of the way down the viewport so the next
+        // few hours are what the eye lands on — gliding it into view rather
+        // than jumping (honors reduced-motion via the smooth/auto switch).
+        let reduce = false;
+        try {
+          reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            || document.documentElement.getAttribute("data-reduce-motion") === "1";
+        } catch {}
+        const top = Math.max(0, line.offsetTop - scroll.clientHeight * 0.35);
+        try { scroll.scrollTo({ top, behavior: reduce ? "auto" : "smooth" }); }
+        catch { scroll.scrollTop = top; }
       }
     });
   }
@@ -874,9 +887,22 @@ export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}
         </div>` : ""}
     </div>`;
   const close = () => {
-    overlay.remove();
     clearCalendarEventSelection();
     document.removeEventListener("keydown", onKey);
+    if (overlay.dataset.closing === "1") return;
+    overlay.dataset.closing = "1";
+    let reduce = false;
+    try {
+      reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        || document.documentElement.getAttribute("data-reduce-motion") === "1";
+    } catch {}
+    if (reduce) { overlay.remove(); return; }
+    // Fade/scale the panel out (faster than the open), then drop it — with a
+    // timeout backstop so the node is never orphaned if animationend misfires.
+    overlay.classList.add("is-closing");
+    const done = () => { try { overlay.remove(); } catch {} };
+    overlay.addEventListener("animationend", done, { once: true });
+    setTimeout(done, 180);
   };
   function onKey(e) { if (e.key === "Escape") close(); }
   overlay.addEventListener("click", (e) => {
