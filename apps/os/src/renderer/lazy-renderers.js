@@ -1,28 +1,5 @@
+import { createLazyModule } from "./lazy-module.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
-
-function createLazyModule(loader) {
-  let module = null;
-  let promise = null;
-  return {
-    peek() { return module; },
-    load() {
-      if (module) return Promise.resolve(module);
-      if (!promise) {
-        promise = loader().then(
-          (loaded) => {
-            module = loaded;
-            return loaded;
-          },
-          (error) => {
-            promise = null;
-            throw error;
-          },
-        );
-      }
-      return promise;
-    },
-  };
-}
 
 const alchemyLazy = createLazyModule(() => import("./alchemy.js"));
 const atlasLazy = createLazyModule(() => import("./atlas.js"));

@@ -55,9 +55,8 @@ import {
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
   askVerbVars, askVerbIconSvg,
 } from "./asks.js";
-// Membrane mode is loaded on first entry. It owns Three/WebGL/audio machinery,
-// so keep it out of alchemy.js's eager module graph until the membrane surface
-// actually renders.
+import { createLazyModule } from "./lazy-module.js";
+import { loadStylesheetOnce } from "./stylesheet-loader.js";
 // The calendar page — one-view week timeline + presence tab (2026-06
 // redesign; replaced the day/week/presence sub-tabbed page).
 import {
@@ -65,7 +64,6 @@ import {
   attachCalendarPageBehavior,
   openCalendarEvent,
 } from "./calendar.js";
-import { renderIntelEmbedded, wireIntelEmbedded, intelSnapshotMeta } from "./intel/intel.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles" | "raw" | "signals" | "data"
@@ -95,6 +93,17 @@ const CONSTELLATION_TIMELINE_LS_KEY = "srwk:constellation_timeline_idx_v1";
 // saved locations that still say "collab" are normalized on restore.
 const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "profile", "onboarding", "program", "asks", "context"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
+const membraneLazy = createLazyModule(() =>
+  Promise.all([
+    loadStylesheetOnce("renderer/membrane/membrane.css"),
+    import("./membrane/index.js"),
+  ]).then(([, module]) => module));
+const intelLazy = createLazyModule(() =>
+  Promise.all([
+    loadStylesheetOnce("renderer/intel/intel.css"),
+    import("./intel/intel.js"),
+  ]).then(([, module]) => module));
+let intelMetaCache = null;
 
 const WEEKS_TOTAL = 10;
 function currentProgramWeek() {
@@ -875,42 +884,21 @@ function mountAllShapes() {
 // RAF loop + audio scaffold; render() teardown is handled by the
 // `state.membraneController.destroy()` call that fires when switching out
 // of membrane mode (see the render() prelude above).
-let membraneModule = null;
-let membraneModulePromise = null;
-let membraneModuleError = null;
-
-function loadMembraneModule() {
-  if (membraneModule) return Promise.resolve(membraneModule);
-  if (!membraneModulePromise) {
-    membraneModuleError = null;
-    membraneModulePromise = import("./membrane/index.js").then(
-      (module) => {
-        membraneModule = module;
-        return module;
-      },
-      (error) => {
-        membraneModulePromise = null;
-        membraneModuleError = error;
-        throw error;
-      },
-    );
-  }
-  return membraneModulePromise;
-}
-
 function renderMembrane() {
   if (!state.canvas) return;
   if (state.membraneController) {
     state.membraneController.setData(computeMembraneData());
     return;
   }
+  const membraneModule = membraneLazy.peek();
   if (!membraneModule) {
+    const membraneModuleError = membraneLazy.error();
     if (membraneModuleError) {
       state.canvas.innerHTML = `<p class="alch-callout"><strong>membrane failed to load: ${escHtml(membraneModuleError?.message || String(membraneModuleError))}</strong></p>`;
       return;
     }
     state.canvas.innerHTML = `<p class="alch-callout"><strong>loading membrane...</strong></p>`;
-    loadMembraneModule()
+    membraneLazy.load()
       .then(() => {
         if (!state.mounted || state.mode !== "membrane" || state.detailRecordId) return;
         render({ instant: true });
@@ -12235,6 +12223,62 @@ function renderContextEvidence(tier, cards, insights) {
   return `${toggle}${body}`;
 }
 
+function contextIntelHooks() {
+  return {
+    onPanelChange: (panel) => {
+      const next = panel === "data" ? "data" : "signals";
+      if (state.contextVault.mode !== next) setContextVaultMode(next);
+    },
+  };
+}
+
+function contextIntelMeta() {
+  const intelModule = intelLazy.peek();
+  if (!intelModule) return intelMetaCache || {};
+  intelMetaCache = intelModule.intelSnapshotMeta?.() || {};
+  return intelMetaCache;
+}
+
+function renderContextIntel(view) {
+  const host = state.canvas?.querySelector(".alch-cv-intel");
+  if (!host) return;
+  const intelModule = intelLazy.peek();
+  if (intelModule) {
+    intelMetaCache = intelModule.intelSnapshotMeta?.() || intelMetaCache;
+    intelModule.renderIntelEmbedded?.(host, view);
+    return;
+  }
+
+  const loadError = intelLazy.error();
+  if (loadError) {
+    host.innerHTML = `<p class="alch-callout"><strong>context signals failed to load: ${escHtml(loadError?.message || String(loadError))}</strong></p>`;
+    return;
+  }
+
+  host.innerHTML = `<p class="alch-callout"><strong>loading context signals...</strong></p>`;
+  intelLazy.load()
+    .then((module) => {
+      intelMetaCache = module.intelSnapshotMeta?.() || intelMetaCache;
+      if (!state.mounted || state.mode !== "context" || state.detailRecordId) return;
+      const activeView = contextNormalizeView(state.contextVault.mode);
+      if (activeView !== "signals" && activeView !== "data") return;
+      renderContextVault();
+      wireContextVault();
+    })
+    .catch((error) => {
+      console.warn("[alchemy] context signals failed to load:", error?.message || error);
+      if (state.mounted && state.mode === "context" && !state.detailRecordId) {
+        renderContextIntel(view);
+      }
+    });
+}
+
+function wireContextIntel(host) {
+  const intelModule = intelLazy.peek();
+  if (!host || !intelModule) return;
+  intelModule.wireIntelEmbedded?.(host, contextIntelHooks());
+}
+
 function renderContextVault() {
   const cv = state.contextVault;
   const view = contextNormalizeView(cv.mode);
@@ -12246,7 +12290,7 @@ function renderContextVault() {
   const manifest = cv.manifest || null;
   const sources = manifest?.sources || [];
   const rawScripts = manifest?.raw_scripts || [];
-  const intelMeta = intelSnapshotMeta();
+  const intelMeta = contextIntelMeta();
   const nav = contextViewNav(view, {
     articles: cv.loaded ? sources.length : undefined,
     raw: cv.loaded ? rawScripts.length : undefined,
@@ -12282,7 +12326,7 @@ function renderContextVault() {
         <div class="alch-cv-intel"></div>
       </section>
     `;
-    renderIntelEmbedded(state.canvas.querySelector(".alch-cv-intel"), view);
+    renderContextIntel(view);
     return;
   }
 
@@ -12350,12 +12394,7 @@ function wireContextVault() {
   // nav stays in sync when an intel cross-link jumps data → signals.
   const intelHost = state.canvas.querySelector(".alch-cv-intel");
   if (intelHost) {
-    wireIntelEmbedded(intelHost, {
-      onPanelChange: (panel) => {
-        const next = panel === "data" ? "data" : "signals";
-        if (state.contextVault.mode !== next) setContextVaultMode(next);
-      },
-    });
+    wireContextIntel(intelHost);
   }
   wireContextVaultDetailActions(state.canvas);
 }
