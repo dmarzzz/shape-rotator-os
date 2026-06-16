@@ -26,6 +26,7 @@
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
 import { fetchPublicEvidenceCards } from "./supabase-evidence.mjs";
+import { fetchCohortArticles } from "./supabase-articles.mjs";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
 const GH_BRANCH   = "main";
@@ -139,6 +140,7 @@ function _writeSurfaceLs(surface) {
       constellation_cues: surface.constellation_cues || [],
       session_insights: surface.session_insights || [],
       transcript_evidence_cards: surface.transcript_evidence_cards || [],
+      cohort_articles: surface.cohort_articles || [],
       whats_new: surface.whats_new || [],
       github_releases: surface.github_releases || [],
       transcript_evidence: surface.transcript_evidence || {},
@@ -172,6 +174,7 @@ function emptyShape() {
     constellation_cues: [],
     session_insights: [],
     transcript_evidence_cards: [],
+    cohort_articles: [],
     whats_new: [],
     github_releases: [],
     transcript_evidence: {},
@@ -231,6 +234,7 @@ function normalize(data) {
     // (see applyEvidenceOverlay). Passed through here so an LS-cached set
     // survives a reboot's first paint.
     transcript_evidence_cards: Array.isArray(data?.transcript_evidence_cards) ? data.transcript_evidence_cards : [],
+    cohort_articles: Array.isArray(data?.cohort_articles) ? data.cohort_articles : [],
     // Build-time "what's new" feed (membrane left edge). Bundled in the
     // surface so the feed reads full without depending on the live
     // team_timeline refresh from main.
@@ -730,6 +734,19 @@ async function applyEvidenceOverlay(surface) {
   return surface;
 }
 
+async function applyArticleOverlay(surface) {
+  try {
+    const { articles, source } = await fetchCohortArticles();
+    if (source === "supabase-app" || source === "supabase-public") {
+      surface.cohort_articles = articles;
+      surface._articleSource = source;
+    }
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
 function signatureOf(grouped) {
   const hash = (value) => {
     const s = String(value ?? "");
@@ -763,7 +780,7 @@ function signatureOf(grouped) {
     .map(([id, items]) => `${id}:${Array.isArray(items) ? items.length : 0}:${fp(JSON.stringify(items || []))}`)
     .sort()
     .join("|");
-  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#wn:${(grouped.whats_new || []).length}:${arraySig(grouped.whats_new || [])}#gr:${(grouped.github_releases || []).length}:${arraySig(grouped.github_releases || [])}#tec:${(grouped.transcript_evidence_cards || []).length}:${arraySig(grouped.transcript_evidence_cards || [])}#te:${objectSig(grouped.transcript_evidence)}#td:${objectSig(grouped.transcript_distillations)}#ci:${objectSig(grouped.cohort_intel)}#ins:${objectSig(grouped.cohort_insights)}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
+  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#wn:${(grouped.whats_new || []).length}:${arraySig(grouped.whats_new || [])}#gr:${(grouped.github_releases || []).length}:${arraySig(grouped.github_releases || [])}#tec:${(grouped.transcript_evidence_cards || []).length}:${arraySig(grouped.transcript_evidence_cards || [])}#ca:${(grouped.cohort_articles || []).length}:${arraySig(grouped.cohort_articles || [])}#te:${objectSig(grouped.transcript_evidence)}#td:${objectSig(grouped.transcript_distillations)}#ci:${objectSig(grouped.cohort_intel)}#ins:${objectSig(grouped.cohort_insights)}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
 }
 
 // Dev preview override. Setting `localStorage.setItem("srfg:cohort_source", "local")`
@@ -893,10 +910,15 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
           }
         }
       }
+      if (!baseline && _cache) {
+        baseline = normalize(_cache);
+        baseline._source = _cache._source || "cache";
+      }
       if (!baseline) return; // nothing to merge against
 
       const merged = await applySyncOverlayCached(baseline);
       await applyEvidenceOverlay(merged);
+      await applyArticleOverlay(merged);
       merged._sig = signatureOf(merged);
       // Did anything actually change? If not, no subscriber notify.
       const prevSig = _cache?._sig;
