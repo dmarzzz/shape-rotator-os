@@ -83,7 +83,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: install deps for build:cohort
         # build-bundles.js needs js-yaml (frontmatter parser). npm ci is
