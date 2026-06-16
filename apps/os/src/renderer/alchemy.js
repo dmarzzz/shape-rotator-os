@@ -40,12 +40,9 @@ import {
   contextSourceById as findContextSourceById,
 } from "./context-vault-model.js";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
-import { fetchPublicCalendarGrid } from "./calendar-supabase.mjs";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
-import { resolvePRForCurrentUser, clearForkCache } from "./gh-fork.js";
-import { enrichPeople } from "./gh-user.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
@@ -102,6 +99,9 @@ const calendarLazy = createLazyModule(() =>
     loadStylesheetOnce("renderer/calendar.css"),
     import("./calendar.js"),
   ]).then(([, , module]) => module));
+const calendarSupabaseLazy = createLazyModule(() => import("./calendar-supabase.mjs"));
+const githubUserLazy = createLazyModule(() => import("./gh-user.js"));
+const githubForkLazy = createLazyModule(() => import("./gh-fork.js"));
 let intelMetaCache = null;
 
 const WEEKS_TOTAL = 10;
@@ -583,16 +583,23 @@ async function loadCohort() {
   // per device. Triggers a re-render whenever a record gets new data
   // so the first-render placeholders update as fetches complete.
   if (state.cohort?.people) {
-    enrichPeople(state.cohort.people, {
-      onUpdate: () => {
-        // Debounce: gather a few enrichments before re-rendering so a
-        // cold-cache cohort doesn't trigger 50 paints in a row.
-        clearTimeout(state._ghEnrichRenderTimer);
-        state._ghEnrichRenderTimer = setTimeout(() => {
-          if (state.mounted && state.active) render();
-        }, 350);
-      },
-    });
+    const people = state.cohort.people;
+    githubUserLazy.load()
+      .then((module) => {
+        module.enrichPeople(people, {
+          onUpdate: () => {
+            // Debounce: gather a few enrichments before re-rendering so a
+            // cold-cache cohort doesn't trigger 50 paints in a row.
+            clearTimeout(state._ghEnrichRenderTimer);
+            state._ghEnrichRenderTimer = setTimeout(() => {
+              if (state.mounted && state.active) render();
+            }, 350);
+          },
+        });
+      })
+      .catch((error) => {
+        console.warn("[alchemy] github enrichment failed to load:", error?.message || error);
+      });
   }
 }
 
@@ -6527,7 +6534,8 @@ function renderConstellation() {
 export async function launchPRFlow({ kind, path, value }) {
   let res;
   try {
-    res = await resolvePRForCurrentUser({ kind, path, value });
+    const githubFork = await githubForkLazy.load();
+    res = await githubFork.resolvePRForCurrentUser({ kind, path, value });
   } catch (e) {
     console.warn("[pr-launcher] resolve failed:", e?.message || e);
     return { ok: false, reason: "resolve-failed" };
@@ -6579,7 +6587,9 @@ function showForkPrompt({ forkUrl, canonicalUrl, handle, retryHint }) {
   });
   overlay.querySelector("#fp-retry")?.addEventListener("click", () => {
     // Bust the cache so the next launchPRFlow rechecks the api.
-    clearForkCache(handle);
+    githubForkLazy.load()
+      .then((module) => module.clearForkCache(handle))
+      .catch((error) => console.warn("[pr-launcher] clear fork cache failed:", error?.message || error));
     close();
     // Don't re-launch automatically — user might have moved on. They'll
     // click submit again from the original form.
@@ -7915,6 +7925,7 @@ function fmtShortDate(d) {
 // (source === "bundled") stays hidden.
 async function loadLiveCalendar({ bundled } = {}) {
   try {
+    const { fetchPublicCalendarGrid } = await calendarSupabaseLazy.load();
     const { grid } = await fetchPublicCalendarGrid({ storage: globalThis.localStorage });
     if (grid && grid.tabs) return { data: grid, source: "live" };
   } catch {
