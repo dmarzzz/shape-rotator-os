@@ -15,6 +15,15 @@ test("package scripts do not expose transcript HTML index output", () => {
   );
 });
 
+test("information rules point transcript catalog review at metadata audits", () => {
+  const doc = fs.readFileSync("docs/INFORMATION_RULES.md", "utf8");
+
+  assert.match(doc, /audit-transcript-calendar-coverage\.mjs/);
+  assert.match(doc, /audit-transcript-labels\.mjs/);
+  assert.match(doc, /supported transcript catalog\/audit workflow/);
+  assert.doesNotMatch(doc, /build-transcript-talk-index-html\.mjs/);
+});
+
 test("transcript app update keeps the required pipeline order", () => {
   const source = fs.readFileSync("scripts/update-transcript-app-surfaces.mjs", "utf8");
   const exportIndex = source.indexOf("export-transcript-distillations.mjs");

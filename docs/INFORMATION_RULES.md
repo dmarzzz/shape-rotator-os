@@ -137,6 +137,8 @@ Regenerate it with:
 node scripts/audit-transcript-calendar-coverage.mjs
 ```
 
+This metadata coverage index, plus `node scripts/audit-transcript-labels.mjs`, is the supported transcript catalog/audit workflow. Do not recreate the old transcript HTML index for source inventory review; update these metadata outputs instead when transcript source inventory changes.
+
 The public doc lists calendar blocks and safe metadata only. The full transcript naming/original-title queue is written to `cohort-data/.private/transcript-vault/transcript-calendar-coverage-audit.md` and `cohort-data/.private/transcript-vault/transcript-calendar-coverage-audit.json`; those private files can include sensitive source titles and must not be committed.
 
 ## Naming Rules
