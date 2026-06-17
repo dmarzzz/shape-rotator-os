@@ -5555,25 +5555,25 @@ function renderJourney() {
         </button>`;
     }).join("")).join(""),
   ].join("");
-  const bnTokenSwatch = activeBn ? `<i class="acl-jswatch ac-jfam-${journeyFamilyIdx(activeBn)}" aria-hidden="true"></i>` : "";
+  // The token IS the colour legend AND the filter: at rest it shows the four
+  // family swatches (so "coloured by [●●●●]" reads as the legend); isolating one
+  // collapses it to that family's swatch + name (and dims the rest on the plot).
+  const famSwatches = JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => `<i class="acl-jswatch ac-jfam-${fi}"></i>`).join("");
+  const bnTokenInner = activeBn
+    ? `<i class="acl-jswatch ac-jfam-${journeyFamilyIdx(activeBn)}" aria-hidden="true"></i><span>${escHtml(activeBn)}</span>`
+    : `<span class="ac-jbn-legend" aria-hidden="true">${famSwatches}</span>`;
   const bottleneckUnit = `
     <span class="ac-sent-unit">
-      <button type="button" class="ac-sent-tok ac-jbn-tok${activeBn ? " is-active" : ""}" data-sent-menu="jbottleneck" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(`bottleneck filter: ${activeBn || "any"} — isolate teams stuck on one bottleneck`)}">
-        ${bnTokenSwatch}<span>${escHtml(activeBn || "any")}</span><i class="ac-sent-chev" aria-hidden="true"></i>
+      <button type="button" class="ac-sent-tok ac-jbn-tok${activeBn ? " is-active" : ""}" data-sent-menu="jbottleneck" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(activeBn ? `coloured by bottleneck, isolated to ${activeBn} — click to change or clear` : "coloured by bottleneck family: market, product, growth, company — click to isolate one")}">
+        ${bnTokenInner}<i class="ac-sent-chev" aria-hidden="true"></i>
       </button>
       <div class="ac-sent-menu" data-sent-menu-for="jbottleneck" role="listbox" aria-label="isolate one PMF bottleneck" hidden>${bnOptions}</div>
     </span>`;
-  // Compact encoding key — colour family · size = upside · hollow = unread.
-  // Reference only (not buttons), so it can't read as one more filter.
-  const ghostSwatch = `<svg width="10" height="10" viewBox="0 0 11 11" aria-hidden="true"><circle cx="5.5" cy="5.5" r="3.6" fill="rgba(241,236,231,0.24)" stroke="rgba(214,189,134,0.58)" stroke-width="1" stroke-dasharray="2 2"/></svg>`;
-  const keyStrip = `
-    <div class="acl-jkey-strip" aria-label="how to read the dots">
-      ${JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => `<span class="acl-jk-fam"><i class="acl-jswatch ac-jfam-${fi}"></i>${escHtml(fam.label)}</span>`).join("")}
-      <span class="acl-jk-sep" aria-hidden="true"></span>
-      <span class="acl-jk-size">size<span class="acl-jsize" aria-hidden="true"><i class="sm"></i><i class="lg"></i></span>upside</span>
-      <span class="acl-jk-sep" aria-hidden="true"></span>
-      <span class="acl-jk-ghost">${ghostSwatch}unread</span>
-    </div>`;
+  // Encoding bits woven into the sentence below (not a standalone legend panel):
+  // the size ramp for "sized by upside", and a hollow-dot hint shown only when
+  // some plotted records have no explicit read (so the count explains the ghosts).
+  const sizeRamp = `<span class="acl-jsize" aria-hidden="true"><i class="sm"></i><i class="lg"></i></span>`;
+  const ghostSwatch = `<svg width="9" height="9" viewBox="0 0 11 11" aria-hidden="true" style="vertical-align:-1px"><circle cx="5.5" cy="5.5" r="3.6" fill="rgba(241,236,231,0.24)" stroke="rgba(214,189,134,0.58)" stroke-width="1" stroke-dasharray="2 2"/></svg>`;
 
   // ── "as of" week SLIDER (top-right) — a snap scrubber across the program
   // (start → now). The native range input snaps to each week (step=1) and is
@@ -5614,7 +5614,14 @@ function renderJourney() {
   });
   // Honesty fact: how many plotted records have an EXPLICIT pmf read vs. sit at
   // the seeded default — otherwise the bottom-left default cluster reads as real.
+  // The hollow-dot hint only appears when there ARE unread records to explain.
   const assessedCount = teams.filter(journeyAssessed).length;
+  const unreadCount = teams.length - assessedCount;
+  const unreadNote = unreadCount > 0
+    ? `<span class="ac-sent-faint">· ${ghostSwatch} ${unreadCount} unread</span>` : "";
+  // One coherent sentence — the legend is folded into the claim: the bottleneck
+  // token carries the colour key, an inline ramp carries the size key, and the
+  // read count carries the "hollow = unread" key. No standalone legend panel.
   const filterBar = `
     <div class="ac-sentence" role="group" aria-label="pmf evidence filters">
       <span class="ac-sent-word">PMF read for</span>
@@ -5622,16 +5629,19 @@ function renderJourney() {
       <span class="ac-sent-word">+</span>
       ${includeChip("projects", "projects")}
       ${sideEligible ? `<span class="ac-sent-word">+</span>${includeChip("side", "side projects")}` : ""}
+      <span class="ac-sent-word">· coloured by</span>
+      ${bottleneckUnit}
+      <span class="ac-sent-word">· sized by upside</span>${sizeRamp}
       <span class="ac-sent-word">·</span>
       <strong class="ac-sent-fact">${assessedCount}/${teams.length}</strong>
-      <span class="ac-sent-word">explicit · stuck on</span>
-      ${bottleneckUnit}
+      <span class="ac-sent-word">read</span>
+      ${unreadNote}
     </div>`;
 
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="journey">
     ${cohortPageHead("journey")}
-    <div class="alch-view-controls is-journey-controls" data-shape-occluder>${filterBar}${keyStrip}${constSelectionChipHtml()}${weekFilter}</div>
+    <div class="alch-view-controls is-journey-controls" data-shape-occluder>${filterBar}${constSelectionChipHtml()}${weekFilter}</div>
     <div class="alch-constellation" data-constellation-view="journey">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">

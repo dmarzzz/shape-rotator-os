@@ -8728,12 +8728,13 @@ html.jweek-vt::view-transition-new(root) {
   backdrop-filter: var(--lg-blur-sm);
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
-/* (The old PMF glass-panel legend + its 10-button bottleneck wall — .is-journey-
-   legend / .acl-jfamily / .acl-jbtn / .acl-jkey — was replaced by the one-row
-   controls: a bottleneck filter token + the compact .acl-jkey-strip below.) */
+/* (The old PMF glass-panel legend + its 10-button bottleneck wall, then the
+   standalone swatch strip, were both folded INTO the one-row sentence: the
+   bottleneck token carries the colour key, the size ramp below carries the size
+   key, and the read count carries "hollow = unread".) */
 /* Size ramp — shows the "size = market upside" encoding instead of only stating
    it: a small dot → large dot, neutral fill (size, not colour, is the point).
-   Unscoped so it works in the compact key strip on the controls row. */
+   Unscoped so it works inline in the controls sentence. */
 .acl-jsize {
   display: inline-flex;
   align-items: center;
@@ -8828,7 +8829,7 @@ html.jweek-vt::view-transition-new(root) {
 }
 /* Snap scrubber: a thin track with a notch per week and an oxide thumb. The
    native range (step=1) does the snapping + keyboard; notches are click targets. */
-.ac-jweek-track { position: relative; width: 156px; height: 16px; display: flex; align-items: center; }
+.ac-jweek-track { position: relative; width: 132px; height: 16px; display: flex; align-items: center; }
 .ac-jweek-track::before {
   content: ""; position: absolute; left: 6px; right: 6px; top: 50%;
   height: 2px; border-radius: 2px; background: var(--journey-rule-strong); transform: translateY(-50%);
@@ -8862,18 +8863,12 @@ html.jweek-vt::view-transition-new(root) {
   font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
   color: var(--alchemy-paper-warm); min-width: 3.4ch; font-variant-numeric: tabular-nums;
 }
-.acl-jkey-strip {
-  display: inline-flex; align-items: center; flex-wrap: wrap; gap: 3px 10px;
-  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.07em;
-  text-transform: lowercase; color: var(--journey-muted);
-}
-.acl-jk-fam { display: inline-flex; align-items: center; }
-.acl-jk-sep { width: 1px; height: 11px; background: var(--journey-rule-strong); opacity: 0.6; }
-.acl-jk-size, .acl-jk-ghost { display: inline-flex; align-items: center; gap: 4px; }
-.acl-jk-ghost svg { display: block; }
-/* Bottleneck filter token — the consolidated legend filter; brass-tints when a
-   bottleneck is isolated, mirroring the rewound-timeline token. */
+/* Bottleneck token = the colour legend AND the filter. At rest it shows the four
+   family swatches (.ac-jbn-legend); isolated, it shows one swatch + name and
+   brass-tints, mirroring the rewound-timeline token. */
 .ac-jbn-tok .acl-jswatch { width: 8px; height: 8px; margin-right: 0; }
+.ac-jbn-legend { display: inline-flex; align-items: center; gap: 3px; }
+.ac-jbn-legend .acl-jswatch { width: 7px; height: 7px; margin-right: 0; }
 .ac-jbn-tok.is-active {
   border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #c1a872) 50%, transparent);
   background: color-mix(in srgb, var(--alchemy-oxide-bright, #c1a872) 12%, rgba(var(--ink-rgb), 0.04));
@@ -8881,6 +8876,11 @@ html.jweek-vt::view-transition-new(root) {
 }
 .ac-jbn-opt .ac-sent-opt-main b { display: inline-flex; align-items: center; }
 .ac-jbn-opt .acl-jswatch { width: 8px; height: 8px; margin-right: 6px; }
+/* Faint inline hint (e.g. "· ⊘ N unread") folded into the sentence, not a panel. */
+.ac-sent-faint {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: var(--journey-muted); font-size: 9.5px; letter-spacing: 0.02em; white-space: nowrap;
+}
 
 /* ── PMF evidence: the read card (hover) ──────────────────────────────────
    Explains the placement and shows the movement — not a company dossier. */
