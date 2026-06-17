@@ -116,37 +116,54 @@ test("cohort insight bundle separates deterministic cards from gated rotation", 
 
   assert.equal(bundle.artifact_kind, "cohort_insight_bundle");
   assert.equal(bundle.raw_allowed, false);
-  assert.equal(bundle.quality.kind_counts.project_identity, teams.length);
+  // project_identity has been consolidated into say_did_shipped — the kind is gone.
+  assert.equal(bundle.quality.kind_counts.project_identity, undefined);
+  assert.equal(bundle.read_models.project_identity, undefined);
   assert.equal(bundle.quality.kind_counts.say_did_shipped, teams.length);
   assert.ok(bundle.quality.kind_counts.latent_overlap >= 1);
   assert.equal(bundle.quality.kind_counts.rotation, 0);
-  assert.equal(bundle.read_models.project_identity.length, teams.length);
+  assert.equal(bundle.read_models.say_did_shipped.length, teams.length);
   assert.equal(bundle.read_models.rotation.status, "not_generated");
   assert.match(bundle.read_models.rotation.reason, /reviewed semantic-distance/);
 });
 
-test("project identity cards describe what teams are and do from public cohort fields", () => {
-  const cards = engine.buildProjectIdentityCards({
+test("say/did/shipped cards carry a grammar-correct identity lead", () => {
+  const cards = engine.buildSayDidShippedCards({
     teams,
     githubProgressArtifacts: progress,
     githubReleaseArtifacts: releases,
   });
   const bySubject = new Map(cards.map(card => [card.subject_ids[0], card]));
   const alpha = bySubject.get("alpha");
-  const beta = bySubject.get("beta");
 
   assert.equal(cards.length, teams.length);
-  assert.equal(alpha.kind, "project_identity");
+  assert.equal(alpha.kind, "say_did_shipped");
   assert.equal(alpha.subject_type, "team");
   assert.equal(alpha.evidence_level, "observed_public_metadata");
-  assert.match(alpha.claim_text, /Alpha Lab is Infra project in trusted compute focused on TEE contract runtime/);
-  assert.equal(alpha.content_json.what_it_does, "an attestation-backed contract runtime for agent workflows");
+  // article + lowercase company type + first focus clause — no "Infra", no "·", no "it does"
+  assert.equal(alpha.content_json.what_it_is, "an infra project in trusted compute focused on TEE contract runtime");
+  assert.equal(alpha.content_json.what_it_does, "provides an attestation-backed contract runtime for agent workflows");
   assert.equal(alpha.content_json.who_it_serves, "agent builders that need verifiable contract execution");
-  assert.deepEqual(alpha.content_json.skill_areas, ["tee", "attestation", "agentic"]);
-  assert.equal(alpha.content_json.public_activity.useful_commit_count, 3);
-  assert.equal(alpha.content_json.public_activity.release_count, 1);
-  assert.deepEqual(alpha.content_json.recommended_views, ["journey", "collab", "shipped"]);
-  assert.equal(beta.evidence_level, "declared_only");
+  assert.match(alpha.claim_text, /^Alpha Lab is an infra project in trusted compute focused on TEE contract runtime; it provides an attestation-backed contract runtime for agent workflows\.$/);
+});
+
+test("identity text normalizes company type, focus delimiters, and imperative verbs", () => {
+  const sample = [
+    { record_id: "dot", name: "Dot", domain: "tee", focus: "formal verification · dstack TEE Postgres",
+      journey: { company_type: "Infra", solution: "a registry and proof workflow" } },
+    { record_id: "imp", name: "Imp", domain: "crypto", focus: "anonymity network",
+      journey: { company_type: "Protocol", solution: "productize anonymous broadcast and explore relays" } },
+    { record_id: "acr", name: "Acr", domain: "ai", focus: "context engine",
+      journey: { company_type: "AI", solution: "an episode-based context engine" } },
+  ];
+  const cards = engine.buildSayDidShippedCards({ teams: sample });
+  const by = new Map(cards.map(card => [card.subject_ids[0], card]));
+  // "·" secondary clause stripped from the focus
+  assert.equal(by.get("dot").content_json.what_it_is, "an infra project in trusted compute focused on formal verification");
+  // imperative lead AND compound "and <verb>" both conjugated to third person
+  assert.equal(by.get("imp").content_json.what_it_does, "productizes anonymous broadcast and explores relays");
+  // all-caps acronym company type preserved (not lowercased to "ai")
+  assert.equal(by.get("acr").content_json.what_it_is, "an AI project in agent infrastructure focused on context engine");
 });
 
 test("say/did/shipped cards distinguish observed public movement from unobserved state", () => {
@@ -158,8 +175,8 @@ test("say/did/shipped cards distinguish observed public movement from unobserved
   const bySubject = new Map(cards.map(card => [card.subject_ids[0], card]));
 
   assert.equal(bySubject.get("alpha").content_json.observed_status, "public_signal_observed");
-  assert.equal(bySubject.get("alpha").content_json.useful_commit_count, 3);
-  assert.equal(bySubject.get("alpha").content_json.release_count, 1);
+  assert.equal(bySubject.get("alpha").content_json.public_activity.useful_commit_count, 3);
+  assert.equal(bySubject.get("alpha").content_json.public_activity.release_count, 1);
   assert.equal(bySubject.get("beta").content_json.observed_status, "unobserved");
   assert.equal(bySubject.get("beta").evidence_level, "declared_only");
 });
@@ -233,7 +250,6 @@ test("public cohort insights exclude generated cohort cards unless explicitly ap
 
   assert.equal(publicBundle.raw_allowed, false);
   assert.equal(publicBundle.cards.length, 0);
-  assert.equal(publicBundle.read_models.project_identity.length, 0);
   assert.equal(publicBundle.read_models.say_did_shipped.length, 0);
   assert.equal(publicBundle.read_models.latent_overlaps.length, 0);
 });

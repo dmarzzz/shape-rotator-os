@@ -113,6 +113,7 @@
     "test:cohort-transcript-evidence": "node --test scripts/cohort-bundle-transcript-evidence.test.mjs",
     "test:cohort-insights": "node --test scripts/cohort-insight-engine.test.mjs",
     "test:cohort-insights-supabase": "node --test scripts/cohort-insight-supabase.test.mjs",
+    "test:cohort-award-scaffold": "node --test scripts/cohort-award-scaffold.test.mjs",
     "test:web-context-surface": "node --test scripts/web-context-surface.test.mjs",
     "test:public-article-policy": "node --test scripts/public-article-policy.test.mjs",
     "test:public-transcript-articles": "node --test scripts/public-transcript-articles.test.mjs",

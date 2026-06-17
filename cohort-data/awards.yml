@@ -1,0 +1,27 @@
+schema_version: 1
+
+# Editorial award categories. Tina/Mike own this list.
+#
+# Only the category id / label / description live here — these are editorial and
+# safe to commit publicly. The actual NOMINEES and RATIONALE are NEVER written in
+# this file or the public bundle: they are filled by the private transcript engine
+# straight into Supabase as `needs_review` award cards (source_boundary
+# `derived_model_judgment`), then approved by a coordinator. That human sign-off is
+# what makes an award "fair and believable".
+#
+# The public bundle turns each entry below into one empty editorial award slot
+# (status: awaiting_private_judgment) so the cohort views can show the category
+# before a winner exists. Edit freely; the slots regenerate on the next
+# `npm run build:cohort-insights`.
+
+editorial_categories:
+  - id: best-shape-rotation
+    label: Best Shape Rotation
+    description: >-
+      The most substantiated pivot toward product-market fit over the program —
+      a team that changed shape in response to real feedback and can show it.
+  - id: best-team-product-fit
+    label: Best Team–Product Fit
+    description: >-
+      The clearest evidence that this is the right team for this problem, drawn
+      from how they work, what they ship, and how they take feedback.

@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const yaml = require("js-yaml");
+const awardScaffold = require("./cohort-award-scaffold.cjs");
 
 const DEFAULT_REPO_ROOT = path.resolve(__dirname, "..", "..");
 const GENERATED_BY = "scripts/lib/cohort-insight-engine.cjs";
@@ -148,6 +149,7 @@ function loadCohortInsightInputs({ root = DEFAULT_REPO_ROOT } = {}) {
     dependencies: loadDir(root, "dependencies", "dependency", schema.dependencies?.surface_fields || []),
     githubProgressArtifacts: loadGithubProgressArtifacts(root),
     githubReleaseArtifacts: loadGithubReleaseArtifacts(root),
+    editorialCategories: awardScaffold.loadEditorialAwardCategories(root),
   };
 }
 
@@ -234,13 +236,6 @@ function firstText(...values) {
   return "";
 }
 
-function previewList(value, { limit = 4, max = 180 } = {}) {
-  return asArray(value)
-    .map(item => compactText(item, max))
-    .filter(Boolean)
-    .slice(0, limit);
-}
-
 const PROJECT_DOMAIN_LABELS = {
   tee: "trusted compute",
   ai: "agent infrastructure",
@@ -254,141 +249,97 @@ function identityDomainLabel(value) {
   return PROJECT_DOMAIN_LABELS[key] || compactText(value, 60);
 }
 
+// Company-type label -> grammatical noun phrase with article: "Infra" -> "an infra
+// project", "AI" -> "an AI project", "B2B" -> "a B2B project". Title-case words are
+// lowercased so they read as categories mid-sentence; all-caps acronyms and tokens
+// with digits are preserved so "AI"/"B2B" never read as typos.
+function companyTypePhrase(companyType) {
+  const raw = compactText(companyType, 60);
+  if (!raw) return "";
+  const word = /\d/.test(raw) || (raw.length <= 4 && raw === raw.toUpperCase())
+    ? raw
+    : raw.toLowerCase();
+  const article = /^[aeiou]/i.test(word) ? "an" : "a";
+  return `${article} ${word} project`;
+}
+
+// Strip the middle-dot/pipe secondary clause and any trailing full sentence so a
+// "·"-joined or sentence-shaped focus reads cleanly inside prose:
+// "formal verification · dstack TEE Postgres" -> "formal verification".
+function focusFirstClause(focus) {
+  let text = compactText(focus, 160);
+  if (!text) return "";
+  text = text.split("·")[0].split("|")[0].trim();
+  const sentenceCut = text.search(/[.?!]\s/);
+  if (sentenceCut > 0) text = text.slice(0, sentenceCut).trim();
+  text = text.replace(/[.?!]+$/, "").trim();
+  // A focus written as a full sentence ("Shake is a social network app ...") is not a
+  // usable topic for "focused on ___"; drop it so the label falls back to the
+  // company-type + domain form instead of emitting "focused on Shake is a ...".
+  if (/^\S+\s+is\s+(a|an|the|not)\b/i.test(text)) return "";
+  return text;
+}
+
+// Turn a declared solution/intent into a grammatical predicate for "it ___":
+// a known imperative lead becomes third-person present ("build" -> "builds"); any
+// other shape (a noun phrase) is introduced with "provides" so "it ___" stays valid.
+const ACTION_VERB_MAP = {
+  build: "builds", builds: "builds", make: "makes", makes: "makes",
+  create: "creates", creates: "creates", enable: "enables", enables: "enables",
+  offer: "offers", offers: "offers", provide: "provides", provides: "provides",
+  explore: "explores", explores: "explores", productize: "productizes",
+  productizes: "productizes", run: "runs", runs: "runs", turn: "turns", turns: "turns",
+  power: "powers", powers: "powers", deliver: "delivers", delivers: "delivers",
+};
+function actionPredicate(rawDoes) {
+  const text = compactText(rawDoes, 220);
+  if (!text) return "";
+  const match = /^([a-z][a-z-]*)\b/.exec(text);
+  const lead = match ? match[1].toLowerCase() : "";
+  if (lead && ACTION_VERB_MAP[lead]) {
+    // Conjugate a second imperative joined by "and"/"&" too, so compound
+    // imperatives ("make X and explore Y") don't leave a bare verb dangling.
+    const rest = text.slice(match[1].length).replace(
+      /\b(and|&)\s+([a-z][a-z-]*)\b/g,
+      (whole, conj, verb) => (ACTION_VERB_MAP[verb.toLowerCase()] ? `${conj} ${ACTION_VERB_MAP[verb.toLowerCase()]}` : whole),
+    );
+    return `${ACTION_VERB_MAP[lead]} ${rest.trim()}`.trim();
+  }
+  return `provides ${text}`;
+}
+
 function teamKindLabel(team) {
   const journey = team?.journey || {};
-  const companyType = compactText(journey.company_type, 60);
+  const typePhrase = companyTypePhrase(journey.company_type);
   const domain = identityDomainLabel(team?.domain);
-  const focus = compactText(team?.focus, 100);
-  if (companyType && domain && focus) return `${companyType} project in ${domain} focused on ${focus}`;
-  if (companyType && focus) return `${companyType} project focused on ${focus}`;
-  if (domain && focus) return `${domain} project focused on ${focus}`;
-  if (focus) return `project focused on ${focus}`;
-  if (companyType || domain) return `${companyType || domain} project`;
-  return "cohort project";
+  const focus = focusFirstClause(team?.focus);
+  if (typePhrase && domain && focus) return `${typePhrase} in ${domain} focused on ${focus}`;
+  if (typePhrase && focus) return `${typePhrase} focused on ${focus}`;
+  if (domain && focus) return `a project in ${domain} focused on ${focus}`;
+  if (focus) return `a project focused on ${focus}`;
+  if (typePhrase && domain) return `${typePhrase} in ${domain}`;
+  if (typePhrase) return typePhrase;
+  if (domain) return `a project in ${domain}`;
+  return "a cohort project";
 }
 
-function projectIdentityConfidence({ team, progress, releases }) {
-  const journey = team?.journey || {};
-  let score = 0;
-  if (team?.focus || team?.domain || journey.company_type) score += 1;
-  if (journey.problem) score += 1;
-  if (journey.solution || team?.now) score += 1;
-  if (journey.icp) score += 1;
-  if (previewList(team?.skill_areas).length || previewList(team?.paper_basis).length) score += 1;
-  if (previewList(team?.seeking).length || previewList(team?.offering).length || previewList(team?.dependencies).length) score += 1;
-  if (team?.traction || previewList(team?.prior_shipping).length) score += 1;
-  if (asArray(progress).length || asArray(releases).length) score += 1;
-  if (score >= 7) return "high";
-  if (score >= 5) return "medium";
-  if (score >= 3) return "low-medium";
-  return "low";
+function teamActivity(team, progressByTeam, releasesByTeam) {
+  const progress = asArray(progressByTeam.get(team.record_id)).slice().sort(sortProgressArtifacts);
+  const releaseArtifacts = asArray(releasesByTeam.get(team.record_id));
+  const releases = releaseArtifacts
+    .flatMap(releaseRows)
+    .sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")));
+  const latest = progress[0] || null;
+  const observed = Boolean(latest || releases.length);
+  const totalUsefulCommits = progress.reduce((sum, artifact) => sum + usefulCommitCount(artifact), 0);
+  const releaseNames = releases.slice(0, 3).map(release => release.name || release.tag).filter(Boolean);
+  return { progress, releaseArtifacts, releases, latest, observed, totalUsefulCommits, releaseNames };
 }
 
-function buildProjectIdentityCards({ teams = [], githubProgressArtifacts = [], githubReleaseArtifacts = [] } = {}) {
-  const progressByTeam = groupBy(githubProgressArtifacts, artifact => artifact.record_id);
-  const releasesByTeam = groupBy(githubReleaseArtifacts, artifact => artifact.record_id);
-  return asArray(teams)
-    .filter(team => team?.record_id)
-    .slice()
-    .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)))
-    .map((team) => {
-      const progress = asArray(progressByTeam.get(team.record_id))
-        .slice()
-        .sort((a, b) => {
-          const dateCompare = isoDate(b.date || b.week_start).localeCompare(isoDate(a.date || a.week_start));
-          if (dateCompare) return dateCompare;
-          return String(a.artifact_id || "").localeCompare(String(b.artifact_id || ""));
-        });
-      const releaseArtifacts = asArray(releasesByTeam.get(team.record_id));
-      const releases = releaseArtifacts.flatMap(releaseRows).sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")));
-      const latest = progress[0] || null;
-      const journey = team.journey || {};
-      const name = team.name || team.record_id;
-      const whatItIs = teamKindLabel(team);
-      const whatItDoes = firstText(journey.solution, team.now, team.weekly_goals, team.focus);
-      const whoItServes = firstText(journey.icp);
-      const problem = firstText(journey.problem);
-      const observed = Boolean(latest || releases.length);
-      const sourceRefs = [
-        sourceRef("team_record", {
-          record_id: team.record_id,
-          path: `cohort-data/teams/${team.record_id}.md`,
-        }),
-        ...progress.slice(0, 3).map(artifact => sourceRef("github_progress_artifact", {
-          artifact_id: artifact.artifact_id || "",
-          record_id: artifact.record_id,
-          week_start: isoDate(artifact.week_start || artifact.date),
-          source_repo: artifact.source_repo || "",
-        })),
-        ...releaseArtifacts.slice(0, 2).map(artifact => sourceRef("github_release_artifact", {
-          artifact_id: artifact.artifact_id || "",
-          record_id: artifact.record_id,
-          source_repo: artifact.source_repo || "",
-        })),
-      ];
-      const publicLinkTypes = Object.entries(team.links || {})
-        .filter(([, value]) => Boolean(value))
-        .map(([key]) => key)
-        .sort((a, b) => a.localeCompare(b));
-      const releaseNames = releases.slice(0, 3).map(release => release.name || release.tag).filter(Boolean);
-      const latestExamples = previewList(latest?.evidence?.examples, { limit: 3, max: 160 });
-      const totalUsefulCommits = progress.reduce((sum, artifact) => sum + usefulCommitCount(artifact), 0);
-      return makeInsightCard({
-        id: `cohort-insight:project-identity:${slugPart(team.record_id)}`,
-        kind: "project_identity",
-        subjectType: "team",
-        subjectIds: [team.record_id],
-        title: `${name}: what it is / what it does`,
-        claimText: `${name} is ${whatItIs}; it does ${whatItDoes || "work that has not been declared clearly enough yet"}.`,
-        summary: whoItServes
-          ? `${name} serves ${whoItServes}. Core action: ${whatItDoes || "not clearly declared yet"}.`
-          : `${name} is ${whatItIs}. Core action: ${whatItDoes || "not clearly declared yet"}.`,
-        evidenceLevel: observed ? "observed_public_metadata" : "declared_only",
-        confidence: projectIdentityConfidence({ team, progress, releases }),
-        sourceRefs,
-        contentJson: {
-          what_it_is: whatItIs,
-          what_it_does: whatItDoes,
-          who_it_serves: whoItServes,
-          problem,
-          solution: firstText(journey.solution),
-          current_work: firstText(team.now, team.weekly_goals),
-          focus: compactText(team.focus, 160),
-          domain: compactText(team.domain, 80),
-          company_type: compactText(journey.company_type, 80),
-          stage: Number.isFinite(Number(journey.stage)) ? Number(journey.stage) : null,
-          evidence_quality: Number.isFinite(Number(journey.evidence_quality)) ? Number(journey.evidence_quality) : null,
-          market_upside: Number.isFinite(Number(journey.market_upside)) ? Number(journey.market_upside) : null,
-          primary_bottleneck: compactText(journey.primary_bottleneck, 120),
-          declared_confidence: compactText(journey.confidence, 40),
-          next_milestone: firstText(journey.next_milestone),
-          skill_areas: previewList(team.skill_areas, { limit: 8, max: 80 }),
-          paper_basis: previewList(team.paper_basis, { limit: 4, max: 140 }),
-          success_dimensions: previewList(team.success_dimensions, { limit: 4, max: 80 }),
-          dependencies: previewList(team.dependencies, { limit: 8, max: 80 }),
-          seeking: previewList(team.seeking, { limit: 5, max: 180 }),
-          offering: previewList(team.offering, { limit: 5, max: 180 }),
-          traction: compactText(team.traction, 220),
-          prior_shipping: previewList(team.prior_shipping, { limit: 4, max: 180 }),
-          public_link_types: publicLinkTypes,
-          public_activity: {
-            observed_status: observed ? "public_signal_observed" : "declared_only",
-            latest_week_start: isoDate(latest?.week_start || latest?.date),
-            latest_summary: compactText(latest?.summary, 220),
-            latest_examples: latestExamples,
-            progress_artifact_count: progress.length,
-            release_artifact_count: releaseArtifacts.length,
-            release_count: releases.length,
-            release_names: releaseNames,
-            useful_commit_count: totalUsefulCommits,
-          },
-          recommended_views: ["journey", "collab", "shipped"],
-          source_policy: "public cohort surface fields plus public GitHub/release artifacts only",
-        },
-      });
-    });
-}
-
+// One per-team card carries BOTH a grammar-correct identity lead (what it is / does /
+// who it serves) and the say -> did -> shipped public-proof strip. This replaces the
+// former separate project_identity card: identity and proof are one read, derived once
+// from the same public cohort fields + GitHub/release artifacts (no duplicate compute).
 function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], githubReleaseArtifacts = [] } = {}) {
   const progressByTeam = groupBy(githubProgressArtifacts, artifact => artifact.record_id);
   const releasesByTeam = groupBy(githubReleaseArtifacts, artifact => artifact.record_id);
@@ -397,72 +348,72 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
     .slice()
     .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)))
     .map((team) => {
-      const progress = asArray(progressByTeam.get(team.record_id))
-        .slice()
-        .sort((a, b) => {
-          const dateCompare = isoDate(b.date || b.week_start).localeCompare(isoDate(a.date || a.week_start));
-          if (dateCompare) return dateCompare;
-          return String(a.artifact_id || "").localeCompare(String(b.artifact_id || ""));
-        });
-      const releaseArtifacts = asArray(releasesByTeam.get(team.record_id));
-      const releases = releaseArtifacts.flatMap(releaseRows).sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")));
-      const latest = progress[0] || null;
-      const totalUsefulCommits = progress.reduce((sum, artifact) => sum + usefulCommitCount(artifact), 0);
-      const observed = Boolean(latest || releases.length);
-      const latestExamples = asArray(latest?.evidence?.examples).slice(0, 3);
-      const did = latest
-        ? compactText(latest.summary || latestExamples.join("; "), 220)
+      const act = teamActivity(team, progressByTeam, releasesByTeam);
+      const journey = team.journey || {};
+      const name = team.name || team.record_id;
+
+      const whatItIs = teamKindLabel(team);
+      const whatItDoes = actionPredicate(firstText(journey.solution, team.now, team.weekly_goals, focusFirstClause(team.focus)));
+      const whoItServes = firstText(journey.icp);
+
+      const latestExamples = asArray(act.latest?.evidence?.examples).slice(0, 3);
+      const did = act.latest
+        ? compactText(act.latest.summary || latestExamples.join("; "), 220)
         : "No reviewed GitHub progress artifact is attached to this project yet.";
-      const shipped = releases.length
-        ? releases.slice(0, 3).map(release => release.name || release.tag).join("; ")
-        : observed
+      const shipped = act.releases.length
+        ? act.releaseNames.join("; ")
+        : act.observed
           ? "GitHub movement observed; no release artifact observed."
           : "No public release artifact observed.";
-      const say = compactText(team.now || team.weekly_goals || team.focus || "", 220);
+      const say = compactText(team.now || team.weekly_goals || focusFirstClause(team.focus) || "", 220);
+
       const refs = [
         sourceRef("team_record", {
           record_id: team.record_id,
           path: `cohort-data/teams/${team.record_id}.md`,
         }),
-        ...progress.slice(0, 4).map(artifact => sourceRef("github_progress_artifact", {
+        ...act.progress.slice(0, 4).map(artifact => sourceRef("github_progress_artifact", {
           artifact_id: artifact.artifact_id || "",
           record_id: artifact.record_id,
           week_start: isoDate(artifact.week_start || artifact.date),
           source_repo: artifact.source_repo || "",
         })),
-        ...releaseArtifacts.slice(0, 2).map(artifact => sourceRef("github_release_artifact", {
+        ...act.releaseArtifacts.slice(0, 2).map(artifact => sourceRef("github_release_artifact", {
           artifact_id: artifact.artifact_id || "",
           record_id: artifact.record_id,
           source_repo: artifact.source_repo || "",
         })),
       ];
-      const name = team.name || team.record_id;
+
       return makeInsightCard({
         id: `cohort-insight:say-did-shipped:${slugPart(team.record_id)}`,
         kind: "say_did_shipped",
         subjectType: "team",
         subjectIds: [team.record_id],
         title: `${name}: say / did / shipped`,
-        claimText: observed
-          ? `${name} has declared current intent plus observable public build or release movement.`
-          : `${name} has declared intent, but the engine has no attached public GitHub or release signal yet.`,
-        summary: observed
-          ? `${compactText(say, 120) || "No current intent declared."} Public trace: ${did}`
-          : `${compactText(say, 120) || "No current intent declared."} Public trace is currently unobserved.`,
-        evidenceLevel: observed ? "observed_public_metadata" : "declared_only",
-        confidence: observed ? "medium" : "low",
+        claimText: `${name} is ${whatItIs}; it ${whatItDoes || "has not declared its work clearly enough yet"}.`,
+        summary: whoItServes
+          ? `${name} serves ${whoItServes}. Public trace: ${act.observed ? did : "currently unobserved."}`
+          : `${compactText(say, 120) || "No current intent declared."} Public trace: ${act.observed ? did : "currently unobserved."}`,
+        evidenceLevel: act.observed ? "observed_public_metadata" : "declared_only",
+        confidence: act.observed ? "medium" : "low",
         sourceRefs: refs,
         contentJson: {
+          what_it_is: whatItIs,
+          what_it_does: whatItDoes,
+          who_it_serves: whoItServes,
           say,
           did,
           shipped,
-          observed_status: observed ? "public_signal_observed" : "unobserved",
-          latest_week_start: isoDate(latest?.week_start || latest?.date),
-          progress_artifact_count: progress.length,
-          release_artifact_count: releaseArtifacts.length,
-          release_count: releases.length,
-          useful_commit_count: totalUsefulCommits,
-          latest_examples: latestExamples,
+          observed_status: act.observed ? "public_signal_observed" : "unobserved",
+          public_activity: {
+            observed_status: act.observed ? "public_signal_observed" : "declared_only",
+            latest_week_start: isoDate(act.latest?.week_start || act.latest?.date),
+            progress_artifact_count: act.progress.length,
+            release_artifact_count: act.releaseArtifacts.length,
+            release_count: act.releases.length,
+            useful_commit_count: act.totalUsefulCommits,
+          },
         },
       });
     });
@@ -674,19 +625,42 @@ function indexByKind(cards) {
   return out;
 }
 
+// Helpers injected into the award scaffold module (keeps awards in their own file
+// without duplicating the canonical card factory or risking a circular require).
+const AWARD_HELPERS = { asArray, compactText, sourceRef, groupBy, usefulCommitCount, releaseRows };
+
+function buildAwardCards({
+  teams = [],
+  dependencies = [],
+  githubProgressArtifacts = [],
+  githubReleaseArtifacts = [],
+  editorialCategories = [],
+} = {}) {
+  return awardScaffold.buildAwardCards({
+    teams,
+    dependencies,
+    githubProgressArtifacts,
+    githubReleaseArtifacts,
+    editorialCategories,
+    makeInsightCard,
+    helpers: AWARD_HELPERS,
+  });
+}
+
 function buildCohortInsightBundle({
   teams = [],
   clusters = [],
   dependencies = [],
   githubProgressArtifacts = [],
   githubReleaseArtifacts = [],
+  editorialCategories = [],
   generatedAt = null,
 } = {}) {
-  const projectIdentity = buildProjectIdentityCards({ teams, githubProgressArtifacts, githubReleaseArtifacts });
   const sayDidShipped = buildSayDidShippedCards({ teams, githubProgressArtifacts, githubReleaseArtifacts });
   const latentOverlaps = buildLatentOverlapCards({ teams, clusters, dependencies });
+  const awards = buildAwardCards({ teams, dependencies, githubProgressArtifacts, githubReleaseArtifacts, editorialCategories });
   const rotation = buildRotationReadModel();
-  const cards = [...projectIdentity, ...sayDidShipped, ...latentOverlaps];
+  const cards = [...sayDidShipped, ...latentOverlaps, ...awards];
   return {
     schema_version: INSIGHT_SCHEMA_VERSION,
     artifact_kind: "cohort_insight_bundle",
@@ -709,23 +683,25 @@ function buildCohortInsightBundle({
       }, {}),
     },
     read_models: {
-      project_identity: projectIdentity,
       say_did_shipped: sayDidShipped,
       latent_overlaps: latentOverlaps,
+      awards,
       rotation,
     },
     quality: {
       card_count: cards.length,
       kind_counts: {
-        project_identity: projectIdentity.length,
         say_did_shipped: sayDidShipped.length,
         latent_overlap: latentOverlaps.length,
+        award: awards.length,
         rotation: 0,
       },
+      award_scaffold_count: awards.length,
+      editorial_award_slot_count: awards.filter(card => card.content_json?.award_kind === "editorial_slot").length,
       team_count: asArray(teams).length,
       public_progress_artifact_count: asArray(githubProgressArtifacts).length,
       public_release_artifact_count: asArray(githubReleaseArtifacts).length,
-      project_identity_card_count: projectIdentity.length,
+      say_did_shipped_card_count: sayDidShipped.length,
       latent_overlap_candidate_count: latentOverlaps.length,
       unobserved_say_did_shipped_count: sayDidShipped.filter(card => card.content_json?.observed_status === "unobserved").length,
     },
@@ -733,6 +709,7 @@ function buildCohortInsightBundle({
       app_surface: "Cohort app may render generated cards with generated/review status visible.",
       public_web: "Public web should exclude cards unless surface_tier is public, review_status is published, and approval_state is approved.",
       rotation: "Do not generate or publish named-team rotation judgments without reviewed model provenance.",
+      award: "The public bundle only emits award SCAFFOLDS (public-signal nominations + empty editorial slots); winners are reviewed model judgments produced by the private engine into Supabase, never named here.",
     },
   };
 }
@@ -754,17 +731,17 @@ function publicCohortInsights(source) {
       by_subject: {},
     },
     read_models: {
-      project_identity: [],
       say_did_shipped: [],
       latent_overlaps: [],
+      awards: [],
       rotation: buildRotationReadModel(),
     },
     quality: {
       card_count: cards.length,
       kind_counts: {
-        project_identity: 0,
         say_did_shipped: 0,
         latent_overlap: 0,
+        award: 0,
         rotation: 0,
       },
     },
@@ -774,9 +751,10 @@ function publicCohortInsights(source) {
 
 module.exports = {
   GENERATED_BY,
+  buildAwardCards,
+  loadEditorialAwardCategories: awardScaffold.loadEditorialAwardCategories,
   buildCohortInsightBundle,
   buildLatentOverlapCards,
-  buildProjectIdentityCards,
   buildRotationReadModel,
   buildSayDidShippedCards,
   loadCohortInsightInputs,

@@ -5,7 +5,7 @@ schema_version: 1
 kind: project
 membership: visiting
 name: "Shake"
-focus: "Shake is a social network app that connects people when they shake their phones together."
+focus: "shake-to-connect social networking"
 members_count: 1
 geo: "NYC"
 domain: app-ux

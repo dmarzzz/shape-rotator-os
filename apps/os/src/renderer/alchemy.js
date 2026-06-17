@@ -5754,8 +5754,15 @@ function sdsNumber(content, key) {
   return Number.isFinite(value) ? value : 0;
 }
 
-function sdsEvidenceParts(card) {
+// Consolidated cards nest the numeric proof under public_activity; fall back to the
+// card root so any un-regenerated card still reads its counts.
+function sdsActivity(card) {
   const content = insightContent(card);
+  return content.public_activity && typeof content.public_activity === "object" ? content.public_activity : content;
+}
+
+function sdsEvidenceParts(card) {
+  const content = sdsActivity(card);
   const releases = sdsNumber(content, "release_count");
   const commits = sdsNumber(content, "useful_commit_count");
   const artifacts = sdsNumber(content, "progress_artifact_count");
@@ -5785,16 +5792,16 @@ function renderSayDidShipped() {
     .map(team => ({ team, card: cardByTeam.get(team.record_id) || null }))
     .filter(row => row.card)
     .sort((a, b) => {
-      const ac = insightContent(a.card);
-      const bc = insightContent(b.card);
+      const ac = sdsActivity(a.card);
+      const bc = sdsActivity(b.card);
       return Number(sdsObserved(b.card)) - Number(sdsObserved(a.card))
         || sdsNumber(bc, "release_count") - sdsNumber(ac, "release_count")
         || sdsNumber(bc, "useful_commit_count") - sdsNumber(ac, "useful_commit_count")
         || String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id));
     });
   const observed = rows.filter(row => sdsObserved(row.card)).length;
-  const releases = rows.reduce((sum, row) => sum + sdsNumber(insightContent(row.card), "release_count"), 0);
-  const commits = rows.reduce((sum, row) => sum + sdsNumber(insightContent(row.card), "useful_commit_count"), 0);
+  const releases = rows.reduce((sum, row) => sum + sdsNumber(sdsActivity(row.card), "release_count"), 0);
+  const commits = rows.reduce((sum, row) => sum + sdsNumber(sdsActivity(row.card), "useful_commit_count"), 0);
   const cardCount = `${rows.length} card${rows.length === 1 ? "" : "s"}`;
   const buildSummary = releases
     ? `${releases} release${releases === 1 ? "" : "s"}`
@@ -5807,35 +5814,49 @@ function renderSayDidShipped() {
       <strong class="ac-sent-fact">${escHtml(`${observed}/${rows.length || teams.length}`)}</strong>
       <span class="ac-sent-word">with build signal · ${escHtml(buildSummary)}</span>
     </div>`;
+  // One card per team: a scannable identity lead (what it is / who it serves, with a
+  // domain-colored accent) over the say -> did -> shipped proof strip. Observed build
+  // signal reads visually (domain accent + numeric chips); declared-only teams stay
+  // muted. Replaces the old 5-column prose table that forced a 1120px horizontal scroll.
   const rowHtml = rows.map(({ team, card }) => {
     const content = insightContent(card);
-    const observedClass = sdsObserved(card) ? " is-observed" : " is-declared";
+    const act = sdsActivity(card);
+    const isObserved = sdsObserved(card);
+    const observedClass = isObserved ? " is-observed" : " is-declared";
+    const domainKey = constDomainClass(team.domain);
     const domain = domainLabel(team.domain) || team.domain || "team";
-    const meta = [domain, team.geo].filter(Boolean).join(" · ");
+    const whatIs = constShortText(content.what_it_is || "", 150);
+    const icp = constShortText(content.who_it_serves || "", 120);
     const proof = sdsEvidenceParts(card);
+    const relCount = sdsNumber(act, "release_count");
+    const commitCount = sdsNumber(act, "useful_commit_count");
+    const chips = [
+      relCount ? `<span class="ac-sds-chip"><strong>${relCount}</strong> rel</span>` : "",
+      commitCount ? `<span class="ac-sds-chip"><strong>${commitCount}</strong> commits</span>` : "",
+    ].filter(Boolean).join("");
     return `
-      <button type="button" class="ac-sds-row${observedClass}" data-const-open-record="${escAttr(team.record_id)}" title="${escAttr(`open ${team.name || team.record_id}`)}">
-        <span class="ac-sds-team">
-          <strong>${escHtml(team.name || team.record_id)}</strong>
-          ${meta ? `<em>${escHtml(meta)}</em>` : ""}
+      <button type="button" class="ac-sds-card${observedClass}" data-domain="${escAttr(domainKey)}" data-const-open-record="${escAttr(team.record_id)}" title="${escAttr(`open ${team.name || team.record_id}`)}">
+        <span class="ac-sds-identity">
+          <strong class="ac-sds-name">${escHtml(team.name || team.record_id)}</strong>
+          <span class="ac-sds-domain"><i style="background:${escAttr(CONST_DOMAIN_COLORS[domainKey] || CONST_DOMAIN_COLORS.other)}"></i>${escHtml(domain)}</span>
+          ${whatIs ? `<span class="ac-sds-whatis">${escHtml(whatIs)}</span>` : ""}
+          ${icp ? `<span class="ac-sds-icp">serves ${escHtml(icp)}</span>` : ""}
         </span>
-        <span class="ac-sds-cell">
-          <b>say</b>
-          <span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 210))}</span>
+        <span class="ac-sds-proof-strip">
+          <span class="ac-sds-cell">
+            <b>say</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 150))}</span>
+          </span>
+          <span class="ac-sds-cell${observedClass}">
+            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 150))}</span>
+          </span>
+          <span class="ac-sds-cell${observedClass}">
+            <b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 130))}</span>
+            ${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}
+          </span>
         </span>
-        <span class="ac-sds-cell">
-          <b>did</b>
-          <span>${escHtml(constShortText(content.did || "not observed", 210))}</span>
-        </span>
-        <span class="ac-sds-cell">
-          <b>shipped</b>
-          <span>${escHtml(constShortText(content.shipped || "not observed", 180))}</span>
-        </span>
-        <span class="ac-sds-proof">
-          <strong>${escHtml(proof.status)}</strong>
-          <span>${escHtml(proof.primary)}</span>
-          ${proof.detail ? `<small>${escHtml(proof.detail)}</small>` : ""}
-          <em>${escHtml(proof.review)}</em>
+        <span class="ac-sds-foot">
+          <span class="ac-sds-state">${escHtml(proof.status)}</span>
+          <span class="ac-sds-review">${escHtml(proof.review)}</span>
         </span>
       </button>`;
   }).join("");
@@ -5849,10 +5870,7 @@ function renderSayDidShipped() {
         <div class="alch-const-workbench is-single">
           <div class="alch-const-main">
             <div class="alch-constellation-stage ac-sds-stage" data-view="shipped" tabindex="0" aria-label="say did shipped cards">
-              <div class="ac-stack-view is-sds">
-                <div class="ac-sds-head" aria-hidden="true">
-                  <span>team</span><span>say</span><span>did</span><span>shipped</span><span>evidence</span>
-                </div>
+              <div class="ac-sds-grid">
                 ${rowHtml}
                 ${empty}
               </div>
@@ -5862,46 +5880,6 @@ function renderSayDidShipped() {
         </div>
       </div>
     </div>`;
-}
-
-function renderTargets() {
-  const cohort = activeConstellationCohort();
-  const teams = cohort.teams || [];
-  const goalModel = constGoalPlanModel(state.cohort?.teams || teams);
-  const standingFilter = constNormalizeGoalStandingFilter(state.goalStandingFilter);
-  const momentumFilter = constNormalizeGoalMomentumFilter(state.goalMomentumFilter);
-  const standingChip = (key) => {
-    const spec = CONST_GOAL_STANDING[key];
-    const count = goalModel.counts[key] || 0;
-    return `<button type="button" class="ac-sent-evi is-standing is-standing-${escAttr(key)}" data-standing-filter="${escAttr(key)}" aria-pressed="${standingFilter === key ? "true" : "false"}" aria-label="${escAttr(`${spec.label}: ${count} teams${standingFilter === key ? " — click to clear" : " — click to isolate"}`)}">
-      <i class="ac-sent-dot" aria-hidden="true"></i><em>${escHtml(String(count))}</em>&nbsp;${escHtml(spec.label)}
-    </button>`;
-  };
-  const sentenceBar = `
-    <div class="ac-sentence" role="group" aria-label="team target gaps">
-      <span class="ac-sent-word">aiming</span>
-      <strong class="ac-sent-fact">${goalModel.tracked.length} teams</strong>
-      <span class="ac-sent-word">at a target stage</span>
-      <span class="ac-sent-word">· by standing</span>
-      ${CONST_GOAL_STANDING_KEYS.map(standingChip).join("")}
-    </div>`;
-  state.canvas.innerHTML = `
-    <div class="alch-cohort-page" data-cohort-view="targets">
-    ${cohortPageHead("targets")}
-    <div class="alch-view-controls" data-shape-occluder>${constTimelineDropdownHtml()}${sentenceBar}${constSelectionChipHtml()}</div>
-    <div class="alch-constellation" data-constellation-view="targets">
-      <div class="alch-const-workbench is-single">
-        <div class="alch-const-main">
-          <div class="alch-constellation-stage ac-stack-stage" data-view="targets" data-lens="all" tabindex="0" aria-label="team current stage versus target">
-            ${constGoalTargetsHtml(goalModel, standingFilter, momentumFilter)}
-            <div class="ac-tip" hidden></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    </div>
-  `;
-  markConstellationSelection(state.constSelection);
 }
 
 function renderProductStack() {
