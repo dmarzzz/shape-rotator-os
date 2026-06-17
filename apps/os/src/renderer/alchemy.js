@@ -5189,7 +5189,7 @@ function constTeamPreviewHtml(team, ctx) {
   return `
     <div class="ac-inspector-hero is-preview" data-const-team="${escAttr(rid)}">
       <div class="ac-inspector-kicker">hovering — click to pin its intersections</div>
-      <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(rid)}">${escHtml(team.name || rid)}</button></h3>
+      <h3>${escHtml(team.name || rid)}</h3>
       <div class="ac-inspector-pills">
         <span>${escHtml(CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other")}</span>
         ${Number.isFinite(stage) ? `<span>maturity ${escHtml(String(stage))}</span>` : ""}
@@ -6956,43 +6956,11 @@ function renderConstellation() {
     }
   });
   const unclusteredIds = new Set(model.wellsDef.find(w => w.id === "_other")?.members || []);
-  const edgeDrawList = edges.slice().sort((a, b) =>
-    Number(Boolean(a.normalized)) - Number(Boolean(b.normalized))
-    || String(a.from || "").localeCompare(String(b.from || ""))
-    || String(a.to || "").localeCompare(String(b.to || "")));
-  const edgeMarkup = edgeDrawList.map(e => {
-    const a = pos.get(e.from), b = pos.get(e.to);
-    if (!a || !b) return "";
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const ux = dx / dist, uy = dy / dist;
-    const sx = a.x + ux * (a.r + 2), sy = a.y + uy * (a.r + 2);
-    const ex = b.x - ux * (b.r + 7), ey = b.y - uy * (b.r + 7);
-    const bend = 12 + Math.min(48, dist * 0.12);
-    let qx;
-    let qy;
-    if (ringCenter) {
-      const mx = (sx + ex) / 2;
-      const my = (sy + ey) / 2;
-      const seed = Math.abs(hashStr(`${e.from}:${e.to}:${e.id || e.relation || ""}`));
-      const spread = ((seed % 11) - 5) * 9;
-      qx = mx + (ringCenter.x - mx) * 0.10 - uy * spread;
-      qy = my + (ringCenter.y - my) * 0.10 + ux * spread;
-    } else {
-      qx = (sx + ex) / 2 - uy * bend;
-      qy = (sy + ey) / 2 + ux * bend;
-    }
-    const meaning = constRelationshipMeaning(e);
-    const lensMatchClass = constLensMatchesEdge(e, activeLens) ? " is-lens-match" : " is-lens-miss";
-    const interestClass = interestCtx.active
-      ? (constInterestOwnsEdge(e, interestCtx) ? " is-interest-edge" : (constInterestTouchesEdge(e, interestCtx) ? " is-interest-adjacent-edge" : " is-interest-outside"))
-      : "";
-    const cls = `ac-edge ac-edge-dependency ac-edge-meaning-${dependencySafeToken(meaning.key)} ac-edge-source-${e.normalized ? "record" : "legacy"} ac-edge-status-${dependencySafeToken(e.status)}${e.normalized ? " is-source-backed" : " is-profile-link"}${lensMatchClass}${interestClass}`;
-    const aria = `${model.byRecordId.get(e.from)?.name || e.from} ${meaning.label}: ${e.relation_label || "links to"} ${model.byRecordId.get(e.to)?.name || e.to}`;
-    const d = `M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${qx.toFixed(1)} ${qy.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`;
-    return `<path class="${cls}" data-a="${escAttr(e.from)}" data-b="${escAttr(e.to)}" data-dep-id="${escAttr(e.id || "")}" aria-hidden="true" d="${escAttr(d)}" marker-end="url(#${e.normalized ? "ac-arrow" : "ac-arrow-soft"})"/>`
-      + `<path class="ac-edge-hit" data-a="${escAttr(e.from)}" data-b="${escAttr(e.to)}" data-dep-id="${escAttr(e.id || "")}" role="button" tabindex="0" aria-label="${escAttr(aria)}" d="${escAttr(d)}"/>`;
-  }).join("");
+  // The bubble map deliberately does not draw dependency edges — overlap reads
+  // through bubble containment + the inspector's Venn, so <g class="ac-edges">
+  // below stays an empty placeholder. The `edges` array is still consumed by the
+  // inspector (relationship breakdown / coverage), but the per-render SVG-path
+  // build was dead work in the hot path, so it's dropped here.
 
   // Draw small→large so keystones sit on top of the pile. Node color is always
   // domain (one coding across every lens). Under the relationships lens, nodes
@@ -7693,7 +7661,10 @@ function wireConstellationHover() {
     // legacy map/ring path still uses the provenance tooltip.
     const isBubble = stage.getAttribute("data-view") === "bubble";
     let lastPreviewRid = null;
+    let pendingRestore = 0;
+    const cancelPendingRestore = () => { if (pendingRestore) { cancelAnimationFrame(pendingRestore); pendingRestore = 0; } };
     const previewInspector = (rid) => {
+      cancelPendingRestore(); // sweeping onto another bubble cancels any queued teardown
       if (rid === lastPreviewRid) return; // de-thrash re-entering the same bubble
       const body = state.canvas?.querySelector(".ac-inspector-body");
       const t = teamById.get(rid);
@@ -7712,14 +7683,22 @@ function wireConstellationHover() {
         body.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
       }
     };
+    // Defer the default-inspector rebuild one frame so a re-enter (sweeping onto
+    // an adjacent bubble) cancels it — otherwise crossing the dense map tears down
+    // and rebuilds the scored relationship queue once per bubble, flickering the
+    // default body and churning the main thread.
     const restoreInspector = () => {
       lastPreviewRid = null;
-      const body = state.canvas?.querySelector(".ac-inspector-body");
-      if (!body) return;
-      body.querySelector(".ac-hover-strip")?.remove();
-      if (state.constSelection) return; // pinned dossier stays put
-      body.innerHTML = constellationInspectorLeadHtml(inspectorCtx, state.constSelection) + constellationInspectorHtml(state.constSelection, inspectorCtx);
-      wireExternalLinks(body);
+      cancelPendingRestore();
+      pendingRestore = requestAnimationFrame(() => {
+        pendingRestore = 0;
+        const body = state.canvas?.querySelector(".ac-inspector-body");
+        if (!body) return;
+        body.querySelector(".ac-hover-strip")?.remove();
+        if (state.constSelection) return; // pinned dossier stays put
+        body.innerHTML = constellationInspectorLeadHtml(inspectorCtx, state.constSelection) + constellationInspectorHtml(state.constSelection, inspectorCtx);
+        wireExternalLinks(body);
+      });
     };
     // Click/Enter a container ring to focus its space: its member bubbles stay
     // lit while the rest of the cohort dims. Works at EVERY grain (theme /
