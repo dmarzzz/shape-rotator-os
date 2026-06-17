@@ -4907,72 +4907,202 @@ function constTeamInspectorHtml(team, ctx) {
     ${isBubble ? "" : constTeamActionCardHtml(team, ctx)}
     ${constTeamPeopleHtml(team, ctx)}
     ${isBubble ? "" : relationshipDetails}
-    ${currentBetSection}
-    ${marketFitSection}
-    ${transcriptCues}
-    ${sourceProofDetails}
+    ${/* Bubble (positional) mode stays lean: the map answers WHERE a team sits,
+         so the strategy / PMF / evidence dossier tail is dropped here — it lives
+         one click away on the team's full record, and intros/asks/offers live on
+         the Collab board. Other views keep the full inspector. */ ""}
+    ${isBubble ? "" : currentBetSection}
+    ${isBubble ? "" : marketFitSection}
+    ${isBubble ? "" : transcriptCues}
+    ${isBubble ? "" : sourceProofDetails}
     ${isBubble ? `<p class="ac-inspector-note ac-collab-pointer">Intros, asks &amp; offers live on the Collab board.</p>` : ""}`;
 }
 
 const EGO_DOMAIN_FILL = { tee: "#C0492E", ai: "#D9913D", crypto: "#9A5BA6", "app-ux": "#3F9B8E", other: "#8a7d75" };
 function constEgoNodeFill(team) { return EGO_DOMAIN_FILL[constDomainClass(team?.domain)] || EGO_DOMAIN_FILL.other; }
 
-// Per-company overlap: the selected team centered, every space (cluster) it
-// belongs to drawn as an overlapping circle, with co-members placed by how many
-// of its spaces they share — the teams in the overlaps (ringed) are its closest
-// collaboration-or-collision candidates. This is the multi-membership truth the
-// global bubble map must flatten to a single home; here it is restored, scoped
-// to one company so a Venn is legible.
+// Per-company overlap (Venn): the focal team centred, every space (cluster) it
+// belongs to drawn as a circle whose DISTANCE from the focal encodes how strongly
+// the focal fits that space — close = core (it sits deep inside), far = it only
+// touches (focal near the rim). So a "less X" team has the X circle pushed out,
+// not sitting evenly with the rest. The focal's ~% split across its spaces (same
+// skill-fit signal, summing to 100) is printed on each label so the number and
+// the geometry agree. The OTHER teams are dots: one-space teams out in that
+// circle's region, multi-space teams in the overlaps leaning toward the spaces
+// THEY fit most; size + halo mark how many spaces they share, and a legend names
+// them. The map answers "where does this team sit", not "who should it talk to"
+// (the Collab board owns that). Hovering a dot lights the exact spaces it shares
+// (wired in the inspector delegation via data-ego-spaces / data-space-idx).
 function constEgocentricOverlapSvg(team, ctx) {
   const clusters = Array.isArray(ctx?.clusters) ? ctx.clusters : [];
   const rid = team?.record_id;
   const spaces = clusters
     .filter(c => Array.isArray(c.teams) && c.teams.includes(rid))
-    .map(c => ({ label: c.label || c.name || c.record_id, members: c.teams.filter(id => id !== rid) }));
+    .map(c => ({ label: c.label || c.name || c.record_id, allTeams: c.teams || [], members: c.teams.filter(id => id !== rid) }));
   const N = spaces.length;
   if (!N) return `<p class="ac-inspector-note">Not in a shared space yet — overlap appears once ${escHtml(team?.name || "this team")} joins a cluster.</p>`;
-  const W = 360, H = 300, CX = 180, CY = 150, D = 54, R = 78;
-  const u = spaces.map((_, i) => { const a = (-90 + i * 360 / N) * Math.PI / 180; return [Math.cos(a), Math.sin(a)]; });
-  let circles = "";
+
+  // Wider than tall so the outer space labels have horizontal room.
+  const W = 408, H = 296, CX = 204, CY = 144;
+  const R = N === 1 ? 92 : (N === 2 ? 78 : (N === 3 ? 70 : 60));
+  // N=2 reads as the canonical side-by-side Venn (start left); 3+ start at top.
+  const start = N === 2 ? 180 : -90;
+  const u = spaces.map((_, i) => {
+    if (N === 1) return [0, 0];
+    const a = (start + i * 360 / N) * Math.PI / 180;
+    return [Math.cos(a), Math.sin(a)];
+  });
+
+  // Affinity of a TEAM (focal or co-member) to ONE of the focal's spaces: the
+  // share of that team's curated skills the rest of the space also works in (+
+  // the space label as theme). Smoothed to [0.3,1] — every member is still a
+  // member, but a prototypical team scores ~1 and a peripheral one ~0.3.
+  const affinity = (memberId, i) => {
+    const t = ctx?.teamById?.get(memberId);
+    const mine = (t?.skill_areas || []).map(s => String(s).toLowerCase());
+    if (!mine.length) return 0.65;
+    const pool = new Set();
+    for (const id of (spaces[i].allTeams || [])) {
+      if (id === memberId) continue;
+      (ctx?.teamById?.get(id)?.skill_areas || []).forEach(s => pool.add(String(s).toLowerCase()));
+    }
+    String(spaces[i].label || "").toLowerCase().split(/[^a-z0-9]+/).forEach(w => { if (w.length > 3) pool.add(w); });
+    if (!pool.size) return 0.65;
+    let hits = 0; for (const s of mine) if (pool.has(s)) hits++;
+    return 0.3 + 0.7 * (hits / mine.length);
+  };
+
+  // The space-circle's DISTANCE from the focal encodes how strongly the FOCAL
+  // fits that space: strong -> circle hugs the focal (it sits deep inside); weak
+  // -> circle pushed out (focal near its rim). "Less X" => the X circle is
+  // further away. Focal stays inside every circle (D < R always).
+  const focalAff = spaces.map((_, i) => (N === 1 ? 1 : affinity(rid, i)));
+  const Dmin = R * 0.40, Dmax = R * 0.90;
+  const D = focalAff.map(a => { const n = Math.max(0, Math.min(1, (a - 0.3) / 0.7)); return Dmax - (Dmax - Dmin) * n; });
+  const cen = i => [CX + u[i][0] * D[i], CY + u[i][1] * D[i]];
+  // Focal's emphasis split across its spaces as integer % summing to 100
+  // (largest-remainder rounding). Estimated from the same skill-fit signal, so
+  // the number agrees with the geometry; rendered as "~NN%" since it's derived.
+  const affSum = focalAff.reduce((s, a) => s + a, 0) || 1;
+  const pct = focalAff.map(a => Math.floor(a / affSum * 100));
+  let rem = 100 - pct.reduce((s, p) => s + p, 0);
+  const byFrac = focalAff.map((a, i) => ({ i, frac: a / affSum * 100 - Math.floor(a / affSum * 100) })).sort((x, y) => y.frac - x.frac);
+  for (let k = 0; k < rem; k++) pct[byFrac[k % byFrac.length].i]++;
+  const pctTag = i => (N === 1 ? `<tspan class="ac-ego-space-pct" dx="5">100%</tspan>` : `<tspan class="ac-ego-space-pct" dx="5">~${pct[i]}%</tspan>`);
+
+  // ── space circles (additive translucent fill = density) + outer labels ──
+  // Labels carry the space NAME + the focal's ~% share; crowdedness counts live
+  // on the adjacent "where it sits" chips, so we don't print those twice.
+  let circles = "", labels = "";
   for (let i = 0; i < N; i++) {
-    const cx = CX + u[i][0] * D, cy = CY + u[i][1] * D;
-    const lx = CX + u[i][0] * (D + R + 6), ly = CY + u[i][1] * (D + R + 6);
-    const anchor = u[i][0] > 0.3 ? "start" : (u[i][0] < -0.3 ? "end" : "middle");
-    circles += `<circle class="ac-ego-space" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${R}"/>`
-      + `<text class="ac-ego-space-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}">${escHtml(constShortText(spaces[i].label, 22))}</text>`;
+    const [cx, cy] = cen(i);
+    circles += `<circle class="ac-ego-space" data-space-idx="${i}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${R}"/>`;
+    if (N === 1) {
+      labels += `<text class="ac-ego-space-label" x="${CX}" y="${(CY - R - 8).toFixed(1)}" text-anchor="middle">${escHtml(constShortText(spaces[i].label, 26))}${pctTag(i)}</text>`;
+    } else {
+      let lx = CX + u[i][0] * (D[i] + R + 11);
+      let ly = CY + u[i][1] * (D[i] + R + 11);
+      const anchor = u[i][0] > 0.3 ? "start" : (u[i][0] < -0.3 ? "end" : "middle");
+      lx = Math.max(6, Math.min(W - 6, lx));               // never clip the panel edge
+      ly = Math.max(14, Math.min(H - 6, ly));
+      const dy = u[i][1] < -0.3 ? "-0.2em" : (u[i][1] > 0.3 ? "0.8em" : "0.3em");
+      labels += `<text class="ac-ego-space-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" dy="${dy}" text-anchor="${anchor}">${escHtml(constShortText(spaces[i].label, N === 2 ? 18 : 13))}${pctTag(i)}</text>`;
+    }
   }
+
+  // ── co-members: which of the focal's spaces each shares ──
   const share = new Map();
   spaces.forEach((sp, i) => sp.members.forEach(m => { (share.get(m) || share.set(m, []).get(m)).push(i); }));
-  const singlesByPetal = new Map(); const multi = [];
-  for (const [m, arr] of share) { if (arr.length === 1) (singlesByPetal.get(arr[0]) || singlesByPetal.set(arr[0], []).get(arr[0])).push(m); else multi.push(m); }
-  const dot = (m, x, y, ringed) => {
-    const t = ctx?.teamById?.get(m); const nm = t?.name || m;
-    const shared = (share.get(m) || []).map(i => spaces[i].label).join(", ");
-    return `<g class="ac-ego-node${ringed ? " is-multi" : ""}" data-ego-refocus="${escAttr(m)}" role="button" tabindex="0" aria-label="${escAttr(`focus ${nm}`)}">`
-      + (ringed ? `<circle class="ac-ego-ring" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9.5"/>` : "")
-      + `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="${constEgoNodeFill(t)}"/>`
-      + `<title>${escHtml(`${nm} — shares: ${shared}`)}</title></g>`;
+
+  const dot = (m, x, y, idxs) => {
+    const t = ctx?.teamById?.get(m); const nm = t?.name || m; const k = idxs.length;
+    const names = idxs.map(i => spaces[i].label).join(", ");
+    const r = 4.4 + Math.min(k - 1, 3) * 1.2;              // size grows with shared-space count
+    const halo = k >= 2 ? `<circle class="ac-ego-halo" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r + 3).toFixed(1)}"/>` : "";
+    return `<g class="ac-ego-node" data-ego-refocus="${escAttr(m)}" data-ego-spaces="${idxs.join(",")}" role="button" tabindex="0" aria-label="${escAttr(`${nm} — shares ${k} of ${N}: ${names} — focus it`)}">`
+      + halo
+      + `<circle class="ac-ego-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${constEgoNodeFill(t)}"/>`
+      + `<title>${escHtml(`${nm} — shares ${k} of ${N}: ${names}`)}</title></g>`;
   };
+
   let nodes = "";
-  for (let i = 0; i < N; i++) {
-    const all = singlesByPetal.get(i) || []; const list = all.slice(0, 8); const extra = all.length - list.length;
-    const a0 = -90 + i * 360 / N;
-    list.forEach((m, k) => {
-      const spread = Math.min(46, 13 * Math.max(0, list.length - 1));
-      const a = (list.length > 1 ? a0 - spread / 2 + spread * k / (list.length - 1) : a0) * Math.PI / 180;
-      const rr = D + R * 0.5;
-      nodes += dot(m, CX + Math.cos(a) * rr, CY + Math.sin(a) * rr, false);
+  if (N === 1) {
+    // one space, no overlap gradient to show: ring the co-members around the focal.
+    const list = [...share.keys()];
+    const shown = list.slice(0, 12), extra = list.length - shown.length;
+    shown.forEach((m, j) => {
+      const ringIdx = Math.floor(j / 8);
+      const perRing = Math.min(8, shown.length - ringIdx * 8);
+      const k = j - ringIdx * 8;
+      const ang = (-90 + (perRing > 1 ? (k / perRing) * 360 : 0)) * Math.PI / 180;
+      const rr = 34 + ringIdx * 22;
+      nodes += dot(m, CX + Math.cos(ang) * rr, CY + Math.sin(ang) * rr, share.get(m));
     });
-    if (extra > 0) { const a = a0 * Math.PI / 180, rr = D + R * 0.82; nodes += `<text class="ac-ego-more" x="${(CX + Math.cos(a) * rr).toFixed(1)}" y="${(CY + Math.sin(a) * rr).toFixed(1)}" text-anchor="middle">+${extra}</text>`; }
+    if (extra > 0) nodes += `<text class="ac-ego-more" x="${CX}" y="${(CY + 64).toFixed(1)}" text-anchor="middle">+${extra} more</text>`;
+  } else {
+    // Place each OTHER team relative to the (now fit-positioned) circles: a team
+    // in one space sits out in that circle's region; a team in several sits in
+    // their overlap, leaning toward the spaces IT fits most (its own affinity).
+    // Then relax overlaps deterministically so dots never stack.
+    const FOCAL_CLEAR = 18, MIN_GAP = 13.5;
+    const placed = [];
+    for (const [m, idxs] of share) {
+      let x, y;
+      if (idxs.length === 1) {
+        const i = idxs[0]; const [cx, cy] = cen(i); x = cx + u[i][0] * R * 0.42; y = cy + u[i][1] * R * 0.42;
+      } else {
+        let gx = 0, gy = 0, ws = 0;
+        idxs.forEach(i => { const w = affinity(m, i); const [cx, cy] = cen(i); gx += w * cx; gy += w * cy; ws += w; });
+        x = ws ? gx / ws : CX; y = ws ? gy / ws : CY;
+      }
+      placed.push({ m, idxs, x, y, fb: u[idxs[0]] });
+    }
+    // deterministic order so relaxation is stable across renders
+    placed.sort((a, b) => b.idxs.length - a.idxs.length || (a.m < b.m ? -1 : 1));
+    const clearFocal = (P) => {
+      const dx = P.x - CX, dy = P.y - CY, dl = Math.hypot(dx, dy);
+      if (dl < FOCAL_CLEAR) {
+        const ang = dl > 0.01 ? Math.atan2(dy, dx) : Math.atan2(P.fb[1], P.fb[0]);
+        P.x = CX + Math.cos(ang) * FOCAL_CLEAR; P.y = CY + Math.sin(ang) * FOCAL_CLEAR;
+      }
+    };
+    placed.forEach(clearFocal);
+    for (let iter = 0; iter < 30; iter++) {
+      for (let a = 0; a < placed.length; a++) {
+        for (let b = a + 1; b < placed.length; b++) {
+          const A = placed[a], B = placed[b];
+          const dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy);
+          if (d > 0.0001 && d < MIN_GAP) {
+            const push = (MIN_GAP - d) / 2, ux = dx / d, uy = dy / d;
+            A.x -= ux * push; A.y -= uy * push; B.x += ux * push; B.y += uy * push;
+          } else if (d <= 0.0001) { A.x -= 0.8; B.x += 0.8; }
+        }
+      }
+      placed.forEach(clearFocal);
+    }
+    placed.forEach(P => { nodes += dot(P.m, P.x, P.y, P.idxs); });
   }
-  multi.forEach((m, k) => {
-    let dx = 0, dy = 0; (share.get(m) || []).forEach(i => { dx += u[i][0]; dy += u[i][1]; });
-    const len = Math.hypot(dx, dy) || 1; const jr = (k % 2 ? 1 : -1) * 7;
-    nodes += dot(m, CX + dx / len * (D * 0.42) + jr, CY + dy / len * (D * 0.42) + (k % 3 - 1) * 8, true);
-  });
-  const focal = `<g class="ac-ego-focal"><circle class="ac-ego-focal-ring" cx="${CX}" cy="${CY}" r="13"/><circle cx="${CX}" cy="${CY}" r="9" fill="${constEgoNodeFill(team)}"/><text class="ac-ego-focal-label" x="${CX}" y="${CY + 27}" text-anchor="middle">${escHtml(constShortText(team.name || rid, 18))}</text></g>`;
-  return `<svg class="ac-ego-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escAttr(`${team.name || rid} overlap across ${N} spaces`)}">${circles}${nodes}${focal}</svg>`
-    + `<p class="ac-ego-caption">In ${N} space${N === 1 ? "" : "s"}. ${multi.length} team${multi.length === 1 ? " shares" : "s share"} more than one — its closest collaboration-or-collision candidate${multi.length === 1 ? "" : "s"}.${multi.length ? " Click a co-member to recenter." : ""}</p>`;
+
+  // focal team — the anchor, dead centre (focusable so keyboard refocus lands here)
+  const focal = `<g class="ac-ego-focal" tabindex="-1" aria-label="${escAttr(`${team.name || rid} — focal team`)}">`
+    + `<circle class="ac-ego-focal-ring" cx="${CX}" cy="${CY}" r="13"/>`
+    + `<circle cx="${CX}" cy="${CY}" r="8.5" fill="${constEgoNodeFill(team)}"/>`
+    + `<text class="ac-ego-focal-label" x="${CX}" y="${CY + 26}" text-anchor="middle">${escHtml(constShortText(team.name || rid, 18))}</text>`
+    + `</g>`;
+
+  const nm = escHtml(constShortText(team.name || rid, 18));
+  const hint = `<span class="ac-ego-hint">Click a team to refocus.</span>`;
+  const caption = N === 1
+    ? `Shares its one space with <b>${share.size}</b> team${share.size === 1 ? "" : "s"}. ${hint}`
+    : `The <b>~%</b> estimates how ${nm}'s focus splits across its spaces (from skill fit) — its circle hugs the centre where the share is high, sits out where it only touches. ${hint}`;
+  const legend = `<div class="ac-ego-legend">`
+    + `<span><i class="lg-focal" style="background:${constEgoNodeFill(team)}"></i>${nm}</span>`
+    + `<span><i class="lg-dot"></i>other teams · hover for name · bigger = in more of these spaces</span>`
+    + `</div>`;
+
+  return `<svg class="ac-ego-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escAttr(`${team.name || rid} overlap across ${N} spaces`)}">`
+    + circles + nodes + labels + focal + `</svg>`
+    + `<p class="ac-ego-caption">${caption}</p>${legend}`;
 }
 
 // Compact hover preview for the side inspector (replaces the floating tooltip
@@ -7925,7 +8055,37 @@ function wireConstellationHover() {
       if (!egoTarget) return;
       e.preventDefault();
       const rid = egoTarget.getAttribute("data-ego-refocus");
-      if (rid) setConstellationInspector({ type: "team", rid }, constellationCurrentInspectorContext());
+      if (rid) {
+        setConstellationInspector({ type: "team", rid }, constellationCurrentInspectorContext());
+        // The activated dot was just destroyed; land focus on the rebuilt focal
+        // so keyboard users keep their place (mirrors stepConstellationTeamSelection).
+        try { state.canvas?.querySelector(".ac-ego-svg .ac-ego-focal")?.focus?.({ preventScroll: true }); } catch {}
+      }
+    });
+    // Per-company overlap hover/focus: light up the exact spaces a co-member
+    // shares (delegated, so it survives the partial inspector innerHTML swaps).
+    const egoLight = (node) => {
+      const svg = inspector.querySelector(".ac-ego-svg");
+      if (!svg) return;
+      const idxs = node ? (node.getAttribute("data-ego-spaces") || "").split(",").filter(Boolean) : [];
+      svg.classList.toggle("is-lit", !!(node && idxs.length));
+      svg.querySelectorAll(".ac-ego-space").forEach(c =>
+        c.classList.toggle("lit", idxs.includes(c.getAttribute("data-space-idx"))));
+    };
+    inspector.addEventListener("pointerover", (e) => {
+      const n = e.target.closest?.("[data-ego-refocus]");
+      if (n) egoLight(n);
+    });
+    inspector.addEventListener("pointerout", (e) => {
+      const n = e.target.closest?.("[data-ego-refocus]");
+      if (n && !n.contains(e.relatedTarget)) egoLight(null);
+    });
+    inspector.addEventListener("focusin", (e) => {
+      const n = e.target.closest?.("[data-ego-refocus]");
+      if (n) egoLight(n);
+    });
+    inspector.addEventListener("focusout", (e) => {
+      if (e.target.closest?.("[data-ego-refocus]")) egoLight(null);
     });
     inspector.addEventListener("click", (e) => {
       const clearTarget = e.target.closest("[data-const-clear-selection]");
@@ -7938,7 +8098,10 @@ function wireConstellationHover() {
       const egoTarget = e.target.closest("[data-ego-refocus]");
       if (egoTarget) {
         const rid = egoTarget.getAttribute("data-ego-refocus");
-        if (rid) setConstellationInspector({ type: "team", rid }, constellationCurrentInspectorContext());
+        if (rid) {
+          setConstellationInspector({ type: "team", rid }, constellationCurrentInspectorContext());
+          try { state.canvas?.querySelector(".ac-ego-svg .ac-ego-focal")?.focus?.({ preventScroll: true }); } catch {}
+        }
         return;
       }
       const openTarget = e.target.closest("[data-const-open-record]");
