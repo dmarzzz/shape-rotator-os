@@ -7,7 +7,7 @@
 //
 // Everything else (engine, shape scanner, preload, renderer) lives in this
 // folder. To replace the brain, swap this folder and keep these two calls — the
-// IPC channel names (tina:* / shape:*) and the window contract are the only
+// IPC channel names (hermes:* / shape:*) and the window contract are the only
 // coupling. See README.md.
 const path = require("node:path");
 const engine = require("./engine");
@@ -21,7 +21,7 @@ let _BrowserWindow = null;
 let _ipcMain = null;
 
 // Every IPC channel this component owns — the unit of register/unregister.
-const CHANNELS = ["tina:backends", "tina:run", "tina:stop", "shape:get", "shape:scan", "shape:saveSynthesis"];
+const CHANNELS = ["hermes:backends", "hermes:run", "hermes:stop", "shape:get", "shape:scan", "shape:saveSynthesis"];
 
 // Open (or focus) the brain window. Self-contained: uses the component's own
 // preload and renderer, so it doesn't depend on the host app's preload.
@@ -50,7 +50,7 @@ function createWindow() {
 }
 
 // Register the brain's main-process IPC. Mirrors the swarm pattern: detect
-// backends, run one grounded prompt (streaming stdout over "tina:chunk"),
+// backends, run one grounded prompt (streaming stdout over "hermes:chunk"),
 // cancel. The privacy gate + provider-key stripping live in engine.js; the
 // shape scanner persists under the host's userData dir.
 function register({ app, ipcMain, BrowserWindow }) {
@@ -61,18 +61,18 @@ function register({ app, ipcMain, BrowserWindow }) {
   // harness, re-init) doesn't throw ipcMain's "second handler" error.
   for (const c of CHANNELS) { try { ipcMain.removeHandler(c); } catch {} }
 
-  ipcMain.handle("tina:backends", async () => engine.detectBackends());
-  ipcMain.handle("tina:run", async (e, opts) => {
+  ipcMain.handle("hermes:backends", async () => engine.detectBackends());
+  ipcMain.handle("hermes:run", async (e, opts) => {
     const o = opts || {};
-    return engine.runTina({
+    return engine.run({
       backend:   o.backend,
       prompt:    o.prompt,
       dataMode:  o.dataMode || "public",
       requestId: o.requestId,
-      onData: (chunk) => { try { e.sender.send("tina:chunk", { requestId: o.requestId, chunk }); } catch {} },
+      onData: (chunk) => { try { e.sender.send("hermes:chunk", { requestId: o.requestId, chunk }); } catch {} },
     });
   });
-  ipcMain.handle("tina:stop", async () => engine.stop());
+  ipcMain.handle("hermes:stop", async () => engine.stop());
 
   ipcMain.handle("shape:get", async () => shapeScanner.getShape(app.getPath("userData")));
   ipcMain.handle("shape:scan", async (_e, opts) => {

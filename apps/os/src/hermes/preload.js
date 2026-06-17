@@ -1,6 +1,6 @@
 // preload.js — context-isolated bridge for the hermes "Ask Cohort" window.
 //
-// Exposes ONLY the brain's IPC surface (tina + shape) on `window.api`. Kept
+// Exposes ONLY the brain's IPC surface (hermes + shape) on `window.api`. Kept
 // inside the component (rather than reusing the host app's preload) so the whole
 // brain is self-contained and swappable: the host points the hermes window's
 // webPreferences.preload at this file (see integration.js) and nothing else is
@@ -8,19 +8,19 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("api", {
-  // ─── tina "brain" (the user's own codex/claude CLI — see engine.js) ─────
+  // ─── hermes "brain" (the user's own codex/claude CLI — see engine.js) ───
   // backends() lists detected CLIs; run() executes one grounded prompt and
   // resolves { ok, text }; onChunk(cb) streams partial stdout (returns an
   // unsubscribe fn); stop() cancels. The data-mode privacy gate + provider-key
   // stripping are enforced in the main process (engine.js).
-  tina: {
-    backends: ()     => ipcRenderer.invoke("tina:backends"),
-    run:      (opts) => ipcRenderer.invoke("tina:run", opts || {}),
-    stop:     ()     => ipcRenderer.invoke("tina:stop"),
+  hermes: {
+    backends: ()     => ipcRenderer.invoke("hermes:backends"),
+    run:      (opts) => ipcRenderer.invoke("hermes:run", opts || {}),
+    stop:     ()     => ipcRenderer.invoke("hermes:stop"),
     onChunk: (cb) => {
       const h = (_e, p) => { try { cb(p); } catch {} };
-      ipcRenderer.on("tina:chunk", h);
-      return () => ipcRenderer.removeListener("tina:chunk", h);
+      ipcRenderer.on("hermes:chunk", h);
+      return () => ipcRenderer.removeListener("hermes:chunk", h);
     },
   },
 

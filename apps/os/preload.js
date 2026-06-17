@@ -180,7 +180,7 @@ contextBridge.exposeInMainWorld("api", {
     },
   },
 
-  // NOTE: the hermes "Ask Cohort" brain (tina:* / shape:*) is a self-contained
+  // NOTE: the hermes "Ask Cohort" brain (hermes:* / shape:*) is a self-contained
   // component and ships its OWN preload — see src/hermes/preload.js. It is not
   // exposed here so the brain stays swappable without touching the host bridge.
 });

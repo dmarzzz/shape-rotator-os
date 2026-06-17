@@ -17,7 +17,7 @@ window contract are the only coupling to the host app.
 | `integration.js` | main | **The only integration point.** `register({ app, ipcMain, BrowserWindow })` + `menuItem()` + `createWindow()`. |
 | `engine.js` | main | Runs a prompt through the user's own `codex`/`claude` CLI. Privacy gate + provider-key stripping live here. Pure Node (unit-testable). |
 | `shape-scanner.js` | main | Builds the user's "shape" from public GitHub + local Codex session metadata. Pure Node. |
-| `preload.js` | preload | Context-isolated bridge exposing only `window.api.tina` + `window.api.shape`. |
+| `preload.js` | preload | Context-isolated bridge exposing only `window.api.hermes` + `window.api.shape`. |
 | `index.html` / `app.js` | renderer | The chat UI: engine selector, in-chat onboarding, find/engage prompt, Ollama streaming. |
 
 ## Wiring it into a host (Electron main)
@@ -39,9 +39,9 @@ not need to expose anything for the brain.
 
 **IPC channels** (main ⇄ renderer, via `preload.js`):
 
-- `tina:backends` → `{ codex?: {label, available, locality, transport}, claude?: {…} }` (`locality` = `'remote'|'local'`, the authoritative public-vs-private map; no version — a cold `--version` is too slow to wait on)
-- `tina:run` `{ backend, prompt, dataMode, requestId }` → `{ ok, text } | { ok:false, error }`; streams partial stdout on `tina:chunk` `{ requestId, chunk }`. The renderer sets `dataMode` from the prompt's actual grounding so the gate enforces, not rubber-stamps.
-- `tina:stop` → cancels the in-flight run
+- `hermes:backends` → `{ codex?: {label, available, locality, transport}, claude?: {…} }` (`locality` = `'remote'|'local'`, the authoritative public-vs-private map; no version — a cold `--version` is too slow to wait on)
+- `hermes:run` `{ backend, prompt, dataMode, requestId }` → `{ ok, text } | { ok:false, error }`; streams partial stdout on `hermes:chunk` `{ requestId, chunk }`. The renderer sets `dataMode` from the prompt's actual grounding so the gate enforces, not rubber-stamps.
+- `hermes:stop` → cancels the in-flight run
 - `shape:get` → persisted shape or `null`
 - `shape:scan` `{ user? }` → freshly built shape (persisted under `userData`); `user` is validated as a GitHub handle, else dropped
 - `shape:saveSynthesis` `{ synthesis }` → merges a structured shape read

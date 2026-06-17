@@ -48,8 +48,8 @@ let cohort = null;
 let chosenModel = null;
 let abortController = null;      // ollama streaming fetch
 let backend = "ollama";         // "ollama" | "codex" | "claude"
-let tinaBackends = {};          // { codex: {label, available, version}, claude: {...} }
-let tinaOff = null;             // active tina onChunk unsubscribe
+let cliBackends = {};          // { codex: {label, available, locality, transport}, claude: {...} }
+let chunkUnsub = null;             // active hermes:chunk stream unsubscribe
 let shape = null;               // the user's self-shape (github + codex), if scanned
 let ollamaStatus = { running: false, models: [], hermes: [] };
 let inFlight = false;            // a run (ask / define / scan) is active — gate re-entry
@@ -85,11 +85,11 @@ function classifyModels(models) {
 
 // ─── codex / claude discovery (main process) ──────────────────────────
 
-async function detectTina() {
-  if (!window.api || !window.api.tina) { tinaBackends = {}; return tinaBackends; }
-  try { tinaBackends = (await window.api.tina.backends()) || {}; }
-  catch { tinaBackends = {}; }
-  return tinaBackends;
+async function detectCliBackends() {
+  if (!window.api || !window.api.hermes) { cliBackends = {}; return cliBackends; }
+  try { cliBackends = (await window.api.hermes.backends()) || {}; }
+  catch { cliBackends = {}; }
+  return cliBackends;
 }
 
 // ─── setup panel (shown only when NO engine is available) ─────────────
@@ -106,7 +106,7 @@ function engineState() {
   // detectBackends omits a version string (a cold `--version` is too slow), so
   // the CLI detail is a fixed, honest line rather than a phantom version field.
   const cli = (key, label) => {
-    const connected = !!(tinaBackends[key] && tinaBackends[key].available);
+    const connected = !!(cliBackends[key] && cliBackends[key].available);
     return { key, label, connected, detail: connected ? "uses your subscription" : null };
   };
   return [
@@ -122,7 +122,7 @@ function engineState() {
 // source instead of a hand-maintained `backend === "ollama"` re-derivation.
 function localityOf(b) {
   if (b === "ollama") return "local";
-  return (tinaBackends[b] && tinaBackends[b].locality) || "remote";
+  return (cliBackends[b] && cliBackends[b].locality) || "remote";
 }
 
 function renderConnectPanel() {
@@ -181,7 +181,7 @@ function usableEngines() { return engineState().filter((e) => e.connected); }
 
 function activeEngineLabel() {
   if (backend === "ollama") return "Ollama (local)";
-  return (tinaBackends[backend] && tinaBackends[backend].label) || backend;
+  return (cliBackends[backend] && cliBackends[backend].label) || backend;
 }
 
 function engineStatusLine() {
@@ -243,7 +243,7 @@ function renderBackendSelector(ollamaUsable) {
   const opts = [];
   if (ollamaUsable) opts.push({ value: "ollama", label: "Ollama · local" });
   for (const key of ["codex", "claude"]) {
-    const bk = tinaBackends[key];
+    const bk = cliBackends[key];
     if (bk && bk.available) opts.push({ value: key, label: `${bk.label} · your sub` });
   }
   els.backendSelect.innerHTML = "";
@@ -268,7 +268,7 @@ function setBackend(b) {
     els.modelChip.textContent = `model: ${chosenModel || "—"}`;
     els.privacyNote.innerHTML = "<strong>local-only</strong> · prompts + responses never leave your machine";
   } else {
-    const label = (tinaBackends[b] && tinaBackends[b].label) || b;
+    const label = (cliBackends[b] && cliBackends[b].label) || b;
     els.modelChip.textContent = `engine: ${label}`;
     els.privacyNote.innerHTML = `<strong>via your ${label} subscription</strong> · public cohort data only · nothing stored, nothing sent to our servers`;
   }
@@ -277,16 +277,16 @@ function setBackend(b) {
 async function refreshDetection() {
   // Probe Ollama and the CLIs concurrently — they're independent, so first paint
   // waits on the slower one (~2.5s), not their sum (~7s).
-  const [probe] = await Promise.all([detectOllama(), detectTina()]);
+  const [probe] = await Promise.all([detectOllama(), detectCliBackends()]);
   if (probe.ok) {
     const { hermes, others } = classifyModels(probe.models);
     ollamaStatus = { running: true, models: [...hermes, ...others], hermes };
     els.ollamaChip.className = "chip ok";
     els.ollamaChip.textContent = "ollama: running";
   } else {
-    const tinaUsable = Object.values(tinaBackends).some((b) => b && b.available);
+    const cliUsable = Object.values(cliBackends).some((b) => b && b.available);
     ollamaStatus = { running: false, models: [], hermes: [] };
-    els.ollamaChip.className = tinaUsable ? "chip" : "chip bad";
+    els.ollamaChip.className = cliUsable ? "chip" : "chip bad";
     els.ollamaChip.textContent = "ollama: not running";
   }
 }
@@ -452,8 +452,8 @@ async function runPrompt(prompt, { dataMode = "public" } = {}) {
       return { ok: true, text: String(j.response || "").trim() };
     } catch (e) { return { ok: false, error: e.message || String(e) }; }
   }
-  if (!window.api || !window.api.tina) return { ok: false, error: "backend unavailable" };
-  return window.api.tina.run({ backend, prompt, dataMode, requestId: `syn-${Date.now()}` });
+  if (!window.api || !window.api.hermes) return { ok: false, error: "backend unavailable" };
+  return window.api.hermes.run({ backend, prompt, dataMode, requestId: `syn-${Date.now()}` });
 }
 
 function buildSynthesisPrompt(grounding) {
@@ -597,10 +597,10 @@ async function askOllama(question) {
   }
 }
 
-// ─── inference: codex / claude (main process CLI, via window.api.tina) ─
+// ─── inference: codex / claude (main process CLI, via window.api.hermes) ─
 
-async function askTina(question, b) {
-  if (!window.api || !window.api.tina) { els.response.textContent = "[brain backend unavailable — relaunch the app]"; return; }
+async function askViaCli(question, b) {
+  if (!window.api || !window.api.hermes) { els.response.textContent = "[brain backend unavailable — relaunch the app]"; return; }
   els.response.className = "response-wrap";
   // The CLI cold-starts (~10s) and claude text-mode often flushes once at the
   // end, so show activity until the first real output arrives.
@@ -608,12 +608,12 @@ async function askTina(question, b) {
   inFlight = true;
   setBusy(true);
   els.stopBtn.hidden = false;
-  const requestId = `tina-${Date.now()}`;
+  const requestId = `hermes-${Date.now()}`;
   const started = Date.now();
   let streamed = false;
 
-  if (tinaOff) { tinaOff(); tinaOff = null; }
-  tinaOff = window.api.tina.onChunk((p) => {
+  if (chunkUnsub) { chunkUnsub(); chunkUnsub = null; }
+  chunkUnsub = window.api.hermes.onChunk((p) => {
     if (!p || p.requestId !== requestId) return;
     if (!streamed) { els.response.textContent = ""; streamed = true; }
     els.response.textContent += p.chunk;
@@ -625,7 +625,7 @@ async function askTina(question, b) {
     // private shape detail was included, which only happens on a local backend),
     // so the main-process gate enforces the same fact that controls inclusion.
     const { prompt, dataMode } = buildPrompt(question);
-    const r = await window.api.tina.run({ backend: b, prompt, dataMode, requestId });
+    const r = await window.api.hermes.run({ backend: b, prompt, dataMode, requestId });
     if (!streamed) els.response.textContent = ""; // drop the "thinking…" placeholder
     if (!r || !r.ok) {
       const msg = (r && r.error) || "request failed";
@@ -634,11 +634,11 @@ async function askTina(question, b) {
       els.response.textContent = r.text || "(no output)";
     }
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
-    els.footer.textContent = `${elapsed}s · ${(tinaBackends[b] && tinaBackends[b].label) || b}`;
+    els.footer.textContent = `${elapsed}s · ${(cliBackends[b] && cliBackends[b].label) || b}`;
   } catch (e) {
     els.response.textContent += `\n\n[error: ${e.message || e}]`;
   } finally {
-    if (tinaOff) { tinaOff(); tinaOff = null; }
+    if (chunkUnsub) { chunkUnsub(); chunkUnsub = null; }
     inFlight = false;
     setBusy(false);
     els.stopBtn.hidden = true;
@@ -668,12 +668,12 @@ function dispatchAsk() {
     els.response.textContent = 'Connect an engine first — click "engines" above to set up Codex, Claude, or Ollama, then ask again.';
     return;
   }
-  if (backend === "ollama") askOllama(q); else askTina(q, backend);
+  if (backend === "ollama") askOllama(q); else askViaCli(q, backend);
 }
 
 function dispatchStop() {
   if (backend === "ollama") { if (abortController) abortController.abort(); }
-  else if (window.api && window.api.tina) window.api.tina.stop();
+  else if (window.api && window.api.hermes) window.api.hermes.stop();
 }
 
 // ─── event wiring ─────────────────────────────────────────────────────

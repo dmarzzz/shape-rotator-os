@@ -207,7 +207,7 @@ function isRunning() {
 // 6-12s (npm `.cmd` shim → cmd → node → CLI, plus AV scanning each hop) — far
 // too slow and variable to gate the UI on, and a tight timeout false-negatives
 // an installed CLI. A filesystem lookup is instant and reliable; whether the
-// CLI is actually signed in surfaces at run time (see conciseError in runTina).
+// CLI is actually signed in surfaces at run time (see conciseError in run).
 function whichSync(cmd) {
   const sep = process.platform === "win32" ? ";" : ":";
   const exts = process.platform === "win32" ? ["", ".cmd", ".exe", ".bat", ".ps1"] : [""];
@@ -249,7 +249,7 @@ async function detectBackends() {
 let _idSeq = 0;
 function tmpAnswerFile() {
   _idSeq += 1;
-  return path.join(os.tmpdir(), `tina-answer-${process.pid}-${_idSeq}.txt`);
+  return path.join(os.tmpdir(), `hermes-answer-${process.pid}-${_idSeq}.txt`);
 }
 
 // Turn a noisy CLI failure (session logs, JSON error frames, stack traces) into
@@ -265,7 +265,7 @@ function conciseError(text, fallback) {
   return ((errish || lines[lines.length - 1] || fallback || "failed")).slice(0, 220);
 }
 
-async function runTina({ backend, prompt, dataMode = "public", requestId, onData, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+async function run({ backend, prompt, dataMode = "public", requestId, onData, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const cfg = BACKENDS[backend];
   if (!cfg) return { ok: false, error: `unknown backend: ${backend}` };
   if (!prompt || !String(prompt).trim()) return { ok: false, error: "empty prompt" };
@@ -350,4 +350,4 @@ function stop() {
   return { ok: true };
 }
 
-module.exports = { detectBackends, runTina, stop, isRunning, assertBackendAllowed, DATA_MODES, BACKENDS, CLAUDE_MODEL };
+module.exports = { detectBackends, run, stop, isRunning, assertBackendAllowed, DATA_MODES, BACKENDS, CLAUDE_MODEL };

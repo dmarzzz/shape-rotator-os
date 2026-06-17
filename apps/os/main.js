@@ -1548,7 +1548,7 @@ ipcMain.handle("fg:swarm:start", async (_e, opts) => {
 ipcMain.handle("fg:swarm:stop",   async () => swarm.stop());
 
 // ─── hermes "Ask Cohort" brain (self-contained component — see src/hermes/) ───
-// Registers the brain's IPC (tina:* backends/run/chunk/stop + shape:* scan).
+// Registers the brain's IPC (hermes:* backends/run/chunk/stop + shape:* scan).
 // The privacy gate + provider-key stripping live in src/hermes/engine.js; the
 // prompt goes only to the user's own CLI and nothing is persisted to our servers.
 hermes.register({ app, ipcMain, BrowserWindow });
