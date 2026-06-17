@@ -7164,6 +7164,24 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
    cross-fades. House expo-out easing, asymmetric is unnecessary (single swap). */
 ::view-transition-group(*) { animation-duration: 420ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
 @media (prefers-reduced-motion: reduce) { ::view-transition-group(*) { animation-duration: 1ms; } }
+
+/* Cluster containers are click-to-focus; the hover-brighten already signals it. */
+.alch-constellation-stage[data-view="bubble"] svg .ac-bubble-container { cursor: pointer; }
+
+/* Hover preview in the side inspector (the consolidated single info surface). */
+.ac-inspector-hero.is-preview { animation: ac-preview-in 180ms var(--ease); }
+@keyframes ac-preview-in { from { opacity: 0; } to { opacity: 1; } }
+.ac-preview-spaces { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin: 8px 0 2px; }
+.ac-preview-k { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.55)); margin-right: 2px; }
+.ac-preview-space {
+  font-size: 11px; padding: 2px 9px; border-radius: 999px;
+  background: var(--well-accent-faint, rgba(193,168,114,0.08));
+  border: 0.5px solid var(--well-accent-soft, rgba(193,168,114,0.3));
+  color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.82));
+}
+/* Overlap (Venn) leads the inspector on click. */
+.ac-inspector-section.ac-overlap-lead { margin-top: 4px; padding-top: 4px; }
+@media (prefers-reduced-motion: reduce) { .ac-inspector-hero.is-preview { animation: none; } }
 .alch-constellation-stage[data-view="map"]:not([data-hover-active="true"]):not([data-selection-active="true"]):not([data-interest-active="true"]) svg .ac-well.is-dense-well .ac-well-label {
   opacity: 0.58;
 }

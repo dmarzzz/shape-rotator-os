@@ -4866,9 +4866,9 @@ function constTeamInspectorHtml(team, ctx) {
         ${success.map(s => `<span>${escHtml(s)}</span>`).join("")}
       </div>
     </div>
+    <section class="ac-inspector-section ac-overlap-lead">${constEgocentricOverlapSvg(team, ctx)}</section>
     ${constStackPlacementHtml(team, ctx)}
     ${constTeamActionCardHtml(team, ctx)}
-    ${constInspectorDetailsHtml("spaces · overlap", constEgocentricOverlapSvg(team, ctx), true)}
     ${constTeamPeopleHtml(team, ctx)}
     ${relationshipDetails}
     ${currentBetSection}
@@ -4936,6 +4936,33 @@ function constEgocentricOverlapSvg(team, ctx) {
   const focal = `<g class="ac-ego-focal"><circle class="ac-ego-focal-ring" cx="${CX}" cy="${CY}" r="13"/><circle cx="${CX}" cy="${CY}" r="9" fill="${constEgoNodeFill(team)}"/><text class="ac-ego-focal-label" x="${CX}" y="${CY + 27}" text-anchor="middle">${escHtml(constShortText(team.name || rid, 18))}</text></g>`;
   return `<svg class="ac-ego-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escAttr(`${team.name || rid} overlap across ${N} spaces`)}">${circles}${nodes}${focal}</svg>`
     + `<p class="ac-ego-caption">In ${N} space${N === 1 ? "" : "s"}. ${multi.length} team${multi.length === 1 ? " shares" : "s share"} more than one — its closest collaboration-or-collision candidate${multi.length === 1 ? "" : "s"}.</p>`;
+}
+
+// Compact hover preview for the side inspector (replaces the floating tooltip
+// in the bubble map — one info surface, not two). Identity at a glance; the
+// full intersection view is one click away.
+function constTeamPreviewHtml(team, ctx) {
+  const rid = team.record_id;
+  const clusters = Array.isArray(ctx?.clusters) ? ctx.clusters : [];
+  const spaces = clusters.filter(c => Array.isArray(c.teams) && c.teams.includes(rid)).map(c => c.label || c.name || c.record_id);
+  const dependedOn = (ctx?.inBy?.get(rid) || []).length;
+  const stage = team?.journey?.stage;
+  const focus = constShortText(team.focus || team.now || "", 130);
+  return `
+    <div class="ac-inspector-hero is-preview" data-const-team="${escAttr(rid)}">
+      <div class="ac-inspector-kicker">hovering — click to pin its intersections</div>
+      <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(rid)}">${escHtml(team.name || rid)}</button></h3>
+      <div class="ac-inspector-pills">
+        <span>${escHtml(CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other")}</span>
+        ${Number.isFinite(stage) ? `<span>maturity ${escHtml(String(stage))}</span>` : ""}
+        <span>${dependedOn} depend on it</span>
+      </div>
+      ${focus ? `<p>${escHtml(focus)}</p>` : ""}
+    </div>
+    <div class="ac-preview-spaces">
+      <span class="ac-preview-k">in ${spaces.length} space${spaces.length === 1 ? "" : "s"}</span>
+      ${spaces.map(s => `<span class="ac-preview-space">${escHtml(constShortText(s, 30))}</span>`).join("")}
+    </div>`;
 }
 
 function constEdgeInspectorHtml(edge, ctx) {
@@ -6729,10 +6756,13 @@ function renderConstellation() {
   // with no edge are flagged is-orphan (CSS fades them).
   const nodeMarkup = [...pos.values()].sort((p, q) => p.r - q.r).map(({ team, x, y, r, angle, wellId, wellSize, rank, shade }) => {
     const isBubble = viewMode === "bubble";
-    // Shade = how many teams depend on this one (fill-opacity on the domain
-    // hue, never element opacity — that would fade stroke/label and fight the
-    // hover/selection rules). Floor keeps faint bubbles legible.
-    const shadeStyle = isBubble ? `fill-opacity:${(0.45 + 0.55 * (Number.isFinite(shade) ? shade : 0.5)).toFixed(2)}` : "";
+    // Shade = how many teams depend on this one. Opacity alone reads poorly on
+    // black, so influence drives a bright domain-coloured RIM (stroke weight)
+    // as well — keystones like TeeSQL/Contexto pop as the load-bearing teams
+    // they are. fill-opacity, never element opacity (that would fade the rim +
+    // label and fight the hover/selection rules).
+    const shadeV = Number.isFinite(shade) ? shade : 0.4;
+    const shadeStyle = isBubble ? `fill-opacity:${(0.58 + 0.42 * shadeV).toFixed(2)};stroke-width:${(0.8 + 2.4 * shadeV).toFixed(2)}` : "";
     // View-transition name so each team bubble morphs to its new home when the
     // granularity changes (same team persists across grains by record_id).
     const vtName = isBubble ? `;view-transition-name:ac-vt-${dependencySafeToken(team.record_id)}` : "";
@@ -7405,11 +7435,37 @@ function wireConstellationHover() {
         setInterestFocus(wellId);
       });
     }
-    // Map nodes: hover lights the touching edges + shows the provenance tip.
+    // Bubble map: hover UPDATES THE SIDE INSPECTOR (one info surface, not a
+    // separate floating tip), focuses/dims the hovered bubble, and click pins
+    // the team — whose inspector leads with its intersection (Venn) view. The
+    // legacy map/ring path still uses the provenance tooltip.
+    const isBubble = stage.getAttribute("data-view") === "bubble";
+    const previewInspector = (rid) => {
+      const body = state.canvas?.querySelector(".ac-inspector-body");
+      const t = teamById.get(rid);
+      if (!body || !t) return;
+      body.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
+    };
+    const restoreInspector = () => {
+      const body = state.canvas?.querySelector(".ac-inspector-body");
+      if (!body) return;
+      body.innerHTML = constellationInspectorLeadHtml(inspectorCtx, state.constSelection) + constellationInspectorHtml(state.constSelection, inspectorCtx);
+      wireExternalLinks(body);
+    };
+    // Cluster containers focus their ecosystem on click (cluster ids only;
+    // theme/skill grouping ids carry no interest-focus target).
+    if (isBubble) {
+      for (const c of stage.querySelectorAll(".ac-bubble-container[data-container]")) {
+        const cid = c.getAttribute("data-container");
+        if (!cid || cid.startsWith("theme:") || cid.startsWith("skill:")) continue;
+        c.addEventListener("click", (e) => { e.preventDefault(); setInterestFocus(cid); });
+      }
+    }
     for (const g of stage.querySelectorAll(".ac-node-group")) {
       const rid = g.dataset.recordId;
       g.addEventListener("mouseenter", (e) => {
         setConstellationHover(stage, rid, true);
+        if (isBubble) { previewInspector(rid); return; }
         const t = teamById.get(rid);
         if (tip && t) {
           tip.innerHTML = constNodeTipHTML(t, indeg.get(rid) || 0, inspectorCtx.outBy, inspectorCtx.inBy, clusterLabelsByRid.get(rid), sourceStatsByRid.get(rid));
@@ -7417,9 +7473,10 @@ function wireConstellationHover() {
           positionConstTip(stage, tip, e);
         }
       });
-      g.addEventListener("mousemove", (e) => positionConstTip(stage, tip, e));
+      g.addEventListener("mousemove", (e) => { if (!isBubble) positionConstTip(stage, tip, e); });
       g.addEventListener("mouseleave", () => {
         setConstellationHover(stage, rid, false);
+        if (isBubble) { restoreInspector(); return; }
         if (tip) tip.hidden = true;
       });
       g.addEventListener("click", (e) => {
@@ -7428,8 +7485,9 @@ function wireConstellationHover() {
       });
       g.addEventListener("focus", () => {
         setConstellationHover(stage, rid, true);
+        if (isBubble) previewInspector(rid);
       });
-      g.addEventListener("blur", () => setConstellationHover(stage, rid, false));
+      g.addEventListener("blur", () => { setConstellationHover(stage, rid, false); if (isBubble) restoreInspector(); });
       g.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
