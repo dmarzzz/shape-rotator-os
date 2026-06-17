@@ -7,7 +7,7 @@
 //   • Claude — the user's `claude` CLI (Claude sub), via the main process.
 //
 // Codex and Claude are REMOTE (a hosted model on the user's own subscription),
-// so the privacy gate in apps/os/tina-agent.js only lets PUBLIC cohort grounding
+// so the privacy gate in engine.js only lets PUBLIC cohort grounding
 // reach them. The grounding here is cohort-surface.json — already the cohort-
 // public projection — so the gate passes. No API key is pasted; nothing is
 // stored or sent to our servers; the chat is not persisted. The footer line
@@ -54,13 +54,19 @@ let ollamaStatus = { running: false, models: [], hermes: [] };
 async function detectOllama() {
   els.ollamaChip.className = "chip";
   els.ollamaChip.textContent = "ollama: checking…";
+  // Bound the probe: a missing daemon should fail in ~1s, not hang ~2.6s on a
+  // slow connection-refused (keeps first paint fast).
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 1200);
   try {
-    const r = await fetch(`${OLLAMA}/api/tags`, { method: "GET" });
+    const r = await fetch(`${OLLAMA}/api/tags`, { method: "GET", signal: ctrl.signal });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
     return { ok: true, models: data.models || [] };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
+  } finally {
+    clearTimeout(t);
   }
 }
 
@@ -102,6 +108,8 @@ function engineState() {
 function renderConnectPanel() {
   els.setupPanel.hidden = false;
   els.askPanel.hidden = true;
+  // Clear any boot "connecting…" placeholder while the connect panel is up.
+  if (els.response.classList.contains("empty")) els.response.textContent = "responses appear here.";
   const states = engineState();
   els.engineCards.innerHTML = states.map((e) => `
     <div class="engine-card ${e.connected ? "on" : ""}">
@@ -243,8 +251,9 @@ function setBackend(b) {
 }
 
 async function refreshDetection() {
-  const probe = await detectOllama();
-  await detectTina();
+  // Probe Ollama and the CLIs concurrently — they're independent, so first paint
+  // waits on the slower one (~2.5s), not their sum (~7s).
+  const [probe] = await Promise.all([detectOllama(), detectTina()]);
   if (probe.ok) {
     const { hermes, others } = classifyModels(probe.models);
     ollamaStatus = { running: true, models: [...hermes, ...others], hermes };
@@ -625,6 +634,10 @@ els.question.addEventListener("keydown", (e) => {
 // ─── boot ─────────────────────────────────────────────────────────────
 
 (async () => {
+  // Reads as activity (not a frozen box) during the ~2.5s engine detection;
+  // runDetection() replaces it with the welcome (showAsk) or the connect panel.
+  els.response.className = "response-wrap empty";
+  els.response.textContent = "connecting to your engine…";
   await loadCohort();
   await runDetection();
   await loadShape();

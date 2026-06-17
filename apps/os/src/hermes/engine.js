@@ -1,4 +1,4 @@
-// tina-agent.js — the "brain" backend: run a prompt through the user's OWN
+// engine.js — the "brain" backend: run a prompt through the user's OWN
 // local agent CLI (codex or claude), auto-detected. Mirrors swarm-node.js:
 // spawn a subprocess, stream stdout back, allow cancellation.
 //
@@ -50,14 +50,12 @@ function shArg(p) { return `"${String(p).replace(/"/g, '\\"')}"`; }
 const BACKENDS = {
   codex: {
     label: "Codex",
-    versionCmd: "codex --version",
     output: "file",
     buildRun: (answerFile) =>
       `codex exec --sandbox read-only --color never --skip-git-repo-check -o ${shArg(answerFile)} -`,
   },
   claude: {
     label: "Claude",
-    versionCmd: "claude --version",
     output: "stdout",
     buildRun: () => `claude -p --model ${CLAUDE_MODEL} --output-format text`,
   },
@@ -202,42 +200,36 @@ function isRunning() {
   return _current != null && _current.child && _current.child.exitCode === null && !_current.child.killed;
 }
 
-// Probe one CLI for availability + version. Resolves { available, version? };
-// never throws. A short timeout keeps a hung binary from blocking detection.
-function probe(cmd, timeoutMs = 4000) {
-  return new Promise((resolve) => {
-    let out = "";
-    let settled = false;
-    const done = (r) => { if (!settled) { settled = true; resolve(r); } };
-    let child;
-    try {
-      child = spawn(cmd, { shell: true, stdio: ["ignore", "pipe", "ignore"], env: spawnEnv() });
-    } catch {
-      return done({ available: false });
+// Resolve a command to an executable path on PATH WITHOUT running it. This is
+// how we detect a backend. Spawning `<cli> --version` cold on Windows can take
+// 6-12s (npm `.cmd` shim → cmd → node → CLI, plus AV scanning each hop) — far
+// too slow and variable to gate the UI on, and a tight timeout false-negatives
+// an installed CLI. A filesystem lookup is instant and reliable; whether the
+// CLI is actually signed in surfaces at run time (see conciseError in runTina).
+function whichSync(cmd) {
+  const sep = process.platform === "win32" ? ";" : ":";
+  const exts = process.platform === "win32" ? ["", ".cmd", ".exe", ".bat", ".ps1"] : [""];
+  for (const dir of augmentedPath().split(sep)) {
+    if (!dir) continue;
+    for (const ext of exts) {
+      const p = path.join(dir, cmd + ext);
+      try { if (fs.statSync(p).isFile()) return p; } catch {}
     }
-    const timer = setTimeout(() => { try { child.kill(); } catch {} done({ available: false }); }, timeoutMs);
-    child.stdout.on("data", (b) => { out += b.toString("utf8"); });
-    child.on("error", () => { clearTimeout(timer); done({ available: false }); });
-    child.on("exit", (code) => {
-      clearTimeout(timer);
-      done(code === 0
-        ? { available: true, version: (out.trim().split(/\r?\n/)[0] || "").trim() }
-        : { available: false });
-    });
-  });
+  }
+  return null;
 }
 
-// Detect every CLI backend in parallel. Returns
-// { codex: {label, available, version?}, claude: {...} }.
+// Detect installed CLI backends by PRESENCE on PATH (instant — no cold spawn).
+// Returns { codex: {label, available}, claude: {label, available} }. The version
+// string is intentionally omitted: a cold `--version` is too slow to wait on and
+// isn't load-bearing. "Installed but not signed in" is reported when you run.
 async function detectBackends() {
-  await warmLoginPath(); // ensure the repaired PATH is complete before probing (mac GUI launches)
-  const entries = await Promise.all(
-    Object.entries(BACKENDS).map(async ([key, cfg]) => {
-      const r = await probe(cfg.versionCmd);
-      return [key, { label: cfg.label, ...r }];
-    }),
-  );
-  return Object.fromEntries(entries);
+  await warmLoginPath(); // ensure the repaired PATH is complete first (mac GUI launches)
+  const out = {};
+  for (const key of Object.keys(BACKENDS)) {
+    out[key] = { label: BACKENDS[key].label, available: !!whichSync(key) };
+  }
+  return out;
 }
 
 // Run a fully-assembled prompt through the chosen backend.

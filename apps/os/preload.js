@@ -180,30 +180,9 @@ contextBridge.exposeInMainWorld("api", {
     },
   },
 
-  // ─── tina "brain" (codex/claude CLI agent — see apps/os/tina-agent.js) ──
-  // backends() lists detected CLIs; run() executes one grounded prompt and
-  // resolves { ok, text }; onChunk(cb) streams partial stdout for live render
-  // (returns an unsubscribe fn); stop() cancels. The data-mode privacy gate is
-  // enforced in the main process — remote backends get public grounding only.
-  tina: {
-    backends: ()     => ipcRenderer.invoke("tina:backends"),
-    run:      (opts) => ipcRenderer.invoke("tina:run", opts || {}),
-    stop:     ()     => ipcRenderer.invoke("tina:stop"),
-    onChunk: (cb) => {
-      const h = (_e, p) => { try { cb(p); } catch {} };
-      ipcRenderer.on("tina:chunk", h);
-      return () => ipcRenderer.removeListener("tina:chunk", h);
-    },
-  },
-
-  // ─── shape ("self-shape" scan — see apps/os/shape-scanner.js) ─────────
-  // get() returns the persisted shape (or null); scan() rebuilds it from the
-  // user's PUBLIC GitHub + LOCAL Codex session metadata and returns it.
-  shape: {
-    get:           ()     => ipcRenderer.invoke("shape:get"),
-    scan:          (opts) => ipcRenderer.invoke("shape:scan", opts || {}),
-    saveSynthesis: (opts) => ipcRenderer.invoke("shape:saveSynthesis", opts || {}),
-  },
+  // NOTE: the hermes "Ask Cohort" brain (tina:* / shape:*) is a self-contained
+  // component and ships its OWN preload — see src/hermes/preload.js. It is not
+  // exposed here so the brain stays swappable without touching the host bridge.
 });
 
 // Earliest possible boot breadcrumb: preload runs before any renderer script.

@@ -1,7 +1,7 @@
 // shape-scanner.js — build + self-update the OS user's "shape": what they work
 // on, derived from their PUBLIC GitHub and their LOCAL Codex session history.
 //
-// ── PRIVACY TIERS (the brain's policy gate in tina-agent.js consumes these) ───
+// ── PRIVACY TIERS (the brain's policy gate in engine.js consumes these) ───
 //   github → PUBLIC  (public repos / profile / languages) — any backend.
 //   codex  → PRIVATE_DISTILLED  (project names + session counts + timeline from
 //            ~/.codex session METADATA only) — local model, or a remote backend
@@ -24,7 +24,7 @@ const PROFILE_FILE = "shape-profile.json";
 
 // ── gh env: same macOS GUI-PATH problem as the brain CLIs (a Finder/Dock launch
 // can't see /opt/homebrew/bin etc.). We add the common dirs; gh almost always
-// lives in one of them. (Lighter than tina-agent's login-shell query — gh is
+// lives in one of them. (Lighter than engine.js's login-shell query — gh is
 // rarely in an exotic prefix, and this stays synchronous + simple.)
 function ghEnv() {
   const home = os.homedir();
