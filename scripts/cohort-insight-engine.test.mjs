@@ -238,6 +238,40 @@ test("latent overlap cards skip declared dependencies and same-cluster pairs", (
   assert.equal(alphaBeta.content_json.existing_dependency, false);
 });
 
+test("say/did/shipped collapses the focus stutter and enriches did/shipped from declared fields", () => {
+  const sample = [
+    // solution leads with the exact focus -> identity drops the duplicate "focused on" clause
+    { record_id: "stut", name: "Stut", domain: "ai", focus: "P2P LLM router",
+      journey: { company_type: "Infra", solution: "a P2P LLM router plus agent payments" } },
+    // no GitHub artifact, but declared traction + prior shipping fill did/shipped (marked declared)
+    { record_id: "decl", name: "Decl", domain: "tee", focus: "attestation tooling",
+      traction: "first design partner signed", prior_shipping: ["attestation CLI", "policy SDK"],
+      journey: { company_type: "Infra", solution: "an attestation toolkit", next_milestone: "ship the hosted beta" } },
+  ];
+  const cards = engine.buildSayDidShippedCards({ teams: sample });
+  const by = new Map(cards.map((card) => [card.subject_ids[0], card]));
+
+  // stutter collapsed: no "focused on P2P LLM router ... provides a P2P LLM router"
+  assert.equal(by.get("stut").content_json.what_it_is, "an infra project in agent infrastructure");
+  assert.doesNotMatch(by.get("stut").claim_text, /focused on .*; it provides a P2P LLM router/i);
+
+  // declared enrichment: did/shipped come from declared fields, clearly labelled, still declared_only
+  const decl = by.get("decl");
+  assert.equal(decl.evidence_level, "declared_only");
+  assert.equal(decl.content_json.did_basis, "declared");
+  assert.equal(decl.content_json.shipped_basis, "declared");
+  assert.match(decl.content_json.did, /^Declared \(no public artifact yet\): first design partner signed/);
+  assert.match(decl.content_json.shipped, /^Declared: attestation CLI; policy SDK/);
+});
+
+test("latent overlap signal dedupes the shared-skill / shared-domain token", () => {
+  const alphaBeta = engine.buildLatentOverlapCards({ teams, clusters, dependencies })
+    .find((card) => card.subject_ids.includes("alpha") && card.subject_ids.includes("beta"));
+  // "tee" is both a shared skill and the shared domain — it must appear once, not "tee, tee"
+  assert.doesNotMatch(alphaBeta.claim_text, /\btee,\s*tee\b/i);
+  assert.match(alphaBeta.claim_text, /\btee\b/i);
+});
+
 test("public cohort insights exclude generated cohort cards unless explicitly approved", () => {
   const bundle = engine.buildCohortInsightBundle({
     teams,
