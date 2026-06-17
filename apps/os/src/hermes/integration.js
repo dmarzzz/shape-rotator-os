@@ -29,10 +29,10 @@ function createWindow() {
   if (_win && !_win.isDestroyed()) { _win.focus(); return _win; }
   if (!_BrowserWindow) throw new Error("hermes: register({ BrowserWindow }) must be called before opening the window");
   _win = new _BrowserWindow({
-    width: 760, height: 680, minWidth: 560, minHeight: 480,
+    width: 440, height: 640, minWidth: 380, minHeight: 520,
     titleBarStyle: "hiddenInset",
-    backgroundColor: "#231F20",
-    title: "ask cohort · hermes",
+    backgroundColor: "#221E1F",
+    title: "Ask Cohort",
     webPreferences: {
       preload: PRELOAD_FILE,
       contextIsolation: true,

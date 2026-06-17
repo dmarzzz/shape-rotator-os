@@ -26,7 +26,12 @@ test("tokenizeInline: bold + code + plain text, unmatched markers stay literal",
     { type: "code", value: "dstack" },
     { type: "text", value: " now" },
   ]);
-  assert.deepEqual(tokenizeInline("a * b ` c"), [{ type: "text", value: "a * b ` c" }]);
+  assert.deepEqual(tokenizeInline("plain *quote* end"), [
+    { type: "text", value: "plain " },
+    { type: "em", value: "quote" },
+    { type: "text", value: " end" },
+  ]);
+  assert.deepEqual(tokenizeInline("a ` c"), [{ type: "text", value: "a ` c" }]);
 });
 
 test("safety: markup is tokenized as literal text, never structure", () => {

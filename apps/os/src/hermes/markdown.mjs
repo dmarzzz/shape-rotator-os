@@ -43,6 +43,10 @@ export function tokenizeInline(text) {
       const end = s.indexOf("**", i + 2);
       if (end > i + 1) { pushText(); tokens.push({ type: "strong", value: s.slice(i + 2, end) }); i = end + 2; continue; }
     }
+    if (s[i] === "*") { // single-* italic (the ** case is handled above)
+      const end = s.indexOf("*", i + 1);
+      if (end > i) { pushText(); tokens.push({ type: "em", value: s.slice(i + 1, end) }); i = end + 1; continue; }
+    }
     if (s[i] === "`") {
       const end = s.indexOf("`", i + 1);
       if (end > i) { pushText(); tokens.push({ type: "code", value: s.slice(i + 1, end) }); i = end + 1; continue; }
@@ -56,6 +60,7 @@ export function tokenizeInline(text) {
 function appendInline(parent, text) {
   for (const t of tokenizeInline(text)) {
     if (t.type === "strong") { const e = document.createElement("strong"); e.textContent = t.value; parent.appendChild(e); }
+    else if (t.type === "em") { const e = document.createElement("em"); e.textContent = t.value; parent.appendChild(e); }
     else if (t.type === "code") { const e = document.createElement("code"); e.textContent = t.value; parent.appendChild(e); }
     else parent.appendChild(document.createTextNode(t.value));
   }

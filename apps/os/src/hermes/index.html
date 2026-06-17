@@ -3,101 +3,180 @@
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:11434 http://localhost:11434" />
-  <title>ask cohort · hermes</title>
+  <title>Ask Cohort</title>
   <style>
     :root {
-      --bg: #231F20;
+      --bg: #221E1F;
       --fg: #F1ECE7;
-      --dim: #968F8A;
-      --line: #2C2728;
+      --dim: #9A938E;
+      --faint: #6C6562;
+      --line: rgba(255, 255, 255, 0.08);
+      --surface: rgba(255, 255, 255, 0.035);
+      --surface-2: rgba(255, 255, 255, 0.06);
       --accent: #8F220E;
-      --bad: #FF6B7A;
+      --bad: #FF8585;
       --ok: #6EE7B7;
+      --sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+      --ease: cubic-bezier(0.19, 1, 0.22, 1);
     }
-    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; height: 100%; }
-    body { display: flex; flex-direction: column; }
+    * { box-sizing: border-box; }
+    /* The hidden attribute must win over class display rules (.composer/.send
+       set display, which would otherwise keep hidden panels/buttons visible). */
+    [hidden] { display: none !important; }
+    /* designed keyboard focus (not the browser default) */
+    button:focus-visible, select:focus-visible, .starter-chip:focus-visible, a:focus-visible {
+      outline: 2px solid color-mix(in oklch, var(--accent) 65%, white); outline-offset: 2px;
+    }
+    html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--fg);
+      font: 400 14px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+    body { display: flex; flex-direction: column; overflow: hidden; }
+    .chips { display: none; }
+
+    /* ── header ─────────────────────────────────────────── */
     header {
-      padding: 14px 18px 10px;
-      border-bottom: 1px solid var(--line);
-      display: flex; align-items: baseline; gap: 14px;
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px; border-bottom: 1px solid var(--line);
       -webkit-app-region: drag;
     }
-    header h1 { margin: 0; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg); font-weight: 500; }
-    header .chips { margin-left: auto; display: flex; gap: 8px; -webkit-app-region: no-drag; }
-    .chip {
-      font-size: 11px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px;
-      color: var(--dim); background: transparent;
+    header h1 {
+      margin: 0; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; color: var(--fg);
     }
-    .chip.ok { color: var(--ok); border-color: rgba(107, 255, 157, 0.3); }
-    .chip.bad { color: var(--bad); border-color: rgba(255, 107, 138, 0.3); }
-    main { flex: 1; display: flex; flex-direction: column; padding: 16px 18px; gap: 12px; overflow: hidden; min-height: 0; }
-    .panel { border: 1px solid var(--line); padding: 12px 14px; border-radius: 6px; }
-    .panel h2 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--dim); font-weight: 500; }
-    .panel p { margin: 0; color: var(--fg); }
-    .panel code { background: color-mix(in oklch, var(--accent) 12%, transparent); padding: 2px 6px; border-radius: 3px; color: var(--accent); }
-    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    select, button, textarea {
-      font: inherit; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px;
+    header h1 .dot { color: var(--accent); }
+    .engine-ctl { margin-left: auto; display: flex; align-items: center; gap: 4px; -webkit-app-region: no-drag; }
+    .select-wrap { position: relative; display: inline-flex; }
+    .select-wrap::after {
+      content: "▾"; position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+      font-size: 9px; color: var(--dim); pointer-events: none;
     }
-    select:focus, button:focus, textarea:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
-    button { cursor: pointer; transition: border-color 120ms; }
-    button:hover { border-color: var(--accent); }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
-    button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-    button.primary:hover { background: color-mix(in oklch, var(--accent) 75%, white); }
-    .ask-area { display: flex; flex-direction: column; gap: 8px; }
-    .ask-area textarea { min-height: 70px; resize: vertical; font-family: inherit; }
-    .ask-row { display: flex; gap: 10px; align-items: center; }
-    .ask-row .hint { color: var(--dim); font-size: 11px; margin-left: auto; }
-    .response-wrap {
-      flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px;
-      white-space: pre-wrap; word-wrap: break-word;
+    #backend-select {
+      appearance: none; -webkit-appearance: none;
+      font: 500 12px var(--sans); color: var(--fg);
+      background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px;
+      padding: 5px 24px 5px 12px; cursor: pointer; transition: border-color 140ms var(--ease);
     }
-    .response-wrap.empty { color: var(--dim); }
-    .response-wrap.welcome { color: var(--fg); }
-    .response-wrap.md { white-space: normal; }
-    .response-wrap.md h3 { font-size: 13px; margin: 16px 0 6px; color: var(--fg); font-weight: 600; letter-spacing: 0.02em; }
-    .response-wrap.md h3:first-child { margin-top: 0; }
-    .response-wrap.md h4 { font-size: 11px; margin: 12px 0 4px; color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-    .response-wrap.md p { margin: 0 0 10px; }
-    .response-wrap.md ul { margin: 0 0 10px; padding-left: 18px; }
-    .response-wrap.md li { margin: 3px 0; }
-    .response-wrap.md strong { color: var(--fg); font-weight: 600; }
-    .response-wrap.md code { background: color-mix(in oklch, var(--accent) 12%, transparent); color: var(--accent); padding: 1px 5px; border-radius: 3px; }
+    #backend-select:hover { border-color: color-mix(in oklch, var(--accent) 45%, var(--line)); }
+    /* ── body ───────────────────────────────────────────── */
+    main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+    /* conversation (hero) */
+    #response {
+      flex: 1; min-height: 0; overflow: auto; padding: 16px 16px 8px;
+      white-space: pre-wrap; word-wrap: break-word; scrollbar-gutter: stable;
+    }
+    #response.empty, #response.welcome { color: var(--dim); }
+    #response.welcome { font-size: 13px; line-height: 1.6; }
+    /* rendered markdown answer */
+    #response.md { white-space: normal; color: var(--fg); }
+    #response.md h3 { font-size: 14px; margin: 18px 0 6px; color: var(--fg); font-weight: 650; letter-spacing: -0.01em; }
+    #response.md h3:first-child { margin-top: 0; }
+    #response.md h4 { font-size: 11px; margin: 14px 0 4px; color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    #response.md p { margin: 0 0 10px; }
+    #response.md ul { margin: 0 0 12px; padding-left: 18px; }
+    #response.md li { margin: 4px 0; }
+    #response.md li::marker { color: color-mix(in oklch, var(--accent) 70%, var(--dim)); }
+    #response.md strong { color: var(--fg); font-weight: 650; }
+    #response.md em { font-style: italic; color: var(--dim); }
+    #response.md code { font: 12px var(--mono); background: color-mix(in oklch, var(--accent) 13%, transparent); color: color-mix(in oklch, var(--accent) 70%, var(--fg)); padding: 1px 5px; border-radius: 4px; }
+
+    /* hide the conversation while the connect panel owns the body */
+    main:has(#setup-panel:not([hidden])) #response { display: none; }
+
+    /* ── composer ───────────────────────────────────────── */
+    .composer { display: flex; flex-direction: column; gap: 8px; padding: 8px 14px 12px; }
     .starter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .starter-chips:empty { display: none; }
     .starter-chip {
-      font: inherit; font-size: 11px; color: var(--dim);
-      background: transparent; border: 1px solid var(--line); border-radius: 999px;
-      padding: 4px 10px; cursor: pointer; transition: border-color 120ms, color 120ms;
+      font: 450 12px var(--sans); color: var(--dim);
+      background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+      padding: 5px 11px; cursor: pointer; transition: border-color 140ms var(--ease), color 140ms var(--ease), background 140ms var(--ease);
     }
-    .starter-chip:hover { border-color: var(--accent); color: var(--fg); }
-    .install-cta { display: flex; flex-direction: column; gap: 6px; }
-    .install-cta ol { margin: 4px 0 0 18px; padding: 0; color: var(--fg); }
-    .install-cta li { margin: 4px 0; }
-    .connect-intro { color: var(--fg); margin: 0 0 12px; }
+    .starter-chip:hover { border-color: color-mix(in oklch, var(--accent) 45%, var(--line)); color: var(--fg); background: var(--surface-2); }
+    .starter-chip:active { transform: scale(0.97); }
+
+    .input-row {
+      display: flex; align-items: flex-end; gap: 8px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+      padding: 6px 6px 6px 14px; transition: border-color 140ms var(--ease);
+    }
+    .input-row:focus-within { border-color: color-mix(in oklch, var(--accent) 55%, var(--line)); }
+    #question {
+      flex: 1; border: 0; background: transparent; color: var(--fg); resize: none;
+      font: 400 14px/1.5 var(--sans); padding: 6px 0; min-height: 24px; max-height: 108px; overflow-y: auto;
+    }
+    #question:focus { outline: none; }
+    #question::placeholder { color: var(--faint); }
+    .send {
+      flex: none; display: inline-flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
+      background: var(--accent); color: #fff; transition: background 140ms var(--ease), transform 100ms var(--ease), opacity 140ms var(--ease);
+    }
+    .send:hover { background: color-mix(in oklch, var(--accent) 78%, white); }
+    .send:active { transform: scale(0.92); }
+    .send:disabled { opacity: 0.35; cursor: not-allowed; }
+    .send.stop { background: var(--surface-2); color: var(--fg); }
+    .send.stop:hover { background: var(--surface-2); color: var(--bad); }
+
+    .tools { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 0 2px; min-height: 18px; }
+    .tools .link {
+      background: none; border: 0; color: var(--faint); font: 450 11.5px var(--sans);
+      cursor: pointer; padding: 2px 4px; border-radius: 6px; transition: color 140ms var(--ease);
+    }
+    .tools .link:hover { color: var(--fg); }
+    .tools .sep { color: var(--line); font-size: 11px; }
+    .tools .spacer { margin-left: auto; }
+    #model-label { color: var(--faint); font-size: 11px; }
+    #model-select {
+      appearance: none; -webkit-appearance: none; font: 450 11.5px var(--sans); color: var(--dim);
+      background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; cursor: pointer;
+    }
+
+    /* ── connect panel ──────────────────────────────────── */
+    #setup-panel { flex: 1; overflow: auto; padding: 16px 16px 14px; }
+    #setup-panel h2 { margin: 0 0 4px; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+    .connect-intro { margin: 0 0 14px; color: var(--dim); font-size: 13px; }
     #engine-cards { display: flex; flex-direction: column; gap: 8px; }
-    .engine-card { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
-    .engine-card.on { border-color: rgba(110, 231, 183, 0.4); background: rgba(110, 231, 183, 0.04); }
+    .engine-card { border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; background: var(--surface); }
+    .engine-card.on { border-color: color-mix(in oklch, var(--ok) 35%, var(--line)); background: color-mix(in oklch, var(--ok) 6%, transparent); }
     .engine-head { display: flex; align-items: baseline; gap: 10px; }
-    .engine-name { font-weight: 600; text-transform: capitalize; }
-    .engine-status { margin-left: auto; font-size: 11px; color: var(--dim); }
+    .engine-name { font-weight: 600; }
+    .engine-status { margin-left: auto; font-size: 11px; color: var(--faint); }
     .engine-card.on .engine-status { color: var(--ok); }
-    .engine-steps { margin: 6px 0 0; color: var(--dim); font-size: 12px; line-height: 1.5; }
-    .engine-steps code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 3px; color: var(--fg); }
-    .engine-detail { margin: 4px 0 0; color: var(--ok); font-size: 12px; }
-    .connect-actions { display: flex; gap: 10px; margin-top: 14px; }
-    .connect-privacy { margin: 12px 0 0; color: var(--dim); font-size: 11px; line-height: 1.5; }
-    a { color: var(--accent); text-decoration: none; }
+    .engine-steps { margin: 7px 0 0; color: var(--dim); font-size: 12px; line-height: 1.55; }
+    .engine-steps code { font: 11px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; color: var(--fg); }
+    .engine-detail { margin: 5px 0 0; color: var(--ok); font-size: 12px; }
+    .connect-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .connect-actions button {
+      font: 500 13px var(--sans); border-radius: 10px; padding: 8px 14px; cursor: pointer;
+      background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); transition: background 140ms var(--ease), border-color 140ms var(--ease);
+    }
+    .connect-actions button:hover { border-color: color-mix(in oklch, var(--accent) 45%, var(--line)); }
+    .connect-actions .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .connect-actions .primary:hover:not(:disabled) { background: color-mix(in oklch, var(--accent) 78%, white); }
+    .connect-actions .primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .connect-privacy { margin: 14px 0 0; color: var(--faint); font-size: 11.5px; line-height: 1.55; }
+
+    a { color: color-mix(in oklch, var(--accent) 70%, var(--fg)); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    .footer { padding: 8px 18px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11px; display: flex; gap: 12px; }
-    .footer strong { color: var(--fg); font-weight: 500; }
+
+    /* ── footer ─────────────────────────────────────────── */
+    .footer {
+      display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+      border-top: 1px solid var(--line); color: var(--faint); font-size: 11px;
+    }
+    #footer-stats { margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+    .footer strong { color: var(--dim); font-weight: 600; }
+
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
 <body>
   <header>
-    <h1>ask cohort · hermes</h1>
-    <div class="chips" role="status" aria-live="polite">
+    <h1>Ask Cohort<span class="dot"> ·</span></h1>
+    <div class="engine-ctl">
+      <span class="select-wrap"><select id="backend-select" aria-label="Engine"></select></span>
+    </div>
+    <div class="chips" hidden>
       <span id="ollama-chip" class="chip">ollama: checking…</span>
       <span id="model-chip" class="chip">model: —</span>
       <span id="data-chip" class="chip">cohort: —</span>
@@ -106,41 +185,45 @@
   </header>
 
   <main>
-    <div id="setup-panel" class="panel" hidden>
-      <h2>connect your engine</h2>
-      <p class="connect-intro">Ask Cohort runs on <strong>your own</strong> LLM — your prompts go only to the engine you connect. Pick one to start:</p>
+    <div id="setup-panel" hidden>
+      <h2>Connect your engine</h2>
+      <p class="connect-intro">Ask Cohort runs on <strong>your own</strong> LLM — your prompts go only to the engine you connect.</p>
       <div id="engine-cards"></div>
       <div class="connect-actions">
-        <button id="connect-recheck" type="button">re-check</button>
-        <button id="connect-start" class="primary" type="button" disabled>start →</button>
+        <button id="connect-recheck" type="button">Re-check</button>
+        <button id="connect-start" class="primary" type="button" disabled>Start</button>
       </div>
       <p class="connect-privacy">Nothing is stored or sent to our servers. Codex &amp; Claude use your own subscription; Ollama runs fully offline on your machine.</p>
     </div>
 
-    <div id="ask-panel" class="ask-area" hidden>
-      <div class="controls">
-        <label for="backend-select" style="color: var(--dim); font-size: 11px;">engine</label>
-        <select id="backend-select"></select>
-        <label id="model-label" for="model-select" style="color: var(--dim); font-size: 11px;">model</label>
-        <select id="model-select"></select>
-        <button id="detect-again" type="button" title="connect or switch engine">engines</button>
-        <button id="scan-shape" type="button" title="scan your GitHub + Codex sessions to define your shape">scan my shape</button>
-        <button id="define-shape" type="button" title="synthesize a structured shape read from the scan, using the selected engine">define my shape</button>
-      </div>
-      <textarea id="question" placeholder="ask who to talk to — &quot;who can help me with TEE attestation?&quot;, &quot;find someone to pair on rust&quot;, &quot;who should I meet first?&quot; · type &quot;help&quot; for a tour"></textarea>
+    <div id="response" class="response-wrap empty" role="log" aria-live="polite" aria-atomic="false">Ask who to talk to and I'll point you to the right people.</div>
+
+    <div id="ask-panel" class="composer" hidden>
       <div id="starter-chips" class="starter-chips"></div>
-      <div class="ask-row">
-        <button id="ask" class="primary" type="button">ask</button>
-        <button id="stop" type="button" hidden>stop</button>
-        <span class="hint">cmd+enter to send</span>
+      <div class="input-row">
+        <textarea id="question" rows="1" placeholder="Ask who to talk to…"></textarea>
+        <button id="ask" class="send" type="button" aria-label="Send">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+        <button id="stop" class="send stop" type="button" hidden aria-label="Stop">
+          <svg viewBox="0 0 24 24" width="11" height="11"><rect x="5" y="5" width="14" height="14" rx="3" fill="currentColor"/></svg>
+        </button>
+      </div>
+      <div class="tools">
+        <label id="model-label" for="model-select">model</label>
+        <select id="model-select" aria-label="Model"></select>
+        <span class="spacer"></span>
+        <button id="detect-again" class="link" type="button" title="Connect or switch engine">engines</button>
+        <span class="sep">·</span>
+        <button id="scan-shape" class="link" type="button" title="Scan your GitHub + Codex sessions to define your shape">scan shape</button>
+        <span class="sep">·</span>
+        <button id="define-shape" class="link" type="button" title="Synthesize a structured shape read from the scan">define shape</button>
       </div>
     </div>
-
-    <div id="response" class="response-wrap empty" role="log" aria-live="polite" aria-atomic="false">responses appear here.</div>
   </main>
 
   <div class="footer">
-    <span id="privacy-note"><strong>local-only</strong> · prompts + responses never leave your machine</span>
+    <span id="privacy-note"><strong>local-only</strong> · nothing leaves your machine</span>
     <span id="footer-stats"></span>
   </div>
 

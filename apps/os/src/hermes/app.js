@@ -596,6 +596,7 @@ function dispatchAsk() {
     return;
   }
   if (backend === "ollama") askOllama(q); else askViaCli(q, backend);
+  els.question.value = ""; // clear the composer after sending (chat convention)
 }
 
 function dispatchStop() {
@@ -618,7 +619,8 @@ els.modelSelect.addEventListener("change", () => {
 els.askBtn.addEventListener("click", dispatchAsk);
 els.stopBtn.addEventListener("click", dispatchStop);
 els.question.addEventListener("keydown", (e) => {
-  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); dispatchAsk(); }
+  // Enter sends (chat convention); Shift+Enter inserts a newline.
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); dispatchAsk(); }
 });
 
 // ─── boot ─────────────────────────────────────────────────────────────
