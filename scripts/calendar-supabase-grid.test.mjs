@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildUpsertRequest, publishGrid, scanGridForLeaks } from "./publish-calendar-grid-to-supabase.mjs";
+import { buildUpsertRequest, publishGrid, scanGridForLeaks, sanitizeGrid } from "./publish-calendar-grid-to-supabase.mjs";
 import {
   publicCalendarGridUrl,
   normalizeGrid,
@@ -50,9 +50,16 @@ test("scanGridForLeaks catches emails, video links, private markers, candid note
   assert.deepEqual(scanGridForLeaks({ tabs: { t: [["Goals — Tina: pivot"]] } }), ["candid leadership note"]);
 });
 
-test("scanGridForLeaks catches organizer personal-availability notes", () => {
-  assert.deepEqual(scanGridForLeaks({ tabs: { t: [["Andrew at half marathon — out for the day"]] } }), ["organizer availability note"]);
-  assert.deepEqual(scanGridForLeaks({ tabs: { t: [["moving to Baltimore — out of cohort that weekend"]] } }), ["organizer availability note"]);
+test("sanitizeGrid strips organizer personal-availability lines, keeps the rest", () => {
+  const grid = { tabs: { t: [["14:00 tea on roof\nAndrew at half marathon — out for the day\n19:00 dinner"]] } };
+  const clean = sanitizeGrid(grid);
+  assert.equal(clean.tabs.t[0][0], "14:00 tea on roof\n19:00 dinner");
+  assert.deepEqual(scanGridForLeaks(clean), []); // gone → the hard-scan is clean, publish proceeds
+});
+
+test("sanitizeGrid leaves legitimate named schedule content intact", () => {
+  const grid = { tabs: { t: [["Project intros: Elocute (Albi), Crossroads (Chloe Wang)\n19:00 Phil Daian (Flashbots)"]] } };
+  assert.deepEqual(sanitizeGrid(grid), grid);
 });
 
 test("scanGridForLeaks does NOT trip on legitimate named schedule content", () => {
@@ -65,6 +72,15 @@ test("scanGridForLeaks does NOT trip on legitimate named schedule content", () =
     ["18:00-19:30 Lecture — Gil Rosen (Blockchain Builders)"],
   ] } };
   assert.deepEqual(scanGridForLeaks(real), []);
+});
+
+test("publishGrid upserts the SANITIZED grid (private aside removed, calendar still publishes)", async () => {
+  let body;
+  const fetchImpl = async (_u, opts) => { body = JSON.parse(opts.body); return { ok: true, status: 201 }; };
+  const raw = { tabs: { t: [["onboarding\nout of cohort that weekend"]] } };
+  const res = await publishGrid({ url: "https://x", key: "k", grid: raw, fetchImpl, now: "t" });
+  assert.equal(res.skipped, false); // it still publishes (no longer blocked)
+  assert.equal(body.grid.tabs.t[0][0], "onboarding"); // aside stripped from the upserted grid
 });
 
 test("publishGrid refuses to upsert a grid that trips the leak gate (no fetch)", async () => {
