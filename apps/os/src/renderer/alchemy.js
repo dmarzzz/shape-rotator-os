@@ -5967,7 +5967,8 @@ function timelineInnerHtml() {
   // <-> week (7 days). The window narrows and every lane re-fractions within it
   // (the data module is parameterized by start/end). Finer than a week is the
   // calendar-grid tab's job. ──
-  const level = (cal.tlLevel === "month" || cal.tlLevel === "week") ? cal.tlLevel : "program";
+  // Default to the WEEK level (open on the current week); program/month are zoom-out.
+  const level = (cal.tlLevel === "program" || cal.tlLevel === "month") ? cal.tlLevel : "week";
   const anchorMs = Math.max(PROGRAM_START_MS, Math.min(PROGRAM_END_MS - 1, Number.isFinite(cal.tlAnchorMs) ? cal.tlAnchorMs : nowMs));
   let winStart, winEnd, tickUnit, winLabel, prevAnchor = null, nextAnchor = null;
   if (level === "week") {
@@ -6003,9 +6004,15 @@ function timelineInnerHtml() {
   // its cadence tightens to daily at week level.)
   const sampleDays = level === "week" ? 1 : 7;
   const activityLane = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs });
-  const standingLane = buildStandingLane(standingWeekly, { startMs: winStart, endMs: winEnd });
+  // Standing weeks are PROGRAM-anchored (their ms come from the program start), so
+  // build over the whole program for correct timestamps, then clip + re-fraction to
+  // the window. (Activity/presence carry absolute times, so the window is enough.)
+  const standingLane = buildStandingLane(standingWeekly, { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS });
   const activity = { ...activityLane, items: activityLane.items.filter(i => inWin(i.startMs)) };
-  const standing = { ...standingLane, points: standingLane.points.filter(p => p.stage != null && inWin(p.ms)) };
+  const standing = {
+    ...standingLane,
+    points: standingLane.points.filter(p => p.stage != null && inWin(p.ms)).map(p => ({ ...p, fraction: winFrac(p.ms) })),
+  };
   const presence = buildPresenceLane(people, { startMs: winStart, endMs: winEnd, nowMs, sampleDays });
 
   // Group dated items into per-day buckets so a busy day reads as one mark, not
@@ -6049,8 +6056,10 @@ function timelineInnerHtml() {
       `<span class="ac-tl-wk" style="left:${pct(winFrac(winStart + (k + 0.5) * WK))}">wk ${startWk + k + 1}</span>`).join("") + nowLabel;
   } else {
     const nDays = Math.round(span / DAY);
-    weekLabels = Array.from({ length: nDays }, (_, k) =>
-      `<span class="ac-tl-wk" style="left:${pct(winFrac(winStart + (k + 0.5) * DAY))}">${dayNames[k % 7]}</span>`).join("") + nowLabel;
+    weekLabels = Array.from({ length: nDays }, (_, k) => {
+      const dMs = winStart + k * DAY;
+      return `<span class="ac-tl-wk" style="left:${pct(winFrac(dMs + 0.5 * DAY))}">${dayNames[k % 7]} ${new Date(dMs).getUTCDate()}</span>`;
+    }).join("") + nowLabel;
   }
 
   // Zoom control: a segmented [program | month | week] pill + prev/next window nav.
@@ -6108,8 +6117,8 @@ function timelineInnerHtml() {
   const sentenceBar = `
     <div class="ac-sentence" role="group" aria-label="cohort timeline summary">
       <span class="ac-sent-word">cohort timeline ·</span>
-      <strong class="ac-sent-fact">week ${currentProgramWeek()} of ${WEEKS}</strong>
-      <span class="ac-sent-word">· ${activity.items.length} updates tracked · past</span>
+      <strong class="ac-sent-fact">${escHtml(winLabel)}</strong>
+      <span class="ac-sent-word">· past</span>
       <span class="ac-sent-word">←</span>
       <strong class="ac-sent-fact">now</strong>
       <span class="ac-sent-word">→ scheduled</span>
@@ -6134,8 +6143,8 @@ function timelineInnerHtml() {
         </div>
         <div class="ac-tl-rows">
           <div class="ac-tl-gridlayer" aria-hidden="true">${gridlines}${playhead}</div>
-          ${lane("is-ruler", "calendar", "", `${rulerMarks}<span class="ac-tl-baseline"></span>`)}
-          ${lane("", "all activity", "", activityMarks)}
+          ${lane("is-ruler", "calendar", "", `${rulerMarks || `<span class="ac-tl-empty">no calendar events in view</span>`}<span class="ac-tl-baseline"></span>`)}
+          ${lane("", "all activity", "", activityMarks || `<span class="ac-tl-empty">no tracked updates in view</span>`)}
           ${lane("", "standing", stLatest ? `· ${stLatest}/8` : "", `<div class="ac-tl-track--line">${standingBody}</div>`)}
           ${lane("", "people · in town", presence.total ? `· ${presence.total}` : "", presenceMarks)}
         </div>
