@@ -6808,12 +6808,14 @@ function renderConstellation() {
     const labelY = radialLabel
       ? (Math.sin(angle) < -0.25 ? -r - 8 - (labelOut - 6) : (Math.sin(angle) > 0.25 ? r + labelGap + (labelOut - 6) : 3))
       : r + labelGap;
-    // Bubble map: small bubbles in a tight pack hide their resting label and
-    // fade it in on hover/focus (data-small-bubble + CSS) — no floating tooltip
-    // (the side inspector is the one info surface); aria-label names them for
-    // screen readers and the hover preview names them in the sidebar.
+    // Bubble map: only the ANCHOR (keystone, rank 0 = largest in its space)
+    // keeps a resting label; every other team is hover-only (data-small-bubble
+    // + CSS fade). 26 resting names collide into an unreadable pile (text is
+    // wider than the gaps between bubbles, and CSS zoom scales the overlap too),
+    // so the at-rest map reads as: space labels = where things are, one anchor
+    // name per space, and any team's name on hover (sidebar + in-place).
     const labelLines = constNodeLabelLines(team, viewMode);
-    const smallBubble = isBubble && r < 14 && rank !== 0;
+    const smallBubble = isBubble && rank !== 0;
     const fullLabel = constText(team.name || team.record_id);
     return `
     <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}"${smallBubble ? ' data-small-bubble="true"' : ""} data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
