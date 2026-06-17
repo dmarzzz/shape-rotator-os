@@ -344,15 +344,22 @@ function gcalDateRange(dateStr, timeLabel) {
     const nd = new Date(d.getTime() + 86400000);
     return `${ymd}/${nd.getFullYear()}${pad2(nd.getMonth() + 1)}${pad2(nd.getDate())}`;
   }
-  const hhmm = (t) => t.replace(':', '') + '00';
-  const start = hhmm(times[0]);
-  let end;
-  if (times[1]) end = hhmm(times[1]);
-  else {
-    const [h, m] = times[0].split(':').map(Number);
-    end = pad2((h + 1) % 24) + pad2(m) + '00';   // default to a 1-hour block
+  // Emit 6-digit HHMMSS — a single-digit hour like "6:30" must become
+  // "063000", not "63000", or Google drops the prefilled time — and keep the
+  // range moving forward when an event crosses midnight (a "23:30" block ends
+  // on the next calendar day, not earlier the same day).
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const fmt = (min) => pad2(Math.floor(min / 60) % 24) + pad2(min % 60) + '00';
+  const startMin = toMin(times[0]);
+  let endMin = times[1] ? toMin(times[1]) : startMin + 60;   // default 1-hour block
+  if (endMin <= startMin) endMin += 1440;                    // wraps past midnight
+  let endYmd = ymd;
+  if (endMin >= 1440) {
+    const d = new Date(`${dateStr}T00:00:00`);
+    d.setDate(d.getDate() + Math.floor(endMin / 1440));
+    endYmd = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
   }
-  return `${ymd}T${start}/${ymd}T${end}`;
+  return `${ymd}T${fmt(startMin)}/${endYmd}T${fmt(endMin)}`;
 }
 function calendarAddUrl(title, dateStr, timeLabel) {
   const range = gcalDateRange(dateStr, timeLabel);

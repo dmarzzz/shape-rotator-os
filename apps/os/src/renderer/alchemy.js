@@ -8126,7 +8126,19 @@ function wireConstellationHover() {
       if (!egoTarget) return;
       e.preventDefault();
       const rid = egoTarget.getAttribute("data-ego-refocus");
-      if (rid) setConstellationInspector({ type: "team", rid }, constellationCurrentInspectorContext());
+      if (rid) {
+        setConstellationInspector({ type: "team", rid }, constellationCurrentInspectorContext());
+        // setConstellationInspector replaced the inspector body via innerHTML,
+        // destroying the focused co-member and dropping focus to <body>. Return
+        // focus to the recentred overlap so keyboard users keep recentring
+        // instead of being ejected to the top of the page (WCAG 2.4.3).
+        const body = state.canvas?.querySelector(".ac-inspector-body");
+        let refocus = body?.querySelector("[data-ego-refocus]")
+          || body?.querySelector(".ac-inspector-name-link, [data-const-open-record]")
+          || body;
+        if (refocus === body && body && !body.hasAttribute("tabindex")) body.setAttribute("tabindex", "-1");
+        try { refocus?.focus?.({ preventScroll: true }); } catch { refocus?.focus?.(); }
+      }
     });
     inspector.addEventListener("click", (e) => {
       const clearTarget = e.target.closest("[data-const-clear-selection]");
@@ -8528,14 +8540,21 @@ function showJourneyTip(stage, tip, rec) {
 function positionConstTip(stage, tip, e) {
   if (!tip || tip.hidden) return;
   const r = stage.getBoundingClientRect();
+  // The tip lives inside .alch-cohort-page, which may carry a CSS `zoom`
+  // (the per-view zoom control). getBoundingClientRect() and clientX report
+  // zoomed *visual* pixels, but the tip's style.left/top are in the page's
+  // pre-zoom *local* space and get scaled again on paint — so do the math in
+  // visual space (offsetWidth scaled up by z), then divide by z when writing.
+  const page = stage.closest(".alch-cohort-page");
+  const z = page ? (parseFloat(getComputedStyle(page).zoom) || 1) : 1;
   let x = e.clientX - r.left + 14;
   let y = e.clientY - r.top + 14;
   // Keep the tip inside the stage on the right/bottom edges.
-  const tw = tip.offsetWidth || 200, th = tip.offsetHeight || 80;
+  const tw = (tip.offsetWidth || 200) * z, th = (tip.offsetHeight || 80) * z;
   if (x + tw > r.width) x = e.clientX - r.left - tw - 14;
   if (y + th > r.height) y = e.clientY - r.top - th - 14;
-  tip.style.left = `${Math.max(4, x)}px`;
-  tip.style.top = `${Math.max(4, y)}px`;
+  tip.style.left = `${Math.max(4, x) / z}px`;
+  tip.style.top = `${Math.max(4, y) / z}px`;
 }
 
 // ─── calendar (cohort presence over time) ─────────────────────────────
