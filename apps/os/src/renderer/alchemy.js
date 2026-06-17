@@ -47,7 +47,7 @@ import {
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { buildDefaultTimeline } from "./cohort-timeline-tracks.mjs";
+import { buildActivityLane, buildStandingLane, buildPresenceLane } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
@@ -5954,15 +5954,60 @@ function timelineInnerHtml() {
   const whatsNew = Array.isArray(live?.whats_new) ? live.whats_new : [];
   const people = Array.isArray(live?.people) ? live.people : [];
   const standingWeekly = state.standingWeekly || null;
-  const startMs = PROGRAM_START_MS, endMs = PROGRAM_END_MS, nowMs = Date.now();
-  const { axis, lanes } = buildDefaultTimeline({ whatsNew, standingWeekly, people }, { startMs, endMs, nowMs });
-  const activity = lanes.find(l => l.trackKey === "activity") || { items: [] };
-  const standing = lanes.find(l => l.trackKey === "standing") || { points: [], stageMax: 8 };
-  const presence = lanes.find(l => l.trackKey === "presence") || { samples: [], total: 0 };
+  const cal = state.calendar || {};
+  const nowMs = Date.now();
 
-  const WEEKS = 10;
+  const DAY = 86400000, WK = 7 * DAY, WEEKS = 10;
   const pct = (f) => `${(Math.max(0, Math.min(1, Number(f) || 0)) * 100).toFixed(2)}%`;
   const fmtDay = (ms) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
+  const weekIdxOf = (ms) => Math.max(0, Math.min(WEEKS - 1, Math.floor((ms - PROGRAM_START_MS) / WK)));
+
+  // ── Zoom level + window. "Understand at different levels": the calendar's own
+  // time-resolution zoom — program (all 10 weeks) <-> month (a 4-5 week phase)
+  // <-> week (7 days). The window narrows and every lane re-fractions within it
+  // (the data module is parameterized by start/end). Finer than a week is the
+  // calendar-grid tab's job. ──
+  const level = (cal.tlLevel === "month" || cal.tlLevel === "week") ? cal.tlLevel : "program";
+  const anchorMs = Math.max(PROGRAM_START_MS, Math.min(PROGRAM_END_MS - 1, Number.isFinite(cal.tlAnchorMs) ? cal.tlAnchorMs : nowMs));
+  let winStart, winEnd, tickUnit, winLabel, prevAnchor = null, nextAnchor = null;
+  if (level === "week") {
+    const wi = weekIdxOf(anchorMs);
+    winStart = PROGRAM_START_MS + wi * WK;
+    winEnd = Math.min(PROGRAM_END_MS, winStart + WK);
+    tickUnit = DAY;
+    winLabel = `week ${wi + 1} · ${fmtDay(winStart)}–${fmtDay(winEnd - DAY)}`;
+    if (wi > 0) prevAnchor = PROGRAM_START_MS + (wi - 1) * WK;
+    if (wi < WEEKS - 1) nextAnchor = PROGRAM_START_MS + (wi + 1) * WK;
+  } else if (level === "month") {
+    const wi = weekIdxOf(anchorMs);
+    const phase = wi <= 3 ? 0 : (wi <= 8 ? 1 : 2);
+    const starts = [0, 4, 9], ends = [4, 9, WEEKS];
+    winStart = PROGRAM_START_MS + starts[phase] * WK;
+    winEnd = Math.min(PROGRAM_END_MS, PROGRAM_START_MS + ends[phase] * WK);
+    tickUnit = WK;
+    winLabel = `m${phase + 1} · weeks ${starts[phase] + 1}–${ends[phase]}`;
+    if (phase > 0) prevAnchor = PROGRAM_START_MS + starts[phase - 1] * WK;
+    if (phase < 2) nextAnchor = PROGRAM_START_MS + starts[phase + 1] * WK;
+  } else {
+    winStart = PROGRAM_START_MS; winEnd = PROGRAM_END_MS; tickUnit = WK;
+    winLabel = `all ${WEEKS} weeks`;
+  }
+  const span = Math.max(1, winEnd - winStart);
+  const winFrac = (ms) => Math.max(0, Math.min(1, (ms - winStart) / span));
+  const inWin = (ms) => ms >= winStart && ms < winEnd;
+  const nowIn = inWin(nowMs);
+  const nowFrac = winFrac(nowMs);
+
+  // Build each lane over the window; clip items to it so a zoomed view doesn't
+  // pile out-of-range marks at the edges. (presence already samples the window;
+  // its cadence tightens to daily at week level.)
+  const sampleDays = level === "week" ? 1 : 7;
+  const activityLane = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs });
+  const standingLane = buildStandingLane(standingWeekly, { startMs: winStart, endMs: winEnd });
+  const activity = { ...activityLane, items: activityLane.items.filter(i => inWin(i.startMs)) };
+  const standing = { ...standingLane, points: standingLane.points.filter(p => p.stage != null && inWin(p.ms)) };
+  const presence = buildPresenceLane(people, { startMs: winStart, endMs: winEnd, nowMs, sampleDays });
+
   // Group dated items into per-day buckets so a busy day reads as one mark, not
   // dot-mud — used for BOTH the ruler and the activity lane.
   const clusterByDay = (items) => {
@@ -5979,15 +6024,46 @@ function timelineInnerHtml() {
     `data-tl-tip data-tl-title="${escAttr(title)}" data-tl-date="${escAttr(fmtDay(ms))}"`
     + `${kind ? ` data-tl-kind="${escAttr(kind)}"` : ""}${detail ? ` data-tl-detail="${escAttr(detail)}"` : ""}`;
 
-  // Shared axis: week gridlines + a single oxide now-playhead + a faint future veil.
-  const gridlines = Array.from({ length: WEEKS + 1 }, (_, i) => `<span class="ac-tl-gridline" style="left:${pct(i / WEEKS)}"></span>`).join("");
-  const playhead = `
-    <span class="ac-tl-future" style="left:${pct(axis.nowFraction)}"></span>
-    <span class="ac-tl-now" style="left:${pct(axis.nowFraction)}"><i></i></span>`;
-  const weekLabels = `
-    <span class="ac-tl-wk is-start" style="left:0">${escHtml(fmtDay(startMs))}</span>
-    <span class="ac-tl-wk is-now" style="left:${pct(axis.nowFraction)}">now · wk ${currentProgramWeek()}</span>
-    <span class="ac-tl-wk is-end" style="left:100%">${escHtml(fmtDay(endMs))}</span>`;
+  // Gridlines at each unit boundary in the window + the closing edge; one oxide
+  // now-playhead (only when now is in view) + a faint future veil.
+  const gridStops = [];
+  for (let t = winStart; t < winEnd - 1; t += tickUnit) gridStops.push(t);
+  gridStops.push(winEnd);
+  const gridlines = gridStops.map(t => `<span class="ac-tl-gridline" style="left:${pct(winFrac(t))}"></span>`).join("");
+  const playhead = nowIn
+    ? `<span class="ac-tl-future" style="left:${pct(nowFrac)}"></span><span class="ac-tl-now" style="left:${pct(nowFrac)}"><i></i></span>`
+    : (nowMs < winStart ? `<span class="ac-tl-future" style="left:0"></span>` : "");
+
+  // Axis labels per level: program → endpoints + now; month → week numbers;
+  // week → weekday names.
+  const dayNames = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  const nowLabel = nowIn ? `<span class="ac-tl-wk is-now" style="left:${pct(nowFrac)}">now</span>` : "";
+  let weekLabels;
+  if (level === "program") {
+    weekLabels = `<span class="ac-tl-wk is-start" style="left:0">${escHtml(fmtDay(winStart))}</span>`
+      + (nowIn ? `<span class="ac-tl-wk is-now" style="left:${pct(nowFrac)}">now · wk ${currentProgramWeek()}</span>` : "")
+      + `<span class="ac-tl-wk is-end" style="left:100%">${escHtml(fmtDay(winEnd - DAY))}</span>`;
+  } else if (level === "month") {
+    const startWk = weekIdxOf(winStart), nWeeks = Math.round(span / WK);
+    weekLabels = Array.from({ length: nWeeks }, (_, k) =>
+      `<span class="ac-tl-wk" style="left:${pct(winFrac(winStart + (k + 0.5) * WK))}">wk ${startWk + k + 1}</span>`).join("") + nowLabel;
+  } else {
+    const nDays = Math.round(span / DAY);
+    weekLabels = Array.from({ length: nDays }, (_, k) =>
+      `<span class="ac-tl-wk" style="left:${pct(winFrac(winStart + (k + 0.5) * DAY))}">${dayNames[k % 7]}</span>`).join("") + nowLabel;
+  }
+
+  // Zoom control: a segmented [program | month | week] pill + prev/next window nav.
+  const levelPill = `
+    <div class="ac-tl-levels" role="group" aria-label="time level">
+      ${["program", "month", "week"].map(lv => `<button type="button" class="ac-tl-lvl" data-tl-level="${lv}" aria-pressed="${level === lv ? "true" : "false"}">${lv}</button>`).join("")}
+    </div>`;
+  const winNav = level === "program" ? "" : `
+    <div class="ac-tl-winnav">
+      <button type="button" class="ac-tl-navbtn" data-tl-nav="prev" data-tl-nav-to="${prevAnchor == null ? "" : prevAnchor}"${prevAnchor == null ? " disabled" : ""} aria-label="previous ${level}">←</button>
+      <span class="ac-tl-winlabel">${escHtml(winLabel)}</span>
+      <button type="button" class="ac-tl-navbtn" data-tl-nav="next" data-tl-nav-to="${nextAnchor == null ? "" : nextAnchor}"${nextAnchor == null ? " disabled" : ""} aria-label="next ${level}">→</button>
+    </div>`;
 
   // Ruler (track 0) = the calendar's program anchors (event-kind items), clustered
   // by day so the program-start stack reads as one mark. Future ones dashed.
@@ -6046,8 +6122,11 @@ function timelineInnerHtml() {
     </div>`;
 
   return `
-    <div class="ac-tl-stage" data-view="timeline" tabindex="0" aria-label="cohort timeline — updates by track, past and scheduled">
-      <div class="ac-tl-controls">${sentenceBar}</div>
+    <div class="ac-tl-stage" data-view="timeline" data-tl-level="${level}" tabindex="0" aria-label="cohort timeline — updates by track, past and scheduled">
+      <div class="ac-tl-controls">
+        ${sentenceBar}
+        <div class="ac-tl-levelrow">${levelPill}${winNav}</div>
+      </div>
       <div class="ac-tl">
         <div class="ac-tl-head">
           <div class="ac-tl-label"></div>
@@ -8460,6 +8539,24 @@ function wireCalendar() {
         if (!open) return;
         const rid = open.getAttribute("data-const-open-record");
         if (rid) openDirectoryRecord(rid) || openDetail(rid);
+      });
+    }
+    // zoom level pill (program/month/week) + prev/next window nav
+    for (const btn of state.canvas.querySelectorAll("button[data-tl-level]")) {
+      btn.addEventListener("click", () => {
+        const lv = btn.dataset.tlLevel;
+        if (!lv || lv === (cal.tlLevel || "program")) return;
+        cal.tlLevel = lv;
+        cal.tlAnchorMs = Date.now();
+        refreshCalendarView();
+      });
+    }
+    for (const btn of state.canvas.querySelectorAll("[data-tl-nav]")) {
+      btn.addEventListener("click", () => {
+        const to = Number(btn.dataset.tlNavTo);
+        if (!Number.isFinite(to)) return;
+        cal.tlAnchorMs = to;
+        refreshCalendarView();
       });
     }
   }
