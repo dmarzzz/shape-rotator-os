@@ -308,11 +308,11 @@ function actionPredicate(rawDoes) {
   return `provides ${text}`;
 }
 
-function teamKindLabel(team) {
+function teamKindLabel(team, { includeFocus = true } = {}) {
   const journey = team?.journey || {};
   const typePhrase = companyTypePhrase(journey.company_type);
   const domain = identityDomainLabel(team?.domain);
-  const focus = focusFirstClause(team?.focus);
+  const focus = includeFocus ? focusFirstClause(team?.focus) : "";
   if (typePhrase && domain && focus) return `${typePhrase} in ${domain} focused on ${focus}`;
   if (typePhrase && focus) return `${typePhrase} focused on ${focus}`;
   if (domain && focus) return `a project in ${domain} focused on ${focus}`;
@@ -352,19 +352,39 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
       const journey = team.journey || {};
       const name = team.name || team.record_id;
 
-      const whatItIs = teamKindLabel(team);
       const whatItDoes = actionPredicate(firstText(journey.solution, team.now, team.weekly_goals, focusFirstClause(team.focus)));
+      // Avoid the "focused on X ... provides an X" stutter: drop the focus clause
+      // from the identity lead only when the predicate already LEADS with that exact
+      // focus phrase (e.g. "...focused on P2P LLM router; it provides a P2P LLM router").
+      const focusClause = focusFirstClause(team.focus);
+      const stutters = Boolean(focusClause)
+        && new RegExp(`^[a-z]+\\s+(a|an|the)\\s+${focusClause.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(whatItDoes);
+      const whatItIs = teamKindLabel(team, { includeFocus: !stutters });
       const whoItServes = firstText(journey.icp);
 
       const latestExamples = asArray(act.latest?.evidence?.examples).slice(0, 3);
+      // did/shipped prefer OBSERVED public artifacts (GitHub). For the ~2/3 of teams
+      // with no tracked repo, fall back to the team's own DECLARED public fields
+      // (traction / next milestone / prior shipping) rather than an empty card — marked
+      // "Declared" so it never reads as observed. Transcript-derived did/shipped is a
+      // RUNTIME concern (gated Supabase view); it must NOT be baked into this committed
+      // public bundle (source_boundary: public_bundle).
+      const declaredDid = firstText(team.traction, team.journey?.next_milestone);
       const did = act.latest
         ? compactText(act.latest.summary || latestExamples.join("; "), 220)
-        : "No reviewed GitHub progress artifact is attached to this project yet.";
+        : declaredDid
+          ? `Declared (no public artifact yet): ${declaredDid}`
+          : "No reviewed GitHub progress artifact is attached to this project yet.";
+      const declaredShipped = asArray(team.prior_shipping).filter(Boolean).join("; ");
       const shipped = act.releases.length
         ? act.releaseNames.join("; ")
         : act.observed
           ? "GitHub movement observed; no release artifact observed."
-          : "No public release artifact observed.";
+          : declaredShipped
+            ? `Declared: ${compactText(declaredShipped, 200)}`
+            : "No public release artifact observed.";
+      const didBasis = act.latest ? "github_progress" : declaredDid ? "declared" : "none";
+      const shippedBasis = act.releases.length ? "github_release" : declaredShipped ? "declared" : "none";
       const say = compactText(team.now || team.weekly_goals || focusFirstClause(team.focus) || "", 220);
 
       const refs = [
@@ -404,7 +424,9 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
           who_it_serves: whoItServes,
           say,
           did,
+          did_basis: didBasis,
           shipped,
+          shipped_basis: shippedBasis,
           observed_status: act.observed ? "public_signal_observed" : "unobserved",
           public_activity: {
             observed_status: act.observed ? "public_signal_observed" : "declared_only",
@@ -548,12 +570,16 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
       if (!reasons.length) continue;
       const aName = a.name || a.record_id;
       const bName = b.name || b.record_id;
-      const signal = [
-        ...sharedSkills,
-        domainMatch ? a.domain : "",
-        ...commonDependencies,
-        ...sharedTokens,
-      ].filter(Boolean).slice(0, 4).join(", ");
+      // Dedupe case-insensitively: a shared skill ("tee") and the shared domain
+      // ("tee") both feed the signal, which used to render "...around tee, tee".
+      const signal = [...new Map(
+        [
+          ...sharedSkills,
+          domainMatch ? a.domain : "",
+          ...commonDependencies,
+          ...sharedTokens,
+        ].filter(Boolean).map((token) => [String(token).toLowerCase(), token]),
+      ).values()].slice(0, 4).join(", ");
       cards.push(makeInsightCard({
         id: `cohort-insight:latent-overlap:${slugPart(a.record_id)}:${slugPart(b.record_id)}`,
         kind: "latent_overlap",

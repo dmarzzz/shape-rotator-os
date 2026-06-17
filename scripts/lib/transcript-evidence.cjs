@@ -58,6 +58,21 @@ function unique(values) {
   return Array.from(new Set(normalizeList(values)));
 }
 
+// Insights are now objects {text, subjects, evidence_level} (engine
+// distillation-contract.mjs), but legacy readouts carry bare strings. These read
+// either shape so evidence cards can route each claim to the subject it is ABOUT
+// instead of broadcasting the readout's full team/person list onto every claim.
+function insightText(insight) {
+  return typeof insight === "string" ? insight : String(insight?.text || "");
+}
+function insightSubjects(insight) {
+  return insight && typeof insight === "object" && Array.isArray(insight.subjects) ? normalizeList(insight.subjects) : [];
+}
+function insightEvidenceLevel(insight) {
+  const level = insight && typeof insight === "object" ? insight.evidence_level : null;
+  return ["grounded", "inferred", "speculative"].includes(level) ? level : "inferred";
+}
+
 function safeIdPart(value) {
   return String(value || "unknown")
     .trim()
@@ -196,25 +211,41 @@ function buildEvidenceCard(readout) {
   const source = `${PRIVATE_SOURCE_PREFIX}${vaultId}`;
   const artifactId = `transcript-evidence:${safeIdPart(vaultId)}`;
 
-  const claims = normalizeList(readout.insights).map((text, index) => {
-    const claimType = classifyClaim(text);
-    return {
-      claim_id: `${artifactId}:claim:${index + 1}`,
-      claim_type: claimType,
-      text,
-      source,
-      source_artifact_id: artifactId,
-      evidence_level: "inferred",
-      confidence,
-      confidence_pct: confidencePct,
-      confidence_basis: confidenceBasis,
-      attribution,
-      teams,
-      people,
-      role_views: roleViewsForClaim(claimType, teams, people),
-      verbatim: false,
-    };
-  });
+  const claims = (Array.isArray(readout.insights) ? readout.insights : [])
+    .map((insight) => ({
+      text: insightText(insight).trim(),
+      subjects: insightSubjects(insight),
+      evidence_level: insightEvidenceLevel(insight),
+    }))
+    .filter((insight) => insight.text)
+    .map((insight, index) => {
+      const claimType = classifyClaim(insight.text);
+      // Per-insight subjects scope the claim's attribution; legacy bare-string
+      // insights (no subjects) fall back to the readout-level tags so nothing
+      // regresses. This stops a team being credited on a claim it never appears in.
+      const scoped = insight.subjects.length > 0;
+      const claimTeams = scoped ? insight.subjects.filter((id) => teams.includes(id)) : teams;
+      const claimPeople = scoped ? insight.subjects.filter((id) => people.includes(id)) : people;
+      const claimAttribution = scoped
+        ? (claimTeams.length ? "team-level" : claimPeople.length ? "participant-level" : "unattributed-theme")
+        : attribution;
+      return {
+        claim_id: `${artifactId}:claim:${index + 1}`,
+        claim_type: claimType,
+        text: insight.text,
+        source,
+        source_artifact_id: artifactId,
+        evidence_level: insight.evidence_level,
+        confidence,
+        confidence_pct: confidencePct,
+        confidence_basis: confidenceBasis,
+        attribution: claimAttribution,
+        teams: claimTeams,
+        people: claimPeople,
+        role_views: roleViewsForClaim(claimType, claimTeams, claimPeople),
+        verbatim: false,
+      };
+    });
 
   const qa = Array.isArray(readout.qa)
     ? readout.qa.map((item, index) => ({
