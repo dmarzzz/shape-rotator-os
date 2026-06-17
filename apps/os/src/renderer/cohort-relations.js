@@ -888,7 +888,7 @@ function bmDescendantLeafRids(node, out = []) {
 // Nested circle packing for the cohort. Returns a drop-in superset of
 // placeConstellation's `pos` contract plus nested `containers`.
 export function packBubbles(model, granularity, opts = {}) {
-  const W = opts.W || 980; const H = opts.H || 540; const margin = opts.margin || 26;
+  const W = opts.W || 980; const H = opts.H || 540; const margin = opts.margin || 16;
   const root = bubbleHierarchy(model, granularity, opts.stageOf);
   bmLayout(root);
   bmAssignRanks(root);

@@ -7454,13 +7454,26 @@ function wireConstellationHover() {
       const body = state.canvas?.querySelector(".ac-inspector-body");
       const t = teamById.get(rid);
       if (!body || !t) return;
+      const pinnedRid = state.constSelection?.type === "team" ? state.constSelection.rid : null;
+      // Hovering the pinned team: just drop any strip — its dossier is already up.
+      if (pinnedRid === rid) { body.querySelector(".ac-hover-strip")?.remove(); lastPreviewRid = rid; return; }
       lastPreviewRid = rid;
-      body.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
+      if (pinnedRid) {
+        // A team is pinned: don't clobber its dossier — float a compact preview
+        // strip on top, leaving the pinned intersection view intact below.
+        let strip = body.querySelector(".ac-hover-strip");
+        if (!strip) { strip = document.createElement("div"); strip.className = "ac-hover-strip"; body.prepend(strip); }
+        strip.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
+      } else {
+        body.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
+      }
     };
     const restoreInspector = () => {
       lastPreviewRid = null;
       const body = state.canvas?.querySelector(".ac-inspector-body");
       if (!body) return;
+      body.querySelector(".ac-hover-strip")?.remove();
+      if (state.constSelection) return; // pinned dossier stays put
       body.innerHTML = constellationInspectorLeadHtml(inspectorCtx, state.constSelection) + constellationInspectorHtml(state.constSelection, inspectorCtx);
       wireExternalLinks(body);
     };

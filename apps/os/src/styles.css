@@ -7202,6 +7202,14 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 }
 /* Overlap (Venn) leads the inspector on click. */
 .ac-inspector-section.ac-overlap-lead { margin-top: 4px; padding-top: 4px; }
+/* Hover preview strip: floats above a PINNED dossier without clobbering it. */
+.ac-hover-strip {
+  border: 0.5px solid var(--well-accent-soft, rgba(193,168,114,0.3));
+  border-radius: var(--radius-md, 8px);
+  background: var(--well-accent-faint, rgba(193,168,114,0.05));
+  padding: 8px 10px; margin: 0 0 10px; animation: ac-preview-in 160ms var(--ease);
+}
+.ac-hover-strip .ac-inspector-hero { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .ac-inspector-hero.is-preview { animation: none; } }
 .alch-constellation-stage[data-view="map"]:not([data-hover-active="true"]):not([data-selection-active="true"]):not([data-interest-active="true"]) svg .ac-well.is-dense-well .ac-well-label {
   opacity: 0.58;
