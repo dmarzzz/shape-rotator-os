@@ -7116,6 +7116,10 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.82));
   font-weight: 600;
 }
+.ac-sentence .ac-sent-legend .ac-dom-sw {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  margin: 0 2px 0 6px; vertical-align: baseline;
+}
 
 /* Per-company overlap (inspector): focal team + its overlapping spaces, with
    multi-space co-members ringed near the centre. */
@@ -7151,14 +7155,31 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
    labels read at rest while small bubbles stay hover-only. */
 .alch-constellation-stage[data-view="bubble"] svg .ac-node-group:hover .ac-node-shape,
 .alch-constellation-stage[data-view="bubble"] svg .ac-node-group:focus-visible .ac-node-shape { transform: scale(1.22); }
-.alch-constellation-stage[data-view="bubble"] svg .ac-node-group:active .ac-node-shape { transform: scale(0.97); transition-duration: 100ms; }
+.alch-constellation-stage[data-view="bubble"] svg .ac-node-group:active .ac-node-shape { transform: scale(0.94); transition-duration: 90ms; }
 .alch-constellation-stage[data-view="bubble"] svg .ac-node-group.is-keystone-label .ac-node-label {
   fill: var(--alchemy-paper-warm); font-size: 9.4px; font-weight: 800; opacity: 0.96;
 }
+/* Small bubbles: name hidden at rest (tight pack), fades in on hover/focus —
+   the one info surface stays the sidebar; this is just an in-place glance aid. */
+.alch-constellation-stage[data-view="bubble"] svg .ac-node-group[data-small-bubble="true"] .ac-node-label {
+  opacity: 0; transition: opacity 140ms var(--ease);
+}
+.alch-constellation-stage[data-view="bubble"] svg .ac-node-group[data-small-bubble="true"]:hover .ac-node-label,
+.alch-constellation-stage[data-view="bubble"] svg .ac-node-group[data-small-bubble="true"]:focus-visible .ac-node-label { opacity: 0.92; }
 .alch-constellation-stage[data-view="bubble"] svg .ac-bubble-container:hover .ac-bubble-container-shape {
   stroke: var(--well-accent, rgba(193,168,114,0.7));
   fill: var(--well-accent-faint, rgba(193,168,114,0.06));
 }
+/* Container ring is focusable + pressable (click/Enter focuses its space). */
+.alch-constellation-stage[data-view="bubble"] svg .ac-bubble-container:focus-visible { outline: none; }
+.alch-constellation-stage[data-view="bubble"] svg .ac-bubble-container:focus-visible .ac-bubble-container-shape {
+  stroke: var(--well-accent, rgba(214,189,134,0.85)); filter: drop-shadow(0 0 7px rgba(214,189,134,0.4));
+}
+.alch-constellation-stage[data-view="bubble"] svg .ac-bubble-container:active .ac-bubble-container-shape { transform: scale(0.99); transform-origin: center; transform-box: fill-box; }
+/* Container focus: member bubbles stay lit, the rest of the cohort recedes. */
+.alch-constellation-stage[data-view="bubble"][data-container-focus] svg .ac-node-group:not(.is-container-core) .ac-node-shape { opacity: 0.22; }
+.alch-constellation-stage[data-view="bubble"][data-container-focus] svg .ac-node-group:not(.is-container-core) .ac-node-label { opacity: 0.12; }
+.alch-constellation-stage[data-view="bubble"][data-container-focus] svg .ac-node-group.is-container-core .ac-node-shape { stroke-width: 2; }
 
 /* Granularity morph: named team bubbles glide to their new home; the rest
    cross-fades. House expo-out easing, asymmetric is unnecessary (single swap). */

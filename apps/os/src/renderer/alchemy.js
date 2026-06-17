@@ -2510,7 +2510,7 @@ function constellationSentenceBar({ view = "bubble", scope = "projects", granula
       ${scopeUnit}
       <span class="ac-sent-word">grouped by</span>
       ${granUnit}
-      <span class="ac-sent-legend">size <b>maturity</b> · shade <b>depended-on</b> · colour <b>domain</b></span>
+      <span class="ac-sent-legend">size <b>maturity</b> · shade <b>depended-on</b> · ${[["tee", "tee"], ["ai", "ai"], ["crypto", "crypto"], ["app-ux", "ux"]].map(([k, lbl]) => `<i class="ac-dom-sw" style="background:${EGO_DOMAIN_FILL[k]}" aria-hidden="true"></i>${lbl}`).join(" ")}</span>
     </div>`;
 }
 // Multi-select include chip (journey's teams/projects/side toggles): the
@@ -4935,7 +4935,7 @@ function constEgocentricOverlapSvg(team, ctx) {
   });
   const focal = `<g class="ac-ego-focal"><circle class="ac-ego-focal-ring" cx="${CX}" cy="${CY}" r="13"/><circle cx="${CX}" cy="${CY}" r="9" fill="${constEgoNodeFill(team)}"/><text class="ac-ego-focal-label" x="${CX}" y="${CY + 27}" text-anchor="middle">${escHtml(constShortText(team.name || rid, 18))}</text></g>`;
   return `<svg class="ac-ego-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escAttr(`${team.name || rid} overlap across ${N} spaces`)}">${circles}${nodes}${focal}</svg>`
-    + `<p class="ac-ego-caption">In ${N} space${N === 1 ? "" : "s"}. ${multi.length} team${multi.length === 1 ? " shares" : "s share"} more than one — its closest collaboration-or-collision candidate${multi.length === 1 ? "" : "s"}.</p>`;
+    + `<p class="ac-ego-caption">In ${N} space${N === 1 ? "" : "s"}. ${multi.length} team${multi.length === 1 ? " shares" : "s share"} more than one — its closest collaboration-or-collision candidate${multi.length === 1 ? "" : "s"}.${multi.length ? " Click a co-member to recenter." : ""}</p>`;
 }
 
 // Compact hover preview for the side inspector (replaces the floating tooltip
@@ -6582,10 +6582,15 @@ function renderConstellationDeltaLedger(delta) {
 // space, so an extra ring around one node is just noise.
 function constBubbleContainerSvg(c, accentStyle) {
   if (!c || c.redundant) return "";
-  const showLabel = c.r > 30;
+  // Level-aware label gate: theme rings are large; cluster/skill rings smaller.
+  // A 9px label only earns its place when the ring can hold it without crowding
+  // the bubbles inside (the old flat r>30 dropped labels into tiny circles).
+  const showLabel = c.level === "theme" ? c.r > 90 : c.r > 44;
   const labelY = (c.cy - c.r + 14).toFixed(1);
+  const count = Array.isArray(c.members) ? c.members.length : 0;
+  const aria = `focus ${c.label || c.id}${c.level === "cluster" ? " ecosystem" : ` ${c.level}`}, ${count} team${count === 1 ? "" : "s"}`;
   return `
-    <g class="ac-bubble-container" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" style="${escAttr(accentStyle)}">
+    <g class="ac-bubble-container" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle)}">
       <circle class="ac-bubble-container-shape" cx="${c.cx.toFixed(1)}" cy="${c.cy.toFixed(1)}" r="${c.r.toFixed(1)}"/>
       ${showLabel ? `<text class="ac-bubble-container-label" x="${c.cx.toFixed(1)}" y="${labelY}" text-anchor="middle">${escHtml(c.label || "")}</text>` : ""}
     </g>`;
@@ -6803,12 +6808,15 @@ function renderConstellation() {
     const labelY = radialLabel
       ? (Math.sin(angle) < -0.25 ? -r - 8 - (labelOut - 6) : (Math.sin(angle) > 0.25 ? r + labelGap + (labelOut - 6) : 3))
       : r + labelGap;
-    // Bubble map: keep resting labels for the larger bubbles only; small ones
-    // would collide in a tight pack, and hover + tooltip carry their names.
-    const labelLines = (isBubble && r < 14 && rank !== 0) ? [] : constNodeLabelLines(team, viewMode);
+    // Bubble map: small bubbles in a tight pack hide their resting label and
+    // fade it in on hover/focus (data-small-bubble + CSS) — no floating tooltip
+    // (the side inspector is the one info surface); aria-label names them for
+    // screen readers and the hover preview names them in the sidebar.
+    const labelLines = constNodeLabelLines(team, viewMode);
+    const smallBubble = isBubble && r < 14 && rank !== 0;
     const fullLabel = constText(team.name || team.record_id);
     return `
-    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}" data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}"${smallBubble ? ' data-small-bubble="true"' : ""} data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
       <circle class="ac-node-hit" r="${Math.max(18, r + 10).toFixed(1)}"/>
       ${typedRing}
       <circle class="ac-node-shape ${team.is_mentor ? "ac-node-mentor" : ""}" r="${r.toFixed(1)}" style="${escAttr(shadeStyle)}"/>
@@ -7440,25 +7448,40 @@ function wireConstellationHover() {
     // the team — whose inspector leads with its intersection (Venn) view. The
     // legacy map/ring path still uses the provenance tooltip.
     const isBubble = stage.getAttribute("data-view") === "bubble";
+    let lastPreviewRid = null;
     const previewInspector = (rid) => {
+      if (rid === lastPreviewRid) return; // de-thrash re-entering the same bubble
       const body = state.canvas?.querySelector(".ac-inspector-body");
       const t = teamById.get(rid);
       if (!body || !t) return;
+      lastPreviewRid = rid;
       body.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
     };
     const restoreInspector = () => {
+      lastPreviewRid = null;
       const body = state.canvas?.querySelector(".ac-inspector-body");
       if (!body) return;
       body.innerHTML = constellationInspectorLeadHtml(inspectorCtx, state.constSelection) + constellationInspectorHtml(state.constSelection, inspectorCtx);
       wireExternalLinks(body);
     };
-    // Cluster containers focus their ecosystem on click (cluster ids only;
-    // theme/skill grouping ids carry no interest-focus target).
+    // Click/Enter a container ring to focus its space: its member bubbles stay
+    // lit while the rest of the cohort dims. Works at EVERY grain (theme /
+    // cluster / skill) via the descendant-member set; re-trigger clears.
+    const clearContainerFocus = () => {
+      stage.removeAttribute("data-container-focus");
+      stage.querySelectorAll(".ac-node-group.is-container-core").forEach(n => n.classList.remove("is-container-core"));
+    };
+    const focusContainer = (el) => {
+      const cid = el.getAttribute("data-container");
+      if (stage.getAttribute("data-container-focus") === cid) { clearContainerFocus(); return; }
+      const members = new Set((el.getAttribute("data-members") || "").split(" ").filter(Boolean));
+      stage.setAttribute("data-container-focus", cid);
+      stage.querySelectorAll(".ac-node-group").forEach(n => n.classList.toggle("is-container-core", members.has(n.dataset.recordId)));
+    };
     if (isBubble) {
       for (const c of stage.querySelectorAll(".ac-bubble-container[data-container]")) {
-        const cid = c.getAttribute("data-container");
-        if (!cid || cid.startsWith("theme:") || cid.startsWith("skill:")) continue;
-        c.addEventListener("click", (e) => { e.preventDefault(); setInterestFocus(cid); });
+        c.addEventListener("click", (e) => { e.preventDefault(); focusContainer(c); });
+        c.addEventListener("keydown", (e) => { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); focusContainer(c); });
       }
     }
     for (const g of stage.querySelectorAll(".ac-node-group")) {
@@ -7481,6 +7504,7 @@ function wireConstellationHover() {
       });
       g.addEventListener("click", (e) => {
         e.preventDefault();
+        if (isBubble) clearContainerFocus();
         selectOrOpen("team", rid);
       });
       g.addEventListener("focus", () => {
@@ -7491,6 +7515,7 @@ function wireConstellationHover() {
       g.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
+        if (isBubble) clearContainerFocus();
         selectOrOpen("team", rid);
       });
     }
@@ -7836,6 +7861,16 @@ function wireConstellationHover() {
   const inspector = state.canvas.querySelector(".ac-inspector");
   if (inspector) {
     wireExternalLinks(inspector);
+    // Keyboard parity for the per-company overlap co-members (Enter/Space
+    // recenters, matching the click delegation below).
+    inspector.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const egoTarget = e.target.closest("[data-ego-refocus]");
+      if (!egoTarget) return;
+      e.preventDefault();
+      const rid = egoTarget.getAttribute("data-ego-refocus");
+      if (rid) setConstellationInspector({ type: "team", rid }, constellationCurrentInspectorContext());
+    });
     inspector.addEventListener("click", (e) => {
       const clearTarget = e.target.closest("[data-const-clear-selection]");
       if (clearTarget) {

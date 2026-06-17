@@ -875,6 +875,16 @@ function bmAssignRanks(node) {
   (node.children || []).forEach(bmAssignRanks);
 }
 
+// All team (leaf) record_ids under a container, at any depth — so a theme ring
+// focuses every team in its clusters, a cluster ring its own teams, etc.
+function bmDescendantLeafRids(node, out = []) {
+  for (const ch of (node.children || [])) {
+    if (ch.leaf) out.push(ch.rid);
+    else bmDescendantLeafRids(ch, out);
+  }
+  return out;
+}
+
 // Nested circle packing for the cohort. Returns a drop-in superset of
 // placeConstellation's `pos` contract plus nested `containers`.
 export function packBubbles(model, granularity, opts = {}) {
@@ -893,7 +903,9 @@ export function packBubbles(model, granularity, opts = {}) {
   const pos = new Map();
   for (const lf of out.leaves) {
     const deg = indeg.get(lf.rid) || 0;
-    const shade = maxDeg > 0 ? deg / maxDeg : 0.5;
+    // No fake midpoint: if nobody is depended on, all bubbles read as the
+    // floor (least-influence), not a misleading "medium everywhere".
+    const shade = maxDeg > 0 ? deg / maxDeg : 0;
     pos.set(lf.rid, {
       team: lf.team, x: lf._ax, y: lf._ay, r: lf._ar, deg, angle: null,
       wellId: lf._wellId || "_other", wellSize: lf._wellSize || 1, rank: lf._rank || 0,
@@ -902,7 +914,7 @@ export function packBubbles(model, granularity, opts = {}) {
   }
   const containers = out.containers.map(c => ({
     id: c.id, label: c.label, level: c.level, cx: c._ax, cy: c._ay, r: c._ar,
-    members: (c.children || []).filter(k => k.leaf).map(k => k.rid),
+    members: bmDescendantLeafRids(c),
     redundant: !!c.redundant,
   }));
   return { pos, containers, wells: [], ringSegments: [] };
