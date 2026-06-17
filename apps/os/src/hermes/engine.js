@@ -31,11 +31,11 @@ const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
 
-// Claude model: default to the latest/most-capable (per CLAUDE.md), but allow an
-// override for a faster tier on this latency-sensitive lookup surface (Opus's
-// reasoning buys little for a grounded "who to talk to" lookup but costs time).
-// The codex backend uses whatever model the user's Codex config selects.
-const CLAUDE_MODEL = process.env.SRWK_HERMES_CLAUDE_MODEL || "claude-opus-4-8";
+// Claude model: this is a latency-sensitive connector lookup over a small JSON
+// surface, where time-to-answer matters more than max reasoning depth — so the
+// default is the fast, capable Sonnet tier. Override to Opus (or any model) with
+// SRWK_HERMES_CLAUDE_MODEL. The codex backend uses the user's own Codex config.
+const CLAUDE_MODEL = process.env.SRWK_HERMES_CLAUDE_MODEL || "claude-sonnet-4-6";
 
 // Double-quote a path for the shell. Only ever called with our own os.tmpdir()
 // file paths (alphanumeric names) — never user input — so this is for spaces in

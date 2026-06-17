@@ -80,6 +80,14 @@ test("buildContext bounds + annotates an oversized cohort, leaves a small one in
   assert.ok(!/_note/.test(buildContext(cohort)), "small cohort untouched");
 });
 
+test("buildContext relevance-ranks over budget so the matching person survives truncation", () => {
+  const people = Array.from({ length: 3000 }, (_, i) => ({ name: "P" + i, skills: ["filler".repeat(8)], now: "z".repeat(40) }));
+  people[2800] = { name: "RustPerson", skills: ["rust", "systems"], now: "building a rust node" };
+  const ctx = buildContext({ people, teams: [] }, "who can help me with rust?");
+  assert.match(ctx, /most relevant to your question/);
+  assert.match(ctx, /RustPerson/, "the relevant person is kept despite being near the end of the list");
+});
+
 test("parseShapeJson tolerates fences and rejects non-JSON", () => {
   assert.deepEqual(parseShapeJson('```json\n{"a":1}\n```'), { a: 1 });
   assert.equal(parseShapeJson("no json"), null);

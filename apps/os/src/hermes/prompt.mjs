@@ -1,4 +1,4 @@
-// prompt.js — pure prompt construction for the hermes brain.
+// prompt.mjs — pure prompt construction for the hermes brain.
 //
 // No DOM, no window, no module state: every input is passed in, so this is the
 // single, unit-testable home for how cohort-public data + the user's scanned
@@ -11,11 +11,21 @@
 // behaviour is unchanged — this only engages as the cohort scales.
 const CONTEXT_CHAR_BUDGET = 60000;
 
+// Words too common to carry relevance signal when ranking the cohort.
+const STOPWORDS = new Set(["the", "and", "for", "who", "what", "with", "can", "help", "find", "someone", "anyone", "people", "person", "team", "teams", "working", "work", "about", "that", "this", "your", "you", "are", "has", "have", "need", "needs", "want", "looking", "should", "talk", "pair", "get", "into", "from", "they", "them"]);
+
+function searchText(p) {
+  return [p.name, p.team, p.role, ...(p.skills || []), ...(p.skill_areas || []), p.now, p.offering, p.seeking, p.weekly_intention]
+    .filter(Boolean).join(" ").toLowerCase();
+}
+
 // Project the cohort-public surface to the fields the connector needs, bounded
-// so a growing cohort can't overflow context silently. If over budget, trim the
-// people list and annotate the truncation so the model (and the reader) know the
-// grounding was narrowed rather than guessing at a cut-off tail.
-export function buildContext(cohort) {
+// so a growing cohort can't overflow context silently. Under budget, include
+// everyone (the model matches best over the full set). Over budget, RANK people
+// by relevance to the question and keep the top that fit — so truncation drops
+// the LEAST-relevant, not an arbitrary tail — and annotate it so the model (and
+// reader) know the grounding was narrowed.
+export function buildContext(cohort, question = "") {
   if (!cohort) return "(no cohort data loaded)";
   const people = (cohort.people || []).map((p) => ({
     name: p.name, team: p.team, role: p.role,
@@ -27,19 +37,24 @@ export function buildContext(cohort) {
     name: t.name, focus: t.focus, skill_areas: t.skill_areas,
     seeking: t.seeking, offering: t.offering,
   }));
-  let json = JSON.stringify({ people, teams }, null, 0);
-  if (json.length > CONTEXT_CHAR_BUDGET) {
-    let kept = people.length;
-    while (kept > 1 && JSON.stringify({ people: people.slice(0, kept), teams }, null, 0).length > CONTEXT_CHAR_BUDGET) {
-      kept -= Math.max(1, Math.floor(kept / 10));
-    }
-    json = JSON.stringify({
-      people: people.slice(0, Math.max(1, kept)),
-      teams,
-      _note: `showing ${Math.max(1, kept)} of ${people.length} members — ask a more specific question to narrow the search`,
-    }, null, 0);
+  const full = JSON.stringify({ people, teams }, null, 0);
+  if (full.length <= CONTEXT_CHAR_BUDGET) return full;
+
+  const terms = [...new Set((String(question).toLowerCase().match(/[a-z0-9][a-z0-9+#.-]{2,}/g) || []))].filter((t) => !STOPWORDS.has(t));
+  const ranked = terms.length
+    ? people.map((p, i) => ({ p, i, s: terms.reduce((n, t) => n + (searchText(p).includes(t) ? 1 : 0), 0) }))
+        .sort((a, b) => (b.s - a.s) || (a.i - b.i)).map((x) => x.p)
+    : people;
+  let kept = ranked.length;
+  while (kept > 1 && JSON.stringify({ people: ranked.slice(0, kept), teams }, null, 0).length > CONTEXT_CHAR_BUDGET) {
+    kept -= Math.max(1, Math.floor(kept / 10));
   }
-  return json;
+  kept = Math.max(1, kept);
+  return JSON.stringify({
+    people: ranked.slice(0, kept),
+    teams,
+    _note: `showing ${kept} of ${people.length} members${terms.length ? " most relevant to your question" : ""} — ask a more specific question to narrow the search`,
+  }, null, 0);
 }
 
 // Format a scanned shape for the prompt → { text, hasPrivate }. Public GitHub is
@@ -83,7 +98,7 @@ export function buildPrompt({ question, cohort, shape, includePrivate }) {
       "<user_shape>", sg.text, "</user_shape>",
     );
   }
-  parts.push("", "<cohort_data>", buildContext(cohort), "</cohort_data>", "", `User question: ${question}`);
+  parts.push("", "<cohort_data>", buildContext(cohort, question), "</cohort_data>", "", `User question: ${question}`);
   return { prompt: parts.join("\n"), dataMode: sg.hasPrivate ? "private_distilled" : "public" };
 }
 
