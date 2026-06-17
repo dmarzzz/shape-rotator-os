@@ -441,11 +441,11 @@ npm run calendar:sync:google -- --env-file .env.calendar.local --full --apply
   `google_sync_token`.
 - [x] Confirm an expired Google sync token returns to a full sync path and
   records `sync_status = 'expired'` before recovering.
-- [ ] Decide watch renewal cadence. Google watch channels expire and must be
-  renewed before expiration.
-- [ ] Put the sync command on a trusted host/scheduler. Do not run it in the
-  browser or Electron client because it needs Google access and Supabase
-  service-role credentials.
+- [x] Do not use GitHub Actions as the scheduled calendar operator. The checked
+  in `google-calendar-watch-renewal` workflow is manual fallback only.
+- [ ] Put watch renewal and the sync command on Supabase Cron or another trusted
+  host/scheduler. Do not run it in the browser or Electron client because it
+  needs Google access and Supabase service-role credentials.
 
 ### 5. Meet, Gemini, and Transcripts
 
