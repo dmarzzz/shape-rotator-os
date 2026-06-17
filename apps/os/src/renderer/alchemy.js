@@ -47,7 +47,7 @@ import {
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { buildActivityLane, buildStandingLane, buildPresenceLane } from "./cohort-timeline-tracks.mjs";
+import { buildActivityLane, buildStandingLane, buildPresenceLane, teamStageSeries as tlTeamStageSeries } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
@@ -6006,21 +6006,33 @@ function timelineInnerHtml() {
     return winFrac(winStart + (dayIdx + 0.5) * DAY);
   };
 
-  // Build each lane over the window; clip items to it so a zoomed view doesn't
-  // pile out-of-range marks at the edges. (presence already samples the window;
-  // its cadence tightens to daily at week level.)
+  // ── Workstream scope. Pick a team/project to focus the lanes; "all cohort"
+  // (default) shows everything. The calendar ruler stays cohort-wide (the schedule
+  // is the shared frame); activity / standing / presence re-scope to the workstream.
+  const teams = (cohort.teams || [])
+    .filter((t) => t && t.record_id && teamKind(t) !== "person")
+    .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)));
+  const scopeId = teams.some((t) => t.record_id === cal.tlScope) ? cal.tlScope : null;
+  const scopeTeam = scopeId ? teams.find((t) => t.record_id === scopeId) : null;
+  const scopeName = scopeTeam ? (scopeTeam.name || scopeTeam.record_id) : "all cohort";
+
+  // Lane data over the window, re-scoped to the workstream. Standing weeks are
+  // PROGRAM-anchored, so build over the whole program then clip + re-fraction to the
+  // window; activity/presence carry absolute times so the window alone is enough.
   const sampleDays = level === "week" ? 1 : 7;
-  const activityLane = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs });
-  // Standing weeks are PROGRAM-anchored (their ms come from the program start), so
-  // build over the whole program for correct timestamps, then clip + re-fraction to
-  // the window. (Activity/presence carry absolute times, so the window is enough.)
+  const allItems = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items.filter((i) => inWin(i.startMs));
+  const eventItems = allItems.filter((i) => i.category === "event"); // shared schedule — never scoped
+  const updateItems = allItems.filter((i) => i.category !== "event" && (!scopeId || i.team === scopeId));
   const standingLane = buildStandingLane(standingWeekly, { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS });
-  const activity = { ...activityLane, items: activityLane.items.filter(i => inWin(i.startMs)) };
-  const standing = {
-    ...standingLane,
-    points: standingLane.points.filter(p => p.stage != null && inWin(p.ms)).map(p => ({ ...p, fraction: winFrac(p.ms) })),
-  };
-  const presence = buildPresenceLane(people, { startMs: winStart, endMs: winEnd, nowMs, sampleDays });
+  const stMax = standingLane.stageMax || 8;
+  const rawStanding = scopeId && standingWeekly?.byTeam?.[scopeId]
+    ? tlTeamStageSeries(standingWeekly.byTeam[scopeId], standingWeekly.weeks || [], PROGRAM_START_MS)
+    : standingLane.points;
+  const stPts = rawStanding.filter((p) => p.stage != null && inWin(p.ms)).map((p) => ({ ...p, fraction: winFrac(p.ms) }));
+  const scopedPeople = scopeId
+    ? people.filter((p) => p && (p.team === scopeId || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(scopeId))))
+    : people;
+  const presence = buildPresenceLane(scopedPeople, { startMs: winStart, endMs: winEnd, nowMs, sampleDays });
 
   // Group dated items into per-day buckets so a busy day reads as one mark, not
   // dot-mud — used for BOTH the ruler and the activity lane.
@@ -6069,6 +6081,17 @@ function timelineInnerHtml() {
     }).join("") + nowLabel;
   }
 
+  // Workstream selector — a stateful dropdown whose label IS the current scope
+  // (label = trigger = display); selecting a team re-scopes the lanes.
+  const scopeMenu = [{ id: "", name: "all cohort" }, ...teams.map((t) => ({ id: t.record_id, name: t.name || t.record_id }))]
+    .map((o) => `<button type="button" class="ac-tl-scope-opt" role="option" data-tl-scope="${escAttr(o.id)}" aria-selected="${(o.id || null) === scopeId ? "true" : "false"}">${escHtml(o.name)}</button>`).join("");
+  const scopeControl = `
+    <div class="ac-tl-scope" data-tl-scope-ctl>
+      <button type="button" class="ac-tl-scope-btn${scopeId ? " is-scoped" : ""}" data-tl-scope-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="choose workstream to focus">
+        <span class="ac-tl-scope-k">workstream</span><span class="ac-tl-scope-v">${escHtml(scopeName)}</span><i class="ac-tl-scope-chev" aria-hidden="true"></i>
+      </button>
+      <div class="ac-tl-scope-menu" role="listbox" aria-label="workstream" hidden>${scopeMenu}</div>
+    </div>`;
   // Zoom control: a segmented [program | month | week] pill + prev/next window nav.
   const levelPill = `
     <div class="ac-tl-levels" role="group" aria-label="time level">
@@ -6083,7 +6106,7 @@ function timelineInnerHtml() {
 
   // Ruler (track 0) = the calendar's program anchors (event-kind items), clustered
   // by day so the program-start stack reads as one mark. Future ones dashed.
-  const rulerMarks = clusterByDay(activity.items.filter(i => i.category === "event")).map(group => {
+  const rulerMarks = clusterByDay(eventItems).map(group => {
     const it = group[0];
     const count = group.length;
     const title = count > 1 ? `${count} calendar events` : it.title;
@@ -6092,7 +6115,7 @@ function timelineInnerHtml() {
   }).join("");
 
   // Activity lane = everything else (release/commit/ask), clustered by day → count dot.
-  const activityMarks = clusterByDay(activity.items.filter(i => i.category !== "event")).map(group => {
+  const activityMarks = clusterByDay(updateItems).map(group => {
     const it = group[0];
     const count = group.length;
     const rid = (group.find(g => g.detailRef?.nav?.recordId)?.detailRef.nav.recordId) || "";
@@ -6104,31 +6127,32 @@ function timelineInnerHtml() {
     return `<span class="ac-tl-dot${it.isFuture ? " is-future" : ""}${count > 1 ? " is-cluster" : ""}${rid ? " is-openable" : ""}" style="left:${pct(markFrac(it))}"${open} ${tipAttrs(title, it.startMs, kind, detail)}${rid ? ' role="button" tabindex="0"' : ""}>${count > 1 ? `<em>${count}</em>` : ""}</span>`;
   }).join("");
 
-  // Standing lane = the cohort-mean PMF stage line on a 0..8 axis (one legible line,
-  // not 26 overlaid) with a bright endpoint dot marking the current value.
-  const stPts = standing.points.filter(p => p.stage != null);
-  const stMax = standing.stageMax || 8;
+  // Standing lane = cohort-mean PMF (or the selected workstream's own line), one
+  // legible polyline on a 0..8 axis with a bright endpoint dot at the current value.
   const stY = (stage) => (1 - stage / stMax) * 100;
   const stPoly = stPts.map(p => `${(p.fraction * 100).toFixed(2)},${stY(p.stage).toFixed(2)}`).join(" ");
   const stLast = stPts.length ? stPts[stPts.length - 1] : null;
+  const standingTip = scopeTeam
+    ? `${scopeName} · PMF stage ${stLast ? stLast.stage.toFixed(1) : "?"} of ${stMax}`
+    : `cohort mean PMF — stage ${stLast ? stLast.stage.toFixed(1) : "?"} of ${stMax}`;
   const standingBody = stLast
-    ? `<svg class="ac-tl-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="${stPoly}" fill="none" vector-effect="non-scaling-stroke"/></svg>`
-      + `<span class="ac-tl-end" style="left:${pct(stLast.fraction)};top:${stY(stLast.stage).toFixed(1)}%" ${tipAttrs(`cohort mean PMF — stage ${stLast.stage.toFixed(1)} of ${stMax}`, stLast.ms, "standing", `mean across ${stLast.teamsWithData} teams with a read`)}></span>`
-    : `<span class="ac-tl-empty">no standing reads yet</span>`;
+    ? `<svg class="ac-tl-line${scopeId ? " is-scoped" : ""}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${stPts.length > 1 ? `<polyline points="${stPoly}" fill="none" vector-effect="non-scaling-stroke"/>` : ""}</svg>`
+      + `<span class="ac-tl-end" style="left:${pct(stLast.fraction)};top:${stY(stLast.stage).toFixed(1)}%" ${tipAttrs(standingTip, stLast.ms, "standing", scopeTeam ? "this workstream" : `mean across ${stLast.teamsWithData} teams`)}></span>`
+    : `<span class="ac-tl-empty">no standing read in view</span>`;
   const stLatest = stLast ? stLast.stage.toFixed(1) : null;
 
   // Presence lane = a weekly "who's in town" occupancy histogram (background band).
   const presenceMarks = presence.samples.map(s =>
     `<span class="ac-tl-pres${s.isFuture ? " is-future" : ""}" style="left:${pct(s.fraction)};height:${Math.round(Math.max(0.06, s.occupancy) * 100)}%" ${tipAttrs(`${s.present} of ${s.total} in town`, s.ms, "presence", `${Math.round(s.occupancy * 100)}% occupancy`)}></span>`).join("");
 
-  const sentenceBar = `
-    <div class="ac-sentence" role="group" aria-label="cohort timeline summary">
-      <span class="ac-sent-word">cohort timeline ·</span>
-      <strong class="ac-sent-fact">${escHtml(winLabel)}</strong>
-      <span class="ac-sent-word">· past</span>
-      <span class="ac-sent-word">←</span>
-      <strong class="ac-sent-fact">now</strong>
-      <span class="ac-sent-word">→ scheduled</span>
+  const activityLabel = scopeTeam ? "activity" : "all activity";
+  const summary = `
+    <div class="ac-tl-summary" role="group" aria-label="timeline summary">
+      <strong class="ac-tl-sum-scope">${escHtml(scopeName)}</strong>
+      <span class="ac-tl-sum-sep">·</span>
+      <span class="ac-tl-sum-win">${escHtml(winLabel)}</span>
+      <span class="ac-tl-sum-sep">·</span>
+      <span class="ac-tl-sum-frame">past <em>←</em> now <em>→</em> scheduled</span>
     </div>`;
 
   const lane = (cls, label, sub, body) => `
@@ -6138,10 +6162,10 @@ function timelineInnerHtml() {
     </div>`;
 
   return `
-    <div class="ac-tl-stage" data-view="timeline" data-tl-level="${level}" tabindex="0" aria-label="cohort timeline — updates by track, past and scheduled">
+    <div class="ac-tl-stage" data-view="timeline" data-tl-level="${level}"${scopeId ? ' data-tl-scoped="1"' : ""} tabindex="0" aria-label="cohort timeline — updates by track, past and scheduled">
       <div class="ac-tl-controls">
-        ${sentenceBar}
-        <div class="ac-tl-levelrow">${levelPill}${winNav}</div>
+        <div class="ac-tl-bar">${scopeControl}<span class="ac-tl-bar-sep" aria-hidden="true"></span>${levelPill}${winNav}</div>
+        ${summary}
       </div>
       <div class="ac-tl">
         <div class="ac-tl-head">
@@ -6151,7 +6175,7 @@ function timelineInnerHtml() {
         <div class="ac-tl-rows">
           <div class="ac-tl-gridlayer" aria-hidden="true">${gridlines}${playhead}</div>
           ${lane("is-ruler", "calendar", "", `${rulerMarks || `<span class="ac-tl-empty">no calendar events in view</span>`}<span class="ac-tl-baseline"></span>`)}
-          ${lane("", "all activity", "", activityMarks || `<span class="ac-tl-empty">no tracked updates in view</span>`)}
+          ${lane("", activityLabel, "", activityMarks || `<span class="ac-tl-empty">no tracked updates in view</span>`)}
           ${lane("", "standing", stLatest ? `· ${stLatest}/8` : "", `<div class="ac-tl-track--line">${standingBody}</div>`)}
           ${lane("", "people · in town", presence.total ? `· ${presence.total}` : "", presenceMarks)}
         </div>
@@ -8573,6 +8597,36 @@ function wireCalendar() {
         if (!Number.isFinite(to)) return;
         cal.tlAnchorMs = to;
         refreshCalendarView();
+      });
+    }
+    // workstream selector — open/close the dropdown, pick a scope
+    const scopeBtn = state.canvas.querySelector("[data-tl-scope-toggle]");
+    const scopeMenu = state.canvas.querySelector(".ac-tl-scope-menu");
+    if (scopeBtn && scopeMenu) {
+      scopeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const willOpen = scopeMenu.hasAttribute("hidden");
+        scopeMenu.toggleAttribute("hidden", !willOpen);
+        scopeBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      });
+    }
+    for (const opt of state.canvas.querySelectorAll("[data-tl-scope]")) {
+      opt.addEventListener("click", () => {
+        cal.tlScope = opt.getAttribute("data-tl-scope") || null;
+        refreshCalendarView();
+      });
+    }
+    // Light-dismiss the dropdown on an outside click. Bound once on document
+    // (state.canvas survives re-renders, so a per-paint bind would stack).
+    if (!state.tlScopeOutsideBound) {
+      state.tlScopeOutsideBound = true;
+      document.addEventListener("click", (e) => {
+        if (state.mode !== "calendar") return;
+        const menu = state.canvas?.querySelector(".ac-tl-scope-menu");
+        if (menu && !menu.hasAttribute("hidden") && !e.target.closest("[data-tl-scope-ctl]")) {
+          menu.setAttribute("hidden", "");
+          state.canvas.querySelector("[data-tl-scope-toggle]")?.setAttribute("aria-expanded", "false");
+        }
       });
     }
   }
