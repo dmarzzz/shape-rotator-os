@@ -18,6 +18,10 @@ const PRELOAD_FILE = path.join(__dirname, "preload.js");
 
 let _win = null;
 let _BrowserWindow = null;
+let _ipcMain = null;
+
+// Every IPC channel this component owns — the unit of register/unregister.
+const CHANNELS = ["tina:backends", "tina:run", "tina:stop", "shape:get", "shape:scan", "shape:saveSynthesis"];
 
 // Open (or focus) the brain window. Self-contained: uses the component's own
 // preload and renderer, so it doesn't depend on the host app's preload.
@@ -52,6 +56,10 @@ function createWindow() {
 function register({ app, ipcMain, BrowserWindow }) {
   if (!app || !ipcMain || !BrowserWindow) throw new Error("hermes.register needs { app, ipcMain, BrowserWindow }");
   _BrowserWindow = BrowserWindow;
+  _ipcMain = ipcMain;
+  // Idempotent: drop any prior handlers first so re-registering (hot-swap, test
+  // harness, re-init) doesn't throw ipcMain's "second handler" error.
+  for (const c of CHANNELS) { try { ipcMain.removeHandler(c); } catch {} }
 
   ipcMain.handle("tina:backends", async () => engine.detectBackends());
   ipcMain.handle("tina:run", async (e, opts) => {
@@ -81,6 +89,15 @@ function register({ app, ipcMain, BrowserWindow }) {
   });
 }
 
+// Tear down everything register() installed: remove the IPC handlers and close
+// the window. Lets a host hot-swap or dispose the component cleanly — the other
+// half of the "swap the folder, keep the calls" contract.
+function unregister() {
+  if (_ipcMain) { for (const c of CHANNELS) { try { _ipcMain.removeHandler(c); } catch {} } }
+  if (_win && !_win.isDestroyed()) { try { _win.close(); } catch {} }
+  _win = null;
+}
+
 // The menu item the host inserts under its own Tools menu.
 function menuItem() {
   const isMac = process.platform === "darwin";
@@ -91,4 +108,4 @@ function menuItem() {
   };
 }
 
-module.exports = { register, menuItem, createWindow };
+module.exports = { register, unregister, menuItem, createWindow };

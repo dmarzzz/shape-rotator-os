@@ -224,26 +224,10 @@ async function buildShape({ user, dataDir, home = os.homedir(), now = new Date()
   return shape;
 }
 
-// Compact grounding text for the brain prompt. The PUBLIC github section is
-// always safe; the codex section is PRIVATE_DISTILLED — include it only when the
-// answer will run on a local model (includePrivate). Returns { text, hasPrivate }.
-function shapeGroundingText(shape, { includePrivate = false } = {}) {
-  if (!shape) return { text: "", hasPrivate: false };
-  const g = shape.github || {};
-  const lines = [];
-  if (g.ok) {
-    lines.push(`GitHub (public): ${g.name || g.login}${g.company ? " · " + g.company : ""}${g.bio ? " — " + g.bio.replace(/\s+/g, " ").trim() : ""}`);
-    if (g.languages && g.languages.length) lines.push(`Languages: ${g.languages.slice(0, 6).map((l) => `${l.lang}(${l.repos})`).join(", ")}`);
-    if (g.recent_repos && g.recent_repos.length) lines.push(`Recent repos: ${g.recent_repos.slice(0, 10).map((r) => `${r.name}${r.lang ? "/" + r.lang : ""}`).join(", ")}`);
-  }
-  let hasPrivate = false;
-  const c = shape.codex || {};
-  if (includePrivate && c.ok && c.total_sessions) {
-    hasPrivate = true;
-    lines.push(`Local work focus (private — Codex sessions ${c.date_range.first}→${c.date_range.last}, ${c.total_sessions} sessions across ${c.project_count} projects):`);
-    lines.push(c.top_projects.slice(0, 10).map((p) => `${p.project} (${p.sessions})`).join(", "));
-  }
-  return { text: lines.join("\n"), hasPrivate };
-}
+// NOTE: prompt-grounding text is formatted in the renderer (app.js
+// buildShapeGrounding), which owns the public-vs-private inclusion decision as
+// UI state and already holds the scanned shape object. There is intentionally
+// no grounding formatter here — duplicating it across the process boundary is
+// the drift hazard this consolidation removed.
 
-module.exports = { buildShape, getShape, saveSynthesis, scanGithubShape, scanCodexShape, shapeGroundingText, validGithubHandle, SCHEMA, PROFILE_FILE };
+module.exports = { buildShape, getShape, saveSynthesis, scanGithubShape, scanCodexShape, validGithubHandle, SCHEMA, PROFILE_FILE };

@@ -14,6 +14,10 @@
 // reflects the active backend's locality.
 
 const OLLAMA = "http://127.0.0.1:11434";
+const OLLAMA_PROBE_MS = 1200;  // bound the detection probe — a missing daemon fails fast
+// Ollama generate options, one home for both call sites. Synthesis (define my
+// shape) runs cooler than open chat for steadier JSON.
+const OLLAMA_OPTS = { num_ctx: 8192, temperature: { chat: 0.5, synth: 0.4 } };
 
 const els = {
   ollamaChip:   document.getElementById("ollama-chip"),
@@ -58,7 +62,7 @@ async function detectOllama() {
   // Bound the probe: a missing daemon should fail in ~1s, not hang ~2.6s on a
   // slow connection-refused (keeps first paint fast).
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 1200);
+  const t = setTimeout(() => ctrl.abort(), OLLAMA_PROBE_MS);
   try {
     const r = await fetch(`${OLLAMA}/api/tags`, { method: "GET", signal: ctrl.signal });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -99,11 +103,26 @@ const CONNECT_STEPS = {
 };
 
 function engineState() {
+  // detectBackends omits a version string (a cold `--version` is too slow), so
+  // the CLI detail is a fixed, honest line rather than a phantom version field.
+  const cli = (key, label) => {
+    const connected = !!(tinaBackends[key] && tinaBackends[key].available);
+    return { key, label, connected, detail: connected ? "uses your subscription" : null };
+  };
   return [
-    { key: "codex", label: "Codex", connected: !!(tinaBackends.codex && tinaBackends.codex.available), detail: tinaBackends.codex && tinaBackends.codex.version },
-    { key: "claude", label: "Claude", connected: !!(tinaBackends.claude && tinaBackends.claude.available), detail: tinaBackends.claude && tinaBackends.claude.version },
+    cli("codex", "Codex"),
+    cli("claude", "Claude"),
     { key: "ollama", label: "Ollama", connected: !!(ollamaStatus.running && ollamaStatus.models.length), detail: ollamaStatus.running ? `${ollamaStatus.models.length} model(s)` : null },
   ];
+}
+
+// The engine's locality map is authoritative (surfaced over the detection IPC).
+// 'local' backends (Ollama) may receive private grounding; 'remote' ones
+// (codex/claude) get public only. Reading it here gives the privacy rule ONE
+// source instead of a hand-maintained `backend === "ollama"` re-derivation.
+function localityOf(b) {
+  if (b === "ollama") return "local";
+  return (tinaBackends[b] && tinaBackends[b].locality) || "remote";
 }
 
 function renderConnectPanel() {
@@ -333,27 +352,33 @@ function buildPrompt(question) {
     "You only surface who and why — never draft an outreach message, offer to contact anyone, or imply you can reach them; the member reaches out themselves. If the data doesn't contain an answer, say so plainly — don't invent participants.",
   ];
   // The user's own "shape" (their GitHub + Codex work history), if scanned. The
-  // public GitHub section is always safe to include; the private Codex section
-  // is only included for a LOCAL backend (Ollama) — never sent to codex/claude.
-  const sg = buildShapeGrounding(shape, backend === "ollama");
-  if (sg) {
+  // public GitHub section is always safe; the private Codex section is included
+  // only for a LOCAL backend — never sent to a remote one (codex/claude).
+  const includePrivate = localityOf(backend) === "local";
+  const sg = buildShapeGrounding(shape, includePrivate);
+  if (sg.text) {
     parts.push(
       "",
       "The person asking is the OS user — the following is THEIR OWN shape (you are their assistant). Use it to answer questions about their work, focus, strengths, or trajectory:",
-      "<user_shape>", sg, "</user_shape>",
+      "<user_shape>", sg.text, "</user_shape>",
     );
   }
   parts.push("", "<cohort_data>", buildContext(), "</cohort_data>", "", `User question: ${question}`);
-  return parts.join("\n");
+  // dataMode reflects what the prompt ACTUALLY contains (hasPrivate can only be
+  // true on a local backend), so the engine's assertBackendAllowed gate is a real
+  // backstop against private→remote, not a rubber stamp.
+  return { prompt: parts.join("\n"), dataMode: sg.hasPrivate ? "private_distilled" : "public" };
 }
 
 // ─── self-shape (github + codex) ──────────────────────────────────────
 
-// Format a scanned shape for the prompt. Public GitHub always; private Codex
-// project-activity only when includePrivate (local backend). Mirrors
-// shape-scanner.js shapeGroundingText so the renderer stays self-contained.
+// Format a scanned shape for the prompt → { text, hasPrivate }. Public GitHub is
+// always safe; the private Codex section is added only when includePrivate (a
+// local backend). hasPrivate reports whether private content was actually
+// emitted, so the caller can tag dataMode honestly. Sole owner of this format
+// (the main-process scanner no longer duplicates it).
 function buildShapeGrounding(s, includePrivate) {
-  if (!s) return "";
+  if (!s) return { text: "", hasPrivate: false };
   const g = s.github || {}, c = s.codex || {};
   const lines = [];
   if (g.ok) {
@@ -361,11 +386,13 @@ function buildShapeGrounding(s, includePrivate) {
     if (g.languages && g.languages.length) lines.push(`Languages: ${g.languages.slice(0, 6).map(l => `${l.lang}(${l.repos})`).join(", ")}`);
     if (g.recent_repos && g.recent_repos.length) lines.push(`Recent repos: ${g.recent_repos.slice(0, 10).map(r => `${r.name}${r.lang ? "/" + r.lang : ""}`).join(", ")}`);
   }
+  let hasPrivate = false;
   if (includePrivate && c.ok && c.total_sessions) {
+    hasPrivate = true;
     lines.push(`Local work focus (private — Codex ${c.date_range.first}→${c.date_range.last}, ${c.total_sessions} sessions / ${c.project_count} projects):`);
     lines.push(c.top_projects.slice(0, 10).map(p => `${p.project} (${p.sessions})`).join(", "));
   }
-  return lines.join("\n");
+  return { text: lines.join("\n"), hasPrivate };
 }
 
 function updateShapeChip() {
@@ -418,7 +445,7 @@ async function runPrompt(prompt, { dataMode = "public" } = {}) {
     try {
       const r = await fetch(`${OLLAMA}/api/generate`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: chosenModel, prompt, stream: false, options: { temperature: 0.4, num_ctx: 8192 } }),
+        body: JSON.stringify({ model: chosenModel, prompt, stream: false, options: { temperature: OLLAMA_OPTS.temperature.synth, num_ctx: OLLAMA_OPTS.num_ctx } }),
       });
       if (!r.ok) return { ok: false, error: `HTTP ${r.status}` };
       const j = await r.json();
@@ -471,9 +498,9 @@ function renderShapeCard(m, includePrivate) {
 async function defineMyShape() {
   if (inFlight) return;
   if (!shape) { els.response.className = "response-wrap"; els.response.textContent = 'Click "scan my shape" first.'; return; }
-  const includePrivate = backend === "ollama";
+  const includePrivate = localityOf(backend) === "local";
   const grounding = buildShapeGrounding(shape, includePrivate);
-  if (!grounding) { els.response.className = "response-wrap"; els.response.textContent = "No shape data yet — scan first."; return; }
+  if (!grounding.text) { els.response.className = "response-wrap"; els.response.textContent = "No shape data yet — scan first."; return; }
 
   inFlight = true;
   setBusy(true);
@@ -483,9 +510,10 @@ async function defineMyShape() {
   els.response.textContent = "defining your shape…";
 
   try {
-    // dataMode "public": for a remote backend the grounding is public-only
-    // (includePrivate is false there), so this stays honest. Ollama is all-local.
-    const r = await runPrompt(buildSynthesisPrompt(grounding), { dataMode: "public" });
+    // dataMode tracks the actual grounding: private only when we included the
+    // local Codex tier (local backend), which the gate then allows; public for a
+    // remote backend, which the gate enforces.
+    const r = await runPrompt(buildSynthesisPrompt(grounding.text), { dataMode: grounding.hasPrivate ? "private_distilled" : "public" });
     if (!r || !r.ok) { els.response.textContent = `[${(r && r.error) || "failed"}]`; return; }
     const mapping = parseShapeJson(r.text);
     if (!mapping) { els.response.textContent = `couldn't parse a shape from the engine. raw:\n\n${String(r.text || "").slice(0, 600)}`; return; }
@@ -516,11 +544,12 @@ async function askOllama(question) {
   const started = Date.now();
   let tokens = 0;
   let streamed = false;
+  const { prompt } = buildPrompt(question);
   const body = {
     model: chosenModel,
-    prompt: buildPrompt(question),
+    prompt,
     stream: true,
-    options: { temperature: 0.5, num_ctx: 8192 },
+    options: { temperature: OLLAMA_OPTS.temperature.chat, num_ctx: OLLAMA_OPTS.num_ctx },
   };
 
   try {
@@ -592,9 +621,11 @@ async function askTina(question, b) {
   });
 
   try {
-    // dataMode "public": the cohort surface is the cohort-public projection, so
-    // it is allowed to reach a remote backend. Private grounding would be local-only.
-    const r = await window.api.tina.run({ backend: b, prompt: buildPrompt(question), dataMode: "public", requestId });
+    // dataMode is derived from the prompt's actual grounding (public unless
+    // private shape detail was included, which only happens on a local backend),
+    // so the main-process gate enforces the same fact that controls inclusion.
+    const { prompt, dataMode } = buildPrompt(question);
+    const r = await window.api.tina.run({ backend: b, prompt, dataMode, requestId });
     if (!streamed) els.response.textContent = ""; // drop the "thinking…" placeholder
     if (!r || !r.ok) {
       const msg = (r && r.error) || "request failed";

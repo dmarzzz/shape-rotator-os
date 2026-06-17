@@ -39,12 +39,14 @@ not need to expose anything for the brain.
 
 **IPC channels** (main ⇄ renderer, via `preload.js`):
 
-- `tina:backends` → `{ codex?: {label, available, version}, claude?: {…} }`
-- `tina:run` `{ backend, prompt, dataMode, requestId }` → `{ ok, text } | { ok:false, error }`; streams partial stdout on `tina:chunk` `{ requestId, chunk }`
+- `tina:backends` → `{ codex?: {label, available, locality, transport}, claude?: {…} }` (`locality` = `'remote'|'local'`, the authoritative public-vs-private map; no version — a cold `--version` is too slow to wait on)
+- `tina:run` `{ backend, prompt, dataMode, requestId }` → `{ ok, text } | { ok:false, error }`; streams partial stdout on `tina:chunk` `{ requestId, chunk }`. The renderer sets `dataMode` from the prompt's actual grounding so the gate enforces, not rubber-stamps.
 - `tina:stop` → cancels the in-flight run
 - `shape:get` → persisted shape or `null`
-- `shape:scan` `{ user? }` → freshly built shape (persisted under `userData`)
+- `shape:scan` `{ user? }` → freshly built shape (persisted under `userData`); `user` is validated as a GitHub handle, else dropped
 - `shape:saveSynthesis` `{ synthesis }` → merges a structured shape read
+
+**Lifecycle:** `register({ app, ipcMain, BrowserWindow })` is idempotent; `unregister()` removes the handlers and closes the window. The component is **single-window / single-flight** (one brain window, one in-flight run) — a swap target must honor that.
 
 **Grounding input:** the renderer reads `../cohort-surface.json` (the
 cohort-public projection the app already ships) and the user's scanned shape.

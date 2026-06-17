@@ -31,9 +31,11 @@ const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
 
-// Latest/most-capable Claude model (see CLAUDE.md: default to the latest). The
-// codex backend uses whatever model the user's Codex config selects.
-const CLAUDE_MODEL = "claude-opus-4-8";
+// Claude model: default to the latest/most-capable (per CLAUDE.md), but allow an
+// override for a faster tier on this latency-sensitive lookup surface (Opus's
+// reasoning buys little for a grounded "who to talk to" lookup but costs time).
+// The codex backend uses whatever model the user's Codex config selects.
+const CLAUDE_MODEL = process.env.SRWK_HERMES_CLAUDE_MODEL || "claude-opus-4-8";
 
 // Double-quote a path for the shell. Only ever called with our own os.tmpdir()
 // file paths (alphanumeric names) — never user input — so this is for spaces in
@@ -220,14 +222,22 @@ function whichSync(cmd) {
 }
 
 // Detect installed CLI backends by PRESENCE on PATH (instant — no cold spawn).
-// Returns { codex: {label, available}, claude: {label, available} }. The version
-// string is intentionally omitted: a cold `--version` is too slow to wait on and
-// isn't load-bearing. "Installed but not signed in" is reported when you run.
+// Returns { codex: {label, available, locality, transport}, claude: {...} }.
+// `locality` is the AUTHORITATIVE public-vs-private map (the renderer reads it
+// instead of re-deriving the rule), `transport` tells the renderer how to talk
+// to the backend. The version string is intentionally omitted: a cold
+// `--version` is too slow to wait on and isn't load-bearing — "installed but
+// not signed in" surfaces when you run.
 async function detectBackends() {
   await warmLoginPath(); // ensure the repaired PATH is complete first (mac GUI launches)
   const out = {};
   for (const key of Object.keys(BACKENDS)) {
-    out[key] = { label: BACKENDS[key].label, available: !!whichSync(key) };
+    out[key] = {
+      label: BACKENDS[key].label,
+      available: !!whichSync(key),
+      locality: BACKEND_LOCALITY[key] || "remote",
+      transport: "cli",
+    };
   }
   return out;
 }
