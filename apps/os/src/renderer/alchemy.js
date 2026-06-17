@@ -5995,6 +5995,10 @@ function timelineInnerHtml() {
   }
   const span = Math.max(1, winEnd - winStart);
   const winFrac = (ms) => Math.max(0, Math.min(1, (ms - winStart) / span));
+  // Unclamped variant — for liveline geometry that should extend past the window
+  // edges (the SVG viewBox clips it) so a curve shows a real slope through a narrow
+  // window instead of piling at the edge.
+  const winFracU = (ms) => (ms - winStart) / span;
   const inWin = (ms) => ms >= winStart && ms < winEnd;
   const nowIn = inWin(nowMs);
   const nowFrac = winFrac(nowMs);
@@ -6129,26 +6133,57 @@ function timelineInnerHtml() {
     return `<span class="ac-tl-dot${it.isFuture ? " is-future" : ""}${count > 1 ? " is-cluster" : ""}${rid ? " is-openable" : ""}" style="left:${pct(markFrac(it))}"${open} ${tipAttrs(title, it.startMs, kind, detail)}${rid ? ' role="button" tabindex="0"' : ""}>${count > 1 ? `<em>${count}</em>` : ""}</span>`;
   }).join("");
 
-  // Standing lane = cohort-mean PMF (or the selected workstream's own line), one
-  // legible polyline on a 0..8 axis with a bright endpoint dot at the current value.
+  // ── Lanes: livelines (continuous metrics) vs blocks (discrete events). Standing
+  // and people are filled-area "livelines" — a sparkline you hover for the per-point
+  // stat, with the current value as a prominent endpoint that doubles as the lane's
+  // single keyboard/click commit. Calendar + activity stay discrete blocks. ──
+  const trendWord = (a, b) => (a == null || b == null) ? "" : (b - a > 0.05 ? "rising" : (b - a < -0.05 ? "easing" : "steady"));
+  // Baseline-closed area under a 0..100 polyline (y already inverted), for the fill.
+  const areaPath = (xy) => xy.length ? `M${xy[0].x},100 ${xy.map(q => `L${q.x},${q.y}`).join(" ")} L${xy[xy.length - 1].x},100 Z` : "";
+
+  // Standing liveline — cohort-mean PMF (or the scoped team's own line) on a 0..8
+  // axis: filled area + line + per-week hover points + a value endpoint that
+  // expands to the full trajectory when zoomed in (a single read shows as one dot).
   const stY = (stage) => (1 - stage / stMax) * 100;
-  const stPoly = stPts.map(p => `${(p.fraction * 100).toFixed(2)},${stY(p.stage).toFixed(2)}`).join(" ");
+  // Curve geometry spans the FULL program (winFracU + the svg viewBox clips it) so a
+  // narrow window shows a real slope, not a lone in-window dot. Hover points + the
+  // endpoint stay in-window (stPts).
+  const stGeo = rawStanding.filter(p => p.stage != null).map(p => ({ x: +(winFracU(p.ms) * 100).toFixed(2), y: +stY(p.stage).toFixed(2) }));
   const stLast = stPts.length ? stPts[stPts.length - 1] : null;
+  const stTrend = stPts.length > 1 ? trendWord(stPts[0].stage, stLast.stage) : "";
   const standingTip = scopeTeam
     ? `${scopeName} · PMF stage ${stLast ? stLast.stage.toFixed(1) : "?"} of ${stMax}`
     : `cohort mean PMF — stage ${stLast ? stLast.stage.toFixed(1) : "?"} of ${stMax}`;
-  // When zoomed in (week/month), a single read shows as one dot; clicking it
-  // expands to the program level so the full PMF arc this point sits on is visible.
   const stExpand = level !== "program";
+  const stHover = stPts.slice(0, -1).map(p =>
+    `<span class="ac-tl-pt" style="left:${(p.fraction * 100).toFixed(2)}%;top:${stY(p.stage).toFixed(2)}%" ${tipAttrs(scopeTeam ? `${scopeName} · stage ${p.stage.toFixed(1)}` : `cohort mean · stage ${p.stage.toFixed(1)}`, p.ms, "standing", `mean across ${p.teamsWithData} teams`)}></span>`).join("");
   const standingBody = stLast
-    ? `<svg class="ac-tl-line${scopeId ? " is-scoped" : ""}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${stPts.length > 1 ? `<polyline points="${stPoly}" fill="none" vector-effect="non-scaling-stroke"/>` : ""}</svg>`
-      + `<span class="ac-tl-end${stExpand ? " is-expand" : ""}" style="left:${pct(stLast.fraction)};top:${stY(stLast.stage).toFixed(1)}%"${stExpand ? ` data-tl-expand="1" role="button" tabindex="0" aria-label="${escAttr("expand to the full standing trajectory")}"` : ""} ${tipAttrs(standingTip, stLast.ms, "standing", scopeTeam ? "this workstream" : `mean across ${stLast.teamsWithData} teams`)}></span>`
+    ? `<svg class="ac-tl-line${scopeId ? " is-scoped" : ""}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">`
+        + `<defs><linearGradient id="tlAreaG-st" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity="0.26"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>`
+        + (stGeo.length > 1 ? `<path class="ac-tl-area" d="${areaPath(stGeo)}" fill="url(#tlAreaG-st)"/><polyline points="${stGeo.map(q => `${q.x},${q.y}`).join(" ")}" fill="none" vector-effect="non-scaling-stroke"/>` : "")
+        + `</svg>${stHover}`
+      + `<span class="ac-tl-end${stExpand ? " is-expand" : ""}" style="left:${pct(stLast.fraction)};top:${stY(stLast.stage).toFixed(1)}%"${stExpand ? ` data-tl-expand="1" role="button" tabindex="0" aria-label="${escAttr(`standing stage ${stLast.stage.toFixed(1)} of ${stMax} — expand to the full trajectory`)}"` : ""} ${tipAttrs(standingTip, stLast.ms, "standing", scopeTeam ? "this workstream" : `mean across ${stLast.teamsWithData} teams`)}></span>`
     : `<span class="ac-tl-empty">no standing read in view</span>`;
   const stLatest = stLast ? stLast.stage.toFixed(1) : null;
 
-  // Presence lane = a weekly "who's in town" occupancy histogram (background band).
-  const presenceMarks = presence.samples.map(s =>
-    `<span class="ac-tl-pres${s.isFuture ? " is-future" : ""}" style="left:${pct(s.fraction)};height:${Math.round(Math.max(0.06, s.occupancy) * 100)}%" data-tl-presence="1" role="button" tabindex="0" aria-label="${escAttr(`${s.present} of ${s.total} in town — open the availability view`)}" ${tipAttrs(`${s.present} of ${s.total} in town`, s.ms, "presence", `${Math.round(s.occupancy * 100)}% occupancy · open availability`)}></span>`).join("");
+  // People liveline — "who's in town" occupancy over the window: filled area +
+  // line + hover points + the current count as the endpoint (the count needs no
+  // block). The endpoint commits to the availability view.
+  const prY = (occ) => (1 - Math.max(0, Math.min(1, occ))) * 100;
+  const prXY = presence.samples.map(s => ({ x: +(s.fraction * 100).toFixed(2), y: +prY(s.occupancy).toFixed(2) }));
+  // Endpoint = the current ("now") count: the latest non-future sample. The curve
+  // still continues into the scheduled-future samples, but the headline value is now.
+  const prPast = presence.samples.filter(s => !s.isFuture);
+  const prLast = prPast.length ? prPast[prPast.length - 1] : (presence.samples.length ? presence.samples[presence.samples.length - 1] : null);
+  const prHover = presence.samples.filter(s => s !== prLast).map(s =>
+    `<span class="ac-tl-pt${s.isFuture ? " is-future" : ""}" style="left:${(s.fraction * 100).toFixed(2)}%;top:${prY(s.occupancy).toFixed(2)}%" ${tipAttrs(`${s.present} of ${s.total} in town`, s.ms, "presence", `${Math.round(s.occupancy * 100)}% occupancy`)}></span>`).join("");
+  const presenceBody = prLast
+    ? `<svg class="ac-tl-line ac-tl-line--pres${scopeId ? " is-scoped" : ""}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">`
+        + `<defs><linearGradient id="tlAreaG-pr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity="0.2"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>`
+        + (prXY.length > 1 ? `<path class="ac-tl-area" d="${areaPath(prXY)}" fill="url(#tlAreaG-pr)"/><polyline points="${prXY.map(q => `${q.x},${q.y}`).join(" ")}" fill="none" vector-effect="non-scaling-stroke"/>` : "")
+        + `</svg>${prHover}`
+      + `<span class="ac-tl-end" style="left:${(prLast.fraction * 100).toFixed(2)}%;top:${prY(prLast.occupancy).toFixed(2)}%" data-tl-presence="1" role="button" tabindex="0" aria-label="${escAttr(`${prLast.present} of ${prLast.total} in town — open the availability view`)}" ${tipAttrs(`${prLast.present} of ${prLast.total} in town`, prLast.ms, "presence", `${Math.round(prLast.occupancy * 100)}% occupancy · open availability`)}></span>`
+    : `<span class="ac-tl-empty">no presence in view</span>`;
 
   const activityLabel = scopeTeam ? "activity" : "all activity";
   const summary = `
@@ -6160,11 +6195,20 @@ function timelineInnerHtml() {
       <span class="ac-tl-sum-frame">past <em>←</em> now <em>→</em> scheduled</span>
     </div>`;
 
-  const lane = (cls, label, sub, body) => `
+  // Rich 3-line label block per lane: name · descriptor · live stat. `stat` may
+  // carry safe inline markup (a trend em); name/desc are escaped.
+  const laneHead = (name, desc, stat) => `
+    <div class="ac-tl-label">
+      <span class="ac-tl-lname">${escHtml(name)}</span>
+      ${desc ? `<span class="ac-tl-ldesc">${escHtml(desc)}</span>` : ""}
+      ${stat ? `<span class="ac-tl-lstat">${stat}</span>` : ""}
+    </div>`;
+  const lane = (cls, head, body) => `
     <div class="ac-tl-lane ${cls}">
-      <div class="ac-tl-label">${escHtml(label)}${sub ? `<small>${escHtml(sub)}</small>` : ""}</div>
+      ${head}
       <div class="ac-tl-track">${body}</div>
     </div>`;
+  const countLabel = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
   return `
     <div class="ac-tl-stage" data-view="timeline" data-tl-level="${level}"${scopeId ? ' data-tl-scoped="1"' : ""} tabindex="0" aria-label="cohort timeline — updates by track, past and scheduled">
@@ -6179,10 +6223,10 @@ function timelineInnerHtml() {
         </div>
         <div class="ac-tl-rows">
           <div class="ac-tl-gridlayer" aria-hidden="true">${gridlines}${playhead}</div>
-          ${lane("is-ruler", "calendar", "", `${rulerMarks || `<span class="ac-tl-empty">no calendar events in view</span>`}<span class="ac-tl-baseline"></span>`)}
-          ${lane("", activityLabel, "", activityMarks || `<span class="ac-tl-empty">no tracked updates in view</span>`)}
-          ${lane("", "standing", stLatest ? `· ${stLatest}/8` : "", `<div class="ac-tl-track--line">${standingBody}</div>`)}
-          ${lane("", "people · in town", presence.total ? `· ${presence.total}` : "", presenceMarks)}
+          ${lane("is-ruler is-blocks", laneHead("calendar", "shared schedule", countLabel(eventItems.length, "event")), `${rulerMarks || `<span class="ac-tl-empty">no calendar events in view</span>`}<span class="ac-tl-baseline"></span>`)}
+          ${lane("is-blocks", laneHead(activityLabel, "ships · commits · asks", countLabel(updateItems.length, "update")), activityMarks || `<span class="ac-tl-empty">no tracked updates in view</span>`)}
+          ${lane("is-live", laneHead("standing", scopeTeam ? "team PMF · 0–8" : "cohort PMF · 0–8", stLatest ? `${stLatest}/${stMax}${stTrend ? ` · <em class="ac-tl-trend">${stTrend}</em>` : ""}` : "—"), `<div class="ac-tl-track--line">${standingBody}</div>`)}
+          ${lane("is-live", laneHead("people", "in town", prLast ? `${prLast.present} of ${prLast.total}` : (presence.total ? `0 of ${presence.total}` : "—")), `<div class="ac-tl-track--line">${presenceBody}</div>`)}
         </div>
       </div>
       <div class="ac-tip" hidden></div>

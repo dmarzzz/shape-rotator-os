@@ -7810,18 +7810,22 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-tl-sum-sep { opacity: 0.4; }
 .ac-tl-sum-frame em { font-style: normal; color: var(--alchemy-oxide-bright); padding: 0 1px; }
 
-.ac-tl-line.is-scoped polyline { stroke: var(--alchemy-oxide-bright); }
+.ac-tl-line.is-scoped { color: var(--alchemy-oxide-bright); }
 @media (prefers-reduced-motion: reduce) { .ac-tl-lvl, .ac-tl-scope-btn, .ac-tl-navbtn, .ac-tl-scope-opt, .ac-tl-scope-menu { transition: none; } }
 .ac-tl { --ac-tl-gutter: 132px; font-family: var(--font-mono); }
 .ac-tl-head,
 .ac-tl-lane { display: grid; grid-template-columns: var(--ac-tl-gutter) 1fr; align-items: center; }
 .ac-tl-head { height: 16px; margin-bottom: 8px; }
 .ac-tl-rows { position: relative; }
+/* Rich label block — name · descriptor · live stat, stacked, vertically centered. */
 .ac-tl-label {
-  font-size: 11px; color: var(--alchemy-ink-mute); padding-right: 12px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; flex-direction: column; justify-content: center; gap: 1px;
+  padding-right: 14px; min-width: 0;
 }
-.ac-tl-label small { margin-left: 5px; color: rgba(var(--ink-rgb), 0.55); font-variant-numeric: tabular-nums; }
+.ac-tl-lname { font-size: 11px; font-weight: 500; color: var(--alchemy-paper-warm); letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-tl-ldesc { font-size: 9px; color: rgba(var(--ink-rgb), 0.55); letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-tl-lstat { font-size: 10px; color: rgba(var(--ink-rgb), 0.82); font-variant-numeric: tabular-nums; margin-top: 1px; }
+.ac-tl-trend { font-style: normal; color: var(--alchemy-oxide-bright); }
 .ac-tl-track { position: relative; height: 100%; min-width: 0; }
 
 .ac-tl-gridlayer { position: absolute; left: var(--ac-tl-gutter); right: 0; top: 0; bottom: 0; pointer-events: none; }
@@ -7836,8 +7840,13 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-tl-wk.is-end { transform: translateX(-100%); }
 .ac-tl-wk.is-now { color: var(--alchemy-oxide-bright); }
 
-.ac-tl-lane { height: 34px; }
-.ac-tl-lane.is-ruler { height: 42px; }
+/* Row distinction: livelines get more height for the curve to read; a hairline
+   divider separates each lane into its own band. */
+.ac-tl-lane { height: 38px; align-items: stretch; }
+.ac-tl-lane.is-ruler { height: 44px; }
+.ac-tl-lane.is-live { height: 56px; }
+.ac-tl-lane + .ac-tl-lane { position: relative; }
+.ac-tl-lane + .ac-tl-lane::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: rgba(var(--ink-rgb), 0.05); }
 
 .ac-tl-evt { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 14px; height: 9px; border-radius: 2px; background: rgba(var(--ink-rgb), 0.5); }
 .ac-tl-evt.is-future { background: transparent; border: 1px dashed rgba(var(--ink-rgb), 0.35); }
@@ -7852,28 +7861,37 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-tl-dot.is-openable:focus-visible { background: var(--alchemy-oxide-bright); outline: none; }
 
 .ac-tl-track--line { position: absolute; inset: 0; }
-.ac-tl-line { position: absolute; inset: 0; width: 100%; height: 100%; }
-.ac-tl-line polyline { stroke: var(--alchemy-ink-mute); stroke-width: 1.5; }
+/* Liveline: the line + filled area share the lane color (currentColor); the area
+   gradient (url(#tlAreaG)) fades from that color to transparent at the baseline. */
+.ac-tl-line { position: absolute; inset: 0; width: 100%; height: 100%; color: rgba(var(--ink-rgb), 0.6); }
+.ac-tl-line polyline { stroke: currentColor; stroke-width: 1.6; opacity: 0.92; }
+/* People liveline reads softer than standing (no hue change): a thinner dashed
+   line + lighter fill separates the two stacked livelines at a glance. */
+.ac-tl-line--pres polyline { stroke-width: 1.3; stroke-dasharray: 3 2.5; opacity: 0.78; }
+.ac-tl-area { stroke: none; }
 .ac-tl-empty { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 10.5px; color: rgba(var(--ink-rgb), 0.55); }
-.ac-tl-end { position: absolute; transform: translate(-50%, -50%); width: 7px; height: 7px; border-radius: 50%; background: var(--alchemy-paper-warm); }
+.ac-tl-end { position: absolute; transform: translate(-50%, -50%); width: 8px; height: 8px; border-radius: 50%; background: var(--alchemy-paper-warm); box-shadow: 0 0 0 3px rgba(var(--ink-rgb), 0.06); }
 .ac-tl-evt.is-multi { width: 18px; }
-.ac-tl-evt, .ac-tl-pres, .ac-tl-end { cursor: help; }
+.ac-tl-evt, .ac-tl-end, .ac-tl-pt { cursor: help; }
 
-.ac-tl-pres { position: absolute; bottom: 4px; transform: translateX(-50%); width: 7%; min-height: 2px; background: rgba(var(--ink-rgb), 0.12); border-radius: 2px 2px 0 0; }
-.ac-tl-pres.is-future { background: rgba(var(--ink-rgb), 0.06); }
+/* Liveline hover points — an invisible target along the curve that reveals a dot
+   on hover and drives the shared tip (data-tl-tip). */
+.ac-tl-pt { position: absolute; width: 13px; height: 13px; transform: translate(-50%, -50%); border-radius: 50%; }
+.ac-tl-pt::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--alchemy-paper-warm); opacity: 0; transition: opacity 140ms var(--ease); }
+.ac-tl-pt.is-future::after { background: rgba(var(--ink-rgb), 0.7); }
+.ac-tl-pt:hover::after { opacity: 0.85; }
 
 /* Commit layer — marks that drill into a deeper surface read as pressable
-   (pointer + hover lift + focus ring), overriding the inspect-only cursor:help. */
-.ac-tl-evt.is-jump, .ac-tl-end.is-expand, .ac-tl-pres { cursor: pointer; }
+   (pointer + hover lift + focus ring), overriding the inspect-only cursor:help.
+   Liveline endpoints (standing→expand, people→availability) are the lane's commit. */
+.ac-tl-evt.is-jump, .ac-tl-end.is-expand, .ac-tl-end[data-tl-presence] { cursor: pointer; }
 .ac-tl-evt.is-jump { transition: background 140ms var(--ease), border-color 140ms var(--ease); }
 .ac-tl-evt.is-jump:hover { background: rgba(var(--ink-rgb), 0.72); }
 .ac-tl-evt.is-jump.is-future:hover { background: transparent; border-color: rgba(var(--ink-rgb), 0.6); }
-.ac-tl-end.is-expand { transition: box-shadow 160ms var(--ease); }
-.ac-tl-end.is-expand:hover { box-shadow: 0 0 0 4px color-mix(in oklch, var(--alchemy-oxide) 26%, transparent); }
-.ac-tl-pres { transition: background 140ms var(--ease); }
-.ac-tl-pres:hover { background: color-mix(in oklch, var(--alchemy-oxide-bright) 50%, transparent); }
-.ac-tl-evt.is-jump:focus-visible, .ac-tl-end.is-expand:focus-visible, .ac-tl-pres:focus-visible {
-  outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 2px; border-radius: 2px;
+.ac-tl-end.is-expand, .ac-tl-end[data-tl-presence] { transition: box-shadow 160ms var(--ease); }
+.ac-tl-end.is-expand:hover, .ac-tl-end[data-tl-presence]:hover { box-shadow: 0 0 0 4px color-mix(in oklch, var(--alchemy-oxide) 30%, transparent); }
+.ac-tl-evt.is-jump:focus-visible, .ac-tl-end.is-expand:focus-visible, .ac-tl-end[data-tl-presence]:focus-visible {
+  outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 2px;
 }
 /* Keyboard focus rings for the control-bar buttons (roved options + pills). */
 .ac-tl-scope-opt:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: -2px; }
@@ -7888,7 +7906,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ac-tl-dot.is-openable, .ac-tl-evt.is-jump, .ac-tl-end.is-expand, .ac-tl-pres { transition: none; }
+  .ac-tl-dot.is-openable, .ac-tl-evt.is-jump, .ac-tl-end, .ac-tl-pt::after { transition: none; }
   ::view-transition-group(tl-lanes), ::view-transition-old(tl-lanes), ::view-transition-new(tl-lanes),
   ::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 }
