@@ -32,6 +32,7 @@ const els = {
   scanShapeBtn: document.getElementById("scan-shape"),
   defineShapeBtn: document.getElementById("define-shape"),
   question:     document.getElementById("question"),
+  starterChips: document.getElementById("starter-chips"),
   askBtn:       document.getElementById("ask"),
   stopBtn:      document.getElementById("stop"),
   response:     document.getElementById("response"),
@@ -47,7 +48,6 @@ let tinaBackends = {};          // { codex: {label, available, version}, claude:
 let tinaOff = null;             // active tina onChunk unsubscribe
 let shape = null;               // the user's self-shape (github + codex), if scanned
 let ollamaStatus = { running: false, models: [], hermes: [] };
-const ONBOARD_KEY = "srwk:hermes:onboarded_v1";
 
 // ─── ollama discovery ─────────────────────────────────────────────────
 
@@ -122,10 +122,75 @@ function showAsk() {
     fillOllamaModels(ollamaStatus.models, preferred && preferred.name);
   }
   renderBackendSelector(ollamaUsable);
+  renderStarters();
+  // The welcome is the empty-state of the chat box: it onboards the member in
+  // place and is replaced by the first real answer.
+  const empty = !els.response.textContent.trim() || els.response.classList.contains("empty") || els.response.classList.contains("welcome");
+  if (empty) renderWelcome();
 }
 
-function isOnboarded() { try { return localStorage.getItem(ONBOARD_KEY) === "1"; } catch { return false; } }
-function markOnboarded() { try { localStorage.setItem(ONBOARD_KEY, "1"); } catch {} }
+// ─── in-chat onboarding ───────────────────────────────────────────────
+// The chat box onboards a new member itself: a conversational welcome (the
+// empty-state), clickable starter questions, and a deterministic meta-intercept
+// ("help", "hi", "what can you do?") that orients them WITHOUT spending an LLM
+// call — so it works even before an engine is connected.
+
+const STARTERS = [
+  "I'm new here — who should I meet first?",
+  "Who can help me with TEE attestation?",
+  "Find someone to pair with on Rust",
+  "Who's working on prediction markets, and what should I ask them?",
+];
+
+// matches greetings + "how do I use this / what can you do / help / ?"
+const META_RE = /^\s*(help|\?|hi|hey|hello|who are you|what (is|are) (this|you)|what can (you|i) (do|ask)|how (do|does) (i|this|it)|how to use|get(ting)? started|onboard|tour)\b/i;
+
+function usableEngines() { return engineState().filter((e) => e.connected); }
+
+function activeEngineLabel() {
+  if (backend === "ollama") return "Ollama (local)";
+  return (tinaBackends[backend] && tinaBackends[backend].label) || backend;
+}
+
+function engineStatusLine() {
+  const usable = usableEngines().map((e) => e.label);
+  if (!usable.length) return 'No engine connected yet — click "engines" above to set up Codex, Claude, or Ollama.';
+  const active = activeEngineLabel();
+  const others = usable.filter((l) => !active.startsWith(l));
+  return `Engine: ${active}${others.length ? `  ·  also available: ${others.join(", ")}` : ""}  ·  switch via "engines".`;
+}
+
+function renderStarters() {
+  if (!els.starterChips) return;
+  els.starterChips.innerHTML = "";
+  for (const q of STARTERS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "starter-chip";
+    b.textContent = q;
+    b.addEventListener("click", () => { els.question.value = q; dispatchAsk(); });
+    els.starterChips.appendChild(b);
+  }
+}
+
+function renderWelcome() {
+  const shapeLine = (shape && shape.github)
+    ? "Your shape is scanned, so I can tailor answers to what you're working on."
+    : 'Tip: click "scan my shape" and I\'ll tailor answers to what you work on.';
+  els.response.className = "response-wrap welcome";
+  els.response.textContent = [
+    "ask cohort — your cohort connector",
+    "",
+    "I help you find the right people in the Shape Rotator cohort and how to engage them.",
+    "Ask in plain language and I'll name who to talk to, what to go to them for, and a good",
+    "opener. You reach out yourself — I never message anyone for you, and nothing is stored.",
+    "",
+    'Tap a starter below to begin, or type your own question. (Type "help" anytime for this.)',
+    "",
+    engineStatusLine(),
+    shapeLine,
+  ].join("\n");
+}
 
 // ─── engine + model selectors ─────────────────────────────────────────
 
@@ -196,8 +261,10 @@ async function refreshDetection() {
 async function runDetection() {
   await refreshDetection();
   const anyEngine = engineState().some((e) => e.connected);
-  // First run (or nothing connected) → onboarding. Otherwise straight to ask.
-  if (!isOnboarded() || !anyEngine) { renderConnectPanel(); return; }
+  // No engine at all → the connect panel (the one mechanical step we can't skip).
+  // Otherwise land directly in the chat box, which onboards the member itself
+  // (welcome empty-state + starters + "help").
+  if (!anyEngine) { renderConnectPanel(); return; }
   showAsk();
 }
 
@@ -520,6 +587,15 @@ async function askTina(question, b) {
 function dispatchAsk() {
   const q = els.question.value.trim();
   if (!q) return;
+  // Onboarding / meta questions ("help", "hi", "what can you do?") are answered
+  // in-box, instantly, with no engine round-trip — so newcomers get oriented
+  // even before connecting an engine.
+  if (META_RE.test(q)) { renderWelcome(); els.question.value = ""; return; }
+  if (!usableEngines().length) {
+    els.response.className = "response-wrap";
+    els.response.textContent = 'Connect an engine first — click "engines" above to set up Codex, Claude, or Ollama, then ask again.';
+    return;
+  }
   if (backend === "ollama") askOllama(q); else askTina(q, backend);
 }
 
@@ -532,7 +608,7 @@ function dispatchStop() {
 
 els.detectBtn.addEventListener("click", () => openConnect());
 els.connectRecheck.addEventListener("click", () => openConnect());
-els.connectStart.addEventListener("click", () => { markOnboarded(); showAsk(); });
+els.connectStart.addEventListener("click", () => showAsk());
 els.scanShapeBtn.addEventListener("click", scanShape);
 els.defineShapeBtn.addEventListener("click", defineMyShape);
 els.backendSelect.addEventListener("change", () => setBackend(els.backendSelect.value));

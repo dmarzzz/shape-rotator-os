@@ -54,6 +54,15 @@
       white-space: pre-wrap; word-wrap: break-word;
     }
     .response-wrap.empty { color: var(--dim); }
+    .response-wrap.welcome { color: var(--fg); }
+    .starter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .starter-chips:empty { display: none; }
+    .starter-chip {
+      font: inherit; font-size: 11px; color: var(--dim);
+      background: transparent; border: 1px solid var(--line); border-radius: 999px;
+      padding: 4px 10px; cursor: pointer; transition: border-color 120ms, color 120ms;
+    }
+    .starter-chip:hover { border-color: var(--accent); color: var(--fg); }
     .install-cta { display: flex; flex-direction: column; gap: 6px; }
     .install-cta ol { margin: 4px 0 0 18px; padding: 0; color: var(--fg); }
     .install-cta li { margin: 4px 0; }
@@ -109,7 +118,8 @@
         <button id="scan-shape" type="button" title="scan your GitHub + Codex sessions to define your shape">scan my shape</button>
         <button id="define-shape" type="button" title="synthesize a structured shape read from the scan, using the selected engine">define my shape</button>
       </div>
-      <textarea id="question" placeholder="ask anything about the cohort — &quot;who has worked on TEE attestation?&quot;, &quot;find me someone to pair on rust&quot;, &quot;what's andrew miller's focus this week?&quot;"></textarea>
+      <textarea id="question" placeholder="ask who to talk to — &quot;who can help me with TEE attestation?&quot;, &quot;find someone to pair on rust&quot;, &quot;who should I meet first?&quot; · type &quot;help&quot; for a tour"></textarea>
+      <div id="starter-chips" class="starter-chips"></div>
       <div class="ask-row">
         <button id="ask" class="primary" type="button">ask</button>
         <button id="stop" type="button" hidden>stop</button>
