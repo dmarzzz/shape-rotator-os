@@ -14,6 +14,7 @@
 // reflects the active backend's locality.
 
 import { buildPrompt, buildShapeGrounding, buildSynthesisPrompt, parseShapeJson } from "./prompt.mjs";
+import { renderMarkdownInto } from "./markdown.mjs";
 
 const OLLAMA = "http://127.0.0.1:11434";
 const OLLAMA_PROBE_MS = 1200;  // bound the detection probe — a missing daemon fails fast
@@ -157,6 +158,7 @@ function showAsk() {
   // place and is replaced by the first real answer.
   const empty = !els.response.textContent.trim() || els.response.classList.contains("empty") || els.response.classList.contains("welcome");
   if (empty) renderWelcome();
+  try { els.question.focus(); } catch {}
 }
 
 // ─── in-chat onboarding ───────────────────────────────────────────────
@@ -499,7 +501,12 @@ async function askOllama(question) {
         } catch {}
       }
     }
-    if (!streamed) els.response.textContent = "(no output)"; // empty stream — don't strand "thinking…"
+    if (streamed) {
+      renderMarkdownInto(els.response, els.response.textContent); // reveal as formatted markdown
+      els.response.classList.add("md");
+    } else {
+      els.response.textContent = "(no output)"; // empty stream — don't strand "thinking…"
+    }
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
     els.footer.textContent = `${tokens} chunks · ${elapsed}s · ${chosenModel}`;
   } catch (e) {
@@ -542,12 +549,16 @@ async function askViaCli(question, b) {
     // so the main-process gate enforces the same fact that controls inclusion.
     const { prompt, dataMode } = buildPrompt({ question, cohort, shape, includePrivate: localityOf(backend) === "local" });
     const r = await window.api.hermes.run({ backend: b, prompt, dataMode, requestId });
-    if (!streamed) els.response.textContent = ""; // drop the "thinking…" placeholder
     if (!r || !r.ok) {
+      if (!streamed) els.response.textContent = ""; // drop the "thinking…" placeholder
       const msg = (r && r.error) || "request failed";
       els.response.textContent += (els.response.textContent ? "\n\n" : "") + `[${msg}]`;
-    } else if (!streamed) {
-      els.response.textContent = r.text || "(no output)";
+    } else {
+      // Render the finished answer as formatted markdown (bold names, bullets,
+      // openers). The raw text showed live during streaming; this is the reveal.
+      const finalText = streamed ? els.response.textContent : (r.text || "(no output)");
+      renderMarkdownInto(els.response, finalText);
+      els.response.classList.add("md");
     }
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
     els.footer.textContent = `${elapsed}s · ${(cliBackends[b] && cliBackends[b].label) || b}`;
