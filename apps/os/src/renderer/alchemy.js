@@ -29,6 +29,7 @@ import {
   loadCalendar as loadCalendarData,
   currentWeekIdx as calendarCurrentWeekIdx,
   parseWeekRow as calendarParseWeekRow,
+  PROGRAM_START_MS, PROGRAM_END_MS,
 } from "@shape-rotator/shape-ui";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
@@ -46,6 +47,7 @@ import {
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
+import { buildDefaultTimeline } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
@@ -2235,12 +2237,13 @@ const CONST_VIEWS = [
   // constNormalizeConstellationMode so old deep-links still resolve.
   { mode: "shipped", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>', label: "say / did / shipped", hint: "intent vs public proof" },
   { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "asks, offers, dependencies" },
+  { mode: "timeline", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16"/><path d="M8 7h11"/><path d="M6 12h9"/><path d="M10 17h8"/></svg>', label: "timeline", hint: "updates by track · past & scheduled" },
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
   if (mode === "circle") return "ring";
   if (mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
-  if (mode === "ring" || mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab") return mode;
+  if (mode === "ring" || mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab" || mode === "timeline") return mode;
   return "map";
 }
 function constellationNav(active) {
@@ -5938,6 +5941,127 @@ function renderProductStack() {
   markConstellationSelection(state.constSelection);
 }
 
+// Timeline — the time-native cohort view. The calendar's own program-week model
+// (PROGRAM_START_MS..PROGRAM_END_MS, 10 weeks) becomes a shared horizontal axis:
+// a thin calendar ruler on top, then stacked activity lanes, all pierced by one
+// set of week gridlines and a single oxide "now" playhead. Past on the left,
+// scheduled future (ghosted) on the right. Reads the LIVE surface — the playhead
+// marks now, it does NOT rewind (per Mike's call); lane data is normalized by the
+// pure cohort-timeline-tracks module. Phase 1: shared axis + ruler + the three
+// default lanes (activity / standing / presence). Clicking an item that maps to a
+// record reuses the shared data-const-open-record handler (wired via
+// wireConstellationHover, the non-collab branch).
+function renderTimeline() {
+  const cohort = activeConstellationCohort();
+  const live = state.cohort || cohort;
+  const whatsNew = Array.isArray(live?.whats_new) ? live.whats_new : [];
+  const people = Array.isArray(live?.people) ? live.people : [];
+  const standingWeekly = state.standingWeekly || null;
+  const startMs = PROGRAM_START_MS, endMs = PROGRAM_END_MS, nowMs = Date.now();
+  const { axis, lanes } = buildDefaultTimeline({ whatsNew, standingWeekly, people }, { startMs, endMs, nowMs });
+  const activity = lanes.find(l => l.trackKey === "activity") || { items: [] };
+  const standing = lanes.find(l => l.trackKey === "standing") || { points: [], stageMax: 8 };
+  const presence = lanes.find(l => l.trackKey === "presence") || { samples: [], total: 0 };
+
+  const WEEKS = 10;
+  const pct = (f) => `${(Math.max(0, Math.min(1, Number(f) || 0)) * 100).toFixed(2)}%`;
+  const fmtDay = (ms) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
+
+  // Shared axis: week gridlines + a single oxide now-playhead + a faint future veil.
+  const gridlines = Array.from({ length: WEEKS + 1 }, (_, i) => `<span class="ac-tl-gridline" style="left:${pct(i / WEEKS)}"></span>`).join("");
+  const playhead = `
+    <span class="ac-tl-future" style="left:${pct(axis.nowFraction)}"></span>
+    <span class="ac-tl-now" style="left:${pct(axis.nowFraction)}"><i></i></span>`;
+  const weekLabels = `
+    <span class="ac-tl-wk is-start" style="left:0">${escHtml(fmtDay(startMs))}</span>
+    <span class="ac-tl-wk is-now" style="left:${pct(axis.nowFraction)}">now · wk ${currentProgramWeek()}</span>
+    <span class="ac-tl-wk is-end" style="left:100%">${escHtml(fmtDay(endMs))}</span>`;
+
+  // Ruler (track 0) = the calendar's program anchors (event-kind items): demo
+  // nights, the final showing. Small bars; future ones dashed.
+  const rulerMarks = activity.items.filter(i => i.category === "event").map(i =>
+    `<span class="ac-tl-evt${i.isFuture ? " is-future" : ""}" style="left:${pct(i.fraction)}" title="${escAttr(`${i.title} · ${fmtDay(i.startMs)}`)}"></span>`).join("");
+
+  // Activity lane = everything else (release/commit/ask), clustered by day so a
+  // busy day reads as one count-dot instead of dot-mud.
+  const byDay = new Map();
+  for (const it of activity.items) {
+    if (it.category === "event") continue;
+    const key = new Date(it.startMs).toISOString().slice(0, 10);
+    if (!byDay.has(key)) byDay.set(key, []);
+    byDay.get(key).push(it);
+  }
+  const activityMarks = [...byDay.values()].map(group => {
+    const it = group[0];
+    const count = group.length;
+    const rid = (group.find(g => g.detailRef?.nav?.recordId)?.detailRef.nav.recordId) || "";
+    const future = it.isFuture ? " is-future" : "";
+    const label = count > 1 ? `${count} updates · ${fmtDay(it.startMs)}` : `${it.title} · ${fmtDay(it.startMs)}`;
+    const open = rid ? ` data-const-open-record="${escAttr(rid)}"` : "";
+    return `<span class="ac-tl-dot${future}${count > 1 ? " is-cluster" : ""}${rid ? " is-openable" : ""}" style="left:${pct(it.fraction)}"${open} title="${escAttr(label)}"${rid ? ' role="button" tabindex="0"' : ""}>${count > 1 ? `<em>${count}</em>` : ""}</span>`;
+  }).join("");
+
+  // Standing lane = the cohort-mean PMF stage line on a 0..8 axis (one legible
+  // line, not 26 overlaid). preserveAspectRatio=none stretches it full-width;
+  // non-scaling-stroke keeps the line crisp.
+  const stPts = standing.points.filter(p => p.stage != null);
+  const stMax = standing.stageMax || 8;
+  const stPoly = stPts.map(p => `${(p.fraction * 100).toFixed(2)},${((1 - p.stage / stMax) * 100).toFixed(2)}`).join(" ");
+  const standingBody = stPts.length
+    ? `<svg class="ac-tl-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="${stPoly}" fill="none" vector-effect="non-scaling-stroke"/></svg>`
+    : `<span class="ac-tl-empty">no standing reads yet</span>`;
+  const stLatest = stPts.length ? stPts[stPts.length - 1].stage.toFixed(1) : null;
+
+  // Presence lane = a weekly "who's in town" occupancy histogram (background band).
+  const presenceMarks = presence.samples.map(s =>
+    `<span class="ac-tl-pres${s.isFuture ? " is-future" : ""}" style="left:${pct(s.fraction)};height:${Math.round(Math.max(0.06, s.occupancy) * 100)}%" title="${escAttr(`${s.present}/${s.total} in town · ${fmtDay(s.ms)}`)}"></span>`).join("");
+
+  const sentenceBar = `
+    <div class="ac-sentence" role="group" aria-label="cohort timeline summary">
+      <span class="ac-sent-word">cohort timeline ·</span>
+      <strong class="ac-sent-fact">week ${currentProgramWeek()} of ${WEEKS}</strong>
+      <span class="ac-sent-word">· ${activity.items.length} updates tracked · past</span>
+      <span class="ac-sent-word">←</span>
+      <strong class="ac-sent-fact">now</strong>
+      <span class="ac-sent-word">→ scheduled</span>
+    </div>`;
+
+  const lane = (cls, label, sub, body) => `
+    <div class="ac-tl-lane ${cls}">
+      <div class="ac-tl-label">${escHtml(label)}${sub ? `<small>${escHtml(sub)}</small>` : ""}</div>
+      <div class="ac-tl-track">${body}</div>
+    </div>`;
+
+  state.canvas.innerHTML = `
+    <div class="alch-cohort-page" data-cohort-view="timeline">
+      ${cohortPageHead("timeline")}
+      <div class="alch-view-controls" data-shape-occluder>${sentenceBar}</div>
+      <div class="alch-constellation" data-constellation-view="timeline">
+        <div class="alch-const-workbench is-single">
+          <div class="alch-const-main">
+            <div class="alch-constellation-stage ac-tl-stage" data-view="timeline" tabindex="0" aria-label="cohort timeline — updates by track, past and scheduled">
+              <div class="ac-tl">
+                <div class="ac-tl-head">
+                  <div class="ac-tl-label"></div>
+                  <div class="ac-tl-track ac-tl-weeklabels">${weekLabels}</div>
+                </div>
+                <div class="ac-tl-rows">
+                  <div class="ac-tl-gridlayer" aria-hidden="true">${gridlines}${playhead}</div>
+                  ${lane("is-ruler", "calendar", "", `${rulerMarks}<span class="ac-tl-baseline"></span>`)}
+                  ${lane("", "all activity", "", activityMarks)}
+                  ${lane("", "standing", stLatest ? `· ${stLatest}/8` : "", `<div class="ac-tl-track--line">${standingBody}</div>`)}
+                  ${lane("", "people · in town", presence.total ? `· ${presence.total}` : "", presenceMarks)}
+                </div>
+              </div>
+              <div class="ac-tip" hidden></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  markConstellationSelection(state.constSelection);
+}
+
 // ─── constellation ───────────────────────────────────────────────────
 // ─── cohort map · cluster-well constellation ─────────────────────────
 // Ported (watered-down, PUBLIC-data-only) from the cohort dossier's Map
@@ -6519,6 +6643,7 @@ function renderConstellation() {
     return;
   }
   if (mode === "shipped") { renderSayDidShipped(); return; }
+  if (mode === "timeline") { renderTimeline(); return; }
 
   const lens = constNormalizeConstellationLens(state.constellationLens);
   state.constellationLens = lens;

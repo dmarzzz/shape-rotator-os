@@ -7756,6 +7756,65 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   color: var(--alchemy-ink-mute);
   font-size: 12px;
 }
+
+/* ── Timeline view ─────────────────────────────────────────────────────
+ * Shared program-week axis: a thin calendar ruler + stacked activity lanes,
+ * all pierced by ONE set of week gridlines and a single oxide now-playhead —
+ * that shared grid is the motif fusing calendar-top to tracks-below. Floated
+ * "data on black" stage (inherits .alch-constellation-stage). Chart-ink
+ * discipline: lanes are neutral ink at rest; the now-marker is the one accent;
+ * future items are ghosted (dashed). */
+.ac-tl-stage { display: block; padding: 14px 20px 20px; overflow-x: auto; }
+.ac-tl { --ac-tl-gutter: 132px; font-family: var(--font-mono); }
+.ac-tl-head,
+.ac-tl-lane { display: grid; grid-template-columns: var(--ac-tl-gutter) 1fr; align-items: center; }
+.ac-tl-head { height: 16px; margin-bottom: 8px; }
+.ac-tl-rows { position: relative; }
+.ac-tl-label {
+  font-size: 11px; color: var(--alchemy-ink-mute); padding-right: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ac-tl-label small { margin-left: 5px; color: rgba(var(--ink-rgb), 0.4); font-variant-numeric: tabular-nums; }
+.ac-tl-track { position: relative; height: 100%; min-width: 0; }
+
+.ac-tl-gridlayer { position: absolute; left: var(--ac-tl-gutter); right: 0; top: 0; bottom: 0; pointer-events: none; }
+.ac-tl-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(var(--ink-rgb), 0.06); transform: translateX(-0.5px); }
+.ac-tl-future { position: absolute; top: 0; bottom: 0; right: 0; background: rgba(var(--ink-rgb), 0.025); }
+.ac-tl-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--alchemy-oxide-bright); transform: translateX(-1px); }
+.ac-tl-now i { position: absolute; top: -3px; left: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--alchemy-oxide-bright); }
+
+.ac-tl-weeklabels { font-size: 11px; color: rgba(var(--ink-rgb), 0.45); height: 16px; }
+.ac-tl-wk { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.ac-tl-wk.is-start { transform: none; }
+.ac-tl-wk.is-end { transform: translateX(-100%); }
+.ac-tl-wk.is-now { color: var(--alchemy-oxide-bright); }
+
+.ac-tl-lane { height: 34px; }
+.ac-tl-lane.is-ruler { height: 42px; }
+
+.ac-tl-evt { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 14px; height: 9px; border-radius: 2px; background: rgba(var(--ink-rgb), 0.5); }
+.ac-tl-evt.is-future { background: transparent; border: 1px dashed rgba(var(--ink-rgb), 0.35); }
+.ac-tl-baseline { position: absolute; left: 0; right: 0; bottom: 4px; height: 1px; background: rgba(var(--ink-rgb), 0.1); }
+
+.ac-tl-dot { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 7px; height: 7px; border-radius: 50%; background: rgba(var(--ink-rgb), 0.55); }
+.ac-tl-dot.is-future { background: transparent; border: 1px dashed rgba(var(--ink-rgb), 0.4); }
+.ac-tl-dot.is-cluster { width: 16px; height: 16px; background: rgba(var(--ink-rgb), 0.14); display: flex; align-items: center; justify-content: center; }
+.ac-tl-dot.is-cluster em { font-style: normal; font-size: 10px; color: var(--alchemy-paper-warm); font-variant-numeric: tabular-nums; }
+.ac-tl-dot.is-openable { cursor: pointer; transition: background 160ms var(--ease), border-color 160ms var(--ease); }
+.ac-tl-dot.is-openable:hover,
+.ac-tl-dot.is-openable:focus-visible { background: var(--alchemy-oxide-bright); outline: none; }
+
+.ac-tl-track--line { position: absolute; inset: 0; }
+.ac-tl-line { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ac-tl-line polyline { stroke: var(--alchemy-ink-mute); stroke-width: 1.5; }
+.ac-tl-empty { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 10.5px; color: rgba(var(--ink-rgb), 0.35); }
+
+.ac-tl-pres { position: absolute; bottom: 4px; transform: translateX(-50%); width: 7%; min-height: 2px; background: rgba(var(--ink-rgb), 0.12); border-radius: 2px 2px 0 0; }
+.ac-tl-pres.is-future { background: rgba(var(--ink-rgb), 0.06); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ac-tl-dot.is-openable { transition: none; }
+}
 /* Each product layer is a translucent glass pane that picks up the cursor
  * sheen (.lg-track). No oxide tint here — it's a repeated content pane, so the
  * signature wash stays on the singular hero/legend surfaces. */
