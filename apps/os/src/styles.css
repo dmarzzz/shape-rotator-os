@@ -5671,10 +5671,12 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
    factor is set on #alchemy-canvas (see applyCohortZoom) and inherited here.
    The directory roster is excluded — it owns its own grid sizing. */
 .alch-cohort-page:not([data-cohort-view="directory"]) {
-  zoom: var(--cohort-zoom, 1);
-  /* The size change is animated in JS (zoomCohortTo rAF tween) so each frame can
-     re-anchor scroll to the focal point — a CSS transition here would run on top
-     of that and lag the wheel gesture. Wheel zoom is intentionally instant. */
+  /* zoom moved OFF the page onto .alch-const-main (the map column) so zooming
+     enlarges the MAP and reveals more detail — it no longer scales the fixed
+     inspector. --cohort-zoom is set on #alchemy-canvas and still inherits here.
+     The size change is animated in JS (zoomCohortTo rAF tween) so each frame can
+     re-anchor scroll to the focal point — a CSS transition here would lag the
+     wheel gesture. Wheel zoom is intentionally instant. */
 }
 .alch-cohort-page > .alch-constellation {
   height: auto;
@@ -5765,10 +5767,10 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 }
 .alch-const-workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(244px, 284px);
+  grid-template-columns: minmax(0, 1fr) minmax(244px, 284px); /* map | fixed inspector */
   gap: 10px;
   align-items: stretch;
-  min-height: 560px;
+  min-height: min(76vh, 760px); /* map is the hero — fill the canvas, no dead band */
 }
 .alch-const-workbench.is-single {
   grid-template-columns: minmax(0, 1fr);
@@ -5778,7 +5780,15 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Zoom lands HERE (the map column), not on the whole page — so zooming
+     enlarges the relationship map and reveals more text, while the inspector
+     stays a fixed, readable size. --cohort-zoom inherits from #alchemy-canvas. */
+  zoom: var(--cohort-zoom, 1);
 }
+/* Inspector never scales with map zoom — it is a sibling of .alch-const-main in
+   the workbench grid, so zoom on the sibling cannot reach it; this pins it as
+   belt-and-suspenders against future nesting. */
+.ac-inspector { zoom: 1; }
 .alch-const-main .alch-constellation-stage {
   flex: 1 1 auto;
 }
@@ -5798,7 +5808,10 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 }
 .alch-const-workbench .alch-constellation-stage {
   min-height: 560px;
-  height: clamp(560px, 64vh, 690px);
+  /* Fill the workbench row instead of a fixed clamp: .alch-const-main is a flex
+     column with the stage at flex:1, so the map owns the vertical the old dead
+     space used to waste. */
+  height: 100%;
 }
 .alch-constellation-stage svg { width: 100%; height: 100%; display: block; }
 .alch-constellation-stage svg .ac-edge {
@@ -6999,6 +7012,62 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   font-style: normal;
   color: var(--alchemy-oxide-bright);
 }
+/* ── Relationship-map orientation default (no-selection inspector) ──
+   Depth via soft contrast + a single hairline, no nested bordered boxes. */
+.ac-inspector-hero.is-orientation .ac-orientation-cta {
+  margin-top: 2px;
+  color: var(--alchemy-paper-warm);
+  font-size: 11.5px;
+}
+.ac-encoding-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.ac-encoding-list li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--alchemy-ink-mute);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.ac-encoding-list strong { color: var(--alchemy-paper-warm); font-weight: 560; }
+.ac-enc-mark {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+}
+.ac-enc-mark.is-size {
+  width: 16px; height: 16px;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--ink-rgb), 0.34), rgba(var(--ink-rgb), 0.12));
+}
+.ac-enc-mark.is-rim {
+  background: rgba(var(--ink-rgb), 0.06);
+  box-shadow: 0 0 0 1.5px var(--alchemy-oxide-bright);
+}
+.ac-enc-mark.is-ring {
+  background: transparent;
+  border: 1.5px dashed rgba(var(--ink-rgb), 0.30);
+}
+.ac-domain-legend { margin-top: 9px; }
+.ac-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
+  border-radius: 999px;
+  color: var(--alchemy-paper-warm);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+.ac-legend-chip i { width: 8px; height: 8px; border-radius: 999px; flex: 0 0 auto; }
+.ac-legend-chip em { font-style: normal; color: var(--alchemy-oxide-bright); }
 .ac-view-clusters {
   display: flex;
   flex-direction: column;
@@ -7226,10 +7295,11 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 }
 .ac-ego-svg .ac-ego-space-label {
   fill: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.6));
-  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+  font-family: var(--font-mono); font-size: 8px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0;
   paint-order: stroke; stroke: rgba(10,9,9,0.85); stroke-width: 2.6px; stroke-linejoin: round;
 }
+.ac-ego-svg .ac-ego-space-label tspan { font-family: var(--font-mono); }
 .ac-ego-svg .ac-ego-node { cursor: pointer; }
 .ac-ego-svg .ac-ego-ring { fill: none; stroke: var(--alchemy-paper-warm, #f1ece7); stroke-width: 1.4; opacity: 0.9; }
 .ac-ego-svg .ac-ego-more { fill: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.55)); font-family: var(--font-mono); font-size: 9px; }
@@ -7242,6 +7312,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-ego-caption { margin: 6px 2px 0; font-size: 11px; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.55)); line-height: 1.5; }
 .ac-ego-svg { transition: opacity 240ms var(--ease); }
 @starting-style { .ac-ego-svg { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ac-ego-svg { transition: none; } }
 
 /* ── Bubble map: motion + interaction tuning ──────────────────────────────
    The shared 1.45 hover scale overlaps neighbours in a tight pack; bubble mode
@@ -7260,6 +7331,17 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 }
 .alch-constellation-stage[data-view="bubble"] svg .ac-node-group[data-small-bubble="true"]:hover .ac-node-label,
 .alch-constellation-stage[data-view="bubble"] svg .ac-node-group[data-small-bubble="true"]:focus-visible .ac-node-label { opacity: 0.92; }
+/* Deepest zoom band: every team is named at rest (the JS drops data-small-bubble
+   here). Names rest quiet so the pack stays legible, brightening on hover. Enter
+   slower than exit per house asymmetric timing. */
+.alch-constellation-stage[data-view="bubble"][data-grain-deep="true"] svg .ac-node-group:not(.is-keystone-label) .ac-node-label {
+  font-size: 7.6px; font-weight: 500; opacity: 0.72;
+  transition: opacity 300ms cubic-bezier(0.19, 1, 0.22, 1), font-size 300ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alch-constellation-stage[data-view="bubble"][data-grain-deep="true"] svg .ac-node-group:hover .ac-node-label,
+.alch-constellation-stage[data-view="bubble"][data-grain-deep="true"] svg .ac-node-group:focus-visible .ac-node-label {
+  opacity: 1; transition-duration: 200ms;
+}
 .alch-constellation-stage[data-view="bubble"] svg .ac-bubble-container:hover .ac-bubble-container-shape {
   stroke: var(--well-accent, rgba(193,168,114,0.7));
   fill: var(--well-accent-faint, rgba(193,168,114,0.06));
@@ -7279,6 +7361,15 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
    cross-fades. House expo-out easing, asymmetric is unnecessary (single swap). */
 ::view-transition-group(*) { animation-duration: 420ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
 @media (prefers-reduced-motion: reduce) { ::view-transition-group(*) { animation-duration: 1ms; } }
+/* Grain swap (zoom band crossing or dropdown): the cohort crossfades under the
+   per-team glide above. Enter slower than exit (house asymmetric timing). */
+::view-transition-old(root) { animation: ac-grain-out 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+::view-transition-new(root) { animation: ac-grain-in 300ms cubic-bezier(0.19, 1, 0.22, 1) both; }
+@keyframes ac-grain-out { to { opacity: 0; transform: scale(0.985); } }
+@keyframes ac-grain-in  { from { opacity: 0; transform: scale(1.012); } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 1ms; }
+}
 
 /* Cluster containers are click-to-focus; the hover-brighten already signals it. */
 .alch-constellation-stage[data-view="bubble"] svg .ac-bubble-container { cursor: pointer; }
@@ -7295,7 +7386,19 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.82));
 }
 /* Overlap (Venn) leads the inspector on click. */
-.ac-inspector-section.ac-overlap-lead { margin-top: 4px; padding-top: 4px; }
+.ac-inspector-section.ac-overlap-lead { margin-top: 6px; padding-top: 4px; }
+/* Titled lead for the where-it-sits image (replaces the cut-looking flush start). */
+.ac-overlap-title {
+  margin: 0 0 6px; font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--alchemy-oxide-bright);
+}
+/* Positional facts as quiet tags (maturity, depended-on) in the hero pill row —
+   plain values, not a "data dictionary". Distinct from the is-warning pill. */
+.ac-inspector-pills span.ac-pill-pos {
+  border-color: rgba(193, 168, 114, 0.22);
+  color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.78));
+  text-transform: none; letter-spacing: 0.02em; font-size: 9px;
+}
 /* Hover preview strip: floats above a PINNED dossier without clobbering it. */
 .ac-hover-strip {
   border: 0.5px solid var(--well-accent-soft, rgba(193,168,114,0.3));
@@ -7306,17 +7409,6 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-hover-strip .ac-inspector-hero { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .ac-inspector-hero.is-preview { animation: none; } }
 
-/* "Where it sits" — the bubble map's positional sidebar lead (maturity /
-   depended-on / domain + the spaces it occupies with their crowdedness). */
-.ac-inspector-section.ac-position { margin-top: 2px; }
-.ac-position .ac-pos-list { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 4px 0 8px; }
-.ac-position .ac-pos-list div { display: contents; }
-.ac-position .ac-pos-list dt { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.55)); }
-.ac-position .ac-pos-list dd { margin: 0; font-size: 13px; color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.85)); }
-.ac-pos-spaces { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
-.ac-pos-spaces .ac-pos-k { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.55)); margin-right: 2px; }
-.ac-pos-space { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--well-accent-faint, rgba(193,168,114,0.08)); border: 0.5px solid var(--well-accent-soft, rgba(193,168,114,0.3)); color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.82)); }
-.ac-pos-space em { font-style: normal; font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.55)); }
 .ac-collab-pointer { margin-top: 12px; font-size: 11px; font-style: italic; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.5)); }
 .alch-constellation-stage[data-view="map"]:not([data-hover-active="true"]):not([data-selection-active="true"]):not([data-interest-active="true"]) svg .ac-well.is-dense-well .ac-well-label {
   opacity: 0.58;
@@ -12452,6 +12544,180 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   padding-top: 8px;
   border-top: 1px solid rgba(var(--ink-rgb), 0.06);
   color: var(--alchemy-ink-mute);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Collab board redesign (2026-06)
+   · merged legend+lens into one filter (hover previews, click commits)
+   · flattened ground (no boxes-in-boxes) but DEPTH via soft shadow + top-light
+   · routing-led sidebar (what I need → who offers it; what I offer → who needs)
+   These rules are placed after the originals on purpose: same selectors, later
+   wins. Depth is elevation+light, never nested borders.
+   ════════════════════════════════════════════════════════════════════════════ */
+.alch-collab {
+  --cb-raise:    0 16px 38px -22px rgba(0,0,0,0.78), 0 3px 10px -7px rgba(0,0,0,0.55);
+  --cb-raise-sm: 0 6px 16px -10px rgba(0,0,0,0.6);
+  --cb-edge-hi:  inset 0 1px 0 rgba(255,255,255,0.05);
+  --cb-toplight: linear-gradient(180deg, rgba(255,255,255,0.022), rgba(255,255,255,0) 46%);
+}
+
+/* control band — deliberate two rows: primary (filter + action), then scope —
+   instead of one flex line that ragged-wrapped to three at app width */
+.alch-view-controls > .cb-controls { display: flex; flex-direction: column; align-items: stretch; gap: 10px; grid-template-columns: none; }
+.cb-controls-primary { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.cb-controls-primary .cb-control-actions { margin-left: auto; justify-self: auto; }
+.cb-controls-scope { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.cb-scope-sep { color: rgba(var(--ink-rgb), 0.22); }
+.cb-controls .cb-intake-open { box-shadow: var(--cb-raise-sm), var(--cb-edge-hi); }
+.cb-controls .cb-intake-open:active { transform: translateY(1px) scale(0.99); }
+
+/* merged legend + filter: a raised physical switch. Each segment is a key AND a
+   filter (hover previews via :has below; click commits the lens). */
+.cb-lensfilter { display: inline-flex; align-items: stretch; border: 1px solid var(--alchemy-rule); border-radius: 10px; background-image: var(--cb-toplight); background-color: rgba(var(--ink-rgb), 0.025); box-shadow: var(--cb-raise-sm), var(--cb-edge-hi); overflow: hidden; }
+.cb-lens-seg { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; background: transparent; border: 0; border-right: 1px solid var(--alchemy-rule); cursor: pointer; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--alchemy-ink-mute); transition: color 180ms var(--ease), background 180ms var(--ease); }
+.cb-lens-seg:hover { color: var(--alchemy-paper-warm); background: rgba(var(--ink-rgb), 0.04); }
+.cb-lens-seg[aria-pressed="true"] { color: var(--alchemy-paper-warm); background-image: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.012)); box-shadow: var(--cb-edge-hi), 0 2px 6px -3px rgba(0,0,0,0.5), inset 0 -2px 0 var(--alchemy-oxide-bright); }
+.cb-lens-seg .cb-lens-count { font-style: normal; color: var(--alchemy-paper-warm); font-variant-numeric: tabular-nums; opacity: 0.7; }
+.cb-lens-seg[aria-pressed="true"] .cb-lens-count { opacity: 1; }
+.cb-lens-seg:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: -2px; }
+.cb-lens-seg .cb-legend-mark { position: relative; width: 12px; height: 12px; flex: 0 0 12px; }
+.cb-lens-key { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(var(--ink-rgb), 0.5); cursor: default; }
+.cb-lens-key .cb-legend-mark { position: relative; width: 12px; height: 12px; flex: 0 0 12px; }
+.cb-lens-key:first-of-type { border-left: 1px solid var(--alchemy-rule); margin-left: 2px; box-shadow: inset 6px 0 10px -8px rgba(0,0,0,0.5); }
+
+/* scope/sort tokens — quiet, faint lift */
+.cb-scope { display: inline-flex; gap: 8px; align-items: center; }
+.cb-scope-token { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 10px; border: 1px solid var(--alchemy-rule); border-radius: 8px; background-color: transparent; cursor: pointer; font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-ink-mute); transition: border-color 180ms var(--ease), color 180ms var(--ease), box-shadow 180ms var(--ease); }
+.cb-scope-token:hover { border-color: rgba(var(--ink-rgb), 0.28); color: var(--alchemy-paper-warm); box-shadow: var(--cb-raise-sm), var(--cb-edge-hi); }
+.cb-scope-token:active { transform: translateY(1px); }
+.cb-scope-token:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: 2px; }
+.cb-scope-token span { text-transform: uppercase; letter-spacing: 0.1em; font-size: 8.5px; opacity: 0.7; }
+.cb-scope-token b { font-weight: 600; color: var(--alchemy-paper-warm); }
+
+/* hover-preview: the filter now lives in the control band (a sibling of the
+   matrix under .alch-cohort-page), so isolation is scoped from that ancestor. */
+.alch-cohort-page:has(.cb-lens-seg[data-legend-cell="dep"]:hover) .cb-cell.has-so:not(.has-dep),
+.alch-cohort-page:has(.cb-lens-seg[data-legend-cell="dep"]:focus-visible) .cb-cell.has-so:not(.has-dep) { opacity: 0.16; }
+.alch-cohort-page:has(.cb-lens-seg[data-legend-cell="so"]:hover) .cb-cell.has-dep:not(.has-so),
+.alch-cohort-page:has(.cb-lens-seg[data-legend-cell="so"]:focus-visible) .cb-cell.has-dep:not(.has-so) { opacity: 0.16; }
+.alch-cohort-page:has(.cb-lens-key[data-legend-cell="scale"]:hover) .cb-cell.has-so.s1,
+.alch-cohort-page:has(.cb-lens-key[data-legend-cell="scale"]:hover) .cb-cell.has-so.s2 { opacity: 0.22; }
+.alch-cohort-page:has(.cb-lens-key[data-legend-cell="key"]:hover) .cb-colhead:not(.is-key) { opacity: 0.3; }
+.alch-cohort-page:has(.cb-lens-key[data-legend-cell="key"]:hover) .cb-colhead.is-key { color: var(--alchemy-oxide-bright); opacity: 1; }
+
+/* matrix — flat grid resting in a soft POOL OF LIGHT (no box edge) */
+.alch-collab .cb-scroll { background: transparent; border: 0; border-radius: 0; }
+.alch-collab .cb-grid-wrap { background: radial-gradient(130% 90% at 28% -4%, rgba(255,255,255,0.02), transparent 60%); border-radius: 12px; }
+.alch-collab .cb-bandrow { background: transparent; }
+.alch-collab .cb-band-seg { background: transparent; border: 0; border-bottom: 1px solid var(--alchemy-rule); padding-bottom: 5px; }
+.alch-collab .cb-band-seg span { color: rgba(var(--ink-rgb), 0.42); }
+.alch-collab .cb-band-seg:hover, .alch-collab .cb-band-seg.is-selected { background: transparent; }
+.alch-collab .cb-band-seg:hover span, .alch-collab .cb-band-seg.is-selected span { color: var(--alchemy-paper-warm); }
+.alch-collab .cb-cell.cb-diag { background: transparent; position: relative; }
+.alch-collab .cb-cell.cb-diag::after { content: ""; position: absolute; top: 50%; left: 50%; width: 2px; height: 2px; margin: -1px 0 0 -1px; border-radius: 50%; background: rgba(var(--ink-rgb), 0.16); }
+.alch-collab .cb-corner { color: rgba(var(--ink-rgb), 0.34); }
+.alch-collab .cb-headrow { background: transparent; }
+/* quiet by default: NO per-cell shine; weak matches fade so strong + mutual lead
+   the eye. Emphasis (the ring) only on two-way fits actually worth acting on. */
+.alch-collab .cb-cell.has-so, .alch-collab .cb-cell.has-dep { box-shadow: none; }
+.alch-collab .cb-cell.has-so   { background: color-mix(in srgb, var(--cb-preview-seek) 9%, transparent); }
+.alch-collab .cb-cell.has-so.s2 { background: color-mix(in srgb, var(--cb-preview-seek) 15%, transparent); }
+.alch-collab .cb-cell.has-so.s3 { background: color-mix(in srgb, var(--cb-preview-seek) 30%, transparent); }
+.alch-collab .cb-cell.has-so.s4 { background: color-mix(in srgb, var(--cb-preview-seek) 48%, transparent); }
+.alch-collab .cb-cell.has-dep   { background: color-mix(in srgb, var(--cb-preview-dep) 20%, transparent); }
+.alch-collab .cb-cell.has-dep.has-so { background: color-mix(in srgb, var(--cb-preview-dep) 26%, transparent); }
+.alch-collab .cb-cell.has-so.is-mutual { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cb-preview-seek) 64%, transparent); }
+/* glyph emphasis scales with connection strength: weak marks recede, strong +
+   mutual read full. Hovering a row/col reveals every mark in it at full strength
+   (glance = strong only · hover = the whole line · click = inspect). Scales as
+   the board fills in — strong stays legible, the long tail stays quiet. */
+.alch-collab .cb-cell .cb-mark { transition: opacity 140ms var(--ease); }
+.alch-collab .cb-cell.has-so.s1 .cb-mark { opacity: 0.4; }
+.alch-collab .cb-cell.has-so.s2 .cb-mark { opacity: 0.58; }
+.alch-collab .cb-cell.has-so.s3 .cb-mark { opacity: 0.82; }
+.alch-collab .cb-cell.has-so.s4 .cb-mark { opacity: 1; }
+.alch-collab .cb-cell.has-so.is-mutual .cb-mark { opacity: 1; width: 7px; height: 7px; }
+.alch-collab .cb-cell.has-dep .cb-mark { opacity: 0.85; }
+.alch-collab .cb-cell.is-hl-row .cb-mark, .alch-collab .cb-cell.is-hl-col .cb-mark { opacity: 1; }
+.alch-collab .cb-row.is-selected .cb-cell { background-image: linear-gradient(0deg, rgba(180,58,25,0.05), rgba(180,58,25,0.05)); }
+
+/* sidebar — a panel FLOATING above the matrix plane (soft edge-shadow + top
+   light), single hairline left-seam, no hard box. Inspector now owns the rail. */
+.alch-collab .cb-inspector { border-left: 1px solid var(--alchemy-rule); border-top: 0; padding: 8px 6px 8px 22px; background-image: var(--cb-toplight); background-color: transparent; box-shadow: -22px 0 38px -30px rgba(0,0,0,0.7); }
+.cb-inspector-lead { padding-bottom: 4px; }
+.cb-inspector-lead.is-team { cursor: pointer; border-radius: 9px; margin: -4px -6px 0; padding: 6px; transition: background 180ms var(--ease), box-shadow 180ms var(--ease); }
+.cb-inspector-lead.is-team:hover { background: rgba(var(--ink-rgb), 0.035); box-shadow: var(--cb-raise-sm); }
+.cb-inspector-lead.is-team:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: 2px; }
+.cb-pulse { display: flex; align-items: baseline; gap: 8px; margin: 11px 0 2px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em; color: var(--alchemy-ink-mute); }
+.cb-pulse b { color: var(--alchemy-paper-warm); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cb-pulse i { color: rgba(var(--ink-rgb), 0.28); font-style: normal; }
+
+.cb-inspector .cb-inspector-section { margin-top: 18px; }
+.cb-inspector-section.is-peruse h4, .cb-inspector .cb-inspector-section h4 { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--alchemy-ink-mute); margin: 0 0 9px; display: flex; justify-content: space-between; align-items: baseline; }
+.cb-inspector .cb-inspector-section h4 em { font-style: normal; color: var(--alchemy-oxide-bright); font-size: 11px; }
+
+/* peruse list — hero of the resting sidebar; rows lift on hover */
+.cb-peruse-list { display: flex; flex-direction: column; gap: 5px; }
+.cb-peruse-row { display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left; cursor: pointer; padding: 8px 11px; border: 1px solid var(--alchemy-rule); border-radius: 9px; background-color: rgba(var(--ink-rgb), 0.012); transition: transform 180ms var(--ease), box-shadow 180ms var(--ease), border-color 180ms var(--ease); }
+.cb-peruse-row:hover { border-color: rgba(var(--ink-rgb), 0.24); transform: translateY(-1px); box-shadow: var(--cb-raise-sm), var(--cb-edge-hi); }
+.cb-peruse-row:active { transform: translateY(0) scale(0.995); transition-duration: 90ms; }
+.cb-peruse-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: 2px; }
+.cb-peruse-row.is-mutual { border-color: color-mix(in srgb, var(--cb-preview-seek) 42%, var(--alchemy-rule)); }
+.cb-peruse-pair { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--alchemy-paper-warm); }
+.cb-peruse-pair b { font-weight: 600; }
+.cb-peruse-pair i { color: var(--alchemy-ink-mute); font-style: normal; }
+.cb-peruse-row.is-mutual .cb-peruse-pair i { color: var(--cb-preview-seek); }
+.cb-peruse-why { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em; color: var(--alchemy-ink-mute); }
+
+/* keystones — compact rows */
+.cb-key-list { display: flex; flex-direction: column; gap: 2px; }
+.cb-key-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; width: 100%; text-align: left; cursor: pointer; padding: 6px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--alchemy-paper-warm); font-size: 12px; transition: background 140ms var(--ease); }
+.cb-key-row:hover { background: rgba(var(--ink-rgb), 0.045); box-shadow: var(--cb-edge-hi); }
+.cb-key-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: -1px; }
+.cb-key-row em { font-style: normal; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
+
+/* jump links — quiet; the demoted aggregate counts become navigation */
+.cb-jump-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.cb-jump { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border: 1px solid var(--alchemy-rule); border-radius: 999px; background: transparent; cursor: pointer; font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--alchemy-ink-mute); transition: color 140ms var(--ease), border-color 140ms var(--ease), box-shadow 140ms var(--ease); }
+.cb-jump:hover { color: var(--alchemy-paper-warm); border-color: rgba(var(--ink-rgb), 0.26); box-shadow: var(--cb-raise-sm); }
+.cb-jump:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: 2px; }
+.cb-jump i { font-style: normal; color: var(--alchemy-oxide-bright); }
+
+/* routing blocks (team view) — the answer to "what do I need / offer". Each row
+   is an accented seam (teal=need, gold=offer) that lifts on hover. */
+.cb-route2-list { display: flex; flex-direction: column; gap: 4px; }
+.cb-route2-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer; padding: 8px 11px; border: 1px solid var(--alchemy-rule); border-left-width: 2px; border-radius: 8px; background-color: rgba(var(--ink-rgb), 0.012); transition: transform 180ms var(--ease), box-shadow 180ms var(--ease), background-color 180ms var(--ease); }
+.cb-route2-row:hover { transform: translateY(-1px); box-shadow: var(--cb-raise-sm), var(--cb-edge-hi); }
+.cb-route2-row:active { transform: translateY(0) scale(0.995); transition-duration: 90ms; }
+.cb-route2-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: 2px; }
+.cb-route2.is-need .cb-route2-row { border-left-color: color-mix(in srgb, var(--cb-preview-seek) 62%, transparent); }
+.cb-route2.is-offer .cb-route2-row { border-left-color: color-mix(in srgb, var(--cb-preview-gold) 62%, transparent); }
+.cb-route2-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cb-route2-main b { font-size: 12.5px; color: var(--alchemy-paper-warm); font-weight: 600; }
+.cb-route2-main small { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.03em; color: var(--alchemy-ink-mute); }
+.cb-route2-mutual { flex: 0 0 auto; font-style: normal; font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cb-preview-seek); border: 1px solid color-mix(in srgb, var(--cb-preview-seek) 40%, transparent); border-radius: 999px; padding: 2px 6px; }
+.cb-deps2-line { font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-ink-mute); margin: 5px 0 0; display: flex; align-items: center; gap: 6px; }
+.cb-deps2-line b { color: var(--alchemy-paper-warm); }
+.cb-deps2-line .cb-legend-mark.dep { position: relative; width: 9px; height: 9px; }
+.cb-signal-grid .cb-muted { color: rgba(var(--ink-rgb), 0.3); }
+
+/* pair inspector (cell selected) — route summary leads, then two calm rows */
+.cb-pair2 { display: flex; flex-direction: column; gap: 5px; }
+.cb-pair2-row { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; cursor: pointer; padding: 8px 11px; border: 1px solid var(--alchemy-rule); border-left-width: 2px; border-radius: 8px; background-color: rgba(var(--ink-rgb), 0.012); transition: transform 180ms var(--ease), box-shadow 180ms var(--ease); }
+.cb-pair2-row.is-need { border-left-color: color-mix(in srgb, var(--cb-preview-seek) 62%, transparent); }
+.cb-pair2-row.is-offer { border-left-color: color-mix(in srgb, var(--cb-preview-gold) 62%, transparent); }
+.cb-pair2-row:hover { transform: translateY(-1px); box-shadow: var(--cb-raise-sm); }
+.cb-pair2-row:active { transform: translateY(0) scale(0.995); transition-duration: 90ms; }
+.cb-pair2-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: 2px; }
+.cb-pair2-role { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
+.cb-pair2-name { font-size: 13px; font-weight: 600; color: var(--alchemy-paper-warm); }
+.cb-pair2-text { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.02em; color: var(--alchemy-ink-mute); }
+
+/* honor reduced-motion: keep the depth, drop the movement */
+@media (prefers-reduced-motion: reduce) {
+  .cb-peruse-row, .cb-route2-row, .cb-pair2-row, .cb-scope-token, .cb-intake-open, .cb-inspector-lead.is-team, .cb-jump, .cb-lens-seg, .alch-collab .cb-cell .cb-mark { transition: none; }
+  .cb-peruse-row:hover, .cb-route2-row:hover, .cb-pair2-row:hover { transform: none; }
+  .cb-peruse-row:active, .cb-route2-row:active, .cb-pair2-row:active, .cb-scope-token:active, .cb-intake-open:active { transform: none; }
 }
 
 /* intros */
@@ -20416,8 +20682,8 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
  * ~L15225/L15312 carry the flex layout; this one owns the resting skin and
  * supersedes the retired sticky-glass-bar generation.) */
 .alch-view-controls {
-  padding: 2px 0 12px;
-  margin: 2px 0 16px;
+  padding: 2px 0 8px;
+  margin: 2px 0 10px;
   border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
 }
 /* Inspector + generated/selected readouts share one glass panel family —

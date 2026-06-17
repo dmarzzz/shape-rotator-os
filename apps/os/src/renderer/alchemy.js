@@ -168,19 +168,11 @@ const FEED_REFRESH_MS = 24 * 60 * 60 * 1000;
 // attribute on the rail button (index.html around line 300).
 const FEED_DISABLED = true;
 
-// Where the cohort-data markdown lives. Profile tab surfaces a link to
-// each team's record so participants can edit it directly. Hardcoded
-// for now — if this repo is ever renamed or the cohort-data dir moves
-// to a separate repo (D4 from the spec walkthrough), update this.
-const COHORT_DATA_REPO = "https://github.com/dmarzzz/shape-rotator-os";
-const COHORT_DATA_BRANCH = "main";
+
+
 const COHORT_WEB_BASE_URL = "https://shape-rotator-os.vercel.app";
-function teamRecordEditUrl(record_id) {
-  return `${COHORT_DATA_REPO}/edit/${COHORT_DATA_BRANCH}/cohort-data/teams/${record_id}.md`;
-}
-function teamRecordViewUrl(record_id) {
-  return `${COHORT_DATA_REPO}/blob/${COHORT_DATA_BRANCH}/cohort-data/teams/${record_id}.md`;
-}
+
+
 function cohortRecordUrl(record_id) {
   return `${COHORT_WEB_BASE_URL}/cohort#${encodeURIComponent(String(record_id || ""))}`;
 }
@@ -229,6 +221,8 @@ const state = {
   constPeopleLinkFilter: "all", // people-map legend/filter: "all" | "same-team" | "profile" | "shared-context"
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
   constellationGranularity: "clusters", // bubble map grain: "themes" | "clusters" | "skills"
+  constGrainDeep: false,   // clusters grain, deepest zoom band: reveal ALL team labels at rest
+  constGrainManual: false, // user picked a band-less grain ("skills"); zoom won't fight it until the next zoom gesture
   constSelection: null,       // persistent constellation inspector selection: { type:"team"|"person", rid } | { type:"edge", from, to }
   cohortZoom: COHORT_ZOOM_DEFAULT, // per-user zoom for cohort views (excludes the directory roster); persisted to COHORT_ZOOM_LS_KEY
   renderSeq: 0,               // monotonic render guard; stale delayed swaps must not overwrite the latest view
@@ -336,6 +330,11 @@ export function mount(container) {
       if (Number.isFinite(timelineIdx)) state.constellationTimelineIdx = timelineIdx;
     }
     state.cohortZoom = clampCohortZoom(localStorage.getItem(COHORT_ZOOM_LS_KEY));
+    // Deep-detail is implied by zoom for the clusters grain; recompute from the
+    // restored zoom so a reload keeps the all-labels-visible view.
+    if (constNormalizeGranularity(state.constellationGranularity) === "clusters") {
+      state.constGrainDeep = clampCohortZoom(state.cohortZoom) > GRAIN_BANDS[1].max;
+    }
   } catch {}
   // Detail page state — if a record was open at last reload, restore it
   // so the user lands back where they were instead of on the grid.
@@ -1012,7 +1011,7 @@ function zoomCohortTo(target, { anchorY = null, animate = false } = {}) {
     void canvas.offsetHeight; // settle layout so scrollHeight reflects this z
     canvas.scrollTop = Math.max(0, (fromScroll + vy) * f - vy);
   };
-  if (!animate || reducedMotion()) { applyAt(to); return; }
+  if (!animate || reducedMotion()) { applyAt(to); maybeSyncGrainToZoom(); return; }
   // House rule: in eases slower than out.
   const dur = to > from ? 220 : 150;
   const startT = performance.now();
@@ -1023,16 +1022,39 @@ function zoomCohortTo(target, { anchorY = null, animate = false } = {}) {
     if (t < 1) zoomRAF = requestAnimationFrame(tick);
   };
   zoomRAF = requestAnimationFrame(tick);
+  maybeSyncGrainToZoom();
+}
+// The committer → grain bridge: after a zoom commits, swap the bubble-map grain
+// if we crossed a band edge (themes ↔ clusters ↔ clusters-deep). Called from
+// zoomCohortTo's exit paths, so EVERY zoom (wheel, keyboard, corner button)
+// flows through it exactly once. A real grain change re-renders inside a View
+// Transition so the cohort morphs instead of hard-cutting.
+function maybeSyncGrainToZoom() {
+  state.constGrainManual = false; // a zoom gesture takes control back from a manual "skills" pick
+  const cur = constNormalizeGranularity(state.constellationGranularity);
+  const prevGrain = cur === "skills" ? "clusters" : cur;
+  const { grain, deep } = zoomToGrain(state.cohortZoom, prevGrain, state.constGrainDeep);
+  if (grain === cur && deep === !!state.constGrainDeep) return false;
+  state.constellationGranularity = grain;
+  state.constGrainDeep = deep;
+  state.constSelection = null;
+  try { localStorage.setItem(CONST_GRANULARITY_LS_KEY, grain); } catch {}
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
+  else render();
+  return true;
 }
 // Discrete step for keyboard + the corner buttons (center-anchored, animated).
 function zoomCohortBy(dir) {
   zoomCohortTo(clampCohortZoom(state.cohortZoom) + dir * COHORT_ZOOM_KEY_STEP, { animate: true });
 }
-// Ctrl/Cmd + wheel zooms — a plain wheel is left alone so native scrolling of
-// the cohort canvas stays predictable (house rule: no scrolljacking). The step
-// is exponential in the wheel delta so it's magnitude-aware: one mouse notch is
-// a clear step, while a trackpad's many small momentum events accumulate
-// smoothly instead of rocketing to the limit.
+// Wheel zoom over the relationship map. The map is a bounded canvas (Figma/
+// Miro-style), so a plain wheel OVER THE STAGE zooms it — that is the gesture
+// that also drives the theme → cluster → team grain reveal. A plain wheel
+// anywhere ELSE on the cohort page still scrolls natively (no page scrolljack);
+// Ctrl/Cmd + wheel zooms from anywhere. The step is exponential in the wheel
+// delta so it's magnitude-aware: one mouse notch is a clear step, while a
+// trackpad's many small momentum events accumulate smoothly.
 //
 // A trackpad fires wheel events faster than the screen refreshes; applying a
 // zoom (which forces a layout to re-anchor scroll) on every one would jank. So
@@ -1042,7 +1064,9 @@ let wheelPending = null;
 let wheelRAF = 0;
 function onCohortWheel(e) {
   if (!cohortZoomActive()) return;
-  if (!(e.ctrlKey || e.metaKey)) return;
+  const modifier = e.ctrlKey || e.metaKey;
+  const overStage = !!(e.target && e.target.closest && e.target.closest(".alch-constellation-stage"));
+  if (!modifier && !overStage) return; // plain wheel only captures over the map; elsewhere, scroll the page
   e.preventDefault();
   const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; // normalize line→pixel
   const factor = Math.exp(-px * COHORT_ZOOM_WHEEL_K);
@@ -1105,9 +1129,9 @@ function syncCohortZoomControl() {
     el.setAttribute("aria-label", "cohort view zoom");
     el.innerHTML = `
       <span class="azc-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
-      <button type="button" class="azc-btn" data-zoom="out" aria-label="zoom out" title="zoom out — Ctrl + scroll">&#8722;</button>
+      <button type="button" class="azc-btn" data-zoom="out" aria-label="zoom out" title="zoom out — scroll over the map">&#8722;</button>
       <button type="button" class="azc-val" data-zoom="reset" aria-label="reset zoom to 100%" title="reset zoom to 100%">100%</button>
-      <button type="button" class="azc-btn" data-zoom="in" aria-label="zoom in" title="zoom in — Ctrl + scroll">+</button>`;
+      <button type="button" class="azc-btn" data-zoom="in" aria-label="zoom in" title="zoom in — scroll over the map">+</button>`;
     el.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-zoom]");
       if (!btn) return;
@@ -2340,22 +2364,9 @@ function journeyPlaceLabels(nodes, { W, padT, plotH }) {
 // Market-upside labels (index = upside 1..5).
 const JOURNEY_UPSIDE_LABELS = ["", "niche", "modest", "solid", "large", "category-defining"];
 
-// Rarity tier derived from PMF stage — drives the Cohort Plate frame
-// material (escalates hairline → double-rule → foil edge; single accent,
-// never multi-hue). Stage 0 (side project) is off-track = "prospect".
-function tierForStage(stage) {
-  if (stage <= 0) return { key: "prospect", name: "side quest" };
-  if (stage <= 2) return { key: "signal", name: "signal" };
-  if (stage <= 4) return { key: "traction", name: "traction" };
-  if (stage <= 6) return { key: "fit", name: "fit" };
-  return { key: "scale", name: "scale" };
-}
 
-// Human label for a stage value (0 = the off-track "side project").
-function journeyStageLabel(stage) {
-  if (stage === 0) return JOURNEY_STAGE_LABELS[0];
-  return `${stage} · ${JOURNEY_STAGE_LABELS[stage] || "—"}`;
-}
+
+
 
 // Read-only PMF/journey CARD for the record detail page + drawer. The data
 // IS the visual: a stage spectrum track with a glowing marker, dot-meters
@@ -2554,10 +2565,7 @@ function constTimelineDropdownHtml() {
     </span>`;
 }
 
-const CONST_MAP_LAYOUTS = [
-  { mode: "map", label: "ecosystems", hint: "grouped into the ecosystem each builds on" },
-  { mode: "ring", label: "ring", hint: "all relationship lines" },
-];
+
 const CONST_NETWORK_SCOPES = [
   { scope: "projects", label: "projects", hint: "team / project relationships (this map)" },
   { scope: "people", label: "people", hint: "switch to the person-to-person network" },
@@ -2575,6 +2583,37 @@ const CONST_GRANULARITIES = [
 function constNormalizeGranularity(raw) {
   const g = String(raw || "").toLowerCase();
   return (g === "themes" || g === "clusters" || g === "skills") ? g : "clusters";
+}
+// ── Zoom → grain ("more accurate the more you zoom") ──────────────────
+// The relationship map reveals more DETAIL as you zoom in: themes when pulled
+// back, ecosystem clusters mid-range, then every team named at rest in the
+// deepest band (clusters grain + the small-bubble label gate dropped). "skills"
+// is intentionally NOT a zoom band — it is a manual dropdown override only.
+const GRAIN_BANDS = [
+  { grain: "themes",   deep: false, max: 0.92 },
+  { grain: "clusters", deep: false, max: 1.18 },
+  { grain: "clusters", deep: true,  max: Infinity },
+];
+const GRAIN_HYST = 0.03; // dead-band so grain doesn't thrash right on a boundary
+const GRAIN_ZOOM = { themes: 0.82, clusters: 1.05, "clusters-deep": 1.34, skills: 1.0 };
+function grainBandIndex(zoom) {
+  const z = clampCohortZoom(zoom);
+  for (let i = 0; i < GRAIN_BANDS.length; i++) if (z <= GRAIN_BANDS[i].max) return i;
+  return GRAIN_BANDS.length - 1;
+}
+function zoomToGrain(zoom, prevGrain, prevDeep) {
+  const z = clampCohortZoom(zoom);
+  let idx = grainBandIndex(z);
+  const prevIdx = GRAIN_BANDS.findIndex(b => b.grain === prevGrain && b.deep === !!prevDeep);
+  if (prevIdx !== -1 && Math.abs(prevIdx - idx) === 1) {
+    const edge = GRAIN_BANDS[Math.min(prevIdx, idx)].max;
+    if (Math.abs(z - edge) < GRAIN_HYST) idx = prevIdx;
+  }
+  return { grain: GRAIN_BANDS[idx].grain, deep: GRAIN_BANDS[idx].deep };
+}
+function grainToZoom(grain, deep) {
+  if (grain === "clusters" && deep) return clampCohortZoom(GRAIN_ZOOM["clusters-deep"]);
+  return clampCohortZoom(GRAIN_ZOOM[grain] ?? COHORT_ZOOM_DEFAULT);
 }
 function constNormalizeEdgeTier(raw) {
   const tier = String(raw || "").toLowerCase();
@@ -2608,9 +2647,7 @@ function constNormalizePeopleLinkFilter(raw) {
   const key = String(raw || "").toLowerCase();
   return CONST_PEOPLE_LINK_KEYS.includes(key) ? key : "all";
 }
-function constPeopleLinkSpec(key) {
-  return CONST_PEOPLE_LINK_FILTERS.find(spec => spec.key === key) || null;
-}
+
 function constPeopleLinkFamily(kind) {
   const k = String(kind || "");
   if (k === "same-team") return "same-team";
@@ -2806,20 +2843,8 @@ function constNormalizeConstellationLens(raw) {
   if (lens === "all" || lens === "relies" || lens === "works" || lens === "substrate") return lens;
   return "all";
 }
-function constellationLensMetric(lens, metrics = {}) {
-  if (lens === "all") return metrics.edges;
-  if (lens === "relies") return metrics.reliance;
-  if (lens === "works") return metrics.collaboration;
-  if (lens === "substrate") return metrics.ecosystem;
-  return "";
-}
-// Truncate long cluster/well labels at rest. Full text stays available via
-// an SVG <title> tooltip. Keeps compact labels from colliding with nodes.
-function constTruncLabel(label) {
-  const s = String(label || "");
-  if (s.length <= 20) return { text: s, title: "" };
-  return { text: s.slice(0, 18).trimEnd() + "…", title: s };
-}
+
+
 
 function constWellLabelLines(label) {
   const raw = constText(label);
@@ -2950,10 +2975,7 @@ function constShortText(val, max = 150) {
   if (!s || s.length <= max) return s;
   return s.slice(0, max - 1).trimEnd() + "…";
 }
-function constTeamCountText(count) {
-  const n = Number(count) || 0;
-  return `${n} team${n === 1 ? "" : "s"}`;
-}
+
 function constPersonDisplayName(person) {
   return constText(person?.name || person?.display_name || person?.handle || person?.record_id || "person");
 }
@@ -3618,19 +3640,7 @@ function constInterestSummaryHtml(ctx) {
     ${constTranscriptCueDetailsHtml(constTranscriptCuesForInterest(interest), "source cues")}`;
 }
 
-function constellationTeamNavOrder(ctx) {
-  const teams = (ctx?.teams || []).filter(team => team?.record_id);
-  const interest = ctx?.interest;
-  const groupRank = (team) => {
-    if (!interest?.active) return 1;
-    if (interest.coreIds.has(team.record_id)) return 0;
-    if (interest.neighborIds.has(team.record_id)) return 1;
-    return 2;
-  };
-  return teams.slice().sort((a, b) =>
-    groupRank(a) - groupRank(b)
-    || String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)));
-}
+
 
 function constConstellationCoverage(teams = [], edges = []) {
   const list = Array.isArray(teams) ? teams : [];
@@ -3806,7 +3816,7 @@ function constellationCurrentInspectorContext() {
   // Match renderConstellation: projects map → "bubble" so the live (partial-
   // update) inspector keeps the positional sidebar after hover/refocus.
   const mode = (baseMode === "map" && scope === "projects") ? "bubble" : baseMode;
-  const base = { ...ctx, clusters, mode, scope, distributionWells: model.wellsDef, lens: mode === "ring" ? "all" : constNormalizeConstellationLens(state.constellationLens), interest: constInterestContext(teams, clusters, edges, state.constInterest) };
+  const base = { ...ctx, clusters, mode, scope, distributionWells: model.wellsDef, lens: mode === "ring" ? "all" : constNormalizeConstellationLens(state.constellationLens), interest: constInterestContext(teams, clusters, edges, state.constInterest), bubbleMap: mode === "bubble" ? constBubbleMapSummary(model, constNormalizeGranularity(state.constellationGranularity)) : null };
   return mode === "stack" ? { ...base, stackModel: constProductStackModel(teams, base) } : base;
 }
 
@@ -3829,19 +3839,7 @@ function constEvidenceItems(team, ctx) {
   ];
 }
 
-function constTeamSignalHtml(team, ctx) {
-  const priority = new Set(["market", "build", "research", "cohort"]);
-  const items = constEvidenceItems(team, ctx).filter(item => priority.has(item.key));
-  return `
-    <div class="ac-signal-grid">
-      ${items.map(item => `
-        <div class="ac-signal-card ac-signal-${escAttr(item.key)}">
-          <span>${escHtml(item.label)}</span>
-          <strong>${escHtml(String(item.value))}/5</strong>
-          <p>${escHtml(constShortText(item.note, 104))}</p>
-      </div>`).join("")}
-    </div>`;
-}
+
 
 const CONST_STACK_COLUMNS = [
   {
@@ -3883,20 +3881,8 @@ const CONST_STACK_ROWS = [
   { key: "cohort", label: "cohort leverage", hint: "inbound/outbound cohort relationships and dependency surface" },
   { key: "profile", label: "profile only", hint: "domain, focus, skills, and current notes; orientation, not proof" },
 ];
-const CONST_STACK_ROW_SHORT = {
-  market: "market",
-  build: "shipping",
-  research: "research",
-  cohort: "cohort",
-  profile: "profile",
-};
-const CONST_STACK_COLUMN_SHORT = {
-  substrate: "substrate",
-  developer: "dev tools",
-  proof: "proof / data",
-  application: "app",
-  market: "market",
-};
+
+
 
 function constStackSourceText(team) {
   const j = journeyFor(team);
@@ -4162,31 +4148,7 @@ function constStackReadoutHtml(ctx) {
 }
 
 
-function constStackSelectedReadoutHtml(ctx) {
-  const sel = state.constSelection;
-  if (sel?.type !== "team") return "";
-  const team = ctx?.teamById?.get?.(sel.rid)
-    || (activeConstellationCohort()?.teams || []).find(t => t.record_id === sel.rid);
-  if (!team) return "";
-  const item = constStackItemForTeam(ctx, sel.rid);
-  const role = item?.role || constMarketRoleForTeam(team);
-  const evidence = item?.evidence || constEvidenceModeForTeam(team, ctx);
-  const evidenceRead = evidence.key === "profile"
-    ? evidence.label
-    : `${evidence.label} · ${String(evidence.value)}/5`;
-  return `
-    <section class="ac-main-readout is-stack-readout is-selected-readout" aria-label="selected team stack read">
-      <div class="ac-inspector-kicker">selected · stack read</div>
-      <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(team.record_id)}">${escHtml(team.name || team.record_id)}</button></h3>
-      ${role.reason ? `<p>${escHtml(constShortText(role.reason, 150))}</p>` : ""}
-      <div class="ac-view-chips">
-        <span>layer<em>${escHtml(role.label)}</em></span>
-        ${role.secondary ? `<span>also<em>${escHtml(role.secondary.label)}</em></span>` : ""}
-        <span>proof<em>${escHtml(evidenceRead)}</em></span>
-      </div>
-      <p class="ac-readout-hint">click the entry again for the full record · click the name for the directory card</p>
-    </section>`;
-}
+
 
 function constTeamOperatingHtml(team) {
   const rows = [
@@ -4201,25 +4163,7 @@ function constTeamOperatingHtml(team) {
     </dl>`;
 }
 
-function constTeamRelationshipStatsHtml(team, ctx) {
-  const inbound = ctx?.inBy?.get(team?.record_id) || [];
-  const outbound = ctx?.outBy?.get(team?.record_id) || [];
-  const allEdges = [...outbound, ...inbound];
-  if (!allEdges.length) return "";
-  const typed = allEdges.filter(edge => edge.normalized).length;
-  const profileLinks = Math.max(0, allEdges.length - typed);
-  const reliance = allEdges.filter(edge => constRelationshipMeaning(edge).key === "reliance").length;
-  const collaboration = allEdges.filter(edge => constRelationshipMeaning(edge).key === "collaboration").length;
-  return `
-    <div class="ac-inspector-pills is-summary">
-      <span><strong>${escHtml(String(outbound.length))}</strong> outbound</span>
-      <span><strong>${escHtml(String(inbound.length))}</strong> inbound</span>
-      <span><strong>${escHtml(String(typed))}</strong> records</span>
-      ${profileLinks ? `<span><strong>${escHtml(String(profileLinks))}</strong> mentions</span>` : ""}
-      ${reliance ? `<span><strong>${escHtml(String(reliance))}</strong> reliance</span>` : ""}
-      ${collaboration ? `<span><strong>${escHtml(String(collaboration))}</strong> collab</span>` : ""}
-    </div>`;
-}
+
 
 function constInspectorDetailsHtml(summary, body, open = false) {
   return `
@@ -4475,45 +4419,9 @@ function constSharedSkillList(a, b) {
   return constTeamSkillList(a).filter(s => bSkills.has(s.toLowerCase()));
 }
 
-function constTeamWorldRows(team, ctx) {
-  const memberships = constClusterMembershipByTeam(ctx?.clusters || []).get(team?.record_id) || [];
-  return memberships.map(item => item.label).filter(Boolean);
-}
 
-function constTeamEvidenceLevel(team, ctx) {
-  const inbound = ctx?.inBy?.get(team?.record_id) || [];
-  const outbound = ctx?.outBy?.get(team?.record_id) || [];
-  const allEdges = [...outbound, ...inbound];
-  const typed = allEdges.filter(edge => edge.normalized).length;
-  const profile = Math.max(0, allEdges.length - typed);
-  const cues = constTranscriptCuesForTeam(team).length;
-  if (typed) {
-    return {
-      key: "typed",
-      label: "relationship record",
-      note: `${typed} source-backed line${typed === 1 ? "" : "s"}${profile ? ` plus ${profile} profile mention${profile === 1 ? "" : "s"}` : ""}.`,
-    };
-  }
-  if (profile) {
-    return {
-      key: "profile",
-      label: "profile mention",
-      note: `${profile} profile mention${profile === 1 ? "" : "s"}; no relationship record yet.`,
-    };
-  }
-  if (cues) {
-    return {
-      key: "cue",
-      label: "source cue only",
-      note: `${cues} transcript/source cue${cues === 1 ? "" : "s"}; no relationship line yet.`,
-    };
-  }
-  return {
-    key: "profile",
-    label: "profile data only",
-    note: "No relationship line is attached yet.",
-  };
-}
+
+
 
 function constSeekingOfferingCue(a, b) {
   const aSeeking = constList(a?.seeking);
@@ -4900,19 +4808,7 @@ function constBridgeTeamRows(ctx, max = 5) {
   return rows.slice(0, max);
 }
 
-function constBridgeTeamRowsHtml(ctx, max = 5) {
-  const rows = constBridgeTeamRows(ctx, max);
-  if (!rows.length) return `<p class="ac-inspector-empty">no bridge projects in the current relationship graph.</p>`;
-  return `
-    <div class="ac-bridge-list">
-      ${rows.map((row, idx) => `
-        <button type="button" class="ac-bridge-row" data-const-team="${escAttr(row.team.record_id)}">
-          <span>${escHtml(row.team.name || row.team.record_id)}</span>
-          <strong>#${escHtml(String(idx + 1))} bridge</strong>
-          <small>${escHtml(`${row.worlds} worlds · ${row.typed} records · ${row.profile} mentions`)}</small>
-        </button>`).join("")}
-    </div>`;
-}
+
 
 function constPersonInspectorHtml(person, ctx) {
   if (!person) return constellationInspectorDefaultHtml(ctx);
@@ -5020,36 +4916,6 @@ function constPeopleDefaultHtml(ctx) {
     </section>`;
 }
 
-// "Where it sits" — the positional read the bubble-map inspector LEADS with:
-// maturity, how many teams depend on it, domain, and the spaces it occupies
-// (with how crowded each is). The map answers WHERE a team sits in the cohort;
-// collab actions (intros, asks/offers, relationship lines) live on the Collab
-// board, so the map inspector drops them rather than re-doing that work.
-function constTeamPositionHtml(team, ctx) {
-  const j = journeyFor(team);
-  const stage = Number.isFinite(j?.stage) ? j.stage : null;
-  const matWord = stage == null ? "" : (stage <= 2 ? "early" : (stage <= 4 ? "maturing" : "proven"));
-  const indeg = (ctx?.inBy?.get(team.record_id) || []).length;
-  const domain = CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other";
-  const spaces = (ctx?.clusters || []).filter(c => Array.isArray(c.teams) && c.teams.includes(team.record_id));
-  const rows = [
-    ["maturity", stage == null ? "—" : `stage ${stage}${matWord ? ` · ${matWord}` : ""}`],
-    ["depended on", `${indeg} team${indeg === 1 ? "" : "s"}`],
-    ["domain", domain],
-  ];
-  const spaceChips = spaces
-    .map(c => `<span class="ac-pos-space">${escHtml(c.label || c.name || c.record_id)}<em>${(c.teams || []).length}</em></span>`)
-    .join("");
-  return `
-    <section class="ac-inspector-section ac-position">
-      <h4>where it sits</h4>
-      <dl class="ac-pos-list">
-        ${rows.map(([k, v]) => `<div><dt>${escHtml(k)}</dt><dd>${escHtml(v)}</dd></div>`).join("")}
-      </dl>
-      ${spaceChips ? `<div class="ac-pos-spaces"><span class="ac-pos-k">spaces</span>${spaceChips}</div>` : `<p class="ac-inspector-empty">Not in a shared space yet.</p>`}
-    </section>`;
-}
-
 function constTeamInspectorHtml(team, ctx) {
   if (!team) return constellationInspectorDefaultHtml(ctx);
   const isBubble = ctx?.mode === "bubble";
@@ -5095,6 +4961,16 @@ function constTeamInspectorHtml(team, ctx) {
       ${outboundEdges.length ? `<div><span>this team points to</span>${outboundEdges.slice(0, 5).map(e => constRelationshipChipHtml(e, ctx, team.record_id)).join("")}</div>` : ""}
       ${inboundEdges.length ? `<div><span>teams pointing here</span>${inboundEdges.slice(0, 5).map(e => constRelationshipChipHtml(e, ctx, team.record_id)).join("")}</div>` : ""}
     </div>`) : "";
+  // Positional facts become quiet tags in the hero pill row (maturity, how many
+  // teams depend on it), so the inspector is ONE description + tags, then the
+  // where-it-sits image — not a separate data-dictionary list above the image.
+  const indeg = (ctx?.inBy?.get(team.record_id) || []).length;
+  const stageNum = assessed && Number.isFinite(j?.stage) ? j.stage : null;
+  const matWord = stageNum == null ? "" : (stageNum <= 2 ? "early" : (stageNum <= 4 ? "maturing" : "proven"));
+  const posTags = isBubble ? [
+    stageNum == null ? "" : `stage ${stageNum}${matWord ? ` · ${matWord}` : ""}`,
+    indeg ? `${indeg} team${indeg === 1 ? "" : "s"} depend on it` : "",
+  ].filter(Boolean) : [];
   return `
     <div class="ac-inspector-hero" data-const-team="${escAttr(team.record_id)}">
       <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(team.record_id)}">${escHtml(team.name || team.record_id)}</button></h3>
@@ -5102,10 +4978,13 @@ function constTeamInspectorHtml(team, ctx) {
       <div class="ac-inspector-pills">
         <span>${escHtml(CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other")}</span>
         ${success.map(s => `<span>${escHtml(s)}</span>`).join("")}
+        ${posTags.map(t => `<span class="ac-pill-pos">${escHtml(t)}</span>`).join("")}
       </div>
     </div>
-    ${isBubble ? constTeamPositionHtml(team, ctx) : ""}
-    <section class="ac-inspector-section ac-overlap-lead">${constEgocentricOverlapSvg(team, ctx)}</section>
+    <section class="ac-inspector-section ac-overlap-lead">
+      <h4 class="ac-overlap-title">Where it sits</h4>
+      ${constEgocentricOverlapSvg(team, ctx)}
+    </section>
     ${constStackPlacementHtml(team, ctx)}
     ${isBubble ? "" : constTeamActionCardHtml(team, ctx)}
     ${constTeamPeopleHtml(team, ctx)}
@@ -5133,16 +5012,38 @@ function constEgocentricOverlapSvg(team, ctx) {
     .filter(c => Array.isArray(c.teams) && c.teams.includes(rid))
     .map(c => ({ label: c.label || c.name || c.record_id, members: c.teams.filter(id => id !== rid) }));
   const N = spaces.length;
-  if (!N) return `<p class="ac-inspector-note">Not in a shared space yet — overlap appears once ${escHtml(team?.name || "this team")} joins a cluster.</p>`;
-  const W = 360, H = 300, CX = 180, CY = 150, D = 54, R = 78;
+  if (!N) return `<p class="ac-inspector-note">In no shared space yet — it will appear here once ${escHtml(team?.name || "this team")} joins one.</p>`;
+  // viewBox carries a top margin band (TM) so a label above the rings never
+  // clips, and the focal sits at the TRUE centre of the drawing area (CY).
+  const W = 380, H = 320, TM = 34, CX = 190, CY = (H + TM) / 2; // CY=177
+  // Solo case (one space): a single CONCENTRIC ring around the focal — it reads
+  // as "sits here, mostly alone", not a lopsided half-Venn shoved to one side.
+  const D = N === 1 ? 0 : 56;
+  const R = N === 1 ? 70 : 78;
   const u = spaces.map((_, i) => { const a = (-90 + i * 360 / N) * Math.PI / 180; return [Math.cos(a), Math.sin(a)]; });
+  // 2-line label wrapper: split on " / " or near the midpoint; only ellipsize a
+  // single huge token. No blanket 22-char truncation (that caused "… RES..").
+  const wrapLabel = (raw) => {
+    const s = String(raw || "").trim();
+    if (s.length <= 16) return [s];
+    const parts = s.split(/\s*\/\s*/);
+    if (parts.length === 2) return parts.map(p => constShortText(p, 22));
+    const words = s.split(/\s+/); let a = "", b = "";
+    for (const w of words) { if ((a + " " + w).trim().length <= Math.ceil(s.length / 2) && !b) a = (a + " " + w).trim(); else b = (b + " " + w).trim(); }
+    return b ? [a, constShortText(b, 24)] : [constShortText(a, 24)];
+  };
+  const labelTspans = (lines, x) => lines.map((ln, k) => `<tspan x="${x}" dy="${k === 0 ? 0 : 11}">${escHtml(ln)}</tspan>`).join("");
   let circles = "";
   for (let i = 0; i < N; i++) {
     const cx = CX + u[i][0] * D, cy = CY + u[i][1] * D;
-    const lx = CX + u[i][0] * (D + R + 6), ly = CY + u[i][1] * (D + R + 6);
-    const anchor = u[i][0] > 0.3 ? "start" : (u[i][0] < -0.3 ? "end" : "middle");
+    const lines = wrapLabel(spaces[i].label);
+    // Clamp the label band inside [TM+12 .. H-14] so it never grazes the frame.
+    let lx = CX + u[i][0] * (D + R + 4), ly = CY + u[i][1] * (D + R + 4);
+    if (N === 1) { lx = CX; ly = TM + 12; } // solo: centred label in the top margin band
+    else { ly = Math.max(TM + 12, Math.min(H - 14 - (lines.length - 1) * 11, ly)); }
+    const anchor = N === 1 ? "middle" : (u[i][0] > 0.3 ? "start" : (u[i][0] < -0.3 ? "end" : "middle"));
     circles += `<circle class="ac-ego-space" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${R}"/>`
-      + `<text class="ac-ego-space-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}">${escHtml(constShortText(spaces[i].label, 22))}</text>`;
+      + `<text class="ac-ego-space-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}">${labelTspans(lines, lx.toFixed(1))}</text>`;
   }
   const share = new Map();
   spaces.forEach((sp, i) => sp.members.forEach(m => { (share.get(m) || share.set(m, []).get(m)).push(i); }));
@@ -5159,6 +5060,14 @@ function constEgocentricOverlapSvg(team, ctx) {
   let nodes = "";
   for (let i = 0; i < N; i++) {
     const all = singlesByPetal.get(i) || []; const list = all.slice(0, 8); const extra = all.length - list.length;
+    if (N === 1) {
+      // Co-members sit on a ring INSIDE the single space, around the focal —
+      // they read as "sharing this one space with it".
+      const ring = R * 0.55;
+      list.forEach((m, k) => { const a = (-140 + (list.length > 1 ? 280 * k / (list.length - 1) : 140)) * Math.PI / 180; nodes += dot(m, CX + Math.cos(a) * ring, CY + Math.sin(a) * ring, false); });
+      if (extra > 0) nodes += `<text class="ac-ego-more" x="${CX}" y="${(CY + R * 0.78).toFixed(1)}" text-anchor="middle">+${extra}</text>`;
+      continue;
+    }
     const a0 = -90 + i * 360 / N;
     list.forEach((m, k) => {
       const spread = Math.min(46, 13 * Math.max(0, list.length - 1));
@@ -5173,9 +5082,13 @@ function constEgocentricOverlapSvg(team, ctx) {
     const len = Math.hypot(dx, dy) || 1; const jr = (k % 2 ? 1 : -1) * 7;
     nodes += dot(m, CX + dx / len * (D * 0.42) + jr, CY + dy / len * (D * 0.42) + (k % 3 - 1) * 8, true);
   });
-  const focal = `<g class="ac-ego-focal"><circle class="ac-ego-focal-ring" cx="${CX}" cy="${CY}" r="13"/><circle cx="${CX}" cy="${CY}" r="9" fill="${constEgoNodeFill(team)}"/><text class="ac-ego-focal-label" x="${CX}" y="${CY + 27}" text-anchor="middle">${escHtml(constShortText(team.name || rid, 18))}</text></g>`;
-  return `<svg class="ac-ego-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escAttr(`${team.name || rid} overlap across ${N} spaces`)}">${circles}${nodes}${focal}</svg>`
-    + `<p class="ac-ego-caption">In ${N} space${N === 1 ? "" : "s"}. ${multi.length} team${multi.length === 1 ? " shares" : "s share"} more than one — its closest collaboration-or-collision candidate${multi.length === 1 ? "" : "s"}.${multi.length ? " Click a co-member to recenter." : ""}</p>`;
+  const focal = `<g class="ac-ego-focal"><circle class="ac-ego-focal-ring" cx="${CX}" cy="${CY}" r="13"/><circle cx="${CX}" cy="${CY}" r="9" fill="${constEgoNodeFill(team)}"/><text class="ac-ego-focal-label" x="${CX}" y="${CY + 27}" text-anchor="middle">${escHtml(constShortText(team.name || rid, 28))}</text></g>`;
+  const soloMates = (singlesByPetal.get(0) || []).length;
+  const caption = N === 1
+    ? `Sits in ${escHtml(spaces[0].label)}${soloMates ? `, alongside ${soloMates} other team${soloMates === 1 ? "" : "s"}.` : ", on its own for now."}`
+    : `Across ${N} spaces. ${multi.length} team${multi.length === 1 ? " sits" : "s sit"} in more than one with it${multi.length ? " — click a co-member to recenter." : "."}`;
+  return `<svg class="ac-ego-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escAttr(`${team.name || rid} across ${N} space${N === 1 ? "" : "s"}`)}">${circles}${nodes}${focal}</svg>`
+    + `<p class="ac-ego-caption">${caption}</p>`;
 }
 
 // Compact hover preview for the side inspector (replaces the floating tooltip
@@ -5330,6 +5243,11 @@ function constellationInspectorDefaultHtml(ctx) {
         <h4>${escHtml(queueTitle)}</h4>
         ${constRelationshipQueueHtml(ctx, { max: 4, compact: true })}
       </section>`;
+  }
+  if (ctx?.mode === "bubble" && !ctx?.interest?.active) {
+    // The relationship map's resting state: orient the reader (themes/ecosystems/
+    // teams + how to read it), not a list of "lines to inspect".
+    return constBubbleMapDefaultHtml(ctx);
   }
   if ((ctx?.mode === "map" || ctx?.mode === "ring") && !ctx?.interest?.active) {
     // ONE connection story: the hero owns the strongest corridor (claim +
@@ -6576,21 +6494,68 @@ function constDomainClass(d) {
   if (k === "bd-gtm") return "app-ux";
   return CONST_DOMAIN_KEYS.includes(k) ? k : "other";
 }
+// ── Relationship-map orientation (the default, no-selection sidebar) ──
+// The page is about WHERE projects sit in relation to each other, so the resting
+// inspector orients you: how many themes/ecosystems/teams you're looking at, how
+// to read the visual channels, and the current grain. It deliberately does NOT
+// lead with relationship "lines" (there are few/none yet) or any records /
+// mentions / confidence meta-language — just the valuable facts.
+function constBubbleMapSummary(model, grain) {
+  const wells = (model && Array.isArray(model.wellsDef)) ? model.wellsDef : [];
+  const themeSet = new Set();
+  for (const w of wells) themeSet.add((w.id === "_other") ? "_other" : (CLUSTER_TO_THEME[w.id] || "_other"));
+  const teams = model && model.byRecordId ? model.byRecordId.size : 0;
+  const domainCount = new Map();
+  if (model && model.byRecordId) {
+    for (const team of model.byRecordId.values()) {
+      const k = constDomainClass(team && team.domain);
+      domainCount.set(k, (domainCount.get(k) || 0) + 1);
+    }
+  }
+  const domains = CONST_DOMAIN_KEYS
+    .filter(k => (domainCount.get(k) || 0) > 0)
+    .map(k => ({ key: k, label: CONST_DOMAIN_LABEL[k], color: CONST_DOMAIN_COLORS[k], n: domainCount.get(k) }));
+  return { themes: themeSet.size, clusters: wells.length, teams, grain: constNormalizeGranularity(grain), domains };
+}
+function constBubbleMapDefaultHtml(ctx) {
+  const s = ctx && ctx.bubbleMap ? ctx.bubbleMap : { themes: 0, clusters: 0, teams: 0, grain: "clusters", domains: [] };
+  const grain = s.grain;
+  const grainTitle = grain === "themes" ? "grouped into themes"
+    : grain === "skills" ? "grouped by shared skill"
+    : "grouped into ecosystems";
+  const grainNote = grain === "themes"
+    ? "Zoom in to break each theme into its ecosystems, then into individual teams."
+    : grain === "skills"
+    ? "Each bubble is one team, placed by the skill it leans on most."
+    : "Zoom out for the big themes, in to read every team by name.";
+  const swatches = (s.domains || []).map(d =>
+    `<span class="ac-legend-chip"><i style="background:${escAttr(d.color)}"></i>${escHtml(d.label)}<em>${escHtml(String(d.n))}</em></span>`
+  ).join("");
+  return `
+    <div class="ac-inspector-hero is-orientation">
+      <div class="ac-inspector-kicker">where everyone sits</div>
+      <h3>${escHtml(String(s.themes))} themes · ${escHtml(String(s.clusters))} ecosystems · ${escHtml(String(s.teams))} teams</h3>
+      <p>This map places every team by what it works on, so you can see who sits near whom. Right now it's ${escHtml(grainTitle)}. ${escHtml(grainNote)}</p>
+      <p class="ac-orientation-cta">Click any bubble to see where it sits and who it works alongside.</p>
+    </div>
+    <section class="ac-inspector-section is-orientation-legend">
+      <h4>how to read it</h4>
+      <ul class="ac-encoding-list">
+        <li><span class="ac-enc-mark is-size"></span><strong>Bigger bubble</strong> — further along, more built.</li>
+        <li><span class="ac-enc-mark is-rim"></span><strong>Brighter rim</strong> — more teams lean on it.</li>
+        <li><span class="ac-enc-mark is-ring"></span><strong>Shared circle</strong> — same ecosystem.</li>
+      </ul>
+      ${swatches ? `<div class="ac-view-chips ac-domain-legend">${swatches}</div>` : ""}
+    </section>`;
+}
 // Node color is ALWAYS domain — one coding across every lens, so a team never
 // changes color when you switch lenses. Cluster identity is carried by the
 // WELL (position + label), never by node color. This is why
 // there is no per-cluster color palette here.
 
-function constArcPoint(cx, cy, r, angle) {
-  return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
-}
 
-function constArcPath(cx, cy, r, startAngle, endAngle) {
-  const start = constArcPoint(cx, cy, r, startAngle);
-  const end = constArcPoint(cx, cy, r, endAngle);
-  const large = Math.abs(endAngle - startAngle) > Math.PI ? 1 : 0;
-  return `M ${start.x.toFixed(1)} ${start.y.toFixed(1)} A ${r.toFixed(1)} ${r.toFixed(1)} 0 ${large} 1 ${end.x.toFixed(1)} ${end.y.toFixed(1)}`;
-}
+
+
 
 // Lay wells out on an adaptive grid (favoring more columns on the wide
 // canvas) so they never overlap regardless of cluster count, then place
@@ -6645,51 +6610,7 @@ function placeConstellation(model, W, H) {
   return { wells, ringSegments: [], pos };
 }
 
-function placeConstellationRing(model, W, H) {
-  const CX = W / 2;
-  const CY = H / 2;
-  const ringR = Math.min(W, H) * 0.40;
-  const labelR = ringR + 46;
-  const ordered = [];
-  for (const well of model.wellsDef) {
-    const members = well.members
-      .slice()
-      .sort((a, b) => String(model.byRecordId.get(a)?.name || a).localeCompare(String(model.byRecordId.get(b)?.name || b)));
-    for (const rid of members) ordered.push({ rid, well });
-  }
-  const n = Math.max(1, ordered.length);
-  const pos = new Map();
-  ordered.forEach(({ rid, well }, i) => {
-    const team = model.byRecordId.get(rid);
-    if (!team) return;
-    const deg = model.indegree.get(rid) || 0;
-    const r = 6 + Math.min(deg, 8) * 1.5;
-    const angle = -Math.PI / 2 + (i / n) * Math.PI * 2;
-    const point = constArcPoint(CX, CY, ringR, angle);
-    pos.set(rid, { team, x: point.x, y: point.y, r, deg, angle, wellId: well.id, wellSize: well.members.length });
-  });
-  let cursor = 0;
-  const ringSegments = model.wellsDef.map((well) => {
-    const count = well.members.length;
-    const start = -Math.PI / 2 + (cursor / n) * Math.PI * 2;
-    const end = -Math.PI / 2 + ((cursor + count) / n) * Math.PI * 2;
-    cursor += count;
-    const mid = (start + end) / 2;
-    const label = constArcPoint(CX, CY, labelR, mid);
-    return {
-      id: well.id,
-      label: well.label,
-      members: well.members,
-      cx: label.x,
-      cy: label.y,
-      start,
-      end,
-      mid,
-      path: constArcPath(CX, CY, ringR + 24, start + 0.012, end - 0.012),
-    };
-  });
-  return { wells: [], ringSegments, pos, ringCenter: { x: CX, y: CY } };
-}
+
 
 // Lightweight hover label. The fixed inspector is the evidence surface; hover
 // only identifies the mark and tells the user why the circle size changed.
@@ -6927,22 +6848,7 @@ function constellationDeltaCount(delta = constellationSnapshotDelta()) {
   return (delta.dependencyAdded?.length || 0) + (delta.clusterAdded?.length || 0) + (delta.inferredEvents?.length || 0);
 }
 
-function constellationEdgePath(edge, pos, extraClass = "") {
-  const a = pos.get(edge.from), b = pos.get(edge.to);
-  if (!a || !b) return "";
-  const dx = b.x - a.x, dy = b.y - a.y;
-  const dist = Math.hypot(dx, dy) || 1;
-  const ux = dx / dist, uy = dy / dist;
-  const sx = a.x + ux * (a.r + 2), sy = a.y + uy * (a.r + 2);
-  const ex = b.x - ux * (b.r + (edge.directed ? 7 : 3)), ey = b.y - uy * (b.r + (edge.directed ? 7 : 3));
-  const bend = 12 + Math.min(48, dist * 0.12);
-  const qx = (sx + ex) / 2 - uy * bend, qy = (sy + ey) / 2 + ux * bend;
-  const cls = edge.directed
-    ? `ac-edge ac-edge-dependency ${extraClass}`.trim()
-    : `ac-edge ac-edge-${edge.cluster || "x"} ${extraClass}`.trim();
-  const marker = edge.directed ? ` marker-end="url(#ac-arrow)"` : "";
-  return `<path class="${cls}" data-a="${escHtml(edge.from)}" data-b="${escHtml(edge.to)}" d="M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${qx.toFixed(1)} ${qy.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}"${marker}/>`;
-}
+
 
 function renderConstellationTimelineControls({ compact = false, allowDelta = false } = {}) {
   const snapshots = constellationSnapshots();
@@ -7051,62 +6957,7 @@ function wireConstellationTimelineControls(root = state.canvas) {
   }
 }
 
-function renderConstellationDeltaLedger(delta) {
-  if (!state.constellationShowDelta || !delta) return "";
-  const currentLabel = delta.active?.label || delta.active?.id || "current snapshot";
-  const previousLabel = delta.previous?.label || delta.previous?.id || "empty baseline";
-  const edgeRow = (edge) => {
-    const arrow = edge.directed ? "->" : "<->";
-    const title = `${edge.fromName} ${arrow} ${edge.toName}`;
-    const kind = edge.directed ? "new dependency" : "new cluster connection";
-    const detail = edge.directed
-      ? `present in ${currentLabel}; absent from ${previousLabel}`
-      : `${edge.clusterLabel || "cluster"} membership creates this pair`;
-    return `
-      <article class="ac-delta-card ${edge.provenance?.className || "is-self"}">
-        <div class="ac-delta-card-head">
-          <span class="ac-delta-badge ${edge.provenance?.className || "is-self"}">${escHtml(edge.provenance?.label || "self-declared")}</span>
-          <span>${escHtml(kind)}</span>
-        </div>
-        <div class="ac-delta-card-title">${escHtml(title)}</div>
-        <div class="ac-delta-card-meta">${escHtml(detail)} · source: ${escHtml(edge.provenance?.source || "cohort-data")}</div>
-      </article>`;
-  };
-  const eventRow = (event) => {
-    const provenance = timelineEventProvenance(event);
-    const recordName = event?.record_name || event?.record_id || "record";
-    const summary = event?.summary || event?.subject || `${event?.action || "updated"} ${recordName}`;
-    return `
-      <article class="ac-delta-card ${provenance.className}">
-        <div class="ac-delta-card-head">
-          <span class="ac-delta-badge ${provenance.className}">${escHtml(provenance.label)}</span>
-          <span>${escHtml(event?.record_type || event?.collection || "context")}</span>
-        </div>
-        <div class="ac-delta-card-title">${escHtml(recordName)}</div>
-        <div class="ac-delta-card-meta">${escHtml(summary)} · source: ${escHtml(event?.source_id || provenance.source)}</div>
-      </article>`;
-  };
-  const rows = [
-    ...(delta.dependencyAdded || []).map(edgeRow),
-    ...(delta.clusterAdded || []).map(edgeRow),
-    ...(delta.inferredEvents || []).map(eventRow),
-  ];
-  const empty = rows.length ? "" : `
-    <div class="ac-delta-empty">
-      no new dependency, cluster, transcript, or router-derived evidence between ${escHtml(previousLabel)} and ${escHtml(currentLabel)}.
-    </div>`;
-  return `
-    <section class="ac-delta-ledger" aria-label="timeline connection changes">
-      <header class="ac-delta-head">
-        <h3>changes since previous snapshot</h3>
-        <span>${escHtml(previousLabel)} -> ${escHtml(currentLabel)}</span>
-      </header>
-      <div class="ac-delta-grid">
-        ${rows.join("")}
-        ${empty}
-      </div>
-    </section>`;
-}
+
 
 
 // One nested container ring (theme / cluster / skill bucket) for the bubble
@@ -7123,7 +6974,7 @@ function constBubbleContainerSvg(c, accentStyle) {
   const count = Array.isArray(c.members) ? c.members.length : 0;
   const aria = `focus ${c.label || c.id}${c.level === "cluster" ? " ecosystem" : ` ${c.level}`}, ${count} team${count === 1 ? "" : "s"}`;
   return `
-    <g class="ac-bubble-container" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle)}">
+    <g class="ac-bubble-container" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle + ";view-transition-name:ac-vtc-" + dependencySafeToken(c.id))}">
       <circle class="ac-bubble-container-shape" cx="${c.cx.toFixed(1)}" cy="${c.cy.toFixed(1)}" r="${c.r.toFixed(1)}"/>
       ${showLabel ? `<text class="ac-bubble-container-label" x="${c.cx.toFixed(1)}" y="${labelY}" text-anchor="middle">${escHtml(c.label || "")}</text>` : ""}
     </g>`;
@@ -7170,9 +7021,15 @@ function renderConstellation() {
   const viewMode = "bubble";
   const granularity = constNormalizeGranularity(state.constellationGranularity);
   state.constellationGranularity = granularity;
+  // Deepest zoom band: reveal every team label at rest (clusters grain only).
+  const grainDeep = granularity === "clusters" && !!state.constGrainDeep;
   const activeLens = "all";
   const stageOf = (team) => team?.journey?.stage;
-  const { pos, containers } = packBubbles(model, granularity, { stageOf, W, H });
+  const { pos, containers, bounds } = packBubbles(model, granularity, { stageOf, W, H });
+  // Fitted frame: show exactly the packed content (+ small margin) instead of
+  // the full 620×600 layout box, so there is no internal letterbox / top dead band.
+  const vb = bounds || { x: 0, y: 0, w: W, h: H };
+  const viewBox = `${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`;
   const wells = []; const ringSegments = []; const ringCenter = null;
   // Edges aren't drawn in the bubble map, but the inspector still reads them
   // (who relies on whom) and the per-company overlap is built from them.
@@ -7180,7 +7037,7 @@ function renderConstellation() {
   const interestCtx = constInterestContext(teams, clusters, edges, state.constInterest);
   const coverage = constConstellationCoverage(teams, edges);
   const relationshipBreakdown = constRelationshipBreakdown(edges);
-  const inspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope: "projects", interest: interestCtx };
+  const inspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope: "projects", interest: interestCtx, bubbleMap: constBubbleMapSummary(model, granularity) };
   const bridgeRanks = viewMode === "ring"
     ? new Map(constBridgeTeamRows(inspectorCtx, 5).map((row, idx) => [row.team.record_id, { row, rank: idx + 1 }]))
     : new Map();
@@ -7348,7 +7205,7 @@ function renderConstellation() {
     // so the at-rest map reads as: space labels = where things are, one anchor
     // name per space, and any team's name on hover (sidebar + in-place).
     const labelLines = constNodeLabelLines(team, viewMode);
-    const smallBubble = isBubble && rank !== 0;
+    const smallBubble = isBubble && rank !== 0 && !grainDeep; // deepest zoom band rests ALL team labels
     const fullLabel = constText(team.name || team.record_id);
     return `
     <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}"${smallBubble ? ' data-small-bubble="true"' : ""} data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
@@ -7378,8 +7235,8 @@ function renderConstellation() {
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
       <div class="alch-const-workbench">
         <div class="alch-const-main">
-          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "constellation relationship graph")}">
-            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-grain-deep="${grainDeep ? "true" : "false"}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "constellation relationship graph")}">
+            <svg viewBox="${escAttr(viewBox)}" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <marker id="ac-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                   <path d="M0,0 L10,5 L0,10 z"/>
@@ -8354,9 +8211,25 @@ function wireConstellationHover() {
   for (const btn of state.canvas.querySelectorAll("[data-const-granularity]")) {
     btn.addEventListener("click", () => {
       const next = constNormalizeGranularity(btn.dataset.constGranularity);
-      if (next === state.constellationGranularity) { closeConstSentenceMenus(); return; }
+      if (next === state.constellationGranularity && !state.constGrainDeep) { closeConstSentenceMenus(); return; }
       state.constellationGranularity = next;
       state.constSelection = null;
+      if (next === "skills") {
+        // Band-less grain: hold it as a manual override; zoom won't fight until
+        // the next zoom gesture (which re-takes control via maybeSyncGrainToZoom).
+        state.constGrainManual = true;
+        state.constGrainDeep = false;
+      } else {
+        // Explicit pick of a zoom-driven grain snaps zoom into that band so the
+        // dropdown and the zoom level always agree. applyCohortZoom (not
+        // zoomCohortTo) so this doesn't re-enter maybeSyncGrainToZoom.
+        state.constGrainManual = false;
+        state.constGrainDeep = false;
+        const z = grainToZoom(next, false);
+        state.cohortZoom = z;
+        try { localStorage.setItem(COHORT_ZOOM_LS_KEY, String(z)); } catch {}
+        applyCohortZoom();
+      }
       try { localStorage.setItem(CONST_GRANULARITY_LS_KEY, next); } catch {}
       // Morph bubbles between grains via View Transitions (named per team), so
       // the cohort reshapes instead of hard-cutting. Falls back to a plain
@@ -8556,25 +8429,7 @@ function setConstellationInspector(selection, ctx) {
   markConstellationSelection(state.constSelection);
 }
 
-function stepConstellationTeamSelection(delta, fromTarget) {
-  const ctx = constellationCurrentInspectorContext();
-  const order = constellationTeamNavOrder(ctx);
-  if (!order.length) return;
-  const targetRid = fromTarget?.closest?.("[data-const-team], [data-record-id]")?.getAttribute?.("data-const-team")
-    || fromTarget?.closest?.("[data-const-team], [data-record-id]")?.getAttribute?.("data-record-id")
-    || "";
-  const currentRid = state.constSelection?.type === "team"
-    ? state.constSelection.rid
-    : (state.constSelection?.type === "edge" ? state.constSelection.to : targetRid);
-  const foundIdx = order.findIndex(team => team.record_id === currentRid);
-  const currentIdx = foundIdx >= 0 ? foundIdx : (delta > 0 ? -1 : 0);
-  const nextIdx = (currentIdx + delta + order.length) % order.length;
-  const next = order[nextIdx];
-  if (!next?.record_id) return;
-  setConstellationInspector({ type: "team", rid: next.record_id }, ctx);
-  const node = state.canvas?.querySelector(`.ac-node-group[data-record-id="${CSS.escape(next.record_id)}"], .ac-jnode[data-record-id="${CSS.escape(next.record_id)}"], .ac-stack-team[data-const-team="${CSS.escape(next.record_id)}"]`);
-  try { node?.focus?.({ preventScroll: true }); } catch { node?.focus?.(); }
-}
+
 
 function markConstellationSelection(selection) {
   const root = state.canvas?.querySelector(".alch-constellation");
@@ -8909,21 +8764,21 @@ function positionConstTip(stage, tip, e) {
 const CAL_DAY_W      = 22;        // pixel width per day column — MUST match drawCalendar's column width in cohort-calendar.js (the painter lays out columns at its own 22px; sizing the canvas any tighter clips the right edge). The container scrolls horizontally by design (see note above).
 const CAL_ROW_H      = 32;        // height per person row
 const CAL_HEADER_H   = 148;       // top — concurrent strip + month band + week labels + day numbers
-const CAL_DENSITY_H  = 32;        // height of the concurrent-headcount strip above the grid
+        // height of the concurrent-headcount strip above the grid
 const CAL_TEAM_H     = 36;        // height of team-group header rows
 const CAL_LEFT_W     = 240;       // left column — person labels
 const CAL_PAD_R      = 40;
 const CAL_PAD_B      = 40;
 const CAL_FOOTER_H   = 64;        // bottom — date span + legend
-const CAL_BG         = "#231F20";
-const CAL_BG_LANE    = "#2C2728";
-const CAL_RULE       = "rgba(245, 243, 238, 0.07)";
-const CAL_RULE_WEEK  = "rgba(245, 243, 238, 0.14)";
+
+
+
+
 const CAL_INK_1      = "#f5f3ee";
-const CAL_INK_2      = "#b8b4ab";
+
 const CAL_INK_3      = "#7a7368";
-const CAL_INK_4      = "#3a3833";
-const CAL_OXIDE      = "#8F220E";  // today marker
+
+  // today marker
 
 // Reasonable defaults for the program; if cohort data exposes a
 // programStart/end later this lifts straight from there.
@@ -8940,9 +8795,7 @@ function isoToDate(s) {
 function daysBetween(a, b) {
   return Math.round((b - a) / 86400000);
 }
-function fmtShortDate(d) {
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
-}
+
 // fmtMonth, buildCalendarRows, drawCalendar, drawPersonRow,
 // drawHeadcountStrip, and roundRect have moved to
 // @shape-rotator/shape-ui (cohort-calendar.js) so the sibling web app
@@ -10454,14 +10307,7 @@ export function currentAskContext() {
 // 'shared_papers' scores are NOT used — affinity is recomputed from shared
 // skill_areas (+ self-declared pair_with), and intros from public
 // seeking↔offering term overlap, shown as chips so every match is legible.
-function collabTeamCompleteness(team) {
-  const missing = [];
-  if (!collabHasText(team.skill_areas)) missing.push("skill areas");
-  if (!collabHasText(team.seeking)) missing.push("seeking");
-  if (!collabHasText(team.offering)) missing.push("offering");
-  if (!collabHasText(team.dependencies) && !collabHasText(team.pair_with)) missing.push("links");
-  return missing;
-}
+
 
 const COLLAB_LENSES = new Set(["all", "deps", "needs"]);
 const COLLAB_TEAM_FILTERS = new Set(["all", "needs", "offers"]);
@@ -10568,9 +10414,7 @@ function collabVisibleOrder(m, filter = "all", sort = "cluster") {
   return out.sort(clusterCmp);
 }
 
-function collabPeopleForTeam(rid) {
-  return cohortRosterForTeam(state.cohort?.people || [], rid);
-}
+
 
 function collabCurrentModel() {
   const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
@@ -10600,11 +10444,7 @@ function collabTeamMark(team, className = "cb-inspector-mark") {
   return `<span class="${escAttr(className)}${s ? "" : " is-empty"}" aria-hidden="true">${s ? shapeSvgByFam(s.fam, hashStr(team.record_id || team.name || "_")) : ""}</span>`;
 }
 
-function collabPersonMark(person, className = "cb-inspector-person-mark") {
-  const rid = person?.record_id || person?.name || "_";
-  const fam = Math.abs(hashStr(rid)) % 6;
-  return `<i class="${escAttr(className)}" aria-hidden="true">${shapeSvgByFam(fam, hashStr(rid))}</i>`;
-}
+
 
 function collabInspectorPills(items) {
   const html = items
@@ -10622,109 +10462,66 @@ function collabTeamMini(team, role = "") {
   </button>`;
 }
 
-function collabRouteRows(items) {
-  const rows = (items || [])
-    .filter(item => item && item.team)
-    .map(item => `<button type="button" class="cb-route-row" data-collab-cohort-open="${escAttr(item.team.record_id)}" title="show ${escAttr(item.team.name || item.team.record_id)} in directory">
-      <span>
-        <strong>${escHtml(item.team.name || item.team.record_id)}</strong>
-        ${item.note ? `<small>${escHtml(item.note)}</small>` : ""}
-      </span>
-      ${item.badge ? `<em>${escHtml(item.badge)}</em>` : ""}
-    </button>`)
-    .join("");
-  return rows ? `<div class="cb-route-list">${rows}</div>` : "";
-}
 
-function collabMembersHtml(rid) {
-  const people = collabPeopleForTeam(rid);
-  if (!people.length) return `<p class="cb-inspector-empty">no member records linked yet.</p>`;
-  return `<div class="cb-inspector-members">${people.slice(0, 6).map(p => `
-    <button type="button" class="cb-inspector-person" data-person="${escAttr(p.record_id)}" title="open ${escAttr(p.name || p.record_id)}">
-      <span>${escHtml(p.name || p.record_id)}</span>
-      ${p.role ? `<small>${escHtml(p.role)}</small>` : ""}
-    </button>
-  `).join("")}${people.length > 6 ? `<span class="cb-inspector-more">+${people.length - 6} more</span>` : ""}</div>`;
-}
 
-function collabTextList(values, empty = "not declared", max = 4) {
-  const arr = (Array.isArray(values) ? values : [values]).map(v => String(v || "").trim()).filter(Boolean);
-  if (!arr.length) return `<p class="cb-inspector-empty">${escHtml(empty)}</p>`;
-  return `<ul class="cb-inspector-list">${arr.slice(0, max).map(v => `<li>${escHtml(v)}</li>`).join("")}${arr.length > max ? `<li class="is-more">+${arr.length - max} more</li>` : ""}</ul>`;
-}
+
+
+
 
 function collabInspectorSection(title, body, className = "") {
   return `<section class="cb-inspector-section${className ? ` ${escAttr(className)}` : ""}"><h4>${escHtml(title)}</h4>${body}</section>`;
 }
 
-function collabSignalHtml(team) {
-  return collabInspectorSection("needs / offers", `
-    <div class="cb-signal-grid">
-      <div class="cb-signal-card">
-        <span>seeking</span>
-        ${collabTextList(team.seeking, "nothing declared", 3)}
-      </div>
-      <div class="cb-signal-card">
-        <span>offering</span>
-        ${collabTextList(team.offering, "nothing declared", 3)}
-      </div>
-    </div>
-  `, "is-signal");
+
+
+
+
+
+
+
+
+// Match-strength → matrix shade bucket (s1..s4). The tuned matcher produces a
+// wide, specificity-weighted score range, so bucket by RANK across the live
+// matches rather than absolute ceil — otherwise nearly every cell pins to s4.
+function collabStrengthThresholds(seekOffer = []) {
+  const scores = seekOffer.map(s => s.score).sort((a, b) => a - b);
+  const at = (p) => (scores.length ? scores[Math.min(scores.length - 1, Math.floor(p * scores.length))] : 0);
+  return [at(0.45), at(0.75), at(0.92)];
+}
+function collabStrengthBucket(score, thr) {
+  if (!thr) return Math.min(4, Math.max(1, Math.ceil(score)));
+  return score >= thr[2] ? 4 : score >= thr[1] ? 3 : score >= thr[0] ? 2 : 1;
 }
 
-function collabNetworkHtml(groups) {
-  const html = groups
-    .filter(group => group && group.body)
-    .map(group => `<details class="cb-network-group">
-      <summary><span>${escHtml(group.label)}</span>${Number.isFinite(group.count) ? `<em>${group.count}</em>` : ""}</summary>
-      <div class="cb-network-body">${group.body}</div>
-    </details>`)
-    .join("");
-  return html ? collabInspectorSection("routes", `<div class="cb-network-grid">${html}</div>`, "is-network") : "";
-}
-
-function collabTeamMetaInlineHtml(team, people = []) {
-  const roster = cohortRosterSummary({
-    kind: teamKind(team),
-    roster: people,
-    declaredCount: team?.members_count,
-    maxNames: 2,
-  });
-  const rosterValue = roster.hasNames && roster.count <= 2
-    ? roster.visible.map(person => person.name || person.record_id).join(" · ")
-    : roster.fallback;
-  const rows = [
-    roster.count ? [roster.label, rosterValue] : null,
-    team.geo ? ["geo", team.geo] : null,
-  ].filter(Boolean);
-  if (!rows.length) return "";
-  return `<div class="cb-team-meta-row">${rows.map(([label, value]) => `<span><em>${escHtml(label)}</em>${escHtml(value)}</span>`).join("")}</div>`;
-}
-
-function collabTeamRouteRailHtml({ outbound, inbound, getsHelpFrom, givesHelpTo }) {
-  const needs = outbound.length + getsHelpFrom.length;
-  const helps = inbound.length + givesHelpTo.length;
-  return `<div class="cb-team-route-rail">
-    <span>route balance</span>
-    <p><strong>${needs}</strong> needs support · <strong>${helps}</strong> can support</p>
-  </div>`;
-}
-
-function collabLegendHtml(lens = "all") {
-  // data-legend-cell drives hover-isolation on the matrix (CSS :has):
-  // touching a key entry surfaces exactly the cells it describes.
+// Merged legend + lens filter — one control (replaces the separate legend box
+// and the redundant lens dropdown). The two directed signals (dependency,
+// seek/offer) are clickable lens filters carrying the key mark + a live count;
+// hovering previews/isolates those cells (CSS :has on .alch-cohort-page). The
+// two scales (strength, most-depended-on) are non-clickable key annotations.
+function collabLensFilterHtml(lens = "all", m) {
   const lensKey = COLLAB_LENSES.has(lens) ? lens : "all";
-  const filterEntry = ({ cell, lens: nextLens, mark, label, desc }) => `
-      <button type="button" data-legend-cell="${escAttr(cell)}" data-collab-lens="${escAttr(nextLens)}" data-collab-legend-lens="${escAttr(nextLens)}" data-desc="${escAttr(desc)}" aria-pressed="${lensKey === nextLens ? "true" : "false"}" aria-label="${escAttr(`${label}: ${lensKey === nextLens ? "active filter; click to show all signals" : "click to filter"}`)}"><i class="cb-legend-mark ${escAttr(mark)}"></i><b>${escHtml(label)}</b></button>`;
+  const seg = ({ key, cell, mark, label, count }) => `
+      <button type="button" class="cb-lens-seg" data-collab-lens="${escAttr(key)}"${cell ? ` data-legend-cell="${escAttr(cell)}" data-collab-legend-lens="${escAttr(key)}"` : ""} aria-pressed="${lensKey === key ? "true" : "false"}" aria-label="${escAttr(`${label}${typeof count === "number" ? `, ${count}` : ""} — ${cell ? "filter the board to this signal" : "show all signals"}`)}">${mark ? `<i class="cb-legend-mark ${escAttr(mark)}"></i>` : ""}<b>${escHtml(label)}</b>${typeof count === "number" ? `<em class="cb-lens-count">${count}</em>` : ""}</button>`;
   const keyEntry = ({ cell, mark, label, desc }) => `
-      <span tabindex="0" data-legend-cell="${escAttr(cell)}" data-desc="${escAttr(desc)}"><i class="cb-legend-mark ${escAttr(mark)}"></i><b>${escHtml(label)}</b></span>`;
+      <span class="cb-lens-key" data-legend-cell="${escAttr(cell)}" tabindex="0" title="${escAttr(desc)}"><i class="cb-legend-mark ${escAttr(mark)}"></i>${escHtml(label)}</span>`;
   return `
-    <div class="cb-legend" aria-label="collab board legend">
-      ${filterEntry({ cell: "dep", lens: "deps", mark: "dep", label: "dependency", desc: "This row team relies on the column team to do its work. Read it as: row needs column." })}
-      ${filterEntry({ cell: "so", lens: "needs", mark: "so", label: "seek / offer", desc: "The row team is seeking something the column team has offered. Read it as: row seeks → column provides. A concrete match to introduce." })}
-      ${keyEntry({ cell: "scale", mark: "so-scale", label: "match strength", desc: "How strong a seek/offer match is, shown by the cell's teal depth: paler = fewer shared terms, darker = more overlap." })}
-      ${keyEntry({ cell: "key", mark: "key", label: "most depended-on", desc: "A team many others depend on; its column is densely filled." })}
+    <div class="cb-lensfilter" role="group" aria-label="signal filter — hover to preview, click to filter">
+      ${seg({ key: "all", cell: "", mark: "", label: "all", count: m.deps.size + m.seekOffer.length })}
+      ${seg({ key: "deps", cell: "dep", mark: "dep", label: "dependencies", count: m.deps.size })}
+      ${seg({ key: "needs", cell: "so", mark: "so", label: "seek / offer", count: m.seekOffer.length })}
     </div>`;
+}
+
+// One routing block in the team inspector (who to talk to + why, mutual tagged).
+// Each row returns that team to the directory via the wired data-collab-cohort-open.
+function collabRouteBlock(title, kind, rows) {
+  if (!rows.length) return "";
+  const body = rows.map(r => `
+    <button type="button" class="cb-route2-row" data-collab-cohort-open="${escAttr(r.rid)}" title="${escAttr(`show ${r.name} in directory`)}">
+      <span class="cb-route2-main"><b>${escHtml(r.name)}</b>${r.why ? `<small>${escHtml(r.why)}</small>` : ""}</span>
+      ${r.mutual ? `<em class="cb-route2-mutual">mutual</em>` : ""}
+    </button>`).join("");
+  return `<section class="cb-inspector-section cb-route2 is-${escAttr(kind)}"><h4>${escHtml(title)}<em>${rows.length}</em></h4><div class="cb-route2-list">${body}</div></section>`;
 }
 
 function collabLatentOverlapCards() {
@@ -10833,52 +10630,46 @@ function collabLatentOverlapSectionHtml() {
 }
 
 function collabInspectorDefaultHtml(m) {
-  const top = m.keystones.slice(0, 3).map(k => collabTeamMini(k.team, `${k.inbound.length} inbound`)).join("");
-  // At-rest readout, not a bare empty-state: lead with the board's strongest
-  // finding (the top intro) and trail the below-fold sections — the matrix
-  // fills the whole first viewport, so without this the intros / offers /
-  // convergence sections are invisible until someone happens to scroll.
+  // At-rest readout = the board's routing value up front, not a stat board. Lead
+  // with "find who can help you", then the PERUSE list (strongest intros, mutual
+  // first, with the why), keystones, and quiet jump-links to the below-fold
+  // sections. The aggregate counts are demoted to one quiet pulse line.
   const introByPair = new Map();
   for (const s of m.seekOffer) {
     const k = collabAffKey(s.seeker, s.offerer);
     if (!introByPair.has(k) || s.score > introByPair.get(k).score) introByPair.set(k, s);
   }
-  const intros = [...introByPair.values()].sort((a, b) => b.score - a.score);
-  const best = intros[0] || null;
-  // Counts mirror the page sections exactly (both cap at 12 cards).
+  const intros = [...introByPair.values()].sort((a, b) => (Number(b.mutual) - Number(a.mutual)) || (b.score - a.score));
+  const mutualCount = m.seekOffer.filter(s => s.mutual).length;
+  const peruse = intros.slice(0, 6).map(s => `
+    <button type="button" class="cb-peruse-row${s.mutual ? " is-mutual" : ""}" data-collab-pair-from="${escAttr(s.seeker)}" data-collab-pair-to="${escAttr(s.offerer)}" title="${escAttr(`${s.seekerName || s.seeker} ${s.mutual ? "↔" : "→"} ${s.offererName || s.offerer}`)}">
+      <span class="cb-peruse-pair"><b>${escHtml(s.seekerName || s.seeker)}</b><i aria-hidden="true">${s.mutual ? "⇄" : "→"}</i><b>${escHtml(s.offererName || s.offerer)}</b></span>
+      ${s.shared?.length ? `<span class="cb-peruse-why">${escHtml(s.shared.slice(0, 3).join(" · "))}</span>` : ""}
+    </button>`).join("");
+  const keystones = m.keystones.slice(0, 4).map(k => `
+    <button type="button" class="cb-key-row" data-collab-open="${escAttr(k.rid)}" title="${escAttr(`inspect ${k.team.name || k.rid}`)}">
+      <span>${escHtml(k.team.name || k.rid)}</span><em>${k.inbound.length} need${k.inbound.length === 1 ? "s" : ""} it</em>
+    </button>`).join("");
   const introCount = Math.min(intros.length, 12);
   const latentCount = Math.min(collabLatentOverlapCards().length, 12);
   const underusedCount = Math.min((m.underusedOffers || []).length, 12);
   const convergenceCount = (m.convergence || []).length;
-  const trailerLinks = [
-    introCount ? { id: "intros", label: `${introCount} intro${introCount === 1 ? "" : "s"} to make` } : null,
-    latentCount ? { id: "latent", label: `${latentCount} overlap prompt${latentCount === 1 ? "" : "s"}` } : null,
+  const jumps = [
+    introCount ? { id: "intros", label: `${introCount} intro${introCount === 1 ? "" : "s"}` } : null,
+    latentCount ? { id: "latent", label: `${latentCount} overlap${latentCount === 1 ? "" : "s"}` } : null,
     underusedCount ? { id: "offers", label: `${underusedCount} unmatched offer${underusedCount === 1 ? "" : "s"}` } : null,
-    convergenceCount ? { id: "convergence", label: `${convergenceCount} shared focus area${convergenceCount === 1 ? "" : "s"}` } : null,
+    convergenceCount ? { id: "convergence", label: `${convergenceCount} shared area${convergenceCount === 1 ? "" : "s"}` } : null,
   ].filter(Boolean);
-  const hero = best
-    ? `
-        <div class="cb-inspector-kicker">collab context · top intro</div>
-        <h4 class="cb-inspector-title">${escHtml(best.seekerName || best.seeker)} → ${escHtml(best.offererName || best.offerer)}</h4>
-        <p class="cb-inspector-copy">${escHtml(`${best.seekerName || best.seeker} is seeking what ${best.offererName || best.offerer} offers${best.shared?.length ? ` — ${best.shared.slice(0, 3).join(" · ")}` : ""}. Click any row, column, band, or cell to inspect a signal.`)}</p>`
-    : `
-        <div class="cb-inspector-kicker">collab context</div>
-        <h4 class="cb-inspector-title">select a signal</h4>
-        <p class="cb-inspector-copy">Click a row, column, cluster band, or cell to inspect who is involved, why the connection exists, and what to do next.</p>`;
   return `
-    <div class="cb-inspector-hero">
-      <div class="cb-inspector-identity">${hero}
-      </div>
+    <div class="cb-inspector-lead">
+      <div class="cb-inspector-kicker">collab board</div>
+      <h4 class="cb-inspector-title">Find who can help you</h4>
+      <p class="cb-inspector-copy">Click your team's row to see what you need and who offers it — or start from the strongest matches below.</p>
+      <p class="cb-pulse"><b>${m.seekOffer.length}</b> matches<i>·</i><b>${mutualCount}</b> mutual<i>·</i><b>${m.deps.size}</b> dependencies</p>
     </div>
-    ${collabInspectorPills([
-      { value: m.seekOffer.length, label: "seek/offers" },
-      { value: m.deps.size, label: "dependencies" },
-    ])}
-    ${trailerLinks.length ? collabInspectorSection("below on this board", `
-      <div class="cb-board-trailer">
-        ${trailerLinks.map(l => `<button type="button" class="cb-trailer-link" data-collab-scroll="${escAttr(l.id)}"><span>${escHtml(l.label)}</span><i aria-hidden="true">↓</i></button>`).join("")}
-      </div>`, "is-trailer") : ""}
-    ${top ? collabInspectorSection("keystones", `<div class="cb-inspector-stack">${top}</div>`) : ""}
+    ${peruse ? collabInspectorSection("best intros to make", `<div class="cb-peruse-list">${peruse}</div>`, "is-peruse") : ""}
+    ${keystones ? collabInspectorSection("most depended-on", `<div class="cb-key-list">${keystones}</div>`) : ""}
+    ${jumps.length ? collabInspectorSection("more on this board", `<div class="cb-jump-row">${jumps.map(j => `<button type="button" class="cb-jump" data-collab-scroll="${escAttr(j.id)}">${escHtml(j.label)}<i aria-hidden="true">↓</i></button>`).join("")}</div>`, "is-jump") : ""}
   `;
 }
 
@@ -10886,37 +10677,41 @@ function collabTeamInspectorHtml(rid, m = collabCurrentModel()) {
   const team = collabTeamByRecordId(rid, m);
   if (!team) return collabInspectorDefaultHtml(m);
   const row = m.ordered.find(o => o.rid === rid);
-  const inbound = (m.keystones.find(k => k.rid === rid)?.inbound || []).map(id => collabTeamByRecordId(id, m)).filter(Boolean);
-  const outbound = (m.keystones.find(k => k.rid === rid)?.outbound || []).map(id => collabTeamByRecordId(id, m)).filter(Boolean);
-  const getsHelpFromAll = m.seekOffer.filter(s => s.seeker === rid); // teams that offer what this team seeks
-  const givesHelpToAll = m.seekOffer.filter(s => s.offerer === rid); // teams seeking what this team offers
-  const getsHelpFrom = getsHelpFromAll.slice(0, 3);
-  const givesHelpTo = givesHelpToAll.slice(0, 3);
+  const k = m.keystones.find(x => x.rid === rid);
+  const outbound = (k?.outbound || []).map(id => collabTeamByRecordId(id, m)?.name || id);
+  const inbound = (k?.inbound || []).map(id => collabTeamByRecordId(id, m)?.name || id);
+  // The two routing lists are the answer to "what do I need / what do I offer":
+  // teams that offer what this team seeks, and teams seeking what it offers.
+  const getsHelpFrom = m.seekOffer.filter(s => s.seeker === rid).sort((a, b) => b.score - a.score);
+  const givesHelpTo = m.seekOffer.filter(s => s.offerer === rid).sort((a, b) => b.score - a.score);
   const meta = row?.clusterLabel || domainLabel(team.domain) || "team";
-
-  const people = collabPeopleForTeam(rid);
-  const showPeopleSection = people.length > 2 || people.some(person => person?.role);
+  const seeking = (Array.isArray(team.seeking) ? team.seeking : [team.seeking]).map(v => String(v || "").trim()).filter(Boolean);
+  const offering = (Array.isArray(team.offering) ? team.offering : [team.offering]).map(v => String(v || "").trim()).filter(Boolean);
 
   return `
     <div class="cb-team-detail">
-      <div class="cb-inspector-hero is-link is-team" data-collab-cohort-open="${escAttr(rid)}" role="link" tabindex="0" title="show ${escAttr(team.name || rid)} in directory">
-        <div class="cb-inspector-identity">
-          <div class="cb-inspector-kicker">${escHtml(meta || "team")}</div>
-          <h4 class="cb-inspector-title">${escHtml(team.name || rid)}</h4>
-          ${team.focus ? `<p class="cb-inspector-copy">${escHtml(team.focus)}</p>` : ""}
-          ${collabTeamMetaInlineHtml(team, people)}
-        </div>
+      <div class="cb-inspector-lead is-team" data-collab-cohort-open="${escAttr(rid)}" role="link" tabindex="0" title="show ${escAttr(team.name || rid)} in directory">
+        <div class="cb-inspector-kicker">${escHtml(meta)}</div>
+        <h4 class="cb-inspector-title">${escHtml(team.name || rid)}</h4>
+        ${team.focus ? `<p class="cb-inspector-copy">${escHtml(team.focus)}</p>` : ""}
+        <p class="cb-pulse"><b>${getsHelpFrom.length}</b> can help you<i>·</i><b>${givesHelpTo.length}</b> you can help</p>
       </div>
-      ${collabTeamRouteRailHtml({ outbound, inbound, getsHelpFrom: getsHelpFromAll, givesHelpTo: givesHelpToAll })}
+      ${collabRouteBlock(`What ${team.name} needs`, "need", getsHelpFrom.slice(0, 5).map(s => ({
+        rid: s.offerer, name: s.offererName || s.offerer, mutual: s.mutual,
+        why: s.shared?.length ? `offers ${s.shared.slice(0, 3).join(" · ")}` : "declared offer match",
+      })))}
+      ${collabRouteBlock(`What ${team.name} offers`, "offer", givesHelpTo.slice(0, 5).map(s => ({
+        rid: s.seeker, name: s.seekerName || s.seeker, mutual: s.mutual,
+        why: s.shared?.length ? `needs ${s.shared.slice(0, 3).join(" · ")}` : "declared ask match",
+      })))}
+      ${(outbound.length || inbound.length) ? `<section class="cb-inspector-section cb-deps2"><h4>dependencies</h4>${outbound.length ? `<p class="cb-deps2-line"><span class="cb-legend-mark dep"></span>depends on <b>${outbound.map(escHtml).join(", ")}</b></p>` : ""}${inbound.length ? `<p class="cb-deps2-line">needed by <b>${inbound.map(escHtml).join(", ")}</b></p>` : ""}</section>` : ""}
+      <section class="cb-inspector-section is-signal"><h4>declared</h4>
+        <div class="cb-signal-grid">
+          <div class="cb-signal-card"><span>seeking</span>${seeking.length ? seeking.slice(0, 3).map(x => `<p>${escHtml(x)}</p>`).join("") : `<p class="cb-muted">nothing declared</p>`}</div>
+          <div class="cb-signal-card"><span>offering</span>${offering.length ? offering.slice(0, 3).map(x => `<p>${escHtml(x)}</p>`).join("") : `<p class="cb-muted">nothing declared</p>`}</div>
+        </div>
+      </section>
       ${collabJourneyCompactHtml(team)}
-      ${collabSignalHtml(team)}
-      ${collabNetworkHtml([
-        outbound.length ? { label: "depends on", count: outbound.length, body: collabRouteRows(outbound.slice(0, 4).map(t => ({ team: t, note: "declared dependency", badge: "needs" }))) } : null,
-        inbound.length ? { label: "needed by", count: inbound.length, body: collabRouteRows(inbound.slice(0, 4).map(t => ({ team: t, note: "depends on this team", badge: "needed" }))) } : null,
-        getsHelpFrom.length ? { label: "gets help from", count: getsHelpFrom.length, body: collabRouteRows(getsHelpFrom.map(s => ({ team: collabTeamByRecordId(s.offerer, m), note: s.shared.slice(0, 2).join(" · ") || "declared offer match", badge: "offers" }))) } : null,
-        givesHelpTo.length ? { label: "gives help to", count: givesHelpTo.length, body: collabRouteRows(givesHelpTo.map(s => ({ team: collabTeamByRecordId(s.seeker, m), note: s.shared.slice(0, 2).join(" · ") || "declared ask match", badge: "seeks" }))) } : null,
-      ])}
-      ${showPeopleSection ? collabInspectorSection("who to talk to", collabMembersHtml(rid), "is-members") : ""}
       ${collabCredentialsHtml(team)}
       ${collabTeamLinksSectionHtml(team)}
     </div>
@@ -10958,30 +10753,9 @@ function collabCredentialsHtml(team) {
   return collabInspectorSection("credentials", `<ul class="cb-inspector-list">${papers.slice(0, 3).map(p => `<li>${escHtml(p)}</li>`).join("")}</ul>`, "is-cred");
 }
 
-// One connection row: plain label (glance) + plain-English substance (glance)
-// + hover title telling you which profile field it came from (hover layer).
-function collabConnRow(label, bodyHtml, sourceNote) {
-  return `<div class="cb-evidence-row" title="${escAttr(sourceNote)}"><span>${escHtml(label)}</span><p>${bodyHtml}</p></div>`;
-}
 
-// A team shown by name + cluster/geo + its own focus line (the "fresh team
-// description"). The whole card returns that team to the directory.
-function collabPairTeamCard(team, name, role, signal) {
-  const signalHtml = signal && signal.text
-    ? `<span class="cb-pair-team-signal"><em>${escHtml(signal.label)}</em>${escHtml(signal.text)}</span>`
-    : "";
-  if (!team) {
-    return `<div class="cb-pair-team is-empty"><span class="cb-pair-team-role">${escHtml(role)}</span><span class="cb-pair-team-name">${escHtml(name)}</span>${signalHtml}</div>`;
-  }
-  const meta = [domainLabel(team.domain), team.geo].filter(Boolean).join(" · ");
-  return `<button type="button" class="cb-pair-team" data-collab-cohort-open="${escAttr(team.record_id)}" title="show ${escAttr(name)} in directory">
-    <span class="cb-pair-team-role">${escHtml(role)}</span>
-    <span class="cb-pair-team-name">${escHtml(name)}</span>
-    ${meta ? `<span class="cb-pair-team-meta">${escHtml(meta)}</span>` : ""}
-    ${team.focus ? `<span class="cb-pair-team-focus">${escHtml(team.focus)}</span>` : ""}
-    ${signalHtml}
-  </button>`;
-}
+
+
 
 function collabRouteRead(pair, leftName, rightName) {
   const shared = [...new Set([...(pair?.seek?.shared || []), ...(pair?.affinity?.shared || [])])].slice(0, 3);
@@ -11017,58 +10791,40 @@ function collabRouteRead(pair, leftName, rightName) {
   return null;
 }
 
+// One side of a pair, as a calm row: role (needs/offers) + team + the specific
+// ask/offer text. Whole row returns that team to the directory.
+function collabPairRoute(team, name, role, text) {
+  const open = team ? `data-collab-cohort-open="${escAttr(team.record_id)}"` : "";
+  return `<button type="button" class="cb-pair2-row is-${role === "offers" ? "offer" : "need"}" ${open} title="${escAttr(`show ${name} in directory`)}">
+    <span class="cb-pair2-role">${escHtml(role)}</span>
+    <span class="cb-pair2-name">${escHtml(name)}</span>
+    ${text ? `<span class="cb-pair2-text">${escHtml(text)}</span>` : ""}
+  </button>`;
+}
+
 function collabPairInspectorHtml(pair, m = collabCurrentModel()) {
   const left = collabTeamByRecordId(pair?.fromRid, m);
   const right = collabTeamByRecordId(pair?.toRid, m);
   const leftName = pair?.fromName || left?.name || "team A";
   const rightName = pair?.toName || right?.name || "team B";
-  const sharedTerms = [...new Set([
-    ...(pair?.seek?.shared || []),
-    ...(pair?.affinity?.shared || []),
-  ])].slice(0, 8);
-
-  // A dependency / seek-offer is directional (left → right); affinity alone is
-  // not (left ↔ right) — drives the arrow + role labels below.
   const directional = !!(pair?.dep || pair?.seek);
-
-  // Seek/offer lives inside the two team columns — left = what it needs,
-  // right = what it gives. The column role already says who seeks vs offers,
-  // so no verb label is repeated.
-  const leftSignal = pair?.seek ? { label: "seeking", text: pair.seek.seeking || "not specified" } : null;
-  const rightSignal = pair?.seek ? { label: "offering", text: pair.seek.offering || "not specified" } : null;
+  const mutual = !!(pair?.seek && m.soByPair?.get(`${pair?.toRid}>${pair?.fromRid}`));
+  const sharedTerms = [...new Set([...(pair?.seek?.shared || []), ...(pair?.affinity?.shared || [])])].slice(0, 6);
+  // The route read is the actionable summary — it leads, with no label (the old
+  // "INTRO ROUTE" title was redundant chrome). Then the two teams, then shared.
   const routeRead = collabRouteRead(pair, leftName, rightName);
-
-  // Mutual / directional signals that don't map to a single column stay as rows.
-  const rows = [];
-  if (routeRead) {
-    rows.push(collabConnRow(routeRead.label, escHtml(routeRead.body), routeRead.source));
-  }
-  if (pair?.dep) {
-    rows.push(collabConnRow("dependency",
-      `${escHtml(leftName)} depends on ${escHtml(rightName)}.`,
-      `From ${leftName}'s declared dependencies.`));
-  }
-  if (pair?.affinity) {
-    const body = sharedTerms.length
-      ? `<div class="cb-inspector-chips">${sharedTerms.map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("")}</div>`
-      : (pair.affinity.endorsed ? "Both teams named this as a pairing." : "Both list overlapping skill areas.");
-    rows.push(collabConnRow("shared skills", body, "Skill areas both teams list publicly."));
-  }
-
+  const kicker = mutual ? "mutual fit" : (pair?.dep && pair?.seek) ? "unblock" : pair?.seek ? "intro" : pair?.dep ? "dependency" : "shared focus";
   return `
-    <div class="cb-inspector-hero is-pair">
-      <div class="cb-inspector-identity">
-        <h4 class="cb-inspector-title">${escHtml(leftName)} ${directional ? "&rarr;" : "&harr;"} ${escHtml(rightName)}</h4>
-      </div>
+    <div class="cb-inspector-lead">
+      <div class="cb-inspector-kicker">${escHtml(kicker)}</div>
+      <h4 class="cb-inspector-title">${escHtml(leftName)} ${mutual ? "⇄" : directional ? "→" : "↔"} ${escHtml(rightName)}</h4>
+      ${routeRead ? `<p class="cb-inspector-copy">${escHtml(routeRead.body)}</p>` : ""}
     </div>
-    <section class="cb-inspector-section">
-      <div class="cb-pair-teams">
-        ${collabPairTeamCard(left, leftName, directional ? "needs help" : "shared focus", leftSignal)}
-        <span class="cb-pair-arrow" aria-hidden="true">${directional ? "&rarr;" : "&harr;"}</span>
-        ${collabPairTeamCard(right, rightName, directional ? "can help" : "shared focus", rightSignal)}
-      </div>
+    <section class="cb-inspector-section cb-pair2">
+      ${collabPairRoute(left, leftName, directional ? "needs" : "focus", pair?.seek?.seeking || "")}
+      ${collabPairRoute(right, rightName, directional ? "offers" : "focus", pair?.seek?.offering || "")}
     </section>
-    ${rows.length ? `<section class="cb-inspector-section"><div class="cb-evidence-list">${rows.join("")}</div></section>` : ""}
+    ${sharedTerms.length ? collabInspectorSection("shared focus", `<div class="cb-inspector-chips">${sharedTerms.map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("")}</div>`) : ""}
   `;
 }
 
@@ -11844,13 +11600,9 @@ function previewCollabInspector(selection) {
   setCollabInspectorHtml(collabInspectorHtmlForSelection(visibleSelection, m));
 }
 
-// Visual strength order: which signal claims the loudest channel (cell fill +
-// center glyph) when a cell carries several. Centralized so it can become a
-// user preference later. dep = hardest (declared blocker) > seek/offer
-// (opportunity) > affinity (shared vocab).
-const COLLAB_SIGNAL_ORDER = ["dep", "so", "aff"];
 
-function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = null) {
+
+function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = null, thr = null) {
   if (R.rid === C.rid) return `<div class="cb-cell cb-diag" data-row="${ri}" data-col="${ci}" aria-hidden="true"></div>`;
   // Shared-skills/affinity is intentionally NOT a matrix signal: in this
   // thematically homogeneous cohort it fires on ~58% of pairs and just redraws
@@ -11862,7 +11614,7 @@ function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = nu
   if (!dep && !so) return `<div class="cb-cell" data-row="${ri}" data-col="${ci}"></div>`;
 
   let cls = "cb-cell";
-  if (so) cls += " has-so s" + Math.min(4, Math.ceil(so.score));
+  if (so) cls += " has-so s" + collabStrengthBucket(so.score, thr) + (so.mutual ? " is-mutual" : "");
   if (dep) cls += " has-dep";
 
   // Tooltip lists every signal on the cell (strongest first).
@@ -11930,27 +11682,12 @@ function renderCollab() {
   // each option's consequence + count. Lens and team-scope are mutually
   // exclusive (normalizeCollabControls): picking a team scope clears the lens
   // to "all signals", so "the team filter owns the board".
-  const lensMeta = [
-    { key: "all", label: "all signals", note: "every dependency and seek / offer", count: m.deps.size + m.seekOffer.length },
-    { key: "deps", label: "dependencies", note: "one team needs another to ship", count: m.deps.size },
-    { key: "needs", label: "seek / offer", note: "asks matched to offers", count: m.seekOffer.length },
-  ];
   const sortMeta = [
     { key: "cluster", label: "cluster", note: "rows grouped by ecosystem cluster" },
     { key: "intro", label: "best matches first", note: "strongest seek ↔ offer matches first" },
     { key: "dependency", label: "dependency pressure", note: "most-depended-on teams first" },
   ];
-  const activeLensMeta = lensMeta.find(l => l.key === lens) || lensMeta[0];
   const activeSortMeta = sortMeta.find(s => s.key === sort) || sortMeta[0];
-  const lensUnit = constSentenceUnit({
-    menu: "cb-lens",
-    ariaMenu: "collab board lens",
-    token: constSentenceToken({ menu: "cb-lens", label: activeLensMeta.label, count: activeLensMeta.count, aria: `signals: ${activeLensMeta.label}, ${activeLensMeta.count} — change board lens` }),
-    options: lensMeta.map(l => constSentenceOption({
-      attr: "data-collab-lens", value: l.key, selected: teamFilter === "all" && lens === l.key,
-      label: l.label, note: l.note, count: l.count, empty: l.count === 0,
-    })).join(""),
-  });
   const sortUnit = constSentenceUnit({
     menu: "cb-sort",
     ariaMenu: "collab board row order",
@@ -11981,22 +11718,27 @@ function renderCollab() {
       label: t.label, note: t.note, count: t.count, empty: t.count === 0,
     })).join(""),
   });
+  // Deliberate two rows: primary (filter + action), then scope (as-of / among /
+  // sorted) — instead of one flex line that ragged-wrapped to three.
   const controlBar = `
     <div class="cb-controls">
-      ${constTimelineDropdownHtml()}
-      <div class="ac-sentence" role="group" aria-label="collab board controls">
-        <span class="ac-sent-word">showing</span>
-        ${lensUnit}
-        <span class="ac-sent-word">· among</span>
-        ${teamUnit}
-        <span class="ac-sent-word">· sorted by</span>
-        ${sortUnit}
+      <div class="cb-controls-primary">
+        ${collabLensFilterHtml(lens, m)}
+        <div class="cb-control-actions">
+          <button class="cb-intake-open" type="button" data-collab-intake-open>
+            <span class="cb-intake-open-mark" aria-hidden="true">+</span>
+            <span>add seek / offer</span>
+          </button>
+        </div>
       </div>
-      <div class="cb-control-actions">
-        <button class="cb-intake-open" type="button" data-collab-intake-open>
-          <span class="cb-intake-open-mark" aria-hidden="true">+</span>
-          <span>add seek / offer</span>
-        </button>
+      <div class="cb-controls-scope">
+        ${constTimelineDropdownHtml()}
+        <div class="ac-sentence" role="group" aria-label="collab board scope">
+          <span class="ac-sent-word">among</span>
+          ${teamUnit}
+          <span class="ac-sent-word">· sorted by</span>
+          ${sortUnit}
+        </div>
       </div>
     </div>`;
 
@@ -12012,6 +11754,7 @@ function renderCollab() {
   for (const e of m.deps) { const i = e.indexOf(">"); matrixActive.add(e.slice(0, i)); matrixActive.add(e.slice(i + 1)); }
   for (const s of m.seekOffer) { matrixActive.add(s.seeker); matrixActive.add(s.offerer); }
   const quietCls = (rid) => (!matrixActive.has(rid) ? " is-quiet" : "");
+  const soThr = collabStrengthThresholds(m.seekOffer);
 
   // header row (offerers across the top)
   let headCells = `<div class="cb-corner" aria-hidden="true">needs ↓ · provides →</div>`;
@@ -12025,18 +11768,19 @@ function renderCollab() {
   ordered.forEach((R, ri) => {
     const selectedCls = collabSameSelection(selected, { type: "team", rid: R.rid }) ? " is-selected" : "";
     let line = `<button type="button" class="cb-rowhead${selectedCls}${quietCls(R.rid)}" data-row="${ri}" data-collab-open="${escAttr(R.rid)}" title="${escAttr(R.team.name + " · " + R.clusterLabel)}"><span class="cb-rowhead-name">${escHtml(R.team.name)}</span><span class="cb-rowhead-grp">${escHtml(R.clusterLabel)}</span></button>`;
-    ordered.forEach((C, ci) => { line += collabCell(R, C, ri, ci, m, lens, true, selected); });
+    ordered.forEach((C, ci) => { line += collabCell(R, C, ri, ci, m, lens, true, selected, soThr); });
     rows += `<div class="cb-row" style="${colN}">${line}</div>`;
   });
   const inspectorHtml = selected ? collabInspectorHtmlForSelection(selected, m) : collabInspectorDefaultHtml(m);
   const inspector = `<aside class="cb-inspector" data-collab-inspector aria-live="polite">${inspectorHtml}</aside>`;
-  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div><div class="cb-matrix-side lg-track"><div class="cb-matrix-key">${collabLegendHtml(lens)}</div>${inspector}</div>`;
+  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div>${inspector}`;
   const matrixNote = hiddenN
     ? `<p class="cb-hint cb-grid-hidden">${hiddenN} team${hiddenN === 1 ? "" : "s"} with no declared signal yet — find them in the directory.</p>`
     : "";
+  // No section header: the corner cell already reads "needs ↓ · provides →" and
+  // the tab name already says collab board — the h3 + sub-label were redundant.
   const matrix = `
-    <section class="alch-cb-section cb-matrix-section" data-cb-section="grid" aria-label="dependency and seek/offer grid">
-      <div class="alch-cb-sechead"><h3>Who needs whom</h3><span class="cb-sub">rows need, columns provide</span></div>
+    <section class="alch-cb-section cb-matrix-section" data-cb-section="grid" aria-label="who needs whom — rows need, columns provide">
       <div class="cb-scroll">${matrixBody}</div>
       ${matrixNote}
     </section>`;
@@ -14503,27 +14247,9 @@ function detailProse(md) {
   `;
 }
 
-function renderDetailProseSection(title, body, aux = "", extraClass = "") {
-  const html = String(body || "").trim();
-  if (!html) return "";
-  return `
-    <section class="alch-detail-section ${extraClass}">
-      <h3 class="alch-detail-h">${escHtml(title)}${aux ? ` <span class="alch-profile-h-aux">${escHtml(aux)}</span>` : ""}</h3>
-      ${html}
-    </section>
-  `;
-}
 
-function renderDetailSection(title, rows, aux = "") {
-  const body = detailRows(rows);
-  if (!body) return "";
-  return `
-    <section class="alch-detail-section">
-      <h3 class="alch-detail-h">${escHtml(title)}${aux ? ` <span class="alch-profile-h-aux">${escHtml(aux)}</span>` : ""}</h3>
-      ${body}
-    </section>
-  `;
-}
+
+
 
 function detailHtmlParts(parts) {
   return (Array.isArray(parts) ? parts : [parts])
@@ -14713,14 +14439,7 @@ function renderExploreBar(items) {
   return html ? `<div class="alch-explore-bar" role="group" aria-label="explore">${html}</div>` : "";
 }
 
-function detailRecordToken(record, fallbackLabel = "") {
-  if (!record?.record_id) return "";
-  return `
-    <button type="button" class="alch-quick-link alch-record-token" data-directory-record="${escAttr(record.record_id)}">
-      <span>${escHtml(fallbackLabel || record.name || record.record_id)}</span>
-    </button>
-  `;
-}
+
 
 function detailTeamToken(team) {
   if (!team?.record_id) return "";
@@ -15307,13 +15026,7 @@ function wirePersonLinks(root) {
   }
 }
 
-function renderDetailLinks(L) {
-  const items = compactCohortLinkItems({ links: L || {} });
-  if (!items.length) return `<div class="alch-detail-row"><span class="adr-k">links</span><span class="adr-v" style="opacity:0.55">— not yet submitted</span></div>`;
-  return `<div class="alch-detail-row"><span class="adr-k">links</span><span class="adr-v">${items.map(item =>
-    `<a href="${escAttr(item.href)}" data-external title="${escAttr(item.display)}">${escHtml(item.label)}</a>`
-  ).join('<span class="acm-sep">·</span>')}</span></div>`;
-}
+
 
 // ─── profile (localStorage; cohort-data write-back is Phase 4) ───────
 function defaultProfile() {
@@ -15829,29 +15542,7 @@ function renderFeedGroup(g, cohortIndex = buildCohortIndex(state.cohort)) {
   `;
 }
 
-// Kept for any caller that still wants a per-event view (currently none
-// after the rollup; safe to delete in a later sweep).
-function renderFeedItem(ev) {
-  const teamName = teamLabel(ev.team_id);
-  const sourceClass = `is-${ev.source}`;
-  return `
-    <li class="alch-feed-item ${sourceClass}" data-event-id="${escHtml(ev.id)}" data-url="${escHtml(ev.url || "")}">
-      <div class="alch-feed-glyph" aria-hidden="true">${feedSourceGlyph(ev.source)}</div>
-      <div class="alch-feed-body">
-        <div class="alch-feed-headline">
-          <span class="alch-feed-team">${escHtml(teamName)}</span>
-          <span class="alch-feed-sep">·</span>
-          <span class="alch-feed-repo">${escHtml(ev.repo || "")}</span>
-        </div>
-        <div class="alch-feed-summary">
-          <span class="alch-feed-actor">${escHtml(ev.actor || "")}</span>
-          <span class="alch-feed-action">${escHtml(ev.summary || "")}</span>
-        </div>
-      </div>
-      <div class="alch-feed-time" title="${escHtml(new Date(ev.at_ms).toLocaleString())}">${escHtml(relativeTime(ev.at_ms))}</div>
-    </li>
-  `;
-}
+
 
 function paintFeedMeta(override) {
   const meta = document.getElementById("alch-feed-meta");
@@ -16383,11 +16074,7 @@ function renderSubmitBlock(p) {
   `;
 }
 
-function profileSlug(profile) {
-  const account = normalizeGithubAccount(profile?.user?.github);
-  const src = (account || profile?.user?.name || "").toString();
-  return src.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
+
 // Slug for an in-flight ADD form. Prefers values from the form itself
 // over the long-lived "me" prefs so the path preview updates live and
 // the submitted record_id matches the visible NAME / GITHUB fields.
@@ -16759,42 +16446,8 @@ function computeFieldDiff(baseline, draft, fields) {
   return out;
 }
 
-// Render a YAML patch — just the changed fields, ready to paste
-// into github's web editor. For nested keys we group under the
-// parent (links: { github: …, x: … }).
-function buildYamlPatch(diff) {
-  const flat = {};
-  const nested = {};
-  for (const d of diff) {
-    if (d.path.includes(".")) {
-      const [parent, child] = d.path.split(".");
-      nested[parent] = nested[parent] || {};
-      nested[parent][child] = d.after;
-    } else {
-      flat[d.path] = d.after;
-    }
-  }
-  const lines = [];
-  for (const [k, v] of Object.entries(flat)) {
-    // Top-level key — block-scalar continuation indents 2 spaces.
-    lines.push(`${k}: ${formatYamlValue(v, 2)}`);
-  }
-  for (const [parent, kids] of Object.entries(nested)) {
-    lines.push(`${parent}:`);
-    for (const [k, v] of Object.entries(kids)) {
-      // Nested under `parent:` — continuation indents 4 spaces.
-      lines.push(`  ${k}: ${formatYamlValue(v, 4)}`);
-    }
-  }
-  return lines.join("\n");
-}
-function formatYamlValue(v, indent = 2) {
-  if (v == null || v === "") return "null";
-  if (typeof v === "number") return String(v);
-  if (typeof v === "boolean") return String(v);
-  // String. Multiline → block scalar; single-line → quoted.
-  return yamlScalar(v, indent);
-}
+
+
 
 // Try the swf-node /sync/local_record path first. Returns:
 //   { routed: "sync", envelope }  — local-write succeeded, peers will pick it up

@@ -21,6 +21,7 @@ data/
 
 # logs / scratch
 *.log
+apps/os/src/renderer/__collab_harness__/
 tmp/
 tmp/github-progress-audit.json
 tmp/github-progress-audit.md
