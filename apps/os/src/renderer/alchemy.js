@@ -5966,6 +5966,21 @@ function renderTimeline() {
   const WEEKS = 10;
   const pct = (f) => `${(Math.max(0, Math.min(1, Number(f) || 0)) * 100).toFixed(2)}%`;
   const fmtDay = (ms) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
+  // Group dated items into per-day buckets so a busy day reads as one mark, not
+  // dot-mud — used for BOTH the ruler and the activity lane.
+  const clusterByDay = (items) => {
+    const map = new Map();
+    for (const it of items) {
+      const key = new Date(it.startMs).toISOString().slice(0, 10);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(it);
+    }
+    return [...map.values()];
+  };
+  // Hover layer (glance → hover): every mark carries the data the floating tip reads.
+  const tipAttrs = (title, ms, kind, detail) =>
+    `data-tl-tip data-tl-title="${escAttr(title)}" data-tl-date="${escAttr(fmtDay(ms))}"`
+    + `${kind ? ` data-tl-kind="${escAttr(kind)}"` : ""}${detail ? ` data-tl-detail="${escAttr(detail)}"` : ""}`;
 
   // Shared axis: week gridlines + a single oxide now-playhead + a faint future veil.
   const gridlines = Array.from({ length: WEEKS + 1 }, (_, i) => `<span class="ac-tl-gridline" style="left:${pct(i / WEEKS)}"></span>`).join("");
@@ -5977,44 +5992,45 @@ function renderTimeline() {
     <span class="ac-tl-wk is-now" style="left:${pct(axis.nowFraction)}">now · wk ${currentProgramWeek()}</span>
     <span class="ac-tl-wk is-end" style="left:100%">${escHtml(fmtDay(endMs))}</span>`;
 
-  // Ruler (track 0) = the calendar's program anchors (event-kind items): demo
-  // nights, the final showing. Small bars; future ones dashed.
-  const rulerMarks = activity.items.filter(i => i.category === "event").map(i =>
-    `<span class="ac-tl-evt${i.isFuture ? " is-future" : ""}" style="left:${pct(i.fraction)}" title="${escAttr(`${i.title} · ${fmtDay(i.startMs)}`)}"></span>`).join("");
+  // Ruler (track 0) = the calendar's program anchors (event-kind items), clustered
+  // by day so the program-start stack reads as one mark. Future ones dashed.
+  const rulerMarks = clusterByDay(activity.items.filter(i => i.category === "event")).map(group => {
+    const it = group[0];
+    const count = group.length;
+    const title = count > 1 ? `${count} calendar events` : it.title;
+    const detail = count > 1 ? group.map(g => g.title).join(" · ") : it.detail;
+    return `<span class="ac-tl-evt${it.isFuture ? " is-future" : ""}${count > 1 ? " is-multi" : ""}" style="left:${pct(it.fraction)}" ${tipAttrs(title, it.startMs, "calendar", detail)}></span>`;
+  }).join("");
 
-  // Activity lane = everything else (release/commit/ask), clustered by day so a
-  // busy day reads as one count-dot instead of dot-mud.
-  const byDay = new Map();
-  for (const it of activity.items) {
-    if (it.category === "event") continue;
-    const key = new Date(it.startMs).toISOString().slice(0, 10);
-    if (!byDay.has(key)) byDay.set(key, []);
-    byDay.get(key).push(it);
-  }
-  const activityMarks = [...byDay.values()].map(group => {
+  // Activity lane = everything else (release/commit/ask), clustered by day → count dot.
+  const activityMarks = clusterByDay(activity.items.filter(i => i.category !== "event")).map(group => {
     const it = group[0];
     const count = group.length;
     const rid = (group.find(g => g.detailRef?.nav?.recordId)?.detailRef.nav.recordId) || "";
-    const future = it.isFuture ? " is-future" : "";
-    const label = count > 1 ? `${count} updates · ${fmtDay(it.startMs)}` : `${it.title} · ${fmtDay(it.startMs)}`;
+    const kinds = [...new Set(group.map(g => g.category))];
+    const kind = kinds.length === 1 ? kinds[0] : "mixed";
+    const title = count > 1 ? `${count} updates` : it.title;
+    const detail = count > 1 ? group.slice(0, 4).map(g => g.title).join(" · ") + (count > 4 ? " …" : "") : it.detail;
     const open = rid ? ` data-const-open-record="${escAttr(rid)}"` : "";
-    return `<span class="ac-tl-dot${future}${count > 1 ? " is-cluster" : ""}${rid ? " is-openable" : ""}" style="left:${pct(it.fraction)}"${open} title="${escAttr(label)}"${rid ? ' role="button" tabindex="0"' : ""}>${count > 1 ? `<em>${count}</em>` : ""}</span>`;
+    return `<span class="ac-tl-dot${it.isFuture ? " is-future" : ""}${count > 1 ? " is-cluster" : ""}${rid ? " is-openable" : ""}" style="left:${pct(it.fraction)}"${open} ${tipAttrs(title, it.startMs, kind, detail)}${rid ? ' role="button" tabindex="0"' : ""}>${count > 1 ? `<em>${count}</em>` : ""}</span>`;
   }).join("");
 
-  // Standing lane = the cohort-mean PMF stage line on a 0..8 axis (one legible
-  // line, not 26 overlaid). preserveAspectRatio=none stretches it full-width;
-  // non-scaling-stroke keeps the line crisp.
+  // Standing lane = the cohort-mean PMF stage line on a 0..8 axis (one legible line,
+  // not 26 overlaid) with a bright endpoint dot marking the current value.
   const stPts = standing.points.filter(p => p.stage != null);
   const stMax = standing.stageMax || 8;
-  const stPoly = stPts.map(p => `${(p.fraction * 100).toFixed(2)},${((1 - p.stage / stMax) * 100).toFixed(2)}`).join(" ");
-  const standingBody = stPts.length
+  const stY = (stage) => (1 - stage / stMax) * 100;
+  const stPoly = stPts.map(p => `${(p.fraction * 100).toFixed(2)},${stY(p.stage).toFixed(2)}`).join(" ");
+  const stLast = stPts.length ? stPts[stPts.length - 1] : null;
+  const standingBody = stLast
     ? `<svg class="ac-tl-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="${stPoly}" fill="none" vector-effect="non-scaling-stroke"/></svg>`
+      + `<span class="ac-tl-end" style="left:${pct(stLast.fraction)};top:${stY(stLast.stage).toFixed(1)}%" ${tipAttrs(`cohort mean PMF — stage ${stLast.stage.toFixed(1)} of ${stMax}`, stLast.ms, "standing", `mean across ${stLast.teamsWithData} teams with a read`)}></span>`
     : `<span class="ac-tl-empty">no standing reads yet</span>`;
-  const stLatest = stPts.length ? stPts[stPts.length - 1].stage.toFixed(1) : null;
+  const stLatest = stLast ? stLast.stage.toFixed(1) : null;
 
   // Presence lane = a weekly "who's in town" occupancy histogram (background band).
   const presenceMarks = presence.samples.map(s =>
-    `<span class="ac-tl-pres${s.isFuture ? " is-future" : ""}" style="left:${pct(s.fraction)};height:${Math.round(Math.max(0.06, s.occupancy) * 100)}%" title="${escAttr(`${s.present}/${s.total} in town · ${fmtDay(s.ms)}`)}"></span>`).join("");
+    `<span class="ac-tl-pres${s.isFuture ? " is-future" : ""}" style="left:${pct(s.fraction)};height:${Math.round(Math.max(0.06, s.occupancy) * 100)}%" ${tipAttrs(`${s.present} of ${s.total} in town`, s.ms, "presence", `${Math.round(s.occupancy * 100)}% occupancy`)}></span>`).join("");
 
   const sentenceBar = `
     <div class="ac-sentence" role="group" aria-label="cohort timeline summary">
@@ -7300,6 +7316,39 @@ function wireDetailDismiss() {
   });
 }
 
+// Timeline mark hover (the "hover" layer of glance → hover → click). Reuses the
+// shared .ac-tip floating surface; reads the data-tl-* attrs each mark carries.
+// Bound on the (fresh-per-render) stage; the tip is mouse-following, clamped to
+// the stage box. Click-to-open is the shared canvas data-const-open-record path.
+function wireTimelineHover(stage, tip) {
+  if (!tip) return;
+  const place = (e) => {
+    const r = stage.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = e.clientX - r.left + 14;
+    let y = e.clientY - r.top + 14;
+    if (x + tw > r.width - 4) x = e.clientX - r.left - tw - 14;
+    if (y + th > r.height - 4) y = r.height - th - 6;
+    tip.style.transform = `translate(${Math.max(4, x).toFixed(0)}px, ${Math.max(4, y).toFixed(0)}px)`;
+  };
+  const row = (k, v) => v ? `<div class="ajt-row"><span class="ajt-k">${k}</span><span class="ajt-v">${escHtml(v)}</span></div>` : "";
+  stage.addEventListener("mouseover", (e) => {
+    const mark = e.target.closest("[data-tl-tip]");
+    if (!mark) return;
+    tip.innerHTML = `<div class="ajt-name">${escHtml(mark.getAttribute("data-tl-title") || "")}</div>`
+      + row("when", mark.getAttribute("data-tl-date"))
+      + row("kind", mark.getAttribute("data-tl-kind"))
+      + row("detail", mark.getAttribute("data-tl-detail"));
+    tip.hidden = false;
+    place(e);
+  });
+  stage.addEventListener("mousemove", (e) => { if (!tip.hidden && e.target.closest("[data-tl-tip]")) place(e); });
+  stage.addEventListener("mouseout", (e) => {
+    const mark = e.target.closest("[data-tl-tip]");
+    if (mark && !mark.contains(e.relatedTarget)) tip.hidden = true;
+  });
+}
+
 // ─── constellation hover ─────────────────────────────────────────────
 function wireConstellationHover() {
   wireConstellationModeNav();
@@ -7348,6 +7397,9 @@ function wireConstellationHover() {
     // ONE styled floating tooltip serves both the map and the journey scatter
     // (was a fixed hover-line on the map + a separate floating tip on journey).
     const tip = stage.querySelector(".ac-tip");
+    // Timeline is a lane chart, not a node/well graph — it has its own light
+    // mark-hover and reuses the shared open-record/Escape handlers bound above.
+    if (stage.classList.contains("ac-tl-stage")) { wireTimelineHover(stage, tip); return; }
     const cohort = activeConstellationCohort();
     const teams = cohort?.teams || [];
     const clusters = cohort?.clusters || [];

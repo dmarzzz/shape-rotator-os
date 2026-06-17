@@ -7808,6 +7808,9 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-tl-line { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ac-tl-line polyline { stroke: var(--alchemy-ink-mute); stroke-width: 1.5; }
 .ac-tl-empty { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 10.5px; color: rgba(var(--ink-rgb), 0.35); }
+.ac-tl-end { position: absolute; transform: translate(-50%, -50%); width: 7px; height: 7px; border-radius: 50%; background: var(--alchemy-paper-warm); }
+.ac-tl-evt.is-multi { width: 18px; }
+.ac-tl-evt, .ac-tl-pres, .ac-tl-end { cursor: help; }
 
 .ac-tl-pres { position: absolute; bottom: 4px; transform: translateX(-50%); width: 7%; min-height: 2px; background: rgba(var(--ink-rgb), 0.12); border-radius: 2px 2px 0 0; }
 .ac-tl-pres.is-future { background: rgba(var(--ink-rgb), 0.06); }
