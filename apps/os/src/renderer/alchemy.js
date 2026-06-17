@@ -34,6 +34,7 @@ import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
   dependencyPairKey, dependencySafeToken,
   constellationDependencyEdges, constellationIndegree, constellationModel, teamKind, teamsOfKind,
+  packBubbles, packSiblings, enclose, CLUSTER_TO_THEME, THEME_LABELS,
 } from "./cohort-relations.js";
 import {
   contextRawScriptById as findContextRawScriptById,
@@ -67,6 +68,7 @@ const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "w
 const CONST_TIER_LS_KEY = "srwk:const_tier";  // pinned line-source tier: "all" | "record" | "mention"
 const CONST_PEOPLE_LINK_LS_KEY = "srwk:const_people_link"; // pinned people-map link family: "all" | "same-team" | "profile" | "shared-context"
 const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem view: cluster record_id | "all"
+const CONST_GRANULARITY_LS_KEY = "srwk:const_granularity"; // bubble map grain: "themes" | "clusters" | "skills"
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
 const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
@@ -213,6 +215,7 @@ const state = {
   constellationLens: "all",   // map line lens: "all" | "relies" | "works" | "substrate" — changes which relationship claim is foregrounded
   constPeopleLinkFilter: "all", // people-map legend/filter: "all" | "same-team" | "profile" | "shared-context"
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
+  constellationGranularity: "clusters", // bubble map grain: "themes" | "clusters" | "skills"
   constSelection: null,       // persistent constellation inspector selection: { type:"team"|"person", rid } | { type:"edge", from, to }
   renderSeq: 0,               // monotonic render guard; stale delayed swaps must not overwrite the latest view
   calendar: {                     // calendar tab state — see renderCalendar()
@@ -264,6 +267,7 @@ export function mount(container) {
     state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
     state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
     state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
+    state.constellationGranularity = constNormalizeGranularity(localStorage.getItem(CONST_GRANULARITY_LS_KEY));
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
     const savedProgramPage = localStorage.getItem(PROGRAM_PAGE_LS_KEY);
@@ -2238,9 +2242,10 @@ const CONST_VIEWS = [
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
-  if (mode === "circle") return "ring";
-  if (mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
-  if (mode === "ring" || mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab") return mode;
+  // The node-link "ring"/"map" layouts are retired in favour of the nested
+  // bubble map; old saved state and deep-links resolve to the relationship map.
+  if (mode === "circle" || mode === "ring" || mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
+  if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab") return mode;
   return "map";
 }
 function constellationNav(active) {
@@ -2357,6 +2362,17 @@ const CONST_NETWORK_SCOPES = [
 function constNormalizeNetworkScope(raw) {
   return String(raw || "").toLowerCase() === "people" ? "people" : "projects";
 }
+// Bubble-map grain: fewer↔more circles. Replaces the old map/ring layout
+// toggle in the sentence bar — same control slot, different question.
+const CONST_GRANULARITIES = [
+  { key: "themes", label: "themes", hint: "a few big spaces (high level)" },
+  { key: "clusters", label: "clusters", hint: "ecosystem groupings (default)" },
+  { key: "skills", label: "skills", hint: "many fine spaces (low level)" },
+];
+function constNormalizeGranularity(raw) {
+  const g = String(raw || "").toLowerCase();
+  return (g === "themes" || g === "clusters" || g === "skills") ? g : "clusters";
+}
 function constNormalizeEdgeTier(raw) {
   const tier = String(raw || "").toLowerCase();
   return tier === "record" || tier === "mention" ? tier : "all";
@@ -2440,8 +2456,8 @@ function constSentenceUnit({ menu, token, ariaMenu, options }) {
       <div class="ac-sent-menu" data-sent-menu-for="${escAttr(menu)}" role="listbox" aria-label="${escAttr(ariaMenu)}" hidden>${options}</div>
     </span>`;
 }
-function constellationSentenceBar({ view = "map", scope = "projects", lens = "all", metrics = {}, tier = "all", peopleLinkFilter = "all" } = {}) {
-  const isRing = view === "ring";
+function constellationSentenceBar({ view = "bubble", scope = "projects", granularity = "clusters", lens = "all", metrics = {}, tier = "all", peopleLinkFilter = "all" } = {}) {
+  void view; void lens; void metrics; void tier;
   const activeScope = constNormalizeNetworkScope(scope);
   const scopeUnit = constSentenceUnit({
     menu: "scope",
@@ -2474,52 +2490,27 @@ function constellationSentenceBar({ view = "map", scope = "projects", lens = "al
         ${CONST_PEOPLE_LINK_FILTERS.map(linkChip).join("")}
       </div>`;
   }
-  const activeLayout = isRing ? "ring" : "map";
-  const layoutSpec = CONST_MAP_LAYOUTS.find(v => v.mode === activeLayout) || CONST_MAP_LAYOUTS[0];
-  const layoutUnit = constSentenceUnit({
-    menu: "layout",
-    ariaMenu: "map layout",
-    token: constSentenceToken({ menu: "layout", label: layoutSpec.label, aria: `layout: ${layoutSpec.label} — change map geometry` }),
-    options: CONST_MAP_LAYOUTS.map(v => constSentenceOption({
-      attr: "data-const-map-layout", value: v.mode, selected: v.mode === activeLayout,
-      label: v.label, note: v.hint,
+  const activeGran = constNormalizeGranularity(granularity);
+  const granSpec = CONST_GRANULARITIES.find(g => g.key === activeGran) || CONST_GRANULARITIES[1];
+  const granUnit = constSentenceUnit({
+    menu: "granularity",
+    ariaMenu: "bubble map granularity",
+    token: constSentenceToken({ menu: "granularity", label: granSpec.label, aria: `grouped by ${granSpec.label} — change how many spaces` }),
+    options: CONST_GRANULARITIES.map(g => constSentenceOption({
+      attr: "data-const-granularity", value: g.key, selected: g.key === activeGran,
+      label: g.label, note: g.hint,
     })).join(""),
   });
-  const activeLens = constNormalizeConstellationLens(lens);
-  const lensSpec = CONST_LENSES.find(l => l.lens === activeLens) || CONST_LENSES[0];
-  const lensCount = constellationLensMetric(activeLens, metrics);
-  const lensUnit = isRing ? "" : constSentenceUnit({
-    menu: "lens",
-    ariaMenu: "map lens",
-    token: constSentenceToken({
-      menu: "lens", label: lensSpec.label, count: lensCount,
-      aria: `lines: ${lensSpec.label}${typeof lensCount === "number" ? `, ${lensCount}` : ""} — change relationship lens`,
-    }),
-    options: CONST_LENSES.map(l => {
-      const metric = constellationLensMetric(l.lens, metrics);
-      return constSentenceOption({
-        attr: "data-const-lens", value: l.lens, selected: l.lens === activeLens,
-        label: l.label, note: l.meaning, count: metric, empty: metric === 0,
-      });
-    }).join(""),
-  });
-  const recordCount = Number(metrics.typed) || 0;
-  const mentionCount = Math.max(0, (Number(metrics.total) || 0) - recordCount);
-  const tierChip = (key, swatch, count, label, note) => `
-    <button type="button" class="ac-sent-evi ${swatch}" data-legend-edge="${key}" data-edge-tier-toggle="${key}" aria-pressed="${tier === key ? "true" : "false"}" aria-label="${escAttr(`${count} ${note}${tier === key ? " — pinned; click to show both tiers" : " — hover previews, click isolates these lines"}`)}">
-      <i aria-hidden="true"></i><em>${count}</em>&nbsp;${escHtml(label)}
-    </button>`;
+  // The bubble map has no edges, so the old line lens + record/mention tier
+  // chips are gone; the only verb is grain, and a quiet legend names what the
+  // visual channels mean (size / shade / colour).
   return `
-    <div class="ac-sentence" role="group" aria-label="map filters">
+    <div class="ac-sentence" role="group" aria-label="bubble map controls">
       <span class="ac-sent-word">showing</span>
       ${scopeUnit}
-      <span class="ac-sent-word">as</span>
-      ${layoutUnit}
-      ${lensUnit ? `<span class="ac-sent-word">· lines</span>${lensUnit}` : ""}
-      <span class="ac-sent-word">· backed by</span>
-      ${tierChip("record", "is-typed", recordCount, "confirmed", "relationship records — typed, with status and evidence")}
-      <span class="ac-sent-word">+</span>
-      ${tierChip("mention", "is-profile", mentionCount, "unconfirmed", "profile mentions — leads that need confirmation")}
+      <span class="ac-sent-word">grouped by</span>
+      ${granUnit}
+      <span class="ac-sent-legend">size <b>maturity</b> · shade <b>depended-on</b> · ${[["tee", "tee"], ["ai", "ai"], ["crypto", "crypto"], ["app-ux", "ux"]].map(([k, lbl]) => `<i class="ac-dom-sw" style="background:${EGO_DOMAIN_FILL[k]}" aria-hidden="true"></i>${lbl}`).join(" ")}</span>
     </div>`;
 }
 // Multi-select include chip (journey's teams/projects/side toggles): the
@@ -4875,6 +4866,7 @@ function constTeamInspectorHtml(team, ctx) {
         ${success.map(s => `<span>${escHtml(s)}</span>`).join("")}
       </div>
     </div>
+    <section class="ac-inspector-section ac-overlap-lead">${constEgocentricOverlapSvg(team, ctx)}</section>
     ${constStackPlacementHtml(team, ctx)}
     ${constTeamActionCardHtml(team, ctx)}
     ${constTeamPeopleHtml(team, ctx)}
@@ -4883,6 +4875,94 @@ function constTeamInspectorHtml(team, ctx) {
     ${marketFitSection}
     ${transcriptCues}
     ${sourceProofDetails}`;
+}
+
+const EGO_DOMAIN_FILL = { tee: "#C0492E", ai: "#D9913D", crypto: "#9A5BA6", "app-ux": "#3F9B8E", other: "#8a7d75" };
+function constEgoNodeFill(team) { return EGO_DOMAIN_FILL[constDomainClass(team?.domain)] || EGO_DOMAIN_FILL.other; }
+
+// Per-company overlap: the selected team centered, every space (cluster) it
+// belongs to drawn as an overlapping circle, with co-members placed by how many
+// of its spaces they share — the teams in the overlaps (ringed) are its closest
+// collaboration-or-collision candidates. This is the multi-membership truth the
+// global bubble map must flatten to a single home; here it is restored, scoped
+// to one company so a Venn is legible.
+function constEgocentricOverlapSvg(team, ctx) {
+  const clusters = Array.isArray(ctx?.clusters) ? ctx.clusters : [];
+  const rid = team?.record_id;
+  const spaces = clusters
+    .filter(c => Array.isArray(c.teams) && c.teams.includes(rid))
+    .map(c => ({ label: c.label || c.name || c.record_id, members: c.teams.filter(id => id !== rid) }));
+  const N = spaces.length;
+  if (!N) return `<p class="ac-inspector-note">Not in a shared space yet — overlap appears once ${escHtml(team?.name || "this team")} joins a cluster.</p>`;
+  const W = 360, H = 300, CX = 180, CY = 150, D = 54, R = 78;
+  const u = spaces.map((_, i) => { const a = (-90 + i * 360 / N) * Math.PI / 180; return [Math.cos(a), Math.sin(a)]; });
+  let circles = "";
+  for (let i = 0; i < N; i++) {
+    const cx = CX + u[i][0] * D, cy = CY + u[i][1] * D;
+    const lx = CX + u[i][0] * (D + R + 6), ly = CY + u[i][1] * (D + R + 6);
+    const anchor = u[i][0] > 0.3 ? "start" : (u[i][0] < -0.3 ? "end" : "middle");
+    circles += `<circle class="ac-ego-space" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${R}"/>`
+      + `<text class="ac-ego-space-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}">${escHtml(constShortText(spaces[i].label, 22))}</text>`;
+  }
+  const share = new Map();
+  spaces.forEach((sp, i) => sp.members.forEach(m => { (share.get(m) || share.set(m, []).get(m)).push(i); }));
+  const singlesByPetal = new Map(); const multi = [];
+  for (const [m, arr] of share) { if (arr.length === 1) (singlesByPetal.get(arr[0]) || singlesByPetal.set(arr[0], []).get(arr[0])).push(m); else multi.push(m); }
+  const dot = (m, x, y, ringed) => {
+    const t = ctx?.teamById?.get(m); const nm = t?.name || m;
+    const shared = (share.get(m) || []).map(i => spaces[i].label).join(", ");
+    return `<g class="ac-ego-node${ringed ? " is-multi" : ""}" data-ego-refocus="${escAttr(m)}" role="button" tabindex="0" aria-label="${escAttr(`focus ${nm}`)}">`
+      + (ringed ? `<circle class="ac-ego-ring" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9.5"/>` : "")
+      + `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="${constEgoNodeFill(t)}"/>`
+      + `<title>${escHtml(`${nm} — shares: ${shared}`)}</title></g>`;
+  };
+  let nodes = "";
+  for (let i = 0; i < N; i++) {
+    const all = singlesByPetal.get(i) || []; const list = all.slice(0, 8); const extra = all.length - list.length;
+    const a0 = -90 + i * 360 / N;
+    list.forEach((m, k) => {
+      const spread = Math.min(46, 13 * Math.max(0, list.length - 1));
+      const a = (list.length > 1 ? a0 - spread / 2 + spread * k / (list.length - 1) : a0) * Math.PI / 180;
+      const rr = D + R * 0.5;
+      nodes += dot(m, CX + Math.cos(a) * rr, CY + Math.sin(a) * rr, false);
+    });
+    if (extra > 0) { const a = a0 * Math.PI / 180, rr = D + R * 0.82; nodes += `<text class="ac-ego-more" x="${(CX + Math.cos(a) * rr).toFixed(1)}" y="${(CY + Math.sin(a) * rr).toFixed(1)}" text-anchor="middle">+${extra}</text>`; }
+  }
+  multi.forEach((m, k) => {
+    let dx = 0, dy = 0; (share.get(m) || []).forEach(i => { dx += u[i][0]; dy += u[i][1]; });
+    const len = Math.hypot(dx, dy) || 1; const jr = (k % 2 ? 1 : -1) * 7;
+    nodes += dot(m, CX + dx / len * (D * 0.42) + jr, CY + dy / len * (D * 0.42) + (k % 3 - 1) * 8, true);
+  });
+  const focal = `<g class="ac-ego-focal"><circle class="ac-ego-focal-ring" cx="${CX}" cy="${CY}" r="13"/><circle cx="${CX}" cy="${CY}" r="9" fill="${constEgoNodeFill(team)}"/><text class="ac-ego-focal-label" x="${CX}" y="${CY + 27}" text-anchor="middle">${escHtml(constShortText(team.name || rid, 18))}</text></g>`;
+  return `<svg class="ac-ego-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escAttr(`${team.name || rid} overlap across ${N} spaces`)}">${circles}${nodes}${focal}</svg>`
+    + `<p class="ac-ego-caption">In ${N} space${N === 1 ? "" : "s"}. ${multi.length} team${multi.length === 1 ? " shares" : "s share"} more than one — its closest collaboration-or-collision candidate${multi.length === 1 ? "" : "s"}.${multi.length ? " Click a co-member to recenter." : ""}</p>`;
+}
+
+// Compact hover preview for the side inspector (replaces the floating tooltip
+// in the bubble map — one info surface, not two). Identity at a glance; the
+// full intersection view is one click away.
+function constTeamPreviewHtml(team, ctx) {
+  const rid = team.record_id;
+  const clusters = Array.isArray(ctx?.clusters) ? ctx.clusters : [];
+  const spaces = clusters.filter(c => Array.isArray(c.teams) && c.teams.includes(rid)).map(c => c.label || c.name || c.record_id);
+  const dependedOn = (ctx?.inBy?.get(rid) || []).length;
+  const stage = team?.journey?.stage;
+  const focus = constShortText(team.focus || team.now || "", 130);
+  return `
+    <div class="ac-inspector-hero is-preview" data-const-team="${escAttr(rid)}">
+      <div class="ac-inspector-kicker">hovering — click to pin its intersections</div>
+      <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(rid)}">${escHtml(team.name || rid)}</button></h3>
+      <div class="ac-inspector-pills">
+        <span>${escHtml(CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other")}</span>
+        ${Number.isFinite(stage) ? `<span>maturity ${escHtml(String(stage))}</span>` : ""}
+        <span>${dependedOn} depend on it</span>
+      </div>
+      ${focus ? `<p>${escHtml(focus)}</p>` : ""}
+    </div>
+    <div class="ac-preview-spaces">
+      <span class="ac-preview-k">in ${spaces.length} space${spaces.length === 1 ? "" : "s"}</span>
+      ${spaces.map(s => `<span class="ac-preview-space">${escHtml(constShortText(s, 30))}</span>`).join("")}
+    </div>`;
 }
 
 function constEdgeInspectorHtml(edge, ctx) {
@@ -6496,6 +6576,26 @@ function renderConstellationDeltaLedger(delta) {
 }
 
 
+// One nested container ring (theme / cluster / skill bucket) for the bubble
+// map. Reuses the well accent tokens so it flips for light mode. A redundant
+// single-member container is skipped — its team bubble already reads as the
+// space, so an extra ring around one node is just noise.
+function constBubbleContainerSvg(c, accentStyle) {
+  if (!c || c.redundant) return "";
+  // Level-aware label gate: theme rings are large; cluster/skill rings smaller.
+  // A 9px label only earns its place when the ring can hold it without crowding
+  // the bubbles inside (the old flat r>30 dropped labels into tiny circles).
+  const showLabel = c.level === "theme" ? c.r > 90 : c.r > 44;
+  const labelY = (c.cy - c.r + 14).toFixed(1);
+  const count = Array.isArray(c.members) ? c.members.length : 0;
+  const aria = `focus ${c.label || c.id}${c.level === "cluster" ? " ecosystem" : ` ${c.level}`}, ${count} team${count === 1 ? "" : "s"}`;
+  return `
+    <g class="ac-bubble-container" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle)}">
+      <circle class="ac-bubble-container-shape" cx="${c.cx.toFixed(1)}" cy="${c.cy.toFixed(1)}" r="${c.r.toFixed(1)}"/>
+      ${showLabel ? `<text class="ac-bubble-container-label" x="${c.cx.toFixed(1)}" y="${labelY}" text-anchor="middle">${escHtml(c.label || "")}</text>` : ""}
+    </g>`;
+}
+
 function renderConstellation() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
@@ -6520,21 +6620,30 @@ function renderConstellation() {
   }
   if (mode === "shipped") { renderSayDidShipped(); return; }
 
-  const lens = constNormalizeConstellationLens(state.constellationLens);
-  state.constellationLens = lens;
   const edgeTier = constNormalizeEdgeTier(state.constEdgeTier);
-  const viewMode = mode === "ring" ? "ring" : "map";
-  const networkScope = viewMode === "map" ? constNormalizeNetworkScope(state.constellationScope) : "projects";
-  const activeLens = viewMode === "ring" ? "all" : lens;
-  const W = 980, H = 540;
+  const networkScope = constNormalizeNetworkScope(state.constellationScope);
+  // Squarer viewBox than the old node-link map: the packed cohort is a circle,
+  // so a near-square frame fills the stage instead of pillarboxing a wide one.
+  const W = 620, H = 600;
   const model = constellationModel(teams, clusters, cohort?.dependencies || []);
-  const layout = viewMode === "ring" ? placeConstellationRing(model, W, H) : placeConstellation(model, W, H);
-  const { wells, ringSegments, pos, ringCenter } = layout;
-  const edges = model.edges.filter(e => pos.has(e.from) && pos.has(e.to));
+  // People scope keeps the existing person-to-person network (deferred work).
   if (networkScope === "people") {
-    renderConstellationPeople(teams, people, clusters, edges);
+    renderConstellationPeople(teams, people, clusters, model.edges);
     return;
   }
+  // Relationship map = nested bubble map. Containment (theme → cluster/skill →
+  // team) replaces the node-link layout: size = maturity, shade = depended-on,
+  // colour = domain. The old map/ring layouts are retired (ring → map above).
+  const viewMode = "bubble";
+  const granularity = constNormalizeGranularity(state.constellationGranularity);
+  state.constellationGranularity = granularity;
+  const activeLens = "all";
+  const stageOf = (team) => team?.journey?.stage;
+  const { pos, containers } = packBubbles(model, granularity, { stageOf, W, H });
+  const wells = []; const ringSegments = []; const ringCenter = null;
+  // Edges aren't drawn in the bubble map, but the inspector still reads them
+  // (who relies on whom) and the per-company overlap is built from them.
+  const edges = model.edges.filter(e => pos.has(e.from) && pos.has(e.to));
   const interestCtx = constInterestContext(teams, clusters, edges, state.constInterest);
   const coverage = constConstellationCoverage(teams, edges);
   const relationshipBreakdown = constRelationshipBreakdown(edges);
@@ -6650,13 +6759,24 @@ function renderConstellation() {
   // Draw small→large so keystones sit on top of the pile. Node color is always
   // domain (one coding across every lens). Under the relationships lens, nodes
   // with no edge are flagged is-orphan (CSS fades them).
-  const nodeMarkup = [...pos.values()].sort((p, q) => p.r - q.r).map(({ team, x, y, r, angle, wellId, wellSize, rank }) => {
+  const nodeMarkup = [...pos.values()].sort((p, q) => p.r - q.r).map(({ team, x, y, r, angle, wellId, wellSize, rank, shade }) => {
+    const isBubble = viewMode === "bubble";
+    // Shade = how many teams depend on this one. Opacity alone reads poorly on
+    // black, so influence drives a bright domain-coloured RIM (stroke weight)
+    // as well — keystones like TeeSQL/Contexto pop as the load-bearing teams
+    // they are. fill-opacity, never element opacity (that would fade the rim +
+    // label and fight the hover/selection rules).
+    const shadeV = Number.isFinite(shade) ? shade : 0.4;
+    const shadeStyle = isBubble ? `fill-opacity:${(0.58 + 0.42 * shadeV).toFixed(2)};stroke-width:${(0.8 + 2.4 * shadeV).toFixed(2)}` : "";
+    // View-transition name so each team bubble morphs to its new home when the
+    // granularity changes (same team persists across grains by record_id).
+    const vtName = isBubble ? `;view-transition-name:ac-vt-${dependencySafeToken(team.record_id)}` : "";
     const orphan = (activeLens !== "all" && !lensConnected.has(team.record_id)) ? " is-orphan" : "";
     const interestClass = interestCtx.active
       ? (interestCtx.coreIds.has(team.record_id) ? " is-interest-core" : (interestCtx.neighborIds.has(team.record_id) ? " is-interest-neighbor" : " is-interest-outside"))
       : "";
     const densityClass = viewMode === "map" && wellSize > 1 ? " is-dense-well" : "";
-    const keystoneClass = viewMode === "map" && rank === 0 ? " is-keystone-label" : "";
+    const keystoneClass = ((viewMode === "map" || viewMode === "bubble") && rank === 0) ? " is-keystone-label" : "";
     const secondaryClass = viewMode === "map" && wellSize > 1 && rank > 0 ? " is-secondary-label" : "";
     const sourceClass = `${typedConnected.has(team.record_id) ? " is-source-backed" : ""}${profileLinkConnected.has(team.record_id) ? " is-profile-link" : ""}${unclusteredIds.has(team.record_id) ? " is-unclustered" : ""}${journeyAssessed(team) ? "" : " is-journey-missing"}`;
     const gapCount = profileLinkDegree.get(team.record_id) || 0;
@@ -6665,7 +6785,7 @@ function renderConstellation() {
     // stroke WEIGHT carrying the record count (a 0.35px-per-record radius ramp
     // was indistinguishable between 1 and 6 records). Exact count stays in the
     // title + inspector.
-    const typedRing = typedCount
+    const typedRing = (!isBubble && typedCount)
       ? `<circle class="ac-node-record-ring" r="${(r + 3.2).toFixed(1)}" style="stroke-width:${(0.8 + Math.min(typedCount, 5) * 0.3).toFixed(2)}"><title>${escHtml(`${typedCount} relationship record${typedCount === 1 ? "" : "s"}`)}</title></circle>`
       : "";
     const bridgeRank = bridgeRanks.get(team.record_id);
@@ -6688,13 +6808,18 @@ function renderConstellation() {
     const labelY = radialLabel
       ? (Math.sin(angle) < -0.25 ? -r - 8 - (labelOut - 6) : (Math.sin(angle) > 0.25 ? r + labelGap + (labelOut - 6) : 3))
       : r + labelGap;
+    // Bubble map: small bubbles in a tight pack hide their resting label and
+    // fade it in on hover/focus (data-small-bubble + CSS) — no floating tooltip
+    // (the side inspector is the one info surface); aria-label names them for
+    // screen readers and the hover preview names them in the sidebar.
     const labelLines = constNodeLabelLines(team, viewMode);
+    const smallBubble = isBubble && r < 14 && rank !== 0;
     const fullLabel = constText(team.name || team.record_id);
     return `
-    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}" data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}"${smallBubble ? ' data-small-bubble="true"' : ""} data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
       <circle class="ac-node-hit" r="${Math.max(18, r + 10).toFixed(1)}"/>
       ${typedRing}
-      <circle class="ac-node-shape ${team.is_mentor ? "ac-node-mentor" : ""}" r="${r.toFixed(1)}"/>
+      <circle class="ac-node-shape ${team.is_mentor ? "ac-node-mentor" : ""}" r="${r.toFixed(1)}" style="${escAttr(shadeStyle)}"/>
       ${constNodeLabelSvg(labelLines, labelX, labelY, labelAnchor, fullLabel)}
     </g>`;
   }).join("");
@@ -6704,15 +6829,17 @@ function renderConstellation() {
   // hover-isolate contract, plus click-to-pin via data-edge-tier on the
   // stage). Node color stays domain in every lens; cluster identity is
   // read from the labeled wells, so no legend swaps with the lens.
+  const containerMarkup = containers.map((c, idx) =>
+    constBubbleContainerSvg(c, constWellAccentStyle(constWellAccentTokens(c.id, idx)))
+  ).join("");
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">
     ${cohortPageHead(viewMode)}
-    ${viewMode === "map" || viewMode === "ring" ? `
       <div class="alch-view-controls" data-shape-occluder>
         ${constTimelineDropdownHtml()}
-        ${constellationSentenceBar({ view: viewMode, scope: "projects", lens, metrics: { edges: coverage.edges, ...relationshipBreakdown }, tier: edgeTier })}
+        ${constellationSentenceBar({ view: viewMode, scope: "projects", granularity })}
         ${constSelectionChipHtml()}
-      </div>` : ""}
+      </div>
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
       <div class="alch-const-workbench">
         <div class="alch-const-main">
@@ -6726,8 +6853,8 @@ function renderConstellation() {
                   <path d="M0,0 L10,5 L0,10 z"/>
                 </marker>
               </defs>
-              <g class="ac-wells">${viewMode === "ring" ? ringMarkup : wellMarkup}</g>
-              <g class="ac-edges">${edgeMarkup}</g>
+              <g class="ac-wells">${containerMarkup}</g>
+              <g class="ac-edges"></g>
               <g class="ac-nodes">${nodeMarkup}</g>
             </svg>
             <div class="ac-tip" hidden></div>
@@ -7316,11 +7443,65 @@ function wireConstellationHover() {
         setInterestFocus(wellId);
       });
     }
-    // Map nodes: hover lights the touching edges + shows the provenance tip.
+    // Bubble map: hover UPDATES THE SIDE INSPECTOR (one info surface, not a
+    // separate floating tip), focuses/dims the hovered bubble, and click pins
+    // the team — whose inspector leads with its intersection (Venn) view. The
+    // legacy map/ring path still uses the provenance tooltip.
+    const isBubble = stage.getAttribute("data-view") === "bubble";
+    let lastPreviewRid = null;
+    const previewInspector = (rid) => {
+      if (rid === lastPreviewRid) return; // de-thrash re-entering the same bubble
+      const body = state.canvas?.querySelector(".ac-inspector-body");
+      const t = teamById.get(rid);
+      if (!body || !t) return;
+      const pinnedRid = state.constSelection?.type === "team" ? state.constSelection.rid : null;
+      // Hovering the pinned team: just drop any strip — its dossier is already up.
+      if (pinnedRid === rid) { body.querySelector(".ac-hover-strip")?.remove(); lastPreviewRid = rid; return; }
+      lastPreviewRid = rid;
+      if (pinnedRid) {
+        // A team is pinned: don't clobber its dossier — float a compact preview
+        // strip on top, leaving the pinned intersection view intact below.
+        let strip = body.querySelector(".ac-hover-strip");
+        if (!strip) { strip = document.createElement("div"); strip.className = "ac-hover-strip"; body.prepend(strip); }
+        strip.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
+      } else {
+        body.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
+      }
+    };
+    const restoreInspector = () => {
+      lastPreviewRid = null;
+      const body = state.canvas?.querySelector(".ac-inspector-body");
+      if (!body) return;
+      body.querySelector(".ac-hover-strip")?.remove();
+      if (state.constSelection) return; // pinned dossier stays put
+      body.innerHTML = constellationInspectorLeadHtml(inspectorCtx, state.constSelection) + constellationInspectorHtml(state.constSelection, inspectorCtx);
+      wireExternalLinks(body);
+    };
+    // Click/Enter a container ring to focus its space: its member bubbles stay
+    // lit while the rest of the cohort dims. Works at EVERY grain (theme /
+    // cluster / skill) via the descendant-member set; re-trigger clears.
+    const clearContainerFocus = () => {
+      stage.removeAttribute("data-container-focus");
+      stage.querySelectorAll(".ac-node-group.is-container-core").forEach(n => n.classList.remove("is-container-core"));
+    };
+    const focusContainer = (el) => {
+      const cid = el.getAttribute("data-container");
+      if (stage.getAttribute("data-container-focus") === cid) { clearContainerFocus(); return; }
+      const members = new Set((el.getAttribute("data-members") || "").split(" ").filter(Boolean));
+      stage.setAttribute("data-container-focus", cid);
+      stage.querySelectorAll(".ac-node-group").forEach(n => n.classList.toggle("is-container-core", members.has(n.dataset.recordId)));
+    };
+    if (isBubble) {
+      for (const c of stage.querySelectorAll(".ac-bubble-container[data-container]")) {
+        c.addEventListener("click", (e) => { e.preventDefault(); focusContainer(c); });
+        c.addEventListener("keydown", (e) => { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); focusContainer(c); });
+      }
+    }
     for (const g of stage.querySelectorAll(".ac-node-group")) {
       const rid = g.dataset.recordId;
       g.addEventListener("mouseenter", (e) => {
         setConstellationHover(stage, rid, true);
+        if (isBubble) { previewInspector(rid); return; }
         const t = teamById.get(rid);
         if (tip && t) {
           tip.innerHTML = constNodeTipHTML(t, indeg.get(rid) || 0, inspectorCtx.outBy, inspectorCtx.inBy, clusterLabelsByRid.get(rid), sourceStatsByRid.get(rid));
@@ -7328,22 +7509,26 @@ function wireConstellationHover() {
           positionConstTip(stage, tip, e);
         }
       });
-      g.addEventListener("mousemove", (e) => positionConstTip(stage, tip, e));
+      g.addEventListener("mousemove", (e) => { if (!isBubble) positionConstTip(stage, tip, e); });
       g.addEventListener("mouseleave", () => {
         setConstellationHover(stage, rid, false);
+        if (isBubble) { restoreInspector(); return; }
         if (tip) tip.hidden = true;
       });
       g.addEventListener("click", (e) => {
         e.preventDefault();
+        if (isBubble) clearContainerFocus();
         selectOrOpen("team", rid);
       });
       g.addEventListener("focus", () => {
         setConstellationHover(stage, rid, true);
+        if (isBubble) previewInspector(rid);
       });
-      g.addEventListener("blur", () => setConstellationHover(stage, rid, false));
+      g.addEventListener("blur", () => { setConstellationHover(stage, rid, false); if (isBubble) restoreInspector(); });
       g.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
+        if (isBubble) clearContainerFocus();
         selectOrOpen("team", rid);
       });
     }
@@ -7567,15 +7752,21 @@ function wireConstellationHover() {
       render();
     });
   }
-  // Map layout: same question, alternate geometry. Persisted with view mode.
-  for (const btn of state.canvas.querySelectorAll("[data-const-map-layout]")) {
+  // Bubble granularity: themes / clusters / skills — fewer↔more circles. Took
+  // over the old map/ring layout slot (those layouts are retired).
+  for (const btn of state.canvas.querySelectorAll("[data-const-granularity]")) {
     btn.addEventListener("click", () => {
-      const next = btn.dataset.constMapLayout === "ring" ? "ring" : "map";
-      if (next === state.constellationMode) { closeConstSentenceMenus(); return; }
-      state.constellationMode = next;
+      const next = constNormalizeGranularity(btn.dataset.constGranularity);
+      if (next === state.constellationGranularity) { closeConstSentenceMenus(); return; }
+      state.constellationGranularity = next;
       state.constSelection = null;
-      try { localStorage.setItem(CONST_MODE_LS_KEY, next); } catch {}
-      render();
+      try { localStorage.setItem(CONST_GRANULARITY_LS_KEY, next); } catch {}
+      // Morph bubbles between grains via View Transitions (named per team), so
+      // the cohort reshapes instead of hard-cutting. Falls back to a plain
+      // render where unsupported or when reduced motion is requested.
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
+      else render();
     });
   }
   // Map lens: re-weights the same map by line type. Persisted.
@@ -7683,10 +7874,28 @@ function wireConstellationHover() {
   const inspector = state.canvas.querySelector(".ac-inspector");
   if (inspector) {
     wireExternalLinks(inspector);
+    // Keyboard parity for the per-company overlap co-members (Enter/Space
+    // recenters, matching the click delegation below).
+    inspector.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const egoTarget = e.target.closest("[data-ego-refocus]");
+      if (!egoTarget) return;
+      e.preventDefault();
+      const rid = egoTarget.getAttribute("data-ego-refocus");
+      if (rid) setConstellationInspector({ type: "team", rid }, constellationCurrentInspectorContext());
+    });
     inspector.addEventListener("click", (e) => {
       const clearTarget = e.target.closest("[data-const-clear-selection]");
       if (clearTarget) {
         setConstellationInspector(null, constellationCurrentInspectorContext());
+        return;
+      }
+      // Per-company overlap: clicking a co-member recenters the overlap on it
+      // (partial inspector update; the bubble map canvas is untouched).
+      const egoTarget = e.target.closest("[data-ego-refocus]");
+      if (egoTarget) {
+        const rid = egoTarget.getAttribute("data-ego-refocus");
+        if (rid) setConstellationInspector({ type: "team", rid }, constellationCurrentInspectorContext());
         return;
       }
       const openTarget = e.target.closest("[data-const-open-record]");
