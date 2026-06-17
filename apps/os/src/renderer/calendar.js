@@ -316,7 +316,7 @@ let _model = null;
 // view: "cal" (the timeline grid) | "presence" (caller-supplied availability
 // gantt — the same renderer the legacy calendar page uses, passed in as
 // presenceHtml so this module stays presentation-only).
-export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "" } = {}) {
+export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", timelineHtml = "" } = {}) {
   const tab = data?.tabs?.[PRIMARY_TAB] || [];
   const safeWeekIdx = Math.max(0, Math.min(WEEK_COUNT - 1, weekIdx | 0));
   const week = parseWeekRow(tab[2 + safeWeekIdx] || [], safeWeekIdx);
@@ -485,15 +485,19 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
             aria-selected="${i === safeWeekIdx}" aria-label="week ${i + 1}" type="button">${i + 1}</button>`).join("");
 
   const isPresence = view === "presence";
+  const isTimeline = view === "timeline";
   // Same shared view-nav component as the cohort / context / program pages
   // (.alch-page-views) — one visual language for in-page tabs everywhere.
   const viewTabs = `
     <nav class="alch-page-views" role="tablist" aria-label="calendar view">
-      <button class="alch-page-view-btn" data-c2-view="cal" role="tab" aria-selected="${!isPresence}" type="button">
+      <button class="alch-page-view-btn" data-c2-view="cal" role="tab" aria-selected="${!isPresence && !isTimeline}" type="button">
         <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span><span class="apv-label">calendar</span>
       </button>
       <button class="alch-page-view-btn" data-c2-view="presence" role="tab" aria-selected="${isPresence}" type="button">
         <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span><span class="apv-label">presence</span>
+      </button>
+      <button class="alch-page-view-btn" data-c2-view="timeline" role="tab" aria-selected="${isTimeline}" type="button">
+        <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16"/><path d="M8 7h11"/><path d="M6 12h9"/><path d="M10 17h8"/></svg></span><span class="apv-label">timeline</span>
       </button>
     </nav>`;
   const subscribeAction = `
@@ -512,7 +516,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       ${viewTabs}
       ${subscribeAction}
     </div>
-    ${isPresence ? "" : `
+    ${(isPresence || isTimeline) ? "" : `
     <header class="c2-masthead">
       <div class="c2-scrub" role="tablist" aria-label="program week">
         <button class="c2-scrub-arrow" data-c2-nav="prev" aria-label="previous week" ${safeWeekIdx === 0 ? "disabled" : ""} type="button">←</button>
@@ -527,6 +531,16 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         ${masthead}
         <div class="c2-presence">
           ${presenceHtml || `<div class="c2-loading">presence view not available.</div>`}
+        </div>
+      </section>`;
+  }
+
+  if (isTimeline) {
+    return `
+      <section class="c2 c2--timeline" data-phase="${escAttr(phase)}">
+        ${masthead}
+        <div class="c2-timeline">
+          ${timelineHtml || `<div class="c2-loading">timeline view not available.</div>`}
         </div>
       </section>`;
   }
