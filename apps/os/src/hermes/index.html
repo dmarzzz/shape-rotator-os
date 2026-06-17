@@ -57,6 +57,19 @@
     .install-cta { display: flex; flex-direction: column; gap: 6px; }
     .install-cta ol { margin: 4px 0 0 18px; padding: 0; color: var(--fg); }
     .install-cta li { margin: 4px 0; }
+    .connect-intro { color: var(--fg); margin: 0 0 12px; }
+    #engine-cards { display: flex; flex-direction: column; gap: 8px; }
+    .engine-card { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+    .engine-card.on { border-color: rgba(110, 231, 183, 0.4); background: rgba(110, 231, 183, 0.04); }
+    .engine-head { display: flex; align-items: baseline; gap: 10px; }
+    .engine-name { font-weight: 600; text-transform: capitalize; }
+    .engine-status { margin-left: auto; font-size: 11px; color: var(--dim); }
+    .engine-card.on .engine-status { color: var(--ok); }
+    .engine-steps { margin: 6px 0 0; color: var(--dim); font-size: 12px; line-height: 1.5; }
+    .engine-steps code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 3px; color: var(--fg); }
+    .engine-detail { margin: 4px 0 0; color: var(--ok); font-size: 12px; }
+    .connect-actions { display: flex; gap: 10px; margin-top: 14px; }
+    .connect-privacy { margin: 12px 0 0; color: var(--dim); font-size: 11px; line-height: 1.5; }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
     .footer { padding: 8px 18px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11px; display: flex; gap: 12px; }
@@ -70,20 +83,31 @@
       <span id="ollama-chip" class="chip">ollama: checking…</span>
       <span id="model-chip" class="chip">model: —</span>
       <span id="data-chip" class="chip">cohort: —</span>
+      <span id="shape-chip" class="chip">shape: —</span>
     </div>
   </header>
 
   <main>
-    <div id="setup-panel" class="panel install-cta" hidden>
-      <h2>setup</h2>
-      <div id="setup-body"></div>
+    <div id="setup-panel" class="panel" hidden>
+      <h2>connect your engine</h2>
+      <p class="connect-intro">Ask Cohort runs on <strong>your own</strong> LLM — your prompts go only to the engine you connect. Pick one to start:</p>
+      <div id="engine-cards"></div>
+      <div class="connect-actions">
+        <button id="connect-recheck" type="button">re-check</button>
+        <button id="connect-start" class="primary" type="button" disabled>start →</button>
+      </div>
+      <p class="connect-privacy">Nothing is stored or sent to our servers. Codex &amp; Claude use your own subscription; Ollama runs fully offline on your machine.</p>
     </div>
 
     <div id="ask-panel" class="ask-area" hidden>
       <div class="controls">
-        <label for="model-select" style="color: var(--dim); font-size: 11px;">model</label>
+        <label for="backend-select" style="color: var(--dim); font-size: 11px;">engine</label>
+        <select id="backend-select"></select>
+        <label id="model-label" for="model-select" style="color: var(--dim); font-size: 11px;">model</label>
         <select id="model-select"></select>
-        <button id="detect-again" type="button">re-detect</button>
+        <button id="detect-again" type="button" title="connect or switch engine">engines</button>
+        <button id="scan-shape" type="button" title="scan your GitHub + Codex sessions to define your shape">scan my shape</button>
+        <button id="define-shape" type="button" title="synthesize a structured shape read from the scan, using the selected engine">define my shape</button>
       </div>
       <textarea id="question" placeholder="ask anything about the cohort — &quot;who has worked on TEE attestation?&quot;, &quot;find me someone to pair on rust&quot;, &quot;what's andrew miller's focus this week?&quot;"></textarea>
       <div class="ask-row">
@@ -97,7 +121,7 @@
   </main>
 
   <div class="footer">
-    <span><strong>local-only</strong> · prompts + responses never leave your machine</span>
+    <span id="privacy-note"><strong>local-only</strong> · prompts + responses never leave your machine</span>
     <span id="footer-stats"></span>
   </div>
 

@@ -1,35 +1,53 @@
-// Hermes PoC — local-first cohort Q&A via Ollama.
+// Hermes / "brain" — local-first cohort Q&A with a pick-your-engine backend.
 //
-// Detects an Ollama daemon at http://127.0.0.1:11434, lists installed
-// models, and (if a Hermes-family one is present) lets the user ask
-// questions grounded in the bundled cohort surface. All inference is
-// local; the only network calls are to Ollama on loopback and to
-// GitHub (for the live cohort surface — falls back to the bundled
-// fixture).
+// Three backends, auto-detected, chosen in the "engine" dropdown:
+//   • Ollama — a local open-weight model on 127.0.0.1:11434. The renderer talks
+//              to it directly; nothing ever leaves the machine.
+//   • Codex  — the user's `codex` CLI (ChatGPT Plus/Pro sub), via the main process.
+//   • Claude — the user's `claude` CLI (Claude sub), via the main process.
 //
-// This window is opened from the app menu via main.js → createHermesWindow.
+// Codex and Claude are REMOTE (a hosted model on the user's own subscription),
+// so the privacy gate in apps/os/tina-agent.js only lets PUBLIC cohort grounding
+// reach them. The grounding here is cohort-surface.json — already the cohort-
+// public projection — so the gate passes. No API key is pasted; nothing is
+// stored or sent to our servers; the chat is not persisted. The footer line
+// reflects the active backend's locality.
 
 const OLLAMA = "http://127.0.0.1:11434";
 
 const els = {
-  ollamaChip:  document.getElementById("ollama-chip"),
-  modelChip:   document.getElementById("model-chip"),
-  dataChip:    document.getElementById("data-chip"),
-  setupPanel:  document.getElementById("setup-panel"),
-  setupBody:   document.getElementById("setup-body"),
-  askPanel:    document.getElementById("ask-panel"),
-  modelSelect: document.getElementById("model-select"),
-  detectBtn:   document.getElementById("detect-again"),
-  question:    document.getElementById("question"),
-  askBtn:      document.getElementById("ask"),
-  stopBtn:     document.getElementById("stop"),
-  response:    document.getElementById("response"),
-  footer:      document.getElementById("footer-stats"),
+  ollamaChip:   document.getElementById("ollama-chip"),
+  modelChip:    document.getElementById("model-chip"),
+  dataChip:     document.getElementById("data-chip"),
+  shapeChip:    document.getElementById("shape-chip"),
+  setupPanel:     document.getElementById("setup-panel"),
+  engineCards:    document.getElementById("engine-cards"),
+  connectRecheck: document.getElementById("connect-recheck"),
+  connectStart:   document.getElementById("connect-start"),
+  askPanel:       document.getElementById("ask-panel"),
+  backendSelect:document.getElementById("backend-select"),
+  modelLabel:   document.getElementById("model-label"),
+  modelSelect:  document.getElementById("model-select"),
+  detectBtn:    document.getElementById("detect-again"),
+  scanShapeBtn: document.getElementById("scan-shape"),
+  defineShapeBtn: document.getElementById("define-shape"),
+  question:     document.getElementById("question"),
+  askBtn:       document.getElementById("ask"),
+  stopBtn:      document.getElementById("stop"),
+  response:     document.getElementById("response"),
+  footer:       document.getElementById("footer-stats"),
+  privacyNote:  document.getElementById("privacy-note"),
 };
 
 let cohort = null;
 let chosenModel = null;
-let abortController = null;
+let abortController = null;      // ollama streaming fetch
+let backend = "ollama";         // "ollama" | "codex" | "claude"
+let tinaBackends = {};          // { codex: {label, available, version}, claude: {...} }
+let tinaOff = null;             // active tina onChunk unsubscribe
+let shape = null;               // the user's self-shape (github + codex), if scanned
+let ollamaStatus = { running: false, models: [], hermes: [] };
+const ONBOARD_KEY = "srwk:hermes:onboarded_v1";
 
 // ─── ollama discovery ─────────────────────────────────────────────────
 
@@ -54,46 +72,64 @@ function classifyModels(models) {
   return { hermes, others };
 }
 
-function renderSetup(state) {
-  els.setupPanel.hidden = false;
-  els.askPanel.hidden = true;
-  els.setupBody.innerHTML = "";
+// ─── codex / claude discovery (main process) ──────────────────────────
 
-  if (state.kind === "no-ollama") {
-    els.ollamaChip.className = "chip bad";
-    els.ollamaChip.textContent = "ollama: not running";
-    els.setupBody.innerHTML = `
-      <p>Hermes runs on top of <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> — a local inference daemon. Install once, then any Hermes (or other open-weight) model runs entirely on your machine.</p>
-      <ol>
-        <li>install Ollama: <code>brew install ollama</code> (or download from <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a>)</li>
-        <li>start it: <code>ollama serve</code> (runs on 127.0.0.1:11434)</li>
-        <li>pull a Hermes model: <code>ollama pull hermes3:8b</code> (~4.7 GB)</li>
-        <li>click <strong>re-detect</strong> above</li>
-      </ol>
-    `;
-  } else if (state.kind === "no-hermes") {
-    els.ollamaChip.className = "chip ok";
-    els.ollamaChip.textContent = "ollama: running";
-    const list = state.models.map(m => `<li><code>${m.name}</code></li>`).join("");
-    els.setupBody.innerHTML = `
-      <p>Ollama is running, but you don't have any Hermes-family models installed.</p>
-      <p>Pull one:</p>
-      <ol>
-        <li><code>ollama pull hermes3:8b</code> — Nous Hermes 3 on Llama 3.1 8B (~4.7 GB, fastest)</li>
-        <li><code>ollama pull hermes3:70b</code> — bigger but slower (~40 GB; needs ~48 GB RAM)</li>
-        <li><code>ollama pull nous-hermes2:34b</code> — older Hermes 2 on Yi 34B (~19 GB)</li>
-      </ol>
-      <p>Installed models you have: <code>${list || "(none)"}</code></p>
-      <p>The PoC also works with any non-Hermes Ollama model if you'd prefer to pick from the dropdown after re-detecting.</p>
-    `;
-  }
+async function detectTina() {
+  if (!window.api || !window.api.tina) { tinaBackends = {}; return tinaBackends; }
+  try { tinaBackends = (await window.api.tina.backends()) || {}; }
+  catch { tinaBackends = {}; }
+  return tinaBackends;
 }
 
-function renderAsk(models, preferredName) {
+// ─── setup panel (shown only when NO engine is available) ─────────────
+
+// ── onboarding: "connect your engine" ─────────────────────────────────
+
+const CONNECT_STEPS = {
+  codex: 'Uses your ChatGPT Plus/Pro. In a terminal: <code>npm i -g @openai/codex</code>, then <code>codex login</code>.',
+  claude: 'Uses your Claude subscription. In a terminal: <code>npm i -g @anthropic-ai/claude-code</code>, then run <code>claude</code> and sign in.',
+  ollama: 'A model on your own machine, fully offline. Install from <a href="https://ollama.com" target="_blank" rel="noopener">ollama.com</a>, then <code>ollama pull hermes3:8b</code>.',
+};
+
+function engineState() {
+  return [
+    { key: "codex", label: "Codex", connected: !!(tinaBackends.codex && tinaBackends.codex.available), detail: tinaBackends.codex && tinaBackends.codex.version },
+    { key: "claude", label: "Claude", connected: !!(tinaBackends.claude && tinaBackends.claude.available), detail: tinaBackends.claude && tinaBackends.claude.version },
+    { key: "ollama", label: "Ollama", connected: !!(ollamaStatus.running && ollamaStatus.models.length), detail: ollamaStatus.running ? `${ollamaStatus.models.length} model(s)` : null },
+  ];
+}
+
+function renderConnectPanel() {
+  els.setupPanel.hidden = false;
+  els.askPanel.hidden = true;
+  const states = engineState();
+  els.engineCards.innerHTML = states.map((e) => `
+    <div class="engine-card ${e.connected ? "on" : ""}">
+      <div class="engine-head"><span class="engine-name">${e.label}</span><span class="engine-status">${e.connected ? "✓ connected" : "not connected"}</span></div>
+      ${e.connected
+        ? `<div class="engine-detail">${e.detail || ""}</div>`
+        : `<div class="engine-steps">${CONNECT_STEPS[e.key]} <strong>Then click re-check.</strong></div>`}
+    </div>`).join("");
+  els.connectStart.disabled = !states.some((e) => e.connected);
+}
+
+function showAsk() {
   els.setupPanel.hidden = true;
   els.askPanel.hidden = false;
-  els.ollamaChip.className = "chip ok";
-  els.ollamaChip.textContent = "ollama: running";
+  const ollamaUsable = !!(ollamaStatus.running && ollamaStatus.models.length);
+  if (ollamaUsable) {
+    const preferred = ollamaStatus.hermes[0] || ollamaStatus.models[0];
+    fillOllamaModels(ollamaStatus.models, preferred && preferred.name);
+  }
+  renderBackendSelector(ollamaUsable);
+}
+
+function isOnboarded() { try { return localStorage.getItem(ONBOARD_KEY) === "1"; } catch { return false; } }
+function markOnboarded() { try { localStorage.setItem(ONBOARD_KEY, "1"); } catch {} }
+
+// ─── engine + model selectors ─────────────────────────────────────────
+
+function fillOllamaModels(models, preferredName) {
   els.modelSelect.innerHTML = "";
   for (const m of models) {
     const opt = document.createElement("option");
@@ -104,48 +140,76 @@ function renderAsk(models, preferredName) {
   }
   if (preferredName) els.modelSelect.value = preferredName;
   chosenModel = els.modelSelect.value;
-  els.modelChip.textContent = `model: ${chosenModel}`;
+}
+
+function renderBackendSelector(ollamaUsable) {
+  const opts = [];
+  if (ollamaUsable) opts.push({ value: "ollama", label: "Ollama · local" });
+  for (const key of ["codex", "claude"]) {
+    const bk = tinaBackends[key];
+    if (bk && bk.available) opts.push({ value: key, label: `${bk.label} · your sub` });
+  }
+  els.backendSelect.innerHTML = "";
+  for (const o of opts) {
+    const opt = document.createElement("option");
+    opt.value = o.value;
+    opt.textContent = o.label;
+    els.backendSelect.appendChild(opt);
+  }
+  // Keep the current backend if it's still available, else fall to the first.
+  if (!opts.some(o => o.value === backend)) backend = opts[0] ? opts[0].value : "ollama";
+  els.backendSelect.value = backend;
+  setBackend(backend);
+}
+
+function setBackend(b) {
+  backend = b;
+  const isOllama = b === "ollama";
+  els.modelSelect.hidden = !isOllama;
+  els.modelLabel.hidden = !isOllama;
+  if (isOllama) {
+    els.modelChip.textContent = `model: ${chosenModel || "—"}`;
+    els.privacyNote.innerHTML = "<strong>local-only</strong> · prompts + responses never leave your machine";
+  } else {
+    const label = (tinaBackends[b] && tinaBackends[b].label) || b;
+    els.modelChip.textContent = `engine: ${label}`;
+    els.privacyNote.innerHTML = `<strong>via your ${label} subscription</strong> · public cohort data only · nothing stored, nothing sent to our servers`;
+  }
+}
+
+async function refreshDetection() {
+  const probe = await detectOllama();
+  await detectTina();
+  if (probe.ok) {
+    const { hermes, others } = classifyModels(probe.models);
+    ollamaStatus = { running: true, models: [...hermes, ...others], hermes };
+    els.ollamaChip.className = "chip ok";
+    els.ollamaChip.textContent = "ollama: running";
+  } else {
+    const tinaUsable = Object.values(tinaBackends).some((b) => b && b.available);
+    ollamaStatus = { running: false, models: [], hermes: [] };
+    els.ollamaChip.className = tinaUsable ? "chip" : "chip bad";
+    els.ollamaChip.textContent = "ollama: not running";
+  }
 }
 
 async function runDetection() {
-  const probe = await detectOllama();
-  if (!probe.ok) {
-    renderSetup({ kind: "no-ollama" });
-    return;
-  }
-  const { hermes, others } = classifyModels(probe.models);
-  const usable = hermes.length ? hermes : [];
-  if (!hermes.length && others.length) {
-    // User has Ollama + non-Hermes models. Show setup with the install
-    // hint, but also surface the existing models in the dropdown so the
-    // PoC is usable with whatever they've got.
-    renderAsk([...hermes, ...others], others[0]?.name);
-    renderSetupInlineHint(others);
-    return;
-  }
-  if (!hermes.length) {
-    renderSetup({ kind: "no-hermes", models: probe.models });
-    return;
-  }
-  renderAsk([...hermes, ...others], hermes[0]?.name);
+  await refreshDetection();
+  const anyEngine = engineState().some((e) => e.connected);
+  // First run (or nothing connected) → onboarding. Otherwise straight to ask.
+  if (!isOnboarded() || !anyEngine) { renderConnectPanel(); return; }
+  showAsk();
 }
 
-function renderSetupInlineHint(others) {
-  els.setupPanel.hidden = false;
-  els.setupBody.innerHTML = `
-    <p>No Hermes-family model detected, but you have <code>${others.map(m => m.name).join(", ")}</code> installed. The dropdown above will use those for now.</p>
-    <p>To get the real thing: <code>ollama pull hermes3:8b</code></p>
-  `;
-}
+// Reachable anytime via the ask-panel "engines" button — refresh status + show
+// the connect screen (so a member can connect/switch engine without a restart).
+async function openConnect() { await refreshDetection(); renderConnectPanel(); }
 
 // ─── cohort surface loading ───────────────────────────────────────────
 
 async function loadCohort() {
   els.dataChip.textContent = "cohort: loading…";
   try {
-    // Try the bundled fixture first — it ships with the app and is
-    // always present. The renderer's cohort-source.js does a live fetch
-    // from GitHub on top of this, but for the PoC the fixture is fine.
     const r = await fetch("../cohort-surface.json");
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const surface = await r.json();
@@ -161,53 +225,200 @@ async function loadCohort() {
   }
 }
 
-// ─── prompt building ──────────────────────────────────────────────────
+// ─── prompt building (cohort-public projection only) ──────────────────
 
 function buildContext() {
-  // Hand Hermes a compact JSON view of the cohort. We deliberately strip
-  // the heavier fields (bios, long-form `now`, etc.) for the PoC to keep
-  // the context under most local-model context windows. The schema
-  // whitelisting already happened upstream so there's no privacy
-  // concern — everything in surface is cohort-public.
   if (!cohort) return "(no cohort data loaded)";
   const people = (cohort.people || []).map(p => ({
-    name: p.name,
-    team: p.team,
-    role: p.role,
-    skills: p.skills,
-    skill_areas: p.skill_areas,
-    offering: p.offering,
-    seeking: p.seeking,
-    now: p.now,
-    weekly_intention: p.weekly_intention,
+    name: p.name, team: p.team, role: p.role,
+    skills: p.skills, skill_areas: p.skill_areas,
+    offering: p.offering, seeking: p.seeking,
+    now: p.now, weekly_intention: p.weekly_intention,
   }));
   const teams = (cohort.teams || []).map(t => ({
-    name: t.name,
-    focus: t.focus,
-    skill_areas: t.skill_areas,
-    seeking: t.seeking,
-    offering: t.offering,
+    name: t.name, focus: t.focus, skill_areas: t.skill_areas,
+    seeking: t.seeking, offering: t.offering,
   }));
   return JSON.stringify({ people, teams }, null, 0);
 }
 
 function buildPrompt(question) {
-  return [
+  const parts = [
     "You are a research companion for the Shape Rotator cohort. You have read-only access to the cohort's public profile data (names, teams, skills, what they're working on, what they're seeking, what they offer).",
     "",
     "Answer the user's question by citing specific cohort members or teams by name when relevant. Quote short snippets from their profiles when useful. If the data doesn't contain an answer, say so plainly — don't invent participants.",
+  ];
+  // The user's own "shape" (their GitHub + Codex work history), if scanned. The
+  // public GitHub section is always safe to include; the private Codex section
+  // is only included for a LOCAL backend (Ollama) — never sent to codex/claude.
+  const sg = buildShapeGrounding(shape, backend === "ollama");
+  if (sg) {
+    parts.push(
+      "",
+      "The person asking is the OS user — the following is THEIR OWN shape (you are their assistant). Use it to answer questions about their work, focus, strengths, or trajectory:",
+      "<user_shape>", sg, "</user_shape>",
+    );
+  }
+  parts.push("", "<cohort_data>", buildContext(), "</cohort_data>", "", `User question: ${question}`);
+  return parts.join("\n");
+}
+
+// ─── self-shape (github + codex) ──────────────────────────────────────
+
+// Format a scanned shape for the prompt. Public GitHub always; private Codex
+// project-activity only when includePrivate (local backend). Mirrors
+// shape-scanner.js shapeGroundingText so the renderer stays self-contained.
+function buildShapeGrounding(s, includePrivate) {
+  if (!s) return "";
+  const g = s.github || {}, c = s.codex || {};
+  const lines = [];
+  if (g.ok) {
+    lines.push(`GitHub (public): ${g.name || g.login}${g.company ? " · " + g.company : ""}${g.bio ? " — " + String(g.bio).replace(/\s+/g, " ").trim() : ""}`);
+    if (g.languages && g.languages.length) lines.push(`Languages: ${g.languages.slice(0, 6).map(l => `${l.lang}(${l.repos})`).join(", ")}`);
+    if (g.recent_repos && g.recent_repos.length) lines.push(`Recent repos: ${g.recent_repos.slice(0, 10).map(r => `${r.name}${r.lang ? "/" + r.lang : ""}`).join(", ")}`);
+  }
+  if (includePrivate && c.ok && c.total_sessions) {
+    lines.push(`Local work focus (private — Codex ${c.date_range.first}→${c.date_range.last}, ${c.total_sessions} sessions / ${c.project_count} projects):`);
+    lines.push(c.top_projects.slice(0, 10).map(p => `${p.project} (${p.sessions})`).join(", "));
+  }
+  return lines.join("\n");
+}
+
+function updateShapeChip() {
+  if (!shape || !shape.github) { els.shapeChip.className = "chip"; els.shapeChip.textContent = "shape: not scanned"; return; }
+  const g = shape.github, c = shape.codex || {};
+  const repos = g.ok ? ((g.recent_repos && g.recent_repos.length) || g.public_repos || 0) : 0;
+  els.shapeChip.className = "chip ok";
+  els.shapeChip.textContent = `shape: ${repos} repos / ${c.total_sessions || 0} sess`;
+}
+
+async function loadShape() {
+  if (!window.api || !window.api.shape) { els.shapeChip.textContent = "shape: —"; return; }
+  try { shape = await window.api.shape.get(); } catch { shape = null; }
+  updateShapeChip();
+}
+
+async function scanShape() {
+  if (!window.api || !window.api.shape) return;
+  els.scanShapeBtn.disabled = true;
+  const label = els.scanShapeBtn.textContent;
+  els.scanShapeBtn.textContent = "scanning…";
+  els.shapeChip.textContent = "shape: scanning…";
+  try {
+    shape = await window.api.shape.scan();
+    updateShapeChip();
+    const g = shape.github || {}, c = shape.codex || {};
+    els.response.className = "response-wrap";
+    els.response.textContent =
+      `shape updated — GitHub: ${(g.recent_repos || []).length} public repos (${(g.languages || []).slice(0, 4).map(l => l.lang).join(", ")}); ` +
+      `Codex: ${c.total_sessions || 0} sessions across ${c.project_count || 0} projects (${c.date_range && c.date_range.first}→${c.date_range && c.date_range.last}).\n\n` +
+      `Ask "what's my shape?" or "what should I focus on?" and I'll use this. (Private Codex detail only goes to a local model.)`;
+  } catch (e) {
+    els.shapeChip.textContent = "shape: scan failed";
+    els.response.className = "response-wrap";
+    els.response.textContent = `[shape scan failed: ${e.message || e}]`;
+  } finally {
+    els.scanShapeBtn.disabled = false;
+    els.scanShapeBtn.textContent = label;
+  }
+}
+
+// Run one prompt through the CURRENT backend (non-streaming) → { ok, text }.
+// Ollama goes direct (local); codex/claude via the main process + privacy gate.
+async function runPrompt(prompt, { dataMode = "public" } = {}) {
+  if (backend === "ollama") {
+    if (!chosenModel) return { ok: false, error: "no model selected" };
+    try {
+      const r = await fetch(`${OLLAMA}/api/generate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: chosenModel, prompt, stream: false, options: { temperature: 0.4, num_ctx: 8192 } }),
+      });
+      if (!r.ok) return { ok: false, error: `HTTP ${r.status}` };
+      const j = await r.json();
+      return { ok: true, text: String(j.response || "").trim() };
+    } catch (e) { return { ok: false, error: e.message || String(e) }; }
+  }
+  if (!window.api || !window.api.tina) return { ok: false, error: "backend unavailable" };
+  return window.api.tina.run({ backend, prompt, dataMode, requestId: `syn-${Date.now()}` });
+}
+
+function buildSynthesisPrompt(grounding) {
+  return [
+    "You are defining the OS user's professional \"shape\" from their OWN work data below. Be concrete and base every claim on the data; do not invent.",
+    "Respond with ONLY a JSON object — no prose, no markdown fences — with exactly these keys:",
+    '{"headline": "one-line shape summary", "current_focus": "what they are working on now", "likely_roles": ["..."], "strengths": ["..."], "what_to_go_to_them_for": ["..."], "conversation_affordances": ["good things to talk to them about"], "trajectory": "how their focus is shifting over time", "confidence": "low|medium|high"}',
+    "Keep each array to 3-5 short items. If something isn't supported by the data, use an empty array or \"unknown\".",
     "",
-    "<cohort_data>",
-    buildContext(),
-    "</cohort_data>",
-    "",
-    `User question: ${question}`,
+    "<shape_data>",
+    grounding,
+    "</shape_data>",
   ].join("\n");
 }
 
-// ─── inference call (streaming) ───────────────────────────────────────
+function parseShapeJson(text) {
+  if (!text) return null;
+  const t = String(text).trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a < 0 || b < 0 || b <= a) return null;
+  try { return JSON.parse(t.slice(a, b + 1)); } catch { return null; }
+}
 
-async function ask(question) {
+function renderShapeCard(m, includePrivate) {
+  const list = (x) => (Array.isArray(x) && x.length) ? x.map(s => "  • " + s).join("\n") : "  —";
+  els.response.className = "response-wrap";
+  els.response.textContent = [
+    `YOUR SHAPE${m.confidence ? `  (confidence: ${m.confidence})` : ""}  ·  ${includePrivate ? "incl. local Codex work" : "public GitHub only"}`,
+    "",
+    m.headline || "",
+    "",
+    `Current focus:  ${m.current_focus || "unknown"}`,
+    `Trajectory:     ${m.trajectory || "unknown"}`,
+    "",
+    "Likely roles:", list(m.likely_roles),
+    "Strengths:", list(m.strengths),
+    "Go to them for:", list(m.what_to_go_to_them_for),
+    "Talk to them about:", list(m.conversation_affordances),
+  ].join("\n");
+}
+
+async function defineMyShape() {
+  if (!shape) { els.response.className = "response-wrap"; els.response.textContent = 'Click "scan my shape" first.'; return; }
+  const includePrivate = backend === "ollama";
+  const grounding = buildShapeGrounding(shape, includePrivate);
+  if (!grounding) { els.response.className = "response-wrap"; els.response.textContent = "No shape data yet — scan first."; return; }
+
+  els.defineShapeBtn.disabled = true;
+  const label = els.defineShapeBtn.textContent;
+  els.defineShapeBtn.textContent = "reading…";
+  els.askBtn.disabled = true;
+  els.stopBtn.hidden = false;
+  els.response.className = "response-wrap";
+  els.response.textContent = "defining your shape…";
+
+  try {
+    // dataMode "public": for a remote backend the grounding is public-only
+    // (includePrivate is false there), so this stays honest. Ollama is all-local.
+    const r = await runPrompt(buildSynthesisPrompt(grounding), { dataMode: "public" });
+    if (!r || !r.ok) { els.response.textContent = `[${(r && r.error) || "failed"}]`; return; }
+    const mapping = parseShapeJson(r.text);
+    if (!mapping) { els.response.textContent = `couldn't parse a shape from the engine. raw:\n\n${String(r.text || "").slice(0, 600)}`; return; }
+    renderShapeCard(mapping, includePrivate);
+    if (window.api && window.api.shape && window.api.shape.saveSynthesis) {
+      try { await window.api.shape.saveSynthesis({ synthesis: { ...mapping, tier: includePrivate ? "public+private" : "public", backend } }); } catch {}
+    }
+  } catch (e) {
+    els.response.textContent = `[error: ${e.message || e}]`;
+  } finally {
+    els.defineShapeBtn.disabled = false;
+    els.defineShapeBtn.textContent = label;
+    els.askBtn.disabled = false;
+    els.stopBtn.hidden = true;
+  }
+}
+
+// ─── inference: ollama (loopback HTTP, streaming) ─────────────────────
+
+async function askOllama(question) {
   if (!chosenModel) { els.response.textContent = "no model selected"; return; }
   els.response.className = "response-wrap";
   els.response.textContent = "";
@@ -217,7 +428,6 @@ async function ask(question) {
 
   const started = Date.now();
   let tokens = 0;
-
   const body = {
     model: chosenModel,
     prompt: buildPrompt(question),
@@ -233,7 +443,6 @@ async function ask(question) {
       signal: abortController.signal,
     });
     if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
-
     const reader = r.body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
@@ -241,7 +450,6 @@ async function ask(question) {
       const { value, done } = await reader.read();
       if (done) break;
       buf += decoder.decode(value, { stream: true });
-      // Ollama streams newline-delimited JSON.
       let i;
       while ((i = buf.indexOf("\n")) >= 0) {
         const line = buf.slice(0, i).trim();
@@ -260,11 +468,7 @@ async function ask(question) {
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
     els.footer.textContent = `${tokens} chunks · ${elapsed}s · ${chosenModel}`;
   } catch (e) {
-    if (e.name === "AbortError") {
-      els.response.textContent += "\n\n[stopped]";
-    } else {
-      els.response.textContent += `\n\n[error: ${e.message}]`;
-    }
+    els.response.textContent += e.name === "AbortError" ? "\n\n[stopped]" : `\n\n[error: ${e.message}]`;
   } finally {
     els.askBtn.disabled = false;
     els.stopBtn.hidden = true;
@@ -272,26 +476,72 @@ async function ask(question) {
   }
 }
 
+// ─── inference: codex / claude (main process CLI, via window.api.tina) ─
+
+async function askTina(question, b) {
+  if (!window.api || !window.api.tina) { els.response.textContent = "[brain backend unavailable — relaunch the app]"; return; }
+  els.response.className = "response-wrap";
+  els.response.textContent = "";
+  els.askBtn.disabled = true;
+  els.stopBtn.hidden = false;
+  const requestId = `tina-${Date.now()}`;
+  const started = Date.now();
+
+  if (tinaOff) { tinaOff(); tinaOff = null; }
+  tinaOff = window.api.tina.onChunk((p) => {
+    if (!p || p.requestId !== requestId) return;
+    els.response.textContent += p.chunk;
+    els.response.scrollTop = els.response.scrollHeight;
+  });
+
+  try {
+    // dataMode "public": the cohort surface is the cohort-public projection, so
+    // it is allowed to reach a remote backend. Private grounding would be local-only.
+    const r = await window.api.tina.run({ backend: b, prompt: buildPrompt(question), dataMode: "public", requestId });
+    if (!r || !r.ok) {
+      const msg = (r && r.error) || "request failed";
+      els.response.textContent += (els.response.textContent ? "\n\n" : "") + `[${msg}]`;
+    } else if (!els.response.textContent.trim()) {
+      els.response.textContent = r.text || "(no output)";
+    }
+    const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+    els.footer.textContent = `${elapsed}s · ${(tinaBackends[b] && tinaBackends[b].label) || b}`;
+  } catch (e) {
+    els.response.textContent += `\n\n[error: ${e.message || e}]`;
+  } finally {
+    if (tinaOff) { tinaOff(); tinaOff = null; }
+    els.askBtn.disabled = false;
+    els.stopBtn.hidden = true;
+  }
+}
+
+function dispatchAsk() {
+  const q = els.question.value.trim();
+  if (!q) return;
+  if (backend === "ollama") askOllama(q); else askTina(q, backend);
+}
+
+function dispatchStop() {
+  if (backend === "ollama") { if (abortController) abortController.abort(); }
+  else if (window.api && window.api.tina) window.api.tina.stop();
+}
+
 // ─── event wiring ─────────────────────────────────────────────────────
 
-els.detectBtn.addEventListener("click", () => runDetection());
+els.detectBtn.addEventListener("click", () => openConnect());
+els.connectRecheck.addEventListener("click", () => openConnect());
+els.connectStart.addEventListener("click", () => { markOnboarded(); showAsk(); });
+els.scanShapeBtn.addEventListener("click", scanShape);
+els.defineShapeBtn.addEventListener("click", defineMyShape);
+els.backendSelect.addEventListener("change", () => setBackend(els.backendSelect.value));
 els.modelSelect.addEventListener("change", () => {
   chosenModel = els.modelSelect.value;
-  els.modelChip.textContent = `model: ${chosenModel}`;
+  if (backend === "ollama") els.modelChip.textContent = `model: ${chosenModel}`;
 });
-els.askBtn.addEventListener("click", () => {
-  const q = els.question.value.trim();
-  if (q) ask(q);
-});
-els.stopBtn.addEventListener("click", () => {
-  if (abortController) abortController.abort();
-});
+els.askBtn.addEventListener("click", dispatchAsk);
+els.stopBtn.addEventListener("click", dispatchStop);
 els.question.addEventListener("keydown", (e) => {
-  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-    e.preventDefault();
-    const q = els.question.value.trim();
-    if (q) ask(q);
-  }
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); dispatchAsk(); }
 });
 
 // ─── boot ─────────────────────────────────────────────────────────────
@@ -299,4 +549,5 @@ els.question.addEventListener("keydown", (e) => {
 (async () => {
   await loadCohort();
   await runDetection();
+  await loadShape();
 })();

@@ -4,6 +4,8 @@ const fs = require("node:fs");
 const crypto = require("node:crypto");
 const swfNode = require("./swf-node");
 const swarm = require("./swarm-node");
+const tina = require("./tina-agent");
+const shapeScanner = require("./shape-scanner");
 const easelNdi = require("./easel-ndi");
 const matrix = require("./matrix");
 // Daybook (apps→daybook): registering this module wires every `daybook:*`
@@ -1576,6 +1578,38 @@ ipcMain.handle("fg:swarm:start", async (_e, opts) => {
 });
 
 ipcMain.handle("fg:swarm:stop",   async () => swarm.stop());
+
+// ─── tina "brain" IPC (codex/claude CLI backends — see apps/os/tina-agent.js) ──
+// Mirrors the swarm pattern: detect backends, run one grounded prompt, stream
+// stdout via "tina:chunk", cancel. The data-sensitivity privacy gate lives in
+// tina-agent.js (remote backends receive PUBLIC grounding only). No API key is
+// stored here and nothing is persisted — the prompt goes to the user's own CLI.
+ipcMain.handle("tina:backends", async () => tina.detectBackends());
+ipcMain.handle("tina:run", async (e, opts) => {
+  const o = opts || {};
+  return tina.runTina({
+    backend:   o.backend,
+    prompt:    o.prompt,
+    dataMode:  o.dataMode || "public",
+    requestId: o.requestId,
+    onData: (chunk) => { try { e.sender.send("tina:chunk", { requestId: o.requestId, chunk }); } catch {} },
+  });
+});
+ipcMain.handle("tina:stop", async () => tina.stop());
+
+// ─── shape ("self-shape" scan — see apps/os/shape-scanner.js) ─────────────────
+// Builds/refreshes the user's shape from their PUBLIC GitHub + LOCAL Codex
+// session metadata, persisted under userData. Reads only session headers (cwd +
+// timestamp) — never prompt/code content. github = public, codex = private.
+ipcMain.handle("shape:get", async () => shapeScanner.getShape(app.getPath("userData")));
+ipcMain.handle("shape:scan", async (_e, opts) => {
+  const o = opts || {};
+  return shapeScanner.buildShape({ user: o.user, dataDir: app.getPath("userData") });
+});
+ipcMain.handle("shape:saveSynthesis", async (_e, opts) => {
+  const o = opts || {};
+  return shapeScanner.saveSynthesis(app.getPath("userData"), o.synthesis || {});
+});
 
 ipcMain.handle("fg:swarm:config:get", async () => {
   const cfg = readSwarmConfig();
