@@ -8819,9 +8819,49 @@ html.jweek-vt::view-transition-new(root) {
 .alch-view-controls.is-journey-controls {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
 }
-/* The week filter owns the top-right; the key strip flows right after the
+/* The week slider owns the top-right; the key strip flows right after the
    sentence so the two right-aligned elements don't fight for the corner. */
-.ac-jweek-ctl { margin-left: auto; }
+.ac-jweek { margin-left: auto; display: inline-flex; align-items: center; gap: 9px; }
+.ac-jweek-cap {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em;
+  text-transform: lowercase; color: var(--journey-muted); white-space: nowrap;
+}
+/* Snap scrubber: a thin track with a notch per week and an oxide thumb. The
+   native range (step=1) does the snapping + keyboard; notches are click targets. */
+.ac-jweek-track { position: relative; width: 156px; height: 16px; display: flex; align-items: center; }
+.ac-jweek-track::before {
+  content: ""; position: absolute; left: 6px; right: 6px; top: 50%;
+  height: 2px; border-radius: 2px; background: var(--journey-rule-strong); transform: translateY(-50%);
+}
+.ac-jweek-range {
+  position: relative; z-index: 2; width: 100%; height: 16px; margin: 0;
+  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+}
+.ac-jweek-range::-webkit-slider-runnable-track { height: 16px; background: transparent; }
+.ac-jweek-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 13px; height: 13px; border-radius: 50%; margin-top: 1.5px;
+  background: radial-gradient(circle at 35% 30%, #f0b49f, var(--alchemy-oxide-bright, #c1a872) 60%, #8a2a14);
+  border: 1px solid rgba(8, 6, 6, 0.5);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  cursor: grab;
+}
+.ac-jweek-range:active::-webkit-slider-thumb { cursor: grabbing; }
+.ac-jweek-range:focus-visible { outline: none; }
+.ac-jweek-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(193, 168, 114, 0.4), 0 1px 2px rgba(0, 0, 0, 0.45); }
+.ac-jweek-notch {
+  position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 1;
+  width: 5px; height: 5px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 1px solid rgba(var(--ink-rgb), 0.34); background: rgba(var(--ink-rgb), 0.10);
+  transition: background 150ms var(--ease), border-color 150ms var(--ease);
+}
+.ac-jweek-notch:hover { border-color: var(--alchemy-oxide-bright); }
+.ac-jweek-notch.is-active { background: var(--alchemy-oxide); border-color: var(--alchemy-oxide-bright); }
+.ac-jweek-notch:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 2px; }
+.ac-jweek-now {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
+  color: var(--alchemy-paper-warm); min-width: 3.4ch; font-variant-numeric: tabular-nums;
+}
 .acl-jkey-strip {
   display: inline-flex; align-items: center; flex-wrap: wrap; gap: 3px 10px;
   font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.07em;

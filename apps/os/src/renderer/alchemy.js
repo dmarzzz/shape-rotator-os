@@ -5339,13 +5339,15 @@ function renderJourney() {
   // Filters (persist for the session). side = include the off-track stage-0
   // "side project" column; bottleneck = isolate one bottleneck.
   const jf = state.journeyFilters || (state.journeyFilters = { teams: true, projects: true, side: true, bottleneck: null });
-  // "as of" week selection (Total = null = the live read). The dots replot at the
-  // selected week's PMF STAGE, so scrubbing the top-right week filter is how
-  // movement reads — the dots travel rather than dragging overlaid trails. Guard
-  // against a stale week id if the weekly data changed under a persisted setting.
+  // "as of" week selection — the dots replot at the selected week's PMF STAGE, so
+  // scrubbing the top-right week slider is how movement reads (the dots travel,
+  // no overlaid trails). The slider snaps across the program start → now; "now"
+  // (the latest week) is the default and coincides with the live read today.
+  // Guard a stale persisted id.
   const weeks = standingWeeklyWeeks();
-  if (state.journeyWeek != null && !weeks.some(w => w.program_week === state.journeyWeek)) state.journeyWeek = null;
-  const weekSel = state.journeyWeek ?? null;
+  const weekMax = weeks.length ? weeks[weeks.length - 1].program_week : null;
+  if (state.journeyWeek == null || !weeks.some(w => w.program_week === state.journeyWeek)) state.journeyWeek = weekMax;
+  const weekSel = state.journeyWeek;
   const stageOf = (t) => journeyDisplayStage(t, weekSel);
   // Only reserve the off-track "side project" column (stage 0) when some record
   // sits there AT THE SELECTED WEEK. With none, the column + divider + include-
@@ -5573,32 +5575,28 @@ function renderJourney() {
       <span class="acl-jk-ghost">${ghostSwatch}unread</span>
     </div>`;
 
-  // ── "as of" week filter (top-right) — scrub Total → week by week. The dots
-  // replot at each week's stage, so the control MOVES the marks; that travel is
-  // how movement reads now (it replaced the on-plot trails). Only shown when there
-  // is weekly data; uses the sentence-menu chrome, so it's keyboard + dismiss-aware
-  // like the other tokens. Selecting a week wraps the re-render in a View Transition
-  // so the dots glide to their new positions instead of snapping.
-  const weekActiveLabel = weekSel == null ? "Total" : (weeks.find(w => w.program_week === weekSel)?.label || `Week ${weekSel}`);
-  const jClock = '<svg class="ac-tl-glyph" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
-  const weekOpt = (val, label, note, sel) => `
-        <button type="button" class="ac-sent-opt" data-journey-week="${escAttr(String(val))}" role="option" aria-selected="${sel ? "true" : "false"}">
-          <span class="ac-sent-opt-main"><b>${escHtml(label)}</b>${note ? `<small>${escHtml(note)}</small>` : ""}</span>
-        </button>`;
-  const weekOptions = weeks.length
-    ? weekOpt("total", "Total", "today’s live read", weekSel == null)
-      + weeks.map(w => weekOpt(w.program_week, w.label || `Week ${w.program_week}`, `program week ${w.program_week}`, weekSel === w.program_week)).join("")
-    : "";
+  // ── "as of" week SLIDER (top-right) — a snap scrubber across the program
+  // (start → now). The native range input snaps to each week (step=1) and is
+  // keyboard-driven; the notches are also click-to-jump; the live label tracks the
+  // thumb. Dragging updates the label live but only commits the dot replot on
+  // release (a mid-drag re-render would destroy the slider) — committing wraps the
+  // render in a View Transition so the dots glide to their new week positions.
+  const selIdx = Math.max(0, weeks.findIndex(w => w.program_week === weekSel));
+  const lastI = weeks.length - 1;
+  const fullLabel = (i) => weeks[i]?.label || `week ${weeks[i]?.program_week}`;
+  const compactLabel = (i) => i <= 0 ? "start" : (i === lastI ? "now" : `wk ${weeks[i].program_week}`);
+  // Centre each notch under the thumb's travel: the thumb (≈14px) can't overhang
+  // the track ends, so its centre runs from 7px to (100% − 7px).
+  const notchLeft = (i) => `calc(7px + ${lastI > 0 ? (i / lastI).toFixed(4) : "0"} * (100% - 14px))`;
   const weekFilter = weeks.length ? `
-    <span class="ac-timeline-ctl ac-jweek-ctl">
-      <span class="ac-sent-word">as of</span>
-      <span class="ac-sent-unit ac-timeline-unit">
-        <button type="button" class="ac-sent-tok ac-timeline-tok${weekSel != null ? " is-rewound" : ""}" data-sent-menu="journeyweek" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(`viewing ${weekActiveLabel} — scrub the cohort week by week`)}">
-          ${jClock}<span>${escHtml(weekActiveLabel)}</span><i class="ac-sent-chev" aria-hidden="true"></i>
-        </button>
-        <div class="ac-sent-menu" data-sent-menu-for="journeyweek" role="listbox" aria-label="as of week" hidden>${weekOptions}</div>
+    <div class="ac-jweek" data-jweek role="group" aria-label="as of program week">
+      <span class="ac-jweek-cap" aria-hidden="true">as of</span>
+      <span class="ac-jweek-track">
+        ${weeks.map((w, i) => `<button type="button" class="ac-jweek-notch${i === selIdx ? " is-active" : ""}" style="left:${notchLeft(i)}" data-jweek="${i}" aria-label="${escAttr(`as of ${fullLabel(i)}`)}" title="${escAttr(fullLabel(i))}"></button>`).join("")}
+        <input class="ac-jweek-range" type="range" min="0" max="${Math.max(0, lastI)}" step="1" value="${selIdx}" data-jweek-range aria-label="as of program week" aria-valuetext="${escAttr(fullLabel(selIdx))}"/>
       </span>
-    </span>` : "";
+      <span class="ac-jweek-now" data-jweek-now aria-hidden="true">${escHtml(compactLabel(selIdx))}</span>
+    </div>` : "";
 
   // ── sentence bar — "PMF read for teams + projects · N/N explicit · stuck on …" ──
   // Counts come from the UNFILTERED set so a toggled-off chip still says what it
@@ -8462,19 +8460,36 @@ function wireConstellationHover() {
       render();
     });
   }
-  // "As of [week]" filter (journey only): replot the dots at the chosen week's
-  // stage. The dots carry a per-record view-transition-name, so wrapping the
-  // re-render in a View Transition makes them glide to their new positions —
-  // movement you watch instead of overlaid trails. Falls back to a plain render.
-  for (const btn of state.canvas.querySelectorAll("[data-journey-week]")) {
-    btn.addEventListener("click", () => {
-      const raw = btn.dataset.journeyWeek;
-      const next = raw === "total" ? null : Number(raw);
-      if ((state.journeyWeek ?? null) === (Number.isFinite(next) ? next : null)) { closeConstSentenceMenus(); return; }
-      state.journeyWeek = Number.isFinite(next) ? next : null;
-      closeConstSentenceMenus();
+  // "As of [week]" SLIDER (journey only): a snap scrubber over the program weeks.
+  // index → program_week via the weekly list. Dragging the range fires `input`
+  // repeatedly — update the live label/notch ONLY (a full re-render would destroy
+  // the slider mid-drag) — and commits the dot replot on `change` (release) or a
+  // notch click, wrapping the render in a View Transition so the dots glide.
+  {
+    const jweekWeeks = standingWeeklyWeeks();
+    const idxToWeek = (i) => jweekWeeks[Math.max(0, Math.min(jweekWeeks.length - 1, Math.round(Number(i))))]?.program_week;
+    const commitWeek = (i) => {
+      const pw = idxToWeek(i);
+      if (pw == null || pw === state.journeyWeek) return;
+      state.journeyWeek = pw;
       journeyWeekTransition();
-    });
+    };
+    const range = state.canvas.querySelector("[data-jweek-range]");
+    if (range) {
+      // Live feedback during the drag without committing (no re-render yet).
+      range.addEventListener("input", () => {
+        const i = Math.round(Number(range.value));
+        const slider = range.closest(".ac-jweek");
+        const nowEl = slider?.querySelector("[data-jweek-now]");
+        if (nowEl) nowEl.textContent = i <= 0 ? "start" : (i === jweekWeeks.length - 1 ? "now" : `wk ${jweekWeeks[i]?.program_week}`);
+        range.setAttribute("aria-valuetext", jweekWeeks[i]?.label || `week ${jweekWeeks[i]?.program_week}`);
+        slider?.querySelectorAll(".ac-jweek-notch").forEach((n, ni) => n.classList.toggle("is-active", ni === i));
+      });
+      range.addEventListener("change", () => commitWeek(range.value));
+    }
+    for (const notch of state.canvas.querySelectorAll(".ac-jweek-notch[data-jweek]")) {
+      notch.addEventListener("click", () => commitWeek(notch.dataset.jweek));
+    }
   }
   for (const btn of state.canvas.querySelectorAll("[data-standing-filter]")) {
     btn.addEventListener("click", () => {
@@ -8933,9 +8948,12 @@ function showJourneyTip(stage, tip, rec) {
     const m = MOMENTUM[kind];
     const deltaTxt = delta > 0 ? `+${delta}` : `${delta}`;
     const headTxt = delta === 0 ? "→ no stage change" : `${m.glyph} ${deltaTxt} ${Math.abs(delta) === 1 ? "stage" : "stages"}`;
+    // At "now" (the latest week) the delta is the FULL-program movement, so read it
+    // "since program start"; a mid-program week reads "by Week N".
+    const isNow = weeks.length && weekSel === weeks[weeks.length - 1].program_week;
     const subTxt = delta === 0
-      ? (weekSel == null ? "steady so far this program" : `steady through ${weekLabel}`)
-      : (weekSel == null ? `${m.word} since program start` : `${m.word} by ${weekLabel}`);
+      ? (isNow ? "steady so far this program" : `steady through ${weekLabel}`)
+      : (isNow ? `${m.word} since program start` : `${m.word} by ${weekLabel}`);
     const seedNote = seeded ? `<small class="ajt-seed">illustrative — weekly reads not yet wired</small>` : "";
     moveBlock = `<div class="ajt-move ajt-move-${kind}${seeded ? " is-seed" : ""}">
         <span class="ajt-move-read"><b>${escHtml(headTxt)}</b><small>${escHtml(subTxt)}</small>${seedNote}</span>
