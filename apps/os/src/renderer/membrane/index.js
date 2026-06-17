@@ -1096,7 +1096,7 @@ export function mountMembrane(container, opts = {}) {
     // rest of the feed (forward-looking items just sort to the top). One feed.
     return cards.map((c, i) => `
       <div class="mfeed-row" data-row-key="${escHtml('inc:' + c.seenKey)}">
-        <button type="button" class="mfeed-item mfeed-${escHtml(c.kind)}" data-incoming-i="${i}">
+        <button type="button" class="mfeed-item mfeed-${escHtml(c.kind)}" data-incoming-i="${i}" aria-label="${escHtml([c.title || '', c.detail || '', c.recordId ? 'open profile' : feedCta(c.kind)].filter(Boolean).join('. '))}">
           ${feedIcon(c.icon)}
           <span class="mfeed-body">
             <span class="mfeed-label">${escHtml(c.title || '')}</span>
@@ -1141,7 +1141,7 @@ export function mountMembrane(container, opts = {}) {
       const whenFull = Number.isFinite(Date.parse(it.date)) ? fmtFullDate(it.date) : '';
       return `
       <div class="mfeed-row" data-row-key="${escHtml('feed:' + key)}">
-        <button type="button" class="mfeed-item mfeed-${escHtml(it.kind)}" data-feed-i="${i}">
+        <button type="button" class="mfeed-item mfeed-${escHtml(it.kind)}" data-feed-i="${i}" aria-label="${escHtml([it.label || '', it.meta || '', whenFull || feedAge(it.date), feedCta(it.kind)].filter(Boolean).join('. '))}">
           ${feedIcon(it.kind)}
           <span class="mfeed-body">
             <span class="mfeed-label">${escHtml(it.label || '')}</span>
