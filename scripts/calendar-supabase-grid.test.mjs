@@ -50,6 +50,23 @@ test("scanGridForLeaks catches emails, video links, private markers, candid note
   assert.deepEqual(scanGridForLeaks({ tabs: { t: [["Goals — Tina: pivot"]] } }), ["candid leadership note"]);
 });
 
+test("scanGridForLeaks catches organizer personal-availability notes", () => {
+  assert.deepEqual(scanGridForLeaks({ tabs: { t: [["Andrew at half marathon — out for the day"]] } }), ["organizer availability note"]);
+  assert.deepEqual(scanGridForLeaks({ tabs: { t: [["moving to Baltimore — out of cohort that weekend"]] } }), ["organizer availability note"]);
+});
+
+test("scanGridForLeaks does NOT trip on legitimate named schedule content", () => {
+  // The calendar's real content names speakers, sessions, TAs, and team intros
+  // (those name<->team pairings are also already public via the cohort directory).
+  // The gate must not block them — only personal-availability asides above.
+  const real = { tabs: { t: [
+    ["19:00 Founder's journey — Phil Daian (Flashbots)"],
+    ["Project intros: Elocute (Albi), Crossroads (Chloe Wang)"],
+    ["18:00-19:30 Lecture — Gil Rosen (Blockchain Builders)"],
+  ] } };
+  assert.deepEqual(scanGridForLeaks(real), []);
+});
+
 test("publishGrid refuses to upsert a grid that trips the leak gate (no fetch)", async () => {
   let fetched = false;
   const fetchImpl = async () => { fetched = true; return { ok: true, status: 201 }; };

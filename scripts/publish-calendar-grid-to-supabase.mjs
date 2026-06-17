@@ -52,6 +52,13 @@ const LEAK_PATTERNS = [
   ["video-call link", /\b(?:meet\.google\.com|zoom\.us|teams\.microsoft\.com|webex\.com)\b/i],
   ["private routing marker", /\b(?:do_not_publish|private_1on1|leadership_meeting)\b/i],
   ["candid leadership note", /Goals\s*[—–-]\s*(?:Andrew|Tina|James)|Notion draft/i],
+  // Organizer personal-availability / whereabouts asides (privacy audit 2026-06-17):
+  // the calendar legitimately names speakers/sessions/teams (also public via the
+  // cohort directory), so we do NOT gate names — only an organizer's personal
+  // out-of-office / whereabouts, which is personal info that must not reach the
+  // anon-readable row. Precise phrasings, fail-closed: a hit blocks the publish so
+  // the note is removed at the source calendar rather than served publicly.
+  ["organizer availability note", /\bout of cohort\b|\bout for the day\b/i],
 ];
 
 export function scanGridForLeaks(grid) {
