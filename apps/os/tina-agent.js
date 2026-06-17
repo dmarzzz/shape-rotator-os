@@ -155,10 +155,27 @@ function augmentedPath() {
   return _pathCache;
 }
 
+// Provider credentials we DROP from the spawned env so a backend always rides
+// the user's OWN on-disk login (~/.claude, ~/.codex) and is billed to THEIR
+// subscription — never a key inherited from our process. This makes "your
+// engine, your usage, never ours" structural, not incidental: even if the app
+// were ever launched with one of these set, it can't reach the request.
+// Opt back in with SRWK_HERMES_USE_ENV_KEYS=1 if you deliberately run a backend
+// on your own API key instead of an interactive login.
+const PROVIDER_CREDENTIAL_ENV = [
+  "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
+  "OPENAI_API_KEY", "OPENAI_API_KEY_PATH",
+];
+
 // env for every spawn: inherit everything (HOME/USERPROFILE so ~/.codex and
-// ~/.claude creds resolve) but with the repaired PATH.
+// ~/.claude creds resolve) with the repaired PATH, but with provider keys
+// stripped (see above) unless the user opts in.
 function spawnEnv() {
-  return { ...process.env, PATH: augmentedPath() };
+  const env = { ...process.env, PATH: augmentedPath() };
+  if (process.env.SRWK_HERMES_USE_ENV_KEYS !== "1") {
+    for (const k of PROVIDER_CREDENTIAL_ENV) delete env[k];
+  }
+  return env;
 }
 
 // Kill the whole process tree. With shell:true, Windows `cmd /c` spawns the CLI
