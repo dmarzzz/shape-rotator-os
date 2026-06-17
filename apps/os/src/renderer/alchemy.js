@@ -5339,17 +5339,24 @@ function renderJourney() {
   // Filters (persist for the session). side = include the off-track stage-0
   // "side project" column; bottleneck = isolate one bottleneck.
   const jf = state.journeyFilters || (state.journeyFilters = { teams: true, projects: true, side: true, bottleneck: null });
+  // "as of" week selection (Total = null = the live read). The dots replot at the
+  // selected week's PMF STAGE, so scrubbing the top-right week filter is how
+  // movement reads — the dots travel rather than dragging overlaid trails. Guard
+  // against a stale week id if the weekly data changed under a persisted setting.
+  const weeks = standingWeeklyWeeks();
+  if (state.journeyWeek != null && !weeks.some(w => w.program_week === state.journeyWeek)) state.journeyWeek = null;
+  const weekSel = state.journeyWeek ?? null;
+  const stageOf = (t) => journeyDisplayStage(t, weekSel);
   // Only reserve the off-track "side project" column (stage 0) when some record
-  // actually sits there. With none, the column + divider + include-toggle are
-  // hidden and the populated stages reclaim that ~11% of plot width.
-  const sideEligible = all.some((t) => teamKind(t) !== "person" && journeyFor(t).stage === 0);
+  // sits there AT THE SELECTED WEEK. With none, the column + divider + include-
+  // toggle are hidden and the populated stages reclaim that ~11% of plot width.
+  const sideEligible = all.some((t) => teamKind(t) !== "person" && stageOf(t) === 0);
   if (!sideEligible) jf.side = true; // toggle is hidden; don't let stale state hide anything
   const teams = all.filter((t) => {
-    const j = journeyFor(t);
     const isProject = teamKind(t) === "project";
     if (isProject && !jf.projects) return false;
     if (!isProject && !jf.teams) return false;
-    if (j.stage === 0 && !jf.side) return false;
+    if (stageOf(t) === 0 && !jf.side) return false;
     return true;
   });
   // Bottleneck isolation DIMS non-matching dots (below) rather than removing
@@ -5435,8 +5442,7 @@ function renderJourney() {
   const axisTitleY = `<text class="ac-jaxis-title" transform="translate(18,${(PAD_T + plotH / 2).toFixed(1)}) rotate(-90)" text-anchor="middle">evidence quality →</text>`;
   const cellBuckets = new Map();
   for (const t of teams) {
-    const j = journeyFor(t);
-    const key = `${j.stage}:${j.evidence_quality}`;
+    const key = `${stageOf(t)}:${journeyFor(t).evidence_quality}`;
     if (!cellBuckets.has(key)) cellBuckets.set(key, []);
     cellBuckets.get(key).push(t);
   }
@@ -5444,12 +5450,13 @@ function renderJourney() {
     bucket.sort((a, b) => constText(a.name || a.record_id).localeCompare(constText(b.name || b.record_id)));
   }
 
-  // ── dots: one per visible team/project. Explicit journey reads use
-  // bottleneck color + upside size; default/profile records stay quieter but
-  // remain individually selectable.
+  // ── dots: one per visible team/project, plotted at the SELECTED week's stage.
+  // Explicit reads render as 3D bottleneck-coloured spheres sized by upside;
+  // default/profile records stay flat + hollow but remain individually selectable.
   const nodes = teams.map((t) => {
     const j = journeyFor(t);
-    const bucket = cellBuckets.get(`${j.stage}:${j.evidence_quality}`) || [t];
+    const stage = stageOf(t);
+    const bucket = cellBuckets.get(`${stage}:${j.evidence_quality}`) || [t];
     const n = bucket.length;
     const idx = Math.max(0, bucket.findIndex(item => item.record_id === t.record_id));
     let jx = journeyJitter(t.record_id, "x") * (colW * 0.18);
@@ -5464,56 +5471,58 @@ function renderJourney() {
     }
     const assessed = journeyAssessed(t);
     const r = assessed ? 4 + j.market_upside * 1.8 : 4.8; // upside 1..5 -> r 5.8..13
-    return { t, j, assessed, r, cx: xForStage(j.stage) + jx, cy: yForEvidence(j.evidence_quality) + jy };
+    return { t, j, stage, assessed, r, cx: xForStage(stage) + jx, cy: yForEvidence(j.evidence_quality) + jy };
   });
   const labelPos = journeyPlaceLabels(nodes, { W, padT: PAD_T, plotH });
-  const dots = nodes.map(({ t, j, assessed, r, cx, cy }) => {
+  const dots = nodes.map(({ t, j, stage, assessed, r, cx, cy }) => {
     const famIdx = journeyFamilyIdx(j.primary_bottleneck);
     const isProject = teamKind(t) === "project";
     const label = labelPos.get(t.record_id) || null;
     const labelClass = label ? " is-labeled" : "";
     const contextClass = assessed ? "" : " is-profile-context";
     const bnClass = bnFocus ? (j.primary_bottleneck === bnFocus ? " is-bn-match" : " is-bn-dim") : "";
-    const dotClass = assessed ? `ac-jdot ac-jfam-${famIdx}` : "ac-jdot ac-jprofile-dot";
+    // Assessed = a shaded sphere (radial gradient per family + drop-shadow float);
+    // unread = the flat dashed placeholder. Gradient set inline so it beats the
+    // SVG fill cascade; the family index also drives the shadow tint via the class.
+    const dotMarkup = assessed
+      ? `<circle class="ac-jdot ac-jsphere ac-jfam-${famIdx}" style="fill:url(#jsphere-${famIdx})" r="${r.toFixed(1)}"/>`
+      : `<circle class="ac-jdot ac-jprofile-dot" r="${r.toFixed(1)}"/>`;
     const title = assessed
-      ? `${t.name || t.record_id}: ${JOURNEY_STAGE_LABELS[j.stage] || "journey"} / ${JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "evidence"}`
+      ? `${t.name || t.record_id}: ${JOURNEY_STAGE_LABELS[stage] || "journey"} / ${JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "evidence"}`
       : `${t.name || t.record_id}: profile context; no explicit journey read yet`;
     const labelX = label ? label.x : 0;
     const labelY = label ? label.y : -r - 8;
     const labelAnchor = label ? label.anchor : "middle";
-    return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}${bnClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(title)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
+    // Stable per-record view-transition name so a week change morphs each dot
+    // from its old position to its new one — the movement now reads as travel.
+    const vtName = `jdot-${cssIdent(t.record_id)}`;
+    return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}${bnClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(title)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})" style="view-transition-name:${vtName}">
         <circle class="ac-jhit" r="${Math.max(18, r + 9).toFixed(1)}"/>
-        <circle class="${dotClass}" r="${r.toFixed(1)}"/>
+        ${dotMarkup}
         <text class="ac-jnode-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="${labelAnchor}">${escHtml(t.name)}</text>
       </g>`;
   }).join("");
 
-  // ── movement trails — the "how far has this team travelled" half of the read.
-  // For every assessed dot whose STAGE moved since program week 0, a faint track
-  // runs from its origin column to the live dot (the head). Only stage is tracked
-  // weekly, so the track is strictly horizontal at the dot's row — it never
-  // invents the vertical (evidence) history we never recorded. The origin tick
-  // sits on the side they came FROM, so direction reads without an arrowhead.
-  // Drawn BEFORE the dots so the live mark always rides on top of its own wake.
-  const trails = nodes.map(({ t, j, assessed, r, cx, cy }) => {
-    if (!assessed) return "";
-    const mv = journeyMovement(t);
-    if (!mv) return "";
-    const gap = r + 1.6;
-    // Clamp the origin to the plot's left edge: a team whose history reaches back
-    // to the off-track stage-0 "side project" column would otherwise anchor its
-    // tick in the left axis gutter whenever that column is hidden (minStage === 1).
-    const x0 = Math.max(PAD_L, xForStage(mv.start));
-    const x1 = mv.delta > 0 ? cx - gap : cx + gap; // stop just shy of the dot edge
-    const dir = mv.delta > 0 ? "fwd" : "slip";
-    // Mirror the dot's bottleneck focus so isolating one bottleneck dims the
-    // wakes too — else ~17 bright trails hang off near-invisible dimmed dots.
-    const bnClass = bnFocus ? (j.primary_bottleneck === bnFocus ? " is-bn-match" : " is-bn-dim") : "";
-    return `<g class="ac-jtrail ac-jtrail-${dir}${bnClass}" data-trail-for="${escAttr(t.record_id)}" aria-hidden="true">
-        <line class="ac-jtrail-line" x1="${x0.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${cy.toFixed(1)}"/>
-        <circle class="ac-jtrail-origin" cx="${x0.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.3"/>
-      </g>`;
-  }).join("");
+  // ── 3D dot shading — one radial-gradient "sphere" per bottleneck family (light
+  // top-left → family hue → darker rim) plus a soft drop-shadow so the points read
+  // as raised beads floating over the plot rather than flat discs. Defs are static
+  // per family; the dots reference them by index. ──
+  const SPHERE = [
+    { light: "#e88a6f", mid: "#c44025", dark: "#7a2614" }, // market  — oxide
+    { light: "#e7d2a0", mid: "#c9a35e", dark: "#856a35" }, // product — brass
+    { light: "#8fd2cf", mid: "#4fa3a0", dark: "#2c6664" }, // growth  — teal
+    { light: "#b1a7da", mid: "#7a6fb0", dark: "#473f6b" }, // company — violet
+  ];
+  const dotDefs = `<defs>
+      ${SPHERE.map((s, i) => `<radialGradient id="jsphere-${i}" cx="34%" cy="30%" r="72%">
+        <stop offset="0%" stop-color="${s.light}"/>
+        <stop offset="46%" stop-color="${s.mid}"/>
+        <stop offset="100%" stop-color="${s.dark}"/>
+      </radialGradient>`).join("")}
+      <filter id="jdot-shadow" x="-60%" y="-60%" width="220%" height="220%">
+        <feDropShadow dx="0" dy="1.4" stdDeviation="1.5" flood-color="#000" flood-opacity="0.42"/>
+      </filter>
+    </defs>`;
 
   // ── bottleneck filter + compact legend key ───────────────────────────────
   // The old legend was a 10-button wall in its own panel — the colour/size key
@@ -5566,6 +5575,33 @@ function renderJourney() {
       <span class="acl-jk-ghost">${ghostSwatch}unread</span>
     </div>`;
 
+  // ── "as of" week filter (top-right) — scrub Total → week by week. The dots
+  // replot at each week's stage, so the control MOVES the marks; that travel is
+  // how movement reads now (it replaced the on-plot trails). Only shown when there
+  // is weekly data; uses the sentence-menu chrome, so it's keyboard + dismiss-aware
+  // like the other tokens. Selecting a week wraps the re-render in a View Transition
+  // so the dots glide to their new positions instead of snapping.
+  const weekActiveLabel = weekSel == null ? "Total" : (weeks.find(w => w.program_week === weekSel)?.label || `Week ${weekSel}`);
+  const jClock = '<svg class="ac-tl-glyph" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  const weekOpt = (val, label, note, sel) => `
+        <button type="button" class="ac-sent-opt" data-journey-week="${escAttr(String(val))}" role="option" aria-selected="${sel ? "true" : "false"}">
+          <span class="ac-sent-opt-main"><b>${escHtml(label)}</b>${note ? `<small>${escHtml(note)}</small>` : ""}</span>
+        </button>`;
+  const weekOptions = weeks.length
+    ? weekOpt("total", "Total", "today’s live read", weekSel == null)
+      + weeks.map(w => weekOpt(w.program_week, w.label || `Week ${w.program_week}`, `program week ${w.program_week}`, weekSel === w.program_week)).join("")
+    : "";
+  const weekFilter = weeks.length ? `
+    <span class="ac-timeline-ctl ac-jweek-ctl">
+      <span class="ac-sent-word">as of</span>
+      <span class="ac-sent-unit ac-timeline-unit">
+        <button type="button" class="ac-sent-tok ac-timeline-tok${weekSel != null ? " is-rewound" : ""}" data-sent-menu="journeyweek" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(`viewing ${weekActiveLabel} — scrub the cohort week by week`)}">
+          ${jClock}<span>${escHtml(weekActiveLabel)}</span><i class="ac-sent-chev" aria-hidden="true"></i>
+        </button>
+        <div class="ac-sent-menu" data-sent-menu-for="journeyweek" role="listbox" aria-label="as of week" hidden>${weekOptions}</div>
+      </span>
+    </span>` : "";
+
   // ── sentence bar — "PMF read for teams + projects · N/N explicit · stuck on …" ──
   // Counts come from the UNFILTERED set so a toggled-off chip still says what it
   // would bring back. The bottleneck isolation now lives IN the sentence as its
@@ -5599,18 +5635,18 @@ function renderJourney() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="journey">
     ${cohortPageHead("journey")}
-    <div class="alch-view-controls is-journey-controls" data-shape-occluder>${constTimelineDropdownHtml()}${filterBar}${keyStrip}${constSelectionChipHtml()}</div>
+    <div class="alch-view-controls is-journey-controls" data-shape-occluder>${filterBar}${keyStrip}${constSelectionChipHtml()}${weekFilter}</div>
     <div class="alch-constellation" data-constellation-view="journey">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
           <div class="alch-constellation-stage alch-journey-stage">
             <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+              ${dotDefs}
               ${gridLines.join("")}
               ${xLabels}
               ${yLabels}
               ${axisTitleX}
               ${axisTitleY}
-              ${trails}
               ${dots}
             </svg>
             <div class="ac-tip" hidden></div>
@@ -5709,37 +5745,46 @@ const MOMENTUM = {
 };
 function momentumDeltaLabel(d) { return d == null ? "" : (d > 0 ? `+${d}` : `${d}`); }
 
-// Full-program PMF-stage movement for a team, from the weekly series (Supabase
-// team_standing_weekly → cohort-standing-weekly.json). The PMF scatter plots a
-// team at its CURRENT (stage × evidence); this recovers the horizontal half of
-// the story — where its STAGE started at program week 0 and how far it has
-// travelled since. Only stage is tracked per week (evidence has no weekly
-// series), so the movement is honestly one-dimensional: along the stage axis.
-// Uses the FULL program window (not the rewound timeline) because the dot's
-// position never rewinds on this view, so "how far during their time in the
-// program" reads week-0 → latest. Returns null when there's no weekly data or
-// the team never moved — a flat team then draws no trail and claims no journey
-// it didn't make (the same data-honesty rule as the hollow "unread" dots).
-function journeyMovement(team) {
+// PMF stage to PLOT a team at for the selected "as of" week. weekSel === null is
+// Total — the team's live read (journeyFor().stage). Otherwise it's that program
+// week's stage from the weekly series, falling back to the live stage when a week
+// has no row. Only stage is tracked weekly (evidence has no weekly series), so the
+// week filter moves dots horizontally and the vertical position holds. Scrubbing
+// the week filter is how movement reads now — the dots travel, no overlaid trails.
+function journeyDisplayStage(team, weekSel) {
+  if (weekSel == null) return journeyFor(team).stage;
+  const e = standingWeeklyTeam(team?.record_id)?.weeks?.[weekSel];
+  return e && Number.isFinite(e.stage) ? e.stage : journeyFor(team).stage;
+}
+// A team's stage at the FIRST program week, for the hover's "since start" delta.
+function journeyStartStage(team) {
   const weeks = standingWeeklyWeeks();
-  if (weeks.length < 2) return null;
-  const series = teamStageSeries(team, weeks).slice();
-  // Anchor the END of the series to the stage the dot is actually plotted at
-  // (journeyFor().stage) so the trail head, the delta, and the dot can never
-  // disagree — even once real, divergent weekly reads replace today's seed
-  // (whose last week already equals the live stage for every team).
-  const plotted = journeyFor(team).stage;
-  if (Number.isFinite(plotted)) series[series.length - 1] = plotted;
-  const start = series[0];
-  const end = series[series.length - 1];
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start === end) return null;
-  return { series, weeks, start, end, delta: Math.round((end - start) * 10) / 10, spanWeeks: weeks.length - 1 };
+  if (!weeks.length) return journeyFor(team).stage;
+  const e = standingWeeklyTeam(team?.record_id)?.weeks?.[weeks[0].program_week];
+  return e && Number.isFinite(e.stage) ? e.stage : journeyFor(team).stage;
 }
 // True while the per-week standing rows are still the deterministic seed (vs.
 // real reads from Supabase team_standing_weekly), so the movement readout can
 // honestly flag a seeded delta as illustrative rather than measured history.
 function standingWeeklyIsSeed() {
   return /\bseed/i.test(state.standingWeekly?.note || "");
+}
+// Sanitize an id into a valid CSS <custom-ident> for view-transition-name
+// (record ids are kebab-case, but guard anything that isn't [A-Za-z0-9_-]).
+function cssIdent(s) { return String(s).replace(/[^A-Za-z0-9_-]/g, "_"); }
+// Re-render with the PMF dots gliding to their new week positions when the
+// platform supports View Transitions. The html.jweek-vt class scopes the
+// animation to the named dot groups (CSS disables the root cross-fade) so the
+// rest of the view swaps instantly with no flash. Reduced-motion users get the
+// instant final state via the global prefers-reduced-motion guard.
+function journeyWeekTransition() {
+  const root = document.documentElement;
+  if (typeof document.startViewTransition !== "function") { render(); return; }
+  root.classList.add("jweek-vt");
+  let vt;
+  try { vt = document.startViewTransition(() => render()); }
+  catch { render(); root.classList.remove("jweek-vt"); return; }
+  vt.finished.catch(() => {}).finally(() => root.classList.remove("jweek-vt"));
 }
 
 function constTeamStanding(team) {
@@ -8155,31 +8200,22 @@ function wireConstellationHover() {
       });
     }
     // Journey scatterplot nodes: same tip element, journey content.
-    // Lift a team's movement trail out of the quiet at-rest layer when its dot
-    // is hovered/focused, so "where did this one come from" reads on demand
-    // without 18 bright trails competing at once.
-    const emphTrail = (rid, on) => {
-      const tr = stage.querySelector(`.ac-jtrail[data-trail-for="${CSS.escape(rid)}"]`);
-      if (tr) tr.classList.toggle("is-trail-active", on);
-    };
     for (const node of stage.querySelectorAll(".ac-jnode")) {
       const rid = node.dataset.recordId;
       node.addEventListener("mouseenter", (e) => {
         showJourneyTip(stage, tip, teamById.get(rid));
         positionConstTip(stage, tip, e);
-        emphTrail(rid, true);
       });
       node.addEventListener("mousemove", (e) => positionConstTip(stage, tip, e));
-      node.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; emphTrail(rid, false); });
+      node.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
       node.addEventListener("click", (e) => {
         e.preventDefault();
         selectOrOpen("team", rid);
       });
       node.addEventListener("focus", () => {
         showJourneyTip(stage, tip, teamById.get(rid));
-        emphTrail(rid, true);
       });
-      node.addEventListener("blur", () => { if (tip) tip.hidden = true; emphTrail(rid, false); });
+      node.addEventListener("blur", () => { if (tip) tip.hidden = true; });
       node.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
@@ -8405,6 +8441,20 @@ function wireConstellationHover() {
       const b = btn.dataset.jbottleneck || null;
       jf.bottleneck = jf.bottleneck === b ? null : b;
       render();
+    });
+  }
+  // "As of [week]" filter (journey only): replot the dots at the chosen week's
+  // stage. The dots carry a per-record view-transition-name, so wrapping the
+  // re-render in a View Transition makes them glide to their new positions —
+  // movement you watch instead of overlaid trails. Falls back to a plain render.
+  for (const btn of state.canvas.querySelectorAll("[data-journey-week]")) {
+    btn.addEventListener("click", () => {
+      const raw = btn.dataset.journeyWeek;
+      const next = raw === "total" ? null : Number(raw);
+      if ((state.journeyWeek ?? null) === (Number.isFinite(next) ? next : null)) { closeConstSentenceMenus(); return; }
+      state.journeyWeek = Number.isFinite(next) ? next : null;
+      closeConstSentenceMenus();
+      journeyWeekTransition();
     });
   }
   for (const btn of state.canvas.querySelectorAll("[data-standing-filter]")) {
@@ -8803,32 +8853,11 @@ function setConstellationPersonProjectHover(stage, teamId, on) {
   });
 }
 
-// Journey tooltip: name + stage/evidence labels + bottleneck + next
-// milestone. Reads journey with defaults applied so it never crashes on a
-// record that has no `journey` object.
-// Mini stage-over-weeks sparkline for the PMF hover — the weekly series on the
-// shared 0..8 stage scale, coloured by momentum. The hover's timescale glance.
-function journeyStageSparkline(mv) {
-  const W = 96, H = 26, pad = 3;
-  const s = mv.series, n = s.length;
-  const xAt = (i) => pad + (n <= 1 ? 0 : (i / (n - 1)) * (W - pad * 2));
-  const yAt = (v) => H - pad - (Math.max(0, Math.min(8, v)) / 8) * (H - pad * 2);
-  const pts = s.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`);
-  const col = MOMENTUM[momentumKind(mv.delta)].color;
-  const area = `M${xAt(0).toFixed(1)},${(H - pad).toFixed(1)} L${pts.join(" L")} L${xAt(n - 1).toFixed(1)},${(H - pad).toFixed(1)} Z`;
-  return `<svg class="ajt-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">
-      <path d="${area}" fill="${col}" fill-opacity="0.12"/>
-      <polyline points="${pts.join(" ")}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
-      <circle cx="${xAt(0).toFixed(1)}" cy="${yAt(s[0]).toFixed(1)}" r="1.6" fill="none" stroke="${col}" stroke-opacity="0.7"/>
-      <circle cx="${xAt(n - 1).toFixed(1)}" cy="${yAt(s[n - 1]).toFixed(1)}" r="2.3" fill="${col}"/>
-    </svg>`;
-}
-
 // The PMF read card. This view answers exactly one question — where a team sits
-// on the path to product-market fit and which way it's moving — so the hover
+// on the path to product-market fit and how far it's moved — so the hover
 // EXPLAINS the placement (position in words, the evidence behind it, the
-// bottleneck holding it) and shows the movement (sparkline + delta). It is
-// deliberately NOT a company dossier: no roster, links, or profile bio.
+// bottleneck holding it) and states the net movement as text (the week filter is
+// what you scrub to watch it travel). Deliberately NOT a company dossier.
 function showJourneyTip(stage, tip, rec) {
   if (!tip || !rec) return;
   const j = journeyFor(rec);
@@ -8846,7 +8875,14 @@ function showJourneyTip(stage, tip, rec) {
     return;
   }
 
-  const stageLbl = JOURNEY_STAGE_LABELS[j.stage] || "—";
+  // Position reflects the SELECTED week (the dot's actual plotted stage), so the
+  // hover always agrees with where the dot sits as you scrub the week filter.
+  const weekSel = state.journeyWeek ?? null;
+  const weeks = standingWeeklyWeeks();
+  const curStage = journeyDisplayStage(rec, weekSel);
+  const startStage = journeyStartStage(rec);
+  const weekLabel = weekSel == null ? "Total" : (weeks.find(w => w.program_week === weekSel)?.label || `week ${weekSel}`);
+  const stageLbl = JOURNEY_STAGE_LABELS[curStage] || "—";
   const evLbl = JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "—";
   const famIdx = journeyFamilyIdx(j.primary_bottleneck);
   const famLabel = JOURNEY_BOTTLENECK_FAMILIES[famIdx]?.label || "";
@@ -8855,30 +8891,32 @@ function showJourneyTip(stage, tip, rec) {
   // Position — the placement said in words (x × y), so the dot's coordinates mean
   // something without counting gridlines.
   const posLine = `<div class="ajt-pos">
-      <span class="ajt-pos-cell"><b>${j.stage}</b>${escHtml(stageLbl)}</span>
+      <span class="ajt-pos-cell"><b>${curStage}</b>${escHtml(stageLbl)}</span>
       <span class="ajt-pos-x" aria-hidden="true">×</span>
       <span class="ajt-pos-cell"><b>${j.evidence_quality}</b>${escHtml(evLbl)}</span>
     </div>`;
 
-  // Movement — the timescale. Sparkline + net stage delta over the program.
-  // The per-week stage rows are still a deterministic SEED (see cohort-standing-
-  // weekly.json); while they are, the readout flags itself as illustrative so a
-  // seeded delta is never presented as measured history — the same in-UI honesty
-  // the activity bars already use. Drops out automatically once live reads land.
-  const mv = journeyMovement(rec);
+  // Movement — net stage change from program start to the selected week, as TEXT
+  // (no chart line). The per-week rows are still a deterministic SEED (see
+  // cohort-standing-weekly.json); while they are, the readout flags itself as
+  // illustrative so a seeded delta is never read as measured history. Drops out
+  // automatically once live weekly reads land.
   const seeded = standingWeeklyIsSeed();
-  const hasWeekly = standingWeeklyWeeks().length >= 2;
+  const hasWeekly = weeks.length >= 2;
   let moveBlock = "";
-  if (mv) {
-    const m = MOMENTUM[momentumKind(mv.delta)];
-    const deltaTxt = mv.delta > 0 ? `+${mv.delta}` : `${mv.delta}`;
+  if (hasWeekly) {
+    const delta = Math.round((curStage - startStage) * 10) / 10;
+    const kind = momentumKind(delta);
+    const m = MOMENTUM[kind];
+    const deltaTxt = delta > 0 ? `+${delta}` : `${delta}`;
+    const headTxt = delta === 0 ? "→ no stage change" : `${m.glyph} ${deltaTxt} ${Math.abs(delta) === 1 ? "stage" : "stages"}`;
+    const subTxt = delta === 0
+      ? (weekSel == null ? "steady so far this program" : `steady through ${weekLabel}`)
+      : (weekSel == null ? `${m.word} since program start` : `${m.word} by ${weekLabel}`);
     const seedNote = seeded ? `<small class="ajt-seed">illustrative — weekly reads not yet wired</small>` : "";
-    moveBlock = `<div class="ajt-move ajt-move-${momentumKind(mv.delta)}${seeded ? " is-seed" : ""}">
-        ${journeyStageSparkline(mv)}
-        <span class="ajt-move-read"><b>${escHtml(m.glyph)} ${escHtml(deltaTxt)} ${Math.abs(mv.delta) === 1 ? "stage" : "stages"}</b><small>${escHtml(m.word)} · ${mv.spanWeeks} ${mv.spanWeeks === 1 ? "wk" : "wks"} in program</small>${seedNote}</span>
+    moveBlock = `<div class="ajt-move ajt-move-${kind}${seeded ? " is-seed" : ""}">
+        <span class="ajt-move-read"><b>${escHtml(headTxt)}</b><small>${escHtml(subTxt)}</small>${seedNote}</span>
       </div>`;
-  } else if (hasWeekly) {
-    moveBlock = `<div class="ajt-move ajt-move-flat"><span class="ajt-move-read"><b>→ no stage change</b><small>steady so far this program${seeded ? " · illustrative seed" : ""}</small></span></div>`;
   }
 
   // Why they're there — upside (the size encoding), the bottleneck holding them,
@@ -8893,7 +8931,7 @@ function showJourneyTip(stage, tip, rec) {
   const ctxBlock = ctx ? `<div class="ajt-ctx">${escHtml(clip(ctx, 150))}</div>` : "";
   const nextBlock = j.next_milestone ? `<div class="ajt-row"><span class="ajt-k">next</span><span class="ajt-v">${escHtml(clip(j.next_milestone, 110))}</span></div>` : "";
   const foot = `<div class="ajt-foot">${
-    mv ? (seeded ? "explicit read · weekly history is a seed, live reads pending" : "explicit read · stage history from weekly standing")
+    hasWeekly ? (seeded ? "explicit read · weekly history is a seed, live reads pending" : "explicit read · stage history from weekly standing")
        : "explicit read · self-reported"
   }</div>`;
 

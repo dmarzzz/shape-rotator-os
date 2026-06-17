@@ -8654,29 +8654,27 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 }
 .alch-journey-stage svg .ac-jnode.is-labeled .ac-jnode-label { opacity: 0.86; }
 .alch-journey-stage svg .ac-jnode:hover .ac-jnode-label { opacity: 1; }
-/* ── movement trails — a team's stage wake from program start → now. Quiet at
-   rest (a faint warm track + an open origin tick on the side it came FROM), so
-   18 of them read as gentle history rather than clutter; the matching trail
-   brightens when its dot is hovered/focused. Slips lean cool-crimson, gains
-   lean warm-neutral, so direction reads without an arrowhead. */
-.alch-journey-stage svg .ac-jtrail { pointer-events: none; }
-.alch-journey-stage svg .ac-jtrail-line {
-  stroke: rgba(226, 207, 162, 0.26); stroke-width: 1.4; stroke-linecap: round;
-  transition: stroke 200ms var(--ease), stroke-width 200ms var(--ease);
+/* ── 3D dots — assessed reads render as shaded "beads": a per-family radial
+   gradient (set inline as fill=url(#jsphere-N)) gives the sphere highlight, and
+   the jdot-shadow filter floats them off the plot. A faint rim keeps them crisp
+   on bright cells. The week filter morphs their positions via a View Transition. */
+.alch-journey-stage svg .ac-jsphere {
+  filter: url(#jdot-shadow);
+  stroke: rgba(8, 6, 6, 0.42); stroke-width: 0.7;
 }
-.alch-journey-stage svg .ac-jtrail-origin {
-  fill: none; stroke: rgba(226, 207, 162, 0.42); stroke-width: 1.1;
-  transition: stroke 200ms var(--ease);
+/* Week-filter dot travel — when the "as of [week]" filter changes, only the
+   named dot groups morph to their new positions; the rest of the view swaps
+   instantly (root cross-fade disabled) so nothing flashes. The global
+   prefers-reduced-motion guard zeroes the duration for reduced-motion users. */
+html.jweek-vt::view-transition-group(*) {
+  animation-duration: 360ms;
+  animation-timing-function: var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
 }
-.alch-journey-stage svg .ac-jtrail-slip .ac-jtrail-line { stroke: rgba(200, 58, 72, 0.30); }
-.alch-journey-stage svg .ac-jtrail-slip .ac-jtrail-origin { stroke: rgba(200, 58, 72, 0.46); }
-.alch-journey-stage svg .ac-jtrail.is-trail-active .ac-jtrail-line { stroke: rgba(238, 222, 178, 0.85); stroke-width: 1.8; }
-.alch-journey-stage svg .ac-jtrail.is-trail-active .ac-jtrail-origin { stroke: rgba(238, 222, 178, 0.92); }
-.alch-journey-stage svg .ac-jtrail-slip.is-trail-active .ac-jtrail-line { stroke: rgba(214, 86, 99, 0.9); }
-.alch-journey-stage svg .ac-jtrail-slip.is-trail-active .ac-jtrail-origin { stroke: rgba(214, 86, 99, 0.95); }
-/* Isolating a bottleneck dims non-matching dots to 0.18 — the wakes must follow,
-   or bright trails would hang off near-invisible dots and invert the focus. */
-.alch-journey-stage svg .ac-jtrail.is-bn-dim { opacity: 0.12; }
+html.jweek-vt::view-transition-old(root),
+html.jweek-vt::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
 /* 4-family bottleneck palette (collapsed from 10 — see JOURNEY_BOTTLENECK_
    FAMILIES). Dots fill (svg); legend swatches need background (html span). */
 .alch-journey-stage svg .ac-jfam-0 { fill: #c44025; }  /* market  — oxide red */
@@ -8798,14 +8796,17 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 .ac-tip .ajt-v small { color: var(--alchemy-ink-mute); }
 
 /* ── PMF evidence: consolidated controls row + compact key ─────────────────
-   timeline + filter sentence on the left, encoding key + selection chip pushed
-   right; everything wraps gracefully instead of stacking into a second panel. */
+   filter sentence on the left, compact key next to it; the "as of [week]" filter
+   is pushed to the far right (the top-right corner of the view). Wraps gracefully
+   instead of stacking into a second panel. */
 .alch-view-controls.is-journey-controls {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
 }
+/* The week filter owns the top-right; the key strip flows right after the
+   sentence so the two right-aligned elements don't fight for the corner. */
+.ac-jweek-ctl { margin-left: auto; }
 .acl-jkey-strip {
   display: inline-flex; align-items: center; flex-wrap: wrap; gap: 3px 10px;
-  margin-left: auto;
   font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.07em;
   text-transform: lowercase; color: var(--journey-muted);
 }
@@ -8849,9 +8850,6 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   padding: 6px 9px; margin-bottom: 9px; border-radius: 6px;
   background: rgba(var(--ink-rgb), 0.05);
 }
-/* width/height pinned because `.alch-journey-stage svg { width:100% }` (the plot
-   rule) would otherwise stretch this sparkline to fill the whole card. */
-.ac-tip .ajt-spark { flex: 0 0 auto; display: block; width: 96px; height: 26px; }
 .ac-tip .ajt-move-read { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ac-tip .ajt-move-read b { font-size: 11px; letter-spacing: 0.02em; }
 .ac-tip .ajt-move-read small { color: var(--alchemy-ink-mute); font-size: 8.5px; letter-spacing: 0.06em; }
