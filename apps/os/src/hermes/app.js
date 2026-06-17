@@ -244,9 +244,11 @@ function buildContext() {
 
 function buildPrompt(question) {
   const parts = [
-    "You are a research companion for the Shape Rotator cohort. You have read-only access to the cohort's public profile data (names, teams, skills, what they're working on, what they're seeking, what they offer).",
+    "You are a connector for the Shape Rotator cohort — you help members FIND the right people and understand how to ENGAGE them. You have read-only access to the cohort's public profile data (names, teams, skills, what they're working on, what they're seeking, what they offer).",
     "",
-    "Answer the user's question by citing specific cohort members or teams by name when relevant. Quote short snippets from their profiles when useful. If the data doesn't contain an answer, say so plainly — don't invent participants.",
+    "When the question is about finding people or teams (who can help with X, who's working on Y, who to talk to about Z, who to pair with), name the specific members or teams and, for EACH one, give: WHAT TO GO TO THEM FOR (grounded in a short quote from their profile) and a good CONVERSATION OPENER. For other questions, cite specific members or teams by name and quote short snippets when useful.",
+    "",
+    "You only surface who and why — never draft an outreach message, offer to contact anyone, or imply you can reach them; the member reaches out themselves. If the data doesn't contain an answer, say so plainly — don't invent participants.",
   ];
   // The user's own "shape" (their GitHub + Codex work history), if scanned. The
   // public GitHub section is always safe to include; the private Codex section
