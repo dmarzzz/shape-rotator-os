@@ -13,6 +13,10 @@ contextBridge.exposeInMainWorld("api", {
   savePrefs:    (d) => ipcRenderer.invoke("prefs:save", d),
   env:          () => ipcRenderer.invoke("env:get"),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
+  // Whole-window zoom — the renderer calls this for Cmd/Ctrl +/-/0 when it is
+  // NOT on a cohort view (cohort views handle those keys with their own scoped
+  // zoom). action: "in" | "out" | "reset".
+  appZoom:      (action) => ipcRenderer.invoke("os:app-zoom", action),
   loadContextVault:       ()   => ipcRenderer.invoke("context-vault:manifest"),
   scanContextVault:       ()   => ipcRenderer.invoke("context-vault:scan"),
   readContextVaultSource: (id) => ipcRenderer.invoke("context-vault:read-source", id),
