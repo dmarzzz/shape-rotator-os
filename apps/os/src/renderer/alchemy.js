@@ -5488,35 +5488,89 @@ function renderJourney() {
       </g>`;
   }).join("");
 
-  // ── bottleneck legend — grouped into 4 color families (the dot palette),
-  // each family's members still individually clickable to isolate that one.
-  // Led by the encoding key: without it nothing on the view says what color
-  // or size MEAN, and both encodings are otherwise hover-only knowledge. ──
+  // ── movement trails — the "how far has this team travelled" half of the read.
+  // For every assessed dot whose STAGE moved since program week 0, a faint track
+  // runs from its origin column to the live dot (the head). Only stage is tracked
+  // weekly, so the track is strictly horizontal at the dot's row — it never
+  // invents the vertical (evidence) history we never recorded. The origin tick
+  // sits on the side they came FROM, so direction reads without an arrowhead.
+  // Drawn BEFORE the dots so the live mark always rides on top of its own wake.
+  const trails = nodes.map(({ t, j, assessed, r, cx, cy }) => {
+    if (!assessed) return "";
+    const mv = journeyMovement(t);
+    if (!mv) return "";
+    const gap = r + 1.6;
+    // Clamp the origin to the plot's left edge: a team whose history reaches back
+    // to the off-track stage-0 "side project" column would otherwise anchor its
+    // tick in the left axis gutter whenever that column is hidden (minStage === 1).
+    const x0 = Math.max(PAD_L, xForStage(mv.start));
+    const x1 = mv.delta > 0 ? cx - gap : cx + gap; // stop just shy of the dot edge
+    const dir = mv.delta > 0 ? "fwd" : "slip";
+    // Mirror the dot's bottleneck focus so isolating one bottleneck dims the
+    // wakes too — else ~17 bright trails hang off near-invisible dimmed dots.
+    const bnClass = bnFocus ? (j.primary_bottleneck === bnFocus ? " is-bn-match" : " is-bn-dim") : "";
+    return `<g class="ac-jtrail ac-jtrail-${dir}${bnClass}" data-trail-for="${escAttr(t.record_id)}" aria-hidden="true">
+        <line class="ac-jtrail-line" x1="${x0.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${cy.toFixed(1)}"/>
+        <circle class="ac-jtrail-origin" cx="${x0.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.3"/>
+      </g>`;
+  }).join("");
+
+  // ── bottleneck filter + compact legend key ───────────────────────────────
+  // The old legend was a 10-button wall in its own panel — the colour/size key
+  // PLUS a per-bottleneck filter, two rows tall. The 10 filters collapse into
+  // one stateful sentence token ("stuck on [any ▾]"; isolating a bottleneck is a
+  // power move, not a frequent one, so it earns a click), and the colour/size/
+  // unread key shrinks to a single quiet strip — so the whole legend now rides
+  // the one controls row instead of owning a panel.
   const bottleneckCounts = new Map(JOURNEY_BOTTLENECKS.map((b) => [b, 0]));
   for (const t of teams) {
     if (!journeyAssessed(t)) continue;
     const b = journeyFor(t).primary_bottleneck;
     if (bottleneckCounts.has(b)) bottleneckCounts.set(b, bottleneckCounts.get(b) + 1);
   }
-  // A dashed/ghost dot means "no explicit PMF read yet" (profile-context only,
-  // seeded at the idea·vibes default). It was a whole class of marks the legend
-  // never explained — every faded dot is a placeholder, not a real placement.
-  const ghostSwatch = `<svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" style="vertical-align:-1px"><circle cx="5.5" cy="5.5" r="3.6" fill="rgba(241,236,231,0.24)" stroke="rgba(214,189,134,0.58)" stroke-width="1" stroke-dasharray="2 2"/></svg>`;
-  const legendKey = `<span class="acl-jkey">color = primary bottleneck · size = market upside<span class="acl-jsize" aria-hidden="true"><i class="sm"></i><i class="lg"></i></span></span><span class="acl-jkey acl-jghost-key">${ghostSwatch}&nbsp;dashed = profile only, no PMF read yet</span>`;
-  const legend = legendKey + JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => `
-    <div class="acl-jfamily">
-      <span class="acl-jfam-head"><span class="acl-jswatch ac-jfam-${fi}"></span>${escHtml(fam.label)}</span>
-      ${fam.members.map((b) => {
-        const count = bottleneckCounts.get(b) || 0;
-        return `<button type="button" class="acl-jbtn ${jf.bottleneck === b ? "is-active" : ""} ${jf.bottleneck && jf.bottleneck !== b ? "is-dim" : ""}" data-jbottleneck="${escAttr(b)}" data-legend-bottleneck="${escAttr(b)}" aria-pressed="${jf.bottleneck === b ? "true" : "false"}" aria-label="${escAttr(`${b}: ${count} plotted records${jf.bottleneck === b ? " — click to clear" : " — click to isolate"}`)}">${escHtml(b)}<em>${escHtml(String(count))}</em></button>`;
-      }).join("")}
-    </div>`).join("");
+  const activeBn = jf.bottleneck || null;
+  // Token reuses the timeline dropdown's sentence-menu chrome (data-sent-menu);
+  // options reuse the existing data-jbottleneck click handler. Each option
+  // carries its family-coloured dot, so the colour legend is embedded INTO the
+  // filter — picking a bottleneck and learning what its colour means are one act.
+  const bnOptions = [
+    `<button type="button" class="ac-sent-opt" data-jbottleneck="" role="option" aria-selected="${activeBn ? "false" : "true"}">
+        <span class="ac-sent-opt-main"><b>any bottleneck</b><small>show every team</small></span>
+      </button>`,
+    ...JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => fam.members.map((b) => {
+      const count = bottleneckCounts.get(b) || 0;
+      const sel = activeBn === b;
+      return `<button type="button" class="ac-sent-opt ac-jbn-opt" data-jbottleneck="${escAttr(b)}" role="option" aria-selected="${sel ? "true" : "false"}" aria-label="${escAttr(`isolate ${b} — ${count} ${count === 1 ? "team" : "teams"} (${fam.label})`)}">
+          <span class="ac-sent-opt-main"><b><i class="acl-jswatch ac-jfam-${fi}"></i>${escHtml(b)}</b><small>${escHtml(fam.label)}</small></span>
+          <em>${escHtml(String(count))}</em>
+        </button>`;
+    }).join("")).join(""),
+  ].join("");
+  const bnTokenSwatch = activeBn ? `<i class="acl-jswatch ac-jfam-${journeyFamilyIdx(activeBn)}" aria-hidden="true"></i>` : "";
+  const bottleneckUnit = `
+    <span class="ac-sent-unit">
+      <button type="button" class="ac-sent-tok ac-jbn-tok${activeBn ? " is-active" : ""}" data-sent-menu="jbottleneck" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(`bottleneck filter: ${activeBn || "any"} — isolate teams stuck on one bottleneck`)}">
+        ${bnTokenSwatch}<span>${escHtml(activeBn || "any")}</span><i class="ac-sent-chev" aria-hidden="true"></i>
+      </button>
+      <div class="ac-sent-menu" data-sent-menu-for="jbottleneck" role="listbox" aria-label="isolate one PMF bottleneck" hidden>${bnOptions}</div>
+    </span>`;
+  // Compact encoding key — colour family · size = upside · hollow = unread.
+  // Reference only (not buttons), so it can't read as one more filter.
+  const ghostSwatch = `<svg width="10" height="10" viewBox="0 0 11 11" aria-hidden="true"><circle cx="5.5" cy="5.5" r="3.6" fill="rgba(241,236,231,0.24)" stroke="rgba(214,189,134,0.58)" stroke-width="1" stroke-dasharray="2 2"/></svg>`;
+  const keyStrip = `
+    <div class="acl-jkey-strip" aria-label="how to read the dots">
+      ${JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => `<span class="acl-jk-fam"><i class="acl-jswatch ac-jfam-${fi}"></i>${escHtml(fam.label)}</span>`).join("")}
+      <span class="acl-jk-sep" aria-hidden="true"></span>
+      <span class="acl-jk-size">size<span class="acl-jsize" aria-hidden="true"><i class="sm"></i><i class="lg"></i></span>upside</span>
+      <span class="acl-jk-sep" aria-hidden="true"></span>
+      <span class="acl-jk-ghost">${ghostSwatch}unread</span>
+    </div>`;
 
-  // ── sentence bar — "plotting teams + projects + side projects" ──
-  // Counts come from the UNFILTERED set so a toggled-off chip still says
-  // what it would bring back. An active bottleneck isolation (set from the
-  // legend below) surfaces here as a clearable chip — the legend's
-  // is-active highlight alone left the filter state invisible at the top.
+  // ── sentence bar — "PMF read for teams + projects · N/N explicit · stuck on …" ──
+  // Counts come from the UNFILTERED set so a toggled-off chip still says what it
+  // would bring back. The bottleneck isolation now lives IN the sentence as its
+  // own token (the consolidated legend filter), so the active filter is part of
+  // the claim the bar makes, not a chip bolted on the end.
   const kindCount = {
     teams: all.filter(t => teamKind(t) !== "project").length,
     projects: all.filter(t => teamKind(t) === "project").length,
@@ -5526,11 +5580,6 @@ function renderJourney() {
     attr: "data-jfilter", value: key, on: !!jf[key], label, count: kindCount[key],
     aria: `${label}, ${kindCount[key]} on the chart — click to ${jf[key] ? "hide" : "include"}`,
   });
-  const bottleneckChip = jf.bottleneck ? `
-    <span class="ac-sent-word">· stuck on</span>
-    <button type="button" class="ac-sent-evi is-clearable" data-jbottleneck="${escAttr(jf.bottleneck)}" aria-label="${escAttr(`clear bottleneck filter: ${jf.bottleneck}`)}">
-      ${escHtml(jf.bottleneck)}<i class="ac-sent-x" aria-hidden="true">×</i>
-    </button>` : "";
   // Honesty fact: how many plotted records have an EXPLICIT pmf read vs. sit at
   // the seeded default — otherwise the bottom-left default cluster reads as real.
   const assessedCount = teams.filter(journeyAssessed).length;
@@ -5543,18 +5592,17 @@ function renderJourney() {
       ${sideEligible ? `<span class="ac-sent-word">+</span>${includeChip("side", "side projects")}` : ""}
       <span class="ac-sent-word">·</span>
       <strong class="ac-sent-fact">${assessedCount}/${teams.length}</strong>
-      <span class="ac-sent-word">with an explicit read</span>
-      ${bottleneckChip}
+      <span class="ac-sent-word">explicit · stuck on</span>
+      ${bottleneckUnit}
     </div>`;
 
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="journey">
     ${cohortPageHead("journey")}
-    <div class="alch-view-controls" data-shape-occluder>${constTimelineDropdownHtml()}${filterBar}${constSelectionChipHtml()}</div>
+    <div class="alch-view-controls is-journey-controls" data-shape-occluder>${constTimelineDropdownHtml()}${filterBar}${keyStrip}${constSelectionChipHtml()}</div>
     <div class="alch-constellation" data-constellation-view="journey">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
-          <div class="alch-constellation-legend is-journey-legend lg-track">${legend}</div>
           <div class="alch-constellation-stage alch-journey-stage">
             <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
               ${gridLines.join("")}
@@ -5562,6 +5610,7 @@ function renderJourney() {
               ${yLabels}
               ${axisTitleX}
               ${axisTitleY}
+              ${trails}
               ${dots}
             </svg>
             <div class="ac-tip" hidden></div>
@@ -5659,6 +5708,39 @@ const MOMENTUM = {
   flat:     { color: "#9a9488", glyph: "→", word: "steady" },
 };
 function momentumDeltaLabel(d) { return d == null ? "" : (d > 0 ? `+${d}` : `${d}`); }
+
+// Full-program PMF-stage movement for a team, from the weekly series (Supabase
+// team_standing_weekly → cohort-standing-weekly.json). The PMF scatter plots a
+// team at its CURRENT (stage × evidence); this recovers the horizontal half of
+// the story — where its STAGE started at program week 0 and how far it has
+// travelled since. Only stage is tracked per week (evidence has no weekly
+// series), so the movement is honestly one-dimensional: along the stage axis.
+// Uses the FULL program window (not the rewound timeline) because the dot's
+// position never rewinds on this view, so "how far during their time in the
+// program" reads week-0 → latest. Returns null when there's no weekly data or
+// the team never moved — a flat team then draws no trail and claims no journey
+// it didn't make (the same data-honesty rule as the hollow "unread" dots).
+function journeyMovement(team) {
+  const weeks = standingWeeklyWeeks();
+  if (weeks.length < 2) return null;
+  const series = teamStageSeries(team, weeks).slice();
+  // Anchor the END of the series to the stage the dot is actually plotted at
+  // (journeyFor().stage) so the trail head, the delta, and the dot can never
+  // disagree — even once real, divergent weekly reads replace today's seed
+  // (whose last week already equals the live stage for every team).
+  const plotted = journeyFor(team).stage;
+  if (Number.isFinite(plotted)) series[series.length - 1] = plotted;
+  const start = series[0];
+  const end = series[series.length - 1];
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start === end) return null;
+  return { series, weeks, start, end, delta: Math.round((end - start) * 10) / 10, spanWeeks: weeks.length - 1 };
+}
+// True while the per-week standing rows are still the deterministic seed (vs.
+// real reads from Supabase team_standing_weekly), so the movement readout can
+// honestly flag a seeded delta as illustrative rather than measured history.
+function standingWeeklyIsSeed() {
+  return /\bseed/i.test(state.standingWeekly?.note || "");
+}
 
 function constTeamStanding(team) {
   // Classify by the confidence the team declared AT THE ACTIVE WEEK (per-week
@@ -8073,22 +8155,31 @@ function wireConstellationHover() {
       });
     }
     // Journey scatterplot nodes: same tip element, journey content.
+    // Lift a team's movement trail out of the quiet at-rest layer when its dot
+    // is hovered/focused, so "where did this one come from" reads on demand
+    // without 18 bright trails competing at once.
+    const emphTrail = (rid, on) => {
+      const tr = stage.querySelector(`.ac-jtrail[data-trail-for="${CSS.escape(rid)}"]`);
+      if (tr) tr.classList.toggle("is-trail-active", on);
+    };
     for (const node of stage.querySelectorAll(".ac-jnode")) {
       const rid = node.dataset.recordId;
       node.addEventListener("mouseenter", (e) => {
         showJourneyTip(stage, tip, teamById.get(rid));
         positionConstTip(stage, tip, e);
+        emphTrail(rid, true);
       });
       node.addEventListener("mousemove", (e) => positionConstTip(stage, tip, e));
-      node.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
+      node.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; emphTrail(rid, false); });
       node.addEventListener("click", (e) => {
         e.preventDefault();
         selectOrOpen("team", rid);
       });
       node.addEventListener("focus", () => {
         showJourneyTip(stage, tip, teamById.get(rid));
+        emphTrail(rid, true);
       });
-      node.addEventListener("blur", () => { if (tip) tip.hidden = true; });
+      node.addEventListener("blur", () => { if (tip) tip.hidden = true; emphTrail(rid, false); });
       node.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
@@ -8304,13 +8395,14 @@ function wireConstellationHover() {
       if (jf && key in jf) { jf[key] = !jf[key]; render(); }
     });
   }
-  // Journey bottleneck: legend buttons isolate one bottleneck (click again
-  // to clear); the sentence's "stuck on" chip carries the same attribute,
-  // so clicking it re-toggles — i.e. clears — the active one.
+  // Journey bottleneck: the "stuck on [bottleneck ▾]" token menu isolates one
+  // bottleneck (re-pick to clear). The "any bottleneck" option carries an empty
+  // value; normalize it to a real null so jf.bottleneck is never the empty string
+  // (every consumer reads it as `|| null`, but null keeps that contract honest).
   for (const btn of state.canvas.querySelectorAll("[data-jbottleneck]")) {
     btn.addEventListener("click", () => {
       if (!jf) return;
-      const b = btn.dataset.jbottleneck;
+      const b = btn.dataset.jbottleneck || null;
       jf.bottleneck = jf.bottleneck === b ? null : b;
       render();
     });
@@ -8714,23 +8806,98 @@ function setConstellationPersonProjectHover(stage, teamId, on) {
 // Journey tooltip: name + stage/evidence labels + bottleneck + next
 // milestone. Reads journey with defaults applied so it never crashes on a
 // record that has no `journey` object.
+// Mini stage-over-weeks sparkline for the PMF hover — the weekly series on the
+// shared 0..8 stage scale, coloured by momentum. The hover's timescale glance.
+function journeyStageSparkline(mv) {
+  const W = 96, H = 26, pad = 3;
+  const s = mv.series, n = s.length;
+  const xAt = (i) => pad + (n <= 1 ? 0 : (i / (n - 1)) * (W - pad * 2));
+  const yAt = (v) => H - pad - (Math.max(0, Math.min(8, v)) / 8) * (H - pad * 2);
+  const pts = s.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`);
+  const col = MOMENTUM[momentumKind(mv.delta)].color;
+  const area = `M${xAt(0).toFixed(1)},${(H - pad).toFixed(1)} L${pts.join(" L")} L${xAt(n - 1).toFixed(1)},${(H - pad).toFixed(1)} Z`;
+  return `<svg class="ajt-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">
+      <path d="${area}" fill="${col}" fill-opacity="0.12"/>
+      <polyline points="${pts.join(" ")}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${xAt(0).toFixed(1)}" cy="${yAt(s[0]).toFixed(1)}" r="1.6" fill="none" stroke="${col}" stroke-opacity="0.7"/>
+      <circle cx="${xAt(n - 1).toFixed(1)}" cy="${yAt(s[n - 1]).toFixed(1)}" r="2.3" fill="${col}"/>
+    </svg>`;
+}
+
+// The PMF read card. This view answers exactly one question — where a team sits
+// on the path to product-market fit and which way it's moving — so the hover
+// EXPLAINS the placement (position in words, the evidence behind it, the
+// bottleneck holding it) and shows the movement (sparkline + delta). It is
+// deliberately NOT a company dossier: no roster, links, or profile bio.
 function showJourneyTip(stage, tip, rec) {
   if (!tip || !rec) return;
   const j = journeyFor(rec);
   const assessed = journeyAssessed(rec);
+  const clip = (s, n) => { s = constText(s); return s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s; };
+  const typeChip = j.company_type ? `<span class="ajt-tag">${escHtml(j.company_type)}</span>` : "";
+  const head = `<div class="ajt-head"><span class="ajt-name">${escHtml(rec.name || rec.record_id)}</span>${typeChip}</div>`;
+
+  // Unread team — never dress the seeded defaults (stage 1, ICP Clarity, upside
+  // 3…) as a measured read. journeyAssessed() already counts icp/problem/etc., so
+  // reaching here means nothing was self-entered: show only the honest note.
+  if (!assessed) {
+    tip.innerHTML = `${head}<div class="ajt-unread">No explicit PMF read yet — plotted at the idea · vibes default, not a measured placement.</div>`;
+    tip.hidden = false;
+    return;
+  }
+
   const stageLbl = JOURNEY_STAGE_LABELS[j.stage] || "—";
   const evLbl = JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "—";
-  const milestone = j.next_milestone
-    ? `<div class="ajt-row"><span class="ajt-k">next</span><span class="ajt-v">${escHtml(j.next_milestone)}</span></div>`
-    : "";
-  tip.innerHTML = `
-    <div class="ajt-name">${escHtml(rec.name || rec.record_id)}</div>
-    <div class="ajt-row"><span class="ajt-k">source</span><span class="ajt-v">${escHtml(assessed ? "explicit PMF read" : "missing journey data")}</span></div>
-    <div class="ajt-row"><span class="ajt-k">stage</span><span class="ajt-v">${j.stage} · ${escHtml(stageLbl)}</span></div>
-    <div class="ajt-row"><span class="ajt-k">evidence</span><span class="ajt-v">${j.evidence_quality} · ${escHtml(evLbl)}</span></div>
-    <div class="ajt-row"><span class="ajt-k">bottleneck</span><span class="ajt-v">${escHtml(j.primary_bottleneck)}</span></div>
-    ${milestone}
-  `;
+  const famIdx = journeyFamilyIdx(j.primary_bottleneck);
+  const famLabel = JOURNEY_BOTTLENECK_FAMILIES[famIdx]?.label || "";
+  const upsideLbl = JOURNEY_UPSIDE_LABELS[j.market_upside] || "";
+
+  // Position — the placement said in words (x × y), so the dot's coordinates mean
+  // something without counting gridlines.
+  const posLine = `<div class="ajt-pos">
+      <span class="ajt-pos-cell"><b>${j.stage}</b>${escHtml(stageLbl)}</span>
+      <span class="ajt-pos-x" aria-hidden="true">×</span>
+      <span class="ajt-pos-cell"><b>${j.evidence_quality}</b>${escHtml(evLbl)}</span>
+    </div>`;
+
+  // Movement — the timescale. Sparkline + net stage delta over the program.
+  // The per-week stage rows are still a deterministic SEED (see cohort-standing-
+  // weekly.json); while they are, the readout flags itself as illustrative so a
+  // seeded delta is never presented as measured history — the same in-UI honesty
+  // the activity bars already use. Drops out automatically once live reads land.
+  const mv = journeyMovement(rec);
+  const seeded = standingWeeklyIsSeed();
+  const hasWeekly = standingWeeklyWeeks().length >= 2;
+  let moveBlock = "";
+  if (mv) {
+    const m = MOMENTUM[momentumKind(mv.delta)];
+    const deltaTxt = mv.delta > 0 ? `+${mv.delta}` : `${mv.delta}`;
+    const seedNote = seeded ? `<small class="ajt-seed">illustrative — weekly reads not yet wired</small>` : "";
+    moveBlock = `<div class="ajt-move ajt-move-${momentumKind(mv.delta)}${seeded ? " is-seed" : ""}">
+        ${journeyStageSparkline(mv)}
+        <span class="ajt-move-read"><b>${escHtml(m.glyph)} ${escHtml(deltaTxt)} ${Math.abs(mv.delta) === 1 ? "stage" : "stages"}</b><small>${escHtml(m.word)} · ${mv.spanWeeks} ${mv.spanWeeks === 1 ? "wk" : "wks"} in program</small>${seedNote}</span>
+      </div>`;
+  } else if (hasWeekly) {
+    moveBlock = `<div class="ajt-move ajt-move-flat"><span class="ajt-move-read"><b>→ no stage change</b><small>steady so far this program${seeded ? " · illustrative seed" : ""}</small></span></div>`;
+  }
+
+  // Why they're there — upside (the size encoding), the bottleneck holding them,
+  // and the strongest piece of declared evidence we actually have on file.
+  const upsideMeter = `<span class="ajt-meter" aria-hidden="true">${[1, 2, 3, 4, 5].map(n => `<i class="${n <= j.market_upside ? "on" : ""}"></i>`).join("")}</span>`;
+  const stats = `
+    <div class="ajt-row"><span class="ajt-k">upside</span><span class="ajt-v">${upsideMeter}${escHtml(upsideLbl)}</span></div>
+    <div class="ajt-row"><span class="ajt-k">stuck on</span><span class="ajt-v"><i class="ajt-bn-dot ac-jfam-${famIdx}" aria-hidden="true"></i>${escHtml(j.primary_bottleneck)} <small>· ${escHtml(famLabel)}</small></span></div>`;
+  const ctx = j.evidence_notes ? `evidence — ${j.evidence_notes}`
+    : j.problem ? `problem — ${j.problem}`
+    : j.icp ? `for ${j.icp}` : "";
+  const ctxBlock = ctx ? `<div class="ajt-ctx">${escHtml(clip(ctx, 150))}</div>` : "";
+  const nextBlock = j.next_milestone ? `<div class="ajt-row"><span class="ajt-k">next</span><span class="ajt-v">${escHtml(clip(j.next_milestone, 110))}</span></div>` : "";
+  const foot = `<div class="ajt-foot">${
+    mv ? (seeded ? "explicit read · weekly history is a seed, live reads pending" : "explicit read · stage history from weekly standing")
+       : "explicit read · self-reported"
+  }</div>`;
+
+  tip.innerHTML = `${head}${posLine}${moveBlock}${stats}${ctxBlock}${nextBlock}${foot}`;
   tip.hidden = false;
 }
 function positionConstTip(stage, tip, e) {

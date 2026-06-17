@@ -24,7 +24,10 @@ function normalize(data) {
         .sort((a, b) => a.program_week - b.program_week)
     : [];
   const byTeam = src.byTeam && typeof src.byTeam === "object" ? src.byTeam : {};
-  return { weeks, byTeam };
+  // Keep the provenance note so the UI can honestly disclose when the per-week
+  // rows are still the deterministic seed vs. real reads from Supabase.
+  const note = typeof src.note === "string" ? src.note : "";
+  return { weeks, byTeam, note };
 }
 
 export async function getStandingWeekly() {

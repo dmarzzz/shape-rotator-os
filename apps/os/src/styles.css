@@ -8568,10 +8568,20 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   --journey-ink: var(--ed-ink-1, #f5f3ee);
   --journey-muted: var(--ed-ink-2, #b8b4ab);
   --journey-quiet: var(--ed-ink-3, #6e695e);
+  /* Axis labels sit at the dim edges of a dark plot and crowd the dots near
+     the margins — they need more contrast than body-muted plus a dark halo so
+     they never get lost behind a mark. */
+  --journey-axis: var(--ed-ink-1, #ece7dd);
+  --journey-axis-halo: rgba(10, 9, 9, 0.82);
   --journey-rule: rgba(var(--ink-rgb), 0.16);
   --journey-rule-strong: rgba(var(--ink-rgb), 0.34);
   --journey-control-bg: rgba(var(--ink-rgb), 0.035);
   --journey-control-bg-hover: rgba(var(--ink-rgb), 0.065);
+}
+/* Light theme: the axis labels become ink-on-paper, so the halo must flip to a
+   paper colour or it would darken the dark text instead of separating it. */
+:root[data-theme="light"] .alch-constellation {
+  --journey-axis-halo: rgba(247, 246, 242, 0.92);
 }
 .alch-journey-stage svg { width: 100%; height: 100%; display: block; }
 .alch-journey-stage svg .ac-jgrid {
@@ -8579,18 +8589,22 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 }
 .alch-journey-stage svg .ac-jaxis-x,
 .alch-journey-stage svg .ac-jaxis-y {
-  fill: var(--journey-muted);
-  font-family: var(--font-mono); font-size: 10.2px; letter-spacing: 0.05em; text-transform: lowercase; font-variant-numeric: tabular-nums;
+  fill: var(--journey-axis);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.03em; text-transform: lowercase; font-variant-numeric: tabular-nums;
+  /* Halo so the label survives where dots crowd the axis margins. */
+  paint-order: stroke;
+  stroke: var(--journey-axis-halo); stroke-width: 2.6px; stroke-linejoin: round;
 }
-.alch-journey-stage svg .ac-jaxis-num { fill: var(--journey-ink); font-weight: 600; }
+.alch-journey-stage svg .ac-jaxis-num { fill: var(--journey-ink); font-weight: 700; }
 /* Divider setting the off-track "side project" column apart from idea→scale-fit. */
 .alch-journey-stage svg .ac-jdivider {
   stroke: var(--journey-rule-strong); stroke-width: 1; stroke-dasharray: 3 4;
 }
-.alch-journey-stage svg .ac-jaxis-x-side { fill: var(--journey-muted); font-style: italic; opacity: 0.86; }
+.alch-journey-stage svg .ac-jaxis-x-side { fill: var(--journey-muted); font-style: italic; opacity: 0.92; }
 .alch-journey-stage svg .ac-jaxis-title {
-  fill: var(--journey-muted);
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  fill: var(--journey-axis);
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase;
+  opacity: 0.78;
 }
 .alch-journey-stage svg .ac-jnode { cursor: pointer; }
 .alch-journey-stage svg .ac-jnode .ac-jdot {
@@ -8640,18 +8654,44 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 }
 .alch-journey-stage svg .ac-jnode.is-labeled .ac-jnode-label { opacity: 0.86; }
 .alch-journey-stage svg .ac-jnode:hover .ac-jnode-label { opacity: 1; }
+/* ── movement trails — a team's stage wake from program start → now. Quiet at
+   rest (a faint warm track + an open origin tick on the side it came FROM), so
+   18 of them read as gentle history rather than clutter; the matching trail
+   brightens when its dot is hovered/focused. Slips lean cool-crimson, gains
+   lean warm-neutral, so direction reads without an arrowhead. */
+.alch-journey-stage svg .ac-jtrail { pointer-events: none; }
+.alch-journey-stage svg .ac-jtrail-line {
+  stroke: rgba(226, 207, 162, 0.26); stroke-width: 1.4; stroke-linecap: round;
+  transition: stroke 200ms var(--ease), stroke-width 200ms var(--ease);
+}
+.alch-journey-stage svg .ac-jtrail-origin {
+  fill: none; stroke: rgba(226, 207, 162, 0.42); stroke-width: 1.1;
+  transition: stroke 200ms var(--ease);
+}
+.alch-journey-stage svg .ac-jtrail-slip .ac-jtrail-line { stroke: rgba(200, 58, 72, 0.30); }
+.alch-journey-stage svg .ac-jtrail-slip .ac-jtrail-origin { stroke: rgba(200, 58, 72, 0.46); }
+.alch-journey-stage svg .ac-jtrail.is-trail-active .ac-jtrail-line { stroke: rgba(238, 222, 178, 0.85); stroke-width: 1.8; }
+.alch-journey-stage svg .ac-jtrail.is-trail-active .ac-jtrail-origin { stroke: rgba(238, 222, 178, 0.92); }
+.alch-journey-stage svg .ac-jtrail-slip.is-trail-active .ac-jtrail-line { stroke: rgba(214, 86, 99, 0.9); }
+.alch-journey-stage svg .ac-jtrail-slip.is-trail-active .ac-jtrail-origin { stroke: rgba(214, 86, 99, 0.95); }
+/* Isolating a bottleneck dims non-matching dots to 0.18 — the wakes must follow,
+   or bright trails would hang off near-invisible dots and invert the focus. */
+.alch-journey-stage svg .ac-jtrail.is-bn-dim { opacity: 0.12; }
 /* 4-family bottleneck palette (collapsed from 10 — see JOURNEY_BOTTLENECK_
    FAMILIES). Dots fill (svg); legend swatches need background (html span). */
 .alch-journey-stage svg .ac-jfam-0 { fill: #c44025; }  /* market  — oxide red */
 .alch-journey-stage svg .ac-jfam-1 { fill: #c9a35e; }  /* product — brass */
 .alch-journey-stage svg .ac-jfam-2 { fill: #4fa3a0; }  /* growth  — teal */
 .alch-journey-stage svg .ac-jfam-3 { fill: #7a6fb0; }  /* company — violet */
-.alch-constellation-legend .acl-jswatch.ac-jfam-0 { background: #c44025; }
-.alch-constellation-legend .acl-jswatch.ac-jfam-1 { background: #c9a35e; }
-.alch-constellation-legend .acl-jswatch.ac-jfam-2 { background: #4fa3a0; }
-.alch-constellation-legend .acl-jswatch.ac-jfam-3 { background: #7a6fb0; }
-.alch-constellation-legend .acl-jswatch {
-  display: inline-block; flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%;
+/* Family swatch colours — unscoped so they tint the key strip, the bottleneck
+   filter token + its menu, and the tooltip's bottleneck dot, none of which live
+   inside .alch-constellation-legend anymore. */
+.acl-jswatch.ac-jfam-0, .ajt-bn-dot.ac-jfam-0 { background: #c44025; }
+.acl-jswatch.ac-jfam-1, .ajt-bn-dot.ac-jfam-1 { background: #c9a35e; }
+.acl-jswatch.ac-jfam-2, .ajt-bn-dot.ac-jfam-2 { background: #4fa3a0; }
+.acl-jswatch.ac-jfam-3, .ajt-bn-dot.ac-jfam-3 { background: #7a6fb0; }
+.acl-jswatch {
+  display: inline-block; flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%;
   vertical-align: middle; margin-right: 6px;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.36);
 }
@@ -8673,68 +8713,26 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   backdrop-filter: var(--lg-blur-sm);
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
-.alch-constellation-legend.is-journey-legend {
-  align-items: center;
-  gap: 6px 12px;
-}
-/* The pmf legend is the encoding key PLUS the bottleneck FILTER chips — it
-   belongs with the controls, not in its own glass panel. Float it (drop the
-   box) and tighten it into one quiet row so it reads as filters and the
-   scatter sits higher. Pairs with the floated stage below it. */
-.alch-constellation-legend.is-journey-legend.lg-track {
-  margin: 0 0 6px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  box-shadow: none;
-}
-.alch-constellation-legend.is-journey-legend .acl-jfamily {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.alch-constellation-legend.is-journey-legend .acl-jbtn {
-  background: rgba(var(--ink-rgb), 0.05);
-  border-color: var(--lg-border);
-}
-.alch-constellation-legend.is-journey-legend .acl-jkey {
-  border-right-color: var(--lg-border);
-}
-/* The ghost-dot key is a SECOND .acl-jkey, so it inherits the divider border —
-   drop it so only one divider separates "keys | families". */
-.alch-constellation-legend .acl-jghost-key {
-  border-right: 0; padding-right: 0;
-}
-/* Encoding key — static text leading the bottleneck legend; states what the
-   scatter's color and size MEAN. Deliberately not button-shaped so it can't
-   read as one more filter. */
-.alch-constellation-legend .acl-jkey {
-  align-self: center;
-  padding-right: 14px;
-  border-right: 1px solid rgba(var(--ink-rgb), 0.14);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  color: var(--journey-muted);
-}
+/* (The old PMF glass-panel legend + its 10-button bottleneck wall — .is-journey-
+   legend / .acl-jfamily / .acl-jbtn / .acl-jkey — was replaced by the one-row
+   controls: a bottleneck filter token + the compact .acl-jkey-strip below.) */
 /* Size ramp — shows the "size = market upside" encoding instead of only stating
-   it: a small dot → large dot, neutral fill (size, not colour, is the point). */
-.alch-constellation-legend .acl-jsize {
+   it: a small dot → large dot, neutral fill (size, not colour, is the point).
+   Unscoped so it works in the compact key strip on the controls row. */
+.acl-jsize {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  margin-left: 8px;
+  gap: 4px;
+  margin: 0 5px;
   vertical-align: middle;
 }
-.alch-constellation-legend .acl-jsize i {
+.acl-jsize i {
   display: inline-block;
   border-radius: 50%;
   background: rgba(var(--ink-rgb), 0.5);
 }
-.alch-constellation-legend .acl-jsize i.sm { width: 5px; height: 5px; }
-.alch-constellation-legend .acl-jsize i.lg { width: 11px; height: 11px; }
+.acl-jsize i.sm { width: 4px; height: 4px; }
+.acl-jsize i.lg { width: 9px; height: 9px; }
 /* Filter bar */
 
 
@@ -8766,44 +8764,11 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   border-color: rgba(var(--ink-rgb), 0.36);
   background: var(--journey-control-bg-hover);
 }
-.ajf-toggle:focus-visible,
-.alch-constellation-legend .acl-jbtn:focus-visible {
+.ajf-toggle:focus-visible {
   outline: 1px solid rgba(143,34,14,0.78);
   outline-offset: 2px;
 }
 .ajf-toggle:not(.is-on) { opacity: 0.62; text-decoration: line-through; }
-/* Clickable bottleneck legend */
-.alch-constellation-legend .acl-jbtn {
-  appearance: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  gap: 6px;
-  min-height: 24px; line-height: 1;
-  cursor: pointer; background: var(--journey-control-bg); border: 1px solid rgba(var(--ink-rgb), 0.16);
-  border-radius: 999px; padding: 3px 9px 3px 6px;
-  font: inherit; color: var(--journey-muted);
-  transition: opacity 160ms var(--ease), color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
-}
-.alch-constellation-legend .acl-jbtn em {
-  min-width: 1.25ch;
-  color: var(--alchemy-oxide-bright);
-  font-style: normal;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.alch-constellation-legend .acl-jbtn.is-active {
-  color: var(--journey-ink);
-  border-color: rgba(143,34,14,0.72);
-  background: rgba(143,34,14,0.16);
-  box-shadow: inset 0 -1.5px 0 var(--alchemy-oxide-bright);
-}
-.alch-constellation-legend .acl-jbtn.is-dim { opacity: 0.42; }
-.alch-constellation-legend .acl-jbtn:hover {
-  opacity: 1;
-  color: var(--journey-ink);
-  border-color: rgba(var(--ink-rgb), 0.36);
-  background: var(--journey-control-bg-hover);
-}
 /* Tooltip — anchored to the stage, positioned in JS on mousemove. */
 .ac-tip {
   position: absolute; top: 0; left: 0; z-index: 5;
@@ -8830,6 +8795,101 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   padding-top: 1px;
 }
 .ac-tip .ajt-v { min-width: 0; color: rgba(var(--ink-rgb),0.82); }
+.ac-tip .ajt-v small { color: var(--alchemy-ink-mute); }
+
+/* ── PMF evidence: consolidated controls row + compact key ─────────────────
+   timeline + filter sentence on the left, encoding key + selection chip pushed
+   right; everything wraps gracefully instead of stacking into a second panel. */
+.alch-view-controls.is-journey-controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+}
+.acl-jkey-strip {
+  display: inline-flex; align-items: center; flex-wrap: wrap; gap: 3px 10px;
+  margin-left: auto;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.07em;
+  text-transform: lowercase; color: var(--journey-muted);
+}
+.acl-jk-fam { display: inline-flex; align-items: center; }
+.acl-jk-sep { width: 1px; height: 11px; background: var(--journey-rule-strong); opacity: 0.6; }
+.acl-jk-size, .acl-jk-ghost { display: inline-flex; align-items: center; gap: 4px; }
+.acl-jk-ghost svg { display: block; }
+/* Bottleneck filter token — the consolidated legend filter; brass-tints when a
+   bottleneck is isolated, mirroring the rewound-timeline token. */
+.ac-jbn-tok .acl-jswatch { width: 8px; height: 8px; margin-right: 0; }
+.ac-jbn-tok.is-active {
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #c1a872) 50%, transparent);
+  background: color-mix(in srgb, var(--alchemy-oxide-bright, #c1a872) 12%, rgba(var(--ink-rgb), 0.04));
+  color: var(--alchemy-paper-warm);
+}
+.ac-jbn-opt .ac-sent-opt-main b { display: inline-flex; align-items: center; }
+.ac-jbn-opt .acl-jswatch { width: 8px; height: 8px; margin-right: 6px; }
+
+/* ── PMF evidence: the read card (hover) ──────────────────────────────────
+   Explains the placement and shows the movement — not a company dossier. */
+.ac-tip { max-width: 300px; }
+.ac-tip .ajt-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 8px; }
+.ac-tip .ajt-head .ajt-name { margin: 0; }
+.ac-tip .ajt-tag {
+  font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--alchemy-ink-mute);
+  border: 1px solid rgba(226,207,162,0.28); border-radius: 4px; padding: 1px 5px;
+}
+/* Position said in words — the dot's coordinates, legible without counting grid. */
+.ac-tip .ajt-pos {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px;
+  padding-bottom: 8px; margin-bottom: 8px;
+  border-bottom: 1px solid rgba(226,207,162,0.14);
+}
+.ac-tip .ajt-pos-cell { display: inline-flex; align-items: baseline; gap: 5px; color: rgba(var(--ink-rgb),0.82); }
+.ac-tip .ajt-pos-cell b { font-size: 13px; color: var(--alchemy-paper-warm); font-variant-numeric: tabular-nums; }
+.ac-tip .ajt-pos-x { color: var(--alchemy-ink-mute); font-size: 11px; }
+/* Movement — the timescale: sparkline + net stage delta. */
+.ac-tip .ajt-move {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 9px; margin-bottom: 9px; border-radius: 6px;
+  background: rgba(var(--ink-rgb), 0.05);
+}
+/* width/height pinned because `.alch-journey-stage svg { width:100% }` (the plot
+   rule) would otherwise stretch this sparkline to fill the whole card. */
+.ac-tip .ajt-spark { flex: 0 0 auto; display: block; width: 96px; height: 26px; }
+.ac-tip .ajt-move-read { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ac-tip .ajt-move-read b { font-size: 11px; letter-spacing: 0.02em; }
+.ac-tip .ajt-move-read small { color: var(--alchemy-ink-mute); font-size: 8.5px; letter-spacing: 0.06em; }
+.ac-tip .ajt-move-rising b { color: #6fc3b2; }
+.ac-tip .ajt-move-slipping b { color: #e2737f; }
+.ac-tip .ajt-move-flat b { color: var(--alchemy-ink-mute); }
+/* The delta labels are real content; the dark-tuned green/red fail WCAG AA on the
+   light-glass tooltip, so darken them under the light theme. */
+:root[data-theme="light"] .ac-tip .ajt-move-rising b { color: #157564; }
+:root[data-theme="light"] .ac-tip .ajt-move-slipping b { color: #b3273a; }
+/* Seed disclosure — a quiet amber qualifier so a seeded delta never reads as a
+   measured value. Flips darker on the light theme. */
+.ac-tip .ajt-seed {
+  display: block; margin-top: 2px;
+  color: #c79a4e; font-size: 8px; letter-spacing: 0.05em; font-style: italic;
+}
+:root[data-theme="light"] .ac-tip .ajt-seed { color: #8a6a23; }
+/* upside dot-meter + bottleneck dot inside the stat rows. */
+.ac-tip .ajt-meter { display: inline-flex; gap: 2px; margin-right: 6px; vertical-align: middle; }
+.ac-tip .ajt-meter i { width: 4px; height: 4px; border-radius: 50%; background: rgba(var(--ink-rgb),0.22); }
+.ac-tip .ajt-meter i.on { background: var(--alchemy-paper-warm); }
+.ac-tip .ajt-bn-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  margin-right: 5px; vertical-align: middle; box-shadow: 0 0 0 1px rgba(0,0,0,0.36);
+}
+/* The "why they're there" evidence line + provenance footer. */
+.ac-tip .ajt-ctx {
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid rgba(226,207,162,0.14);
+  color: rgba(var(--ink-rgb),0.74); font-size: 9.5px; line-height: 1.5;
+}
+.ac-tip .ajt-foot {
+  margin-top: 9px; color: var(--alchemy-ink-mute);
+  font-size: 8px; letter-spacing: 0.07em; text-transform: uppercase;
+}
+.ac-tip .ajt-unread {
+  color: rgba(var(--ink-rgb),0.72); font-size: 9.5px; line-height: 1.5; padding: 2px 0 4px;
+}
 
 .cb-control-actions {
   display: inline-flex;
