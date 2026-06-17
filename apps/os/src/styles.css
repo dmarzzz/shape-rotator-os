@@ -7211,6 +7211,19 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 }
 .ac-hover-strip .ac-inspector-hero { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .ac-inspector-hero.is-preview { animation: none; } }
+
+/* "Where it sits" — the bubble map's positional sidebar lead (maturity /
+   depended-on / domain + the spaces it occupies with their crowdedness). */
+.ac-inspector-section.ac-position { margin-top: 2px; }
+.ac-position .ac-pos-list { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 4px 0 8px; }
+.ac-position .ac-pos-list div { display: contents; }
+.ac-position .ac-pos-list dt { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.55)); }
+.ac-position .ac-pos-list dd { margin: 0; font-size: 13px; color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.85)); }
+.ac-pos-spaces { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.ac-pos-spaces .ac-pos-k { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.55)); margin-right: 2px; }
+.ac-pos-space { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--well-accent-faint, rgba(193,168,114,0.08)); border: 0.5px solid var(--well-accent-soft, rgba(193,168,114,0.3)); color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.82)); }
+.ac-pos-space em { font-style: normal; font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.55)); }
+.ac-collab-pointer { margin-top: 12px; font-size: 11px; font-style: italic; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.5)); }
 .alch-constellation-stage[data-view="map"]:not([data-hover-active="true"]):not([data-selection-active="true"]):not([data-interest-active="true"]) svg .ac-well.is-dense-well .ac-well-label {
   opacity: 0.58;
 }

@@ -3598,8 +3598,12 @@ function constellationCurrentInspectorContext() {
   const model = constellationModel(teams, clusters, cohort?.dependencies || []);
   const ctx = constellationInspectorContext(teams, edges, people);
   const rawMode = constNormalizeConstellationMode(state.constellationMode);
-  const mode = rawMode === "collab" ? "map" : rawMode;
-  const base = { ...ctx, clusters, mode, scope: constNormalizeNetworkScope(state.constellationScope), distributionWells: model.wellsDef, lens: mode === "ring" ? "all" : constNormalizeConstellationLens(state.constellationLens), interest: constInterestContext(teams, clusters, edges, state.constInterest) };
+  const baseMode = rawMode === "collab" ? "map" : rawMode;
+  const scope = baseMode === "map" ? constNormalizeNetworkScope(state.constellationScope) : "projects";
+  // Match renderConstellation: projects map → "bubble" so the live (partial-
+  // update) inspector keeps the positional sidebar after hover/refocus.
+  const mode = (baseMode === "map" && scope === "projects") ? "bubble" : baseMode;
+  const base = { ...ctx, clusters, mode, scope, distributionWells: model.wellsDef, lens: mode === "ring" ? "all" : constNormalizeConstellationLens(state.constellationLens), interest: constInterestContext(teams, clusters, edges, state.constInterest) };
   return mode === "stack" ? { ...base, stackModel: constProductStackModel(teams, base) } : base;
 }
 
@@ -4813,8 +4817,39 @@ function constPeopleDefaultHtml(ctx) {
     </section>`;
 }
 
+// "Where it sits" — the positional read the bubble-map inspector LEADS with:
+// maturity, how many teams depend on it, domain, and the spaces it occupies
+// (with how crowded each is). The map answers WHERE a team sits in the cohort;
+// collab actions (intros, asks/offers, relationship lines) live on the Collab
+// board, so the map inspector drops them rather than re-doing that work.
+function constTeamPositionHtml(team, ctx) {
+  const j = journeyFor(team);
+  const stage = Number.isFinite(j?.stage) ? j.stage : null;
+  const matWord = stage == null ? "" : (stage <= 2 ? "early" : (stage <= 4 ? "maturing" : "proven"));
+  const indeg = (ctx?.inBy?.get(team.record_id) || []).length;
+  const domain = CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other";
+  const spaces = (ctx?.clusters || []).filter(c => Array.isArray(c.teams) && c.teams.includes(team.record_id));
+  const rows = [
+    ["maturity", stage == null ? "—" : `stage ${stage}${matWord ? ` · ${matWord}` : ""}`],
+    ["depended on", `${indeg} team${indeg === 1 ? "" : "s"}`],
+    ["domain", domain],
+  ];
+  const spaceChips = spaces
+    .map(c => `<span class="ac-pos-space">${escHtml(c.label || c.name || c.record_id)}<em>${(c.teams || []).length}</em></span>`)
+    .join("");
+  return `
+    <section class="ac-inspector-section ac-position">
+      <h4>where it sits</h4>
+      <dl class="ac-pos-list">
+        ${rows.map(([k, v]) => `<div><dt>${escHtml(k)}</dt><dd>${escHtml(v)}</dd></div>`).join("")}
+      </dl>
+      ${spaceChips ? `<div class="ac-pos-spaces"><span class="ac-pos-k">spaces</span>${spaceChips}</div>` : `<p class="ac-inspector-empty">Not in a shared space yet.</p>`}
+    </section>`;
+}
+
 function constTeamInspectorHtml(team, ctx) {
   if (!team) return constellationInspectorDefaultHtml(ctx);
+  const isBubble = ctx?.mode === "bubble";
   const j = journeyFor(team);
   const assessed = journeyAssessed(team);
   const success = constSuccessDimensions(team);
@@ -4866,15 +4901,17 @@ function constTeamInspectorHtml(team, ctx) {
         ${success.map(s => `<span>${escHtml(s)}</span>`).join("")}
       </div>
     </div>
+    ${isBubble ? constTeamPositionHtml(team, ctx) : ""}
     <section class="ac-inspector-section ac-overlap-lead">${constEgocentricOverlapSvg(team, ctx)}</section>
     ${constStackPlacementHtml(team, ctx)}
-    ${constTeamActionCardHtml(team, ctx)}
+    ${isBubble ? "" : constTeamActionCardHtml(team, ctx)}
     ${constTeamPeopleHtml(team, ctx)}
-    ${relationshipDetails}
+    ${isBubble ? "" : relationshipDetails}
     ${currentBetSection}
     ${marketFitSection}
     ${transcriptCues}
-    ${sourceProofDetails}`;
+    ${sourceProofDetails}
+    ${isBubble ? `<p class="ac-inspector-note ac-collab-pointer">Intros, asks &amp; offers live on the Collab board.</p>` : ""}`;
 }
 
 const EGO_DOMAIN_FILL = { tee: "#C0492E", ai: "#D9913D", crypto: "#9A5BA6", "app-ux": "#3F9B8E", other: "#8a7d75" };
@@ -7359,9 +7396,13 @@ function wireConstellationHover() {
     const edges = constellationDependencyEdges(teams, undefined, cohort?.dependencies || []).filter(e => teamById.has(e.from) && teamById.has(e.to));
     const model = constellationModel(teams, clusters, cohort?.dependencies || []);
     const rawMode = constNormalizeConstellationMode(state.constellationMode);
-    const viewMode = rawMode === "collab" ? "map" : rawMode;
+    const baseMode = rawMode === "collab" ? "map" : rawMode;
+    const scope = baseMode === "map" ? constNormalizeNetworkScope(state.constellationScope) : "projects";
+    // The projects relationship map renders as the bubble map; its inspector
+    // ctx.mode must be "bubble" so the sidebar shows the positional read, not
+    // the collab action card (people scope keeps the node-link people network).
+    const viewMode = (baseMode === "map" && scope === "projects") ? "bubble" : baseMode;
     const activeLens = viewMode === "ring" || viewMode === "stack" ? "all" : constNormalizeConstellationLens(state.constellationLens);
-    const scope = viewMode === "map" ? constNormalizeNetworkScope(state.constellationScope) : "projects";
     const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest) };
     const peopleModel = scope === "people" ? constPeopleNetworkModel(cohort?.people || [], teams, 1120, 620) : null;
     const inspectorCtx = viewMode === "stack"
