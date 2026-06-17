@@ -18,6 +18,7 @@ window contract are the only coupling to the host app.
 | `engine.js` | main | Runs a prompt through the user's own `codex`/`claude` CLI. Privacy gate + provider-key stripping live here. Pure Node (unit-testable). |
 | `shape-scanner.js` | main | Builds the user's "shape" from public GitHub + local Codex session metadata. Pure Node. |
 | `preload.js` | preload | Context-isolated bridge exposing only `window.api.hermes` + `window.api.shape`. |
+| `prompt.mjs` | renderer | Pure prompt construction (cohort context + shape grounding + synthesis); no DOM/state, unit-testable; bounds the grounding size. |
 | `index.html` / `app.js` | renderer | The chat UI: engine selector, in-chat onboarding, find/engage prompt, Ollama streaming. |
 
 ## Wiring it into a host (Electron main)

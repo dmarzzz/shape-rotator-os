@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:11434 http://localhost:11434 https://raw.githubusercontent.com https://api.github.com" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:11434 http://localhost:11434" />
   <title>ask cohort · hermes</title>
   <style>
     :root {
@@ -34,7 +34,7 @@
     .panel { border: 1px solid var(--line); padding: 12px 14px; border-radius: 6px; }
     .panel h2 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--dim); font-weight: 500; }
     .panel p { margin: 0; color: var(--fg); }
-    .panel code { background: rgba(126, 108, 255, 0.1); padding: 2px 6px; border-radius: 3px; color: var(--accent); }
+    .panel code { background: color-mix(in oklch, var(--accent) 12%, transparent); padding: 2px 6px; border-radius: 3px; color: var(--accent); }
     .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     select, button, textarea {
       font: inherit; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px;
@@ -44,7 +44,7 @@
     button:hover { border-color: var(--accent); }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-    button.primary:hover { background: #6b58ff; }
+    button.primary:hover { background: color-mix(in oklch, var(--accent) 75%, white); }
     .ask-area { display: flex; flex-direction: column; gap: 8px; }
     .ask-area textarea { min-height: 70px; resize: vertical; font-family: inherit; }
     .ask-row { display: flex; gap: 10px; align-items: center; }
@@ -88,7 +88,7 @@
 <body>
   <header>
     <h1>ask cohort · hermes</h1>
-    <div class="chips">
+    <div class="chips" role="status" aria-live="polite">
       <span id="ollama-chip" class="chip">ollama: checking…</span>
       <span id="model-chip" class="chip">model: —</span>
       <span id="data-chip" class="chip">cohort: —</span>
@@ -127,7 +127,7 @@
       </div>
     </div>
 
-    <div id="response" class="response-wrap empty">responses appear here.</div>
+    <div id="response" class="response-wrap empty" role="log" aria-live="polite" aria-atomic="false">responses appear here.</div>
   </main>
 
   <div class="footer">

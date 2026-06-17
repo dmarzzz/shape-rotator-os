@@ -13,6 +13,8 @@
 // stored or sent to our servers; the chat is not persisted. The footer line
 // reflects the active backend's locality.
 
+import { buildPrompt, buildShapeGrounding, buildSynthesisPrompt, parseShapeJson } from "./prompt.mjs";
+
 const OLLAMA = "http://127.0.0.1:11434";
 const OLLAMA_PROBE_MS = 1200;  // bound the detection probe — a missing daemon fails fast
 // Ollama generate options, one home for both call sites. Synthesis (define my
@@ -326,74 +328,9 @@ async function loadCohort() {
   }
 }
 
-// ─── prompt building (cohort-public projection only) ──────────────────
-
-function buildContext() {
-  if (!cohort) return "(no cohort data loaded)";
-  const people = (cohort.people || []).map(p => ({
-    name: p.name, team: p.team, role: p.role,
-    skills: p.skills, skill_areas: p.skill_areas,
-    offering: p.offering, seeking: p.seeking,
-    now: p.now, weekly_intention: p.weekly_intention,
-  }));
-  const teams = (cohort.teams || []).map(t => ({
-    name: t.name, focus: t.focus, skill_areas: t.skill_areas,
-    seeking: t.seeking, offering: t.offering,
-  }));
-  return JSON.stringify({ people, teams }, null, 0);
-}
-
-function buildPrompt(question) {
-  const parts = [
-    "You are a connector for the Shape Rotator cohort — you help members FIND the right people and understand how to ENGAGE them. You have read-only access to the cohort's public profile data (names, teams, skills, what they're working on, what they're seeking, what they offer).",
-    "",
-    "When the question is about finding people or teams (who can help with X, who's working on Y, who to talk to about Z, who to pair with), name the specific members or teams and, for EACH one, give: WHAT TO GO TO THEM FOR (grounded in a short quote from their profile) and a good CONVERSATION OPENER. For other questions, cite specific members or teams by name and quote short snippets when useful.",
-    "",
-    "You only surface who and why — never draft an outreach message, offer to contact anyone, or imply you can reach them; the member reaches out themselves. If the data doesn't contain an answer, say so plainly — don't invent participants.",
-  ];
-  // The user's own "shape" (their GitHub + Codex work history), if scanned. The
-  // public GitHub section is always safe; the private Codex section is included
-  // only for a LOCAL backend — never sent to a remote one (codex/claude).
-  const includePrivate = localityOf(backend) === "local";
-  const sg = buildShapeGrounding(shape, includePrivate);
-  if (sg.text) {
-    parts.push(
-      "",
-      "The person asking is the OS user — the following is THEIR OWN shape (you are their assistant). Use it to answer questions about their work, focus, strengths, or trajectory:",
-      "<user_shape>", sg.text, "</user_shape>",
-    );
-  }
-  parts.push("", "<cohort_data>", buildContext(), "</cohort_data>", "", `User question: ${question}`);
-  // dataMode reflects what the prompt ACTUALLY contains (hasPrivate can only be
-  // true on a local backend), so the engine's assertBackendAllowed gate is a real
-  // backstop against private→remote, not a rubber stamp.
-  return { prompt: parts.join("\n"), dataMode: sg.hasPrivate ? "private_distilled" : "public" };
-}
-
 // ─── self-shape (github + codex) ──────────────────────────────────────
-
-// Format a scanned shape for the prompt → { text, hasPrivate }. Public GitHub is
-// always safe; the private Codex section is added only when includePrivate (a
-// local backend). hasPrivate reports whether private content was actually
-// emitted, so the caller can tag dataMode honestly. Sole owner of this format
-// (the main-process scanner no longer duplicates it).
-function buildShapeGrounding(s, includePrivate) {
-  if (!s) return { text: "", hasPrivate: false };
-  const g = s.github || {}, c = s.codex || {};
-  const lines = [];
-  if (g.ok) {
-    lines.push(`GitHub (public): ${g.name || g.login}${g.company ? " · " + g.company : ""}${g.bio ? " — " + String(g.bio).replace(/\s+/g, " ").trim() : ""}`);
-    if (g.languages && g.languages.length) lines.push(`Languages: ${g.languages.slice(0, 6).map(l => `${l.lang}(${l.repos})`).join(", ")}`);
-    if (g.recent_repos && g.recent_repos.length) lines.push(`Recent repos: ${g.recent_repos.slice(0, 10).map(r => `${r.name}${r.lang ? "/" + r.lang : ""}`).join(", ")}`);
-  }
-  let hasPrivate = false;
-  if (includePrivate && c.ok && c.total_sessions) {
-    hasPrivate = true;
-    lines.push(`Local work focus (private — Codex ${c.date_range.first}→${c.date_range.last}, ${c.total_sessions} sessions / ${c.project_count} projects):`);
-    lines.push(c.top_projects.slice(0, 10).map(p => `${p.project} (${p.sessions})`).join(", "));
-  }
-  return { text: lines.join("\n"), hasPrivate };
-}
+// Prompt construction (buildContext/buildPrompt/buildShapeGrounding/
+// buildSynthesisPrompt/parseShapeJson) lives in ./prompt.mjs — pure, no DOM.
 
 function updateShapeChip() {
   if (!shape || !shape.github) { els.shapeChip.className = "chip"; els.shapeChip.textContent = "shape: not scanned"; return; }
@@ -454,27 +391,6 @@ async function runPrompt(prompt, { dataMode = "public" } = {}) {
   }
   if (!window.api || !window.api.hermes) return { ok: false, error: "backend unavailable" };
   return window.api.hermes.run({ backend, prompt, dataMode, requestId: `syn-${Date.now()}` });
-}
-
-function buildSynthesisPrompt(grounding) {
-  return [
-    "You are defining the OS user's professional \"shape\" from their OWN work data below. Be concrete and base every claim on the data; do not invent.",
-    "Respond with ONLY a JSON object — no prose, no markdown fences — with exactly these keys:",
-    '{"headline": "one-line shape summary", "current_focus": "what they are working on now", "likely_roles": ["..."], "strengths": ["..."], "what_to_go_to_them_for": ["..."], "conversation_affordances": ["good things to talk to them about"], "trajectory": "how their focus is shifting over time", "confidence": "low|medium|high"}',
-    "Keep each array to 3-5 short items. If something isn't supported by the data, use an empty array or \"unknown\".",
-    "",
-    "<shape_data>",
-    grounding,
-    "</shape_data>",
-  ].join("\n");
-}
-
-function parseShapeJson(text) {
-  if (!text) return null;
-  const t = String(text).trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  const a = t.indexOf("{"), b = t.lastIndexOf("}");
-  if (a < 0 || b < 0 || b <= a) return null;
-  try { return JSON.parse(t.slice(a, b + 1)); } catch { return null; }
 }
 
 function renderShapeCard(m, includePrivate) {
@@ -544,7 +460,7 @@ async function askOllama(question) {
   const started = Date.now();
   let tokens = 0;
   let streamed = false;
-  const { prompt } = buildPrompt(question);
+  const { prompt } = buildPrompt({ question, cohort, shape, includePrivate: localityOf(backend) === "local" });
   const body = {
     model: chosenModel,
     prompt,
@@ -624,7 +540,7 @@ async function askViaCli(question, b) {
     // dataMode is derived from the prompt's actual grounding (public unless
     // private shape detail was included, which only happens on a local backend),
     // so the main-process gate enforces the same fact that controls inclusion.
-    const { prompt, dataMode } = buildPrompt(question);
+    const { prompt, dataMode } = buildPrompt({ question, cohort, shape, includePrivate: localityOf(backend) === "local" });
     const r = await window.api.hermes.run({ backend: b, prompt, dataMode, requestId });
     if (!streamed) els.response.textContent = ""; // drop the "thinking…" placeholder
     if (!r || !r.ok) {
