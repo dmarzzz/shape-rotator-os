@@ -1209,6 +1209,17 @@ function createHermesWindow() {
 // and inserts an "Ask Cohort (Hermes)…" item under a Tools menu.
 // Without this template Electron uses its default menu, which gives
 // us no surface to attach the Hermes entry to.
+// Whole-window zoom (Chromium webContents zoom) — the fallback for the View
+// menu's zoom items and for the renderer when it's NOT on a cohort view. On
+// cohort views the renderer owns Cmd/Ctrl +/-/0 for its own scoped zoom; see
+// preload `appZoom` + alchemy.js onZoomKeydown.
+function zoomWebContents(wc, action) {
+  if (!wc || wc.isDestroyed?.()) return;
+  if (action === "reset") { wc.setZoomLevel(0); return; }
+  const next = wc.getZoomLevel() + (action === "in" ? 0.5 : -0.5);
+  wc.setZoomLevel(Math.max(-3, Math.min(3, next)));
+}
+
 function buildAppMenu() {
   const isMac = process.platform === "darwin";
   const template = [
@@ -1228,7 +1239,24 @@ function buildAppMenu() {
     }] : []),
     { role: "fileMenu" },
     { role: "editMenu" },
-    { role: "viewMenu" },
+    // Custom View menu (replaces { role: "viewMenu" }). The zoom items DISPLAY
+    // their Cmd/Ctrl +/-/0 shortcuts but pass registerAccelerator:false, so the
+    // OS does not bind the keys — the renderer's keydown handler does, letting a
+    // cohort view zoom just itself. Menu CLICKS still do whole-window zoom.
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { label: "Actual Size", accelerator: "CmdOrCtrl+0", registerAccelerator: false, click: (_i, w) => zoomWebContents(w && w.webContents, "reset") },
+        { label: "Zoom In", accelerator: "CmdOrCtrl+Plus", registerAccelerator: false, click: (_i, w) => zoomWebContents(w && w.webContents, "in") },
+        { label: "Zoom Out", accelerator: "CmdOrCtrl+-", registerAccelerator: false, click: (_i, w) => zoomWebContents(w && w.webContents, "out") },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
     {
       label: "Tools",
       submenu: [
@@ -1244,6 +1272,9 @@ function buildAppMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+// Renderer fallback for Cmd/Ctrl +/-/0 when it's not on a cohort view —
+// zoom the whole window (mirrors the View-menu click behavior).
+ipcMain.handle("os:app-zoom", (e, action) => { zoomWebContents(e.sender, action); return true; });
 ipcMain.handle("prefs:load", async () => readJSON(PREFS_FILE, {}));
 ipcMain.handle("prefs:save", async (_e, d) => { writeJSON(PREFS_FILE, d); return true; });
 ipcMain.handle("context-vault:manifest", async () => ({

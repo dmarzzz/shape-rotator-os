@@ -73,6 +73,17 @@ const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
 const PROGRAM_PAGE_LS_KEY = "srwk:program_page";
 const COLLAB_INTAKE_DRAFT_LS_KEY = "srwk:collab_intake_draft_v1";
 const CONSTELLATION_TIMELINE_LS_KEY = "srwk:constellation_timeline_idx_v1";
+// Per-user zoom for the cohort views (Ctrl/Cmd + scroll, or the corner
+// control). Applied via the CSS `zoom` property so the layout REFLOWS at every
+// step — it stays responsive on any screen instead of overflowing like a
+// transform:scale would. The directory roster is intentionally excluded (it
+// owns its own grid sizing); see cohortZoomActive() + the CSS :not() guard.
+const COHORT_ZOOM_LS_KEY = "srwk:cohort_zoom_v1";
+const COHORT_ZOOM_MIN = 0.7;
+const COHORT_ZOOM_MAX = 1.5;
+const COHORT_ZOOM_DEFAULT = 1;
+const COHORT_ZOOM_KEY_STEP = 0.1;     // discrete step for keyboard + corner buttons
+const COHORT_ZOOM_WHEEL_K = 0.0015;   // wheel sensitivity (exponential, magnitude-aware)
 // `atlas` was here as an alchemy sub-mode but collides with the top-level
 // atlas tab (the swf-node wall-map). Renderer (renderAtlas / wireAtlas) is
 // kept in place so the view can be promoted to a top tab later under a
@@ -214,6 +225,7 @@ const state = {
   constPeopleLinkFilter: "all", // people-map legend/filter: "all" | "same-team" | "profile" | "shared-context"
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
   constSelection: null,       // persistent constellation inspector selection: { type:"team"|"person", rid } | { type:"edge", from, to }
+  cohortZoom: COHORT_ZOOM_DEFAULT, // per-user zoom for cohort views (excludes the directory roster); persisted to COHORT_ZOOM_LS_KEY
   renderSeq: 0,               // monotonic render guard; stale delayed swaps must not overwrite the latest view
   calendar: {                     // calendar tab state — see renderCalendar()
     weekIdx: null,                // 0..9; resolved on first render via calendarCurrentWeekIdx()
@@ -317,6 +329,7 @@ export function mount(container) {
       const timelineIdx = Number(timelineIdxRaw);
       if (Number.isFinite(timelineIdx)) state.constellationTimelineIdx = timelineIdx;
     }
+    state.cohortZoom = clampCohortZoom(localStorage.getItem(COHORT_ZOOM_LS_KEY));
   } catch {}
   // Detail page state — if a record was open at last reload, restore it
   // so the user lands back where they were instead of on the grid.
@@ -448,6 +461,12 @@ export function mount(container) {
       scrollActivePageViewIntoView();
     });
   });
+  // Ctrl/Cmd + scroll over the cohort canvas resizes the active cohort view.
+  // One persistent listener (gated on cohortZoomActive) — not re-bound per
+  // render. Non-passive so we can preventDefault the browser's own zoom.
+  state.canvas.addEventListener("wheel", onCohortWheel, { passive: false });
+  // Cmd/Ctrl +/-/0 keyboard zoom (document-level so it works wherever focus is).
+  document.addEventListener("keydown", onZoomKeydown);
   syncRailSelection();
   startContextAutoRefresh();
   setTimeout(() => { warmMode(state.mode).catch(() => {}); }, 0);
@@ -884,6 +903,9 @@ function renderModeContent() {
     // Mount shape shaders LAST — every <canvas data-shape-fam> emitted by the
     // renderers above gets one WebGL2 context here.
     mountAllShapes();
+    // Re-apply the cohort zoom factor + sync the corner control to the mode we
+    // just painted (it's inert / hidden outside the zoomable cohort views).
+    applyCohortZoom();
     requestAnimationFrame(scrollActivePageViewIntoView);
     // What's-new: painting a mode while the OS tab is in front counts as
     // reading it — settle its unread color. Guarded so a background data
@@ -917,6 +939,185 @@ function scrollActivePageViewIntoView() {
   const pad = 12;
   if (activeRect.left >= stripRect.left + pad && activeRect.right <= stripRect.right - pad) return;
   strip.scrollLeft = active.offsetLeft - Math.max(0, (strip.clientWidth - active.offsetWidth) / 2);
+}
+
+// ─── cohort-view zoom ─────────────────────────────────────────────────
+// A per-user size lever for the cohort views — let people fit the graph/cards
+// to their own screen. Implemented as a CSS-`zoom` factor inherited from the
+// stable #alchemy-canvas element, so it survives the per-render innerHTML
+// rewrite and reflows the layout (responsive at every step). The directory
+// roster is excluded both here (the gesture is inert there) and in CSS.
+let cohortZoomFlashTimer = 0;
+function clampCohortZoom(v) {
+  // Guard nullish/empty FIRST — Number(null) and Number("") are 0 (finite), so
+  // a missing localStorage value would otherwise clamp up to the MIN, not the
+  // default. parseFloat("") is NaN, which the finite check below catches.
+  if (v == null || v === "") return COHORT_ZOOM_DEFAULT;
+  const n = typeof v === "number" ? v : parseFloat(v);
+  if (!Number.isFinite(n)) return COHORT_ZOOM_DEFAULT;
+  // Round to a 1% grid: fine enough that exponential wheel zoom feels smooth,
+  // coarse enough that values + the displayed % stay clean.
+  const rounded = Math.round(n * 100) / 100;
+  return Math.min(COHORT_ZOOM_MAX, Math.max(COHORT_ZOOM_MIN, rounded));
+}
+// Zoom applies to the cohort SUB-views only — not the directory roster (which
+// is the "shapes" mode), not record-detail pages, not any other OS mode.
+function cohortZoomActive() {
+  return state.mode === "constellation" && !state.detailRecordId;
+}
+function applyCohortZoom() {
+  if (!state.canvas) return;
+  // Inherited custom property → read by the `.alch-cohort-page:not(directory)`
+  // rule in styles.css. Set on the canvas element (not the page) so it persists
+  // across the innerHTML swaps every render does.
+  state.canvas.style.setProperty("--cohort-zoom", String(clampCohortZoom(state.cohortZoom)));
+  syncCohortZoomControl();
+}
+let zoomRAF = 0;
+function reducedMotion() {
+  try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
+}
+// The one zoom committer. anchorY (a viewport clientY) keeps that point still as
+// the content scales — the cursor for wheel zoom, the viewport center for
+// keyboard/buttons — so the thing you're looking at doesn't slide away.
+// animate=false applies instantly (wheel: tracks the gesture 1:1); animate=true
+// runs a short rAF tween, re-anchoring scroll EACH frame so the focal point
+// holds for the whole animation (no end-of-animation jump).
+function zoomCohortTo(target, { anchorY = null, animate = false } = {}) {
+  const canvas = state.canvas;
+  if (!canvas) return;
+  const from = clampCohortZoom(state.cohortZoom);
+  const to = clampCohortZoom(target);
+  if (to === from) return;
+  const rect = canvas.getBoundingClientRect();
+  const vy = anchorY == null ? canvas.clientHeight / 2 : (anchorY - rect.top);
+  const fromScroll = canvas.scrollTop;
+  state.cohortZoom = to;
+  try { localStorage.setItem(COHORT_ZOOM_LS_KEY, String(to)); } catch {}
+  cancelAnimationFrame(zoomRAF);
+  flashCohortZoomControl();
+  syncCohortZoomControl();
+  // Apply a single zoom level + re-anchor the focal point. The cohort page is
+  // width-auto (it reflows, doesn't widen), so only the vertical axis scales —
+  // anchoring scrollTop is all that's needed to pin the focal point.
+  const applyAt = (z) => {
+    const f = z / from;
+    canvas.style.setProperty("--cohort-zoom", String(z));
+    void canvas.offsetHeight; // settle layout so scrollHeight reflects this z
+    canvas.scrollTop = Math.max(0, (fromScroll + vy) * f - vy);
+  };
+  if (!animate || reducedMotion()) { applyAt(to); return; }
+  // House rule: in eases slower than out.
+  const dur = to > from ? 220 : 150;
+  const startT = performance.now();
+  const ease = (t) => 1 - Math.pow(1 - t, 3); // expo-out
+  const tick = (now) => {
+    const t = Math.min(1, (now - startT) / dur);
+    applyAt(from + (to - from) * ease(t));
+    if (t < 1) zoomRAF = requestAnimationFrame(tick);
+  };
+  zoomRAF = requestAnimationFrame(tick);
+}
+// Discrete step for keyboard + the corner buttons (center-anchored, animated).
+function zoomCohortBy(dir) {
+  zoomCohortTo(clampCohortZoom(state.cohortZoom) + dir * COHORT_ZOOM_KEY_STEP, { animate: true });
+}
+// Ctrl/Cmd + wheel zooms — a plain wheel is left alone so native scrolling of
+// the cohort canvas stays predictable (house rule: no scrolljacking). The step
+// is exponential in the wheel delta so it's magnitude-aware: one mouse notch is
+// a clear step, while a trackpad's many small momentum events accumulate
+// smoothly instead of rocketing to the limit.
+//
+// A trackpad fires wheel events faster than the screen refreshes; applying a
+// zoom (which forces a layout to re-anchor scroll) on every one would jank. So
+// we accumulate the events and apply ONCE per frame via rAF — cursor-anchored,
+// instant (no tween), so it tracks the gesture without a layout storm.
+let wheelPending = null;
+let wheelRAF = 0;
+function onCohortWheel(e) {
+  if (!cohortZoomActive()) return;
+  if (!(e.ctrlKey || e.metaKey)) return;
+  e.preventDefault();
+  const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; // normalize line→pixel
+  const factor = Math.exp(-px * COHORT_ZOOM_WHEEL_K);
+  if (wheelPending) { wheelPending.factor *= factor; wheelPending.anchorY = e.clientY; }
+  else wheelPending = { factor, anchorY: e.clientY };
+  if (!wheelRAF) wheelRAF = requestAnimationFrame(flushWheelZoom);
+}
+function flushWheelZoom() {
+  wheelRAF = 0;
+  const p = wheelPending;
+  wheelPending = null;
+  if (!p) return;
+  zoomCohortTo(clampCohortZoom(state.cohortZoom) * p.factor, { anchorY: p.anchorY, animate: false });
+}
+// Cmd/Ctrl +/-/0 (mac + win/linux). The native View-menu accelerators are
+// display-only (registerAccelerator:false in main), so these keys reach the
+// renderer: on a cohort view they zoom that view; anywhere else they fall back
+// to whole-window zoom via the preload bridge. "=" and "+" both zoom in (so it
+// works with or without Shift); "-"/"_" zoom out; "0" resets.
+function onZoomKeydown(e) {
+  if (e.altKey || !(e.metaKey || e.ctrlKey)) return;
+  let action = null;
+  if (e.key === "=" || e.key === "+") action = "in";
+  else if (e.key === "-" || e.key === "_") action = "out";
+  else if (e.key === "0") action = "reset";
+  else return;
+  const t = e.target;
+  const tag = t && t.tagName && t.tagName.toUpperCase();
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+  e.preventDefault();
+  const onCohort = document.body.dataset.activeTab === "alchemy" && cohortZoomActive();
+  if (onCohort) {
+    if (action === "in") zoomCohortBy(1);
+    else if (action === "out") zoomCohortBy(-1);
+    else zoomCohortTo(COHORT_ZOOM_DEFAULT, { animate: true });
+  } else {
+    try { window.api && window.api.appZoom && window.api.appZoom(action); } catch {}
+  }
+}
+// Brighten the quiet corner control briefly on change so the size shift reads
+// as deliberate feedback, not a glitch.
+function flashCohortZoomControl() {
+  const el = state.container?.querySelector(".alch-zoom-ctl");
+  if (!el) return;
+  el.classList.add("is-active");
+  if (cohortZoomFlashTimer) clearTimeout(cohortZoomFlashTimer);
+  cohortZoomFlashTimer = setTimeout(() => {
+    el.classList.remove("is-active");
+    cohortZoomFlashTimer = 0;
+  }, 1100);
+}
+function syncCohortZoomControl() {
+  if (!state.container) return;
+  let el = state.container.querySelector(".alch-zoom-ctl");
+  if (!cohortZoomActive()) { if (el) el.hidden = true; return; }
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "alch-zoom-ctl";
+    el.setAttribute("role", "group");
+    el.setAttribute("aria-label", "cohort view zoom");
+    el.innerHTML = `
+      <span class="azc-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+      <button type="button" class="azc-btn" data-zoom="out" aria-label="zoom out" title="zoom out — Ctrl + scroll">&#8722;</button>
+      <button type="button" class="azc-val" data-zoom="reset" aria-label="reset zoom to 100%" title="reset zoom to 100%">100%</button>
+      <button type="button" class="azc-btn" data-zoom="in" aria-label="zoom in" title="zoom in — Ctrl + scroll">+</button>`;
+    el.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-zoom]");
+      if (!btn) return;
+      if (btn.dataset.zoom === "in") zoomCohortBy(1);
+      else if (btn.dataset.zoom === "out") zoomCohortBy(-1);
+      else zoomCohortTo(COHORT_ZOOM_DEFAULT, { animate: true });
+    });
+    state.container.appendChild(el);
+  }
+  el.hidden = false;
+  const z = clampCohortZoom(state.cohortZoom);
+  const val = el.querySelector(".azc-val");
+  if (val) val.textContent = `${Math.round(z * 100)}%`;
+  el.dataset.zoomed = z === COHORT_ZOOM_DEFAULT ? "false" : "true";
+  el.querySelector('[data-zoom="out"]').disabled = z <= COHORT_ZOOM_MIN;
+  el.querySelector('[data-zoom="in"]').disabled = z >= COHORT_ZOOM_MAX;
 }
 
 function destroyAllShapes() {

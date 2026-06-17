@@ -5665,9 +5665,103 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   flex-direction: column;
   min-height: 100%;
 }
+/* Per-user cohort-view zoom (Ctrl/Cmd + scroll, or the corner control). The
+   `zoom` property REFLOWS the subtree, so the layout stays responsive at every
+   step on any screen — unlike transform:scale, which would overflow/clip. The
+   factor is set on #alchemy-canvas (see applyCohortZoom) and inherited here.
+   The directory roster is excluded — it owns its own grid sizing. */
+.alch-cohort-page:not([data-cohort-view="directory"]) {
+  zoom: var(--cohort-zoom, 1);
+  /* The size change is animated in JS (zoomCohortTo rAF tween) so each frame can
+     re-anchor scroll to the focal point — a CSS transition here would run on top
+     of that and lag the wheel gesture. Wheel zoom is intentionally instant. */
+}
 .alch-cohort-page > .alch-constellation {
   height: auto;
   flex: 1 1 auto;
+}
+/* Corner zoom control — anchored to the alchemy view (outside the zoomed page,
+   so it never scales with the content it controls). Clear and self-explanatory
+   at rest: a labeled pill — magnifier glyph + [−] [value] [+] — all visible and
+   comfortably sized, so it reads as "zoom" at a glance and is easy to operate.
+   It just brightens a touch on hover/focus; the value doubles as reset. */
+.alch-zoom-ctl {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--alchemy-charcoal) 88%, transparent);
+  border: 1px solid var(--alchemy-rule);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: 0.94;
+  transition: opacity 180ms var(--ease, cubic-bezier(0.19, 1, 0.22, 1)), box-shadow 200ms var(--ease, cubic-bezier(0.19, 1, 0.22, 1));
+}
+.alch-zoom-ctl:hover,
+.alch-zoom-ctl:focus-within,
+.alch-zoom-ctl.is-active {
+  opacity: 1;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.32);
+}
+.alch-zoom-ctl[hidden] { display: none; }
+/* Leading magnifier — labels the pill as "zoom" (decorative, not a button). */
+.azc-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 32px;
+  color: rgba(var(--ink-rgb), 0.5);
+  pointer-events: none;
+  flex: none;
+}
+.azc-glyph svg { width: 16px; height: 16px; display: block; }
+.azc-btn,
+.azc-val {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(var(--ink-rgb), 0.85);
+  font-family: "SF Mono", "JetBrains Mono", Menlo, ui-monospace, monospace;
+  cursor: pointer;
+  border-radius: 9px;
+  height: 32px;
+  transition: background 150ms var(--ease, ease), color 150ms var(--ease, ease), transform 100ms var(--ease, ease);
+}
+.azc-btn {
+  width: 32px;
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 500;
+  flex: none;
+}
+.azc-val {
+  min-width: 52px;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.azc-btn:hover,
+.azc-val:hover { background: rgba(var(--ink-rgb), 0.12); color: var(--alchemy-oxide-bright); }
+.azc-btn:active,
+.azc-val:active { transform: scale(0.92); }
+.azc-btn:focus-visible,
+.azc-val:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--alchemy-rule-warm);
+}
+.azc-btn:disabled { opacity: 0.32; cursor: default; }
+.azc-btn:disabled:hover { background: transparent; color: rgba(var(--ink-rgb), 0.85); }
+@media (prefers-reduced-motion: reduce) {
+  .alch-zoom-ctl, .azc-btn, .azc-val { transition: none; }
 }
 .alch-const-workbench {
   display: grid;
