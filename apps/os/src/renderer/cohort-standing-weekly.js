@@ -8,6 +8,8 @@
 // current stage; swap them for real weekly reads and rebuild — no renderer
 // change needed.
 
+import { fetchStandingWeekly } from "./standing-supabase.mjs";
+
 const STANDING_URL = new URL("../cohort-standing-weekly.json", import.meta.url);
 
 let _cache = null;
@@ -29,6 +31,13 @@ export async function getStandingWeekly() {
   if (_cache) return _cache;
   if (_promise) return _promise;
   _promise = (async () => {
+    // Live read first — team_standing_weekly is public-read, so the standing line
+    // reflects the latest weekly reads without a rebuild. The committed mirror is
+    // the offline / first-paint fallback. Same {weeks, byTeam} shape either way.
+    try {
+      const { data, source } = await fetchStandingWeekly({ storage: globalThis.localStorage });
+      if (source === "supabase" && data) return (_cache = normalize(data));
+    } catch { /* fall through to the committed mirror */ }
     const res = await fetch(STANDING_URL, { cache: "no-store" });
     if (!res.ok) throw new Error(`standing weekly unavailable: HTTP ${res.status}`);
     _cache = normalize(await res.json());
