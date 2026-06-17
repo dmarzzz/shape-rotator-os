@@ -18,6 +18,12 @@ test("parseBlocks: headings, bullets, paragraphs", () => {
   assert.equal(b[3].text, "plain para");
 });
 
+test("parseBlocks: a --- / *** line becomes a horizontal rule, not literal text", () => {
+  const b = parseBlocks("above\n\n---\n\nbelow");
+  assert.deepEqual(b.map((x) => x.type), ["para", "hr", "para"]);
+  assert.ok(!JSON.stringify(b).includes("---"), "the rule text is not kept as content");
+});
+
 test("tokenizeInline: bold + code + plain text, unmatched markers stay literal", () => {
   assert.deepEqual(tokenizeInline("go to **Ron** for `dstack` now"), [
     { type: "text", value: "go to " },

@@ -20,6 +20,7 @@ export function parseBlocks(text) {
   for (const raw of lines) {
     const line = raw.replace(/\s+$/, "");
     if (!line.trim()) { flushPara(); flushList(); continue; }
+    if (/^\s*([-*_])\1{2,}\s*$/.test(line)) { flushPara(); flushList(); blocks.push({ type: "hr" }); continue; }
     const h = /^(#{1,4})\s+(.*)$/.exec(line);
     if (h) { flushPara(); flushList(); blocks.push({ type: "heading", level: h[1].length, text: h[2] }); continue; }
     const li = /^\s*[-*•]\s+(.*)$/.exec(line);
@@ -76,6 +77,8 @@ export function renderMarkdownInto(el, text) {
       const h = document.createElement(b.level <= 2 ? "h3" : "h4");
       appendInline(h, b.text);
       frag.appendChild(h);
+    } else if (b.type === "hr") {
+      frag.appendChild(document.createElement("hr"));
     } else if (b.type === "list") {
       const ul = document.createElement("ul");
       for (const item of b.items) {
