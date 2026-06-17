@@ -8603,17 +8603,28 @@ function wireCalendar() {
     const scopeBtn = state.canvas.querySelector("[data-tl-scope-toggle]");
     const scopeMenu = state.canvas.querySelector(".ac-tl-scope-menu");
     if (scopeBtn && scopeMenu) {
+      const closeScope = (returnFocus) => {
+        scopeMenu.setAttribute("hidden", "");
+        scopeBtn.setAttribute("aria-expanded", "false");
+        if (returnFocus) scopeBtn.focus();
+      };
       scopeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         const willOpen = scopeMenu.hasAttribute("hidden");
         scopeMenu.toggleAttribute("hidden", !willOpen);
         scopeBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+        // Move focus into the menu on open so it's keyboard-operable from the trigger.
+        if (willOpen) (scopeMenu.querySelector('[aria-selected="true"]') || scopeMenu.querySelector("[data-tl-scope]"))?.focus();
+      });
+      // Escape closes the menu and returns focus to the trigger (a11y).
+      state.canvas.querySelector("[data-tl-scope-ctl]")?.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !scopeMenu.hasAttribute("hidden")) { e.stopPropagation(); closeScope(true); }
       });
     }
     for (const opt of state.canvas.querySelectorAll("[data-tl-scope]")) {
       opt.addEventListener("click", () => {
         cal.tlScope = opt.getAttribute("data-tl-scope") || null;
-        refreshCalendarView();
+        refreshCalendarView(); // re-render rebuilds the menu hidden — closes it
       });
     }
     // Light-dismiss the dropdown on an outside click. Bound once on document

@@ -7780,7 +7780,11 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-tl-scope-k { color: var(--alchemy-ink-mute); letter-spacing: 0.07em; text-transform: uppercase; font-size: 9px; }
 .ac-tl-scope-v { font-weight: 500; max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ac-tl-scope-chev { width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); margin-left: 1px; margin-top: -3px; opacity: 0.5; }
-.ac-tl-scope-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 8; min-width: 190px; max-height: 320px; overflow-y: auto; padding: 5px; background: var(--alchemy-charcoal); border: 1px solid rgba(var(--ink-rgb), 0.18); border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,0.45); display: grid; gap: 1px; }
+/* enter/exit: native @starting-style + allow-discrete on display — resting rule
+   carries the faster EXIT (140ms), the open rule the slower ENTER (200ms). */
+.ac-tl-scope-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 8; min-width: 190px; max-height: 320px; overflow-y: auto; padding: 5px; background: var(--alchemy-charcoal); border: 1px solid rgba(var(--ink-rgb), 0.18); border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,0.45); display: grid; gap: 1px; opacity: 0; transform: translateY(-4px) scale(0.985); transform-origin: top left; transition: opacity 140ms var(--ease), transform 140ms var(--ease), display 140ms var(--ease) allow-discrete; }
+.ac-tl-scope-menu:not([hidden]) { opacity: 1; transform: translateY(0) scale(1); transition-duration: 200ms; }
+@starting-style { .ac-tl-scope-menu:not([hidden]) { opacity: 0; transform: translateY(-4px) scale(0.985); } }
 .ac-tl-scope-menu[hidden] { display: none; }
 .ac-tl-scope-opt { text-align: left; padding: 6px 9px; background: transparent; border: 0; border-radius: 6px; color: rgba(var(--ink-rgb), 0.82); font-family: var(--font-mono); font-size: 11px; cursor: pointer; white-space: nowrap; transition: background 120ms var(--ease); }
 .ac-tl-scope-opt:hover { background: rgba(var(--ink-rgb), 0.08); color: var(--alchemy-paper-warm); }
@@ -7807,7 +7811,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-tl-sum-frame em { font-style: normal; color: var(--alchemy-oxide-bright); padding: 0 1px; }
 
 .ac-tl-line.is-scoped polyline { stroke: var(--alchemy-oxide-bright); }
-@media (prefers-reduced-motion: reduce) { .ac-tl-lvl, .ac-tl-scope-btn, .ac-tl-navbtn, .ac-tl-scope-opt { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ac-tl-lvl, .ac-tl-scope-btn, .ac-tl-navbtn, .ac-tl-scope-opt, .ac-tl-scope-menu { transition: none; } }
 .ac-tl { --ac-tl-gutter: 132px; font-family: var(--font-mono); }
 .ac-tl-head,
 .ac-tl-lane { display: grid; grid-template-columns: var(--ac-tl-gutter) 1fr; align-items: center; }
