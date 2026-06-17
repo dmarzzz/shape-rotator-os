@@ -8577,11 +8577,15 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   --journey-rule-strong: rgba(var(--ink-rgb), 0.34);
   --journey-control-bg: rgba(var(--ink-rgb), 0.035);
   --journey-control-bg-hover: rgba(var(--ink-rgb), 0.065);
+  /* 3D-bead float shadow — strong enough to lift off the black plot. */
+  --journey-dot-shadow: rgba(0, 0, 0, 0.42);
 }
-/* Light theme: the axis labels become ink-on-paper, so the halo must flip to a
-   paper colour or it would darken the dark text instead of separating it. */
+/* Light theme: the axis halo flips to paper (else it darkens the dark text), and
+   the bead shadow drops to a light-surface alpha so it reads as a soft float, not
+   a heavy dark halo on the near-white plot. */
 :root[data-theme="light"] .alch-constellation {
   --journey-axis-halo: rgba(247, 246, 242, 0.92);
+  --journey-dot-shadow: rgba(24, 18, 12, 0.16);
 }
 .alch-journey-stage svg { width: 100%; height: 100%; display: block; }
 .alch-journey-stage svg .ac-jgrid {
@@ -8655,12 +8659,25 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 .alch-journey-stage svg .ac-jnode.is-labeled .ac-jnode-label { opacity: 0.86; }
 .alch-journey-stage svg .ac-jnode:hover .ac-jnode-label { opacity: 1; }
 /* ── 3D dots — assessed reads render as shaded "beads": a per-family radial
-   gradient (set inline as fill=url(#jsphere-N)) gives the sphere highlight, and
-   the jdot-shadow filter floats them off the plot. A faint rim keeps them crisp
+   gradient (set inline as fill=url(#jsphere-N)) gives the sphere highlight, and a
+   themeable drop-shadow() floats them off the plot. A faint rim keeps them crisp
    on bright cells. The week filter morphs their positions via a View Transition. */
 .alch-journey-stage svg .ac-jsphere {
-  filter: url(#jdot-shadow);
+  filter: drop-shadow(0 1.4px 1.5px var(--journey-dot-shadow));
   stroke: rgba(8, 6, 6, 0.42); stroke-width: 0.7;
+}
+/* Keep the float on interaction: the base .ac-jdot hover/focus/selected rules
+   REPLACE filter (it isn't additive), so the bead would lose its shadow exactly
+   when touched. Re-declare here composing float + glow — both drop-shadow()s, so
+   the transition also interpolates smoothly instead of jumping. */
+.alch-journey-stage svg .ac-jnode:hover .ac-jsphere {
+  filter: drop-shadow(0 1.4px 1.5px var(--journey-dot-shadow)) drop-shadow(0 0 8px rgba(143, 34, 14, 0.55));
+}
+.alch-journey-stage svg .ac-jnode:focus-visible .ac-jsphere {
+  filter: drop-shadow(0 1.4px 1.5px var(--journey-dot-shadow)) drop-shadow(0 0 9px rgba(214, 189, 134, 0.85));
+}
+.alch-journey-stage svg .ac-jnode.is-selected .ac-jsphere {
+  filter: drop-shadow(0 1.4px 1.5px var(--journey-dot-shadow)) drop-shadow(0 0 10px rgba(214, 189, 134, 0.55));
 }
 /* Week-filter dot travel — when the "as of [week]" filter changes, only the
    named dot groups morph to their new positions; the rest of the view swaps

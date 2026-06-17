@@ -5504,9 +5504,10 @@ function renderJourney() {
   }).join("");
 
   // ── 3D dot shading — one radial-gradient "sphere" per bottleneck family (light
-  // top-left → family hue → darker rim) plus a soft drop-shadow so the points read
-  // as raised beads floating over the plot rather than flat discs. Defs are static
-  // per family; the dots reference them by index. ──
+  // top-left → family hue → darker rim) so the points read as raised beads. The
+  // float shadow is a CSS drop-shadow() (see .ac-jsphere) keyed to a themeable
+  // token, NOT an SVG feDropShadow — so it lightens on the paper theme and can
+  // compose with the hover glow. Defs hold only the static per-family gradients. ──
   const SPHERE = [
     { light: "#e88a6f", mid: "#c44025", dark: "#7a2614" }, // market  — oxide
     { light: "#e7d2a0", mid: "#c9a35e", dark: "#856a35" }, // product — brass
@@ -5519,9 +5520,6 @@ function renderJourney() {
         <stop offset="46%" stop-color="${s.mid}"/>
         <stop offset="100%" stop-color="${s.dark}"/>
       </radialGradient>`).join("")}
-      <filter id="jdot-shadow" x="-60%" y="-60%" width="220%" height="220%">
-        <feDropShadow dx="0" dy="1.4" stdDeviation="1.5" flood-color="#000" flood-opacity="0.42"/>
-      </filter>
     </defs>`;
 
   // ── bottleneck filter + compact legend key ───────────────────────────────
@@ -5752,16 +5750,24 @@ function momentumDeltaLabel(d) { return d == null ? "" : (d > 0 ? `+${d}` : `${d
 // week filter moves dots horizontally and the vertical position holds. Scrubbing
 // the week filter is how movement reads now — the dots travel, no overlaid trails.
 function journeyDisplayStage(team, weekSel) {
-  if (weekSel == null) return journeyFor(team).stage;
+  const live = journeyFor(team).stage;
+  if (weekSel == null) return live;
   const e = standingWeeklyTeam(team?.record_id)?.weeks?.[weekSel];
-  return e && Number.isFinite(e.stage) ? e.stage : journeyFor(team).stage;
+  const wk = e && Number.isFinite(e.stage) ? e.stage : live;
+  // Stage 0 is the OFF-TRACK "side project" CLASSIFICATION on the axis, not
+  // "pre-launch". The weekly seed reuses 0 as a generic week-0 baseline, so an
+  // on-track team (live stage ≥ 1) scrubbed back would falsely drop into the
+  // side-project column. Floor such teams at idea (1); genuine side projects
+  // (live stage 0) keep 0. (Once real weekly reads land this is a safe no-op.)
+  return live >= 1 ? Math.max(1, wk) : wk;
 }
 // A team's stage at the FIRST program week, for the hover's "since start" delta.
+// Routes through journeyDisplayStage so the same side-project floor applies and
+// the start, the plotted dot, and the delta can never disagree.
 function journeyStartStage(team) {
   const weeks = standingWeeklyWeeks();
   if (!weeks.length) return journeyFor(team).stage;
-  const e = standingWeeklyTeam(team?.record_id)?.weeks?.[weeks[0].program_week];
-  return e && Number.isFinite(e.stage) ? e.stage : journeyFor(team).stage;
+  return journeyDisplayStage(team, weeks[0].program_week);
 }
 // True while the per-week standing rows are still the deterministic seed (vs.
 // real reads from Supabase team_standing_weekly), so the movement readout can
@@ -5775,16 +5781,29 @@ function cssIdent(s) { return String(s).replace(/[^A-Za-z0-9_-]/g, "_"); }
 // Re-render with the PMF dots gliding to their new week positions when the
 // platform supports View Transitions. The html.jweek-vt class scopes the
 // animation to the named dot groups (CSS disables the root cross-fade) so the
-// rest of the view swaps instantly with no flash. Reduced-motion users get the
-// instant final state via the global prefers-reduced-motion guard.
+// rest of the view swaps instantly with no flash.
+//
+// Reduced motion is guarded HERE in JS (mirroring openDetail), not via CSS: the
+// global prefers-reduced-motion rule targets real elements (`*`), which does NOT
+// match the ::view-transition pseudo-element tree — so a reduced-motion user must
+// skip startViewTransition entirely. A depth counter keeps the scoping class
+// alive across rapid/overlapping week clicks: a newer transition skips the older
+// one (rejecting its .finished), and a naive remove would strip the class — and
+// thus the root-cross-fade suppression — mid-animation, causing the very flash
+// this scoping prevents.
+let jweekVtDepth = 0;
 function journeyWeekTransition() {
   const root = document.documentElement;
-  if (typeof document.startViewTransition !== "function") { render(); return; }
+  const reduce = (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches)
+    || root.getAttribute("data-reduce-motion") === "1";
+  if (reduce || typeof document.startViewTransition !== "function") { render(); return; }
+  const release = () => { if (--jweekVtDepth <= 0) { jweekVtDepth = 0; root.classList.remove("jweek-vt"); } };
+  jweekVtDepth++;
   root.classList.add("jweek-vt");
   let vt;
   try { vt = document.startViewTransition(() => render()); }
-  catch { render(); root.classList.remove("jweek-vt"); return; }
-  vt.finished.catch(() => {}).finally(() => root.classList.remove("jweek-vt"));
+  catch { render(); release(); return; }
+  vt.finished.catch(() => {}).finally(release);
 }
 
 function constTeamStanding(team) {
@@ -8903,8 +8922,12 @@ function showJourneyTip(stage, tip, rec) {
   // automatically once live weekly reads land.
   const seeded = standingWeeklyIsSeed();
   const hasWeekly = weeks.length >= 2;
+  // At the EARLIEST week the delta is trivially 0 (you're at the start), so the
+  // movement readout would be the same uninformative "no change" for every team —
+  // suppress it there.
+  const atStart = weekSel != null && weeks.length && weekSel === weeks[0].program_week;
   let moveBlock = "";
-  if (hasWeekly) {
+  if (hasWeekly && !atStart) {
     const delta = Math.round((curStage - startStage) * 10) / 10;
     const kind = momentumKind(delta);
     const m = MOMENTUM[kind];
