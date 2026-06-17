@@ -5998,6 +5998,13 @@ function timelineInnerHtml() {
   const inWin = (ms) => ms >= winStart && ms < winEnd;
   const nowIn = inWin(nowMs);
   const nowFrac = winFrac(nowMs);
+  // At week level, center day-grain marks in their day column (a date-only item
+  // sits at midnight = the column's left edge otherwise, drifting off its label).
+  const markFrac = (it) => {
+    if (level !== "week") return it.fraction;
+    const dayIdx = Math.floor((it.startMs - winStart) / DAY);
+    return winFrac(winStart + (dayIdx + 0.5) * DAY);
+  };
 
   // Build each lane over the window; clip items to it so a zoomed view doesn't
   // pile out-of-range marks at the edges. (presence already samples the window;
@@ -6081,7 +6088,7 @@ function timelineInnerHtml() {
     const count = group.length;
     const title = count > 1 ? `${count} calendar events` : it.title;
     const detail = count > 1 ? group.map(g => g.title).join(" · ") : it.detail;
-    return `<span class="ac-tl-evt${it.isFuture ? " is-future" : ""}${count > 1 ? " is-multi" : ""}" style="left:${pct(it.fraction)}" ${tipAttrs(title, it.startMs, "calendar", detail)}></span>`;
+    return `<span class="ac-tl-evt${it.isFuture ? " is-future" : ""}${count > 1 ? " is-multi" : ""}" style="left:${pct(markFrac(it))}" ${tipAttrs(title, it.startMs, "calendar", detail)}></span>`;
   }).join("");
 
   // Activity lane = everything else (release/commit/ask), clustered by day → count dot.
@@ -6094,7 +6101,7 @@ function timelineInnerHtml() {
     const title = count > 1 ? `${count} updates` : it.title;
     const detail = count > 1 ? group.slice(0, 4).map(g => g.title).join(" · ") + (count > 4 ? " …" : "") : it.detail;
     const open = rid ? ` data-const-open-record="${escAttr(rid)}"` : "";
-    return `<span class="ac-tl-dot${it.isFuture ? " is-future" : ""}${count > 1 ? " is-cluster" : ""}${rid ? " is-openable" : ""}" style="left:${pct(it.fraction)}"${open} ${tipAttrs(title, it.startMs, kind, detail)}${rid ? ' role="button" tabindex="0"' : ""}>${count > 1 ? `<em>${count}</em>` : ""}</span>`;
+    return `<span class="ac-tl-dot${it.isFuture ? " is-future" : ""}${count > 1 ? " is-cluster" : ""}${rid ? " is-openable" : ""}" style="left:${pct(markFrac(it))}"${open} ${tipAttrs(title, it.startMs, kind, detail)}${rid ? ' role="button" tabindex="0"' : ""}>${count > 1 ? `<em>${count}</em>` : ""}</span>`;
   }).join("");
 
   // Standing lane = the cohort-mean PMF stage line on a 0..8 axis (one legible line,
