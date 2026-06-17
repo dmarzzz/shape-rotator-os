@@ -8,9 +8,11 @@ const workflowPath = path.resolve(".github/workflows/google-calendar-watch-renew
 const workflowText = fs.readFileSync(workflowPath, "utf8");
 const workflow = yaml.load(workflowText);
 
-test("Google Calendar watch renewal workflow uses durable OAuth refresh credentials", () => {
-  assert.match(workflowText, /cron:\s*"17 8 \* \* \*"/);
-  assert.match(workflowText, /cron:\s*"\*\/30 \* \* \* \*"/);
+test("Google Calendar watch renewal workflow is manual-only operator fallback", () => {
+  assert.ok(Object.hasOwn(workflow.on, "workflow_dispatch"));
+  assert.equal(workflow.on.schedule, undefined);
+  assert.doesNotMatch(workflowText, /^\s*schedule:/m);
+  assert.doesNotMatch(workflowText, /github\.event\.schedule/);
   assert.equal(workflow.permissions.contents, "read");
   assert.equal(workflow.concurrency.group, "google-calendar-watch-renewal");
   assert.equal(workflow.concurrency["cancel-in-progress"], false);
@@ -33,11 +35,11 @@ test("Google Calendar watch renewal workflow uses durable OAuth refresh credenti
     assert.equal(env[secretName], `\${{ secrets.${secretName} }}`);
   }
 
-  assert.match(workflowText, /github\.event\.schedule == '17 8 \* \* \*'/);
   assert.match(workflowText, /npm run calendar:watch:google -- --apply/);
   assert.match(workflowText, /npm run calendar:meet-links:google -- --apply --time-min/);
   assert.match(workflowText, /npm run calendar:capture-bot:google -- --apply --time-min/);
-  assert.match(workflowText, /npm run calendar:meet-auto-artifacts:google -- --apply --time-min .* --fail-on-error/);
+  assert.match(workflowText, /npm run calendar:meet-auto-artifacts:google -- --apply --time-min .* --skip-if-missing-scope/);
+  assert.doesNotMatch(workflowText, /calendar:meet-auto-artifacts:google.*--fail-on-error/);
   assert.match(workflowText, /npm run calendar:sync:google -- --apply/);
   assert.match(workflowText, /npm run calendar:mirror:google -- --apply --skip-if-unconfigured --stateless-if-missing/);
   assert.doesNotMatch(workflowText, /GOOGLE_CALENDAR_ACCESS_TOKEN/);

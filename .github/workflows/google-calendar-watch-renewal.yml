@@ -1,15 +1,11 @@
 name: google-calendar-watch-renewal
 
-# Google Calendar push notification channels expire after a short TTL. Renew the
-# managed cohort calendar watch daily. The reconciliation path runs more often
-# so direct admin edits in Google Calendar get Meet links, the capture bot,
-# Meet transcription settings, Supabase sync, and guest-calendar mirroring
-# without an operator command.
+# Manual operator fallback only. The live public schedule is published to
+# Supabase, and production calendar reconciliation should run from Supabase Cron
+# or another trusted host with Google/Supabase credentials. Keep this workflow
+# off GitHub's schedule so GitHub Actions is not the calendar operator.
 
 on:
-  schedule:
-    - cron: "17 8 * * *"
-    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -53,7 +49,6 @@ jobs:
         run: echo "time_min=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: renew Google Calendar watch
-        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 8 * * *'
         run: npm run calendar:watch:google -- --apply
 
       - name: ensure future Google Meet links
@@ -63,7 +58,7 @@ jobs:
         run: npm run calendar:capture-bot:google -- --apply --time-min "${{ steps.window.outputs.time_min }}"
 
       - name: ensure future Meet transcription
-        run: npm run calendar:meet-auto-artifacts:google -- --apply --time-min "${{ steps.window.outputs.time_min }}" --fail-on-error
+        run: npm run calendar:meet-auto-artifacts:google -- --apply --time-min "${{ steps.window.outputs.time_min }}" --skip-if-missing-scope
 
       - name: sync Google Calendar after renewal
         run: npm run calendar:sync:google -- --apply
