@@ -499,13 +499,14 @@ async function defineMyShape() {
 async function askOllama(question) {
   if (!chosenModel) { els.response.textContent = "no model selected"; return; }
   els.response.className = "response-wrap";
-  els.response.textContent = "";
+  els.response.textContent = "thinking…";
   els.askBtn.disabled = true;
   els.stopBtn.hidden = false;
   abortController = new AbortController();
 
   const started = Date.now();
   let tokens = 0;
+  let streamed = false;
   const body = {
     model: chosenModel,
     prompt: buildPrompt(question),
@@ -536,6 +537,7 @@ async function askOllama(question) {
         try {
           const obj = JSON.parse(line);
           if (obj.response) {
+            if (!streamed) { els.response.textContent = ""; streamed = true; }
             els.response.textContent += obj.response;
             tokens++;
             els.response.scrollTop = els.response.scrollHeight;
@@ -546,7 +548,8 @@ async function askOllama(question) {
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
     els.footer.textContent = `${tokens} chunks · ${elapsed}s · ${chosenModel}`;
   } catch (e) {
-    els.response.textContent += e.name === "AbortError" ? "\n\n[stopped]" : `\n\n[error: ${e.message}]`;
+    if (!streamed) els.response.textContent = ""; // drop the "thinking…" placeholder
+    els.response.textContent += e.name === "AbortError" ? "[stopped]" : `[error: ${e.message}]`;
   } finally {
     els.askBtn.disabled = false;
     els.stopBtn.hidden = true;
@@ -559,15 +562,19 @@ async function askOllama(question) {
 async function askTina(question, b) {
   if (!window.api || !window.api.tina) { els.response.textContent = "[brain backend unavailable — relaunch the app]"; return; }
   els.response.className = "response-wrap";
-  els.response.textContent = "";
+  // The CLI cold-starts (~10s) and claude text-mode often flushes once at the
+  // end, so show activity until the first real output arrives.
+  els.response.textContent = "thinking… your engine is starting up (the first answer can take ~10s).";
   els.askBtn.disabled = true;
   els.stopBtn.hidden = false;
   const requestId = `tina-${Date.now()}`;
   const started = Date.now();
+  let streamed = false;
 
   if (tinaOff) { tinaOff(); tinaOff = null; }
   tinaOff = window.api.tina.onChunk((p) => {
     if (!p || p.requestId !== requestId) return;
+    if (!streamed) { els.response.textContent = ""; streamed = true; }
     els.response.textContent += p.chunk;
     els.response.scrollTop = els.response.scrollHeight;
   });
@@ -576,10 +583,11 @@ async function askTina(question, b) {
     // dataMode "public": the cohort surface is the cohort-public projection, so
     // it is allowed to reach a remote backend. Private grounding would be local-only.
     const r = await window.api.tina.run({ backend: b, prompt: buildPrompt(question), dataMode: "public", requestId });
+    if (!streamed) els.response.textContent = ""; // drop the "thinking…" placeholder
     if (!r || !r.ok) {
       const msg = (r && r.error) || "request failed";
       els.response.textContent += (els.response.textContent ? "\n\n" : "") + `[${msg}]`;
-    } else if (!els.response.textContent.trim()) {
+    } else if (!streamed) {
       els.response.textContent = r.text || "(no output)";
     }
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
