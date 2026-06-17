@@ -44,6 +44,10 @@ let savedFaces = null;
 // 'local' (below) to make dismissals persist across relaunches.
 const DISMISS_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
+// Calendar-plus glyph for the right-rail "add to calendar" control (Lucide,
+// same family as the feed icons). Tinted by the card's --c2-acc in CSS.
+const CAL_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v4"/><path d="M10 16h4"/></svg>';
+
 // Total close-animation budget (ms) — matches the membrane fold-recede in
 // membrane.css (.is-dismissing). The card is removed only after it has fully
 // receded into the field, so the dissolve never snaps.
@@ -311,6 +315,51 @@ function fmtFullDate(t) {
   const d = new Date(t);
   const dy = String(d.getDate()).padStart(2, '0');
   return `${WD[d.getDay()]} ${MO[d.getMonth()]} ${dy} · ${fmtTimeOnly(t)}`;
+}
+
+// Per-kind action verb for the left-feed hover layer — names what a click will
+// do (the third interaction layer: glance → hover reveals destination → click
+// commits). Terse; the arrow is appended in the row markup.
+const FEED_CTA = {
+  release: 'open release', commit: 'open activity', ask: 'open ask',
+  event: 'open calendar', transcript: 'open readout',
+  'event-soon': 'open calendar', 'event-new': 'open calendar',
+  'event-changed': 'open calendar', 'person-soon': 'open profile',
+};
+function feedCta(kind) { return FEED_CTA[kind] || 'open'; }
+
+// Build a Google Calendar "add event" template URL from an agenda item. The
+// app's shell:openExternal is hard-restricted to http(s) (main.js), so a
+// calendar.google.com TEMPLATE link is the one-click path — a data: .ics URL
+// would be rejected there. dateStr is 'YYYY-MM-DD'; timeLabel is the agenda
+// clock label ("19:00", "19:00–20:00", "all day", or empty).
+function gcalDateRange(dateStr, timeLabel) {
+  const ymd = String(dateStr || '').slice(0, 10).replace(/-/g, '');
+  if (!/^\d{8}$/.test(ymd)) return null;
+  const times = String(timeLabel || '').match(/\d{1,2}:\d{2}/g) || [];
+  if (!times.length) {
+    // All-day: Google wants an exclusive end date (the following day).
+    const d = new Date(`${dateStr}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    const nd = new Date(d.getTime() + 86400000);
+    return `${ymd}/${nd.getFullYear()}${pad2(nd.getMonth() + 1)}${pad2(nd.getDate())}`;
+  }
+  const hhmm = (t) => t.replace(':', '') + '00';
+  const start = hhmm(times[0]);
+  let end;
+  if (times[1]) end = hhmm(times[1]);
+  else {
+    const [h, m] = times[0].split(':').map(Number);
+    end = pad2((h + 1) % 24) + pad2(m) + '00';   // default to a 1-hour block
+  }
+  return `${ymd}T${start}/${ymd}T${end}`;
+}
+function calendarAddUrl(title, dateStr, timeLabel) {
+  const range = gcalDateRange(dateStr, timeLabel);
+  const params = new URLSearchParams({ action: 'TEMPLATE', text: title || 'event' });
+  if (range) params.set('dates', range);
+  params.set('details', 'Added from Shape Rotator OS');
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 function renderEventsInline(data) {
@@ -933,7 +982,9 @@ export function mountMembrane(container, opts = {}) {
       const key = n ? `${base}#${n}` : base;
       if (agendaDismissed.has(key)) return '';
       const ek = escHtml(key);
+      const calUrl = escHtml(calendarAddUrl(title, dateStr, sub));
       return `<div class="magenda-up" data-cat="${agendaCat(title)}" data-row-key="${ek}">
+        <button type="button" class="magenda-add" data-cal-url="${calUrl}" aria-label="add ${escHtml(title || 'event')} to calendar" title="add to calendar">${CAL_PLUS}</button>
         <button type="button" class="magenda-up-event" data-up-key="${ek}">
           <span class="magenda-event-title">${escHtml(title || 'untitled')}</span>${sub ? `<span class="magenda-event-time">${escHtml(sub)}</span>` : ''}
         </button>
@@ -971,6 +1022,19 @@ export function mountMembrane(container, opts = {}) {
   // itself opens the calendar in a new OS tab (same as clicking through from
   // the calendar view).
   agendaEl?.addEventListener('click', (ev) => {
+    // Add-to-calendar — opens a prefilled Google Calendar event in the system
+    // browser (the proven https-only openExternal path). Stops here so the
+    // card's own click (open the full calendar) doesn't also fire.
+    const add = ev.target.closest('.magenda-add');
+    if (add) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const url = add.dataset.calUrl;
+      if (url && window.api && typeof window.api.openExternal === 'function') {
+        window.api.openExternal(url);
+      }
+      return;
+    }
     const x = ev.target.closest('.magenda-dismiss');
     if (x) {
       ev.preventDefault();
@@ -1030,6 +1094,7 @@ export function mountMembrane(container, opts = {}) {
           <span class="mfeed-body">
             <span class="mfeed-label">${escHtml(c.title || '')}</span>
             <span class="mfeed-meta">${escHtml(c.detail || '')}</span>
+            <span class="mfeed-cta" aria-hidden="true"><span class="mfeed-cta-inner"><span class="mfeed-cta-go">${escHtml(c.recordId ? 'open profile' : feedCta(c.kind))} →</span></span></span>
           </span>
         </button>
         <button type="button" class="mfeed-dismiss" data-incoming-key="${escHtml(c.seenKey)}" aria-label="dismiss ${escHtml(c.title || 'notification')}" title="dismiss">${DISMISS_X}</button>
@@ -1063,18 +1128,24 @@ export function mountMembrane(container, opts = {}) {
     // Each item is wrapped in a positioned row so a quiet dismiss control can
     // sit on the card's inner corner (hidden at rest, revealed on hover/focus
     // — the "subtle hidden feature" — see .mfeed-dismiss in membrane.css).
-    const feedHtml = items.map(({ it, key }, i) => `
+    const feedHtml = items.map(({ it, key }, i) => {
+      // Hover layer reveals the EXACT date/time (the resting card shows only the
+      // relative age) plus the click destination — new info, never a restatement.
+      const whenFull = Number.isFinite(Date.parse(it.date)) ? fmtFullDate(it.date) : '';
+      return `
       <div class="mfeed-row" data-row-key="${escHtml('feed:' + key)}">
         <button type="button" class="mfeed-item mfeed-${escHtml(it.kind)}" data-feed-i="${i}">
           ${feedIcon(it.kind)}
           <span class="mfeed-body">
             <span class="mfeed-label">${escHtml(it.label || '')}</span>
             <span class="mfeed-meta">${escHtml(it.meta || '')}</span>
+            <span class="mfeed-cta" aria-hidden="true"><span class="mfeed-cta-inner">${whenFull ? `<span class="mfeed-cta-when">${escHtml(whenFull)}</span>` : ''}<span class="mfeed-cta-go">${escHtml(feedCta(it.kind))} →</span></span></span>
           </span>
           <span class="mfeed-age">${escHtml(feedAge(it.date))}</span>
         </button>
         <button type="button" class="mfeed-dismiss" data-dismiss-key="${escHtml(key)}" aria-label="dismiss ${escHtml(it.label || 'notification')}" title="dismiss">${DISMISS_X}</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     // One stream: incoming (forward-looking) flows straight into the activity
     // feed — no section labels, the rows just sort by relevance.
     feedEl.innerHTML = incHtml + feedHtml;

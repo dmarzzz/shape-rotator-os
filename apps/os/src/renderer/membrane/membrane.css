@@ -428,7 +428,9 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   justify-content: center;
   gap: 2px;
   width: 100%;
-  padding: 8px 11px;
+  /* extra left pad reserves the gutter for the add-to-calendar control (text is
+     right-aligned, so this only bounds how far left a long title may run). */
+  padding: 8px 11px 8px 36px;
   min-height: 53px;           /* match the left feed item height */
   background: color-mix(in srgb, var(--c2-acc) 20%, transparent);
   border: 1px solid color-mix(in srgb, var(--c2-acc) 38%, transparent);
@@ -507,6 +509,51 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
 }
 .membrane-agenda .magenda-dismiss svg { width: 9px; height: 9px; display: block; }
 
+/* Add-to-calendar — a HELPER, not housekeeping, so unlike the dismiss it stays
+   faintly visible at rest (discoverable) in the card's empty left gutter and
+   brightens on hover/focus. Click opens a prefilled Google Calendar event. Its
+   square-rounded geometry distinguishes it from the round dismiss; the opposite
+   roles (add vs. remove) read apart at a glance. Tinted by the card's --c2-acc. */
+.membrane-agenda .magenda-add {
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.92);
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--c2-acc) 34%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--c2-acc) 14%, transparent);
+  color: color-mix(in srgb, var(--c2-acc) 85%, rgba(var(--mem-ink-rgb), 0.6));
+  cursor: pointer;
+  opacity: 0.42;
+  pointer-events: auto;
+  transition: opacity 180ms ease,
+              transform 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.membrane-agenda .magenda-up:hover .magenda-add,
+.membrane-agenda .magenda-up:focus-within .magenda-add {
+  opacity: 0.95;
+  transform: translateY(-50%) scale(1);
+}
+.membrane-agenda .magenda-add:hover {
+  background: color-mix(in srgb, var(--c2-acc) 28%, transparent);
+  border-color: color-mix(in srgb, var(--c2-acc) 60%, transparent);
+  color: color-mix(in srgb, var(--c2-acc) 96%, #ffffff);
+}
+.membrane-agenda .magenda-add:active { transform: translateY(-50%) scale(0.86); }
+.membrane-agenda .magenda-add:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--c2-acc) 55%, transparent);
+  outline-offset: 2px;
+  opacity: 1;
+}
+.membrane-agenda .magenda-add svg { width: 13px; height: 13px; display: block; }
+
 .magenda-up-event .magenda-event-title {
   max-width: 100%;
   font-size: 12px;
@@ -559,6 +606,7 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   flex: 0 0 auto;
   width: 100%;
   max-height: 160px;
+  z-index: 1;
   transition: opacity 200ms cubic-bezier(0.19, 1, 0.22, 1);
 }
 /* Taper the tail of the feed: the last three rows fade progressively,
@@ -569,7 +617,7 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
 .mfeed-row:nth-last-child(2) { opacity: 0.4; }
 .mfeed-row:nth-last-child(1) { opacity: 0.2; }
 .mfeed-row:hover,
-.mfeed-row:focus-within { opacity: 1; }
+.mfeed-row:focus-within { opacity: 1; z-index: 10; }
 /* Close = recede into the field, the membrane's own exit. The card folds away
    like the membrane panel does (perspective + rotateY toward its left screen
    edge, signature easing cubic-bezier(0.65,0,0.05,1)) with a blur-dissolve;
@@ -738,6 +786,68 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   letter-spacing: 0.06em;
   color: rgba(var(--mem-ink-rgb), 0.32);
 }
+
+/* ── hover layer ─────────────────────────────────────────────────────────
+   The third interaction layer. At rest a card is a one-line glance; on
+   hover/focus it LIFTS toward the viewer (kind-tinted shadow, raised z-index
+   so it floats over the rows below — no neighbour reflow above it), the label
+   + meta un-truncate, and a quiet line reveals the exact date/time and where a
+   click will go. You read the whole item — and learn its destination — without
+   clicking. The card itself stays the single click target. */
+.mfeed-row:hover .mfeed-item,
+.mfeed-row:focus-within .mfeed-item {
+  background: rgba(var(--mem-ink-rgb), 0.16);
+  border-color: color-mix(in srgb, var(--mfeed-color, rgba(var(--mem-ink-rgb), 0.4)) 40%, transparent);
+  box-shadow: 0 12px 30px -16px color-mix(in srgb, var(--mfeed-color, #000) 70%, transparent),
+              0 2px 8px -5px rgba(0, 0, 0, 0.45);
+}
+.mfeed-row:hover .mfeed-label,
+.mfeed-row:focus-within .mfeed-label,
+.mfeed-row:hover .mfeed-meta,
+.mfeed-row:focus-within .mfeed-meta {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* The revealed line: a CSS-grid 0fr→1fr accordion (height animates, no JS).
+   Resting transition is the fast collapse; the reveal rule below slows the
+   enter, per the house asymmetric-timing law. */
+.mfeed-cta {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 170ms cubic-bezier(0.65, 0, 0.05, 1),
+              opacity 120ms ease;
+}
+.mfeed-cta-inner {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 8px;
+  padding-top: 3px;   /* clipped to 0 while collapsed; breathes once open */
+}
+.mfeed-row:hover .mfeed-cta,
+.mfeed-row:focus-within .mfeed-cta {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 260ms cubic-bezier(0.19, 1, 0.22, 1),
+              opacity 200ms ease 60ms;
+}
+.mfeed-cta-when {
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: rgba(var(--mem-ink-rgb), 0.55);
+}
+.mfeed-cta-go {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--mfeed-color, rgba(var(--mem-ink-rgb), 0.72));
+}
+
 /* Kind tints — clearly colored but softer than the original loud palette;
    shared by the icon and the project chip. */
 .mfeed-release    { --mfeed-color: rgba(136, 208, 161, 0.95); }  /* github / releases — sage green */
@@ -2130,13 +2240,23 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   /* Ambient-notification interactions: keep the final informative state
      (dismiss control visible on hover/focus; cards present) but drop the
      transforms, blur, and easing so nothing animates. */
-  .mfeed-row, .mfeed-item, .mfeed-dismiss,
+  .mfeed-row, .mfeed-item, .mfeed-dismiss, .mfeed-cta,
   .membrane-agenda .magenda-up,
   .membrane-agenda .magenda-up-event,
   .membrane-agenda .magenda-event,
-  .membrane-agenda .magenda-dismiss {
+  .membrane-agenda .magenda-dismiss,
+  .membrane-agenda .magenda-add {
     transition: none !important;
   }
+  /* The hover layer still REVEALS (un-truncate + CTA visible) — just without
+     the grid-row accordion. Force the revealed track open instantly. */
+  .mfeed-row:hover .mfeed-cta,
+  .mfeed-row:focus-within .mfeed-cta { grid-template-rows: 1fr; }
+  /* Keep the add control centred; drop only its scale punctuation. */
+  .membrane-agenda .magenda-add,
+  .membrane-agenda .magenda-up:hover .magenda-add,
+  .membrane-agenda .magenda-up:focus-within .magenda-add,
+  .membrane-agenda .magenda-add:active { transform: translateY(-50%); }
   .mfeed-item:hover, .mfeed-item:active,
   .membrane-agenda .magenda-up-event:hover,
   .membrane-agenda .magenda-up-event:active,
