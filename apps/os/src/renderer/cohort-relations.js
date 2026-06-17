@@ -369,9 +369,44 @@ function collabConceptLabels(keys) {
   return keys.map(key => COLLAB_CONCEPT_BY_KEY.get(key)?.label || key);
 }
 
-function collabScore(keys, tokenCount = 0, bonus = 0) {
-  const conceptScore = keys.reduce((sum, key) => sum + (COLLAB_CONCEPT_BY_KEY.get(key)?.weight || 1), 0);
-  return conceptScore + Math.min(1.2, tokenCount * 0.3) + bonus;
+// ── Seek/offer match policy (the tunable core) ──────────────────────────────
+// buildCollabModel proposes a match for every (seeker, offerer) pair whose
+// ask-tokens touch an offer. This policy — isolated here on purpose — decides
+// which proposals survive and how strong each is. Two knobs:
+//   accept()   — is a proposal a real, routable match? (the noise floor)
+//   strength() — how strong, which drives matrix shade + intro ranking.
+// Specificity is the spine: in a TEE-heavy cohort the word "tee" is nearly
+// free, so a term many teams offer is weak evidence and a rare term is a sharp,
+// routable match. weightOf(df) turns a document frequency (how many teams offer
+// a term) into an inverse-frequency weight: rare ⇒ higher, generic ⇒ ~1.
+export function collabMatchPolicy(N, tokenDF = new Map(), conceptDF = new Map()) {
+  // Inverse document frequency: ~0 when everyone offers the term, ~3 when only
+  // one or two do. Keyed on the ratio (N-1)/df, so the floor is N-independent —
+  // a cohort-wide term scores ≈ln(2) no matter how big the cohort is.
+  const idf = (df) => Math.log(1 + Math.max(0, N - 1) / Math.max(1, df || 1));
+  const policy = {
+    tokenWeight: (token) => 1 + idf(tokenDF.get(token)),
+    // Specificity-weighted evidence for one proposed match: each shared concept
+    // counts its semantic weight DISCOUNTED by how common it is in the cohort,
+    // each shared token counts its own rarity, plus a bump when a declared
+    // dependency already points the same way.
+    strength: ({ sharedConcepts, sharedTokens, depAligned }) =>
+      sharedConcepts.reduce((sum, key) => sum + (COLLAB_CONCEPT_BY_KEY.get(key)?.weight || 1) * idf(conceptDF.get(key)), 0)
+      + sharedTokens.reduce((sum, token) => sum + (1 + idf(tokenDF.get(token))) * 0.6, 0)
+      + (depAligned ? 0.8 : 0),
+    // The noise dials (← tune here). A match must clear MIN_STRENGTH AND be
+    // corroborated: either two distinct shared signals, or one lone signal so
+    // rare/strong it clears MIN_SINGLE on its own. This is what kills the block
+    // of "everyone shares one cluster concept" matches a flat floor let through.
+    MIN_STRENGTH: 1.85,
+    MIN_SINGLE: 4.5,
+    accept(parts) {
+      const strength = policy.strength(parts);
+      const signals = parts.sharedConcepts.length + parts.sharedTokens.length;
+      return strength >= policy.MIN_STRENGTH && (signals >= 2 || strength >= policy.MIN_SINGLE);
+    },
+  };
+  return policy;
 }
 
 export function buildCollabModel(teams = [], clusters = [], dependencyRecords = [], skillAreaVocab = []) {
@@ -419,6 +454,17 @@ export function buildCollabModel(teams = [], clusters = [], dependencyRecords = 
   const depByPair = new Map(base.edges.map(edge => [dependencyPairKey(edge.from, edge.to), edge]));
   const deps = new Set(depByPair.keys());
 
+  // Specificity model: count how many teams offer each token / concept, then
+  // weight inversely so rare offers (the routable ones) outscore cohort-wide
+  // terms when matches are accepted and ranked.
+  const offerTokenDF = new Map();
+  const offerConceptDF = new Map();
+  for (const { rid } of ordered) {
+    for (const token of offerSet.get(rid)) offerTokenDF.set(token, (offerTokenDF.get(token) || 0) + 1);
+    for (const concept of offerConceptSet.get(rid)) offerConceptDF.set(concept, (offerConceptDF.get(concept) || 0) + 1);
+  }
+  const policy = collabMatchPolicy(ordered.length, offerTokenDF, offerConceptDF);
+
   const seekOffer = [];
   const soByPair = new Map();
   for (const seeker of ordered) {
@@ -427,8 +473,9 @@ export function buildCollabModel(teams = [], clusters = [], dependencyRecords = 
       const sharedConcepts = collabInter(seekConceptSet.get(seeker.rid), offerConceptSet.get(offerer.rid));
       const tokenOverlap = collabInter(seekSet.get(seeker.rid), offerSet.get(offerer.rid));
       const sharedTokens = tokenOverlap.filter(token => !sharedConcepts.includes(token));
-      if (!tokenOverlap.length) continue;
+      if (!policy.accept({ sharedConcepts, sharedTokens })) continue;
       const shared = sharedConcepts.length ? [...collabConceptLabels(sharedConcepts), ...sharedTokens] : sharedTokens;
+      const depAligned = deps.has(`${seeker.rid}>${offerer.rid}`);
       const rec = {
         seeker: seeker.rid,
         offerer: offerer.rid,
@@ -439,11 +486,18 @@ export function buildCollabModel(teams = [], clusters = [], dependencyRecords = 
         shared,
         sharedConcepts,
         sharedTokens,
-        score: collabScore(sharedConcepts, sharedTokens.length, deps.has(`${seeker.rid}>${offerer.rid}`) ? 0.8 : 0),
+        mutual: false,
+        score: policy.strength({ sharedConcepts, sharedTokens, depAligned }),
       };
       seekOffer.push(rec);
       soByPair.set(`${seeker.rid}>${offerer.rid}`, rec);
     }
+  }
+  // Mutual fit — both teams want what the other offers. The strongest possible
+  // intro, so flag it and let it outrank one-way matches. Symmetric: both
+  // directional records get the bump, so the pair reads as one relationship.
+  for (const rec of seekOffer) {
+    if (soByPair.has(`${rec.offerer}>${rec.seeker}`)) { rec.mutual = true; rec.score += 1.2; }
   }
 
   const aff = new Map();
@@ -917,5 +971,30 @@ export function packBubbles(model, granularity, opts = {}) {
     members: bmDescendantLeafRids(c),
     redundant: !!c.redundant,
   }));
-  return { pos, containers, wells: [], ringSegments: [] };
+  // Tight content box: the real extent of leaves + containers (incl. radii) so
+  // the renderer can fit the SVG viewBox to actual content and kill internal
+  // letterboxing (the dead band above/below the packed cohort). bmAssign sets
+  // _ax/_ay/_ar on every node, so this needs no extra layout pass.
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const lf of out.leaves) {
+    if (lf._ax - lf._ar < minX) minX = lf._ax - lf._ar;
+    if (lf._ay - lf._ar < minY) minY = lf._ay - lf._ar;
+    if (lf._ax + lf._ar > maxX) maxX = lf._ax + lf._ar;
+    if (lf._ay + lf._ar > maxY) maxY = lf._ay + lf._ar;
+  }
+  for (const c of out.containers) {
+    if (c._ax - c._ar < minX) minX = c._ax - c._ar;
+    if (c._ay - c._ar < minY) minY = c._ay - c._ar;
+    if (c._ax + c._ar > maxX) maxX = c._ax + c._ar;
+    if (c._ay + c._ar > maxY) maxY = c._ay + c._ar;
+  }
+  // Keystone TEAM labels sit BELOW their bubble (renderer labelY = r + gap) and
+  // container labels sit INSIDE the ring, so the real clip risk is the bottom
+  // edge — pad it a touch more than the top.
+  const padX = margin, padTop = margin, padBottom = 22;
+  const bounds = Number.isFinite(minX)
+    ? { x: minX - padX, y: minY - padTop,
+        w: (maxX - minX) + padX * 2, h: (maxY - minY) + padTop + padBottom }
+    : { x: 0, y: 0, w: W, h: H };
+  return { pos, containers, wells: [], ringSegments: [], bounds };
 }
