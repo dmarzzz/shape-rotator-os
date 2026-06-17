@@ -6590,7 +6590,9 @@ function renderConstellation() {
 
   const edgeTier = constNormalizeEdgeTier(state.constEdgeTier);
   const networkScope = constNormalizeNetworkScope(state.constellationScope);
-  const W = 980, H = 540;
+  // Squarer viewBox than the old node-link map: the packed cohort is a circle,
+  // so a near-square frame fills the stage instead of pillarboxing a wide one.
+  const W = 620, H = 600;
   const model = constellationModel(teams, clusters, cohort?.dependencies || []);
   // People scope keeps the existing person-to-person network (deferred work).
   if (networkScope === "people") {
@@ -6731,12 +6733,15 @@ function renderConstellation() {
     // hue, never element opacity — that would fade stroke/label and fight the
     // hover/selection rules). Floor keeps faint bubbles legible.
     const shadeStyle = isBubble ? `fill-opacity:${(0.45 + 0.55 * (Number.isFinite(shade) ? shade : 0.5)).toFixed(2)}` : "";
+    // View-transition name so each team bubble morphs to its new home when the
+    // granularity changes (same team persists across grains by record_id).
+    const vtName = isBubble ? `;view-transition-name:ac-vt-${dependencySafeToken(team.record_id)}` : "";
     const orphan = (activeLens !== "all" && !lensConnected.has(team.record_id)) ? " is-orphan" : "";
     const interestClass = interestCtx.active
       ? (interestCtx.coreIds.has(team.record_id) ? " is-interest-core" : (interestCtx.neighborIds.has(team.record_id) ? " is-interest-neighbor" : " is-interest-outside"))
       : "";
     const densityClass = viewMode === "map" && wellSize > 1 ? " is-dense-well" : "";
-    const keystoneClass = viewMode === "map" && rank === 0 ? " is-keystone-label" : "";
+    const keystoneClass = ((viewMode === "map" || viewMode === "bubble") && rank === 0) ? " is-keystone-label" : "";
     const secondaryClass = viewMode === "map" && wellSize > 1 && rank > 0 ? " is-secondary-label" : "";
     const sourceClass = `${typedConnected.has(team.record_id) ? " is-source-backed" : ""}${profileLinkConnected.has(team.record_id) ? " is-profile-link" : ""}${unclusteredIds.has(team.record_id) ? " is-unclustered" : ""}${journeyAssessed(team) ? "" : " is-journey-missing"}`;
     const gapCount = profileLinkDegree.get(team.record_id) || 0;
@@ -6768,10 +6773,12 @@ function renderConstellation() {
     const labelY = radialLabel
       ? (Math.sin(angle) < -0.25 ? -r - 8 - (labelOut - 6) : (Math.sin(angle) > 0.25 ? r + labelGap + (labelOut - 6) : 3))
       : r + labelGap;
-    const labelLines = constNodeLabelLines(team, viewMode);
+    // Bubble map: keep resting labels for the larger bubbles only; small ones
+    // would collide in a tight pack, and hover + tooltip carry their names.
+    const labelLines = (isBubble && r < 14 && rank !== 0) ? [] : constNodeLabelLines(team, viewMode);
     const fullLabel = constText(team.name || team.record_id);
     return `
-    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}" data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}" data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
       <circle class="ac-node-hit" r="${Math.max(18, r + 10).toFixed(1)}"/>
       ${typedRing}
       <circle class="ac-node-shape ${team.is_mentor ? "ac-node-mentor" : ""}" r="${r.toFixed(1)}" style="${escAttr(shadeStyle)}"/>
@@ -7658,7 +7665,12 @@ function wireConstellationHover() {
       state.constellationGranularity = next;
       state.constSelection = null;
       try { localStorage.setItem(CONST_GRANULARITY_LS_KEY, next); } catch {}
-      render();
+      // Morph bubbles between grains via View Transitions (named per team), so
+      // the cohort reshapes instead of hard-cutting. Falls back to a plain
+      // render where unsupported or when reduced motion is requested.
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
+      else render();
     });
   }
   // Map lens: re-weights the same map by line type. Persisted.
