@@ -7068,6 +7068,54 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   stroke-linejoin: round;
   stroke-width: 2.8px;
 }
+
+/* ── Bubble map: nested containment circles ───────────────────────────────
+   Theme / cluster / skill containers as faint nested rings on the charcoal
+   stage. Reuse the well accent vars (set inline per container) so they flip
+   for light mode; inner levels read a touch stronger so the nesting is legible
+   without colour. Team bubbles draw in .ac-nodes on top of these. */
+.alch-constellation-stage svg .ac-bubble-container-shape {
+  fill: var(--well-accent-faint, rgba(var(--ink-rgb), 0.022));
+  stroke: var(--well-accent-soft, rgba(var(--ink-rgb), 0.14));
+  stroke-width: 1;
+  stroke-dasharray: 5 6;
+  transition: fill 180ms var(--ease), stroke 180ms var(--ease);
+}
+.alch-constellation-stage svg .ac-bubble-container[data-level="cluster"] .ac-bubble-container-shape,
+.alch-constellation-stage svg .ac-bubble-container[data-level="skill"] .ac-bubble-container-shape {
+  stroke: var(--well-accent, rgba(193,168,114,0.4));
+  stroke-dasharray: 3 4;
+}
+.alch-constellation-stage svg .ac-bubble-container-label {
+  fill: var(--well-accent, var(--alchemy-ink-mute));
+  opacity: 0.74;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(10,9,9,0.88);
+  stroke-linejoin: round;
+  stroke-width: 2.8px;
+}
+.alch-constellation-stage svg .ac-bubble-container[data-level="theme"] .ac-bubble-container-label {
+  font-size: 10px;
+  opacity: 0.84;
+}
+
+/* Bubble-map sentence legend: quiet key for the visual channels. */
+.ac-sentence .ac-sent-legend {
+  color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.5));
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  margin-left: 2px;
+}
+.ac-sentence .ac-sent-legend b {
+  color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.82));
+  font-weight: 600;
+}
 .alch-constellation-stage[data-view="map"]:not([data-hover-active="true"]):not([data-selection-active="true"]):not([data-interest-active="true"]) svg .ac-well.is-dense-well .ac-well-label {
   opacity: 0.58;
 }

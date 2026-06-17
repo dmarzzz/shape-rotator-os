@@ -596,3 +596,314 @@ export function aggregateSkillAreas(cohort = {}) {
   });
   return { nodes, edges };
 }
+
+// ── Bubble map (nested circle packing) ──────────────────────────────────────
+// Hand-rolled, dependency-free circle packing: a faithful port of
+// d3-hierarchy's front-chain `packSiblings` + Welzl `enclose`, plus a small
+// recursive layout that nests team bubbles inside cluster/theme containers.
+// Used by the cohort "relationship map" bubble view and the per-company
+// overlap inspector. The renderer ships no d3 by design, so these stay local.
+
+export const THEME_LABELS = {
+  "confidential-ai": "confidential AI · TEE",
+  "agent-runtime": "agent runtime",
+  "crypto-mechanism": "crypto & mechanism",
+  "consumer": "consumer & creative",
+  "_other": "unclustered",
+};
+
+// Cluster record_id → theme id. Unmapped clusters (and the folded "_other"
+// well) fall back to the "_other" theme; this is the only "high level" grouping
+// the surface lacks, so it lives here as code, not data.
+export const CLUSTER_TO_THEME = {
+  "confidential-ai-ops": "confidential-ai",
+  "confidential-data": "confidential-ai",
+  "dstack": "confidential-ai",
+  "ndai": "confidential-ai",
+  "regulated": "confidential-ai",
+  "agents": "agent-runtime",
+  "agentic-dev-platform": "agent-runtime",
+  "crypto-id": "crypto-mechanism",
+  "market-mechanism-research": "crypto-mechanism",
+  "local-first-networking": "crypto-mechanism",
+  "consumer-behavior-apps": "consumer",
+  "realtime-creative": "consumer",
+};
+
+function bmThemeForWell(wellId) {
+  if (wellId === "_other") return "_other";
+  return CLUSTER_TO_THEME[wellId] || "_other";
+}
+
+// --- Welzl smallest-enclosing-circle (circle variant, ported from d3) -------
+function bmEnclose(circles) {
+  let i = 0; const n = circles.length; let B = []; let p; let e;
+  while (i < n) {
+    p = circles[i];
+    if (e && bmEnclosesWeak(e, p)) ++i;
+    else { e = bmEncloseBasis(B = bmExtendBasis(B, p)); i = 0; }
+  }
+  return e || { x: 0, y: 0, r: 0 };
+}
+function bmExtendBasis(B, p) {
+  let i; let j;
+  if (bmEnclosesWeakAll(p, B)) return [p];
+  for (i = 0; i < B.length; ++i) {
+    if (bmEnclosesNot(p, B[i]) && bmEnclosesWeakAll(bmEncloseBasis2(B[i], p), B)) return [B[i], p];
+  }
+  for (i = 0; i < B.length - 1; ++i) {
+    for (j = i + 1; j < B.length; ++j) {
+      if (bmEnclosesNot(bmEncloseBasis2(B[i], B[j]), p)
+        && bmEnclosesNot(bmEncloseBasis2(B[i], p), B[j])
+        && bmEnclosesNot(bmEncloseBasis2(B[j], p), B[i])
+        && bmEnclosesWeakAll(bmEncloseBasis3(B[i], B[j], p), B)) {
+        return [B[i], B[j], p];
+      }
+    }
+  }
+  // Degenerate input (e.g. coincident circles): never throw in the renderer.
+  return B.length ? B : [p];
+}
+function bmEnclosesNot(a, b) {
+  const dr = a.r - b.r; const dx = b.x - a.x; const dy = b.y - a.y;
+  return dr < 0 || dr * dr < dx * dx + dy * dy;
+}
+function bmEnclosesWeak(a, b) {
+  const dr = a.r - b.r + Math.max(a.r, b.r, 1) * 1e-9; const dx = b.x - a.x; const dy = b.y - a.y;
+  return dr > 0 && dr * dr > dx * dx + dy * dy;
+}
+function bmEnclosesWeakAll(a, B) {
+  for (let i = 0; i < B.length; ++i) if (!bmEnclosesWeak(a, B[i])) return false;
+  return true;
+}
+function bmEncloseBasis(B) {
+  if (B.length === 1) return { x: B[0].x, y: B[0].y, r: B[0].r };
+  if (B.length === 2) return bmEncloseBasis2(B[0], B[1]);
+  return bmEncloseBasis3(B[0], B[1], B[2]);
+}
+function bmEncloseBasis2(a, b) {
+  const x1 = a.x, y1 = a.y, r1 = a.r, x2 = b.x, y2 = b.y, r2 = b.r;
+  const x21 = x2 - x1, y21 = y2 - y1, r21 = r2 - r1;
+  const l = Math.sqrt(x21 * x21 + y21 * y21) || 1;
+  return { x: (x1 + x2 + x21 / l * r21) / 2, y: (y1 + y2 + y21 / l * r21) / 2, r: (l + r1 + r2) / 2 };
+}
+function bmEncloseBasis3(a, b, c) {
+  const x1 = a.x, y1 = a.y, r1 = a.r, x2 = b.x, y2 = b.y, r2 = b.r, x3 = c.x, y3 = c.y, r3 = c.r;
+  const a2 = x1 - x2, a3 = x1 - x3, b2 = y1 - y2, b3 = y1 - y3, c2 = r2 - r1, c3 = r3 - r1;
+  const d1 = x1 * x1 + y1 * y1 - r1 * r1;
+  const d2 = d1 - x2 * x2 - y2 * y2 + r2 * r2;
+  const d3 = d1 - x3 * x3 - y3 * y3 + r3 * r3;
+  const ab = (a3 * b2 - a2 * b3) || 1e-9;
+  const xa = (b2 * d3 - b3 * d2) / (ab * 2) - x1, xb = (b3 * c2 - b2 * c3) / ab;
+  const ya = (a3 * d2 - a2 * d3) / (ab * 2) - y1, yb = (a2 * c3 - a3 * c2) / ab;
+  const A = xb * xb + yb * yb - 1, B = 2 * (r1 + xa * xb + ya * yb), C = xa * xa + ya * ya - r1 * r1;
+  const r = -(Math.abs(A) > 1e-6 ? (B + Math.sqrt(Math.max(0, B * B - 4 * A * C))) / (2 * A) : C / B);
+  return { x: x1 + xa + xb * r, y: y1 + ya + yb * r, r };
+}
+
+// --- Front-chain sibling packing (ported from d3-hierarchy) ------------------
+function bmPlace(b, a, c) {
+  const dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+  if (d2) {
+    const a2 = (a.r + c.r) * (a.r + c.r), b2 = (b.r + c.r) * (b.r + c.r);
+    if (a2 > b2) {
+      const x = (d2 + b2 - a2) / (2 * d2), y = Math.sqrt(Math.max(0, b2 / d2 - x * x));
+      c.x = b.x - x * dx - y * dy; c.y = b.y - x * dy + y * dx;
+    } else {
+      const x = (d2 + a2 - b2) / (2 * d2), y = Math.sqrt(Math.max(0, a2 / d2 - x * x));
+      c.x = a.x + x * dx - y * dy; c.y = a.y + x * dy + y * dx;
+    }
+  } else { c.x = a.x + c.r; c.y = a.y; }
+}
+function bmIntersects(a, b) {
+  const dr = a.r + b.r - 1e-6, dx = b.x - a.x, dy = b.y - a.y;
+  return dr > 0 && dr * dr > dx * dx + dy * dy;
+}
+function bmChainScore(node) {
+  const a = node._, b = node.next._, ab = (a.r + b.r) || 1;
+  const dx = (a.x * b.r + b.x * a.r) / ab, dy = (a.y * b.r + b.y * a.r) / ab;
+  return dx * dx + dy * dy;
+}
+function BmChainNode(circle) { this._ = circle; this.next = null; this.previous = null; }
+
+// Pack `circles` ([{x,y,r}]) around the origin in place; returns enclosing r.
+export function packSiblings(circles) {
+  const n = circles.length;
+  if (n === 0) return 0;
+  let a, b, c, aa, ca, i, j, k, sj, sk;
+  a = circles[0]; a.x = 0; a.y = 0;
+  if (!(n > 1)) return a.r;
+  b = circles[1]; a.x = -b.r; b.x = a.r; b.y = 0;
+  if (!(n > 2)) return a.r + b.r;
+  bmPlace(b, a, c = circles[2]);
+  a = new BmChainNode(a); b = new BmChainNode(b); c = new BmChainNode(c);
+  a.next = c.previous = b; b.next = a.previous = c; c.next = b.previous = a;
+  pack: for (i = 3; i < n; ++i) {
+    bmPlace(a._, b._, c = circles[i]); c = new BmChainNode(c);
+    j = b.next; k = a.previous; sj = b._.r; sk = a._.r;
+    do {
+      if (sj <= sk) {
+        if (bmIntersects(j._, c._)) { b = j; a.next = b; b.previous = a; --i; continue pack; }
+        sj += j._.r; j = j.next;
+      } else {
+        if (bmIntersects(k._, c._)) { a = k; a.next = b; b.previous = a; --i; continue pack; }
+        sk += k._.r; k = k.previous;
+      }
+    } while (j !== k.next);
+    c.previous = a; c.next = b; a.next = b.previous = b = c;
+    aa = bmChainScore(a);
+    while ((c = c.next) !== b) { if ((ca = bmChainScore(c)) < aa) { a = c; aa = ca; } }
+    b = a.next;
+  }
+  const chain = [b._]; c = b;
+  while ((c = c.next) !== b) chain.push(c._);
+  const en = bmEnclose(chain);
+  for (i = 0; i < n; ++i) { a = circles[i]; a.x -= en.x; a.y -= en.y; }
+  return en.r;
+}
+
+export function enclose(circles) { return bmEnclose(circles); }
+
+// --- Hierarchy + recursive layout -------------------------------------------
+function bmLeafRadius(stage) {
+  const s = Math.max(1, Number(stage) || 1);
+  return Math.max(9, Math.sqrt(s) * 10); // area ∝ maturity; ~14 (s2) … ~26 (s7)
+}
+
+function bmSkillFreq(teams) {
+  const freq = new Map();
+  for (const t of teams) {
+    for (const raw of (Array.isArray(t?.skill_areas) ? t.skill_areas : [])) {
+      const s = String(raw || "").trim().toLowerCase();
+      if (!s) continue;
+      freq.set(s, (freq.get(s) || 0) + 1);
+    }
+  }
+  return freq;
+}
+
+// One bubble per team: assign each team to its RAREST cohort skill so the
+// crowded tags (tee/agentic) spread out and no team is drawn twice.
+export function teamPrimarySkill(team, skillFreq) {
+  const skills = Array.isArray(team?.skill_areas) ? team.skill_areas : [];
+  let best = null; let bestFreq = Infinity;
+  for (const raw of skills) {
+    const s = String(raw || "").trim().toLowerCase();
+    if (!s) continue;
+    const f = skillFreq.get(s) || 0;
+    if (f < bestFreq) { bestFreq = f; best = s; }
+  }
+  return best || "_other";
+}
+
+export function bubbleHierarchy(model, granularity, stageOf) {
+  const byId = model.byRecordId || new Map();
+  const leaf = (rid) => {
+    const team = byId.get(rid);
+    const stage = stageOf ? stageOf(team) : (team?.journey?.stage || 2);
+    return { leaf: true, rid, team, stage };
+  };
+  if (granularity === "skills") {
+    const teams = [...byId.values()];
+    const freq = bmSkillFreq(teams);
+    const buckets = new Map();
+    for (const t of teams) {
+      const key = teamPrimarySkill(t, freq);
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(t.record_id);
+    }
+    const children = [...buckets.entries()]
+      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+      .map(([key, rids]) => ({
+        id: `skill:${key}`, label: key === "_other" ? "unclassified" : key, level: "cluster",
+        children: rids.map(leaf), redundant: rids.length === 1,
+      }));
+    return { id: "_root", label: "cohort", level: "root", children };
+  }
+  const clusterNodes = (model.wellsDef || []).map(w => ({
+    id: w.id, label: w.label || w.id, level: "cluster",
+    children: (w.members || []).map(leaf), redundant: (w.members || []).length === 1,
+  }));
+  if (granularity === "themes") {
+    const byTheme = new Map();
+    for (const cn of clusterNodes) {
+      const th = bmThemeForWell(cn.id);
+      if (!byTheme.has(th)) byTheme.set(th, []);
+      byTheme.get(th).push(cn);
+    }
+    const children = [...byTheme.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([th, clusters]) => ({
+        id: `theme:${th}`, label: THEME_LABELS[th] || th, level: "theme",
+        children: clusters,
+        redundant: clusters.length === 1 && (clusters[0].children || []).length <= 1,
+      }));
+    return { id: "_root", label: "cohort", level: "root", children };
+  }
+  return { id: "_root", label: "cohort", level: "root", children: clusterNodes };
+}
+
+const BM_GAP = { root: 6, theme: 6, cluster: 5 };
+const BM_PAD = { root: 4, theme: 9, cluster: 6 };
+
+function bmLayout(node) {
+  if (node.leaf) { node.r = bmLeafRadius(node.stage); return node.r; }
+  const kids = node.children || [];
+  kids.forEach(bmLayout);
+  const gap = BM_GAP[node.level] != null ? BM_GAP[node.level] : 4;
+  const circles = kids.map(ch => ({ x: 0, y: 0, r: ch.r + gap, ch }));
+  const encR = packSiblings(circles);
+  circles.forEach(c => { c.ch._lx = c.x; c.ch._ly = c.y; });
+  node.r = (kids.length ? encR : 0) + (BM_PAD[node.level] || 0);
+  return node.r;
+}
+
+function bmAssign(node, ax, ay, scale, out) {
+  node._ax = ax; node._ay = ay; node._ar = node.r * scale;
+  if (node.leaf) { out.leaves.push(node); return; }
+  if (node.level !== "root") out.containers.push(node);
+  for (const ch of (node.children || [])) {
+    bmAssign(ch, ax + (ch._lx || 0) * scale, ay + (ch._ly || 0) * scale, scale, out);
+  }
+}
+
+function bmAssignRanks(node) {
+  if (node.leaf) return;
+  const leafKids = (node.children || []).filter(c => c.leaf);
+  leafKids.sort((a, b) => b.r - a.r);
+  leafKids.forEach((lk, idx) => { lk._rank = idx; lk._wellId = node.id; lk._wellSize = leafKids.length; });
+  (node.children || []).forEach(bmAssignRanks);
+}
+
+// Nested circle packing for the cohort. Returns a drop-in superset of
+// placeConstellation's `pos` contract plus nested `containers`.
+export function packBubbles(model, granularity, opts = {}) {
+  const W = opts.W || 980; const H = opts.H || 540; const margin = opts.margin || 26;
+  const root = bubbleHierarchy(model, granularity, opts.stageOf);
+  bmLayout(root);
+  bmAssignRanks(root);
+  const scale = root.r > 0 ? Math.min(1, (Math.min(W, H) / 2 - margin) / root.r) : 1;
+  const out = { leaves: [], containers: [] };
+  bmAssign(root, W / 2, H / 2, scale, out);
+
+  const indeg = model.indegree || new Map();
+  let maxDeg = 0;
+  for (const v of indeg.values()) if (v > maxDeg) maxDeg = v;
+
+  const pos = new Map();
+  for (const lf of out.leaves) {
+    const deg = indeg.get(lf.rid) || 0;
+    const shade = maxDeg > 0 ? deg / maxDeg : 0.5;
+    pos.set(lf.rid, {
+      team: lf.team, x: lf._ax, y: lf._ay, r: lf._ar, deg, angle: null,
+      wellId: lf._wellId || "_other", wellSize: lf._wellSize || 1, rank: lf._rank || 0,
+      stage: lf.stage, shade,
+    });
+  }
+  const containers = out.containers.map(c => ({
+    id: c.id, label: c.label, level: c.level, cx: c._ax, cy: c._ay, r: c._ar,
+    members: (c.children || []).filter(k => k.leaf).map(k => k.rid),
+    redundant: !!c.redundant,
+  }));
+  return { pos, containers, wells: [], ringSegments: [] };
+}
