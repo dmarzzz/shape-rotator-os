@@ -4868,12 +4868,74 @@ function constTeamInspectorHtml(team, ctx) {
     </div>
     ${constStackPlacementHtml(team, ctx)}
     ${constTeamActionCardHtml(team, ctx)}
+    ${constInspectorDetailsHtml("spaces · overlap", constEgocentricOverlapSvg(team, ctx), true)}
     ${constTeamPeopleHtml(team, ctx)}
     ${relationshipDetails}
     ${currentBetSection}
     ${marketFitSection}
     ${transcriptCues}
     ${sourceProofDetails}`;
+}
+
+const EGO_DOMAIN_FILL = { tee: "#C0492E", ai: "#D9913D", crypto: "#9A5BA6", "app-ux": "#3F9B8E", other: "#8a7d75" };
+function constEgoNodeFill(team) { return EGO_DOMAIN_FILL[constDomainClass(team?.domain)] || EGO_DOMAIN_FILL.other; }
+
+// Per-company overlap: the selected team centered, every space (cluster) it
+// belongs to drawn as an overlapping circle, with co-members placed by how many
+// of its spaces they share — the teams in the overlaps (ringed) are its closest
+// collaboration-or-collision candidates. This is the multi-membership truth the
+// global bubble map must flatten to a single home; here it is restored, scoped
+// to one company so a Venn is legible.
+function constEgocentricOverlapSvg(team, ctx) {
+  const clusters = Array.isArray(ctx?.clusters) ? ctx.clusters : [];
+  const rid = team?.record_id;
+  const spaces = clusters
+    .filter(c => Array.isArray(c.teams) && c.teams.includes(rid))
+    .map(c => ({ label: c.label || c.name || c.record_id, members: c.teams.filter(id => id !== rid) }));
+  const N = spaces.length;
+  if (!N) return `<p class="ac-inspector-note">Not in a shared space yet — overlap appears once ${escHtml(team?.name || "this team")} joins a cluster.</p>`;
+  const W = 360, H = 300, CX = 180, CY = 150, D = 54, R = 78;
+  const u = spaces.map((_, i) => { const a = (-90 + i * 360 / N) * Math.PI / 180; return [Math.cos(a), Math.sin(a)]; });
+  let circles = "";
+  for (let i = 0; i < N; i++) {
+    const cx = CX + u[i][0] * D, cy = CY + u[i][1] * D;
+    const lx = CX + u[i][0] * (D + R + 6), ly = CY + u[i][1] * (D + R + 6);
+    const anchor = u[i][0] > 0.3 ? "start" : (u[i][0] < -0.3 ? "end" : "middle");
+    circles += `<circle class="ac-ego-space" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${R}"/>`
+      + `<text class="ac-ego-space-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}">${escHtml(constShortText(spaces[i].label, 22))}</text>`;
+  }
+  const share = new Map();
+  spaces.forEach((sp, i) => sp.members.forEach(m => { (share.get(m) || share.set(m, []).get(m)).push(i); }));
+  const singlesByPetal = new Map(); const multi = [];
+  for (const [m, arr] of share) { if (arr.length === 1) (singlesByPetal.get(arr[0]) || singlesByPetal.set(arr[0], []).get(arr[0])).push(m); else multi.push(m); }
+  const dot = (m, x, y, ringed) => {
+    const t = ctx?.teamById?.get(m); const nm = t?.name || m;
+    const shared = (share.get(m) || []).map(i => spaces[i].label).join(", ");
+    return `<g class="ac-ego-node${ringed ? " is-multi" : ""}" data-ego-refocus="${escAttr(m)}" role="button" tabindex="0" aria-label="${escAttr(`focus ${nm}`)}">`
+      + (ringed ? `<circle class="ac-ego-ring" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9.5"/>` : "")
+      + `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="${constEgoNodeFill(t)}"/>`
+      + `<title>${escHtml(`${nm} — shares: ${shared}`)}</title></g>`;
+  };
+  let nodes = "";
+  for (let i = 0; i < N; i++) {
+    const all = singlesByPetal.get(i) || []; const list = all.slice(0, 8); const extra = all.length - list.length;
+    const a0 = -90 + i * 360 / N;
+    list.forEach((m, k) => {
+      const spread = Math.min(46, 13 * Math.max(0, list.length - 1));
+      const a = (list.length > 1 ? a0 - spread / 2 + spread * k / (list.length - 1) : a0) * Math.PI / 180;
+      const rr = D + R * 0.5;
+      nodes += dot(m, CX + Math.cos(a) * rr, CY + Math.sin(a) * rr, false);
+    });
+    if (extra > 0) { const a = a0 * Math.PI / 180, rr = D + R * 0.82; nodes += `<text class="ac-ego-more" x="${(CX + Math.cos(a) * rr).toFixed(1)}" y="${(CY + Math.sin(a) * rr).toFixed(1)}" text-anchor="middle">+${extra}</text>`; }
+  }
+  multi.forEach((m, k) => {
+    let dx = 0, dy = 0; (share.get(m) || []).forEach(i => { dx += u[i][0]; dy += u[i][1]; });
+    const len = Math.hypot(dx, dy) || 1; const jr = (k % 2 ? 1 : -1) * 7;
+    nodes += dot(m, CX + dx / len * (D * 0.42) + jr, CY + dy / len * (D * 0.42) + (k % 3 - 1) * 8, true);
+  });
+  const focal = `<g class="ac-ego-focal"><circle class="ac-ego-focal-ring" cx="${CX}" cy="${CY}" r="13"/><circle cx="${CX}" cy="${CY}" r="9" fill="${constEgoNodeFill(team)}"/><text class="ac-ego-focal-label" x="${CX}" y="${CY + 27}" text-anchor="middle">${escHtml(constShortText(team.name || rid, 18))}</text></g>`;
+  return `<svg class="ac-ego-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escAttr(`${team.name || rid} overlap across ${N} spaces`)}">${circles}${nodes}${focal}</svg>`
+    + `<p class="ac-ego-caption">In ${N} space${N === 1 ? "" : "s"}. ${multi.length} team${multi.length === 1 ? " shares" : "s share"} more than one — its closest collaboration-or-collision candidate${multi.length === 1 ? "" : "s"}.</p>`;
 }
 
 function constEdgeInspectorHtml(edge, ctx) {
@@ -7708,6 +7770,14 @@ function wireConstellationHover() {
       const clearTarget = e.target.closest("[data-const-clear-selection]");
       if (clearTarget) {
         setConstellationInspector(null, constellationCurrentInspectorContext());
+        return;
+      }
+      // Per-company overlap: clicking a co-member recenters the overlap on it
+      // (partial inspector update; the bubble map canvas is untouched).
+      const egoTarget = e.target.closest("[data-ego-refocus]");
+      if (egoTarget) {
+        const rid = egoTarget.getAttribute("data-ego-refocus");
+        if (rid) setConstellationInspector({ type: "team", rid }, constellationCurrentInspectorContext());
         return;
       }
       const openTarget = e.target.closest("[data-const-open-record]");
