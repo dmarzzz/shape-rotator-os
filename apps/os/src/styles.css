@@ -7764,7 +7764,9 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
  * "data on black" stage (inherits .alch-constellation-stage). Chart-ink
  * discipline: lanes are neutral ink at rest; the now-marker is the one accent;
  * future items are ghosted (dashed). */
-.ac-tl-stage { display: block; padding: 14px 20px 20px; overflow-x: auto; }
+.ac-tl-stage { position: relative; display: block; padding: 14px 20px 20px; overflow-x: auto; }
+.ac-tl-controls { margin-bottom: 12px; }
+.c2-timeline { min-height: 220px; }
 .ac-tl { --ac-tl-gutter: 132px; font-family: var(--font-mono); }
 .ac-tl-head,
 .ac-tl-lane { display: grid; grid-template-columns: var(--ac-tl-gutter) 1fr; align-items: center; }

@@ -2237,13 +2237,12 @@ const CONST_VIEWS = [
   // constNormalizeConstellationMode so old deep-links still resolve.
   { mode: "shipped", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>', label: "say / did / shipped", hint: "intent vs public proof" },
   { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "asks, offers, dependencies" },
-  { mode: "timeline", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16"/><path d="M8 7h11"/><path d="M6 12h9"/><path d="M10 17h8"/></svg>', label: "timeline", hint: "updates by track · past & scheduled" },
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
   if (mode === "circle") return "ring";
   if (mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
-  if (mode === "ring" || mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab" || mode === "timeline") return mode;
+  if (mode === "ring" || mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab") return mode;
   return "map";
 }
 function constellationNav(active) {
@@ -5941,17 +5940,15 @@ function renderProductStack() {
   markConstellationSelection(state.constSelection);
 }
 
-// Timeline — the time-native cohort view. The calendar's own program-week model
-// (PROGRAM_START_MS..PROGRAM_END_MS, 10 weeks) becomes a shared horizontal axis:
-// a thin calendar ruler on top, then stacked activity lanes, all pierced by one
-// set of week gridlines and a single oxide "now" playhead. Past on the left,
-// scheduled future (ghosted) on the right. Reads the LIVE surface — the playhead
-// marks now, it does NOT rewind (per Mike's call); lane data is normalized by the
-// pure cohort-timeline-tracks module. Phase 1: shared axis + ruler + the three
-// default lanes (activity / standing / presence). Clicking an item that maps to a
-// record reuses the shared data-const-open-record handler (wired via
-// wireConstellationHover, the non-collab branch).
-function renderTimeline() {
+// Timeline body — the time-native lens of the CALENDAR page (a [week | timeline]
+// view toggle). The calendar's own program-week model (PROGRAM_START_MS..
+// PROGRAM_END_MS, 10 weeks) becomes a shared horizontal axis: a thin calendar
+// ruler on top, then stacked activity lanes, pierced by one set of week gridlines
+// and a single oxide "now" playhead. Past on the left, scheduled future (ghosted)
+// on the right. Reads the LIVE surface — the playhead marks now, it does NOT
+// rewind (per Mike's call). Returns the stage markup; hover/click are wired by
+// wireCalendar. Lane data is normalized by the pure cohort-timeline-tracks module.
+function timelineInnerHtml() {
   const cohort = activeConstellationCohort();
   const live = state.cohort || cohort;
   const whatsNew = Array.isArray(live?.whats_new) ? live.whats_new : [];
@@ -6048,34 +6045,24 @@ function renderTimeline() {
       <div class="ac-tl-track">${body}</div>
     </div>`;
 
-  state.canvas.innerHTML = `
-    <div class="alch-cohort-page" data-cohort-view="timeline">
-      ${cohortPageHead("timeline")}
-      <div class="alch-view-controls" data-shape-occluder>${sentenceBar}</div>
-      <div class="alch-constellation" data-constellation-view="timeline">
-        <div class="alch-const-workbench is-single">
-          <div class="alch-const-main">
-            <div class="alch-constellation-stage ac-tl-stage" data-view="timeline" tabindex="0" aria-label="cohort timeline — updates by track, past and scheduled">
-              <div class="ac-tl">
-                <div class="ac-tl-head">
-                  <div class="ac-tl-label"></div>
-                  <div class="ac-tl-track ac-tl-weeklabels">${weekLabels}</div>
-                </div>
-                <div class="ac-tl-rows">
-                  <div class="ac-tl-gridlayer" aria-hidden="true">${gridlines}${playhead}</div>
-                  ${lane("is-ruler", "calendar", "", `${rulerMarks}<span class="ac-tl-baseline"></span>`)}
-                  ${lane("", "all activity", "", activityMarks)}
-                  ${lane("", "standing", stLatest ? `· ${stLatest}/8` : "", `<div class="ac-tl-track--line">${standingBody}</div>`)}
-                  ${lane("", "people · in town", presence.total ? `· ${presence.total}` : "", presenceMarks)}
-                </div>
-              </div>
-              <div class="ac-tip" hidden></div>
-            </div>
-          </div>
+  return `
+    <div class="ac-tl-stage" data-view="timeline" tabindex="0" aria-label="cohort timeline — updates by track, past and scheduled">
+      <div class="ac-tl-controls">${sentenceBar}</div>
+      <div class="ac-tl">
+        <div class="ac-tl-head">
+          <div class="ac-tl-label"></div>
+          <div class="ac-tl-track ac-tl-weeklabels">${weekLabels}</div>
+        </div>
+        <div class="ac-tl-rows">
+          <div class="ac-tl-gridlayer" aria-hidden="true">${gridlines}${playhead}</div>
+          ${lane("is-ruler", "calendar", "", `${rulerMarks}<span class="ac-tl-baseline"></span>`)}
+          ${lane("", "all activity", "", activityMarks)}
+          ${lane("", "standing", stLatest ? `· ${stLatest}/8` : "", `<div class="ac-tl-track--line">${standingBody}</div>`)}
+          ${lane("", "people · in town", presence.total ? `· ${presence.total}` : "", presenceMarks)}
         </div>
       </div>
+      <div class="ac-tip" hidden></div>
     </div>`;
-  markConstellationSelection(state.constSelection);
 }
 
 // ─── constellation ───────────────────────────────────────────────────
@@ -6659,7 +6646,6 @@ function renderConstellation() {
     return;
   }
   if (mode === "shipped") { renderSayDidShipped(); return; }
-  if (mode === "timeline") { renderTimeline(); return; }
 
   const lens = constNormalizeConstellationLens(state.constellationLens);
   state.constellationLens = lens;
@@ -7397,9 +7383,6 @@ function wireConstellationHover() {
     // ONE styled floating tooltip serves both the map and the journey scatter
     // (was a fixed hover-line on the map + a separate floating tip on journey).
     const tip = stage.querySelector(".ac-tip");
-    // Timeline is a lane chart, not a node/well graph — it has its own light
-    // mark-hover and reuses the shared open-record/Escape handlers bound above.
-    if (stage.classList.contains("ac-tl-stage")) { wireTimelineHover(stage, tip); return; }
     const cohort = activeConstellationCohort();
     const teams = cohort?.teams || [];
     const clusters = cohort?.clusters || [];
@@ -8409,6 +8392,7 @@ function paintCalendarView({ wire = false } = {}) {
   // intervals don't stack across repaints.
   if (cal.detach) { cal.detach(); cal.detach = null; }
   const presence = cal.view === "presence";
+  const timeline = cal.view === "timeline";
   state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
@@ -8416,11 +8400,14 @@ function paintCalendarView({ wire = false } = {}) {
     source: cal.source,
     view: cal.view,
     presenceHtml: presence ? renderCalAvailability() : "",
+    timelineHtml: timeline ? timelineInnerHtml() : "",
   });
   if (presence) {
     mountAvailabilityCanvas();
     applyPresenceFocus();
-  } else {
+  } else if (!timeline) {
+    // The grid's now-line ticker; the timeline view has no grid to attach to
+    // (its own hover is wired in wireCalendar).
     cal.detach = calendarModule.attachCalendarPageBehavior(state.canvas, { scrollToNow: cal.initialMount });
     cal.initialMount = false;
   }
@@ -8459,6 +8446,22 @@ function wireCalendar() {
       cal.view = next;
       refreshCalendarView();
     });
+  }
+
+  // timeline-view extras — the lane chart's own mark-hover + open-record click
+  // (the calendar page isn't in constellation mode, so the shared cohort open
+  // handler doesn't reach it). Bound on the fresh-per-paint stage, so no stacking.
+  if (cal.view === "timeline") {
+    const stage = state.canvas.querySelector(".ac-tl-stage");
+    if (stage) {
+      wireTimelineHover(stage, stage.querySelector(".ac-tip"));
+      stage.addEventListener("click", (e) => {
+        const open = e.target.closest("[data-const-open-record]");
+        if (!open) return;
+        const rid = open.getAttribute("data-const-open-record");
+        if (rid) openDirectoryRecord(rid) || openDetail(rid);
+      });
+    }
   }
 
   // presence-view extras — gantt export + the "edit my availability" jump.
