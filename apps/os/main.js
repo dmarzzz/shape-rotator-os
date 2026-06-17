@@ -19,6 +19,10 @@ require("./daybook-main");
 // can't see and which dev mode (runs from source) can't reproduce.
 const SMOKE_TEST = process.argv.includes("--smoke-test") || process.env.SROS_SMOKE_TEST === "1";
 
+// Custom URL scheme for shareable deep-links (sros://xxxxx). See the deep-link
+// block just above app.whenReady() and apps/os/src/renderer/share-link.js.
+const DEEPLINK_SCHEME = "sros";
+
 function runSmokeTest() {
   const TIMEOUT_MS = Number(process.env.SROS_SMOKE_TIMEOUT_MS) || 45000;
   const log = (m) => process.stdout.write(`[smoke] ${m}\n`);
@@ -2125,6 +2129,72 @@ ipcMain.handle("fg:export-calendar", async (_e, opts = {}) => {
   }
 });
 
+// ─── deep links: sros://xxxxx ───────────────────────────────────────────────
+// Register the custom scheme so the OS hands `sros://` links to us, then route
+// them to the renderer (boot.js applyDeepLink). Arrival paths:
+//   • macOS, running or cold launch → app.on("open-url")
+//   • Windows/Linux, app running    → app.on("second-instance") (needs the lock)
+//   • Windows/Linux, cold launch    → the link is in process.argv (drained in whenReady)
+// A link that lands before the renderer is ready is held in pendingDeepLink and
+// pulled by the renderer via "deep-link:get-pending" on boot.
+let pendingDeepLink = null;
+let rendererReady = false;
+
+if (!app.isDefaultProtocolClient(DEEPLINK_SCHEME)) {
+  // In dev (`electron .`) the executable is Electron itself, so point the
+  // registration at our entry script; packaged builds register the scheme via
+  // Info.plist (mac) / installer (win) from electron-builder's `protocols`.
+  if (process.defaultApp && process.argv.length >= 2) {
+    try { app.setAsDefaultProtocolClient(DEEPLINK_SCHEME, process.execPath, [path.resolve(process.argv[1])]); } catch {}
+  } else {
+    try { app.setAsDefaultProtocolClient(DEEPLINK_SCHEME); } catch {}
+  }
+}
+
+function deliverDeepLink(url) {
+  if (typeof url !== "string" || !url.startsWith(DEEPLINK_SCHEME + "://")) return;
+  const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+  if (win && rendererReady) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+    try { win.webContents.send("deep-link", url); } catch {}
+    return;
+  }
+  // Renderer not ready (cold start, or window still booting): queue it for the
+  // renderer to drain, and make sure a window is on the way.
+  pendingDeepLink = url;
+  if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+  else if (app.isReady()) createWindow();
+}
+
+// First call = the renderer's listener is live; hand over any queued link.
+ipcMain.handle("deep-link:get-pending", () => {
+  rendererReady = true;
+  const u = pendingDeepLink;
+  pendingDeepLink = null;
+  return u || null;
+});
+
+// macOS delivers links here (running or cold). May fire before whenReady —
+// pendingDeepLink + the drain handle that ordering.
+app.on("open-url", (event, url) => { event.preventDefault(); deliverDeepLink(url); });
+
+// Windows/Linux: a second `sros://` launch spawns a new process. Take the
+// single-instance lock so it forwards into THIS instance instead of opening a
+// duplicate. Scoped to non-darwin so macOS multi-instance behaviour is unchanged.
+if (process.platform !== "darwin") {
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+  } else {
+    app.on("second-instance", (_e, argv) => {
+      const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+      if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+      const url = argv.find((a) => typeof a === "string" && a.startsWith(DEEPLINK_SCHEME + "://"));
+      if (url) deliverDeepLink(url);
+    });
+  }
+}
+
 app.whenReady().then(() => {
   // Headless self-test path: boot the renderer, assert ready, exit. Skips
   // the dock icon, menu, swf-node spawn, and auto-updater — none of that
@@ -2139,6 +2209,12 @@ app.whenReady().then(() => {
     catch (e) { process.stderr.write(`[viz:warn] dock icon set failed: ${e && e.message}\n`); }
   }
   createWindow();
+  // Windows/Linux cold launch via an sros:// link: the URL rides in process.argv.
+  // Queue it so the renderer drains it on boot. macOS uses open-url instead.
+  if (process.platform !== "darwin") {
+    const url = process.argv.find((a) => typeof a === "string" && a.startsWith(DEEPLINK_SCHEME + "://"));
+    if (url) deliverDeepLink(url);
+  }
   buildAppMenu();
   initAutoUpdater();
   // Spin the bundled swf-node up after the first window exists so its
