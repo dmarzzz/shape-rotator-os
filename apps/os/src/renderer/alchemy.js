@@ -6111,7 +6111,9 @@ function timelineInnerHtml() {
     const count = group.length;
     const title = count > 1 ? `${count} calendar events` : it.title;
     const detail = count > 1 ? group.map(g => g.title).join(" · ") : it.detail;
-    return `<span class="ac-tl-evt${it.isFuture ? " is-future" : ""}${count > 1 ? " is-multi" : ""}" style="left:${pct(markFrac(it))}" ${tipAttrs(title, it.startMs, "calendar", detail)}></span>`;
+    // Click commits to the deeper surface: that week's hour-grid (glance→hover→open).
+    const wk = weekIdxOf(it.startMs);
+    return `<span class="ac-tl-evt is-jump${it.isFuture ? " is-future" : ""}${count > 1 ? " is-multi" : ""}" style="left:${pct(markFrac(it))}" data-tl-week="${wk}" role="button" tabindex="0" aria-label="${escAttr(`${title} — open week ${wk + 1} in the calendar grid`)}" ${tipAttrs(title, it.startMs, "calendar", detail)}></span>`;
   }).join("");
 
   // Activity lane = everything else (release/commit/ask), clustered by day → count dot.
@@ -6135,15 +6137,18 @@ function timelineInnerHtml() {
   const standingTip = scopeTeam
     ? `${scopeName} · PMF stage ${stLast ? stLast.stage.toFixed(1) : "?"} of ${stMax}`
     : `cohort mean PMF — stage ${stLast ? stLast.stage.toFixed(1) : "?"} of ${stMax}`;
+  // When zoomed in (week/month), a single read shows as one dot; clicking it
+  // expands to the program level so the full PMF arc this point sits on is visible.
+  const stExpand = level !== "program";
   const standingBody = stLast
     ? `<svg class="ac-tl-line${scopeId ? " is-scoped" : ""}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${stPts.length > 1 ? `<polyline points="${stPoly}" fill="none" vector-effect="non-scaling-stroke"/>` : ""}</svg>`
-      + `<span class="ac-tl-end" style="left:${pct(stLast.fraction)};top:${stY(stLast.stage).toFixed(1)}%" ${tipAttrs(standingTip, stLast.ms, "standing", scopeTeam ? "this workstream" : `mean across ${stLast.teamsWithData} teams`)}></span>`
+      + `<span class="ac-tl-end${stExpand ? " is-expand" : ""}" style="left:${pct(stLast.fraction)};top:${stY(stLast.stage).toFixed(1)}%"${stExpand ? ` data-tl-expand="1" role="button" tabindex="0" aria-label="${escAttr("expand to the full standing trajectory")}"` : ""} ${tipAttrs(standingTip, stLast.ms, "standing", scopeTeam ? "this workstream" : `mean across ${stLast.teamsWithData} teams`)}></span>`
     : `<span class="ac-tl-empty">no standing read in view</span>`;
   const stLatest = stLast ? stLast.stage.toFixed(1) : null;
 
   // Presence lane = a weekly "who's in town" occupancy histogram (background band).
   const presenceMarks = presence.samples.map(s =>
-    `<span class="ac-tl-pres${s.isFuture ? " is-future" : ""}" style="left:${pct(s.fraction)};height:${Math.round(Math.max(0.06, s.occupancy) * 100)}%" ${tipAttrs(`${s.present} of ${s.total} in town`, s.ms, "presence", `${Math.round(s.occupancy * 100)}% occupancy`)}></span>`).join("");
+    `<span class="ac-tl-pres${s.isFuture ? " is-future" : ""}" style="left:${pct(s.fraction)};height:${Math.round(Math.max(0.06, s.occupancy) * 100)}%" data-tl-presence="1" role="button" tabindex="0" aria-label="${escAttr(`${s.present} of ${s.total} in town — open the availability view`)}" ${tipAttrs(`${s.present} of ${s.total} in town`, s.ms, "presence", `${Math.round(s.occupancy * 100)}% occupancy · open availability`)}></span>`).join("");
 
   const activityLabel = scopeTeam ? "activity" : "all activity";
   const summary = `
@@ -7436,14 +7441,28 @@ function wireTimelineHover(stage, tip) {
     if (y + th > r.height - 4) y = r.height - th - 6;
     tip.style.transform = `translate(${Math.max(4, x).toFixed(0)}px, ${Math.max(4, y).toFixed(0)}px)`;
   };
+  // Anchor the tip at a mark's own box (keyboard focus has no cursor point).
+  const placeAtEl = (mark) => {
+    const r = stage.getBoundingClientRect();
+    const m = mark.getBoundingClientRect();
+    const cx = m.left + m.width / 2 - r.left, cy = m.top + m.height / 2 - r.top;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = cx + 14, y = cy + 14;
+    if (x + tw > r.width - 4) x = cx - tw - 14;
+    if (y + th > r.height - 4) y = r.height - th - 6;
+    tip.style.transform = `translate(${Math.max(4, x).toFixed(0)}px, ${Math.max(4, y).toFixed(0)}px)`;
+  };
   const row = (k, v) => v ? `<div class="ajt-row"><span class="ajt-k">${k}</span><span class="ajt-v">${escHtml(v)}</span></div>` : "";
-  stage.addEventListener("mouseover", (e) => {
-    const mark = e.target.closest("[data-tl-tip]");
-    if (!mark) return;
+  const fill = (mark) => {
     tip.innerHTML = `<div class="ajt-name">${escHtml(mark.getAttribute("data-tl-title") || "")}</div>`
       + row("when", mark.getAttribute("data-tl-date"))
       + row("kind", mark.getAttribute("data-tl-kind"))
       + row("detail", mark.getAttribute("data-tl-detail"));
+  };
+  stage.addEventListener("mouseover", (e) => {
+    const mark = e.target.closest("[data-tl-tip]");
+    if (!mark) return;
+    fill(mark);
     tip.hidden = false;
     place(e);
   });
@@ -7451,6 +7470,17 @@ function wireTimelineHover(stage, tip) {
   stage.addEventListener("mouseout", (e) => {
     const mark = e.target.closest("[data-tl-tip]");
     if (mark && !mark.contains(e.relatedTarget)) tip.hidden = true;
+  });
+  // Keyboard parity: Tabbing to a mark shows the same readout, anchored at it.
+  stage.addEventListener("focusin", (e) => {
+    const mark = e.target.closest("[data-tl-tip]");
+    if (!mark) return;
+    fill(mark);
+    tip.hidden = false;
+    placeAtEl(mark);
+  });
+  stage.addEventListener("focusout", (e) => {
+    if (e.target.closest("[data-tl-tip]")) tip.hidden = true;
   });
 }
 
@@ -8538,12 +8568,31 @@ function refreshCalendarView() {
     render();
     return;
   }
-  paintCalendarView({ wire: true });
-  // Live calendar data just painted in while the user is on the page —
-  // that counts as seen (mirrors the what's-new stamp in render()).
-  if (state.active && !document.hidden) {
-    markFingerprintsSeen("calendar-grid", calendarFingerprints());
-    updateRailUnread();
+  const paint = () => {
+    paintCalendarView({ wire: true });
+    // Live calendar data just painted in while the user is on the page —
+    // that counts as seen (mirrors the what's-new stamp in render()).
+    if (state.active && !document.hidden) {
+      markFingerprintsSeen("calendar-grid", calendarFingerprints());
+      updateRailUnread();
+    }
+  };
+  // Timeline lane re-fractions (scope / zoom / window changes) crossfade via a
+  // View Transition so marks glide to their new positions instead of snapping —
+  // mirrors the sr-sigil card→dossier morph. Other re-renders (grid week nav,
+  // view switches) stay instant. Degrades to an instant paint without VT support
+  // or under reduced-motion.
+  const reduceMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (state.calendar.view === "timeline" && !reduceMotion && typeof document.startViewTransition === "function") {
+    // Scope the crossfade to the lanes only: the html.tl-vt class zeroes the
+    // global `root` view-transition pseudo (shared with the sigil morph) for the
+    // duration, so the control bar / summary snap instantly while .ac-tl-rows
+    // (view-transition-name: tl-lanes) crossfades. Cleared when the VT settles.
+    document.documentElement.classList.add("tl-vt");
+    const vt = document.startViewTransition(paint);
+    vt.finished.finally(() => document.documentElement.classList.remove("tl-vt"));
+  } else {
+    paint();
   }
 }
 
@@ -8574,11 +8623,51 @@ function wireCalendar() {
     const stage = state.canvas.querySelector(".ac-tl-stage");
     if (stage) {
       wireTimelineHover(stage, stage.querySelector(".ac-tip"));
-      stage.addEventListener("click", (e) => {
-        const open = e.target.closest("[data-const-open-record]");
-        if (!open) return;
-        const rid = open.getAttribute("data-const-open-record");
-        if (rid) openDirectoryRecord(rid) || openDetail(rid);
+      // Commit layer (glance → hover → click): every lane drills into its own
+      // deeper surface. Ruler mark → that week's hour-grid; activity cluster →
+      // the record; standing endpoint → the full program trajectory; presence
+      // bar → the availability gantt.
+      const commitMark = (target) => {
+        const ruler = target.closest("[data-tl-week]");
+        if (ruler) {
+          const wk = Number(ruler.getAttribute("data-tl-week"));
+          if (Number.isFinite(wk)) {
+            cal.view = "cal";
+            cal.weekIdx = Math.max(0, Math.min(WEEKS_TOTAL - 1, wk));
+            refreshCalendarView();
+          }
+          return true;
+        }
+        if (target.closest("[data-tl-expand]")) {
+          if ((cal.tlLevel || "program") !== "program") {
+            cal.tlLevel = "program";
+            cal.tlAnchorMs = Date.now();
+            refreshCalendarView();
+          }
+          return true;
+        }
+        if (target.closest("[data-tl-presence]")) {
+          cal.view = "presence";
+          refreshCalendarView();
+          return true;
+        }
+        const open = target.closest("[data-const-open-record]");
+        if (open) {
+          const rid = open.getAttribute("data-const-open-record");
+          if (rid) openDirectoryRecord(rid) || openDetail(rid);
+          return true;
+        }
+        return false;
+      };
+      stage.addEventListener("click", (e) => { commitMark(e.target); });
+      // Keyboard parity for the focusable marks (Enter / Space) — this also gives
+      // the activity dots, which were role=button but had no key handler, a path.
+      stage.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+        if (e.target.closest("[data-tl-week],[data-tl-expand],[data-tl-presence],[data-const-open-record]")) {
+          e.preventDefault();
+          commitMark(e.target);
+        }
       });
     }
     // zoom level pill (program/month/week) + prev/next window nav
@@ -8616,9 +8705,21 @@ function wireCalendar() {
         // Move focus into the menu on open so it's keyboard-operable from the trigger.
         if (willOpen) (scopeMenu.querySelector('[aria-selected="true"]') || scopeMenu.querySelector("[data-tl-scope]"))?.focus();
       });
-      // Escape closes the menu and returns focus to the trigger (a11y).
+      // Keyboard: Escape closes + returns focus; arrow keys rove the options
+      // (Home/End jump to ends); Enter/Space on an option fires its native click.
       state.canvas.querySelector("[data-tl-scope-ctl]")?.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && !scopeMenu.hasAttribute("hidden")) { e.stopPropagation(); closeScope(true); }
+        const open = !scopeMenu.hasAttribute("hidden");
+        if (e.key === "Escape" && open) { e.stopPropagation(); closeScope(true); return; }
+        if (!open) return;
+        const opts = [...scopeMenu.querySelectorAll("[data-tl-scope]")];
+        if (!opts.length) return;
+        const i = opts.indexOf(document.activeElement);
+        // i === -1 (focus on the trigger, not an option) is treated as "before
+        // the first": Down → first, Up → last (conventional menu wrap).
+        if (e.key === "ArrowDown") { e.preventDefault(); opts[i < 0 || i === opts.length - 1 ? 0 : i + 1].focus(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); opts[i <= 0 ? opts.length - 1 : i - 1].focus(); }
+        else if (e.key === "Home") { e.preventDefault(); opts[0].focus(); }
+        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1].focus(); }
       });
     }
     for (const opt of state.canvas.querySelectorAll("[data-tl-scope]")) {

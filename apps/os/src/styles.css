@@ -7777,7 +7777,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-tl-scope-btn { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 11px; background: rgba(var(--ink-rgb), 0.045); border: 1px solid rgba(var(--ink-rgb), 0.16); border-radius: 8px; color: var(--alchemy-paper-warm); font-family: var(--font-mono); font-size: 11px; cursor: pointer; transition: border-color 160ms var(--ease), background 160ms var(--ease); }
 .ac-tl-scope-btn:hover { border-color: rgba(var(--ink-rgb), 0.3); background: rgba(var(--ink-rgb), 0.075); }
 .ac-tl-scope-btn.is-scoped { border-color: color-mix(in oklch, var(--alchemy-oxide) 55%, transparent); background: color-mix(in oklch, var(--alchemy-oxide) 12%, transparent); }
-.ac-tl-scope-k { color: var(--alchemy-ink-mute); letter-spacing: 0.07em; text-transform: uppercase; font-size: 9px; }
+.ac-tl-scope-k { color: rgba(var(--ink-rgb), 0.72); letter-spacing: 0.07em; text-transform: uppercase; font-size: 9px; }
 .ac-tl-scope-v { font-weight: 500; max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ac-tl-scope-chev { width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); margin-left: 1px; margin-top: -3px; opacity: 0.5; }
 /* enter/exit: native @starting-style + allow-discrete on display — resting rule
@@ -7821,7 +7821,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   font-size: 11px; color: var(--alchemy-ink-mute); padding-right: 12px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.ac-tl-label small { margin-left: 5px; color: rgba(var(--ink-rgb), 0.4); font-variant-numeric: tabular-nums; }
+.ac-tl-label small { margin-left: 5px; color: rgba(var(--ink-rgb), 0.55); font-variant-numeric: tabular-nums; }
 .ac-tl-track { position: relative; height: 100%; min-width: 0; }
 
 .ac-tl-gridlayer { position: absolute; left: var(--ac-tl-gutter); right: 0; top: 0; bottom: 0; pointer-events: none; }
@@ -7830,7 +7830,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-tl-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--alchemy-oxide-bright); transform: translateX(-1px); }
 .ac-tl-now i { position: absolute; top: -3px; left: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--alchemy-oxide-bright); }
 
-.ac-tl-weeklabels { font-size: 11px; color: rgba(var(--ink-rgb), 0.45); height: 16px; }
+.ac-tl-weeklabels { font-size: 11px; color: rgba(var(--ink-rgb), 0.6); height: 16px; }
 .ac-tl-wk { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
 .ac-tl-wk.is-start { transform: none; }
 .ac-tl-wk.is-end { transform: translateX(-100%); }
@@ -7854,7 +7854,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-tl-track--line { position: absolute; inset: 0; }
 .ac-tl-line { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ac-tl-line polyline { stroke: var(--alchemy-ink-mute); stroke-width: 1.5; }
-.ac-tl-empty { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 10.5px; color: rgba(var(--ink-rgb), 0.35); }
+.ac-tl-empty { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 10.5px; color: rgba(var(--ink-rgb), 0.55); }
 .ac-tl-end { position: absolute; transform: translate(-50%, -50%); width: 7px; height: 7px; border-radius: 50%; background: var(--alchemy-paper-warm); }
 .ac-tl-evt.is-multi { width: 18px; }
 .ac-tl-evt, .ac-tl-pres, .ac-tl-end { cursor: help; }
@@ -7862,8 +7862,35 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-tl-pres { position: absolute; bottom: 4px; transform: translateX(-50%); width: 7%; min-height: 2px; background: rgba(var(--ink-rgb), 0.12); border-radius: 2px 2px 0 0; }
 .ac-tl-pres.is-future { background: rgba(var(--ink-rgb), 0.06); }
 
+/* Commit layer — marks that drill into a deeper surface read as pressable
+   (pointer + hover lift + focus ring), overriding the inspect-only cursor:help. */
+.ac-tl-evt.is-jump, .ac-tl-end.is-expand, .ac-tl-pres { cursor: pointer; }
+.ac-tl-evt.is-jump { transition: background 140ms var(--ease), border-color 140ms var(--ease); }
+.ac-tl-evt.is-jump:hover { background: rgba(var(--ink-rgb), 0.72); }
+.ac-tl-evt.is-jump.is-future:hover { background: transparent; border-color: rgba(var(--ink-rgb), 0.6); }
+.ac-tl-end.is-expand { transition: box-shadow 160ms var(--ease); }
+.ac-tl-end.is-expand:hover { box-shadow: 0 0 0 4px color-mix(in oklch, var(--alchemy-oxide) 26%, transparent); }
+.ac-tl-pres { transition: background 140ms var(--ease); }
+.ac-tl-pres:hover { background: color-mix(in oklch, var(--alchemy-oxide-bright) 50%, transparent); }
+.ac-tl-evt.is-jump:focus-visible, .ac-tl-end.is-expand:focus-visible, .ac-tl-pres:focus-visible {
+  outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 2px; border-radius: 2px;
+}
+/* Keyboard focus rings for the control-bar buttons (roved options + pills). */
+.ac-tl-scope-opt:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: -2px; }
+.ac-tl-scope-btn:focus-visible, .ac-tl-lvl:focus-visible, .ac-tl-navbtn:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
+
+/* Lane re-fraction crossfade (scope / zoom / window changes) via View Transitions.
+   The lanes (tl-lanes) crossfade; html.tl-vt zeroes the global `root` pseudo so the
+   control bar / summary snap instantly (the root rule is shared with the sigil morph,
+   hence the transition-scoped class rather than a blanket override). */
+.ac-tl-rows { view-transition-name: tl-lanes; }
+::view-transition-old(tl-lanes), ::view-transition-new(tl-lanes) { animation-duration: 220ms; animation-timing-function: var(--ease); }
+html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { animation: none; }
+
 @media (prefers-reduced-motion: reduce) {
-  .ac-tl-dot.is-openable { transition: none; }
+  .ac-tl-dot.is-openable, .ac-tl-evt.is-jump, .ac-tl-end.is-expand, .ac-tl-pres { transition: none; }
+  ::view-transition-group(tl-lanes), ::view-transition-old(tl-lanes), ::view-transition-new(tl-lanes),
+  ::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 }
 /* Each product layer is a translucent glass pane that picks up the cursor
  * sheen (.lg-track). No oxide tint here — it's a repeated content pane, so the
