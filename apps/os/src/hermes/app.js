@@ -48,6 +48,7 @@ let tinaBackends = {};          // { codex: {label, available, version}, claude:
 let tinaOff = null;             // active tina onChunk unsubscribe
 let shape = null;               // the user's self-shape (github + codex), if scanned
 let ollamaStatus = { running: false, models: [], hermes: [] };
+let inFlight = false;            // a run (ask / define / scan) is active — gate re-entry
 
 // ─── ollama discovery ─────────────────────────────────────────────────
 
@@ -150,8 +151,12 @@ const STARTERS = [
   "Who's working on prediction markets, and what should I ask them?",
 ];
 
-// matches greetings + "how do I use this / what can you do / help / ?"
-const META_RE = /^\s*(help|\?|hi|hey|hello|who are you|what (is|are) (this|you)|what can (you|i) (do|ask)|how (do|does) (i|this|it)|how to use|get(ting)? started|onboard|tour)\b/i;
+// Matches a STANDALONE greeting/orientation utterance only — anchored to the
+// whole message (+ optional trailing punctuation) so a real query that merely
+// BEGINS with one of these tokens ("help me find someone on Rust", "what is
+// this team building?") falls through to the engine instead of being eaten as
+// onboarding.
+const META_RE = /^\s*(help|\?|hi|hey|hello|yo|who are you|what are you|what (is|are) (this|you)|what can (you|i) (do|ask)|what do you do|how (do i|do|does) (this|it) (work|do)|how (do i|to) use( (this|it))?|get(ting)? started|onboard|tour)\s*[?.!]*\s*$/i;
 
 function usableEngines() { return engineState().filter((e) => e.connected); }
 
@@ -294,10 +299,11 @@ async function loadCohort() {
     const tms = surface.teams?.length || 0;
     els.dataChip.className = "chip ok";
     els.dataChip.textContent = `cohort: ${ppl}p / ${tms}t`;
-  } catch (e) {
+  } catch {
+    // The data-chip already surfaces the failure to the user; no console in
+    // committed code (and it would forward to the host's stderr).
     els.dataChip.className = "chip bad";
     els.dataChip.textContent = "cohort: failed to load";
-    console.error("cohort load failed:", e);
   }
 }
 
@@ -377,8 +383,10 @@ async function loadShape() {
 }
 
 async function scanShape() {
+  if (inFlight) return;
   if (!window.api || !window.api.shape) return;
-  els.scanShapeBtn.disabled = true;
+  inFlight = true;
+  setBusy(true);
   const label = els.scanShapeBtn.textContent;
   els.scanShapeBtn.textContent = "scanning…";
   els.shapeChip.textContent = "shape: scanning…";
@@ -396,7 +404,8 @@ async function scanShape() {
     els.response.className = "response-wrap";
     els.response.textContent = `[shape scan failed: ${e.message || e}]`;
   } finally {
-    els.scanShapeBtn.disabled = false;
+    inFlight = false;
+    setBusy(false);
     els.scanShapeBtn.textContent = label;
   }
 }
@@ -460,16 +469,16 @@ function renderShapeCard(m, includePrivate) {
 }
 
 async function defineMyShape() {
+  if (inFlight) return;
   if (!shape) { els.response.className = "response-wrap"; els.response.textContent = 'Click "scan my shape" first.'; return; }
   const includePrivate = backend === "ollama";
   const grounding = buildShapeGrounding(shape, includePrivate);
   if (!grounding) { els.response.className = "response-wrap"; els.response.textContent = "No shape data yet — scan first."; return; }
 
-  els.defineShapeBtn.disabled = true;
+  inFlight = true;
+  setBusy(true);
   const label = els.defineShapeBtn.textContent;
   els.defineShapeBtn.textContent = "reading…";
-  els.askBtn.disabled = true;
-  els.stopBtn.hidden = false;
   els.response.className = "response-wrap";
   els.response.textContent = "defining your shape…";
 
@@ -487,10 +496,9 @@ async function defineMyShape() {
   } catch (e) {
     els.response.textContent = `[error: ${e.message || e}]`;
   } finally {
-    els.defineShapeBtn.disabled = false;
+    inFlight = false;
+    setBusy(false);
     els.defineShapeBtn.textContent = label;
-    els.askBtn.disabled = false;
-    els.stopBtn.hidden = true;
   }
 }
 
@@ -498,9 +506,10 @@ async function defineMyShape() {
 
 async function askOllama(question) {
   if (!chosenModel) { els.response.textContent = "no model selected"; return; }
+  inFlight = true;
+  setBusy(true);
   els.response.className = "response-wrap";
   els.response.textContent = "thinking…";
-  els.askBtn.disabled = true;
   els.stopBtn.hidden = false;
   abortController = new AbortController();
 
@@ -545,13 +554,15 @@ async function askOllama(question) {
         } catch {}
       }
     }
+    if (!streamed) els.response.textContent = "(no output)"; // empty stream — don't strand "thinking…"
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
     els.footer.textContent = `${tokens} chunks · ${elapsed}s · ${chosenModel}`;
   } catch (e) {
     if (!streamed) els.response.textContent = ""; // drop the "thinking…" placeholder
     els.response.textContent += e.name === "AbortError" ? "[stopped]" : `[error: ${e.message}]`;
   } finally {
-    els.askBtn.disabled = false;
+    inFlight = false;
+    setBusy(false);
     els.stopBtn.hidden = true;
     abortController = null;
   }
@@ -565,7 +576,8 @@ async function askTina(question, b) {
   // The CLI cold-starts (~10s) and claude text-mode often flushes once at the
   // end, so show activity until the first real output arrives.
   els.response.textContent = "thinking… your engine is starting up (the first answer can take ~10s).";
-  els.askBtn.disabled = true;
+  inFlight = true;
+  setBusy(true);
   els.stopBtn.hidden = false;
   const requestId = `tina-${Date.now()}`;
   const started = Date.now();
@@ -596,12 +608,24 @@ async function askTina(question, b) {
     els.response.textContent += `\n\n[error: ${e.message || e}]`;
   } finally {
     if (tinaOff) { tinaOff(); tinaOff = null; }
-    els.askBtn.disabled = false;
+    inFlight = false;
+    setBusy(false);
     els.stopBtn.hidden = true;
   }
 }
 
+// Disable every run-initiating control while a run is active, so a starter
+// chip, scan, or define click can't clobber a streaming answer or fight over
+// the shared askBtn/stopBtn/abortController state.
+function setBusy(busy) {
+  els.askBtn.disabled = busy;
+  els.scanShapeBtn.disabled = busy;
+  els.defineShapeBtn.disabled = busy;
+  for (const chip of els.starterChips.querySelectorAll(".starter-chip")) chip.disabled = busy;
+}
+
 function dispatchAsk() {
+  if (inFlight) return;
   const q = els.question.value.trim();
   if (!q) return;
   // Onboarding / meta questions ("help", "hi", "what can you do?") are answered

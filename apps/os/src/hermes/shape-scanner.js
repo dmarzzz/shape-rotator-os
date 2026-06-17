@@ -54,9 +54,17 @@ function ghJson(args, timeoutMs = 20000) {
   });
 }
 
+// A valid GitHub handle: 1-39 chars, alphanumerics or single hyphens, no
+// leading hyphen. Anything else is rejected BEFORE it can be interpolated into
+// a gh command — the one place non-constant text reaches a shell:true spawn.
+const GH_HANDLE_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
+function validGithubHandle(s) { return typeof s === "string" && GH_HANDLE_RE.test(s); }
+
 // ── GitHub (PUBLIC) ──────────────────────────────────────────────────────────
 async function scanGithubShape({ user } = {}) {
-  let login = user || null;
+  // Only honor a caller-supplied handle if it passes strict validation; an
+  // invalid value is dropped so we fall back to the authed `gh api user`.
+  let login = validGithubHandle(user) ? user : null;
   const me = await ghJson("api user"); // authed user (if gh is logged in)
   if (!login && me && me.login) login = me.login;
 
@@ -238,4 +246,4 @@ function shapeGroundingText(shape, { includePrivate = false } = {}) {
   return { text: lines.join("\n"), hasPrivate };
 }
 
-module.exports = { buildShape, getShape, saveSynthesis, scanGithubShape, scanCodexShape, shapeGroundingText, SCHEMA, PROFILE_FILE };
+module.exports = { buildShape, getShape, saveSynthesis, scanGithubShape, scanCodexShape, shapeGroundingText, validGithubHandle, SCHEMA, PROFILE_FILE };

@@ -304,6 +304,12 @@ async function runTina({ backend, prompt, dataMode = "public", requestId, onData
       if (cfg.output === "stdout") { try { onData && onData(s); } catch {} }
     });
     child.stderr.on("data", (b) => { err += b.toString("utf8"); });
+    // A CLI that exits before draining stdin (e.g. installed-but-not-signed-in)
+    // delivers the broken pipe ASYNCHRONOUSLY as a stdin 'error' event, not a
+    // throw from write(). Without this listener Node would treat it as an
+    // unhandled stream error and crash the main process; the exit handler below
+    // already surfaces the real failure via conciseError, so we swallow it.
+    child.stdin.on("error", () => {});
     child.on("error", (e) => finish({ ok: false, error: e.message }));
     child.on("exit", (code, signal) => {
       let answer = "";

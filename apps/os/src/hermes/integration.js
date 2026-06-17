@@ -69,7 +69,11 @@ function register({ app, ipcMain, BrowserWindow }) {
   ipcMain.handle("shape:get", async () => shapeScanner.getShape(app.getPath("userData")));
   ipcMain.handle("shape:scan", async (_e, opts) => {
     const o = opts || {};
-    return shapeScanner.buildShape({ user: o.user, dataDir: app.getPath("userData") });
+    // Validate the renderer-supplied handle at the boundary (defense in depth —
+    // scanGithubShape also re-checks before any interpolation). An invalid value
+    // is dropped so detection falls back to the authed `gh api user`.
+    const user = shapeScanner.validGithubHandle(o.user) ? o.user : undefined;
+    return shapeScanner.buildShape({ user, dataDir: app.getPath("userData") });
   });
   ipcMain.handle("shape:saveSynthesis", async (_e, opts) => {
     const o = opts || {};
