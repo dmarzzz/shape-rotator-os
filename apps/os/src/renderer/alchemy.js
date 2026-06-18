@@ -51,6 +51,7 @@ import {
 } from "./context-submit.mjs";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
+import { indexCohortEvidence, teamEvidence, recentClaims } from "./cohort-evidence-index.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { buildActivityLane, buildStandingLane, buildPresenceLane, teamStageSeries as tlTeamStageSeries } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
@@ -6392,6 +6393,42 @@ function sdsEvidenceParts(card) {
   };
 }
 
+// Runtime evidence index over the live transcript cards (gated T2 ∪ T3, loaded by
+// cohort-source.js applyEvidenceOverlay). Memoized on the cards array so a render
+// pass builds it once. Empty until the cohort-key channel is provisioned — every
+// consumer guards on emptiness, so views render unchanged with no evidence.
+let _sdsEvidenceCache = { cards: null, index: null };
+function cohortEvidenceIndex() {
+  const cards = activeConstellationCohort()?.transcript_evidence_cards || [];
+  if (_sdsEvidenceCache.cards !== cards) _sdsEvidenceCache = { cards, index: indexCohortEvidence(cards) };
+  return _sdsEvidenceCache.index;
+}
+// Session-observed "did" overlay for a team — the runtime fill for the otherwise
+// declared-only/empty say-did-shipped cards, keyed by WHEN it was observed.
+// Returns "" when there is no gated evidence for the team (the common case today).
+function sdsEvidenceDidHtml(teamId) {
+  const did = recentClaims(teamEvidence(cohortEvidenceIndex(), teamId), "did", 2);
+  if (!did.length) return "";
+  const items = did.map(d => `<em>${escHtml(d.week)}</em> ${escHtml(constShortText(d.text, 110))}`).join("<br>");
+  return `<span class="ac-sds-evidence" style="display:block;margin-top:3px;opacity:0.72;font-size:0.85em" title="observed in reviewed cohort sessions">↳ sessions · ${items}</span>`;
+}
+
+// Per-team session evidence for the SHARED dossier — surfaces did / signals / asks /
+// risks (time-keyed) wherever a team is inspected, so PMF, standing, and relationship
+// all get the evidence via one hook (no per-plot surgery). "" when there's no gated
+// evidence ⇒ detailRows() drops the row and the dossier is unchanged.
+function detailEvidenceSignals(recordId) {
+  const ev = teamEvidence(cohortEvidenceIndex(), recordId);
+  const groups = [["did", "did", 2], ["signal", "pmf", 2], ["ask", "asks", 1], ["risk", "risks", 1]];
+  const items = [];
+  for (const [label, kind, n] of groups) {
+    for (const c of recentClaims(ev, kind, n)) {
+      items.push(`<li><em>${escHtml(label)} · ${escHtml(c.week)}</em> ${escHtml(constShortText(c.text, 120))}</li>`);
+    }
+  }
+  return items.length ? `<ul class="ac-detail-evidence" style="margin:.2em 0 0;padding-left:1.1em;opacity:.85">${items.join("")}</ul>` : "";
+}
+
 function renderSayDidShipped() {
   const cohort = activeConstellationCohort();
   const teams = (cohort.teams || []).filter(t => t && t.record_id && teamKind(t) !== "person");
@@ -6455,7 +6492,7 @@ function renderSayDidShipped() {
             <b>say</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 150))}</span>
           </span>
           <span class="ac-sds-cell${observedClass}">
-            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 150))}</span>
+            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 150))}</span>${sdsEvidenceDidHtml(team.record_id)}
           </span>
           <span class="ac-sds-cell${observedClass}">
             <b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 130))}</span>
@@ -15341,6 +15378,7 @@ function renderTeamDetail(team) {
     { key: "hackathon note", value: team.hackathon_note ? escHtml(team.hackathon_note) : "" },
     { key: "skills", value: detailChips(team.skill_areas) },
     { key: "success", value: detailChips(team.success_dimensions, { muted: true }) },
+    { key: "from sessions", value: detailEvidenceSignals(recordId) },
   ];
   const coordinationRows = [
     { key: "depends on", value: renderDependencyLinks(team.dependencies) },
