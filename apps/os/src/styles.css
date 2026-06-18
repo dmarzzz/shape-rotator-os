@@ -3941,7 +3941,7 @@ html[data-reduce-motion="1"] .rotor .rotor-shape > path:last-child { animation: 
 }
 
 /* progressive splash — status line + thin progress bar shown when
- * mountLaunchOverlay({ progressive: true }) so the user can see the
+ * mountLaunchOverlay( { progressive: true }) so the user can see the
  * boot doing something. legacy non-progressive splash hides this. */
 .sig-launch-progress {
   margin-top: 28px;
@@ -6451,45 +6451,15 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   border-top: 1px solid rgba(226,207,162,0.14);
   border-bottom: 1px solid rgba(226,207,162,0.10);
 }
-.ac-signal-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.ac-signal-card {
-  min-width: 0;
-  padding: 9px;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-left: 2px solid rgba(var(--ink-rgb), 0.24);
-  border-radius: 6px;
-  background: rgba(var(--ink-rgb), 0.022);
-}
-.ac-signal-card span {
-  display: block;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.ac-signal-card strong {
-  display: block;
-  margin-top: 4px;
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono);
-  font-size: 14px;
-  letter-spacing: 0.04em;
-}
-.ac-signal-card p {
-  margin: 5px 0 0;
-  color: var(--alchemy-ink-mute);
-  font-size: 10.5px;
-  line-height: 1.32;
-}
-.ac-signal-market { border-left-color: #c44025; }
-.ac-signal-build { border-left-color: #d9913d; }
-.ac-signal-research { border-left-color: #9a5ba6; }
-.ac-signal-cohort { border-left-color: #4fa3a0; }
+
+
+
+
+
+
+
+
+
 .ac-inspector-network {
   display: flex;
   flex-direction: column;
@@ -6549,37 +6519,10 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   cursor: default;
   color: var(--alchemy-ink-mute);
 }
-.ac-inspector-team-chip {
-  appearance: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  width: 100%;
-  min-width: 0;
-  padding: 8px 9px;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 6px;
-  background: rgba(var(--ink-rgb), 0.025);
-  color: var(--alchemy-paper-warm);
-  cursor: pointer;
-  text-align: left;
-}
-.ac-inspector-team-chip:hover {
-  border-color: rgba(193,168,114,0.55);
-  background: rgba(193,168,114,0.045);
-}
-.ac-inspector-team-chip span {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.ac-inspector-team-chip small {
-  color: var(--alchemy-ink-mute);
-  font-size: 10px;
-  line-height: 1.25;
-}
+
+
+
+
 .ac-person-list,
 .ac-person-columns {
   display: flex;
@@ -6828,124 +6771,26 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   letter-spacing: 0.10em;
   text-transform: uppercase;
 }
-.ac-well-directory,
-.ac-team-walk-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.ac-well-row,
-.ac-team-walk-row {
-  appearance: none;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  width: 100%;
-  min-width: 0;
-  padding: 8px 9px;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 6px;
-  background: rgba(var(--ink-rgb),0.018);
-  color: var(--alchemy-paper-warm);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 160ms var(--ease), background 160ms var(--ease), transform 160ms var(--ease);
-}
-.ac-well-row:hover,
-.ac-well-row:focus-visible,
-.ac-team-walk-row:hover,
-.ac-team-walk-row:focus-visible,
-.ac-team-walk-row.is-selected-team-row {
-  outline: none;
-  border-color: rgba(193,168,114,0.52);
-  background: rgba(193,168,114,0.045);
-}
-.ac-well-row:hover,
-.ac-team-walk-row:hover {
-  transform: translateY(-1px);
-}
-.ac-well-row span,
-.ac-team-walk-row span {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 3px;
-}
-.ac-well-row strong,
-.ac-team-walk-row span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ac-well-row strong,
-.ac-team-walk-row span {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.ac-well-row small {
-  overflow: hidden;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  line-height: 1.25;
-  text-transform: none;
-  letter-spacing: 0;
-}
-.ac-well-row em,
-.ac-team-walk-row em {
-  align-self: start;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-style: normal;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.ac-team-walk-row.is-selected-team-row em,
-.ac-team-walk-row.is-selected-team-row span {
-  color: var(--alchemy-paper-warm);
-}
-.ac-edge-action {
-  margin: 0;
-  color: var(--alchemy-paper-warm);
-  font-size: 12px;
-  line-height: 1.45;
-}
-.ac-edge-proof {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-}
-.ac-edge-proof > span {
-  color: rgba(193,168,114,0.9);
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 .ac-edge-meta div {
   grid-template-columns: 88px minmax(0, 1fr);
 }
-.ac-edge-next {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-top: 2px;
-}
-.ac-edge-next span {
-  color: var(--alchemy-oxide-bright);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-}
-.ac-edge-next p {
-  margin: 0;
-  color: var(--alchemy-paper-warm);
-  font-size: 11.5px;
-  line-height: 1.45;
-}
+
+
+
 .ac-inspector-details {
   border: 1px solid rgba(var(--ink-rgb), 0.08);
   border-radius: 7px;
@@ -7562,13 +7407,11 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   cursor: pointer;
   outline: none;
 }
-.ac-person-hit,
-.ac-project-anchor-hit {
+.ac-person-hit {
   fill: rgba(0,0,0,0);
   pointer-events: all;
 }
-.ac-person-dot,
-.ac-project-anchor-mark {
+.ac-person-dot {
   stroke-width: 0.9;
   transition: opacity 180ms var(--ease), stroke-width 180ms var(--ease), filter 200ms var(--ease), transform 200ms var(--ease);
   transform-box: fill-box;
@@ -7582,17 +7425,11 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   letter-spacing: 0;
   pointer-events: none;
 }
-.ac-person-domain-tee .ac-person-dot,
-.ac-project-domain-tee .ac-project-anchor-mark { fill: #C0492E; stroke: #DC6A4E; }
-.ac-person-domain-ai .ac-person-dot,
-.ac-project-domain-ai .ac-project-anchor-mark { fill: #D9913D; stroke: #ECB36C; }
-.ac-person-domain-crypto .ac-person-dot,
-.ac-project-domain-crypto .ac-project-anchor-mark { fill: #9A5BA6; stroke: #BD82C6; }
-.ac-person-domain-app-ux .ac-person-dot,
-.ac-project-domain-app-ux .ac-project-anchor-mark { fill: #3F9B8E; stroke: #6FC1B3; }
-.ac-person-domain-other .ac-person-dot,
-.ac-project-domain-other .ac-project-anchor-mark,
-.ac-project-anchor.is-unattached .ac-project-anchor-mark { fill: #8a7d75; stroke: #b3a59b; }
+.ac-person-domain-tee .ac-person-dot { fill: #C0492E; stroke: #DC6A4E; }
+.ac-person-domain-ai .ac-person-dot { fill: #D9913D; stroke: #ECB36C; }
+.ac-person-domain-crypto .ac-person-dot { fill: #9A5BA6; stroke: #BD82C6; }
+.ac-person-domain-app-ux .ac-person-dot { fill: #3F9B8E; stroke: #6FC1B3; }
+.ac-person-domain-other .ac-person-dot { fill: #8a7d75; stroke: #b3a59b; }
 .ac-person-role-visiting-scholar .ac-person-dot {
   fill-opacity: 0.58;
   stroke-dasharray: 2 2;
@@ -7601,22 +7438,8 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   stroke-width: 1.4;
   filter: drop-shadow(0 0 8px rgba(226,207,162,0.18));
 }
-.ac-project-anchor-label {
-  fill: rgba(242,237,228,0.78);
-  font-family: var(--font-mono);
-  font-size: 8.4px;
-  font-weight: 750;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  paint-order: stroke;
-  stroke: rgba(10,9,9,0.78);
-  stroke-linejoin: round;
-  stroke-width: 2.5px;
-  pointer-events: none;
-}
-.ac-project-anchor.is-unattached .ac-project-anchor-label {
-  fill: rgba(var(--ink-rgb),0.52);
-}
+
+
 .ac-people-stage[data-hover-active="true"] svg .ac-person-node:not(.is-related),
 .ac-people-stage[data-hover-active="true"] svg .ac-project-anchor:not(.is-related),
 .ac-people-stage[data-hover-active="true"] svg .ac-person-well:not(.is-related) {
@@ -7624,10 +7447,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 }
 .ac-people-stage svg .ac-person-node:hover .ac-person-dot,
 .ac-people-stage svg .ac-person-node:focus-visible .ac-person-dot,
-.ac-people-stage svg .ac-person-node.is-selected .ac-person-dot,
-.ac-people-stage svg .ac-project-anchor:hover .ac-project-anchor-mark,
-.ac-people-stage svg .ac-project-anchor:focus-visible .ac-project-anchor-mark,
-.ac-people-stage svg .ac-project-anchor.is-selected .ac-project-anchor-mark {
+.ac-people-stage svg .ac-person-node.is-selected .ac-person-dot {
   transform: scale(1.35);
   stroke-width: 1.8;
   filter: drop-shadow(0 0 11px rgba(226,207,162,0.34));
@@ -7643,14 +7463,12 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .alch-constellation-stage[data-selection-active="true"] svg .ac-person-link.is-selection-outside {
   opacity: 0.025;
 }
-.alch-constellation-stage[data-selection-active="true"] svg .ac-person-node.is-selection-core .ac-person-dot,
-.alch-constellation-stage[data-selection-active="true"] svg .ac-project-anchor.is-selection-core .ac-project-anchor-mark {
+.alch-constellation-stage[data-selection-active="true"] svg .ac-person-node.is-selection-core .ac-person-dot {
   transform: scale(1.32);
   stroke-width: 2;
   filter: drop-shadow(0 0 14px rgba(226,207,162,0.42));
 }
-.alch-constellation-stage[data-selection-active="true"] svg .ac-person-node.is-selection-neighbor .ac-person-dot,
-.alch-constellation-stage[data-selection-active="true"] svg .ac-project-anchor.is-selection-neighbor .ac-project-anchor-mark {
+.alch-constellation-stage[data-selection-active="true"] svg .ac-person-node.is-selection-neighbor .ac-person-dot {
   stroke-width: 1.35;
 }
 .alch-constellation-stage[data-selection-active="true"] svg .ac-person-node.is-selection-outside,
@@ -8295,12 +8113,7 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
-.ac-stack-layer-list {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 9px;
-}
+
 /* (Unused 2D stack-matrix variant styles removed — .ac-stack-corner /
    -col-head / -row-head / -cell / -cell-count / -team-list were never emitted;
    the rendered path is the .ac-stack-view.is-layer-list masonry above.) */
@@ -8379,58 +8192,13 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   font-size: 8px;
   line-height: 1.05;
 }
-.ac-bridge-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.ac-bridge-row {
-  appearance: none;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 8px;
-  width: 100%;
-  min-width: 0;
-  padding: 8px 9px;
-  border: 1px solid rgba(var(--ink-rgb),0.10);
-  border-radius: 6px;
-  background: rgba(var(--ink-rgb),0.022);
-  color: var(--alchemy-paper-warm);
-  cursor: pointer;
-  text-align: left;
-}
-.ac-bridge-row:hover,
-.ac-bridge-row:focus-visible {
-  outline: none;
-  border-color: rgba(193,168,114,0.36);
-  background: rgba(193,168,114,0.045);
-}
-.ac-bridge-row span,
-.ac-bridge-row strong,
-.ac-bridge-row small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ac-bridge-row span {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  text-transform: uppercase;
-}
-.ac-bridge-row strong {
-  justify-self: end;
-  color: rgba(226,207,162,0.74);
-  font-family: var(--font-mono);
-  font-size: 7.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-.ac-bridge-row small {
-  grid-column: 1 / -1;
-  color: var(--alchemy-ink-mute);
-  font-size: 9px;
-}
+
+
+
+
+
+
+
 .alch-constellation-stage[data-selection-active="true"] .ac-stack-team.is-selection-core {
   opacity: 1;
 }
@@ -8446,13 +8214,8 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 }
 /* Teams the source data places nowhere (no keyword hits, no domain/proof/market
  * signal) are grouped here rather than folded into substrate as a false read. */
-.ac-stack-layer.ac-stack-layer-unplaced {
-  opacity: 0.6;
-  margin-top: 6px;
-  padding-top: 10px;
-  border-top: 1px dashed rgba(241, 236, 231, 0.14);
-}
-.ac-stack-layer.ac-stack-layer-unplaced .ac-stack-layer-head strong { font-style: italic; }
+
+
 @media (max-width: 820px) {
   .alch-constellation-legend { max-width: 100%; padding-right: 0; }
   .alch-constellation-stage > .ac-distribution-card { position: static; width: auto; margin: 8px; }
@@ -8730,24 +8493,10 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   text-transform: lowercase;
   text-align: right;
 }
-.alch-constellation-stage svg .ac-edge-new {
-  opacity: 0.95;
-  stroke-width: 2.2;
-  stroke-dasharray: none;
-  filter: drop-shadow(0 0 5px rgba(193,168,114,0.22));
-}
-.alch-constellation-stage svg .ac-edge-new-dependency {
-  stroke: rgba(214,189,134,0.95);
-}
-.alch-constellation-stage svg .ac-edge-new-cluster {
-  stroke: rgba(79,163,160,0.92);
-  stroke-dasharray: 5 4;
-  filter: drop-shadow(0 0 5px rgba(79,163,160,0.22));
-}
-.alch-constellation-stage svg .ac-edge-new.is-inferred {
-  stroke: rgba(150,137,205,0.92);
-  stroke-dasharray: 2 4;
-}
+
+
+
+
 .alch-constellation-stage svg .ac-node-group.is-delta-quiet .ac-node-shape,
 .alch-constellation-stage svg .ac-node-group.is-delta-quiet .ac-node-label {
   opacity: 0.34;
@@ -8764,93 +8513,19 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   background: rgba(79,163,160,0.92);
   height: 2px;
 }
-.ac-delta-ledger {
-  display: grid;
-  gap: 9px;
-  margin-top: -2px;
-}
-.ac-delta-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
-  padding-bottom: 6px;
-}
-.ac-delta-head h3 {
-  margin: 0;
-  color: var(--alchemy-paper-warm);
-  font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 15px;
-}
-.ac-delta-head span,
-.ac-delta-card-head,
-.ac-delta-card-meta,
-.ac-delta-empty {
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0;
-  text-transform: lowercase;
-}
-.ac-delta-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 9px;
-}
-.ac-delta-card {
-  display: grid;
-  gap: 6px;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 6px;
-  padding: 10px 12px;
-  background: rgba(var(--ink-rgb), 0.012);
-}
-.ac-delta-card.is-inferred {
-  border-color: rgba(150,137,205,0.32);
-  background: rgba(150,137,205,0.055);
-}
-.ac-delta-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.ac-delta-card-title {
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0;
-}
-.ac-delta-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 18px;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.ac-delta-badge.is-self {
-  border: 1px solid rgba(193,168,114,0.38);
-  color: rgba(238,218,166,0.95);
-  background: rgba(193,168,114,0.08);
-}
-.ac-delta-badge.is-inferred {
-  border: 1px solid rgba(150,137,205,0.42);
-  color: rgba(210,202,244,0.95);
-  background: rgba(150,137,205,0.10);
-}
-.ac-delta-empty {
-  grid-column: 1 / -1;
-  border: 1px dashed rgba(var(--ink-rgb), 0.12);
-  border-radius: 6px;
-  padding: 13px 14px;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @media (max-width: 720px) {
   .ac-timeline-head {
@@ -8869,18 +8544,14 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   .ac-timeline-tick {
     min-width: 74px;
   }
-  .ac-timeline-actions,
-  .ac-delta-head,
-  .ac-delta-card-head {
+  .ac-timeline-actions {
     align-items: flex-start;
     flex-direction: column;
   }
   .ac-timeline-boundary {
     text-align: left;
   }
-  .ac-delta-grid {
-    grid-template-columns: 1fr;
-  }
+  
 }
 
 /* ─── collaboration board (ported from dossier Connections) ──────────── */
@@ -9065,17 +8736,8 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 .alch-constellation-legend .acl-jsize i.sm { width: 5px; height: 5px; }
 .alch-constellation-legend .acl-jsize i.lg { width: 11px; height: 11px; }
 /* Filter bar */
-.alch-journey-filters {
-  display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 14px;
-  margin: 0 0 6px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(var(--ink-rgb),0.06);
-}
-.alch-journey-filters .ajf-label,
-.alch-journey-filters .ajf-count {
-  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.16em;
-  text-transform: uppercase; color: var(--journey-muted);
-}
+
+
 .ajf-toggle {
   appearance: none;
   display: inline-flex; align-items: center; justify-content: center;
@@ -9221,17 +8883,10 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 .alch-link-btn:hover { color: var(--alchemy-paper-warm); border-color: var(--alchemy-paper-warm); }
 
 /* ─── profile ────────────────────────────────────────────────────────── */
-.alch-profile-head { margin-bottom: 22px; max-width: 70ch; }
-.alch-profile-head-row {
-  display: flex; align-items: baseline; justify-content: flex-end; gap: 16px;
-  margin-bottom: 6px;
-}
-.alch-profile-title {
-  font-family: var(--font-sans); font-size: 28px; line-height: 1;
-  letter-spacing: -0.014em; font-weight: 500;
-  color: var(--alchemy-paper-warm); margin: 0 0 6px;
-}
-.alch-profile-head-row .alch-profile-title { margin: 0; }
+
+
+
+
 /* Profile theme switch — a sun↔moon sliding toggle. Both icons live in the
  * track; a knob slides over the active mode and that icon brightens to full
  * ink while the other recedes. State is driven by [data-theme-now]. */
@@ -9280,12 +8935,7 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 .alch-theme-toggle[data-theme-now="dark"] .att-thumb { transform: translateX(28px); }
 .alch-theme-toggle[data-theme-now="light"] .att-sun,
 .alch-theme-toggle[data-theme-now="dark"]  .att-moon { color: var(--ed-ink-1, var(--alchemy-paper-warm)); }
-.alch-profile-sub {
-  font-family: var(--font-mono);
-  font-size: 11px; letter-spacing: 0.04em;
-  color: var(--alchemy-ink-mute);
-  margin: 0; line-height: 1.55;
-}
+
 .alch-profile-section {
   display: flex; flex-direction: column; gap: 12px;
   padding: 18px 0; border-top: 1px solid var(--alchemy-rule);
@@ -9324,10 +8974,7 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 .alch-pf-row input:focus, .alch-pf-row select:focus, .alch-pf-target-select:focus { border-color: var(--alchemy-rule-warm); }
 
 /* Shapes grid → kind filter chips (all / teams / projects) */
-.alch-shapes-filter {
-  display: flex; gap: 6px; flex-wrap: wrap;
-  margin: 0 0 14px 0;
-}
+
 .alch-shapes-chip {
   padding: 5px 11px 5px 11px;
   background: transparent;
@@ -9383,29 +9030,10 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase;
   color: var(--alchemy-ink-mute);
 }
-.alch-detail-edit {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase;
-  color: var(--alchemy-ink-mute);
-  text-decoration: none;
-  border-bottom: 1px dashed var(--alchemy-rule);
-  padding-bottom: 1px;
-}
-.alch-detail-edit:hover {
-  color: var(--alchemy-oxide-bright);
-  border-bottom-color: var(--alchemy-oxide-bright);
-}
 
-.alch-detail-hero {
-  display: grid;
-  grid-template-columns: minmax(160px, 220px) 1fr;
-  gap: 28px;
-  align-items: start;
-  margin-bottom: 28px;
-  padding-bottom: 22px;
-  border-bottom: 1px solid var(--alchemy-rule);
-}
+
+
+
 .alch-detail-shape {
   display: flex; align-items: center; justify-content: center;
   aspect-ratio: 1 / 1;
@@ -9436,23 +9064,10 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   margin: 0 0 16px 0;
   line-height: 1.45;
 }
-.alch-detail-meta {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--alchemy-ink-mute);
-  align-items: baseline;
-}
-.alch-detail-meta .adm-k {
-  letter-spacing: 0.16em; text-transform: uppercase;
-  font-size: 9.5px; opacity: 0.7; margin-right: 4px;
-}
 
-.alch-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 22px;
-}
+
+
+
 .alch-detail-section {
   background: rgba(var(--ink-rgb), 0.02);
   border: 1px solid var(--alchemy-rule);
@@ -9460,9 +9075,7 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   padding: 16px 18px;
   min-width: 0;
 }
-.alch-detail-wide {
-  grid-column: 1 / -1;
-}
+
 .alch-detail-h {
   font-family: var(--font-mono);
   font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
@@ -9533,11 +9146,7 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   color: var(--alchemy-oxide-bright);
   border-color: var(--alchemy-oxide-bright);
 }
-.alch-detail-now {
-  font-family: var(--font-display, var(--font-mono));
-  font-size: 13px;
-  line-height: 1.45;
-}
+
 .alch-detail-list {
   list-style: none;
   padding: 0;
@@ -9694,46 +9303,19 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.alch-detail-people {
-  list-style: none; padding: 0; margin: 0;
-  display: flex; flex-direction: column; gap: 6px;
-}
-.alch-detail-person {
-  display: flex; align-items: baseline; gap: 10px;
-  padding: 6px 10px;
-  border: 1px solid var(--alchemy-rule);
-  border-radius: 3px;
-  font-family: var(--font-mono); font-size: 11.5px;
-}
-.alch-detail-person .adp-name { color: var(--alchemy-paper-warm); }
-.alch-detail-person .adp-role { color: var(--alchemy-ink-mute); font-size: 10.5px; }
-.alch-detail-person.is-clickable {
-  cursor: pointer;
-  transition: border-color 140ms ease, transform 140ms ease, background 140ms ease;
-}
-.alch-detail-person.is-clickable:hover {
-  border-color: var(--alchemy-oxide-bright, #d05332);
-  background: rgba(196,64,37,0.05);
-  transform: translateY(-1px);
-}
-.alch-detail-person.is-clickable:focus-visible {
-  outline: 1px solid var(--alchemy-oxide-bright, #d05332);
-  outline-offset: 2px;
-}
+
+
+
+
+
+
+
 
 /* Member chips inside team/project cards moved to
    packages/shape-ui/src/cohort-card.css (.alch-card-members-row,
    .alch-card-member, .acm-sep). */
-.alch-detail-clusters {
-  display: flex; flex-wrap: wrap; gap: 6px;
-}
-.alch-detail-cluster {
-  font-family: var(--font-mono); font-size: 10.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: border-color 160ms var(--ease), color 160ms var(--ease), background 160ms var(--ease), transform 160ms var(--ease);
-}
+
+
 
 .cb-intake-open {
   appearance: none;
@@ -10751,15 +10333,15 @@ textarea.cb-intake-input {
   opacity: 0.9;
 }
 
-.cb-sw { width: 10px; height: 10px; display: inline-block; }
 
-.cb-sw.dep { background: var(--alchemy-oxide); }
 
-.cb-sw.so  { background: rgba(193,168,114,0.8); }
 
-.cb-sw.aff { background: rgba(var(--ink-rgb), 0.28); border-radius: 50%; }
 
-.cb-sw.key { background: transparent; border: 1px solid var(--alchemy-oxide-bright); }
+
+
+
+
+
 
 .cb-scroll { overflow: auto; max-width: 100%; border: 1px solid var(--alchemy-rule); border-radius: 6px; background: rgba(var(--ink-rgb), 0.012); }
 
@@ -11427,15 +11009,13 @@ button.cb-cell:disabled { cursor: default; }
 
 .cb-inspector-mark svg .as-fill,
 .cb-inspector-mini-mark svg .as-fill,
-.cb-inspector-mini-shape svg .as-fill,
-.cb-inspector-person-mark svg .as-fill {
+.cb-inspector-mini-shape svg .as-fill {
   fill: var(--alchemy-oxide);
 }
 
 .cb-inspector-mark svg .as-stroke,
 .cb-inspector-mini-mark svg .as-stroke,
-.cb-inspector-mini-shape svg .as-stroke,
-.cb-inspector-person-mark svg .as-stroke {
+.cb-inspector-mini-shape svg .as-stroke {
   stroke: var(--alchemy-oxide-bright);
   fill: none;
   stroke-width: 1;
@@ -11443,30 +11023,19 @@ button.cb-cell:disabled { cursor: default; }
 
 .cb-inspector-mark svg .as-mute,
 .cb-inspector-mini-mark svg .as-mute,
-.cb-inspector-mini-shape svg .as-mute,
-.cb-inspector-person-mark svg .as-mute {
+.cb-inspector-mini-shape svg .as-mute {
   stroke: rgba(var(--ink-rgb), 0.22);
   fill: none;
   stroke-width: 0.6;
 }
 
-.cb-inspector-matrix-mark {
-  grid-template-columns: repeat(3, 9px);
-  grid-auto-rows: 9px;
-  gap: 4px;
-}
 
-.cb-inspector-matrix-mark i {
-  display: block;
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  background: rgba(var(--ink-rgb), 0.11);
-}
 
-.cb-inspector-matrix-mark i.is-hot { background: rgba(217,83,54,0.72); }
 
-.cb-inspector-matrix-mark i.is-cool { background: rgba(137,179,174,0.62); }
+
+
+
+
 
 .cb-inspector-constellation {
   display: grid;
@@ -11530,83 +11099,23 @@ button.cb-cell:disabled { cursor: default; }
   padding-top: 10px;
 }
 
-.cb-team-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 9px;
-}
 
-.cb-team-meta-row span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 21px;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 5px;
-  padding: 3px 6px;
-  background: rgba(var(--ink-rgb), 0.018);
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  line-height: 1.2;
-}
 
-.cb-team-meta-row em {
-  color: var(--alchemy-ink-mute);
-  font-style: normal;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-}
 
-.cb-team-route-rail {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 8px;
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
-}
 
-.cb-team-route-rail > span {
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 7.5px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
 
-.cb-team-route-rail p {
-  margin: 0;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  line-height: 1.25;
-}
 
-.cb-team-route-rail strong {
-  color: color-mix(in srgb, var(--alchemy-paper-warm) 62%, var(--alchemy-ink-mute));
-  font-size: 9px;
-  font-weight: 800;
-}
 
-.cb-inspector-meta {
-  display: flex;
-  gap: 7px;
-  margin: 9px 0 0;
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  line-height: 1.35;
-}
 
-.cb-inspector-meta span {
-  color: var(--alchemy-oxide-bright);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-}
+
+
+
+
+
+
+
+
+
 
 .cb-inspector-pills {
   display: flex;
@@ -11681,31 +11190,11 @@ button.cb-cell:disabled { cursor: default; }
   color: var(--alchemy-oxide-bright);
 }
 
-.cb-inspector-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 14px 0 4px;
-}
 
-.cb-inspector-metrics span {
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 6px;
-  padding: 8px;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
 
-.cb-inspector-metrics strong {
-  display: block;
-  margin-bottom: 3px;
-  color: var(--alchemy-oxide-bright);
-  font-size: 14px;
-  letter-spacing: 0;
-}
+
+
+
 
 .cb-inspector-section {
   margin-top: 14px;
@@ -11752,20 +11241,15 @@ button.cb-cell:disabled { cursor: default; }
 }
 
 .cb-inspector-stack,
-.cb-inspector-members,
-.cb-inspector-duo,
-.cb-inspector-actions,
 .cb-inspector-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
 }
 
-.cb-inspector-actions { margin-top: 10px; }
 
-.cb-inspector-team,
-.cb-inspector-person,
-.cb-inspector-action {
+
+.cb-inspector-team {
   appearance: none;
   border: 1px solid rgba(var(--ink-rgb), 0.12);
   border-radius: 6px;
@@ -11777,8 +11261,7 @@ button.cb-cell:disabled { cursor: default; }
   text-decoration: none;
 }
 
-.cb-inspector-team,
-.cb-inspector-person {
+.cb-inspector-team {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
@@ -11789,21 +11272,12 @@ button.cb-cell:disabled { cursor: default; }
 }
 
 /* Connection-teams are navigation chips — tighter, lighter, role gets a label. */
-.cb-network-group .cb-inspector-team {
-  flex: 0 1 auto;
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: rgba(var(--ink-rgb), 0.04);
-}
+
 
 /* People (who to talk to) read as humans, not teams — left accent + warmer fill. */
-.cb-inspector-members .cb-inspector-person {
-  border-left: 2px solid rgba(210,168,79,0.55);
-  background: rgba(210,168,79,0.05);
-}
 
-.cb-inspector-mini-shape,
-.cb-inspector-person-mark {
+
+.cb-inspector-mini-shape {
   grid-row: 1 / span 2;
   display: grid;
   place-items: center;
@@ -11817,8 +11291,7 @@ button.cb-cell:disabled { cursor: default; }
   overflow: hidden;
 }
 
-.cb-inspector-mini-shape svg,
-.cb-inspector-person-mark svg {
+.cb-inspector-mini-shape svg {
   width: 18px;
   height: 18px;
   overflow: visible;
@@ -11902,25 +11375,13 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   white-space: nowrap;
 }
 
-.cb-inspector-duo {
-  display: grid;
-  grid-template-columns: 1fr;
-  margin-top: 12px;
-}
 
-.cb-inspector-duo .cb-inspector-team {
-  width: 100%;
-  flex: none;
-}
 
-.cb-inspector-duo .cb-inspector-team span,
-.cb-inspector-action {
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
 
-.cb-inspector-team small,
-.cb-inspector-person small {
+
+
+
+.cb-inspector-team small {
   color: var(--alchemy-ink-mute);
   font-family: var(--font-mono);
   font-size: 8.5px;
@@ -11932,56 +11393,17 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   white-space: normal;
 }
 
-.cb-inspector-action {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  min-height: 28px;
-  padding: 6px 9px;
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
 
-.cb-about-list {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-}
 
-.cb-about-list div {
-  display: grid;
-  grid-template-columns: 82px minmax(0, 1fr);
-  gap: 12px;
-}
 
-.cb-about-list dt {
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-}
 
-.cb-about-list dd {
-  min-width: 0;
-  margin: 0;
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
 
-.cb-link-list {
-  display: grid;
-  gap: 7px;
-}
+
+
+
+
+
+
 
 /* Compact inline links — label-only hyperlinks side by side in one row. */
 .cb-link-row-inline {
@@ -12045,20 +11467,12 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   overflow-wrap: anywhere;
 }
 
-.cb-inspector-team:hover,
-.cb-inspector-person:hover,
-.cb-inspector-action:hover {
+.cb-inspector-team:hover {
   border-color: rgba(210,168,79,0.45);
   background: rgba(210,168,79,0.06);
 }
 
-.cb-inspector-more {
-  align-self: center;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-}
+
 
 .cb-journey-mini {
   display: grid;
@@ -12206,8 +11620,6 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 }
 
 .cb-signal-card > span,
-.cb-network-group > span,
-.cb-proof-row > span,
 .cb-evidence-row > span {
   display: block;
   margin-bottom: 6px;
@@ -12219,158 +11631,47 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   text-transform: uppercase;
 }
 
-.cb-network-grid,
-.cb-proof-list,
+
 .cb-evidence-list {
   display: grid;
   gap: 9px;
 }
 
-.cb-network-group {
-  display: grid;
-  border-top: 1px solid rgba(var(--ink-rgb), 0.075);
-}
 
-.cb-network-group:first-child {
-  border-top: 0;
-}
 
-.cb-network-group summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  min-height: 30px;
-  color: var(--alchemy-ink-mute);
-  cursor: pointer;
-  list-style: none;
-}
 
-.cb-network-group summary::-webkit-details-marker {
-  display: none;
-}
 
-.cb-network-group summary::before {
-  content: "+";
-  grid-column: 2;
-  grid-row: 1;
-  color: rgba(var(--ink-rgb), 0.38);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1;
-}
 
-.cb-network-group[open] summary::before {
-  content: "-";
-}
 
-.cb-network-group summary span {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.13em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
 
-.cb-network-group summary em {
-  grid-column: 2;
-  grid-row: 1;
-  margin-right: 14px;
-  color: rgba(var(--ink-rgb), 0.46);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-style: normal;
-  font-weight: 800;
-  line-height: 1;
-}
 
-.cb-network-group summary:hover span,
-.cb-network-group[open] summary span {
-  color: var(--alchemy-paper-warm);
-}
 
-.cb-network-body {
-  padding: 0 0 7px;
-}
 
-.cb-route-list {
-  display: grid;
-  gap: 5px;
-}
 
-.cb-route-row {
-  appearance: none;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 6px;
-  padding: 7px 8px;
-  background: rgba(var(--ink-rgb), 0.018);
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  transition: border-color 160ms ease, background 160ms ease;
-}
 
-.cb-route-row:hover,
-.cb-route-row:focus-visible {
-  outline: none;
-  border-color: rgba(210,168,79,0.38);
-  background: rgba(210,168,79,0.055);
-}
 
-.cb-route-row span {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-}
 
-.cb-route-row strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1.18;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
-.cb-route-row small {
-  overflow: hidden;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
-.cb-route-row em {
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 4px;
-  padding: 3px 5px;
-  background: rgba(var(--ink-rgb), 0.025);
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 7.5px;
-  font-style: normal;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 
-.cb-proof-row,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 .cb-evidence-row {
   border: 1px solid rgba(var(--ink-rgb), 0.10);
   border-radius: 7px;
@@ -12378,7 +11679,7 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   background: rgba(var(--ink-rgb), 0.016);
 }
 
-.cb-proof-row p,
+
 .cb-evidence-row p {
   margin: 0;
   color: var(--alchemy-paper-warm);
@@ -12387,41 +11688,33 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   overflow-wrap: anywhere;
 }
 
-.cb-proof-row p {
-  display: block;
-}
+
 
 .cb-inspector-chips { margin-top: 0; }
 
-.cb-pair-teams { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: 7px; }
 
-.cb-pair-arrow { align-self: center; color: var(--alchemy-oxide-bright); font-size: 13px; }
 
-.cb-pair-team {
-  display: flex; flex-direction: column; gap: 2px; text-align: left;
-  appearance: none; cursor: pointer;
-  border: 1px solid rgba(var(--ink-rgb), 0.10); border-radius: 7px; padding: 9px;
-  background: rgba(var(--ink-rgb), 0.016);
-  transition: border-color 160ms ease, background 160ms ease;
-}
 
-.cb-pair-team:hover { border-color: rgba(var(--ink-rgb), 0.22); background: rgba(var(--ink-rgb), 0.03); }
 
-.cb-pair-team.is-empty { cursor: default; opacity: 0.55; }
 
-.cb-pair-team-role { font-family: var(--font-mono); font-size: 8px; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
 
-.cb-pair-team-name { font-size: 13px; font-weight: 600; color: var(--alchemy-paper-warm); }
 
-.cb-pair-team-meta { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
 
-.cb-pair-team-focus { margin-top: 2px; font-size: 11px; line-height: 1.34; color: var(--alchemy-paper-warm); opacity: 0.85; }
 
-.cb-pair-team-signal { display: block; margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(var(--ink-rgb), 0.08); font-size: 11px; line-height: 1.34; color: var(--alchemy-paper-warm); }
 
-.cb-pair-team-signal em { display: block; margin-bottom: 2px; font-style: normal; font-family: var(--font-mono); font-size: 7.5px; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
 
-.cb-stage-chip { display: inline-block; margin-top: 7px; padding: 2px 8px; border: 1px solid rgba(var(--ink-rgb), 0.16); border-radius: 999px; font-family: var(--font-mono); font-size: 8px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Mark-less heroes (default + pair) must not reserve the 54px mark column,
    which would squeeze the text. Only the team hero (.is-link) keeps a mark. */
@@ -12475,32 +11768,15 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
   }
 }
 
-.alch-collab .cb-sw.dep { background: var(--cb-preview-dep); border-radius: 3px; }
 
-.alch-collab .cb-sw.so { background: var(--cb-preview-seek); border-radius: 3px; }
 
-.alch-collab .cb-sw.aff {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(157,123,181,0.55);
-  border-radius: 3px;
-  position: relative;
-}
 
-.alch-collab .cb-sw.aff::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  width: 4px;
-  height: 4px;
-  margin: auto;
-  border-radius: 50%;
-  background: var(--cb-preview-aff);
-}
 
-.alch-collab .cb-sw.key {
-  border-color: var(--cb-preview-gold);
-  box-shadow: inset 0 -3px 0 -1px var(--cb-preview-gold);
-}
+
+
+
+
+
 
 .alch-collab .cb-legend {
   min-width: min(100%, 560px);
@@ -13091,7 +12367,7 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 .alchemy-grain { display: none; }         /* drop the noisy grain layer */
 
 /* ── shapes-grid filter chips ────────────────────────────────────── */
-.alch-shapes-filter { gap: 4px; margin-bottom: 40px; }
+
 .alch-shapes-chip {
   background: transparent;
   color: var(--ed-ink-3);
@@ -13140,9 +12416,9 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 }
 .alch-detail-back:hover { color: var(--ed-ink-1); border-color: var(--ed-ink-1); background: transparent; }
 .alch-detail-bar-tag { color: var(--ed-ink-3); font-family: var(--ed-mono); letter-spacing: 0.22em; }
-.alch-detail-edit { color: var(--ed-ink-3); border-bottom-color: var(--ed-rule); font-family: var(--ed-mono); letter-spacing: 0.22em; }
-.alch-detail-edit:hover { color: var(--ed-ink-1); border-bottom-color: var(--ed-ink-1); }
-.alch-detail-hero { border-bottom: 1px solid var(--ed-rule); padding-bottom: 40px; margin-bottom: 40px; gap: 48px; }
+
+
+
 .alch-detail-shape { background: transparent; border: none; padding: 32px; }
 .alch-detail-name {
   font-family: var(--ed-display);
@@ -13160,8 +12436,8 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
   line-height: 1.4;
   margin-bottom: 24px;
 }
-.alch-detail-meta { font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.18em; color: var(--ed-ink-3); }
-.alch-detail-meta .adm-k { color: var(--ed-ink-4); }
+
+
 .alch-detail-section { background: var(--ed-bg-1); border: 1px solid var(--ed-rule); border-radius: 4px; padding: 24px; }
 .alch-detail-prose { color: var(--ed-ink-1); }
 .alch-detail-prose a { border-bottom-color: var(--ed-rule-2); }
@@ -13183,7 +12459,7 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 .alch-detail-row .adr-v { color: var(--ed-ink-1); }
 .alch-detail-row .adr-v a { color: var(--ed-ink-1); border-bottom: 1px solid var(--ed-rule-2); }
 .alch-detail-row .adr-v a:hover { border-bottom-color: var(--ed-ink-1); }
-.alch-detail-now { color: var(--ed-ink-1); }
+
 .alch-detail-chip {
   color: var(--ed-ink-1);
   background: rgba(var(--ink-rgb), 0.05);
@@ -13203,10 +12479,10 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
   border-bottom-color: var(--ed-ink-1);
 }
 .adl-role { color: var(--ed-ink-3); }
-.alch-detail-person { border: 1px solid var(--ed-rule); background: transparent; }
-.alch-detail-person .adp-name { color: var(--ed-ink-1); }
-.alch-detail-person .adp-role { color: var(--ed-ink-3); }
-.alch-detail-cluster { background: transparent; color: var(--ed-ink-1); border: 1px solid var(--ed-rule-2); }
+
+
+
+
 .alch-timeline-item { border-top-color: var(--ed-rule); }
 .ati-date,
 .ati-type,
@@ -13218,12 +12494,8 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 .ati-more { border-top-color: var(--ed-rule); color: var(--ed-ink-4); }
 
 @media (max-width: 720px) {
-  .alch-detail-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .alch-detail-wide {
-    grid-column: auto;
-  }
+  
+  
   .alch-detail-row {
     grid-template-columns: 1fr;
     gap: 4px;
@@ -13323,11 +12595,7 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
   color: var(--ed-ink-1); font-size: 16px; letter-spacing: 0.01em;
   line-height: 1.2;
 }
-.alch-seal-meta {
-  font-family: var(--ed-mono); font-size: 9.5px; letter-spacing: 0.14em;
-  text-transform: lowercase;
-  color: var(--ed-ink-4);
-}
+
 .alch-seal-contact {
   font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.04em;
   color: var(--ed-ink-3);
@@ -13729,7 +12997,7 @@ html, body { background: var(--ed-bg-0); }
 .alchemy-header-meta .ah-sep { opacity: 0.6; }
 
 /* ── shapes-grid filter chips — denser, lowercase ────────────────── */
-.alch-shapes-filter { gap: 6px; margin-bottom: 32px; }
+
 .alch-shapes-chip {
   background: transparent;
   color: var(--ed-ink-1);
@@ -13941,14 +13209,7 @@ html, body { background: var(--ed-bg-0); }
   color: var(--ed-ink-1);
   line-height: 1.0;
 }
-.cal-page-sub {
-  font-family: var(--ed-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.20em;
-  text-transform: lowercase;
-  color: var(--ed-ink-1);
-  opacity: 0.55;
-}
+
 .cal-page-actions {
   margin-left: auto;
   display: flex; gap: 8px;
@@ -13972,33 +13233,17 @@ html, body { background: var(--ed-bg-0); }
   box-shadow: 0 0 0 3px rgba(var(--ink-rgb), 0.06);
 }
 /* Shapes-view toolbar — filter chips left, export button right. */
-.alch-shapes-toolbar {
-  display: flex; align-items: center; gap: 12px;
-  margin-bottom: 32px;
-}
-.alch-shapes-toolbar .alch-shapes-filter { margin-bottom: 0; }
-.alch-shapes-toolbar #dossier-export-png {
-  margin-left: auto;
-}
+
+
+
 
 /* Membership / role_class chips — share the toolbar row with the kind
  * chips: entity type (teams vs people) first, membership bucket next.
  * The cohort chip carries the same warm oxide treatment used on cohort
  * cards so the connection is obvious. */
-.alch-shapes-filter-membership {
-  margin: 0;
-}
-.alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"],
-.alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"] {
-  color: #d05332;
-  border-color: rgba(208, 83, 50, 0.55);
-  background: rgba(180, 58, 25, 0.08);
-}
-.alch-shapes-chip-membership[data-membership-filter="cohort"]:hover,
-.alch-shapes-chip-membership[data-membership-filter="cohort-member"]:hover {
-  color: #d05332;
-  border-color: rgba(208, 83, 50, 0.55);
-}
+
+
+
 
 .cal-scroll {
   overflow: auto;
@@ -14088,25 +13333,8 @@ body::before {
   box-shadow: 0 1px 0 rgba(var(--ink-rgb), 0.06) inset, 0 2px 8px rgba(var(--ink-rgb), 0.10);
 }
 
-.alch-detail-edit {
-  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.05), rgba(var(--ink-rgb), 0.01));
-  color: var(--ed-ink-1);
-  opacity: 0.85;
-  border: 1px solid rgba(var(--ink-rgb), 0.14);
-  padding: 7px 14px;
-  border-radius: 999px;
-  text-decoration: none;
-  font-family: var(--ed-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.22em;
-  text-transform: lowercase;
-  transition: background 200ms ease-out, border-color 200ms ease-out, opacity 200ms ease-out;
-}
-.alch-detail-edit:hover {
-  opacity: 1;
-  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.12), rgba(var(--ink-rgb), 0.04));
-  border-color: rgba(var(--ink-rgb), 0.32);
-}
+
+
 
 /* The kind chip in the detail bar (ABRA · TEAM · MENTOR) — lift it
    from "almost invisible mono caption" to a readable inline. */
@@ -14118,18 +13346,8 @@ body::before {
 }
 
 /* ── hero meta strip (SHAPE / DOMAIN / TEAM / GEO) — bump contrast ─ */
-.alch-detail-meta {
-  color: var(--ed-ink-1);
-  opacity: 0.78;
-  font-size: 11.5px;
-}
-.alch-detail-meta .adm-k {
-  color: var(--ed-ink-1);
-  opacity: 0.45;                   /* was ink-4 at 100% — invisible */
-  letter-spacing: 0.20em;
-  font-size: 10px;
-  margin-right: 4px;
-}
+
+
 
 /* ── section headers (about / links / synergy clusters) — readable ─ */
 .alch-detail-h {
@@ -14171,18 +13389,7 @@ body::before {
 }
 
 /* ── synergy cluster pills — small gradient pill, lighter ink ──────── */
-.alch-detail-cluster {
-  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.08), rgba(var(--ink-rgb), 0.02));
-  color: var(--ed-ink-1);
-  opacity: 0.85;
-  border: 1px solid rgba(var(--ink-rgb), 0.16);
-  border-radius: 999px;
-  padding: 5px 12px;
-  font-family: var(--ed-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.10em;
-  text-transform: lowercase;
-}
+
 
 /* ── alchemy meta strip at top (N = 13 + 1 mentor · 10 weeks · NYC) ─ */
 .alchemy-header-meta {
@@ -14268,97 +13475,34 @@ body::before {
   text-transform: lowercase;
   opacity: 0.55;
 }
-.cal-subview { min-height: 320px; }
+
 
 /* ── this-week view ──────────────────────────────────────────────── */
-.cal-tw-wrap {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 28px;
-  max-width: 1180px;
-  margin: 0 auto;
-}
-.cal-tw-weeklabel {
-  font-family: var(--ed-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.20em;
-  text-transform: lowercase;
-  color: var(--ed-ink-1);
-  opacity: 0.55;
-  margin-bottom: 14px;
-}
-.cal-tw-h {
-  display: flex; align-items: baseline; gap: 10px;
-  padding-bottom: 6px;
-  margin-bottom: 10px;
-  border-bottom: 1px dashed rgba(var(--ink-rgb), 0.10);
-}
-.cal-tw-h-glyph { font-size: 12px; color: #c44025; }
-.cal-tw-today-empty .cal-tw-h-glyph { color: rgba(var(--ink-rgb), 0.30); }
-.cal-tw-h-label {
-  font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 17px;
-  color: var(--ed-ink-1);
-}
-.cal-tw-h-count {
-  font-family: var(--ed-mono);
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  color: var(--ed-ink-1);
-  opacity: 0.55;
-}
-.cal-tw-today, .cal-tw-week, .cal-tw-next { margin-bottom: 22px; }
-.cal-tw-empty-msg {
-  font-family: var(--ed-serif, "Iowan Old Style", Georgia, serif);
-  font-size: 13.5px;
-  color: var(--ed-ink-1);
-  opacity: 0.62;
-  margin: 4px 0 8px 0;
-}
-.cal-tw-list { display: grid; gap: 10px; }
-.cal-tw-foot {
-  margin-top: 12px;
-  font-family: var(--ed-mono);
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: lowercase;
-}
-.cal-tw-side {
-  display: flex; flex-direction: column; gap: 18px;
-}
-.cal-tw-side-jump { margin-top: 4px; }
-.cal-tw-rhythm { margin: 0; max-width: none; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* ── full-schedule view ─────────────────────────────────────────── */
-.cal-sched-wrap { margin: 0 auto; max-width: 84ch; }
-.cal-sched-pagehead {
-  display: flex; align-items: end; gap: 16px;
-  margin-bottom: 18px;
-}
-.cal-sched-pagehead > div { display: flex; flex-direction: column; gap: 4px; }
-.cal-sched-add { margin-left: auto; }
-.cal-sched-section { margin: 22px 0; }
-.cal-sched-h {
-  display: flex; align-items: baseline; gap: 10px;
-  padding-bottom: 6px;
-  margin-bottom: 10px;
-  border-bottom: 1px dashed rgba(var(--ink-rgb), 0.10);
-}
-.cal-sched-h-label {
-  font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 16px;
-  color: var(--ed-ink-1);
-}
-.cal-sched-h-count {
-  font-family: var(--ed-mono);
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  color: var(--ed-ink-1);
-  opacity: 0.55;
-}
-.cal-sched-list { display: grid; gap: 10px; }
+
+
+
+
+
+
+
+
+
 
 /* ── event card (shared by this-week + schedule) ─────────────────── */
 .cal-event {
@@ -14377,15 +13521,7 @@ body::before {
 .cal-event[data-kind="workshop"] { border-left-color: rgba(120,180,160,0.55); }
 .cal-event[data-state="past"]    { opacity: 0.40; }
 .cal-event[data-state="now"]     { background: rgba(196,64,37,0.07); }
-.cal-event-when {
-  font-family: var(--ed-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.20em;
-  text-transform: lowercase;
-  color: var(--ed-ink-1);
-  opacity: 0.62;
-  padding-top: 2px;
-}
+
 .cal-event-title {
   font-family: var(--ed-display);
   font-style: italic;
@@ -14394,35 +13530,13 @@ body::before {
   line-height: 1.2;
   margin-bottom: 4px;
 }
-.cal-event-sub {
-  font-family: var(--ed-serif, "Iowan Old Style", Georgia, serif);
-  font-size: 12.5px;
-  color: var(--ed-ink-1);
-  opacity: 0.72;
-}
-.cal-event-links {
-  margin-top: 6px;
-  font-family: var(--ed-mono);
-  font-size: 10px;
-  letter-spacing: 0.18em;
-}
-.cal-event-link {
-  color: #c44025;
-  text-decoration: none;
-  border-bottom: 1px dashed rgba(196,64,37,0.40);
-  padding-bottom: 1px;
-}
-.cal-event-link:hover { border-bottom-style: solid; }
+
+
+
+
 .cal-event-actions { display: flex; align-items: start; padding-top: 2px; }
-.cal-event-edit {
-  font-size: 14px;
-  text-decoration: none;
-  color: var(--ed-ink-1);
-  opacity: 0.32;
-  width: 24px; height: 24px;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.cal-event-edit:hover { opacity: 0.85; color: rgba(193,168,114,0.95); }
+
+
 
 /* ── availability view (presence Gantt page-head) ───────────────── */
 .cal-avail-head {
@@ -14455,9 +13569,7 @@ body::before {
   box-shadow: 0 0 0 3px rgba(var(--ink-rgb), 0.06);
 }
 
-@media (max-width: 880px) {
-  .cal-tw-wrap { grid-template-columns: 1fr; }
-}
+
 
 /* ── calendar · key dates + weekly rhythm sections ─────────────────── */
 .cal-section { margin: 28px 0; max-width: 84ch; }
@@ -14485,111 +13597,29 @@ body::before {
 html[data-theme="light"] .cal-section-presence .cal-scroll {
   background: transparent;
 }
-.cal-section-head {
-  display: flex; align-items: baseline; gap: 14px;
-  padding-bottom: 8px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
-}
-.cal-section-title {
-  font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 20px;
-  letter-spacing: -0.01em;
-  color: var(--ed-ink-1);
-  margin: 0;
-  line-height: 1.0;
-}
-.cal-section-sub {
-  font-family: var(--ed-mono);
-  font-size: 10px;
-  letter-spacing: 0.20em;
-  text-transform: lowercase;
-  color: var(--ed-ink-1);
-  opacity: 0.50;
-}
-.cal-section-foot {
-  margin-top: 14px;
-  font-family: var(--ed-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.18em;
-  text-transform: lowercase;
-  color: var(--ed-ink-1);
-  opacity: 0.55;
-}
+
+
+
+
 /* key dates — chronological list with state-driven swatch */
-.cal-keydates {
-  list-style: none; padding: 0; margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
-}
-.cal-keydate {
-  position: relative;
-  padding: 12px 14px 12px 16px;
-  background: rgba(var(--ink-rgb), 0.025);
-  border-left: 2px solid rgba(var(--ink-rgb), 0.18);
-  display: grid;
-  gap: 4px;
-}
-.cal-keydate[data-kind="demo"]     { border-left-color: #c44025; }       /* oxide red */
-.cal-keydate[data-kind="external"] { border-left-color: rgba(var(--ink-rgb), 0.30); }
-.cal-keydate[data-kind="anchor"]   { border-left-color: rgba(193,168,114,0.55); } /* warm brass */
-.cal-keydate[data-state="past"]    { opacity: 0.36; }
-.cal-keydate[data-state="now"]     { background: rgba(196,64,37,0.07); }
-.cal-keydate-when {
-  font-family: var(--ed-mono);
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: lowercase;
-  color: var(--ed-ink-1);
-  opacity: 0.62;
-}
-.cal-keydate-title {
-  font-family: var(--ed-display);
-  font-size: 15px;
-  font-style: italic;
-  color: var(--ed-ink-1);
-}
-.cal-keydate-sub {
-  font-family: var(--ed-serif, "Iowan Old Style", Georgia, serif);
-  font-size: 12px;
-  color: var(--ed-ink-1);
-  opacity: 0.62;
-}
+
+
+       /* oxide red */
+
+ /* warm brass */
+
+
+
+
+
 /* weekly rhythm — flat table-like list */
-.cal-rhythm { list-style: none; padding: 0; margin: 0; }
-.cal-rhythm-row {
-  display: grid;
-  grid-template-columns: 140px 200px 1fr;
-  gap: 16px;
-  padding: 9px 0;
-  border-bottom: 1px dashed rgba(var(--ink-rgb), 0.08);
-  font-family: var(--ed-mono);
-  font-size: 11.5px;
-  letter-spacing: 0.06em;
-  color: var(--ed-ink-1);
-}
-.cal-rhythm-row:last-child { border-bottom: 0; }
-.cal-rhythm-slot {
-  font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 14px;
-  letter-spacing: 0;
-  color: var(--ed-ink-1);
-}
-.cal-rhythm-when {
-  font-family: var(--ed-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.20em;
-  text-transform: lowercase;
-  color: var(--ed-ink-1);
-  opacity: 0.62;
-}
-.cal-rhythm-note { color: var(--ed-ink-1); opacity: 0.80; }
-@media (max-width: 760px) {
-  .cal-rhythm-row { grid-template-columns: 1fr; gap: 2px; }
-}
+
+
+
+
+
+
+
 
 /* ── onboarding ──────────────────────────────────────────────────── */
 .alch-onb-head { margin: 0 auto 24px; max-width: 70ch; }
@@ -14844,12 +13874,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-prog-tab[aria-selected="true"] .alch-prog-tab-label {
   color: var(--alchemy-paper-warm);
 }
-.alch-prog-tab-num {
-  font-family: var(--ed-mono);
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  opacity: 0.60;
-}
+
 /* Mirrors .apv-label (context/cohort view tabs) so the program tabs use
  * the identical font treatment — same family, style, size, spacing. */
 .alch-prog-tab-label {
@@ -14877,17 +13902,11 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   line-height: 1.55;
   color: var(--ed-ink-1);
 }
-.alch-prog-h1, .alch-prog-h2, .alch-prog-h3, .alch-prog-h4 {
-  font-family: var(--ed-display);
-  font-style: italic;
-  color: var(--ed-ink-1);
-  line-height: 1.15;
-  margin: 24px 0 8px 0;
-}
-.alch-prog-h1 { font-size: 22px; }
-.alch-prog-h2 { font-size: 19px; }
-.alch-prog-h3 { font-size: 16px; opacity: 0.92; }
-.alch-prog-h4 { font-size: 14px; opacity: 0.85; }
+
+
+
+
+
 .alch-prog-p { margin: 0 0 12px 0; }
 .alch-prog-ul, .alch-prog-ol { margin: 0 0 14px 22px; padding: 0; }
 .alch-prog-ul li, .alch-prog-ol li { margin: 4px 0; }
@@ -14988,32 +14007,10 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
    button never gets jammed into a narrow grid auto-column. Left-aligned to
    the canvas gutter (2026-06) so every page shares the same content edge;
    the max-width still caps the line length for readability. */
-.alch-asks-head {
-  margin: 0 0 20px;
-  max-width: 80ch;
-  display: flex; flex-direction: column;
-  gap: 10px;
-  align-items: flex-start;
-}
-.alch-asks-head-actions { margin-top: 4px; }
-.alch-asks-title {
-  font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 32px;
-  letter-spacing: -0.02em;
-  color: var(--ed-ink-1);
-  line-height: 1.0;
-  margin: 0 0 8px 0;
-}
-.alch-asks-sub {
-  font-family: var(--ed-mono);
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: lowercase;
-  color: var(--ed-ink-1);
-  opacity: 0.62;
-  margin: 0;
-}
+
+
+
+
 .alch-asks-section { max-width: 84ch; margin: 18px 0; }
 .alch-asks-section-head {
   display: flex; align-items: baseline; gap: 12px;
@@ -15056,15 +14053,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   color: var(--ed-ink-1);
   opacity: 0.55;
 }
-.alch-asks-section-note {
-  font-family: var(--ed-mono);
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: lowercase;
-  color: var(--ed-ink-1);
-  opacity: 0.45;
-  margin-left: auto;
-}
+
 .alch-asks-list { display: grid; gap: 10px; }
 .alch-asks-card {
   display: block;
@@ -15157,7 +14146,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-asks-status-claimed { background: rgba(193,168,114,0.20); color: rgba(229,212,178,0.95); }
 .alch-asks-status-done    { background: rgba(var(--ink-rgb), 0.10); color: rgba(var(--ink-rgb), 0.70); }
 .alch-asks-status-fading  { background: rgba(var(--ink-rgb), 0.06); color: rgba(var(--ink-rgb), 0.50); }
-.alch-asks-kind { color: var(--ed-ink-1); opacity: 0.78; }
+
 .alch-asks-expanded {
   display: grid;
   gap: 10px;
@@ -15258,7 +14247,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   color: var(--ed-ink-1);
   opacity: 0.82;
 }
-.alch-asks-new { margin: 0; }
+
 
 /* ── topic atlas ─────────────────────────────────────────────────── */
 .alch-atlas-head { margin-bottom: 20px; max-width: 80ch; }
@@ -15369,31 +14358,10 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   align-items: flex-start;
   padding: 2px 0 12px;
 }
-.alch-page-head-text {
-  flex: 1 1 340px;
-  min-width: 0;
-}
-.alch-page-kicker {
-  margin: 0 0 6px;
-  color: rgba(var(--ink-rgb), 0.38);
-  font: 700 11px/1.1 var(--mono);
-  letter-spacing: 0;
-  text-transform: lowercase;
-}
-.alch-page-title {
-  margin: 0;
-  color: rgb(var(--ink-rgb));
-  font: 560 clamp(20px, 2vw, 27px)/1.08 var(--sans);
-}
-.alch-page-dek {
-  max-width: 720px;
-  margin: 7px 0 0;
-  color: rgba(var(--ink-rgb), 0.64);
-  font: 400 13.5px/1.5 var(--sans);
-  /* Reserve two lines so a wrapping dek never moves the view nav — the
-     header occupies the same height on every view. */
-  min-height: 3em;
-}
+
+
+
+
 .alch-page-head-side {
   display: flex;
   flex: 0 1 auto;
@@ -15405,25 +14373,12 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   padding-top: 4px;
   margin-left: auto;
 }
-.alch-page-head-meta {
-  color: rgba(var(--ink-rgb), 0.4);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  text-transform: lowercase;
-  text-align: right;
-  display: grid;
-  gap: 3px;
-}
-.alch-page-head-meta span {
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
+
 @media (max-width: 820px) {
   .alch-page-head { flex-direction: column; gap: 10px; }
   .alch-page-head-side { padding-top: 0; margin-left: 0; justify-content: flex-start; }
-  .alch-page-head-meta { text-align: left; }
+  
 }
 
 /* ── page view nav (cohort + context) ───────────────────────────────── */
@@ -15526,13 +14481,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   padding-bottom: 8px;
   border-bottom: 1px solid rgba(var(--ink-rgb), 0.06);
 }
-.alch-view-controls > .alch-journey-filters,
-.alch-view-controls > .alch-shapes-filter,
-.alch-view-controls > .alch-shapes-filter-membership {
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
+
 /* Directory's export action shares the band row with the filter chips —
  * same chip styling, pushed to the right edge. */
 .alch-view-controls > #dossier-export-png { margin-left: auto; }
@@ -15573,13 +14522,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 }
 .ac-selection-chip:hover i { opacity: 1; }
 /* Selected-entity readouts (journey/stack) — second-click hint line. */
-.ac-readout-hint {
-  margin: 8px 0 0;
-  font-family: var(--ed-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  color: rgba(var(--ink-rgb), 0.45);
-}
+
 .ac-main-readout.is-selected-readout {
   border-left: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 55%, transparent);
 }
@@ -15632,20 +14575,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 /* The rails — every button group becomes one quiet trough: a faint
    wash and a hairline, nothing carved. (The constellation map's three
    rails became the sentence bar below.) */
-.alch-view-controls .alch-journey-filters,
-.alch-view-controls .alch-shapes-filter {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px;
-  margin: 0;
-  padding: 2px;
-  min-width: 0;
-  border: 1px solid rgba(var(--ink-rgb), 0.07);
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.06));
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
-}
+
 
 /* Etched field prefixes — sit inside the rail's left edge */
 .alch-view-controls .ajf-label {
@@ -15777,25 +14707,9 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 
 /* Cohort membership thumb — the one oxide-tinted segment (tier signal,
    matches the warm tint on cohort cards); its tick reads paper-on-oxide */
-.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"],
-.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"] {
-  color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, var(--alchemy-paper-warm));
-  background: linear-gradient(180deg, rgba(180, 58, 25, 0.22), rgba(180, 58, 25, 0.10));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 0 0 1px rgba(180, 58, 25, 0.26),
-    0 1px 2px rgba(0, 0, 0, 0.20);
-}
-.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"][aria-selected="true"]::after,
-.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"][aria-selected="true"]::after {
-  background: color-mix(in srgb, var(--alchemy-oxide-bright) 45%, var(--alchemy-paper-warm));
-  box-shadow: 0 0 6px rgba(217, 83, 54, 0.55);
-}
-.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort"]:hover,
-.alch-view-controls .alch-shapes-chip-membership[data-membership-filter="cohort-member"]:hover {
-  color: color-mix(in srgb, var(--alchemy-oxide-bright) 58%, var(--alchemy-paper-warm));
-  background: rgba(180, 58, 25, 0.10);
-}
+
+
+
 
 /* ── Sentence bar (constellation map/ring) ─────────────────────────
    The view controls read as one sentence: "showing projects as wells ·
@@ -16578,7 +15492,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
  * view tabs — switching rail pages must not move the tab row. */
 .alch-prog-tabs        { margin: 0 0 40px; max-width: 88ch; gap: 0; }
 .alch-prog-tab         { padding: 6px 17px 9px; gap: 8px; }
-.alch-prog-tab-num     { font-size: 10px; letter-spacing: 0.22em; }
+
 .alch-prog-tab-label   { font-size: 16.5px; }
 
 .alch-prog-page        { margin: 0; max-width: 80ch; padding: 0 0 96px; }
@@ -16587,10 +15501,10 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 
 .alch-prog-body        { font-size: 17px; line-height: 1.65; }
 .alch-prog-body p, .alch-prog-p { margin: 0 0 18px 0; }
-.alch-prog-h1          { font-size: 30px; line-height: 1.15; margin: 44px 0 12px; }
-.alch-prog-h2          { font-size: 24px; line-height: 1.20; margin: 36px 0 10px; opacity: 1; }
-.alch-prog-h3          { font-size: 20px; line-height: 1.25; margin: 30px 0 8px;  opacity: 1; }
-.alch-prog-h4          { font-size: 17px; line-height: 1.30; margin: 24px 0 6px;  opacity: 0.92; letter-spacing: 0.02em; }
+
+
+
+
 .alch-prog-ul, .alch-prog-ol { margin: 0 0 18px 24px; }
 .alch-prog-ul li, .alch-prog-ol li { margin: 6px 0; line-height: 1.55; }
 .alch-prog-body code   { font-size: 14px; padding: 2px 6px; }
@@ -16617,16 +15531,16 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-prog-page-foot   { margin-top: 40px; padding-top: 16px; font-size: 11px; }
 
 /* ── asks ─────────────────────────────────────────────────────────── */
-.alch-asks-head        { margin: 0 0 18px; max-width: 88ch; padding-top: 12px; gap: 10px; }
-.alch-asks-title       { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
-.alch-asks-sub         { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 70ch; margin: 0; opacity: 0.62; }
-.alch-asks-head-actions { margin-top: 10px; }
+
+
+
+
 
 .alch-asks-section     { max-width: 88ch; margin: 18px 0; }
 .alch-asks-section-head { padding-bottom: 8px; margin-bottom: 10px; gap: 10px; }
 .alch-asks-section-title { font-size: 14px; line-height: 1.20; }
 .alch-asks-section-count { font-size: 11px; letter-spacing: 0.22em; }
-.alch-asks-section-note  { font-size: 11px; letter-spacing: 0.18em; }
+
 .alch-asks-list        { gap: 6px; }
 
 .alch-asks-card        { padding: 0; }
@@ -16662,7 +15576,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 /* ── calendar ─────────────────────────────────────────────────────── */
 .cal-page-head         { margin-bottom: 0; }
 .cal-page-title        { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; }
-.cal-page-sub          { font-size: 13px; letter-spacing: 0.18em; }
+
 
 .cal-subtabs           { margin: 12px auto 36px; max-width: 88ch; }
 .cal-subtab            { padding: 12px 22px 14px; gap: 14px; }
@@ -16671,24 +15585,24 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .cs-hint               { font-size: 11px; letter-spacing: 0.18em; }
 
 /* this-week — give it room: wider wrap, larger panels */
-.cal-tw-wrap           { max-width: 1280px; gap: 36px; grid-template-columns: minmax(0, 1fr) 360px; }
-.cal-tw-weeklabel      { font-size: 12px; letter-spacing: 0.22em; margin-bottom: 18px; }
-.cal-tw-h              { padding-bottom: 10px; margin-bottom: 14px; gap: 12px; }
-.cal-tw-h-glyph        { font-size: 14px; }
-.cal-tw-h-label        { font-size: 22px; line-height: 1.20; }
-.cal-tw-h-count        { font-size: 11px; letter-spacing: 0.22em; }
-.cal-tw-today, .cal-tw-week, .cal-tw-next { margin-bottom: 32px; }
-.cal-tw-empty-msg      { font-size: 15px; line-height: 1.6; margin: 8px 0 12px; }
-.cal-tw-list           { gap: 14px; }
-.cal-tw-foot           { margin-top: 18px; font-size: 12px; letter-spacing: 0.16em; }
 
-.cal-sched-wrap        { max-width: 88ch; }
-.cal-sched-pagehead    { margin-bottom: 28px; gap: 20px; }
-.cal-sched-section     { margin: 32px 0; }
-.cal-sched-h           { padding-bottom: 10px; margin-bottom: 14px; gap: 12px; }
-.cal-sched-h-label     { font-size: 20px; line-height: 1.20; }
-.cal-sched-h-count     { font-size: 11px; letter-spacing: 0.22em; }
-.cal-sched-list        { gap: 14px; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 .cal-avail-head        { margin-bottom: 28px; max-width: 1280px; margin-left: auto; margin-right: auto; }
 
@@ -16698,52 +15612,32 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   gap: 20px;
   padding: 18px 22px;
 }
-.cal-event-when        { font-size: 12px; letter-spacing: 0.22em; padding-top: 4px; }
+
 .cal-event-title       { font-size: 19px; line-height: 1.25; margin-bottom: 6px; }
-.cal-event-sub         { font-size: 14.5px; line-height: 1.5; }
-.cal-event-links       { margin-top: 10px; font-size: 11px; letter-spacing: 0.18em; }
-.cal-event-edit        { font-size: 16px; width: 28px; height: 28px; }
+
+
+
 
 /* section heading — calendar-wide */
-.cal-section-title     { font-size: 22px; line-height: 1.20; }
-.cal-section-sub       { font-size: 12px; letter-spacing: 0.20em; }
-.cal-section-foot      { font-size: 12px; letter-spacing: 0.16em; margin-top: 18px; }
+
+
+
 
 /* rhythm card — used inside this-week side panel */
-.cal-section-rhythm header.cal-section-head { padding-bottom: 10px; margin-bottom: 14px; }
-.cal-rhythm-row        { padding: 10px 0; grid-template-columns: 130px 180px 1fr; gap: 18px; font-size: 13px; }
-.cal-rhythm-slot       { font-size: 15px; }
-.cal-rhythm-when       { font-size: 11px; letter-spacing: 0.22em; }
-.cal-rhythm-note       { font-size: 13px; line-height: 1.45; }
+
+
+
+
+
 
 /* When the rhythm card lives inside the this-week side panel (≈360px
    wide), the 3-column row collapses the note column to one-word lines.
    Override to a stacked layout: slot + weekdays on a top line, note
    flowing below at full panel width. */
-.cal-tw-rhythm .cal-rhythm-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas:
-    "slot when"
-    "note note";
-  gap: 4px 14px;
-  padding: 12px 0;
-  align-items: baseline;
-}
-.cal-tw-rhythm .cal-rhythm-slot { grid-area: slot; font-size: 15px; }
-.cal-tw-rhythm .cal-rhythm-when {
-  grid-area: when;
-  font-size: 10.5px;
-  letter-spacing: 0.22em;
-  text-align: right;
-  opacity: 0.65;
-}
-.cal-tw-rhythm .cal-rhythm-note {
-  grid-area: note;
-  font-size: 13px;
-  line-height: 1.55;
-  opacity: 0.85;
-}
+
+
+
+
 
 /* ── callouts ─────────────────────────────────────────────────────── */
 .alch-callout          { margin: 32px auto 0; max-width: 88ch; font-size: 12px; line-height: 1.65; padding: 14px 16px; border-left: 1px dashed rgba(var(--ink-rgb), 0.14); background: rgba(var(--ink-rgb), 0.018); }
@@ -16751,10 +15645,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 
 /* ── responsive: collapse the two-column this-week layout earlier so
    side-panel doesn't push main content too narrow ─────────────────── */
-@media (max-width: 1100px) {
-  .cal-tw-wrap { grid-template-columns: 1fr; }
-  .cal-tw-side { max-width: 88ch; }
-}
+
 
 /* ── inline single-field form (onboarding) ────────────────────────── */
 .alch-onb-inline {
@@ -16836,20 +15727,8 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   word-break: break-word;
   color: var(--ed-ink-1);
 }
-.alch-onb-inline-copy {
-  appearance: none;
-  background: transparent;
-  border: 1px solid rgba(var(--ink-rgb), 0.20);
-  border-radius: 999px;
-  padding: 5px 14px;
-  font-family: var(--ed-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.18em;
-  text-transform: lowercase;
-  color: var(--ed-ink-1);
-  cursor: pointer;
-}
-.alch-onb-inline-copy:hover { border-color: rgba(var(--ink-rgb), 0.45); }
+
+
 .alch-onb-inline-link {
   font-family: var(--ed-mono);
   font-size: 10.5px;
@@ -16922,20 +15801,8 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   opacity: 0.84;
   transform: rotate(90deg);
 }
-.alch-asks-compose-sub {
-  font-family: var(--ed-mono);
-  font-size: 11.5px;
-  letter-spacing: 0.16em;
-  text-transform: lowercase;
-  color: var(--ed-ink-1);
-  opacity: 0.55;
-}
-.alch-asks-compose-sub code {
-  font-family: var(--ed-mono);
-  font-size: 11px;
-  background: rgba(var(--ink-rgb), 0.06);
-  padding: 1px 5px;
-}
+
+
 .alch-asks-compose-body {
   display: grid;
   gap: 0;
@@ -17258,16 +16125,15 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 
 /* Element-level overrides where the old #c44025 was hard-coded. Keep
    the change list explicit so the audit trail is clear. */
-.cal-keydate[data-kind="demo"]            { border-left-color: var(--sr-red); }
-.cal-keydate[data-state="now"]            { background: rgba(143, 34, 14, 0.07); }
+
+
 .cal-event[data-kind="demo"]              { border-left-color: var(--sr-red); }
 .cal-event[data-state="now"]              { background: rgba(143, 34, 14, 0.07); }
 .alch-onb-step[data-state="missing"]      { border-left-color: var(--sr-red); }
 .alch-prog-tab[aria-selected="true"]      { border-bottom-color: var(--sr-red); }
 .cal-subtab[aria-selected="true"]         { border-bottom-color: var(--sr-red); }
-.alch-page-view-btn[aria-selected="true"]{ border-bottom-color: var(--sr-red); }
+.alch-page-view-btn[aria-selected="true"] { border-bottom-color: var(--sr-red); }
 .alch-prog-body a,
-.alch-event-link,
 .alch-asks-action,
 .alch-onb-inline-link                     { color: var(--sr-red); border-bottom-color: rgba(143, 34, 14, 0.45); }
 .alch-asks-card                           { border-left-color: rgba(143, 34, 14, 0.45); }
@@ -17613,7 +16479,6 @@ body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   
 
 /* ── headings — Space Grotesk italic carries the editorial tone ── */
 .alch-prog-title,
-.alch-asks-title,
 .alch-onb-title,
 .cal-page-title,
 .alch-feed-title,
@@ -17626,12 +16491,8 @@ body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   
 
 /* Section / sub headings */
 .alch-prog-page-title,
-.alch-prog-h1, .alch-prog-h2, .alch-prog-h3, .alch-prog-h4,
 .alch-asks-section-title,
 .alch-onb-step-title,
-.cal-section-title,
-.cal-tw-h-label,
-.cal-sched-h-label,
 .cal-event-title,
 .cal-subtab .cs-label,
 .alch-feed-loading-title {
@@ -17646,9 +16507,6 @@ body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   
 .alch-prog-p,
 .alch-onb-step-ask,
 .alch-asks-topic,
-.cal-event-sub,
-.cal-rhythm-note,
-.cal-tw-empty-msg,
 .alch-feed-loading-foot {
   font-family: var(--sr-font-sans) !important;
   font-style: normal;
@@ -17658,20 +16516,8 @@ body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   
 
 /* All mono caps / metadata text → JetBrains Mono */
 .alch-prog-sub,
-.alch-asks-sub,
 .alch-onb-sub,
-.cal-page-sub,
-.cal-section-sub,
-.cal-tw-h-count,
-.cal-tw-weeklabel,
-.cal-sched-h-count,
-.cal-event-when,
-.cal-rhythm-when,
-.cal-rhythm-slot,
-.cal-keydate-when,
-.cal-keydate-sub,
 .alch-asks-section-count,
-.alch-asks-section-note,
 .alch-asks-meta,
 .alch-asks-chip,
 .alch-asks-action,
@@ -17681,10 +16527,8 @@ body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   
 .alch-onb-inline-line,
 .alch-onb-inline-hint,
 .alch-onb-inline-tag,
-.alch-onb-inline-copy,
 .alch-onb-inline-link,
 .alch-asks-compose-label,
-.alch-asks-compose-sub,
 .alch-asks-compose-author,
 .alch-asks-compose-hint,
 .alch-feed-btn,
@@ -17699,15 +16543,13 @@ body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   
 }
 
 /* The keydate "headline" + event title stay italic display for tone. */
-.cal-keydate-title { font-family: var(--sr-font-sans) !important; font-style: italic; }
+
 
 /* Specimen tag treatment — the "01 / 02 / 03" prefixes on cards. Box
    them slightly so they read as catalog metadata rather than ambient
    numerals. */
 .alch-onb-step-num,
-.cs-num,
-.cal-keydate-when,
-.cal-event-when {
+.cs-num {
   font-weight: 500;
   letter-spacing: 0.22em;
 }
@@ -17821,8 +16663,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   animation: ac-sel-node-pulse 2.6s ease-in-out infinite;
 }
 /* people dots + project anchors — larger resting scale */
-.alch-constellation-stage[data-selection-active="true"] svg .ac-person-node.is-selection-core .ac-person-dot,
-.alch-constellation-stage[data-selection-active="true"] svg .ac-project-anchor.is-selection-core .ac-project-anchor-mark {
+.alch-constellation-stage[data-selection-active="true"] svg .ac-person-node.is-selection-core .ac-person-dot {
   animation: ac-sel-node-pulse-lg 2.6s ease-in-out infinite;
 }
 /* standing — selected tile / gap row breathes a soft edge glow */
@@ -17841,30 +16682,9 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 }
 
 /* ── this-week dateline — confirms the app knows the date ─────────── */
-.cal-tw-dateline {
-  display: flex; align-items: baseline; gap: 14px;
-  padding-bottom: 14px;
-  margin-bottom: 18px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
-}
-.cal-tw-dateline-stamp {
-  font-family: var(--sr-font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--sr-red);
-  padding: 3px 9px;
-  border: 1px solid var(--sr-red);
-  border-radius: 2px;
-  line-height: 1;
-}
-.cal-tw-dateline-day {
-  font-family: var(--sr-font-sans);
-  font-style: italic;
-  font-size: 22px;
-  letter-spacing: -0.01em;
-  color: var(--ed-ink-1, #f5f3ee);
-}
+
+
+
 
 /* ── feed group rollup tail ───────────────────────────────────────── */
 .alch-feed-tail {
@@ -19778,8 +18598,7 @@ html[data-theme="light"] .alch-pf-row select,
 html[data-theme="light"] .alch-pf-target-select,
 html[data-theme="light"] .aspr-diff,
 html[data-theme="light"] .aspr-patch-pre,
-html[data-theme="light"] .alch-onb-inline-patch,
-html[data-theme="light"] .alch-cv-preview pre {
+html[data-theme="light"] .alch-onb-inline-patch {
   background: rgba(var(--ink-rgb), 0.04);
   border-color: rgba(var(--ink-rgb), 0.12);
 }
@@ -19863,15 +18682,9 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 
 /* The context page header now uses the shared .alch-page-head (2026-06);
    the content-release line lives in the header's side meta. */
-.alch-cv-scan {
-  min-height: 30px;
-  padding: 7px 12px;
-  opacity: 0.72;
-}
 
-.alch-cv-scan:hover {
-  opacity: 1;
-}
+
+
 
 /* Host for the embedded intel module (signals/data views). */
 .alch-cv-intel {
@@ -19916,46 +18729,15 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   border-right: 1px solid rgba(var(--ink-rgb), 0.08);
 }
 
-.alch-cv-roots {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0 0 18px;
-  padding: 0;
-  list-style: none;
-}
 
-.alch-cv-root {
-  display: grid;
-  grid-template-columns: 9px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  color: rgba(var(--ink-rgb), 0.72);
-  font: 500 12px/1.25 var(--sans);
-}
 
-.alch-cv-root-dot {
-  width: 7px;
-  height: 7px;
-  margin-top: 4px;
-  border-radius: 50%;
-  background: #5ad59b;
-  box-shadow: 0 0 0 3px rgba(90, 213, 155, 0.12);
-}
 
-.alch-cv-root[data-exists="0"] .alch-cv-root-dot {
-  background: #7d86a5;
-  box-shadow: none;
-}
 
-.alch-cv-root code {
-  grid-column: 2;
-  overflow: hidden;
-  color: rgba(var(--ink-rgb), 0.42);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
+
+
+
+
 
 .alch-cv-sources {
   display: flex;
@@ -20023,16 +18805,9 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   overflow-wrap: anywhere;
 }
 
-.alch-cv-source-dek {
-  display: -webkit-box;
-  overflow: hidden;
-  color: rgba(var(--ink-rgb), 0.66);
-  font: 400 12px/1.35 var(--sans);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
 
-.alch-cv-source-kind,
+
+
 .alch-cv-source-meta {
   color: rgba(var(--ink-rgb), 0.38);
   font: 500 10px/1.2 var(--mono);
@@ -20040,20 +18815,9 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   text-transform: lowercase;
 }
 
-.alch-cv-source-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
 
-.alch-cv-source-tags span,
-.alch-cv-speakers span {
-  padding: 4px 6px;
-  border: 1px solid rgba(var(--ink-rgb), 0.12);
-  background: rgba(var(--ink-rgb), 0.05);
-  color: rgba(var(--ink-rgb), 0.70);
-  font: 600 10px/1 var(--mono);
-}
+
+
 
 .alch-cv-detail {
   display: flex;
@@ -20125,19 +18889,9 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   font: 650 24px/1.08 var(--sans);
 }
 
-.alch-cv-dek {
-  max-width: 72ch;
-  margin: 10px 0 0;
-  color: rgba(var(--ink-rgb), 0.72);
-  font: 400 14px/1.5 var(--sans);
-}
 
-.alch-cv-actions,
-.alch-cv-promote {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
+
+
 
 .alch-cv-reader {
   display: grid;
@@ -20150,29 +18904,11 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   display: block;
 }
 
-.alch-cv-article-md .alch-prog-h1 {
-  margin: 0 0 16px;
-  color: rgb(var(--ink-rgb));
-  font-size: clamp(24px, 2vw, 31px);
-  font-weight: 520;
-  line-height: 1.16;
-}
 
-.alch-cv-article-md .alch-prog-h2 {
-  margin: 34px 0 12px;
-  color: rgba(var(--ink-rgb), 0.90);
-  font-size: 19px;
-  font-weight: 560;
-  line-height: 1.24;
-}
 
-.alch-cv-article-md .alch-prog-h3 {
-  margin: 26px 0 10px;
-  color: rgba(var(--ink-rgb), 0.84);
-  font-size: 16px;
-  font-weight: 560;
-  line-height: 1.35;
-}
+
+
+
 
 .alch-cv-article-md .alch-prog-p,
 .alch-cv-article-md .alch-prog-ul,
@@ -20191,40 +18927,15 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   margin-bottom: 18px;
 }
 
-.alch-cv-article-md .alch-prog-quote {
-  margin: 16px 0 18px;
-  padding: 0 0 0 15px;
-  border-left: 1px solid rgba(193, 168, 114, 0.45);
-  color: rgba(var(--ink-rgb), 0.74);
-  font: 420 15px/1.68 var(--sans);
-}
 
-.alch-md-table-wrap {
-  overflow-x: auto;
-  margin: 18px 0 22px;
-  border-top: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
-}
 
-.alch-md-table {
-  width: 100%;
-  border-collapse: collapse;
-  color: rgba(var(--ink-rgb), 0.72);
-  font: 400 13px/1.5 var(--sans);
-}
 
-.alch-md-table th,
-.alch-md-table td {
-  padding: 9px 10px;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.07);
-  text-align: left;
-  vertical-align: top;
-}
 
-.alch-md-table th {
-  color: rgba(var(--ink-rgb), 0.78);
-  font-weight: 650;
-}
+
+
+
+
+
 
 .alch-cv-reader-kicker {
   margin: 0;
@@ -20381,50 +19092,15 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   white-space: pre-wrap;
 }
 
-.alch-cv-stats,
-.alch-cv-speakers {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
-.alch-cv-stats span {
-  color: rgba(var(--ink-rgb), 0.56);
-  font: 600 11px/1.2 var(--mono);
-}
 
-.alch-cv-signals h4,
-.alch-cv-preview h4,
-.alch-cv-promote h4 {
-  width: 100%;
-  margin: 0 0 8px;
-  color: rgba(var(--ink-rgb), 0.66);
-  font: 700 11px/1.1 var(--mono);
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
 
-.alch-cv-signals ul {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding-left: 18px;
-  color: rgba(var(--ink-rgb), 0.76);
-  font: 400 14px/1.45 var(--sans);
-}
 
-.alch-cv-preview pre {
-  max-height: 280px;
-  overflow: auto;
-  margin: 0;
-  padding: 14px;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  background: rgba(2, 4, 11, 0.66);
-  color: rgba(var(--ink-rgb), 0.72);
-  font: 500 12px/1.5 var(--mono);
-  white-space: pre-wrap;
-}
+
+
+
+
+
 
 .alch-cv-muted,
 .alch-cv-empty-detail p {
@@ -20872,7 +19548,6 @@ html[data-theme="light"] .alch-constellation-stage {
 }
 .alch-rail-member:last-child { margin-bottom: 0; }
 .alch-rail-member button,
-.alch-rail-list .alch-record-token,
 .alch-rail-list .alch-team-token {
   appearance: none;
   min-height: 0;
@@ -20887,14 +19562,13 @@ html[data-theme="light"] .alch-constellation-stage {
   text-align: left;
 }
 .alch-rail-member button:hover,
-.alch-rail-list .alch-record-token:hover,
 .alch-rail-list .alch-team-token:hover {
   border-bottom-color: var(--ed-ink-1, var(--alchemy-oxide-bright));
 }
 /* The rail's team token carries the mini sigil (it absorbed the old
  * "team context" quick row) — size the shape to the rail's type scale. */
 .alch-rail-list .alch-team-token { gap: 6px; padding-left: 0; }
-.alch-rail-list .alch-team-token .alch-mini-shape { width: 15px; height: 15px; }
+
 .alch-rail-member em {
   color: var(--ed-ink-4, var(--alchemy-ink-mute));
   font-style: normal;
@@ -21113,17 +19787,8 @@ button.alch-quick-link {
   gap: 7px;
   padding-left: 3px;
 }
-.alch-mini-shape {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 auto;
-  overflow: hidden;
-}
-.alch-mini-shape canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
+
+
 .alch-team-quick .alch-quick-row {
   grid-template-columns: 104px minmax(0, 1fr);
   min-height: 0;
