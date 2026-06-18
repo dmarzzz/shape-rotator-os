@@ -1,4 +1,4 @@
-// preload.js — context-isolated bridge for the hermes "Ask Cohort" window.
+// preload.js — context-isolated bridge for the hermes "Bot Brain" window.
 //
 // Exposes ONLY the brain's IPC surface (hermes + shape) on `window.api`. Kept
 // inside the component (rather than reusing the host app's preload) so the whole

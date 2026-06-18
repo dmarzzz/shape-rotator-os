@@ -1,4 +1,4 @@
-// integration.js — the SINGLE integration point for the hermes "Ask Cohort"
+// integration.js — the SINGLE integration point for the hermes "Bot Brain"
 // brain. The host Electron app wires the whole component in with two calls:
 //
 //   const hermes = require("./src/hermes/integration");
@@ -32,7 +32,7 @@ function createWindow() {
     width: 440, height: 640, minWidth: 380, minHeight: 520,
     titleBarStyle: "hiddenInset",
     backgroundColor: "#221E1F",
-    title: "Ask Cohort",
+    title: "Bot Brain",
     webPreferences: {
       preload: PRELOAD_FILE,
       contextIsolation: true,
@@ -102,7 +102,7 @@ function unregister() {
 function menuItem() {
   const isMac = process.platform === "darwin";
   return {
-    label: "Ask Cohort (Hermes)…",
+    label: "Bot Brain…",
     accelerator: isMac ? "Cmd+Shift+H" : "Ctrl+Shift+H",
     click: () => createWindow(),
   };

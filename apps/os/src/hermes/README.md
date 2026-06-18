@@ -1,4 +1,4 @@
-# Ask Cohort (Hermes) — standalone brain component
+# Bot Brain (Hermes) — standalone brain component
 
 A local-first "connector" that helps a cohort member **find people and learn how
 to engage them**, grounded on the cohort-public surface and the member's own
