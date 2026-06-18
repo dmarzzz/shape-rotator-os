@@ -53,7 +53,7 @@ import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./c
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { indexCohortEvidence, teamEvidence, recentClaims } from "./cohort-evidence-index.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { buildActivityLane, buildStandingLane, buildPresenceLane, teamStageSeries as tlTeamStageSeries } from "./cohort-timeline-tracks.mjs";
+import { buildActivityLane } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
@@ -6799,7 +6799,6 @@ function timelineInnerHtml() {
       <div class="cal-agenda" style="--cols:7">
         ${columns.map(renderColumn).join("")}
       </div>
-      <div class="ac-tip" hidden></div>
     </div>`;
 }
 
@@ -7995,64 +7994,6 @@ function wireDetailDismiss() {
     if (!state.detailRecordId) return;
     if (e.target !== state.canvas) return;
     closeDetail();
-  });
-}
-
-// Timeline mark hover (the "hover" layer of glance → hover → click). Reuses the
-// shared .ac-tip floating surface; reads the data-tl-* attrs each mark carries.
-// Bound on the (fresh-per-render) stage; the tip is mouse-following, clamped to
-// the stage box. Click-to-open is the shared canvas data-const-open-record path.
-function wireTimelineHover(stage, tip) {
-  if (!tip) return;
-  const place = (e) => {
-    const r = stage.getBoundingClientRect();
-    const tw = tip.offsetWidth, th = tip.offsetHeight;
-    let x = e.clientX - r.left + 14;
-    let y = e.clientY - r.top + 14;
-    if (x + tw > r.width - 4) x = e.clientX - r.left - tw - 14;
-    if (y + th > r.height - 4) y = r.height - th - 6;
-    tip.style.transform = `translate(${Math.max(4, x).toFixed(0)}px, ${Math.max(4, y).toFixed(0)}px)`;
-  };
-  // Anchor the tip at a mark's own box (keyboard focus has no cursor point).
-  const placeAtEl = (mark) => {
-    const r = stage.getBoundingClientRect();
-    const m = mark.getBoundingClientRect();
-    const cx = m.left + m.width / 2 - r.left, cy = m.top + m.height / 2 - r.top;
-    const tw = tip.offsetWidth, th = tip.offsetHeight;
-    let x = cx + 14, y = cy + 14;
-    if (x + tw > r.width - 4) x = cx - tw - 14;
-    if (y + th > r.height - 4) y = r.height - th - 6;
-    tip.style.transform = `translate(${Math.max(4, x).toFixed(0)}px, ${Math.max(4, y).toFixed(0)}px)`;
-  };
-  const row = (k, v) => v ? `<div class="ajt-row"><span class="ajt-k">${k}</span><span class="ajt-v">${escHtml(v)}</span></div>` : "";
-  const fill = (mark) => {
-    tip.innerHTML = `<div class="ajt-name">${escHtml(mark.getAttribute("data-tl-title") || "")}</div>`
-      + row("when", mark.getAttribute("data-tl-date"))
-      + row("kind", mark.getAttribute("data-tl-kind"))
-      + row("detail", mark.getAttribute("data-tl-detail"));
-  };
-  stage.addEventListener("mouseover", (e) => {
-    const mark = e.target.closest("[data-tl-tip]");
-    if (!mark) return;
-    fill(mark);
-    tip.hidden = false;
-    place(e);
-  });
-  stage.addEventListener("mousemove", (e) => { if (!tip.hidden && e.target.closest("[data-tl-tip]")) place(e); });
-  stage.addEventListener("mouseout", (e) => {
-    const mark = e.target.closest("[data-tl-tip]");
-    if (mark && !mark.contains(e.relatedTarget)) tip.hidden = true;
-  });
-  // Keyboard parity: Tabbing to a mark shows the same readout, anchored at it.
-  stage.addEventListener("focusin", (e) => {
-    const mark = e.target.closest("[data-tl-tip]");
-    if (!mark) return;
-    fill(mark);
-    tip.hidden = false;
-    placeAtEl(mark);
-  });
-  stage.addEventListener("focusout", (e) => {
-    if (e.target.closest("[data-tl-tip]")) tip.hidden = true;
   });
 }
 
@@ -9375,31 +9316,12 @@ function refreshCalendarView() {
     render();
     return;
   }
-  const paint = () => {
-    paintCalendarView({ wire: true });
-    // Live calendar data just painted in while the user is on the page —
-    // that counts as seen (mirrors the what's-new stamp in render()).
-    if (state.active && !document.hidden) {
-      markFingerprintsSeen("calendar-grid", calendarFingerprints());
-      updateRailUnread();
-    }
-  };
-  // Timeline lane re-fractions (scope / zoom / window changes) crossfade via a
-  // View Transition so marks glide to their new positions instead of snapping —
-  // mirrors the sr-sigil card→dossier morph. Other re-renders (grid week nav,
-  // view switches) stay instant. Degrades to an instant paint without VT support
-  // or under reduced-motion.
-  const reduceMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (state.calendar.view === "timeline" && !reduceMotion && typeof document.startViewTransition === "function") {
-    // Scope the crossfade to the lanes only: the html.tl-vt class zeroes the
-    // global `root` view-transition pseudo (shared with the sigil morph) for the
-    // duration, so the control bar / summary snap instantly while .ac-tl-rows
-    // (view-transition-name: tl-lanes) crossfades. Cleared when the VT settles.
-    document.documentElement.classList.add("tl-vt");
-    const vt = document.startViewTransition(paint);
-    vt.finished.finally(() => document.documentElement.classList.remove("tl-vt"));
-  } else {
-    paint();
+  paintCalendarView({ wire: true });
+  // Live calendar data just painted in while the user is on the page — that
+  // counts as seen (mirrors the what's-new stamp in render()).
+  if (state.active && !document.hidden) {
+    markFingerprintsSeen("calendar-grid", calendarFingerprints());
+    updateRailUnread();
   }
 }
 
@@ -9429,128 +9351,30 @@ function wireCalendar() {
   if (cal.view === "timeline") {
     const stage = state.canvas.querySelector(".ac-tl-stage");
     if (stage) {
-      wireTimelineHover(stage, stage.querySelector(".ac-tip"));
-      // Commit layer (glance → hover → click): every lane drills into its own
-      // deeper surface. Ruler mark → that week's hour-grid; activity cluster →
-      // the record; standing endpoint → the full program trajectory; presence
-      // bar → the availability gantt.
-      const commitMark = (target) => {
-        const ruler = target.closest("[data-tl-week]");
-        if (ruler) {
-          const wk = Number(ruler.getAttribute("data-tl-week"));
-          if (Number.isFinite(wk)) {
-            cal.view = "cal";
-            cal.weekIdx = Math.max(0, Math.min(WEEKS_TOTAL - 1, wk));
-            refreshCalendarView();
-          }
-          return true;
-        }
-        if (target.closest("[data-tl-expand]")) {
-          // Unset tlLevel renders as "week" (see the render site), so on first
-          // open the endpoint is expandable and this must jump to program.
-          if ((cal.tlLevel || "week") !== "program") {
-            cal.tlLevel = "program";
-            cal.tlAnchorMs = Date.now();
-            refreshCalendarView();
-          }
-          return true;
-        }
-        if (target.closest("[data-tl-presence]")) {
-          cal.view = "presence";
+      // Each day column commits to that week's hour-grid (glance → click/Enter).
+      const openWeek = (target) => {
+        const col = target.closest("[data-tl-week]");
+        if (!col) return;
+        const wk = Number(col.getAttribute("data-tl-week"));
+        if (Number.isFinite(wk)) {
+          cal.view = "cal";
+          cal.weekIdx = Math.max(0, Math.min(WEEKS_TOTAL - 1, wk));
           refreshCalendarView();
-          return true;
         }
-        const open = target.closest("[data-const-open-record]");
-        if (open) {
-          const rid = open.getAttribute("data-const-open-record");
-          if (rid) openDirectoryRecord(rid) || openDetail(rid);
-          return true;
-        }
-        return false;
       };
-      stage.addEventListener("click", (e) => { commitMark(e.target); });
-      // Keyboard parity for the focusable marks (Enter / Space) — this also gives
-      // the activity dots, which were role=button but had no key handler, a path.
+      stage.addEventListener("click", (e) => openWeek(e.target));
       stage.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
-        if (e.target.closest("[data-tl-week],[data-tl-expand],[data-tl-presence],[data-const-open-record]")) {
-          e.preventDefault();
-          commitMark(e.target);
-        }
+        if (e.target.closest("[data-tl-week]")) { e.preventDefault(); openWeek(e.target); }
       });
     }
-    // zoom level pill (program/month/week) + prev/next window nav
-    for (const btn of state.canvas.querySelectorAll("button[data-tl-level]")) {
-      btn.addEventListener("click", () => {
-        const lv = btn.dataset.tlLevel;
-        // Unset tlLevel renders as "week" (the render-site default), so the
-        // "current" level must default to "week" here too — otherwise clicking
-        // "program" on first open compares equal to the fallback and no-ops.
-        if (!lv || lv === (cal.tlLevel || "week")) return;
-        cal.tlLevel = lv;
-        cal.tlAnchorMs = Date.now();
-        refreshCalendarView();
-      });
-    }
+    // week nav (‹ prev · next ›) + the "today" jump
     for (const btn of state.canvas.querySelectorAll("[data-tl-nav]")) {
       btn.addEventListener("click", () => {
         const to = Number(btn.dataset.tlNavTo);
         if (!Number.isFinite(to)) return;
         cal.tlAnchorMs = to;
         refreshCalendarView();
-      });
-    }
-    // workstream selector — open/close the dropdown, pick a scope
-    const scopeBtn = state.canvas.querySelector("[data-tl-scope-toggle]");
-    const scopeMenu = state.canvas.querySelector(".ac-tl-scope-menu");
-    if (scopeBtn && scopeMenu) {
-      const closeScope = (returnFocus) => {
-        scopeMenu.setAttribute("hidden", "");
-        scopeBtn.setAttribute("aria-expanded", "false");
-        if (returnFocus) scopeBtn.focus();
-      };
-      scopeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const willOpen = scopeMenu.hasAttribute("hidden");
-        scopeMenu.toggleAttribute("hidden", !willOpen);
-        scopeBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
-        // Move focus into the menu on open so it's keyboard-operable from the trigger.
-        if (willOpen) (scopeMenu.querySelector('[aria-selected="true"]') || scopeMenu.querySelector("[data-tl-scope]"))?.focus();
-      });
-      // Keyboard: Escape closes + returns focus; arrow keys rove the options
-      // (Home/End jump to ends); Enter/Space on an option fires its native click.
-      state.canvas.querySelector("[data-tl-scope-ctl]")?.addEventListener("keydown", (e) => {
-        const open = !scopeMenu.hasAttribute("hidden");
-        if (e.key === "Escape" && open) { e.stopPropagation(); closeScope(true); return; }
-        if (!open) return;
-        const opts = [...scopeMenu.querySelectorAll("[data-tl-scope]")];
-        if (!opts.length) return;
-        const i = opts.indexOf(document.activeElement);
-        // i === -1 (focus on the trigger, not an option) is treated as "before
-        // the first": Down → first, Up → last (conventional menu wrap).
-        if (e.key === "ArrowDown") { e.preventDefault(); opts[i < 0 || i === opts.length - 1 ? 0 : i + 1].focus(); }
-        else if (e.key === "ArrowUp") { e.preventDefault(); opts[i <= 0 ? opts.length - 1 : i - 1].focus(); }
-        else if (e.key === "Home") { e.preventDefault(); opts[0].focus(); }
-        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1].focus(); }
-      });
-    }
-    for (const opt of state.canvas.querySelectorAll("[data-tl-scope]")) {
-      opt.addEventListener("click", () => {
-        cal.tlScope = opt.getAttribute("data-tl-scope") || null;
-        refreshCalendarView(); // re-render rebuilds the menu hidden — closes it
-      });
-    }
-    // Light-dismiss the dropdown on an outside click. Bound once on document
-    // (state.canvas survives re-renders, so a per-paint bind would stack).
-    if (!state.tlScopeOutsideBound) {
-      state.tlScopeOutsideBound = true;
-      document.addEventListener("click", (e) => {
-        if (state.mode !== "calendar") return;
-        const menu = state.canvas?.querySelector(".ac-tl-scope-menu");
-        if (menu && !menu.hasAttribute("hidden") && !e.target.closest("[data-tl-scope-ctl]")) {
-          menu.setAttribute("hidden", "");
-          state.canvas.querySelector("[data-tl-scope-toggle]")?.setAttribute("aria-expanded", "false");
-        }
       });
     }
   }

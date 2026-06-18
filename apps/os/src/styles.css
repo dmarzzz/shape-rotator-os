@@ -8035,34 +8035,8 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .ac-tl-controls { margin-bottom: 16px; }
 .c2-timeline { min-height: 220px; }
 
-/* control bar — one consolidated row: [workstream ▾] | [program·month·week] [‹ window ›] */
+/* control bar — one row: ‹ week N · dates › + a "today" jump */
 .ac-tl-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.ac-tl-bar-sep { width: 1px; height: 22px; background: rgba(var(--ink-rgb), 0.12); }
-
-/* workstream selector — stateful dropdown (label = current scope = trigger) */
-.ac-tl-scope { position: relative; }
-.ac-tl-scope-btn { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 11px; background: rgba(var(--ink-rgb), 0.045); border: 1px solid rgba(var(--ink-rgb), 0.16); border-radius: 8px; color: var(--alchemy-paper-warm); font-family: var(--font-mono); font-size: 11px; cursor: pointer; transition: border-color 160ms var(--ease), background 160ms var(--ease); }
-.ac-tl-scope-btn:hover { border-color: rgba(var(--ink-rgb), 0.3); background: rgba(var(--ink-rgb), 0.075); }
-.ac-tl-scope-btn.is-scoped { border-color: color-mix(in oklch, var(--alchemy-oxide) 55%, transparent); background: color-mix(in oklch, var(--alchemy-oxide) 12%, transparent); }
-.ac-tl-scope-k { color: rgba(var(--ink-rgb), 0.72); letter-spacing: 0.07em; text-transform: uppercase; font-size: 9px; }
-.ac-tl-scope-v { font-weight: 500; max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ac-tl-scope-chev { width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); margin-left: 1px; margin-top: -3px; opacity: 0.5; }
-/* enter/exit: native @starting-style + allow-discrete on display — resting rule
-   carries the faster EXIT (140ms), the open rule the slower ENTER (200ms). */
-.ac-tl-scope-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 8; min-width: 190px; max-height: 320px; overflow-y: auto; padding: 5px; background: var(--alchemy-charcoal); border: 1px solid rgba(var(--ink-rgb), 0.18); border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,0.45); display: grid; gap: 1px; opacity: 0; transform: translateY(-4px) scale(0.985); transform-origin: top left; transition: opacity 140ms var(--ease), transform 140ms var(--ease), display 140ms var(--ease) allow-discrete; }
-.ac-tl-scope-menu:not([hidden]) { opacity: 1; transform: translateY(0) scale(1); transition-duration: 200ms; }
-@starting-style { .ac-tl-scope-menu:not([hidden]) { opacity: 0; transform: translateY(-4px) scale(0.985); } }
-.ac-tl-scope-menu[hidden] { display: none; }
-.ac-tl-scope-opt { text-align: left; padding: 6px 9px; background: transparent; border: 0; border-radius: 6px; color: rgba(var(--ink-rgb), 0.82); font-family: var(--font-mono); font-size: 11px; cursor: pointer; white-space: nowrap; transition: background 120ms var(--ease); }
-.ac-tl-scope-opt:hover { background: rgba(var(--ink-rgb), 0.08); color: var(--alchemy-paper-warm); }
-.ac-tl-scope-opt[aria-selected="true"] { background: color-mix(in oklch, var(--alchemy-oxide) 16%, transparent); color: var(--alchemy-paper-warm); }
-
-/* zoom level segmented pill */
-.ac-tl-levels { display: inline-flex; height: 30px; border: 1px solid rgba(var(--ink-rgb), 0.14); border-radius: 8px; overflow: hidden; }
-.ac-tl-lvl { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; padding: 0 12px; background: transparent; color: var(--alchemy-ink-mute); border: 0; cursor: pointer; transition: background 160ms var(--ease), color 160ms var(--ease); }
-.ac-tl-lvl + .ac-tl-lvl { border-left: 1px solid rgba(var(--ink-rgb), 0.1); }
-.ac-tl-lvl:hover { color: var(--alchemy-paper-warm); }
-.ac-tl-lvl[aria-pressed="true"] { background: color-mix(in oklch, var(--alchemy-oxide) 14%, transparent); color: var(--alchemy-paper-warm); }
 
 /* window prev/next nav */
 .ac-tl-winnav { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--alchemy-ink-mute); }
@@ -8071,49 +8045,11 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .ac-tl-navbtn[disabled] { opacity: 0.28; cursor: default; }
 .ac-tl-winlabel { min-width: 132px; text-align: center; }
 
-/* summary line — scope · window · past←now→scheduled */
+/* summary line — count · past ← today → scheduled · hint */
 .ac-tl-summary { margin-top: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--alchemy-ink-mute); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.ac-tl-sum-scope { color: var(--alchemy-paper-warm); font-weight: 500; }
 .ac-tl-sum-sep { opacity: 0.4; }
 .ac-tl-sum-frame em { font-style: normal; color: var(--alchemy-oxide-bright); padding: 0 1px; }
-
-.ac-tl-line.is-scoped { color: var(--alchemy-oxide-bright); }
-@media (prefers-reduced-motion: reduce) { .ac-tl-lvl, .ac-tl-scope-btn, .ac-tl-navbtn, .ac-tl-scope-opt, .ac-tl-scope-menu { transition: none; } }
-.ac-tl { --ac-tl-gutter: 132px; font-family: var(--font-mono); }
-.ac-tl-head,
-.ac-tl-lane { display: grid; grid-template-columns: var(--ac-tl-gutter) 1fr; align-items: center; }
-.ac-tl-head { height: 16px; margin-bottom: 8px; }
-.ac-tl-rows { position: relative; }
-/* Rich label block — name · descriptor · live stat, stacked, vertically centered. */
-.ac-tl-label {
-  display: flex; flex-direction: column; justify-content: center; gap: 1px;
-  padding-right: 14px; min-width: 0;
-}
-.ac-tl-lname { font-size: 11px; font-weight: 500; color: var(--alchemy-paper-warm); letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ac-tl-ldesc { font-size: 9px; color: rgba(var(--ink-rgb), 0.55); letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ac-tl-lstat { font-size: 10px; color: rgba(var(--ink-rgb), 0.82); font-variant-numeric: tabular-nums; margin-top: 1px; }
-.ac-tl-trend { font-style: normal; color: var(--alchemy-oxide-bright); }
-.ac-tl-track { position: relative; height: 100%; min-width: 0; }
-
-.ac-tl-gridlayer { position: absolute; left: var(--ac-tl-gutter); right: 0; top: 0; bottom: 0; pointer-events: none; }
-.ac-tl-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(var(--ink-rgb), 0.06); transform: translateX(-0.5px); }
-.ac-tl-future { position: absolute; top: 0; bottom: 0; right: 0; background: rgba(var(--ink-rgb), 0.025); }
-.ac-tl-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--alchemy-oxide-bright); transform: translateX(-1px); }
-.ac-tl-now i { position: absolute; top: -3px; left: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--alchemy-oxide-bright); }
-
-.ac-tl-weeklabels { font-size: 11px; color: rgba(var(--ink-rgb), 0.6); height: 16px; }
-.ac-tl-wk { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
-.ac-tl-wk.is-start { transform: none; }
-.ac-tl-wk.is-end { transform: translateX(-100%); }
-.ac-tl-wk.is-now { color: var(--alchemy-oxide-bright); }
-
-/* Row distinction: livelines get more height for the curve to read; a hairline
-   divider separates each lane into its own band. */
-.ac-tl-lane { height: 38px; align-items: stretch; }
-.ac-tl-lane.is-ruler { height: 44px; }
-.ac-tl-lane.is-live { height: 56px; }
-.ac-tl-lane + .ac-tl-lane { position: relative; }
-.ac-tl-lane + .ac-tl-lane::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: rgba(var(--ink-rgb), 0.05); }
+@media (prefers-reduced-motion: reduce) { .ac-tl-navbtn { transition: none; } }
 
 /* ── Vertical fill ──────────────────────────────────────────────────────────
    The timeline is a stacked multi-track chart, so it fills the calendar canvas
@@ -8189,68 +8125,8 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .ac-tl-sum-hint { color: rgba(var(--ink-rgb), 0.5); }
 @media (prefers-reduced-motion: reduce) { .cal-col { transition: none; } }
 
-.ac-tl-evt { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 14px; height: 9px; border-radius: 2px; background: rgba(var(--ink-rgb), 0.5); }
-.ac-tl-evt.is-future { background: transparent; border: 1px dashed rgba(var(--ink-rgb), 0.35); }
-.ac-tl-baseline { position: absolute; left: 0; right: 0; bottom: 4px; height: 1px; background: rgba(var(--ink-rgb), 0.1); }
-
-.ac-tl-dot { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 7px; height: 7px; border-radius: 50%; background: rgba(var(--ink-rgb), 0.55); }
-.ac-tl-dot.is-future { background: transparent; border: 1px dashed rgba(var(--ink-rgb), 0.4); }
-.ac-tl-dot.is-cluster { width: 16px; height: 16px; background: rgba(var(--ink-rgb), 0.14); display: flex; align-items: center; justify-content: center; }
-.ac-tl-dot.is-cluster em { font-style: normal; font-size: 10px; color: var(--alchemy-paper-warm); font-variant-numeric: tabular-nums; }
-.ac-tl-dot.is-openable { cursor: pointer; transition: background 160ms var(--ease), border-color 160ms var(--ease); }
-.ac-tl-dot.is-openable:hover,
-.ac-tl-dot.is-openable:focus-visible { background: var(--alchemy-oxide-bright); outline: none; }
-
-.ac-tl-track--line { position: absolute; inset: 0; }
-/* Liveline: the line + filled area share the lane color (currentColor); the area
-   gradient (url(#tlAreaG)) fades from that color to transparent at the baseline. */
-.ac-tl-line { position: absolute; inset: 0; width: 100%; height: 100%; color: rgba(var(--ink-rgb), 0.6); }
-.ac-tl-line polyline { stroke: currentColor; stroke-width: 1.6; opacity: 0.92; }
-/* People liveline reads softer than standing (no hue change): a thinner dashed
-   line + lighter fill separates the two stacked livelines at a glance. */
-.ac-tl-line--pres polyline { stroke-width: 1.3; stroke-dasharray: 3 2.5; opacity: 0.78; }
-.ac-tl-area { stroke: none; }
-.ac-tl-empty { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 10.5px; color: rgba(var(--ink-rgb), 0.55); }
-.ac-tl-end { position: absolute; transform: translate(-50%, -50%); width: 8px; height: 8px; border-radius: 50%; background: var(--alchemy-paper-warm); box-shadow: 0 0 0 3px rgba(var(--ink-rgb), 0.06); }
-.ac-tl-evt.is-multi { width: 18px; }
-.ac-tl-evt, .ac-tl-end, .ac-tl-pt { cursor: help; }
-
-/* Liveline hover points — an invisible target along the curve that reveals a dot
-   on hover and drives the shared tip (data-tl-tip). */
-.ac-tl-pt { position: absolute; width: 13px; height: 13px; transform: translate(-50%, -50%); border-radius: 50%; }
-.ac-tl-pt::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--alchemy-paper-warm); opacity: 0; transition: opacity 140ms var(--ease); }
-.ac-tl-pt.is-future::after { background: rgba(var(--ink-rgb), 0.7); }
-.ac-tl-pt:hover::after { opacity: 0.85; }
-
-/* Commit layer — marks that drill into a deeper surface read as pressable
-   (pointer + hover lift + focus ring), overriding the inspect-only cursor:help.
-   Liveline endpoints (standing→expand, people→availability) are the lane's commit. */
-.ac-tl-evt.is-jump, .ac-tl-end.is-expand, .ac-tl-end[data-tl-presence] { cursor: pointer; }
-.ac-tl-evt.is-jump { transition: background 140ms var(--ease), border-color 140ms var(--ease); }
-.ac-tl-evt.is-jump:hover { background: rgba(var(--ink-rgb), 0.72); }
-.ac-tl-evt.is-jump.is-future:hover { background: transparent; border-color: rgba(var(--ink-rgb), 0.6); }
-.ac-tl-end.is-expand, .ac-tl-end[data-tl-presence] { transition: box-shadow 160ms var(--ease); }
-.ac-tl-end.is-expand:hover, .ac-tl-end[data-tl-presence]:hover { box-shadow: 0 0 0 4px color-mix(in oklch, var(--alchemy-oxide) 30%, transparent); }
-.ac-tl-evt.is-jump:focus-visible, .ac-tl-end.is-expand:focus-visible, .ac-tl-end[data-tl-presence]:focus-visible {
-  outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 2px;
-}
-/* Keyboard focus rings for the control-bar buttons (roved options + pills). */
-.ac-tl-scope-opt:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: -2px; }
-.ac-tl-scope-btn:focus-visible, .ac-tl-lvl:focus-visible, .ac-tl-navbtn:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
-
-/* Lane re-fraction crossfade (scope / zoom / window changes) via View Transitions.
-   The lanes (tl-lanes) crossfade; html.tl-vt zeroes the global `root` pseudo so the
-   control bar / summary snap instantly (the root rule is shared with the sigil morph,
-   hence the transition-scoped class rather than a blanket override). */
-.ac-tl-rows { view-transition-name: tl-lanes; }
-::view-transition-old(tl-lanes), ::view-transition-new(tl-lanes) { animation-duration: 220ms; animation-timing-function: var(--ease); }
-html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { animation: none; }
-
-@media (prefers-reduced-motion: reduce) {
-  .ac-tl-dot.is-openable, .ac-tl-evt.is-jump, .ac-tl-end, .ac-tl-pt::after { transition: none; }
-  ::view-transition-group(tl-lanes), ::view-transition-old(tl-lanes), ::view-transition-new(tl-lanes),
-  ::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
-}
+/* Keyboard focus ring for the week-nav buttons. */
+.ac-tl-navbtn:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 /* Each product layer is a translucent glass pane that picks up the cursor
  * sheen (.lg-track). No oxide tint here — it's a repeated content pane, so the
  * signature wash stays on the singular hero/legend surfaces. */
