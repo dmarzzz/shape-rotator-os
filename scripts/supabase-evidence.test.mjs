@@ -141,12 +141,14 @@ test("fetchCohortEvidenceCards reads the gated view with the cohort key + marks 
   const fetchImpl = (url, opts) => { seenUrl = url; seenHeaders = opts.headers; return okResponse([
     { id: "g1", claim_type: "decision", title: "T", claim_text: "X", summary: "S", evidence_level: "observed", confidence: 0.76, attribution_scope: "team", surface_tier: "T2", content_json: { week_start: "2026-06-08", teams: ["bitrouter"] }, created_at: "2026-06-08" },
   ]); };
-  const out = await fetchCohortEvidenceCards({ config: { url: DEFAULT_URL, cohortKey: "cohort-jwt" }, fetchImpl });
+  const out = await fetchCohortEvidenceCards({ config: { url: DEFAULT_URL, anonKey: "anon-xyz", cohortKey: "cohort-jwt" }, fetchImpl });
   assert.equal(out.source, "supabase-cohort");
   assert.equal(out.cards.length, 1);
   assert.equal(out.cards[0].surface_tier, "T2");
   assert.equal(out.cards[0].source, "supabase-cohort");
   assert.match(seenUrl, /cohort_app_transcript_evidence_cards/);
-  assert.equal(seenHeaders.apikey, "cohort-jwt");
+  // apikey is the ANON key (gateway-recognized); the cohort_app role rides in Bearer.
+  // Sending the cohort JWT as apikey is rejected by Kong with 401 "Invalid API key".
+  assert.equal(seenHeaders.apikey, "anon-xyz");
   assert.equal(seenHeaders.authorization, "Bearer cohort-jwt");
 });
