@@ -666,27 +666,56 @@ export function createRubiksApp(canvas, { onCycleAway, onSequencing, matchSize }
   // ─── scramble / reset ──────────────────────────────────────────────────
   function setSequencing(on) { sequencing = on; onSequencing?.(on); }
 
-  async function scramble(n = 20) {
+  // Scramble button. Distance-from-solved is tracked as the recorded move count.
+  // While that's at/under SCRAMBLE_BACK_THRESHOLD, each click adds another
+  // SCRAMBLE_STEP random turns; once the cube is past it, each click instead
+  // walks back SCRAMBLE_STEP moves (reverses the last n recorded turns). So
+  // repeated clicks keep the cube shuffling within a bounded range rather than
+  // drifting ever further out.
+  const SCRAMBLE_STEP = 10;            // moves added (or walked back) per click
+  const SCRAMBLE_BACK_THRESHOLD = 17;  // > this many moves from solved → walk back
+  async function scramble(n = SCRAMBLE_STEP) {
     if (!ready || busy || sequencing) return;
     setSequencing(true);
-    let lastAxis = -1;
-    for (let i = 0; i < n; i++) {
-      let a; do { a = Math.floor(Math.random() * 3); } while (a === lastAxis);
-      lastAxis = a;
-      // Outer faces only (no middle slice): keeps the centres fixed so the
-      // two-phase solver always returns a clean, minimal solve on reset.
-      const level = Math.random() < 0.5 ? -1 : 1;
-      const turns = Math.random() < 0.5 ? 1 : -1;
-      await rotateLayer(a, level, turns, 200);
+    if (moveHistory.length > SCRAMBLE_BACK_THRESHOLD) {
+      // Past the threshold → walk the cube back n moves: reverse the last n
+      // recorded turns (in reverse order, each inverted) and drop them from
+      // history. The cube body never reorients, so this is an exact rewind.
+      const count = Math.min(n, moveHistory.length);
+      for (let i = 0; i < count; i++) {
+        const mv = moveHistory.pop();
+        await rotateLayer(mv.axisIdx, mv.level, -mv.turns, 200, false);
+      }
+    } else {
+      // Under the threshold → add n more random outer-face turns.
+      let lastAxis = -1;
+      for (let i = 0; i < n; i++) {
+        let a; do { a = Math.floor(Math.random() * 3); } while (a === lastAxis);
+        lastAxis = a;
+        // Outer faces only (no middle slice): keeps the centres fixed so the
+        // two-phase solver always returns a clean, minimal solve on reset.
+        const level = Math.random() < 0.5 ? -1 : 1;
+        const turns = Math.random() < 0.5 ? 1 : -1;
+        await rotateLayer(a, level, turns, 200);
+      }
     }
     setSequencing(false);
   }
 
+  // Reset is a hybrid: if only a handful of moves separate the cube from solved
+  // (a short move history), rewind them — replay the recorded moves in reverse,
+  // inverted — which looks like undoing your own turns and skips the solver
+  // entirely. Once the history grows past BACKTRACK_LIMIT, replaying it would
+  // crawl move-by-move through a long session, so we fall back to the optimal
+  // two-phase solver below instead.
+  const BACKTRACK_LIMIT = 30;   // "< 30 moves to solved" → rewind, else solve
+                                // (Scramble keeps the cube ~10–20 moves out, so
+                                //  Reset normally rewinds rather than solving)
+
   // ─── optimal solve (Kociemba two-phase, via cube-solver.js) ──────────────
-  // Reset no longer replays the move history (which crawls move-by-move through
-  // a long session). Instead we read the cube's ACTUAL state into a standard
-  // facelet string, hand it to the two-phase solver (≤ ~22 moves for any state),
-  // and animate that. The cube↔solver geometry was pinned down + verified
+  // We read the cube's ACTUAL state into a standard facelet string, hand it to
+  // the two-phase solver (≤ ~22 moves for any state), and animate that. The
+  // cube↔solver geometry was pinned down + verified
   // exhaustively offline: solved state and all 18 face turns reproduce cubejs's
   // facelet strings exactly, and thousands of random scrambles round-trip to a
   // colour-solved cube. (See the layout/mapping below.)
@@ -767,6 +796,21 @@ export function createRubiksApp(canvas, { onCycleAway, onSequencing, matchSize }
   async function reset() {
     if (!ready || busy || sequencing) return;
     setSequencing(true);
+
+    // Short history → just rewind it (play the recorded moves back in reverse,
+    // each inverted) rather than computing a fresh solution. The cube body never
+    // reorients, so a layer at (axisIdx, level) is stable across the session and
+    // this reverse is an exact inverse back to solved.
+    if (moveHistory.length > 0 && moveHistory.length < BACKTRACK_LIMIT) {
+      for (let i = moveHistory.length - 1; i >= 0; i--) {
+        const mv = moveHistory[i];
+        await rotateLayer(mv.axisIdx, mv.level, -mv.turns, 200, false);
+      }
+      moveHistory.length = 0;
+      setSequencing(false);
+      return;
+    }
+
     let solution = null;
     try {
       ensureSolver();
