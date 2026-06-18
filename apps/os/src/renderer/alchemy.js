@@ -13955,7 +13955,8 @@ function contextEvidenceCardHtml(card) {
   const when = contextEvidenceDate(card.created_at);
   const chips = [evidence, scope].filter(Boolean)
     .map(c => `<span class="alch-ev-chip">${escHtml(c.replace(/_/g, " "))}</span>`).join("");
-  const prov = [topic, "distilled", "T3 public", when].filter(Boolean).map(escHtml).join(" · ");
+  const tierLabel = String(card.surface_tier || "T3") === "T2" ? "T2 cohort" : "T3 public";
+  const prov = [topic, "distilled", tierLabel, when].filter(Boolean).map(escHtml).join(" · ");
   return `
     <article class="alch-ev-card" data-claim-type="${escAttr(type)}">
       <header class="alch-ev-head">
@@ -13975,16 +13976,37 @@ function contextEvidenceCardHtml(card) {
 
 const EVIDENCE_TIER_LS_KEY = "srfg:evidence_tier";
 
+// Split the live evidence read into its two tiers. transcript_evidence_cards
+// carries BOTH the gated named cohort cards (surface_tier "T2", read with the
+// cohort key) and the public anonymized cards ("T3", read with the anon key) —
+// see supabase-evidence.mjs + applyEvidenceOverlay, which merge both reads into
+// one array. The named tier also folds in any legacy session_insights readouts
+// (bundle-baked, now usually empty). Both tiers are meant to be read off the app.
+function contextEvidenceData() {
+  const all = Array.isArray(state.cohort?.transcript_evidence_cards) ? state.cohort.transcript_evidence_cards : [];
+  const t2cards = all.filter((c) => String(c?.surface_tier || "") === "T2");
+  const t3cards = all.filter((c) => String(c?.surface_tier || "T3") !== "T2");
+  const insights = Array.isArray(state.cohort?.session_insights) ? state.cohort.session_insights : [];
+  return { t2cards, t3cards, insights, namedCount: t2cards.length + insights.length, generalizedCount: t3cards.length };
+}
+
 // Detail tier for the Context > evidence view.
-//   T2 (default) = the richer, NAMED cohort session readouts (from the committed
-//     bundle's session_insights — no login required).
-//   T3 = the person-anonymized cards read live from Supabase (the public tier).
-// Default T2; flip to T3 instantly (via the in-view toggle or this localStorage
-// key) if named detail ever needs pulling back. No login is involved either way.
+//   T2 "named"       = team- and person-attributed cohort cards (gated Supabase
+//                      view, read with the cohort key) + legacy session_insights.
+//   T3 "generalized" = the person-anonymized public cards (anon Supabase view).
+// Both render off the live transcript_evidence_cards read, split by surface_tier.
+// With no explicit choice: prefer the richer NAMED tier when the app actually
+// read it (cohort key present), else fall back to the generalized tier so the
+// live public cards still show — never land on an empty tab. An explicit choice
+// (set via the in-view toggle) is always honored.
 function contextEvidenceTier() {
-  try {
-    return String(localStorage.getItem(EVIDENCE_TIER_LS_KEY) || "").toUpperCase() === "T3" ? "T3" : "T2";
-  } catch { return "T2"; }
+  let saved = "";
+  try { saved = String(localStorage.getItem(EVIDENCE_TIER_LS_KEY) || "").toUpperCase(); } catch {}
+  if (saved === "T2" || saved === "T3") return saved;
+  const { namedCount, generalizedCount } = contextEvidenceData();
+  if (namedCount) return "T2";
+  if (generalizedCount) return "T3";
+  return "T2";
 }
 function setContextEvidenceTier(tier) {
   const next = tier === "T3" ? "T3" : "T2";
@@ -14028,15 +14050,19 @@ function contextSessionSummaryHtml(s) {
   `;
 }
 
-function renderContextEvidence(tier, cards, insights) {
+function renderContextEvidence(tier, t3cards, t2cards, insights) {
   const toggle = evidenceTierToggleHtml(tier);
   if (tier === "T2") {
-    const body = insights.length
-      ? `<p class="alch-ev-lede">${insights.length} cohort session readout${insights.length === 1 ? "" : "s"} — named, with the 60-second summary, themes, and product insights. Switch to <em>generalized</em> for the person-anonymized public view.</p>
-         <div class="alch-ev-grid alch-ev-sum-grid">${insights.map(contextSessionSummaryHtml).join("")}</div>`
-      : `<p class="alch-cv-muted alch-ev-empty">No cohort session readouts yet. Distill sessions into readouts to populate the named tier.</p>`;
+    const named = Array.isArray(t2cards) ? t2cards : [];
+    const readouts = Array.isArray(insights) ? insights : [];
+    const total = named.length + readouts.length;
+    const body = total
+      ? `<p class="alch-ev-lede">${total} named cohort evidence ${total === 1 ? "card" : "cards"} — team- and person-attributed, read live from Supabase. Switch to <em>generalized</em> for the person-anonymized public view.</p>
+         <div class="alch-ev-grid">${named.map(contextEvidenceCardHtml).join("")}${readouts.map(contextSessionSummaryHtml).join("")}</div>`
+      : `<p class="alch-cv-muted alch-ev-empty">No named cohort evidence in this build. The named tier reads the gated Supabase view (cohort_app_transcript_evidence_cards), which needs the cohort key — without it the app shows the <em>generalized</em> public tier only.</p>`;
     return `${toggle}${body}`;
   }
+  const cards = Array.isArray(t3cards) ? t3cards : [];
   const body = cards.length
     ? `<p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from Supabase — person-anonymized, team-attributed, published.</p>
        <div class="alch-ev-grid">${cards.map(contextEvidenceCardHtml).join("")}</div>`
@@ -14117,9 +14143,10 @@ function renderContextVault() {
     raw: cv.loaded ? rawScripts.length : undefined,
     signals: intelMeta.signals,
     data: intelMeta.entities,
-    evidence: (contextEvidenceTier() === "T2"
-      ? (state.cohort?.session_insights || []).length
-      : (state.cohort?.transcript_evidence_cards || []).length) || undefined,
+    evidence: (() => {
+      const d = contextEvidenceData();
+      return (contextEvidenceTier() === "T2" ? d.namedCount : d.generalizedCount) || undefined;
+    })(),
   });
 
   // Evidence view — distilled transcript cards read live from Supabase
@@ -14127,12 +14154,11 @@ function renderContextVault() {
   // shared page header, same as the intel views.
   if (view === "evidence") {
     const tier = contextEvidenceTier();
-    const cards = Array.isArray(state.cohort?.transcript_evidence_cards) ? state.cohort.transcript_evidence_cards : [];
-    const insights = Array.isArray(state.cohort?.session_insights) ? state.cohort.session_insights : [];
+    const { t2cards, t3cards, insights } = contextEvidenceData();
     state.canvas.innerHTML = `
       <section class="alch-cv">
         ${pageHeadHtml({ nav })}
-        ${renderContextEvidence(tier, cards, insights)}
+        ${renderContextEvidence(tier, t3cards, t2cards, insights)}
       </section>
     `;
     return;
