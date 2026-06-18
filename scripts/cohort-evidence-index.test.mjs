@@ -1,0 +1,88 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  indexCohortEvidence, teamEvidence, recentClaims, edgePairs, weekHistogram,
+  evidenceDependencyRecords,
+} from "../apps/os/src/renderer/cohort-evidence-index.mjs";
+
+const card = (claim_type, teams, week, claim_text = "x", extra = {}) => ({
+  id: `${claim_type}-${teams.join("-")}-${week}`,
+  claim_type, claim_text, title: "Session", evidence_level: "observed",
+  content_json: { teams, week_start: week, ...extra },
+});
+
+const cards = [
+  card("decision", ["bitrouter"], "2026-05-25", "repositioned around reliability"),
+  card("action_item", ["bitrouter"], "2026-06-08", "ship x402-kit"),
+  card("product_signal", ["bitrouter"], "2026-06-08", "coding-agent workloads"),
+  card("ask", ["elizaos"], "2026-06-08", "needs intros"),
+  card("risk", ["elizaos"], "2026-06-08", "legal exposure"),
+  card("collaboration_edge", ["bitrouter", "teleport-router"], "2026-06-08", "shared router"),
+  card("collaboration_edge", ["bitrouter", "teleport-router"], "2026-05-25", "earlier overlap"),
+  card("market_signal", ["conclave"], "2026-06-01", "enterprise wedge"),
+  card("claim", [], "2026-02-23", "external lecture insight (no team)"),
+];
+
+test("indexCohortEvidence buckets claims by team + type, with week counts", () => {
+  const idx = indexCohortEvidence(cards);
+  const bit = teamEvidence(idx, "bitrouter");
+  assert.equal(bit.did.length, 2, "decision + action_item are the observed 'did'");
+  assert.equal(bit.pmf.length, 1, "product_signal feeds PMF");
+  assert.equal(bit.all.length, 5, "all bitrouter claims: 2 did + 1 pmf + 2 collaboration edges");
+  assert.equal(bit.weeks.get("2026-06-08"), 3, "action_item + product_signal + one edge");
+  assert.equal(bit.weeks.get("2026-05-25"), 2, "decision + the earlier edge");
+  const eliza = teamEvidence(idx, "elizaos");
+  assert.equal(eliza.asks.length, 1);
+  assert.equal(eliza.risks.length, 1);
+});
+
+test("collaboration_edge claims become deduped team-pair edges (newest week kept)", () => {
+  const idx = indexCohortEvidence(cards);
+  const pairs = edgePairs(idx);
+  assert.equal(pairs.length, 1, "the two bitrouter/teleport-router edge claims collapse to one pair");
+  assert.equal(pairs[0].week, "2026-06-08", "newest week wins");
+  assert.deepEqual([pairs[0].a, pairs[0].b].sort(), ["bitrouter", "teleport-router"]);
+});
+
+test("weekHistogram is the time axis (sorted, drops undated)", () => {
+  const idx = indexCohortEvidence(cards);
+  const hist = weekHistogram(idx);
+  assert.deepEqual(hist.map((h) => h.week), ["2026-02-23", "2026-05-25", "2026-06-01", "2026-06-08"]);
+  assert.equal(hist.find((h) => h.week === "2026-06-08").count, 5);
+});
+
+test("recentClaims returns newest-first text/week for a view to render", () => {
+  const idx = indexCohortEvidence(cards);
+  const did = recentClaims(teamEvidence(idx, "bitrouter"), "did", 2);
+  assert.equal(did.length, 2);
+  assert.equal(did[0].week, "2026-06-08", "most recent did first");
+  assert.match(did[0].text, /x402-kit/);
+});
+
+test("evidenceDependencyRecords shape collaboration edges into renderable dependency records", () => {
+  const recs = evidenceDependencyRecords(cards, []);
+  assert.equal(recs.length, 1, "the two bitrouter/teleport edge claims collapse to one record");
+  const r = recs[0];
+  assert.equal(r.record_type, "dependency", "must be a dependency record the relationship map renders");
+  assert.equal(r.relation, "shares_substrate");
+  assert.equal(r.status, "session_observed", "provenance: distinguishable from a declared dep");
+  assert.deepEqual([r.source, r.target].sort(), ["bitrouter", "teleport-router"]);
+  assert.equal(r.updated_at, "2026-06-08", "newest week");
+  assert.match(r.reason, /shared router/, "the claim text rides as the edge reason");
+  assert.match(r.evidence[0], /reviewed session/);
+});
+
+test("evidenceDependencyRecords does NOT restate an already-declared dependency", () => {
+  const declared = [{ record_type: "dependency", source: "bitrouter", target: "teleport-router", relation: "depends_on" }];
+  assert.deepEqual(evidenceDependencyRecords(cards, declared), [], "declared pair is skipped — no duplicate edge");
+});
+
+test("empty / malformed evidence yields an empty index (views no-op, never throw)", () => {
+  for (const input of [[], null, undefined, [null, "garbage", {}], [{ claim_type: "decision" }]]) {
+    const idx = indexCohortEvidence(input);
+    assert.equal(idx.teams.size, 0);
+    assert.deepEqual(edgePairs(idx), []);
+    assert.deepEqual(weekHistogram(idx), []);
+    assert.deepEqual(teamEvidence(idx, "anyone").did, []);
+  }
+});

@@ -34,6 +34,18 @@ import {
 export const DEFAULT_PUBLIC_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4am50endrc2lsdXZxY3BjY3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzA1NzEsImV4cCI6MjA5Njk0NjU3MX0.XjXEUnw3jq1E7PwIOvhr7a3OpO2lyZv6S_Hn3JqogBA";
 
+// The COHORT key is a JWT bearing role=cohort_app (see the engine migration
+// 20260618000000_cohort_app_evidence_reader.sql). It reads the GATED T2 cohort
+// evidence view (cohort_app_transcript_evidence_cards) — content NOT exposed to
+// anon / the public web. Unlike the anon key, this is NOT baked into the public
+// source: it is empty here and supplied per-build (injected into the distributed
+// app) or via the calendar-ingress config (supabaseCohortKey). When empty — i.e.
+// the public web bundle or an un-provisioned build — the cohort reader no-ops and
+// the app falls back to the anon T3 read. SOFT gate: a key in a distributed binary
+// is extractable, so this is "off the public web", not a hard boundary; revoke by
+// dropping the cohort_app grant/role server-side.
+export const DEFAULT_COHORT_KEY = (typeof process !== "undefined" && process.env && process.env.SRFG_COHORT_KEY) || "";
+
 // Columns the anon view exposes (must match the migration's select list).
 const PUBLIC_CARD_COLUMNS = [
   "id", "claim_type", "title", "claim_text", "summary",
@@ -53,7 +65,47 @@ export function readSupabaseConfig(storage = globalThis.localStorage) {
   }
   const url = String(cfg.supabaseUrl || DEFAULT_SUPABASE_URL || "").replace(/\/+$/, "");
   const anonKey = String(cfg.supabaseAnonKey || DEFAULT_PUBLIC_ANON_KEY || "").trim();
-  return { url, anonKey };
+  const cohortKey = String(cfg.supabaseCohortKey || DEFAULT_COHORT_KEY || "").trim();
+  return { url, anonKey, cohortKey };
+}
+
+// Columns the GATED cohort (T2) view exposes — includes surface_tier + the full
+// content_json (date/week_start/teams) the cohort views key off. No org/session.
+const COHORT_CARD_COLUMNS = [
+  "id", "claim_type", "title", "claim_text", "summary", "evidence_level",
+  "confidence", "attribution_scope", "surface_tier", "content_json", "created_at", "reviewed_at",
+].join(",");
+
+export function cohortEvidenceCardsUrl(baseUrl) {
+  const url = new URL(`${baseUrl}/rest/v1/cohort_app_transcript_evidence_cards`);
+  url.searchParams.set("select", COHORT_CARD_COLUMNS);
+  url.searchParams.set("order", "created_at.desc");
+  return url.toString();
+}
+
+// Fetch the GATED T2 cohort evidence using the cohort key. No-ops (returns
+// source:"unconfigured") when no cohort key is set — the public web bundle and
+// un-provisioned builds, which then fall back to the anon T3 read. Always resolves.
+export async function fetchCohortEvidenceCards({ storage, fetchImpl, config } = {}) {
+  const doFetch = fetchImpl || globalThis.fetch;
+  const { url, cohortKey } = config || readSupabaseConfig(storage);
+  if (!url || !cohortKey || typeof doFetch !== "function") {
+    return { cards: [], source: "unconfigured" };
+  }
+  let res;
+  try {
+    res = await doFetch(cohortEvidenceCardsUrl(url), {
+      headers: { apikey: cohortKey, authorization: `Bearer ${cohortKey}`, accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch (error) {
+    return { cards: [], source: "error", error: String(error && error.message ? error.message : error) };
+  }
+  if (!res || !res.ok) return { cards: [], source: "error", error: `HTTP ${res ? res.status : "no response"}` };
+  let rows;
+  try { rows = await res.json(); } catch { return { cards: [], source: "error", error: "invalid JSON from Supabase" }; }
+  const cards = Array.isArray(rows) ? rows.map(normalizeCard).filter(Boolean).map((c) => ({ ...c, surface_tier: "T2", source: "supabase-cohort" })) : [];
+  return { cards, source: "supabase-cohort" };
 }
 
 export function publicEvidenceCardsUrl(baseUrl) {
