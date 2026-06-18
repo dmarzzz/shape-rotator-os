@@ -28,6 +28,7 @@ import { getManifest, getRecord } from "./sync-client.js";
 import { fetchPublicEvidenceCards, fetchCohortEvidenceCards } from "./supabase-evidence.mjs";
 import { evidenceDependencyRecords } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
+import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
@@ -771,6 +772,29 @@ async function applyArticleOverlay(surface) {
   return surface;
 }
 
+// Apply the live Supabase distilled-readout overlay. A build carrying a cohort key
+// (the distributed app) reads the GATED cohort distillations (the role-gated
+// cohort_app_transcript_distillations view) and hangs them on
+// surface.transcript_distillations.artifacts so the transcripts tab can show the
+// cleaned readouts next to the local raw vault. No cohort key (public web /
+// un-provisioned build) or a Supabase outage leaves whatever the surface carries —
+// the bundle ships only distillation counts (artifacts stripped), so the tab stays
+// raw-only until a cohort key is provisioned.
+async function applyDistillationOverlay(surface) {
+  try {
+    const { artifacts, source } = await fetchCohortDistillations();
+    if (source === "supabase-cohort") {
+      const existing = (surface.transcript_distillations && typeof surface.transcript_distillations === "object")
+        ? surface.transcript_distillations : {};
+      surface.transcript_distillations = { ...existing, artifacts, live_count: artifacts.length };
+      surface._distillationSource = source;
+    }
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
 // Apply the live Supabase per-person sphere overlay. Each customized person has
 // a row in os_spheres (record_id → five visual dials); we fold the whole map
 // onto the surface as `person_spheres` so the card/detail renderers can emit
@@ -962,6 +986,7 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
       const merged = await applySyncOverlayCached(baseline);
       await applyEvidenceOverlay(merged);
       await applyArticleOverlay(merged);
+      await applyDistillationOverlay(merged);
       await applySphereOverlay(merged);
       merged._sig = signatureOf(merged);
       // Did anything actually change? If not, no subscriber notify.

@@ -13372,7 +13372,7 @@ function contextNormalizeView(raw) {
 
 const CONTEXT_VIEWS = [
   { view: "articles", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>', label: "articles", hint: "reader-facing drafts from the vault" },
-  { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "raw source transcripts with review metadata" },
+  { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "your local raw vault + the cohort's distilled readouts (live)" },
   { view: "signals",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>', label: "signals", hint: "vault-backed reads on cohort moves" },
   { view: "data",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>', label: "data", hint: "sanitized entity graph behind the signals" },
   { view: "evidence", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>', label: "evidence", hint: "distilled evidence cards, live from Supabase" },
@@ -14037,7 +14037,8 @@ function contextEvidenceCardHtml(card) {
   const when = contextEvidenceDate(card.created_at);
   const chips = [evidence, scope].filter(Boolean)
     .map(c => `<span class="alch-ev-chip">${escHtml(c.replace(/_/g, " "))}</span>`).join("");
-  const prov = [topic, "distilled", "T3 public", when].filter(Boolean).map(escHtml).join(" · ");
+  const tierLabel = String(card.surface_tier || "T3") === "T2" ? "T2 cohort" : "T3 public";
+  const prov = [topic, "distilled", tierLabel, when].filter(Boolean).map(escHtml).join(" · ");
   return `
     <article class="alch-ev-card" data-claim-type="${escAttr(type)}">
       <header class="alch-ev-head">
@@ -14057,16 +14058,37 @@ function contextEvidenceCardHtml(card) {
 
 const EVIDENCE_TIER_LS_KEY = "srfg:evidence_tier";
 
+// Split the live evidence read into its two tiers. transcript_evidence_cards
+// carries BOTH the gated named cohort cards (surface_tier "T2", read with the
+// cohort key) and the public anonymized cards ("T3", read with the anon key) —
+// see supabase-evidence.mjs + applyEvidenceOverlay, which merge both reads into
+// one array. The named tier also folds in any legacy session_insights readouts
+// (bundle-baked, now usually empty). Both tiers are meant to be read off the app.
+function contextEvidenceData() {
+  const all = Array.isArray(state.cohort?.transcript_evidence_cards) ? state.cohort.transcript_evidence_cards : [];
+  const t2cards = all.filter((c) => String(c?.surface_tier || "") === "T2");
+  const t3cards = all.filter((c) => String(c?.surface_tier || "T3") !== "T2");
+  const insights = Array.isArray(state.cohort?.session_insights) ? state.cohort.session_insights : [];
+  return { t2cards, t3cards, insights, namedCount: t2cards.length + insights.length, generalizedCount: t3cards.length };
+}
+
 // Detail tier for the Context > evidence view.
-//   T2 (default) = the richer, NAMED cohort session readouts (from the committed
-//     bundle's session_insights — no login required).
-//   T3 = the person-anonymized cards read live from Supabase (the public tier).
-// Default T2; flip to T3 instantly (via the in-view toggle or this localStorage
-// key) if named detail ever needs pulling back. No login is involved either way.
+//   T2 "named"       = team- and person-attributed cohort cards (gated Supabase
+//                      view, read with the cohort key) + legacy session_insights.
+//   T3 "generalized" = the person-anonymized public cards (anon Supabase view).
+// Both render off the live transcript_evidence_cards read, split by surface_tier.
+// With no explicit choice: prefer the richer NAMED tier when the app actually
+// read it (cohort key present), else fall back to the generalized tier so the
+// live public cards still show — never land on an empty tab. An explicit choice
+// (set via the in-view toggle) is always honored.
 function contextEvidenceTier() {
-  try {
-    return String(localStorage.getItem(EVIDENCE_TIER_LS_KEY) || "").toUpperCase() === "T3" ? "T3" : "T2";
-  } catch { return "T2"; }
+  let saved = "";
+  try { saved = String(localStorage.getItem(EVIDENCE_TIER_LS_KEY) || "").toUpperCase(); } catch {}
+  if (saved === "T2" || saved === "T3") return saved;
+  const { namedCount, generalizedCount } = contextEvidenceData();
+  if (namedCount) return "T2";
+  if (generalizedCount) return "T3";
+  return "T2";
 }
 function setContextEvidenceTier(tier) {
   const next = tier === "T3" ? "T3" : "T2";
@@ -14081,6 +14103,102 @@ function evidenceTierToggleHtml(tier) {
     ${opt("T2", "named", "cohort tier — named teams, people, and the full session summary")}
     ${opt("T3", "generalized", "public tier — person-anonymized, no named teams or people")}
   </div>`;
+}
+
+// ─── Transcripts tab: raw (local vault) ↔ distilled (cohort) source toggle ───
+// The transcripts tab shows two sources: the user's LOCAL raw vault (manifest
+// raw_scripts, on this machine) and the cohort's DISTILLED readouts read live from
+// Supabase (cohort_app_transcript_distillations, overlaid by cohort-source.js
+// applyDistillationOverlay). Distilled is empty until a cohort key is provisioned —
+// the public web / un-provisioned build shows raw only.
+const TRANSCRIPTS_SOURCE_LS_KEY = "srfg:transcripts_source";
+
+function contextDistilledList() {
+  const arts = state.cohort?.transcript_distillations?.artifacts;
+  return Array.isArray(arts) ? arts : [];
+}
+
+function contextDistilledById(id) {
+  if (!id) return null;
+  return contextDistilledList().find((d) => d && d.id === id) || null;
+}
+
+// Which source the transcripts tab shows. Honors an explicit toggle choice; with
+// none, prefers distilled when the app actually read any (cohort key present), else
+// falls back to the local raw vault — never lands on an empty side.
+function contextTranscriptsSource() {
+  let saved = "";
+  try { saved = String(localStorage.getItem(TRANSCRIPTS_SOURCE_LS_KEY) || "").toLowerCase(); } catch {}
+  if (saved === "raw" || saved === "distilled") return saved;
+  return contextDistilledList().length ? "distilled" : "raw";
+}
+
+function setContextTranscriptsSource(src) {
+  const next = src === "distilled" ? "distilled" : "raw";
+  try { localStorage.setItem(TRANSCRIPTS_SOURCE_LS_KEY, next); } catch {}
+  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
+}
+
+function transcriptsSourceToggleHtml(source, rawCount, distilledCount) {
+  const opt = (s, label, count, hint) =>
+    `<button class="alch-ev-tier-btn${source === s ? " is-on" : ""}" data-cv-tsource="${s}" type="button" aria-pressed="${source === s}" title="${escAttr(hint)}">${label}${Number.isFinite(count) ? ` ${count}` : ""}</button>`;
+  return `<div class="alch-ev-tier alch-cv-tsource" role="group" aria-label="transcripts source">
+    ${opt("raw", "raw", rawCount, "your local vault — raw source transcripts on this machine")}
+    ${opt("distilled", "distilled", distilledCount, "cohort tier — cleaned, paraphrased session readouts, read live from Supabase")}
+  </div>`;
+}
+
+function distilledTranscriptTitle(s) {
+  if (s?.title) return s.title;
+  return `Distilled ${String(s?.kind || "readout").replace(/_/g, " ")}`;
+}
+
+function distilledTranscriptMeta(s) {
+  const bits = [];
+  if (s?.session_type) bits.push(String(s.session_type).replace(/_/g, " "));
+  if (s?.kind) bits.push(String(s.kind).replace(/_/g, " "));
+  if (s?.date) bits.push(contextEvidenceDate(s.date));
+  const teams = Array.isArray(s?.teams) ? s.teams : [];
+  if (teams.length) bits.push(teams.slice(0, 3).map((t) => String(t).replace(/-/g, " ")).join(", "));
+  return bits.filter(Boolean).join(" · ");
+}
+
+function renderDistilledTranscriptDetail(selected) {
+  if (!selected) {
+    return `
+      <article class="alch-cv-detail alch-cv-empty-detail">
+        <h3>no distilled transcripts yet</h3>
+        <p>The cohort's distilled readouts load live from Supabase once a cohort key is provisioned. Without one the app shows your local raw vault — switch to <em>raw</em> above.</p>
+      </article>
+    `;
+  }
+  const title = distilledTranscriptTitle(selected);
+  const themes = Array.isArray(selected.themes) ? selected.themes : [];
+  const themeChips = themes.slice(0, 6).map((t) => `<span class="alch-ev-chip">${escHtml(String(t))}</span>`).join("");
+  const who = [...(Array.isArray(selected.teams) ? selected.teams : []), ...(Array.isArray(selected.people) ? selected.people : [])]
+    .map((w) => String(w).replace(/-/g, " ").trim()).filter(Boolean);
+  const body = selected.body_md ? renderProgramMarkdown(selected.body_md) : `<p class="alch-cv-muted">This readout has no body.</p>`;
+  return `
+    <article class="alch-cv-detail alch-cv-distilled-detail">
+      <header class="alch-cv-detail-head">
+        <div><span class="alch-cv-eyebrow">distilled readout · cohort</span></div>
+        <div class="alch-cv-detail-actions">
+          <button class="alch-cv-md-action" type="button" data-cv-copy-distilled="${escAttr(selected.id)}" title="copy this readout">
+            <span class="alch-cv-md-action-label">copy .md</span>
+          </button>
+        </div>
+      </header>
+      <article class="alch-cv-reader">
+        <p class="alch-cv-reader-kicker">${escHtml(distilledTranscriptMeta(selected) || "cohort distilled readout")}</p>
+        <h1>${escHtml(title)}</h1>
+        ${selected.summary ? `<p class="alch-cv-reader-dek">${escHtml(selected.summary)}</p>` : ""}
+        ${themeChips ? `<div class="alch-ev-meta">${themeChips}</div>` : ""}
+        ${body}
+        ${who.length ? `<div class="alch-ev-sum-who">${who.slice(0, 12).map((w) => `<span class="alch-ev-chip alch-ev-who-chip">${escHtml(w)}</span>`).join("")}</div>` : ""}
+      </article>
+      <div class="alch-cv-result" data-cv-result hidden></div>
+    </article>
+  `;
 }
 
 // A named cohort session readout (T2) — the summary-section format: thesis hook,
@@ -14110,15 +14228,19 @@ function contextSessionSummaryHtml(s) {
   `;
 }
 
-function renderContextEvidence(tier, cards, insights) {
+function renderContextEvidence(tier, t3cards, t2cards, insights) {
   const toggle = evidenceTierToggleHtml(tier);
   if (tier === "T2") {
-    const body = insights.length
-      ? `<p class="alch-ev-lede">${insights.length} cohort session readout${insights.length === 1 ? "" : "s"} — named, with the 60-second summary, themes, and product insights. Switch to <em>generalized</em> for the person-anonymized public view.</p>
-         <div class="alch-ev-grid alch-ev-sum-grid">${insights.map(contextSessionSummaryHtml).join("")}</div>`
-      : `<p class="alch-cv-muted alch-ev-empty">No cohort session readouts yet. Distill sessions into readouts to populate the named tier.</p>`;
+    const named = Array.isArray(t2cards) ? t2cards : [];
+    const readouts = Array.isArray(insights) ? insights : [];
+    const total = named.length + readouts.length;
+    const body = total
+      ? `<p class="alch-ev-lede">${total} named cohort evidence ${total === 1 ? "card" : "cards"} — team- and person-attributed, read live from Supabase. Switch to <em>generalized</em> for the person-anonymized public view.</p>
+         <div class="alch-ev-grid">${named.map(contextEvidenceCardHtml).join("")}${readouts.map(contextSessionSummaryHtml).join("")}</div>`
+      : `<p class="alch-cv-muted alch-ev-empty">No named cohort evidence in this build. The named tier reads the gated Supabase view (cohort_app_transcript_evidence_cards), which needs the cohort key — without it the app shows the <em>generalized</em> public tier only.</p>`;
     return `${toggle}${body}`;
   }
+  const cards = Array.isArray(t3cards) ? t3cards : [];
   const body = cards.length
     ? `<p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from Supabase — person-anonymized, team-attributed, published.</p>
        <div class="alch-ev-grid">${cards.map(contextEvidenceCardHtml).join("")}</div>`
@@ -14199,9 +14321,10 @@ function renderContextVault() {
     raw: cv.loaded ? rawScripts.length : undefined,
     signals: intelMeta.signals,
     data: intelMeta.entities,
-    evidence: (contextEvidenceTier() === "T2"
-      ? (state.cohort?.session_insights || []).length
-      : (state.cohort?.transcript_evidence_cards || []).length) || undefined,
+    evidence: (() => {
+      const d = contextEvidenceData();
+      return (contextEvidenceTier() === "T2" ? d.namedCount : d.generalizedCount) || undefined;
+    })(),
   });
 
   // Evidence view — distilled transcript cards read live from Supabase
@@ -14209,12 +14332,11 @@ function renderContextVault() {
   // shared page header, same as the intel views.
   if (view === "evidence") {
     const tier = contextEvidenceTier();
-    const cards = Array.isArray(state.cohort?.transcript_evidence_cards) ? state.cohort.transcript_evidence_cards : [];
-    const insights = Array.isArray(state.cohort?.session_insights) ? state.cohort.session_insights : [];
+    const { t2cards, t3cards, insights } = contextEvidenceData();
     state.canvas.innerHTML = `
       <section class="alch-cv">
         ${pageHeadHtml({ nav })}
-        ${renderContextEvidence(tier, cards, insights)}
+        ${renderContextEvidence(tier, t3cards, t2cards, insights)}
       </section>
     `;
     return;
@@ -14239,17 +14361,19 @@ function renderContextVault() {
   const selectedRaw = pendingRaw || contextRawScriptById(cv.selectedRawId) || rawScripts[0] || null;
   if (selected && !cv.selectedId) cv.selectedId = selected.id;
   if (selectedRaw && !cv.selectedRawId) cv.selectedRawId = selectedRaw.id;
-  const sourceRows = mode === "raw"
-    ? rawScripts.map(s => {
-      const selectedCls = selectedRaw && selectedRaw.id === s.id ? " is-selected" : "";
-      return `
-        <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-raw-source="${escAttr(s.id)}">
-          <strong>${escHtml(contextRawScriptTitle(s))}</strong>
-          <span class="alch-cv-source-meta">${escHtml(contextRawScriptMeta(s))}</span>
-        </button>
-      `;
-    }).join("")
-    : sources.map(s => {
+  // Transcripts tab has two sources: the local raw vault and the cohort's live
+  // distilled readouts. A toggle swaps the sidebar list + the detail pane.
+  const tsource = mode === "raw" ? contextTranscriptsSource() : "raw";
+  const distilled = mode === "raw" ? contextDistilledList() : [];
+  const selectedDistilled = tsource === "distilled"
+    ? (contextDistilledById(cv.selectedDistilledId) || distilled[0] || null)
+    : null;
+  if (selectedDistilled && !cv.selectedDistilledId) cv.selectedDistilledId = selectedDistilled.id;
+
+  let sourceRows;
+  let detail;
+  if (mode === "articles") {
+    sourceRows = sources.map(s => {
       const selectedCls = selected && selected.id === s.id ? " is-selected" : "";
       const title = contextArticleTitle(s);
       const meta = contextArticleMeta(s);
@@ -14260,25 +14384,61 @@ function renderContextVault() {
         </button>
       `;
     }).join("");
-  const detail = mode === "raw" ? renderContextVaultRawDetail(selectedRaw) : renderContextVaultDetail(selected);
+    detail = renderContextVaultDetail(selected);
+  } else if (tsource === "distilled") {
+    sourceRows = distilled.map(s => {
+      const selectedCls = selectedDistilled && selectedDistilled.id === s.id ? " is-selected" : "";
+      return `
+        <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-distilled-source="${escAttr(s.id)}">
+          <strong>${escHtml(distilledTranscriptTitle(s))}</strong>
+          <span class="alch-cv-source-meta">${escHtml(distilledTranscriptMeta(s))}</span>
+        </button>
+      `;
+    }).join("");
+    detail = renderDistilledTranscriptDetail(selectedDistilled);
+  } else {
+    sourceRows = rawScripts.map(s => {
+      const selectedCls = selectedRaw && selectedRaw.id === s.id ? " is-selected" : "";
+      return `
+        <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-raw-source="${escAttr(s.id)}">
+          <strong>${escHtml(contextRawScriptTitle(s))}</strong>
+          <span class="alch-cv-source-meta">${escHtml(contextRawScriptMeta(s))}</span>
+        </button>
+      `;
+    }).join("");
+    detail = renderContextVaultRawDetail(selectedRaw);
+  }
+
+  const emptyLabel = mode === "articles" ? "articles"
+    : tsource === "distilled" ? "distilled readouts" : "transcripts";
 
   state.canvas.innerHTML = `
     <section class="alch-cv">
       ${pageHeadHtml({ nav })}
       ${mode === "raw" ? renderContextComposer() : ""}
+      ${mode === "raw" ? transcriptsSourceToggleHtml(tsource, rawScripts.length, distilled.length) : ""}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
       <div class="alch-cv-layout">
         <aside class="alch-cv-sidebar">
-          <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">refresh to load ${mode === "raw" ? "transcripts" : "articles"}.</p>`}</div>
+          <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">refresh to load ${emptyLabel}.</p>`}</div>
         </aside>
         ${detail}
       </div>
     </section>
   `;
-  if (mode === "raw" && selectedRaw && !cv.rawTextById?.[selectedRaw.id]) {
+  if (mode === "raw" && tsource === "raw" && selectedRaw && !cv.rawTextById?.[selectedRaw.id]) {
     setTimeout(() => loadContextRawScriptText(selectedRaw.id), 0);
   }
+}
+
+// Select a distilled readout in the transcripts tab's distilled source. Mirrors
+// selectContextRawScript but the readout body is already in the surface (no async
+// text fetch), so a plain re-render swaps the detail pane.
+function selectContextDistilled(id) {
+  if (!id || state.contextVault.selectedDistilledId === id) return;
+  state.contextVault.selectedDistilledId = id;
+  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
 }
 
 function wireContextVault() {
@@ -14293,6 +14453,20 @@ function wireContextVault() {
   }
   for (const btn of state.canvas.querySelectorAll("[data-cv-raw-source]")) {
     btn.addEventListener("click", () => selectContextRawScript(btn.dataset.cvRawSource));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-cv-tsource]")) {
+    btn.addEventListener("click", () => setContextTranscriptsSource(btn.dataset.cvTsource));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-cv-distilled-source]")) {
+    btn.addEventListener("click", () => selectContextDistilled(btn.dataset.cvDistilledSource));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-cv-copy-distilled]")) {
+    btn.addEventListener("click", async () => {
+      const d = contextDistilledById(btn.dataset.cvCopyDistilled);
+      if (!d) return;
+      const ok = await copyTextToClipboard(d.body_md || "");
+      flashCopyButton(btn, ok);
+    });
   }
   // Embedded intel (signals/data views) wires its own internals; the page
   // nav stays in sync when an intel cross-link jumps data → signals.
