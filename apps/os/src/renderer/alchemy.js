@@ -5702,8 +5702,7 @@ function renderJourney() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="journey">
     ${cohortPageHead("journey")}
-    <div class="ac-view-timeframe">${renderConstellationTimelineControls()}</div>
-    <div class="alch-view-controls" data-shape-occluder>${filterBar}${constSelectionChipHtml()}</div>
+    <div class="alch-view-controls" data-shape-occluder>${filterBar}${constSelectionChipHtml()}<span class="ac-view-timeframe">${constTimelineDropdownHtml()}</span></div>
     <div class="alch-constellation" data-constellation-view="journey">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
@@ -7692,10 +7691,6 @@ function wireDetailDismiss() {
 // ─── constellation hover ─────────────────────────────────────────────
 function wireConstellationHover() {
   wireConstellationModeNav();
-  // The week-by-week timeframe dial (renderConstellationTimelineControls) is a
-  // top band on PMF; wire its scrubber + week ticks here so stepping a week
-  // re-renders the view. No-op on views that don't render the dial.
-  wireConstellationTimelineControls(state.canvas);
   const stage = state.canvas.querySelector(".alch-constellation-stage");
   // Selection chip + readout name-links live OUTSIDE the inspector (which
   // has its own delegated handler), so the canvas owns them. Bound once —

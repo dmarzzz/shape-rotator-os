@@ -5710,14 +5710,6 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   min-height: 0;
   height: auto;
 }
-/* PMF carries the week-dial band (~92px) above its fixed-height SVG stage, so
-   reclaim that height from the stage's vh budget — keeps the dial + the full
-   plot (incl. the stage axis) inside one viewport instead of pushing the
-   bottom below the fold. */
-.alch-cohort-page[data-cohort-view="journey"] .alch-constellation-stage {
-  min-height: 440px;
-  height: clamp(440px, calc(64vh - 92px), 660px);
-}
 .alch-cohort-page > .alch-constellation {
   height: auto;
   flex: 1 1 auto;
@@ -8404,9 +8396,9 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-timeline.is-compact {
   margin: 10px 0 18px;
 }
-/* PMF timeframe band: the week-by-week dial sits below the view nav as the
-   view's resting "title" (current week label), above the filter row. */
-.ac-view-timeframe { margin: 2px 0 14px; }
+/* PMF timeframe: the compact "as of [week ▾]" token sits sleek on the RIGHT of
+   the filter row (margin-left:auto pushes it there), not as a banner on top. */
+.ac-view-timeframe { margin-left: auto; display: inline-flex; align-items: center; }
 .ac-timeline.is-disabled {
   opacity: 0.66;
 }
