@@ -996,28 +996,37 @@ function reducedMotion() {
 // animate=false applies instantly (wheel: tracks the gesture 1:1); animate=true
 // runs a short rAF tween, re-anchoring scroll EACH frame so the focal point
 // holds for the whole animation (no end-of-animation jump).
-function zoomCohortTo(target, { anchorY = null, animate = false } = {}) {
+function zoomCohortTo(target, { anchorY = null, anchorX = null, animate = false } = {}) {
   const canvas = state.canvas;
   if (!canvas) return;
   const from = clampCohortZoom(state.cohortZoom);
   const to = clampCohortZoom(target);
   if (to === from) return;
-  const rect = canvas.getBoundingClientRect();
-  const vy = anchorY == null ? canvas.clientHeight / 2 : (anchorY - rect.top);
-  const fromScroll = canvas.scrollTop;
+  // SVG views (relationship bubble map + pmf scatter) scale their <svg> off
+  // --cohort-zoom and SCROLL the stage (not the page), so anchor the stage on
+  // BOTH axes. The page-zoomed views (standing/shipped/collab) scroll the
+  // canvas, which is width-auto, so only its vertical axis moves.
+  const svgPage = canvas.querySelector('.alch-cohort-page[data-cohort-view="bubble"], .alch-cohort-page[data-cohort-view="journey"]');
+  const stage = svgPage ? svgPage.querySelector(".alch-constellation-stage") : null;
+  const scroller = stage || canvas;
+  const rect = scroller.getBoundingClientRect();
+  const ay = anchorY == null ? scroller.clientHeight / 2 : (anchorY - rect.top);
+  const ax = anchorX == null ? scroller.clientWidth / 2 : (anchorX - rect.left);
+  const fromY = scroller.scrollTop;
+  const fromX = scroller.scrollLeft;
   state.cohortZoom = to;
   try { localStorage.setItem(COHORT_ZOOM_LS_KEY, String(to)); } catch {}
   cancelAnimationFrame(zoomRAF);
   flashCohortZoomControl();
   syncCohortZoomControl();
-  // Apply a single zoom level + re-anchor the focal point. The cohort page is
-  // width-auto (it reflows, doesn't widen), so only the vertical axis scales —
-  // anchoring scrollTop is all that's needed to pin the focal point.
+  // Apply a single zoom level + re-anchor the focal point so the thing under the
+  // cursor stays put: newScroll = (scroll + cursorOffset)*f - cursorOffset.
   const applyAt = (z) => {
     const f = z / from;
     canvas.style.setProperty("--cohort-zoom", String(z));
-    void canvas.offsetHeight; // settle layout so scrollHeight reflects this z
-    canvas.scrollTop = Math.max(0, (fromScroll + vy) * f - vy);
+    void scroller.offsetHeight; // settle layout so scroll size reflects this z
+    scroller.scrollTop = Math.max(0, (fromY + ay) * f - ay);
+    if (stage) scroller.scrollLeft = Math.max(0, (fromX + ax) * f - ax);
   };
   if (!animate || reducedMotion()) { applyAt(to); return; }
   // House rule: in eases slower than out.
@@ -1053,8 +1062,8 @@ function onCohortWheel(e) {
   e.preventDefault();
   const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; // normalize line→pixel
   const factor = Math.exp(-px * COHORT_ZOOM_WHEEL_K);
-  if (wheelPending) { wheelPending.factor *= factor; wheelPending.anchorY = e.clientY; }
-  else wheelPending = { factor, anchorY: e.clientY };
+  if (wheelPending) { wheelPending.factor *= factor; wheelPending.anchorY = e.clientY; wheelPending.anchorX = e.clientX; }
+  else wheelPending = { factor, anchorY: e.clientY, anchorX: e.clientX };
   if (!wheelRAF) wheelRAF = requestAnimationFrame(flushWheelZoom);
 }
 function flushWheelZoom() {
@@ -1062,7 +1071,7 @@ function flushWheelZoom() {
   const p = wheelPending;
   wheelPending = null;
   if (!p) return;
-  zoomCohortTo(clampCohortZoom(state.cohortZoom) * p.factor, { anchorY: p.anchorY, animate: false });
+  zoomCohortTo(clampCohortZoom(state.cohortZoom) * p.factor, { anchorY: p.anchorY, anchorX: p.anchorX, animate: false });
 }
 // Cmd/Ctrl +/-/0 (mac + win/linux). The native View-menu accelerators are
 // display-only (registerAccelerator:false in main), so these keys reach the

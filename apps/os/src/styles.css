@@ -5710,6 +5710,14 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   min-height: 0;
   height: auto;
 }
+/* PMF carries the week-dial band (~92px) above its fixed-height SVG stage, so
+   reclaim that height from the stage's vh budget — keeps the dial + the full
+   plot (incl. the stage axis) inside one viewport instead of pushing the
+   bottom below the fold. */
+.alch-cohort-page[data-cohort-view="journey"] .alch-constellation-stage {
+  min-height: 440px;
+  height: clamp(440px, calc(64vh - 92px), 660px);
+}
 .alch-cohort-page > .alch-constellation {
   height: auto;
   flex: 1 1 auto;
@@ -8456,7 +8464,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   background: transparent;
   color: var(--alchemy-ink-mute);
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: 9px;
   letter-spacing: 0;
   text-transform: lowercase;
   cursor: pointer;
