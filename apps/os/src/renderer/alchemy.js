@@ -32,7 +32,7 @@ import {
   PROGRAM_START_MS, PROGRAM_END_MS,
 } from "@shape-rotator/shape-ui";
 import { saveSphere, SPHERE_DIALS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_BG_PRESETS, normalizeHex } from "./supabase-sphere.mjs";
-import { compileUserExpr, highlightGLSL } from "./shader-dsl.mjs";
+import { highlightGLSL } from "./shader-dsl.mjs";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
   dependencyPairKey, dependencySafeToken,
@@ -1246,7 +1246,10 @@ function mountCustomDetailOrb() {
   if (!el) return;
   const rec = el.dataset.orbRecord || "";
   const sp = state.cohort?.person_spheres?.[rec] || null;
-  const expr = compileUserExpr(sp?.shader_src || "").glsl || null;
+  // Raw GLSL, exactly as the editor preview renders it. mountShape runs it
+  // through the cost-sandbox (glslGuardReason) and falls back to the standard
+  // orb on any rejection/compile error, so the profile is WYSIWYG with the editor.
+  const glsl = (sp && typeof sp.shader_src === "string" && sp.shader_src.trim()) ? sp.shader_src : null;
   try {
     _detailSphereCtl = mountShape(el, {
       seed: rec, kind: "person",
@@ -1256,7 +1259,7 @@ function mountCustomDetailOrb() {
       // Same dial→uniform mapping as the editor preview + sphereAttrs.
       hue: sp?.hue, warp: sp?.phase, progress: sp?.complexity,
       iters: sp?.hue2, sharp: sp?.intensity, bg: sp?.bg, bgMix: sp?.bg_mix,
-      shaderExpr: expr,
+      shaderGLSL: glsl,
     });
   } catch (err) {
     console.warn("[alchemy] custom detail orb failed:", err?.message || err);
@@ -15464,15 +15467,18 @@ function detailMemberRows(people, kind) {
 
 function renderPersonRail(person, team, fam) {
   const dates = (person.dates_start || person.dates_end) ? detailDateRange(person.dates_start, person.dates_end) : "";
-  // Custom-shader orb: when this person saved a shader_src that VALIDATES on
-  // this viewer (shader-dsl), the detail orb gets its OWN mountShape context
-  // (the shared overlay is one program and can't run per-user GLSL). It opts
-  // out of the overlay by carrying NO data-shape-fam; mountCustomDetailOrb()
-  // picks it up after the render. Any invalid/absent shader → the standard
-  // overlay placeholder, unchanged.
+  // Custom-shader orb: when this person saved a shader_src, the detail orb gets
+  // its OWN mountShape context (the shared overlay is one program and can't run
+  // per-user GLSL). It opts out of the overlay by carrying NO data-shape-fam;
+  // mountCustomDetailOrb() picks it up after the render and feeds the raw GLSL
+  // through mountShape's shaderGLSL path, which is gated by the cost-sandbox
+  // (glslGuardReason) on EVERY viewer — anything it can't prove cheap falls back
+  // to the standard orb. So this renders the same shader the editor preview
+  // shows, for everyone, bounded-cost. Absent shader → the standard overlay
+  // placeholder, unchanged.
   const sp = state.cohort?.person_spheres?.[person.record_id];
-  const customGlsl = (sp && sp.shader_src) ? compileUserExpr(sp.shader_src).glsl : null;
-  const orbHtml = customGlsl
+  const hasCustomShader = !!(sp && typeof sp.shader_src === "string" && sp.shader_src.trim());
+  const orbHtml = hasCustomShader
     ? `<canvas class="alch-detail-orb-canvas" data-detail-orb data-orb-record="${escAttr(person.record_id)}" data-orb-fam="${escAttr(fam)}" data-orb-scale="1.18"></canvas>`
     : `<canvas data-shape-fam="${escAttr(fam)}" data-shape-kind="person" data-shape-scale="1.18" data-shape-draggable="1" data-shape-seed="${escAttr(person.record_id)}" ${sphereAttrs(sp)}></canvas>`;
   return `
