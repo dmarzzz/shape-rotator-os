@@ -53,7 +53,7 @@ import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./c
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { indexCohortEvidence, teamEvidence, recentClaims } from "./cohort-evidence-index.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { buildActivityLane } from "./cohort-timeline-tracks.mjs";
+import { buildActivityLane, isPresent, buildStandingLane } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
@@ -6691,6 +6691,8 @@ function timelineInnerHtml() {
   const cohort = activeConstellationCohort();
   const live = state.cohort || cohort;
   const whatsNew = Array.isArray(live?.whats_new) ? live.whats_new : [];
+  const people = Array.isArray(live?.people) ? live.people : [];
+  const standingWeekly = state.standingWeekly || null;
   const cal = state.calendar || {};
   const nowMs = Date.now();
 
@@ -6715,58 +6717,73 @@ function timelineInnerHtml() {
   const inWin = (ms) => ms >= winStart && ms < winEnd;
   const nowIn = inWin(nowMs);
 
-  // The schedule reads the LIVE calendar (cal.data) — the same source the grid
-  // renders — so the two always agree, instead of trailing the stale build-baked
-  // whats_new feed (the fallback only until cal.data has loaded). Cohort metrics
-  // (standing, presence) live in their own views; the schedule is the whole show.
+  // ── Events (live calendar — the same source the grid renders) ───────────
+  // Falls back to the build-baked whats_new event items until cal.data loads.
   const calModule = calendarLazy.peek();
   const eventItems = (cal.data && typeof calModule?.flattenScheduleEvents === "function")
     ? calModule.flattenScheduleEvents(cal.data)
         .filter((e) => inWin(e.ms))
-        .map((e) => ({ ms: e.ms, title: e.title, time: e.time || "", cat: e.cat || "default", isFuture: e.ms > nowMs }))
+        .map((e) => ({ ms: e.ms, title: e.title, time: e.time || "", cat: e.cat || "default", allDay: !!e.allDay, isFuture: e.ms > nowMs }))
     : buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
         .filter((i) => i.category === "event" && inWin(i.startMs))
-        .map((i) => ({ ms: i.startMs, title: i.title, time: i.detail || "", cat: "default", isFuture: i.isFuture }));
+        .map((i) => ({ ms: i.startMs, title: i.title, time: i.detail || "", cat: "default", allDay: !i.detail, isFuture: i.isFuture }));
 
-  // Within a day: all-day events first (time = ""), then by start time parsed
-  // from the leading HH:MM of the time label.
   const startMin = (t) => { const m = /(\d{1,2}):(\d{2})/.exec(t || ""); return m ? (+m[1]) * 60 + (+m[2]) : -1; };
   const dayNames = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-  const columns = [];
+
+  // ── Signals that pair with the schedule on the SAME seven columns ───────
+  // in-town: REAL — cohort present each day (people windows + absences).
+  // shipped: STALE — daily ship/commit/ask count (build-baked whats_new feed).
+  // standing: SEED — cohort-mean PMF for the week (one value; not yet live).
+  const roster = people.filter((p) => p && (p.dates_start || p.dates_end));
+  const updateItems = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
+    .filter((i) => i.category !== "event" && inWin(i.startMs));
+  const stPts = (calModule && standingWeekly)
+    ? buildStandingLane(standingWeekly, { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS }).points
+    : [];
+  const weekStanding = stPts.find((p) => p.programWeek === wi) || null;
+
+  const cols = [];
+  let maxInTown = 1;
   for (let k = 0; k < 7; k++) {
-    const dayMs = winStart + k * DAY;
-    const events = eventItems
-      .filter((e) => e.ms >= dayMs && e.ms < dayMs + DAY)
-      .sort((a, b) => startMin(a.time) - startMin(b.time));
-    columns.push({
-      day: dayNames[k], date: String(new Date(dayMs).getUTCDate()), events,
-      isToday: nowMs >= dayMs && nowMs < dayMs + DAY,
-      isPast: dayMs + DAY <= nowMs,
-      isWeekend: k >= 5,
+    const dayMs = winStart + k * DAY, dayEnd = dayMs + DAY, noon = dayMs + DAY / 2;
+    const dayEv = eventItems.filter((e) => e.ms >= dayMs && e.ms < dayEnd);
+    const inTown = roster.length ? roster.filter((p) => isPresent(p, noon)).length : 0;
+    const shipped = updateItems.filter((i) => i.startMs >= dayMs && i.startMs < dayEnd).length;
+    maxInTown = Math.max(maxInTown, inTown);
+    cols.push({
+      day: dayNames[k], date: String(new Date(dayMs).getUTCDate()),
+      allDay: dayEv.filter((e) => e.allDay),
+      timed: dayEv.filter((e) => !e.allDay).sort((a, b) => startMin(a.time) - startMin(b.time)),
+      inTown, shipped,
+      isToday: nowMs >= dayMs && nowMs < dayEnd, isPast: dayEnd <= nowMs, isWeekend: k >= 5,
     });
   }
+  const tcls = (c) => [c.isToday && "is-today", c.isPast && "is-past", c.isWeekend && "is-weekend"].filter(Boolean).join(" ");
 
-  const CHIP_CAP = 8; // a day rarely runs more; the rest collapse to "+N more".
-  // Title clamps to 2 lines in CSS; the full "time · title" rides on the native
-  // tooltip so a clamped chip stays fully readable on hover.
-  const chip = (e) => `<div class="cal-chip${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.time ? `${e.time} · ${e.title}` : e.title)}">${e.time ? `<span class="cal-chip-t">${escHtml(e.time)}</span>` : ""}<span class="cal-chip-x">${escHtml(e.title)}</span></div>`;
-  const renderColumn = (col) => {
-    const shown = col.events.slice(0, CHIP_CAP);
-    const more = col.events.length - shown.length;
-    const n = col.events.length;
-    const body = n
-      ? shown.map(chip).join("") + (more > 0 ? `<div class="cal-more">+${more} more</div>` : "")
-      : `<span class="cal-col-empty" aria-hidden="true">open</span>`;
-    const cls = [col.isToday && "is-today", col.isPast && "is-past", col.isWeekend && "is-weekend"].filter(Boolean).join(" ");
-    return `
-      <div class="cal-col${cls ? " " + cls : ""}" data-tl-week="${wi}" role="button" tabindex="0" aria-label="${escAttr(`${col.day} ${col.date}${col.isToday ? " (today)" : ""} — ${n} event${n === 1 ? "" : "s"}; open in the calendar grid`)}">
-        <div class="cal-col-head"><span class="cal-col-day">${escHtml(col.day)}</span><span class="cal-col-sub">${escHtml(col.date)}</span>${col.isToday ? `<span class="cal-col-now">today</span>` : ""}</div>
-        <div class="cal-col-body">${body}</div>
-      </div>`;
-  };
+  // ── Cell renderers. The calendar cells (header / all-day / schedule) carry
+  // data-tl-week so a click anywhere on a day opens that week's grid; the
+  // schedule cell is the keyboard target. Signal cells are display-only. ──
+  const chip = (e) => `<div class="cw-ev${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.time ? `${e.time} · ${e.title}` : e.title)}">${e.time ? `<span class="cw-et">${escHtml(e.time)}</span>` : ""}<span class="cw-ex">${escHtml(e.title)}</span></div>`;
+  const adPill = (e) => `<div class="cw-ad${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.title)}">${escHtml(e.title)}</div>`;
+  const CAP = 6;
+  const headRow = cols.map((c) => `<div class="cw-c cw-dh ${tcls(c)}" data-tl-week="${wi}"><span class="cw-d">${escHtml(c.day)}</span><span class="cw-n">${escHtml(c.date)}</span>${c.isToday ? `<span class="cw-today">today</span>` : ""}</div>`).join("");
+  const allDayRow = cols.map((c) => `<div class="cw-c cw-adcell ${tcls(c)}" data-tl-week="${wi}">${c.allDay.map(adPill).join("")}</div>`).join("");
+  const schedRow = cols.map((c) => {
+    const shown = c.timed.slice(0, CAP), more = c.timed.length - shown.length;
+    const body = c.timed.length
+      ? shown.map(chip).join("") + (more > 0 ? `<div class="cw-more">+${more} more</div>` : "")
+      : (c.allDay.length ? "" : `<span class="cw-open">open</span>`);
+    return `<div class="cw-c cw-sched ${tcls(c)}" data-tl-week="${wi}" role="button" tabindex="0" aria-label="${escAttr(`${c.day} ${c.date}${c.isToday ? " (today)" : ""} — open week ${wi + 1} in the calendar grid`)}">${body}</div>`;
+  }).join("");
+  const inTownRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-bar"><i style="width:${Math.round((c.inTown / maxInTown) * 100)}%"></i></span><span class="cw-v">${c.inTown || "·"}</span></div>`).join("");
+  const shippedRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-v">${c.shipped || `<span class="cw-mut">·</span>`}</span></div>`).join("");
+  const standingCell = (weekStanding && weekStanding.stage != null)
+    ? `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-v">${weekStanding.stage.toFixed(1)}</span><span class="cw-mut">/ 8 · cohort mean PMF</span></div>`
+    : `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-mut">no standing read</span></div>`;
 
-  // Week navigation: ‹ prev · label · next ›, plus a "today" jump that's live
-  // only once you've navigated away from the current week.
+  // Week navigation: ‹ prev · label · next › + a "today" jump (live only off
+  // the current week).
   const nav = `
     <div class="ac-tl-winnav">
       <button type="button" class="ac-tl-navbtn" data-tl-nav="prev" data-tl-nav-to="${prevAnchor == null ? "" : prevAnchor}"${prevAnchor == null ? " disabled" : ""} aria-label="previous week">←</button>
@@ -6780,12 +6797,11 @@ function timelineInnerHtml() {
     <div class="ac-tl-summary" role="group" aria-label="week summary">
       <span class="ac-tl-sum-win">${total} event${total === 1 ? "" : "s"} this week</span>
       ${nowIn ? `<span class="ac-tl-sum-sep">·</span><span class="ac-tl-sum-frame">past <em>←</em> today <em>→</em> scheduled</span>` : ""}
-      <span class="ac-tl-sum-sep">·</span><span class="ac-tl-sum-hint">tap a day to open its hour-by-hour grid</span>
+      <span class="ac-tl-sum-sep">·</span><span class="ac-tl-sum-hint">tap a day to open its hour grid</span>
     </div>`;
 
-  // Category legend — colour-codes the chips by event type (office hours, salon,
-  // demo, …) using the SAME palette as the grid (shared --c2-acc), so the colours
-  // are decodable at a glance instead of reading as an undifferentiated wall.
+  // Category legend — colour-codes the chips by event type, using the SAME
+  // palette as the grid (shared --c2-acc) so the colours decode at a glance.
   const legend = (calModule?.C2_LEGEND || [])
     .map((c) => `<span class="cal-legend-item" data-cat="${escAttr(c.key)}" role="listitem"><i class="cal-legend-dot" aria-hidden="true"></i>${escHtml(c.label)}</span>`).join("");
 
@@ -6796,8 +6812,13 @@ function timelineInnerHtml() {
         ${summary}
         ${legend ? `<div class="cal-legend" role="list" aria-label="event categories">${legend}</div>` : ""}
       </div>
-      <div class="cal-agenda" style="--cols:7">
-        ${columns.map(renderColumn).join("")}
+      <div class="cal-week">
+        <div class="cw-rail"></div>${headRow}
+        <div class="cw-rail">all-day</div>${allDayRow}
+        <div class="cw-rail">schedule</div>${schedRow}
+        <div class="cw-rail">in town</div>${inTownRow}
+        <div class="cw-rail">shipped<span class="cw-tag">stale</span></div>${shippedRow}
+        <div class="cw-rail">standing<span class="cw-tag">seed</span></div>${standingCell}
       </div>
     </div>`;
 }

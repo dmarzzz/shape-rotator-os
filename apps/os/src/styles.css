@@ -8063,67 +8063,72 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .c2--timeline { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
 .c2--timeline .c2-timeline { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
 .c2--timeline .ac-tl-stage { flex: 1 1 auto; }
-.c2--timeline .cal-agenda { flex: 1 1 auto; min-height: 0; }
-
-/* ── Calendar agenda — the schedule as a real, zoom-out calendar: titled event
-   chips in per-day (week) or per-week (month / program) columns. The hour-grid
-   tab owns one week in detail; this owns the whole program at a glance. ── */
-.cal-agenda {
+/* ── Calendar + signals — one shared week grid. A left rail labels each row;
+   the seven day columns are the shared time axis. Rows: day headers · all-day
+   strip · schedule (grows) · the in-town / shipped / standing signal rows. The
+   schedule is the hero; the signals hang off the same columns, and today tints
+   straight down every row so the two read as one paired surface. ── */
+.cal-week {
+  flex: 1 1 auto; min-height: 0;
   display: grid;
-  grid-template-columns: repeat(var(--cols, 7), minmax(0, 1fr));
+  grid-template-columns: 78px repeat(7, minmax(0, 1fr));
+  grid-template-rows: auto auto minmax(118px, 1fr) auto auto auto;
   gap: 1px;
-  background: rgba(var(--ink-rgb), 0.08);
+  background: rgba(var(--ink-rgb), 0.09);
   border: 1px solid rgba(var(--ink-rgb), 0.1);
   border-radius: 12px;
   overflow: hidden;
   font-family: var(--font-mono);
 }
-.cal-col {
-  display: flex; flex-direction: column; min-height: 0;
-  background: rgba(var(--ink-rgb), 0.02);
-  cursor: pointer;
-  transition: background 140ms var(--ease);
-}
-.cal-col:hover { background: rgba(var(--ink-rgb), 0.05); }
-.cal-col.is-past { opacity: 0.62; }
-.cal-col.is-weekend { background: rgba(var(--ink-rgb), 0.015); }
-.cal-col.is-today { background: color-mix(in oklch, var(--alchemy-oxide) 9%, transparent); box-shadow: inset 0 2px 0 var(--alchemy-oxide-bright); }
-.cal-col:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: -2px; }
+.cw-rail { display: flex; align-items: center; gap: 5px; padding: 6px 9px; background: #100e0e; font-size: 9.5px; letter-spacing: 0.07em; text-transform: uppercase; color: rgba(var(--ink-rgb), 0.5); }
+.cw-tag { font-size: 8px; letter-spacing: 0.05em; color: var(--alchemy-oxide-bright); border: 1px solid color-mix(in oklch, var(--alchemy-oxide) 45%, transparent); border-radius: 3px; padding: 0 3px; }
+.cw-c { background: rgba(var(--ink-rgb), 0.02); min-width: 0; min-height: 0; }
+.cw-c.is-past { opacity: 0.6; }
+.cw-c.is-weekend { background: rgba(var(--ink-rgb), 0.015); }
+.cw-c.is-today { background: color-mix(in oklch, var(--alchemy-oxide) 9%, transparent); }
+.cw-sched:hover, .cw-dh:hover, .cw-adcell:hover { background: rgba(var(--ink-rgb), 0.05); }
+.cw-sched:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: -2px; }
 /* "today" jump button — sits after the week nav; live only off the current week. */
 .ac-tl-today { height: 26px; padding: 0 12px; margin-left: 4px; background: transparent; border: 1px solid rgba(var(--ink-rgb), 0.14); border-radius: 7px; color: var(--alchemy-paper-warm); font-family: var(--font-mono); font-size: 11px; cursor: pointer; transition: border-color 160ms var(--ease); }
 .ac-tl-today:not([disabled]):hover { border-color: rgba(var(--ink-rgb), 0.32); }
 .ac-tl-today[disabled] { opacity: 0.3; cursor: default; }
 .ac-tl-today:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 @media (prefers-reduced-motion: reduce) { .ac-tl-today { transition: none; } }
-.cal-col-head {
-  display: flex; align-items: baseline; gap: 6px;
-  padding: 9px 11px; border-bottom: 1px solid rgba(var(--ink-rgb), 0.07);
-}
-.cal-col-day { font-size: 12.5px; font-weight: 600; color: var(--alchemy-paper-warm); letter-spacing: 0.01em; }
-.cal-col-sub { font-size: 11px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; }
-.cal-col.is-today .cal-col-day, .cal-col.is-today .cal-col-sub { color: var(--alchemy-oxide-bright); }
-.cal-col-now { margin-left: auto; align-self: center; font-size: 8px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #161413; background: var(--alchemy-oxide-bright); padding: 2px 6px; border-radius: 4px; }
-.cal-col-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
-/* Chips are colour-coded by category via --c2-acc (set by calendar.css's
-   `.c2 [data-cat]` rules — the agenda lives inside .c2, so it inherits the
-   grid's exact palette): a solid left bar + a faint tint of the same hue. */
-.cal-chip {
-  padding: 5px 9px; border-radius: 6px;
-  background: color-mix(in srgb, var(--c2-acc, transparent) 10%, rgba(var(--ink-rgb), 0.045));
-  border-left: 3px solid var(--c2-acc, color-mix(in oklch, var(--alchemy-oxide) 55%, transparent));
-}
-.cal-chip.is-future { background: color-mix(in srgb, var(--c2-acc, transparent) 5%, transparent); border-left-style: dashed; }
-.cal-chip-t { display: block; font-size: 9.5px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; margin-bottom: 1px; }
-.cal-chip-x { font-size: 12px; line-height: 1.32; color: var(--alchemy-paper-warm); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; word-break: break-word; }
-.cal-more { font-size: 10.5px; color: var(--alchemy-ink-mute); padding: 3px 9px; }
-.cal-col-empty { display: block; padding: 9px 11px; color: rgba(var(--ink-rgb), 0.28); font-size: 11px; font-style: italic; }
+/* day-header row */
+.cw-dh { display: flex; align-items: baseline; gap: 5px; padding: 8px 9px; border-bottom: 1px solid rgba(var(--ink-rgb), 0.06); }
+.cw-d { font-size: 12.5px; font-weight: 600; color: var(--alchemy-paper-warm); }
+.cw-n { font-size: 11px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; }
+.cw-dh.is-today { box-shadow: inset 0 2px 0 var(--alchemy-oxide-bright); }
+.cw-dh.is-today .cw-d, .cw-dh.is-today .cw-n { color: var(--alchemy-oxide-bright); }
+.cw-today { margin-left: auto; align-self: center; font-size: 8px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #161413; background: var(--alchemy-oxide-bright); padding: 2px 6px; border-radius: 4px; }
+/* all-day strip — a distinct pinned band so day-long events read as all-day */
+.cw-adcell { padding: 5px 6px; display: flex; flex-direction: column; gap: 3px; }
+.cw-ad { padding: 3px 8px; border-radius: 5px; font-size: 11px; color: var(--alchemy-paper-warm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: color-mix(in srgb, var(--c2-acc, transparent) 16%, rgba(var(--ink-rgb), 0.06)); border-left: 3px solid var(--c2-acc, rgba(var(--ink-rgb), 0.3)); }
+.cw-ad.is-future { border-left-style: dashed; }
+/* schedule — timed events, each with a left time gutter so "when" is unmissable */
+.cw-sched { padding: 6px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.cw-ev { display: flex; gap: 7px; align-items: baseline; padding: 4px 8px; border-radius: 6px; background: color-mix(in srgb, var(--c2-acc, transparent) 10%, rgba(var(--ink-rgb), 0.05)); border-left: 3px solid var(--c2-acc, color-mix(in oklch, var(--alchemy-oxide) 55%, transparent)); }
+.cw-ev.is-future { background: color-mix(in srgb, var(--c2-acc, transparent) 5%, transparent); border-left-style: dashed; }
+.cw-et { flex: 0 0 36px; font-size: 9.5px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; text-align: right; }
+.cw-ex { font-size: 11.5px; line-height: 1.3; color: var(--alchemy-paper-warm); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; word-break: break-word; }
+.cw-more { font-size: 10px; color: var(--alchemy-ink-mute); padding: 2px 4px; }
+.cw-open { color: rgba(var(--ink-rgb), 0.26); font-size: 11px; font-style: italic; padding: 6px 8px; }
+/* signal rows — thin, aligned to the same day columns */
+.cw-sig { display: flex; align-items: center; gap: 6px; padding: 6px 9px; font-variant-numeric: tabular-nums; }
+.cw-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(var(--ink-rgb), 0.1); overflow: hidden; }
+.cw-bar i { display: block; height: 100%; background: rgba(var(--ink-rgb), 0.4); border-radius: 3px; }
+.cw-c.is-today .cw-bar i { background: var(--alchemy-oxide-bright); }
+.cw-v { font-size: 11px; color: var(--alchemy-paper-warm); min-width: 14px; text-align: right; }
+.cw-mut { color: rgba(var(--ink-rgb), 0.42); font-size: 10.5px; }
+.cw-standing { gap: 8px; justify-content: flex-start; }
+.cw-standing .cw-v { min-width: 0; font-size: 13px; }
 
 /* Category legend — decodes the chip colours; shares --c2-acc with the grid. */
 .cal-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-family: var(--font-mono); font-size: 10.5px; color: var(--alchemy-ink-mute); }
 .cal-legend-item { display: inline-flex; align-items: center; gap: 5px; }
 .cal-legend-dot { width: 8px; height: 8px; border-radius: 2px; background: var(--c2-acc, #8f817a); flex: 0 0 auto; }
 .ac-tl-sum-hint { color: rgba(var(--ink-rgb), 0.5); }
-@media (prefers-reduced-motion: reduce) { .cal-col { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .cw-c { transition: none; } }
 
 /* Keyboard focus ring for the week-nav buttons. */
 .ac-tl-navbtn:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 1px; }

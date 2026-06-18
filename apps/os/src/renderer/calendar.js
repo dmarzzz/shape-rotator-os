@@ -314,32 +314,50 @@ let _model = null;
 
 // ── timeline bridge ───────────────────────────────────────────────────
 // Flatten the parsed program calendar into lightweight schedule items for the
-// calendar→timeline view's ruler lane, so it reads the SAME live source as the
-// grid (cal.data) instead of the stale build-baked whats_new feed. One item per
-// event per day; the leading day-name prefix is stripped (the timeline axis
-// already dates each mark) and the time tags along for the hover tip. The
-// grid's overlap/layout machinery is skipped — the ruler clusters by day, so a
-// flat {ms, title, time, weekIdx} list is all it needs.
+// calendar→agenda view, so it reads the SAME live source as the grid (cal.data)
+// instead of the stale build-baked whats_new feed. Each item carries its day
+// (ms), display title (day-name prefix stripped), start time ("" = all-day),
+// category, and an allDay flag. Multi-day items ("Mon–Tue: X" — stored in the
+// spreadsheet only in their FIRST day's cell) are mirrored onto every covered
+// day so the agenda shows them across the span. The grid's overlap/layout
+// machinery is skipped — the agenda lists events per day.
 export function flattenScheduleEvents(data) {
   const tab = data?.tabs?.[PRIMARY_TAB] || [];
   const dayName = "(mon|tue|wed|thu|fri|sat|sun)(?:day)?";
   const rangeRe = new RegExp(`^${dayName}\\s*[-–—]\\s*${dayName}\\s*[:.\\-–—]?\\s*`, "i");
   const singleRe = new RegExp(`^${dayName}\\s*[:\\-–—]\\s*`, "i");
   const clean = (t) => String(t || "").replace(rangeRe, "").replace(singleRe, "").trim();
+  const DAY_IDX = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
+  const DAY_MS = 86400000;
   const out = [];
   for (let wi = 0; wi < WEEK_COUNT; wi++) {
     const week = parseWeekRow(tab[2 + wi] || [], wi);
-    for (const d of (week?.days || [])) {
+    const days = week?.days || [];
+    for (let di = 0; di < days.length; di++) {
+      const d = days[di];
       if (!Number.isFinite(d?.dayMs)) continue;
-      for (const a of (d.anchors || [])) {
-        const title = clean(a.title);
-        if (title) out.push({ ms: d.dayMs, title, time: "", cat: c2Category(a.title).key, weekIdx: wi });
-      }
-      for (const block of (d.blocks || [])) {
-        const parsed = c2ParseBlock(block);
-        const title = clean(parsed.title);
-        if (title) out.push({ ms: d.dayMs, title, time: parsed.time || "", cat: c2Category(block).key, weekIdx: wi });
-      }
+      const mondayMs = d.dayMs - di * DAY_MS;
+      // catSrc = full source text (best category signal); rawTitle = pre-clean
+      // title (carries any "Mon–Tue:" range); time "" ⇒ all-day.
+      const emit = (catSrc, rawTitle, time) => {
+        const title = clean(rawTitle);
+        if (!title) return;
+        const cat = c2Category(catSrc).key;
+        const allDay = !time;
+        const range = String(rawTitle).match(rangeRe);
+        const a = range && DAY_IDX[range[1].toLowerCase()];
+        const b = range && DAY_IDX[range[2].toLowerCase()];
+        if (range && a != null && b != null) {
+          const lo = Math.min(a, b), hi = Math.max(a, b);
+          for (let dj = lo; dj <= hi; dj++) {
+            out.push({ ms: mondayMs + dj * DAY_MS, title, time, cat, allDay, weekIdx: wi, span: hi - lo + 1 });
+          }
+        } else {
+          out.push({ ms: d.dayMs, title, time, cat, allDay, weekIdx: wi, span: 1 });
+        }
+      };
+      for (const a of (d.anchors || [])) emit(a.title, a.title, "");
+      for (const block of (d.blocks || [])) { const p = c2ParseBlock(block); emit(block, p.title, p.time || ""); }
     }
   }
   return out;
