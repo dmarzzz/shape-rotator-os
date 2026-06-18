@@ -27,6 +27,10 @@
   --membrane-card-bg: rgba(22, 20, 25, 0.52);
   --membrane-card-top: rgba(36, 30, 36, 0.62);
   --membrane-rule: rgba(var(--ink-rgb), 0.08);
+  /* Lifted feed card surface: near-opaque so a hover/focus-expanded card (which
+     z-lifts and overflows its row to float over the cards below) OCCLUDES them
+     cleanly, rather than letting their text bleed through. Light mode flips it. */
+  --mfeed-lift-bg: rgba(20, 18, 23, 0.97);
 }
 
 /* ── Light mode ──────────────────────────────────────────────────────────
@@ -47,6 +51,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] {
   /* Light translucent glass for the reading panels. */
   --membrane-card-bg: rgba(255, 255, 255, 0.62);
   --membrane-card-top: rgba(248, 248, 248, 0.74);
+  --mfeed-lift-bg: rgba(255, 255, 255, 0.97);
 }
 
 /* Paper background — what the transparent WebGL canvas composites over, so the
@@ -93,9 +98,8 @@ html[data-theme="light"] .mfeed-item {
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(26, 26, 26, 0.10);
 }
-html[data-theme="light"] .mfeed-item:hover {
-  background: rgba(255, 255, 255, 0.95);
-}
+/* hover/focus lift bg now comes from --mfeed-lift-bg (see the shared
+   .mfeed-row:hover/.focus-within rule), so both themes + keyboard focus occlude. */
 html[data-theme="light"] .mfeed-age { color: rgba(26, 26, 26, 0.5); }
 /* Chip: faint kind tint over white, kind-colored (darkened) text. */
 html[data-theme="light"] .mfeed-meta {
@@ -796,7 +800,14 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
    clicking. The card itself stays the single click target. */
 .mfeed-row:hover .mfeed-item,
 .mfeed-row:focus-within .mfeed-item {
-  background: rgba(var(--mem-ink-rgb), 0.16);
+  /* Near-opaque lift surface: the expanded card z-lifts (z-index 10) and can
+     overflow its row's max-height to float over the cards below, so it must
+     OCCLUDE them — the old translucent 0.16 ink film let the lower card's text
+     bleed through (the garbled overlap). Frost-blur the residual + the field
+     behind. Theme-aware via --mfeed-lift-bg. */
+  background: var(--mfeed-lift-bg);
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
   border-color: color-mix(in srgb, var(--mfeed-color, rgba(var(--mem-ink-rgb), 0.4)) 40%, transparent);
   box-shadow: 0 12px 30px -16px color-mix(in srgb, var(--mfeed-color, #000) 70%, transparent),
               0 2px 8px -5px rgba(0, 0, 0, 0.45);
