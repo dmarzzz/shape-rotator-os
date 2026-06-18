@@ -5665,16 +5665,50 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   flex-direction: column;
   min-height: 100%;
 }
+/* Cap content width so the dense card/row views (say/did/shipped, standing,
+   collab cards) don't over-stretch into huge low-density rows on wide monitors
+   — the structural root of the "huge rows / clumped" feel at >1600px. The
+   directory roster is excluded (it owns its own full-bleed grid); the SVG views
+   just gain symmetric margins, which also recentres them. */
+.alch-cohort-page:not([data-cohort-view="directory"]) {
+  width: 100%;
+  max-width: 1480px;
+  margin-inline: auto;
+}
 /* Per-user cohort-view zoom (Ctrl/Cmd + scroll, or the corner control). The
    `zoom` property REFLOWS the subtree, so the layout stays responsive at every
    step on any screen — unlike transform:scale, which would overflow/clip. The
    factor is set on #alchemy-canvas (see applyCohortZoom) and inherited here.
    The directory roster is excluded — it owns its own grid sizing. */
-.alch-cohort-page:not([data-cohort-view="directory"]) {
+.alch-cohort-page:not([data-cohort-view="directory"]):not([data-cohort-view="bubble"]):not([data-cohort-view="journey"]) {
   zoom: var(--cohort-zoom, 1);
   /* The size change is animated in JS (zoomCohortTo rAF tween) so each frame can
      re-anchor scroll to the focal point — a CSS transition here would run on top
      of that and lag the wheel gesture. Wheel zoom is intentionally instant. */
+}
+/* SVG views (relationship bubble map + pmf scatter) are NOT page-zoomed: a
+   fixed-viewBox SVG under `zoom` just scales the picture (clumps AND gaps grow
+   together — no real room) and the vh-capped stage barely changes. Instead the
+   zoom factor drives the SVG's intrinsic size directly, and the stage scrolls,
+   so zooming genuinely enlarges the graph and lets you pan a larger canvas. */
+.alch-cohort-page[data-cohort-view="bubble"] .alch-constellation-stage,
+.alch-cohort-page[data-cohort-view="journey"] .alch-constellation-stage {
+  overflow: auto;
+}
+.alch-cohort-page[data-cohort-view="bubble"] .alch-constellation-stage > svg,
+.alch-cohort-page[data-cohort-view="journey"] .alch-constellation-stage > svg {
+  width: calc(100% * var(--cohort-zoom, 1));
+  height: calc(100% * var(--cohort-zoom, 1));
+  min-width: 100%;
+}
+/* Card/row cohort views (standing, say/did/shipped) size to their content
+   instead of being forced into the tall 560–690px SVG-stage box — that forced
+   height (plus a dead inherited min-height) is what made standing read as a
+   huge, half-empty slab. The SVG views keep the fixed stage. */
+.alch-cohort-page[data-cohort-view="stack"] .alch-constellation-stage,
+.alch-cohort-page[data-cohort-view="shipped"] .alch-constellation-stage {
+  min-height: 0;
+  height: auto;
 }
 .alch-cohort-page > .alch-constellation {
   height: auto;
@@ -7826,8 +7860,22 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
    marker (●, real) and a target marker (▽, placeholder) per team; the bar is
    the gap to close, longest first. Standing filter dims off-standing rows. */
 .ac-stack-view.is-targets {
-  display: flex; flex-direction: column; gap: 0; min-width: 0; border: 0; background: transparent;
+  /* min-height:0 resets the dead 496px floor leaking from the base .ac-stack-view
+     grid (the matrix layout this flex variant doesn't use) so the view sizes to
+     its content instead of being stretched into a tall slab. */
+  display: flex; flex-direction: column; gap: 0; min-width: 0; min-height: 0; border: 0; background: transparent;
 }
+.ac-stack-view.is-targets .ac-tgt-group { margin-top: 16px; }
+.ac-stack-view.is-targets .ac-tgt-group:first-of-type { margin-top: 4px; }
+.ac-stack-view.is-targets .ac-tgt-group-head {
+  display: flex; align-items: center; gap: 7px; margin: 0 0 5px; padding: 0 8px;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.ac-stack-view.is-targets .ac-tgt-group-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--band-color, currentColor); flex: none;
+}
+.ac-stack-view.is-targets .ac-tgt-group-head em { font-style: normal; color: rgba(var(--ink-rgb), 0.5); margin-left: 1px; }
 .ac-stack-view.is-targets .ac-tgt-axis,
 .ac-stack-view.is-targets .ac-tgt-row {
   display: grid; grid-template-columns: 104px minmax(0, 1fr) 54px; gap: 12px; align-items: center;
@@ -8348,6 +8396,9 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-timeline.is-compact {
   margin: 10px 0 18px;
 }
+/* PMF timeframe band: the week-by-week dial sits below the view nav as the
+   view's resting "title" (current week label), above the filter row. */
+.ac-view-timeframe { margin: 2px 0 14px; }
 .ac-timeline.is-disabled {
   opacity: 0.66;
 }
@@ -8638,7 +8689,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 }
 
 /* ─── collaboration board (ported from dossier Connections) ──────────── */
-.alch-collab { display: flex; flex-direction: column; gap: 26px; }
+.alch-collab { display: flex; flex-direction: column; gap: 40px; }
 
 
 /* Collab's old board header (title/sub/stats) retired 2026-06 — the shared
@@ -10195,8 +10246,12 @@ textarea.cb-intake-input {
 }
 .ac-sds-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 12px;
+  /* Wider cards (was 320) so each card can host its 3-column say/did/shipped
+     strip without crushing the cells to ~80px. Larger OUTER gap than the 12px
+     inner strip gap so cards read as separate objects, not one fused slab. */
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 22px 18px;
+  align-items: stretch;
   min-width: 0;
   padding: 4px 0 2px;
 }
@@ -10206,7 +10261,8 @@ textarea.cb-intake-input {
   flex-direction: column;
   gap: 10px;
   width: 100%;
-  padding: 14px 15px;
+  height: 100%;
+  padding: 16px 18px;
   text-align: left;
   color: inherit;
   cursor: pointer;
@@ -10261,17 +10317,19 @@ textarea.cb-intake-input {
 }
 
 .ac-sds-proof-strip {
-  display: flex; gap: 12px; padding-top: 9px;
+  /* Wrap so say/did/shipped reflow to 2-up rather than crushing to ~80px on a
+     narrower card; the inner gap (12px) stays smaller than the card gap (18px). */
+  display: flex; flex-wrap: wrap; gap: 12px 14px; padding-top: 10px; margin-top: 2px;
   border-top: 1px solid rgba(var(--ink-rgb), 0.08);
 }
-.ac-sds-proof-strip > * { flex: 1; min-width: 0; }
+.ac-sds-proof-strip > * { flex: 1 1 104px; min-width: 100px; }
 .ac-sds-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ac-sds-cell b {
-  font-family: var(--font-mono); font-size: 8px; font-weight: 800;
-  letter-spacing: 0.12em; text-transform: uppercase; color: rgba(214,189,134,0.66);
+  font-family: var(--font-mono); font-size: 9px; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase; color: rgba(214,189,134,0.72);
 }
 .ac-sds-cell > span {
-  color: rgba(var(--ink-rgb), 0.72); font-size: 11.5px; line-height: 1.38;
+  color: rgba(var(--ink-rgb), 0.74); font-size: 12px; line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
 .ac-sds-cell.is-observed > span { color: var(--alchemy-paper-warm); }
@@ -10286,7 +10344,8 @@ textarea.cb-intake-input {
 .ac-sds-chip strong { color: var(--alchemy-paper-warm); font-weight: 700; }
 .ac-sds-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.07em;
+  margin-top: auto; padding-top: 2px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--alchemy-ink-mute);
 }
 .ac-sds-state { color: rgba(214,189,134,0.6); }
@@ -10959,9 +11018,13 @@ button.cb-cell:disabled { cursor: default; }
 
 .alch-collab .cb-colhead span {
   display: block;
-  max-height: 112px;
+  max-height: 116px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  /* text-overflow:ellipsis is unreliable for vertical writing-mode block
+     overflow (long names were hard-cut with no ellipsis), so fade the tail
+     instead — a clean signal that the label continues. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 84%, transparent);
+          mask-image: linear-gradient(to bottom, #000 84%, transparent);
 }
 
 .alch-collab .cb-colhead.is-key {
@@ -10974,12 +11037,17 @@ button.cb-cell:disabled { cursor: default; }
   left: 0;
   z-index: 6;
   align-items: flex-start;
+  justify-content: center;
   text-align: left;
+  /* Guarantee room for the two-line name + group label independent of the
+     small cell height, so the cluster label isn't crushed against the name. */
+  min-height: 34px;
+  gap: 2px;
   background: var(--cb-preview-panel-2);
   border-right: 1px solid var(--cb-preview-grid);
   border-top: 0;
   border-bottom: 1px solid var(--cb-preview-grid);
-  padding: 0 10px;
+  padding: 4px 10px;
 }
 
 .alch-collab .cb-rowhead-name {
@@ -10992,10 +11060,14 @@ button.cb-cell:disabled { cursor: default; }
 
 .alch-collab .cb-rowhead-grp {
   color: var(--cb-preview-muted);
-  font-size: 8.5px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .alch-collab .cb-cell {
@@ -12313,7 +12385,7 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 .cb-intro-side:last-child { text-align: right; }
 
-.cb-intro-role { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
+.cb-intro-role { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
 
 .cb-intro-team { font-size: 13px; color: var(--alchemy-paper-warm); font-weight: 500; }
 
@@ -12325,7 +12397,7 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 .cb-intro-chips, .cb-cv-teams { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 
-.cb-chip, .cb-cv-team { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.06em; text-transform: lowercase; padding: 2px 6px; border-radius: 3px; }
+.cb-chip, .cb-cv-team { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: lowercase; padding: 2px 6px; border-radius: 3px; }
 
 .cb-cv-team { background: rgba(var(--ink-rgb), 0.05); color: var(--alchemy-ink-mute); }
 
@@ -16663,6 +16735,34 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   background: rgba(var(--ink-rgb), 0.030);
   border-left: 2px solid rgba(193,168,114,0.55);
 }
+/* Context page "add context" composer — layers on the asks-compose base.
+   Sits full-width under the page header in the transcripts (raw) view; kind +
+   title share a row, body + contact span the full width. */
+.alch-cv-compose { margin: 0 0 20px; }
+.alch-cv-compose .alch-asks-compose-head { gap: 12px; flex-wrap: wrap; }
+.alch-cv-compose-grid {
+  grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
+}
+.alch-cv-compose-kind  { grid-column: auto; }
+.alch-cv-compose-title { grid-column: auto; }
+.alch-cv-compose-full  { grid-column: 1 / -1; }
+.alch-cv-compose select.alch-asks-compose-input {
+  appearance: none;
+  cursor: pointer;
+  /* room for a chevron drawn via background so the select matches inputs */
+  background-image: linear-gradient(45deg, transparent 50%, rgba(var(--ink-rgb), 0.45) 50%),
+                    linear-gradient(135deg, rgba(var(--ink-rgb), 0.45) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 52%, calc(100% - 11px) 52%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 30px;
+}
+textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
+
+@media (max-width: 720px) {
+  .alch-cv-compose-grid { grid-template-columns: 1fr; }
+}
+
 .alch-asks-compose-preview {
   margin: 0 0 12px 0;
   font-family: var(--ed-mono);

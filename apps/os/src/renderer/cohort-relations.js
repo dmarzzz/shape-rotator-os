@@ -71,6 +71,7 @@ const DEP_RELATION_LABELS = {
   pairs_with: "pairs with",
   shares_substrate: "shared substrate",
   complements: "complements",
+  contributed_to: "contributed to",
   declared: "declared link",
 };
 const DEP_STATUS_LABELS = {
@@ -80,6 +81,8 @@ const DEP_STATUS_LABELS = {
   blocked: "blocked",
   resolved: "resolved",
   legacy: "profile-declared",
+  session_observed: "session-observed",
+  insight_derived: "github-observed",
   unknown: "unknown",
 };
 const DEP_CONFIDENCE_LABELS = {
@@ -767,7 +770,11 @@ export function enclose(circles) { return bmEnclose(circles); }
 // --- Hierarchy + recursive layout -------------------------------------------
 function bmLeafRadius(stage) {
   const s = Math.max(1, Number(stage) || 1);
-  return Math.max(9, Math.sqrt(s) * 10); // area ∝ maturity; ~14 (s2) … ~26 (s7)
+  // Fallback only — the relationship map now passes an explicit radiusOf()
+  // (see packBubbles opts) so bubble size can encode maturity / headcount /
+  // depended-on. Slope lowered so bubbles read smaller relative to their rings
+  // and the pack can breathe. ~11 (s2) … ~20 (s7).
+  return Math.max(7, Math.sqrt(s) * 7.5);
 }
 
 function bmSkillFreq(teams) {
@@ -796,12 +803,14 @@ export function teamPrimarySkill(team, skillFreq) {
   return best || "_other";
 }
 
-export function bubbleHierarchy(model, granularity, stageOf) {
+export function bubbleHierarchy(model, granularity, radiusOf) {
   const byId = model.byRecordId || new Map();
+  // radiusOf(team) → leaf radius in px. The relationship map injects this from
+  // the active "sized by" metric; fall back to maturity for any other caller.
+  const rOf = typeof radiusOf === "function" ? radiusOf : (team) => bmLeafRadius(team?.journey?.stage);
   const leaf = (rid) => {
     const team = byId.get(rid);
-    const stage = stageOf ? stageOf(team) : (team?.journey?.stage || 2);
-    return { leaf: true, rid, team, stage };
+    return { leaf: true, rid, team, r0: rOf(team) };
   };
   if (granularity === "skills") {
     const teams = [...byId.values()];
@@ -843,11 +852,14 @@ export function bubbleHierarchy(model, granularity, stageOf) {
   return { id: "_root", label: "cohort", level: "root", children: clusterNodes };
 }
 
-const BM_GAP = { root: 6, theme: 6, cluster: 5 };
-const BM_PAD = { root: 4, theme: 9, cluster: 6 };
+// Inter-bubble + inter-ring breathing room. Roughly doubled from the original
+// (gap 5 / pad 6) so the pack is no longer edge-to-edge: bubbles get air between
+// them and each ring gets a clear band at its top for the cluster title.
+const BM_GAP = { root: 10, theme: 12, cluster: 11 };
+const BM_PAD = { root: 6, theme: 16, cluster: 13 };
 
 function bmLayout(node) {
-  if (node.leaf) { node.r = bmLeafRadius(node.stage); return node.r; }
+  if (node.leaf) { node.r = node.r0 != null ? node.r0 : bmLeafRadius(node.stage); return node.r; }
   const kids = node.children || [];
   kids.forEach(bmLayout);
   const gap = BM_GAP[node.level] != null ? BM_GAP[node.level] : 4;
@@ -889,7 +901,12 @@ function bmDescendantLeafRids(node, out = []) {
 // placeConstellation's `pos` contract plus nested `containers`.
 export function packBubbles(model, granularity, opts = {}) {
   const W = opts.W || 980; const H = opts.H || 540; const margin = opts.margin || 16;
-  const root = bubbleHierarchy(model, granularity, opts.stageOf);
+  // Prefer an explicit radiusOf (size-by metric); else derive from a stageOf
+  // (maturity) for backward compatibility.
+  const radiusOf = typeof opts.radiusOf === "function"
+    ? opts.radiusOf
+    : (typeof opts.stageOf === "function" ? (team) => bmLeafRadius(opts.stageOf(team)) : null);
+  const root = bubbleHierarchy(model, granularity, radiusOf);
   bmLayout(root);
   bmAssignRanks(root);
   const scale = root.r > 0 ? Math.min(1, (Math.min(W, H) / 2 - margin) / root.r) : 1;

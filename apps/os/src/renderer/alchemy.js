@@ -44,10 +44,15 @@ import {
   contextArticleSourceById as findMergedContextArticleSourceById,
   mergeContextArticleSources,
 } from "./context-articles.mjs";
+import {
+  CONTEXT_SUBMISSION_KINDS,
+  submitContext,
+} from "./context-submit.mjs";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
+import { indexCohortEvidence, teamEvidence, recentClaims } from "./cohort-evidence-index.mjs";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
@@ -69,6 +74,7 @@ const CONST_TIER_LS_KEY = "srwk:const_tier";  // pinned line-source tier: "all" 
 const CONST_PEOPLE_LINK_LS_KEY = "srwk:const_people_link"; // pinned people-map link family: "all" | "same-team" | "profile" | "shared-context"
 const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem view: cluster record_id | "all"
 const CONST_GRANULARITY_LS_KEY = "srwk:const_granularity"; // bubble map grain: "themes" | "clusters" | "skills"
+const CONST_SIZE_LS_KEY = "srwk:const_size"; // bubble size encoding: "maturity" | "headcount" | "depended-on" | "even"
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
 const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
@@ -227,6 +233,7 @@ const state = {
   constPeopleLinkFilter: "all", // people-map legend/filter: "all" | "same-team" | "profile" | "shared-context"
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
   constellationGranularity: "clusters", // bubble map grain: "themes" | "clusters" | "skills"
+  constellationSizeBy: "maturity", // bubble size encoding: "maturity" | "headcount" | "depended-on" | "even"
   constSelection: null,       // persistent constellation inspector selection: { type:"team"|"person", rid } | { type:"edge", from, to }
   cohortZoom: COHORT_ZOOM_DEFAULT, // per-user zoom for cohort views (excludes the directory roster); persisted to COHORT_ZOOM_LS_KEY
   renderSeq: 0,               // monotonic render guard; stale delayed swaps must not overwrite the latest view
@@ -257,6 +264,7 @@ const state = {
     rawLoadingId: null,
     error: "",
     message: "",
+    composeOpen: false,
   },
   unsubscribe: null,
   refreshTimer: null,
@@ -280,6 +288,7 @@ export function mount(container) {
     state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
     state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
     state.constellationGranularity = constNormalizeGranularity(localStorage.getItem(CONST_GRANULARITY_LS_KEY));
+    state.constellationSizeBy = constNormalizeSizeBy(localStorage.getItem(CONST_SIZE_LS_KEY));
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
     const savedProgramPage = localStorage.getItem(PROGRAM_PAGE_LS_KEY);
@@ -2317,12 +2326,21 @@ function journeyPlaceLabels(nodes, { W, padT, plotH }) {
   for (const nd of order) {
     const name = constText(nd.t.name || nd.t.record_id);
     if (!name) continue;
+    // In a crowded cell, a resting label can only sit on top of a neighbour —
+    // so dots in cells of >4 keep their hover/focus label only. Their name is
+    // still reachable on hover + in the inspector.
+    if (nd.cellN > 4) continue;
     const w = name.length * CHAR_W + 2;
     const candidates = [
       { x: 0, y: -nd.r - 8, anchor: "middle", x1: nd.cx - w / 2, x2: nd.cx + w / 2, y1: nd.cy - nd.r - 8 - LBL_H, y2: nd.cy - nd.r - 8 },
       { x: 0, y: nd.r + 13, anchor: "middle", x1: nd.cx - w / 2, x2: nd.cx + w / 2, y1: nd.cy + nd.r + 13 - LBL_H, y2: nd.cy + nd.r + 13 },
       { x: nd.r + 6, y: 3, anchor: "start", x1: nd.cx + nd.r + 6, x2: nd.cx + nd.r + 6 + w, y1: nd.cy + 3 - LBL_H, y2: nd.cy + 3 },
       { x: -nd.r - 6, y: 3, anchor: "end", x1: nd.cx - nd.r - 6 - w, x2: nd.cx - nd.r - 6, y1: nd.cy + 3 - LBL_H, y2: nd.cy + 3 },
+      // Diagonals — give crowded-but-not-dense cells more room before bailing.
+      { x: nd.r + 5, y: -nd.r - 4, anchor: "start", x1: nd.cx + nd.r + 5, x2: nd.cx + nd.r + 5 + w, y1: nd.cy - nd.r - 4 - LBL_H, y2: nd.cy - nd.r - 4 },
+      { x: -nd.r - 5, y: -nd.r - 4, anchor: "end", x1: nd.cx - nd.r - 5 - w, x2: nd.cx - nd.r - 5, y1: nd.cy - nd.r - 4 - LBL_H, y2: nd.cy - nd.r - 4 },
+      { x: nd.r + 5, y: nd.r + 11, anchor: "start", x1: nd.cx + nd.r + 5, x2: nd.cx + nd.r + 5 + w, y1: nd.cy + nd.r + 11 - LBL_H, y2: nd.cy + nd.r + 11 },
+      { x: -nd.r - 5, y: nd.r + 11, anchor: "end", x1: nd.cx - nd.r - 5 - w, x2: nd.cx - nd.r - 5, y1: nd.cy + nd.r + 11 - LBL_H, y2: nd.cy + nd.r + 11 },
     ];
     for (const c of candidates) {
       if (c.x1 < 4 || c.x2 > W - 4 || c.y1 < padT - 16 || c.y2 > padT + plotH + 4) continue;
@@ -2574,6 +2592,21 @@ function constNormalizeGranularity(raw) {
   const g = String(raw || "").toLowerCase();
   return (g === "themes" || g === "clusters" || g === "skills") ? g : "clusters";
 }
+// What bubble SIZE encodes on the relationship map. Previously a fixed legend
+// word ("size · maturity"); now a control — same sentence-bar token slot as
+// "grouped by", so the user can ask the map a different size question without
+// adding sibling clutter.
+const CONST_SIZE_BYS = [
+  { key: "maturity",    label: "maturity",    hint: "further along the PMF curve = bigger (default)" },
+  { key: "headcount",   label: "headcount",   hint: "more people on the team = bigger" },
+  { key: "depended-on", label: "depended-on", hint: "more teams declare a dependency on it = bigger" },
+  { key: "even",        label: "even",        hint: "every team the same size — read grouping only" },
+];
+const CONST_SIZE_KEYS = CONST_SIZE_BYS.map(o => o.key);
+function constNormalizeSizeBy(raw) {
+  const s = String(raw || "").toLowerCase();
+  return CONST_SIZE_KEYS.includes(s) ? s : "maturity";
+}
 function constNormalizeEdgeTier(raw) {
   const tier = String(raw || "").toLowerCase();
   return tier === "record" || tier === "mention" ? tier : "all";
@@ -2657,7 +2690,7 @@ function constSentenceUnit({ menu, token, ariaMenu, options }) {
       <div class="ac-sent-menu" data-sent-menu-for="${escAttr(menu)}" role="listbox" aria-label="${escAttr(ariaMenu)}" hidden>${options}</div>
     </span>`;
 }
-function constellationSentenceBar({ view = "bubble", scope = "projects", granularity = "clusters", lens = "all", metrics = {}, tier = "all", peopleLinkFilter = "all" } = {}) {
+function constellationSentenceBar({ view = "bubble", scope = "projects", granularity = "clusters", sizeBy = "maturity", lens = "all", metrics = {}, tier = "all", peopleLinkFilter = "all" } = {}) {
   void view; void lens; void metrics; void tier;
   const activeScope = constNormalizeNetworkScope(scope);
   const scopeUnit = constSentenceUnit({
@@ -2702,16 +2735,32 @@ function constellationSentenceBar({ view = "bubble", scope = "projects", granula
       label: g.label, note: g.hint,
     })).join(""),
   });
+  // "sized by" — what the bubble area means. Was a fixed legend word; now a
+  // control in the same token slot so the map can answer maturity / headcount /
+  // depended-on / even without adding a sibling chip.
+  const activeSize = constNormalizeSizeBy(sizeBy);
+  const sizeSpec = CONST_SIZE_BYS.find(o => o.key === activeSize) || CONST_SIZE_BYS[0];
+  const sizeUnit = constSentenceUnit({
+    menu: "size",
+    ariaMenu: "what bubble size means",
+    token: constSentenceToken({ menu: "size", label: sizeSpec.label, aria: `sized by ${sizeSpec.label} — change what bubble size means` }),
+    options: CONST_SIZE_BYS.map(o => constSentenceOption({
+      attr: "data-const-size", value: o.key, selected: o.key === activeSize,
+      label: o.label, note: o.hint,
+    })).join(""),
+  });
   // The bubble map has no edges, so the old line lens + record/mention tier
-  // chips are gone; the only verb is grain, and a quiet legend names what the
-  // visual channels mean (size / shade / colour).
+  // chips are gone; the verbs are grain + size, and a quiet legend names the
+  // remaining visual channels (shade = depended-on, colour = domain).
   return `
     <div class="ac-sentence" role="group" aria-label="bubble map controls">
       <span class="ac-sent-word">showing</span>
       ${scopeUnit}
       <span class="ac-sent-word">grouped by</span>
       ${granUnit}
-      <span class="ac-sent-legend">size <b>maturity</b> · shade <b>depended-on</b> · ${[["tee", "tee"], ["ai", "ai"], ["crypto", "crypto"], ["app-ux", "ux"]].map(([k, lbl]) => `<i class="ac-dom-sw" style="background:${EGO_DOMAIN_FILL[k]}" aria-hidden="true"></i>${lbl}`).join(" ")}</span>
+      <span class="ac-sent-word">sized by</span>
+      ${sizeUnit}
+      <span class="ac-sent-legend">shade <b>depended-on</b> · ${[["tee", "tee"], ["ai", "ai"], ["crypto", "crypto"], ["app-ux", "ux"]].map(([k, lbl]) => `<i class="ac-dom-sw" style="background:${EGO_DOMAIN_FILL[k]}" aria-hidden="true"></i>${lbl}`).join(" ")}</span>
     </div>`;
 }
 // Multi-select include chip (journey's teams/projects/side toggles): the
@@ -5446,7 +5495,13 @@ function renderJourney() {
   // set apart by a divider — then stages 1..8 (idea → scale fit). 9 columns.
   // Y = evidence_quality (1..5, higher = up).
   const STAGE_COUNT = JOURNEY_STAGE_LABELS.length; // 9 (0..8)
-  const spanStages = STAGE_COUNT - minStage;       // visible columns: 9, or 8 with no side track
+  // Collapse trailing empty columns: almost every cohort clusters in the first
+  // few stages, so reserving all 8 wastes ~half the plot and crushes the dots
+  // into 2-3 columns. Show up to one empty column past the most-advanced team
+  // (min 3 columns) so crowded stages get far more width to spread within.
+  const maxPopStage = teams.reduce((m, t) => Math.max(m, journeyFor(t).stage), minStage);
+  const maxStage = Math.min(STAGE_COUNT - 1, Math.max(minStage + 2, maxPopStage + 1));
+  const spanStages = maxStage - minStage + 1;      // visible columns
   const colW = plotW / spanStages;
   const rowH = plotH / 5;
   const xForStage = (stage) => PAD_L + (stage - minStage + 0.5) * colW;
@@ -5480,7 +5535,7 @@ function renderJourney() {
     ["8", "scale", "fit"],
   ];
   const xLabels = JOURNEY_STAGE_LABELS.map((lbl, stage) => {
-    if (stage < minStage) return "";
+    if (stage < minStage || stage > maxStage) return "";
     const x = xForStage(stage);
     const cls = stage === 0 ? "ac-jaxis-x ac-jaxis-x-side" : "ac-jaxis-x";
     const lines = stageAxisLines[stage] || [String(stage), lbl];
@@ -5532,22 +5587,30 @@ function renderJourney() {
     const bucket = cellBuckets.get(`${j.stage}:${j.evidence_quality}`) || [t];
     const n = bucket.length;
     const idx = Math.max(0, bucket.findIndex(item => item.record_id === t.record_id));
-    let jx = journeyJitter(t.record_id, "x") * (colW * 0.18);
-    let jy = journeyJitter(t.record_id, "y") * (rowH * 0.18);
+    // Deterministic spread within a shared stage:quality cell. The old scheme
+    // added a random jitter ON TOP of the grid slot, which pushed neighbours
+    // back into collision — dropped. Single-occupant cells get a tiny
+    // deterministic nudge only, so identical positions don't perfectly stack.
+    let jx = journeyJitter(t.record_id, "x") * (colW * 0.10);
+    let jy = journeyJitter(t.record_id, "y") * (rowH * 0.10);
     if (n > 1) {
       const cols = Math.ceil(Math.sqrt(n));
       const rows = Math.ceil(n / cols);
       const col = idx % cols;
       const row = Math.floor(idx / cols);
-      jx = (cols <= 1 ? 0 : ((col / (cols - 1)) - 0.5) * (colW * 0.66)) + journeyJitter(t.record_id, "x") * 2;
-      jy = (rows <= 1 ? 0 : ((row / (rows - 1)) - 0.5) * (rowH * 0.56)) + journeyJitter(t.record_id, "y") * 2;
+      jx = cols <= 1 ? 0 : ((col / (cols - 1)) - 0.5) * (colW * 0.80);
+      jy = rows <= 1 ? 0 : ((row / (rows - 1)) - 0.5) * (rowH * 0.78);
     }
     const assessed = journeyAssessed(t);
-    const r = assessed ? 4 + j.market_upside * 1.8 : 4.8; // upside 1..5 -> r 5.8..13
-    return { t, j, assessed, r, cx: xForStage(j.stage) + jx, cy: yForEvidence(j.evidence_quality) + jy };
+    // Cap dot radius so packed cells don't overlap; quieter unassessed dots.
+    const r = assessed ? Math.min(11, 3.5 + j.market_upside * 1.5) : 3.6;
+    // Hit target scales down inside crowded cells so adjacent dots stay
+    // independently clickable (was a flat 36px that blanketed neighbours).
+    const hitR = n > 1 ? Math.max(10, r + 4) : Math.max(15, r + 8);
+    return { t, j, assessed, r, hitR, cellN: n, cx: xForStage(j.stage) + jx, cy: yForEvidence(j.evidence_quality) + jy };
   });
   const labelPos = journeyPlaceLabels(nodes, { W, padT: PAD_T, plotH });
-  const dots = nodes.map(({ t, j, assessed, r, cx, cy }) => {
+  const dots = nodes.map(({ t, j, assessed, r, hitR, cx, cy }) => {
     const famIdx = journeyFamilyIdx(j.primary_bottleneck);
     const isProject = teamKind(t) === "project";
     const label = labelPos.get(t.record_id) || null;
@@ -5562,7 +5625,7 @@ function renderJourney() {
     const labelY = label ? label.y : -r - 8;
     const labelAnchor = label ? label.anchor : "middle";
     return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}${bnClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(title)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
-        <circle class="ac-jhit" r="${Math.max(18, r + 9).toFixed(1)}"/>
+        <circle class="ac-jhit" r="${hitR.toFixed(1)}"/>
         <circle class="${dotClass}" r="${r.toFixed(1)}"/>
         <text class="ac-jnode-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="${labelAnchor}">${escHtml(t.name)}</text>
       </g>`;
@@ -5630,7 +5693,8 @@ function renderJourney() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="journey">
     ${cohortPageHead("journey")}
-    <div class="alch-view-controls" data-shape-occluder>${constTimelineDropdownHtml()}${filterBar}${constSelectionChipHtml()}</div>
+    <div class="ac-view-timeframe">${renderConstellationTimelineControls()}</div>
+    <div class="alch-view-controls" data-shape-occluder>${filterBar}${constSelectionChipHtml()}</div>
     <div class="alch-constellation" data-constellation-view="journey">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
@@ -5892,6 +5956,19 @@ function constGoalPlanHtml(model, standingFilter = "all", momentumFilter = "all"
 
   const moverId = summary?.topMover?.team?.record_id;
   const slipId = summary?.topSlip?.team?.record_id;
+  // De-collide the (hover) end-labels: teams ending at the same stage share an
+  // endY and would overprint when shown. Spread the LABEL y's ≥11px apart while
+  // the polylines keep their true endpoints; clamp the stack into the plot.
+  const labelY = new Map();
+  {
+    const order = tracked
+      .map(r => ({ rid: r.team.record_id, y: yFor(constStandingTrajectory(r.team, weeks)[n - 1]) }))
+      .sort((a, b) => a.y - b.y);
+    let prev = -Infinity; const GAP = 11;
+    for (const it of order) { const y = Math.max(it.y, prev + GAP); labelY.set(it.rid, y); prev = y; }
+    const maxY = H - PAD_B + 2, over = prev - maxY;
+    if (over > 0) for (const [rid, y] of labelY) labelY.set(rid, y - over);
+  }
   const lines = tracked.map(r => {
     const color = CONST_GOAL_STANDING[r.standing].color;
     const pts = constStandingTrajectory(r.team, weeks);
@@ -5909,7 +5986,7 @@ function constGoalPlanHtml(model, standingFilter = "all", momentumFilter = "all"
         <polyline class="ac-traj-hit" points="${poly}"/>
         <polyline class="ac-traj-line" points="${poly}"/>
         <text class="ac-traj-mom" x="${(endX + 7).toFixed(1)}" y="${(endY + 3.5).toFixed(1)}">${mk.glyph}</text>
-        <text class="ac-traj-endlab" x="${(W - PAD_R + 18).toFixed(1)}" y="${(endY + 3).toFixed(1)}">${escHtml(constShortText(name, 13))}</text>
+        <text class="ac-traj-endlab" x="${(W - PAD_R + 18).toFixed(1)}" y="${((labelY.get(r.team.record_id) ?? endY) + 3).toFixed(1)}">${escHtml(constShortText(name, 13))}</text>
       </g>`;
   }).join("");
 
@@ -5970,7 +6047,7 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
   // 0–8 scale as the "cur → tgt" values and never contradicts the PMF view.
   const ticks = [{ v: 0, l: "0" }, { v: 4, l: "mvp · 4" }, { v: 6, l: "pmf · 6" }, { v: 8, l: "grad · 8" }];
   const axis = `<div class="ac-tgt-axis"><span></span><div class="ac-tgt-ticks">${ticks.map(t => `<span class="ac-tgt-tick" style="left:${pct(t.v)}%">${t.l}</span>`).join("")}</div><span></span></div>`;
-  const rowHtml = rows.map(({ r, cur, tgt, gap, declared }) => {
+  const renderTgtRow = ({ r, cur, tgt, gap, declared }) => {
     const color = CONST_GOAL_STANDING[r.standing].color;
     // Momentum still dims rows (the insight strip's momentum chips filter here),
     // but momentum is the trajectory view's job — this view stays on the gap.
@@ -5991,6 +6068,19 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
       </span>
       <span class="ac-tgt-val">${cur}<span class="ac-tgt-tval"> → ${tgt}${declared ? "" : `<i>est</i>`}</span></span>
     </button>`;
+  };
+  // Group rows into behind / on-plan / ahead bands so the list reads as three
+  // scannable groups (with a quiet header each) instead of one undifferentiated
+  // wall of ~26 identical bars. Within each band, biggest gap first.
+  const STANDING_ORDER = ["behind", "onplan", "ahead"];
+  const bandsHtml = STANDING_ORDER.map(key => {
+    const band = rows.filter(x => x.r.standing === key);
+    if (!band.length) return "";
+    const meta = CONST_GOAL_STANDING[key];
+    return `<div class="ac-tgt-group" data-standing="${escAttr(key)}">
+        <div class="ac-tgt-group-head" style="--band-color:${meta.color}"><span class="ac-tgt-group-dot" aria-hidden="true"></span>${escHtml(meta.label)}<em>${band.length}</em></div>
+        <div class="ac-tgt-rows">${band.map(renderTgtRow).join("")}</div>
+      </div>`;
   }).join("");
   const untrackedHtml = untracked.length ? `
       <div class="ac-gp-untracked">
@@ -6003,7 +6093,7 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
     <div class="ac-stack-view is-targets" data-standing-filter="${escAttr(activeFilter)}">
       ${constGoalInsightHtml(summary, momFilter)}
       ${axis}
-      <div class="ac-tgt-rows">${rowHtml}</div>
+      ${bandsHtml}
       ${untrackedHtml}
       <p class="ac-gp-note">● current stage · ▽ target (faded = estimated) · bar = gap to close. Hover a row to read a team.</p>
     </div>`;
@@ -6102,6 +6192,42 @@ function sdsEvidenceParts(card) {
   };
 }
 
+// Runtime evidence index over the live transcript cards (gated T2 ∪ T3, loaded by
+// cohort-source.js applyEvidenceOverlay). Memoized on the cards array so a render
+// pass builds it once. Empty until the cohort-key channel is provisioned — every
+// consumer guards on emptiness, so views render unchanged with no evidence.
+let _sdsEvidenceCache = { cards: null, index: null };
+function cohortEvidenceIndex() {
+  const cards = activeConstellationCohort()?.transcript_evidence_cards || [];
+  if (_sdsEvidenceCache.cards !== cards) _sdsEvidenceCache = { cards, index: indexCohortEvidence(cards) };
+  return _sdsEvidenceCache.index;
+}
+// Session-observed "did" overlay for a team — the runtime fill for the otherwise
+// declared-only/empty say-did-shipped cards, keyed by WHEN it was observed.
+// Returns "" when there is no gated evidence for the team (the common case today).
+function sdsEvidenceDidHtml(teamId) {
+  const did = recentClaims(teamEvidence(cohortEvidenceIndex(), teamId), "did", 2);
+  if (!did.length) return "";
+  const items = did.map(d => `<em>${escHtml(d.week)}</em> ${escHtml(constShortText(d.text, 110))}`).join("<br>");
+  return `<span class="ac-sds-evidence" style="display:block;margin-top:3px;opacity:0.72;font-size:0.85em" title="observed in reviewed cohort sessions">↳ sessions · ${items}</span>`;
+}
+
+// Per-team session evidence for the SHARED dossier — surfaces did / signals / asks /
+// risks (time-keyed) wherever a team is inspected, so PMF, standing, and relationship
+// all get the evidence via one hook (no per-plot surgery). "" when there's no gated
+// evidence ⇒ detailRows() drops the row and the dossier is unchanged.
+function detailEvidenceSignals(recordId) {
+  const ev = teamEvidence(cohortEvidenceIndex(), recordId);
+  const groups = [["did", "did", 2], ["signal", "pmf", 2], ["ask", "asks", 1], ["risk", "risks", 1]];
+  const items = [];
+  for (const [label, kind, n] of groups) {
+    for (const c of recentClaims(ev, kind, n)) {
+      items.push(`<li><em>${escHtml(label)} · ${escHtml(c.week)}</em> ${escHtml(constShortText(c.text, 120))}</li>`);
+    }
+  }
+  return items.length ? `<ul class="ac-detail-evidence" style="margin:.2em 0 0;padding-left:1.1em;opacity:.85">${items.join("")}</ul>` : "";
+}
+
 function renderSayDidShipped() {
   const cohort = activeConstellationCohort();
   const teams = (cohort.teams || []).filter(t => t && t.record_id && teamKind(t) !== "person");
@@ -6165,7 +6291,7 @@ function renderSayDidShipped() {
             <b>say</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 150))}</span>
           </span>
           <span class="ac-sds-cell${observedClass}">
-            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 150))}</span>
+            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 150))}</span>${sdsEvidenceDidHtml(team.record_id)}
           </span>
           <span class="ac-sds-cell${observedClass}">
             <b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 130))}</span>
@@ -6820,17 +6946,31 @@ function renderConstellationDeltaLedger(delta) {
 // space, so an extra ring around one node is just noise.
 function constBubbleContainerSvg(c, accentStyle) {
   if (!c || c.redundant) return "";
-  // Level-aware label gate: theme rings are large; cluster/skill rings smaller.
-  // A 9px label only earns its place when the ring can hold it without crowding
-  // the bubbles inside (the old flat r>30 dropped labels into tiny circles).
-  const showLabel = c.level === "theme" ? c.r > 90 : c.r > 44;
-  const labelY = (c.cy - c.r + 14).toFixed(1);
   const count = Array.isArray(c.members) ? c.members.length : 0;
   const aria = `focus ${c.label || c.id}${c.level === "cluster" ? " ecosystem" : ` ${c.level}`}, ${count} team${count === 1 ? "" : "s"}`;
+  // Title is WRAPPED (≤2 short lines, full text in <title>) and sits just ABOVE
+  // the ring's top edge — so it no longer overruns into neighbouring rings or
+  // sits on top of the bubbles inside. Only shown when (a) the ring is big
+  // enough to own a title and (b) the longest wrapped line actually fits the
+  // ring width (~5.6px/char at the 9px mono), so a long name never bleeds out.
+  const lines = constWellLabelLines(c.label);
+  const longest = lines.reduce((m, l) => Math.max(m, l.length), 0);
+  const minR = c.level === "theme" ? 64 : 40;
+  const fits = lines.length > 0 && longest * 5.6 <= 2 * c.r;
+  const showLabel = c.r > minR && fits;
+  const cx = c.cx.toFixed(1);
+  // Stack the (≤2) lines so the whole block sits ABOVE the ring top edge.
+  const lastBaseline = c.cy - c.r - 7;
+  const firstY = (lastBaseline - (lines.length - 1) * 10.5).toFixed(1);
+  const labelMarkup = showLabel ? `
+      <text class="ac-bubble-container-label" x="${cx}" y="${firstY}" text-anchor="middle">
+        <title>${escHtml(c.label || "")}</title>
+        ${lines.map((line, i) => `<tspan x="${cx}" dy="${i === 0 ? "0" : "10.5"}">${escHtml(line)}</tspan>`).join("")}
+      </text>` : "";
   return `
     <g class="ac-bubble-container" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle)}">
-      <circle class="ac-bubble-container-shape" cx="${c.cx.toFixed(1)}" cy="${c.cy.toFixed(1)}" r="${c.r.toFixed(1)}"/>
-      ${showLabel ? `<text class="ac-bubble-container-label" x="${c.cx.toFixed(1)}" y="${labelY}" text-anchor="middle">${escHtml(c.label || "")}</text>` : ""}
+      <circle class="ac-bubble-container-shape" cx="${cx}" cy="${c.cy.toFixed(1)}" r="${c.r.toFixed(1)}"/>
+      ${labelMarkup}
     </g>`;
 }
 
@@ -6862,7 +7002,9 @@ function renderConstellation() {
   const networkScope = constNormalizeNetworkScope(state.constellationScope);
   // Squarer viewBox than the old node-link map: the packed cohort is a circle,
   // so a near-square frame fills the stage instead of pillarboxing a wide one.
-  const W = 620, H = 600;
+  // Widened a touch (was 620×600) to give the looser pack + wrapped cluster
+  // titles horizontal room without clipping at the frame.
+  const W = 760, H = 640;
   const model = constellationModel(teams, clusters, cohort?.dependencies || []);
   // People scope keeps the existing person-to-person network (deferred work).
   if (networkScope === "people") {
@@ -6870,14 +7012,42 @@ function renderConstellation() {
     return;
   }
   // Relationship map = nested bubble map. Containment (theme → cluster/skill →
-  // team) replaces the node-link layout: size = maturity, shade = depended-on,
-  // colour = domain. The old map/ring layouts are retired (ring → map above).
+  // team) replaces the node-link layout: size = chosen metric, shade =
+  // depended-on, colour = domain. The old map/ring layouts are retired.
   const viewMode = "bubble";
   const granularity = constNormalizeGranularity(state.constellationGranularity);
   state.constellationGranularity = granularity;
+  const sizeBy = constNormalizeSizeBy(state.constellationSizeBy);
+  state.constellationSizeBy = sizeBy;
   const activeLens = "all";
-  const stageOf = (team) => team?.journey?.stage;
-  const { pos, containers } = packBubbles(model, granularity, { stageOf, W, H });
+  // Bubble size is a CONTROL ("sized by" token): maturity / headcount /
+  // depended-on / even. Each metric is normalised to one breathing-friendly
+  // radius range so no metric ever clumps the pack, and a √ scale keeps area
+  // (not radius) proportional to the value.
+  const R_MIN = 8, R_MAX = 20, R_EVEN = 13;
+  const headcount = new Map();
+  for (const p of people) { const tid = p?.team; if (tid) headcount.set(tid, (headcount.get(tid) || 0) + 1); }
+  const sizeMetric = (team) => {
+    if (!team) return null;
+    if (sizeBy === "headcount") return headcount.get(team.record_id) || 0;
+    if (sizeBy === "depended-on") return model.indegree.get(team.record_id) || 0;
+    if (sizeBy === "even") return 1;
+    return Number(team?.journey?.stage) || 1; // maturity (default)
+  };
+  let vMin = Infinity, vMax = -Infinity;
+  for (const t of model.byRecordId.values()) {
+    const v = sizeMetric(t);
+    if (Number.isFinite(v)) { if (v < vMin) vMin = v; if (v > vMax) vMax = v; }
+  }
+  const vSpan = (vMax - vMin) || 1;
+  const radiusOf = (team) => {
+    if (sizeBy === "even") return R_EVEN;
+    const v = sizeMetric(team);
+    if (!Number.isFinite(v)) return R_MIN;
+    const t = Math.max(0, Math.min(1, (v - vMin) / vSpan));
+    return R_MIN + (R_MAX - R_MIN) * Math.sqrt(t);
+  };
+  const { pos, containers } = packBubbles(model, granularity, { radiusOf, W, H, margin: 44 });
   const wells = []; const ringSegments = []; const ringCenter = null;
   // Edges aren't drawn in the bubble map, but the inspector still reads them
   // (who relies on whom) and the per-company overlap is built from them.
@@ -7045,7 +7215,7 @@ function renderConstellation() {
     ${cohortPageHead(viewMode)}
       <div class="alch-view-controls" data-shape-occluder>
         ${constTimelineDropdownHtml()}
-        ${constellationSentenceBar({ view: viewMode, scope: "projects", granularity })}
+        ${constellationSentenceBar({ view: viewMode, scope: "projects", granularity, sizeBy })}
         ${constSelectionChipHtml()}
       </div>
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
@@ -7513,6 +7683,10 @@ function wireDetailDismiss() {
 // ─── constellation hover ─────────────────────────────────────────────
 function wireConstellationHover() {
   wireConstellationModeNav();
+  // The week-by-week timeframe dial (renderConstellationTimelineControls) is a
+  // top band on PMF; wire its scrubber + week ticks here so stepping a week
+  // re-renders the view. No-op on views that don't render the dial.
+  wireConstellationTimelineControls(state.canvas);
   const stage = state.canvas.querySelector(".alch-constellation-stage");
   // Selection chip + readout name-links live OUTSIDE the inspector (which
   // has its own delegated handler), so the canvas owns them. Bound once —
@@ -7987,6 +8161,20 @@ function wireConstellationHover() {
       // Morph bubbles between grains via View Transitions (named per team), so
       // the cohort reshapes instead of hard-cutting. Falls back to a plain
       // render where unsupported or when reduced motion is requested.
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
+      else render();
+    });
+  }
+  // Bubble size encoding: maturity / headcount / depended-on / even. Each team
+  // bubble persists across the change by record_id, so the same View-Transition
+  // morph as granularity makes bubbles grow/shrink in place.
+  for (const btn of state.canvas.querySelectorAll("[data-const-size]")) {
+    btn.addEventListener("click", () => {
+      const next = constNormalizeSizeBy(btn.dataset.constSize);
+      if (next === state.constellationSizeBy) { closeConstSentenceMenus(); return; }
+      state.constellationSizeBy = next;
+      try { localStorage.setItem(CONST_SIZE_LS_KEY, next); } catch {}
       const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
       if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
       else render();
@@ -12824,6 +13012,101 @@ function renderContextRawMap(source) {
   `;
 }
 
+// "Add context" composer — the only write surface on the Context page. A user
+// pastes a transcript / note; submitContext() POSTs it to the private
+// context_submissions inbox (anon INSERT-only) for downstream distillation.
+// Collapsed by default (composeOpen persists across re-renders); reuses the asks
+// composer's class family so it inherits the house compose styling.
+function renderContextComposer() {
+  const open = state.contextVault.composeOpen === true;
+  const kindOptions = CONTEXT_SUBMISSION_KINDS
+    .map((k) => `<option value="${escAttr(k.value)}"${k.value === "note" ? " selected" : ""}>${escHtml(k.label)}</option>`)
+    .join("");
+  return `
+    <form class="alch-asks-compose alch-cv-compose" data-cv-compose>
+      <details class="alch-asks-compose-shell" data-cv-compose-details${open ? " open" : ""}>
+        <summary class="alch-asks-compose-head">
+          <span class="alch-asks-compose-title">add context</span>
+          <span class="alch-asks-compose-hint">paste a transcript or note → sent to Supabase for processing</span>
+          <span class="alch-asks-compose-caret" aria-hidden="true"></span>
+        </summary>
+        <div class="alch-asks-compose-body">
+          <div class="alch-asks-compose-grid alch-cv-compose-grid">
+            <label class="alch-asks-compose-field alch-cv-compose-kind">
+              <span class="alch-asks-compose-label">kind</span>
+              <select name="source_kind" class="alch-asks-compose-input">${kindOptions}</select>
+            </label>
+            <label class="alch-asks-compose-field alch-cv-compose-title">
+              <span class="alch-asks-compose-label">title <span class="alch-asks-compose-hint">(optional)</span></span>
+              <input name="title" type="text" class="alch-asks-compose-input" maxlength="300"
+                     placeholder="e.g. June 17 office-hours — fuzzing thread" />
+            </label>
+            <label class="alch-asks-compose-field alch-cv-compose-full">
+              <span class="alch-asks-compose-label">context</span>
+              <textarea name="body" rows="6" class="alch-asks-compose-input alch-cv-compose-body-input"
+                        placeholder="paste the transcript, notes, or any bits of info you want distilled…"></textarea>
+            </label>
+            <label class="alch-asks-compose-field alch-cv-compose-full">
+              <span class="alch-asks-compose-label">contact <span class="alch-asks-compose-hint">(optional — if the engine should follow up)</span></span>
+              <input name="contact" type="text" class="alch-asks-compose-input" maxlength="200" placeholder="@handle or email" />
+            </label>
+          </div>
+          <div class="alch-asks-compose-row">
+            <button class="alch-feed-btn alch-asks-compose-submit" type="submit">send to processing</button>
+            <span class="alch-asks-compose-author">private inbox · raw text leaves your device only on submit</span>
+          </div>
+          <div class="alch-asks-compose-result alch-cv-compose-result" data-cv-compose-result hidden></div>
+        </div>
+      </details>
+    </form>
+  `;
+}
+
+// Compose-form submit. Validates + POSTs via submitContext(); updates the result
+// line in place (no re-render) so a failed submit keeps the user's pasted text.
+async function submitContextCompose(form) {
+  const result = form.querySelector("[data-cv-compose-result]");
+  const btn = form.querySelector(".alch-asks-compose-submit");
+  if (!result) return;
+
+  const input = {
+    source_kind: String(form.elements.source_kind?.value || "note"),
+    title: String(form.elements.title?.value || ""),
+    body: String(form.elements.body?.value || ""),
+    contact: String(form.elements.contact?.value || ""),
+  };
+
+  const restore = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "sending…"; }
+  let res;
+  try {
+    res = await submitContext(input);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = restore || "send to processing"; }
+  }
+
+  result.hidden = false;
+  if (res.ok) {
+    result.innerHTML = `
+      <p class="alch-onb-inline-line">
+        <span class="alch-onb-inline-tag">sent</span>
+        queued for processing — thanks. it'll be distilled and surface back on this page.
+      </p>`;
+    if (form.elements.body) form.elements.body.value = "";
+    if (form.elements.title) form.elements.title.value = "";
+    if (form.elements.contact) form.elements.contact.value = "";
+    return;
+  }
+  const msg = res.reason === "unconfigured"
+    ? "the context inbox isn't configured in this build yet — set a Supabase URL + anon key in calendar settings."
+    : (res.error || "couldn't send — check your connection and try again.");
+  result.innerHTML = `
+    <p class="alch-onb-inline-line alch-onb-inline-err">
+      <span class="alch-onb-inline-tag">not sent</span>
+      ${escHtml(msg)}
+    </p>`;
+}
+
 function renderContextVaultRawDetail(selected) {
   if (!selected) {
     return `
@@ -12985,7 +13268,8 @@ function contextEvidenceCardHtml(card) {
   const when = contextEvidenceDate(card.created_at);
   const chips = [evidence, scope].filter(Boolean)
     .map(c => `<span class="alch-ev-chip">${escHtml(c.replace(/_/g, " "))}</span>`).join("");
-  const prov = [topic, "distilled", "T3 public", when].filter(Boolean).map(escHtml).join(" · ");
+  const tierLabel = String(card.surface_tier || "T3") === "T2" ? "T2 cohort" : "T3 public";
+  const prov = [topic, "distilled", tierLabel, when].filter(Boolean).map(escHtml).join(" · ");
   return `
     <article class="alch-ev-card" data-claim-type="${escAttr(type)}">
       <header class="alch-ev-head">
@@ -13005,16 +13289,37 @@ function contextEvidenceCardHtml(card) {
 
 const EVIDENCE_TIER_LS_KEY = "srfg:evidence_tier";
 
+// Split the live evidence read into its two tiers. transcript_evidence_cards
+// carries BOTH the gated named cohort cards (surface_tier "T2", read with the
+// cohort key) and the public anonymized cards ("T3", read with the anon key) —
+// see supabase-evidence.mjs + applyEvidenceOverlay, which merge both reads into
+// one array. The named tier also folds in any legacy session_insights readouts
+// (bundle-baked, now usually empty). Both tiers are meant to be read off the app.
+function contextEvidenceData() {
+  const all = Array.isArray(state.cohort?.transcript_evidence_cards) ? state.cohort.transcript_evidence_cards : [];
+  const t2cards = all.filter((c) => String(c?.surface_tier || "") === "T2");
+  const t3cards = all.filter((c) => String(c?.surface_tier || "T3") !== "T2");
+  const insights = Array.isArray(state.cohort?.session_insights) ? state.cohort.session_insights : [];
+  return { t2cards, t3cards, insights, namedCount: t2cards.length + insights.length, generalizedCount: t3cards.length };
+}
+
 // Detail tier for the Context > evidence view.
-//   T2 (default) = the richer, NAMED cohort session readouts (from the committed
-//     bundle's session_insights — no login required).
-//   T3 = the person-anonymized cards read live from Supabase (the public tier).
-// Default T2; flip to T3 instantly (via the in-view toggle or this localStorage
-// key) if named detail ever needs pulling back. No login is involved either way.
+//   T2 "named"       = team- and person-attributed cohort cards (gated Supabase
+//                      view, read with the cohort key) + legacy session_insights.
+//   T3 "generalized" = the person-anonymized public cards (anon Supabase view).
+// Both render off the live transcript_evidence_cards read, split by surface_tier.
+// With no explicit choice: prefer the richer NAMED tier when the app actually
+// read it (cohort key present), else fall back to the generalized tier so the
+// live public cards still show — never land on an empty tab. An explicit choice
+// (set via the in-view toggle) is always honored.
 function contextEvidenceTier() {
-  try {
-    return String(localStorage.getItem(EVIDENCE_TIER_LS_KEY) || "").toUpperCase() === "T3" ? "T3" : "T2";
-  } catch { return "T2"; }
+  let saved = "";
+  try { saved = String(localStorage.getItem(EVIDENCE_TIER_LS_KEY) || "").toUpperCase(); } catch {}
+  if (saved === "T2" || saved === "T3") return saved;
+  const { namedCount, generalizedCount } = contextEvidenceData();
+  if (namedCount) return "T2";
+  if (generalizedCount) return "T3";
+  return "T2";
 }
 function setContextEvidenceTier(tier) {
   const next = tier === "T3" ? "T3" : "T2";
@@ -13058,15 +13363,19 @@ function contextSessionSummaryHtml(s) {
   `;
 }
 
-function renderContextEvidence(tier, cards, insights) {
+function renderContextEvidence(tier, t3cards, t2cards, insights) {
   const toggle = evidenceTierToggleHtml(tier);
   if (tier === "T2") {
-    const body = insights.length
-      ? `<p class="alch-ev-lede">${insights.length} cohort session readout${insights.length === 1 ? "" : "s"} — named, with the 60-second summary, themes, and product insights. Switch to <em>generalized</em> for the person-anonymized public view.</p>
-         <div class="alch-ev-grid alch-ev-sum-grid">${insights.map(contextSessionSummaryHtml).join("")}</div>`
-      : `<p class="alch-cv-muted alch-ev-empty">No cohort session readouts yet. Distill sessions into readouts to populate the named tier.</p>`;
+    const named = Array.isArray(t2cards) ? t2cards : [];
+    const readouts = Array.isArray(insights) ? insights : [];
+    const total = named.length + readouts.length;
+    const body = total
+      ? `<p class="alch-ev-lede">${total} named cohort evidence ${total === 1 ? "card" : "cards"} — team- and person-attributed, read live from Supabase. Switch to <em>generalized</em> for the person-anonymized public view.</p>
+         <div class="alch-ev-grid">${named.map(contextEvidenceCardHtml).join("")}${readouts.map(contextSessionSummaryHtml).join("")}</div>`
+      : `<p class="alch-cv-muted alch-ev-empty">No named cohort evidence in this build. The named tier reads the gated Supabase view (cohort_app_transcript_evidence_cards), which needs the cohort key — without it the app shows the <em>generalized</em> public tier only.</p>`;
     return `${toggle}${body}`;
   }
+  const cards = Array.isArray(t3cards) ? t3cards : [];
   const body = cards.length
     ? `<p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from Supabase — person-anonymized, team-attributed, published.</p>
        <div class="alch-ev-grid">${cards.map(contextEvidenceCardHtml).join("")}</div>`
@@ -13147,9 +13456,10 @@ function renderContextVault() {
     raw: cv.loaded ? rawScripts.length : undefined,
     signals: intelMeta.signals,
     data: intelMeta.entities,
-    evidence: (contextEvidenceTier() === "T2"
-      ? (state.cohort?.session_insights || []).length
-      : (state.cohort?.transcript_evidence_cards || []).length) || undefined,
+    evidence: (() => {
+      const d = contextEvidenceData();
+      return (contextEvidenceTier() === "T2" ? d.namedCount : d.generalizedCount) || undefined;
+    })(),
   });
 
   // Evidence view — distilled transcript cards read live from Supabase
@@ -13157,12 +13467,11 @@ function renderContextVault() {
   // shared page header, same as the intel views.
   if (view === "evidence") {
     const tier = contextEvidenceTier();
-    const cards = Array.isArray(state.cohort?.transcript_evidence_cards) ? state.cohort.transcript_evidence_cards : [];
-    const insights = Array.isArray(state.cohort?.session_insights) ? state.cohort.session_insights : [];
+    const { t2cards, t3cards, insights } = contextEvidenceData();
     state.canvas.innerHTML = `
       <section class="alch-cv">
         ${pageHeadHtml({ nav })}
-        ${renderContextEvidence(tier, cards, insights)}
+        ${renderContextEvidence(tier, t3cards, t2cards, insights)}
       </section>
     `;
     return;
@@ -13213,6 +13522,7 @@ function renderContextVault() {
   state.canvas.innerHTML = `
     <section class="alch-cv">
       ${pageHeadHtml({ nav })}
+      ${mode === "raw" ? renderContextComposer() : ""}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
       <div class="alch-cv-layout">
@@ -13246,6 +13556,19 @@ function wireContextVault() {
   const intelHost = state.canvas.querySelector(".alch-cv-intel");
   if (intelHost) {
     wireContextIntel(intelHost);
+  }
+  const composeForm = state.canvas.querySelector("form[data-cv-compose]");
+  if (composeForm) {
+    composeForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitContextCompose(composeForm);
+    });
+    // Persist open/closed across re-renders (e.g. selecting a transcript) so the
+    // composer doesn't snap shut while the user is mid-paste.
+    const details = composeForm.querySelector("[data-cv-compose-details]");
+    if (details) details.addEventListener("toggle", () => {
+      state.contextVault.composeOpen = details.open;
+    });
   }
   wireContextVaultDetailActions(state.canvas);
 }
@@ -14536,6 +14859,7 @@ function renderTeamDetail(team) {
     { key: "hackathon note", value: team.hackathon_note ? escHtml(team.hackathon_note) : "" },
     { key: "skills", value: detailChips(team.skill_areas) },
     { key: "success", value: detailChips(team.success_dimensions, { muted: true }) },
+    { key: "from sessions", value: detailEvidenceSignals(recordId) },
   ];
   const coordinationRows = [
     { key: "depends on", value: renderDependencyLinks(team.dependencies) },
