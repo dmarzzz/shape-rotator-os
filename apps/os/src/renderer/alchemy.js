@@ -9615,7 +9615,9 @@ function wireCalendar() {
           return true;
         }
         if (target.closest("[data-tl-expand]")) {
-          if ((cal.tlLevel || "program") !== "program") {
+          // Unset tlLevel renders as "week" (see the render site), so on first
+          // open the endpoint is expandable and this must jump to program.
+          if ((cal.tlLevel || "week") !== "program") {
             cal.tlLevel = "program";
             cal.tlAnchorMs = Date.now();
             refreshCalendarView();
@@ -9650,7 +9652,10 @@ function wireCalendar() {
     for (const btn of state.canvas.querySelectorAll("button[data-tl-level]")) {
       btn.addEventListener("click", () => {
         const lv = btn.dataset.tlLevel;
-        if (!lv || lv === (cal.tlLevel || "program")) return;
+        // Unset tlLevel renders as "week" (the render-site default), so the
+        // "current" level must default to "week" here too — otherwise clicking
+        // "program" on first open compares equal to the fallback and no-ops.
+        if (!lv || lv === (cal.tlLevel || "week")) return;
         cal.tlLevel = lv;
         cal.tlAnchorMs = Date.now();
         refreshCalendarView();

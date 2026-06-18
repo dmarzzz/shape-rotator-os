@@ -8031,7 +8031,7 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
  * "data on black" stage (inherits .alch-constellation-stage). Chart-ink
  * discipline: lanes are neutral ink at rest; the now-marker is the one accent;
  * future items are ghosted (dashed). */
-.ac-tl-stage { position: relative; display: block; padding: 14px 20px 20px; overflow-x: auto; }
+.ac-tl-stage { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; padding: 14px 20px 20px; overflow-x: auto; }
 .ac-tl-controls { margin-bottom: 16px; }
 .c2-timeline { min-height: 220px; }
 
@@ -8114,6 +8114,23 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .ac-tl-lane.is-live { height: 56px; }
 .ac-tl-lane + .ac-tl-lane { position: relative; }
 .ac-tl-lane + .ac-tl-lane::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: rgba(var(--ink-rgb), 0.05); }
+
+/* ── Vertical fill ──────────────────────────────────────────────────────────
+   The timeline is a stacked multi-track chart, so it fills the calendar canvas
+   the way the grid + presence views do — instead of floating at content height
+   with a dead void below. Scoped via :has(.c2--timeline) so the plain-.c2 grid
+   + presence views are untouched. The freed height is shared across lanes
+   (livelines take ~1.5× so the PMF / occupancy curves have room to read); the
+   fixed lane heights above become min-heights, preserving the dense look on a
+   short viewport, where the canvas scrolls instead. */
+.alchemy-canvas:has(.c2--timeline) { display: flex; flex-direction: column; }
+.c2--timeline { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.c2--timeline .c2-timeline { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.c2--timeline .ac-tl { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.c2--timeline .ac-tl-rows { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 132px; }
+.c2--timeline .ac-tl-lane { height: auto; min-height: 40px; flex: 1 1 0; }
+.c2--timeline .ac-tl-lane.is-ruler { min-height: 44px; }
+.c2--timeline .ac-tl-lane.is-live { min-height: 64px; flex-grow: 1.5; }
 
 .ac-tl-evt { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 14px; height: 9px; border-radius: 2px; background: rgba(var(--ink-rgb), 0.5); }
 .ac-tl-evt.is-future { background: transparent; border: 1px dashed rgba(var(--ink-rgb), 0.35); }
