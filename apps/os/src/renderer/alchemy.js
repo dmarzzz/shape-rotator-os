@@ -6723,10 +6723,10 @@ function timelineInnerHtml() {
   const eventItems = (cal.data && typeof calModule?.flattenScheduleEvents === "function")
     ? calModule.flattenScheduleEvents(cal.data)
         .filter((e) => inWin(e.ms))
-        .map((e) => ({ ms: e.ms, title: e.title, time: e.time || "", isFuture: e.ms > nowMs }))
+        .map((e) => ({ ms: e.ms, title: e.title, time: e.time || "", cat: e.cat || "default", isFuture: e.ms > nowMs }))
     : buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
         .filter((i) => i.category === "event" && inWin(i.startMs))
-        .map((i) => ({ ms: i.startMs, title: i.title, time: i.detail || "", isFuture: i.isFuture }));
+        .map((i) => ({ ms: i.startMs, title: i.title, time: i.detail || "", cat: "default", isFuture: i.isFuture }));
 
   // Within a day: all-day events first (time = ""), then by start time parsed
   // from the leading HH:MM of the time label.
@@ -6749,7 +6749,7 @@ function timelineInnerHtml() {
   const CHIP_CAP = 8; // a day rarely runs more; the rest collapse to "+N more".
   // Title clamps to 2 lines in CSS; the full "time · title" rides on the native
   // tooltip so a clamped chip stays fully readable on hover.
-  const chip = (e) => `<div class="cal-chip${e.isFuture ? " is-future" : ""}" title="${escAttr(e.time ? `${e.time} · ${e.title}` : e.title)}">${e.time ? `<span class="cal-chip-t">${escHtml(e.time)}</span>` : ""}<span class="cal-chip-x">${escHtml(e.title)}</span></div>`;
+  const chip = (e) => `<div class="cal-chip${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.time ? `${e.time} · ${e.title}` : e.title)}">${e.time ? `<span class="cal-chip-t">${escHtml(e.time)}</span>` : ""}<span class="cal-chip-x">${escHtml(e.title)}</span></div>`;
   const renderColumn = (col) => {
     const shown = col.events.slice(0, CHIP_CAP);
     const more = col.events.length - shown.length;
@@ -6780,13 +6780,21 @@ function timelineInnerHtml() {
     <div class="ac-tl-summary" role="group" aria-label="week summary">
       <span class="ac-tl-sum-win">${total} event${total === 1 ? "" : "s"} this week</span>
       ${nowIn ? `<span class="ac-tl-sum-sep">·</span><span class="ac-tl-sum-frame">past <em>←</em> today <em>→</em> scheduled</span>` : ""}
+      <span class="ac-tl-sum-sep">·</span><span class="ac-tl-sum-hint">tap a day to open its hour-by-hour grid</span>
     </div>`;
+
+  // Category legend — colour-codes the chips by event type (office hours, salon,
+  // demo, …) using the SAME palette as the grid (shared --c2-acc), so the colours
+  // are decodable at a glance instead of reading as an undifferentiated wall.
+  const legend = (calModule?.C2_LEGEND || [])
+    .map((c) => `<span class="cal-legend-item" data-cat="${escAttr(c.key)}" role="listitem"><i class="cal-legend-dot" aria-hidden="true"></i>${escHtml(c.label)}</span>`).join("");
 
   return `
     <div class="ac-tl-stage" data-view="timeline" aria-label="${escAttr(`cohort calendar — ${winLabel}`)}">
       <div class="ac-tl-controls">
         <div class="ac-tl-bar">${nav}</div>
         ${summary}
+        ${legend ? `<div class="cal-legend" role="list" aria-label="event categories">${legend}</div>` : ""}
       </div>
       <div class="cal-agenda" style="--cols:7">
         ${columns.map(renderColumn).join("")}

@@ -170,7 +170,7 @@ const C2_CATEGORIES = [
   { key: "hack",    label: "hacking",        re: /\bhack|hackathon|open jam|\bfinals\b|submission|build night/i },
   { key: "anarchy", label: "self-organized", re: /anarchy|self-organ|no .*program|protected build|team-led/i },
 ];
-const C2_LEGEND = [
+export const C2_LEGEND = [
   { key: "oh",     label: "office hours" },
   { key: "salon",  label: "salon" },
   { key: "weekly", label: "weekly / self-org" },
@@ -333,12 +333,12 @@ export function flattenScheduleEvents(data) {
       if (!Number.isFinite(d?.dayMs)) continue;
       for (const a of (d.anchors || [])) {
         const title = clean(a.title);
-        if (title) out.push({ ms: d.dayMs, title, time: "", weekIdx: wi });
+        if (title) out.push({ ms: d.dayMs, title, time: "", cat: c2Category(a.title).key, weekIdx: wi });
       }
       for (const block of (d.blocks || [])) {
         const parsed = c2ParseBlock(block);
         const title = clean(parsed.title);
-        if (title) out.push({ ms: d.dayMs, title, time: parsed.time || "", weekIdx: wi });
+        if (title) out.push({ ms: d.dayMs, title, time: parsed.time || "", cat: c2Category(block).key, weekIdx: wi });
       }
     }
   }
@@ -530,7 +530,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span><span class="apv-label">presence</span>
       </button>
       <button class="alch-page-view-btn" data-c2-view="timeline" role="tab" aria-selected="${isTimeline}" type="button">
-        <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16"/><path d="M8 7h11"/><path d="M6 12h9"/><path d="M10 17h8"/></svg></span><span class="apv-label">timeline</span>
+        <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16"/><path d="M8 7h11"/><path d="M6 12h9"/><path d="M10 17h8"/></svg></span><span class="apv-label">agenda</span>
       </button>
     </nav>`;
   const subscribeAction = `

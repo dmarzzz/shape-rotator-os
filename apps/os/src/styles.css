@@ -8163,21 +8163,30 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
   display: flex; align-items: baseline; gap: 6px;
   padding: 9px 11px; border-bottom: 1px solid rgba(var(--ink-rgb), 0.07);
 }
-.cal-col-day { font-size: 11px; font-weight: 600; color: var(--alchemy-paper-warm); letter-spacing: 0.02em; }
-.cal-col-sub { font-size: 10px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; }
+.cal-col-day { font-size: 12.5px; font-weight: 600; color: var(--alchemy-paper-warm); letter-spacing: 0.01em; }
+.cal-col-sub { font-size: 11px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; }
 .cal-col.is-today .cal-col-day, .cal-col.is-today .cal-col-sub { color: var(--alchemy-oxide-bright); }
-.cal-col-now { margin-left: auto; font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--alchemy-oxide-bright); align-self: center; }
+.cal-col-now { margin-left: auto; align-self: center; font-size: 8px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #161413; background: var(--alchemy-oxide-bright); padding: 2px 6px; border-radius: 4px; }
 .cal-col-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+/* Chips are colour-coded by category via --c2-acc (set by calendar.css's
+   `.c2 [data-cat]` rules — the agenda lives inside .c2, so it inherits the
+   grid's exact palette): a solid left bar + a faint tint of the same hue. */
 .cal-chip {
-  padding: 5px 8px; border-radius: 6px;
-  background: rgba(var(--ink-rgb), 0.05);
-  border-left: 2px solid color-mix(in oklch, var(--alchemy-oxide) 60%, transparent);
+  padding: 5px 9px; border-radius: 6px;
+  background: color-mix(in srgb, var(--c2-acc, transparent) 10%, rgba(var(--ink-rgb), 0.045));
+  border-left: 3px solid var(--c2-acc, color-mix(in oklch, var(--alchemy-oxide) 55%, transparent));
 }
-.cal-chip.is-future { background: transparent; border: 1px dashed rgba(var(--ink-rgb), 0.2); border-left-width: 2px; }
-.cal-chip-t { display: block; font-size: 9px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; margin-bottom: 1px; }
-.cal-chip-x { font-size: 11px; line-height: 1.3; color: var(--alchemy-paper-warm); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; word-break: break-word; }
-.cal-more { font-size: 10px; color: var(--alchemy-ink-mute); padding: 2px 8px; }
-.cal-col-empty { display: block; padding: 8px 11px; color: rgba(var(--ink-rgb), 0.2); font-size: 12px; }
+.cal-chip.is-future { background: color-mix(in srgb, var(--c2-acc, transparent) 5%, transparent); border-left-style: dashed; }
+.cal-chip-t { display: block; font-size: 9.5px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; margin-bottom: 1px; }
+.cal-chip-x { font-size: 12px; line-height: 1.32; color: var(--alchemy-paper-warm); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; word-break: break-word; }
+.cal-more { font-size: 10.5px; color: var(--alchemy-ink-mute); padding: 3px 9px; }
+.cal-col-empty { display: block; padding: 9px 11px; color: rgba(var(--ink-rgb), 0.28); font-size: 11px; font-style: italic; }
+
+/* Category legend — decodes the chip colours; shares --c2-acc with the grid. */
+.cal-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-family: var(--font-mono); font-size: 10.5px; color: var(--alchemy-ink-mute); }
+.cal-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.cal-legend-dot { width: 8px; height: 8px; border-radius: 2px; background: var(--c2-acc, #8f817a); flex: 0 0 auto; }
+.ac-tl-sum-hint { color: rgba(var(--ink-rgb), 0.5); }
 @media (prefers-reduced-motion: reduce) { .cal-col { transition: none; } }
 
 .ac-tl-evt { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 14px; height: 9px; border-radius: 2px; background: rgba(var(--ink-rgb), 0.5); }
