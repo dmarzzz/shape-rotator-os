@@ -310,6 +310,14 @@ jobs:
           # electron-builder uses GH_TOKEN to upload artifacts to the
           # release matching the pushed tag.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Bake the cohort_app JWT into the build so the distributed app reads the
+          # GATED T2 evidence cards + distilled transcripts. The #436 beforePack hook
+          # reads this env → writes build-resources/cohort-app-key.json → preload
+          # window.api.cohortKey. When the secret is unset it's empty and the app
+          # falls back to anon T3 / local-raw only. Soft gate: the key ships inside the
+          # (downloadable) binary by design — it is "off the public web", not a hard
+          # boundary; revoke server-side by dropping the cohort_app grant/role.
+          SRFG_COHORT_KEY: ${{ secrets.SRFG_COHORT_KEY }}
           # Skip publish when triggered manually with pack-only=true.
           # Tag-triggered builds always publish.
           EB_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.pack-only && 'never' || 'onTagOrDraft' }}
