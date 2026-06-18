@@ -51,7 +51,13 @@ module.exports = async function beforePack(context) {
   // never enters this public repo; this hook is the only place it is written.
   const cohortKeyFile = path.join(buildResources, "cohort-app-key.json");
   const cohortKey = String(process.env.SRFG_COHORT_KEY || "").trim();
-  fs.writeFileSync(cohortKeyFile, JSON.stringify({ cohortKey }) + "\n", { mode: 0o600 });
+  // World-readable (0644): the .deb/AppImage ships this into root-owned /opt
+  // resources and the app runs as the unprivileged desktop user, so 0600 makes
+  // it unreadable (EACCES → silent T3 fallback). The key is already inside the
+  // shipped binary, so 0600 buys no secrecy. writeFileSync's mode is ignored
+  // when the file already exists (e.g. a prior local 0600 build), so chmod too.
+  fs.writeFileSync(cohortKeyFile, JSON.stringify({ cohortKey }) + "\n", { mode: 0o644 });
+  try { fs.chmodSync(cohortKeyFile, 0o644); } catch {}
   console.log(
     `[before-pack] cohort-app-key.json ${cohortKey ? "written (key present)" : "written EMPTY (no SRFG_COHORT_KEY → anon T3 fallback)"}`
   );
