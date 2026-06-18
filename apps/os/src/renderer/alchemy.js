@@ -6741,12 +6741,16 @@ function timelineInnerHtml() {
   const inWin = (ms) => ms >= winStart && ms < winEnd;
   const nowIn = inWin(nowMs);
   const nowFrac = winFrac(nowMs);
-  // At week level, center day-grain marks in their day column (a date-only item
-  // sits at midnight = the column's left edge otherwise, drifting off its label).
+  // Marks cluster at the axis's own unit and sit at that bucket's CENTER: by DAY
+  // at week level (a date-only item sits at midnight = a column's left edge
+  // otherwise, drifting off its label), by program-WEEK at month/program (so a
+  // dense real schedule reads as one counted mark per column, not a smeared bar).
   const markFrac = (it) => {
-    if (level !== "week") return it.fraction;
-    const dayIdx = Math.floor((it.startMs - winStart) / DAY);
-    return winFrac(winStart + (dayIdx + 0.5) * DAY);
+    if (level === "week") {
+      const dayIdx = Math.floor((it.startMs - winStart) / DAY);
+      return winFrac(winStart + (dayIdx + 0.5) * DAY);
+    }
+    return winFrac(PROGRAM_START_MS + (weekIdxOf(it.startMs) * 7 + 3.5) * DAY);
   };
 
   // ── Workstream scope. Pick a team/project to focus the lanes; "all cohort"
@@ -6764,7 +6768,17 @@ function timelineInnerHtml() {
   // window; activity/presence carry absolute times so the window alone is enough.
   const sampleDays = level === "week" ? 1 : 7;
   const allItems = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items.filter((i) => inWin(i.startMs));
-  const eventItems = allItems.filter((i) => i.category === "event"); // shared schedule — never scoped
+  // Schedule lane (the ruler) reads the LIVE calendar (cal.data) — the same
+  // source the grid renders — so the timeline stays functional as a calendar
+  // instead of trailing the stale, build-baked whats_new feed. Falls back to
+  // whats_new's event items until the calendar module/data has loaded.
+  const calModule = calendarLazy.peek();
+  const calEvents = (cal.data && typeof calModule?.flattenScheduleEvents === "function")
+    ? calModule.flattenScheduleEvents(cal.data)
+        .filter((e) => inWin(e.ms))
+        .map((e) => ({ startMs: e.ms, title: e.title, detail: e.time || "", isFuture: e.ms > nowMs, category: "event", fraction: winFrac(e.ms) }))
+    : allItems.filter((i) => i.category === "event");
+  const eventItems = calEvents; // shared schedule — never scoped
   const updateItems = allItems.filter((i) => i.category !== "event" && (!scopeId || i.team === scopeId));
   const standingLane = buildStandingLane(standingWeekly, { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS });
   const stMax = standingLane.stageMax || 8;
@@ -6777,12 +6791,16 @@ function timelineInnerHtml() {
     : people;
   const presence = buildPresenceLane(scopedPeople, { startMs: winStart, endMs: winEnd, nowMs, sampleDays });
 
-  // Group dated items into per-day buckets so a busy day reads as one mark, not
-  // dot-mud — used for BOTH the ruler and the activity lane.
-  const clusterByDay = (items) => {
+  // Group items into the current axis bucket — by DAY at week level, by program
+  // WEEK at month/program — so a busy day/week reads as one counted mark, not
+  // dot-mud. A real schedule runs ~100 events; per-day marks smear to a solid
+  // bar when zoomed out. Used for BOTH the ruler and the activity lane.
+  const clusterMarks = (items) => {
     const map = new Map();
     for (const it of items) {
-      const key = new Date(it.startMs).toISOString().slice(0, 10);
+      const key = level === "week"
+        ? new Date(it.startMs).toISOString().slice(0, 10)
+        : `w${weekIdxOf(it.startMs)}`;
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(it);
     }
@@ -6849,7 +6867,7 @@ function timelineInnerHtml() {
 
   // Ruler (track 0) = the calendar's program anchors (event-kind items), clustered
   // by day so the program-start stack reads as one mark. Future ones dashed.
-  const rulerMarks = clusterByDay(eventItems).map(group => {
+  const rulerMarks = clusterMarks(eventItems).map(group => {
     const it = group[0];
     const count = group.length;
     const title = count > 1 ? `${count} calendar events` : it.title;
@@ -6860,7 +6878,7 @@ function timelineInnerHtml() {
   }).join("");
 
   // Activity lane = everything else (release/commit/ask), clustered by day → count dot.
-  const activityMarks = clusterByDay(updateItems).map(group => {
+  const activityMarks = clusterMarks(updateItems).map(group => {
     const it = group[0];
     const count = group.length;
     const rid = (group.find(g => g.detailRef?.nav?.recordId)?.detailRef.nav.recordId) || "";

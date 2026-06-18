@@ -312,6 +312,39 @@ function layoutTimed(items) {
 // repaints on every state change), so one slot is enough.
 let _model = null;
 
+// ── timeline bridge ───────────────────────────────────────────────────
+// Flatten the parsed program calendar into lightweight schedule items for the
+// calendar→timeline view's ruler lane, so it reads the SAME live source as the
+// grid (cal.data) instead of the stale build-baked whats_new feed. One item per
+// event per day; the leading day-name prefix is stripped (the timeline axis
+// already dates each mark) and the time tags along for the hover tip. The
+// grid's overlap/layout machinery is skipped — the ruler clusters by day, so a
+// flat {ms, title, time, weekIdx} list is all it needs.
+export function flattenScheduleEvents(data) {
+  const tab = data?.tabs?.[PRIMARY_TAB] || [];
+  const dayName = "(mon|tue|wed|thu|fri|sat|sun)(?:day)?";
+  const rangeRe = new RegExp(`^${dayName}\\s*[-–—]\\s*${dayName}\\s*[:.\\-–—]?\\s*`, "i");
+  const singleRe = new RegExp(`^${dayName}\\s*[:\\-–—]\\s*`, "i");
+  const clean = (t) => String(t || "").replace(rangeRe, "").replace(singleRe, "").trim();
+  const out = [];
+  for (let wi = 0; wi < WEEK_COUNT; wi++) {
+    const week = parseWeekRow(tab[2 + wi] || [], wi);
+    for (const d of (week?.days || [])) {
+      if (!Number.isFinite(d?.dayMs)) continue;
+      for (const a of (d.anchors || [])) {
+        const title = clean(a.title);
+        if (title) out.push({ ms: d.dayMs, title, time: "", weekIdx: wi });
+      }
+      for (const block of (d.blocks || [])) {
+        const parsed = c2ParseBlock(block);
+        const title = clean(parsed.title);
+        if (title) out.push({ ms: d.dayMs, title, time: parsed.time || "", weekIdx: wi });
+      }
+    }
+  }
+  return out;
+}
+
 // ── render ───────────────────────────────────────────────────────────
 // view: "cal" (the timeline grid) | "presence" (caller-supplied availability
 // gantt — the same renderer the legacy calendar page uses, passed in as
