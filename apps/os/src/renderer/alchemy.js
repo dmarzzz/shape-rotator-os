@@ -80,14 +80,53 @@ const CONSTELLATION_TIMELINE_LS_KEY = "srwk:constellation_timeline_idx_v1";
 // Per-user zoom for the cohort views (Ctrl/Cmd + scroll, or the corner
 // control). Applied via the CSS `zoom` property so the layout REFLOWS at every
 // step — it stays responsive on any screen instead of overflowing like a
-// transform:scale would. The directory roster is intentionally excluded (it
-// owns its own grid sizing); see cohortZoomActive() + the CSS :not() guard.
+// transform:scale would. The directory roster is excluded (it owns its own grid
+// sizing + an explicit cards/rows toggle); see cohortZoomActive() + the CSS
+// :not() guard.
 const COHORT_ZOOM_LS_KEY = "srwk:cohort_zoom_v1";
 const COHORT_ZOOM_MIN = 0.7;
 const COHORT_ZOOM_MAX = 1.5;
 const COHORT_ZOOM_DEFAULT = 1;
 const COHORT_ZOOM_KEY_STEP = 0.1;     // discrete step for keyboard + corner buttons
 const COHORT_ZOOM_WHEEL_K = 0.0015;   // wheel sensitivity (exponential, magnitude-aware)
+// ─── directory cards/rows toggle + table columns ──────────────────────────
+const DIR_VIEW_LS_KEY = "srwk:dir_view_v1";
+const DIR_COLS_TEAMS_LS_KEY = "srwk:dir_cols_teams_v1";
+const DIR_COLS_PEOPLE_LS_KEY = "srwk:dir_cols_people_v1";
+const DIR_COL_MIN_W = 56;   // smallest a column can be dragged
+const DIR_COL_MAX_W = 480;
+// Column registry — label + default width (px). The cell HTML is built per-key
+// in directoryRowCellHtml(); reorder/resize mutate a per-kind ordered copy of the
+// default lists, persisted to localStorage.
+const DIR_COL_DEFS = {
+  name:   { label: "name",   w: 188 },
+  focus:  { label: "what",   w: 248 },
+  domain: { label: "domain", w: 118 },
+  stage:  { label: "stage",  w: 168 },
+  team:   { label: "team",   w: 58, num: true }, // team SIZE (members_count)
+  geo:    { label: "geo",    w: 120 },
+  tags:   { label: "tags",   w: 220 },
+  role:   { label: "role",   w: 140 },
+  teamOf: { label: "team",   w: 160 }, // a person's team name
+};
+const DIR_COLS_TEAMS_DEFAULT  = ["name", "focus", "domain", "stage", "team", "geo", "tags"];
+const DIR_COLS_PEOPLE_DEFAULT = ["name", "role", "teamOf", "geo", "tags"];
+function safeParse(raw) { try { return raw ? JSON.parse(raw) : null; } catch { return null; } }
+// Reconcile a persisted column list against the current default set: keep the
+// stored order + widths for keys that still exist, drop unknown keys, and append
+// any new default columns at the end (so shipping a new column never strands a
+// user on a stale persisted layout). Always returns the full default key set.
+function normalizeDirCols(stored, defaultKeys) {
+  const fromDefault = (k) => ({ key: k, w: DIR_COL_DEFS[k].w });
+  const valid = Array.isArray(stored)
+    ? stored.filter(c => c && DIR_COL_DEFS[c.key] && Number.isFinite(c.w))
+        .map(c => ({ key: c.key, w: Math.max(DIR_COL_MIN_W, Math.min(DIR_COL_MAX_W, Math.round(c.w))) }))
+    : [];
+  const seen = new Set(valid.map(c => c.key));
+  const out = valid.filter(c => defaultKeys.includes(c.key)); // only columns valid for this kind
+  for (const k of defaultKeys) if (!seen.has(k)) out.push(fromDefault(k));
+  return out.length ? out : defaultKeys.map(fromDefault);
+}
 // `atlas` was here as an alchemy sub-mode but collides with the top-level
 // atlas tab (the swf-node wall-map). Renderer (renderAtlas / wireAtlas) is
 // kept in place so the view can be promoted to a top tab later under a
@@ -195,6 +234,9 @@ const state = {
   menuOpen: false,   // membrane-only rail overlay, toggled from the top OS tab
   membraneController: null,  // active membrane scene controller (mounted lazily on first membrane render)
   shapesKindFilter: "works",  // "works" (teams + projects) | "people"
+  directoryView: "cards",     // directory layout: "cards" (grid) | "rows" (table); persisted to DIR_VIEW_LS_KEY
+  dirColsTeams: null,         // persisted column order+widths for the team table (lazy default in renderShapes)
+  dirColsPeople: null,        // persisted column order+widths for the people table
   shapesMembershipFilter: "cohort",  // works: "cohort" | "visiting" | "all";
                                      // people: "cohort-member" | "visiting-scholar" | "coordinator" | "all".
                                      // We default to "cohort" / "cohort-member" so the formally-invited
@@ -335,6 +377,10 @@ export function mount(container) {
     if (constNormalizeGranularity(state.constellationGranularity) === "clusters") {
       state.constGrainDeep = clampCohortZoom(state.cohortZoom) > GRAIN_BANDS[1].max;
     }
+    const dv = localStorage.getItem(DIR_VIEW_LS_KEY);
+    if (dv === "cards" || dv === "rows") state.directoryView = dv;
+    state.dirColsTeams = normalizeDirCols(safeParse(localStorage.getItem(DIR_COLS_TEAMS_LS_KEY)), DIR_COLS_TEAMS_DEFAULT);
+    state.dirColsPeople = normalizeDirCols(safeParse(localStorage.getItem(DIR_COLS_PEOPLE_LS_KEY)), DIR_COLS_PEOPLE_DEFAULT);
   } catch {}
   // Detail page state — if a record was open at last reload, restore it
   // so the user lands back where they were instead of on the grid.
@@ -966,7 +1012,8 @@ function clampCohortZoom(v) {
   return Math.min(COHORT_ZOOM_MAX, Math.max(COHORT_ZOOM_MIN, rounded));
 }
 // Zoom applies to the cohort SUB-views only — not the directory roster (which
-// is the "shapes" mode), not record-detail pages, not any other OS mode.
+// owns its own grid sizing + an explicit cards/rows toggle), not record-detail
+// pages, not any other OS mode.
 function cohortZoomActive() {
   return state.mode === "constellation" && !state.detailRecordId;
 }
@@ -2081,8 +2128,14 @@ function renderShapes() {
       empty: (counts.get(chip.id) || 0) === 0,
     })).join(""),
   });
+  // Layout toggle (segmented pill) + the export action sit far right. The pill
+  // switches the directory between the card grid and the compact table.
+  const ICON_GRID = '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="1.2" y="1.2" width="6" height="6" rx="1.3"/><rect x="8.8" y="1.2" width="6" height="6" rx="1.3"/><rect x="1.2" y="8.8" width="6" height="6" rx="1.3"/><rect x="8.8" y="8.8" width="6" height="6" rx="1.3"/></svg>';
+  const ICON_ROWS = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M2.4 4h11.2M2.4 8h11.2M2.4 12h11.2"/></svg>';
+  const seg = (view, icon, label) => `<button type="button" class="adv-seg${state.directoryView === view ? " is-active" : ""}" data-dir-view="${view}" aria-pressed="${state.directoryView === view ? "true" : "false"}" aria-label="${escAttr(label)}" title="${escAttr(label)}">${icon}</button>`;
+  const viewPill = `<div class="alch-dir-viewpill" role="group" aria-label="directory layout">${seg("cards", ICON_GRID, "card grid")}${seg("rows", ICON_ROWS, "table rows")}</div>`;
   const chips = `
-    <div class="alch-view-controls" data-shape-occluder>
+    <div class="alch-view-controls is-directory-controls" data-shape-occluder>
       ${constTimelineDropdownHtml()}
       <div class="ac-sentence" role="group" aria-label="directory filters">
         <span class="ac-sent-word">listing</span>
@@ -2090,20 +2143,31 @@ function renderShapes() {
         <span class="ac-sent-word">·</span>
         ${memberUnit}
       </div>
-      <button id="dossier-export-png" class="alch-shapes-chip" type="button" title="render the full cohort roster as a PNG (ignores the filters above)">export full roster (png)</button>
+      <div class="alch-dir-actions">
+        ${viewPill}
+        <button id="dossier-export-png" class="alch-shapes-chip" type="button" title="render the full cohort roster as a PNG (ignores the filters above)">export full roster (png)</button>
+      </div>
     </div>
   `;
-  const cardCtx = { people: cohort.people || [], teams: cohort.teams || [] };
-  const cards = records.map((r, idx) => {
-    if (r._kind === "person") return personCardHtml(r, idx, cardCtx);
-    return teamCardHtml(r, idx, cardCtx);
-  }).join("");
+  // peopleByTeam (team record_id → its people) so the table's team-size column
+  // and any member-aware card bits can resolve membership. Mirrors the
+  // constellation inspector context's mapping (person.team holds a team id).
+  const peopleByTeam = new Map((cohort.teams || []).map(t => [t.record_id, []]));
+  for (const p of (cohort.people || [])) {
+    if (p?.team && peopleByTeam.has(p.team)) peopleByTeam.get(p.team).push(p);
+  }
+  const cardCtx = { people: cohort.people || [], teams: cohort.teams || [], peopleByTeam };
   const emptyMsg = `no ${escHtml(activeChip.label)} yet.`;
-  const grid = records.length
-    ? `<div class="alch-specimens">${cards}</div>`
-    : `<p class="alch-pf-pick">${emptyMsg}</p>`;
+  // The cards/rows toggle (not zoom) chooses the layout. Rows = the compact,
+  // resizable, reorderable table; cards = the full card grid.
+  const tableMode = state.directoryView === "rows";
+  const grid = !records.length
+    ? `<p class="alch-pf-pick">${emptyMsg}</p>`
+    : tableMode
+      ? directoryTableHtml(records, cardCtx, filter === "people")
+      : `<div class="alch-specimens">${records.map((r, idx) => r._kind === "person" ? personCardHtml(r, idx, cardCtx) : teamCardHtml(r, idx, cardCtx)).join("")}</div>`;
   state.canvas.innerHTML = `
-    <div class="alch-cohort-page" data-cohort-view="directory">
+    <div class="alch-cohort-page" data-cohort-view="directory"${tableMode ? ' data-dir-table="true"' : ""}>
       ${cohortPageHead("directory")}
       ${chips}
       ${grid}
@@ -2134,6 +2198,19 @@ function renderShapes() {
       wireShapeCardClicks();   // re-wire cards after membership-filter switch (see note above)
     });
   }
+  // Wire the cards/rows layout toggle.
+  for (const btn of state.canvas.querySelectorAll("[data-dir-view]")) {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.dirView;
+      if (next === state.directoryView) return;
+      state.directoryView = next;
+      try { localStorage.setItem(DIR_VIEW_LS_KEY, next); } catch {}
+      renderShapes();
+      wireShapeCardClicks();
+    });
+  }
+  // Column reorder + resize on the table view (no-op in card view).
+  wireDirectoryTableControls();
   // Wire the dossier export button.
   const dossierBtn = document.getElementById("dossier-export-png");
   if (dossierBtn) dossierBtn.addEventListener("click", exportDossier);
@@ -2141,6 +2218,140 @@ function renderShapes() {
   // rather than in renderModeContent because renderShapes re-renders itself
   // on filter-chip clicks and the nav must survive those repaints.
   wireConstellationModeNav();
+}
+
+// Compact, column-driven table view for the directory. Columns (order + width)
+// come from state.dirCols{Teams,People}; headers are draggable to REORDER and
+// carry a right-edge handle to RESIZE (see wireDirectoryTableControls). Rows
+// carry .alch-dir-row[data-record-id], so wireShapeCardClicks() opens the record
+// on click/Enter like a card.
+function directoryTableHtml(records, cardCtx, isPeople) {
+  const cols = (isPeople ? state.dirColsPeople : state.dirColsTeams)
+    || normalizeDirCols(null, isPeople ? DIR_COLS_PEOPLE_DEFAULT : DIR_COLS_TEAMS_DEFAULT);
+  const template = cols.map(c => `${c.w}px`).join(" ");
+  const headCells = cols.map((c, i) => {
+    const def = DIR_COL_DEFS[c.key] || { label: c.key };
+    return `<div class="alch-dir-th${def.num ? " alch-dir-num" : ""}" data-dir-col="${escAttr(c.key)}" data-col-index="${i}" draggable="true" role="columnheader" title="drag to reorder · drag the edge to resize">
+        <span class="alch-dir-th-label">${escHtml(def.label)}</span>
+        <span class="alch-dir-resize" data-dir-resize="${escAttr(c.key)}" aria-hidden="true"></span>
+      </div>`;
+  }).join("");
+  const rows = records.map((r) => {
+    const rid = r.record_id;
+    const isP = isPeople || r._kind === "person";
+    const name = isP ? (constPersonDisplayName(r) || constText(r.name || rid)) : constText(r.name || rid);
+    const cells = cols.map(c => {
+      const def = DIR_COL_DEFS[c.key] || {};
+      return `<div class="alch-dir-c${def.num ? " alch-dir-num" : ""}" data-c="${escAttr(c.key)}">${directoryRowCellHtml(r, c.key, cardCtx, isP)}</div>`;
+    }).join("");
+    return `<div class="alch-dir-row" role="row" tabindex="0" data-record-id="${escAttr(rid)}" aria-label="${escAttr(`${name} — open`)}">${cells}</div>`;
+  }).join("");
+  return `<div class="alch-dir-table${isPeople ? " is-people" : ""}" style="--dir-cols:${template}" role="table" aria-label="cohort directory table">
+      <div class="alch-dir-thead" role="row">${headCells}</div>
+      <div class="alch-dir-tbody">${rows}</div>
+    </div>`;
+}
+
+// One table cell's inner HTML for a column key. Teams resolve size from the
+// authoritative members_count; a team with no explicit PMF read shows "— no read"
+// rather than its seeded default (the same honesty rule the PMF view uses).
+function directoryRowCellHtml(r, key, cardCtx, isP) {
+  switch (key) {
+    case "name": {
+      const name = isP ? (constPersonDisplayName(r) || constText(r.name)) : constText(r.name || r.record_id);
+      if (isP) return `<span class="alch-dir-nm">${escHtml(name)}</span>`;
+      const dc = constDomainClass(r.domain);
+      return `<i class="alch-dir-dot" style="background:${escAttr(CONST_DOMAIN_COLORS[dc] || CONST_DOMAIN_COLORS.other)}" aria-hidden="true"></i><span class="alch-dir-nm">${escHtml(name)}</span>`;
+    }
+    case "focus":  return `<span class="alch-dir-mut">${escHtml(constShortText(r.focus, 80) || "—")}</span>`;
+    case "domain": return escHtml(CONST_DOMAIN_LABEL[constDomainClass(r.domain)] || "other");
+    case "stage": {
+      if (!journeyAssessed(r)) return `<span class="alch-dir-mut">— no read</span>`;
+      const st = journeyFor(r).stage;
+      return `<b>${st}</b> ${escHtml(JOURNEY_STAGE_LABELS[st] || "")}`;
+    }
+    case "team":   return String(Number.isFinite(r.members_count) ? r.members_count : constPeopleForTeam(r, cardCtx).length);
+    case "geo":    return escHtml(constText(r.geo) || "—");
+    case "tags": {
+      const tags = Array.isArray(r.skill_areas) ? r.skill_areas.slice(0, 4) : [];
+      return tags.length ? tags.map(t => `<span class="alch-dir-tag">${escHtml(t)}</span>`).join("") : `<span class="alch-dir-mut">—</span>`;
+    }
+    case "role":   return escHtml(constText(r.role) || "—");
+    case "teamOf": return escHtml(constText(r.team) || "—");
+    default:       return "";
+  }
+}
+
+// Column reorder (drag a header) + resize (drag a header's right edge), persisted
+// per kind. Resize updates the --dir-cols template live (no re-render); reorder
+// re-renders so the cells follow the new order.
+function wireDirectoryTableControls() {
+  const table = state.canvas?.querySelector(".alch-dir-table");
+  if (!table) return;
+  const isPeople = table.classList.contains("is-people");
+  const colsKey = isPeople ? "dirColsPeople" : "dirColsTeams";
+  const lsKey = isPeople ? DIR_COLS_PEOPLE_LS_KEY : DIR_COLS_TEAMS_LS_KEY;
+  const cols = () => state[colsKey];
+  const persist = () => { try { localStorage.setItem(lsKey, JSON.stringify(cols())); } catch {} };
+  const applyTemplate = () => table.style.setProperty("--dir-cols", cols().map(c => `${c.w}px`).join(" "));
+
+  // ── resize ──
+  let resizing = null;
+  for (const handle of table.querySelectorAll(".alch-dir-resize")) {
+    handle.addEventListener("pointerdown", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const col = cols().find(c => c.key === handle.dataset.dirResize);
+      if (!col) return;
+      resizing = { col, startX: e.clientX, startW: col.w };
+      table.classList.add("is-resizing");
+      try { handle.setPointerCapture(e.pointerId); } catch {}
+    });
+    handle.addEventListener("pointermove", (e) => {
+      if (!resizing) return;
+      resizing.col.w = Math.max(DIR_COL_MIN_W, Math.min(DIR_COL_MAX_W, Math.round(resizing.startW + (e.clientX - resizing.startX))));
+      applyTemplate();
+    });
+    const end = (e) => {
+      if (!resizing) return;
+      resizing = null; table.classList.remove("is-resizing");
+      try { handle.releasePointerCapture(e.pointerId); } catch {}
+      persist();
+    };
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  }
+
+  // ── reorder (HTML5 drag of the headers) ──
+  let dragKey = null;
+  for (const th of table.querySelectorAll(".alch-dir-th")) {
+    th.addEventListener("dragstart", (e) => {
+      if (resizing) { e.preventDefault(); return; } // grabbing the resize handle, not the header
+      dragKey = th.dataset.dirCol;
+      try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragKey); } catch {}
+      th.classList.add("is-dragging");
+    });
+    th.addEventListener("dragend", () => {
+      dragKey = null;
+      table.querySelectorAll(".alch-dir-th").forEach(x => x.classList.remove("is-dragging", "is-drop-target"));
+    });
+    th.addEventListener("dragover", (e) => {
+      if (dragKey && dragKey !== th.dataset.dirCol) { e.preventDefault(); th.classList.add("is-drop-target"); }
+    });
+    th.addEventListener("dragleave", () => th.classList.remove("is-drop-target"));
+    th.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const target = th.dataset.dirCol;
+      if (!dragKey || dragKey === target) return;
+      const arr = cols();
+      const from = arr.findIndex(c => c.key === dragKey);
+      const to = arr.findIndex(c => c.key === target);
+      if (from < 0 || to < 0) return;
+      const [moved] = arr.splice(from, 1);
+      arr.splice(to, 0, moved);
+      persist();
+      renderShapes(); wireShapeCardClicks();
+    });
+  }
 }
 
 // teamCardHtml / personCardHtml live in @shape-rotator/shape-ui now.
@@ -5339,17 +5550,26 @@ function renderJourney() {
   // Filters (persist for the session). side = include the off-track stage-0
   // "side project" column; bottleneck = isolate one bottleneck.
   const jf = state.journeyFilters || (state.journeyFilters = { teams: true, projects: true, side: true, bottleneck: null });
+  // "as of" week selection — the dots replot at the selected week's PMF STAGE, so
+  // scrubbing the top-right week slider is how movement reads (the dots travel,
+  // no overlaid trails). The slider snaps across the program start → now; "now"
+  // (the latest week) is the default and coincides with the live read today.
+  // Guard a stale persisted id.
+  const weeks = standingWeeklyWeeks();
+  const weekMax = weeks.length ? weeks[weeks.length - 1].program_week : null;
+  if (state.journeyWeek == null || !weeks.some(w => w.program_week === state.journeyWeek)) state.journeyWeek = weekMax;
+  const weekSel = state.journeyWeek;
+  const stageOf = (t) => journeyDisplayStage(t, weekSel);
   // Only reserve the off-track "side project" column (stage 0) when some record
-  // actually sits there. With none, the column + divider + include-toggle are
-  // hidden and the populated stages reclaim that ~11% of plot width.
-  const sideEligible = all.some((t) => teamKind(t) !== "person" && journeyFor(t).stage === 0);
+  // sits there AT THE SELECTED WEEK. With none, the column + divider + include-
+  // toggle are hidden and the populated stages reclaim that ~11% of plot width.
+  const sideEligible = all.some((t) => teamKind(t) !== "person" && stageOf(t) === 0);
   if (!sideEligible) jf.side = true; // toggle is hidden; don't let stale state hide anything
   const teams = all.filter((t) => {
-    const j = journeyFor(t);
     const isProject = teamKind(t) === "project";
     if (isProject && !jf.projects) return false;
     if (!isProject && !jf.teams) return false;
-    if (j.stage === 0 && !jf.side) return false;
+    if (stageOf(t) === 0 && !jf.side) return false;
     return true;
   });
   // Bottleneck isolation DIMS non-matching dots (below) rather than removing
@@ -5435,8 +5655,7 @@ function renderJourney() {
   const axisTitleY = `<text class="ac-jaxis-title" transform="translate(18,${(PAD_T + plotH / 2).toFixed(1)}) rotate(-90)" text-anchor="middle">evidence quality →</text>`;
   const cellBuckets = new Map();
   for (const t of teams) {
-    const j = journeyFor(t);
-    const key = `${j.stage}:${j.evidence_quality}`;
+    const key = `${stageOf(t)}:${journeyFor(t).evidence_quality}`;
     if (!cellBuckets.has(key)) cellBuckets.set(key, []);
     cellBuckets.get(key).push(t);
   }
@@ -5444,12 +5663,13 @@ function renderJourney() {
     bucket.sort((a, b) => constText(a.name || a.record_id).localeCompare(constText(b.name || b.record_id)));
   }
 
-  // ── dots: one per visible team/project. Explicit journey reads use
-  // bottleneck color + upside size; default/profile records stay quieter but
-  // remain individually selectable.
+  // ── dots: one per visible team/project, plotted at the SELECTED week's stage.
+  // Explicit reads render as 3D bottleneck-coloured spheres sized by upside;
+  // default/profile records stay flat + hollow but remain individually selectable.
   const nodes = teams.map((t) => {
     const j = journeyFor(t);
-    const bucket = cellBuckets.get(`${j.stage}:${j.evidence_quality}`) || [t];
+    const stage = stageOf(t);
+    const bucket = cellBuckets.get(`${stage}:${j.evidence_quality}`) || [t];
     const n = bucket.length;
     const idx = Math.max(0, bucket.findIndex(item => item.record_id === t.record_id));
     let jx = journeyJitter(t.record_id, "x") * (colW * 0.18);
@@ -5464,59 +5684,136 @@ function renderJourney() {
     }
     const assessed = journeyAssessed(t);
     const r = assessed ? 4 + j.market_upside * 1.8 : 4.8; // upside 1..5 -> r 5.8..13
-    return { t, j, assessed, r, cx: xForStage(j.stage) + jx, cy: yForEvidence(j.evidence_quality) + jy };
+    return { t, j, stage, assessed, r, cx: xForStage(stage) + jx, cy: yForEvidence(j.evidence_quality) + jy };
   });
   const labelPos = journeyPlaceLabels(nodes, { W, padT: PAD_T, plotH });
-  const dots = nodes.map(({ t, j, assessed, r, cx, cy }) => {
+  const dots = nodes.map(({ t, j, stage, assessed, r, cx, cy }) => {
     const famIdx = journeyFamilyIdx(j.primary_bottleneck);
     const isProject = teamKind(t) === "project";
     const label = labelPos.get(t.record_id) || null;
     const labelClass = label ? " is-labeled" : "";
     const contextClass = assessed ? "" : " is-profile-context";
     const bnClass = bnFocus ? (j.primary_bottleneck === bnFocus ? " is-bn-match" : " is-bn-dim") : "";
-    const dotClass = assessed ? `ac-jdot ac-jfam-${famIdx}` : "ac-jdot ac-jprofile-dot";
+    // Assessed = a shaded sphere (radial gradient per family + drop-shadow float);
+    // unread = the flat dashed placeholder. Gradient set inline so it beats the
+    // SVG fill cascade; the family index also drives the shadow tint via the class.
+    const dotMarkup = assessed
+      ? `<circle class="ac-jdot ac-jsphere ac-jfam-${famIdx}" style="fill:url(#jsphere-${famIdx})" r="${r.toFixed(1)}"/>`
+      : `<circle class="ac-jdot ac-jprofile-dot" r="${r.toFixed(1)}"/>`;
     const title = assessed
-      ? `${t.name || t.record_id}: ${JOURNEY_STAGE_LABELS[j.stage] || "journey"} / ${JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "evidence"}`
+      ? `${t.name || t.record_id}: ${JOURNEY_STAGE_LABELS[stage] || "journey"} / ${JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "evidence"}`
       : `${t.name || t.record_id}: profile context; no explicit journey read yet`;
     const labelX = label ? label.x : 0;
     const labelY = label ? label.y : -r - 8;
     const labelAnchor = label ? label.anchor : "middle";
-    return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}${bnClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(title)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">
+    // Stable per-record view-transition name so a week change morphs each dot
+    // from its old position to its new one — the movement now reads as travel.
+    const vtName = `jdot-${cssIdent(t.record_id)}`;
+    return `<g class="ac-jnode${isProject ? " is-project" : ""}${contextClass}${labelClass}${bnClass}" data-record-id="${escHtml(t.record_id)}" role="button" tabindex="0" aria-label="${escAttr(title)}" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})" style="view-transition-name:${vtName}">
         <circle class="ac-jhit" r="${Math.max(18, r + 9).toFixed(1)}"/>
-        <circle class="${dotClass}" r="${r.toFixed(1)}"/>
+        ${dotMarkup}
         <text class="ac-jnode-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="${labelAnchor}">${escHtml(t.name)}</text>
       </g>`;
   }).join("");
 
-  // ── bottleneck legend — grouped into 4 color families (the dot palette),
-  // each family's members still individually clickable to isolate that one.
-  // Led by the encoding key: without it nothing on the view says what color
-  // or size MEAN, and both encodings are otherwise hover-only knowledge. ──
+  // ── 3D dot shading — one radial-gradient "sphere" per bottleneck family (light
+  // top-left → family hue → darker rim) so the points read as raised beads. The
+  // float shadow is a CSS drop-shadow() (see .ac-jsphere) keyed to a themeable
+  // token, NOT an SVG feDropShadow — so it lightens on the paper theme and can
+  // compose with the hover glow. Defs hold only the static per-family gradients. ──
+  const SPHERE = [
+    { light: "#e88a6f", mid: "#c44025", dark: "#7a2614" }, // market  — oxide
+    { light: "#e7d2a0", mid: "#c9a35e", dark: "#856a35" }, // product — brass
+    { light: "#8fd2cf", mid: "#4fa3a0", dark: "#2c6664" }, // growth  — teal
+    { light: "#b1a7da", mid: "#7a6fb0", dark: "#473f6b" }, // company — violet
+  ];
+  const dotDefs = `<defs>
+      ${SPHERE.map((s, i) => `<radialGradient id="jsphere-${i}" cx="34%" cy="30%" r="72%">
+        <stop offset="0%" stop-color="${s.light}"/>
+        <stop offset="46%" stop-color="${s.mid}"/>
+        <stop offset="100%" stop-color="${s.dark}"/>
+      </radialGradient>`).join("")}
+    </defs>`;
+
+  // ── bottleneck filter + compact legend key ───────────────────────────────
+  // The old legend was a 10-button wall in its own panel — the colour/size key
+  // PLUS a per-bottleneck filter, two rows tall. The 10 filters collapse into
+  // one stateful sentence token ("stuck on [any ▾]"; isolating a bottleneck is a
+  // power move, not a frequent one, so it earns a click), and the colour/size/
+  // unread key shrinks to a single quiet strip — so the whole legend now rides
+  // the one controls row instead of owning a panel.
   const bottleneckCounts = new Map(JOURNEY_BOTTLENECKS.map((b) => [b, 0]));
   for (const t of teams) {
     if (!journeyAssessed(t)) continue;
     const b = journeyFor(t).primary_bottleneck;
     if (bottleneckCounts.has(b)) bottleneckCounts.set(b, bottleneckCounts.get(b) + 1);
   }
-  // A dashed/ghost dot means "no explicit PMF read yet" (profile-context only,
-  // seeded at the idea·vibes default). It was a whole class of marks the legend
-  // never explained — every faded dot is a placeholder, not a real placement.
-  const ghostSwatch = `<svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" style="vertical-align:-1px"><circle cx="5.5" cy="5.5" r="3.6" fill="rgba(241,236,231,0.24)" stroke="rgba(214,189,134,0.58)" stroke-width="1" stroke-dasharray="2 2"/></svg>`;
-  const legendKey = `<span class="acl-jkey">color = primary bottleneck · size = market upside<span class="acl-jsize" aria-hidden="true"><i class="sm"></i><i class="lg"></i></span></span><span class="acl-jkey acl-jghost-key">${ghostSwatch}&nbsp;dashed = profile only, no PMF read yet</span>`;
-  const legend = legendKey + JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => `
-    <div class="acl-jfamily">
-      <span class="acl-jfam-head"><span class="acl-jswatch ac-jfam-${fi}"></span>${escHtml(fam.label)}</span>
-      ${fam.members.map((b) => {
-        const count = bottleneckCounts.get(b) || 0;
-        return `<button type="button" class="acl-jbtn ${jf.bottleneck === b ? "is-active" : ""} ${jf.bottleneck && jf.bottleneck !== b ? "is-dim" : ""}" data-jbottleneck="${escAttr(b)}" data-legend-bottleneck="${escAttr(b)}" aria-pressed="${jf.bottleneck === b ? "true" : "false"}" aria-label="${escAttr(`${b}: ${count} plotted records${jf.bottleneck === b ? " — click to clear" : " — click to isolate"}`)}">${escHtml(b)}<em>${escHtml(String(count))}</em></button>`;
-      }).join("")}
-    </div>`).join("");
+  const activeBn = jf.bottleneck || null;
+  // Token reuses the timeline dropdown's sentence-menu chrome (data-sent-menu);
+  // options reuse the existing data-jbottleneck click handler. Each option
+  // carries its family-coloured dot, so the colour legend is embedded INTO the
+  // filter — picking a bottleneck and learning what its colour means are one act.
+  const bnOptions = [
+    `<button type="button" class="ac-sent-opt" data-jbottleneck="" role="option" aria-selected="${activeBn ? "false" : "true"}">
+        <span class="ac-sent-opt-main"><b>any bottleneck</b><small>show every team</small></span>
+      </button>`,
+    ...JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => fam.members.map((b) => {
+      const count = bottleneckCounts.get(b) || 0;
+      const sel = activeBn === b;
+      return `<button type="button" class="ac-sent-opt ac-jbn-opt" data-jbottleneck="${escAttr(b)}" role="option" aria-selected="${sel ? "true" : "false"}" aria-label="${escAttr(`isolate ${b} — ${count} ${count === 1 ? "team" : "teams"} (${fam.label})`)}">
+          <span class="ac-sent-opt-main"><b><i class="acl-jswatch ac-jfam-${fi}"></i>${escHtml(b)}</b><small>${escHtml(fam.label)}</small></span>
+          <em>${escHtml(String(count))}</em>
+        </button>`;
+    }).join("")).join(""),
+  ].join("");
+  // The token IS the colour legend AND the filter: at rest it shows the four
+  // family swatches (so "coloured by [●●●●]" reads as the legend); isolating one
+  // collapses it to that family's swatch + name (and dims the rest on the plot).
+  const famSwatches = JOURNEY_BOTTLENECK_FAMILIES.map((fam, fi) => `<i class="acl-jswatch ac-jfam-${fi}"></i>`).join("");
+  const bnTokenInner = activeBn
+    ? `<i class="acl-jswatch ac-jfam-${journeyFamilyIdx(activeBn)}" aria-hidden="true"></i><span>${escHtml(activeBn)}</span>`
+    : `<span class="ac-jbn-legend" aria-hidden="true">${famSwatches}</span>`;
+  const bottleneckUnit = `
+    <span class="ac-sent-unit">
+      <button type="button" class="ac-sent-tok ac-jbn-tok${activeBn ? " is-active" : ""}" data-sent-menu="jbottleneck" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(activeBn ? `coloured by bottleneck, isolated to ${activeBn} — click to change or clear` : "coloured by bottleneck family: market, product, growth, company — click to isolate one")}">
+        ${bnTokenInner}<i class="ac-sent-chev" aria-hidden="true"></i>
+      </button>
+      <div class="ac-sent-menu" data-sent-menu-for="jbottleneck" role="listbox" aria-label="isolate one PMF bottleneck" hidden>${bnOptions}</div>
+    </span>`;
+  // Encoding bits woven into the sentence below (not a standalone legend panel):
+  // the size ramp for "sized by upside", and a hollow-dot hint shown only when
+  // some plotted records have no explicit read (so the count explains the ghosts).
+  const sizeRamp = `<span class="acl-jsize" aria-hidden="true"><i class="sm"></i><i class="lg"></i></span>`;
+  const ghostSwatch = `<svg width="9" height="9" viewBox="0 0 11 11" aria-hidden="true" style="vertical-align:-1px"><circle cx="5.5" cy="5.5" r="3.6" fill="rgba(241,236,231,0.24)" stroke="rgba(214,189,134,0.58)" stroke-width="1" stroke-dasharray="2 2"/></svg>`;
 
-  // ── sentence bar — "plotting teams + projects + side projects" ──
-  // Counts come from the UNFILTERED set so a toggled-off chip still says
-  // what it would bring back. An active bottleneck isolation (set from the
-  // legend below) surfaces here as a clearable chip — the legend's
-  // is-active highlight alone left the filter state invisible at the top.
+  // ── "as of" week SLIDER (top-right) — a snap scrubber across the program
+  // (start → now). The native range input snaps to each week (step=1) and is
+  // keyboard-driven; the notches are also click-to-jump; the live label tracks the
+  // thumb. Dragging updates the label live but only commits the dot replot on
+  // release (a mid-drag re-render would destroy the slider) — committing wraps the
+  // render in a View Transition so the dots glide to their new week positions.
+  const selIdx = Math.max(0, weeks.findIndex(w => w.program_week === weekSel));
+  const lastI = weeks.length - 1;
+  const fullLabel = (i) => weeks[i]?.label || `week ${weeks[i]?.program_week}`;
+  const compactLabel = (i) => i <= 0 ? "start" : (i === lastI ? "now" : `wk ${weeks[i].program_week}`);
+  // Centre each notch under the thumb's travel: the thumb (≈14px) can't overhang
+  // the track ends, so its centre runs from 7px to (100% − 7px).
+  const notchLeft = (i) => `calc(7px + ${lastI > 0 ? (i / lastI).toFixed(4) : "0"} * (100% - 14px))`;
+  const weekFilter = weeks.length ? `
+    <div class="ac-jweek" data-jweek role="group" aria-label="as of program week">
+      <span class="ac-jweek-cap" aria-hidden="true">as of</span>
+      <span class="ac-jweek-track">
+        ${weeks.map((w, i) => `<button type="button" class="ac-jweek-notch${i === selIdx ? " is-active" : ""}" style="left:${notchLeft(i)}" data-jweek="${i}" aria-label="${escAttr(`as of ${fullLabel(i)}`)}" title="${escAttr(fullLabel(i))}"></button>`).join("")}
+        <input class="ac-jweek-range" type="range" min="0" max="${Math.max(0, lastI)}" step="1" value="${selIdx}" data-jweek-range aria-label="as of program week" aria-valuetext="${escAttr(fullLabel(selIdx))}"/>
+      </span>
+      <span class="ac-jweek-now" data-jweek-now aria-hidden="true">${escHtml(compactLabel(selIdx))}</span>
+    </div>` : "";
+
+  // ── sentence bar — "PMF read for teams + projects · N/N explicit · stuck on …" ──
+  // Counts come from the UNFILTERED set so a toggled-off chip still says what it
+  // would bring back. The bottleneck isolation now lives IN the sentence as its
+  // own token (the consolidated legend filter), so the active filter is part of
+  // the claim the bar makes, not a chip bolted on the end.
   const kindCount = {
     teams: all.filter(t => teamKind(t) !== "project").length,
     projects: all.filter(t => teamKind(t) === "project").length,
@@ -5526,14 +5823,16 @@ function renderJourney() {
     attr: "data-jfilter", value: key, on: !!jf[key], label, count: kindCount[key],
     aria: `${label}, ${kindCount[key]} on the chart — click to ${jf[key] ? "hide" : "include"}`,
   });
-  const bottleneckChip = jf.bottleneck ? `
-    <span class="ac-sent-word">· stuck on</span>
-    <button type="button" class="ac-sent-evi is-clearable" data-jbottleneck="${escAttr(jf.bottleneck)}" aria-label="${escAttr(`clear bottleneck filter: ${jf.bottleneck}`)}">
-      ${escHtml(jf.bottleneck)}<i class="ac-sent-x" aria-hidden="true">×</i>
-    </button>` : "";
   // Honesty fact: how many plotted records have an EXPLICIT pmf read vs. sit at
   // the seeded default — otherwise the bottom-left default cluster reads as real.
+  // The hollow-dot hint only appears when there ARE unread records to explain.
   const assessedCount = teams.filter(journeyAssessed).length;
+  const unreadCount = teams.length - assessedCount;
+  const unreadNote = unreadCount > 0
+    ? `<span class="ac-sent-faint">· ${ghostSwatch} ${unreadCount} unread</span>` : "";
+  // One coherent sentence — the legend is folded into the claim: the bottleneck
+  // token carries the colour key, an inline ramp carries the size key, and the
+  // read count carries the "hollow = unread" key. No standalone legend panel.
   const filterBar = `
     <div class="ac-sentence" role="group" aria-label="pmf evidence filters">
       <span class="ac-sent-word">PMF read for</span>
@@ -5541,22 +5840,25 @@ function renderJourney() {
       <span class="ac-sent-word">+</span>
       ${includeChip("projects", "projects")}
       ${sideEligible ? `<span class="ac-sent-word">+</span>${includeChip("side", "side projects")}` : ""}
+      <span class="ac-sent-word">· coloured by</span>
+      ${bottleneckUnit}
+      <span class="ac-sent-word">· sized by upside</span>${sizeRamp}
       <span class="ac-sent-word">·</span>
       <strong class="ac-sent-fact">${assessedCount}/${teams.length}</strong>
-      <span class="ac-sent-word">with an explicit read</span>
-      ${bottleneckChip}
+      <span class="ac-sent-word">read</span>
+      ${unreadNote}
     </div>`;
 
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="journey">
     ${cohortPageHead("journey")}
-    <div class="alch-view-controls" data-shape-occluder>${constTimelineDropdownHtml()}${filterBar}${constSelectionChipHtml()}</div>
+    <div class="alch-view-controls is-journey-controls" data-shape-occluder>${filterBar}${constSelectionChipHtml()}${weekFilter}</div>
     <div class="alch-constellation" data-constellation-view="journey">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
-          <div class="alch-constellation-legend is-journey-legend lg-track">${legend}</div>
           <div class="alch-constellation-stage alch-journey-stage">
             <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+              ${dotDefs}
               ${gridLines.join("")}
               ${xLabels}
               ${yLabels}
@@ -5659,6 +5961,69 @@ const MOMENTUM = {
   flat:     { color: "#9a9488", glyph: "→", word: "steady" },
 };
 function momentumDeltaLabel(d) { return d == null ? "" : (d > 0 ? `+${d}` : `${d}`); }
+
+// PMF stage to PLOT a team at for the selected "as of" week. weekSel === null is
+// Total — the team's live read (journeyFor().stage). Otherwise it's that program
+// week's stage from the weekly series, falling back to the live stage when a week
+// has no row. Only stage is tracked weekly (evidence has no weekly series), so the
+// week filter moves dots horizontally and the vertical position holds. Scrubbing
+// the week filter is how movement reads now — the dots travel, no overlaid trails.
+function journeyDisplayStage(team, weekSel) {
+  const live = journeyFor(team).stage;
+  if (weekSel == null) return live;
+  const e = standingWeeklyTeam(team?.record_id)?.weeks?.[weekSel];
+  const wk = e && Number.isFinite(e.stage) ? e.stage : live;
+  // Stage 0 is the OFF-TRACK "side project" CLASSIFICATION on the axis, not
+  // "pre-launch". The weekly seed reuses 0 as a generic week-0 baseline, so an
+  // on-track team (live stage ≥ 1) scrubbed back would falsely drop into the
+  // side-project column. Floor such teams at idea (1); genuine side projects
+  // (live stage 0) keep 0. (Once real weekly reads land this is a safe no-op.)
+  return live >= 1 ? Math.max(1, wk) : wk;
+}
+// A team's stage at the FIRST program week, for the hover's "since start" delta.
+// Routes through journeyDisplayStage so the same side-project floor applies and
+// the start, the plotted dot, and the delta can never disagree.
+function journeyStartStage(team) {
+  const weeks = standingWeeklyWeeks();
+  if (!weeks.length) return journeyFor(team).stage;
+  return journeyDisplayStage(team, weeks[0].program_week);
+}
+// True while the per-week standing rows are still the deterministic seed (vs.
+// real reads from Supabase team_standing_weekly), so the movement readout can
+// honestly flag a seeded delta as illustrative rather than measured history.
+function standingWeeklyIsSeed() {
+  return /\bseed/i.test(state.standingWeekly?.note || "");
+}
+// Sanitize an id into a valid CSS <custom-ident> for view-transition-name
+// (record ids are kebab-case, but guard anything that isn't [A-Za-z0-9_-]).
+function cssIdent(s) { return String(s).replace(/[^A-Za-z0-9_-]/g, "_"); }
+// Re-render with the PMF dots gliding to their new week positions when the
+// platform supports View Transitions. The html.jweek-vt class scopes the
+// animation to the named dot groups (CSS disables the root cross-fade) so the
+// rest of the view swaps instantly with no flash.
+//
+// Reduced motion is guarded HERE in JS (mirroring openDetail), not via CSS: the
+// global prefers-reduced-motion rule targets real elements (`*`), which does NOT
+// match the ::view-transition pseudo-element tree — so a reduced-motion user must
+// skip startViewTransition entirely. A depth counter keeps the scoping class
+// alive across rapid/overlapping week clicks: a newer transition skips the older
+// one (rejecting its .finished), and a naive remove would strip the class — and
+// thus the root-cross-fade suppression — mid-animation, causing the very flash
+// this scoping prevents.
+let jweekVtDepth = 0;
+function journeyWeekTransition() {
+  const root = document.documentElement;
+  const reduce = (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches)
+    || root.getAttribute("data-reduce-motion") === "1";
+  if (reduce || typeof document.startViewTransition !== "function") { render(); return; }
+  const release = () => { if (--jweekVtDepth <= 0) { jweekVtDepth = 0; root.classList.remove("jweek-vt"); } };
+  jweekVtDepth++;
+  root.classList.add("jweek-vt");
+  let vt;
+  try { vt = document.startViewTransition(() => render()); }
+  catch { render(); release(); return; }
+  vt.finished.catch(() => {}).finally(release);
+}
 
 function constTeamStanding(team) {
   // Classify by the confidence the team declared AT THE ACTIVE WEEK (per-week
@@ -7537,7 +7902,9 @@ function isProfileForked() { return _forkedSelf; }
 
 // ─── shape card → drawer ─────────────────────────────────────────────
 function wireShapeCardClicks() {
-  const cards = state.canvas.querySelectorAll(".alch-card[data-record-id]");
+  // Includes the directory's compact-table rows (.alch-dir-row) so a zoomed-out
+  // row opens its record exactly like a card.
+  const cards = state.canvas.querySelectorAll(".alch-card[data-record-id], .alch-dir-row[data-record-id]");
   const isNestedControl = (e, card) => {
     const target = e?.target;
     return target instanceof Element
@@ -8304,16 +8671,48 @@ function wireConstellationHover() {
       if (jf && key in jf) { jf[key] = !jf[key]; render(); }
     });
   }
-  // Journey bottleneck: legend buttons isolate one bottleneck (click again
-  // to clear); the sentence's "stuck on" chip carries the same attribute,
-  // so clicking it re-toggles — i.e. clears — the active one.
+  // Journey bottleneck: the "stuck on [bottleneck ▾]" token menu isolates one
+  // bottleneck (re-pick to clear). The "any bottleneck" option carries an empty
+  // value; normalize it to a real null so jf.bottleneck is never the empty string
+  // (every consumer reads it as `|| null`, but null keeps that contract honest).
   for (const btn of state.canvas.querySelectorAll("[data-jbottleneck]")) {
     btn.addEventListener("click", () => {
       if (!jf) return;
-      const b = btn.dataset.jbottleneck;
+      const b = btn.dataset.jbottleneck || null;
       jf.bottleneck = jf.bottleneck === b ? null : b;
       render();
     });
+  }
+  // "As of [week]" SLIDER (journey only): a snap scrubber over the program weeks.
+  // index → program_week via the weekly list. Dragging the range fires `input`
+  // repeatedly — update the live label/notch ONLY (a full re-render would destroy
+  // the slider mid-drag) — and commits the dot replot on `change` (release) or a
+  // notch click, wrapping the render in a View Transition so the dots glide.
+  {
+    const jweekWeeks = standingWeeklyWeeks();
+    const idxToWeek = (i) => jweekWeeks[Math.max(0, Math.min(jweekWeeks.length - 1, Math.round(Number(i))))]?.program_week;
+    const commitWeek = (i) => {
+      const pw = idxToWeek(i);
+      if (pw == null || pw === state.journeyWeek) return;
+      state.journeyWeek = pw;
+      journeyWeekTransition();
+    };
+    const range = state.canvas.querySelector("[data-jweek-range]");
+    if (range) {
+      // Live feedback during the drag without committing (no re-render yet).
+      range.addEventListener("input", () => {
+        const i = Math.round(Number(range.value));
+        const slider = range.closest(".ac-jweek");
+        const nowEl = slider?.querySelector("[data-jweek-now]");
+        if (nowEl) nowEl.textContent = i <= 0 ? "start" : (i === jweekWeeks.length - 1 ? "now" : `wk ${jweekWeeks[i]?.program_week}`);
+        range.setAttribute("aria-valuetext", jweekWeeks[i]?.label || `week ${jweekWeeks[i]?.program_week}`);
+        slider?.querySelectorAll(".ac-jweek-notch").forEach((n, ni) => n.classList.toggle("is-active", ni === i));
+      });
+      range.addEventListener("change", () => commitWeek(range.value));
+    }
+    for (const notch of state.canvas.querySelectorAll(".ac-jweek-notch[data-jweek]")) {
+      notch.addEventListener("click", () => commitWeek(notch.dataset.jweek));
+    }
   }
   for (const btn of state.canvas.querySelectorAll("[data-standing-filter]")) {
     btn.addEventListener("click", () => {
@@ -8711,26 +9110,96 @@ function setConstellationPersonProjectHover(stage, teamId, on) {
   });
 }
 
-// Journey tooltip: name + stage/evidence labels + bottleneck + next
-// milestone. Reads journey with defaults applied so it never crashes on a
-// record that has no `journey` object.
+// The PMF read card. This view answers exactly one question — where a team sits
+// on the path to product-market fit and how far it's moved — so the hover
+// EXPLAINS the placement (position in words, the evidence behind it, the
+// bottleneck holding it) and states the net movement as text (the week filter is
+// what you scrub to watch it travel). Deliberately NOT a company dossier.
 function showJourneyTip(stage, tip, rec) {
   if (!tip || !rec) return;
   const j = journeyFor(rec);
   const assessed = journeyAssessed(rec);
-  const stageLbl = JOURNEY_STAGE_LABELS[j.stage] || "—";
+  const clip = (s, n) => { s = constText(s); return s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s; };
+  const typeChip = j.company_type ? `<span class="ajt-tag">${escHtml(j.company_type)}</span>` : "";
+  const head = `<div class="ajt-head"><span class="ajt-name">${escHtml(rec.name || rec.record_id)}</span>${typeChip}</div>`;
+
+  // Unread team — never dress the seeded defaults (stage 1, ICP Clarity, upside
+  // 3…) as a measured read. journeyAssessed() already counts icp/problem/etc., so
+  // reaching here means nothing was self-entered: show only the honest note.
+  if (!assessed) {
+    tip.innerHTML = `${head}<div class="ajt-unread">No explicit PMF read yet — plotted at the idea · vibes default, not a measured placement.</div>`;
+    tip.hidden = false;
+    return;
+  }
+
+  // Position reflects the SELECTED week (the dot's actual plotted stage), so the
+  // hover always agrees with where the dot sits as you scrub the week filter.
+  const weekSel = state.journeyWeek ?? null;
+  const weeks = standingWeeklyWeeks();
+  const curStage = journeyDisplayStage(rec, weekSel);
+  const startStage = journeyStartStage(rec);
+  const weekLabel = weekSel == null ? "Total" : (weeks.find(w => w.program_week === weekSel)?.label || `week ${weekSel}`);
+  const stageLbl = JOURNEY_STAGE_LABELS[curStage] || "—";
   const evLbl = JOURNEY_EVIDENCE_LABELS[j.evidence_quality] || "—";
-  const milestone = j.next_milestone
-    ? `<div class="ajt-row"><span class="ajt-k">next</span><span class="ajt-v">${escHtml(j.next_milestone)}</span></div>`
-    : "";
-  tip.innerHTML = `
-    <div class="ajt-name">${escHtml(rec.name || rec.record_id)}</div>
-    <div class="ajt-row"><span class="ajt-k">source</span><span class="ajt-v">${escHtml(assessed ? "explicit PMF read" : "missing journey data")}</span></div>
-    <div class="ajt-row"><span class="ajt-k">stage</span><span class="ajt-v">${j.stage} · ${escHtml(stageLbl)}</span></div>
-    <div class="ajt-row"><span class="ajt-k">evidence</span><span class="ajt-v">${j.evidence_quality} · ${escHtml(evLbl)}</span></div>
-    <div class="ajt-row"><span class="ajt-k">bottleneck</span><span class="ajt-v">${escHtml(j.primary_bottleneck)}</span></div>
-    ${milestone}
-  `;
+  const famIdx = journeyFamilyIdx(j.primary_bottleneck);
+  const famLabel = JOURNEY_BOTTLENECK_FAMILIES[famIdx]?.label || "";
+  const upsideLbl = JOURNEY_UPSIDE_LABELS[j.market_upside] || "";
+
+  // Position — the placement said in words (x × y), so the dot's coordinates mean
+  // something without counting gridlines.
+  const posLine = `<div class="ajt-pos">
+      <span class="ajt-pos-cell"><b>${curStage}</b>${escHtml(stageLbl)}</span>
+      <span class="ajt-pos-x" aria-hidden="true">×</span>
+      <span class="ajt-pos-cell"><b>${j.evidence_quality}</b>${escHtml(evLbl)}</span>
+    </div>`;
+
+  // Movement — net stage change from program start to the selected week, as TEXT
+  // (no chart line). The per-week rows are still a deterministic SEED (see
+  // cohort-standing-weekly.json); while they are, the readout flags itself as
+  // illustrative so a seeded delta is never read as measured history. Drops out
+  // automatically once live weekly reads land.
+  const seeded = standingWeeklyIsSeed();
+  const hasWeekly = weeks.length >= 2;
+  // At the EARLIEST week the delta is trivially 0 (you're at the start), so the
+  // movement readout would be the same uninformative "no change" for every team —
+  // suppress it there.
+  const atStart = weekSel != null && weeks.length && weekSel === weeks[0].program_week;
+  let moveBlock = "";
+  if (hasWeekly && !atStart) {
+    const delta = Math.round((curStage - startStage) * 10) / 10;
+    const kind = momentumKind(delta);
+    const m = MOMENTUM[kind];
+    const deltaTxt = delta > 0 ? `+${delta}` : `${delta}`;
+    const headTxt = delta === 0 ? "→ no stage change" : `${m.glyph} ${deltaTxt} ${Math.abs(delta) === 1 ? "stage" : "stages"}`;
+    // At "now" (the latest week) the delta is the FULL-program movement, so read it
+    // "since program start"; a mid-program week reads "by Week N".
+    const isNow = weeks.length && weekSel === weeks[weeks.length - 1].program_week;
+    const subTxt = delta === 0
+      ? (isNow ? "steady so far this program" : `steady through ${weekLabel}`)
+      : (isNow ? `${m.word} since program start` : `${m.word} by ${weekLabel}`);
+    const seedNote = seeded ? `<small class="ajt-seed">illustrative — weekly reads not yet wired</small>` : "";
+    moveBlock = `<div class="ajt-move ajt-move-${kind}${seeded ? " is-seed" : ""}">
+        <span class="ajt-move-read"><b>${escHtml(headTxt)}</b><small>${escHtml(subTxt)}</small>${seedNote}</span>
+      </div>`;
+  }
+
+  // Why they're there — upside (the size encoding), the bottleneck holding them,
+  // and the strongest piece of declared evidence we actually have on file.
+  const upsideMeter = `<span class="ajt-meter" aria-hidden="true">${[1, 2, 3, 4, 5].map(n => `<i class="${n <= j.market_upside ? "on" : ""}"></i>`).join("")}</span>`;
+  const stats = `
+    <div class="ajt-row"><span class="ajt-k">upside</span><span class="ajt-v">${upsideMeter}${escHtml(upsideLbl)}</span></div>
+    <div class="ajt-row"><span class="ajt-k">stuck on</span><span class="ajt-v"><i class="ajt-bn-dot ac-jfam-${famIdx}" aria-hidden="true"></i>${escHtml(j.primary_bottleneck)} <small>· ${escHtml(famLabel)}</small></span></div>`;
+  const ctx = j.evidence_notes ? `evidence — ${j.evidence_notes}`
+    : j.problem ? `problem — ${j.problem}`
+    : j.icp ? `for ${j.icp}` : "";
+  const ctxBlock = ctx ? `<div class="ajt-ctx">${escHtml(clip(ctx, 150))}</div>` : "";
+  const nextBlock = j.next_milestone ? `<div class="ajt-row"><span class="ajt-k">next</span><span class="ajt-v">${escHtml(clip(j.next_milestone, 110))}</span></div>` : "";
+  const foot = `<div class="ajt-foot">${
+    hasWeekly ? (seeded ? "explicit read · weekly history is a seed, live reads pending" : "explicit read · stage history from weekly standing")
+       : "explicit read · self-reported"
+  }</div>`;
+
+  tip.innerHTML = `${head}${posLine}${moveBlock}${stats}${ctxBlock}${nextBlock}${foot}`;
   tip.hidden = false;
 }
 function positionConstTip(stage, tip, e) {

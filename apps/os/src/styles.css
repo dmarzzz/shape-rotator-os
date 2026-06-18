@@ -5765,6 +5765,77 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 @media (prefers-reduced-motion: reduce) {
   .alch-zoom-ctl, .azc-btn, .azc-val { transition: none; }
 }
+/* ── Directory: cards/rows toggle pill + actions ───────────────────────────
+   The filter sentence stays left; the layout pill + export sit far right. */
+.alch-view-controls.is-directory-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.alch-dir-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; }
+.alch-dir-viewpill {
+  display: inline-flex; align-items: center;
+  border: 1px solid rgba(var(--ink-rgb), 0.14); border-radius: 999px;
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.05), rgba(var(--ink-rgb), 0.02));
+  overflow: hidden;
+}
+.adv-seg {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 26px; padding: 0; color: var(--alchemy-ink-mute);
+  transition: color 150ms var(--ease), background 150ms var(--ease);
+}
+.adv-seg + .adv-seg { border-left: 1px solid rgba(var(--ink-rgb), 0.10); }
+.adv-seg:hover { color: var(--alchemy-paper-warm); }
+.adv-seg.is-active { color: var(--alchemy-paper-warm); background: color-mix(in srgb, var(--alchemy-oxide-bright, #c1a872) 14%, transparent); }
+.adv-seg:active { transform: scale(0.94); }
+.adv-seg:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: -2px; }
+
+/* ── Directory compact table (rows view) ──────────────────────────────────
+   Columns come from --dir-cols (set inline from the persisted per-kind layout).
+   Headers drag to REORDER and carry a right-edge handle to RESIZE; rows are
+   role=row + clickable (wired by wireShapeCardClicks). */
+.alch-dir-table { --dir-cols: 1fr; margin-top: 2px; user-select: none; }
+.alch-dir-thead,
+.alch-dir-row { display: grid; grid-template-columns: var(--dir-cols); align-items: center; }
+.alch-dir-thead { border-bottom: 1px solid rgba(var(--ink-rgb), 0.16); }
+.alch-dir-th {
+  position: relative; display: flex; align-items: center;
+  padding: 4px 12px 9px; min-width: 0;
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute); cursor: grab;
+  transition: color 140ms var(--ease), box-shadow 140ms var(--ease);
+}
+.alch-dir-th.alch-dir-num { justify-content: flex-end; }
+.alch-dir-th-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.alch-dir-th:hover { color: var(--alchemy-paper-warm); }
+.alch-dir-th.is-dragging { opacity: 0.4; cursor: grabbing; }
+.alch-dir-th.is-drop-target { color: var(--alchemy-oxide-bright); box-shadow: inset 2px 0 0 var(--alchemy-oxide-bright); }
+.alch-dir-resize { position: absolute; top: 0; right: -4px; width: 9px; height: 100%; cursor: col-resize; touch-action: none; z-index: 1; }
+.alch-dir-resize::after {
+  content: ""; position: absolute; top: 4px; bottom: 9px; right: 4px; width: 1px;
+  background: rgba(var(--ink-rgb), 0.16); transition: background 120ms var(--ease), width 120ms var(--ease);
+}
+.alch-dir-resize:hover::after,
+.alch-dir-table.is-resizing .alch-dir-resize::after { background: var(--alchemy-oxide-bright); width: 2px; }
+.alch-dir-row {
+  border: 0; border-bottom: 1px solid rgba(var(--ink-rgb), 0.06);
+  background: transparent; cursor: pointer; color: var(--alchemy-paper-warm);
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.25;
+  transition: background 140ms var(--ease);
+}
+.alch-dir-row:hover { background: rgba(var(--ink-rgb), 0.05); }
+.alch-dir-row:active { background: rgba(var(--ink-rgb), 0.08); }
+.alch-dir-row:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: -1px; background: rgba(var(--ink-rgb), 0.05); }
+.alch-dir-c { min-width: 0; padding: 8px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alch-dir-c.alch-dir-num { text-align: right; font-variant-numeric: tabular-nums; }
+.alch-dir-c[data-c="name"] { display: flex; align-items: center; gap: 8px; }
+.alch-dir-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; letter-spacing: 0.02em; }
+.alch-dir-c .alch-dir-mut { color: var(--alchemy-ink-mute); }
+.alch-dir-c[data-c="stage"] b { color: var(--alchemy-oxide-bright); font-variant-numeric: tabular-nums; font-weight: 700; margin-right: 4px; }
+.alch-dir-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.32); }
+.alch-dir-tag {
+  display: inline-block; margin-right: 4px; padding: 1px 6px; border-radius: 5px;
+  background: rgba(var(--ink-rgb), 0.07); color: var(--alchemy-ink-mute);
+  font-size: 9px; letter-spacing: 0.02em;
+}
+@media (prefers-reduced-motion: reduce) { .alch-dir-row, .adv-seg, .alch-dir-th, .alch-dir-resize::after { transition: none; } }
 .alch-const-workbench {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(244px, 284px); /* map | fixed inspector */
@@ -8568,10 +8639,24 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   --journey-ink: var(--ed-ink-1, #f5f3ee);
   --journey-muted: var(--ed-ink-2, #b8b4ab);
   --journey-quiet: var(--ed-ink-3, #6e695e);
+  /* Axis labels sit at the dim edges of a dark plot and crowd the dots near
+     the margins — they need more contrast than body-muted plus a dark halo so
+     they never get lost behind a mark. */
+  --journey-axis: var(--ed-ink-1, #ece7dd);
+  --journey-axis-halo: rgba(10, 9, 9, 0.82);
   --journey-rule: rgba(var(--ink-rgb), 0.16);
   --journey-rule-strong: rgba(var(--ink-rgb), 0.34);
   --journey-control-bg: rgba(var(--ink-rgb), 0.035);
   --journey-control-bg-hover: rgba(var(--ink-rgb), 0.065);
+  /* 3D-bead float shadow — strong enough to lift off the black plot. */
+  --journey-dot-shadow: rgba(0, 0, 0, 0.42);
+}
+/* Light theme: the axis halo flips to paper (else it darkens the dark text), and
+   the bead shadow drops to a light-surface alpha so it reads as a soft float, not
+   a heavy dark halo on the near-white plot. */
+:root[data-theme="light"] .alch-constellation {
+  --journey-axis-halo: rgba(247, 246, 242, 0.92);
+  --journey-dot-shadow: rgba(24, 18, 12, 0.16);
 }
 .alch-journey-stage svg { width: 100%; height: 100%; display: block; }
 .alch-journey-stage svg .ac-jgrid {
@@ -8579,18 +8664,22 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 }
 .alch-journey-stage svg .ac-jaxis-x,
 .alch-journey-stage svg .ac-jaxis-y {
-  fill: var(--journey-muted);
-  font-family: var(--font-mono); font-size: 10.2px; letter-spacing: 0.05em; text-transform: lowercase; font-variant-numeric: tabular-nums;
+  fill: var(--journey-axis);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.03em; text-transform: lowercase; font-variant-numeric: tabular-nums;
+  /* Halo so the label survives where dots crowd the axis margins. */
+  paint-order: stroke;
+  stroke: var(--journey-axis-halo); stroke-width: 2.6px; stroke-linejoin: round;
 }
-.alch-journey-stage svg .ac-jaxis-num { fill: var(--journey-ink); font-weight: 600; }
+.alch-journey-stage svg .ac-jaxis-num { fill: var(--journey-ink); font-weight: 700; }
 /* Divider setting the off-track "side project" column apart from idea→scale-fit. */
 .alch-journey-stage svg .ac-jdivider {
   stroke: var(--journey-rule-strong); stroke-width: 1; stroke-dasharray: 3 4;
 }
-.alch-journey-stage svg .ac-jaxis-x-side { fill: var(--journey-muted); font-style: italic; opacity: 0.86; }
+.alch-journey-stage svg .ac-jaxis-x-side { fill: var(--journey-muted); font-style: italic; opacity: 0.92; }
 .alch-journey-stage svg .ac-jaxis-title {
-  fill: var(--journey-muted);
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  fill: var(--journey-axis);
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase;
+  opacity: 0.78;
 }
 .alch-journey-stage svg .ac-jnode { cursor: pointer; }
 .alch-journey-stage svg .ac-jnode .ac-jdot {
@@ -8640,18 +8729,55 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 }
 .alch-journey-stage svg .ac-jnode.is-labeled .ac-jnode-label { opacity: 0.86; }
 .alch-journey-stage svg .ac-jnode:hover .ac-jnode-label { opacity: 1; }
+/* ── 3D dots — assessed reads render as shaded "beads": a per-family radial
+   gradient (set inline as fill=url(#jsphere-N)) gives the sphere highlight, and a
+   themeable drop-shadow() floats them off the plot. A faint rim keeps them crisp
+   on bright cells. The week filter morphs their positions via a View Transition. */
+.alch-journey-stage svg .ac-jsphere {
+  filter: drop-shadow(0 1.4px 1.5px var(--journey-dot-shadow));
+  stroke: rgba(8, 6, 6, 0.42); stroke-width: 0.7;
+}
+/* Keep the float on interaction: the base .ac-jdot hover/focus/selected rules
+   REPLACE filter (it isn't additive), so the bead would lose its shadow exactly
+   when touched. Re-declare here composing float + glow — both drop-shadow()s, so
+   the transition also interpolates smoothly instead of jumping. */
+.alch-journey-stage svg .ac-jnode:hover .ac-jsphere {
+  filter: drop-shadow(0 1.4px 1.5px var(--journey-dot-shadow)) drop-shadow(0 0 8px rgba(143, 34, 14, 0.55));
+}
+.alch-journey-stage svg .ac-jnode:focus-visible .ac-jsphere {
+  filter: drop-shadow(0 1.4px 1.5px var(--journey-dot-shadow)) drop-shadow(0 0 9px rgba(214, 189, 134, 0.85));
+}
+.alch-journey-stage svg .ac-jnode.is-selected .ac-jsphere {
+  filter: drop-shadow(0 1.4px 1.5px var(--journey-dot-shadow)) drop-shadow(0 0 10px rgba(214, 189, 134, 0.55));
+}
+/* Week-filter dot travel — when the "as of [week]" filter changes, only the
+   named dot groups morph to their new positions; the rest of the view swaps
+   instantly (root cross-fade disabled) so nothing flashes. The global
+   prefers-reduced-motion guard zeroes the duration for reduced-motion users. */
+html.jweek-vt::view-transition-group(*) {
+  animation-duration: 360ms;
+  animation-timing-function: var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+html.jweek-vt::view-transition-old(root),
+html.jweek-vt::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
 /* 4-family bottleneck palette (collapsed from 10 — see JOURNEY_BOTTLENECK_
    FAMILIES). Dots fill (svg); legend swatches need background (html span). */
 .alch-journey-stage svg .ac-jfam-0 { fill: #c44025; }  /* market  — oxide red */
 .alch-journey-stage svg .ac-jfam-1 { fill: #c9a35e; }  /* product — brass */
 .alch-journey-stage svg .ac-jfam-2 { fill: #4fa3a0; }  /* growth  — teal */
 .alch-journey-stage svg .ac-jfam-3 { fill: #7a6fb0; }  /* company — violet */
-.alch-constellation-legend .acl-jswatch.ac-jfam-0 { background: #c44025; }
-.alch-constellation-legend .acl-jswatch.ac-jfam-1 { background: #c9a35e; }
-.alch-constellation-legend .acl-jswatch.ac-jfam-2 { background: #4fa3a0; }
-.alch-constellation-legend .acl-jswatch.ac-jfam-3 { background: #7a6fb0; }
-.alch-constellation-legend .acl-jswatch {
-  display: inline-block; flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%;
+/* Family swatch colours — unscoped so they tint the key strip, the bottleneck
+   filter token + its menu, and the tooltip's bottleneck dot, none of which live
+   inside .alch-constellation-legend anymore. */
+.acl-jswatch.ac-jfam-0, .ajt-bn-dot.ac-jfam-0 { background: #c44025; }
+.acl-jswatch.ac-jfam-1, .ajt-bn-dot.ac-jfam-1 { background: #c9a35e; }
+.acl-jswatch.ac-jfam-2, .ajt-bn-dot.ac-jfam-2 { background: #4fa3a0; }
+.acl-jswatch.ac-jfam-3, .ajt-bn-dot.ac-jfam-3 { background: #7a6fb0; }
+.acl-jswatch {
+  display: inline-block; flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%;
   vertical-align: middle; margin-right: 6px;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.36);
 }
@@ -8673,68 +8799,27 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   backdrop-filter: var(--lg-blur-sm);
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
-.alch-constellation-legend.is-journey-legend {
-  align-items: center;
-  gap: 6px 12px;
-}
-/* The pmf legend is the encoding key PLUS the bottleneck FILTER chips — it
-   belongs with the controls, not in its own glass panel. Float it (drop the
-   box) and tighten it into one quiet row so it reads as filters and the
-   scatter sits higher. Pairs with the floated stage below it. */
-.alch-constellation-legend.is-journey-legend.lg-track {
-  margin: 0 0 6px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  box-shadow: none;
-}
-.alch-constellation-legend.is-journey-legend .acl-jfamily {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.alch-constellation-legend.is-journey-legend .acl-jbtn {
-  background: rgba(var(--ink-rgb), 0.05);
-  border-color: var(--lg-border);
-}
-.alch-constellation-legend.is-journey-legend .acl-jkey {
-  border-right-color: var(--lg-border);
-}
-/* The ghost-dot key is a SECOND .acl-jkey, so it inherits the divider border —
-   drop it so only one divider separates "keys | families". */
-.alch-constellation-legend .acl-jghost-key {
-  border-right: 0; padding-right: 0;
-}
-/* Encoding key — static text leading the bottleneck legend; states what the
-   scatter's color and size MEAN. Deliberately not button-shaped so it can't
-   read as one more filter. */
-.alch-constellation-legend .acl-jkey {
-  align-self: center;
-  padding-right: 14px;
-  border-right: 1px solid rgba(var(--ink-rgb), 0.14);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  color: var(--journey-muted);
-}
+/* (The old PMF glass-panel legend + its 10-button bottleneck wall, then the
+   standalone swatch strip, were both folded INTO the one-row sentence: the
+   bottleneck token carries the colour key, the size ramp below carries the size
+   key, and the read count carries "hollow = unread".) */
 /* Size ramp — shows the "size = market upside" encoding instead of only stating
-   it: a small dot → large dot, neutral fill (size, not colour, is the point). */
-.alch-constellation-legend .acl-jsize {
+   it: a small dot → large dot, neutral fill (size, not colour, is the point).
+   Unscoped so it works inline in the controls sentence. */
+.acl-jsize {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  margin-left: 8px;
+  gap: 4px;
+  margin: 0 5px;
   vertical-align: middle;
 }
-.alch-constellation-legend .acl-jsize i {
+.acl-jsize i {
   display: inline-block;
   border-radius: 50%;
   background: rgba(var(--ink-rgb), 0.5);
 }
-.alch-constellation-legend .acl-jsize i.sm { width: 5px; height: 5px; }
-.alch-constellation-legend .acl-jsize i.lg { width: 11px; height: 11px; }
+.acl-jsize i.sm { width: 4px; height: 4px; }
+.acl-jsize i.lg { width: 9px; height: 9px; }
 /* Filter bar */
 
 
@@ -8766,44 +8851,11 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   border-color: rgba(var(--ink-rgb), 0.36);
   background: var(--journey-control-bg-hover);
 }
-.ajf-toggle:focus-visible,
-.alch-constellation-legend .acl-jbtn:focus-visible {
+.ajf-toggle:focus-visible {
   outline: 1px solid rgba(143,34,14,0.78);
   outline-offset: 2px;
 }
 .ajf-toggle:not(.is-on) { opacity: 0.62; text-decoration: line-through; }
-/* Clickable bottleneck legend */
-.alch-constellation-legend .acl-jbtn {
-  appearance: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  gap: 6px;
-  min-height: 24px; line-height: 1;
-  cursor: pointer; background: var(--journey-control-bg); border: 1px solid rgba(var(--ink-rgb), 0.16);
-  border-radius: 999px; padding: 3px 9px 3px 6px;
-  font: inherit; color: var(--journey-muted);
-  transition: opacity 160ms var(--ease), color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
-}
-.alch-constellation-legend .acl-jbtn em {
-  min-width: 1.25ch;
-  color: var(--alchemy-oxide-bright);
-  font-style: normal;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.alch-constellation-legend .acl-jbtn.is-active {
-  color: var(--journey-ink);
-  border-color: rgba(143,34,14,0.72);
-  background: rgba(143,34,14,0.16);
-  box-shadow: inset 0 -1.5px 0 var(--alchemy-oxide-bright);
-}
-.alch-constellation-legend .acl-jbtn.is-dim { opacity: 0.42; }
-.alch-constellation-legend .acl-jbtn:hover {
-  opacity: 1;
-  color: var(--journey-ink);
-  border-color: rgba(var(--ink-rgb), 0.36);
-  background: var(--journey-control-bg-hover);
-}
 /* Tooltip — anchored to the stage, positioned in JS on mousemove. */
 .ac-tip {
   position: absolute; top: 0; left: 0; z-index: 5;
@@ -8830,6 +8882,140 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
   padding-top: 1px;
 }
 .ac-tip .ajt-v { min-width: 0; color: rgba(var(--ink-rgb),0.82); }
+.ac-tip .ajt-v small { color: var(--alchemy-ink-mute); }
+
+/* ── PMF evidence: consolidated controls row + compact key ─────────────────
+   filter sentence on the left, compact key next to it; the "as of [week]" filter
+   is pushed to the far right (the top-right corner of the view). Wraps gracefully
+   instead of stacking into a second panel. */
+.alch-view-controls.is-journey-controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+}
+/* The week slider owns the top-right; the key strip flows right after the
+   sentence so the two right-aligned elements don't fight for the corner. */
+.ac-jweek { margin-left: auto; display: inline-flex; align-items: center; gap: 9px; }
+.ac-jweek-cap {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em;
+  text-transform: lowercase; color: var(--journey-muted); white-space: nowrap;
+}
+/* Snap scrubber: a thin track with a notch per week and an oxide thumb. The
+   native range (step=1) does the snapping + keyboard; notches are click targets. */
+.ac-jweek-track { position: relative; width: 132px; height: 16px; display: flex; align-items: center; }
+.ac-jweek-track::before {
+  content: ""; position: absolute; left: 6px; right: 6px; top: 50%;
+  height: 2px; border-radius: 2px; background: var(--journey-rule-strong); transform: translateY(-50%);
+}
+.ac-jweek-range {
+  position: relative; z-index: 2; width: 100%; height: 16px; margin: 0;
+  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+}
+.ac-jweek-range::-webkit-slider-runnable-track { height: 16px; background: transparent; }
+.ac-jweek-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 13px; height: 13px; border-radius: 50%; margin-top: 1.5px;
+  background: radial-gradient(circle at 35% 30%, #f0b49f, var(--alchemy-oxide-bright, #c1a872) 60%, #8a2a14);
+  border: 1px solid rgba(8, 6, 6, 0.5);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  cursor: grab;
+}
+.ac-jweek-range:active::-webkit-slider-thumb { cursor: grabbing; }
+.ac-jweek-range:focus-visible { outline: none; }
+.ac-jweek-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(193, 168, 114, 0.4), 0 1px 2px rgba(0, 0, 0, 0.45); }
+.ac-jweek-notch {
+  position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 1;
+  width: 5px; height: 5px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 1px solid rgba(var(--ink-rgb), 0.34); background: rgba(var(--ink-rgb), 0.10);
+  transition: background 150ms var(--ease), border-color 150ms var(--ease);
+}
+.ac-jweek-notch:hover { border-color: var(--alchemy-oxide-bright); }
+.ac-jweek-notch.is-active { background: var(--alchemy-oxide); border-color: var(--alchemy-oxide-bright); }
+.ac-jweek-notch:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 2px; }
+.ac-jweek-now {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
+  color: var(--alchemy-paper-warm); min-width: 3.4ch; font-variant-numeric: tabular-nums;
+}
+/* Bottleneck token = the colour legend AND the filter. At rest it shows the four
+   family swatches (.ac-jbn-legend); isolated, it shows one swatch + name and
+   brass-tints, mirroring the rewound-timeline token. */
+.ac-jbn-tok .acl-jswatch { width: 8px; height: 8px; margin-right: 0; }
+.ac-jbn-legend { display: inline-flex; align-items: center; gap: 3px; }
+.ac-jbn-legend .acl-jswatch { width: 7px; height: 7px; margin-right: 0; }
+.ac-jbn-tok.is-active {
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #c1a872) 50%, transparent);
+  background: color-mix(in srgb, var(--alchemy-oxide-bright, #c1a872) 12%, rgba(var(--ink-rgb), 0.04));
+  color: var(--alchemy-paper-warm);
+}
+.ac-jbn-opt .ac-sent-opt-main b { display: inline-flex; align-items: center; }
+.ac-jbn-opt .acl-jswatch { width: 8px; height: 8px; margin-right: 6px; }
+/* Faint inline hint (e.g. "· ⊘ N unread") folded into the sentence, not a panel. */
+.ac-sent-faint {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: var(--journey-muted); font-size: 9.5px; letter-spacing: 0.02em; white-space: nowrap;
+}
+
+/* ── PMF evidence: the read card (hover) ──────────────────────────────────
+   Explains the placement and shows the movement — not a company dossier. */
+.ac-tip { max-width: 300px; }
+.ac-tip .ajt-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 8px; }
+.ac-tip .ajt-head .ajt-name { margin: 0; }
+.ac-tip .ajt-tag {
+  font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--alchemy-ink-mute);
+  border: 1px solid rgba(226,207,162,0.28); border-radius: 4px; padding: 1px 5px;
+}
+/* Position said in words — the dot's coordinates, legible without counting grid. */
+.ac-tip .ajt-pos {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px;
+  padding-bottom: 8px; margin-bottom: 8px;
+  border-bottom: 1px solid rgba(226,207,162,0.14);
+}
+.ac-tip .ajt-pos-cell { display: inline-flex; align-items: baseline; gap: 5px; color: rgba(var(--ink-rgb),0.82); }
+.ac-tip .ajt-pos-cell b { font-size: 13px; color: var(--alchemy-paper-warm); font-variant-numeric: tabular-nums; }
+.ac-tip .ajt-pos-x { color: var(--alchemy-ink-mute); font-size: 11px; }
+/* Movement — the timescale: sparkline + net stage delta. */
+.ac-tip .ajt-move {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 9px; margin-bottom: 9px; border-radius: 6px;
+  background: rgba(var(--ink-rgb), 0.05);
+}
+.ac-tip .ajt-move-read { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ac-tip .ajt-move-read b { font-size: 11px; letter-spacing: 0.02em; }
+.ac-tip .ajt-move-read small { color: var(--alchemy-ink-mute); font-size: 8.5px; letter-spacing: 0.06em; }
+.ac-tip .ajt-move-rising b { color: #6fc3b2; }
+.ac-tip .ajt-move-slipping b { color: #e2737f; }
+.ac-tip .ajt-move-flat b { color: var(--alchemy-ink-mute); }
+/* The delta labels are real content; the dark-tuned green/red fail WCAG AA on the
+   light-glass tooltip, so darken them under the light theme. */
+:root[data-theme="light"] .ac-tip .ajt-move-rising b { color: #157564; }
+:root[data-theme="light"] .ac-tip .ajt-move-slipping b { color: #b3273a; }
+/* Seed disclosure — a quiet amber qualifier so a seeded delta never reads as a
+   measured value. Flips darker on the light theme. */
+.ac-tip .ajt-seed {
+  display: block; margin-top: 2px;
+  color: #c79a4e; font-size: 8px; letter-spacing: 0.05em; font-style: italic;
+}
+:root[data-theme="light"] .ac-tip .ajt-seed { color: #8a6a23; }
+/* upside dot-meter + bottleneck dot inside the stat rows. */
+.ac-tip .ajt-meter { display: inline-flex; gap: 2px; margin-right: 6px; vertical-align: middle; }
+.ac-tip .ajt-meter i { width: 4px; height: 4px; border-radius: 50%; background: rgba(var(--ink-rgb),0.22); }
+.ac-tip .ajt-meter i.on { background: var(--alchemy-paper-warm); }
+.ac-tip .ajt-bn-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  margin-right: 5px; vertical-align: middle; box-shadow: 0 0 0 1px rgba(0,0,0,0.36);
+}
+/* The "why they're there" evidence line + provenance footer. */
+.ac-tip .ajt-ctx {
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid rgba(226,207,162,0.14);
+  color: rgba(var(--ink-rgb),0.74); font-size: 9.5px; line-height: 1.5;
+}
+.ac-tip .ajt-foot {
+  margin-top: 9px; color: var(--alchemy-ink-mute);
+  font-size: 8px; letter-spacing: 0.07em; text-transform: uppercase;
+}
+.ac-tip .ajt-unread {
+  color: rgba(var(--ink-rgb),0.72); font-size: 9.5px; line-height: 1.5; padding: 2px 0 4px;
+}
 
 .cb-control-actions {
   display: inline-flex;
