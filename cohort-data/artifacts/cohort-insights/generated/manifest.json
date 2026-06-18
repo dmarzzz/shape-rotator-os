@@ -996,7 +996,7 @@
         "say": "re-architected for outside contributions — hunting real user stories for product-driven development",
         "did": "other, fix, maintenance, feature — fix: pixel-match the original — upright names, reading sizes, 3-up grid; feat: match the original warm elevation — espresso page, taupe panels, compact head; feat: warm specimen restyl...",
         "did_basis": "github_progress",
-        "shipped": "0.3.5; 0.3.4; 0.3.1",
+        "shipped": "0.3.8-rc.1; 0.3.7; 0.3.6",
         "shipped_basis": "github_release",
         "observed_status": "public_signal_observed",
         "public_activity": {
@@ -1004,7 +1004,7 @@
           "latest_week_start": "2026-06-08",
           "progress_artifact_count": 3,
           "release_artifact_count": 1,
-          "release_count": 75,
+          "release_count": 80,
           "useful_commit_count": 169
         }
       },
@@ -4661,7 +4661,7 @@
         "signalstack"
       ],
       "title": "Award nomination — Shipped the Most (public releases)",
-      "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": elizaOS (100), Shape Rotator OS (75), searxng-wth-frnds (16). Candidate list from public data only, not a verdict.",
+      "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": elizaOS (100), Shape Rotator OS (80), searxng-wth-frnds (16). Candidate list from public data only, not a verdict.",
       "summary": "Ranked by public_release_count from public GitHub/cohort metadata. Awaiting reviewed judgment before any winner is named.",
       "evidence_level": "observed_public_metadata",
       "confidence": "low",
@@ -4712,7 +4712,7 @@
           {
             "record_id": "shape-rotator-os",
             "name": "Shape Rotator OS",
-            "value": 75
+            "value": 80
           },
           {
             "record_id": "searxng-wth-frnds",
@@ -6248,7 +6248,7 @@
           "say": "re-architected for outside contributions — hunting real user stories for product-driven development",
           "did": "other, fix, maintenance, feature — fix: pixel-match the original — upright names, reading sizes, 3-up grid; feat: match the original warm elevation — espresso page, taupe panels, compact head; feat: warm specimen restyl...",
           "did_basis": "github_progress",
-          "shipped": "0.3.5; 0.3.4; 0.3.1",
+          "shipped": "0.3.8-rc.1; 0.3.7; 0.3.6",
           "shipped_basis": "github_release",
           "observed_status": "public_signal_observed",
           "public_activity": {
@@ -6256,7 +6256,7 @@
             "latest_week_start": "2026-06-08",
             "progress_artifact_count": 3,
             "release_artifact_count": 1,
-            "release_count": 75,
+            "release_count": 80,
             "useful_commit_count": 169
           }
         },
@@ -9917,7 +9917,7 @@
           "signalstack"
         ],
         "title": "Award nomination — Shipped the Most (public releases)",
-        "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": elizaOS (100), Shape Rotator OS (75), searxng-wth-frnds (16). Candidate list from public data only, not a verdict.",
+        "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": elizaOS (100), Shape Rotator OS (80), searxng-wth-frnds (16). Candidate list from public data only, not a verdict.",
         "summary": "Ranked by public_release_count from public GitHub/cohort metadata. Awaiting reviewed judgment before any winner is named.",
         "evidence_level": "observed_public_metadata",
         "confidence": "low",
@@ -9968,7 +9968,7 @@
             {
               "record_id": "shape-rotator-os",
               "name": "Shape Rotator OS",
-              "value": 75
+              "value": 80
             },
             {
               "record_id": "searxng-wth-frnds",

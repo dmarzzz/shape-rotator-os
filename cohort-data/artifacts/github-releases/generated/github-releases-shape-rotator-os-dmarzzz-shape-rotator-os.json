@@ -4,9 +4,9 @@
   "artifact_kind": "github_release_list",
   "record_type": "team",
   "record_id": "shape-rotator-os",
-  "date": "2026-06-13",
-  "title": "dmarzzz/shape-rotator-os: 75 releases",
-  "summary": "Latest: 0.3.5, 0.3.4, 0.3.1, 0.3.0-rc.8, 0.3.0-rc.7",
+  "date": "2026-06-15",
+  "title": "dmarzzz/shape-rotator-os: 80 releases",
+  "summary": "Latest: 0.3.8-rc.1, 0.3.7, 0.3.6, 0.3.6-rc.2, 0.3.6-rc.1",
   "source_kind": "github_releases_api",
   "source_url": "https://github.com/dmarzzz/shape-rotator-os/releases",
   "source_repo": "dmarzzz/shape-rotator-os",
@@ -14,14 +14,54 @@
   "review_status": "generated",
   "surface_recommendation": "promote_candidate",
   "verbatim": true,
-  "release_count": 75,
+  "release_count": 80,
   "releases": [
+    {
+      "tag_name": "v0.3.8-rc.1",
+      "name": "0.3.8-rc.1",
+      "published_at": "2026-06-15T23:23:44Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/shape-rotator-os/releases/tag/v0.3.8-rc.1"
+    },
+    {
+      "tag_name": "v0.3.7",
+      "name": "0.3.7",
+      "published_at": "2026-06-15T22:34:37Z",
+      "prerelease": false,
+      "latest": true,
+      "html_url": "https://github.com/dmarzzz/shape-rotator-os/releases/tag/v0.3.7"
+    },
+    {
+      "tag_name": "v0.3.6",
+      "name": "0.3.6",
+      "published_at": "2026-06-14T09:11:03Z",
+      "prerelease": false,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/shape-rotator-os/releases/tag/v0.3.6"
+    },
+    {
+      "tag_name": "v0.3.6-rc.2",
+      "name": "0.3.6-rc.2",
+      "published_at": "2026-06-14T05:52:26Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/shape-rotator-os/releases/tag/v0.3.6-rc.2"
+    },
+    {
+      "tag_name": "v0.3.6-rc.1",
+      "name": "0.3.6-rc.1",
+      "published_at": "2026-06-14T01:58:40Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/dmarzzz/shape-rotator-os/releases/tag/v0.3.6-rc.1"
+    },
     {
       "tag_name": "v0.3.5",
       "name": "0.3.5",
       "published_at": "2026-06-13T17:44:38Z",
       "prerelease": false,
-      "latest": true,
+      "latest": false,
       "html_url": "https://github.com/dmarzzz/shape-rotator-os/releases/tag/v0.3.5"
     },
     {
