@@ -14,6 +14,7 @@
 
 import { escHtml, escAttr, normalizeGithubRepo, normalizeLinkHref } from "./escape.js";
 import { shapeForTeam, domainLabel } from "./index.js";
+import { sphereAttrs } from "./shape-canvas.js";
 
 // Display id "SHAPE-NN" / "PERSON-NN" from index. Kept module-local
 // because callers always have an index handy.
@@ -302,7 +303,7 @@ export function personCardHtml(p, idx, ctx = {}) {
   return `
     <article class="alch-card is-clickable alch-card-person alch-card-role-${escAttr(roleClass)}" data-record-id="${escHtml(p.record_id)}" data-display-id="${displayId(idx)}" tabindex="0" role="button" aria-label="${escHtml(p.name)} — open profile">
       <div class="alch-card-head">
-        <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.1" data-shape-seed="${escAttr(p.record_id)}"></canvas></div>
+        <div class="alch-card-shape"><canvas data-shape-fam="${fam}" data-shape-kind="person" data-shape-scale="1.1" data-shape-seed="${escAttr(p.record_id)}" ${sphereAttrs(ctx.spheres?.[p.record_id])}></canvas></div>
         <div class="alch-card-title">
           ${p.domain ? `<div class="alch-card-domain">${escHtml(domainLabel(p.domain))}</div>` : ""}
           <div class="alch-card-name">${escHtml(p.name)}</div>
