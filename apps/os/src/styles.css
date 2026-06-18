@@ -5693,8 +5693,22 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
    so zooming genuinely enlarges the graph and lets you pan a larger canvas. */
 .alch-cohort-page[data-cohort-view="bubble"] .alch-constellation-stage,
 .alch-cohort-page[data-cohort-view="journey"] .alch-constellation-stage {
+  /* overflow holds the zoomed-in graph so left-drag can pan it (see the pan
+     controller in wireConstellationHover); scrollbars are hidden so panning
+     reads as grabbing the canvas, not scrolling a pane. */
   overflow: auto;
+  scrollbar-width: none;            /* Firefox */
+  cursor: grab;
+  /* Fit the page: fill the viewport below the nav + filter row so the graph
+     sits on one screen and you zoom/pan to explore (no outer page scroll). */
+  height: clamp(440px, calc(100svh - 232px), 1040px);
+  min-height: 440px;
+  overscroll-behavior: contain;
 }
+.alch-cohort-page[data-cohort-view="bubble"] .alch-constellation-stage::-webkit-scrollbar,
+.alch-cohort-page[data-cohort-view="journey"] .alch-constellation-stage::-webkit-scrollbar { width: 0; height: 0; }
+.alch-cohort-page[data-cohort-view="bubble"] .alch-constellation-stage.is-panning,
+.alch-cohort-page[data-cohort-view="journey"] .alch-constellation-stage.is-panning { cursor: grabbing; }
 .alch-cohort-page[data-cohort-view="bubble"] .alch-constellation-stage > svg,
 .alch-cohort-page[data-cohort-view="journey"] .alch-constellation-stage > svg {
   width: calc(100% * var(--cohort-zoom, 1));
@@ -5799,11 +5813,30 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 }
 .alch-const-workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(244px, 284px);
+  grid-template-columns: minmax(0, 1fr) var(--rail-w, clamp(244px, 22vw, 300px));
   gap: 10px;
   align-items: stretch;
   min-height: 560px;
+  position: relative;
 }
+/* Drag handle on the main↔inspector boundary — pull left/right to resize the
+   side panel. Absolutely positioned over the gap so it doesn't take a grid
+   track; width is persisted (state.constRailW → --rail-w). */
+.ac-rail-resize {
+  position: absolute; top: 0; bottom: 0; z-index: 6;
+  right: var(--rail-w, clamp(244px, 22vw, 300px));
+  width: 11px; transform: translateX(50%);
+  cursor: col-resize; background: transparent; border: 0; padding: 0;
+  touch-action: none;
+}
+.ac-rail-resize::after {
+  content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 2px; height: 38px; border-radius: 2px;
+  background: rgba(var(--ink-rgb), 0.16); transition: background 150ms var(--ease, ease), height 150ms var(--ease, ease);
+}
+.ac-rail-resize:hover::after, .ac-rail-resize:focus-visible::after { background: rgba(193,168,114,0.55); height: 54px; }
+.ac-rail-resize:focus-visible { outline: none; }
+.alch-const-workbench.is-single .ac-rail-resize { display: none; }
 .alch-const-workbench.is-single {
   grid-template-columns: minmax(0, 1fr);
 }

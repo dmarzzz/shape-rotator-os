@@ -75,6 +75,7 @@ const CONST_PEOPLE_LINK_LS_KEY = "srwk:const_people_link"; // pinned people-map 
 const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem view: cluster record_id | "all"
 const CONST_GRANULARITY_LS_KEY = "srwk:const_granularity"; // bubble map grain: "themes" | "clusters" | "skills"
 const CONST_SIZE_LS_KEY = "srwk:const_size"; // bubble size encoding: "maturity" | "headcount" | "depended-on" | "even"
+const CONST_RAIL_LS_KEY = "srwk:const_rail_w"; // user-dragged width (px) of the relationship-map inspector rail
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
 const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
@@ -234,6 +235,7 @@ const state = {
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
   constellationGranularity: "clusters", // bubble map grain: "themes" | "clusters" | "skills"
   constellationSizeBy: "maturity", // bubble size encoding: "maturity" | "headcount" | "depended-on" | "even"
+  constRailW: null,           // user-dragged inspector-rail width (px) on the relationship map; null = CSS default
   constSelection: null,       // persistent constellation inspector selection: { type:"team"|"person", rid } | { type:"edge", from, to }
   cohortZoom: COHORT_ZOOM_DEFAULT, // per-user zoom for cohort views (excludes the directory roster); persisted to COHORT_ZOOM_LS_KEY
   renderSeq: 0,               // monotonic render guard; stale delayed swaps must not overwrite the latest view
@@ -289,6 +291,7 @@ export function mount(container) {
     state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
     state.constellationGranularity = constNormalizeGranularity(localStorage.getItem(CONST_GRANULARITY_LS_KEY));
     state.constellationSizeBy = constNormalizeSizeBy(localStorage.getItem(CONST_SIZE_LS_KEY));
+    { const rw = Number(localStorage.getItem(CONST_RAIL_LS_KEY)); state.constRailW = (Number.isFinite(rw) && rw >= 220 && rw <= 540) ? rw : null; }
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
     const savedProgramPage = localStorage.getItem(PROGRAM_PAGE_LS_KEY);
@@ -1058,7 +1061,11 @@ let wheelPending = null;
 let wheelRAF = 0;
 function onCohortWheel(e) {
   if (!cohortZoomActive()) return;
-  if (!(e.ctrlKey || e.metaKey)) return;
+  // The SVG graph views (bubble map + pmf scatter) fit the page, so a plain
+  // wheel zooms them — anchored on the cursor — with no modifier. Other cohort
+  // views keep Ctrl/Cmd to zoom so a plain wheel still scrolls their lists.
+  const overSvg = !!e.target?.closest?.('.alch-cohort-page[data-cohort-view="bubble"] .alch-constellation-stage, .alch-cohort-page[data-cohort-view="journey"] .alch-constellation-stage');
+  if (!overSvg && !(e.ctrlKey || e.metaKey)) return;
   e.preventDefault();
   const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; // normalize line→pixel
   const factor = Math.exp(-px * COHORT_ZOOM_WHEEL_K);
@@ -7244,7 +7251,8 @@ function renderConstellation() {
         ${constSelectionChipHtml()}
       </div>
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
-      <div class="alch-const-workbench">
+      <div class="alch-const-workbench"${state.constRailW ? ` style="--rail-w:${state.constRailW}px"` : ""}>
+        <div class="ac-rail-resize" data-rail-resize role="separator" aria-orientation="vertical" aria-label="drag to resize the side panel" tabindex="0"></div>
         <div class="alch-const-main">
           <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "constellation relationship graph")}">
             <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
@@ -7855,6 +7863,59 @@ function wireConstellationHover() {
     // the team — whose inspector leads with its intersection (Venn) view. The
     // legacy map/ring path still uses the provenance tooltip.
     const isBubble = stage.getAttribute("data-view") === "bubble";
+    // Drag-to-pan for the zoomable SVG views (bubble map + pmf scatter): zoomed
+    // in, the graph overflows the stage, so left-drag scrolls it around. A drag
+    // past a few px suppresses the trailing click so panning off a mark doesn't
+    // also open it. At zoom 1 the graph fits, so there's simply nothing to pan.
+    if (["bubble", "journey"].includes(stage.getAttribute("data-view"))) {
+      let panning = false, psx = 0, psy = 0, pscl = 0, psct = 0, pmoved = false;
+      stage.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        panning = true; pmoved = false;
+        psx = e.clientX; psy = e.clientY; pscl = stage.scrollLeft; psct = stage.scrollTop;
+      });
+      stage.addEventListener("pointermove", (e) => {
+        if (!panning) return;
+        const dx = e.clientX - psx, dy = e.clientY - psy;
+        if (!pmoved && Math.hypot(dx, dy) > 4) { pmoved = true; stage.classList.add("is-panning"); try { stage.setPointerCapture(e.pointerId); } catch {} }
+        if (pmoved) { stage.scrollLeft = pscl - dx; stage.scrollTop = psct - dy; }
+      });
+      const endPan = () => { panning = false; stage.classList.remove("is-panning"); };
+      stage.addEventListener("pointerup", endPan);
+      stage.addEventListener("pointercancel", endPan);
+      stage.addEventListener("click", (e) => { if (pmoved) { e.stopPropagation(); e.preventDefault(); pmoved = false; } }, true);
+    }
+    // Resizable inspector rail — drag the boundary handle left/right to set the
+    // panel width (persisted via state.constRailW → --rail-w); ←/→ nudge it.
+    const railHandle = state.canvas.querySelector("[data-rail-resize]");
+    const railWorkbench = state.canvas.querySelector(".alch-const-workbench");
+    if (railHandle && railWorkbench && !railWorkbench.classList.contains("is-single")) {
+      const RAIL_MIN = 220, RAIL_MAX = 540;
+      const setRail = (w, persist) => {
+        const v = Math.max(RAIL_MIN, Math.min(RAIL_MAX, Math.round(w)));
+        state.constRailW = v;
+        railWorkbench.style.setProperty("--rail-w", v + "px");
+        if (persist) { try { localStorage.setItem(CONST_RAIL_LS_KEY, String(v)); } catch {} }
+      };
+      let railDrag = false;
+      railHandle.addEventListener("pointerdown", (e) => {
+        railDrag = true; e.preventDefault();
+        try { railHandle.setPointerCapture(e.pointerId); } catch {}
+        document.body.style.cursor = "col-resize";
+      });
+      railHandle.addEventListener("pointermove", (e) => {
+        if (railDrag) setRail(railWorkbench.getBoundingClientRect().right - e.clientX, false);
+      });
+      const endRail = () => { if (!railDrag) return; railDrag = false; document.body.style.cursor = ""; try { localStorage.setItem(CONST_RAIL_LS_KEY, String(state.constRailW)); } catch {} };
+      railHandle.addEventListener("pointerup", endRail);
+      railHandle.addEventListener("pointercancel", endRail);
+      railHandle.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        e.preventDefault();
+        const cur = state.constRailW || railWorkbench.querySelector(".ac-inspector")?.getBoundingClientRect().width || 280;
+        setRail(cur + (e.key === "ArrowLeft" ? 20 : -20), true);
+      });
+    }
     let lastPreviewRid = null;
     let pendingRestore = 0;
     const cancelPendingRestore = () => { if (pendingRestore) { cancelAnimationFrame(pendingRestore); pendingRestore = 0; } };
@@ -7935,7 +7996,9 @@ function wireConstellationHover() {
       });
       g.addEventListener("click", (e) => {
         e.preventDefault();
-        if (isBubble) clearContainerFocus();
+        // Bubble map: hovering already previews the team in the inspector, so a
+        // click goes straight to its company page — no confusing two-step pin.
+        if (isBubble) { clearContainerFocus(); openDetail(rid); return; }
         selectOrOpen("team", rid);
       });
       g.addEventListener("focus", () => {
@@ -7946,7 +8009,7 @@ function wireConstellationHover() {
       g.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        if (isBubble) clearContainerFocus();
+        if (isBubble) { clearContainerFocus(); openDetail(rid); return; }
         selectOrOpen("team", rid);
       });
     }
