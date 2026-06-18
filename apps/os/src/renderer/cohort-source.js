@@ -25,7 +25,8 @@
 
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
-import { fetchPublicEvidenceCards } from "./supabase-evidence.mjs";
+import { fetchPublicEvidenceCards, fetchCohortEvidenceCards } from "./supabase-evidence.mjs";
+import { evidenceDependencyRecords } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
@@ -714,19 +715,35 @@ async function mergeSyncOverBaseline(baseline, overlay) {
 // Cheap change signature: counts + sorted record_ids per bucket. Used
 // by the refresh loop to skip re-render when GitHub returned identical
 // data (the usual case between merges).
-// Apply the live Supabase T3 evidence overlay on top of a merged surface.
-// The app reads the public, person-anonymized transcript cards LIVE from
-// Supabase (public_transcript_evidence_cards) so the distillation engine's
-// output shows up without a repo rebuild or a committed bundle. On a Supabase
-// outage — or when no anon key is configured — the surface keeps whatever
-// cards it already carries (committed bundle or a prior LS-cached set), so the
-// app degrades gracefully instead of going dark.
+// Apply the live Supabase evidence overlay on top of a merged surface.
+// Builds carrying a cohort key (the distributed app) read the GATED T2 cohort
+// evidence (cohort_app_transcript_evidence_cards) AND the anon T3 public set, and
+// merge them (T2 ∪ T3, deduped). Builds with no cohort key (the public web bundle)
+// read only the anon T3 public set. On a Supabase outage — or no key at all — the
+// surface keeps whatever cards it already carries, so the app degrades gracefully.
 async function applyEvidenceOverlay(surface) {
   try {
-    const { cards, source } = await fetchPublicEvidenceCards();
-    if (source === "supabase") {
-      surface.transcript_evidence_cards = cards;
-      surface._evidenceSource = "supabase-live";
+    const [cohort, pub] = await Promise.all([fetchCohortEvidenceCards(), fetchPublicEvidenceCards()]);
+    const gotCohort = cohort.source === "supabase-cohort";
+    const gotPublic = pub.source === "supabase";
+    if (!gotCohort && !gotPublic) return surface; // no live read succeeded — keep existing
+    const seen = new Set();
+    const merged = [];
+    for (const card of [...(gotCohort ? cohort.cards : []), ...(gotPublic ? pub.cards : [])]) {
+      if (card && card.id && !seen.has(card.id)) { seen.add(card.id); merged.push(card); }
+    }
+    surface.transcript_evidence_cards = merged;
+    surface._evidenceSource = gotCohort ? (gotPublic ? "supabase-cohort+public" : "supabase-cohort") : "supabase-live";
+
+    // Shape collaboration-edge evidence into dependency records so the relationship
+    // map renders them NATIVELY (no view code) — deduped vs the declared deps the
+    // surface already carries, provenance-tagged (status=session_observed). Additive
+    // + idempotent (skip any evidence-edge id already present on re-overlay).
+    const baseDeps = Array.isArray(surface.dependencies) ? surface.dependencies : [];
+    const edgeRecords = evidenceDependencyRecords(merged, baseDeps);
+    if (edgeRecords.length) {
+      const have = new Set(baseDeps.map((d) => d && d.record_id).filter(Boolean));
+      surface.dependencies = [...baseDeps, ...edgeRecords.filter((r) => !have.has(r.record_id))];
     }
   } catch {
     // keep whatever the surface already carries
