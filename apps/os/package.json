@@ -124,6 +124,10 @@
           "to": "cohort-keys.json"
         },
         {
+          "from": "build-resources/cohort-app-key.json",
+          "to": "cohort-app-key.json"
+        },
+        {
           "from": "build-resources/whisper/",
           "to": "whisper/",
           "filter": [
@@ -198,6 +202,10 @@
           "to": "cohort-keys.json"
         },
         {
+          "from": "build-resources/cohort-app-key.json",
+          "to": "cohort-app-key.json"
+        },
+        {
           "from": "build-resources/whisper/",
           "to": "whisper/",
           "filter": [
@@ -256,6 +264,10 @@
         {
           "from": "build-resources/cohort-keys.json",
           "to": "cohort-keys.json"
+        },
+        {
+          "from": "build-resources/cohort-app-key.json",
+          "to": "cohort-app-key.json"
         },
         {
           "from": "build-resources/whisper/",

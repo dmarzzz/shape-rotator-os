@@ -44,7 +44,24 @@ export const DEFAULT_PUBLIC_ANON_KEY =
 // the app falls back to the anon T3 read. SOFT gate: a key in a distributed binary
 // is extractable, so this is "off the public web", not a hard boundary; revoke by
 // dropping the cohort_app grant/role server-side.
-export const DEFAULT_COHORT_KEY = (typeof process !== "undefined" && process.env && process.env.SRFG_COHORT_KEY) || "";
+// Resolve the build-baked cohort key. In the packaged renderer it arrives over
+// the preload bridge (window.api.cohortKey, baked from SRFG_COHORT_KEY at build
+// time); in Node (build scripts / tests) it comes from the env. Empty => the
+// cohort reader no-ops and the app falls back to the anon T3 read (public web /
+// un-provisioned build). Args are injectable so the resolution is unit-testable.
+export function resolveDefaultCohortKey({ bridge, env } = {}) {
+  const fromBridge = bridge !== undefined
+    ? bridge
+    : (typeof globalThis !== "undefined" && globalThis.api && typeof globalThis.api.cohortKey === "string"
+        ? globalThis.api.cohortKey
+        : "");
+  if (fromBridge) return String(fromBridge).trim();
+  const fromEnv = env !== undefined
+    ? env
+    : (typeof process !== "undefined" && process.env ? process.env.SRFG_COHORT_KEY : "");
+  return String(fromEnv || "").trim();
+}
+export const DEFAULT_COHORT_KEY = resolveDefaultCohortKey();
 
 // Columns the anon view exposes (must match the migration's select list).
 const PUBLIC_CARD_COLUMNS = [

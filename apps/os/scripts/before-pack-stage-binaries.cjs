@@ -43,6 +43,19 @@ module.exports = async function beforePack(context) {
   const buildResources = path.resolve(__dirname, "..", "build-resources");
   const stagingBase = path.join(buildResources, "_staging");
 
+  // Bake the cohort_app Supabase JWT into the packaged app so every install
+  // reads the GATED T2 evidence with no per-user setup. Sourced from the
+  // SRFG_COHORT_KEY build env (set on the release runner / locally for a
+  // provisioned build); EMPTY when unset → the build ships no key and the app
+  // falls back to the public anon T3 read. The file is gitignored: the secret
+  // never enters this public repo; this hook is the only place it is written.
+  const cohortKeyFile = path.join(buildResources, "cohort-app-key.json");
+  const cohortKey = String(process.env.SRFG_COHORT_KEY || "").trim();
+  fs.writeFileSync(cohortKeyFile, JSON.stringify({ cohortKey }) + "\n", { mode: 0o600 });
+  console.log(
+    `[before-pack] cohort-app-key.json ${cohortKey ? "written (key present)" : "written EMPTY (no SRFG_COHORT_KEY → anon T3 fallback)"}`
+  );
+
   for (const name of BUNDLES) {
     const flatDir = path.join(buildResources, name);
     // Ensure the extraResources `from` dir always exists (may end up empty,
