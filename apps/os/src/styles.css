@@ -7878,8 +7878,20 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .ac-stack-view.is-targets .ac-tgt-group-head em { font-style: normal; color: rgba(var(--ink-rgb), 0.5); margin-left: 1px; }
 .ac-stack-view.is-targets .ac-tgt-axis,
 .ac-stack-view.is-targets .ac-tgt-row {
-  display: grid; grid-template-columns: 104px minmax(0, 1fr) 54px; gap: 12px; align-items: center;
+  display: grid; grid-template-columns: 104px 50px minmax(0, 1fr) 56px; gap: 12px; align-items: center;
 }
+/* Momentum cell — standing's signature signal (which way the team is trending).
+   Coloured glyph + small delta; semantic up/down/flat per the house convention. */
+.ac-stack-view.is-targets .ac-tgt-mom {
+  display: inline-flex; align-items: baseline; gap: 3px;
+  font-family: var(--font-mono); font-size: 9.5px; font-variant-numeric: tabular-nums;
+  color: var(--alchemy-ink-mute); white-space: nowrap; justify-self: start;
+}
+.ac-stack-view.is-targets .ac-tgt-mom b { font-size: 11px; line-height: 1; font-weight: 700; }
+.ac-stack-view.is-targets .ac-tgt-mom i { font-style: normal; opacity: 0.85; }
+.ac-stack-view.is-targets .ac-tgt-mom.is-rising  { color: #4f9d8f; }
+.ac-stack-view.is-targets .ac-tgt-mom.is-slipping { color: #c83a48; }
+.ac-stack-view.is-targets .ac-tgt-mom.is-flat     { color: var(--alchemy-ink-mute); }
 .ac-stack-view.is-targets .ac-tgt-axis { margin: 2px 0 8px; }
 .ac-stack-view.is-targets .ac-tgt-ticks { position: relative; height: 12px; }
 .ac-stack-view.is-targets .ac-tgt-tick {
@@ -10724,9 +10736,9 @@ button.cb-cell:disabled { cursor: default; }
   --cb-preview-grid: rgba(255,255,255,0.075);
   --cb-preview-text: var(--alchemy-paper-warm);
   --cb-preview-muted: var(--alchemy-ink-mute);
-  --cb-preview-dep: #d95336;
-  --cb-preview-seek: #79a49f;
-  --cb-preview-aff: #9d7bb5;
+  --cb-preview-dep: #bb5a45;
+  --cb-preview-seek: #6f968d;
+  --cb-preview-aff: #8d749f;
   --cb-preview-gold: #d2a84f;
   gap: 20px;
 }
@@ -11087,11 +11099,11 @@ button.cb-cell:disabled { cursor: default; }
 .alch-collab .cb-cell.has-aff { background: transparent; }
 
 /* Darker = more shared skills (≥2 lights, ≥3 / ≥4 intensify). */
-.alch-collab .cb-cell.has-aff.a2 { background: color-mix(in srgb, var(--cb-preview-aff) 12%, transparent); }
+.alch-collab .cb-cell.has-aff.a2 { background: color-mix(in srgb, var(--cb-preview-aff) 8%, transparent); }
 
-.alch-collab .cb-cell.has-aff.a3 { background: color-mix(in srgb, var(--cb-preview-aff) 22%, transparent); }
+.alch-collab .cb-cell.has-aff.a3 { background: color-mix(in srgb, var(--cb-preview-aff) 14%, transparent); }
 
-.alch-collab .cb-cell.has-aff.a4 { background: color-mix(in srgb, var(--cb-preview-aff) 34%, transparent); }
+.alch-collab .cb-cell.has-aff.a4 { background: color-mix(in srgb, var(--cb-preview-aff) 21%, transparent); }
 
 .alch-collab .cb-cell.has-aff .cb-mark {
   width: 5px;
@@ -11102,13 +11114,13 @@ button.cb-cell:disabled { cursor: default; }
   opacity: 1;
 }
 
-.alch-collab .cb-cell.has-so { background: color-mix(in srgb, var(--cb-preview-seek) 13%, transparent); }
+.alch-collab .cb-cell.has-so { background: color-mix(in srgb, var(--cb-preview-seek) 9%, transparent); }
 
-.alch-collab .cb-cell.has-so.s2 { background: color-mix(in srgb, var(--cb-preview-seek) 24%, transparent); }
+.alch-collab .cb-cell.has-so.s2 { background: color-mix(in srgb, var(--cb-preview-seek) 15%, transparent); }
 
-.alch-collab .cb-cell.has-so.s3 { background: color-mix(in srgb, var(--cb-preview-seek) 38%, transparent); }
+.alch-collab .cb-cell.has-so.s3 { background: color-mix(in srgb, var(--cb-preview-seek) 23%, transparent); }
 
-.alch-collab .cb-cell.has-so.s4 { background: color-mix(in srgb, var(--cb-preview-seek) 54%, transparent); }
+.alch-collab .cb-cell.has-so.s4 { background: color-mix(in srgb, var(--cb-preview-seek) 32%, transparent); }
 
 .alch-collab .cb-cell.has-so .cb-mark {
   /* Diamond (rotated square) = a match/node, not the old dash that read as
@@ -11121,9 +11133,9 @@ button.cb-cell:disabled { cursor: default; }
   transform: rotate(45deg);
 }
 
-.alch-collab .cb-cell.has-dep { background: color-mix(in srgb, var(--cb-preview-dep) 30%, transparent); }
+.alch-collab .cb-cell.has-dep { background: color-mix(in srgb, var(--cb-preview-dep) 17%, transparent); }
 
-.alch-collab .cb-cell.has-dep.has-so { background: color-mix(in srgb, var(--cb-preview-dep) 36%, transparent); }
+.alch-collab .cb-cell.has-dep.has-so { background: color-mix(in srgb, var(--cb-preview-dep) 23%, transparent); }
 
 .alch-collab .cb-cell.has-dep .cb-mark {
   width: 0;

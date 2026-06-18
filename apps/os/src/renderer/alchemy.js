@@ -196,7 +196,7 @@ const state = {
   collabSelection: null,           // { type: "team"|"pair"|"cluster", ... } — pinned inspector state
   goalStandingFilter: "all",       // "all" | "behind" | "onplan" | "ahead" — standing legend/filter
   goalMomentumFilter: "all",       // "all" | "rising" | "slipping" | "flat" — momentum legend/filter on the goal views
-  standingProjection: "trajectory", // "trajectory" | "targets" — standing view projection (targets folded in 2026-06)
+  standingProjection: "targets", // "targets" (needs-attention board, default) | "trajectory" — standing view projection
   renderToken: 0,                  // invalidates pending cross-fade swaps when a newer render starts
   mounted: false,
   active: false,
@@ -6054,7 +6054,7 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
   // emerging pmf) anchored to their stage number, so the axis reads on the same
   // 0–8 scale as the "cur → tgt" values and never contradicts the PMF view.
   const ticks = [{ v: 0, l: "0" }, { v: 4, l: "mvp · 4" }, { v: 6, l: "pmf · 6" }, { v: 8, l: "grad · 8" }];
-  const axis = `<div class="ac-tgt-axis"><span></span><div class="ac-tgt-ticks">${ticks.map(t => `<span class="ac-tgt-tick" style="left:${pct(t.v)}%">${t.l}</span>`).join("")}</div><span></span></div>`;
+  const axis = `<div class="ac-tgt-axis"><span></span><span></span><div class="ac-tgt-ticks">${ticks.map(t => `<span class="ac-tgt-tick" style="left:${pct(t.v)}%">${t.l}</span>`).join("")}</div><span></span></div>`;
   const renderTgtRow = ({ r, cur, tgt, gap, declared }) => {
     const color = CONST_GOAL_STANDING[r.standing].color;
     // Momentum still dims rows (the insight strip's momentum chips filter here),
@@ -6066,8 +6066,16 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
     const tcls = declared ? " is-declared" : " is-derived";
     const name = r.team.name || r.team.record_id;
     const gapL = pct(cur), gapW = Math.round((pct(tgt) - pct(cur)) * 10) / 10;
-    return `<button type="button" class="ac-stack-team ac-tgt-row is-${escAttr(r.standing)}${dim}${tcls}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color}" aria-label="${escAttr(`${name}: stage ${cur} of 8, ${declared ? "target" : "estimated target"} ${tgt}, gap ${gap}`)}">
+    // Momentum is standing's unique signal — which way the team is moving over
+    // recent weeks. A coloured glyph + delta per row answers it at a glance
+    // (▲ climbing · ▼ slipping · → steady), so the view reads as "on track?",
+    // not just "where are they?".
+    const mk = MOMENTUM[r.momentumKind] || MOMENTUM.flat;
+    const showDelta = r.momentum != null && r.momentum !== 0;
+    const deltaTxt = showDelta ? momentumDeltaLabel(r.momentum) : "";
+    return `<button type="button" class="ac-stack-team ac-tgt-row is-${escAttr(r.standing)}${dim}${tcls}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color}" aria-label="${escAttr(`${name}: stage ${cur} of 8, ${declared ? "target" : "estimated target"} ${tgt}, gap ${gap}; ${mk.word}${showDelta ? " " + deltaTxt : ""}`)}">
       <span class="ac-tgt-name">${escHtml(name)}</span>
+      <span class="ac-tgt-mom is-${escAttr(r.momentumKind)}" aria-hidden="true"><b>${mk.glyph}</b>${showDelta ? `<i>${escHtml(deltaTxt)}</i>` : ""}</span>
       <span class="ac-tgt-track">
         <span class="ac-tgt-base"></span>
         ${gapW > 0 ? `<span class="ac-tgt-gap" style="left:${gapL}%;width:${gapW}%"></span>` : ""}
@@ -6081,8 +6089,16 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
   // scannable groups (with a quiet header each) instead of one undifferentiated
   // wall of ~26 identical bars. Within each band, biggest gap first.
   const STANDING_ORDER = ["behind", "onplan", "ahead"];
+  // Within each band, the teams needing attention rise to the top: slipping
+  // first, then steady, then climbing; ties broken by the steepest decline,
+  // then largest gap. So "behind + slipping" sits at the very top of the board.
+  const MOM_RANK = { slipping: 0, flat: 1, rising: 2 };
   const bandsHtml = STANDING_ORDER.map(key => {
-    const band = rows.filter(x => x.r.standing === key);
+    const band = rows.filter(x => x.r.standing === key)
+      .sort((a, b) =>
+        (MOM_RANK[a.r.momentumKind] - MOM_RANK[b.r.momentumKind])
+        || ((a.r.momentum ?? 0) - (b.r.momentum ?? 0))
+        || (b.gap - a.gap));
     if (!band.length) return "";
     const meta = CONST_GOAL_STANDING[key];
     return `<div class="ac-tgt-group" data-standing="${escAttr(key)}">
@@ -6103,7 +6119,7 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
       ${axis}
       ${bandsHtml}
       ${untrackedHtml}
-      <p class="ac-gp-note">● current stage · ▽ target (faded = estimated) · bar = gap to close. Hover a row to read a team.</p>
+      <p class="ac-gp-note">▲ climbing · ▼ slipping over recent weeks (slipping teams lead each group) · ● current stage · ▽ target (faded = estimated) · bar = gap to close.</p>
     </div>`;
 }
 
