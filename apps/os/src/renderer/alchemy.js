@@ -14073,6 +14073,7 @@ function distilledTranscriptTitle(s) {
 
 function distilledTranscriptMeta(s) {
   const bits = [];
+  if (s?.session_type) bits.push(String(s.session_type).replace(/_/g, " "));
   if (s?.kind) bits.push(String(s.kind).replace(/_/g, " "));
   if (s?.date) bits.push(contextEvidenceDate(s.date));
   const teams = Array.isArray(s?.teams) ? s.teams : [];

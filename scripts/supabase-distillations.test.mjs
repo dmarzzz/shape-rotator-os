@@ -92,6 +92,22 @@ test("normalizeDistillation falls back to created_at for the date and leaves a s
   assert.deepEqual(out.themes, []);
 });
 
+test("normalizeDistillation reads the engine's nested distillation shape + body-heading title", () => {
+  // Real shape: title lives in the content_md heading (content_json carries policy
+  // metadata), themes/summary are nested under content_json.distillation, summary
+  // is an array of bullets.
+  const out = normalizeDistillation({
+    id: "art-3", artifact_kind: "readout", surface_tier: "T2",
+    content_md: "# WDYDLW with Shaw @ the auditorium\n\nType: office_hours\n\n## Summary\n- the gist of it",
+    content_json: { session_type: "office_hours", distillation: { themes: ["a", "b", "c"], summary: ["first bullet", "second bullet"] } },
+    created_at: "2026-06-13T00:00:00Z",
+  });
+  assert.equal(out.title, "WDYDLW with Shaw @ the auditorium");
+  assert.equal(out.session_type, "office_hours");
+  assert.deepEqual(out.themes, ["a", "b", "c"]);
+  assert.equal(out.summary, "first bullet");
+});
+
 test("normalizeDistillation rejects rows without an id", () => {
   assert.equal(normalizeDistillation({ content_md: "x" }), null);
   assert.equal(normalizeDistillation(null), null);

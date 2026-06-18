@@ -45,28 +45,47 @@ function stringList(value) {
   return Array.isArray(value) ? value.map((v) => clean(v)).filter(Boolean) : [];
 }
 
+// The engine puts the session title in the FIRST markdown heading of the readout
+// body — content_json carries routing/policy metadata, not a title field.
+function firstHeading(md) {
+  const m = String(md || "").match(/^#\s+(.+?)\s*$/m);
+  return m ? m[1].trim() : "";
+}
+
 // Shape a derived_artifacts row into the distilled-transcript record the
-// transcripts tab renders. Defensive about content_json (its shape is engine-
-// owned and varies by artifact_kind) — falls back to the row id + created_at so
-// an entry is always identifiable even when the metadata is sparse.
+// transcripts tab renders. The engine nests the synthesis under
+// content_json.distillation (themes/summary[]/action_items/open_questions) with
+// routing metadata (session_type, policy_*) at the top level; this is defensive
+// about that (and older flat shapes) so an entry is always identifiable.
 export function normalizeDistillation(row) {
   if (!row || typeof row !== "object") return null;
   const id = clean(row.id);
   if (!id) return null;
   const cj = (row.content_json && typeof row.content_json === "object") ? row.content_json : {};
+  const dist = (cj.distillation && typeof cj.distillation === "object") ? cj.distillation : {};
+  const body = clean(row.content_md);
   const conf = typeof row.confidence === "number" ? row.confidence : Number(row.confidence);
+  const sessionType = firstString(cj, ["session_type", "session_kind"]);
+  // summary is an array of bullets in the distillation shape, or a single string.
+  const summaryRaw = dist.summary != null ? dist.summary : (cj.summary != null ? cj.summary : cj.one_liner);
+  const summary = Array.isArray(summaryRaw) ? clean(summaryRaw[0]) : clean(summaryRaw);
+  const themes = (Array.isArray(dist.themes) && dist.themes.length) ? dist.themes : cj.themes;
   return {
     id,
     kind: clean(row.artifact_kind) || "readout",
     surface_tier: clean(row.surface_tier) || "T2",
-    title: firstString(cj, ["title", "session_title", "heading", "name"]),
+    // Prefer an explicit title field; else the body's first heading; else the session type.
+    title: firstString(cj, ["title", "session_title", "heading", "name"])
+      || firstHeading(body)
+      || (sessionType ? sessionType.replace(/_/g, " ") : ""),
+    session_type: sessionType,
     date: firstString(cj, ["date", "session_date"]) || row.created_at || null,
     week_start: firstString(cj, ["week_start"]),
-    summary: firstString(cj, ["summary", "one_liner", "dek", "thesis"]),
-    themes: stringList(cj.themes),
-    teams: stringList(cj.teams),
-    people: stringList(cj.people),
-    body_md: clean(row.content_md),
+    summary,
+    themes: stringList(themes),
+    teams: stringList((Array.isArray(dist.teams) && dist.teams.length) ? dist.teams : cj.teams),
+    people: stringList((Array.isArray(dist.people) && dist.people.length) ? dist.people : cj.people),
+    body_md: body,
     confidence: Number.isFinite(conf) ? conf : null,
     created_at: row.created_at || null,
     source: "supabase-cohort",
