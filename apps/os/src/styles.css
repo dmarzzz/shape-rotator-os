@@ -8126,11 +8126,59 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .alchemy-canvas:has(.c2--timeline) { display: flex; flex-direction: column; }
 .c2--timeline { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
 .c2--timeline .c2-timeline { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-.c2--timeline .ac-tl { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-.c2--timeline .ac-tl-rows { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 132px; }
-.c2--timeline .ac-tl-lane { height: auto; min-height: 40px; flex: 1 1 0; }
-.c2--timeline .ac-tl-lane.is-ruler { min-height: 44px; }
-.c2--timeline .ac-tl-lane.is-live { min-height: 64px; flex-grow: 1.5; }
+.c2--timeline .ac-tl-stage { flex: 1 1 auto; }
+.c2--timeline .cal-agenda { flex: 1 1 auto; min-height: 0; }
+
+/* ── Calendar agenda — the schedule as a real, zoom-out calendar: titled event
+   chips in per-day (week) or per-week (month / program) columns. The hour-grid
+   tab owns one week in detail; this owns the whole program at a glance. ── */
+.cal-agenda {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 7), minmax(0, 1fr));
+  gap: 1px;
+  background: rgba(var(--ink-rgb), 0.08);
+  border: 1px solid rgba(var(--ink-rgb), 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  font-family: var(--font-mono);
+}
+.cal-col {
+  display: flex; flex-direction: column; min-height: 0;
+  background: rgba(var(--ink-rgb), 0.02);
+  cursor: pointer;
+  transition: background 140ms var(--ease);
+}
+.cal-col:hover { background: rgba(var(--ink-rgb), 0.05); }
+.cal-col.is-past { opacity: 0.5; }
+.cal-col.is-now { background: color-mix(in oklch, var(--alchemy-oxide) 9%, transparent); }
+.cal-col:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: -2px; }
+.cal-col-head {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 9px 11px; border-bottom: 1px solid rgba(var(--ink-rgb), 0.07);
+}
+.cal-col-day { font-size: 11px; font-weight: 600; color: var(--alchemy-paper-warm); letter-spacing: 0.02em; }
+.cal-col-sub { font-size: 10px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; }
+.cal-col.is-now .cal-col-day, .cal-col.is-now .cal-col-sub { color: var(--alchemy-oxide-bright); }
+.cal-col-now { margin-left: auto; font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--alchemy-oxide-bright); align-self: center; }
+.cal-col-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.cal-chip {
+  padding: 5px 8px; border-radius: 6px;
+  background: rgba(var(--ink-rgb), 0.05);
+  border-left: 2px solid color-mix(in oklch, var(--alchemy-oxide) 60%, transparent);
+}
+.cal-chip.is-future { background: transparent; border: 1px dashed rgba(var(--ink-rgb), 0.2); border-left-width: 2px; }
+.cal-chip-t { display: block; font-size: 9px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; margin-bottom: 1px; }
+.cal-chip-x { font-size: 11px; line-height: 1.3; color: var(--alchemy-paper-warm); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; word-break: break-word; }
+.cal-more { font-size: 10px; color: var(--alchemy-ink-mute); padding: 2px 8px; }
+/* Coarse zoom packs many narrow columns — drop the per-chip time there so titles
+   read on their own (the time stays on the hover tooltip); week level keeps it. */
+.cal-agenda[data-tl-level="program"] .cal-chip-t,
+.cal-agenda[data-tl-level="month"] .cal-chip-t { display: none; }
+/* Program packs 10 columns; tighten the teaser chips so a couple of titles fit. */
+.cal-agenda[data-tl-level="program"] .cal-chip { padding: 4px 6px; }
+.cal-agenda[data-tl-level="program"] .cal-chip-x { font-size: 9.5px; }
+.cal-col-empty { display: block; padding: 8px 11px; color: rgba(var(--ink-rgb), 0.2); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .cal-col { transition: none; } }
 
 .ac-tl-evt { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 14px; height: 9px; border-radius: 2px; background: rgba(var(--ink-rgb), 0.5); }
 .ac-tl-evt.is-future { background: transparent; border: 1px dashed rgba(var(--ink-rgb), 0.35); }

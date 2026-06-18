@@ -6691,13 +6691,10 @@ function timelineInnerHtml() {
   const cohort = activeConstellationCohort();
   const live = state.cohort || cohort;
   const whatsNew = Array.isArray(live?.whats_new) ? live.whats_new : [];
-  const people = Array.isArray(live?.people) ? live.people : [];
-  const standingWeekly = state.standingWeekly || null;
   const cal = state.calendar || {};
   const nowMs = Date.now();
 
   const DAY = 86400000, WK = 7 * DAY, WEEKS = 10;
-  const pct = (f) => `${(Math.max(0, Math.min(1, Number(f) || 0)) * 100).toFixed(2)}%`;
   const fmtDay = (ms) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
   const weekIdxOf = (ms) => Math.max(0, Math.min(WEEKS - 1, Math.floor((ms - PROGRAM_START_MS) / WK)));
 
@@ -6733,126 +6730,78 @@ function timelineInnerHtml() {
     winLabel = `all ${WEEKS} weeks`;
   }
   const span = Math.max(1, winEnd - winStart);
-  const winFrac = (ms) => Math.max(0, Math.min(1, (ms - winStart) / span));
-  // Unclamped variant — for liveline geometry that should extend past the window
-  // edges (the SVG viewBox clips it) so a curve shows a real slope through a narrow
-  // window instead of piling at the edge.
-  const winFracU = (ms) => (ms - winStart) / span;
   const inWin = (ms) => ms >= winStart && ms < winEnd;
   const nowIn = inWin(nowMs);
-  const nowFrac = winFrac(nowMs);
-  // Marks cluster at the axis's own unit and sit at that bucket's CENTER: by DAY
-  // at week level (a date-only item sits at midnight = a column's left edge
-  // otherwise, drifting off its label), by program-WEEK at month/program (so a
-  // dense real schedule reads as one counted mark per column, not a smeared bar).
-  const markFrac = (it) => {
-    if (level === "week") {
-      const dayIdx = Math.floor((it.startMs - winStart) / DAY);
-      return winFrac(winStart + (dayIdx + 0.5) * DAY);
-    }
-    return winFrac(PROGRAM_START_MS + (weekIdxOf(it.startMs) * 7 + 3.5) * DAY);
-  };
 
-  // ── Workstream scope. Pick a team/project to focus the lanes; "all cohort"
-  // (default) shows everything. The calendar ruler stays cohort-wide (the schedule
-  // is the shared frame); activity / standing / presence re-scope to the workstream.
-  const teams = (cohort.teams || [])
-    .filter((t) => t && t.record_id && teamKind(t) !== "person")
-    .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)));
-  const scopeId = teams.some((t) => t.record_id === cal.tlScope) ? cal.tlScope : null;
-  const scopeTeam = scopeId ? teams.find((t) => t.record_id === scopeId) : null;
-  const scopeName = scopeTeam ? (scopeTeam.name || scopeTeam.record_id) : "all cohort";
+  // ── The schedule, as a real calendar. The grid tab is the hour-by-hour week;
+  // THIS view is the zoom-out calendar — the program's events across the chosen
+  // window, read as an agenda of titled events in per-day (week level) or
+  // per-week (month / program) columns. Cohort metrics (standing, presence) live
+  // in their own views; here the schedule is the whole show, so it reads as a
+  // calendar and not a half-dashboard. ──
 
-  // Lane data over the window, re-scoped to the workstream. Standing weeks are
-  // PROGRAM-anchored, so build over the whole program then clip + re-fraction to the
-  // window; activity/presence carry absolute times so the window alone is enough.
-  const sampleDays = level === "week" ? 1 : 7;
-  const allItems = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items.filter((i) => inWin(i.startMs));
-  // Schedule lane (the ruler) reads the LIVE calendar (cal.data) — the same
-  // source the grid renders — so the timeline stays functional as a calendar
-  // instead of trailing the stale, build-baked whats_new feed. Falls back to
-  // whats_new's event items until the calendar module/data has loaded.
+  // The schedule reads the LIVE calendar (cal.data) — the same source the grid
+  // renders — so the two always agree, instead of trailing the stale build-baked
+  // whats_new feed (the fallback only until cal.data has loaded).
   const calModule = calendarLazy.peek();
-  const calEvents = (cal.data && typeof calModule?.flattenScheduleEvents === "function")
+  const eventItems = (cal.data && typeof calModule?.flattenScheduleEvents === "function")
     ? calModule.flattenScheduleEvents(cal.data)
         .filter((e) => inWin(e.ms))
-        .map((e) => ({ startMs: e.ms, title: e.title, detail: e.time || "", isFuture: e.ms > nowMs, category: "event", fraction: winFrac(e.ms) }))
-    : allItems.filter((i) => i.category === "event");
-  const eventItems = calEvents; // shared schedule — never scoped
-  const updateItems = allItems.filter((i) => i.category !== "event" && (!scopeId || i.team === scopeId));
-  const standingLane = buildStandingLane(standingWeekly, { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS });
-  const stMax = standingLane.stageMax || 8;
-  const rawStanding = scopeId && standingWeekly?.byTeam?.[scopeId]
-    ? tlTeamStageSeries(standingWeekly.byTeam[scopeId], standingWeekly.weeks || [], PROGRAM_START_MS)
-    : standingLane.points;
-  const stPts = rawStanding.filter((p) => p.stage != null && inWin(p.ms)).map((p) => ({ ...p, fraction: winFrac(p.ms) }));
-  const scopedPeople = scopeId
-    ? people.filter((p) => p && (p.team === scopeId || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(scopeId))))
-    : people;
-  const presence = buildPresenceLane(scopedPeople, { startMs: winStart, endMs: winEnd, nowMs, sampleDays });
+        .map((e) => ({ startMs: e.ms, title: e.title, detail: e.time || "", isFuture: e.ms > nowMs }))
+    : buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
+        .filter((i) => i.category === "event" && inWin(i.startMs))
+        .map((i) => ({ startMs: i.startMs, title: i.title, detail: i.detail || "", isFuture: i.isFuture }));
 
-  // Group items into the current axis bucket — by DAY at week level, by program
-  // WEEK at month/program — so a busy day/week reads as one counted mark, not
-  // dot-mud. A real schedule runs ~100 events; per-day marks smear to a solid
-  // bar when zoomed out. Used for BOTH the ruler and the activity lane.
-  const clusterMarks = (items) => {
-    const map = new Map();
-    for (const it of items) {
-      const key = level === "week"
-        ? new Date(it.startMs).toISOString().slice(0, 10)
-        : `w${weekIdxOf(it.startMs)}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(it);
-    }
-    return [...map.values()];
-  };
-  // Hover layer (glance → hover): every mark carries the data the floating tip reads.
-  const tipAttrs = (title, ms, kind, detail) =>
-    `data-tl-tip data-tl-title="${escAttr(title)}" data-tl-date="${escAttr(fmtDay(ms))}"`
-    + `${kind ? ` data-tl-kind="${escAttr(kind)}"` : ""}${detail ? ` data-tl-detail="${escAttr(detail)}"` : ""}`;
-
-  // Gridlines at each unit boundary in the window + the closing edge; one oxide
-  // now-playhead (only when now is in view) + a faint future veil.
-  const gridStops = [];
-  for (let t = winStart; t < winEnd - 1; t += tickUnit) gridStops.push(t);
-  gridStops.push(winEnd);
-  const gridlines = gridStops.map(t => `<span class="ac-tl-gridline" style="left:${pct(winFrac(t))}"></span>`).join("");
-  const playhead = nowIn
-    ? `<span class="ac-tl-future" style="left:${pct(nowFrac)}"></span><span class="ac-tl-now" style="left:${pct(nowFrac)}"><i></i></span>`
-    : (nowMs < winStart ? `<span class="ac-tl-future" style="left:0"></span>` : "");
-
-  // Axis labels per level: program → endpoints + now; month → week numbers;
-  // week → weekday names.
   const dayNames = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-  const nowLabel = nowIn ? `<span class="ac-tl-wk is-now" style="left:${pct(nowFrac)}">now</span>` : "";
-  let weekLabels;
-  if (level === "program") {
-    weekLabels = `<span class="ac-tl-wk is-start" style="left:0">${escHtml(fmtDay(winStart))}</span>`
-      + (nowIn ? `<span class="ac-tl-wk is-now" style="left:${pct(nowFrac)}">now · wk ${currentProgramWeek()}</span>` : "")
-      + `<span class="ac-tl-wk is-end" style="left:100%">${escHtml(fmtDay(winEnd - DAY))}</span>`;
-  } else if (level === "month") {
-    const startWk = weekIdxOf(winStart), nWeeks = Math.round(span / WK);
-    weekLabels = Array.from({ length: nWeeks }, (_, k) =>
-      `<span class="ac-tl-wk" style="left:${pct(winFrac(winStart + (k + 0.5) * WK))}">wk ${startWk + k + 1}</span>`).join("") + nowLabel;
-  } else {
-    const nDays = Math.round(span / DAY);
-    weekLabels = Array.from({ length: nDays }, (_, k) => {
-      const dMs = winStart + k * DAY;
-      return `<span class="ac-tl-wk" style="left:${pct(winFrac(dMs + 0.5 * DAY))}">${dayNames[k % 7]} ${new Date(dMs).getUTCDate()}</span>`;
-    }).join("") + nowLabel;
-  }
+  const inDay = (ms, d0) => ms >= d0 && ms < d0 + DAY;
 
-  // Workstream selector — a stateful dropdown whose label IS the current scope
-  // (label = trigger = display); selecting a team re-scopes the lanes.
-  const scopeMenu = [{ id: "", name: "all cohort" }, ...teams.map((t) => ({ id: t.record_id, name: t.name || t.record_id }))]
-    .map((o) => `<button type="button" class="ac-tl-scope-opt" role="option" data-tl-scope="${escAttr(o.id)}" aria-selected="${(o.id || null) === scopeId ? "true" : "false"}">${escHtml(o.name)}</button>`).join("");
-  const scopeControl = `
-    <div class="ac-tl-scope" data-tl-scope-ctl>
-      <button type="button" class="ac-tl-scope-btn${scopeId ? " is-scoped" : ""}" data-tl-scope-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="choose workstream to focus">
-        <span class="ac-tl-scope-k">workstream</span><span class="ac-tl-scope-v">${escHtml(scopeName)}</span><i class="ac-tl-scope-chev" aria-hidden="true"></i>
-      </button>
-      <div class="ac-tl-scope-menu" role="listbox" aria-label="workstream" hidden>${scopeMenu}</div>
-    </div>`;
+  // Columns = the window's axis buckets — every day at week level, every week at
+  // month / program — shown even when empty so the frame reads as a full week/run.
+  const columns = [];
+  if (level === "week") {
+    for (let k = 0; k < 7; k++) {
+      const dayMs = winStart + k * DAY;
+      const events = eventItems.filter((e) => inDay(e.startMs, dayMs)).sort((a, b) => a.startMs - b.startMs);
+      columns.push({
+        label: dayNames[k], sub: String(new Date(dayMs).getUTCDate()),
+        weekIdx: weekIdxOf(dayMs), events,
+        isNow: inDay(nowMs, dayMs), isPast: dayMs + DAY <= nowMs,
+      });
+    }
+  } else {
+    const startWk = weekIdxOf(winStart), nWeeks = Math.max(1, Math.round(span / WK));
+    for (let k = 0; k < nWeeks; k++) {
+      const wi = startWk + k;
+      const wkStart = PROGRAM_START_MS + wi * WK, wkEnd = wkStart + WK;
+      const events = eventItems.filter((e) => e.startMs >= wkStart && e.startMs < wkEnd).sort((a, b) => a.startMs - b.startMs);
+      columns.push({
+        label: `wk ${wi + 1}`, sub: fmtDay(wkStart),
+        weekIdx: wi, events,
+        isNow: nowMs >= wkStart && nowMs < wkEnd, isPast: wkEnd <= nowMs,
+      });
+    }
+  }
+  // Chips shown per column before "+N more" — fewer as the columns narrow on
+  // zoom-out (program's 10 columns only have room for a 2-event teaser + the
+  // "+N more" count; week has room for the full day).
+  const chipCap = level === "week" ? 8 : (level === "month" ? 5 : 2);
+  // The title is clamped to 2 lines in CSS; the full "time · title" rides on the
+  // native tooltip so a clamped chip is still fully readable on hover.
+  const chip = (e) => `<div class="cal-chip${e.isFuture ? " is-future" : ""}" title="${escAttr(e.detail ? `${e.detail} · ${e.title}` : e.title)}">${e.detail ? `<span class="cal-chip-t">${escHtml(e.detail)}</span>` : ""}<span class="cal-chip-x">${escHtml(e.title)}</span></div>`;
+  const renderColumn = (col) => {
+    const shown = col.events.slice(0, chipCap);
+    const more = col.events.length - shown.length;
+    const n = col.events.length;
+    const body = n
+      ? shown.map(chip).join("") + (more > 0 ? `<div class="cal-more">+${more} more</div>` : "")
+      : `<span class="cal-col-empty" aria-hidden="true">·</span>`;
+    return `
+      <div class="cal-col${col.isNow ? " is-now" : ""}${col.isPast ? " is-past" : ""}" data-tl-week="${col.weekIdx}" role="button" tabindex="0" aria-label="${escAttr(`${col.label} ${col.sub} — ${n} event${n === 1 ? "" : "s"}; open week ${col.weekIdx + 1} in the calendar grid`)}">
+        <div class="cal-col-head"><span class="cal-col-day">${escHtml(col.label)}</span><span class="cal-col-sub">${escHtml(col.sub)}</span>${col.isNow ? `<span class="cal-col-now">now</span>` : ""}</div>
+        <div class="cal-col-body">${body}</div>
+      </div>`;
+  };
+
   // Zoom control: a segmented [program | month | week] pill + prev/next window nav.
   const levelPill = `
     <div class="ac-tl-levels" role="group" aria-label="time level">
@@ -6865,126 +6814,23 @@ function timelineInnerHtml() {
       <button type="button" class="ac-tl-navbtn" data-tl-nav="next" data-tl-nav-to="${nextAnchor == null ? "" : nextAnchor}"${nextAnchor == null ? " disabled" : ""} aria-label="next ${level}">→</button>
     </div>`;
 
-  // Ruler (track 0) = the calendar's program anchors (event-kind items), clustered
-  // by day so the program-start stack reads as one mark. Future ones dashed.
-  const rulerMarks = clusterMarks(eventItems).map(group => {
-    const it = group[0];
-    const count = group.length;
-    const title = count > 1 ? `${count} calendar events` : it.title;
-    const detail = count > 1 ? group.map(g => g.title).join(" · ") : it.detail;
-    // Click commits to the deeper surface: that week's hour-grid (glance→hover→open).
-    const wk = weekIdxOf(it.startMs);
-    return `<span class="ac-tl-evt is-jump${it.isFuture ? " is-future" : ""}${count > 1 ? " is-multi" : ""}" style="left:${pct(markFrac(it))}" data-tl-week="${wk}" role="button" tabindex="0" aria-label="${escAttr(`${title} — open week ${wk + 1} in the calendar grid`)}" ${tipAttrs(title, it.startMs, "calendar", detail)}></span>`;
-  }).join("");
-
-  // Activity lane = everything else (release/commit/ask), clustered by day → count dot.
-  const activityMarks = clusterMarks(updateItems).map(group => {
-    const it = group[0];
-    const count = group.length;
-    const rid = (group.find(g => g.detailRef?.nav?.recordId)?.detailRef.nav.recordId) || "";
-    const kinds = [...new Set(group.map(g => g.category))];
-    const kind = kinds.length === 1 ? kinds[0] : "mixed";
-    const title = count > 1 ? `${count} updates` : it.title;
-    const detail = count > 1 ? group.slice(0, 4).map(g => g.title).join(" · ") + (count > 4 ? " …" : "") : it.detail;
-    const open = rid ? ` data-const-open-record="${escAttr(rid)}"` : "";
-    return `<span class="ac-tl-dot${it.isFuture ? " is-future" : ""}${count > 1 ? " is-cluster" : ""}${rid ? " is-openable" : ""}" style="left:${pct(markFrac(it))}"${open} ${tipAttrs(title, it.startMs, kind, detail)}${rid ? ' role="button" tabindex="0"' : ""}>${count > 1 ? `<em>${count}</em>` : ""}</span>`;
-  }).join("");
-
-  // ── Lanes: livelines (continuous metrics) vs blocks (discrete events). Standing
-  // and people are filled-area "livelines" — a sparkline you hover for the per-point
-  // stat, with the current value as a prominent endpoint that doubles as the lane's
-  // single keyboard/click commit. Calendar + activity stay discrete blocks. ──
-  const trendWord = (a, b) => (a == null || b == null) ? "" : (b - a > 0.05 ? "rising" : (b - a < -0.05 ? "easing" : "steady"));
-  // Baseline-closed area under a 0..100 polyline (y already inverted), for the fill.
-  const areaPath = (xy) => xy.length ? `M${xy[0].x},100 ${xy.map(q => `L${q.x},${q.y}`).join(" ")} L${xy[xy.length - 1].x},100 Z` : "";
-
-  // Standing liveline — cohort-mean PMF (or the scoped team's own line) on a 0..8
-  // axis: filled area + line + per-week hover points + a value endpoint that
-  // expands to the full trajectory when zoomed in (a single read shows as one dot).
-  const stY = (stage) => (1 - stage / stMax) * 100;
-  // Curve geometry spans the FULL program (winFracU + the svg viewBox clips it) so a
-  // narrow window shows a real slope, not a lone in-window dot. Hover points + the
-  // endpoint stay in-window (stPts).
-  const stGeo = rawStanding.filter(p => p.stage != null).map(p => ({ x: +(winFracU(p.ms) * 100).toFixed(2), y: +stY(p.stage).toFixed(2) }));
-  const stLast = stPts.length ? stPts[stPts.length - 1] : null;
-  const stTrend = stPts.length > 1 ? trendWord(stPts[0].stage, stLast.stage) : "";
-  const standingTip = scopeTeam
-    ? `${scopeName} · PMF stage ${stLast ? stLast.stage.toFixed(1) : "?"} of ${stMax}`
-    : `cohort mean PMF — stage ${stLast ? stLast.stage.toFixed(1) : "?"} of ${stMax}`;
-  const stExpand = level !== "program";
-  const stHover = stPts.slice(0, -1).map(p =>
-    `<span class="ac-tl-pt" style="left:${(p.fraction * 100).toFixed(2)}%;top:${stY(p.stage).toFixed(2)}%" ${tipAttrs(scopeTeam ? `${scopeName} · stage ${p.stage.toFixed(1)}` : `cohort mean · stage ${p.stage.toFixed(1)}`, p.ms, "standing", `mean across ${p.teamsWithData} teams`)}></span>`).join("");
-  const standingBody = stLast
-    ? `<svg class="ac-tl-line${scopeId ? " is-scoped" : ""}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">`
-        + `<defs><linearGradient id="tlAreaG-st" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity="0.26"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>`
-        + (stGeo.length > 1 ? `<path class="ac-tl-area" d="${areaPath(stGeo)}" fill="url(#tlAreaG-st)"/><polyline points="${stGeo.map(q => `${q.x},${q.y}`).join(" ")}" fill="none" vector-effect="non-scaling-stroke"/>` : "")
-        + `</svg>${stHover}`
-      + `<span class="ac-tl-end${stExpand ? " is-expand" : ""}" style="left:${pct(stLast.fraction)};top:${stY(stLast.stage).toFixed(1)}%"${stExpand ? ` data-tl-expand="1" role="button" tabindex="0" aria-label="${escAttr(`standing stage ${stLast.stage.toFixed(1)} of ${stMax} — expand to the full trajectory`)}"` : ""} ${tipAttrs(standingTip, stLast.ms, "standing", scopeTeam ? "this workstream" : `mean across ${stLast.teamsWithData} teams`)}></span>`
-    : `<span class="ac-tl-empty">no standing read in view</span>`;
-  const stLatest = stLast ? stLast.stage.toFixed(1) : null;
-
-  // People liveline — "who's in town" occupancy over the window: filled area +
-  // line + hover points + the current count as the endpoint (the count needs no
-  // block). The endpoint commits to the availability view.
-  const prY = (occ) => (1 - Math.max(0, Math.min(1, occ))) * 100;
-  const prXY = presence.samples.map(s => ({ x: +(s.fraction * 100).toFixed(2), y: +prY(s.occupancy).toFixed(2) }));
-  // Endpoint = the current ("now") count: the latest non-future sample. The curve
-  // still continues into the scheduled-future samples, but the headline value is now.
-  const prPast = presence.samples.filter(s => !s.isFuture);
-  const prLast = prPast.length ? prPast[prPast.length - 1] : (presence.samples.length ? presence.samples[presence.samples.length - 1] : null);
-  const prHover = presence.samples.filter(s => s !== prLast).map(s =>
-    `<span class="ac-tl-pt${s.isFuture ? " is-future" : ""}" style="left:${(s.fraction * 100).toFixed(2)}%;top:${prY(s.occupancy).toFixed(2)}%" ${tipAttrs(`${s.present} of ${s.total} in town`, s.ms, "presence", `${Math.round(s.occupancy * 100)}% occupancy`)}></span>`).join("");
-  const presenceBody = prLast
-    ? `<svg class="ac-tl-line ac-tl-line--pres${scopeId ? " is-scoped" : ""}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">`
-        + `<defs><linearGradient id="tlAreaG-pr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity="0.2"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>`
-        + (prXY.length > 1 ? `<path class="ac-tl-area" d="${areaPath(prXY)}" fill="url(#tlAreaG-pr)"/><polyline points="${prXY.map(q => `${q.x},${q.y}`).join(" ")}" fill="none" vector-effect="non-scaling-stroke"/>` : "")
-        + `</svg>${prHover}`
-      + `<span class="ac-tl-end" style="left:${(prLast.fraction * 100).toFixed(2)}%;top:${prY(prLast.occupancy).toFixed(2)}%" data-tl-presence="1" role="button" tabindex="0" aria-label="${escAttr(`${prLast.present} of ${prLast.total} in town — open the availability view`)}" ${tipAttrs(`${prLast.present} of ${prLast.total} in town`, prLast.ms, "presence", `${Math.round(prLast.occupancy * 100)}% occupancy · open availability`)}></span>`
-    : `<span class="ac-tl-empty">no presence in view</span>`;
-
-  const activityLabel = scopeTeam ? "activity" : "all activity";
+  const total = eventItems.length;
   const summary = `
-    <div class="ac-tl-summary" role="group" aria-label="timeline summary">
-      <strong class="ac-tl-sum-scope">${escHtml(scopeName)}</strong>
+    <div class="ac-tl-summary" role="group" aria-label="schedule summary">
+      <strong class="ac-tl-sum-scope">${escHtml(winLabel)}</strong>
       <span class="ac-tl-sum-sep">·</span>
-      <span class="ac-tl-sum-win">${escHtml(winLabel)}</span>
-      <span class="ac-tl-sum-sep">·</span>
-      <span class="ac-tl-sum-frame">past <em>←</em> now <em>→</em> scheduled</span>
+      <span class="ac-tl-sum-win">${total} event${total === 1 ? "" : "s"}</span>
+      ${nowIn ? `<span class="ac-tl-sum-sep">·</span><span class="ac-tl-sum-frame">past <em>←</em> now <em>→</em> scheduled</span>` : ""}
     </div>`;
-
-  // Rich 3-line label block per lane: name · descriptor · live stat. `stat` may
-  // carry safe inline markup (a trend em); name/desc are escaped.
-  const laneHead = (name, desc, stat) => `
-    <div class="ac-tl-label">
-      <span class="ac-tl-lname">${escHtml(name)}</span>
-      ${desc ? `<span class="ac-tl-ldesc">${escHtml(desc)}</span>` : ""}
-      ${stat ? `<span class="ac-tl-lstat">${stat}</span>` : ""}
-    </div>`;
-  const lane = (cls, head, body) => `
-    <div class="ac-tl-lane ${cls}">
-      ${head}
-      <div class="ac-tl-track">${body}</div>
-    </div>`;
-  const countLabel = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
   return `
-    <div class="ac-tl-stage" data-view="timeline" data-tl-level="${level}"${scopeId ? ' data-tl-scoped="1"' : ""} tabindex="0" aria-label="cohort timeline — updates by track, past and scheduled">
+    <div class="ac-tl-stage" data-view="timeline" data-tl-level="${level}" aria-label="${escAttr(`cohort calendar — the program schedule, ${winLabel}`)}">
       <div class="ac-tl-controls">
-        <div class="ac-tl-bar">${scopeControl}<span class="ac-tl-bar-sep" aria-hidden="true"></span>${levelPill}${winNav}</div>
+        <div class="ac-tl-bar">${levelPill}${winNav}</div>
         ${summary}
       </div>
-      <div class="ac-tl">
-        <div class="ac-tl-head">
-          <div class="ac-tl-label"></div>
-          <div class="ac-tl-track ac-tl-weeklabels">${weekLabels}</div>
-        </div>
-        <div class="ac-tl-rows">
-          <div class="ac-tl-gridlayer" aria-hidden="true">${gridlines}${playhead}</div>
-          ${lane("is-ruler is-blocks", laneHead("calendar", "shared schedule", countLabel(eventItems.length, "event")), `${rulerMarks || `<span class="ac-tl-empty">no calendar events in view</span>`}<span class="ac-tl-baseline"></span>`)}
-          ${lane("is-blocks", laneHead(activityLabel, "ships · commits · asks", countLabel(updateItems.length, "update")), activityMarks || `<span class="ac-tl-empty">no tracked updates in view</span>`)}
-          ${lane("is-live", laneHead("standing", scopeTeam ? "team PMF · 0–8" : "cohort PMF · 0–8", stLatest ? `${stLatest}/${stMax}${stTrend ? ` · <em class="ac-tl-trend">${stTrend}</em>` : ""}` : "—"), `<div class="ac-tl-track--line">${standingBody}</div>`)}
-          ${lane("is-live", laneHead("people", "in town", prLast ? `${prLast.present} of ${prLast.total}` : (presence.total ? `0 of ${presence.total}` : "—")), `<div class="ac-tl-track--line">${presenceBody}</div>`)}
-        </div>
+      <div class="cal-agenda" style="--cols:${columns.length}" data-tl-level="${level}">
+        ${columns.map(renderColumn).join("")}
       </div>
       <div class="ac-tip" hidden></div>
     </div>`;
