@@ -45,6 +45,10 @@ import {
   contextArticleSourceById as findMergedContextArticleSourceById,
   mergeContextArticleSources,
 } from "./context-articles.mjs";
+import {
+  CONTEXT_SUBMISSION_KINDS,
+  submitContext,
+} from "./context-submit.mjs";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { getCohortTimeline } from "./cohort-timeline.js";
@@ -295,6 +299,7 @@ const state = {
     rawLoadingId: null,
     error: "",
     message: "",
+    composeOpen: false,
   },
   unsubscribe: null,
   refreshTimer: null,
@@ -13542,6 +13547,101 @@ function renderContextRawMap(source) {
   `;
 }
 
+// "Add context" composer — the only write surface on the Context page. A user
+// pastes a transcript / note; submitContext() POSTs it to the private
+// context_submissions inbox (anon INSERT-only) for downstream distillation.
+// Collapsed by default (composeOpen persists across re-renders); reuses the asks
+// composer's class family so it inherits the house compose styling.
+function renderContextComposer() {
+  const open = state.contextVault.composeOpen === true;
+  const kindOptions = CONTEXT_SUBMISSION_KINDS
+    .map((k) => `<option value="${escAttr(k.value)}"${k.value === "note" ? " selected" : ""}>${escHtml(k.label)}</option>`)
+    .join("");
+  return `
+    <form class="alch-asks-compose alch-cv-compose" data-cv-compose>
+      <details class="alch-asks-compose-shell" data-cv-compose-details${open ? " open" : ""}>
+        <summary class="alch-asks-compose-head">
+          <span class="alch-asks-compose-title">add context</span>
+          <span class="alch-asks-compose-hint">paste a transcript or note → sent to Supabase for processing</span>
+          <span class="alch-asks-compose-caret" aria-hidden="true"></span>
+        </summary>
+        <div class="alch-asks-compose-body">
+          <div class="alch-asks-compose-grid alch-cv-compose-grid">
+            <label class="alch-asks-compose-field alch-cv-compose-kind">
+              <span class="alch-asks-compose-label">kind</span>
+              <select name="source_kind" class="alch-asks-compose-input">${kindOptions}</select>
+            </label>
+            <label class="alch-asks-compose-field alch-cv-compose-title">
+              <span class="alch-asks-compose-label">title <span class="alch-asks-compose-hint">(optional)</span></span>
+              <input name="title" type="text" class="alch-asks-compose-input" maxlength="300"
+                     placeholder="e.g. June 17 office-hours — fuzzing thread" />
+            </label>
+            <label class="alch-asks-compose-field alch-cv-compose-full">
+              <span class="alch-asks-compose-label">context</span>
+              <textarea name="body" rows="6" class="alch-asks-compose-input alch-cv-compose-body-input"
+                        placeholder="paste the transcript, notes, or any bits of info you want distilled…"></textarea>
+            </label>
+            <label class="alch-asks-compose-field alch-cv-compose-full">
+              <span class="alch-asks-compose-label">contact <span class="alch-asks-compose-hint">(optional — if the engine should follow up)</span></span>
+              <input name="contact" type="text" class="alch-asks-compose-input" maxlength="200" placeholder="@handle or email" />
+            </label>
+          </div>
+          <div class="alch-asks-compose-row">
+            <button class="alch-feed-btn alch-asks-compose-submit" type="submit">send to processing</button>
+            <span class="alch-asks-compose-author">private inbox · raw text leaves your device only on submit</span>
+          </div>
+          <div class="alch-asks-compose-result alch-cv-compose-result" data-cv-compose-result hidden></div>
+        </div>
+      </details>
+    </form>
+  `;
+}
+
+// Compose-form submit. Validates + POSTs via submitContext(); updates the result
+// line in place (no re-render) so a failed submit keeps the user's pasted text.
+async function submitContextCompose(form) {
+  const result = form.querySelector("[data-cv-compose-result]");
+  const btn = form.querySelector(".alch-asks-compose-submit");
+  if (!result) return;
+
+  const input = {
+    source_kind: String(form.elements.source_kind?.value || "note"),
+    title: String(form.elements.title?.value || ""),
+    body: String(form.elements.body?.value || ""),
+    contact: String(form.elements.contact?.value || ""),
+  };
+
+  const restore = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "sending…"; }
+  let res;
+  try {
+    res = await submitContext(input);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = restore || "send to processing"; }
+  }
+
+  result.hidden = false;
+  if (res.ok) {
+    result.innerHTML = `
+      <p class="alch-onb-inline-line">
+        <span class="alch-onb-inline-tag">sent</span>
+        queued for processing — thanks. it'll be distilled and surface back on this page.
+      </p>`;
+    if (form.elements.body) form.elements.body.value = "";
+    if (form.elements.title) form.elements.title.value = "";
+    if (form.elements.contact) form.elements.contact.value = "";
+    return;
+  }
+  const msg = res.reason === "unconfigured"
+    ? "the context inbox isn't configured in this build yet — set a Supabase URL + anon key in calendar settings."
+    : (res.error || "couldn't send — check your connection and try again.");
+  result.innerHTML = `
+    <p class="alch-onb-inline-line alch-onb-inline-err">
+      <span class="alch-onb-inline-tag">not sent</span>
+      ${escHtml(msg)}
+    </p>`;
+}
+
 function renderContextVaultRawDetail(selected) {
   if (!selected) {
     return `
@@ -13931,6 +14031,7 @@ function renderContextVault() {
   state.canvas.innerHTML = `
     <section class="alch-cv">
       ${pageHeadHtml({ nav })}
+      ${mode === "raw" ? renderContextComposer() : ""}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
       <div class="alch-cv-layout">
@@ -13964,6 +14065,19 @@ function wireContextVault() {
   const intelHost = state.canvas.querySelector(".alch-cv-intel");
   if (intelHost) {
     wireContextIntel(intelHost);
+  }
+  const composeForm = state.canvas.querySelector("form[data-cv-compose]");
+  if (composeForm) {
+    composeForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitContextCompose(composeForm);
+    });
+    // Persist open/closed across re-renders (e.g. selecting a transcript) so the
+    // composer doesn't snap shut while the user is mid-paste.
+    const details = composeForm.querySelector("[data-cv-compose-details]");
+    if (details) details.addEventListener("toggle", () => {
+      state.contextVault.composeOpen = details.open;
+    });
   }
   wireContextVaultDetailActions(state.canvas);
 }
