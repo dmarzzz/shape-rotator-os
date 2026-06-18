@@ -16199,6 +16199,33 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   background: rgba(var(--ink-rgb), 0.030);
   border-left: 2px solid rgba(193,168,114,0.55);
 }
+/* Context page "add context" composer — layers on the asks-compose base.
+   Sits full-width under the page header in the transcripts (raw) view; kind +
+   title share a row, body + contact span the full width. */
+.alch-cv-compose { margin: 0 0 20px; }
+.alch-cv-compose .alch-asks-compose-head { gap: 12px; flex-wrap: wrap; }
+.alch-cv-compose-grid {
+  grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
+}
+.alch-cv-compose-kind  { grid-column: auto; }
+.alch-cv-compose-title { grid-column: auto; }
+.alch-cv-compose-full  { grid-column: 1 / -1; }
+.alch-cv-compose select.alch-asks-compose-input {
+  appearance: none;
+  cursor: pointer;
+  /* room for a chevron drawn via background so the select matches inputs */
+  background-image: linear-gradient(45deg, transparent 50%, rgba(var(--ink-rgb), 0.45) 50%),
+                    linear-gradient(135deg, rgba(var(--ink-rgb), 0.45) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 52%, calc(100% - 11px) 52%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 30px;
+}
+textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
+
+@media (max-width: 720px) {
+  .alch-cv-compose-grid { grid-template-columns: 1fr; }
+}
 .alch-asks-compose-preview {
   margin: 0 0 12px 0;
   font-family: var(--ed-mono);
