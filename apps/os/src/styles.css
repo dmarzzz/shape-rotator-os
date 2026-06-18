@@ -5765,6 +5765,58 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 @media (prefers-reduced-motion: reduce) {
   .alch-zoom-ctl, .azc-btn, .azc-val { transition: none; }
 }
+/* ── Directory zoom morph ──────────────────────────────────────────────────
+   The directory isn't CSS-zoom-transformed; instead its card grid reads
+   --cohort-zoom to shrink the cards continuously (1.0 = the default 280px), and
+   below DIR_TABLE_ZOOM the markup swaps to the compact table below. */
+.alch-cohort-page[data-cohort-view="directory"] .alch-specimens {
+  /* Fixed (not 1fr) so the card WIDTH scales smoothly on every zoom step rather
+     than jumping only at column-count boundaries; centred so the trailing space
+     splits evenly instead of pooling on the right. */
+  grid-template-columns: repeat(auto-fill, calc(var(--cohort-zoom, 1) * 296px));
+  justify-content: center;
+  transition: none; /* the grid-template tracks the zoom gesture 1:1 */
+}
+/* Compact table — a scannable list of rows once zoomed out. Rows are role=button
+   (wired by wireShapeCardClicks) so a row opens its record like a card. */
+.alch-dir-table { display: flex; flex-direction: column; margin-top: 4px; }
+.alch-dir-thead,
+.alch-dir-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.1fr) minmax(0, 1.5fr) 58px;
+  align-items: center; gap: 6px 16px;
+}
+.alch-dir-table.is-people .alch-dir-thead,
+.alch-dir-table.is-people .alch-dir-row {
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) minmax(0, 1.4fr);
+}
+.alch-dir-thead {
+  padding: 2px 12px 8px;
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.14);
+}
+.alch-dir-num { text-align: right; font-variant-numeric: tabular-nums; }
+.alch-dir-row {
+  width: 100%; padding: 8px 12px; border: 0;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.06);
+  background: transparent; cursor: pointer; text-align: left;
+  color: var(--alchemy-paper-warm);
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.25;
+  transition: background 140ms var(--ease);
+}
+.alch-dir-row:hover { background: rgba(var(--ink-rgb), 0.05); }
+.alch-dir-row:active { background: rgba(var(--ink-rgb), 0.08); }
+.alch-dir-row:focus-visible {
+  outline: 1px solid var(--alchemy-oxide-bright); outline-offset: -1px;
+  background: rgba(var(--ink-rgb), 0.05);
+}
+.alch-dir-c { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alch-dir-name { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: 0.02em; }
+.alch-dir-mut { color: var(--alchemy-ink-mute); font-size: 10.5px; }
+.alch-dir-stage b { color: var(--alchemy-oxide-bright); font-variant-numeric: tabular-nums; font-weight: 700; margin-right: 4px; }
+.alch-dir-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.32); }
+@media (prefers-reduced-motion: reduce) { .alch-dir-row { transition: none; } }
 .alch-const-workbench {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(244px, 284px); /* map | fixed inspector */

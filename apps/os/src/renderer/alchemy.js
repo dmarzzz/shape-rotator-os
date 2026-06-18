@@ -80,14 +80,19 @@ const CONSTELLATION_TIMELINE_LS_KEY = "srwk:constellation_timeline_idx_v1";
 // Per-user zoom for the cohort views (Ctrl/Cmd + scroll, or the corner
 // control). Applied via the CSS `zoom` property so the layout REFLOWS at every
 // step — it stays responsive on any screen instead of overflowing like a
-// transform:scale would. The directory roster is intentionally excluded (it
-// owns its own grid sizing); see cohortZoomActive() + the CSS :not() guard.
+// transform:scale would. The directory roster is excluded from the zoom
+// TRANSFORM (CSS :not() guard), but it still reads --cohort-zoom to drive its
+// own card-size → table morph; see cohortZoomActive() + DIR_TABLE_ZOOM.
 const COHORT_ZOOM_LS_KEY = "srwk:cohort_zoom_v1";
 const COHORT_ZOOM_MIN = 0.7;
 const COHORT_ZOOM_MAX = 1.5;
 const COHORT_ZOOM_DEFAULT = 1;
 const COHORT_ZOOM_KEY_STEP = 0.1;     // discrete step for keyboard + corner buttons
 const COHORT_ZOOM_WHEEL_K = 0.0015;   // wheel sensitivity (exponential, magnitude-aware)
+// Directory roster: at or below this zoom the card grid collapses into a compact
+// table of rows (continuous shrink above it). The card↔table swap is a markup
+// change, so it re-renders only when the zoom crosses this line.
+const DIR_TABLE_ZOOM = 0.85;
 // `atlas` was here as an alchemy sub-mode but collides with the top-level
 // atlas tab (the swf-node wall-map). Renderer (renderAtlas / wireAtlas) is
 // kept in place so the view can be promoted to a top tab later under a
@@ -965,10 +970,16 @@ function clampCohortZoom(v) {
   const rounded = Math.round(n * 100) / 100;
   return Math.min(COHORT_ZOOM_MAX, Math.max(COHORT_ZOOM_MIN, rounded));
 }
-// Zoom applies to the cohort SUB-views only — not the directory roster (which
-// is the "shapes" mode), not record-detail pages, not any other OS mode.
+// Zoom controls are live on the cohort sub-views AND the directory roster (the
+// "shapes" mode) — but NOT on record-detail pages or other OS modes. The sub-
+// views scale via the CSS `zoom` transform; the directory instead reads
+// --cohort-zoom to shrink its cards and, past DIR_TABLE_ZOOM, become a table.
 function cohortZoomActive() {
-  return state.mode === "constellation" && !state.detailRecordId;
+  return (state.mode === "constellation" || state.mode === "shapes") && !state.detailRecordId;
+}
+// True when the directory should render as a compact table (vs. the card grid).
+function directoryTableMode() {
+  return state.mode === "shapes" && clampCohortZoom(state.cohortZoom) <= DIR_TABLE_ZOOM;
 }
 function applyCohortZoom() {
   if (!state.canvas) return;
@@ -1002,6 +1013,14 @@ function zoomCohortTo(target, { anchorY = null, animate = false } = {}) {
   cancelAnimationFrame(zoomRAF);
   flashCohortZoomControl();
   syncCohortZoomControl();
+  // Directory roster: --cohort-zoom drives card SIZE via CSS (the page isn't
+  // transformed), so a card resize needs no re-render. Crossing DIR_TABLE_ZOOM
+  // swaps card grid ↔ table, which IS a markup change — re-render only then.
+  if (state.mode === "shapes") {
+    canvas.style.setProperty("--cohort-zoom", String(to));
+    if ((from <= DIR_TABLE_ZOOM) !== (to <= DIR_TABLE_ZOOM)) { renderShapes(); wireShapeCardClicks(); }
+    return;
+  }
   // Apply a single zoom level + re-anchor the focal point. The cohort page is
   // width-auto (it reflows, doesn't widen), so only the vertical axis scales —
   // anchoring scrollTop is all that's needed to pin the focal point.
@@ -2093,17 +2112,26 @@ function renderShapes() {
       <button id="dossier-export-png" class="alch-shapes-chip" type="button" title="render the full cohort roster as a PNG (ignores the filters above)">export full roster (png)</button>
     </div>
   `;
-  const cardCtx = { people: cohort.people || [], teams: cohort.teams || [] };
-  const cards = records.map((r, idx) => {
-    if (r._kind === "person") return personCardHtml(r, idx, cardCtx);
-    return teamCardHtml(r, idx, cardCtx);
-  }).join("");
+  // peopleByTeam (team record_id → its people) so the table's team-size column
+  // and any member-aware card bits can resolve membership. Mirrors the
+  // constellation inspector context's mapping (person.team holds a team id).
+  const peopleByTeam = new Map((cohort.teams || []).map(t => [t.record_id, []]));
+  for (const p of (cohort.people || [])) {
+    if (p?.team && peopleByTeam.has(p.team)) peopleByTeam.get(p.team).push(p);
+  }
+  const cardCtx = { people: cohort.people || [], teams: cohort.teams || [], peopleByTeam };
   const emptyMsg = `no ${escHtml(activeChip.label)} yet.`;
-  const grid = records.length
-    ? `<div class="alch-specimens">${cards}</div>`
-    : `<p class="alch-pf-pick">${emptyMsg}</p>`;
+  // Zoom-out morph: past DIR_TABLE_ZOOM the card grid becomes a compact table of
+  // rows (name · domain · stage · size). Above it, the grid card-size scales
+  // continuously via --cohort-zoom (pure CSS, see .alch-specimens override).
+  const tableMode = directoryTableMode();
+  const grid = !records.length
+    ? `<p class="alch-pf-pick">${emptyMsg}</p>`
+    : tableMode
+      ? directoryTableHtml(records, cardCtx, filter === "people")
+      : `<div class="alch-specimens">${records.map((r, idx) => r._kind === "person" ? personCardHtml(r, idx, cardCtx) : teamCardHtml(r, idx, cardCtx)).join("")}</div>`;
   state.canvas.innerHTML = `
-    <div class="alch-cohort-page" data-cohort-view="directory">
+    <div class="alch-cohort-page" data-cohort-view="directory"${tableMode ? ' data-dir-table="true"' : ""}>
       ${cohortPageHead("directory")}
       ${chips}
       ${grid}
@@ -2141,6 +2169,44 @@ function renderShapes() {
   // rather than in renderModeContent because renderShapes re-renders itself
   // on filter-chip clicks and the nav must survive those repaints.
   wireConstellationModeNav();
+}
+
+// Compact table view for the directory's zoomed-out state — one row per record.
+// Rows carry .alch-dir-row[data-record-id], so wireShapeCardClicks() opens the
+// record on click/Enter (same as a card). Teams show domain · PMF stage · team
+// size; people show role · team. A team with no explicit PMF read shows "—"
+// rather than its seeded default, the same honesty rule the PMF view uses.
+function directoryTableHtml(records, cardCtx, isPeople) {
+  const head = isPeople
+    ? `<div class="alch-dir-thead" aria-hidden="true"><span>name</span><span>role</span><span>team</span></div>`
+    : `<div class="alch-dir-thead" aria-hidden="true"><span>name</span><span>domain</span><span>stage</span><span class="alch-dir-num">team</span></div>`;
+  const rows = records.map((r) => {
+    const rid = r.record_id;
+    if (isPeople || r._kind === "person") {
+      const name = constPersonDisplayName(r) || constText(r.name || rid);
+      const role = constText(r.role) || "—";
+      const team = constText(r.team) || "—";
+      return `<div class="alch-dir-row is-person" role="button" tabindex="0" data-record-id="${escAttr(rid)}" aria-label="${escAttr(`${name} · ${role} · ${team} — open`)}">
+          <span class="alch-dir-c alch-dir-name">${escHtml(name)}</span>
+          <span class="alch-dir-c alch-dir-mut">${escHtml(role)}</span>
+          <span class="alch-dir-c alch-dir-mut">${escHtml(team)}</span>
+        </div>`;
+    }
+    const name = constText(r.name || rid);
+    const domClass = constDomainClass(r.domain);
+    const domLbl = CONST_DOMAIN_LABEL[domClass] || "other";
+    const assessed = journeyAssessed(r);
+    const stage = journeyFor(r).stage;
+    const stageLbl = JOURNEY_STAGE_LABELS[stage] || "—";
+    const size = constPeopleForTeam(r, cardCtx).length;
+    return `<div class="alch-dir-row" role="button" tabindex="0" data-record-id="${escAttr(rid)}" aria-label="${escAttr(`${name} · ${domLbl} · ${assessed ? `stage ${stage} ${stageLbl}` : "no PMF read yet"} · ${size} ${size === 1 ? "person" : "people"} — open`)}">
+        <span class="alch-dir-c alch-dir-name"><i class="alch-dir-dot" style="background:${escAttr(CONST_DOMAIN_COLORS[domClass] || CONST_DOMAIN_COLORS.other)}" aria-hidden="true"></i>${escHtml(name)}</span>
+        <span class="alch-dir-c alch-dir-mut">${escHtml(domLbl)}</span>
+        <span class="alch-dir-c alch-dir-stage">${assessed ? `<b>${stage}</b> ${escHtml(stageLbl)}` : `<span class="alch-dir-mut">— no read</span>`}</span>
+        <span class="alch-dir-c alch-dir-num">${size}</span>
+      </div>`;
+  }).join("");
+  return `<div class="alch-dir-table${isPeople ? " is-people" : ""}" role="group" aria-label="cohort directory (compact)">${head}${rows}</div>`;
 }
 
 // teamCardHtml / personCardHtml live in @shape-rotator/shape-ui now.
@@ -7691,7 +7757,9 @@ function isProfileForked() { return _forkedSelf; }
 
 // ─── shape card → drawer ─────────────────────────────────────────────
 function wireShapeCardClicks() {
-  const cards = state.canvas.querySelectorAll(".alch-card[data-record-id]");
+  // Includes the directory's compact-table rows (.alch-dir-row) so a zoomed-out
+  // row opens its record exactly like a card.
+  const cards = state.canvas.querySelectorAll(".alch-card[data-record-id], .alch-dir-row[data-record-id]");
   const isNestedControl = (e, card) => {
     const target = e?.target;
     return target instanceof Element
