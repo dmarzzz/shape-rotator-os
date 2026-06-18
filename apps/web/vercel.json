@@ -5,7 +5,7 @@
   "installCommand": "cd ../.. && npm ci",
   "outputDirectory": ".",
   "rewrites": [
-    { "source": "/s/:code", "destination": "/s.html" }
+    { "source": "/s/:code", "destination": "/s" }
   ],
   "headers": [
     {
