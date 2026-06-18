@@ -2,6 +2,159 @@
 
 Succinct log of shipped features. Newest first.
 
+## Custom shader — edit the real orb GLSL (2026-06-18)
+
+Below the dials, the sphere popup has a collapsible **Custom shader** section. It now
+shows the **actual orb shader as editable GLSL** — the real `surface()` function (the
+kaleidoscope fold loop, turbulence, palette) — so a person can read it, tweak it, and
+watch the preview update live. (Earlier iterations shipped a safe single-expression
+mini-language; the user wanted to see/edit the literal kaleidoscope, which an
+expression-only DSL can't represent, so the editor pivoted to raw GLSL.)
+
+**Safety model + what's live:** raw GLSL *cannot* be made crash-proof for other viewers
+(a heavy loop stalls their GPU), so right now custom GLSL renders **only on the author's
+own device** (the editor preview), compiled in isolation with fallback. Broadcasting it
+cohort-wide is gated on a **GPU cost-sandbox** (bounded-loop GLSL validator + timer-query
+watchdog) — a security-critical follow-up, not yet built. The safe expression-DSL below
+remains in the tree (dormant) and could back a "safe shared" mode later.
+
+- **Editor (raw GLSL)**: a `<details>` (collapsed; expands **downward**) holding a tall
+  GLSL code box **prefilled with the real `surface()` function** ([DEFAULT_SURFACE_GLSL](apps/os/src/vendor/shape-ui/shape-canvas.js)),
+  with **GLSL syntax highlighting** (`highlightGLSL` — keywords/types/builtins/comments/
+  numbers, HTML-escaped, behind a transparent-text textarea). Edits recompile the live
+  preview (debounced); `mountShape`'s `onStatus` surfaces the **real GLSL compile error**
+  (`✕ 'oops' : undeclared identifier`) or `✓ compiled`. `userFragGLSL` splices the user's
+  `surface()` into the orb template (geometry + lighting + rim stay) and compiles in
+  isolation — **any** failure falls back to the standard orb, so a typo never breaks it.
+  Engagement-gated (`_shaderTouched`) so a dial-only save never adopts the prefilled
+  default. (Clutter note removed — the code IS the documentation.)
+- **No blink — program hot-swap**: the blink was WebGL **context churn** (re-mounting
+  destroys + recreates a GL context per edit, which flashes the compositor). Fix: the
+  preview mounts **once** with `opts.smooth: true` (a persistent preserveDrawingBuffer+EMA
+  context); every edit calls `update({ shaderGLSL })`, and `swapShaderGLSL` rebuilds the
+  fragment program and swaps it on the **same** context — **zero** new contexts for the
+  whole session (probe-verified). The kept buffer EMA-morphs old→new colour in place;
+  a failed/blocked compile keeps the current program and reports via `onStatus`. The EMA's
+  **first frame also draws fully opaque** (smoothing from frame 2) so the orb never fades
+  in from transparent (which let the page show *through* it — the white blink). Editor
+  shows nothing on success, only `✕ <error>` on failure.
+- **Safety guards** (`glslGuardReason` in both `shape-canvas.js`, reported via `onStatus`,
+  run at every render): **max length** (`MAX_GLSL_LEN` = 4000; DB CHECK 8000 backstop),
+  ban `while`/`do`/`#`/`gl_*`/`texture`/`sampler`/`texelFetch`/`image*`, **plus a real
+  for-loop cost bound** — every `for` must be canonical `for(i=0; i<LITERAL; …){…}` with
+  per-loop bound ≤ 256, the **nested product of bounds ≤ 1024** (a brace-scan bounds
+  per-pixel iterations regardless of nesting), ≤ 6 loops; `for(;;)`/variable/function-call
+  bounds + braceless bodies are rejected fail-safe. So a single frame is bounded → no GPU
+  hang/TDR → a shader can't break the computer. Verified by an adversarial loop probe.
+  Remaining for *broadcast* (multiple orbs on others' GPUs): a per-frame timer-query
+  watchdog + the multi-orb budget.
+
+- **Security boundary** ([shader-dsl.mjs](apps/os/src/renderer/shader-dsl.mjs),
+  `compileUserExpr(src) → { glsl } | { error }`): the stored `shader_src` is treated
+  as **untrusted** (the shipped anon key can POST any string, bypassing the editor),
+  so it is **re-validated on every viewer at render time** — raw text never reaches a
+  GL compiler. It is **one expression** (no statements/assignments/loops/blocks/
+  preprocessor/comparisons → no infinite loops, no injection); a **character allowlist**
+  in the tokenizer (only identifiers, number literals and `+ - * / ( ) , .`) bans
+  `; { } [ ] = # …`; an **identifier/function allowlist** (inputs `p n uv t hue warp
+  density layers sharp PI`; funcs `sin cos … mix clamp smoothstep vec2/3/4` + bounded
+  builtins `noise/fbm/pal/hsv`) with arity checks rejects `gl_*`/`texture`/keywords;
+  and **cost caps** (≤1500 chars, ≤256 AST nodes, ≤32 depth, finite bounded literals;
+  `fbm` has a FIXED 4-octave loop) bound per-pixel GPU work → no DoS. The GLSL is
+  **re-emitted from the validated AST** (never echoed), wrapped `vec3(<expr>)`, and
+  compiled in isolation — **any** compile/link failure silently falls back to the
+  standard shader. `mountShape` adds a final `/[;{}#]/` guard.
+- **Full surface override, built on `base`**: `userFragSrc` (both `shape-canvas.js`
+  copies) runs the standard pipeline, exposes its result (the kaleidoscope, lit +
+  rimmed) as the DSL input **`base`**, then makes the expression the orb's **final
+  colour** (`outColor = vec4(<expr>, u_blend)`). So the default code is literally
+  `base` → the exact standard orb; users edit out from there (`base*pal(t)`,
+  `base+fbm(…)`) or drop `base` for a fully custom look. (The kaleidoscope is an
+  iterative fractal that can't be a single DSL expression — hence the `base` input.)
+- **No-flicker (temporal smoothing)**: flash rate is the time-derivative of the colour
+  and multiplication amplifies it (`t*99`, `sin(t*big)`…), so it can't be capped in the
+  maths. Instead, *animated* custom orbs are smoothed at render time: `preserveDrawing
+  Buffer` + `blendFuncSeparate` make each frame an **EMA** toward the new colour
+  (`1 - e^(-dt/τ)`, τ≈0.25s) while alpha accumulates to opaque — capping how fast the
+  displayed colour can change (a full per-frame strobe → ~5% Δ). The sphere silhouette
+  is a constant circle so there are no trails; standard orbs + the static pill are
+  untouched.
+  (The DSL `base` input + expression highlighter (`highlightExpr`) + the collapsible/
+  expand-down popup + engagement-gating all came from this dormant DSL editor and were
+  carried over to the GLSL editor.)
+- **Storage**: new nullable `shader_src text` column on `os_spheres`
+  ([migration 3](supabase/migrations/20260618030000_os_spheres_shader.sql), `CHECK
+  char_length ≤ 2000` as defense-in-depth). `saveSphere` sets it when present / clears
+  it on empty, and its **progressive retry** drops it (then `bg`) if a column is absent,
+  so saves keep working before the migration is hand-applied.
+- **Render surfaces (v1)**: custom shaders render via per-canvas **`mountShape`**
+  (validated-on-read) in the **editor live preview** (debounced re-validate + re-mount,
+  inline ✓/✕ status), the **pill avatar**, and — the "others see it" surface — the
+  **detail-page orb** (`renderPersonRail` emits a dedicated `[data-detail-orb]` canvas,
+  outside the shared overlay, only when the shader validates; `mountCustomDetailOrb`
+  mounts it draggable). The shared-overlay **grid cards** and the **seal avatar** keep
+  the standard dials shader (one overlay program can't run per-user GLSL cheaply) — a
+  documented follow-up.
+- **Verified**: `shader-dsl.test.mjs` (16 adversarial unit tests — statements, loops,
+  comments, preprocessor, `gl_*`/`texture`, unknown ids, indexing, assignment, illegal
+  chars, bad arity, non-finite, cost caps, never-throws) + `supabase-sphere.test.mjs`
+  (shader_src save/clear + progressive retry) green (28 total); smoke boots clean; both
+  `shape-canvas.js` copies byte-identical for the shader code; plus a **multi-agent
+  adversarial security audit** of the validator. **Requires migration 3 hand-applied**
+  (degrades gracefully until then).
+
+## Customize your sphere — esoteric dials + orb colour, saved for everyone (2026-06-18)
+
+A person opens a popup (by clicking their orb avatar), tunes their sphere over a
+live preview, presses **save**, and every viewer's app reflects it within seconds.
+The look was previously fully deterministic (`hashColors(record_id)`); these
+override that per person.
+
+- **Five dials** (one-word sci-fi names; [supabase-sphere.mjs](apps/os/src/renderer/supabase-sphere.mjs)
+  `SPHERE_DIALS`): **Chroma** (`u_hue` palette), **Vortex** (`u_warp` —
+  multi-octave domain-warp **turbulence**: layered sine octaves churn/billow the
+  lattice into chaotic, organic distortion, not a spin), **Lattice** (`u_progress` fold density, widened ~0.6–6.0 piecewise),
+  **Strata** (`u_iters` — fractal layer count 1..6 via a dynamic-break loop), and
+  **Filament** (`u_sharp` — line sharpness via the `pow` exponent). Defaults reproduce
+  the original look exactly so uncustomized orbs are unchanged. To avoid new
+  migrations the dials **reuse the existing float columns**: `phase`→Vortex,
+  `hue2`→Strata, `intensity`→Filament (the rim glow `u_intensity` is a fixed render
+  constant; `u_phase` + `u_hue2` stay hash-derived per person).
+- **Instant-save to Supabase**: new `os_spheres` table (one mutable row per person,
+  upsert via PostgREST merge-duplicates;
+  [migration](supabase/migrations/20260618010000_os_spheres.sql)). Read as a live
+  overlay (`applySphereOverlay` in
+  [cohort-source.js](apps/os/src/renderer/cohort-source.js), beside the evidence/
+  article overlays) onto `surface.person_spheres`; the card/detail/preview
+  renderers stamp it onto each `<canvas>` via `sphereAttrs()`.
+- **Orb Core colour** ("Orb Core" picker): replaces the orb's dark canvas/background
+  colour `K_CANVAS` with the chosen colour at **full strength** (`col = u_bg` when
+  set, kaleidoscope on top) — so the whole orb body reads as that colour, not a
+  faint tint (the earlier `u_bg*0.4` was the bug). The region **outside** the orb
+  is ALWAYS transparent — never a box behind it (the standalone `mountShape` uses an
+  alpha context + clears transparent + blends, like the overlay). Picked from a
+  curated **10-colour muted palette** (`SPHERE_BG_PRESETS`, one row) **or a hex
+  field** — the full-spectrum native colour picker is deliberately not exposed.
+  Stored in the `bg` column
+  ([migration](supabase/migrations/20260618020000_os_spheres_bg.sql));
+  `saveSphere` retries without it if absent.
+- **Avatar = your sphere; click-to-edit popup** ([alchemy.js](apps/os/src/renderer/alchemy.js)
+  `openSphereEditor`, [identity.js](apps/os/src/renderer/identity.js)): the bottom-left
+  pill + the "your seal" card render your orb as the avatar — **bare** (no container
+  background/border). The seal-card orb is **1.5× larger** (90px, negative margins so
+  it fills the row's empty space without growing it; no hover effect). The **pill orb is STILL**
+  (`mountShape` `animate:false`) and clicking the pill opens the **profile page**;
+  editing happens by clicking the orb in the "your seal" card, which opens the modal.
+  The modal has **no close button** (click-outside / Esc dismisses), **no sub-hint
+  text**, an enlarged ~260px preview that is **drag-to-rotate** (quaternion fling +
+  idle tumble ported into `mountShape` via `opts.draggable`, matching the detail
+  page), and **save + status pinned bottom-right**.
+- Note: identity is unverified (no auth), so `os_spheres` is technically writable
+  for any record_id — documented in the migration; member auth is the eventual fix.
+- Verified: `supabase-sphere.test.mjs` (clamp / hex / upsert body+headers / bg
+  retry / graceful degrade) green; renderer smoke test boots clean. **Requires
+  BOTH migrations hand-applied to Supabase** (like `os_feedback`) before saves land.
+
 ## Shareable deep-links — `https://…/s/xxxxx` → `sros://` (2026-06-16)
 
 Copy a link to any page and send it; clicking it on a machine with the OS
