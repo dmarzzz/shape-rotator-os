@@ -5,6 +5,8 @@ import {
   readSupabaseConfig,
   publicEvidenceCardsUrl,
   fetchPublicEvidenceCards,
+  cohortEvidenceCardsUrl,
+  fetchCohortEvidenceCards,
 } from "../apps/os/src/renderer/supabase-evidence.mjs";
 
 const DEFAULT_URL = "https://txjntzwksiluvqcpccpc.supabase.co";
@@ -101,4 +103,50 @@ test("fetchPublicEvidenceCards degrades to [] on HTTP error, bad JSON, and netwo
 
   const threw = await fetchPublicEvidenceCards({ storage, fetchImpl: () => { throw new Error("offline"); } });
   assert.equal(threw.source, "error"); assert.match(threw.error, /offline/);
+});
+
+// ── Gated cohort (T2) reader ────────────────────────────────────────────────
+
+test("the cohort key is NOT baked into the public source (empty by default)", () => {
+  const cfg = readSupabaseConfig(fakeStorage());
+  assert.equal(cfg.cohortKey, "", "cohort key must not ship in the public repo — supplied per build/config only");
+});
+
+test("readSupabaseConfig reads supabaseCohortKey from the calendar-ingress config", () => {
+  const cfg = readSupabaseConfig(fakeStorage({ [CONFIG_KEY]: JSON.stringify({ supabaseCohortKey: "cohort-jwt" }) }));
+  assert.equal(cfg.cohortKey, "cohort-jwt");
+});
+
+test("cohortEvidenceCardsUrl targets the role-gated cohort view incl. surface_tier", () => {
+  const url = cohortEvidenceCardsUrl(DEFAULT_URL);
+  assert.match(url, /\/rest\/v1\/cohort_app_transcript_evidence_cards\?/);
+  const cols = (new URL(url).searchParams.get("select") || "").split(",");
+  assert.ok(cols.includes("surface_tier"), "cohort view exposes surface_tier");
+  assert.ok(cols.includes("content_json"), "cohort view exposes content_json (date/week_start/teams)");
+  for (const gated of ["org_id", "session_id", "source_artifact_id", "reviewed_by"]) {
+    assert.ok(!cols.includes(gated), `cohort select must not include provenance column ${gated}`);
+  }
+});
+
+test("fetchCohortEvidenceCards no-ops (unconfigured) without a cohort key — public-web safe", async () => {
+  let called = false;
+  const out = await fetchCohortEvidenceCards({ config: { url: DEFAULT_URL, cohortKey: "" }, fetchImpl: () => { called = true; } });
+  assert.equal(out.source, "unconfigured");
+  assert.deepEqual(out.cards, []);
+  assert.equal(called, false, "no cohort key => never hits the gated view (public web stays T3-only)");
+});
+
+test("fetchCohortEvidenceCards reads the gated view with the cohort key + marks T2", async () => {
+  let seenUrl = null; let seenHeaders = null;
+  const fetchImpl = (url, opts) => { seenUrl = url; seenHeaders = opts.headers; return okResponse([
+    { id: "g1", claim_type: "decision", title: "T", claim_text: "X", summary: "S", evidence_level: "observed", confidence: 0.76, attribution_scope: "team", surface_tier: "T2", content_json: { week_start: "2026-06-08", teams: ["bitrouter"] }, created_at: "2026-06-08" },
+  ]); };
+  const out = await fetchCohortEvidenceCards({ config: { url: DEFAULT_URL, cohortKey: "cohort-jwt" }, fetchImpl });
+  assert.equal(out.source, "supabase-cohort");
+  assert.equal(out.cards.length, 1);
+  assert.equal(out.cards[0].surface_tier, "T2");
+  assert.equal(out.cards[0].source, "supabase-cohort");
+  assert.match(seenUrl, /cohort_app_transcript_evidence_cards/);
+  assert.equal(seenHeaders.apikey, "cohort-jwt");
+  assert.equal(seenHeaders.authorization, "Bearer cohort-jwt");
 });

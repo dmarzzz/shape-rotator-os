@@ -12,7 +12,15 @@ contextBridge.exposeInMainWorld("api", {
   loadPrefs:    () => ipcRenderer.invoke("prefs:load"),
   savePrefs:    (d) => ipcRenderer.invoke("prefs:save", d),
   env:          () => ipcRenderer.invoke("env:get"),
+  // The build-baked cohort key (role=cohort_app), read once synchronously so the
+  // evidence reader can resolve it at module-eval. Empty on un-provisioned /
+  // public builds. A read-only value, not a function — there is nothing to invoke.
+  cohortKey:    (() => { try { return ipcRenderer.sendSync("cohort-key:get"); } catch { return ""; } })(),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
+  // Whole-window zoom — the renderer calls this for Cmd/Ctrl +/-/0 when it is
+  // NOT on a cohort view (cohort views handle those keys with their own scoped
+  // zoom). action: "in" | "out" | "reset".
+  appZoom:      (action) => ipcRenderer.invoke("os:app-zoom", action),
   loadContextVault:       ()   => ipcRenderer.invoke("context-vault:manifest"),
   scanContextVault:       ()   => ipcRenderer.invoke("context-vault:scan"),
   readContextVaultSource: (id) => ipcRenderer.invoke("context-vault:read-source", id),
@@ -20,6 +28,17 @@ contextBridge.exposeInMainWorld("api", {
   revealContextVaultSource: (id) => ipcRenderer.invoke("context-vault:reveal-source", id),
   revealContextVaultCorpus: () => ipcRenderer.invoke("context-vault:reveal-corpus"),
   clipboardWrite: (text) => ipcRenderer.invoke("clipboard:write", text),
+  // ─── deep links (sros://xxxxx) ───────────────────────────────────────
+  // main forwards a clicked sros:// link here while the app is running;
+  // getPendingDeepLink drains a link that cold-launched the app (queued in
+  // main before the renderer's listener existed). See main.js open-url /
+  // second-instance → deliverDeepLink, and boot.js setupShareLinks.
+  onDeepLink: (cb) => {
+    const h = (_e, url) => { try { cb(url); } catch {} };
+    ipcRenderer.on("deep-link", h);
+    return () => ipcRenderer.removeListener("deep-link", h);
+  },
+  getPendingDeepLink: () => ipcRenderer.invoke("deep-link:get-pending"),
   // app updates (electron-updater + GitHub Releases; no-op in dev)
   checkAppUpdate:        ()       => ipcRenderer.invoke("fg:check-update"),
   applyAppUpdate:        ()       => ipcRenderer.invoke("fg:apply-update"),

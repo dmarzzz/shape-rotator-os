@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shape Rotator // Research</title>
+<meta name="description" content="Local-first research workspace — a chat-driven copilot that turns a question into a living research canvas. Runs entirely in your browser." />
+<link rel="icon" href="/favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#ffffff; --panel:#f7f7fb; --panel-2:#fbfbfd; --line:#ececf1; --line-strong:#dededf;
+  --ink:#16161a; --ink-2:#54545c; --ink-3:#8a8a93; --accent:#6d5efc; --accent-soft:#efedff;
+  --green:#16a34a; --green-soft:#e7f6ec; --amber:#d97706; --amber-soft:#fdf0dd; --grey:#9aa0a6; --grey-soft:#eef0f2;
+  --t-main:#6d5efc; --t-scope:#0ea5e9; --t-theory:#8b5cf6; --t-lit:#16a34a; --t-base:#f59e0b; --t-method:#ef4444; --t-meta:#64748b; --t-exp:#db2777;
+  --font:'Space Grotesk',system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+  --r:14px; --r-sm:10px; --shadow:0 1px 2px rgba(16,16,26,.04),0 8px 24px rgba(16,16,26,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#dcdce3;border-radius:9px}
+::-webkit-scrollbar-thumb:hover{background:#c7c7d0}
+
+/* ---------- shell ---------- */
+#app{display:flex;flex-direction:column;height:100dvh}
+.topbar{height:52px;flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--bg);z-index:20}
+.topbar .back{display:flex;align-items:center;gap:6px;color:var(--ink-2);font-size:13px;padding:6px 8px;border-radius:8px}
+.topbar .back:hover{background:var(--panel)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600}
+.brand .orb{width:18px;height:18px;border-radius:50%;background:conic-gradient(from 200deg,var(--accent),#c4b5fd,var(--accent));box-shadow:0 0 0 3px var(--accent-soft)}
+.divider{width:1px;height:22px;background:var(--line)}
+.title-edit{font-weight:600;font-size:15px;border:1px solid transparent;background:transparent;border-radius:8px;padding:5px 8px;min-width:160px;max-width:42vw}
+.title-edit:hover{background:var(--panel)}
+.title-edit:focus{outline:none;border-color:var(--line-strong);background:#fff}
+.topbar .spacer{flex:1}
+.icon-btn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--ink-2)}
+.icon-btn:hover{background:var(--panel);color:var(--ink)}
+.ghost-btn{font-size:12.5px;color:var(--ink-2);padding:7px 11px;border:1px solid var(--line-strong);border-radius:9px}
+.ghost-btn:hover{background:var(--panel);color:var(--ink)}
+
+.main{flex:1;display:flex;min-height:0}
+/* ---------- chat pane ---------- */
+.chat{width:46%;min-width:320px;display:flex;flex-direction:column;border-right:1px solid var(--line);background:var(--bg)}
+.chat-head{height:46px;flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line)}
+.chat-head .dot{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0 14%,var(--accent) 16% 100%)}
+.chat-head b{font-weight:500;font-size:13.5px}
+.chat-head .chev{color:var(--ink-3);font-size:11px}
+.chat-head .spacer{flex:1}
+.thread{flex:1;overflow-y:auto;padding:20px 18px 8px;display:flex;flex-direction:column;gap:16px}
+.msg-user{align-self:flex-end;max-width:80%;background:#1d1d22;color:#fff;padding:11px 14px;border-radius:14px 14px 4px 14px;font-size:13.5px;position:relative}
+.msg-user .ts{display:block;font-size:10px;color:#9a9aa6;margin-top:6px;text-align:right;font-family:var(--mono)}
+.copilot-row{display:flex;gap:10px;align-items:flex-start}
+.copilot-row .av{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0 12%,var(--accent) 14% 100%);margin-top:2px}
+.copilot-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.copilot-text{font-size:13.5px;color:var(--ink)}
+.copilot-text p{margin:0 0 7px}
+.copilot-text ol{margin:4px 0 4px 18px;padding:0}
+.copilot-text li{margin:3px 0}
+.copilot-text b{font-weight:600}
+
+.steps{display:flex;flex-direction:column;gap:7px}
+.step{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink-2)}
+.step .ic{width:16px;height:16px;display:grid;place-items:center;flex:0 0 auto}
+.step.run .ic{color:var(--accent)}
+.step.done .ic{color:var(--green)}
+.step .q{color:var(--ink-3);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.spin{width:13px;height:13px;border:2px solid var(--line-strong);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.agent-card{border:1px solid var(--line);background:var(--panel-2);border-radius:var(--r);padding:13px 14px;display:flex;flex-direction:column;gap:10px;animation:pop .25s ease}
+.agent-card .ac-head{display:flex;align-items:flex-start;gap:10px}
+.agent-card .ac-ic{width:30px;height:30px;border-radius:8px;background:var(--amber-soft);color:var(--amber);display:grid;place-items:center;flex:0 0 auto}
+.agent-card .ac-title{font-weight:600;font-size:13px}
+.agent-card .ac-sum{font-size:12.5px;color:var(--ink-2);margin-top:3px}
+.agent-card .ac-spin{margin-left:auto}
+.feedback{display:flex;gap:8px}
+.fb-btn{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);border:1px solid var(--line-strong);border-radius:8px;padding:5px 10px}
+.fb-btn:hover{background:var(--panel)}
+.fb-btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+.suggest{display:flex;flex-direction:column;gap:10px}
+.suggest-head{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--accent);font-weight:500}
+.sg-card{border:1px solid var(--line);border-radius:var(--r);padding:13px 14px;background:#fff;display:flex;flex-direction:column;gap:9px;transition:border-color .15s,box-shadow .15s;animation:pop .25s ease}
+.sg-card:hover{border-color:var(--line-strong);box-shadow:var(--shadow)}
+.sg-card .sg-t{font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px}
+.sg-card .sg-t::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green)}
+.sg-card .sg-d{font-size:12.5px;color:var(--ink-2)}
+.sg-chip{align-self:flex-start;font-size:12px;color:var(--ink);background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;padding:6px 11px;font-family:var(--mono)}
+.sg-chip:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.sg-chip.used{opacity:.5;pointer-events:none}
+@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.composer{flex:0 0 auto;padding:12px 16px 16px;border-top:1px solid var(--line)}
+.composer .box{display:flex;align-items:center;gap:10px;border:1px solid var(--line-strong);border-radius:14px;padding:8px 8px 8px 14px;background:#fff}
+.composer .box:focus-within{border-color:var(--accent)}
+.composer input{flex:1;border:none;outline:none;font-family:inherit;font-size:13.5px;background:transparent}
+.composer .attach,.composer .mic{color:var(--ink-3);width:30px;height:30px;border-radius:8px;display:grid;place-items:center}
+.composer .attach:hover,.composer .mic:hover{background:var(--panel);color:var(--ink-2)}
+.send{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;flex:0 0 auto}
+.send:hover{filter:brightness(1.06)}
+.send.busy{background:#ef4444}
+.send:disabled{opacity:.4;cursor:default}
+
+/* ---------- gutter ---------- */
+.gutter{width:7px;flex:0 0 auto;cursor:col-resize;background:transparent;display:grid;place-items:center;margin:0 -3px;z-index:5}
+.gutter span{width:3px;height:34px;border-radius:3px;background:var(--line-strong)}
+.gutter:hover span{background:var(--accent)}
+
+/* ---------- workspace ---------- */
+.ws{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.tabs{height:46px;flex:0 0 auto;display:flex;align-items:center;gap:2px;padding:0 12px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-2);padding:7px 12px;border-radius:9px;white-space:nowrap;position:relative}
+.tab:hover{background:var(--panel)}
+.tab.on{color:var(--ink);font-weight:600}
+.tab.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-8px;height:2px;border-radius:2px;background:var(--accent)}
+.tab .badge{font-size:10px;font-family:var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:0 6px;color:var(--ink-3)}
+.tab.on .badge{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.panel{flex:1;min-height:0;position:relative;display:none}
+.panel.on{display:flex;flex-direction:column}
+
+/* canvas */
+.canvas-bar{position:absolute;top:14px;left:14px;right:14px;display:flex;align-items:center;gap:10px;z-index:6;pointer-events:none}
+.canvas-bar>*{pointer-events:auto}
+.cb-btn{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink);background:#fff;border:1px solid var(--line-strong);border-radius:10px;padding:7px 11px;box-shadow:var(--shadow)}
+.cb-btn:hover{background:var(--panel)}
+.cb-btn.active{border-color:var(--accent);color:var(--accent)}
+.canvas-bar .spacer{flex:1}
+.viewport{position:absolute;inset:0;overflow:hidden;cursor:grab;background:
+  radial-gradient(circle,#e9e9f0 1px,transparent 1px);background-size:22px 22px;background-color:#fdfdff}
+.viewport.panning{cursor:grabbing}
+.world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+.edges{position:absolute;overflow:visible;left:0;top:0;pointer-events:none}
+.edges path{fill:none;stroke:#c9c9d6;stroke-width:1.6}
+.node{position:absolute;width:222px;background:#fff;border:1px solid var(--line-strong);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow);cursor:grab;user-select:none;animation:pop .3s ease}
+.node:active{cursor:grabbing}
+.node.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft),var(--shadow)}
+.node .nrow{display:flex;align-items:center;gap:6px;margin-bottom:7px}
+.node .ntype{font-size:9.5px;font-family:var(--mono);font-weight:500;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:5px;color:#fff}
+.node .nstatus{margin-left:auto;font-size:10px;display:flex;align-items:center;gap:4px;color:var(--ink-2)}
+.node .nstatus i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.node .ntitle{font-size:12.5px;font-weight:600;line-height:1.3;margin-bottom:3px}
+.node .nbody{font-size:11px;color:var(--ink-3);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.zoom{position:absolute;left:14px;bottom:14px;display:flex;flex-direction:column;background:#fff;border:1px solid var(--line-strong);border-radius:10px;box-shadow:var(--shadow);overflow:hidden;z-index:6}
+.zoom button{width:34px;height:32px;display:grid;place-items:center;color:var(--ink-2);border-bottom:1px solid var(--line)}
+.zoom button:last-child{border-bottom:none}
+.zoom button:hover{background:var(--panel);color:var(--ink)}
+.nodecount{position:absolute;right:14px;bottom:14px;font-size:11px;font-family:var(--mono);color:var(--ink-2);background:#fff;border:1px solid var(--line-strong);border-radius:8px;padding:5px 10px;box-shadow:var(--shadow);z-index:6}
+
+/* empty state */
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--ink-3);text-align:center;padding:24px}
+.empty svg{opacity:.5}
+.empty h3{font-weight:600;color:var(--ink-2);font-size:16px}
+.empty p{font-size:13px;max-width:340px}
+
+/* generic scroll panels */
+.scroll{flex:1;overflow-y:auto;padding:20px 22px}
+.sec-head{display:flex;align-items:center;gap:8px;font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:0 0 14px}
+.sec-head .ct{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:1px 8px}
+
+/* content outline */
+.tree{display:flex;flex-direction:column;gap:2px}
+.tnode{display:flex;align-items:flex-start;gap:9px;padding:7px 8px;border-radius:9px;cursor:default}
+.tnode:hover{background:var(--panel)}
+.tnode .bullet{width:9px;height:9px;border-radius:50%;flex:0 0 auto;margin-top:5px}
+.tnode .tt{font-size:13.5px}
+.tnode.l0 .tt{font-weight:600;font-size:14.5px}
+.tnode .ts{font-size:11px;color:var(--ink-3);margin-top:1px}
+.tgroup{margin-bottom:18px}
+
+/* list cards (agents/experiments/files/skills) */
+.cards{display:flex;flex-direction:column;gap:11px}
+.lcard{border:1px solid var(--line);border-radius:var(--r);padding:13px 15px;background:var(--panel-2);display:flex;gap:12px;align-items:flex-start}
+.lcard .lic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;background:#fff;border:1px solid var(--line)}
+.lcard .lb{flex:1;min-width:0}
+.lcard .ln{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px}
+.lcard .ld{font-size:12.5px;color:var(--ink-2);margin-top:3px}
+.lcard .lmeta{font-size:11px;font-family:var(--mono);color:var(--ink-3);margin-top:6px}
+.pill{font-size:10.5px;font-family:var(--mono);padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:5px}
+.pill i{width:6px;height:6px;border-radius:50%}
+.pill.completed{background:var(--green-soft);color:var(--green)}
+.pill.in_progress{background:var(--amber-soft);color:var(--amber)}
+.pill.not_started{background:var(--grey-soft);color:var(--ink-3)}
+.pill.idle{background:var(--grey-soft);color:var(--ink-3)}
+.pill.running{background:var(--accent-soft);color:var(--accent)}
+.skill-toggle{margin-left:auto;width:38px;height:22px;border-radius:20px;background:var(--line-strong);position:relative;transition:background .15s;flex:0 0 auto}
+.skill-toggle::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.skill-toggle.on{background:var(--accent)}
+.skill-toggle.on::after{transform:translateX(16px)}
+
+/* timeline */
+.tl{position:relative;padding-left:8px}
+.tl-item{display:flex;gap:13px;padding-bottom:18px;position:relative}
+.tl-item::before{content:"";position:absolute;left:5px;top:16px;bottom:-2px;width:1.5px;background:var(--line)}
+.tl-item:last-child::before{display:none}
+.tl-dot{width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid var(--accent);flex:0 0 auto;margin-top:3px;z-index:1}
+.tl-b .tl-l{font-size:13px;font-weight:500}
+.tl-b .tl-d{font-size:12px;color:var(--ink-2);margin-top:2px}
+.tl-b .tl-t{font-size:10.5px;font-family:var(--mono);color:var(--ink-3);margin-top:3px}
+
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(40px);background:#1d1d22;color:#fff;font-size:12.5px;padding:9px 16px;border-radius:10px;opacity:0;transition:.25s;z-index:50;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:880px){.chat{width:100%}.gutter,.ws{display:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <a class="back" href="/"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Back</a>
+    <span class="divider"></span>
+    <span class="brand"><span class="orb"></span></span>
+    <input class="title-edit" id="projectTitle" value="New Research Project" spellcheck="false" />
+    <span class="spacer"></span>
+    <button class="ghost-btn" id="newProject">+ New project</button>
+    <button class="icon-btn" id="resetBtn" title="Reset workspace"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+    <button class="icon-btn" title="Theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg></button>
+  </header>
+
+  <div class="main">
+    <!-- CHAT -->
+    <section class="chat">
+      <div class="chat-head"><span class="dot"></span><b>New chat</b><span class="chev">▾</span><span class="spacer"></span><button class="icon-btn" title="New chat">+</button></div>
+      <div class="thread" id="thread"></div>
+      <div class="composer">
+        <div class="box">
+          <button class="attach" title="Attach"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l8.49-8.49"/></svg></button>
+          <input id="composerInput" placeholder="Ask about your research…" autocomplete="off" />
+          <button class="mic" title="Voice"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3"/></svg></button>
+          <button class="send" id="sendBtn" title="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+    </section>
+
+    <div class="gutter" id="gutter"><span></span></div>
+
+    <!-- WORKSPACE -->
+    <section class="ws">
+      <nav class="tabs" id="tabs">
+        <button class="tab on" data-tab="canvas"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Canvas</button>
+        <button class="tab" data-tab="content"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Content<span class="badge" data-badge="content">0</span></button>
+        <button class="tab" data-tab="agents"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M12 8V5M9 3h6M9 13v2M15 13v2"/></svg>Agents<span class="badge" data-badge="agents">0</span></button>
+        <button class="tab" data-tab="timeline"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Timeline<span class="badge" data-badge="timeline">0</span></button>
+        <button class="tab" data-tab="experiments"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L5 19a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-10V3"/></svg>Experiments<span class="badge" data-badge="experiments">0</span></button>
+        <button class="tab" data-tab="files"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Files<span class="badge" data-badge="files">0</span></button>
+        <button class="tab" data-tab="skills"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4.5v9L12 20l-8-4.5v-9z"/><path d="M12 2v18M4 6.5l8 4.5 8-4.5"/></svg>Skills<span class="badge" data-badge="skills">0</span></button>
+      </nav>
+
+      <!-- CANVAS -->
+      <div class="panel on" data-panel="canvas">
+        <div class="canvas-bar">
+          <button class="cb-btn" id="organizeBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Organize</button>
+          <button class="cb-btn active" id="filterBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>All</button>
+          <span class="spacer"></span>
+          <button class="cb-btn" id="addNodeBtn" title="Add node">+</button>
+        </div>
+        <div class="viewport" id="viewport">
+          <div class="world" id="world"><svg class="edges" id="edges"></svg></div>
+        </div>
+        <div class="empty" id="canvasEmpty">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 7.5l7 9"/></svg>
+          <h3>Your Research Canvas is Empty</h3>
+          <p>Start a conversation in the chat to build your research canvas. Your research copilot will help you structure your ideas.</p>
+        </div>
+        <div class="zoom"><button id="zoomIn">+</button><button id="zoomOut">−</button><button id="zoomFit" title="Fit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"/></svg></button></div>
+        <div class="nodecount"><span id="nodeCount">0</span> nodes</div>
+      </div>
+
+      <!-- CONTENT -->
+      <div class="panel" data-panel="content"><div class="scroll" id="contentPanel"></div></div>
+      <!-- AGENTS -->
+      <div class="panel" data-panel="agents"><div class="scroll" id="agentsPanel"></div></div>
+      <!-- TIMELINE -->
+      <div class="panel" data-panel="timeline"><div class="scroll" id="timelinePanel"></div></div>
+      <!-- EXPERIMENTS -->
+      <div class="panel" data-panel="experiments"><div class="scroll" id="experimentsPanel"></div></div>
+      <!-- FILES -->
+      <div class="panel" data-panel="files"><div class="scroll" id="filesPanel"></div></div>
+      <!-- SKILLS -->
+      <div class="panel" data-panel="skills"><div class="scroll" id="skillsPanel"></div></div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   Shape Rotator // Research — local-first research workspace.
+   A slop fork of orchestra-research.com: same system model, zero external API.
+   All state lives in localStorage; the copilot is a deterministic local engine.
+   ========================================================================= */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const uid=()=>Math.random().toString(36).slice(2,9);
+const now=()=>Date.now();
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const KEY="srk.research.project.v1";
+const fmtTime=t=>new Date(t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
+const TYPE={
+  main_question:{label:"Main Question",color:"var(--t-main)"},
+  scope:{label:"Scope",color:"var(--t-scope)"},
+  theory:{label:"Theory",color:"var(--t-theory)"},
+  literature:{label:"Literature",color:"var(--t-lit)"},
+  baseline:{label:"Baseline",color:"var(--t-base)"},
+  method:{label:"Method",color:"var(--t-method)"},
+  metadata:{label:"Metadata",color:"var(--t-meta)"},
+  experiment:{label:"Experiment",color:"var(--t-exp)"},
+};
+const STATUS={
+  not_started:{label:"Not Started",color:"var(--grey)"},
+  in_progress:{label:"In Progress",color:"var(--amber)"},
+  completed:{label:"Completed",color:"var(--green)"},
+};
+
+/* ----------------------------- state ----------------------------- */
+let P=load();
+function blank(){return{id:uid(),title:"New Research Project",createdAt:now(),updatedAt:now(),
+  chat:[],nodes:[],agents:[],timeline:[],experiments:[],files:[],
+  skills:defaultSkills(),view:{tab:"canvas",zoom:1,panX:0,panY:0},seeded:false};}
+function defaultSkills(){return[
+  {id:uid(),name:"Deep Research",desc:"Multi-source literature sweep and synthesis.",enabled:true,icon:"search"},
+  {id:uid(),name:"Literature Review",desc:"Survey prior art, datasets, and benchmarks.",enabled:true,icon:"book"},
+  {id:uid(),name:"Write Code",desc:"Draft training scripts and experiment harnesses.",enabled:true,icon:"code"},
+  {id:uid(),name:"Critique",desc:"Adversarially stress-test claims and methods.",enabled:true,icon:"shield"},
+  {id:uid(),name:"Quantize",desc:"Compress models for edge / efficiency targets.",enabled:false,icon:"chip"},
+];}
+function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.id)return r;}catch{}return blank();}
+function save(){P.updatedAt=now();try{localStorage.setItem(KEY,JSON.stringify(P));}catch{}}
+
+/* node helpers */
+const node=id=>P.nodes.find(n=>n.id===id);
+function addNode(n){const full={id:uid(),type:"scope",title:"Untitled",body:"",status:"not_started",parentId:null,x:0,y:0,...n};P.nodes.push(full);return full;}
+function logEvent(label,detail){P.timeline.unshift({id:uid(),ts:now(),label,detail:detail||""});}
+
+/* ----------------------------- copilot engine ----------------------------- */
+/* Deterministic local engine. Seeds a typed graph from the question, posts an
+   agent card + suggested directions, mutating real state with cosmetic timing. */
+function topicFrom(q){
+  let t=q.replace(/[?.!]/g,"").trim();
+  t=t.replace(/^(can|could|does|do|is|are|how|what|why|will|should|would)\s+/i,"");
+  t=t.replace(/^(a|an|the)\s+/i,"");
+  const words=t.split(/\s+/).slice(0,6).join(" ");
+  return words.length>52?words.slice(0,52)+"…":words;
+}
+function seedNodes(q){
+  const topic=topicFrom(q);
+  const mq=addNode({type:"main_question",title:q.length>90?q.slice(0,90)+"…":q,
+    body:"Primary research question framing the project.",status:"in_progress"});
+  const defs=[
+    {type:"scope",title:`Scope: Objectives & Applications`,body:`Define what success looks like for "${topic}" and where it applies.`,status:"in_progress"},
+    {type:"theory",title:`Theory: Foundations & Prior Art`,body:`The conceptual groundwork and landmark results underpinning ${topic}.`,status:"completed"},
+    {type:"literature",title:`Literature: Datasets & Benchmarks`,body:`Canonical datasets, baselines, and state-of-the-art numbers for ${topic}.`,status:"completed"},
+    {type:"baseline",title:`Baseline: Standard Approach`,body:`A well-understood method to establish a working reference implementation.`,status:"not_started"},
+    {type:"method",title:`Method: Modern State-of-the-Art`,body:`Current best techniques and the gap between baseline and frontier.`,status:"not_started"},
+  ];
+  defs.forEach(d=>addNode({...d,parentId:mq.id}));
+  addNode({type:"metadata",title:"Project Principles and Methodology",
+    body:"Working agreements, evaluation protocol, and methodology for this project.",status:"completed"});
+  organize();
+  return mq;
+}
+
+async function runCopilot(userText){
+  setBusy(true);
+  const firstBuild=!P.seeded;
+  // user message
+  P.chat.push({id:uid(),role:"user",kind:"text",text:userText,ts:now()});
+  render(); save(); scrollThread();
+
+  // copilot turn container
+  const turn={id:uid(),role:"copilot",kind:"steps",steps:[
+    {label:"Checking project",state:"run",q:""},
+  ],ts:now()};
+  P.chat.push(turn); render(); scrollThread();
+  await sleep(550);
+  turn.steps[0].state="done";
+  const blurb=firstBuild?`Comprehensive overview for "${topicFrom(userText)}"…`:`Refining canvas with "${topicFrom(userText)}"…`;
+  turn.steps.push({label:"Deep research",state:"run",q:blurb});
+  render(); scrollThread();
+  await sleep(900);
+  turn.steps[1].state="done";
+  render();
+
+  if(firstBuild){
+    // streamed plan message
+    P.chat.push({id:uid(),role:"copilot",kind:"text",
+      html:`<p>Great question. I'll structure this as a research project. I see a few angles worth pursuing:</p>
+      <ol><li><b>Learn &amp; implement</b> a model from scratch as a baseline.</li>
+      <li><b>Apply</b> it to a harder, real-world variant of the problem.</li>
+      <li><b>Explore a modern twist</b> — e.g. extreme efficiency or a frontier method.</li></ol>
+      <p>I'm laying out the canvas now — you can keep drafting while it builds.</p>`,ts:now()});
+    render(); scrollThread();
+
+    const mq=seedNodes(userText);
+    P.seeded=true;
+    P.title=topicFrom(userText).replace(/\b\w/g,c=>c.toUpperCase()).slice(0,40);
+    $("#projectTitle").value=P.title;
+    logEvent("Project seeded",`Decomposed the question into ${P.nodes.length} research nodes.`);
+    // spawn the literature agent
+    const agent={id:uid(),name:"Literature Review",status:"running",
+      task:"Surveying prior art & benchmarks",lastOutput:"",ts:now()};
+    P.agents.unshift(agent);
+    render(); save();
+
+    // pop nodes onto the canvas one at a time for a "building" feel
+    switchTab("canvas");
+    await popNodesIn();
+
+    // agent card (spinner -> done)
+    const card={id:uid(),role:"copilot",kind:"agentCard",title:"Literature Review",
+      summary:`Comprehensive overview of approaches to "${topicFrom(userText)}" — from historical, foundational methods through to current state-of-the-art techniques, including their architectures, accuracy, and limitations.`,
+      running:true,feedback:null,ts:now()};
+    P.chat.push(card); render(); scrollThread();
+    await sleep(1400);
+    card.running=false;
+    agent.status="idle"; agent.task="Completed literature review";
+    agent.lastOutput=card.summary;
+    logEvent("Literature Review complete","Agent summarized datasets, baselines, and SOTA.");
+    addFile({name:"literature_review.md",kind:"markdown",preview:card.summary});
+    render(); save();
+
+    // suggested directions
+    P.chat.push({id:uid(),role:"copilot",kind:"suggestions",items:suggestions(userText),ts:now()});
+    render(); scrollThread(); save();
+  } else {
+    // refinement turn: add one node + a short reply
+    const mq=P.nodes.find(n=>n.type==="main_question");
+    const n=addNode({type:"scope",title:`Direction: ${topicFrom(userText)}`,
+      body:userText.length>120?userText.slice(0,120)+"…":userText,status:"in_progress",parentId:mq?mq.id:null});
+    organize();
+    logEvent("Canvas extended",`Added node "${n.title}".`);
+    P.chat.push({id:uid(),role:"copilot",kind:"text",
+      html:`<p>Added that as a new branch on the canvas and flagged it <b>In&nbsp;Progress</b>. Want me to spin up an agent to dig in?</p>`,ts:now()});
+    switchTab("canvas"); render(); save(); scrollThread();
+  }
+  setBusy(false);
+}
+
+async function popNodesIn(){
+  // hide all but reveal sequentially via the renderer's appear flag
+  const ids=P.nodes.map(n=>n.id);
+  P._reveal=new Set();
+  for(const id of ids){ P._reveal.add(id); renderCanvas(); save(); await sleep(260); }
+  P._reveal=null; renderCanvas();
+}
+
+function suggestions(q){
+  const topic=topicFrom(q);
+  return [
+    {id:uid(),title:"Build a Custom Baseline",
+     desc:`Implement a standard model to establish a working baseline for ${topic} in our workspace.`,
+     chip:"Deepen: Write training script",action:"baseline",used:false},
+    {id:uid(),title:"Tackle Real-World Noise",
+     desc:`Shift from the clean setting to harder, noisier real-world variants of the problem.`,
+     chip:"Explore: Harder datasets",action:"harder",used:false},
+    {id:uid(),title:"Deploy to Edge Devices",
+     desc:`Frame it as an efficiency challenge: how small can the model get while keeping quality high?`,
+     chip:"Explore: Model quantization",action:"quantize",used:false},
+  ];
+}
+
+/* suggested-direction actions mutate the graph + tabs */
+async function applySuggestion(msgId,item){
+  item.used=true;
+  const mq=P.nodes.find(n=>n.type==="main_question");
+  const base=P.nodes.find(n=>n.type==="baseline");
+  if(item.action==="baseline"){
+    if(base){base.status="in_progress";}
+    addFile({name:"train.py",kind:"python",preview:"# CNN baseline training script\nimport torch, torch.nn as nn\n# ... model, dataloader, train loop ..."});
+    P.experiments.unshift({id:uid(),title:"Train baseline model",hypothesis:"A standard baseline reaches a usable accuracy floor.",status:"in_progress",metric:"running…",ts:now()});
+    P.agents.unshift({id:uid(),name:"Baseline Builder",status:"running",task:"Writing training script",lastOutput:"",ts:now()});
+    logEvent("Baseline started","Wrote train.py and queued a training experiment.");
+    toast("Training script written → see Files & Experiments");
+  } else if(item.action==="harder"){
+    addNode({type:"literature",title:"Harder Datasets & Distribution Shift",
+      body:"Evaluate on noisier, real-world variants to test robustness beyond the clean benchmark.",status:"in_progress",parentId:mq?mq.id:null});
+    organize();
+    logEvent("Scope expanded","Added a harder-datasets branch to the canvas.");
+    toast("Added 'Harder Datasets' to the canvas");
+  } else if(item.action==="quantize"){
+    addNode({type:"method",title:"Model Quantization & Edge Deployment",
+      body:"Compress the model (quantization / distillation) to run on constrained hardware.",status:"not_started",parentId:mq?mq.id:null});
+    const q=P.skills.find(s=>s.name==="Quantize"); if(q)q.enabled=true;
+    organize();
+    logEvent("Method added","Added quantization track; enabled the Quantize skill.");
+    toast("Added quantization track → Quantize skill enabled");
+  }
+  switchTab("canvas");
+  render(); save();
+}
+
+function addFile(f){P.files.unshift({id:uid(),ts:now(),...f});}
+
+/* ----------------------------- layout ----------------------------- */
+function organize(){
+  // simple layered tidy layout: roots on top, children fanned beneath
+  const W=222, GAPX=46, GAPY=120;
+  const roots=P.nodes.filter(n=>!n.parentId);
+  const childrenOf=id=>P.nodes.filter(n=>n.parentId===id);
+  let cursorX=0;
+  // place main question(s) and their subtrees
+  const mqs=roots.filter(n=>n.type==="main_question");
+  const others=roots.filter(n=>n.type!=="main_question");
+  mqs.forEach(mq=>{
+    const kids=childrenOf(mq.id);
+    const totalW=kids.length*(W+GAPX)-GAPX;
+    const startX=cursorX;
+    kids.forEach((k,i)=>{ k.x=startX+i*(W+GAPX); k.y=GAPY; });
+    mq.x=startX+Math.max(0,totalW)/2-W/2; mq.y=0;
+    // grandchildren stack under each child
+    kids.forEach(k=>{
+      childrenOf(k.id).forEach((g,j)=>{ g.x=k.x; g.y=GAPY*2+j*100; });
+    });
+    cursorX=startX+Math.max(totalW,W)+GAPX*3;
+  });
+  others.forEach((o,i)=>{ o.x=cursorX+i*(W+GAPX); o.y=0; });
+}
+
+/* ----------------------------- rendering ----------------------------- */
+let view={zoom:P.view.zoom||0.9,panX:P.view.panX||0,panY:P.view.panY||0};
+let selected=null;
+
+function render(){
+  renderThread(); renderCanvas(); renderContent(); renderAgents();
+  renderTimeline(); renderExperiments(); renderFiles(); renderSkills();
+  renderBadges();
+}
+function renderBadges(){
+  const set=(k,v)=>{const e=$(`[data-badge="${k}"]`);if(e)e.textContent=v;};
+  set("content",P.nodes.length); set("agents",P.agents.length);
+  set("timeline",P.timeline.length); set("experiments",P.experiments.length);
+  set("files",P.files.length); set("skills",P.skills.filter(s=>s.enabled).length);
+}
+
+function renderThread(){
+  const t=$("#thread"); t.innerHTML="";
+  for(const m of P.chat){
+    if(m.role==="user"){
+      const d=el(`<div class="msg-user"></div>`);
+      d.append(document.createTextNode(m.text));
+      d.insertAdjacentHTML("beforeend",`<span class="ts">${fmtTime(m.ts)}</span>`);
+      t.append(d); continue;
+    }
+    const row=el(`<div class="copilot-row"><div class="av"></div><div class="copilot-body"></div></div>`);
+    const body=$(".copilot-body",row);
+    if(m.kind==="steps"){
+      const s=el(`<div class="steps"></div>`);
+      m.steps.forEach(st=>{
+        const ic=st.state==="done"?`<span class="ic">✓</span>`:`<span class="ic"><span class="spin"></span></span>`;
+        s.append(el(`<div class="step ${st.state}">${ic}<span>${st.label}</span>${st.q?`<span class="q">${esc(st.q)}</span>`:""}</div>`));
+      });
+      body.append(s);
+    } else if(m.kind==="text"){
+      body.append(el(`<div class="copilot-text">${m.html||esc(m.text)}</div>`));
+    } else if(m.kind==="agentCard"){
+      const c=el(`<div class="agent-card">
+        <div class="ac-head">
+          <div class="ac-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+          <div><div class="ac-title">${esc(m.title)}</div><div class="ac-sum">${esc(m.summary)}</div></div>
+          ${m.running?`<span class="ac-spin"><span class="spin"></span></span>`:""}
+        </div>
+        <div class="feedback">
+          <button class="fb-btn ${m.feedback==='agree'?'on':''}" data-fb="agree"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10v11M14 4l-2 6h6.5a2 2 0 0 1 2 2.4l-1.3 6A2 2 0 0 1 17.2 21H7V10l4-6a2 2 0 0 1 3 0z"/></svg>Agree</button>
+          <button class="fb-btn ${m.feedback==='disagree'?'on':''}" data-fb="disagree"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 14V3M10 20l2-6H5.5a2 2 0 0 1-2-2.4l1.3-6A2 2 0 0 1 6.8 3H17v11l-4 6a2 2 0 0 1-3 0z"/></svg>Disagree</button>
+        </div></div>`);
+      $$(".fb-btn",c).forEach(b=>b.onclick=()=>{
+        m.feedback=b.dataset.fb;
+        logEvent("Feedback recorded",`You ${m.feedback}d the ${m.title}.`);
+        render(); save(); toast(`Feedback noted — ${m.feedback}`);
+      });
+      body.append(c);
+    } else if(m.kind==="suggestions"){
+      const wrap=el(`<div class="suggest"><div class="suggest-head"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>Suggested directions</div></div>`);
+      m.items.forEach(it=>{
+        const c=el(`<div class="sg-card"><div class="sg-t">${esc(it.title)}</div><div class="sg-d">${esc(it.desc)}</div>
+          <button class="sg-chip ${it.used?'used':''}">${esc(it.chip)}</button></div>`);
+        $(".sg-chip",c).onclick=()=>applySuggestion(m.id,it);
+        wrap.append(c);
+      });
+      body.append(wrap);
+    }
+    t.append(row);
+  }
+}
+
+function renderCanvas(){
+  const world=$("#world"), edges=$("#edges");
+  $("#canvasEmpty").style.display=P.nodes.length?"none":"flex";
+  $("#nodeCount").textContent=P.nodes.length;
+  // clear nodes (keep edges svg)
+  $$(".node",world).forEach(n=>n.remove());
+  // edges
+  let minX=0,minY=0,maxX=0,maxY=0;
+  P.nodes.forEach(n=>{minX=Math.min(minX,n.x);minY=Math.min(minY,n.y);maxX=Math.max(maxX,n.x+222);maxY=Math.max(maxY,n.y+92);});
+  let paths="";
+  P.nodes.forEach(n=>{ if(!n.parentId)return; const p=node(n.parentId); if(!p)return;
+    const x1=p.x+111,y1=p.y+92,x2=n.x+111,y2=n.y;
+    const my=(y1+y2)/2;
+    paths+=`<path d="M${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}"/>`;
+  });
+  edges.innerHTML=paths;
+  edges.setAttribute("width",Math.max(1,maxX-minX+400));
+  edges.setAttribute("height",Math.max(1,maxY-minY+400));
+  // nodes
+  for(const n of P.nodes){
+    if(P._reveal && !P._reveal.has(n.id)) continue;
+    const t=TYPE[n.type], st=STATUS[n.status];
+    const d=el(`<div class="node ${selected===n.id?'sel':''}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px">
+      <div class="nrow"><span class="ntype" style="background:${t.color}">${esc(t.label)}</span>
+      <span class="nstatus"><i style="background:${st.color}"></i>${st.label}</span></div>
+      <div class="ntitle">${esc(n.title)}</div><div class="nbody">${esc(n.body)}</div></div>`);
+    enableNodeDrag(d,n);
+    world.append(d);
+  }
+  applyView();
+}
+function applyView(){ $("#world").style.transform=`translate(${view.panX}px,${view.panY}px) scale(${view.zoom})`; }
+
+function renderContent(){
+  const c=$("#contentPanel");
+  if(!P.nodes.length){c.innerHTML=emptyHTML("No content yet","Ask a question to generate a structured outline.");return;}
+  const roots=P.nodes.filter(n=>!n.parentId);
+  const kids=id=>P.nodes.filter(n=>n.parentId===id);
+  let html=`<div class="sec-head">Content<span class="ct">${P.nodes.length}</span></div>`;
+  const line=(n,lvl)=>{const st=STATUS[n.status],t=TYPE[n.type];
+    return `<div class="tnode l${lvl}"><span class="bullet" style="background:${t.color}"></span>
+      <div><div class="tt">${esc(n.title)}</div><div class="ts">${t.label} · ${st.label}</div></div></div>`;};
+  roots.forEach(r=>{
+    html+=`<div class="tgroup">`+line(r,0);
+    kids(r.id).forEach(k=>{ html+=line(k,1); kids(k.id).forEach(g=>html+=line(g,2)); });
+    html+=`</div>`;
+  });
+  c.innerHTML=html;
+}
+
+function renderAgents(){
+  const c=$("#agentsPanel");
+  if(!P.agents.length){c.innerHTML=emptyHTML("No agents running","The copilot spawns agents as your research progresses.");return;}
+  let html=`<div class="sec-head">Agents<span class="ct">${P.agents.length}</span></div><div class="cards">`;
+  P.agents.forEach(a=>{
+    const pill=a.status==="running"?`<span class="pill running"><i style="background:var(--accent)"></i>${a.status==='running'?'Running':a.status}</span>`
+      :`<span class="pill idle"><i style="background:var(--grey)"></i>Idle</span>`;
+    html+=`<div class="lcard"><div class="lic">${a.status==="running"?`<span class="spin"></span>`:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M12 8V5M9 13v2M15 13v2"/></svg>`}</div>
+      <div class="lb"><div class="ln">${esc(a.name)} ${pill}</div><div class="ld">${esc(a.task)}</div>
+      ${a.lastOutput?`<div class="lmeta">last output · ${esc(a.lastOutput.slice(0,90))}…</div>`:""}</div></div>`;
+  });
+  c.innerHTML=html+`</div>`;
+}
+
+function renderTimeline(){
+  const c=$("#timelinePanel");
+  if(!P.timeline.length){c.innerHTML=emptyHTML("No activity yet","Everything the copilot does shows up here.");return;}
+  let html=`<div class="sec-head">Timeline<span class="ct">${P.timeline.length}</span></div><div class="tl">`;
+  P.timeline.forEach(e=>{
+    html+=`<div class="tl-item"><span class="tl-dot"></span><div class="tl-b">
+      <div class="tl-l">${esc(e.label)}</div>${e.detail?`<div class="tl-d">${esc(e.detail)}</div>`:""}
+      <div class="tl-t">${fmtTime(e.ts)}</div></div></div>`;
+  });
+  c.innerHTML=html+`</div>`;
+}
+
+function renderExperiments(){
+  const c=$("#experimentsPanel");
+  if(!P.experiments.length){c.innerHTML=emptyHTML("No experiments yet","Suggested directions can queue experiments here.");return;}
+  let html=`<div class="sec-head">Experiments<span class="ct">${P.experiments.length}</span></div><div class="cards">`;
+  P.experiments.forEach(x=>{
+    html+=`<div class="lcard"><div class="lic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L5 19a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-10V3"/></svg></div>
+      <div class="lb"><div class="ln">${esc(x.title)} <span class="pill ${x.status}"><i style="background:${STATUS[x.status]?STATUS[x.status].color:'var(--grey)'}"></i>${(STATUS[x.status]||{label:x.status}).label}</span></div>
+      <div class="ld">${esc(x.hypothesis)}</div><div class="lmeta">metric · ${esc(x.metric)}</div></div></div>`;
+  });
+  c.innerHTML=html+`</div>`;
+}
+
+function renderFiles(){
+  const c=$("#filesPanel");
+  if(!P.files.length){c.innerHTML=emptyHTML("No files yet","Agents drop generated artifacts here.");return;}
+  let html=`<div class="sec-head">Files<span class="ct">${P.files.length}</span></div><div class="cards">`;
+  const ic={python:"🐍",markdown:"📄",json:"🗂️"};
+  P.files.forEach(f=>{
+    html+=`<div class="lcard"><div class="lic" style="font-size:16px">${ic[f.kind]||"📄"}</div>
+      <div class="lb"><div class="ln" style="font-family:var(--mono);font-size:12.5px">${esc(f.name)}</div>
+      <div class="ld" style="font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;color:var(--ink-3)">${esc((f.preview||"").slice(0,180))}</div>
+      <div class="lmeta">${esc(f.kind)} · ${fmtTime(f.ts)}</div></div></div>`;
+  });
+  c.innerHTML=html+`</div>`;
+}
+
+function renderSkills(){
+  const c=$("#skillsPanel");
+  let html=`<div class="sec-head">Skills<span class="ct">${P.skills.filter(s=>s.enabled).length}/${P.skills.length}</span></div><div class="cards">`;
+  P.skills.forEach(s=>{
+    html+=`<div class="lcard"><div class="lic">${skillIcon(s.icon)}</div>
+      <div class="lb"><div class="ln">${esc(s.name)}</div><div class="ld">${esc(s.desc)}</div></div>
+      <button class="skill-toggle ${s.enabled?'on':''}" data-skill="${s.id}"></button></div>`;
+  });
+  c.innerHTML=html+`</div>`;
+  $$(".skill-toggle",c).forEach(b=>b.onclick=()=>{
+    const s=P.skills.find(x=>x.id===b.dataset.skill); s.enabled=!s.enabled;
+    logEvent("Skill toggled",`${s.name} ${s.enabled?'enabled':'disabled'}.`);
+    render(); save();
+  });
+}
+function skillIcon(k){const m={
+  search:`<path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3"/>`,
+  book:`<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>`,
+  code:`<path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>`,
+  shield:`<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
+  chip:`<rect x="6" y="6" width="12" height="12" rx="1"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/>`};
+  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${m[k]||m.search}</svg>`;}
+
+/* ----------------------------- helpers ----------------------------- */
+function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstElementChild;}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function emptyHTML(h,p){return `<div class="empty" style="position:static;height:60vh"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M9 15c1 .8 4 .8 5 0"/></svg><h3>${h}</h3><p>${p}</p></div>`;}
+function scrollThread(){const t=$("#thread");requestAnimationFrame(()=>t.scrollTop=t.scrollHeight);}
+let toastTimer;
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2600);}
+
+function setBusy(b){
+  const send=$("#sendBtn"), input=$("#composerInput");
+  send.classList.toggle("busy",b);
+  send.disabled=b;
+  input.placeholder=b?"Canvas is updating. You can keep drafting while it finishes…":"Ask about your research…";
+}
+
+/* ----------------------------- canvas interaction ----------------------------- */
+function enableNodeDrag(d,n){
+  d.addEventListener("pointerdown",e=>{
+    e.stopPropagation();
+    selected=n.id; renderCanvas();
+    const sx=e.clientX, sy=e.clientY, ox=n.x, oy=n.y;
+    const move=ev=>{ n.x=ox+(ev.clientX-sx)/view.zoom; n.y=oy+(ev.clientY-sy)/view.zoom;
+      d.style.left=n.x+"px"; d.style.top=n.y+"px"; renderEdgesOnly(); };
+    const up=()=>{document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",up);save();};
+    document.addEventListener("pointermove",move);document.addEventListener("pointerup",up);
+  });
+}
+function renderEdgesOnly(){
+  const edges=$("#edges"); let paths="";
+  P.nodes.forEach(n=>{ if(!n.parentId)return; const p=node(n.parentId); if(!p)return;
+    const x1=p.x+111,y1=p.y+92,x2=n.x+111,y2=n.y,my=(y1+y2)/2;
+    paths+=`<path d="M${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}"/>`;});
+  edges.innerHTML=paths;
+}
+function initViewport(){
+  const vp=$("#viewport");
+  vp.addEventListener("pointerdown",e=>{
+    if(e.target.closest(".node"))return;
+    vp.classList.add("panning");
+    const sx=e.clientX,sy=e.clientY,px=view.panX,py=view.panY;
+    const move=ev=>{view.panX=px+(ev.clientX-sx);view.panY=py+(ev.clientY-sy);applyView();};
+    const up=()=>{vp.classList.remove("panning");document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",up);persistView();};
+    document.addEventListener("pointermove",move);document.addEventListener("pointerup",up);
+  });
+  vp.addEventListener("wheel",e=>{
+    e.preventDefault();
+    const rect=vp.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const old=view.zoom;
+    view.zoom=Math.min(2.2,Math.max(0.3,view.zoom*(e.deltaY<0?1.1:0.9)));
+    view.panX=mx-(mx-view.panX)*(view.zoom/old);
+    view.panY=my-(my-view.panY)*(view.zoom/old);
+    applyView();persistView();
+  },{passive:false});
+}
+function persistView(){P.view={...P.view,zoom:view.zoom,panX:view.panX,panY:view.panY};save();}
+function zoomBy(f){const vp=$("#viewport").getBoundingClientRect();const cx=vp.width/2,cy=vp.height/2,old=view.zoom;
+  view.zoom=Math.min(2.2,Math.max(0.3,view.zoom*f));
+  view.panX=cx-(cx-view.panX)*(view.zoom/old);view.panY=cy-(cy-view.panY)*(view.zoom/old);applyView();persistView();}
+function fitView(){
+  if(!P.nodes.length){view={zoom:1,panX:60,panY:60};applyView();persistView();return;}
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  P.nodes.forEach(n=>{minX=Math.min(minX,n.x);minY=Math.min(minY,n.y);maxX=Math.max(maxX,n.x+222);maxY=Math.max(maxY,n.y+92);});
+  const vp=$("#viewport").getBoundingClientRect();
+  const pad=80, w=maxX-minX+pad*2, h=maxY-minY+pad*2;
+  view.zoom=Math.min(1.4,Math.min(vp.width/w,vp.height/h));
+  view.panX=(vp.width-(maxX-minX)*view.zoom)/2-minX*view.zoom;
+  view.panY=(vp.height-(maxY-minY)*view.zoom)/2-minY*view.zoom;
+  applyView();persistView();
+}
+
+/* ----------------------------- tabs ----------------------------- */
+function switchTab(name){
+  $$(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===name));
+  $$(".panel").forEach(p=>p.classList.toggle("on",p.dataset.panel===name));
+  P.view.tab=name;
+  if(name==="canvas") requestAnimationFrame(applyView);
+}
+
+/* ----------------------------- wiring ----------------------------- */
+function send(){
+  const input=$("#composerInput"); const v=input.value.trim();
+  if(!v||$("#sendBtn").disabled)return;
+  input.value="";
+  runCopilot(v);
+}
+function init(){
+  $("#projectTitle").value=P.title;
+  render();
+  switchTab(P.view.tab||"canvas");
+  initViewport();
+  if(!P.nodes.length) view={zoom:1,panX:60,panY:60}; else fitView();
+  applyView();
+
+  $("#sendBtn").onclick=send;
+  $("#composerInput").addEventListener("keydown",e=>{if(e.key==="Enter")send();});
+  $$(".tab").forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
+  $("#organizeBtn").onclick=()=>{organize();renderCanvas();fitView();save();toast("Canvas organized");};
+  $("#addNodeBtn").onclick=()=>{const mq=P.nodes.find(n=>n.type==="main_question");
+    const n=addNode({type:"scope",title:"New node",body:"Double-click to edit (coming soon).",status:"not_started",parentId:mq?mq.id:null});
+    organize();renderCanvas();fitView();save();};
+  $("#zoomIn").onclick=()=>zoomBy(1.15);
+  $("#zoomOut").onclick=()=>zoomBy(0.87);
+  $("#zoomFit").onclick=fitView;
+  $("#filterBtn").onclick=()=>toast("Showing all node types");
+  $("#projectTitle").addEventListener("change",e=>{P.title=e.target.value||"Untitled";save();});
+  $("#resetBtn").onclick=()=>{if(confirm("Reset this workspace? This clears the canvas, chat, and all generated artifacts.")){P=blank();save();location.reload();}};
+  $("#newProject").onclick=()=>{if(confirm("Start a new research project? The current one will be cleared.")){P=blank();save();location.reload();}};
+
+  // resizable gutter
+  const gutter=$("#gutter"), chat=$(".chat");
+  gutter.addEventListener("pointerdown",e=>{
+    const sx=e.clientX, sw=chat.getBoundingClientRect().width, total=$(".main").getBoundingClientRect().width;
+    const move=ev=>{let w=sw+(ev.clientX-sx);w=Math.max(320,Math.min(total-360,w));chat.style.width=w+"px";chat.style.flex="0 0 auto";};
+    const up=()=>{document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",up);};
+    document.addEventListener("pointermove",move);document.addEventListener("pointerup",up);
+  });
+
+  // first-run greeting
+  if(!P.chat.length){
+    P.chat.push({id:uid(),role:"copilot",kind:"text",
+      html:`<p>Hi — I'm your <b>research copilot</b>. Ask me a research question and I'll structure it into a living canvas: scope, theory, literature, baselines, and methods.</p><p style="color:var(--ink-3)">Try: <i>"Can a machine learning model accurately identify handwritten digits from 0–9 in images?"</i></p>`,ts:now()});
+    save(); renderThread();
+  }
+}
+init();
+window.CopilotEngine={respond:runCopilot,state:()=>P}; // pluggable hook for an LLM-backed engine
+</script>
+</body>
+</html>

@@ -59,6 +59,37 @@ export function scanGridForLeaks(grid) {
   return LEAK_PATTERNS.filter(([, re]) => re.test(text)).map(([name]) => name);
 }
 
+// Organizer personal-availability / whereabouts asides (privacy audit 2026-06-17).
+// Unlike the hard-no LEAK_PATTERNS above (which FAIL the publish), these recur in
+// normal scheduling — so we STRIP them from the grid before publishing rather than
+// freeze the whole calendar: the schedule keeps updating hourly, the personal aside
+// just never reaches the anon row. Line-level — a cell line matching any pattern is
+// dropped; the cell keeps its event titles/times. We deliberately leave the
+// calendar's legitimate names/speakers/team pairings (the pairings are already
+// public via the cohort directory).
+const STRIP_LINE_PATTERNS = [
+  /\bout of cohort\b/i,
+  /\bout for the day\b/i,
+];
+
+// Return a NEW grid with private-aside lines removed from every string cell (the
+// input is never mutated).
+export function sanitizeGrid(grid) {
+  const scrubString = (s) =>
+    s.split("\n").filter((line) => !STRIP_LINE_PATTERNS.some((re) => re.test(line))).join("\n");
+  const walk = (v) => {
+    if (typeof v === "string") return scrubString(v);
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") {
+      const out = {};
+      for (const [k, val] of Object.entries(v)) out[k] = walk(val);
+      return out;
+    }
+    return v;
+  };
+  return walk(grid);
+}
+
 // Upsert the grid. Resolves { skipped:true } when Supabase env is absent (local
 // dev / unconfigured) so the calendar build never hard-fails on the publish
 // step; throws only on a real HTTP error so CI surfaces a misconfiguration.
@@ -72,14 +103,17 @@ export async function publishGrid({
   // Leak-scan ALWAYS runs, before the credential check, so a leak throws even when
   // the publish target is unconfigured — a rotated/missing secret can't silently
   // disable the only inline privacy gate.
-  const leaks = scanGridForLeaks(grid);
+  // Strip recurring private asides first (so the schedule keeps publishing), THEN
+  // hard-scan the cleaned grid for the never-publish patterns (fail-closed backstop).
+  const cleanGrid = sanitizeGrid(grid);
+  const leaks = scanGridForLeaks(cleanGrid);
   if (leaks.length) {
     throw new Error(`refusing to publish — grid contains content that must not be public: ${leaks.join(", ")}`);
   }
   if (!url || !key) {
     return { skipped: true, reason: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set" };
   }
-  const { url: reqUrl, body } = buildUpsertRequest({ url, grid, now });
+  const { url: reqUrl, body } = buildUpsertRequest({ url, grid: cleanGrid, now });
   const res = await fetchImpl(reqUrl, {
     method: "POST",
     headers: {

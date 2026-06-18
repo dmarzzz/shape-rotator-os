@@ -19,6 +19,10 @@ require("./daybook-main");
 // can't see and which dev mode (runs from source) can't reproduce.
 const SMOKE_TEST = process.argv.includes("--smoke-test") || process.env.SROS_SMOKE_TEST === "1";
 
+// Custom URL scheme for shareable deep-links (sros://xxxxx). See the deep-link
+// block just above app.whenReady() and apps/os/src/renderer/share-link.js.
+const DEEPLINK_SCHEME = "sros";
+
 function runSmokeTest() {
   const TIMEOUT_MS = Number(process.env.SROS_SMOKE_TIMEOUT_MS) || 45000;
   const log = (m) => process.stdout.write(`[smoke] ${m}\n`);
@@ -134,6 +138,30 @@ const REPO_COHORT_ARTICLES_DIR = path.resolve(__dirname, "..", "..", "cohort-dat
 const PACKAGED_COHORT_ARTICLES_DIR = process.resourcesPath
   ? path.join(process.resourcesPath, "cohort-data", "articles")
   : null;
+
+// Cohort key (role=cohort_app Supabase JWT) for the GATED T2 evidence read.
+// Baked into the packaged app at build time by the beforePack hook
+// (Resources/cohort-app-key.json, written from the SRFG_COHORT_KEY build env).
+// In dev (unpackaged) there is no resource file, so fall back to the env var.
+// Empty => no cohort read; the renderer falls back to the public anon T3 view.
+function readBakedCohortKey() {
+  try {
+    if (process.resourcesPath) {
+      const p = path.join(process.resourcesPath, "cohort-app-key.json");
+      if (fs.existsSync(p)) {
+        const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+        if (parsed && typeof parsed.cohortKey === "string") return parsed.cohortKey.trim();
+      }
+    }
+  } catch {
+    /* unreadable / malformed → no key, anon T3 fallback */
+  }
+  return "";
+}
+// Precedence: an explicit env override (dev / a provisioned local run) wins over
+// the baked resource file. This resolved value is what the renderer receives over
+// the "cohort-key:get" bridge, so the renderer never needs its own file access.
+const COHORT_KEY = (process.env.SRFG_COHORT_KEY || readBakedCohortKey() || "").trim();
 
 // If a `wall_prefs.json` survived from before the rename (either from this
 // install or copied over by migrateLegacyUserData()), promote it to the new
@@ -1209,6 +1237,17 @@ function createHermesWindow() {
 // and inserts an "Ask Cohort (Hermes)…" item under a Tools menu.
 // Without this template Electron uses its default menu, which gives
 // us no surface to attach the Hermes entry to.
+// Whole-window zoom (Chromium webContents zoom) — the fallback for the View
+// menu's zoom items and for the renderer when it's NOT on a cohort view. On
+// cohort views the renderer owns Cmd/Ctrl +/-/0 for its own scoped zoom; see
+// preload `appZoom` + alchemy.js onZoomKeydown.
+function zoomWebContents(wc, action) {
+  if (!wc || wc.isDestroyed?.()) return;
+  if (action === "reset") { wc.setZoomLevel(0); return; }
+  const next = wc.getZoomLevel() + (action === "in" ? 0.5 : -0.5);
+  wc.setZoomLevel(Math.max(-3, Math.min(3, next)));
+}
+
 function buildAppMenu() {
   const isMac = process.platform === "darwin";
   const template = [
@@ -1228,7 +1267,24 @@ function buildAppMenu() {
     }] : []),
     { role: "fileMenu" },
     { role: "editMenu" },
-    { role: "viewMenu" },
+    // Custom View menu (replaces { role: "viewMenu" }). The zoom items DISPLAY
+    // their Cmd/Ctrl +/-/0 shortcuts but pass registerAccelerator:false, so the
+    // OS does not bind the keys — the renderer's keydown handler does, letting a
+    // cohort view zoom just itself. Menu CLICKS still do whole-window zoom.
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { label: "Actual Size", accelerator: "CmdOrCtrl+0", registerAccelerator: false, click: (_i, w) => zoomWebContents(w && w.webContents, "reset") },
+        { label: "Zoom In", accelerator: "CmdOrCtrl+Plus", registerAccelerator: false, click: (_i, w) => zoomWebContents(w && w.webContents, "in") },
+        { label: "Zoom Out", accelerator: "CmdOrCtrl+-", registerAccelerator: false, click: (_i, w) => zoomWebContents(w && w.webContents, "out") },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
     {
       label: "Tools",
       submenu: [
@@ -1244,6 +1300,9 @@ function buildAppMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+// Renderer fallback for Cmd/Ctrl +/-/0 when it's not on a cohort view —
+// zoom the whole window (mirrors the View-menu click behavior).
+ipcMain.handle("os:app-zoom", (e, action) => { zoomWebContents(e.sender, action); return true; });
 ipcMain.handle("prefs:load", async () => readJSON(PREFS_FILE, {}));
 ipcMain.handle("prefs:save", async (_e, d) => { writeJSON(PREFS_FILE, d); return true; });
 ipcMain.handle("context-vault:manifest", async () => ({
@@ -1336,6 +1395,11 @@ ipcMain.handle("env:get", async () => ({
     || "http://127.0.0.1:7777",
   mode: process.env.SRWK_ROLE === "bench" ? "bench" : "visualizer",
 }));
+// Sync channel so the preload can expose the baked cohort key as a static value
+// on window.api at construction — the evidence reader resolves it synchronously
+// at module-eval, so an async ipcRenderer.invoke would arrive too late. One-time
+// tiny read; empty string on un-provisioned / public builds.
+ipcMain.on("cohort-key:get", (e) => { e.returnValue = COHORT_KEY; });
 ipcMain.handle("shell:openExternal", async (_e, url) => {
   if (typeof url === "string" && /^https?:\/\//i.test(url)) shell.openExternal(url);
 });
@@ -2125,6 +2189,72 @@ ipcMain.handle("fg:export-calendar", async (_e, opts = {}) => {
   }
 });
 
+// ─── deep links: sros://xxxxx ───────────────────────────────────────────────
+// Register the custom scheme so the OS hands `sros://` links to us, then route
+// them to the renderer (boot.js applyDeepLink). Arrival paths:
+//   • macOS, running or cold launch → app.on("open-url")
+//   • Windows/Linux, app running    → app.on("second-instance") (needs the lock)
+//   • Windows/Linux, cold launch    → the link is in process.argv (drained in whenReady)
+// A link that lands before the renderer is ready is held in pendingDeepLink and
+// pulled by the renderer via "deep-link:get-pending" on boot.
+let pendingDeepLink = null;
+let rendererReady = false;
+
+if (!app.isDefaultProtocolClient(DEEPLINK_SCHEME)) {
+  // In dev (`electron .`) the executable is Electron itself, so point the
+  // registration at our entry script; packaged builds register the scheme via
+  // Info.plist (mac) / installer (win) from electron-builder's `protocols`.
+  if (process.defaultApp && process.argv.length >= 2) {
+    try { app.setAsDefaultProtocolClient(DEEPLINK_SCHEME, process.execPath, [path.resolve(process.argv[1])]); } catch {}
+  } else {
+    try { app.setAsDefaultProtocolClient(DEEPLINK_SCHEME); } catch {}
+  }
+}
+
+function deliverDeepLink(url) {
+  if (typeof url !== "string" || !url.startsWith(DEEPLINK_SCHEME + "://")) return;
+  const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+  if (win && rendererReady) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+    try { win.webContents.send("deep-link", url); } catch {}
+    return;
+  }
+  // Renderer not ready (cold start, or window still booting): queue it for the
+  // renderer to drain, and make sure a window is on the way.
+  pendingDeepLink = url;
+  if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+  else if (app.isReady()) createWindow();
+}
+
+// First call = the renderer's listener is live; hand over any queued link.
+ipcMain.handle("deep-link:get-pending", () => {
+  rendererReady = true;
+  const u = pendingDeepLink;
+  pendingDeepLink = null;
+  return u || null;
+});
+
+// macOS delivers links here (running or cold). May fire before whenReady —
+// pendingDeepLink + the drain handle that ordering.
+app.on("open-url", (event, url) => { event.preventDefault(); deliverDeepLink(url); });
+
+// Windows/Linux: a second `sros://` launch spawns a new process. Take the
+// single-instance lock so it forwards into THIS instance instead of opening a
+// duplicate. Scoped to non-darwin so macOS multi-instance behaviour is unchanged.
+if (process.platform !== "darwin") {
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+  } else {
+    app.on("second-instance", (_e, argv) => {
+      const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+      if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+      const url = argv.find((a) => typeof a === "string" && a.startsWith(DEEPLINK_SCHEME + "://"));
+      if (url) deliverDeepLink(url);
+    });
+  }
+}
+
 app.whenReady().then(() => {
   // Headless self-test path: boot the renderer, assert ready, exit. Skips
   // the dock icon, menu, swf-node spawn, and auto-updater — none of that
@@ -2139,6 +2269,12 @@ app.whenReady().then(() => {
     catch (e) { process.stderr.write(`[viz:warn] dock icon set failed: ${e && e.message}\n`); }
   }
   createWindow();
+  // Windows/Linux cold launch via an sros:// link: the URL rides in process.argv.
+  // Queue it so the renderer drains it on boot. macOS uses open-url instead.
+  if (process.platform !== "darwin") {
+    const url = process.argv.find((a) => typeof a === "string" && a.startsWith(DEEPLINK_SCHEME + "://"));
+    if (url) deliverDeepLink(url);
+  }
   buildAppMenu();
   initAutoUpdater();
   // Spin the bundled swf-node up after the first window exists so its

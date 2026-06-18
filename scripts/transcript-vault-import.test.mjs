@@ -145,10 +145,13 @@ test("normalizes Drive copies and infers dates/session types from filenames", ()
 
 test("routes a named coordinator coaching session to private_1on1 when private hosts are configured", () => {
   const prev = process.env.TRANSCRIPT_PRIVATE_HOSTS;
-  process.env.TRANSCRIPT_PRIVATE_HOSTS = "casey, devon";
+  process.env.TRANSCRIPT_PRIVATE_HOSTS = "casey, devon, Anne-Marie, O'Connor, José Núñez";
   try {
     // configured host name + private-context signal -> do-not-publish route
     assert.equal(inferSessionType("Casey positioning checkpoint Jun 10.txt"), "private_1on1");
+    assert.equal(inferSessionType("Anne Marie positioning checkpoint Jun 10.txt"), "private_1on1");
+    assert.equal(inferSessionType("O Connor strategy check in Jun 10.txt"), "private_1on1");
+    assert.equal(inferSessionType("Jose Nunez coaching notes Jun 10.txt"), "private_1on1");
     // a generic office-hours title (no configured host) is unaffected
     assert.equal(inferSessionType("Conclave office hours feedback Jun 10.txt"), "office_hours");
   } finally {

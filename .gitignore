@@ -21,6 +21,7 @@ data/
 
 # logs / scratch
 *.log
+apps/os/src/renderer/__collab_harness__/
 tmp/
 tmp/github-progress-audit.json
 tmp/github-progress-audit.md
@@ -95,3 +96,9 @@ apps/os/build-resources/research-swarm/
 # whisper.cpp voice backend — large model + per-platform binary, staged by
 # apps/os/scripts/fetch-whisper-cpp.sh (not committed)
 apps/os/build-resources/whisper/
+
+# cohort_app Supabase JWT, baked into the packaged app by the beforePack hook
+# (apps/os/scripts/before-pack-stage-binaries.cjs) from the SRFG_COHORT_KEY build
+# env. Gates the T2 evidence view — the secret must NEVER be committed to this
+# public repo; it is regenerated on every packaged build.
+apps/os/build-resources/cohort-app-key.json
