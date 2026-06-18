@@ -401,9 +401,11 @@ function glslGuardReason(src) {
 // and call it for the albedo (replacing the built-in kaleidoscope). The orb's
 // geometry, lighting and rim stay; only the surface colour comes from user code.
 // Compiled in isolation by the caller — any compile/link error falls back to the
-// standard shader, so a typo never breaks the orb. NOTE: this is RAW GLSL; it is
-// only safe to run on machines that opted in (the author's own preview) until the
-// shared cost-sandbox lands.
+// standard shader, so a typo never breaks the orb. NOTE: this is RAW GLSL, but the
+// caller reaches it via shaderGLSL, which runs glslGuardReason() (the cost-sandbox:
+// bans while/do + preprocessor/gl_*/textures, bounds for-loop iterations) before
+// every compile and falls back on rejection. That bound holds on EVERY viewer, so a
+// saved shader renders cohort-wide, not just on the author's machine.
 function userFragGLSL(glsl) {
   return FRAG_SRC
     .replace("void main(){", glsl + "\n\nvoid main(){")
