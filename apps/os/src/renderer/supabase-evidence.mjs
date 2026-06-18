@@ -105,14 +105,18 @@ export function cohortEvidenceCardsUrl(baseUrl) {
 // un-provisioned builds, which then fall back to the anon T3 read. Always resolves.
 export async function fetchCohortEvidenceCards({ storage, fetchImpl, config } = {}) {
   const doFetch = fetchImpl || globalThis.fetch;
-  const { url, cohortKey } = config || readSupabaseConfig(storage);
-  if (!url || !cohortKey || typeof doFetch !== "function") {
+  const { url, anonKey, cohortKey } = config || readSupabaseConfig(storage);
+  if (!url || !anonKey || !cohortKey || typeof doFetch !== "function") {
     return { cards: [], source: "unconfigured" };
   }
   let res;
   try {
     res = await doFetch(cohortEvidenceCardsUrl(url), {
-      headers: { apikey: cohortKey, authorization: `Bearer ${cohortKey}`, accept: "application/json" },
+      // Kong (the Supabase API gateway) validates `apikey` against the project's
+      // recognized keys (anon / service_role) BEFORE PostgREST sees the request, so
+      // apikey MUST be the anon key. The cohort_app role rides in the Bearer token,
+      // which PostgREST uses for SET ROLE. (apikey=cohortKey => 401 "Invalid API key".)
+      headers: { apikey: anonKey, authorization: `Bearer ${cohortKey}`, accept: "application/json" },
       cache: "no-store",
     });
   } catch (error) {
