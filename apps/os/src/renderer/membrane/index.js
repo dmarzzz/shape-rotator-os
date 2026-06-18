@@ -815,7 +815,6 @@ function renderAvatar(profile) {
 
 export function mountMembrane(container, opts = {}) {
   cp('membrane:mount-start');
-  console.log('[membrane] mounting into', container?.id || container?.className);
   container.classList.add('membrane-host');
   // Always start showing the shapes, never the Rubik's cube — clear any stale
   // reveal state left on the (reused) container from a previous visit, so the
@@ -1390,7 +1389,6 @@ export function mountMembrane(container, opts = {}) {
   if (rubiksResetBtn) rubiksResetBtn.addEventListener('click', () => rubiks?.reset());
   renderAgenda();
   renderFeed();
-  console.log('[membrane] scene mounted; cube active:', scene.getActiveBlobId());
 
   sound.setTonic('self');
   renderPanelFor('self');

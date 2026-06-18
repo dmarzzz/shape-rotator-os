@@ -310,6 +310,12 @@ jobs:
           # electron-builder uses GH_TOKEN to upload artifacts to the
           # release matching the pushed tag.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Cohort-app JWT (role=cohort_app) baked into the build by the beforePack
+          # hook so every install reads the gated T2 evidence. Empty when the secret
+          # is unset → the build ships no key and falls back to the public anon T3
+          # read (graceful, never hard-fails). Set the SRFG_COHORT_KEY repo secret
+          # to cut a release that carries T2 (see docs/COHORT_KEY_BUILD_INJECT.md).
+          SRFG_COHORT_KEY: ${{ secrets.SRFG_COHORT_KEY }}
           # Skip publish when triggered manually with pack-only=true.
           # Tag-triggered builds always publish.
           EB_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.pack-only && 'never' || 'onTagOrDraft' }}

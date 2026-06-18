@@ -3,7 +3,8 @@
 // Turns the flat transcript_evidence_cards (state.cohort.transcript_evidence_cards,
 // loaded live from Supabase by cohort-source.js — T2 cohort ∪ T3 public) into a
 // per-team, per-week, per-claim-type index so PMF / relationship / say-did-shipped
-// / timeline can enrich themselves at runtime, keyed by WHEN it happened.
+// can enrich themselves at runtime, keyed by WHEN it happened. (weekHistogram +
+// edgePairs below are RESERVED for a future timeline view — not yet wired.)
 //
 // Pure + side-effect-free so it's unit-testable without the app or live data. Every
 // view guards on emptiness: no evidence ⇒ the index is empty ⇒ views render exactly
@@ -90,7 +91,8 @@ export function recentClaims(bucket, kind, limit = 3) {
     .map((card) => ({ text: String(card.claim_text || ""), week: cardWeek(card), title: String(card.title || ""), evidence_level: String(card.evidence_level || "") }));
 }
 
-// Distinct collaboration edges (deduped by team pair), newest week kept.
+// Distinct collaboration edges (deduped by team pair), newest week kept. RESERVED —
+// not yet wired into a view; evidenceDependencyRecords feeds the relationship map.
 export function edgePairs(index) {
   const seen = new Map();
   for (const e of (index && index.edges) || []) {
@@ -100,7 +102,8 @@ export function edgePairs(index) {
   return [...seen.values()];
 }
 
-// Cohort-wide week histogram for the timeline (sorted week → count).
+// Cohort-wide week histogram for a future timeline view (sorted week → count).
+// RESERVED — not yet consumed by any view.
 export function weekHistogram(index) {
   const out = [];
   for (const [week, cards] of (index && index.byWeek ? index.byWeek : new Map())) out.push({ week, count: cards.length });
