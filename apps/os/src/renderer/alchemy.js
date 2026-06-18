@@ -17,7 +17,7 @@
 
 import {
   SHAPES, SHAPE_BY_KEY, shapeForTeam, shapeSvgByFam, domainLabel,
-  mountShape, mountShapesIn,
+  mountShape, mountShapesIn, sphereAttrs, hashColors, DEFAULT_SURFACE_GLSL,
   // Extracted into shape-ui so the sibling web app can render the same
   // cohort surface. The Electron renderer keeps the same call sites —
   // only the implementations moved.
@@ -31,6 +31,8 @@ import {
   parseWeekRow as calendarParseWeekRow,
   PROGRAM_START_MS, PROGRAM_END_MS,
 } from "@shape-rotator/shape-ui";
+import { saveSphere, SPHERE_DIALS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_BG_PRESETS, normalizeHex } from "./supabase-sphere.mjs";
+import { compileUserExpr, highlightGLSL } from "./shader-dsl.mjs";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
   dependencyPairKey, dependencySafeToken,
@@ -665,6 +667,10 @@ window.__srwkOpenProfile = function openProfileExternal(opts = {}) {
 // rail "profile" entry showed. Used by the bottom-left identity pill
 // (the rail entry was removed 2026-06; the pill is the only way in).
 window.__srwkGoProfilePage = function openProfilePage() {
+  // Already on the profile page (alchemy tab in front, profile mode, no record
+  // detail open) → do nothing: no navigation, no re-render. Clicking the pill
+  // when you're already here shouldn't flash/rebuild the page.
+  if (state.mounted && state.active && state.mode === "profile" && !state.detailRecordId) return;
   if (!state.profile) loadProfile();
   state.detailRecordId = null;
   state.detailReturnMode = null;
@@ -1203,15 +1209,58 @@ function syncCohortZoomControl() {
   el.querySelector('[data-zoom="in"]').disabled = z >= COHORT_ZOOM_MAX;
 }
 
+// The sphere-editor popup's live preview is a standalone mountShape instance
+// (its own WebGL2 context, outside the shared overlay). Tracked module-level so
+// the modal's close() can free it (browsers cap to ~16 contexts). The modal is
+// body-level and owns its own lifecycle, so destroyAllShapes deliberately does
+// NOT touch it — a background cohort re-render must not kill an open preview.
+let _sphereModalCtl = null;
+let _sphereModalKeyHandler = null;
+
+// The detail-page orb gets its OWN mountShape context (NOT the shared overlay)
+// when the person saved a custom shader. Part of the normal render lifecycle —
+// destroyed on every re-render alongside the overlay controllers (unlike the
+// body-level modal preview above).
+let _detailSphereCtl = null;
+
 function destroyAllShapes() {
   for (const c of state.shapeControllers) {
     try { c.destroy(); } catch {}
   }
   state.shapeControllers = [];
+  if (_detailSphereCtl) { try { _detailSphereCtl.destroy(); } catch {} _detailSphereCtl = null; }
 }
 function mountAllShapes() {
   if (!state.canvas) return;
   state.shapeControllers = mountShapesIn(state.canvas);
+  mountCustomDetailOrb();
+}
+
+// Give the detail-page orb its own validated custom shader when the person has
+// one. renderPersonRail emits a [data-detail-orb] canvas (no data-shape-fam, so
+// the overlay skips it) only when the shader already validated; we re-validate
+// here as the security boundary (stored text is untrusted — never trust the
+// flag). Any failure leaves the canvas blank rather than risking the GL context.
+function mountCustomDetailOrb() {
+  const el = state.canvas.querySelector("canvas[data-detail-orb]");
+  if (!el) return;
+  const rec = el.dataset.orbRecord || "";
+  const sp = state.cohort?.person_spheres?.[rec] || null;
+  const expr = compileUserExpr(sp?.shader_src || "").glsl || null;
+  try {
+    _detailSphereCtl = mountShape(el, {
+      seed: rec, kind: "person",
+      family: Number(el.dataset.orbFam) || 0,
+      scale: Number(el.dataset.orbScale) || 1.18,
+      draggable: true,
+      // Same dial→uniform mapping as the editor preview + sphereAttrs.
+      hue: sp?.hue, warp: sp?.phase, progress: sp?.complexity,
+      iters: sp?.hue2, sharp: sp?.intensity, bg: sp?.bg, bgMix: sp?.bg_mix,
+      shaderExpr: expr,
+    });
+  } catch (err) {
+    console.warn("[alchemy] custom detail orb failed:", err?.message || err);
+  }
 }
 
 // ─── membrane ───────────────────────────────────────────────────────────
@@ -2162,7 +2211,7 @@ function renderShapes() {
   for (const p of (cohort.people || [])) {
     if (p?.team && peopleByTeam.has(p.team)) peopleByTeam.get(p.team).push(p);
   }
-  const cardCtx = { people: cohort.people || [], teams: cohort.teams || [], peopleByTeam };
+  const cardCtx = { people: cohort.people || [], teams: cohort.teams || [], peopleByTeam, spheres: cohort.person_spheres || {} };
   const emptyMsg = `no ${escHtml(activeChip.label)} yet.`;
   // The cards/rows toggle (not zoom) chooses the layout. Rows = the compact,
   // resizable, reorderable table; cards = the full card grid.
@@ -15382,9 +15431,20 @@ function detailMemberRows(people, kind) {
 
 function renderPersonRail(person, team, fam) {
   const dates = (person.dates_start || person.dates_end) ? detailDateRange(person.dates_start, person.dates_end) : "";
+  // Custom-shader orb: when this person saved a shader_src that VALIDATES on
+  // this viewer (shader-dsl), the detail orb gets its OWN mountShape context
+  // (the shared overlay is one program and can't run per-user GLSL). It opts
+  // out of the overlay by carrying NO data-shape-fam; mountCustomDetailOrb()
+  // picks it up after the render. Any invalid/absent shader → the standard
+  // overlay placeholder, unchanged.
+  const sp = state.cohort?.person_spheres?.[person.record_id];
+  const customGlsl = (sp && sp.shader_src) ? compileUserExpr(sp.shader_src).glsl : null;
+  const orbHtml = customGlsl
+    ? `<canvas class="alch-detail-orb-canvas" data-detail-orb data-orb-record="${escAttr(person.record_id)}" data-orb-fam="${escAttr(fam)}" data-orb-scale="1.18"></canvas>`
+    : `<canvas data-shape-fam="${escAttr(fam)}" data-shape-kind="person" data-shape-scale="1.18" data-shape-draggable="1" data-shape-seed="${escAttr(person.record_id)}" ${sphereAttrs(sp)}></canvas>`;
   return `
     <aside class="alch-detail-rail">
-      <div class="alch-detail-shape"><canvas data-shape-fam="${escAttr(fam)}" data-shape-kind="person" data-shape-scale="1.18" data-shape-draggable="1" data-shape-seed="${escAttr(person.record_id)}"></canvas></div>
+      <div class="alch-detail-shape">${orbHtml}</div>
       <div class="alch-rail-read">
         <span class="alch-rail-kicker">individual</span>
         <h2 class="alch-detail-name">${escHtml(person.name || person.record_id)}</h2>
@@ -16532,6 +16592,348 @@ function loadEditTarget() {
     p.editDraft = null;
     p.editBaseline = null;
   }
+}
+
+// Current values for a person's sphere: the saved Supabase override when
+// present, otherwise the hash-derived colours + the two fixed dial defaults +
+// the default background — so the editor opens exactly where the look already is.
+function sphereStudioValues(recordId) {
+  const saved = state.cohort?.person_spheres?.[recordId] || null;
+  const base = hashColors(recordId || "");
+  const num = (v, d) => (Number.isFinite(+v) ? Math.min(1, Math.max(0, +v)) : d);
+  return {
+    hue:        num(saved?.hue,        base.hue),                    // Spectral Phase
+    phase:      num(saved?.phase,      0),                           // Fracture Field — default none
+    complexity: num(saved?.complexity, SPHERE_DEFAULTS.complexity),  // Recursion Depth
+    hue2:       num(saved?.hue2,       SPHERE_DEFAULTS.hue2),        // Strata (layer count)
+    intensity:  num(saved?.intensity,  SPHERE_DEFAULTS.intensity),   // Filament (sharpness)
+    bg:         normalizeHex(saved?.bg) || SPHERE_BG_DEFAULT,  // Orb Core colour
+    bg_mix:     num(saved?.bg_mix,     SPHERE_BG_MIX_DEFAULT),  // Orb Core amount (0..1)
+    shader_src: (typeof saved?.shader_src === "string" ? saved.shader_src : ""),  // custom shader (raw, untrusted)
+  };
+}
+
+// Inner markup for the sphere editor (lives inside the popup): a live preview,
+// the dials, and an Orb Core colour picker. No sub-hint text; actions are added
+// by openSphereEditor (pinned bottom-right).
+// A sine-wave SVG path across a 0..100 × 0..20 viewBox — `periods` humps, low
+// amplitude. Used as the Glyph slider's track (just for fun).
+function sineWavePath(periods = 5, amp = 4, w = 100, mid = 10, steps = 140) {
+  let d = "";
+  for (let i = 0; i <= steps; i++) {
+    const x = (i / steps) * w;
+    const y = mid - amp * Math.sin(2 * Math.PI * periods * (x / w));
+    d += (i === 0 ? "M" : "L") + x.toFixed(2) + "," + y.toFixed(2) + " ";
+  }
+  return d.trim();
+}
+
+function sphereEditorBodyHtml(recordId) {
+  const cur = sphereStudioValues(recordId);
+  const dials = SPHERE_DIALS.map((d) => {
+    const accent = d.color || "var(--alchemy-oxide-bright)";
+    const attrs = `min="0" max="1" step="0.01" value="${cur[d.key]}" data-sphere-dial="${escAttr(d.key)}" aria-label="${escAttr(d.label)} — ${escAttr(d.hint)}"`;
+    // Glyph: a sine-wave track with a dot that rides the wave (positioned in JS);
+    // the (visually stripped) range input still drives the value + interaction.
+    const slider = d.wave
+      ? `<div class="alch-sphere-wave" data-sphere-wave>
+           <svg class="alch-sphere-wave-svg" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true"><path d="${sineWavePath()}" /></svg>
+           <input class="alch-sphere-range alch-sphere-range-wave" type="range" ${attrs} data-sphere-wave-input />
+           <span class="alch-sphere-wave-dot" data-sphere-wave-dot aria-hidden="true"></span>
+         </div>`
+      : `<input class="alch-sphere-range" type="range" ${attrs} />`;
+    return `
+    <label class="alch-sphere-dial${d.wave ? " alch-sphere-dial-wave" : ""}" style="--dial-accent:${accent}">
+      <span class="alch-sphere-dial-label">${escHtml(d.label)}</span>
+      ${slider}
+    </label>`;
+  }).join("");
+  return `
+    <div class="alch-sphere-studio-body" data-sphere-record="${escAttr(recordId)}">
+      <div class="alch-sphere-preview-wrap">
+        <canvas id="alch-sphere-preview" class="alch-sphere-preview"></canvas>
+      </div>
+      <div class="alch-sphere-dials">
+        ${dials}
+        <div class="alch-sphere-dial alch-sphere-bg-dial">
+          <span class="alch-sphere-dial-label">Orb Core</span>
+          <div class="alch-sphere-bg-stack">
+            <div class="alch-sphere-bg-row">
+              <div class="alch-sphere-swatches" role="group" aria-label="Orb Core preset colours">
+                ${SPHERE_BG_PRESETS.map((hex) => `<button type="button" class="alch-sphere-swatch" data-swatch="${escAttr(hex)}" style="background:${escAttr(hex)}" title="${escAttr(hex)}" aria-label="${escAttr(hex)}"></button>`).join("")}
+              </div>
+              <input class="alch-sphere-hex" type="text" data-sphere-bg value="${escAttr(cur.bg)}"
+                     maxlength="9" spellcheck="false" autocomplete="off" placeholder="#rrggbb"
+                     aria-label="Orb Core hex colour" />
+            </div>
+            <input class="alch-sphere-range alch-sphere-bg-amount" type="range" min="0" max="0.7" step="0.01"
+                   value="${cur.bg_mix}" data-sphere-bg-amount
+                   aria-label="Orb Core amount" />
+          </div>
+        </div>
+      </div>
+    </div>
+    <details class="alch-sphere-code" data-sphere-code>
+      <summary class="alch-sphere-code-summary">Custom shader</summary>
+      <div class="alch-sphere-code-body">
+        <div class="alch-sphere-code-editor alch-sphere-code-editor-glsl">
+          <pre class="alch-sphere-code-hl" data-sphere-shader-hl aria-hidden="true"></pre>
+          <textarea class="alch-sphere-code-input" data-sphere-shader rows="16" spellcheck="false" autocomplete="off"
+                    wrap="off">${escHtml(cur.shader_src || DEFAULT_SURFACE_GLSL)}</textarea>
+        </div>
+        <div class="alch-sphere-code-status" data-sphere-shader-status role="status" aria-live="polite"></div>
+      </div>
+    </details>`;
+}
+
+// Open the "your sphere" editor as a centered modal. Exposed globally so the
+// identity pill + seal avatars open it on click ("not all the time"). Scoped to
+// a claimed PERSON seal (spheres are person medallions); otherwise it nudges the
+// user to seal first. Saving writes to Supabase so the whole cohort sees it.
+function openSphereEditor() {
+  closeSphereEditor();  // re-open / double-click safety
+  const id = getIdentity();
+  const overlay = document.createElement("div");
+  overlay.className = "identity-modal-backdrop alch-sphere-modal-backdrop";
+  overlay.id = "alch-sphere-modal";
+  const card = document.createElement("div");
+  card.className = "identity-modal alch-sphere-modal lg-track";
+  card.setAttribute("role", "dialog");
+  card.setAttribute("aria-label", "your sphere");
+  overlay.appendChild(card);
+
+  if (!id || id.kind !== "person") {
+    card.innerHTML = `<p class="alch-sphere-empty">seal as a <strong>person</strong> first to customize your orb.</p>`;
+  } else {
+    // No close button — click outside (or Esc) dismisses. Save + status pinned
+    // to the bottom-right.
+    card.innerHTML = `
+      ${sphereEditorBodyHtml(id.record_id)}
+      <div class="alch-sphere-actions">
+        <span id="alch-sphere-status" class="alch-sphere-status" role="status" aria-live="polite"></span>
+        <button id="alch-sphere-save" class="alch-seal-btn alch-sphere-save" type="button">save</button>
+      </div>`;
+  }
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeSphereEditor(); });
+  _sphereModalKeyHandler = (e) => { if (e.key === "Escape") closeSphereEditor(); };
+  document.addEventListener("keydown", _sphereModalKeyHandler);
+  if (id && id.kind === "person") wireSphereEditor(card, id.record_id);
+}
+
+function closeSphereEditor() {
+  if (_sphereModalCtl) { try { _sphereModalCtl.destroy(); } catch {} _sphereModalCtl = null; }
+  if (_sphereModalKeyHandler) { document.removeEventListener("keydown", _sphereModalKeyHandler); _sphereModalKeyHandler = null; }
+  const el = document.getElementById("alch-sphere-modal");
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+try { window.__srwkOpenSphereEditor = openSphereEditor; } catch {}
+
+// Wire the editor inside `root` for `recordId`: mount the live preview, push
+// slider/colour changes to it in real time, persist on save. The preview is a
+// standalone mountShape tracked in _sphereModalCtl so closeSphereEditor frees it.
+function wireSphereEditor(root, recordId) {
+  if (_sphereModalCtl) { try { _sphereModalCtl.destroy(); } catch {} _sphereModalCtl = null; }
+  let canvas     = root.querySelector("#alch-sphere-preview");
+  const status   = root.querySelector("#alch-sphere-status");
+  const saveBtn  = root.querySelector("#alch-sphere-save");
+  const hexInput = root.querySelector("input[data-sphere-bg]");
+  const amountInput = root.querySelector("[data-sphere-bg-amount]");   // Orb Core amount slider
+  const swatches = Array.from(root.querySelectorAll("[data-swatch]"));
+  const ranges   = Array.from(root.querySelectorAll("input[data-sphere-dial]"));
+  if (!canvas || !ranges.length) return;
+
+  // Orb Core colour: a curated 16-swatch palette + a hex field — no full-spectrum
+  // picker. bgVal is the canonical colour; swatches + the hex field feed it.
+  let bgVal = normalizeHex(hexInput?.value) || SPHERE_BG_DEFAULT;
+
+  // Read the dials + colour into {hue, phase, complexity, bg}.
+  const readDials = () => {
+    const out = {};
+    for (const r of ranges) {
+      const v = Math.min(1, Math.max(0, parseFloat(r.value)));
+      out[r.dataset.sphereDial] = Number.isFinite(v) ? v : 0.5;
+    }
+    out.bg = bgVal;
+    out.bgMix = amountInput ? Math.min(1, Math.max(0, parseFloat(amountInput.value) || 0)) : SPHERE_BG_MIX_DEFAULT;
+    return out;
+  };
+  // Push all five dials to the preview. Column→uniform: hue→u_hue, phase→u_warp
+  // (Fracture Field), complexity→u_progress, hue2→u_iters (Strata),
+  // intensity→u_sharp (Filament), bg→u_bg.
+  const pushToPreview = (vals) => {
+    _sphereModalCtl?.update({
+      hue: vals.hue, warp: vals.phase, progress: vals.complexity,
+      iters: vals.hue2, sharp: vals.intensity, bg: vals.bg, bgMix: vals.bgMix,
+    });
+  };
+  const setStatus = (msg, kind) => {
+    if (!status) return;
+    status.textContent = msg || "";
+    if (kind) status.dataset.kind = kind; else delete status.dataset.kind;
+  };
+  // Highlight the swatch matching the current colour (if any).
+  const markSwatches = () => { for (const sw of swatches) sw.dataset.selected = (sw.dataset.swatch.toLowerCase() === bgVal) ? "1" : ""; };
+  // Apply a colour (from a swatch or the hex field). `syncInput` rewrites the hex
+  // field — skipped while the user is typing so we don't fight their caret.
+  const applyBg = (hex, syncInput = true) => {
+    const raw = String(hex || "").trim();
+    // Tolerate a missing/duplicated leading # and stray non-hex chars (e.g. paste).
+    const v = normalizeHex(raw) || normalizeHex("#" + raw.replace(/[^0-9a-fA-F]/g, "").slice(0, 6));
+    if (!v) {
+      if (hexInput) hexInput.dataset.invalid = "1";   // visible error state until valid/blur
+      return;
+    }
+    if (hexInput) delete hexInput.dataset.invalid;
+    bgVal = v;
+    if (syncInput && hexInput) hexInput.value = v;
+    markSwatches();
+    pushToPreview(readDials());
+    setStatus("unsaved", "dirty");
+  };
+
+  // Custom shader: validate the textarea (UNTRUSTED → shader-dsl) into safe GLSL.
+  // Swapping the program needs a rebuild, so the preview re-mounts (debounced).
+  const shaderInput = root.querySelector("[data-sphere-shader]");
+  const shaderStatus = root.querySelector("[data-sphere-shader-status]");
+  const shaderHl = root.querySelector("[data-sphere-shader-hl]");
+  const shaderDetails = root.querySelector("[data-sphere-code]");
+  // Render the GLSL-highlighted layer behind the (transparent-text) textarea.
+  const syncHighlight = () => { if (shaderHl && shaderInput) shaderHl.innerHTML = highlightGLSL(shaderInput.value); };
+  const savedShader = String(state.cohort?.person_spheres?.[recordId]?.shader_src || "");
+  // The box is PREFILLED with the real kaleidoscope GLSL so the user can read/edit
+  // it — but it's only adopted as THEIR shader once they ENGAGE (open the section
+  // or type); a dial-only save never persists the prefilled default.
+  let _shaderTouched = false;
+  let activeGLSL = savedShader || null;   // what the preview renders (null = standard orb)
+  const setShaderStatus = (msg, kind) => {
+    if (!shaderStatus) return;
+    shaderStatus.textContent = msg || "";
+    if (kind) shaderStatus.dataset.kind = kind; else delete shaderStatus.dataset.kind;
+  };
+  // Pull a short, human line out of the multi-line GLSL compile log.
+  const firstGlslError = (log) => {
+    const line = String(log || "").split("\n").find((l) => /error/i.test(l)) || String(log || "");
+    return line.replace(/ /g, "").replace(/^ERROR:\s*\d+:\d+:\s*/i, "").trim().slice(0, 90) || "compile error";
+  };
+  // Live preview (NO blink): the orb context is mounted ONCE with smooth:true (a
+  // persistent, EMA-smoothed context); every shader edit HOT-SWAPS the program in
+  // place via update({shaderGLSL}). There is no canvas/GL-context churn, so nothing
+  // flashes — the preserved buffer just morphs old→new colour. A failed/blocked
+  // compile keeps the current orb and shows the error inline.
+  const previewStatus = (ok, log) => setShaderStatus(ok ? "" : "✕ " + firstGlslError(log), ok ? null : "error");
+  const remountPreview = () => {
+    const glsl = activeGLSL || null;
+    if (!_sphereModalCtl) {
+      const v = readDials();
+      canvas.style.opacity = "1";
+      _sphereModalCtl = mountShape(canvas, {
+        seed: recordId, kind: "person", scale: 1.5, draggable: true, smooth: true,
+        hue: v.hue, warp: v.phase, progress: v.complexity, iters: v.hue2, sharp: v.intensity, bg: v.bg, bgMix: v.bgMix,
+        shaderGLSL: glsl || undefined,
+        onStatus: previewStatus,
+      });
+      return;
+    }
+    _sphereModalCtl.update({ shaderGLSL: glsl || "" });   // hot-swap program → no remount, no flash
+  };
+
+  // Initial preview shows only what's ALREADY saved (a returning user's shader);
+  // a fresh user sees their standard orb until they open the section.
+  remountPreview();
+  markSwatches();
+  syncHighlight();   // paint the prefilled GLSL with colour
+
+  // Opening the section = engaging: render the current code live (WYSIWYG).
+  shaderDetails?.addEventListener("toggle", () => {
+    if (!shaderDetails.open) return;
+    _shaderTouched = true;
+    activeGLSL = shaderInput ? shaderInput.value : null;
+    remountPreview();
+  });
+
+  for (const r of ranges) r.addEventListener("input", () => { pushToPreview(readDials()); setStatus("unsaved", "dirty"); });
+  // Orb Core amount slider → live-tint the orb (no title; it's part of Orb Core).
+  amountInput?.addEventListener("input", () => { pushToPreview(readDials()); setStatus("unsaved", "dirty"); });
+
+  // Glyph's dot rides the sine track: position it at (value, wave(value)). The
+  // wave is 5 humps, amplitude 4 in a 0..20 viewBox (matches sineWavePath()).
+  const waveInput = root.querySelector("[data-sphere-wave-input]");
+  const waveDot = root.querySelector("[data-sphere-wave-dot]");
+  const positionWaveDot = () => {
+    if (!waveInput || !waveDot) return;
+    const v = Math.min(1, Math.max(0, parseFloat(waveInput.value) || 0));
+    // Inset the dot's travel to [R, w-R] like a native range thumb (R = half the
+    // 14px dot), so at the extremes it lines up with the other dials' dots
+    // instead of overhanging the track. left via calc → resize-proof.
+    const R = 7;
+    const w = waveDot.parentElement ? waveDot.parentElement.clientWidth : 0;
+    const frac = w > 2 * R ? (R + v * (w - 2 * R)) / w : v;   // dot's true x fraction
+    const y = 10 - 4 * Math.sin(2 * Math.PI * 5 * frac);      // ride the wave at the dot's x
+    waveDot.style.left = `calc(${R}px + ${v} * (100% - ${2 * R}px))`;
+    waveDot.style.top = (y / 20 * 100) + "%";
+  };
+  waveInput?.addEventListener("input", positionWaveDot);
+  positionWaveDot();
+
+  for (const sw of swatches) sw.addEventListener("click", () => applyBg(sw.dataset.swatch));
+  hexInput?.addEventListener("input", () => applyBg(hexInput.value, false));
+  hexInput?.addEventListener("blur", () => { if (hexInput) { hexInput.value = bgVal; delete hexInput.dataset.invalid; } });  // snap back to the canonical value
+
+  // Live shader edit: re-highlight immediately (cheap, cosmetic); re-validate +
+  // re-mount the preview debounced (a program rebuild is heavier).
+  let _shaderTimer = 0;
+  shaderInput?.addEventListener("input", () => {
+    _shaderTouched = true;
+    setStatus("unsaved", "dirty");
+    activeGLSL = shaderInput.value;
+    syncHighlight();
+    if (_shaderTimer) clearTimeout(_shaderTimer);
+    _shaderTimer = setTimeout(remountPreview, 350);   // recompile (heavier) after typing settles
+  });
+  // Keep the highlight layer scroll-aligned with the textarea.
+  shaderInput?.addEventListener("scroll", () => {
+    if (shaderHl) { shaderHl.scrollTop = shaderInput.scrollTop; shaderHl.scrollLeft = shaderInput.scrollLeft; }
+  });
+
+  saveBtn?.addEventListener("click", async () => {
+    if (saveBtn.dataset.busy === "1") return;
+    saveBtn.dataset.busy = "1";
+    const prevLabel = saveBtn.textContent;
+    saveBtn.textContent = "saving…";
+    setStatus("saving…", "loading");
+    const vals = readDials();  // five dials + bg + bgMix
+    vals.bg_mix = vals.bgMix; delete vals.bgMix;   // → the bg_mix column (saveSphere + the stored map)
+    // Persist shader_src only if the person engaged with the box (opened/typed)
+    // or already had a custom shader. Otherwise omit the key so saveSphere's
+    // upsert preserves the existing value — a dial-only save never adopts the
+    // prefilled example, and the standard orb stays standard.
+    if (savedShader || _shaderTouched) {
+      vals.shader_src = shaderInput ? shaderInput.value.trim() : "";  // empty clears it
+    }
+    const res = await saveSphere(recordId, vals);
+    saveBtn.dataset.busy = "0";
+    saveBtn.textContent = prevLabel;
+    if (res.ok) {
+      // Reflect immediately on this device: update the live surface map so the
+      // user's avatar + cards + detail pick it up on their next render. The
+      // background cohort refresh re-reads the same value for everyone else.
+      if (state.cohort) {
+        if (!state.cohort.person_spheres) state.cohort.person_spheres = {};
+        const stored = { ...vals };
+        if (!stored.shader_src) delete stored.shader_src;  // empty = no custom shader
+        state.cohort.person_spheres[recordId] = stored;
+      }
+      setStatus("saved ✓", "success");
+      try { window.__srwkRepaintIdentityAvatars?.(); } catch {}
+      if (state.mounted) { try { render({ instant: true }); } catch {} }
+    } else {
+      const why = res.error === "unconfigured" ? "no supabase config"
+        : res.error === "bad_record_id" ? "bad record id"
+        : `couldn’t save (${res.error || "unknown"})`;
+      setStatus(why, "error");
+    }
+  });
 }
 
 function renderProfile() {
