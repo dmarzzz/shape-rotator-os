@@ -316,7 +316,7 @@ let _model = null;
 // view: "cal" (the timeline grid) | "presence" (caller-supplied availability
 // gantt — the same renderer the legacy calendar page uses, passed in as
 // presenceHtml so this module stays presentation-only).
-export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "" } = {}) {
+export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", activity = [] } = {}) {
   const tab = data?.tabs?.[PRIMARY_TAB] || [];
   const safeWeekIdx = Math.max(0, Math.min(WEEK_COUNT - 1, weekIdx | 0));
   const week = parseWeekRow(tab[2 + safeWeekIdx] || [], safeWeekIdx);
@@ -391,6 +391,20 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   }
 
   addGoogleOnlyManagedEvents(days, calendarGoogleEvents, seenShapeKeys);
+
+  // ── cohort activity lane ─────────────────────────────────────────────
+  // Releases + commits land on their day as clickable blocks — the calendar
+  // becomes "what the cohort shipped this week", not just the schedule. Each
+  // block drills to its team (data-c2-act = record id) via wireCalendar.
+  const ACT_KINDS = new Set(["release", "commit"]);
+  const activityList = Array.isArray(activity) ? activity : [];
+  for (const day of days) {
+    const iso = isoDay(day.dayMs);
+    day.activity = activityList
+      .filter(a => a && a.date === iso && ACT_KINDS.has(a.kind) && a.nav && a.nav.recordId)
+      .map(a => ({ kind: a.kind, label: a.label || "", team: a.meta || "", recordId: a.nav.recordId }));
+  }
+
   for (const day of days) layoutTimed(day.timed);
 
   _model = { days, weekIdx: safeWeekIdx, calendarGoogleEvents };
@@ -572,6 +586,24 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         </div>`).join("")}
     </div>` : "";
 
+  // ── cohort-activity lane (releases + commits, clickable → team) ──────
+  const ACT_VERB = { release: "shipped", commit: "committed" };
+  const hasActivity = days.some(d => (d.activity || []).length);
+  const activityRow = hasActivity ? `
+    <div class="c2-row c2-activity">
+      <div class="c2-gutter-cell">shipped</div>
+      ${days.map((d) => `
+        <div class="c2-activity-cell ${d.isToday ? "is-today" : ""}">
+          ${(d.activity || []).map((a) => `
+            <button class="c2-act-chip" data-act-kind="${escAttr(a.kind)}" data-c2-act="${escAttr(a.recordId)}" type="button"
+                    title="${escAttr(`${a.team} ${ACT_VERB[a.kind] || a.kind} ${a.label} — open ${a.team}`)}">
+              <span class="c2-act-dot" aria-hidden="true"></span>
+              <span class="c2-act-team">${escHtml(a.team)}</span>
+              <span class="c2-act-label">${escHtml(a.label)}</span>
+            </button>`).join("")}
+        </div>`).join("")}
+    </div>` : "";
+
   // ── hour gutter + hairlines + collapsed-gap bands ────────────────────
   // Hour boundaries only exist inside active segments now, so lines and
   // labels are emitted per-boundary instead of via a repeating background.
@@ -681,6 +713,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
           <div class="c2-gutter-cell"></div>
           ${headCells}
         </div>
+        ${activityRow}
         ${alldayRow}
         <div class="c2-scroll">
           <div class="c2-grid" style="--c2-units:${totalUnits.toFixed(2)}" data-c2-segs="${escAttr(segsJson)}">

@@ -8887,6 +8887,7 @@ function paintCalendarView({ wire = false } = {}) {
     source: cal.source,
     view: cal.view,
     presenceHtml: presence ? renderCalAvailability() : "",
+    activity: Array.isArray(state.cohort?.whats_new) ? state.cohort.whats_new : [],
   });
   if (presence) {
     mountAvailabilityCanvas();
@@ -8970,6 +8971,15 @@ function wireCalendar() {
   for (const card of state.canvas.querySelectorAll("[data-c2-ev]")) {
     card.addEventListener("click", (event) => {
       calendarLazy.peek()?.openCalendarEvent?.(card.dataset.c2Ev, { anchor: event.currentTarget });
+    });
+  }
+
+  // Cohort-activity blocks (releases / commits) drill to the team dossier;
+  // "back" returns to the calendar (detailReturnMode = "calendar").
+  for (const chip of state.canvas.querySelectorAll("[data-c2-act]")) {
+    chip.addEventListener("click", () => {
+      const rid = chip.dataset.c2Act;
+      if (rid) openDetail(rid, "calendar");
     });
   }
 
@@ -14916,12 +14926,12 @@ function renderTeamDetail(team) {
 
   state.canvas.innerHTML = `
     <header class="alch-detail-bar alch-trailbar">
-      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort grid"}">
+      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : (state.detailReturnMode === "calendar" ? "back to calendar" : "back to cohort grid")}">
         <span class="atb-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></span>
         <span class="atb-word">back</span>
       </button>
       <nav class="alch-trail-path" aria-label="location">
-        <button type="button" class="atb-root" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort directory"}">${state.detailReturnMode === "constellation" ? "constellation" : "cohort"}</button>
+        <button type="button" class="atb-root" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : (state.detailReturnMode === "calendar" ? "back to calendar" : "back to cohort directory")}">${state.detailReturnMode === "constellation" ? "constellation" : (state.detailReturnMode === "calendar" ? "calendar" : "cohort")}</button>
         <span class="atb-sep" aria-hidden="true">/</span>
         <span class="atb-here" aria-current="page">${escHtml(team.record_id.toLowerCase())}</span>
         ${team.is_mentor ? `<span class="atb-sep" aria-hidden="true">·</span><span class="atb-kind">mentor</span>` : ""}
@@ -15052,12 +15062,12 @@ function renderPersonDetail(person) {
 
   state.canvas.innerHTML = `
     <header class="alch-detail-bar alch-trailbar">
-      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort grid"}">
+      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : (state.detailReturnMode === "calendar" ? "back to calendar" : "back to cohort grid")}">
         <span class="atb-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></span>
         <span class="atb-word">back</span>
       </button>
       <nav class="alch-trail-path" aria-label="location">
-        <button type="button" class="atb-root" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort directory"}">${state.detailReturnMode === "constellation" ? "constellation" : "cohort"}</button>
+        <button type="button" class="atb-root" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : (state.detailReturnMode === "calendar" ? "back to calendar" : "back to cohort directory")}">${state.detailReturnMode === "constellation" ? "constellation" : (state.detailReturnMode === "calendar" ? "calendar" : "cohort")}</button>
         <span class="atb-sep" aria-hidden="true">/</span>
         <span class="atb-here" aria-current="page">${escHtml(recordId.toLowerCase())}</span>
       </nav>
