@@ -6698,138 +6698,97 @@ function timelineInnerHtml() {
   const fmtDay = (ms) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
   const weekIdxOf = (ms) => Math.max(0, Math.min(WEEKS - 1, Math.floor((ms - PROGRAM_START_MS) / WK)));
 
-  // ── Zoom level + window. "Understand at different levels": the calendar's own
-  // time-resolution zoom — program (all 10 weeks) <-> month (a 4-5 week phase)
-  // <-> week (7 days). The window narrows and every lane re-fractions within it
-  // (the data module is parameterized by start/end). Finer than a week is the
-  // calendar-grid tab's job. ──
-  // Default to the WEEK level (open on the current week); program/month are zoom-out.
-  const level = (cal.tlLevel === "program" || cal.tlLevel === "month") ? cal.tlLevel : "week";
+  // ── Always the WEEK. This is the agenda complement to the grid's hour-by-hour
+  // week: the grid owns intra-day detail; this owns the at-a-glance "what's on
+  // each day" read across the seven columns. Navigate by week; "today" jumps
+  // back to the current week. (Program / month zoom-outs were dropped — week is
+  // the level that actually reads as a calendar.) ──
   const anchorMs = Math.max(PROGRAM_START_MS, Math.min(PROGRAM_END_MS - 1, Number.isFinite(cal.tlAnchorMs) ? cal.tlAnchorMs : nowMs));
-  let winStart, winEnd, tickUnit, winLabel, prevAnchor = null, nextAnchor = null;
-  if (level === "week") {
-    const wi = weekIdxOf(anchorMs);
-    winStart = PROGRAM_START_MS + wi * WK;
-    winEnd = Math.min(PROGRAM_END_MS, winStart + WK);
-    tickUnit = DAY;
-    winLabel = `week ${wi + 1} · ${fmtDay(winStart)}–${fmtDay(winEnd - DAY)}`;
-    if (wi > 0) prevAnchor = PROGRAM_START_MS + (wi - 1) * WK;
-    if (wi < WEEKS - 1) nextAnchor = PROGRAM_START_MS + (wi + 1) * WK;
-  } else if (level === "month") {
-    const wi = weekIdxOf(anchorMs);
-    const phase = wi <= 3 ? 0 : (wi <= 8 ? 1 : 2);
-    const starts = [0, 4, 9], ends = [4, 9, WEEKS];
-    winStart = PROGRAM_START_MS + starts[phase] * WK;
-    winEnd = Math.min(PROGRAM_END_MS, PROGRAM_START_MS + ends[phase] * WK);
-    tickUnit = WK;
-    winLabel = `m${phase + 1} · weeks ${starts[phase] + 1}–${ends[phase]}`;
-    if (phase > 0) prevAnchor = PROGRAM_START_MS + starts[phase - 1] * WK;
-    if (phase < 2) nextAnchor = PROGRAM_START_MS + starts[phase + 1] * WK;
-  } else {
-    winStart = PROGRAM_START_MS; winEnd = PROGRAM_END_MS; tickUnit = WK;
-    winLabel = `all ${WEEKS} weeks`;
-  }
-  const span = Math.max(1, winEnd - winStart);
+  const wi = weekIdxOf(anchorMs);
+  const winStart = PROGRAM_START_MS + wi * WK;
+  const winEnd = Math.min(PROGRAM_END_MS, winStart + WK);
+  const winLabel = `week ${wi + 1} · ${fmtDay(winStart)}–${fmtDay(winEnd - DAY)}`;
+  const prevAnchor = wi > 0 ? PROGRAM_START_MS + (wi - 1) * WK : null;
+  const nextAnchor = wi < WEEKS - 1 ? PROGRAM_START_MS + (wi + 1) * WK : null;
+  const nowWeekIdx = weekIdxOf(nowMs);
+  const onCurrentWeek = wi === nowWeekIdx;
   const inWin = (ms) => ms >= winStart && ms < winEnd;
   const nowIn = inWin(nowMs);
 
-  // ── The schedule, as a real calendar. The grid tab is the hour-by-hour week;
-  // THIS view is the zoom-out calendar — the program's events across the chosen
-  // window, read as an agenda of titled events in per-day (week level) or
-  // per-week (month / program) columns. Cohort metrics (standing, presence) live
-  // in their own views; here the schedule is the whole show, so it reads as a
-  // calendar and not a half-dashboard. ──
-
   // The schedule reads the LIVE calendar (cal.data) — the same source the grid
   // renders — so the two always agree, instead of trailing the stale build-baked
-  // whats_new feed (the fallback only until cal.data has loaded).
+  // whats_new feed (the fallback only until cal.data has loaded). Cohort metrics
+  // (standing, presence) live in their own views; the schedule is the whole show.
   const calModule = calendarLazy.peek();
   const eventItems = (cal.data && typeof calModule?.flattenScheduleEvents === "function")
     ? calModule.flattenScheduleEvents(cal.data)
         .filter((e) => inWin(e.ms))
-        .map((e) => ({ startMs: e.ms, title: e.title, detail: e.time || "", isFuture: e.ms > nowMs }))
+        .map((e) => ({ ms: e.ms, title: e.title, time: e.time || "", isFuture: e.ms > nowMs }))
     : buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
         .filter((i) => i.category === "event" && inWin(i.startMs))
-        .map((i) => ({ startMs: i.startMs, title: i.title, detail: i.detail || "", isFuture: i.isFuture }));
+        .map((i) => ({ ms: i.startMs, title: i.title, time: i.detail || "", isFuture: i.isFuture }));
 
+  // Within a day: all-day events first (time = ""), then by start time parsed
+  // from the leading HH:MM of the time label.
+  const startMin = (t) => { const m = /(\d{1,2}):(\d{2})/.exec(t || ""); return m ? (+m[1]) * 60 + (+m[2]) : -1; };
   const dayNames = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-  const inDay = (ms, d0) => ms >= d0 && ms < d0 + DAY;
-
-  // Columns = the window's axis buckets — every day at week level, every week at
-  // month / program — shown even when empty so the frame reads as a full week/run.
   const columns = [];
-  if (level === "week") {
-    for (let k = 0; k < 7; k++) {
-      const dayMs = winStart + k * DAY;
-      const events = eventItems.filter((e) => inDay(e.startMs, dayMs)).sort((a, b) => a.startMs - b.startMs);
-      columns.push({
-        label: dayNames[k], sub: String(new Date(dayMs).getUTCDate()),
-        weekIdx: weekIdxOf(dayMs), events,
-        isNow: inDay(nowMs, dayMs), isPast: dayMs + DAY <= nowMs,
-      });
-    }
-  } else {
-    const startWk = weekIdxOf(winStart), nWeeks = Math.max(1, Math.round(span / WK));
-    for (let k = 0; k < nWeeks; k++) {
-      const wi = startWk + k;
-      const wkStart = PROGRAM_START_MS + wi * WK, wkEnd = wkStart + WK;
-      const events = eventItems.filter((e) => e.startMs >= wkStart && e.startMs < wkEnd).sort((a, b) => a.startMs - b.startMs);
-      columns.push({
-        label: `wk ${wi + 1}`, sub: fmtDay(wkStart),
-        weekIdx: wi, events,
-        isNow: nowMs >= wkStart && nowMs < wkEnd, isPast: wkEnd <= nowMs,
-      });
-    }
+  for (let k = 0; k < 7; k++) {
+    const dayMs = winStart + k * DAY;
+    const events = eventItems
+      .filter((e) => e.ms >= dayMs && e.ms < dayMs + DAY)
+      .sort((a, b) => startMin(a.time) - startMin(b.time));
+    columns.push({
+      day: dayNames[k], date: String(new Date(dayMs).getUTCDate()), events,
+      isToday: nowMs >= dayMs && nowMs < dayMs + DAY,
+      isPast: dayMs + DAY <= nowMs,
+      isWeekend: k >= 5,
+    });
   }
-  // Chips shown per column before "+N more" — fewer as the columns narrow on
-  // zoom-out (program's 10 columns only have room for a 2-event teaser + the
-  // "+N more" count; week has room for the full day).
-  const chipCap = level === "week" ? 8 : (level === "month" ? 5 : 2);
-  // The title is clamped to 2 lines in CSS; the full "time · title" rides on the
-  // native tooltip so a clamped chip is still fully readable on hover.
-  const chip = (e) => `<div class="cal-chip${e.isFuture ? " is-future" : ""}" title="${escAttr(e.detail ? `${e.detail} · ${e.title}` : e.title)}">${e.detail ? `<span class="cal-chip-t">${escHtml(e.detail)}</span>` : ""}<span class="cal-chip-x">${escHtml(e.title)}</span></div>`;
+
+  const CHIP_CAP = 8; // a day rarely runs more; the rest collapse to "+N more".
+  // Title clamps to 2 lines in CSS; the full "time · title" rides on the native
+  // tooltip so a clamped chip stays fully readable on hover.
+  const chip = (e) => `<div class="cal-chip${e.isFuture ? " is-future" : ""}" title="${escAttr(e.time ? `${e.time} · ${e.title}` : e.title)}">${e.time ? `<span class="cal-chip-t">${escHtml(e.time)}</span>` : ""}<span class="cal-chip-x">${escHtml(e.title)}</span></div>`;
   const renderColumn = (col) => {
-    const shown = col.events.slice(0, chipCap);
+    const shown = col.events.slice(0, CHIP_CAP);
     const more = col.events.length - shown.length;
     const n = col.events.length;
     const body = n
       ? shown.map(chip).join("") + (more > 0 ? `<div class="cal-more">+${more} more</div>` : "")
-      : `<span class="cal-col-empty" aria-hidden="true">·</span>`;
+      : `<span class="cal-col-empty" aria-hidden="true">open</span>`;
+    const cls = [col.isToday && "is-today", col.isPast && "is-past", col.isWeekend && "is-weekend"].filter(Boolean).join(" ");
     return `
-      <div class="cal-col${col.isNow ? " is-now" : ""}${col.isPast ? " is-past" : ""}" data-tl-week="${col.weekIdx}" role="button" tabindex="0" aria-label="${escAttr(`${col.label} ${col.sub} — ${n} event${n === 1 ? "" : "s"}; open week ${col.weekIdx + 1} in the calendar grid`)}">
-        <div class="cal-col-head"><span class="cal-col-day">${escHtml(col.label)}</span><span class="cal-col-sub">${escHtml(col.sub)}</span>${col.isNow ? `<span class="cal-col-now">now</span>` : ""}</div>
+      <div class="cal-col${cls ? " " + cls : ""}" data-tl-week="${wi}" role="button" tabindex="0" aria-label="${escAttr(`${col.day} ${col.date}${col.isToday ? " (today)" : ""} — ${n} event${n === 1 ? "" : "s"}; open in the calendar grid`)}">
+        <div class="cal-col-head"><span class="cal-col-day">${escHtml(col.day)}</span><span class="cal-col-sub">${escHtml(col.date)}</span>${col.isToday ? `<span class="cal-col-now">today</span>` : ""}</div>
         <div class="cal-col-body">${body}</div>
       </div>`;
   };
 
-  // Zoom control: a segmented [program | month | week] pill + prev/next window nav.
-  const levelPill = `
-    <div class="ac-tl-levels" role="group" aria-label="time level">
-      ${["program", "month", "week"].map(lv => `<button type="button" class="ac-tl-lvl" data-tl-level="${lv}" aria-pressed="${level === lv ? "true" : "false"}">${lv}</button>`).join("")}
-    </div>`;
-  const winNav = level === "program" ? "" : `
+  // Week navigation: ‹ prev · label · next ›, plus a "today" jump that's live
+  // only once you've navigated away from the current week.
+  const nav = `
     <div class="ac-tl-winnav">
-      <button type="button" class="ac-tl-navbtn" data-tl-nav="prev" data-tl-nav-to="${prevAnchor == null ? "" : prevAnchor}"${prevAnchor == null ? " disabled" : ""} aria-label="previous ${level}">←</button>
+      <button type="button" class="ac-tl-navbtn" data-tl-nav="prev" data-tl-nav-to="${prevAnchor == null ? "" : prevAnchor}"${prevAnchor == null ? " disabled" : ""} aria-label="previous week">←</button>
       <span class="ac-tl-winlabel">${escHtml(winLabel)}</span>
-      <button type="button" class="ac-tl-navbtn" data-tl-nav="next" data-tl-nav-to="${nextAnchor == null ? "" : nextAnchor}"${nextAnchor == null ? " disabled" : ""} aria-label="next ${level}">→</button>
-    </div>`;
+      <button type="button" class="ac-tl-navbtn" data-tl-nav="next" data-tl-nav-to="${nextAnchor == null ? "" : nextAnchor}"${nextAnchor == null ? " disabled" : ""} aria-label="next week">→</button>
+    </div>
+    <button type="button" class="ac-tl-today" data-tl-nav="today" data-tl-nav-to="${PROGRAM_START_MS + nowWeekIdx * WK}"${onCurrentWeek ? " disabled" : ""} aria-label="jump to the current week">today</button>`;
 
   const total = eventItems.length;
   const summary = `
-    <div class="ac-tl-summary" role="group" aria-label="schedule summary">
-      <strong class="ac-tl-sum-scope">${escHtml(winLabel)}</strong>
-      <span class="ac-tl-sum-sep">·</span>
-      <span class="ac-tl-sum-win">${total} event${total === 1 ? "" : "s"}</span>
-      ${nowIn ? `<span class="ac-tl-sum-sep">·</span><span class="ac-tl-sum-frame">past <em>←</em> now <em>→</em> scheduled</span>` : ""}
+    <div class="ac-tl-summary" role="group" aria-label="week summary">
+      <span class="ac-tl-sum-win">${total} event${total === 1 ? "" : "s"} this week</span>
+      ${nowIn ? `<span class="ac-tl-sum-sep">·</span><span class="ac-tl-sum-frame">past <em>←</em> today <em>→</em> scheduled</span>` : ""}
     </div>`;
 
   return `
-    <div class="ac-tl-stage" data-view="timeline" data-tl-level="${level}" aria-label="${escAttr(`cohort calendar — the program schedule, ${winLabel}`)}">
+    <div class="ac-tl-stage" data-view="timeline" aria-label="${escAttr(`cohort calendar — ${winLabel}`)}">
       <div class="ac-tl-controls">
-        <div class="ac-tl-bar">${levelPill}${winNav}</div>
+        <div class="ac-tl-bar">${nav}</div>
         ${summary}
       </div>
-      <div class="cal-agenda" style="--cols:${columns.length}" data-tl-level="${level}">
+      <div class="cal-agenda" style="--cols:7">
         ${columns.map(renderColumn).join("")}
       </div>
       <div class="ac-tip" hidden></div>

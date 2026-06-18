@@ -8149,16 +8149,23 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
   transition: background 140ms var(--ease);
 }
 .cal-col:hover { background: rgba(var(--ink-rgb), 0.05); }
-.cal-col.is-past { opacity: 0.5; }
-.cal-col.is-now { background: color-mix(in oklch, var(--alchemy-oxide) 9%, transparent); }
+.cal-col.is-past { opacity: 0.62; }
+.cal-col.is-weekend { background: rgba(var(--ink-rgb), 0.015); }
+.cal-col.is-today { background: color-mix(in oklch, var(--alchemy-oxide) 9%, transparent); box-shadow: inset 0 2px 0 var(--alchemy-oxide-bright); }
 .cal-col:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: -2px; }
+/* "today" jump button — sits after the week nav; live only off the current week. */
+.ac-tl-today { height: 26px; padding: 0 12px; margin-left: 4px; background: transparent; border: 1px solid rgba(var(--ink-rgb), 0.14); border-radius: 7px; color: var(--alchemy-paper-warm); font-family: var(--font-mono); font-size: 11px; cursor: pointer; transition: border-color 160ms var(--ease); }
+.ac-tl-today:not([disabled]):hover { border-color: rgba(var(--ink-rgb), 0.32); }
+.ac-tl-today[disabled] { opacity: 0.3; cursor: default; }
+.ac-tl-today:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .ac-tl-today { transition: none; } }
 .cal-col-head {
   display: flex; align-items: baseline; gap: 6px;
   padding: 9px 11px; border-bottom: 1px solid rgba(var(--ink-rgb), 0.07);
 }
 .cal-col-day { font-size: 11px; font-weight: 600; color: var(--alchemy-paper-warm); letter-spacing: 0.02em; }
 .cal-col-sub { font-size: 10px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; }
-.cal-col.is-now .cal-col-day, .cal-col.is-now .cal-col-sub { color: var(--alchemy-oxide-bright); }
+.cal-col.is-today .cal-col-day, .cal-col.is-today .cal-col-sub { color: var(--alchemy-oxide-bright); }
 .cal-col-now { margin-left: auto; font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--alchemy-oxide-bright); align-self: center; }
 .cal-col-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
 .cal-chip {
@@ -8170,13 +8177,6 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .cal-chip-t { display: block; font-size: 9px; color: var(--alchemy-ink-mute); font-variant-numeric: tabular-nums; margin-bottom: 1px; }
 .cal-chip-x { font-size: 11px; line-height: 1.3; color: var(--alchemy-paper-warm); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; word-break: break-word; }
 .cal-more { font-size: 10px; color: var(--alchemy-ink-mute); padding: 2px 8px; }
-/* Coarse zoom packs many narrow columns — drop the per-chip time there so titles
-   read on their own (the time stays on the hover tooltip); week level keeps it. */
-.cal-agenda[data-tl-level="program"] .cal-chip-t,
-.cal-agenda[data-tl-level="month"] .cal-chip-t { display: none; }
-/* Program packs 10 columns; tighten the teaser chips so a couple of titles fit. */
-.cal-agenda[data-tl-level="program"] .cal-chip { padding: 4px 6px; }
-.cal-agenda[data-tl-level="program"] .cal-chip-x { font-size: 9.5px; }
 .cal-col-empty { display: block; padding: 8px 11px; color: rgba(var(--ink-rgb), 0.2); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .cal-col { transition: none; } }
 
