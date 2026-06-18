@@ -2627,3 +2627,142 @@ html[data-theme="light"] .membrane-ask-verb .alch-asks-verb-svg { color: #fff; }
 .mst-glyph svg { width: 14px; height: 14px; display: block; }
 .mef-glyph { display: inline-flex; align-items: center; }
 .mef-glyph svg { width: 13px; height: 13px; display: block; }
+
+/* ── OS feedback + idea box (2026-06) ────────────────────────────────────────
+   Anonymous feedback pill pinned to the bottom-center window edge. Collapsed =
+   a slim tab flush at the edge; on open the whole card lifts a few px and the
+   textarea + send bloom in beneath the label. The card is bottom-anchored, so
+   growing the body pushes the label UP rather than off the bottom edge. Wiring:
+   setupFeedbackBox() in membrane/index.js; write path in ../supabase-feedback.mjs. */
+.membrane-feedback {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  z-index: 6;
+  pointer-events: none;            /* only the card inside takes pointer hits */
+  transition: transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.membrane-feedback.is-open {
+  transform: translateX(-50%) translateY(-10px);   /* the "go up a few pixels" */
+}
+/* Step aside for the Rubik's easter-egg controls (also bottom-centered). */
+.membrane-rubiks-active .membrane-feedback {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 300ms ease, visibility 0s linear 300ms;
+}
+
+.membrane-feedback-card {
+  pointer-events: auto;
+  overflow: hidden;
+  width: fit-content;              /* collapsed → hug the pill label, not the full width */
+  max-width: 78vw;
+  opacity: 0.3;                    /* quiet at rest; full on hover or when open */
+  border: 1px solid var(--membrane-ember-soft);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  background: var(--membrane-card-bg);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.28);
+  transition: opacity 200ms ease, width 280ms cubic-bezier(0.22, 0.61, 0.36, 1), border-color 180ms ease;
+}
+.membrane-feedback-card:hover { opacity: 1; }
+.membrane-feedback.is-open .membrane-feedback-card {
+  width: min(420px, 78vw);         /* room for the textarea once open */
+  opacity: 1;
+  border-color: var(--membrane-ember);
+}
+
+.membrane-feedback-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 18px;
+  border: none;
+  background: transparent;
+  color: rgba(var(--mem-ink-rgb), 0.9);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+.membrane-feedback-pill:hover,
+.membrane-feedback.is-open .membrane-feedback-pill { color: var(--membrane-ember); }
+.membrane-feedback-pill .mfb-spark { color: var(--membrane-ember); opacity: 0.9; font-size: 11px; }
+
+.membrane-feedback-body {
+  max-height: 0;
+  opacity: 0;
+  padding: 0 12px;
+  transition: max-height 280ms cubic-bezier(0.22, 0.61, 0.36, 1),
+              opacity 200ms ease, padding 200ms ease;
+}
+.membrane-feedback.is-open .membrane-feedback-body {
+  max-height: 200px;
+  opacity: 1;
+  padding: 0 12px 12px;
+}
+
+.membrane-feedback-input {
+  width: 100%;
+  min-width: 0;                    /* don't let the textarea's intrinsic width inflate the collapsed card */
+  box-sizing: border-box;
+  resize: none;
+  min-height: 64px;
+  padding: 9px 10px;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.16);
+  border-radius: 8px;
+  background: rgba(var(--mem-ink-rgb), 0.04);
+  color: var(--membrane-mist);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.membrane-feedback-input::placeholder { color: rgba(var(--mem-ink-rgb), 0.4); }
+.membrane-feedback-input:focus {
+  border-color: var(--membrane-ember-soft);
+  background: rgba(var(--mem-ink-rgb), 0.06);
+}
+
+.membrane-feedback-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+.membrane-feedback-status {
+  font-size: 11px;
+  min-height: 1em;
+  color: rgba(var(--mem-ink-rgb), 0.55);
+}
+.membrane-feedback-status[data-tone="ok"] { color: var(--membrane-ember); }
+.membrane-feedback-status[data-tone="err"] { color: #ff6b5e; }
+
+.membrane-feedback-send {
+  flex: none;
+  padding: 6px 16px;
+  border: 1px solid var(--membrane-ember-soft);
+  border-radius: 999px;
+  background: rgba(255, 122, 61, 0.1);
+  color: var(--membrane-ember);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, opacity 140ms ease, transform 80ms ease;
+}
+.membrane-feedback-send:hover:not(:disabled) {
+  background: rgba(255, 122, 61, 0.18);
+  border-color: var(--membrane-ember);
+}
+.membrane-feedback-send:active:not(:disabled) { transform: translateY(1px) scale(0.98); }
+.membrane-feedback-send:disabled { opacity: 0.4; cursor: default; }
