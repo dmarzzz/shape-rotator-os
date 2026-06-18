@@ -12519,6 +12519,11 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 .fg-share-fab:active { transform: scale(0.94); }
 /* Hidden on the matrix (chat) tab. */
 body[data-active-tab="matrix"] .fg-share-fab { display: none; }
+/* Hidden on the membrane page (alchemy's default mode). Scoped to the alchemy
+ * tab so it only hides there — #alchemy-view keeps data-alch-mode-current even
+ * when another tab is active. #alchemy-view and the FAB are both body children
+ * (FAB appended last), so the subsequent-sibling combinator reaches it. */
+body[data-active-tab="alchemy"] #alchemy-view[data-alch-mode-current="membrane"] ~ .fg-share-fab { display: none; }
 /* Click confirmation: snap to the brand yellow, hold ~0.5s, then fade back to
  * the resting glass chip over ~0.5s. Triggered by .is-flashing in boot.js. */
 @keyframes shareFabFlash {
