@@ -8066,7 +8066,10 @@ function focusDirectoryRecord(recordId) {
   const focus = () => {
     let card = null;
     try {
-      card = state.canvas?.querySelector(`.alch-card[data-record-id="${cssAttr(recordId)}"]`) || null;
+      // Match both directory layouts: card grid (.alch-card) AND the rows/table
+      // mode (.alch-dir-row), which is persisted — otherwise "show in directory"
+      // from the collab board silently no-ops when the user last left rows view.
+      card = state.canvas?.querySelector(`.alch-card[data-record-id="${cssAttr(recordId)}"], .alch-dir-row[data-record-id="${cssAttr(recordId)}"]`) || null;
     } catch {}
     if (!card) return;
     try { card.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" }); } catch {}
@@ -8825,7 +8828,16 @@ function wireConstellationHover() {
         range.setAttribute("aria-valuetext", jweekWeeks[i]?.label || `week ${jweekWeeks[i]?.program_week}`);
         slider?.querySelectorAll(".ac-jweek-notch").forEach((n, ni) => n.classList.toggle("is-active", ni === i));
       });
-      range.addEventListener("change", () => commitWeek(range.value));
+      range.addEventListener("change", () => {
+        commitWeek(range.value);
+        // commitWeek → journeyWeekTransition → render() rebuilds the canvas,
+        // destroying this slider. A native range fires 'change' on EVERY arrow-
+        // key step, so without restoring focus a keyboard user is dropped to
+        // <body> after the first step and can't keep scrubbing. Re-focus the
+        // rebuilt slider.
+        const refocus = () => { try { state.canvas?.querySelector("[data-jweek-range]")?.focus({ preventScroll: true }); } catch {} };
+        if (typeof requestAnimationFrame === "function") requestAnimationFrame(refocus); else setTimeout(refocus, 0);
+      });
     }
     for (const notch of state.canvas.querySelectorAll(".ac-jweek-notch[data-jweek]")) {
       notch.addEventListener("click", () => commitWeek(notch.dataset.jweek));
@@ -12195,6 +12207,58 @@ function wireCollabTrailerLinks(root) {
   }
 }
 
+// Bind the collab default-inspector's "best intros" (pair) rows and keystone
+// (open) rows. These live in the regenerated default inspector HTML, so they
+// must be re-bound after every setCollabInspectorHtml() innerHTML swap — not
+// just on the initial wireCollab() pass — or they go dead after a select/clear
+// or even a header hover-out (#429). A dataset guard keeps it idempotent so the
+// global wireCollab pass and per-swap calls never double-bind the same element.
+function wireCollabInspectorActions(root) {
+  if (!root) return;
+  const collabRoot = state.canvas?.querySelector(".alch-collab");
+  for (const el of root.querySelectorAll("[data-collab-pair-from][data-collab-pair-to]")) {
+    if (el.dataset.collabActionWired === "1") continue;
+    el.dataset.collabActionWired = "1";
+    el.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const next = {
+        type: "pair",
+        fromRid: el.getAttribute("data-collab-pair-from") || "",
+        toRid: el.getAttribute("data-collab-pair-to") || "",
+      };
+      if (collabSameSelection(state.collabSelection, next)) clearCollabSelection();
+      else setCollabSelection(next);
+    });
+  }
+  for (const el of root.querySelectorAll("[data-collab-open]")) {
+    if (el.dataset.collabActionWired === "1") continue;
+    el.dataset.collabActionWired = "1";
+    const activate = (event) => {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      const rid = el.getAttribute("data-collab-open");
+      if (!rid) return;
+      if (collabRoot) {
+        const next = { type: "team", rid };
+        // Two-click grammar: first click selects into the inspector, second on
+        // the same record commits to its full page.
+        if (collabSameSelection(state.collabSelection, next)) openDetail(rid, "constellation");
+        else setCollabSelection(next);
+      } else {
+        openDetail(rid, "constellation");
+      }
+    };
+    el.addEventListener("click", activate);
+    if (el.tagName !== "BUTTON" && el.tagName !== "A") {
+      if (!el.hasAttribute("tabindex")) el.tabIndex = 0;
+      if (!el.hasAttribute("role")) el.setAttribute("role", "button");
+      el.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") activate(event);
+      });
+    }
+  }
+}
+
 function setCollabInspectorHtml(html) {
   const panel = state.canvas.querySelector("[data-collab-inspector]");
   if (!panel) return;
@@ -12203,6 +12267,7 @@ function setCollabInspectorHtml(html) {
   wireCollabTrailerLinks(panel);
   wirePersonLinks(panel);
   wireExternalLinks(panel);
+  wireCollabInspectorActions(panel); // re-bind pair/keystone rows after the swap (#429)
 }
 
 function setCollabSelection(selection) {
@@ -12580,18 +12645,9 @@ function wireCollab() {
       render({ instant: true });
     });
   }
-  for (const el of state.canvas.querySelectorAll("[data-collab-pair-from][data-collab-pair-to]")) {
-    el.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const next = {
-        type: "pair",
-        fromRid: el.getAttribute("data-collab-pair-from") || "",
-        toRid: el.getAttribute("data-collab-pair-to") || "",
-      };
-      if (collabSameSelection(state.collabSelection, next)) clearCollabSelection();
-      else setCollabSelection(next);
-    });
-  }
+  // Pair ("best intros") + keystone ("most depended-on") inspector rows: bound
+  // via the shared guarded helper so they survive setCollabInspectorHtml swaps.
+  wireCollabInspectorActions(state.canvas);
   for (const el of state.canvas.querySelectorAll("[data-collab-cluster]")) {
     el.addEventListener("mouseenter", () => {
       previewCollabInspector({ type: "cluster", id: el.getAttribute("data-collab-cluster") || "" });
@@ -12623,32 +12679,9 @@ function wireCollab() {
       if (!state.collabSelection) setCollabInspectorHtml(collabInspectorDefaultHtml(collabCurrentModel()));
     });
   }
-  for (const el of state.canvas.querySelectorAll("[data-collab-open]")) {
-    const activate = (event) => {
-      event?.preventDefault?.();
-      event?.stopPropagation?.();
-      const rid = el.getAttribute("data-collab-open");
-      if (!rid) return;
-      if (collabRoot) {
-        const next = { type: "team", rid };
-        // Same two-click grammar as the other cohort views: first click
-        // selects into the collab inspector, the second click on the same
-        // record commits to its full page. (Deselect via inspector/Escape.)
-        if (collabSameSelection(state.collabSelection, next)) openDetail(rid, "constellation");
-        else setCollabSelection(next);
-      } else {
-        openDetail(rid, "constellation");
-      }
-    };
-    el.addEventListener("click", activate);
-    if (el.tagName !== "BUTTON" && el.tagName !== "A") {
-      if (!el.hasAttribute("tabindex")) el.tabIndex = 0;
-      if (!el.hasAttribute("role")) el.setAttribute("role", "button");
-      el.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") activate(event);
-      });
-    }
-  }
+  // [data-collab-open] keystone/header activation is bound by
+  // wireCollabInspectorActions(state.canvas) above (shared with the per-swap
+  // re-bind), so no separate loop here.
   const grid = state.canvas.querySelector(".cb-grid");
   if (!grid) return;
   let activeRow = null;
