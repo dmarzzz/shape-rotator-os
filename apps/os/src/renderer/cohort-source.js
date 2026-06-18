@@ -29,6 +29,7 @@ import { fetchPublicEvidenceCards, fetchCohortEvidenceCards } from "./supabase-e
 import { evidenceDependencyRecords } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
+import { fetchAllSpheres } from "./supabase-sphere.mjs";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
 const GH_BRANCH   = "main";
@@ -151,6 +152,7 @@ function _writeSurfaceLs(surface) {
       cohort_insights: surface.cohort_insights || {},
       person_timeline: surface.person_timeline || {},
       team_timeline: surface.team_timeline || {},
+      person_spheres: surface.person_spheres || {},
       _generated_at: surface._generated_at || null,
       _source: surface._source || surface._storedSource || null,
       _saved_at: new Date().toISOString(),
@@ -185,6 +187,7 @@ function emptyShape() {
     cohort_insights: {},
     person_timeline: {},
     team_timeline: {},
+    person_spheres: {},
   };
 }
 
@@ -248,6 +251,10 @@ function normalize(data) {
     cohort_insights: objectMap(data?.cohort_insights),
     person_timeline: timelineMap(data?.person_timeline),
     team_timeline: timelineMap(data?.team_timeline),
+    // Per-person sphere customization read LIVE from Supabase (os_spheres) by
+    // applySphereOverlay. Empty in the committed bundle; passed through here so
+    // an LS-cached set survives a reboot's first paint (like evidence cards).
+    person_spheres: objectMap(data?.person_spheres),
     // Pre-baked calendar bundle from the GH `cohort-data/program/calendar.json`
     // path or the fixture's `calendar` field. The renderer's `loadCalendar()`
     // tries the live Phala URL first and falls back to this. Previously this
@@ -788,6 +795,25 @@ async function applyDistillationOverlay(surface) {
   return surface;
 }
 
+// Apply the live Supabase per-person sphere overlay. Each customized person has
+// a row in os_spheres (record_id → five visual dials); we fold the whole map
+// onto the surface as `person_spheres` so the card/detail renderers can emit
+// the override as data-shape-* attributes. On a Supabase outage — or before the
+// table exists — the surface keeps whatever it already carries (LS-cached or
+// empty), and spheres just fall back to their hash-derived defaults.
+async function applySphereOverlay(surface) {
+  try {
+    const { spheres, source } = await fetchAllSpheres();
+    if (source === "supabase") {
+      surface.person_spheres = spheres;
+      surface._sphereSource = "supabase-live";
+    }
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
 function signatureOf(grouped) {
   const hash = (value) => {
     const s = String(value ?? "");
@@ -821,7 +847,7 @@ function signatureOf(grouped) {
     .map(([id, items]) => `${id}:${Array.isArray(items) ? items.length : 0}:${fp(JSON.stringify(items || []))}`)
     .sort()
     .join("|");
-  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#wn:${(grouped.whats_new || []).length}:${arraySig(grouped.whats_new || [])}#gr:${(grouped.github_releases || []).length}:${arraySig(grouped.github_releases || [])}#tec:${(grouped.transcript_evidence_cards || []).length}:${arraySig(grouped.transcript_evidence_cards || [])}#ca:${(grouped.cohort_articles || []).length}:${arraySig(grouped.cohort_articles || [])}#te:${objectSig(grouped.transcript_evidence)}#td:${objectSig(grouped.transcript_distillations)}#ci:${objectSig(grouped.cohort_intel)}#ins:${objectSig(grouped.cohort_insights)}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}`;
+  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#wn:${(grouped.whats_new || []).length}:${arraySig(grouped.whats_new || [])}#gr:${(grouped.github_releases || []).length}:${arraySig(grouped.github_releases || [])}#tec:${(grouped.transcript_evidence_cards || []).length}:${arraySig(grouped.transcript_evidence_cards || [])}#ca:${(grouped.cohort_articles || []).length}:${arraySig(grouped.cohort_articles || [])}#te:${objectSig(grouped.transcript_evidence)}#td:${objectSig(grouped.transcript_distillations)}#ci:${objectSig(grouped.cohort_intel)}#ins:${objectSig(grouped.cohort_insights)}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}#ps:${objectSig(grouped.person_spheres)}`;
 }
 
 // Dev preview override. Setting `localStorage.setItem("srfg:cohort_source", "local")`
@@ -961,6 +987,7 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
       await applyEvidenceOverlay(merged);
       await applyArticleOverlay(merged);
       await applyDistillationOverlay(merged);
+      await applySphereOverlay(merged);
       merged._sig = signatureOf(merged);
       // Did anything actually change? If not, no subscriber notify.
       const prevSig = _cache?._sig;

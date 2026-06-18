@@ -5,6 +5,26 @@
   flex-direction: column;
   gap: 16px;
   color: var(--alchemy-paper-warm, #f2ede4);
+  /* Intel is always embedded inside the context page, whose content column is
+     ~360px narrower than the viewport (nav rail + canvas padding). Query this
+     panel's own width — not the viewport — so the grids collapse when the
+     panel is narrow even on a wide screen. */
+  container: intel / inline-size;
+
+  /* Type scale — one system for the whole module. Six steps, each tied to a
+     role; every font-size in this file references a token (no ad-hoc px). Two
+     line-heights: tight for headings/numbers, relaxed for body copy. */
+  --ts-display: 24px;  /* hero detail title (signal / entity) */
+  --ts-xl:      20px;  /* big data figures (metric + stat numbers) */
+  --ts-lg:      16px;  /* card & context-item titles */
+  --ts-base:    14px;  /* body copy + primary list-row titles */
+  --ts-meta:    11px;  /* subtitles, section headings, names in pills */
+  --ts-micro:    9px;  /* uppercase mono micro-tags & field labels */
+  --lh-tight: 1.18;
+  --lh-body:  1.5;
+
+  font-size: var(--ts-base);
+  line-height: var(--lh-body);
 }
 
 /* Embedded in the OS context page (2026-06): the page header + view nav
@@ -16,15 +36,12 @@
 }
 
 .intel-kicker,
-.intel-section-head p,
 .intel-card-meta,
 .intel-card footer span,
 .intel-list-head,
-.intel-status,
 .intel-pill,
 .intel-neighbor-type,
 .intel-data-stat-grid span,
-.intel-repo-row span,
 .intel-related-signals span,
 .intel-grounding-signal button {
   font-family: var(--font-mono);
@@ -35,7 +52,7 @@
 .intel-kicker {
   margin: 0 0 7px;
   color: var(--alchemy-oxide-bright, #d86a4a);
-  font-size: 10px;
+  font-size: var(--ts-micro);
 }
 
 .intel-metrics {
@@ -44,29 +61,36 @@
   gap: 8px;
 }
 
+/* Number and label share one row (baseline-aligned) so the metric strip stays
+   short. Label ellipsizes rather than wrapping, keeping every tile one line. */
 .intel-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   border: 1px solid var(--alchemy-rule, rgba(var(--ink-rgb),0.14));
   border-radius: 6px;
-  padding: 10px 12px;
-  background: rgba(var(--ink-rgb, var(--ink-rgb)), 0.025);
+  padding: 8px 12px;
+  background: rgba(var(--ink-rgb), 0.025);
 }
 
 .intel-metric strong {
-  display: block;
+  flex: 0 0 auto;
   color: var(--alchemy-paper-warm, #f2ede4);
-  font-size: 22px;
+  font-size: var(--ts-xl);
   line-height: 1;
   font-feature-settings: var(--num-feat);
   font-variant-numeric: tabular-nums;
 }
 
 .intel-metric span {
-  display: block;
-  margin-top: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.58));
   font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.16em;
+  font-size: var(--ts-micro);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -124,8 +148,7 @@
 }
 
 .intel-filter-row button,
-.intel-list-head button,
-.intel-path-row button {
+.intel-list-head button {
   appearance: none;
   border: 1px solid var(--alchemy-rule, rgba(var(--ink-rgb),0.16));
   border-radius: 999px;
@@ -133,7 +156,7 @@
   color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.68));
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--ts-micro);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   padding: 5px 8px;
@@ -141,7 +164,6 @@
 
 .intel-filter-row button:hover,
 .intel-list-head button:hover,
-.intel-path-row button:hover,
 .intel-filter-row button.is-active {
   color: var(--alchemy-paper-warm, #f2ede4);
   border-color: rgba(216,106,74,0.55);
@@ -155,7 +177,7 @@
   gap: 10px;
   padding: 10px 12px;
   color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.55));
-  font-size: 9px;
+  font-size: var(--ts-micro);
 }
 
 .intel-list {
@@ -211,7 +233,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--ts-base);
 }
 
 .intel-entity-main small {
@@ -249,7 +271,7 @@
 
 .intel-inspector-head h2 {
   margin: 0;
-  font-size: 26px;
+  font-size: var(--ts-display);
   line-height: 1.05;
   letter-spacing: 0;
 }
@@ -258,20 +280,6 @@
   margin: 8px 0 0;
   color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.64));
   line-height: 1.45;
-}
-
-.intel-status {
-  flex: 0 0 auto;
-  border: 1px solid rgba(124,192,196,0.35);
-  color: #9ed9dd;
-  border-radius: 999px;
-  padding: 5px 8px;
-  font-size: 9px;
-}
-
-.intel-status.is-restricted {
-  border-color: rgba(224,130,114,0.46);
-  color: #e6a092;
 }
 
 .intel-path-row {
@@ -293,21 +301,51 @@
   padding: 7px 8px;
   color: rgba(var(--ink-rgb),0.72);
   background: rgba(0,0,0,0.18);
+  font-family: var(--font-mono);
+  font-size: var(--ts-meta);
 }
+
+/* Icon-only copy control (replaces the "copy label" text button). */
+.intel-copy-btn {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  appearance: none;
+  border: 1px solid var(--alchemy-rule, rgba(var(--ink-rgb),0.16));
+  border-radius: 6px;
+  background: rgba(var(--ink-rgb),0.035);
+  color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.6));
+  cursor: pointer;
+  transition: color 140ms var(--ease), border-color 140ms var(--ease), background 140ms var(--ease);
+}
+
+.intel-copy-btn:hover {
+  color: var(--alchemy-paper-warm, #f2ede4);
+  border-color: rgba(216,106,74,0.55);
+  background: rgba(216,106,74,0.10);
+}
+
+.intel-copy-btn.is-copied {
+  color: #9ccb78;
+  border-color: rgba(156,203,120,0.5);
+  background: rgba(156,203,120,0.10);
+}
+
+.intel-copy-btn svg { display: block; }
 
 .intel-source-mix {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px 14px;
   margin-bottom: 18px;
 }
 
 .intel-pill {
-  border: 1px solid rgba(var(--ink-rgb),0.11);
-  border-radius: 999px;
   color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.62));
-  padding: 5px 8px;
-  font-size: 9px;
+  font-size: var(--ts-micro);
 }
 
 .intel-pill strong {
@@ -315,9 +353,10 @@
 }
 
 .intel-inspector h3,
-.intel-section-head h3 {
+.intel-section-head h3,
+.intel-grounding section h3 {
   margin: 0 0 10px;
-  font-size: 13px;
+  font-size: var(--ts-meta);
   font-family: var(--font-mono);
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -348,22 +387,12 @@
 
 .intel-neighbor-type {
   color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.52));
-  font-size: 8px;
+  font-size: var(--ts-micro);
   flex: 0 0 auto;
 }
 
 .intel-section-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  align-items: baseline;
   margin-bottom: 10px;
-}
-
-.intel-section-head p {
-  margin: 0;
-  color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.52));
-  font-size: 9px;
 }
 
 .intel-cards {
@@ -394,14 +423,8 @@
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 9px;
+  font-size: var(--ts-micro);
   color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.58));
-}
-
-.intel-tier {
-  border: 1px solid rgba(var(--ink-rgb),0.14);
-  border-radius: 999px;
-  padding: 4px 7px;
 }
 
 .intel-lens {
@@ -410,7 +433,7 @@
 
 .intel-card h3 {
   margin: 11px 0 7px;
-  font-size: 18px;
+  font-size: var(--ts-lg);
   line-height: 1.22;
   letter-spacing: 0;
 }
@@ -450,7 +473,7 @@
   border: 1px solid rgba(var(--ink-rgb),0.18);
   color: rgba(var(--ink-rgb),0.74);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ts-micro);
 }
 
 .intel-chain li.is-conclusion > span {
@@ -467,7 +490,7 @@
 .intel-chain strong {
   color: #f1d287;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ts-micro);
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
@@ -517,7 +540,7 @@
 .intel-signal-rank {
   color: rgba(var(--ink-rgb),0.44);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ts-micro);
   line-height: 1.4;
   padding-top: 2px;
 }
@@ -530,7 +553,7 @@
   display: block;
   margin-top: 5px;
   color: var(--alchemy-paper-warm, #f2ede4);
-  font-size: 13px;
+  font-size: var(--ts-base);
   line-height: 1.24;
 }
 
@@ -561,18 +584,15 @@
   gap: 7px;
   align-items: center;
   color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.58));
-  font-size: 8px;
+  font-size: var(--ts-micro);
 }
 
 .intel-signal-tier {
   display: inline-flex;
   gap: 6px;
   align-items: center;
-  border: 1px solid rgba(var(--ink-rgb),0.14);
-  border-radius: 999px;
   color: rgba(var(--ink-rgb),0.72);
-  font-size: 8px;
-  padding: 3px 7px;
+  font-size: var(--ts-micro);
 }
 
 .intel-signal-tier span {
@@ -625,7 +645,7 @@
 .intel-signal-head h2 {
   margin: 10px 0 9px;
   color: var(--alchemy-paper-warm, #f2ede4);
-  font-size: 28px;
+  font-size: var(--ts-display);
   line-height: 1.06;
   letter-spacing: 0;
 }
@@ -639,7 +659,7 @@
 .intel-signal-entities {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 8px 16px;
   margin: 16px 0;
 }
 
@@ -679,23 +699,22 @@
   display: block;
   margin-bottom: 6px;
   color: rgba(216,106,74,0.88);
-  font-size: 8px;
+  font-size: var(--ts-micro);
 }
 
 .intel-brief-field p {
   margin: 0;
 }
 
+/* Entity references are labels, not controls — a colored dot + name, no pill
+   box (only the filter/action buttons get the pill shape). The dot delimits
+   each item in the wrapped list. */
 .intel-entity-pill {
   display: inline-flex;
-  gap: 7px;
+  gap: 6px;
   align-items: center;
-  border: 1px solid rgba(var(--ink-rgb),0.12);
-  border-radius: 999px;
-  background: rgba(var(--ink-rgb),0.035);
-  color: rgba(var(--ink-rgb),0.76);
-  font-size: 11px;
-  padding: 6px 9px;
+  color: rgba(var(--ink-rgb),0.82);
+  font-size: var(--ts-meta);
 }
 
 .intel-entity-pill span {
@@ -709,7 +728,7 @@
 .intel-source-section h3 {
   margin: 16px 0 9px;
   color: var(--alchemy-paper-warm, #f2ede4);
-  font-size: 11px;
+  font-size: var(--ts-meta);
 }
 
 .intel-signal-foot {
@@ -727,7 +746,7 @@
   display: block;
   margin-bottom: 5px;
   color: rgba(216,106,74,0.88);
-  font-size: 8px;
+  font-size: var(--ts-micro);
 }
 
 .intel-source-section {
@@ -761,7 +780,7 @@
 .intel-data-stat-grid strong {
   display: block;
   color: var(--alchemy-paper-warm, #f2ede4);
-  font-size: 20px;
+  font-size: var(--ts-xl);
   line-height: 1;
   font-feature-settings: var(--num-feat);
   font-variant-numeric: tabular-nums;
@@ -771,7 +790,7 @@
   display: block;
   margin-top: 6px;
   color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.56));
-  font-size: 8px;
+  font-size: var(--ts-micro);
 }
 
 .intel-repo-list {
@@ -789,15 +808,8 @@
 .intel-repo-row strong {
   display: block;
   color: var(--alchemy-paper-warm, #f2ede4);
-  font-size: 12px;
+  font-size: var(--ts-base);
   line-height: 1.25;
-}
-
-.intel-repo-row span {
-  display: block;
-  margin-top: 5px;
-  color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.56));
-  font-size: 8px;
 }
 
 .intel-grounding-signal button,
@@ -810,6 +822,14 @@
   cursor: pointer;
   margin-top: 10px;
   padding: 7px 9px;
+}
+
+/* The "open signal" CTA reads at the same scale/shape as the filter + reset
+   pills, just with the accent fill that marks it as the primary action. */
+.intel-grounding-signal button {
+  font-size: var(--ts-micro);
+  border-radius: 999px;
+  padding: 5px 10px;
 }
 
 .intel-grounding-signal button:hover,
@@ -833,26 +853,15 @@
 .intel-related-signals span {
   display: block;
   color: rgba(216,106,74,0.82);
-  font-size: 8px;
+  font-size: var(--ts-micro);
 }
 
 .intel-related-signals strong {
   display: block;
   margin-top: 5px;
   color: var(--alchemy-paper-warm, #f2ede4);
-  font-size: 12px;
+  font-size: var(--ts-base);
   line-height: 1.28;
-}
-
-.intel-boundary-note {
-  border-top: 1px solid rgba(var(--ink-rgb),0.09);
-  padding-top: 13px;
-}
-
-.intel-boundary-note p {
-  margin: 0;
-  color: var(--alchemy-ink-mute, rgba(var(--ink-rgb),0.60));
-  line-height: 1.45;
 }
 
 .intel-context-item {
@@ -866,7 +875,7 @@
 .intel-context-item h4 {
   margin: 0;
   color: var(--alchemy-paper-warm, #f2ede4);
-  font-size: 16px;
+  font-size: var(--ts-lg);
   line-height: 1.18;
 }
 
@@ -877,17 +886,19 @@
 }
 
 .intel-context-neighbors {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  line-height: 1.5;
 }
 
+/* Neighbor names can contain spaces, so a middot separator keeps the list
+   readable without boxing each name into a button-like chip. */
 .intel-context-neighbors span {
-  border: 1px solid rgba(var(--ink-rgb),0.10);
-  border-radius: 999px;
   color: rgba(var(--ink-rgb),0.58);
-  font-size: 10px;
-  padding: 4px 7px;
+  font-size: var(--ts-meta);
+}
+
+.intel-context-neighbors span:not(:last-child)::after {
+  content: " · ";
+  color: rgba(var(--ink-rgb),0.30);
 }
 
 .intel-card footer {
@@ -904,7 +915,7 @@
   display: block;
   margin-bottom: 4px;
   color: rgba(216,106,74,0.88);
-  font-size: 8px;
+  font-size: var(--ts-micro);
 }
 
 .intel-empty,
@@ -913,18 +924,13 @@
   line-height: 1.45;
 }
 
-@media (max-width: 1100px) {
-  .intel-layout,
+/* Container-query collapse (keyed to the panel width, not the viewport).
+   Tier 1 — panel too narrow for the detail pane's inner two columns: stack the
+   inspector above its context/grounding pane (and the in-card two-up footers)
+   while the sidebar stays beside the content. */
+@container intel (max-width: 1100px) {
   .intel-main {
     grid-template-columns: 1fr;
-  }
-
-  .intel-sidebar {
-    max-height: 340px;
-  }
-
-  .intel-metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .intel-card footer {
@@ -938,9 +944,30 @@
   .intel-brief-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Tier 2 — panel too narrow to keep the sidebar beside the content: stack the
+   whole layout, cap the now full-width list, and relax the dense metric/stat
+   grids so their labels stop colliding. */
+@container intel (max-width: 720px) {
+  .intel-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .intel-sidebar {
+    max-height: 340px;
+  }
 
   .intel-data-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The metric strip carries six tiles; once each inline number+label tile drops
+   below ~140px the labels would ellipsize, so fold to three columns first. */
+@container intel (max-width: 900px) {
+  .intel-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

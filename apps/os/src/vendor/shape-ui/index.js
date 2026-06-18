@@ -115,7 +115,7 @@ export {
 // team. Call mountShape(canvas, {family, seed}) on each <canvas>; the
 // returned controller's .destroy() releases the GL context (browsers
 // cap to ~16, so destroying on re-render is essential).
-export { mountShape, mountShapesIn, hashColors } from "./shape-canvas.js";
+export { mountShape, mountShapesIn, hashColors, sphereAttrs, DEFAULT_SURFACE_GLSL } from "./shape-canvas.js";
 
 // Cohort availability — pure computation + a token-driven DOM renderer.
 // Used by both Shape Rotator OS and the sibling web app.

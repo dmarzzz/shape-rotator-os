@@ -137,6 +137,7 @@ export function buildLinkIndex(recordIds) {
     const code = hash5("v:" + key);
     if (viewCodes.has(code)) {
       console.error(`[share-link] view code collision for "${key}" (${code}) — change its canonical key`);
+      continue; // keep the first view (matches the record branch); don't silently overwrite
     }
     viewCodes.add(code);
     next.set(code, snap);

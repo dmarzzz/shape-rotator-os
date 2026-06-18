@@ -8,6 +8,32 @@
 // modal on subsequent launches.
 
 import { getCohortSurface, subscribeToCohortChanges, refreshCohortFromGithub } from "./cohort-source.js";
+import { mountShape, hashColors, sphereAttrs } from "@shape-rotator/shape-ui";
+import { SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, normalizeHex } from "./supabase-sphere.mjs";
+import { compileUserExpr } from "./shader-dsl.mjs";
+
+// Resolve a person's sphere into mountShape opts (saved Supabase override →
+// hash-derived default). Mirrors the editor's dial→uniform mapping so the pill
+// avatar reflects ALL five saved dials. (u_phase/u_hue2 stay hash-derived and
+// the rim glow is fixed inside mountShape regardless of the column values.)
+function personSphereMountOpts(recordId, cohort, scale = 1.0) {
+  const saved = cohort?.person_spheres?.[recordId] || null;
+  const base = hashColors(recordId || "");
+  const num = (v, d) => (Number.isFinite(+v) ? Math.min(1, Math.max(0, +v)) : d);
+  return {
+    seed: recordId, kind: "person", scale,
+    hue:   num(saved?.hue, base.hue),                        // Spectral Phase
+    warp:  num(saved?.phase, 0),                             // Fracture Field
+    progress: num(saved?.complexity, SPHERE_DEFAULTS.complexity),  // Recursion Depth
+    iters: num(saved?.hue2, SPHERE_DEFAULTS.hue2),           // Strata
+    sharp: num(saved?.intensity, SPHERE_DEFAULTS.intensity), // Filament
+    bg: normalizeHex(saved?.bg) || SPHERE_BG_DEFAULT,        // Orb Core colour
+    bgMix: num(saved?.bg_mix, SPHERE_BG_MIX_DEFAULT),        // Orb Core amount
+    // Custom shader: validate the UNTRUSTED stored text → safe GLSL (null if
+    // empty/invalid; mountShape falls back to the standard shader either way).
+    shaderExpr: compileUserExpr(saved?.shader_src || "").glsl || null,
+  };
+}
 
 const IDENTITY_LS_KEY = "srwk:identity_v1";
 const ONBOARDING_SKIP_LS_KEY = "srwk:identity_onboarding_skipped_v1";
@@ -123,6 +149,7 @@ export async function resolveIdentityLabel() {
 // creating a cycle.)
 
 let _pillEl = null;
+let _pillSphereCtl = null;   // dedicated mountShape for the pill avatar (global; the alchemy-only overlay can't paint it off-tab)
 
 export function mountIdentityPill(host) {
   if (!host || _pillEl) return;
@@ -135,6 +162,8 @@ export function mountIdentityPill(host) {
     <span class="ip-avatar" aria-hidden="true"><span class="ip-glyph">◐</span></span>
     <span class="ip-label">claim profile</span>
   `;
+  // The whole pill opens the profile page (the orb here is a still avatar — the
+  // editor is reached by clicking the orb in the "your seal" card on that page).
   pill.addEventListener("click", openIdentityFlow);
   host.appendChild(pill);
   _pillEl = pill;
@@ -149,6 +178,7 @@ async function paintIdentityPill() {
   const id = getIdentity();
   const avatarEl = _pillEl.querySelector(".ip-avatar");
   const labelEl  = _pillEl.querySelector(".ip-label");
+  if (_pillSphereCtl) { try { _pillSphereCtl.destroy(); } catch {} _pillSphereCtl = null; }
   if (!id) {
     _pillEl.dataset.state = "unclaimed";
     labelEl.textContent = "claim profile";
@@ -162,11 +192,17 @@ async function paintIdentityPill() {
   _pillEl.dataset.kind = resolved?.kind || id.kind;
   labelEl.textContent = resolved?.label || id.display_name;
   _pillEl.title = `you: ${id.kind} · ${id.record_id}${resolved?.gh ? ` · @${resolved.gh}` : ""}\nclick to open your profile`;
-  // Avatar: github profile image when we have a handle, else two-letter
-  // initial fallback derived from the display label (helps when a record
-  // has no github yet — most still get a meaningful glyph).
+  // Avatar: a claimed PERSON shows their live sphere medallion (their
+  // customizable identity); team/project/no-handle fall back to the github
+  // image or two-letter initials.
   const fallbackInitials = labelInitials(resolved?.label || id.display_name);
-  if (resolved?.avatar) {
+  if (id.kind === "person") {
+    const cohort = await getCohortSurface().catch(() => null);
+    avatarEl.innerHTML = `<canvas class="ip-avatar-sphere"></canvas>`;
+    const cv = avatarEl.querySelector("canvas");
+    // animate:false → a STILL orb in the pill (no spin in the bottom-left corner).
+    try { _pillSphereCtl = mountShape(cv, { ...personSphereMountOpts(id.record_id, cohort, 1.0), animate: false }); } catch {}
+  } else if (resolved?.avatar) {
     avatarEl.innerHTML = "";
     const img = document.createElement("img");
     img.className = "ip-avatar-img";
@@ -212,6 +248,9 @@ function openIdentityFlow() {
 }
 
 try { window.__srwkOpenIdentityFlow = openIdentityFlow; } catch {}
+// Repaint the pill avatar (its live sphere) on demand — alchemy calls this right
+// after a sphere save so the pill reflects the new look without a full reload.
+try { window.__srwkRepaintIdentityAvatars = () => { try { paintIdentityPill(); } catch {} }; } catch {}
 
 // ─── onboarding modal ────────────────────────────────────────────────
 // First-launch (or when the user clears identity) prompt. Shows the
@@ -371,7 +410,6 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint, sea
       if (edgeCount != null && edgeCount !== "") {
         edgesHtml = `
           <div class="alch-seal-edges">
-            <span class="alch-seal-edges-k">edges</span>
             <span class="alch-seal-edges-v">${escHtml(String(edgeCount))} · ${connCount} connection${connCount === 1 ? "" : "s"}</span>
           </div>`;
       }
@@ -379,7 +417,6 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint, sea
       if (readText) {
         readHtml = `
           <div class="alch-seal-read">
-            <span class="alch-seal-read-h">system read</span>
             <p class="alch-seal-read-body">${escHtml(readText)}</p>
           </div>`;
       }
@@ -389,9 +426,13 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint, sea
       ${claimed ? `
         <div class="alch-seal-box">
         <div class="alch-seal-current">
-          <span class="alch-seal-avatar" aria-hidden="true">${currentResolved?.avatar
-            ? `<img class="alch-seal-avatar-img" alt="" />`
-            : `<span class="alch-seal-initials">${escHtml(initials)}</span>`}</span>
+          <span class="alch-seal-avatar${currentId?.kind === "person" ? " alch-seal-avatar-sphere" : ""}"${currentId?.kind === "person"
+            ? ` role="button" tabindex="0" title="customize your sphere" data-seal-edit-sphere`
+            : ` aria-hidden="true"`}>${currentId?.kind === "person"
+            ? `<canvas class="alch-seal-avatar-canvas" data-shape-fam="0" data-shape-kind="person" data-shape-scale="1.85" data-shape-seed="${escAttr(currentId.record_id)}" ${sphereAttrs(cohort?.person_spheres?.[currentId.record_id])}></canvas>`
+            : (currentResolved?.avatar
+                ? `<img class="alch-seal-avatar-img" alt="" />`
+                : `<span class="alch-seal-initials">${escHtml(initials)}</span>`)}</span>
           <div class="alch-seal-who">
             <span class="alch-seal-name">${escHtml(label)}</span>
             ${contactHtml}
@@ -420,6 +461,16 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint, sea
         const wrap = avatarImg.closest(".alch-seal-avatar");
         if (wrap) wrap.innerHTML = `<span class="alch-seal-initials">${escHtml(initials)}</span>`;
       }, { once: true });
+    }
+    // Person seal avatar is the live sphere — click (or Enter/Space) opens the
+    // sphere editor popup, same as clicking the bottom-left pill avatar.
+    const sealSphere = host.querySelector("[data-seal-edit-sphere]");
+    if (sealSphere) {
+      const openIt = () => { try { window.__srwkOpenSphereEditor?.(); } catch {} };
+      sealSphere.addEventListener("click", openIt);
+      sealSphere.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openIt(); }
+      });
     }
     // github / x handles open in the system browser. preventDefault so the
     // anchor never navigates the renderer itself.

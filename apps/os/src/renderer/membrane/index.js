@@ -12,6 +12,7 @@ import { BLOB_IDS, BLOB_PROFILES, SHAPE_NAMES, TARGET_R } from './cube.js';
 const DIE_CUBE_EDGE = TARGET_R * (2 / Math.sqrt(3)) * CUBE_SCALE * 1.2;
 import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAuthor, askVerbIconSvg, askVerbVars } from '../asks.js';
 import { computeIncoming, acknowledgeIncoming } from './calendar-watch.mjs';
+import { submitFeedback, FEEDBACK_MIN_LENGTH, FEEDBACK_MAX_LENGTH } from '../supabase-feedback.mjs';
 
 // Headless smoke-test boot tracing (gated on ?smoke=1; no-op for real launches).
 // Mirrors boot.js cp(): pinpoints whether the deferred membrane mount blocks.
@@ -813,6 +814,116 @@ function renderAvatar(profile) {
     </div>`;
 }
 
+// ── OS feedback + idea box ──────────────────────────────────────────────────
+// A small anonymous feedback pill pinned to the bottom-center window edge.
+// Clicking it lifts the card a few pixels and blooms a textarea open; once more
+// than 5 characters are typed the send button enables and posts ONE anonymous
+// row to Supabase (message + coarse app context only — see
+// ../supabase-feedback.mjs). Self-contained: returns a dispose() the membrane
+// controller calls on teardown to clear timers + the outside-click listener
+// (the DOM itself is dropped when the host innerHTML is cleared).
+function setupFeedbackBox(container) {
+  const root = container.querySelector('[data-feedback]');
+  if (!root) return { dispose() {} };
+  const toggle = root.querySelector('[data-feedback-toggle]');
+  const input = root.querySelector('[data-feedback-input]');
+  const sendBtn = root.querySelector('[data-feedback-send]');
+  const statusEl = root.querySelector('[data-feedback-status]');
+
+  // Coarse, non-identifying app context, resolved once and best-effort: a
+  // failure just leaves both columns null (both are nullable in the table).
+  let appCtx = { appVersion: null, platform: null };
+  try {
+    Promise.resolve(window.api?.getAppInfo?.()).then((info) => {
+      if (info && typeof info === 'object') {
+        appCtx = { appVersion: info.version || null, platform: info.platform || null };
+      }
+    }).catch(() => {});
+  } catch {}
+
+  let cooldownTimer = null;
+  let collapseTimer = null;
+  let sending = false;
+
+  function setOpen(open) {
+    root.classList.toggle('is-open', open);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) setTimeout(() => { try { input.focus(); } catch {} }, 80);
+  }
+
+  function refreshSend() {
+    const valid = input.value.trim().length >= FEEDBACK_MIN_LENGTH;
+    sendBtn.disabled = sending || cooldownTimer != null || !valid;
+  }
+
+  function setStatus(text, tone) {
+    statusEl.textContent = text || '';
+    if (tone) statusEl.dataset.tone = tone; else delete statusEl.dataset.tone;
+  }
+
+  toggle.addEventListener('click', () => {
+    const open = !root.classList.contains('is-open');
+    if (collapseTimer) { clearTimeout(collapseTimer); collapseTimer = null; }
+    setOpen(open);
+    if (open) { setStatus('', null); refreshSend(); }
+  });
+
+  input.addEventListener('input', () => {
+    if (statusEl.textContent) setStatus('', null);
+    refreshSend();
+  });
+
+  async function send() {
+    if (sendBtn.disabled || sending) return;
+    sending = true;
+    refreshSend();
+    setStatus('sending…', 'pending');
+    const res = await submitFeedback({
+      message: input.value,
+      appVersion: appCtx.appVersion,
+      platform: appCtx.platform,
+    });
+    sending = false;
+    if (res && res.ok) {
+      input.value = '';
+      setStatus('thanks — sent.', 'ok');
+      // Brief client-side cooldown so the public insert endpoint can't be held
+      // down; the server-side length CHECK + RLS are the real guard.
+      cooldownTimer = setTimeout(() => { cooldownTimer = null; refreshSend(); }, 5000);
+      refreshSend();
+      collapseTimer = setTimeout(() => { setOpen(false); collapseTimer = null; }, 1500);
+    } else {
+      setStatus(
+        res && res.error === 'unconfigured'
+          ? 'feedback isn’t set up here.'
+          : 'couldn’t send — try again.',
+        'err',
+      );
+      refreshSend();
+    }
+  }
+
+  sendBtn.addEventListener('click', send);
+
+  // Collapse on a click anywhere outside the box (only while open). Bound to the
+  // membrane host, not document, so it cannot outlive this mount; also removed
+  // in dispose() for good measure.
+  function onOutside(ev) {
+    if (!root.classList.contains('is-open')) return;
+    if (root.contains(ev.target)) return;
+    setOpen(false);
+  }
+  container.addEventListener('mousedown', onOutside);
+
+  return {
+    dispose() {
+      if (cooldownTimer) clearTimeout(cooldownTimer);
+      if (collapseTimer) clearTimeout(collapseTimer);
+      container.removeEventListener('mousedown', onOutside);
+    },
+  };
+}
+
 export function mountMembrane(container, opts = {}) {
   cp('membrane:mount-start');
   console.log('[membrane] mounting into', container?.id || container?.className);
@@ -888,6 +999,25 @@ export function mountMembrane(container, opts = {}) {
           </button>
         </footer>
       </aside>
+      <div class="membrane-feedback" data-feedback>
+        <div class="membrane-feedback-card">
+          <button type="button" class="membrane-feedback-pill" data-feedback-toggle
+                  aria-expanded="false" aria-controls="membrane-feedback-panel">
+            <span class="mfb-spark" aria-hidden="true">✦</span>
+            <span class="mfb-label">OS feedback and idea-box</span>
+          </button>
+          <div class="membrane-feedback-body" id="membrane-feedback-panel" data-feedback-panel>
+            <textarea class="membrane-feedback-input" data-feedback-input rows="3"
+                      maxlength="${FEEDBACK_MAX_LENGTH}"
+                      placeholder="Share feedback or an idea — anonymous."
+                      aria-label="OS feedback and idea-box"></textarea>
+            <div class="membrane-feedback-actions">
+              <span class="membrane-feedback-status" data-feedback-status role="status" aria-live="polite"></span>
+              <button type="button" class="membrane-feedback-send" data-feedback-send disabled>send</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   `;
 
@@ -1422,6 +1552,8 @@ export function mountMembrane(container, opts = {}) {
     });
   });
 
+  const feedback = setupFeedbackBox(container);
+
   return {
     setActiveBlob(id) {
       scene.setActiveBlob(id);
@@ -1440,6 +1572,7 @@ export function mountMembrane(container, opts = {}) {
     sound,
     destroy() {
       clearInterval(agendaTimer);
+      feedback.dispose();
       if (rubiks) rubiks.dispose();
       scene.destroy();
       sound.destroy();

@@ -41,6 +41,10 @@ const KIND_DOTS = {
   source: "#b4a2d6",
 };
 
+// Inline icons for the receipt copy control (replaces the "copy label" text).
+const COPY_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+const CHECK_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`;
+
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -374,7 +378,7 @@ function renderSourceReceipts(paths) {
   return paths.map((path) => `
     <div class="intel-path-row">
       <code>${esc(path)}</code>
-      <button type="button" data-intel-copy="${esc(path)}">copy label</button>
+      <button type="button" class="intel-copy-btn" data-intel-copy="${esc(path)}" aria-label="Copy ${esc(path)}" title="Copy">${COPY_ICON}</button>
     </div>
   `).join("");
 }
@@ -444,7 +448,6 @@ function renderEntityContext(signal, data) {
     <aside class="intel-context">
       <div class="intel-section-head">
         <h3>Mapped context</h3>
-        <p>public context</p>
       </div>
       ${items.map(({ entity }) => {
         const neighbors = neighborsFor(data, entity);
@@ -471,7 +474,6 @@ function renderRepoReceipts(entity) {
       ${entity.repos.map((repo) => `
         <div class="intel-repo-row">
           <strong>${esc(repo.name || repo.id || "repo")}</strong>
-          <span>${esc(repo.status || "public")}</span>
         </div>
       `).join("")}
     </div>
@@ -497,7 +499,6 @@ function renderDataInspector(entity, data) {
           <h2>${esc(entityTitle(entity))}</h2>
           <p>${esc(entitySubtitle(entity))}</p>
         </div>
-        <span class="intel-status">cohort-safe</span>
       </header>
 
       <div class="intel-data-stat-grid">
@@ -515,11 +516,6 @@ function renderDataInspector(entity, data) {
       <section>
         <h3>Relationship shape</h3>
         <div class="intel-source-mix">${renderRelationSummary(entity)}</div>
-      </section>
-
-      <section>
-        <h3>Public surfaces</h3>
-        <div class="intel-source-mix">${(entity.surfaces || []).map((surface) => `<span class="intel-pill">${esc(surface)}</span>`).join("") || `<span class="intel-pill">surface export pending</span>`}</div>
       </section>
 
       <section>
@@ -548,7 +544,6 @@ function renderSignalGrounding(signal, entity, data) {
     <aside class="intel-context intel-grounding">
       <div class="intel-section-head">
         <h3>Signal grounding</h3>
-        <p>why this data is here</p>
       </div>
       ${signal ? `
         <article class="intel-context-item intel-grounding-signal">
@@ -566,18 +561,13 @@ function renderSignalGrounding(signal, entity, data) {
       <section>
         <h3>Related signals for selected entity</h3>
         <div class="intel-related-signals">
-          ${linkedSignals.map((related) => `
+          ${linkedSignals.filter((related) => related.id !== signal?.id).map((related) => `
             <button type="button" data-intel-open-signal="${esc(related.id)}">
               <span>${esc(KIND_LABELS[related.kind] || related.kind)}</span>
               <strong>${esc(related.title)}</strong>
             </button>
-          `).join("") || `<p class="intel-muted">This entity is not directly referenced by a headline signal yet.</p>`}
+          `).join("") || `<p class="intel-muted">No other signals reference this entity yet.</p>`}
         </div>
-      </section>
-
-      <section class="intel-boundary-note">
-        <h3>Boundary</h3>
-        <p>Data view shows cohort-facing relationship context and public-reference labels only. Private source provenance stays out of this app bundle.</p>
       </section>
     </aside>
   `;
@@ -751,14 +741,16 @@ function wireIntel(container) {
   for (const button of container.querySelectorAll("[data-intel-copy]")) {
     button.addEventListener("click", async () => {
       const text = button.dataset.intelCopy || "";
-      const old = button.textContent;
       try {
         await navigator.clipboard.writeText(text);
-        button.textContent = "copied";
+        button.classList.add("is-copied");
+        button.innerHTML = CHECK_ICON;
+        setTimeout(() => {
+          button.classList.remove("is-copied");
+          button.innerHTML = COPY_ICON;
+        }, 900);
       } catch {
-        button.textContent = "copy failed";
-      } finally {
-        setTimeout(() => { button.textContent = old; }, 900);
+        // Clipboard blocked — leave the copy icon in place, nothing to confirm.
       }
     });
   }

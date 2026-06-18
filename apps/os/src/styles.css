@@ -188,11 +188,14 @@ body:not([data-active-tab="links"]) .links-only { display: none !important; }
 /* chat-only elements only on the matrix tab (cohort matrix chat). */
 body:not([data-active-tab="matrix"]) .chat-only { display: none !important; }
 
-/* TEMPORARY: matrix is hidden from the left nav until the homeserver supports
-   password-free login (see docs/MATRIX_DEVICE_LOGIN_REQUEST.md). The tab + all
-   its code still ship — there's just no entry point, so we don't imply it
-   works yet. To re-enable, delete this one rule. */
-.nav-cat[data-tab="matrix"] { display: none !important; }
+/* matrix shows in the nav but isn't enterable yet — the login + E2EE work
+   isn't shipped to users. Grayed out + non-clickable so it reads as "coming
+   soon" without exposing the half-built page. To enable, delete this rule. */
+.nav-cat[data-tab="matrix"] {
+  pointer-events: none;
+  cursor: default;
+  opacity: 0.4;
+}
 
 /* search lives as an overlay inside the Atlas app (formerly its own
  * tab). Shown when on apps→atlas AND data-atlas-search="open". */
@@ -2291,13 +2294,12 @@ body[data-atlas-search="open"] .atlas-search-toggle { display: none; }
 .search-meta-delivery {
   display: inline-flex; align-items: center;
   padding: 3px 9px;
-  border-radius: 999px;
+  border-radius: 5px;
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   background: rgba(var(--ink-rgb), 0.08);
   color: var(--light-1);
-  border: 1px solid rgba(var(--ink-rgb), 0.18);
 }
 .search-meta-delivery[data-dp="LOCAL_CACHE"]                   { color: #7CFFAA; border-color: rgba(124, 255, 170, 0.45); background: rgba(124, 255, 170, 0.10); }
 .search-meta-delivery[data-dp="LOCAL_INDREX"]                  { color: var(--status-local); border-color: rgba(90, 240, 255, 0.45);  background: rgba(90, 240, 255, 0.10); }
@@ -3434,7 +3436,7 @@ html[data-density="compact"] .footer-meta { padding: 8px 18px 10px; }
   align-items: center;
   gap: 4px;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: 5px;
   font-family: var(--font-mono);
   font-size: 9.5px;
   letter-spacing: 0.10em;
@@ -6299,8 +6301,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
-  border: 1px solid rgba(var(--ink-rgb), 0.12);
-  border-radius: 999px;
+  border-radius: 5px;
   padding: 4px 8px;
   color: var(--alchemy-ink-mute);
   font-family: var(--font-mono);
@@ -9170,6 +9171,310 @@ html.jweek-vt::view-transition-new(root) {
   margin: 0;
   font-weight: normal;
 }
+
+/* ── "your sphere" studio (profile page): live preview + five esoteric dials ── */
+.alch-profile-h-aux {
+  margin-left: 8px;
+  color: var(--alchemy-ink-mute);
+  letter-spacing: 0.18em;
+}
+.alch-sphere-empty {
+  margin: 0; font-size: 12px; line-height: 1.5;
+  color: var(--alchemy-ink-mute);
+}
+.alch-sphere-studio-body {
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+}
+.alch-sphere-preview-wrap {
+  flex: 0 0 auto;
+  width: 200px; height: 200px;
+  position: relative;   /* preview canvases stack absolutely inside for the crossfade */
+  /* transparent — the orb floats on the popup background; never a box behind it. */
+  background: transparent;
+}
+/* Stacked so a re-mounted shader can fade in over the previous orb (no blink). */
+.alch-sphere-preview {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  display: block; cursor: grab;
+  transition: opacity 0.32s ease;
+}
+.alch-sphere-dials {
+  flex: 1 1 260px; min-width: 240px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.alch-sphere-dial {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  grid-template-areas: "label slider" "hint slider";
+  align-items: center; column-gap: 12px; row-gap: 1px;
+}
+.alch-sphere-dial-label {
+  grid-area: label;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--alchemy-paper-warm);
+}
+.alch-sphere-dial-hint {
+  grid-area: hint;
+  font-family: var(--font-mono); font-size: 8.5px;
+  letter-spacing: 0.1em; text-transform: lowercase;
+  color: var(--alchemy-ink-mute);
+}
+/* Each dial sets --dial-accent (SPHERE_DIALS.color) which tints the line + dot. */
+.alch-sphere-range {
+  grid-area: slider;
+  width: 100%; height: 2px; margin: 0;
+  -webkit-appearance: none; appearance: none;
+  background: color-mix(in srgb, var(--dial-accent, var(--alchemy-oxide-bright)) 55%, transparent);
+  border-radius: 999px; cursor: pointer;
+}
+.alch-sphere-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--dial-accent, var(--alchemy-oxide-bright));
+  border: 2px solid var(--alchemy-paper-warm);
+  cursor: pointer;
+}
+.alch-sphere-range::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--dial-accent, var(--alchemy-oxide-bright));
+  border: 2px solid var(--alchemy-paper-warm);
+  cursor: pointer;
+}
+
+/* Glyph's sine-wave slider (just for fun): an SVG wave track behind a visually
+   stripped range input, with a dot positioned along the wave in JS. */
+.alch-sphere-dial-wave { align-items: center; }
+.alch-sphere-wave {
+  grid-area: slider; position: relative; height: 24px; width: 100%;
+}
+.alch-sphere-wave-svg {
+  position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;
+}
+.alch-sphere-wave-svg path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--dial-accent, var(--alchemy-oxide-bright)) 70%, transparent);
+  stroke-width: 1.5px; vector-effect: non-scaling-stroke;
+}
+.alch-sphere-range-wave {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer;   /* invisible but still drives the value + drag */
+}
+.alch-sphere-wave-dot {
+  position: absolute; left: 0; top: 50%;
+  width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box;
+  background: var(--dial-accent, var(--alchemy-oxide-bright));
+  border: 2px solid var(--alchemy-paper-warm);
+  transform: translate(-50%, -50%); pointer-events: none; z-index: 1;
+}
+.alch-sphere-actions {
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+  margin-top: 2px;
+}
+.alch-sphere-status {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.12em; color: var(--alchemy-ink-mute);
+}
+.alch-sphere-status[data-kind="success"] { color: var(--alchemy-oxide-bright); }
+.alch-sphere-status[data-kind="error"]   { color: var(--alchemy-oxide-hot); }
+.alch-sphere-note {
+  margin: 0; font-size: 11px; line-height: 1.5;
+  color: var(--alchemy-ink-mute);
+}
+
+/* ── sphere editor popup (opened by clicking your avatar) ────────────────── */
+/* Lighter backdrop than the default identity modal — barely blur the app. */
+.identity-modal-backdrop.alch-sphere-modal-backdrop {
+  background: rgba(var(--overlay-rgb), 0.28);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  /* Anchor the popup near the top (not vertically centred) so expanding the
+     custom-shader section grows it DOWNWARD instead of shifting the whole modal
+     up. Caps at max-height (below) then scrolls internally. */
+  align-items: flex-start;
+  padding-top: 6vh;
+}
+.identity-modal.alch-sphere-modal {
+  width: min(640px, 94vw);
+  max-height: 86vh; overflow: auto;
+  padding: 14px 20px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+  border-radius: 14px;
+}
+
+/* Orb Core control — the swatch+hex row, then a title-less "amount" slider
+   stacked under it (how strongly the colour tints the orb). */
+.alch-sphere-bg-stack {
+  grid-area: slider; display: flex; flex-direction: column; gap: 9px;
+}
+.alch-sphere-bg-dial .alch-sphere-bg-row {
+  display: flex; align-items: center; gap: 8px;
+}
+/* The amount slider sits in the Orb Core control but its line + dot stay a
+   fixed light gray — they do NOT tint to the picked colour (unlike the dials). */
+.alch-sphere-bg-amount { width: 100%; background: rgba(var(--ink-rgb), 0.28); }
+.alch-sphere-bg-amount::-webkit-slider-thumb { background: rgba(var(--ink-rgb), 0.5); }
+.alch-sphere-bg-amount::-moz-range-thumb { background: rgba(var(--ink-rgb), 0.5); }
+.alch-sphere-swatches { display: flex; gap: 3px; }
+.alch-sphere-swatch {
+  width: 13px; height: 13px; padding: 0;
+  border: 1px solid var(--alchemy-rule); border-radius: 4px;
+  cursor: pointer; transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+.alch-sphere-swatch:hover { transform: scale(1.18); }
+.alch-sphere-swatch:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 2px; }
+.alch-sphere-swatch[data-selected="1"] {
+  border-color: var(--alchemy-paper-warm);
+  box-shadow: 0 0 0 2px var(--alchemy-oxide-bright);
+}
+.alch-sphere-hex {
+  width: 68px; flex: 0 0 auto;
+  background: rgba(0,0,0,0.30); color: var(--alchemy-paper-warm);
+  border: 1px solid var(--alchemy-rule); border-radius: 6px;
+  padding: 3px 6px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+  text-transform: lowercase;
+}
+.alch-sphere-hex:focus { outline: none; border-color: var(--alchemy-oxide-bright); }
+.alch-sphere-hex[data-invalid="1"] { border-color: var(--alchemy-oxide-hot); }
+
+/* ── custom-shader code area (collapsible, below the dials) ──────────────────
+   A <details> disclosure, COLLAPSED by default. Inside: a monospace expression
+   box validated live (shader-dsl) into safe GLSL, an inline status line, and a
+   bulleted help panel of the available inputs/functions. */
+.alch-sphere-code {
+  padding-top: 10px; margin-top: 2px;
+  border-top: 1px solid var(--alchemy-rule);
+}
+.alch-sphere-code-summary {
+  cursor: pointer; list-style: none; user-select: none;
+  display: flex; align-items: baseline; gap: 8px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  /* Muted grey, not bright — it's an advanced/power-user affordance, so it
+     shouldn't draw attention. Brightens a touch on hover/open (via opacity). */
+  color: var(--alchemy-ink-mute);
+  opacity: 0.72; transition: opacity 120ms ease;
+}
+.alch-sphere-code-summary:hover,
+.alch-sphere-code[open] .alch-sphere-code-summary { opacity: 1; }
+.alch-sphere-code-summary::-webkit-details-marker { display: none; }
+.alch-sphere-code-summary::before {
+  content: "▸"; display: inline-block; font-size: 10px;
+  color: var(--alchemy-ink-mute); transition: transform 120ms ease;
+}
+.alch-sphere-code[open] .alch-sphere-code-summary::before { transform: rotate(90deg); }
+.alch-sphere-code-body {
+  display: flex; flex-direction: column; gap: 8px; padding-top: 10px;
+}
+/* Code editor with syntax highlighting: a transparent-text <textarea> sits over
+   a colour-highlighted <pre> layer. Both MUST share identical font metrics,
+   padding and wrapping so the glyphs line up exactly. The wrapper owns the
+   border + background; the caret stays visible via caret-color. */
+.alch-sphere-code-editor {
+  position: relative;
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid var(--alchemy-rule); border-radius: 6px;
+}
+.alch-sphere-code-editor:focus-within { border-color: var(--alchemy-oxide-bright); }
+.alch-sphere-code-input,
+.alch-sphere-code-hl {
+  margin: 0; border: 0; box-sizing: border-box; width: 100%;
+  padding: 7px 9px;
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.5; letter-spacing: 0.02em;
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;
+  tab-size: 2;
+}
+.alch-sphere-code-hl {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden;
+  pointer-events: none; color: var(--alchemy-paper-warm);
+}
+.alch-sphere-code-input {
+  position: relative; z-index: 1; display: block; resize: vertical; min-height: 60px;
+  background: transparent; color: transparent; -webkit-text-fill-color: transparent;
+  caret-color: var(--alchemy-paper-warm); outline: none;
+}
+/* GLSL editor (multi-line raw shader): don't wrap — scroll horizontally instead,
+   smaller/denser font, taller, and keep the two layers in lock-step (the JS syncs
+   scrollTop/scrollLeft). */
+.alch-sphere-code-editor-glsl .alch-sphere-code-input,
+.alch-sphere-code-editor-glsl .alch-sphere-code-hl {
+  white-space: pre; overflow-wrap: normal; word-break: normal;
+  font-size: 10.5px; line-height: 1.45;
+}
+.alch-sphere-code-editor-glsl .alch-sphere-code-input {
+  min-height: 240px; max-height: 52vh; overflow: auto;
+}
+.alch-sphere-code-editor-glsl .alch-sphere-code-hl { overflow: hidden; }
+/* Token colours (read on the dark editor background, both themes). */
+.alch-sphere-code-hl .cm-fn      { color: #f0b46a; }   /* functions */
+.alch-sphere-code-hl .cm-input   { color: #8ec7f0; }   /* DSL inputs */
+.alch-sphere-code-hl .cm-num     { color: #c9a6f0; }   /* numbers */
+.alch-sphere-code-hl .cm-swizzle { color: #84d6b4; }   /* .xy / .rgb */
+.alch-sphere-code-hl .cm-keyword { color: #e1729a; }   /* for/if/return/const… */
+.alch-sphere-code-hl .cm-type    { color: #6fcad2; }   /* float/vec3/int… */
+.alch-sphere-code-hl .cm-comment { color: rgba(230, 225, 215, 0.38); font-style: italic; }
+.alch-sphere-code-hl .cm-punct   { color: rgba(230, 225, 215, 0.55); }
+.alch-sphere-code-hl .cm-unknown { color: #e8e2d6; }   /* identifiers / variables */
+.alch-sphere-code-hl .cm-error   { color: var(--alchemy-oxide-hot); text-decoration: underline wavy; }
+.alch-sphere-code-note {
+  margin: 0; font-size: 10.5px; line-height: 1.6; color: var(--alchemy-ink-mute);
+}
+.alch-sphere-code-note code {
+  font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-paper-warm);
+  background: rgba(var(--ink-rgb), 0.07); padding: 0 3px; border-radius: 3px;
+}
+.alch-sphere-code-status {
+  min-height: 13px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+  color: var(--alchemy-ink-mute);
+}
+.alch-sphere-code-status[data-kind="success"] { color: var(--alchemy-oxide-bright); }
+.alch-sphere-code-status[data-kind="error"]   { color: var(--alchemy-oxide-hot); }
+/* Help: two columns of available inputs / functions. */
+.alch-sphere-help-cols {
+  display: flex; gap: 18px; flex-wrap: wrap;
+}
+.alch-sphere-help-cols > div { flex: 1 1 200px; min-width: 0; }
+.alch-sphere-help-h {
+  display: block; margin-bottom: 4px;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute); opacity: 0.8;
+}
+.alch-sphere-help-cols ul {
+  margin: 0; padding-left: 14px; font-size: 10px; line-height: 1.7;
+  color: var(--alchemy-ink-mute);
+}
+.alch-sphere-help-g { display: inline-block; min-width: 52px; opacity: 0.85; }
+.alch-sphere-help-cols code {
+  font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-paper-warm);
+  background: rgba(var(--ink-rgb), 0.07); padding: 0 3px; border-radius: 3px;
+}
+
+/* Detail-page custom-shader orb: its OWN mountShape canvas (not the overlay),
+   so it fills .alch-detail-shape exactly like the standard placeholder does. */
+.alch-detail-orb-canvas {
+  display: block; width: 100%; height: 100%; border-radius: 4px; cursor: grab;
+}
+
+/* ── avatar spheres (pill + seal card) ──────────────────────────────────── */
+/* Person orb avatars float bare — no container background/border, slightly larger. */
+.identity-pill .ip-avatar-sphere { width: 100%; height: 100%; display: block; }
+.identity-pill[data-kind="person"] .ip-avatar {
+  background: transparent; overflow: visible;
+  width: 26px; height: 26px;
+}
+.alch-seal-avatar-canvas { width: 100%; height: 100%; display: block; }
+.alch-seal-avatar.alch-seal-avatar-sphere {
+  /* The orb is scaled to FILL this box (data-shape-scale ~1.85) so its visible
+     left edge sits at the box's left edge — which lines up with the seal text
+     below. The box is small + tight (≈ the visible orb) so it stays roughly its
+     prior size and the name keeps a normal gap. No hover effect. */
+  width: 64px; height: 64px; flex: 0 0 64px;
+  margin: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; overflow: visible;
+  cursor: pointer;
+}
+
 .alch-profile-form {
   display: flex; flex-direction: column; gap: 8px;
 }
@@ -9490,8 +9795,7 @@ html.jweek-vt::view-transition-new(root) {
   align-items: center;
   min-height: 22px;
   padding: 3px 8px;
-  border: 1px solid var(--alchemy-rule-warm);
-  border-radius: 999px;
+  border-radius: 5px;
   color: var(--alchemy-paper-warm);
   background: rgba(143,34,14,0.08);
   font-family: var(--font-mono);
@@ -12834,7 +13138,9 @@ body[data-active-tab="alchemy"] #alchemy-view[data-alch-mode-current="membrane"]
   background: var(--ed-ink-1);
   color: var(--ed-bg-0);
 }
-.alch-pf-row > span, .alch-pf-target label > span { color: var(--ed-ink-4); letter-spacing: 0.22em; }
+/* Field labels (PERSON / NAME / ROLE …) — caption tier, not the near-invisible
+   marginalia/placeholder ink-4 they were on, so they're readable. */
+.alch-pf-row > span, .alch-pf-target label > span { color: var(--ed-ink-3); letter-spacing: 0.22em; }
 .alch-pf-row input, .alch-pf-row select, .alch-pf-target-select {
   background: var(--ed-bg-1);
   color: var(--ed-ink-1);
@@ -12992,6 +13298,49 @@ body[data-active-tab="alchemy"] #alchemy-view[data-alch-mode-current="membrane"]
 .alch-seal-read-body {
   margin: 0;
   font-size: 13px; line-height: 1.6; color: var(--ed-ink-2);
+}
+
+/* Base style for every .alch-feed-btn (edit-this-page, refresh, reopen editor,
+   copy diagnostics, the asks/PR submits…). Without this they fell back to raw
+   UA chrome (grey box, black bevel) anywhere outside the feed view. One quiet
+   editorial command box — clearly an action, not loud. Defined ahead of the
+   instance rules below so their overrides (e.g. the submit-PR pills) win. */
+.alch-feed-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 7px 12px;
+  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  border-radius: 8px;
+  background: rgba(var(--ink-rgb), 0.02);
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+  font-family: var(--ed-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(.2, .7, .2, 1),
+              border-color 160ms cubic-bezier(.2, .7, .2, 1),
+              background 160ms cubic-bezier(.2, .7, .2, 1),
+              color 160ms cubic-bezier(.2, .7, .2, 1);
+}
+.alch-feed-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(143, 34, 14, 0.58);
+  background: rgba(143, 34, 14, 0.05);
+  color: var(--ed-ink-1, var(--alchemy-paper-warm));
+}
+.alch-feed-btn:active { transform: translateY(0) scale(0.985); }
+.alch-feed-btn:focus-visible {
+  outline: 2px solid rgba(143, 34, 14, 0.72);
+  outline-offset: 3px;
+}
+.alch-feed-btn:disabled,
+.alch-feed-btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
 }
 
 /* ── profile · submit row (save · local sync / save · open github PR) ──
@@ -14445,8 +14794,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   color: var(--ed-ink-1);
   opacity: 0.78;
   padding: 1px 7px;
-  border: 1px solid rgba(var(--ink-rgb), 0.18);
-  border-radius: 999px;
+  border-radius: 5px;
 }
 .alch-asks-actions {
   display: flex;
@@ -16681,6 +17029,11 @@ body[data-blank] .blank-tab { display: flex; }
   color: rgba(var(--ink-rgb), 0.50);
 }
 .primary-nav .nav-cat--eyebrow:hover { color: rgba(var(--ink-rgb), 0.66); }
+/* "operating system" glyphs hidden — the eyebrow sits in the top-left where
+ * macOS draws the traffic-light window buttons, and the text overlapped them.
+ * visibility:hidden (not display:none) keeps the button's reserved height so
+ * the rail below does not shift up. */
+.primary-nav .nav-cat--eyebrow .nav-cat-label { visibility: hidden; }
 
 /* ── apps / network / links — destination rows in the OS-rail's row grammar.
  * A faint hairline above the first one separates the OS pages from these
@@ -16741,6 +17094,9 @@ body[data-blank] .blank-tab { display: flex; }
   text-transform: lowercase;
   color: rgba(var(--ink-rgb), 0.45);
 }
+/* Matrix tab: drop the "chat · cohort · e2ee" sub-text so the tab reads as a
+ * clean single row like apps / network / links (which carry no hint). */
+.primary-nav .nav-cat--dest[data-tab="matrix"] .ar-hint { display: none; }
 .primary-nav .nav-cat--dest:hover { color: rgba(var(--ink-rgb), 0.98); }
 .primary-nav .nav-cat--dest:hover .ar-num   { opacity: 0.92; }
 .primary-nav .nav-cat--dest:hover .ar-label { color: rgba(var(--ink-rgb), 0.98); }
@@ -21315,7 +21671,7 @@ html[data-theme="light"] .alch-trailbar .alch-trail-back {
   font-weight: 500;
   letter-spacing: 0.02em;
   padding: 2px 7px;
-  border-radius: 999px;
+  border-radius: 5px;
   background: rgba(var(--ink-rgb), 0.06);
   color: rgba(var(--ink-rgb), 0.7);
 }
