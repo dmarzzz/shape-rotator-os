@@ -24,6 +24,17 @@ contextBridge.exposeInMainWorld("api", {
   revealContextVaultSource: (id) => ipcRenderer.invoke("context-vault:reveal-source", id),
   revealContextVaultCorpus: () => ipcRenderer.invoke("context-vault:reveal-corpus"),
   clipboardWrite: (text) => ipcRenderer.invoke("clipboard:write", text),
+  // ─── deep links (sros://xxxxx) ───────────────────────────────────────
+  // main forwards a clicked sros:// link here while the app is running;
+  // getPendingDeepLink drains a link that cold-launched the app (queued in
+  // main before the renderer's listener existed). See main.js open-url /
+  // second-instance → deliverDeepLink, and boot.js setupShareLinks.
+  onDeepLink: (cb) => {
+    const h = (_e, url) => { try { cb(url); } catch {} };
+    ipcRenderer.on("deep-link", h);
+    return () => ipcRenderer.removeListener("deep-link", h);
+  },
+  getPendingDeepLink: () => ipcRenderer.invoke("deep-link:get-pending"),
   // app updates (electron-updater + GitHub Releases; no-op in dev)
   checkAppUpdate:        ()       => ipcRenderer.invoke("fg:check-update"),
   applyAppUpdate:        ()       => ipcRenderer.invoke("fg:apply-update"),

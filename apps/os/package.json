@@ -41,6 +41,14 @@
     "appId": "com.shape-rotator.os",
     "productName": "Shape Rotator OS",
     "artifactName": "ShapeRotatorOS-${version}-${os}-${arch}.${ext}",
+    "protocols": [
+      {
+        "name": "Shape Rotator OS",
+        "schemes": [
+          "sros"
+        ]
+      }
+    ],
     "electronVersion": "33.4.11",
     "npmRebuild": false,
     "nodeGypRebuild": false,

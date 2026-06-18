@@ -2,6 +2,43 @@
 
 Succinct log of shipped features. Newest first.
 
+## Shareable deep-links — `https://…/s/xxxxx` → `sros://` (2026-06-16)
+
+Copy a link to any page and send it; clicking it on a machine with the OS
+installed launches (or focuses) the app and lands on that exact page.
+
+- **Two forms, one 5-char code** ([share-link.js](apps/os/src/renderer/share-link.js)):
+  the OS registers the custom scheme `sros://xxxxx`, but chat/email/notes apps
+  only auto-linkify `http(s)`, so the **copy action emits a clickable https
+  link** — `https://os-web.shaperotator.xyz/s/xxxxx` — that a tiny redirect page
+  bounces into `sros://xxxxx`. `parseLocation` accepts both forms. A code is
+  `hash5(stable-id)` — a view's internal structural id, or a record's
+  `record_id` slug — never a title or content, so a link survives page renames
+  and edits. The hash + canonical-key strings are a **frozen wire format**;
+  an append-only `VIEW_ALIASES` table lets an internal view rename keep old codes
+  resolving. The ~27 fixed views are asserted collision-free; records hash at
+  load time (rare collisions are logged, per the chosen runtime-hash design).
+- **Redirect page** ([apps/web/s.html](apps/web/s.html) + `vercel.json` rewrite
+  `/s/:code → /s.html`): reads the code, forwards to `sros://`, offers a download
+  fallback. Ships with this repo's web app (`os-web.shaperotator.xyz`), which the
+  link base points at, so clicked links resolve once the web app deploys.
+- **Reuses existing nav**: serialize = `navSnapshot()` → code; apply = code →
+  `navApplyLocation()` / `__srwkAlchemyShowRecord` (the same path the mouse
+  back/forward buttons and find.js use). The code↔page index is built from the
+  cohort surface and refreshed on dataset change.
+- **Share triggers**: a "Copy link to this page" command-palette entry plus a
+  floating button pinned to the window's bottom-right corner (hidden on the
+  matrix tab; flashes the brand yellow on click; no toast — copies silently).
+- **Delivery** ([main.js](apps/os/main.js) + [preload.js](apps/os/preload.js)):
+  `setAsDefaultProtocolClient("sros")`; macOS via `open-url`, Windows/Linux via a
+  non-darwin single-instance lock + `second-instance` (macOS instance behaviour
+  unchanged) and cold-launch argv. Links that arrive before the renderer is ready
+  are queued and drained via `deep-link:get-pending`. Scheme registered for
+  packaging through electron-builder `build.protocols`.
+- Verified: encoder round-trips both forms + 5-char/uniqueness/garbage-no-op
+  checks, renderer bundles (77 modules) and boots clean (smoke test). The OS
+  click→open round-trip needs a packaged build + the redirect page live.
+
 ## Membrane: hidden Rubik's-cube easter egg (2026-06-15)
 
 A playable Flashbots Rubik's cube hides at the end of the membrane die's shape

@@ -56,7 +56,8 @@ import {
 import { createLazyModule } from "./lazy-module.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
-import { subscribeToCohortChanges, subscribeToSyncState } from "./cohort-source.js";
+import { subscribeToCohortChanges, subscribeToSyncState, getCohortSurface } from "./cohort-source.js";
+import { buildLinkIndex, serializeLocation, parseLocation } from "./share-link.js";
 
 // ── headless smoke-test boot tracing (gated; no-op for real launches) ──
 // main.js loads index.html with ?smoke=1 for the --smoke-test boot. When set,
@@ -653,6 +654,34 @@ async function boot() {
     console.warn("[boot] footer row assembly failed:", e?.message || e);
   }
 
+  // Floating "share this page" button — pinned to the bottom-right corner of
+  // the window. Copies an sros:// deep-link to the current page (same action as
+  // the "Copy link to this page" command palette entry). Body-level + fixed so
+  // it floats over every tab; z-index matches the footer chrome (below modals,
+  // palette, and toasts).
+  try {
+    if (!document.getElementById("share-page-btn")) {
+      const shareBtn = document.createElement("button");
+      shareBtn.id = "share-page-btn";
+      shareBtn.className = "fg-share-fab";
+      shareBtn.type = "button";
+      shareBtn.title = "copy link to this page";
+      shareBtn.setAttribute("aria-label", "copy link to this page");
+      shareBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
+      shareBtn.addEventListener("click", () => {
+        copyShareLink();
+        // restart the yellow flash on every click (reflow forces re-run)
+        shareBtn.classList.remove("is-flashing");
+        void shareBtn.offsetWidth;
+        shareBtn.classList.add("is-flashing");
+      });
+      shareBtn.addEventListener("animationend", () => shareBtn.classList.remove("is-flashing"));
+      document.body.appendChild(shareBtn);
+    }
+  } catch (e) {
+    console.warn("[boot] share button mount failed:", e?.message || e);
+  }
+
   // Main re-checks for releases every 2h and pushes hits here, so a
   // session left open for days still gets the indicator + toast without
   // anyone clicking the version stamp.
@@ -695,6 +724,7 @@ async function boot() {
   wireSwarmPanelLauncher();
   wireRendererWarmupHints();
   initNavHistory();
+  setupShareLinks();
   wireAtlasOfflinePanel();
 
   setStatus("loading graph data…");
@@ -4638,6 +4668,77 @@ function navGoForward() {
   navApplyLocation(navHist.stack[navHist.index]);
 }
 
+// ─── shareable deep-links (sros://xxxxx) ──────────────────────────────────
+// Copy a link to the current page (palette command + footer button) and apply
+// an incoming sros:// link by routing it through the same navApplyLocation /
+// record path the UI uses. Codes ⇄ pages live in share-link.js.
+function copyShareLink() {
+  let url = "";
+  try { url = serializeLocation(navSnapshot()); } catch {}
+  if (!url) return;
+  try { window.api?.clipboardWrite?.(url); } catch {}
+}
+
+function applyDeepLink(url) {
+  let snap = null;
+  try { snap = parseLocation(url); } catch {}
+  if (!snap) return;
+  try {
+    if (snap.recordId) {
+      // Records open via the proven find.js path (alchemy + shapes detail).
+      if (typeof window.__srwkGoTab === "function") window.__srwkGoTab("alchemy");
+      if (typeof window.__srwkAlchemyShowRecord === "function") window.__srwkAlchemyShowRecord(snap.recordId, "shapes");
+      else navApplyLocation(snap);
+    } else {
+      navApplyLocation(snap);
+    }
+    navRecord();
+  } catch (e) {
+    console.warn("[share-link] applyDeepLink failed:", e?.message || e);
+  }
+}
+
+// Build the code↔page index from the loaded cohort surface, drain a cold-start
+// link (one that launched the app, delivered before our listener existed), and
+// subscribe to live links + dataset refreshes. View links resolve immediately;
+// a record code needs the surface present, so we drain after the first resolve.
+function setupShareLinks() {
+  const collectRecordIds = (surface) => {
+    const ids = [];
+    for (const key of ["teams", "people", "clusters", "dependencies", "program", "events", "asks"]) {
+      const arr = surface && surface[key];
+      if (Array.isArray(arr)) for (const r of arr) if (r && r.record_id) ids.push(String(r.record_id));
+    }
+    return ids;
+  };
+
+  buildLinkIndex([]); // view links work before cohort data arrives
+  try { window.api?.onDeepLink?.(applyDeepLink); } catch {}
+
+  let drained = false;
+  const refreshAndDrain = async () => {
+    try {
+      const surface = await getCohortSurface();
+      buildLinkIndex(collectRecordIds(surface));
+    } catch (e) {
+      console.warn("[share-link] index build failed:", e?.message || e);
+    }
+    if (!drained) {
+      drained = true;
+      try {
+        const pending = await window.api?.getPendingDeepLink?.();
+        if (pending) applyDeepLink(pending);
+      } catch {}
+    }
+  };
+  refreshAndDrain();
+  try { subscribeToCohortChanges(() => { refreshAndDrain(); }); } catch {}
+
+  // Dev/test helpers: exercise parse→apply and serialize without the OS round-trip.
+  window.__srwkApplyDeepLink = applyDeepLink;
+  window.__srwkShareLink = () => { try { return serializeLocation(navSnapshot()); } catch { return ""; } };
+}
+
 function initNavHistory() {
   navHist.last = navSnapshot();
   navHist.stack = [navHist.last];
@@ -4781,6 +4882,10 @@ function registerVisualizerShortcutsAndCommands() {
       hint: "your daily cohort update",
       keywords: ["app","router","daybook","digest","update","post","cohort","daily","reflect","intro","interview"],
       run: () => openApp("daybook") },
+    { id: "share.page", group: "Share", label: "Copy link to this page",
+      hint: "sros:// deep-link to where you are",
+      keywords: ["share","link","copy","url","send","page","deep","sros"],
+      run: () => copyShareLink() },
     { id: "atlas.timelapse", group: "Atlas", label: "Atlas: toggle time-lapse",
       keys: ["T"], hint: "cinematic replay of the last N days",
       keywords: ["atlas","timelapse","time-lapse","replay","scrub","cinematic","T"],

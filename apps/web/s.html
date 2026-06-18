@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Open in Shape Rotator OS</title>
+  <!--
+    Shareable deep-link redirect. A link like /s/4ozob lands here; the script
+    reads the 5-char code and bounces the browser into sros://4ozob, which the
+    OS hands to the installed Shape Rotator OS app. Custom schemes (sros://)
+    aren't auto-linkified by chat/email apps, so links are shared as this https
+    URL instead. The code ⇄ page mapping lives in the app
+    (apps/os/src/renderer/share-link.js); this page only forwards the code.
+  -->
+  <style>
+    :root { color-scheme: dark; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: #0b0a12;
+      color: #f3ead7;
+      font-family: "Space Grotesk", system-ui, -apple-system, sans-serif;
+      text-align: center;
+    }
+    .card { max-width: 420px; }
+    h1 { font-size: 18px; font-weight: 600; margin: 0 0 8px; }
+    p { margin: 6px 0; font-size: 14px; opacity: 0.82; }
+    a.btn {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: #FFD16A;
+      color: #241a0c;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    a.dl { color: #FFD16A; }
+    .muted { font-size: 12px; opacity: 0.55; margin-top: 18px; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1 id="title">Opening Shape Rotator OS…</h1>
+    <p id="sub">If it doesn't open automatically, click below.</p>
+    <a class="btn" id="open" href="#">Open Shape Rotator OS</a>
+    <p class="muted">Don't have it yet?
+      <a class="dl" href="https://github.com/dmarzzz/shape-rotator-os/releases/latest">Download the app</a>.
+    </p>
+  </main>
+  <script>
+    (function () {
+      // The code can arrive as /s/CODE (preferred), #CODE, or ?c=CODE.
+      function pick() {
+        var seg = (location.pathname || "").split("/").filter(Boolean).pop() || "";
+        if (/^[0-9a-z]{5}$/i.test(seg)) return seg;
+        var h = (location.hash || "").replace(/^#/, "");
+        if (/^[0-9a-z]{5}$/i.test(h)) return h;
+        try {
+          var c = new URLSearchParams(location.search).get("c") || "";
+          if (/^[0-9a-z]{5}$/i.test(c)) return c;
+        } catch (e) {}
+        return "";
+      }
+      var code = pick().toLowerCase();
+      if (!code) {
+        document.getElementById("title").textContent = "Invalid link";
+        document.getElementById("sub").textContent = "This Shape Rotator link is missing its code.";
+        document.getElementById("open").style.display = "none";
+        return;
+      }
+      var deep = "sros://" + code;
+      document.getElementById("open").href = deep;
+      // Auto-attempt the hand-off to the desktop app.
+      setTimeout(function () { try { window.location.href = deep; } catch (e) {} }, 200);
+    })();
+  </script>
+</body>
+</html>

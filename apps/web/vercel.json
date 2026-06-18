@@ -4,6 +4,9 @@
   "buildCommand": "cd ../.. && npm run vendor:web",
   "installCommand": "cd ../.. && npm ci",
   "outputDirectory": ".",
+  "rewrites": [
+    { "source": "/s/:code", "destination": "/s.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

@@ -12483,6 +12483,64 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 .fg-update-icon[data-state="ready"] { cursor: pointer; }
 .fg-update-icon svg.fg-ready-glyph { width: 12px; height: 12px; }
 
+/* Floating "share this page" button — pinned to the window's bottom-right
+ * corner (built in boot.js, body-level + fixed). Copies an sros:// deep-link to
+ * the current page. A small circular glass chip so the icon stays legible over
+ * both the dark membrane and the light atlas paper; quiet at rest, solid on
+ * hover. z-index matches .fg-footer-row (above content, below modals/palette). */
+.fg-share-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(20, 14, 8, 0.42);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 4px 14px rgba(10, 7, 4, 0.35);
+  color: #fff;
+  opacity: 0.62;
+  cursor: pointer;
+  line-height: 0;
+  transition: opacity 180ms var(--ease, ease), background 180ms var(--ease, ease), transform 180ms var(--ease, ease);
+}
+.fg-share-fab svg { width: 15px; height: 15px; display: block; }
+.fg-share-fab:hover { opacity: 1; background: rgba(20, 14, 8, 0.62); }
+.fg-share-fab:active { transform: scale(0.94); }
+/* Hidden on the matrix (chat) tab. */
+body[data-active-tab="matrix"] .fg-share-fab { display: none; }
+/* Click confirmation: snap to the brand yellow, hold ~0.5s, then fade back to
+ * the resting glass chip over ~0.5s. Triggered by .is-flashing in boot.js. */
+@keyframes shareFabFlash {
+  0%, 50% {
+    background: #FFD16A;
+    color: #241a0c;
+    opacity: 1;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+      0 4px 16px rgba(255, 209, 106, 0.55);
+  }
+  100% {
+    background: rgba(20, 14, 8, 0.42);
+    color: #fff;
+    opacity: 0.62;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+      0 4px 14px rgba(10, 7, 4, 0.35);
+  }
+}
+.fg-share-fab.is-flashing { animation: shareFabFlash 1s var(--ease, ease) forwards; }
+
 /* numeric % / ready label — mono, tabular so the digits don't jitter. */
 .fg-update-pct {
   font-family: var(--font-mono, "SF Mono", Menlo, ui-monospace, monospace);
