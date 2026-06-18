@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld("api", {
   loadPrefs:    () => ipcRenderer.invoke("prefs:load"),
   savePrefs:    (d) => ipcRenderer.invoke("prefs:save", d),
   env:          () => ipcRenderer.invoke("env:get"),
+  // The build-baked cohort key (role=cohort_app), read once synchronously so the
+  // evidence reader can resolve it at module-eval. Empty on un-provisioned /
+  // public builds. A read-only value, not a function — there is nothing to invoke.
+  cohortKey:    (() => { try { return ipcRenderer.sendSync("cohort-key:get"); } catch { return ""; } })(),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   // Whole-window zoom — the renderer calls this for Cmd/Ctrl +/-/0 when it is
   // NOT on a cohort view (cohort views handle those keys with their own scoped

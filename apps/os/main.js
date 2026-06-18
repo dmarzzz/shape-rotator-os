@@ -139,6 +139,30 @@ const PACKAGED_COHORT_ARTICLES_DIR = process.resourcesPath
   ? path.join(process.resourcesPath, "cohort-data", "articles")
   : null;
 
+// Cohort key (role=cohort_app Supabase JWT) for the GATED T2 evidence read.
+// Baked into the packaged app at build time by the beforePack hook
+// (Resources/cohort-app-key.json, written from the SRFG_COHORT_KEY build env).
+// In dev (unpackaged) there is no resource file, so fall back to the env var.
+// Empty => no cohort read; the renderer falls back to the public anon T3 view.
+function readBakedCohortKey() {
+  try {
+    if (process.resourcesPath) {
+      const p = path.join(process.resourcesPath, "cohort-app-key.json");
+      if (fs.existsSync(p)) {
+        const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+        if (parsed && typeof parsed.cohortKey === "string") return parsed.cohortKey.trim();
+      }
+    }
+  } catch {
+    /* unreadable / malformed → no key, anon T3 fallback */
+  }
+  return "";
+}
+// Precedence: an explicit env override (dev / a provisioned local run) wins over
+// the baked resource file. This resolved value is what the renderer receives over
+// the "cohort-key:get" bridge, so the renderer never needs its own file access.
+const COHORT_KEY = (process.env.SRFG_COHORT_KEY || readBakedCohortKey() || "").trim();
+
 // If a `wall_prefs.json` survived from before the rename (either from this
 // install or copied over by migrateLegacyUserData()), promote it to the new
 // `viz_prefs.json` filename. We rename rather than copy so the next save
@@ -1371,6 +1395,11 @@ ipcMain.handle("env:get", async () => ({
     || "http://127.0.0.1:7777",
   mode: process.env.SRWK_ROLE === "bench" ? "bench" : "visualizer",
 }));
+// Sync channel so the preload can expose the baked cohort key as a static value
+// on window.api at construction — the evidence reader resolves it synchronously
+// at module-eval, so an async ipcRenderer.invoke would arrive too late. One-time
+// tiny read; empty string on un-provisioned / public builds.
+ipcMain.on("cohort-key:get", (e) => { e.returnValue = COHORT_KEY; });
 ipcMain.handle("shell:openExternal", async (_e, url) => {
   if (typeof url === "string" && /^https?:\/\//i.test(url)) shell.openExternal(url);
 });
