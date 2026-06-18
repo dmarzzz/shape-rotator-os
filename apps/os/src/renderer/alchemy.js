@@ -7010,9 +7010,10 @@ function renderConstellation() {
   const networkScope = constNormalizeNetworkScope(state.constellationScope);
   // Squarer viewBox than the old node-link map: the packed cohort is a circle,
   // so a near-square frame fills the stage instead of pillarboxing a wide one.
-  // Widened a touch (was 620×600) to give the looser pack + wrapped cluster
-  // titles horizontal room without clipping at the frame.
-  const W = 760, H = 640;
+  // ViewBox aspect tracks the stage (wide) so the packed circle isn't
+  // letterboxed into the centre of a much wider box — it sits centred with
+  // symmetric breathing instead of floating as a small square.
+  const W = 960, H = 640;
   const model = constellationModel(teams, clusters, cohort?.dependencies || []);
   // People scope keeps the existing person-to-person network (deferred work).
   if (networkScope === "people") {
@@ -7032,7 +7033,7 @@ function renderConstellation() {
   // depended-on / even. Each metric is normalised to one breathing-friendly
   // radius range so no metric ever clumps the pack, and a √ scale keeps area
   // (not radius) proportional to the value.
-  const R_MIN = 8, R_MAX = 20, R_EVEN = 13;
+  const R_MIN = 12, R_MAX = 26, R_EVEN = 16;
   const headcount = new Map();
   for (const p of people) { const tid = p?.team; if (tid) headcount.set(tid, (headcount.get(tid) || 0) + 1); }
   const sizeMetric = (team) => {
@@ -7055,7 +7056,7 @@ function renderConstellation() {
     const t = Math.max(0, Math.min(1, (v - vMin) / vSpan));
     return R_MIN + (R_MAX - R_MIN) * Math.sqrt(t);
   };
-  const { pos, containers } = packBubbles(model, granularity, { radiusOf, W, H, margin: 44 });
+  const { pos, containers } = packBubbles(model, granularity, { radiusOf, W, H, margin: 30 });
   const wells = []; const ringSegments = []; const ringCenter = null;
   // Edges aren't drawn in the bubble map, but the inspector still reads them
   // (who relies on whom) and the per-company overlap is built from them.

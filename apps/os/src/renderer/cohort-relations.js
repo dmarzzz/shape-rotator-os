@@ -855,8 +855,8 @@ export function bubbleHierarchy(model, granularity, radiusOf) {
 // Inter-bubble + inter-ring breathing room. Roughly doubled from the original
 // (gap 5 / pad 6) so the pack is no longer edge-to-edge: bubbles get air between
 // them and each ring gets a clear band at its top for the cluster title.
-const BM_GAP = { root: 10, theme: 12, cluster: 11 };
-const BM_PAD = { root: 6, theme: 16, cluster: 13 };
+const BM_GAP = { root: 9, theme: 9, cluster: 7 };
+const BM_PAD = { root: 6, theme: 12, cluster: 9 };
 
 function bmLayout(node) {
   if (node.leaf) { node.r = node.r0 != null ? node.r0 : bmLeafRadius(node.stage); return node.r; }
