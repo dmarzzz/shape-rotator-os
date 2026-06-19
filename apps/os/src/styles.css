@@ -9854,6 +9854,21 @@ html.jweek-vt::view-transition-new(root) {
 .ac-evt-claim { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 9px; align-items: baseline; border-left: 2px solid var(--evt-c, rgba(var(--ink-rgb), 0.3)); padding-left: 9px; }
 .ac-evt-tag { font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--evt-c, rgba(var(--ink-rgb), 0.6)); }
 .ac-evt-text { font-size: 12.5px; line-height: 1.45; color: rgba(var(--ink-rgb), 0.86); overflow-wrap: anywhere; }
+/* flash the week an on-ramp (evidence card / transcript) anchored to */
+.ac-evt-grp.is-anchored { animation: acEvtFlash 2.2s var(--ease); border-radius: 6px; }
+@keyframes acEvtFlash { 0%, 100% { background: transparent; } 12% { background: color-mix(in oklch, var(--alchemy-oxide) 16%, transparent); } }
+
+/* ── On-ramp links → a team's "events over time" (evidence cards + distilled detail) ── */
+.alch-ev-overtime { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.alch-ev-tl { display: inline-flex; align-items: center; gap: 7px; padding: 3px 9px; background: rgba(var(--ink-rgb), 0.04); border: 1px solid color-mix(in oklch, var(--alchemy-oxide) 32%, transparent); border-radius: 7px; color: var(--alchemy-paper-warm); font-family: var(--font-mono); font-size: 10.5px; cursor: pointer; transition: border-color 140ms var(--ease), background 140ms var(--ease); }
+.alch-ev-tl:hover { border-color: color-mix(in oklch, var(--alchemy-oxide) 60%, transparent); background: color-mix(in oklch, var(--alchemy-oxide) 10%, transparent); }
+.alch-ev-tl-arrow { color: var(--alchemy-oxide-bright); opacity: 0.85; text-transform: uppercase; letter-spacing: 0.05em; font-size: 9px; }
+.alch-ev-tl:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
+/* inspector CTA — open this team's dossier on its timeline */
+.ac-inspector-tl { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; background: color-mix(in oklch, var(--alchemy-oxide) 10%, transparent); border: 1px solid color-mix(in oklch, var(--alchemy-oxide) 45%, transparent); border-radius: 8px; color: var(--alchemy-paper-warm); font-family: var(--font-mono); font-size: 11px; cursor: pointer; transition: background 140ms var(--ease); }
+.ac-inspector-tl:hover { background: color-mix(in oklch, var(--alchemy-oxide) 18%, transparent); }
+.ac-inspector-tl:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .ac-evt-grp.is-anchored { animation: none; } .alch-ev-tl, .ac-inspector-tl { transition: none; } }
 .alch-detail-chips {
   display: flex;
   flex-wrap: wrap;

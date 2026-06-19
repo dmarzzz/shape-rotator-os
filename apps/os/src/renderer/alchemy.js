@@ -886,6 +886,7 @@ export function closeMembraneMenu() {
 
 function render(opts = {}) {
   if (!state.canvas || !state.cohort) return;
+  wireEvidenceTimelineLinks();
   // Monotonic render guard — a delayed cross-fade swap must not overwrite a
   // newer view if the user switched tabs during the 220ms timeout.
   const renderSeq = ++state.renderSeq;
@@ -5315,6 +5316,9 @@ function constTeamInspectorHtml(team, ctx) {
         ${success.map(s => `<span>${escHtml(s)}</span>`).join("")}
         ${posTags.map(t => `<span class="ac-pill-pos">${escHtml(t)}</span>`).join("")}
       </div>
+      ${teamTimeline(cohortEvidenceIndex(), team.record_id).length
+        ? `<button type="button" class="ac-inspector-tl" data-evt-team="${escAttr(team.record_id)}">events over time <span aria-hidden="true">→</span></button>`
+        : ""}
     </div>
     <section class="ac-inspector-section ac-overlap-lead">
       <h4 class="ac-overlap-title">Where it sits</h4>
@@ -8230,11 +8234,15 @@ function openDirectoryRecord(recordId) {
   return true;
 }
 
-function openDetail(recordId, returnMode = state.mode || "shapes") {
+function openDetail(recordId, returnMode = state.mode || "shapes", anchor = null) {
   if (!recordId) return;
   const mode = normalizeDetailReturnMode(returnMode);
   state.mode = mode;
   state.detailRecordId = String(recordId);
+  // One-shot: a section to land on after the dossier renders (e.g. the
+  // "events over time" timeline, optionally flashing a week). Consumed +
+  // cleared by applyDetailAnchor() in update().
+  state.detailAnchor = anchor || null;
   // Remember where to land on back. Constellation sub-views keep their
   // own state in state.constellationMode, so restoring "constellation"
   // returns to map/journey/stack/collab rather than the generic cohort grid.
@@ -8250,6 +8258,7 @@ function openDetail(recordId, returnMode = state.mode || "shapes") {
     render();
     // Scroll the canvas to the top so the hero is in view.
     try { state.canvas?.scrollTo({ top: 0, behavior: "auto" }); } catch {}
+    applyDetailAnchor();
   };
   // Sigil continuity: tag the clicked card's canvas so the same-document
   // view transition morphs it into the dossier hero (the rail canvas
@@ -8279,6 +8288,57 @@ function closeDetail() {
   try { localStorage.setItem(ALCHEMY_LS_KEY, state.mode); } catch {}
   syncRailSelection();
   render();
+}
+
+// Land on the dossier's "events over time" section after it renders, flashing
+// the anchored week if one was given. One-shot: cleared so a later (periodic)
+// re-render doesn't re-scroll. Degrades silently when the team has no evidence
+// (the section is absent) — you just see the dossier top.
+function applyDetailAnchor() {
+  const anchor = state.detailAnchor;
+  if (!anchor) return;
+  state.detailAnchor = null;
+  const run = () => {
+    const sec = state.canvas?.querySelector(".alch-detail-evtime");
+    if (!sec) return;
+    if (sec.tagName === "DETAILS") sec.open = true;
+    try { sec.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    catch { try { sec.scrollIntoView(); } catch {} }
+    if (anchor.week) {
+      let grp = null;
+      try { grp = sec.querySelector(`.ac-evt-grp[data-week="${CSS.escape(anchor.week)}"]`); } catch {}
+      if (grp) { grp.classList.add("is-anchored"); setTimeout(() => grp.classList.remove("is-anchored"), 2400); }
+    }
+  };
+  // Two frames: let renderTeamDetail's innerHTML swap lay out before scrolling.
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => requestAnimationFrame(run));
+  else run();
+}
+
+// The on-ramp evidence cards / transcripts / the map inspector use to lead into
+// a workstream's arc: open its dossier and land on "events over time", flashing
+// the source's week.
+function openTeamTimeline(teamId, week, returnMode) {
+  if (!teamId) return;
+  openDetail(String(teamId), returnMode || state.mode || "shapes", { section: "evtime", week: week ? String(week).slice(0, 10) : "" });
+}
+
+// One delegated, view-agnostic handler for every [data-evt-team] on-ramp link
+// (evidence cards, distilled transcript detail, the map inspector). Capture
+// phase + stopPropagation so it wins over any container click (e.g. the
+// distilled-source selector) without each surface wiring it separately.
+function wireEvidenceTimelineLinks() {
+  if (state.evtTimelineBound) return;
+  state.evtTimelineBound = true;
+  document.addEventListener("click", (e) => {
+    const t = e.target?.closest?.("[data-evt-team]");
+    if (!t) return;
+    const rid = t.getAttribute("data-evt-team");
+    if (!rid) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openTeamTimeline(rid, t.getAttribute("data-evt-week") || "");
+  }, true);
 }
 
 // Click the bare canvas background — the gutter / empty space around the
@@ -13998,6 +14058,32 @@ function contextEvidenceDate(value) {
   } catch { return ""; }
 }
 
+// Resolve a team record_id → display name for the on-ramp links, memoized on
+// the active cohort (the evidence list re-renders often; building the map per
+// card would be wasteful).
+let _evTeamNameCache = { cohort: null, map: null };
+function evTeamName(id) {
+  const cohort = activeConstellationCohort();
+  if (_evTeamNameCache.cohort !== cohort) {
+    const map = new Map();
+    for (const t of (cohort?.teams || [])) if (t && t.record_id) map.set(t.record_id, t.name || t.record_id);
+    _evTeamNameCache = { cohort, map };
+  }
+  return _evTeamNameCache.map.get(id) || String(id).replace(/-/g, " ");
+}
+
+// The teams an evidence item attributes to, as "→ over time" links into each
+// team's dossier timeline, flashing this item's week. Empty (T3 public cards
+// strip teams) ⇒ "" so public cards stay non-clickable, exactly as before.
+function evidenceOverTimeLinks(contentJson) {
+  const cj = contentJson && typeof contentJson === "object" ? contentJson : {};
+  const teams = (Array.isArray(cj.teams) ? cj.teams : []).map((t) => String(t || "").trim()).filter(Boolean);
+  if (!teams.length) return "";
+  const week = String(cj.week_start || cj.date || "").slice(0, 10);
+  return `<div class="alch-ev-overtime">${teams.map((t) =>
+    `<button type="button" class="alch-ev-tl" data-evt-team="${escAttr(t)}" data-evt-week="${escAttr(week)}" title="${escAttr(`see ${evTeamName(t)} over time`)}"><span class="alch-ev-tl-name">${escHtml(evTeamName(t))}</span><span class="alch-ev-tl-arrow" aria-hidden="true">over time →</span></button>`).join("")}</div>`;
+}
+
 function contextEvidenceCardHtml(card) {
   const type = String(card.claim_type || "insight");
   const title = String(card.title || "").trim();
@@ -14026,6 +14112,7 @@ function contextEvidenceCardHtml(card) {
         ${chips}
         <span class="alch-ev-prov">${prov}</span>
       </footer>
+      ${evidenceOverTimeLinks(card.content_json)}
     </article>
   `;
 }
@@ -14152,6 +14239,7 @@ function renderDistilledTranscriptDetail(selected) {
   const who = [...(Array.isArray(selected.teams) ? selected.teams : []), ...(Array.isArray(selected.people) ? selected.people : [])]
     .map((w) => String(w).replace(/-/g, " ").trim()).filter(Boolean);
   const body = selected.body_md ? renderProgramMarkdown(selected.body_md) : `<p class="alch-cv-muted">This readout has no body.</p>`;
+  const overTime = evidenceOverTimeLinks({ teams: selected.teams, week_start: selected.week_start, date: selected.date });
   return `
     <article class="alch-cv-detail alch-cv-distilled-detail">
       <header class="alch-cv-detail-head">
@@ -14167,6 +14255,7 @@ function renderDistilledTranscriptDetail(selected) {
         <h1>${escHtml(title)}</h1>
         ${selected.summary ? `<p class="alch-cv-reader-dek">${escHtml(selected.summary)}</p>` : ""}
         ${themeChips ? `<div class="alch-ev-meta">${themeChips}</div>` : ""}
+        ${overTime}
         ${body}
         ${who.length ? `<div class="alch-ev-sum-who">${who.slice(0, 12).map((w) => `<span class="alch-ev-chip alch-ev-who-chip">${escHtml(w)}</span>`).join("")}</div>` : ""}
       </article>
@@ -15646,7 +15735,7 @@ function renderWorkstreamTimeline(recordId) {
     const wi = progWeek(wk.week);
     const claims = WK_LANE_ORDER.flatMap((lane) => wk.claims.filter((c) => c.lane === lane))
       .map((c) => `<li class="ac-evt-claim" data-lane="${escAttr(c.lane)}"><span class="ac-evt-tag">${escHtml(wkLaneLabel(c.lane))}</span><span class="ac-evt-text">${escHtml(constShortText(c.text || c.title, 160))}</span></li>`).join("");
-    return `<div class="ac-evt-grp"><div class="ac-evt-when">${wi != null ? `week ${wi + 1}` : ""}<span class="ac-evt-date">${escHtml(detailTimelineDate(wk.week))}</span></div><ul class="ac-evt-claims">${claims}</ul></div>`;
+    return `<div class="ac-evt-grp" data-week="${escAttr(wk.week)}"><div class="ac-evt-when">${wi != null ? `week ${wi + 1}` : ""}<span class="ac-evt-date">${escHtml(detailTimelineDate(wk.week))}</span></div><ul class="ac-evt-claims">${claims}</ul></div>`;
   }).join("");
 
   const legend = WK_LANE_ORDER.filter((l) => laneTotals.get(l))
