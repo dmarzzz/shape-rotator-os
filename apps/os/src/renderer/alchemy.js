@@ -280,7 +280,7 @@ const state = {
   constellationLens: "all",   // map line lens: "all" | "relies" | "works" | "substrate" — changes which relationship claim is foregrounded
   constPeopleLinkFilter: "all", // people-map legend/filter: "all" | "same-team" | "profile" | "shared-context"
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
-  constellationGranularity: "clusters", // bubble map grain: "themes" | "clusters" | "skills"
+  constellationGranularity: "themes", // bubble map grain: "themes" | "clusters" | "skills" (overview-first on entry)
   constellationSizeBy: "maturity", // bubble map size channel; persisted to CONST_SIZE_LS_KEY
   constDomainFilter: "all", // bubble map: isolate one domain colour; persisted to CONST_DOMAIN_FILTER_LS_KEY
   constRailW: null, // user-dragged inspector rail width in px (null = default clamp); CONST_RAIL_LS_KEY
@@ -342,12 +342,13 @@ export function mount(container) {
     state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
     state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
     state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
-    const granLsRaw = localStorage.getItem(CONST_GRANULARITY_LS_KEY);
-    // Fresh default = themes: the map opens on the pulled-back overview (a few
-    // big spaces), then zooming in breaks themes → ecosystems → teams. A saved
-    // grain still wins so a returning user keeps the detail level they chose.
-    state.constellationGranularity = (granLsRaw != null && granLsRaw !== "")
-      ? constNormalizeGranularity(granLsRaw) : "themes";
+    // Overview-first: the relationship map always OPENS on the themes layer (the
+    // few big spaces) so you see where everything sits, then zoom in to drill
+    // themes → ecosystems → teams. We deliberately do NOT restore a saved grain
+    // at entry — a stale "clusters"/"skills" pick must not pin you below the
+    // overview on every launch. Within a session, zoom + the grain dropdown still
+    // change grain freely (and persist for the zoom→grain bridge).
+    state.constellationGranularity = "themes";
     state.constellationSizeBy = constNormalizeSizeBy(localStorage.getItem(CONST_SIZE_LS_KEY));
     state.constDomainFilter = constNormalizeDomainFilter(localStorage.getItem(CONST_DOMAIN_FILTER_LS_KEY));
     state.constRailW = clampConstRail(localStorage.getItem(CONST_RAIL_LS_KEY));
@@ -404,12 +405,11 @@ export function mount(container) {
       const timelineIdx = Number(timelineIdxRaw);
       if (Number.isFinite(timelineIdx)) state.constellationTimelineIdx = timelineIdx;
     }
-    const zoomLsRaw = localStorage.getItem(COHORT_ZOOM_LS_KEY);
-    // Fresh default zoom matches the default grain so the map opens coherently
-    // pulled back (themes band) rather than mid-zoom. A saved zoom still wins.
-    state.cohortZoom = (zoomLsRaw != null && zoomLsRaw !== "")
-      ? clampCohortZoom(zoomLsRaw)
-      : (state.constellationGranularity === "themes" ? grainToZoom("themes", false) : COHORT_ZOOM_DEFAULT);
+    // Enter at the themes zoom band to match the forced themes grain, so grain +
+    // zoom agree and the first zoom-in drills cleanly into clusters → teams. The
+    // saved zoom is intentionally not restored at entry (overview-first); zoom is
+    // shared across cohort views, so they too open pulled back.
+    state.cohortZoom = grainToZoom("themes", false);
     // Deep-detail is implied by zoom for the clusters grain; recompute from the
     // restored zoom so a reload keeps the all-labels-visible view.
     if (constNormalizeGranularity(state.constellationGranularity) === "clusters") {
@@ -2754,7 +2754,7 @@ function journeyDetailSection(rec) {
 // page, five ways of understanding the cohort.
 const CONST_VIEWS = [
   { mode: "directory", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', label: "directory", hint: "teams, projects, people" },
-  { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "relationship map", hint: "declared links by ecosystem" },
+  { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "ecosystem map", hint: "where every team sits, grouped by what it builds" },
   { mode: "journey", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>', label: "pmf evidence", hint: "market-fit signal coverage" },
   { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "status + gap to target" },
   // "targets" folded into "standing" as a projection toggle (2026-06): same
@@ -5606,7 +5606,7 @@ function constTeamPreviewHtml(team, ctx) {
   ].filter(Boolean).join(" · ");
   return `
     <div class="ac-inspector-hero is-preview" data-const-team="${escAttr(rid)}">
-      <div class="ac-inspector-kicker">hover · click to pin, then click another to compare</div>
+      <div class="ac-inspector-kicker">hovering — click to pin, then hover another to compare</div>
       <h3>${escHtml(team.name || rid)}</h3>
       <p class="ac-preview-line"><span class="ac-preview-sector">${escHtml(sector)}</span>${heading ? ` — ${escHtml(heading)}` : ""}</p>
       ${tail ? `<p class="ac-preview-tail">${escHtml(tail)}</p>` : ""}
@@ -5911,24 +5911,16 @@ function constCompareInspectorHtml(selection, ctx) {
   const sharedSpaces = spacesOf(b.record_id).filter(s => sa.has(s));
   const skillsA = new Set((a.skill_areas || []).map(s => String(s).toLowerCase()));
   const sharedSkills = (b.skill_areas || []).filter(s => skillsA.has(String(s).toLowerCase()));
-  const outTargets = (rid) => new Set((ctx?.outBy?.get(rid) || []).map(e => e.to));
-  const inSources = (rid) => new Set((ctx?.inBy?.get(rid) || []).map(e => e.from));
-  const oA = outTargets(a.record_id);
-  const sharedOut = [...outTargets(b.record_id)].filter(x => oA.has(x));
-  const iA = inSources(a.record_id);
-  const sharedIn = [...inSources(b.record_id)].filter(x => iA.has(x));
-  const nameOf = (rid) => ctx?.teamById?.get(rid)?.name || rid;
   const domClassA = constDomainClass(a.domain);
   const domClassB = constDomainClass(b.domain);
   const sameDomain = domClassA === domClassB;
-  const directDep = !!(ctx?.edgeByPair?.get(dependencyPairKey(a.record_id, b.record_id)));
+  // The map compares WHERE two teams sit — shared spaces, skills, domain. Whether
+  // they depend on or could help each other is a RELATIONSHIP: the collab board
+  // owns that, so we point there rather than recompute dependency data here.
   const overlapBits = [];
   if (sharedSpaces.length) overlapBits.push(`${sharedSpaces.length} shared space${sharedSpaces.length === 1 ? "" : "s"}`);
   if (sharedSkills.length) overlapBits.push(`${sharedSkills.length} shared skill${sharedSkills.length === 1 ? "" : "s"}`);
-  if (sharedOut.length) overlapBits.push(`${sharedOut.length} shared dependenc${sharedOut.length === 1 ? "y" : "ies"}`);
-  const summary = directDep
-    ? "one already depends on the other"
-    : (overlapBits.length ? overlapBits.join(" · ") : (sameDomain ? "same domain, no declared overlap yet" : "different domains, no declared overlap yet"));
+  const summary = overlapBits.length ? overlapBits.join(" · ") : (sameDomain ? "same domain, nothing shared yet" : "different domains, nothing shared yet");
   const sectorLineFor = (t) => {
     const sector = CONST_DOMAIN_LABEL[constDomainClass(t.domain)] || "other";
     const heading = constShortText(t.focus || t.now || "", 60);
@@ -5939,7 +5931,7 @@ function constCompareInspectorHtml(selection, ctx) {
     : `<p class="ac-inspector-empty">${escHtml(empty)}</p>`;
   return `
     <div class="ac-inspector-hero is-compare">
-      <div class="ac-inspector-kicker">comparing — click either to open · click a third to switch</div>
+      <div class="ac-inspector-kicker">click either to open · a third starts over</div>
       <h3 class="ac-cmp-h3"><button type="button" class="ac-inspector-title-link" data-const-open-record="${escAttr(a.record_id)}">${escHtml(a.name || a.record_id)}</button> <i class="ac-cmp-x" aria-hidden="true">⇄</i> <button type="button" class="ac-inspector-title-link" data-const-open-record="${escAttr(b.record_id)}">${escHtml(b.name || b.record_id)}</button></h3>
       <p class="ac-preview-line">${escHtml(summary)}</p>
     </div>
@@ -5958,19 +5950,13 @@ function constCompareInspectorHtml(selection, ctx) {
       <dl class="ac-bet-list">
         <div><dt>shared space</dt><dd>${sharedSpaces.length ? sharedSpaces.map(escHtml).join(" · ") : "none — different ecosystems"}</dd></div>
         <div><dt>domain</dt><dd>${sameDomain ? `both ${escHtml(CONST_DOMAIN_LABEL[domClassA] || "other")}` : `${escHtml(CONST_DOMAIN_LABEL[domClassA] || "other")} vs ${escHtml(CONST_DOMAIN_LABEL[domClassB] || "other")}`}</dd></div>
-        <div><dt>direct line</dt><dd>${directDep ? "yes — one depends on the other" : "no declared dependency between them"}</dd></div>
       </dl>
     </section>
     <section class="ac-inspector-section">
       <h4>shared skills</h4>
-      ${chipRow(sharedSkills, "no skill areas in common in their profiles")}
+      ${chipRow(sharedSkills, "no skills in common")}
     </section>
-    ${(sharedOut.length || sharedIn.length) ? `
-    <section class="ac-inspector-section">
-      <h4>shared dependencies</h4>
-      ${sharedOut.length ? `<p class="ac-cmp-dep-k">both rely on</p>${chipRow(sharedOut.map(nameOf), "")}` : ""}
-      ${sharedIn.length ? `<p class="ac-cmp-dep-k">both relied on by</p>${chipRow(sharedIn.map(nameOf), "")}` : ""}
-    </section>` : ""}`;
+    <p class="ac-inspector-note ac-collab-pointer">Whether they depend on or could help each other lives on the Collab board.</p>`;
 }
 
 function constellationInspectorHtml(selection, ctx) {
@@ -6886,24 +6872,11 @@ function sdsActivity(card) {
 }
 
 function sdsEvidenceParts(card) {
-  const content = sdsActivity(card);
-  const releases = sdsNumber(content, "release_count");
-  const commits = sdsNumber(content, "useful_commit_count");
-  const artifacts = sdsNumber(content, "progress_artifact_count");
-  const latest = constText(content.latest_week_start);
-  const primary = releases
-    ? `${releases} release${releases === 1 ? "" : "s"}`
-    : (commits
-      ? `${commits} useful commit${commits === 1 ? "" : "s"}`
-      : (artifacts ? `${artifacts} progress artifact${artifacts === 1 ? "" : "s"}` : "no public trace yet"));
-  const detail = [];
-  if (releases && commits) detail.push(`${commits} useful commit${commits === 1 ? "" : "s"}`);
-  if ((releases || commits) && artifacts) detail.push(`${artifacts} progress artifact${artifacts === 1 ? "" : "s"}`);
-  if (latest) detail.push(`latest ${latest}`);
+  // The row foot shows only observed-state + review; the per-row release/commit
+  // chips compute their own counts (sdsNumber), so the old build-trace rollup
+  // (primary/detail) was dead. Keep this to the two facts the foot actually reads.
   return {
     status: sdsObserved(card) ? "public signal" : "declared only",
-    primary,
-    detail: detail.join(" · "),
     review: `${insightConfidenceLabel(card)} · ${insightReviewLabel(card)}`,
   };
 }
@@ -6925,7 +6898,7 @@ function sdsEvidenceDidHtml(teamId) {
   const did = recentClaims(teamEvidence(cohortEvidenceIndex(), teamId), "did", 2);
   if (!did.length) return "";
   const items = did.map(d => `<em>${escHtml(d.week)}</em> ${escHtml(constShortText(d.text, 110))}`).join("<br>");
-  return `<span class="ac-sds-evidence" style="display:block;margin-top:3px;opacity:0.72;font-size:0.85em" title="observed in reviewed cohort sessions">↳ sessions · ${items}</span>`;
+  return `<span class="ac-sds-evidence" title="observed in reviewed cohort sessions">↳ sessions · ${items}</span>`;
 }
 
 // Per-team session evidence for the SHARED dossier — surfaces did / signals / asks /
@@ -6969,10 +6942,10 @@ function renderSayDidShipped() {
   const sentenceBar = `
     <div class="ac-sentence" role="group" aria-label="say did shipped summary">
       <strong class="ac-sent-fact">${escHtml(cardCount)}</strong>
-      <span class="ac-sent-word">· public cohort + repo metadata</span>
+      <span class="ac-sent-word">· from public profiles + repo activity</span>
       <span class="ac-sent-word">·</span>
       <strong class="ac-sent-fact">${escHtml(`${observed}/${rows.length || teams.length}`)}</strong>
-      <span class="ac-sent-word">with build signal · ${escHtml(buildSummary)}</span>
+      <span class="ac-sent-word">show shipping signal · ${escHtml(buildSummary)}</span>
     </div>`;
   // One card per team: a scannable identity lead (what it is / who it serves, with a
   // domain-colored accent) over the say -> did -> shipped proof strip. Observed build
@@ -7151,7 +7124,7 @@ function constBubbleMapSummary(model, grain) {
   return { themes: themeSet.size, clusters: wells.length, teams, grain: constNormalizeGranularity(grain), domains };
 }
 function constBubbleMapDefaultHtml(ctx) {
-  const s = ctx && ctx.bubbleMap ? ctx.bubbleMap : { themes: 0, clusters: 0, teams: 0, grain: "clusters", domains: [] };
+  const s = ctx && ctx.bubbleMap ? ctx.bubbleMap : { themes: 0, clusters: 0, teams: 0, grain: constNormalizeGranularity(state.constellationGranularity), domains: [] };
   const grain = s.grain;
   const grainNote = grain === "themes"
     ? "Zoom in to break each theme into its ecosystems, then into individual teams."
@@ -7165,8 +7138,8 @@ function constBubbleMapDefaultHtml(ctx) {
     <div class="ac-inspector-hero is-orientation">
       <div class="ac-inspector-kicker">where everyone sits</div>
       <h3>${escHtml(String(s.themes))} themes · ${escHtml(String(s.clusters))} ecosystems · ${escHtml(String(s.teams))} teams</h3>
-      <p>Every team placed by what it works on — neighbours share a space. ${escHtml(grainNote)}</p>
-      <p class="ac-orientation-cta">Hover a bubble for its read · click to pin · click another to compare two.</p>
+      <p>Every team sits by what it works on, so neighbours share a space. ${escHtml(grainNote)}</p>
+      <p class="ac-orientation-cta">Hover a bubble to read it · click to pin · click a second to compare.</p>
     </div>
     <section class="ac-inspector-section is-orientation-legend">
       <h4>how to read it</h4>
@@ -7600,7 +7573,9 @@ function constBubbleContainerSvg(c, accentStyle) {
   // Level-aware label gate: theme rings are large; cluster/skill rings smaller.
   // A 9px label only earns its place when the ring can hold it without crowding
   // the bubbles inside (the old flat r>30 dropped labels into tiny circles).
-  const showLabel = c.level === "theme" ? c.r > 90 : c.r > 44;
+  // Theme rings are the overview's primary spaces — always name them (they're the
+  // only rings drawn at themes grain). Cluster/skill rings keep the size gate.
+  const showLabel = c.level === "theme" ? c.r > 36 : c.r > 44;
   const labelY = (c.cy - c.r + 14).toFixed(1);
   const count = Array.isArray(c.members) ? c.members.length : 0;
   const aria = `focus ${c.label || c.id}${c.level === "cluster" ? " ecosystem" : ` ${c.level}`}, ${count} team${count === 1 ? "" : "s"}`;
@@ -7848,9 +7823,13 @@ function renderConstellation() {
   // hover-isolate contract, plus click-to-pin via data-edge-tier on the
   // stage). Node color stays domain in every lens; cluster identity is
   // read from the labeled wells, so no legend swaps with the lens.
-  const containerMarkup = containers.map((c, idx) =>
-    constBubbleContainerSvg(c, constWellAccentStyle(constWellAccentTokens(c.id, idx)))
-  ).join("");
+  // At the themes overview, draw ONLY the big theme rings (hide the nested
+  // cluster sub-rings) so the entry reads as a few large, named spaces — the
+  // cluster rings return when you zoom into the clusters grain.
+  const containerMarkup = containers
+    .filter(c => granularity !== "themes" || c.level === "theme")
+    .map((c, idx) => constBubbleContainerSvg(c, constWellAccentStyle(constWellAccentTokens(c.id, idx))))
+    .join("");
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">
     ${cohortPageHead(viewMode)}
@@ -7862,7 +7841,7 @@ function renderConstellation() {
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
       <div class="alch-const-workbench"${constRailStyleAttr()}>
         <div class="alch-const-main">
-          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-grain-deep="${grainDeep ? "true" : "false"}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "constellation relationship graph")}">
+          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-grain-deep="${grainDeep ? "true" : "false"}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "cohort ecosystem map — teams grouped by what they build")}">
             <svg viewBox="${escAttr(viewBox)}" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <marker id="ac-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -8445,7 +8424,7 @@ function wireConstellationHover() {
     // the collab action card (people scope keeps the node-link people network).
     const viewMode = (baseMode === "map" && scope === "projects") ? "bubble" : baseMode;
     const activeLens = viewMode === "ring" || viewMode === "stack" ? "all" : constNormalizeConstellationLens(state.constellationLens);
-    const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest) };
+    const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest), bubbleMap: viewMode === "bubble" ? constBubbleMapSummary(model, constNormalizeGranularity(state.constellationGranularity)) : null };
     const peopleModel = scope === "people" ? constPeopleNetworkModel(cohort?.people || [], teams, 1120, 620) : null;
     const inspectorCtx = viewMode === "stack"
       ? { ...baseInspectorCtx, stackModel: constProductStackModel(teams, baseInspectorCtx) }
@@ -8563,10 +8542,15 @@ function wireConstellationHover() {
       lastPreviewRid = rid;
       if (state.constSelection) {
         // A dossier OR a two-team compare is pinned: don't clobber it — float a
-        // compact preview strip on top, leaving the pinned view intact below.
+        // strip on top, leaving the pinned view intact below. When a single team
+        // is pinned, hovering ANOTHER shows their live A⇄B overlap (Mike's "pin
+        // one, compare by hovering another"); clicking it commits the pair.
         let strip = body.querySelector(".ac-hover-strip");
         if (!strip) { strip = document.createElement("div"); strip.className = "ac-hover-strip"; body.prepend(strip); }
-        strip.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
+        const sel = state.constSelection;
+        strip.innerHTML = (sel.type === "team" && sel.rid !== rid)
+          ? constCompareInspectorHtml({ type: "compare", a: sel.rid, b: rid }, inspectorCtx)
+          : constTeamPreviewHtml(t, inspectorCtx);
       } else {
         body.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
       }
@@ -8597,6 +8581,23 @@ function wireConstellationHover() {
     };
     const focusContainer = (el) => {
       const cid = el.getAttribute("data-container");
+      // From the themes overview, clicking a theme DRILLS into it — reveal its
+      // ecosystems and teams (clusters grain) instead of only dimming the rest,
+      // so "click a space to open it" is the natural way in. At clusters/skills
+      // grain, clicking still focuses a space (lit members, rest recede).
+      if (constNormalizeGranularity(state.constellationGranularity) === "themes" && el.getAttribute("data-level") === "theme") {
+        state.constellationGranularity = "clusters";
+        state.constGrainManual = false;
+        state.constGrainDeep = false;
+        const z = grainToZoom("clusters", false);
+        state.cohortZoom = z;
+        try { localStorage.setItem(CONST_GRANULARITY_LS_KEY, "clusters"); localStorage.setItem(COHORT_ZOOM_LS_KEY, String(z)); } catch {}
+        applyCohortZoom();
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
+        else render();
+        return;
+      }
       if (stage.getAttribute("data-container-focus") === cid) { clearContainerFocus(); return; }
       const members = new Set((el.getAttribute("data-members") || "").split(" ").filter(Boolean));
       stage.setAttribute("data-container-focus", cid);
@@ -8643,48 +8644,17 @@ function wireConstellationHover() {
         selectOrOpen("team", rid);
       });
     }
+    // Standing rows/chips (.ac-stack-team) carry their full read in aria-label
+    // (gap-to-target: stage, target, gap, momentum; untracked: "no standing read
+    // yet"), so they need activation only — no hover tooltip. The old product-stack
+    // "role / proof / source" tip was stale here once PR #464 folded the stack
+    // into the standing view.
     for (const item of stage.querySelectorAll(".ac-stack-team[data-const-team]")) {
       const rid = item.getAttribute("data-const-team");
-      item.addEventListener("mouseenter", (e) => {
-        const t = teamById.get(rid);
-        if (tip && t) {
-          const item = constStackItemForTeam(inspectorCtx, rid);
-          const role = item?.role || constMarketRoleForTeam(t);
-          const evidence = item?.evidence || constEvidenceModeForTeam(t, inspectorCtx);
-          const evidenceRead = evidence.key === "profile"
-            ? evidence.label
-            : `${evidence.label} · ${String(evidence.value)}/5`;
-          const secondary = role.secondary;
-          tip.innerHTML = `
-            <div class="ajt-name">${escHtml(t.name || t.record_id)}</div>
-            <div class="ajt-row"><span class="ajt-k">role</span><span class="ajt-v">${escHtml(role.label)}</span></div>
-            ${secondary ? `<div class="ajt-row"><span class="ajt-k">also</span><span class="ajt-v">${escHtml(secondary.label)}</span></div>` : ""}
-            <div class="ajt-row"><span class="ajt-k">proof</span><span class="ajt-v">${escHtml(evidenceRead)}</span></div>
-            <div class="ajt-row"><span class="ajt-k">source</span><span class="ajt-v">${escHtml(role.reason)}</span></div>`;
-          tip.hidden = false;
-          positionConstTip(stage, tip, e);
-        }
-      });
-      item.addEventListener("mousemove", (e) => positionConstTip(stage, tip, e));
-      item.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
       item.addEventListener("click", (e) => {
         e.preventDefault();
         selectOrOpen("team", rid);
       });
-      item.addEventListener("focus", () => {
-        const t = teamById.get(rid);
-        if (tip && t) {
-          const item = constStackItemForTeam(inspectorCtx, rid);
-          const role = item?.role || constMarketRoleForTeam(t);
-          const evidence = item?.evidence || constEvidenceModeForTeam(t, inspectorCtx);
-          const evidenceRead = evidence.key === "profile"
-            ? evidence.label
-            : `${evidence.label} · ${String(evidence.value)}/5`;
-          tip.innerHTML = `<div class="ajt-name">${escHtml(t.name || t.record_id)}</div><div class="ajt-row"><span class="ajt-k">role</span><span class="ajt-v">${escHtml(role.label)}</span></div>${role.secondary ? `<div class="ajt-row"><span class="ajt-k">also</span><span class="ajt-v">${escHtml(role.secondary.label)}</span></div>` : ""}<div class="ajt-row"><span class="ajt-k">proof</span><span class="ajt-v">${escHtml(evidenceRead)}</span></div>`;
-          tip.hidden = false;
-        }
-      });
-      item.addEventListener("blur", () => { if (tip) tip.hidden = true; });
       item.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
@@ -11321,8 +11291,6 @@ function collabLensFilterHtml(lens = "all", m) {
   const lensKey = COLLAB_LENSES.has(lens) ? lens : "all";
   const seg = ({ key, cell, mark, label, count }) => `
       <button type="button" class="cb-lens-seg" data-collab-lens="${escAttr(key)}"${cell ? ` data-legend-cell="${escAttr(cell)}" data-collab-legend-lens="${escAttr(key)}"` : ""} aria-pressed="${lensKey === key ? "true" : "false"}" aria-label="${escAttr(`${label}${typeof count === "number" ? `, ${count}` : ""} — ${cell ? "filter the board to this signal" : "show all signals"}`)}">${mark ? `<i class="cb-legend-mark ${escAttr(mark)}"></i>` : ""}<b>${escHtml(label)}</b>${typeof count === "number" ? `<em class="cb-lens-count">${count}</em>` : ""}</button>`;
-  const keyEntry = ({ cell, mark, label, desc }) => `
-      <span class="cb-lens-key" data-legend-cell="${escAttr(cell)}" tabindex="0" title="${escAttr(desc)}"><i class="cb-legend-mark ${escAttr(mark)}"></i>${escHtml(label)}</span>`;
   return `
     <div class="cb-lensfilter" role="group" aria-label="signal filter — hover to preview, click to filter">
       ${seg({ key: "all", cell: "", mark: "", label: "all", count: m.deps.size + m.seekOffer.length })}
@@ -11412,8 +11380,8 @@ function collabLatentOverlapSectionHtml() {
     const actions = insightArray(content.suggested_actions).map(latentActionText).slice(0, 3);
     const score = sdsNumber(content, "score");
     const dependencyLine = content.existing_dependency
-      ? "recorded dependency exists; cross-check before routing."
-      : "not recorded as a dependency.";
+      ? "already a recorded dependency — check before you introduce them."
+      : "no dependency on record yet.";
     return `
       <article class="cb-intro cb-latent-overlap">
         <div class="cb-latent-top">
@@ -11443,7 +11411,7 @@ function collabLatentOverlapSectionHtml() {
   }).join("");
   return `
     <section class="alch-cb-section" data-cb-section="latent">
-      <div class="alch-cb-sechead"><h3>Latent overlaps</h3><span class="cb-sub">public overlap prompts; verify before routing</span></div>
+      <div class="alch-cb-sechead"><h3>Latent overlaps</h3><span class="cb-sub">spotted from public signals — verify before you make an intro</span></div>
       <div class="cb-intro-grid">${cardHtml || '<p class="cb-empty">no overlap prompts.</p>'}</div>
     </section>`;
 }
@@ -12491,7 +12459,7 @@ function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = nu
 
   // Tooltip lists every signal on the cell (strongest first).
   const lines = [];
-  if (dep) lines.push(`▲ depends on ${C.team.name}`);
+  if (dep) lines.push(`→ depends on ${C.team.name}`);
   if (so) lines.push(`seeks → ${C.team.name} offers: ${so.shared.slice(0, 3).join(", ") || "match"}`);
   const title = `${R.team.name} → ${C.team.name}\n${lines.join("\n")}`;
 

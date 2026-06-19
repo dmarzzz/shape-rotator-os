@@ -1009,7 +1009,11 @@ export function packBubbles(model, granularity, opts = {}) {
   // Keystone TEAM labels sit BELOW their bubble (renderer labelY = r + gap) and
   // container labels sit INSIDE the ring, so the real clip risk is the bottom
   // edge — pad it a touch more than the top.
-  const padX = margin, padTop = margin, padBottom = 22;
+  // padX gets extra room: bounds are fit to circle geometry only (labels are not
+  // measured), so a wide container title centred near the frame could clip the
+  // right edge. The extra horizontal pad guarantees margin even if a label runs
+  // close to its ring's edge.
+  const padX = margin + 24, padTop = margin, padBottom = 22;
   const bounds = Number.isFinite(minX)
     ? { x: minX - padX, y: minY - padTop,
         w: (maxX - minX) + padX * 2, h: (maxY - minY) + padTop + padBottom }
