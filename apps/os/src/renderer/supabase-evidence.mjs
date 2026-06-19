@@ -86,6 +86,36 @@ export function readSupabaseConfig(storage = globalThis.localStorage) {
   return { url, anonKey, cohortKey };
 }
 
+// Persist a cohort key into the SAME config blob readSupabaseConfig() consults
+// (srfg:calendar_ingress_config → supabaseCohortKey), so a dev / provisioned run
+// can light up the GATED cohort reads (distilled transcripts + named T2 evidence)
+// on this machine without an env var or a packaged build-time bake. Merges into the
+// existing config so any calendar / url / anon settings survive; pass an empty
+// string to clear the override (the reader then falls back to the baked key, if any,
+// else anon). Soft channel: the key lands in this machine's localStorage only —
+// never committed, never sent anywhere but Supabase. Returns true on success.
+export function persistCohortKeyOverride(rawKey, storage = globalThis.localStorage) {
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function") {
+    return false;
+  }
+  const key = String(rawKey || "").trim();
+  try {
+    let cfg = {};
+    const raw = storage.getItem(DEFAULT_CALENDAR_CONFIG_KEY);
+    if (raw) {
+      try { cfg = JSON.parse(raw) || {}; } catch { cfg = {}; }
+    }
+    // Immutable merge — never mutate the parsed config in place.
+    const next = { ...cfg };
+    if (key) next.supabaseCohortKey = key;
+    else delete next.supabaseCohortKey;
+    storage.setItem(DEFAULT_CALENDAR_CONFIG_KEY, JSON.stringify(next));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Columns the GATED cohort (T2) view exposes — includes surface_tier + the full
 // content_json (date/week_start/teams) the cohort views key off. No org/session.
 const COHORT_CARD_COLUMNS = [

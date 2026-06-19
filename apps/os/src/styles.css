@@ -19655,6 +19655,75 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   font: 400 14px/1.5 var(--sans);
 }
 
+/* Inline cohort-key affordance in the distilled transcripts empty state. */
+.alch-cv-keyform {
+  display: grid;
+  gap: 8px;
+  max-width: 44ch;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
+  border-radius: 12px;
+  background: rgba(var(--ink-rgb), 0.025);
+}
+.alch-cv-keyform-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(var(--ink-rgb), 0.7);
+  font: 500 12px/1.2 var(--sans);
+  text-transform: lowercase;
+  letter-spacing: 0.01em;
+}
+.alch-cv-keyform-tag {
+  color: rgba(var(--ink-rgb), 0.45);
+  font-family: var(--sr-font-mono, var(--mono, monospace));
+  font-size: 10px;
+  font-weight: 600;
+}
+.alch-cv-keyform-row {
+  display: flex;
+  gap: 6px;
+}
+.alch-cv-keyform-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
+  border-radius: 8px;
+  background: rgba(var(--ink-rgb), 0.03);
+  color: rgb(var(--ink-rgb));
+  font-family: var(--sr-font-mono, var(--mono, monospace));
+  font-size: 12px;
+  transition: border-color 200ms cubic-bezier(0.19, 1, 0.22, 1), background 200ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alch-cv-keyform-input:focus {
+  outline: none;
+  border-color: rgba(90, 213, 155, 0.5);
+  background: rgba(var(--ink-rgb), 0.05);
+}
+.alch-cv-keyform-input::placeholder { color: rgba(var(--ink-rgb), 0.3); }
+.alch-cv-keyform-save {
+  flex: 0 0 auto;
+  appearance: none;
+  padding: 7px 14px;
+  border: 1px solid rgba(90, 213, 155, 0.42);
+  border-radius: 8px;
+  background: rgba(90, 213, 155, 0.10);
+  color: rgb(var(--ink-rgb));
+  font: 600 11px/1.1 var(--sans);
+  text-transform: lowercase;
+  cursor: pointer;
+  transition: background 200ms cubic-bezier(0.19, 1, 0.22, 1), transform 100ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alch-cv-keyform-save:hover { background: rgba(90, 213, 155, 0.18); }
+.alch-cv-keyform-save:active { transform: scale(0.97); }
+.alch-cv-empty-detail .alch-cv-keyform-note {
+  margin: 0;
+  color: rgba(var(--ink-rgb), 0.45);
+  font: 400 11px/1.45 var(--sans);
+}
+
 .alch-cv-result {
   padding-top: 8px;
   border-top: 1px solid rgba(var(--ink-rgb), 0.10);
