@@ -4680,16 +4680,30 @@ function applyDeepLink(url) {
   let snap = null;
   try { snap = parseLocation(url); } catch {}
   if (!snap) return;
+  // Open the link as a NEW OS tab — don't hijack the current tab. Map the
+  // snapshot to the tab system's loc shape (alchMode→mode, constMode→
+  // constellationMode, ctxView→contextView), then use the same hook the
+  // "what's new" feed uses to open an item in its own tab.
+  const loc = { tab: snap.tab };
+  if (snap.tab === "alchemy") {
+    loc.mode = snap.alchMode || "membrane";
+    if (snap.constMode) loc.constellationMode = snap.constMode;
+    if (snap.ctxView) loc.contextView = snap.ctxView;
+    if (snap.programPage) loc.programPage = snap.programPage;
+    if (snap.recordId) loc.recordId = snap.recordId;
+  } else if (snap.tab === "apps") {
+    if (snap.appsView) loc.appsView = snap.appsView;
+  } else if (snap.tab === "network") {
+    loc.netSub = snap.netSub || "network";
+  }
   try {
-    if (snap.recordId) {
-      // Records open via the proven find.js path (alchemy + shapes detail).
-      if (typeof window.__srwkGoTab === "function") window.__srwkGoTab("alchemy");
-      if (typeof window.__srwkAlchemyShowRecord === "function") window.__srwkAlchemyShowRecord(snap.recordId, "shapes");
-      else navApplyLocation(snap);
+    if (typeof window.__srwkOpenInNewTab === "function") {
+      window.__srwkOpenInNewTab(loc);
     } else {
+      // Tab system unavailable — fall back to navigating in place.
       navApplyLocation(snap);
+      navRecord();
     }
-    navRecord();
   } catch (e) {
     console.warn("[share-link] applyDeepLink failed:", e?.message || e);
   }
