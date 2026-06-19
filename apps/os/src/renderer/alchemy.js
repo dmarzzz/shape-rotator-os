@@ -8608,6 +8608,23 @@ function wireConstellationHover() {
     };
     const focusContainer = (el) => {
       const cid = el.getAttribute("data-container");
+      // From the themes overview, clicking a theme DRILLS into it — reveal its
+      // ecosystems and teams (clusters grain) instead of only dimming the rest,
+      // so "click a space to open it" is the natural way in. At clusters/skills
+      // grain, clicking still focuses a space (lit members, rest recede).
+      if (constNormalizeGranularity(state.constellationGranularity) === "themes" && el.getAttribute("data-level") === "theme") {
+        state.constellationGranularity = "clusters";
+        state.constGrainManual = false;
+        state.constGrainDeep = false;
+        const z = grainToZoom("clusters", false);
+        state.cohortZoom = z;
+        try { localStorage.setItem(CONST_GRANULARITY_LS_KEY, "clusters"); localStorage.setItem(COHORT_ZOOM_LS_KEY, String(z)); } catch {}
+        applyCohortZoom();
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
+        else render();
+        return;
+      }
       if (stage.getAttribute("data-container-focus") === cid) { clearContainerFocus(); return; }
       const members = new Set((el.getAttribute("data-members") || "").split(" ").filter(Boolean));
       stage.setAttribute("data-container-focus", cid);
