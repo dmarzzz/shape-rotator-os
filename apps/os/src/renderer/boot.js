@@ -1119,9 +1119,6 @@ async function reconcileGraph() {
     updateGraphCounts();
     pushConnPeers();
     if (typeof renderPeersPanel === "function") renderPeersPanel();
-    if (added || removed) {
-      console.log(`[reconcile] +${added} -${removed} → ${srwk.nodes.length}n`);
-    }
     // Whenever reconcile changes the corpus, poke the atlas (and any
     // Atlas so it re-clusters against the new node set.
     // Without this, atlas could miss results the SSE stream didn't
