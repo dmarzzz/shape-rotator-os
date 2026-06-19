@@ -280,7 +280,7 @@ const state = {
   constellationLens: "all",   // map line lens: "all" | "relies" | "works" | "substrate" — changes which relationship claim is foregrounded
   constPeopleLinkFilter: "all", // people-map legend/filter: "all" | "same-team" | "profile" | "shared-context"
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
-  constellationGranularity: "clusters", // bubble map grain: "themes" | "clusters" | "skills"
+  constellationGranularity: "themes", // bubble map grain: "themes" | "clusters" | "skills" (overview-first on entry)
   constellationSizeBy: "maturity", // bubble map size channel; persisted to CONST_SIZE_LS_KEY
   constDomainFilter: "all", // bubble map: isolate one domain colour; persisted to CONST_DOMAIN_FILTER_LS_KEY
   constRailW: null, // user-dragged inspector rail width in px (null = default clamp); CONST_RAIL_LS_KEY
@@ -342,12 +342,13 @@ export function mount(container) {
     state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
     state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
     state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
-    const granLsRaw = localStorage.getItem(CONST_GRANULARITY_LS_KEY);
-    // Fresh default = themes: the map opens on the pulled-back overview (a few
-    // big spaces), then zooming in breaks themes → ecosystems → teams. A saved
-    // grain still wins so a returning user keeps the detail level they chose.
-    state.constellationGranularity = (granLsRaw != null && granLsRaw !== "")
-      ? constNormalizeGranularity(granLsRaw) : "themes";
+    // Overview-first: the relationship map always OPENS on the themes layer (the
+    // few big spaces) so you see where everything sits, then zoom in to drill
+    // themes → ecosystems → teams. We deliberately do NOT restore a saved grain
+    // at entry — a stale "clusters"/"skills" pick must not pin you below the
+    // overview on every launch. Within a session, zoom + the grain dropdown still
+    // change grain freely (and persist for the zoom→grain bridge).
+    state.constellationGranularity = "themes";
     state.constellationSizeBy = constNormalizeSizeBy(localStorage.getItem(CONST_SIZE_LS_KEY));
     state.constDomainFilter = constNormalizeDomainFilter(localStorage.getItem(CONST_DOMAIN_FILTER_LS_KEY));
     state.constRailW = clampConstRail(localStorage.getItem(CONST_RAIL_LS_KEY));
@@ -404,12 +405,11 @@ export function mount(container) {
       const timelineIdx = Number(timelineIdxRaw);
       if (Number.isFinite(timelineIdx)) state.constellationTimelineIdx = timelineIdx;
     }
-    const zoomLsRaw = localStorage.getItem(COHORT_ZOOM_LS_KEY);
-    // Fresh default zoom matches the default grain so the map opens coherently
-    // pulled back (themes band) rather than mid-zoom. A saved zoom still wins.
-    state.cohortZoom = (zoomLsRaw != null && zoomLsRaw !== "")
-      ? clampCohortZoom(zoomLsRaw)
-      : (state.constellationGranularity === "themes" ? grainToZoom("themes", false) : COHORT_ZOOM_DEFAULT);
+    // Enter at the themes zoom band to match the forced themes grain, so grain +
+    // zoom agree and the first zoom-in drills cleanly into clusters → teams. The
+    // saved zoom is intentionally not restored at entry (overview-first); zoom is
+    // shared across cohort views, so they too open pulled back.
+    state.cohortZoom = grainToZoom("themes", false);
     // Deep-detail is implied by zoom for the clusters grain; recompute from the
     // restored zoom so a reload keeps the all-labels-visible view.
     if (constNormalizeGranularity(state.constellationGranularity) === "clusters") {
@@ -5606,7 +5606,7 @@ function constTeamPreviewHtml(team, ctx) {
   ].filter(Boolean).join(" · ");
   return `
     <div class="ac-inspector-hero is-preview" data-const-team="${escAttr(rid)}">
-      <div class="ac-inspector-kicker">click to pin · click a second to compare</div>
+      <div class="ac-inspector-kicker">hovering — click to pin, then hover another to compare</div>
       <h3>${escHtml(team.name || rid)}</h3>
       <p class="ac-preview-line"><span class="ac-preview-sector">${escHtml(sector)}</span>${heading ? ` — ${escHtml(heading)}` : ""}</p>
       ${tail ? `<p class="ac-preview-tail">${escHtml(tail)}</p>` : ""}
@@ -7151,7 +7151,7 @@ function constBubbleMapSummary(model, grain) {
   return { themes: themeSet.size, clusters: wells.length, teams, grain: constNormalizeGranularity(grain), domains };
 }
 function constBubbleMapDefaultHtml(ctx) {
-  const s = ctx && ctx.bubbleMap ? ctx.bubbleMap : { themes: 0, clusters: 0, teams: 0, grain: "clusters", domains: [] };
+  const s = ctx && ctx.bubbleMap ? ctx.bubbleMap : { themes: 0, clusters: 0, teams: 0, grain: constNormalizeGranularity(state.constellationGranularity), domains: [] };
   const grain = s.grain;
   const grainNote = grain === "themes"
     ? "Zoom in to break each theme into its ecosystems, then into individual teams."
@@ -7600,7 +7600,9 @@ function constBubbleContainerSvg(c, accentStyle) {
   // Level-aware label gate: theme rings are large; cluster/skill rings smaller.
   // A 9px label only earns its place when the ring can hold it without crowding
   // the bubbles inside (the old flat r>30 dropped labels into tiny circles).
-  const showLabel = c.level === "theme" ? c.r > 90 : c.r > 44;
+  // Theme rings are the overview's primary spaces — always name them (they're the
+  // only rings drawn at themes grain). Cluster/skill rings keep the size gate.
+  const showLabel = c.level === "theme" ? c.r > 36 : c.r > 44;
   const labelY = (c.cy - c.r + 14).toFixed(1);
   const count = Array.isArray(c.members) ? c.members.length : 0;
   const aria = `focus ${c.label || c.id}${c.level === "cluster" ? " ecosystem" : ` ${c.level}`}, ${count} team${count === 1 ? "" : "s"}`;
@@ -7848,9 +7850,13 @@ function renderConstellation() {
   // hover-isolate contract, plus click-to-pin via data-edge-tier on the
   // stage). Node color stays domain in every lens; cluster identity is
   // read from the labeled wells, so no legend swaps with the lens.
-  const containerMarkup = containers.map((c, idx) =>
-    constBubbleContainerSvg(c, constWellAccentStyle(constWellAccentTokens(c.id, idx)))
-  ).join("");
+  // At the themes overview, draw ONLY the big theme rings (hide the nested
+  // cluster sub-rings) so the entry reads as a few large, named spaces — the
+  // cluster rings return when you zoom into the clusters grain.
+  const containerMarkup = containers
+    .filter(c => granularity !== "themes" || c.level === "theme")
+    .map((c, idx) => constBubbleContainerSvg(c, constWellAccentStyle(constWellAccentTokens(c.id, idx))))
+    .join("");
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">
     ${cohortPageHead(viewMode)}
@@ -8445,7 +8451,7 @@ function wireConstellationHover() {
     // the collab action card (people scope keeps the node-link people network).
     const viewMode = (baseMode === "map" && scope === "projects") ? "bubble" : baseMode;
     const activeLens = viewMode === "ring" || viewMode === "stack" ? "all" : constNormalizeConstellationLens(state.constellationLens);
-    const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest) };
+    const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest), bubbleMap: viewMode === "bubble" ? constBubbleMapSummary(model, constNormalizeGranularity(state.constellationGranularity)) : null };
     const peopleModel = scope === "people" ? constPeopleNetworkModel(cohort?.people || [], teams, 1120, 620) : null;
     const inspectorCtx = viewMode === "stack"
       ? { ...baseInspectorCtx, stackModel: constProductStackModel(teams, baseInspectorCtx) }
@@ -8563,10 +8569,15 @@ function wireConstellationHover() {
       lastPreviewRid = rid;
       if (state.constSelection) {
         // A dossier OR a two-team compare is pinned: don't clobber it — float a
-        // compact preview strip on top, leaving the pinned view intact below.
+        // strip on top, leaving the pinned view intact below. When a single team
+        // is pinned, hovering ANOTHER shows their live A⇄B overlap (Mike's "pin
+        // one, compare by hovering another"); clicking it commits the pair.
         let strip = body.querySelector(".ac-hover-strip");
         if (!strip) { strip = document.createElement("div"); strip.className = "ac-hover-strip"; body.prepend(strip); }
-        strip.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
+        const sel = state.constSelection;
+        strip.innerHTML = (sel.type === "team" && sel.rid !== rid)
+          ? constCompareInspectorHtml({ type: "compare", a: sel.rid, b: rid }, inspectorCtx)
+          : constTeamPreviewHtml(t, inspectorCtx);
       } else {
         body.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
       }

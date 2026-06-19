@@ -7205,6 +7205,13 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   stroke: var(--well-accent, rgba(193,168,114,0.4));
   stroke-dasharray: 3 4;
 }
+/* Theme rings are the overview's primary spaces — bold, named containers, not the
+   faint 0.13-alpha backdrop they were (which made the themes layer invisible). */
+.alch-constellation-stage svg .ac-bubble-container[data-level="theme"] .ac-bubble-container-shape {
+  stroke: var(--well-accent, rgba(193,168,114,0.5));
+  stroke-width: 1.5;
+  stroke-dasharray: 2 8;
+}
 .alch-constellation-stage svg .ac-bubble-container-label {
   fill: var(--well-accent, var(--alchemy-ink-mute));
   opacity: 0.74;
@@ -7440,6 +7447,10 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 @keyframes ac-cmp-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .ac-inspector-hero.is-compare { animation: ac-cmp-in 260ms cubic-bezier(0.19,1,0.22,1) both; }
 .ac-cmp-grid { animation: ac-cmp-in 300ms cubic-bezier(0.19,1,0.22,1) 70ms both; }
+/* In the hover strip (pin A, hover B → live compare) the strip itself fades in;
+   don't re-run the compare entrance on every bubble you sweep over. */
+.ac-hover-strip .ac-inspector-hero.is-compare,
+.ac-hover-strip .ac-cmp-grid { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .ac-inspector-hero.is-compare, .ac-cmp-grid { animation: none; }
 }
