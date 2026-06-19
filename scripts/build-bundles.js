@@ -31,6 +31,7 @@ const {
   publicCohortInsights,
   loadEditorialAwardCategories,
 } = require("./lib/cohort-insight-engine.cjs");
+const { TIERS, isTier } = require("./lib/tiers.cjs");
 
 const REPO_ROOT  = path.resolve(__dirname, "..");
 const COHORT_DIR = path.join(REPO_ROOT, "cohort-data");
@@ -2000,10 +2001,11 @@ function loadGithubProgressArtifacts() {
 
 function transcriptDistillationAppVisible(artifact) {
   if (!artifact || typeof artifact !== "object") return false;
-  if (artifact.tier === "T2") {
+  if (!isTier(artifact.tier)) return false;
+  if (artifact.tier === TIERS.T2.id) {
     return artifact.review_status === "reviewed" || artifact.review_status === "published";
   }
-  if (artifact.tier === "T3") {
+  if (artifact.tier === TIERS.T3.id) {
     return artifact.review_status === "published" && artifact.approval_state === "approved";
   }
   return false;

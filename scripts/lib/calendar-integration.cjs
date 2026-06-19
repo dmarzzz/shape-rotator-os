@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { TIER_ORDER, isTier } = require("./tiers.cjs");
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TEXT_DISTILL_SOURCE_KINDS = new Set([
@@ -41,7 +42,7 @@ function validateRoutingPolicy(policy) {
   if (!policy?.policy_key) errors.push("policy_key is required");
   if (!policy?.version) errors.push("version is required");
   const tiers = policy?.tiers || {};
-  for (const tier of ["T0", "T1", "T2", "T3"]) {
+  for (const tier of TIER_ORDER) {
     if (!tiers[tier]) errors.push(`missing tier ${tier}`);
   }
   const sessionTypes = policy?.session_types || {};
@@ -49,7 +50,7 @@ function validateRoutingPolicy(policy) {
   for (const [key, value] of Object.entries(sessionTypes)) {
     if (!/^[a-z0-9_]+$/.test(key)) errors.push(`invalid session type key: ${key}`);
     if (!value.label) errors.push(`${key}: label is required`);
-    if (!["T1", "T2", "T3"].includes(value.max_tier)) errors.push(`${key}: max_tier must be T1, T2, or T3`);
+    if (!isTier(value.max_tier) || value.max_tier === "T0") errors.push(`${key}: max_tier must be T1, T2, or T3`);
     if (typeof value.public_allowed !== "boolean") errors.push(`${key}: public_allowed boolean is required`);
     if (!Array.isArray(value.required_public_approvals)) errors.push(`${key}: required_public_approvals must be an array`);
   }

@@ -1,6 +1,7 @@
 "use strict";
 
 const path = require("node:path");
+const { SURFACE, mergeSurface } = require("./tiers.cjs");
 
 const SCHEMA_VERSION = 1;
 const PRIVATE_SOURCE_PREFIX = "private-vault:";
@@ -164,7 +165,7 @@ function sharingBoundaryFor(readout) {
   const publicCleared = consent === "public-cleared";
   return {
     source_access: "private-vault",
-    max_surface: publicCleared ? "public_candidate" : "cohort",
+    max_surface: publicCleared ? SURFACE.PUBLIC_CANDIDATE : SURFACE.COHORT,
     raw_allowed: false,
     public_requires_approval: !publicCleared,
     consent,
@@ -298,7 +299,7 @@ function buildEvidenceCard(readout) {
     sharing_boundary: sharingBoundary,
     attribution,
     review_status: "generated",
-    surface_recommendation: sharingBoundary.max_surface === "public_candidate" ? "review_for_public_candidate" : "review_for_cohort",
+    surface_recommendation: sharingBoundary.max_surface === SURFACE.PUBLIC_CANDIDATE ? "review_for_public_candidate" : "review_for_cohort",
     verbatim: false,
     teams,
     people,
@@ -340,12 +341,6 @@ function validateEntityRefs(cards, options = {}) {
   }
 }
 
-function mergeSurface(left, right) {
-  if (left === "cohort" || right === "cohort") return "cohort";
-  if (left === "public_candidate" || right === "public_candidate") return "public_candidate";
-  return left || right || "cohort";
-}
-
 function addGraphNode(map, id, kind, label, extra = {}) {
   if (!map.has(id)) {
     map.set(id, { id, kind, label, ...extra });
@@ -383,7 +378,7 @@ function buildRoleViews(cards) {
         themes: [],
         top_claims: [],
         source_note: "Compiled from generated transcript evidence cards, not raw transcript blobs.",
-        sharing_boundary: { max_surface: "public_candidate", raw_allowed: false },
+        sharing_boundary: { max_surface: SURFACE.PUBLIC_CANDIDATE, raw_allowed: false },
       });
     }
     const week = weekly.get(weekKey);
@@ -419,7 +414,7 @@ function buildRoleViews(cards) {
           top_claims: [],
           open_questions: [],
           source_note: "Compiled from generated transcript evidence cards, not raw transcript blobs.",
-          sharing_boundary: { max_surface: "public_candidate", raw_allowed: false },
+          sharing_boundary: { max_surface: SURFACE.PUBLIC_CANDIDATE, raw_allowed: false },
         });
       }
       const teamView = teams.get(team);
@@ -449,7 +444,7 @@ function buildRoleViews(cards) {
           top_claims: [],
           open_questions: [],
           source_note: "Compiled from generated transcript evidence cards, not raw transcript blobs.",
-          sharing_boundary: { max_surface: "public_candidate", raw_allowed: false },
+          sharing_boundary: { max_surface: SURFACE.PUBLIC_CANDIDATE, raw_allowed: false },
         });
       }
       const personView = people.get(person);
@@ -665,6 +660,7 @@ module.exports = {
   hasForbiddenRawPointer,
   isoWeekStart,
   listEntityIdsFromFiles,
+  mergeSurface,
   safeIdPart,
   stableJson,
 };
