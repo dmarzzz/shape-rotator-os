@@ -5,9 +5,9 @@ import os from "node:os";
 import path from "node:path";
 
 import {
-  scanText,
-  scanWebPublicSurface,
-} from "./web-public-surface-leak-scan.mjs";
+  scanWebText as scanText,
+  scanWebSurfaces as scanWebPublicSurface,
+} from "./surface-leak-scan.mjs";
 
 test("web public surface scanner detects calendar operator leakage", () => {
   const findings = scanText(`
