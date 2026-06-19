@@ -360,6 +360,62 @@
   flex: 0 0 auto;
 }
 
+/* ── cohort-activity lane (releases + commits → "this team shipped X") ── */
+/* Sits directly under the day headers as the calendar's headline signal:
+   what each team shipped/committed that day. Each block drills to the team. */
+.c2-activity { border-bottom: 1px solid var(--ed-rule-2); }
+.c2-activity .c2-gutter-cell {
+  padding-top: 7px; align-items: flex-start; color: var(--ed-ink-3);
+}
+.c2-activity-cell {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 7px 6px;
+  border-left: 1px solid var(--ed-rule);
+  min-width: 0;
+}
+.c2-activity-cell:first-of-type { border-left: 0; }
+.c2-act-chip {
+  --c2-acc: #8c8079;
+  appearance: none; cursor: pointer; text-align: left;
+  display: inline-flex; align-items: baseline; gap: 6px;
+  background: color-mix(in srgb, var(--c2-acc) 14%, var(--ed-bg-2));
+  border: 1px solid color-mix(in srgb, var(--c2-acc) 30%, transparent);
+  border-left: 3px solid var(--c2-acc);
+  border-radius: 3px;
+  color: var(--ed-ink-1);
+  font-family: var(--ed-mono); font-size: 10px;
+  padding: 3px 8px 3px 7px;
+  min-width: 0; max-width: 100%;
+  transition:
+    background 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 110ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.c2-act-chip[data-act-kind="release"] { --c2-acc: #5f9e74; }  /* shipped = green */
+.c2-act-chip[data-act-kind="commit"]  { --c2-acc: #8c8079; }  /* did = neutral oxide */
+.c2-act-chip:hover {
+  background: color-mix(in srgb, var(--c2-acc) 24%, var(--ed-bg-2));
+  border-color: color-mix(in srgb, var(--c2-acc) 54%, transparent);
+}
+.c2-act-chip:active { transform: scale(0.97); }
+.c2-act-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c2-acc) 46%, transparent);
+}
+.c2-act-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--c2-acc); flex: 0 0 auto; align-self: center;
+}
+.c2-act-team {
+  font-weight: 600; color: var(--ed-ink-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.c2-act-label {
+  color: var(--ed-ink-3); flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── time grid ──────────────────────────────────────────────────────── */
 .c2-scroll {
   /* Self-contained vertical scroller so day headers stay pinned — sized
