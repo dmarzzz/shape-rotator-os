@@ -5606,7 +5606,7 @@ function constTeamPreviewHtml(team, ctx) {
   ].filter(Boolean).join(" · ");
   return `
     <div class="ac-inspector-hero is-preview" data-const-team="${escAttr(rid)}">
-      <div class="ac-inspector-kicker">hover · click to pin, then click another to compare</div>
+      <div class="ac-inspector-kicker">click to pin · click a second to compare</div>
       <h3>${escHtml(team.name || rid)}</h3>
       <p class="ac-preview-line"><span class="ac-preview-sector">${escHtml(sector)}</span>${heading ? ` — ${escHtml(heading)}` : ""}</p>
       ${tail ? `<p class="ac-preview-tail">${escHtml(tail)}</p>` : ""}
@@ -5928,7 +5928,7 @@ function constCompareInspectorHtml(selection, ctx) {
   if (sharedOut.length) overlapBits.push(`${sharedOut.length} shared dependenc${sharedOut.length === 1 ? "y" : "ies"}`);
   const summary = directDep
     ? "one already depends on the other"
-    : (overlapBits.length ? overlapBits.join(" · ") : (sameDomain ? "same domain, no declared overlap yet" : "different domains, no declared overlap yet"));
+    : (overlapBits.length ? overlapBits.join(" · ") : (sameDomain ? "same domain, nothing shared yet" : "different domains, nothing shared yet"));
   const sectorLineFor = (t) => {
     const sector = CONST_DOMAIN_LABEL[constDomainClass(t.domain)] || "other";
     const heading = constShortText(t.focus || t.now || "", 60);
@@ -5939,7 +5939,7 @@ function constCompareInspectorHtml(selection, ctx) {
     : `<p class="ac-inspector-empty">${escHtml(empty)}</p>`;
   return `
     <div class="ac-inspector-hero is-compare">
-      <div class="ac-inspector-kicker">comparing — click either to open · click a third to switch</div>
+      <div class="ac-inspector-kicker">click either to open · a third starts over</div>
       <h3 class="ac-cmp-h3"><button type="button" class="ac-inspector-title-link" data-const-open-record="${escAttr(a.record_id)}">${escHtml(a.name || a.record_id)}</button> <i class="ac-cmp-x" aria-hidden="true">⇄</i> <button type="button" class="ac-inspector-title-link" data-const-open-record="${escAttr(b.record_id)}">${escHtml(b.name || b.record_id)}</button></h3>
       <p class="ac-preview-line">${escHtml(summary)}</p>
     </div>
@@ -5958,12 +5958,12 @@ function constCompareInspectorHtml(selection, ctx) {
       <dl class="ac-bet-list">
         <div><dt>shared space</dt><dd>${sharedSpaces.length ? sharedSpaces.map(escHtml).join(" · ") : "none — different ecosystems"}</dd></div>
         <div><dt>domain</dt><dd>${sameDomain ? `both ${escHtml(CONST_DOMAIN_LABEL[domClassA] || "other")}` : `${escHtml(CONST_DOMAIN_LABEL[domClassA] || "other")} vs ${escHtml(CONST_DOMAIN_LABEL[domClassB] || "other")}`}</dd></div>
-        <div><dt>direct line</dt><dd>${directDep ? "yes — one depends on the other" : "no declared dependency between them"}</dd></div>
+        <div><dt>direct line</dt><dd>${directDep ? "one depends on the other" : "neither depends on the other"}</dd></div>
       </dl>
     </section>
     <section class="ac-inspector-section">
       <h4>shared skills</h4>
-      ${chipRow(sharedSkills, "no skill areas in common in their profiles")}
+      ${chipRow(sharedSkills, "no skills in common")}
     </section>
     ${(sharedOut.length || sharedIn.length) ? `
     <section class="ac-inspector-section">
@@ -6969,10 +6969,10 @@ function renderSayDidShipped() {
   const sentenceBar = `
     <div class="ac-sentence" role="group" aria-label="say did shipped summary">
       <strong class="ac-sent-fact">${escHtml(cardCount)}</strong>
-      <span class="ac-sent-word">· public cohort + repo metadata</span>
+      <span class="ac-sent-word">· from public profiles + repo activity</span>
       <span class="ac-sent-word">·</span>
       <strong class="ac-sent-fact">${escHtml(`${observed}/${rows.length || teams.length}`)}</strong>
-      <span class="ac-sent-word">with build signal · ${escHtml(buildSummary)}</span>
+      <span class="ac-sent-word">show shipping signal · ${escHtml(buildSummary)}</span>
     </div>`;
   // One card per team: a scannable identity lead (what it is / who it serves, with a
   // domain-colored accent) over the say -> did -> shipped proof strip. Observed build
@@ -7165,8 +7165,8 @@ function constBubbleMapDefaultHtml(ctx) {
     <div class="ac-inspector-hero is-orientation">
       <div class="ac-inspector-kicker">where everyone sits</div>
       <h3>${escHtml(String(s.themes))} themes · ${escHtml(String(s.clusters))} ecosystems · ${escHtml(String(s.teams))} teams</h3>
-      <p>Every team placed by what it works on — neighbours share a space. ${escHtml(grainNote)}</p>
-      <p class="ac-orientation-cta">Hover a bubble for its read · click to pin · click another to compare two.</p>
+      <p>Every team sits by what it works on, so neighbours share a space. ${escHtml(grainNote)}</p>
+      <p class="ac-orientation-cta">Hover a bubble to read it · click to pin · click a second to compare.</p>
     </div>
     <section class="ac-inspector-section is-orientation-legend">
       <h4>how to read it</h4>
@@ -11412,8 +11412,8 @@ function collabLatentOverlapSectionHtml() {
     const actions = insightArray(content.suggested_actions).map(latentActionText).slice(0, 3);
     const score = sdsNumber(content, "score");
     const dependencyLine = content.existing_dependency
-      ? "recorded dependency exists; cross-check before routing."
-      : "not recorded as a dependency.";
+      ? "already a recorded dependency — check before you introduce them."
+      : "no dependency on record yet.";
     return `
       <article class="cb-intro cb-latent-overlap">
         <div class="cb-latent-top">
@@ -11443,7 +11443,7 @@ function collabLatentOverlapSectionHtml() {
   }).join("");
   return `
     <section class="alch-cb-section" data-cb-section="latent">
-      <div class="alch-cb-sechead"><h3>Latent overlaps</h3><span class="cb-sub">public overlap prompts; verify before routing</span></div>
+      <div class="alch-cb-sechead"><h3>Latent overlaps</h3><span class="cb-sub">spotted from public signals — verify before you make an intro</span></div>
       <div class="cb-intro-grid">${cardHtml || '<p class="cb-empty">no overlap prompts.</p>'}</div>
     </section>`;
 }
@@ -12491,7 +12491,7 @@ function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = nu
 
   // Tooltip lists every signal on the cell (strongest first).
   const lines = [];
-  if (dep) lines.push(`▲ depends on ${C.team.name}`);
+  if (dep) lines.push(`→ depends on ${C.team.name}`);
   if (so) lines.push(`seeks → ${C.team.name} offers: ${so.shared.slice(0, 3).join(", ") || "match"}`);
   const title = `${R.team.name} → ${C.team.name}\n${lines.join("\n")}`;
 
