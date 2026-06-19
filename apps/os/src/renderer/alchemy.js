@@ -6715,7 +6715,6 @@ function timelineInnerHtml() {
   const nowWeekIdx = weekIdxOf(nowMs);
   const onCurrentWeek = wi === nowWeekIdx;
   const inWin = (ms) => ms >= winStart && ms < winEnd;
-  const nowIn = inWin(nowMs);
 
   // ── Events (live calendar — same source the grid renders) ───────────────
   const calModule = calendarLazy.peek();
@@ -6728,7 +6727,6 @@ function timelineInnerHtml() {
 
   // ── Filter state (persisted on state.calendar; toggled in wireCalendar) ──
   const catHidden = new Set(Array.isArray(cal.tlCatHidden) ? cal.tlCatHidden : []);
-  const whenMode = (cal.tlWhen === "allday" || cal.tlWhen === "timed") ? cal.tlWhen : "all";
   const hidePast = !!cal.tlHidePast;
   const rowOff = new Set(Array.isArray(cal.tlRowsHidden) ? cal.tlRowsHidden : []);
   const teams = (cohort.teams || []).filter((t) => t && t.record_id && teamKind(t) !== "person")
@@ -6736,10 +6734,8 @@ function timelineInnerHtml() {
   const scopeId = teams.some((t) => t.record_id === cal.tlScope) ? cal.tlScope : null;
   const scopeName = scopeId ? (teams.find((t) => t.record_id === scopeId).name || scopeId) : "all cohort";
 
-  // Category + "when" filters narrow the schedule.
-  const eventItems = allEvents
-    .filter((e) => !catHidden.has(e.cat))
-    .filter((e) => whenMode === "all" || (whenMode === "allday" ? e.allDay : !e.allDay));
+  // Category filter narrows the schedule (the legend doubles as the control).
+  const eventItems = allEvents.filter((e) => !catHidden.has(e.cat));
 
   const startMin = (t) => { const m = /(\d{1,2}):(\d{2})/.exec(t || ""); return m ? (+m[1]) * 60 + (+m[2]) : -1; };
   const dayNames = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -6823,50 +6819,38 @@ function timelineInnerHtml() {
       <div class="cw-scope-menu" role="listbox" aria-label="workstream" hidden>${scopeMenu}</div>
     </div>`;
 
-  // Filter bar (consolidated): "when" (all / all-day / timed) + hide-past, and
-  // which signal rows show.
-  const whenSeg = [["all", "all"], ["allday", "all-day"], ["timed", "timed"]]
-    .map(([k, l]) => `<button type="button" class="cw-seg-b" data-tl-when="${k}" aria-pressed="${whenMode === k ? "true" : "false"}">${l}</button>`).join("");
+  // Signal-row toggles — which signal lanes show beneath the calendar. Grouped
+  // under one "rows" key so they read as a single systematized control, not loose
+  // siblings. (The old "when" all/all-day/timed segment was dropped: the all-day
+  // strip already separates all-day from timed visually, so it was redundant.)
   const rowTogs = [["inTown", "in town"], ["shipped", "shipped"], ["standing", "standing"]]
     .map(([k, l]) => `<button type="button" class="cw-tog${rowOff.has(k) ? "" : " is-on"}" data-tl-row="${k}" aria-pressed="${rowOff.has(k) ? "false" : "true"}">${l}</button>`).join("");
-  const filterBar = `
-    <div class="cw-filt">
-      <span class="cw-filt-k">when</span><div class="cw-seg" role="group" aria-label="show events">${whenSeg}</div>
-      <button type="button" class="cw-tog${hidePast ? " is-on" : ""}" data-tl-past aria-pressed="${hidePast ? "true" : "false"}">hide past</button>
-      <span class="cw-filt-sep" aria-hidden="true"></span>
-      <span class="cw-filt-k">signals</span>${rowTogs}
-    </div>`;
 
   const total = eventItems.length;
-  const summary = `
-    <div class="ac-tl-summary" role="group" aria-label="week summary">
-      <span class="ac-tl-sum-win">${total} event${total === 1 ? "" : "s"} this week</span>
-      ${nowIn ? `<span class="ac-tl-sum-sep">·</span><span class="ac-tl-sum-frame">past <em>←</em> today <em>→</em> scheduled</span>` : ""}
-      <span class="ac-tl-sum-sep">·</span><span class="ac-tl-sum-hint">tap a day to open its hour grid</span>
-    </div>`;
 
   // The legend doubles as the category FILTER — click a type to show/hide it
   // (label = trigger); shares --c2-acc with the grid for the dot colour.
   const legend = (calModule?.C2_LEGEND || [])
     .map((c) => `<button type="button" class="cal-legend-item${catHidden.has(c.key) ? " is-off" : ""}" data-tl-cat="${escAttr(c.key)}" data-cat="${escAttr(c.key)}" aria-pressed="${catHidden.has(c.key) ? "false" : "true"}"><i class="cal-legend-dot" aria-hidden="true"></i>${escHtml(c.label)}</button>`).join("");
 
-  // Rows actually rendered: "when" hides the all-day or schedule row; the signal
-  // toggles drop their rows. The main calendar row grows to fill.
-  const showAllDay = whenMode !== "timed";
-  const showSched = whenMode !== "allday";
+  // Rows rendered: all-day + schedule always show (the calendar core); the signal
+  // toggles drop their lanes. The schedule row grows to fill the height.
   const rows = [{ rail: "", cells: headRow, h: "auto" }];
-  if (showAllDay) rows.push({ rail: "all-day", cells: allDayRow, h: showSched ? "auto" : "minmax(118px,1fr)" });
-  if (showSched) rows.push({ rail: "schedule", cells: schedRow, h: "minmax(118px,1fr)" });
+  rows.push({ rail: "all-day", cells: allDayRow, h: "auto" });
+  rows.push({ rail: "schedule", cells: schedRow, h: "minmax(118px,1fr)" });
   if (!rowOff.has("inTown")) rows.push({ rail: "in town", cells: inTownRow, h: "auto" });
   if (!rowOff.has("shipped")) rows.push({ rail: `shipped<span class="cw-tag">stale</span>`, cells: shippedRow, h: "auto" });
   if (!rowOff.has("standing")) rows.push({ rail: `standing<span class="cw-tag">seed</span>`, cells: standingCell, h: "auto" });
 
+  // One control row: window nav + event count (left), scope · row toggles ·
+  // hide-past (right). The legend (category filter) sits on the row beneath.
   return `
     <div class="ac-tl-stage" data-view="timeline" aria-label="${escAttr(`cohort calendar — ${winLabel}`)}">
       <div class="ac-tl-controls">
-        <div class="ac-tl-bar">${nav}${scopeChip}</div>
-        ${summary}
-        ${filterBar}
+        <div class="ac-tl-bar">
+          <div class="cw-left">${nav}<span class="ac-tl-count">${total} event${total === 1 ? "" : "s"}</span></div>
+          <div class="cw-right">${scopeChip}<span class="cw-rowgrp"><span class="cw-filt-k">rows</span>${rowTogs}</span><button type="button" class="cw-tog${hidePast ? " is-on" : ""}" data-tl-past aria-pressed="${hidePast ? "true" : "false"}">hide past</button></div>
+        </div>
         <div class="cal-legend" role="group" aria-label="filter by event category">${legend}</div>
       </div>
       <div class="cal-week" style="grid-template-columns:78px repeat(${nDays}, minmax(0, 1fr)); grid-template-rows:${rows.map((r) => r.h).join(" ")};">
@@ -9462,9 +9446,6 @@ function wireCalendar() {
     }
     for (const b of state.canvas.querySelectorAll("[data-tl-row]")) {   // signal-row show/hide
       b.addEventListener("click", () => toggleIn("tlRowsHidden", b.getAttribute("data-tl-row")));
-    }
-    for (const b of state.canvas.querySelectorAll("[data-tl-when]")) {  // all / all-day / timed
-      b.addEventListener("click", () => { cal.tlWhen = b.getAttribute("data-tl-when"); refreshCalendarView(); });
     }
     const pastBtn = state.canvas.querySelector("[data-tl-past]");
     if (pastBtn) pastBtn.addEventListener("click", () => { cal.tlHidePast = !cal.tlHidePast; refreshCalendarView(); });

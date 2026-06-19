@@ -8035,8 +8035,13 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .ac-tl-controls { margin-bottom: 16px; }
 .c2-timeline { min-height: 220px; }
 
-/* control bar — one row: ‹ week N · dates › + a "today" jump */
-.ac-tl-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* control bar — one row, two zones: nav + count (left) · scope · rows · hide-past (right) */
+.ac-tl-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
+.cw-left, .cw-right { display: inline-flex; align-items: center; flex-wrap: wrap; }
+.cw-left { gap: 8px; }
+.cw-right { gap: 7px; }
+.ac-tl-count { font-family: var(--font-mono); font-size: 11px; color: var(--alchemy-ink-mute); white-space: nowrap; }
+.cw-rowgrp { display: inline-flex; align-items: center; gap: 6px; }
 
 /* window prev/next nav */
 .ac-tl-winnav { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--alchemy-ink-mute); }
@@ -8044,11 +8049,6 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .ac-tl-navbtn:not([disabled]):hover { border-color: rgba(var(--ink-rgb), 0.32); }
 .ac-tl-navbtn[disabled] { opacity: 0.28; cursor: default; }
 .ac-tl-winlabel { min-width: 132px; text-align: center; }
-
-/* summary line — count · past ← today → scheduled · hint */
-.ac-tl-summary { margin-top: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--alchemy-ink-mute); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.ac-tl-sum-sep { opacity: 0.4; }
-.ac-tl-sum-frame em { font-style: normal; color: var(--alchemy-oxide-bright); padding: 0 1px; }
 @media (prefers-reduced-motion: reduce) { .ac-tl-navbtn { transition: none; } }
 
 /* ── Vertical fill ──────────────────────────────────────────────────────────
@@ -8127,16 +8127,15 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .cal-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-family: var(--font-mono); font-size: 10.5px; color: var(--alchemy-ink-mute); }
 .cal-legend-item { display: inline-flex; align-items: center; gap: 5px; }
 .cal-legend-dot { width: 8px; height: 8px; border-radius: 2px; background: var(--c2-acc, #8f817a); flex: 0 0 auto; }
-.ac-tl-sum-hint { color: rgba(var(--ink-rgb), 0.5); }
 
 /* ── Filters ─────────────────────────────────────────────────────────────
-   The legend doubles as the category filter; the scope chip + a consolidated
-   filter bar (when / hide-past / signal toggles) carry the rest. */
+   The legend doubles as the category filter; the scope chip · signal-row
+   toggles · hide-past live inline on the control bar's right zone. */
 .cal-legend-item { background: transparent; border: 0; cursor: pointer; padding: 2px 5px; border-radius: 5px; color: inherit; transition: opacity 140ms var(--ease); }
 .cal-legend-item:hover { background: rgba(var(--ink-rgb), 0.05); }
 .cal-legend-item.is-off { opacity: 0.4; }
 .cal-legend-item.is-off .cal-legend-dot { background: rgba(var(--ink-rgb), 0.25); }
-.cw-scope { position: relative; margin-left: auto; }
+.cw-scope { position: relative; }
 .cw-scope-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; background: rgba(var(--ink-rgb), 0.04); border: 1px solid rgba(var(--ink-rgb), 0.16); border-radius: 8px; color: var(--alchemy-paper-warm); font-family: var(--font-mono); font-size: 11px; cursor: pointer; }
 .cw-scope-btn.is-on { border-color: color-mix(in oklch, var(--alchemy-oxide) 55%, transparent); background: color-mix(in oklch, var(--alchemy-oxide) 12%, transparent); }
 .cw-k { color: rgba(var(--ink-rgb), 0.55); text-transform: uppercase; letter-spacing: 0.06em; font-size: 9px; }
@@ -8147,16 +8146,10 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .cw-scope-opt { text-align: left; padding: 6px 9px; background: transparent; border: 0; border-radius: 6px; color: rgba(var(--ink-rgb), 0.82); font-family: var(--font-mono); font-size: 11px; cursor: pointer; white-space: nowrap; }
 .cw-scope-opt:hover { background: rgba(var(--ink-rgb), 0.08); color: var(--alchemy-paper-warm); }
 .cw-scope-opt[aria-selected="true"] { background: color-mix(in oklch, var(--alchemy-oxide) 16%, transparent); color: var(--alchemy-paper-warm); }
-.cw-filt { margin-top: 9px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-family: var(--font-mono); }
 .cw-filt-k { color: rgba(var(--ink-rgb), 0.5); text-transform: uppercase; letter-spacing: 0.06em; font-size: 9px; }
-.cw-filt-sep { width: 1px; height: 16px; background: rgba(var(--ink-rgb), 0.12); }
-.cw-seg { display: inline-flex; border: 1px solid rgba(var(--ink-rgb), 0.14); border-radius: 7px; overflow: hidden; }
-.cw-seg-b { padding: 3px 9px; background: transparent; border: 0; color: var(--alchemy-ink-mute); font-family: var(--font-mono); font-size: 10.5px; cursor: pointer; }
-.cw-seg-b + .cw-seg-b { border-left: 1px solid rgba(var(--ink-rgb), 0.1); }
-.cw-seg-b[aria-pressed="true"] { background: color-mix(in oklch, var(--alchemy-oxide) 14%, transparent); color: var(--alchemy-paper-warm); }
 .cw-tog { padding: 3px 9px; background: transparent; border: 1px solid rgba(var(--ink-rgb), 0.14); border-radius: 7px; color: var(--alchemy-ink-mute); font-family: var(--font-mono); font-size: 10.5px; cursor: pointer; }
 .cw-tog.is-on { border-color: color-mix(in oklch, var(--alchemy-oxide) 45%, transparent); background: color-mix(in oklch, var(--alchemy-oxide) 10%, transparent); color: var(--alchemy-paper-warm); }
-.cal-legend-item:focus-visible, .cw-seg-b:focus-visible, .cw-tog:focus-visible, .cw-scope-btn:focus-visible, .cw-scope-opt:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
+.cal-legend-item:focus-visible, .cw-tog:focus-visible, .cw-scope-btn:focus-visible, .cw-scope-opt:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 @media (prefers-reduced-motion: reduce) { .cal-legend-item { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .cw-c { transition: none; } }
 
