@@ -57,6 +57,7 @@ import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLan
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { buildActivityLane, isPresent, buildStandingLane } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
+import { periodScrubberHtml, wireScrubber, weekStopsFrom, snapshotStopsFrom } from "./cohort-period-scrubber.mjs";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
@@ -6219,28 +6220,11 @@ function renderJourney() {
   const sizeRamp = `<span class="acl-jsize" aria-hidden="true"><i class="sm"></i><i class="lg"></i></span>`;
   const ghostSwatch = `<svg width="9" height="9" viewBox="0 0 11 11" aria-hidden="true" style="vertical-align:-1px"><circle cx="5.5" cy="5.5" r="3.6" fill="rgba(241,236,231,0.24)" stroke="rgba(214,189,134,0.58)" stroke-width="1" stroke-dasharray="2 2"/></svg>`;
 
-  // ── "as of" week SLIDER (top-right) — a snap scrubber across the program
-  // (start → now). The native range input snaps to each week (step=1) and is
-  // keyboard-driven; the notches are also click-to-jump; the live label tracks the
-  // thumb. Dragging updates the label live but only commits the dot replot on
-  // release (a mid-drag re-render would destroy the slider) — committing wraps the
-  // render in a View Transition so the dots glide to their new week positions.
-  const selIdx = Math.max(0, weeks.findIndex(w => w.program_week === weekSel));
-  const lastI = weeks.length - 1;
-  const fullLabel = (i) => weeks[i]?.label || `week ${weeks[i]?.program_week}`;
-  const compactLabel = (i) => i <= 0 ? "start" : (i === lastI ? "now" : `wk ${weeks[i].program_week}`);
-  // Centre each notch under the thumb's travel: the thumb (≈14px) can't overhang
-  // the track ends, so its centre runs from 7px to (100% − 7px).
-  const notchLeft = (i) => `calc(7px + ${lastI > 0 ? (i / lastI).toFixed(4) : "0"} * (100% - 14px))`;
-  const weekFilter = weeks.length ? `
-    <div class="ac-jweek" data-jweek role="group" aria-label="as of program week">
-      <span class="ac-jweek-cap" aria-hidden="true">as of</span>
-      <span class="ac-jweek-track">
-        ${weeks.map((w, i) => `<button type="button" class="ac-jweek-notch${i === selIdx ? " is-active" : ""}" style="left:${notchLeft(i)}" data-jweek="${i}" aria-label="${escAttr(`as of ${fullLabel(i)}`)}" title="${escAttr(fullLabel(i))}"></button>`).join("")}
-        <input class="ac-jweek-range" type="range" min="0" max="${Math.max(0, lastI)}" step="1" value="${selIdx}" data-jweek-range aria-label="as of program week" aria-valuetext="${escAttr(fullLabel(selIdx))}"/>
-      </span>
-      <span class="ac-jweek-now" data-jweek-now aria-hidden="true">${escHtml(compactLabel(selIdx))}</span>
-    </div>` : "";
+  // ── "as of" week scrubber — the shared program-time dot-rail
+  // (cohort-period-scrubber). Scrubbing replots the dots at the selected week's
+  // PMF stage; the indicator sweeps dot-to-dot via the same View Transition that
+  // morphs the dots. PMF always shows it — journeyWeek moves the dots directly.
+  const weekFilter = programScrubberHtml();
 
   // ── sentence bar — "PMF read for teams + projects · N/N explicit · stuck on …" ──
   // Counts come from the UNFILTERED set so a toggled-off chip still says what it
@@ -6444,18 +6428,88 @@ function cssIdent(s) { return String(s).replace(/[^A-Za-z0-9_-]/g, "_"); }
 // thus the root-cross-fade suppression — mid-animation, causing the very flash
 // this scoping prevents.
 let jweekVtDepth = 0;
-function journeyWeekTransition() {
+// Re-render inside the dot-morph View Transition so the named groups (the PMF
+// dots AND the shared period-scrubber's .cps-glide / .cps-fill indicator) glide
+// to their new positions instead of hard-cutting; the root cross-fade is
+// suppressed (html.jweek-vt) so unnamed content swaps without a flash. `renderFn`
+// lets non-journey surfaces (standing, say/did/shipped, collab, map, and the
+// calendar's refreshCalendarView) ride the same sweep. Reduced-motion / no-VT
+// users get a direct render (the informative final state, no animation).
+function scrubberSweep(renderFn) {
+  const run = typeof renderFn === "function" ? renderFn : render;
   const root = document.documentElement;
   const reduce = (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches)
     || root.getAttribute("data-reduce-motion") === "1";
-  if (reduce || typeof document.startViewTransition !== "function") { render(); return; }
+  if (reduce || typeof document.startViewTransition !== "function") { run(); return; }
   const release = () => { if (--jweekVtDepth <= 0) { jweekVtDepth = 0; root.classList.remove("jweek-vt"); } };
   jweekVtDepth++;
   root.classList.add("jweek-vt");
   let vt;
-  try { vt = document.startViewTransition(() => render()); }
-  catch { render(); release(); return; }
+  try { vt = document.startViewTransition(() => run()); }
+  catch { run(); release(); return; }
   vt.finished.catch(() => {}).finally(release);
+}
+// The ONE shared "as of …" scrubber for every constellation view. Its canonical
+// axis is the weekly standing read (the 10 program weeks); a "week" commit moves
+// BOTH pointers — state.journeyWeek (PMF dots) AND constellationTimelineIdx (the
+// cohort surface that standing, say/did/shipped, collab and the map rewind) — so
+// whichever view you are on responds to one control. Views where a rewind is the
+// only real effect (everything except PMF) pass needsSnapshots so the control is
+// never a no-op; PMF always shows it because journeyWeek moves the dots on its
+// own. Falls back to the raw snapshot axis if there is no weekly data.
+function programScrubberHtml({ needsSnapshots = false } = {}) {
+  const snaps = constellationSnapshots();
+  if (needsSnapshots && snaps.length < 2) return "";
+  const weeks = standingWeeklyWeeks();
+  if (weeks.length >= 2) {
+    const cur = (state.journeyWeek != null && weeks.some(w => w.program_week === state.journeyWeek))
+      ? state.journeyWeek : activeStandingWeek();
+    let activeIdx = weeks.findIndex(w => w.program_week === cur);
+    if (activeIdx < 0) activeIdx = weeks.length - 1;
+    return periodScrubberHtml({ stops: weekStopsFrom(weeks), activeIdx, caption: "as of", kind: "week", ariaLabel: "as of program week" });
+  }
+  if (snaps.length >= 2) {
+    const idx = ensureConstellationTimelineIdx();
+    return periodScrubberHtml({ stops: snapshotStopsFrom(snaps), activeIdx: idx == null ? snaps.length - 1 : idx, caption: "as of", kind: "snapshot", ariaLabel: "as of cohort snapshot" });
+  }
+  return "";
+}
+
+// Wire whatever shared period scrubber the current constellation view rendered.
+// One handler for every view; the `kind` tag on the markup decides what a commit
+// moves. Idempotent (wireScrubber guards re-wiring), so it is safe to call from
+// the generic post-render hook.
+function wireConstellationScrubber() {
+  wireScrubber(state.canvas, {
+    onCommit: (idx, kind) => {
+      if (kind === "snapshot") {
+        const snaps = constellationSnapshots();
+        if (!snaps.length) return;
+        const clamped = Math.max(0, Math.min(snaps.length - 1, idx));
+        if (clamped === state.constellationTimelineIdx) return;
+        state.constellationTimelineIdx = clamped;
+        try { localStorage.setItem(CONSTELLATION_TIMELINE_LS_KEY, String(clamped)); } catch {}
+        scrubberSweep(render);
+        return;
+      }
+      // "week" — move BOTH the weekly pointer and the snapshot pointer so PMF and
+      // the surface-rewind views all follow the one control.
+      const weeks = standingWeeklyWeeks();
+      const safeIdx = Math.max(0, Math.min(weeks.length - 1, idx));
+      const pw = weeks[safeIdx]?.program_week;
+      const snaps = constellationSnapshots();
+      const snapIdx = snaps.length ? Math.max(0, Math.min(snaps.length - 1, idx)) : null;
+      const sameWeek = pw == null || pw === state.journeyWeek;
+      const sameSnap = snapIdx == null || snapIdx === state.constellationTimelineIdx;
+      if (sameWeek && sameSnap) return;
+      if (pw != null) state.journeyWeek = pw;
+      if (snapIdx != null) {
+        state.constellationTimelineIdx = snapIdx;
+        try { localStorage.setItem(CONSTELLATION_TIMELINE_LS_KEY, String(snapIdx)); } catch {}
+      }
+      scrubberSweep(render);
+    },
+  });
 }
 
 function constTeamStanding(team) {
@@ -6968,7 +7022,7 @@ function renderSayDidShipped() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="shipped">
       ${cohortPageHead("shipped")}
-      <div class="alch-view-controls" data-shape-occluder>${sentenceBar}</div>
+      <div class="alch-view-controls" data-shape-occluder>${sentenceBar}${programScrubberHtml({ needsSnapshots: true })}</div>
       <div class="alch-constellation" data-constellation-view="shipped">
         <div class="alch-const-workbench is-single">
           <div class="alch-const-main">
@@ -7025,7 +7079,7 @@ function renderProductStack() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="stack">
     ${cohortPageHead("stack")}
-    <div class="alch-view-controls" data-shape-occluder>${constTimelineDropdownHtml()}${sentenceBar}${projToggle}${selectionChip}</div>
+    <div class="alch-view-controls" data-shape-occluder>${sentenceBar}${projToggle}${selectionChip}${programScrubberHtml({ needsSnapshots: true })}</div>
     <div class="alch-constellation" data-constellation-view="stack">
       <div class="alch-const-workbench is-single">
         <div class="alch-const-main">
@@ -7125,14 +7179,15 @@ function timelineInnerHtml() {
   for (let k = 0; k < 7; k++) {
     const dayMs = winStart + k * DAY, dayEnd = dayMs + DAY, noon = dayMs + DAY / 2;
     const dayEv = eventItems.filter((e) => e.ms >= dayMs && e.ms < dayEnd);
-    const inTown = roster.length ? roster.filter((p) => isPresent(p, noon)).length : 0;
+    const present = roster.length ? roster.filter((p) => isPresent(p, noon)) : [];
+    const inTown = present.length;
     const shipped = updateItems.filter((i) => i.startMs >= dayMs && i.startMs < dayEnd).length;
     maxInTown = Math.max(maxInTown, inTown);
     allCols.push({
       day: dayNames[k], date: String(new Date(dayMs).getUTCDate()),
       allDay: dayEv.filter((e) => e.allDay),
       timed: dayEv.filter((e) => !e.allDay).sort((a, b) => startMin(a.time) - startMin(b.time)),
-      inTown, shipped,
+      inTown, inTownNames: present.map((p) => p.name || p.record_id), shipped,
       isToday: nowMs >= dayMs && nowMs < dayEnd, isPast: dayEnd <= nowMs, isWeekend: k >= 5,
     });
   }
@@ -7155,7 +7210,16 @@ function timelineInnerHtml() {
       : (c.allDay.length ? "" : `<span class="cw-open">open</span>`);
     return `<div class="cw-c cw-sched ${tcls(c)}" data-tl-week="${wi}" role="button" tabindex="0" aria-label="${escAttr(`${c.day} ${c.date}${c.isToday ? " (today)" : ""} — open week ${wi + 1} in the calendar grid`)}">${body}</div>`;
   }).join("");
-  const inTownRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-bar"><i style="width:${Math.round((c.inTown / maxInTown) * 100)}%"></i></span><span class="cw-v">${c.inTown || "·"}</span></div>`).join("");
+  // In-town headcount carries WHO on hover (the day's present roster), so the
+  // signal the user values most reads its detail without leaving the agenda.
+  const inTownTitle = (c) => {
+    const head = `${c.day} ${c.date} · ${c.inTown} in town${scopeId ? " · " + scopeName : ""}`;
+    const names = c.inTownNames || [];
+    if (!names.length) return c.inTown ? head : `${c.day} ${c.date} · nobody in town`;
+    const shown = names.slice(0, 16).join(", ");
+    return `${head}: ${shown}${names.length > 16 ? `, +${names.length - 16} more` : ""}`;
+  };
+  const inTownRow = cols.map((c) => `<div class="cw-c cw-sig cw-intown ${tcls(c)}" title="${escAttr(inTownTitle(c))}" aria-label="${escAttr(inTownTitle(c))}"><span class="cw-bar"><i style="width:${Math.round((c.inTown / maxInTown) * 100)}%"></i></span><span class="cw-v">${c.inTown || "·"}</span></div>`).join("");
   const shippedRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-v">${c.shipped || `<span class="cw-mut">·</span>`}</span></div>`).join("");
   const standingCell = (weekStanding && weekStanding.stage != null)
     ? `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-v">${weekStanding.stage.toFixed(1)}</span><span class="cw-mut">/ 8 · ${escHtml(scopeId ? scopeName + " PMF" : "cohort mean PMF")}</span></div>`
@@ -7464,9 +7528,9 @@ function renderConstellationPeople(teams, people, clusters, edges) {
     <div class="alch-cohort-page" data-cohort-view="map">
       ${cohortPageHead("map")}
       <div class="alch-view-controls" data-shape-occluder>
-        ${constTimelineDropdownHtml()}
         ${constellationSentenceBar({ scope: "people", metrics: { total: peopleLinkCounts.total, peopleLinkCounts }, peopleLinkFilter })}
         ${constSelectionChipHtml()}
+        ${programScrubberHtml({ needsSnapshots: true })}
       </div>
       <div class="alch-constellation" data-constellation-view="map" data-constellation-scope="people">
         <div class="alch-const-workbench"${constRailStyleAttr()}>
@@ -7982,9 +8046,9 @@ function renderConstellation() {
     <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">
     ${cohortPageHead(viewMode)}
       <div class="alch-view-controls" data-shape-occluder>
-        ${constTimelineDropdownHtml()}
         ${constellationSentenceBar({ view: viewMode, scope: "projects", granularity, sizeBy })}
         ${constSelectionChipHtml()}
+        ${programScrubberHtml({ needsSnapshots: true })}
       </div>
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
       <div class="alch-const-workbench"${constRailStyleAttr()}>
@@ -9128,46 +9192,11 @@ function wireConstellationHover() {
       render();
     });
   }
-  // "As of [week]" SLIDER (journey only): a snap scrubber over the program weeks.
-  // index → program_week via the weekly list. Dragging the range fires `input`
-  // repeatedly — update the live label/notch ONLY (a full re-render would destroy
-  // the slider mid-drag) — and commits the dot replot on `change` (release) or a
-  // notch click, wrapping the render in a View Transition so the dots glide.
-  {
-    const jweekWeeks = standingWeeklyWeeks();
-    const idxToWeek = (i) => jweekWeeks[Math.max(0, Math.min(jweekWeeks.length - 1, Math.round(Number(i))))]?.program_week;
-    const commitWeek = (i) => {
-      const pw = idxToWeek(i);
-      if (pw == null || pw === state.journeyWeek) return;
-      state.journeyWeek = pw;
-      journeyWeekTransition();
-    };
-    const range = state.canvas.querySelector("[data-jweek-range]");
-    if (range) {
-      // Live feedback during the drag without committing (no re-render yet).
-      range.addEventListener("input", () => {
-        const i = Math.round(Number(range.value));
-        const slider = range.closest(".ac-jweek");
-        const nowEl = slider?.querySelector("[data-jweek-now]");
-        if (nowEl) nowEl.textContent = i <= 0 ? "start" : (i === jweekWeeks.length - 1 ? "now" : `wk ${jweekWeeks[i]?.program_week}`);
-        range.setAttribute("aria-valuetext", jweekWeeks[i]?.label || `week ${jweekWeeks[i]?.program_week}`);
-        slider?.querySelectorAll(".ac-jweek-notch").forEach((n, ni) => n.classList.toggle("is-active", ni === i));
-      });
-      range.addEventListener("change", () => {
-        commitWeek(range.value);
-        // commitWeek → journeyWeekTransition → render() rebuilds the canvas,
-        // destroying this slider. A native range fires 'change' on EVERY arrow-
-        // key step, so without restoring focus a keyboard user is dropped to
-        // <body> after the first step and can't keep scrubbing. Re-focus the
-        // rebuilt slider.
-        const refocus = () => { try { state.canvas?.querySelector("[data-jweek-range]")?.focus({ preventScroll: true }); } catch {} };
-        if (typeof requestAnimationFrame === "function") requestAnimationFrame(refocus); else setTimeout(refocus, 0);
-      });
-    }
-    for (const notch of state.canvas.querySelectorAll(".ac-jweek-notch[data-jweek]")) {
-      notch.addEventListener("click", () => commitWeek(notch.dataset.jweek));
-    }
-  }
+  // Shared "as of …" period scrubber (cohort-period-scrubber). Routes by kind:
+  // "week" drives the PMF/standing/shipped weekly read (state.journeyWeek);
+  // "snapshot" rewinds the collab/map cohort surface (constellationTimelineIdx).
+  // Either way the commit re-renders inside scrubberSweep so the indicator glides.
+  wireConstellationScrubber();
   for (const btn of state.canvas.querySelectorAll("[data-standing-filter]")) {
     btn.addEventListener("click", () => {
       const next = constNormalizeGoalStandingFilter(btn.dataset.standingFilter);
@@ -10029,7 +10058,9 @@ function wireCalendar() {
       if (dir === "prev" && cal.weekIdx > 0) cal.weekIdx -= 1;
       else if (dir === "next" && cal.weekIdx < WEEKS_TOTAL - 1) cal.weekIdx += 1;
       else return;
-      refreshCalendarView();
+      // Glide the oxide week-bead to its new dot (the grid swaps under it),
+      // matching the constellation scrubber's sweep. Reduced-motion repaints flat.
+      scrubberSweep(refreshCalendarView);
     });
   }
 
@@ -10038,7 +10069,7 @@ function wireCalendar() {
       const i = Number(dot.dataset.c2Week);
       if (Number.isFinite(i) && i !== cal.weekIdx) {
         cal.weekIdx = i;
-        refreshCalendarView();
+        scrubberSweep(refreshCalendarView);
       }
     });
   }
@@ -12709,13 +12740,13 @@ function renderCollab() {
         </div>
       </div>
       <div class="cb-controls-scope">
-        ${constTimelineDropdownHtml()}
         <div class="ac-sentence" role="group" aria-label="collab board scope">
           <span class="ac-sent-word">among</span>
           ${teamUnit}
           <span class="ac-sent-word">· sorted by</span>
           ${sortUnit}
         </div>
+        ${programScrubberHtml({ needsSnapshots: true })}
       </div>
     </div>`;
 
@@ -12871,6 +12902,7 @@ function wireCollabCohortLinks(root) {
 function wireCollab() {
   const collabRoot = state.canvas.querySelector(".alch-collab");
   wireConstellationModeNav();
+  wireConstellationScrubber();
   wireCollabCohortLinks(state.canvas);
   wireCollabTrailerLinks(state.canvas);
   for (const btn of state.canvas.querySelectorAll("[data-collab-intake-open]")) {
