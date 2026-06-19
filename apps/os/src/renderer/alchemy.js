@@ -2754,7 +2754,7 @@ function journeyDetailSection(rec) {
 // page, five ways of understanding the cohort.
 const CONST_VIEWS = [
   { mode: "directory", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', label: "directory", hint: "teams, projects, people" },
-  { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "relationship map", hint: "declared links by ecosystem" },
+  { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "ecosystem map", hint: "where every team sits, grouped by what it builds" },
   { mode: "journey", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>', label: "pmf evidence", hint: "market-fit signal coverage" },
   { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "status + gap to target" },
   // "targets" folded into "standing" as a projection toggle (2026-06): same
@@ -5911,24 +5911,16 @@ function constCompareInspectorHtml(selection, ctx) {
   const sharedSpaces = spacesOf(b.record_id).filter(s => sa.has(s));
   const skillsA = new Set((a.skill_areas || []).map(s => String(s).toLowerCase()));
   const sharedSkills = (b.skill_areas || []).filter(s => skillsA.has(String(s).toLowerCase()));
-  const outTargets = (rid) => new Set((ctx?.outBy?.get(rid) || []).map(e => e.to));
-  const inSources = (rid) => new Set((ctx?.inBy?.get(rid) || []).map(e => e.from));
-  const oA = outTargets(a.record_id);
-  const sharedOut = [...outTargets(b.record_id)].filter(x => oA.has(x));
-  const iA = inSources(a.record_id);
-  const sharedIn = [...inSources(b.record_id)].filter(x => iA.has(x));
-  const nameOf = (rid) => ctx?.teamById?.get(rid)?.name || rid;
   const domClassA = constDomainClass(a.domain);
   const domClassB = constDomainClass(b.domain);
   const sameDomain = domClassA === domClassB;
-  const directDep = !!(ctx?.edgeByPair?.get(dependencyPairKey(a.record_id, b.record_id)));
+  // The map compares WHERE two teams sit — shared spaces, skills, domain. Whether
+  // they depend on or could help each other is a RELATIONSHIP: the collab board
+  // owns that, so we point there rather than recompute dependency data here.
   const overlapBits = [];
   if (sharedSpaces.length) overlapBits.push(`${sharedSpaces.length} shared space${sharedSpaces.length === 1 ? "" : "s"}`);
   if (sharedSkills.length) overlapBits.push(`${sharedSkills.length} shared skill${sharedSkills.length === 1 ? "" : "s"}`);
-  if (sharedOut.length) overlapBits.push(`${sharedOut.length} shared dependenc${sharedOut.length === 1 ? "y" : "ies"}`);
-  const summary = directDep
-    ? "one already depends on the other"
-    : (overlapBits.length ? overlapBits.join(" · ") : (sameDomain ? "same domain, nothing shared yet" : "different domains, nothing shared yet"));
+  const summary = overlapBits.length ? overlapBits.join(" · ") : (sameDomain ? "same domain, nothing shared yet" : "different domains, nothing shared yet");
   const sectorLineFor = (t) => {
     const sector = CONST_DOMAIN_LABEL[constDomainClass(t.domain)] || "other";
     const heading = constShortText(t.focus || t.now || "", 60);
@@ -5958,19 +5950,13 @@ function constCompareInspectorHtml(selection, ctx) {
       <dl class="ac-bet-list">
         <div><dt>shared space</dt><dd>${sharedSpaces.length ? sharedSpaces.map(escHtml).join(" · ") : "none — different ecosystems"}</dd></div>
         <div><dt>domain</dt><dd>${sameDomain ? `both ${escHtml(CONST_DOMAIN_LABEL[domClassA] || "other")}` : `${escHtml(CONST_DOMAIN_LABEL[domClassA] || "other")} vs ${escHtml(CONST_DOMAIN_LABEL[domClassB] || "other")}`}</dd></div>
-        <div><dt>direct line</dt><dd>${directDep ? "one depends on the other" : "neither depends on the other"}</dd></div>
       </dl>
     </section>
     <section class="ac-inspector-section">
       <h4>shared skills</h4>
       ${chipRow(sharedSkills, "no skills in common")}
     </section>
-    ${(sharedOut.length || sharedIn.length) ? `
-    <section class="ac-inspector-section">
-      <h4>shared dependencies</h4>
-      ${sharedOut.length ? `<p class="ac-cmp-dep-k">both rely on</p>${chipRow(sharedOut.map(nameOf), "")}` : ""}
-      ${sharedIn.length ? `<p class="ac-cmp-dep-k">both relied on by</p>${chipRow(sharedIn.map(nameOf), "")}` : ""}
-    </section>` : ""}`;
+    <p class="ac-inspector-note ac-collab-pointer">Whether they depend on or could help each other lives on the Collab board.</p>`;
 }
 
 function constellationInspectorHtml(selection, ctx) {
@@ -7868,7 +7854,7 @@ function renderConstellation() {
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
       <div class="alch-const-workbench"${constRailStyleAttr()}>
         <div class="alch-const-main">
-          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-grain-deep="${grainDeep ? "true" : "false"}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "constellation relationship graph")}">
+          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-grain-deep="${grainDeep ? "true" : "false"}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "cohort ecosystem map — teams grouped by what they build")}">
             <svg viewBox="${escAttr(viewBox)}" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <marker id="ac-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
