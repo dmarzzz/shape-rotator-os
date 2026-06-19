@@ -7435,6 +7435,14 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
   color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.5));
 }
 .ac-cmp-dep-k + .ac-cmp-chips { margin-bottom: 8px; }
+/* The pinned compare panel eases in, the team pair trailing a beat behind, so
+   forming a comparison reads as one settling motion rather than a hard swap. */
+@keyframes ac-cmp-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.ac-inspector-hero.is-compare { animation: ac-cmp-in 260ms cubic-bezier(0.19,1,0.22,1) both; }
+.ac-cmp-grid { animation: ac-cmp-in 300ms cubic-bezier(0.19,1,0.22,1) 70ms both; }
+@media (prefers-reduced-motion: reduce) {
+  .ac-inspector-hero.is-compare, .ac-cmp-grid { animation: none; }
+}
 /* Overlap (Venn) leads the inspector on click. */
 .ac-inspector-section.ac-overlap-lead { margin-top: 6px; padding-top: 4px; }
 /* Titled lead for the where-it-sits image (replaces the cut-looking flush start). */
@@ -10815,7 +10823,7 @@ textarea.cb-intake-input {
   border: 0;
   border-bottom: 1px solid rgba(var(--ink-rgb), 0.07);
   background: transparent;
-  transition: background 150ms var(--ease), box-shadow 150ms var(--ease);
+  transition: background 150ms var(--ease), box-shadow 150ms var(--ease), transform 110ms var(--ease);
 }
 .ac-sds-row:hover { background: rgba(var(--ink-rgb), 0.035); }
 .ac-sds-row:focus-visible {
@@ -10876,6 +10884,28 @@ textarea.cb-intake-input {
   .ac-sds-row { grid-template-columns: 1fr; gap: 8px; }
   .ac-sds-foot { flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; }
 }
+/* Rows ease up on first paint — a brief stagger, then still. Press dips the row
+   so a click feels physical; enter (320ms) is slower than the press (110ms). */
+@keyframes ac-sds-row-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+.ac-sds-row { animation: ac-sds-row-in 320ms cubic-bezier(0.19,1,0.22,1) both; }
+.ac-sds-row:nth-child(2) { animation-delay: 28ms; }
+.ac-sds-row:nth-child(3) { animation-delay: 56ms; }
+.ac-sds-row:nth-child(4) { animation-delay: 84ms; }
+.ac-sds-row:nth-child(5) { animation-delay: 108ms; }
+.ac-sds-row:nth-child(6) { animation-delay: 130ms; }
+.ac-sds-row:nth-child(7) { animation-delay: 150ms; }
+.ac-sds-row:nth-child(n+8) { animation-delay: 168ms; }
+.ac-sds-row:active { transform: scale(0.992); }
+@media (prefers-reduced-motion: reduce) {
+  .ac-sds-row { animation: none; }
+  .ac-sds-row:active { transform: none; }
+}
+/* During a period-scrubber sweep the shared View Transition (html.jweek-vt)
+   already carries the motion, so suppress these enter animations — otherwise the
+   rows + compare panel re-play their entrance on every week scrub. */
+html.jweek-vt .ac-sds-row,
+html.jweek-vt .ac-inspector-hero.is-compare,
+html.jweek-vt .ac-cmp-grid { animation: none; }
 
 /* Latent-overlap cards — visually related to intro cards, but clearly prompts. */
 .cb-latent-overlap {
@@ -11250,8 +11280,8 @@ button.cb-cell:disabled { cursor: default; }
   --cb-preview-grid: rgba(255,255,255,0.075);
   --cb-preview-text: var(--alchemy-paper-warm);
   --cb-preview-muted: var(--alchemy-ink-mute);
-  --cb-preview-dep: #bb5a45;
-  --cb-preview-seek: #6f968d;
+  --cb-preview-dep: #C2603A;   /* clay / terracotta — dependency (rich, not alarm) */
+  --cb-preview-seek: #3E9E54;  /* deep forest green — match / opportunity */
   --cb-preview-aff: #8d749f;
   --cb-preview-gold: #d2a84f;
   gap: 20px;
@@ -11624,14 +11654,16 @@ button.cb-cell:disabled { cursor: default; }
 .alch-collab .cb-cell.has-so.s4 { background: color-mix(in srgb, var(--cb-preview-seek) 54%, transparent); }
 
 .alch-collab .cb-cell.has-so .cb-mark {
-  /* Diamond (rotated square) = a match/node, not the old dash that read as
-     "empty/strikethrough". Connotes connection without implying direction. */
+  /* Match = a filled forest-green node; SIZE carries match strength (set below)
+     and a ring marks a mutual fit. Rich pigment + a thin dark rim for enamel
+     depth, so it reads against its own cell tint without going neon. */
   width: 6px;
   height: 6px;
-  border-radius: 1px;
-  background: #cfe5e1;
-  box-shadow: none;
-  transform: rotate(45deg);
+  border-radius: 50%;
+  background: var(--cb-preview-seek);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.22);
+  transform: none;
+  position: relative;
 }
 
 .alch-collab .cb-cell.has-dep { background: color-mix(in srgb, var(--cb-preview-dep) 30%, transparent); }
@@ -11639,20 +11671,28 @@ button.cb-cell:disabled { cursor: default; }
 .alch-collab .cb-cell.has-dep.has-so { background: color-mix(in srgb, var(--cb-preview-dep) 36%, transparent); }
 
 .alch-collab .cb-cell.has-dep .cb-mark {
-  width: 0;
-  height: 0;
-  border-top: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-bottom: 8px solid #f4d3cb;
-  /* Reset the seek/offer diamond's rotation+radius: a dependency cell that
-     ALSO carries seek/offer must still show a clean upright triangle (single
-     mark, dependency wins). Without this the leftover rotate(45deg) tilts it. */
+  /* Dependency = "depends on →" in clay. Reset any seek/offer dot styling so a
+     cell that carries BOTH still shows one clean arrow (dependency wins). */
+  width: auto;
+  height: auto;
+  border: 0;
   border-radius: 0;
   transform: none;
   background: transparent;
   box-shadow: none;
+  opacity: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+.alch-collab .cb-cell.has-dep .cb-mark::before {
+  content: "\2192";
+  color: var(--cb-preview-dep);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+.alch-collab .cb-cell.has-dep .cb-mark::after { content: none; }
 
 /* ── Lens isolation (option B) ──────────────────────────────────────────
    When a lens is active, recolor EVERY matching cell to that one signal's
@@ -12540,12 +12580,17 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 }
 
 .alch-collab .cb-legend-mark.dep::before {
-  border-bottom-color: var(--cb-preview-dep);
+  content: "\2192";
+  width: auto; height: auto; border: 0;
+  color: var(--cb-preview-dep);
+  font-size: 12px; font-weight: 700; line-height: 1;
 }
 
 .alch-collab .cb-legend-mark.so::before {
+  width: 8px; height: 8px; border-radius: 50%;
   background: var(--cb-preview-seek);
-  box-shadow: none;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.22);
+  transform: none;
 }
 
 .alch-collab .cb-legend-mark.so-scale::before {
@@ -12664,14 +12709,24 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
    mutual read full. Hovering a row/col reveals every mark in it at full strength
    (glance = strong only · hover = the whole line · click = inspect). Scales as
    the board fills in — strong stays legible, the long tail stays quiet. */
-.alch-collab .cb-cell .cb-mark { transition: opacity 140ms var(--ease); }
-.alch-collab .cb-cell.has-so.s1 .cb-mark { opacity: 0.4; }
-.alch-collab .cb-cell.has-so.s2 .cb-mark { opacity: 0.58; }
-.alch-collab .cb-cell.has-so.s3 .cb-mark { opacity: 0.82; }
-.alch-collab .cb-cell.has-so.s4 .cb-mark { opacity: 1; }
-.alch-collab .cb-cell.has-so.is-mutual .cb-mark { opacity: 1; width: 7px; height: 7px; }
+.alch-collab .cb-cell .cb-mark { transition: opacity 140ms var(--ease), transform 140ms var(--ease); }
+.alch-collab .cb-cell.has-so .cb-mark { opacity: 1; }
+.alch-collab .cb-cell.has-so.s1:not(.has-dep) .cb-mark { width: 4px; height: 4px; }
+.alch-collab .cb-cell.has-so.s2:not(.has-dep) .cb-mark { width: 6px; height: 6px; }
+.alch-collab .cb-cell.has-so.s3:not(.has-dep) .cb-mark { width: 8px; height: 8px; }
+.alch-collab .cb-cell.has-so.s4:not(.has-dep) .cb-mark { width: 10px; height: 10px; }
+/* Mutual fit = a ring with a centre dot (a two-way loop), strength-independent so
+   the "worth acting on" pairs read at a glance. */
+.alch-collab .cb-cell.has-so.is-mutual:not(.has-dep) .cb-mark {
+  width: 11px; height: 11px; background: transparent;
+  border: 2px solid var(--cb-preview-seek); box-shadow: none;
+}
+.alch-collab .cb-cell.has-so.is-mutual:not(.has-dep) .cb-mark::after {
+  content: ""; position: absolute; inset: 0; margin: auto;
+  width: 3px; height: 3px; border-radius: 50%; background: var(--cb-preview-seek);
+}
 .alch-collab .cb-cell.has-dep .cb-mark { opacity: 0.85; }
-.alch-collab .cb-cell.is-hl-row .cb-mark, .alch-collab .cb-cell.is-hl-col .cb-mark { opacity: 1; }
+.alch-collab .cb-cell.is-hl-row .cb-mark, .alch-collab .cb-cell.is-hl-col .cb-mark { opacity: 1; transform: scale(1.12); }
 .alch-collab .cb-row.is-selected .cb-cell { background-image: linear-gradient(0deg, rgba(180,58,25,0.05), rgba(180,58,25,0.05)); }
 
 /* sidebar — a panel FLOATING above the matrix plane (soft edge-shadow + top
