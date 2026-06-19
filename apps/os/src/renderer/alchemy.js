@@ -6872,24 +6872,11 @@ function sdsActivity(card) {
 }
 
 function sdsEvidenceParts(card) {
-  const content = sdsActivity(card);
-  const releases = sdsNumber(content, "release_count");
-  const commits = sdsNumber(content, "useful_commit_count");
-  const artifacts = sdsNumber(content, "progress_artifact_count");
-  const latest = constText(content.latest_week_start);
-  const primary = releases
-    ? `${releases} release${releases === 1 ? "" : "s"}`
-    : (commits
-      ? `${commits} useful commit${commits === 1 ? "" : "s"}`
-      : (artifacts ? `${artifacts} progress artifact${artifacts === 1 ? "" : "s"}` : "no public trace yet"));
-  const detail = [];
-  if (releases && commits) detail.push(`${commits} useful commit${commits === 1 ? "" : "s"}`);
-  if ((releases || commits) && artifacts) detail.push(`${artifacts} progress artifact${artifacts === 1 ? "" : "s"}`);
-  if (latest) detail.push(`latest ${latest}`);
+  // The row foot shows only observed-state + review; the per-row release/commit
+  // chips compute their own counts (sdsNumber), so the old build-trace rollup
+  // (primary/detail) was dead. Keep this to the two facts the foot actually reads.
   return {
     status: sdsObserved(card) ? "public signal" : "declared only",
-    primary,
-    detail: detail.join(" · "),
     review: `${insightConfidenceLabel(card)} · ${insightReviewLabel(card)}`,
   };
 }
@@ -6911,7 +6898,7 @@ function sdsEvidenceDidHtml(teamId) {
   const did = recentClaims(teamEvidence(cohortEvidenceIndex(), teamId), "did", 2);
   if (!did.length) return "";
   const items = did.map(d => `<em>${escHtml(d.week)}</em> ${escHtml(constShortText(d.text, 110))}`).join("<br>");
-  return `<span class="ac-sds-evidence" style="display:block;margin-top:3px;opacity:0.72;font-size:0.85em" title="observed in reviewed cohort sessions">↳ sessions · ${items}</span>`;
+  return `<span class="ac-sds-evidence" title="observed in reviewed cohort sessions">↳ sessions · ${items}</span>`;
 }
 
 // Per-team session evidence for the SHARED dossier — surfaces did / signals / asks /
@@ -8657,48 +8644,17 @@ function wireConstellationHover() {
         selectOrOpen("team", rid);
       });
     }
+    // Standing rows/chips (.ac-stack-team) carry their full read in aria-label
+    // (gap-to-target: stage, target, gap, momentum; untracked: "no standing read
+    // yet"), so they need activation only — no hover tooltip. The old product-stack
+    // "role / proof / source" tip was stale here once PR #464 folded the stack
+    // into the standing view.
     for (const item of stage.querySelectorAll(".ac-stack-team[data-const-team]")) {
       const rid = item.getAttribute("data-const-team");
-      item.addEventListener("mouseenter", (e) => {
-        const t = teamById.get(rid);
-        if (tip && t) {
-          const item = constStackItemForTeam(inspectorCtx, rid);
-          const role = item?.role || constMarketRoleForTeam(t);
-          const evidence = item?.evidence || constEvidenceModeForTeam(t, inspectorCtx);
-          const evidenceRead = evidence.key === "profile"
-            ? evidence.label
-            : `${evidence.label} · ${String(evidence.value)}/5`;
-          const secondary = role.secondary;
-          tip.innerHTML = `
-            <div class="ajt-name">${escHtml(t.name || t.record_id)}</div>
-            <div class="ajt-row"><span class="ajt-k">role</span><span class="ajt-v">${escHtml(role.label)}</span></div>
-            ${secondary ? `<div class="ajt-row"><span class="ajt-k">also</span><span class="ajt-v">${escHtml(secondary.label)}</span></div>` : ""}
-            <div class="ajt-row"><span class="ajt-k">proof</span><span class="ajt-v">${escHtml(evidenceRead)}</span></div>
-            <div class="ajt-row"><span class="ajt-k">source</span><span class="ajt-v">${escHtml(role.reason)}</span></div>`;
-          tip.hidden = false;
-          positionConstTip(stage, tip, e);
-        }
-      });
-      item.addEventListener("mousemove", (e) => positionConstTip(stage, tip, e));
-      item.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
       item.addEventListener("click", (e) => {
         e.preventDefault();
         selectOrOpen("team", rid);
       });
-      item.addEventListener("focus", () => {
-        const t = teamById.get(rid);
-        if (tip && t) {
-          const item = constStackItemForTeam(inspectorCtx, rid);
-          const role = item?.role || constMarketRoleForTeam(t);
-          const evidence = item?.evidence || constEvidenceModeForTeam(t, inspectorCtx);
-          const evidenceRead = evidence.key === "profile"
-            ? evidence.label
-            : `${evidence.label} · ${String(evidence.value)}/5`;
-          tip.innerHTML = `<div class="ajt-name">${escHtml(t.name || t.record_id)}</div><div class="ajt-row"><span class="ajt-k">role</span><span class="ajt-v">${escHtml(role.label)}</span></div>${role.secondary ? `<div class="ajt-row"><span class="ajt-k">also</span><span class="ajt-v">${escHtml(role.secondary.label)}</span></div>` : ""}<div class="ajt-row"><span class="ajt-k">proof</span><span class="ajt-v">${escHtml(evidenceRead)}</span></div>`;
-          tip.hidden = false;
-        }
-      });
-      item.addEventListener("blur", () => { if (tip) tip.hidden = true; });
       item.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
@@ -11335,8 +11291,6 @@ function collabLensFilterHtml(lens = "all", m) {
   const lensKey = COLLAB_LENSES.has(lens) ? lens : "all";
   const seg = ({ key, cell, mark, label, count }) => `
       <button type="button" class="cb-lens-seg" data-collab-lens="${escAttr(key)}"${cell ? ` data-legend-cell="${escAttr(cell)}" data-collab-legend-lens="${escAttr(key)}"` : ""} aria-pressed="${lensKey === key ? "true" : "false"}" aria-label="${escAttr(`${label}${typeof count === "number" ? `, ${count}` : ""} — ${cell ? "filter the board to this signal" : "show all signals"}`)}">${mark ? `<i class="cb-legend-mark ${escAttr(mark)}"></i>` : ""}<b>${escHtml(label)}</b>${typeof count === "number" ? `<em class="cb-lens-count">${count}</em>` : ""}</button>`;
-  const keyEntry = ({ cell, mark, label, desc }) => `
-      <span class="cb-lens-key" data-legend-cell="${escAttr(cell)}" tabindex="0" title="${escAttr(desc)}"><i class="cb-legend-mark ${escAttr(mark)}"></i>${escHtml(label)}</span>`;
   return `
     <div class="cb-lensfilter" role="group" aria-label="signal filter — hover to preview, click to filter">
       ${seg({ key: "all", cell: "", mark: "", label: "all", count: m.deps.size + m.seekOffer.length })}
