@@ -84,6 +84,7 @@ test("periodScrubberHtml renders one dot per stop, marks the active one, and car
   assert.ok(html.includes('value="2"')); // the range reflects the active index
   assert.ok(html.includes("cps-glide"));
   assert.ok(html.includes("cps-fill"));
+  assert.ok(html.includes("data-cps-tip")); // hover/focus readout element present
   assert.ok(html.includes(">wk 2<")); // now-label = active stop's compact label
 });
 

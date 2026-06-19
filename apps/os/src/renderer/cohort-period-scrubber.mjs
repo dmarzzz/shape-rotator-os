@@ -100,6 +100,7 @@ export function periodScrubberHtml({
         <span class="cps-fill" style="--cps-f:${f(sel)}" aria-hidden="true"></span>
         ${dots}
         <span class="cps-glide" style="--cps-f:${f(sel)}" aria-hidden="true"></span>
+        <span class="cps-tip" data-cps-tip aria-hidden="true"></span>
         <input class="cps-range" type="range" min="0" max="${last}" step="1" value="${sel}" data-cps-range
                aria-label="${esc(ariaLabel)}" aria-valuetext="${esc(valueText)}"/>
       </span>
@@ -127,21 +128,23 @@ export function wireScrubber(scope, { onPreview, onCommit } = {}) {
   for (const root of roots) {
     if (root.__cpsWired) continue;
     root.__cpsWired = true;
+    const rail = root.querySelector(".cps-rail");
     const range = root.querySelector("[data-cps-range]");
     const glide = root.querySelector(".cps-glide");
     const fill = root.querySelector(".cps-fill");
     const nowEl = root.querySelector("[data-cps-now]");
+    const tip = root.querySelector("[data-cps-tip]");
     const stops = Array.from(root.querySelectorAll(".cps-stop"));
     const last = Number(root.getAttribute("data-cps-last")) || 0;
     const kind = root.getAttribute("data-cps-kind") || "week";
     if (!range) continue;
     const fracOf = (i) => (last > 0 ? Math.min(Math.max(i, 0), last) / last : 0);
+    const labelOf = (i) => (stops[i] && stops[i].getAttribute("title")) || "";
 
     const markActive = (i) => {
       for (let si = 0; si < stops.length; si++) stops[si].classList.toggle("is-active", si === i);
-      const s = stops[i];
-      if (nowEl && s) nowEl.textContent = s.getAttribute("data-cps-compact") || nowEl.textContent;
-      if (s) range.setAttribute("aria-valuetext", s.getAttribute("title") || "");
+      if (nowEl && stops[i]) nowEl.textContent = stops[i].getAttribute("data-cps-compact") || nowEl.textContent;
+      range.setAttribute("aria-valuetext", labelOf(i));
     };
     // 1:1 indicator tracking while the user is dragging the thumb.
     const trackGlide = (i) => {
@@ -149,16 +152,39 @@ export function wireScrubber(scope, { onPreview, onCommit } = {}) {
       if (glide) glide.style.setProperty("--cps-f", f);
       if (fill) fill.style.setProperty("--cps-f", f);
     };
+    // Hover/focus readout — the layer between glance (the resting now-label) and
+    // the commit: it names the FULL week under the pointer/thumb without moving
+    // anything. Drives the missing middle of the 3-layer interaction.
+    const showTip = (i) => {
+      if (!tip) return;
+      const ci = Math.min(Math.max(i, 0), last);
+      tip.style.setProperty("--cps-f", fracOf(ci).toFixed(4));
+      tip.textContent = labelOf(ci);
+      tip.classList.add("is-on");
+    };
+    const hideTip = () => { if (tip && !root.classList.contains("is-focused")) tip.classList.remove("is-on"); };
+    const nearestFromX = (clientX) => {
+      if (!rail) return clampStopIdx(range.value, last + 1);
+      const rb = rail.getBoundingClientRect();
+      const span = rb.width - 14; // 2 * --cps-pad
+      if (span <= 0) return 0;
+      return Math.round(Math.min(1, Math.max(0, (clientX - rb.left - 7) / span)) * last);
+    };
 
     range.addEventListener("pointerdown", () => root.classList.add("is-dragging"));
     const endDrag = () => root.classList.remove("is-dragging");
     range.addEventListener("pointerup", endDrag);
     range.addEventListener("pointercancel", endDrag);
-    range.addEventListener("blur", endDrag);
+    range.addEventListener("pointerenter", (e) => showTip(nearestFromX(e.clientX)));
+    range.addEventListener("pointermove", (e) => showTip(nearestFromX(e.clientX)));
+    range.addEventListener("pointerleave", hideTip);
+    range.addEventListener("focus", () => { root.classList.add("is-focused"); showTip(clampStopIdx(range.value, last + 1)); });
+    range.addEventListener("blur", () => { root.classList.remove("is-focused"); endDrag(); if (tip) tip.classList.remove("is-on"); });
 
     range.addEventListener("input", () => {
       const i = clampStopIdx(range.value, last + 1);
       markActive(i);
+      showTip(i);
       if (root.classList.contains("is-dragging")) trackGlide(i); // keyboard leaves the sweep to the VT
       if (typeof onPreview === "function") onPreview(i, root);
     });
