@@ -540,10 +540,10 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   })));
 
   // ── masthead — shared view-nav tabs on top, unified week strip
-  // (← 1 2 … 10 →) centered below. The current week (the one containing
-  // today) carries a white outline; the selected week fills. The strip
-  // only shows on the calendar view — presence spans the whole program,
-  // so weeks don't apply.
+  // (← 1 2 … 10 →) centered below on a hairline rail. The week containing today
+  // keeps an under-dot marker; the VIEWED week is the oxide bead, which glides
+  // between weeks (view-transition). The strip only shows on the calendar view —
+  // presence spans the whole program, so weeks don't apply.
   const nowWeekIdx = currentWeekIdx();
   const scrubDots = Array.from({ length: WEEK_COUNT }, (_, i) => `
     <button class="c2-scrub-dot${i === nowWeekIdx ? " is-now" : ""}" data-c2-week="${i}"

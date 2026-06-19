@@ -9795,7 +9795,9 @@ function wireCalendar() {
       if (dir === "prev" && cal.weekIdx > 0) cal.weekIdx -= 1;
       else if (dir === "next" && cal.weekIdx < WEEKS_TOTAL - 1) cal.weekIdx += 1;
       else return;
-      refreshCalendarView();
+      // Glide the oxide week-bead to its new dot (the grid swaps under it),
+      // matching the constellation scrubber's sweep. Reduced-motion repaints flat.
+      scrubberSweep(refreshCalendarView);
     });
   }
 
@@ -9804,7 +9806,7 @@ function wireCalendar() {
       const i = Number(dot.dataset.c2Week);
       if (Number.isFinite(i) && i !== cal.weekIdx) {
         cal.weekIdx = i;
-        refreshCalendarView();
+        scrubberSweep(refreshCalendarView);
       }
     });
   }

@@ -188,12 +188,15 @@
   border-radius: 50%;
   background: var(--ed-ink-1);
 }
-/* the week being viewed — the oxide bead (the scrubber's glide, applied here) */
+/* the week being viewed — the oxide bead (the scrubber's glide, applied here).
+   The view-transition-name lets the bead GLIDE from week to week when the change
+   re-renders inside scrubberSweep, instead of jumping. */
 .c2-scrub-dot[aria-selected="true"] {
   border-color: transparent;
   color: #fff;
   background: radial-gradient(circle at 35% 30%, #f0b49f, var(--alchemy-oxide-bright, #B43A19) 60%, #8a2a14);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 0 4px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 12%, transparent);
+  view-transition-name: c2-week-bead;
 }
 
 .c2-scrub-arrow {
