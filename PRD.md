@@ -377,6 +377,33 @@ shapes.
   GitHub artifacts on `review_status: reviewed` (deduped per project/week,
   reviewed copy preferred). Requires `npm run build:cohort`.
 
+## Membrane "what's new" feed: live via Supabase + full-history backfill (2026-06-19)
+
+The release feed no longer depends on a git PR merging into protected `main` —
+which had frozen it at v0.3.5 (the `github-releases-sync` automation branch was
+pushed hourly but its `gh pr create` silently failed without the repo's "Allow
+GitHub Actions to create pull requests" setting, so nothing advanced `main`).
+The feed now follows the SAME live-source / offline-bundle split as the calendar:
+
+- **Live source**: [`scripts/publish-releases-to-supabase.mjs`](scripts/publish-releases-to-supabase.mjs)
+  upserts `{ whats_new, github_releases }` to the `public_releases_feed` row
+  (migration [`20260619000000_public_releases_feed.sql`](supabase/migrations/20260619000000_public_releases_feed.sql),
+  anon-read / service-role-write, mirroring `public_calendar_grid`). Runs as a
+  new step in [`github-releases-sync.yml`](.github/workflows/github-releases-sync.yml)
+  using the service-role secret the calendar workflow already holds — no PR, no
+  merge, no admin setting required.
+- **Read overlay**: [`supabase-releases.mjs`](apps/os/src/renderer/supabase-releases.mjs)
+  reads the row anonymously; `applyReleaseOverlay()` in
+  [`cohort-source.js`](apps/os/src/renderer/cohort-source.js) folds it onto the
+  surface next to the evidence/article/sphere overlays. The committed
+  `cohort-surface.json` stays the offline / first-paint fallback.
+- **Backfill**: the live payload carries the FULL in-window release history per
+  project (cap 100), not the committed bundle's `PER_PROJECT_RELEASE_LIMIT = 12`.
+  This restores ~60 previously-missing shape-rotator-os releases (the whole
+  0.1.x/0.2.x May history) so the feed reads as the complete program log.
+- The `public_releases_feed` migration must be hand-applied in Supabase before
+  the publish step writes (else the upsert 404s), same as the other OS tables.
+
 ## Membrane: psychedelic cube replaces the blob cluster (2026-06-12)
 
 - **The 4-orb blob cluster in the lower-right is gone.** In its place: one

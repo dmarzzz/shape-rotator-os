@@ -30,6 +30,7 @@ import { evidenceDependencyRecords } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
+import { fetchReleasesFeed } from "./supabase-releases.mjs";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
 const GH_BRANCH   = "main";
@@ -814,6 +815,30 @@ async function applySphereOverlay(surface) {
   return surface;
 }
 
+// Apply the live Supabase release-feed overlay. The membrane "what's new" feed
+// (whats_new + github_releases) is published to public_releases_feed by the
+// github-releases-sync workflow, so a new release shows up live — no git PR into
+// protected main required (which is what previously froze the feed). This is the
+// SAME live-source / committed-fallback split the calendar uses. On a Supabase
+// outage — or before the table exists — the surface keeps whatever it already
+// carries (the committed bundle's whats_new, or an LS-cached set), so the feed
+// degrades gracefully instead of going stale-forever. We only overwrite when the
+// live row actually carries items, so an empty/missing row never blanks a feed
+// the committed bundle could still render.
+async function applyReleaseOverlay(surface) {
+  try {
+    const { whatsNew, githubReleases, source } = await fetchReleasesFeed();
+    if (source === "supabase") {
+      if (Array.isArray(whatsNew) && whatsNew.length) surface.whats_new = whatsNew;
+      if (Array.isArray(githubReleases) && githubReleases.length) surface.github_releases = githubReleases;
+      surface._releaseSource = "supabase-live";
+    }
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
 function signatureOf(grouped) {
   const hash = (value) => {
     const s = String(value ?? "");
@@ -988,6 +1013,7 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
       await applyArticleOverlay(merged);
       await applyDistillationOverlay(merged);
       await applySphereOverlay(merged);
+      await applyReleaseOverlay(merged);
       merged._sig = signatureOf(merged);
       // Did anything actually change? If not, no subscriber notify.
       const prevSig = _cache?._sig;
