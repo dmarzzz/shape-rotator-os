@@ -55,7 +55,7 @@ import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./c
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { indexCohortEvidence, teamEvidence, recentClaims } from "./cohort-evidence-index.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { buildActivityLane, buildStandingLane, buildPresenceLane, teamStageSeries as tlTeamStageSeries } from "./cohort-timeline-tracks.mjs";
+import { buildActivityLane, isPresent, buildStandingLane } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
 import { toast } from "./ux.js";
@@ -6914,278 +6914,169 @@ function timelineInnerHtml() {
   const nowMs = Date.now();
 
   const DAY = 86400000, WK = 7 * DAY, WEEKS = 10;
-  const pct = (f) => `${(Math.max(0, Math.min(1, Number(f) || 0)) * 100).toFixed(2)}%`;
   const fmtDay = (ms) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
   const weekIdxOf = (ms) => Math.max(0, Math.min(WEEKS - 1, Math.floor((ms - PROGRAM_START_MS) / WK)));
 
-  // ── Zoom level + window. "Understand at different levels": the calendar's own
-  // time-resolution zoom — program (all 10 weeks) <-> month (a 4-5 week phase)
-  // <-> week (7 days). The window narrows and every lane re-fractions within it
-  // (the data module is parameterized by start/end). Finer than a week is the
-  // calendar-grid tab's job. ──
-  // Default to the WEEK level (open on the current week); program/month are zoom-out.
-  const level = (cal.tlLevel === "program" || cal.tlLevel === "month") ? cal.tlLevel : "week";
+  // ── Always the WEEK. This is the agenda complement to the grid's hour-by-hour
+  // week: the grid owns intra-day detail; this owns the at-a-glance "what's on
+  // each day" read across the seven columns. Navigate by week; "today" jumps
+  // back to the current week. (Program / month zoom-outs were dropped — week is
+  // the level that actually reads as a calendar.) ──
   const anchorMs = Math.max(PROGRAM_START_MS, Math.min(PROGRAM_END_MS - 1, Number.isFinite(cal.tlAnchorMs) ? cal.tlAnchorMs : nowMs));
-  let winStart, winEnd, tickUnit, winLabel, prevAnchor = null, nextAnchor = null;
-  if (level === "week") {
-    const wi = weekIdxOf(anchorMs);
-    winStart = PROGRAM_START_MS + wi * WK;
-    winEnd = Math.min(PROGRAM_END_MS, winStart + WK);
-    tickUnit = DAY;
-    winLabel = `week ${wi + 1} · ${fmtDay(winStart)}–${fmtDay(winEnd - DAY)}`;
-    if (wi > 0) prevAnchor = PROGRAM_START_MS + (wi - 1) * WK;
-    if (wi < WEEKS - 1) nextAnchor = PROGRAM_START_MS + (wi + 1) * WK;
-  } else if (level === "month") {
-    const wi = weekIdxOf(anchorMs);
-    const phase = wi <= 3 ? 0 : (wi <= 8 ? 1 : 2);
-    const starts = [0, 4, 9], ends = [4, 9, WEEKS];
-    winStart = PROGRAM_START_MS + starts[phase] * WK;
-    winEnd = Math.min(PROGRAM_END_MS, PROGRAM_START_MS + ends[phase] * WK);
-    tickUnit = WK;
-    winLabel = `m${phase + 1} · weeks ${starts[phase] + 1}–${ends[phase]}`;
-    if (phase > 0) prevAnchor = PROGRAM_START_MS + starts[phase - 1] * WK;
-    if (phase < 2) nextAnchor = PROGRAM_START_MS + starts[phase + 1] * WK;
-  } else {
-    winStart = PROGRAM_START_MS; winEnd = PROGRAM_END_MS; tickUnit = WK;
-    winLabel = `all ${WEEKS} weeks`;
-  }
-  const span = Math.max(1, winEnd - winStart);
-  const winFrac = (ms) => Math.max(0, Math.min(1, (ms - winStart) / span));
-  // Unclamped variant — for liveline geometry that should extend past the window
-  // edges (the SVG viewBox clips it) so a curve shows a real slope through a narrow
-  // window instead of piling at the edge.
-  const winFracU = (ms) => (ms - winStart) / span;
+  const wi = weekIdxOf(anchorMs);
+  const winStart = PROGRAM_START_MS + wi * WK;
+  const winEnd = Math.min(PROGRAM_END_MS, winStart + WK);
+  const winLabel = `week ${wi + 1} · ${fmtDay(winStart)}–${fmtDay(winEnd - DAY)}`;
+  const prevAnchor = wi > 0 ? PROGRAM_START_MS + (wi - 1) * WK : null;
+  const nextAnchor = wi < WEEKS - 1 ? PROGRAM_START_MS + (wi + 1) * WK : null;
+  const nowWeekIdx = weekIdxOf(nowMs);
+  const onCurrentWeek = wi === nowWeekIdx;
   const inWin = (ms) => ms >= winStart && ms < winEnd;
-  const nowIn = inWin(nowMs);
-  const nowFrac = winFrac(nowMs);
-  // At week level, center day-grain marks in their day column (a date-only item
-  // sits at midnight = the column's left edge otherwise, drifting off its label).
-  const markFrac = (it) => {
-    if (level !== "week") return it.fraction;
-    const dayIdx = Math.floor((it.startMs - winStart) / DAY);
-    return winFrac(winStart + (dayIdx + 0.5) * DAY);
-  };
 
-  // ── Workstream scope. Pick a team/project to focus the lanes; "all cohort"
-  // (default) shows everything. The calendar ruler stays cohort-wide (the schedule
-  // is the shared frame); activity / standing / presence re-scope to the workstream.
-  const teams = (cohort.teams || [])
-    .filter((t) => t && t.record_id && teamKind(t) !== "person")
+  // ── Events (live calendar — same source the grid renders) ───────────────
+  const calModule = calendarLazy.peek();
+  const allEvents = (cal.data && typeof calModule?.flattenScheduleEvents === "function")
+    ? calModule.flattenScheduleEvents(cal.data).filter((e) => inWin(e.ms))
+        .map((e) => ({ ms: e.ms, title: e.title, time: e.time || "", cat: e.cat || "default", allDay: !!e.allDay, isFuture: e.ms > nowMs }))
+    : buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
+        .filter((i) => i.category === "event" && inWin(i.startMs))
+        .map((i) => ({ ms: i.startMs, title: i.title, time: i.detail || "", cat: "default", allDay: !i.detail, isFuture: i.isFuture }));
+
+  // ── Filter state (persisted on state.calendar; toggled in wireCalendar) ──
+  const catHidden = new Set(Array.isArray(cal.tlCatHidden) ? cal.tlCatHidden : []);
+  const hidePast = !!cal.tlHidePast;
+  const rowOff = new Set(Array.isArray(cal.tlRowsHidden) ? cal.tlRowsHidden : []);
+  const teams = (cohort.teams || []).filter((t) => t && t.record_id && teamKind(t) !== "person")
     .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)));
   const scopeId = teams.some((t) => t.record_id === cal.tlScope) ? cal.tlScope : null;
-  const scopeTeam = scopeId ? teams.find((t) => t.record_id === scopeId) : null;
-  const scopeName = scopeTeam ? (scopeTeam.name || scopeTeam.record_id) : "all cohort";
+  const scopeName = scopeId ? (teams.find((t) => t.record_id === scopeId).name || scopeId) : "all cohort";
 
-  // Lane data over the window, re-scoped to the workstream. Standing weeks are
-  // PROGRAM-anchored, so build over the whole program then clip + re-fraction to the
-  // window; activity/presence carry absolute times so the window alone is enough.
-  const sampleDays = level === "week" ? 1 : 7;
-  const allItems = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items.filter((i) => inWin(i.startMs));
-  const eventItems = allItems.filter((i) => i.category === "event"); // shared schedule — never scoped
-  const updateItems = allItems.filter((i) => i.category !== "event" && (!scopeId || i.team === scopeId));
-  const standingLane = buildStandingLane(standingWeekly, { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS });
-  const stMax = standingLane.stageMax || 8;
-  const rawStanding = scopeId && standingWeekly?.byTeam?.[scopeId]
-    ? tlTeamStageSeries(standingWeekly.byTeam[scopeId], standingWeekly.weeks || [], PROGRAM_START_MS)
-    : standingLane.points;
-  const stPts = rawStanding.filter((p) => p.stage != null && inWin(p.ms)).map((p) => ({ ...p, fraction: winFrac(p.ms) }));
-  const scopedPeople = scopeId
-    ? people.filter((p) => p && (p.team === scopeId || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(scopeId))))
-    : people;
-  const presence = buildPresenceLane(scopedPeople, { startMs: winStart, endMs: winEnd, nowMs, sampleDays });
+  // Category filter narrows the schedule (the legend doubles as the control).
+  const eventItems = allEvents.filter((e) => !catHidden.has(e.cat));
 
-  // Group dated items into per-day buckets so a busy day reads as one mark, not
-  // dot-mud — used for BOTH the ruler and the activity lane.
-  const clusterByDay = (items) => {
-    const map = new Map();
-    for (const it of items) {
-      const key = new Date(it.startMs).toISOString().slice(0, 10);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(it);
-    }
-    return [...map.values()];
-  };
-  // Hover layer (glance → hover): every mark carries the data the floating tip reads.
-  const tipAttrs = (title, ms, kind, detail) =>
-    `data-tl-tip data-tl-title="${escAttr(title)}" data-tl-date="${escAttr(fmtDay(ms))}"`
-    + `${kind ? ` data-tl-kind="${escAttr(kind)}"` : ""}${detail ? ` data-tl-detail="${escAttr(detail)}"` : ""}`;
-
-  // Gridlines at each unit boundary in the window + the closing edge; one oxide
-  // now-playhead (only when now is in view) + a faint future veil.
-  const gridStops = [];
-  for (let t = winStart; t < winEnd - 1; t += tickUnit) gridStops.push(t);
-  gridStops.push(winEnd);
-  const gridlines = gridStops.map(t => `<span class="ac-tl-gridline" style="left:${pct(winFrac(t))}"></span>`).join("");
-  const playhead = nowIn
-    ? `<span class="ac-tl-future" style="left:${pct(nowFrac)}"></span><span class="ac-tl-now" style="left:${pct(nowFrac)}"><i></i></span>`
-    : (nowMs < winStart ? `<span class="ac-tl-future" style="left:0"></span>` : "");
-
-  // Axis labels per level: program → endpoints + now; month → week numbers;
-  // week → weekday names.
+  const startMin = (t) => { const m = /(\d{1,2}):(\d{2})/.exec(t || ""); return m ? (+m[1]) * 60 + (+m[2]) : -1; };
   const dayNames = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-  const nowLabel = nowIn ? `<span class="ac-tl-wk is-now" style="left:${pct(nowFrac)}">now</span>` : "";
-  let weekLabels;
-  if (level === "program") {
-    weekLabels = `<span class="ac-tl-wk is-start" style="left:0">${escHtml(fmtDay(winStart))}</span>`
-      + (nowIn ? `<span class="ac-tl-wk is-now" style="left:${pct(nowFrac)}">now · wk ${currentProgramWeek()}</span>` : "")
-      + `<span class="ac-tl-wk is-end" style="left:100%">${escHtml(fmtDay(winEnd - DAY))}</span>`;
-  } else if (level === "month") {
-    const startWk = weekIdxOf(winStart), nWeeks = Math.round(span / WK);
-    weekLabels = Array.from({ length: nWeeks }, (_, k) =>
-      `<span class="ac-tl-wk" style="left:${pct(winFrac(winStart + (k + 0.5) * WK))}">wk ${startWk + k + 1}</span>`).join("") + nowLabel;
-  } else {
-    const nDays = Math.round(span / DAY);
-    weekLabels = Array.from({ length: nDays }, (_, k) => {
-      const dMs = winStart + k * DAY;
-      return `<span class="ac-tl-wk" style="left:${pct(winFrac(dMs + 0.5 * DAY))}">${dayNames[k % 7]} ${new Date(dMs).getUTCDate()}</span>`;
-    }).join("") + nowLabel;
+
+  // ── Signals (scoped to the workstream when one is picked) ───────────────
+  // in-town: REAL presence · shipped: STALE activity · standing: SEED PMF.
+  const roster = people.filter((p) => p && (p.dates_start || p.dates_end)
+    && (!scopeId || p.team === scopeId || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(scopeId))));
+  const updateItems = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
+    .filter((i) => i.category !== "event" && inWin(i.startMs) && (!scopeId || i.team === scopeId));
+  let weekStanding = null;
+  if (calModule && standingWeekly) {
+    const teamCell = scopeId && standingWeekly.byTeam ? standingWeekly.byTeam[scopeId] : null;
+    if (teamCell) {
+      const cell = teamCell.weeks?.[wi] ?? teamCell.weeks?.[String(wi)];
+      weekStanding = cell && Number.isFinite(Number(cell.stage)) ? { stage: Number(cell.stage) } : null;
+    } else if (!scopeId) {
+      weekStanding = buildStandingLane(standingWeekly, { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS }).points.find((p) => p.programWeek === wi) || null;
+    }
   }
 
-  // Workstream selector — a stateful dropdown whose label IS the current scope
-  // (label = trigger = display); selecting a team re-scopes the lanes.
-  const scopeMenu = [{ id: "", name: "all cohort" }, ...teams.map((t) => ({ id: t.record_id, name: t.name || t.record_id }))]
-    .map((o) => `<button type="button" class="ac-tl-scope-opt" role="option" data-tl-scope="${escAttr(o.id)}" aria-selected="${(o.id || null) === scopeId ? "true" : "false"}">${escHtml(o.name)}</button>`).join("");
-  const scopeControl = `
-    <div class="ac-tl-scope" data-tl-scope-ctl>
-      <button type="button" class="ac-tl-scope-btn${scopeId ? " is-scoped" : ""}" data-tl-scope-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="choose workstream to focus">
-        <span class="ac-tl-scope-k">workstream</span><span class="ac-tl-scope-v">${escHtml(scopeName)}</span><i class="ac-tl-scope-chev" aria-hidden="true"></i>
-      </button>
-      <div class="ac-tl-scope-menu" role="listbox" aria-label="workstream" hidden>${scopeMenu}</div>
-    </div>`;
-  // Zoom control: a segmented [program | month | week] pill + prev/next window nav.
-  const levelPill = `
-    <div class="ac-tl-levels" role="group" aria-label="time level">
-      ${["program", "month", "week"].map(lv => `<button type="button" class="ac-tl-lvl" data-tl-level="${lv}" aria-pressed="${level === lv ? "true" : "false"}">${lv}</button>`).join("")}
-    </div>`;
-  const winNav = level === "program" ? "" : `
+  // ── Day columns (+ per-day signal values); hide-past drops past columns ──
+  const allCols = [];
+  let maxInTown = 1;
+  for (let k = 0; k < 7; k++) {
+    const dayMs = winStart + k * DAY, dayEnd = dayMs + DAY, noon = dayMs + DAY / 2;
+    const dayEv = eventItems.filter((e) => e.ms >= dayMs && e.ms < dayEnd);
+    const inTown = roster.length ? roster.filter((p) => isPresent(p, noon)).length : 0;
+    const shipped = updateItems.filter((i) => i.startMs >= dayMs && i.startMs < dayEnd).length;
+    maxInTown = Math.max(maxInTown, inTown);
+    allCols.push({
+      day: dayNames[k], date: String(new Date(dayMs).getUTCDate()),
+      allDay: dayEv.filter((e) => e.allDay),
+      timed: dayEv.filter((e) => !e.allDay).sort((a, b) => startMin(a.time) - startMin(b.time)),
+      inTown, shipped,
+      isToday: nowMs >= dayMs && nowMs < dayEnd, isPast: dayEnd <= nowMs, isWeekend: k >= 5,
+    });
+  }
+  const cols = allCols.filter((c) => !(hidePast && c.isPast));
+  const nDays = cols.length || 1;
+  const tcls = (c) => [c.isToday && "is-today", c.isPast && "is-past", c.isWeekend && "is-weekend"].filter(Boolean).join(" ");
+
+  // ── Cell renderers. Calendar cells (header / all-day / schedule) carry
+  // data-tl-week so a click opens that week's grid; the schedule cell is the
+  // keyboard target. Signal cells are display-only. ──
+  const chip = (e) => `<div class="cw-ev${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.time ? `${e.time} · ${e.title}` : e.title)}">${e.time ? `<span class="cw-et">${escHtml(e.time)}</span>` : ""}<span class="cw-ex">${escHtml(e.title)}</span></div>`;
+  const adPill = (e) => `<div class="cw-ad${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.title)}">${escHtml(e.title)}</div>`;
+  const CAP = 6;
+  const headRow = cols.map((c) => `<div class="cw-c cw-dh ${tcls(c)}" data-tl-week="${wi}"><span class="cw-d">${escHtml(c.day)}</span><span class="cw-n">${escHtml(c.date)}</span>${c.isToday ? `<span class="cw-today">today</span>` : ""}</div>`).join("");
+  const allDayRow = cols.map((c) => `<div class="cw-c cw-adcell ${tcls(c)}" data-tl-week="${wi}">${c.allDay.map(adPill).join("")}</div>`).join("");
+  const schedRow = cols.map((c) => {
+    const shown = c.timed.slice(0, CAP), more = c.timed.length - shown.length;
+    const body = c.timed.length
+      ? shown.map(chip).join("") + (more > 0 ? `<div class="cw-more">+${more} more</div>` : "")
+      : (c.allDay.length ? "" : `<span class="cw-open">open</span>`);
+    return `<div class="cw-c cw-sched ${tcls(c)}" data-tl-week="${wi}" role="button" tabindex="0" aria-label="${escAttr(`${c.day} ${c.date}${c.isToday ? " (today)" : ""} — open week ${wi + 1} in the calendar grid`)}">${body}</div>`;
+  }).join("");
+  const inTownRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-bar"><i style="width:${Math.round((c.inTown / maxInTown) * 100)}%"></i></span><span class="cw-v">${c.inTown || "·"}</span></div>`).join("");
+  const shippedRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-v">${c.shipped || `<span class="cw-mut">·</span>`}</span></div>`).join("");
+  const standingCell = (weekStanding && weekStanding.stage != null)
+    ? `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-v">${weekStanding.stage.toFixed(1)}</span><span class="cw-mut">/ 8 · ${escHtml(scopeId ? scopeName + " PMF" : "cohort mean PMF")}</span></div>`
+    : `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-mut">no standing read</span></div>`;
+
+  // Week navigation: ‹ prev · label · next › + a "today" jump (live only off
+  // the current week).
+  const nav = `
     <div class="ac-tl-winnav">
-      <button type="button" class="ac-tl-navbtn" data-tl-nav="prev" data-tl-nav-to="${prevAnchor == null ? "" : prevAnchor}"${prevAnchor == null ? " disabled" : ""} aria-label="previous ${level}">←</button>
+      <button type="button" class="ac-tl-navbtn" data-tl-nav="prev" data-tl-nav-to="${prevAnchor == null ? "" : prevAnchor}"${prevAnchor == null ? " disabled" : ""} aria-label="previous week">←</button>
       <span class="ac-tl-winlabel">${escHtml(winLabel)}</span>
-      <button type="button" class="ac-tl-navbtn" data-tl-nav="next" data-tl-nav-to="${nextAnchor == null ? "" : nextAnchor}"${nextAnchor == null ? " disabled" : ""} aria-label="next ${level}">→</button>
+      <button type="button" class="ac-tl-navbtn" data-tl-nav="next" data-tl-nav-to="${nextAnchor == null ? "" : nextAnchor}"${nextAnchor == null ? " disabled" : ""} aria-label="next week">→</button>
+    </div>
+    <button type="button" class="ac-tl-today" data-tl-nav="today" data-tl-nav-to="${PROGRAM_START_MS + nowWeekIdx * WK}"${onCurrentWeek ? " disabled" : ""} aria-label="jump to the current week">today</button>`;
+
+  // Scope chip — focuses the SIGNAL rows on one workstream (the shared schedule
+  // stays cohort-wide). Label = current scope = trigger.
+  const scopeMenu = [{ id: "", name: "all cohort" }, ...teams.map((t) => ({ id: t.record_id, name: t.name || t.record_id }))]
+    .map((o) => `<button type="button" class="cw-scope-opt" role="option" data-tl-scope="${escAttr(o.id)}" aria-selected="${(o.id || null) === scopeId ? "true" : "false"}">${escHtml(o.name)}</button>`).join("");
+  const scopeChip = `
+    <div class="cw-scope" data-tl-scope-ctl>
+      <button type="button" class="cw-scope-btn${scopeId ? " is-on" : ""}" data-tl-scope-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="focus signals on a workstream"><span class="cw-k">scope</span><span class="cw-scope-v">${escHtml(scopeName)}</span><i class="cw-chev" aria-hidden="true"></i></button>
+      <div class="cw-scope-menu" role="listbox" aria-label="workstream" hidden>${scopeMenu}</div>
     </div>`;
 
-  // Ruler (track 0) = the calendar's program anchors (event-kind items), clustered
-  // by day so the program-start stack reads as one mark. Future ones dashed.
-  const rulerMarks = clusterByDay(eventItems).map(group => {
-    const it = group[0];
-    const count = group.length;
-    const title = count > 1 ? `${count} calendar events` : it.title;
-    const detail = count > 1 ? group.map(g => g.title).join(" · ") : it.detail;
-    // Click commits to the deeper surface: that week's hour-grid (glance→hover→open).
-    const wk = weekIdxOf(it.startMs);
-    return `<span class="ac-tl-evt is-jump${it.isFuture ? " is-future" : ""}${count > 1 ? " is-multi" : ""}" style="left:${pct(markFrac(it))}" data-tl-week="${wk}" role="button" tabindex="0" aria-label="${escAttr(`${title} — open week ${wk + 1} in the calendar grid`)}" ${tipAttrs(title, it.startMs, "calendar", detail)}></span>`;
-  }).join("");
+  // Signal-row toggles — which signal lanes show beneath the calendar. Grouped
+  // under one "rows" key so they read as a single systematized control, not loose
+  // siblings. (The old "when" all/all-day/timed segment was dropped: the all-day
+  // strip already separates all-day from timed visually, so it was redundant.)
+  const rowTogs = [["inTown", "in town"], ["shipped", "shipped"], ["standing", "standing"]]
+    .map(([k, l]) => `<button type="button" class="cw-tog${rowOff.has(k) ? "" : " is-on"}" data-tl-row="${k}" aria-pressed="${rowOff.has(k) ? "false" : "true"}">${l}</button>`).join("");
 
-  // Activity lane = everything else (release/commit/ask), clustered by day → count dot.
-  const activityMarks = clusterByDay(updateItems).map(group => {
-    const it = group[0];
-    const count = group.length;
-    const rid = (group.find(g => g.detailRef?.nav?.recordId)?.detailRef.nav.recordId) || "";
-    const kinds = [...new Set(group.map(g => g.category))];
-    const kind = kinds.length === 1 ? kinds[0] : "mixed";
-    const title = count > 1 ? `${count} updates` : it.title;
-    const detail = count > 1 ? group.slice(0, 4).map(g => g.title).join(" · ") + (count > 4 ? " …" : "") : it.detail;
-    const open = rid ? ` data-const-open-record="${escAttr(rid)}"` : "";
-    return `<span class="ac-tl-dot${it.isFuture ? " is-future" : ""}${count > 1 ? " is-cluster" : ""}${rid ? " is-openable" : ""}" style="left:${pct(markFrac(it))}"${open} ${tipAttrs(title, it.startMs, kind, detail)}${rid ? ' role="button" tabindex="0"' : ""}>${count > 1 ? `<em>${count}</em>` : ""}</span>`;
-  }).join("");
+  const total = eventItems.length;
 
-  // ── Lanes: livelines (continuous metrics) vs blocks (discrete events). Standing
-  // and people are filled-area "livelines" — a sparkline you hover for the per-point
-  // stat, with the current value as a prominent endpoint that doubles as the lane's
-  // single keyboard/click commit. Calendar + activity stay discrete blocks. ──
-  const trendWord = (a, b) => (a == null || b == null) ? "" : (b - a > 0.05 ? "rising" : (b - a < -0.05 ? "easing" : "steady"));
-  // Baseline-closed area under a 0..100 polyline (y already inverted), for the fill.
-  const areaPath = (xy) => xy.length ? `M${xy[0].x},100 ${xy.map(q => `L${q.x},${q.y}`).join(" ")} L${xy[xy.length - 1].x},100 Z` : "";
+  // The legend doubles as the category FILTER — click a type to show/hide it
+  // (label = trigger); shares --c2-acc with the grid for the dot colour.
+  const legend = (calModule?.C2_LEGEND || [])
+    .map((c) => `<button type="button" class="cal-legend-item${catHidden.has(c.key) ? " is-off" : ""}" data-tl-cat="${escAttr(c.key)}" data-cat="${escAttr(c.key)}" aria-pressed="${catHidden.has(c.key) ? "false" : "true"}"><i class="cal-legend-dot" aria-hidden="true"></i>${escHtml(c.label)}</button>`).join("");
 
-  // Standing liveline — cohort-mean PMF (or the scoped team's own line) on a 0..8
-  // axis: filled area + line + per-week hover points + a value endpoint that
-  // expands to the full trajectory when zoomed in (a single read shows as one dot).
-  const stY = (stage) => (1 - stage / stMax) * 100;
-  // Curve geometry spans the FULL program (winFracU + the svg viewBox clips it) so a
-  // narrow window shows a real slope, not a lone in-window dot. Hover points + the
-  // endpoint stay in-window (stPts).
-  const stGeo = rawStanding.filter(p => p.stage != null).map(p => ({ x: +(winFracU(p.ms) * 100).toFixed(2), y: +stY(p.stage).toFixed(2) }));
-  const stLast = stPts.length ? stPts[stPts.length - 1] : null;
-  const stTrend = stPts.length > 1 ? trendWord(stPts[0].stage, stLast.stage) : "";
-  const standingTip = scopeTeam
-    ? `${scopeName} · PMF stage ${stLast ? stLast.stage.toFixed(1) : "?"} of ${stMax}`
-    : `cohort mean PMF — stage ${stLast ? stLast.stage.toFixed(1) : "?"} of ${stMax}`;
-  const stExpand = level !== "program";
-  const stHover = stPts.slice(0, -1).map(p =>
-    `<span class="ac-tl-pt" style="left:${(p.fraction * 100).toFixed(2)}%;top:${stY(p.stage).toFixed(2)}%" ${tipAttrs(scopeTeam ? `${scopeName} · stage ${p.stage.toFixed(1)}` : `cohort mean · stage ${p.stage.toFixed(1)}`, p.ms, "standing", `mean across ${p.teamsWithData} teams`)}></span>`).join("");
-  const standingBody = stLast
-    ? `<svg class="ac-tl-line${scopeId ? " is-scoped" : ""}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">`
-        + `<defs><linearGradient id="tlAreaG-st" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity="0.26"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>`
-        + (stGeo.length > 1 ? `<path class="ac-tl-area" d="${areaPath(stGeo)}" fill="url(#tlAreaG-st)"/><polyline points="${stGeo.map(q => `${q.x},${q.y}`).join(" ")}" fill="none" vector-effect="non-scaling-stroke"/>` : "")
-        + `</svg>${stHover}`
-      + `<span class="ac-tl-end${stExpand ? " is-expand" : ""}" style="left:${pct(stLast.fraction)};top:${stY(stLast.stage).toFixed(1)}%"${stExpand ? ` data-tl-expand="1" role="button" tabindex="0" aria-label="${escAttr(`standing stage ${stLast.stage.toFixed(1)} of ${stMax} — expand to the full trajectory`)}"` : ""} ${tipAttrs(standingTip, stLast.ms, "standing", scopeTeam ? "this workstream" : `mean across ${stLast.teamsWithData} teams`)}></span>`
-    : `<span class="ac-tl-empty">no standing read in view</span>`;
-  const stLatest = stLast ? stLast.stage.toFixed(1) : null;
+  // Rows rendered: all-day + schedule always show (the calendar core); the signal
+  // toggles drop their lanes. The schedule row grows to fill the height. When a
+  // workstream is scoped, the signal rails carry an oxide accent (matching the
+  // scope chip) so it's visible that THOSE rows follow the scope while the shared
+  // schedule stays cohort-wide.
+  const sig = !!scopeId;
+  const rows = [{ rail: "", cells: headRow, h: "auto" }];
+  rows.push({ rail: "all-day", cells: allDayRow, h: "auto" });
+  rows.push({ rail: "schedule", cells: schedRow, h: "minmax(118px,1fr)" });
+  if (!rowOff.has("inTown")) rows.push({ rail: "in town", cells: inTownRow, h: "auto", scoped: sig });
+  if (!rowOff.has("shipped")) rows.push({ rail: `shipped<span class="cw-tag">stale</span>`, cells: shippedRow, h: "auto", scoped: sig });
+  if (!rowOff.has("standing")) rows.push({ rail: `standing<span class="cw-tag">seed</span>`, cells: standingCell, h: "auto", scoped: sig });
 
-  // People liveline — "who's in town" occupancy over the window: filled area +
-  // line + hover points + the current count as the endpoint (the count needs no
-  // block). The endpoint commits to the availability view.
-  const prY = (occ) => (1 - Math.max(0, Math.min(1, occ))) * 100;
-  const prXY = presence.samples.map(s => ({ x: +(s.fraction * 100).toFixed(2), y: +prY(s.occupancy).toFixed(2) }));
-  // Endpoint = the current ("now") count: the latest non-future sample. The curve
-  // still continues into the scheduled-future samples, but the headline value is now.
-  const prPast = presence.samples.filter(s => !s.isFuture);
-  const prLast = prPast.length ? prPast[prPast.length - 1] : (presence.samples.length ? presence.samples[presence.samples.length - 1] : null);
-  const prHover = presence.samples.filter(s => s !== prLast).map(s =>
-    `<span class="ac-tl-pt${s.isFuture ? " is-future" : ""}" style="left:${(s.fraction * 100).toFixed(2)}%;top:${prY(s.occupancy).toFixed(2)}%" ${tipAttrs(`${s.present} of ${s.total} in town`, s.ms, "presence", `${Math.round(s.occupancy * 100)}% occupancy`)}></span>`).join("");
-  const presenceBody = prLast
-    ? `<svg class="ac-tl-line ac-tl-line--pres${scopeId ? " is-scoped" : ""}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">`
-        + `<defs><linearGradient id="tlAreaG-pr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity="0.2"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>`
-        + (prXY.length > 1 ? `<path class="ac-tl-area" d="${areaPath(prXY)}" fill="url(#tlAreaG-pr)"/><polyline points="${prXY.map(q => `${q.x},${q.y}`).join(" ")}" fill="none" vector-effect="non-scaling-stroke"/>` : "")
-        + `</svg>${prHover}`
-      + `<span class="ac-tl-end" style="left:${(prLast.fraction * 100).toFixed(2)}%;top:${prY(prLast.occupancy).toFixed(2)}%" data-tl-presence="1" role="button" tabindex="0" aria-label="${escAttr(`${prLast.present} of ${prLast.total} in town — open the availability view`)}" ${tipAttrs(`${prLast.present} of ${prLast.total} in town`, prLast.ms, "presence", `${Math.round(prLast.occupancy * 100)}% occupancy · open availability`)}></span>`
-    : `<span class="ac-tl-empty">no presence in view</span>`;
-
-  const activityLabel = scopeTeam ? "activity" : "all activity";
-  const summary = `
-    <div class="ac-tl-summary" role="group" aria-label="timeline summary">
-      <strong class="ac-tl-sum-scope">${escHtml(scopeName)}</strong>
-      <span class="ac-tl-sum-sep">·</span>
-      <span class="ac-tl-sum-win">${escHtml(winLabel)}</span>
-      <span class="ac-tl-sum-sep">·</span>
-      <span class="ac-tl-sum-frame">past <em>←</em> now <em>→</em> scheduled</span>
-    </div>`;
-
-  // Rich 3-line label block per lane: name · descriptor · live stat. `stat` may
-  // carry safe inline markup (a trend em); name/desc are escaped.
-  const laneHead = (name, desc, stat) => `
-    <div class="ac-tl-label">
-      <span class="ac-tl-lname">${escHtml(name)}</span>
-      ${desc ? `<span class="ac-tl-ldesc">${escHtml(desc)}</span>` : ""}
-      ${stat ? `<span class="ac-tl-lstat">${stat}</span>` : ""}
-    </div>`;
-  const lane = (cls, head, body) => `
-    <div class="ac-tl-lane ${cls}">
-      ${head}
-      <div class="ac-tl-track">${body}</div>
-    </div>`;
-  const countLabel = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
+  // One control row: window nav + event count (left), scope · row toggles ·
+  // hide-past (right). The legend (category filter) sits on the row beneath.
   return `
-    <div class="ac-tl-stage" data-view="timeline" data-tl-level="${level}"${scopeId ? ' data-tl-scoped="1"' : ""} tabindex="0" aria-label="cohort timeline — updates by track, past and scheduled">
+    <div class="ac-tl-stage" data-view="timeline" aria-label="${escAttr(`cohort calendar — ${winLabel}`)}">
       <div class="ac-tl-controls">
-        <div class="ac-tl-bar">${scopeControl}<span class="ac-tl-bar-sep" aria-hidden="true"></span>${levelPill}${winNav}</div>
-        ${summary}
-      </div>
-      <div class="ac-tl">
-        <div class="ac-tl-head">
-          <div class="ac-tl-label"></div>
-          <div class="ac-tl-track ac-tl-weeklabels">${weekLabels}</div>
+        <div class="ac-tl-bar">
+          <div class="cw-left">${nav}<span class="ac-tl-count">${total} event${total === 1 ? "" : "s"}</span></div>
+          <div class="cw-right">${scopeChip}<span class="cw-rowgrp"><span class="cw-filt-k">rows</span>${rowTogs}</span><button type="button" class="cw-tog${hidePast ? " is-on" : ""}" data-tl-past aria-pressed="${hidePast ? "true" : "false"}">hide past</button></div>
         </div>
-        <div class="ac-tl-rows">
-          <div class="ac-tl-gridlayer" aria-hidden="true">${gridlines}${playhead}</div>
-          ${lane("is-ruler is-blocks", laneHead("calendar", "shared schedule", countLabel(eventItems.length, "event")), `${rulerMarks || `<span class="ac-tl-empty">no calendar events in view</span>`}<span class="ac-tl-baseline"></span>`)}
-          ${lane("is-blocks", laneHead(activityLabel, "ships · commits · asks", countLabel(updateItems.length, "update")), activityMarks || `<span class="ac-tl-empty">no tracked updates in view</span>`)}
-          ${lane("is-live", laneHead("standing", scopeTeam ? "team PMF · 0–8" : "cohort PMF · 0–8", stLatest ? `${stLatest}/${stMax}${stTrend ? ` · <em class="ac-tl-trend">${stTrend}</em>` : ""}` : "—"), `<div class="ac-tl-track--line">${standingBody}</div>`)}
-          ${lane("is-live", laneHead("people", "in town", prLast ? `${prLast.present} of ${prLast.total}` : (presence.total ? `0 of ${presence.total}` : "—")), `<div class="ac-tl-track--line">${presenceBody}</div>`)}
-        </div>
+        <div class="cal-legend" role="group" aria-label="filter by event category">${legend}</div>
       </div>
-      <div class="ac-tip" hidden></div>
+      <div class="cal-week" style="grid-template-columns:78px repeat(${nDays}, minmax(0, 1fr)); grid-template-rows:${rows.map((r) => r.h).join(" ")};">
+        ${rows.map((r) => `<div class="cw-rail${r.scoped ? " is-scoped" : ""}">${r.rail}</div>${r.cells}`).join("")}
+      </div>
     </div>`;
 }
 
@@ -8404,64 +8295,6 @@ function wireDetailDismiss() {
     if (!state.detailRecordId) return;
     if (e.target !== state.canvas) return;
     closeDetail();
-  });
-}
-
-// Timeline mark hover (the "hover" layer of glance → hover → click). Reuses the
-// shared .ac-tip floating surface; reads the data-tl-* attrs each mark carries.
-// Bound on the (fresh-per-render) stage; the tip is mouse-following, clamped to
-// the stage box. Click-to-open is the shared canvas data-const-open-record path.
-function wireTimelineHover(stage, tip) {
-  if (!tip) return;
-  const place = (e) => {
-    const r = stage.getBoundingClientRect();
-    const tw = tip.offsetWidth, th = tip.offsetHeight;
-    let x = e.clientX - r.left + 14;
-    let y = e.clientY - r.top + 14;
-    if (x + tw > r.width - 4) x = e.clientX - r.left - tw - 14;
-    if (y + th > r.height - 4) y = r.height - th - 6;
-    tip.style.transform = `translate(${Math.max(4, x).toFixed(0)}px, ${Math.max(4, y).toFixed(0)}px)`;
-  };
-  // Anchor the tip at a mark's own box (keyboard focus has no cursor point).
-  const placeAtEl = (mark) => {
-    const r = stage.getBoundingClientRect();
-    const m = mark.getBoundingClientRect();
-    const cx = m.left + m.width / 2 - r.left, cy = m.top + m.height / 2 - r.top;
-    const tw = tip.offsetWidth, th = tip.offsetHeight;
-    let x = cx + 14, y = cy + 14;
-    if (x + tw > r.width - 4) x = cx - tw - 14;
-    if (y + th > r.height - 4) y = r.height - th - 6;
-    tip.style.transform = `translate(${Math.max(4, x).toFixed(0)}px, ${Math.max(4, y).toFixed(0)}px)`;
-  };
-  const row = (k, v) => v ? `<div class="ajt-row"><span class="ajt-k">${k}</span><span class="ajt-v">${escHtml(v)}</span></div>` : "";
-  const fill = (mark) => {
-    tip.innerHTML = `<div class="ajt-name">${escHtml(mark.getAttribute("data-tl-title") || "")}</div>`
-      + row("when", mark.getAttribute("data-tl-date"))
-      + row("kind", mark.getAttribute("data-tl-kind"))
-      + row("detail", mark.getAttribute("data-tl-detail"));
-  };
-  stage.addEventListener("mouseover", (e) => {
-    const mark = e.target.closest("[data-tl-tip]");
-    if (!mark) return;
-    fill(mark);
-    tip.hidden = false;
-    place(e);
-  });
-  stage.addEventListener("mousemove", (e) => { if (!tip.hidden && e.target.closest("[data-tl-tip]")) place(e); });
-  stage.addEventListener("mouseout", (e) => {
-    const mark = e.target.closest("[data-tl-tip]");
-    if (mark && !mark.contains(e.relatedTarget)) tip.hidden = true;
-  });
-  // Keyboard parity: Tabbing to a mark shows the same readout, anchored at it.
-  stage.addEventListener("focusin", (e) => {
-    const mark = e.target.closest("[data-tl-tip]");
-    if (!mark) return;
-    fill(mark);
-    tip.hidden = false;
-    placeAtEl(mark);
-  });
-  stage.addEventListener("focusout", (e) => {
-    if (e.target.closest("[data-tl-tip]")) tip.hidden = true;
   });
 }
 
@@ -9809,31 +9642,12 @@ function refreshCalendarView() {
     render();
     return;
   }
-  const paint = () => {
-    paintCalendarView({ wire: true });
-    // Live calendar data just painted in while the user is on the page —
-    // that counts as seen (mirrors the what's-new stamp in render()).
-    if (state.active && !document.hidden) {
-      markFingerprintsSeen("calendar-grid", calendarFingerprints());
-      updateRailUnread();
-    }
-  };
-  // Timeline lane re-fractions (scope / zoom / window changes) crossfade via a
-  // View Transition so marks glide to their new positions instead of snapping —
-  // mirrors the sr-sigil card→dossier morph. Other re-renders (grid week nav,
-  // view switches) stay instant. Degrades to an instant paint without VT support
-  // or under reduced-motion.
-  const reduceMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (state.calendar.view === "timeline" && !reduceMotion && typeof document.startViewTransition === "function") {
-    // Scope the crossfade to the lanes only: the html.tl-vt class zeroes the
-    // global `root` view-transition pseudo (shared with the sigil morph) for the
-    // duration, so the control bar / summary snap instantly while .ac-tl-rows
-    // (view-transition-name: tl-lanes) crossfades. Cleared when the VT settles.
-    document.documentElement.classList.add("tl-vt");
-    const vt = document.startViewTransition(paint);
-    vt.finished.finally(() => document.documentElement.classList.remove("tl-vt"));
-  } else {
-    paint();
+  paintCalendarView({ wire: true });
+  // Live calendar data just painted in while the user is on the page — that
+  // counts as seen (mirrors the what's-new stamp in render()).
+  if (state.active && !document.hidden) {
+    markFingerprintsSeen("calendar-grid", calendarFingerprints());
+    updateRailUnread();
   }
 }
 
@@ -9863,64 +9677,24 @@ function wireCalendar() {
   if (cal.view === "timeline") {
     const stage = state.canvas.querySelector(".ac-tl-stage");
     if (stage) {
-      wireTimelineHover(stage, stage.querySelector(".ac-tip"));
-      // Commit layer (glance → hover → click): every lane drills into its own
-      // deeper surface. Ruler mark → that week's hour-grid; activity cluster →
-      // the record; standing endpoint → the full program trajectory; presence
-      // bar → the availability gantt.
-      const commitMark = (target) => {
-        const ruler = target.closest("[data-tl-week]");
-        if (ruler) {
-          const wk = Number(ruler.getAttribute("data-tl-week"));
-          if (Number.isFinite(wk)) {
-            cal.view = "cal";
-            cal.weekIdx = Math.max(0, Math.min(WEEKS_TOTAL - 1, wk));
-            refreshCalendarView();
-          }
-          return true;
-        }
-        if (target.closest("[data-tl-expand]")) {
-          if ((cal.tlLevel || "program") !== "program") {
-            cal.tlLevel = "program";
-            cal.tlAnchorMs = Date.now();
-            refreshCalendarView();
-          }
-          return true;
-        }
-        if (target.closest("[data-tl-presence]")) {
-          cal.view = "presence";
+      // Each day column commits to that week's hour-grid (glance → click/Enter).
+      const openWeek = (target) => {
+        const col = target.closest("[data-tl-week]");
+        if (!col) return;
+        const wk = Number(col.getAttribute("data-tl-week"));
+        if (Number.isFinite(wk)) {
+          cal.view = "cal";
+          cal.weekIdx = Math.max(0, Math.min(WEEKS_TOTAL - 1, wk));
           refreshCalendarView();
-          return true;
         }
-        const open = target.closest("[data-const-open-record]");
-        if (open) {
-          const rid = open.getAttribute("data-const-open-record");
-          if (rid) openDirectoryRecord(rid) || openDetail(rid);
-          return true;
-        }
-        return false;
       };
-      stage.addEventListener("click", (e) => { commitMark(e.target); });
-      // Keyboard parity for the focusable marks (Enter / Space) — this also gives
-      // the activity dots, which were role=button but had no key handler, a path.
+      stage.addEventListener("click", (e) => openWeek(e.target));
       stage.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
-        if (e.target.closest("[data-tl-week],[data-tl-expand],[data-tl-presence],[data-const-open-record]")) {
-          e.preventDefault();
-          commitMark(e.target);
-        }
+        if (e.target.closest("[data-tl-week]")) { e.preventDefault(); openWeek(e.target); }
       });
     }
-    // zoom level pill (program/month/week) + prev/next window nav
-    for (const btn of state.canvas.querySelectorAll("button[data-tl-level]")) {
-      btn.addEventListener("click", () => {
-        const lv = btn.dataset.tlLevel;
-        if (!lv || lv === (cal.tlLevel || "program")) return;
-        cal.tlLevel = lv;
-        cal.tlAnchorMs = Date.now();
-        refreshCalendarView();
-      });
-    }
+    // week nav (‹ prev · next ›) + the "today" jump
     for (const btn of state.canvas.querySelectorAll("[data-tl-nav]")) {
       btn.addEventListener("click", () => {
         const to = Number(btn.dataset.tlNavTo);
@@ -9929,55 +9703,42 @@ function wireCalendar() {
         refreshCalendarView();
       });
     }
-    // workstream selector — open/close the dropdown, pick a scope
+    // ── Filters ──────────────────────────────────────────────────────────
+    const toggleIn = (arrKey, val) => {
+      const set = new Set(Array.isArray(cal[arrKey]) ? cal[arrKey] : []);
+      set.has(val) ? set.delete(val) : set.add(val);
+      cal[arrKey] = [...set];
+      refreshCalendarView();
+    };
+    for (const b of state.canvas.querySelectorAll("[data-tl-cat]")) {   // legend → category show/hide
+      b.addEventListener("click", () => toggleIn("tlCatHidden", b.getAttribute("data-tl-cat")));
+    }
+    for (const b of state.canvas.querySelectorAll("[data-tl-row]")) {   // signal-row show/hide
+      b.addEventListener("click", () => toggleIn("tlRowsHidden", b.getAttribute("data-tl-row")));
+    }
+    const pastBtn = state.canvas.querySelector("[data-tl-past]");
+    if (pastBtn) pastBtn.addEventListener("click", () => { cal.tlHidePast = !cal.tlHidePast; refreshCalendarView(); });
+    // scope dropdown — focuses the signal rows on a workstream
     const scopeBtn = state.canvas.querySelector("[data-tl-scope-toggle]");
-    const scopeMenu = state.canvas.querySelector(".ac-tl-scope-menu");
+    const scopeMenu = state.canvas.querySelector(".cw-scope-menu");
     if (scopeBtn && scopeMenu) {
-      const closeScope = (returnFocus) => {
-        scopeMenu.setAttribute("hidden", "");
-        scopeBtn.setAttribute("aria-expanded", "false");
-        if (returnFocus) scopeBtn.focus();
-      };
       scopeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         const willOpen = scopeMenu.hasAttribute("hidden");
         scopeMenu.toggleAttribute("hidden", !willOpen);
         scopeBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
-        // Move focus into the menu on open so it's keyboard-operable from the trigger.
-        if (willOpen) (scopeMenu.querySelector('[aria-selected="true"]') || scopeMenu.querySelector("[data-tl-scope]"))?.focus();
       });
-      // Keyboard: Escape closes + returns focus; arrow keys rove the options
-      // (Home/End jump to ends); Enter/Space on an option fires its native click.
-      state.canvas.querySelector("[data-tl-scope-ctl]")?.addEventListener("keydown", (e) => {
-        const open = !scopeMenu.hasAttribute("hidden");
-        if (e.key === "Escape" && open) { e.stopPropagation(); closeScope(true); return; }
-        if (!open) return;
-        const opts = [...scopeMenu.querySelectorAll("[data-tl-scope]")];
-        if (!opts.length) return;
-        const i = opts.indexOf(document.activeElement);
-        // i === -1 (focus on the trigger, not an option) is treated as "before
-        // the first": Down → first, Up → last (conventional menu wrap).
-        if (e.key === "ArrowDown") { e.preventDefault(); opts[i < 0 || i === opts.length - 1 ? 0 : i + 1].focus(); }
-        else if (e.key === "ArrowUp") { e.preventDefault(); opts[i <= 0 ? opts.length - 1 : i - 1].focus(); }
-        else if (e.key === "Home") { e.preventDefault(); opts[0].focus(); }
-        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1].focus(); }
-      });
+      for (const opt of scopeMenu.querySelectorAll("[data-tl-scope]")) {
+        opt.addEventListener("click", () => { cal.tlScope = opt.getAttribute("data-tl-scope") || null; refreshCalendarView(); });
+      }
     }
-    for (const opt of state.canvas.querySelectorAll("[data-tl-scope]")) {
-      opt.addEventListener("click", () => {
-        cal.tlScope = opt.getAttribute("data-tl-scope") || null;
-        refreshCalendarView(); // re-render rebuilds the menu hidden — closes it
-      });
-    }
-    // Light-dismiss the dropdown on an outside click. Bound once on document
-    // (state.canvas survives re-renders, so a per-paint bind would stack).
     if (!state.tlScopeOutsideBound) {
       state.tlScopeOutsideBound = true;
       document.addEventListener("click", (e) => {
         if (state.mode !== "calendar") return;
-        const menu = state.canvas?.querySelector(".ac-tl-scope-menu");
-        if (menu && !menu.hasAttribute("hidden") && !e.target.closest("[data-tl-scope-ctl]")) {
-          menu.setAttribute("hidden", "");
+        const m = state.canvas?.querySelector(".cw-scope-menu");
+        if (m && !m.hasAttribute("hidden") && !e.target.closest("[data-tl-scope-ctl]")) {
+          m.setAttribute("hidden", "");
           state.canvas.querySelector("[data-tl-scope-toggle]")?.setAttribute("aria-expanded", "false");
         }
       });

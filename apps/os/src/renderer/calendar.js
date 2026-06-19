@@ -170,7 +170,7 @@ const C2_CATEGORIES = [
   { key: "hack",    label: "hacking",        re: /\bhack|hackathon|open jam|\bfinals\b|submission|build night/i },
   { key: "anarchy", label: "self-organized", re: /anarchy|self-organ|no .*program|protected build|team-led/i },
 ];
-const C2_LEGEND = [
+export const C2_LEGEND = [
   { key: "oh",     label: "office hours" },
   { key: "salon",  label: "salon" },
   { key: "weekly", label: "weekly / self-org" },
@@ -311,6 +311,57 @@ function layoutTimed(items) {
 // DOM text. Render + wire always happen in the same pass (alchemy.js
 // repaints on every state change), so one slot is enough.
 let _model = null;
+
+// ── timeline bridge ───────────────────────────────────────────────────
+// Flatten the parsed program calendar into lightweight schedule items for the
+// calendar→agenda view, so it reads the SAME live source as the grid (cal.data)
+// instead of the stale build-baked whats_new feed. Each item carries its day
+// (ms), display title (day-name prefix stripped), start time ("" = all-day),
+// category, and an allDay flag. Multi-day items ("Mon–Tue: X" — stored in the
+// spreadsheet only in their FIRST day's cell) are mirrored onto every covered
+// day so the agenda shows them across the span. The grid's overlap/layout
+// machinery is skipped — the agenda lists events per day.
+export function flattenScheduleEvents(data) {
+  const tab = data?.tabs?.[PRIMARY_TAB] || [];
+  const dayName = "(mon|tue|wed|thu|fri|sat|sun)(?:day)?";
+  const rangeRe = new RegExp(`^${dayName}\\s*[-–—]\\s*${dayName}\\s*[:.\\-–—]?\\s*`, "i");
+  const singleRe = new RegExp(`^${dayName}\\s*[:\\-–—]\\s*`, "i");
+  const clean = (t) => String(t || "").replace(rangeRe, "").replace(singleRe, "").trim();
+  const DAY_IDX = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
+  const DAY_MS = 86400000;
+  const out = [];
+  for (let wi = 0; wi < WEEK_COUNT; wi++) {
+    const week = parseWeekRow(tab[2 + wi] || [], wi);
+    const days = week?.days || [];
+    for (let di = 0; di < days.length; di++) {
+      const d = days[di];
+      if (!Number.isFinite(d?.dayMs)) continue;
+      const mondayMs = d.dayMs - di * DAY_MS;
+      // catSrc = full source text (best category signal); rawTitle = pre-clean
+      // title (carries any "Mon–Tue:" range); time "" ⇒ all-day.
+      const emit = (catSrc, rawTitle, time) => {
+        const title = clean(rawTitle);
+        if (!title) return;
+        const cat = c2Category(catSrc).key;
+        const allDay = !time;
+        const range = String(rawTitle).match(rangeRe);
+        const a = range && DAY_IDX[range[1].toLowerCase()];
+        const b = range && DAY_IDX[range[2].toLowerCase()];
+        if (range && a != null && b != null) {
+          const lo = Math.min(a, b), hi = Math.max(a, b);
+          for (let dj = lo; dj <= hi; dj++) {
+            out.push({ ms: mondayMs + dj * DAY_MS, title, time, cat, allDay, weekIdx: wi, span: hi - lo + 1 });
+          }
+        } else {
+          out.push({ ms: d.dayMs, title, time, cat, allDay, weekIdx: wi, span: 1 });
+        }
+      };
+      for (const a of (d.anchors || [])) emit(a.title, a.title, "");
+      for (const block of (d.blocks || [])) { const p = c2ParseBlock(block); emit(block, p.title, p.time || ""); }
+    }
+  }
+  return out;
+}
 
 // ── render ───────────────────────────────────────────────────────────
 // view: "cal" (the timeline grid) | "presence" (caller-supplied availability
@@ -511,7 +562,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span><span class="apv-label">presence</span>
       </button>
       <button class="alch-page-view-btn" data-c2-view="timeline" role="tab" aria-selected="${isTimeline}" type="button">
-        <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16"/><path d="M8 7h11"/><path d="M6 12h9"/><path d="M10 17h8"/></svg></span><span class="apv-label">timeline</span>
+        <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16"/><path d="M8 7h11"/><path d="M6 12h9"/><path d="M10 17h8"/></svg></span><span class="apv-label">agenda</span>
       </button>
     </nav>`;
   const subscribeAction = `
