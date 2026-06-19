@@ -55,7 +55,7 @@ import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./c
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane } from "./cohort-evidence-index.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { buildActivityLane, isPresent, buildStandingLane } from "./cohort-timeline-tracks.mjs";
+import { isPresent } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { periodScrubberHtml, wireScrubber, weekStopsFrom, snapshotStopsFrom } from "./cohort-period-scrubber.mjs";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
@@ -291,12 +291,15 @@ const state = {
   renderSeq: 0,               // monotonic render guard; stale delayed swaps must not overwrite the latest view
   calendar: {                     // calendar tab state — see renderCalendar()
     weekIdx: null,                // 0..9; resolved on first render via calendarCurrentWeekIdx()
-    view: "cal",                  // "cal" (timeline grid) | "presence" (availability gantt)
+    view: "cal",                  // "cal" (the unified hour grid + filter + signals) | "presence" (availability gantt)
     data: null,                   // raw Phala JSON — live response or bundled snapshot
     source: null,                 // "live" | "bundled" | null (no data yet)
     loading: false,               // true while the async live fetch is in flight
     initialMount: true,           // first render? drives scroll-to-now
     detach: null,                 // teardown returned by attachCalendarPageBehavior
+    catHidden: [],                // category keys the legend-filter has switched off
+    rowsHidden: [],               // daily-signal lanes toggled off ("intown" | "shipped")
+    scope: null,                  // team record_id the signals are focused on (null = all cohort)
   },
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
@@ -7095,200 +7098,6 @@ function renderProductStack() {
   markConstellationSelection(state.constSelection);
 }
 
-// Timeline body — the time-native lens of the CALENDAR page (a [week | timeline]
-// view toggle). The calendar's own program-week model (PROGRAM_START_MS..
-// PROGRAM_END_MS, 10 weeks) becomes a shared horizontal axis: a thin calendar
-// ruler on top, then stacked activity lanes, pierced by one set of week gridlines
-// and a single oxide "now" playhead. Past on the left, scheduled future (ghosted)
-// on the right. Reads the LIVE surface — the playhead marks now, it does NOT
-// rewind (per Mike's call). Returns the stage markup; hover/click are wired by
-// wireCalendar. Lane data is normalized by the pure cohort-timeline-tracks module.
-function timelineInnerHtml() {
-  const cohort = activeConstellationCohort();
-  const live = state.cohort || cohort;
-  const whatsNew = Array.isArray(live?.whats_new) ? live.whats_new : [];
-  const people = Array.isArray(live?.people) ? live.people : [];
-  const standingWeekly = state.standingWeekly || null;
-  const cal = state.calendar || {};
-  const nowMs = Date.now();
-
-  const DAY = 86400000, WK = 7 * DAY, WEEKS = 10;
-  const fmtDay = (ms) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
-  const weekIdxOf = (ms) => Math.max(0, Math.min(WEEKS - 1, Math.floor((ms - PROGRAM_START_MS) / WK)));
-
-  // ── Always the WEEK. This is the agenda complement to the grid's hour-by-hour
-  // week: the grid owns intra-day detail; this owns the at-a-glance "what's on
-  // each day" read across the seven columns. Navigate by week; "today" jumps
-  // back to the current week. (Program / month zoom-outs were dropped — week is
-  // the level that actually reads as a calendar.) ──
-  const anchorMs = Math.max(PROGRAM_START_MS, Math.min(PROGRAM_END_MS - 1, Number.isFinite(cal.tlAnchorMs) ? cal.tlAnchorMs : nowMs));
-  const wi = weekIdxOf(anchorMs);
-  const winStart = PROGRAM_START_MS + wi * WK;
-  const winEnd = Math.min(PROGRAM_END_MS, winStart + WK);
-  const winLabel = `week ${wi + 1} · ${fmtDay(winStart)}–${fmtDay(winEnd - DAY)}`;
-  const prevAnchor = wi > 0 ? PROGRAM_START_MS + (wi - 1) * WK : null;
-  const nextAnchor = wi < WEEKS - 1 ? PROGRAM_START_MS + (wi + 1) * WK : null;
-  const nowWeekIdx = weekIdxOf(nowMs);
-  const onCurrentWeek = wi === nowWeekIdx;
-  const inWin = (ms) => ms >= winStart && ms < winEnd;
-
-  // ── Events (live calendar — same source the grid renders) ───────────────
-  const calModule = calendarLazy.peek();
-  const allEvents = (cal.data && typeof calModule?.flattenScheduleEvents === "function")
-    ? calModule.flattenScheduleEvents(cal.data).filter((e) => inWin(e.ms))
-        .map((e) => ({ ms: e.ms, title: e.title, time: e.time || "", cat: e.cat || "default", allDay: !!e.allDay, isFuture: e.ms > nowMs }))
-    : buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
-        .filter((i) => i.category === "event" && inWin(i.startMs))
-        .map((i) => ({ ms: i.startMs, title: i.title, time: i.detail || "", cat: "default", allDay: !i.detail, isFuture: i.isFuture }));
-
-  // ── Filter state (persisted on state.calendar; toggled in wireCalendar) ──
-  const catHidden = new Set(Array.isArray(cal.tlCatHidden) ? cal.tlCatHidden : []);
-  const hidePast = !!cal.tlHidePast;
-  const rowOff = new Set(Array.isArray(cal.tlRowsHidden) ? cal.tlRowsHidden : []);
-  const teams = (cohort.teams || []).filter((t) => t && t.record_id && teamKind(t) !== "person")
-    .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)));
-  const scopeId = teams.some((t) => t.record_id === cal.tlScope) ? cal.tlScope : null;
-  const scopeName = scopeId ? (teams.find((t) => t.record_id === scopeId).name || scopeId) : "all cohort";
-
-  // Category filter narrows the schedule (the legend doubles as the control).
-  const eventItems = allEvents.filter((e) => !catHidden.has(e.cat));
-
-  const startMin = (t) => { const m = /(\d{1,2}):(\d{2})/.exec(t || ""); return m ? (+m[1]) * 60 + (+m[2]) : -1; };
-  const dayNames = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-
-  // ── Signals (scoped to the workstream when one is picked) ───────────────
-  // in-town: REAL presence · shipped: STALE activity · standing: SEED PMF.
-  const roster = people.filter((p) => p && (p.dates_start || p.dates_end)
-    && (!scopeId || p.team === scopeId || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(scopeId))));
-  const updateItems = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
-    .filter((i) => i.category !== "event" && inWin(i.startMs) && (!scopeId || i.team === scopeId));
-  let weekStanding = null;
-  if (calModule && standingWeekly) {
-    const teamCell = scopeId && standingWeekly.byTeam ? standingWeekly.byTeam[scopeId] : null;
-    if (teamCell) {
-      const cell = teamCell.weeks?.[wi] ?? teamCell.weeks?.[String(wi)];
-      weekStanding = cell && Number.isFinite(Number(cell.stage)) ? { stage: Number(cell.stage) } : null;
-    } else if (!scopeId) {
-      weekStanding = buildStandingLane(standingWeekly, { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS }).points.find((p) => p.programWeek === wi) || null;
-    }
-  }
-
-  // ── Day columns (+ per-day signal values); hide-past drops past columns ──
-  const allCols = [];
-  let maxInTown = 1;
-  for (let k = 0; k < 7; k++) {
-    const dayMs = winStart + k * DAY, dayEnd = dayMs + DAY, noon = dayMs + DAY / 2;
-    const dayEv = eventItems.filter((e) => e.ms >= dayMs && e.ms < dayEnd);
-    const present = roster.length ? roster.filter((p) => isPresent(p, noon)) : [];
-    const inTown = present.length;
-    const shipped = updateItems.filter((i) => i.startMs >= dayMs && i.startMs < dayEnd).length;
-    maxInTown = Math.max(maxInTown, inTown);
-    allCols.push({
-      day: dayNames[k], date: String(new Date(dayMs).getUTCDate()),
-      allDay: dayEv.filter((e) => e.allDay),
-      timed: dayEv.filter((e) => !e.allDay).sort((a, b) => startMin(a.time) - startMin(b.time)),
-      inTown, inTownNames: present.map((p) => p.name || p.record_id), shipped,
-      isToday: nowMs >= dayMs && nowMs < dayEnd, isPast: dayEnd <= nowMs, isWeekend: k >= 5,
-    });
-  }
-  const cols = allCols.filter((c) => !(hidePast && c.isPast));
-  const nDays = cols.length || 1;
-  const tcls = (c) => [c.isToday && "is-today", c.isPast && "is-past", c.isWeekend && "is-weekend"].filter(Boolean).join(" ");
-
-  // ── Cell renderers. Calendar cells (header / all-day / schedule) carry
-  // data-tl-week so a click opens that week's grid; the schedule cell is the
-  // keyboard target. Signal cells are display-only. ──
-  const chip = (e) => `<div class="cw-ev${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.time ? `${e.time} · ${e.title}` : e.title)}">${e.time ? `<span class="cw-et">${escHtml(e.time)}</span>` : ""}<span class="cw-ex">${escHtml(e.title)}</span></div>`;
-  const adPill = (e) => `<div class="cw-ad${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.title)}">${escHtml(e.title)}</div>`;
-  const CAP = 6;
-  const headRow = cols.map((c) => `<div class="cw-c cw-dh ${tcls(c)}" data-tl-week="${wi}"><span class="cw-d">${escHtml(c.day)}</span><span class="cw-n">${escHtml(c.date)}</span>${c.isToday ? `<span class="cw-today">today</span>` : ""}</div>`).join("");
-  const allDayRow = cols.map((c) => `<div class="cw-c cw-adcell ${tcls(c)}" data-tl-week="${wi}">${c.allDay.map(adPill).join("")}</div>`).join("");
-  const schedRow = cols.map((c) => {
-    const shown = c.timed.slice(0, CAP), more = c.timed.length - shown.length;
-    const body = c.timed.length
-      ? shown.map(chip).join("") + (more > 0 ? `<div class="cw-more">+${more} more</div>` : "")
-      : (c.allDay.length ? "" : `<span class="cw-open">open</span>`);
-    return `<div class="cw-c cw-sched ${tcls(c)}" data-tl-week="${wi}" role="button" tabindex="0" aria-label="${escAttr(`${c.day} ${c.date}${c.isToday ? " (today)" : ""} — open week ${wi + 1} in the calendar grid`)}">${body}</div>`;
-  }).join("");
-  // In-town headcount carries WHO on hover (the day's present roster), so the
-  // signal the user values most reads its detail without leaving the agenda.
-  const inTownTitle = (c) => {
-    const head = `${c.day} ${c.date} · ${c.inTown} in town${scopeId ? " · " + scopeName : ""}`;
-    const names = c.inTownNames || [];
-    if (!names.length) return c.inTown ? head : `${c.day} ${c.date} · nobody in town`;
-    const shown = names.slice(0, 16).join(", ");
-    return `${head}: ${shown}${names.length > 16 ? `, +${names.length - 16} more` : ""}`;
-  };
-  const inTownRow = cols.map((c) => `<div class="cw-c cw-sig cw-intown ${tcls(c)}" title="${escAttr(inTownTitle(c))}" aria-label="${escAttr(inTownTitle(c))}"><span class="cw-bar"><i style="width:${Math.round((c.inTown / maxInTown) * 100)}%"></i></span><span class="cw-v">${c.inTown || "·"}</span></div>`).join("");
-  const shippedRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-v">${c.shipped || `<span class="cw-mut">·</span>`}</span></div>`).join("");
-  const standingCell = (weekStanding && weekStanding.stage != null)
-    ? `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-v">${weekStanding.stage.toFixed(1)}</span><span class="cw-mut">/ 8 · ${escHtml(scopeId ? scopeName + " PMF" : "cohort mean PMF")}</span></div>`
-    : `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-mut">no standing read</span></div>`;
-
-  // Week navigation: ‹ prev · label · next › + a "today" jump (live only off
-  // the current week).
-  const nav = `
-    <div class="ac-tl-winnav">
-      <button type="button" class="ac-tl-navbtn" data-tl-nav="prev" data-tl-nav-to="${prevAnchor == null ? "" : prevAnchor}"${prevAnchor == null ? " disabled" : ""} aria-label="previous week">←</button>
-      <span class="ac-tl-winlabel">${escHtml(winLabel)}</span>
-      <button type="button" class="ac-tl-navbtn" data-tl-nav="next" data-tl-nav-to="${nextAnchor == null ? "" : nextAnchor}"${nextAnchor == null ? " disabled" : ""} aria-label="next week">→</button>
-    </div>
-    <button type="button" class="ac-tl-today" data-tl-nav="today" data-tl-nav-to="${PROGRAM_START_MS + nowWeekIdx * WK}"${onCurrentWeek ? " disabled" : ""} aria-label="jump to the current week">today</button>`;
-
-  // Scope chip — focuses the SIGNAL rows on one workstream (the shared schedule
-  // stays cohort-wide). Label = current scope = trigger.
-  const scopeMenu = [{ id: "", name: "all cohort" }, ...teams.map((t) => ({ id: t.record_id, name: t.name || t.record_id }))]
-    .map((o) => `<button type="button" class="cw-scope-opt" role="option" data-tl-scope="${escAttr(o.id)}" aria-selected="${(o.id || null) === scopeId ? "true" : "false"}">${escHtml(o.name)}</button>`).join("");
-  const scopeChip = `
-    <div class="cw-scope" data-tl-scope-ctl>
-      <button type="button" class="cw-scope-btn${scopeId ? " is-on" : ""}" data-tl-scope-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="focus signals on a workstream"><span class="cw-k">scope</span><span class="cw-scope-v">${escHtml(scopeName)}</span><i class="cw-chev" aria-hidden="true"></i></button>
-      <div class="cw-scope-menu" role="listbox" aria-label="workstream" hidden>${scopeMenu}</div>
-    </div>`;
-
-  // Signal-row toggles — which signal lanes show beneath the calendar. Grouped
-  // under one "rows" key so they read as a single systematized control, not loose
-  // siblings. (The old "when" all/all-day/timed segment was dropped: the all-day
-  // strip already separates all-day from timed visually, so it was redundant.)
-  const rowTogs = [["inTown", "in town"], ["shipped", "shipped"], ["standing", "standing"]]
-    .map(([k, l]) => `<button type="button" class="cw-tog${rowOff.has(k) ? "" : " is-on"}" data-tl-row="${k}" aria-pressed="${rowOff.has(k) ? "false" : "true"}">${l}</button>`).join("");
-
-  const total = eventItems.length;
-
-  // The legend doubles as the category FILTER — click a type to show/hide it
-  // (label = trigger); shares --c2-acc with the grid for the dot colour.
-  const legend = (calModule?.C2_LEGEND || [])
-    .map((c) => `<button type="button" class="cal-legend-item${catHidden.has(c.key) ? " is-off" : ""}" data-tl-cat="${escAttr(c.key)}" data-cat="${escAttr(c.key)}" aria-pressed="${catHidden.has(c.key) ? "false" : "true"}"><i class="cal-legend-dot" aria-hidden="true"></i>${escHtml(c.label)}</button>`).join("");
-
-  // Rows rendered: all-day + schedule always show (the calendar core); the signal
-  // toggles drop their lanes. The schedule row grows to fill the height. When a
-  // workstream is scoped, the signal rails carry an oxide accent (matching the
-  // scope chip) so it's visible that THOSE rows follow the scope while the shared
-  // schedule stays cohort-wide.
-  const sig = !!scopeId;
-  const rows = [{ rail: "", cells: headRow, h: "auto" }];
-  rows.push({ rail: "all-day", cells: allDayRow, h: "auto" });
-  rows.push({ rail: "schedule", cells: schedRow, h: "minmax(118px,1fr)" });
-  if (!rowOff.has("inTown")) rows.push({ rail: "in town", cells: inTownRow, h: "auto", scoped: sig });
-  if (!rowOff.has("shipped")) rows.push({ rail: `shipped<span class="cw-tag">stale</span>`, cells: shippedRow, h: "auto", scoped: sig });
-  if (!rowOff.has("standing")) rows.push({ rail: `standing<span class="cw-tag">seed</span>`, cells: standingCell, h: "auto", scoped: sig });
-
-  // One control row: window nav + event count (left), scope · row toggles ·
-  // hide-past (right). The legend (category filter) sits on the row beneath.
-  return `
-    <div class="ac-tl-stage" data-view="timeline" aria-label="${escAttr(`cohort calendar — ${winLabel}`)}">
-      <div class="ac-tl-controls">
-        <div class="ac-tl-bar">
-          <div class="cw-left">${nav}<span class="ac-tl-count">${total} event${total === 1 ? "" : "s"}</span></div>
-          <div class="cw-right">${scopeChip}<span class="cw-rowgrp"><span class="cw-filt-k">rows</span>${rowTogs}</span><button type="button" class="cw-tog${hidePast ? " is-on" : ""}" data-tl-past aria-pressed="${hidePast ? "true" : "false"}">hide past</button></div>
-        </div>
-        <div class="cal-legend" role="group" aria-label="filter by event category">${legend}</div>
-      </div>
-      <div class="cal-week" style="grid-template-columns:78px repeat(${nDays}, minmax(0, 1fr)); grid-template-rows:${rows.map((r) => r.h).join(" ")};">
-        ${rows.map((r) => `<div class="cw-rail${r.scoped ? " is-scoped" : ""}">${r.rail}</div>${r.cells}`).join("")}
-      </div>
-    </div>`;
-}
-
 // ─── constellation ───────────────────────────────────────────────────
 // ─── cohort map · cluster-well constellation ─────────────────────────
 // Ported (watered-down, PUBLIC-data-only) from the cohort dossier's Map
@@ -9893,6 +9702,55 @@ function ensureCalendarSurfaceLoaded() {
     });
 }
 
+// Daily context for the calendar grid — the two agenda signals that fold onto
+// the week: who's in town (real presence, from people dates/absences) and the
+// workstream scope they follow. Shipped activity rides the existing whats_new
+// `activity` path in the renderer; standing is deliberately not surfaced here
+// (seed data — it lives in the standing views). Computed host-side because the
+// renderer (calendar.js) never sees people/team data.
+function computeCalendarSignals() {
+  const cal = state.calendar;
+  const cohort = activeConstellationCohort();
+  const live = state.cohort || cohort;
+  const people = Array.isArray(live?.people) ? live.people : [];
+  const teams = (cohort?.teams || [])
+    .filter(t => t && t.record_id && teamKind(t) !== "person")
+    .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)))
+    .map(t => ({ id: t.record_id, name: t.name || t.record_id }));
+  const scopeId = teams.some(t => t.id === cal.scope) ? cal.scope : null;
+
+  const DAY = 86400000, WK = 7 * DAY;
+  const wi = Number.isFinite(cal.weekIdx) ? cal.weekIdx : 0;
+  const winStart = PROGRAM_START_MS + wi * WK;
+  const roster = people.filter(p => p && (p.dates_start || p.dates_end)
+    && (!scopeId || p.team === scopeId || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(scopeId))));
+  const rosterTotal = roster.length;
+  const occAt = (ms) => roster.reduce((n, p) => n + (isPresent(p, ms) ? 1 : 0), 0);
+  const perDay = [];
+  for (let k = 0; k < 7; k++) {
+    const noon = winStart + k * DAY + DAY / 2;
+    const present = roster.filter(p => isPresent(p, noon));
+    perDay.push({ inTown: present.length, inTownNames: present.map(p => p.name || p.record_id) });
+  }
+  // Week-over-week occupancy (each week's mean of its 7 days), so the in-town
+  // hover can place "this week" in the arc of the whole residency.
+  const weeklyOccupancy = [];
+  for (let w = 0; w < WEEKS_TOTAL; w++) {
+    const wStart = PROGRAM_START_MS + w * WK;
+    let sum = 0;
+    for (let k = 0; k < 7; k++) sum += occAt(wStart + k * DAY + DAY / 2);
+    const present = Math.round(sum / 7);
+    weeklyOccupancy.push({ week: w, present, frac: rosterTotal ? present / rosterTotal : 0, isCurrent: w === wi });
+  }
+  return {
+    rowsHidden: Array.isArray(cal.rowsHidden) ? cal.rowsHidden : [],
+    scope: { id: scopeId, name: scopeId ? (teams.find(t => t.id === scopeId)?.name || scopeId) : "all cohort", teams },
+    perDay,
+    rosterTotal,
+    weeklyOccupancy,
+  };
+}
+
 function paintCalendarView({ wire = false } = {}) {
   seedCalendarData();
   const calendarModule = calendarLazy.peek();
@@ -9903,10 +9761,14 @@ function paintCalendarView({ wire = false } = {}) {
   const cal = state.calendar;
   if (cal.weekIdx == null) cal.weekIdx = calendarCurrentWeekIdx();
   // Tear down the previous now-line ticker before swapping markup so
-  // intervals don't stack across repaints.
+  // intervals don't stack across repaints; drop any open in-town popover (it
+  // lives on <body>, outside the canvas being replaced).
   if (cal.detach) { cal.detach(); cal.detach = null; }
+  calendarModule.closeCalendarInTown?.();
+  // Agenda folded into the grid; only "cal" and "presence" remain. A view value
+  // left over from the retired agenda tab degrades to the calendar grid.
+  if (cal.view !== "presence" && cal.view !== "cal") cal.view = "cal";
   const presence = cal.view === "presence";
-  const timeline = cal.view === "timeline";
   state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
@@ -9914,15 +9776,15 @@ function paintCalendarView({ wire = false } = {}) {
     source: cal.source,
     view: cal.view,
     presenceHtml: presence ? renderCalAvailability() : "",
-    timelineHtml: timeline ? timelineInnerHtml() : "",
     activity: Array.isArray(state.cohort?.whats_new) ? state.cohort.whats_new : [],
+    catHidden: Array.isArray(cal.catHidden) ? cal.catHidden : [],
+    signals: presence ? null : computeCalendarSignals(),
   });
   if (presence) {
     mountAvailabilityCanvas();
     applyPresenceFocus();
-  } else if (!timeline) {
-    // The grid's now-line ticker; the timeline view has no grid to attach to
-    // (its own hover is wired in wireCalendar).
+  } else {
+    // The grid's now-line ticker.
     cal.detach = calendarModule.attachCalendarPageBehavior(state.canvas, { scrollToNow: cal.initialMount });
     cal.initialMount = false;
   }
@@ -9963,75 +9825,74 @@ function wireCalendar() {
     });
   }
 
-  // timeline-view extras — the lane chart's own mark-hover + open-record click
-  // (the calendar page isn't in constellation mode, so the shared cohort open
-  // handler doesn't reach it). Bound on the fresh-per-paint stage, so no stacking.
-  if (cal.view === "timeline") {
-    const stage = state.canvas.querySelector(".ac-tl-stage");
-    if (stage) {
-      // Each day column commits to that week's hour-grid (glance → click/Enter).
-      const openWeek = (target) => {
-        const col = target.closest("[data-tl-week]");
-        if (!col) return;
-        const wk = Number(col.getAttribute("data-tl-week"));
-        if (Number.isFinite(wk)) {
-          cal.view = "cal";
-          cal.weekIdx = Math.max(0, Math.min(WEEKS_TOTAL - 1, wk));
-          refreshCalendarView();
-        }
-      };
-      stage.addEventListener("click", (e) => openWeek(e.target));
-      stage.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
-        if (e.target.closest("[data-tl-week]")) { e.preventDefault(); openWeek(e.target); }
-      });
-    }
-    // week nav (‹ prev · next ›) + the "today" jump
-    for (const btn of state.canvas.querySelectorAll("[data-tl-nav]")) {
-      btn.addEventListener("click", () => {
-        const to = Number(btn.dataset.tlNavTo);
-        if (!Number.isFinite(to)) return;
-        cal.tlAnchorMs = to;
-        refreshCalendarView();
-      });
-    }
-    // ── Filters ──────────────────────────────────────────────────────────
+  // calendar-grid controls (the agenda's filter + signals, now on the grid):
+  // category filter, workstream scope, and the signal-row toggles. Only the
+  // calendar view carries them — presence is its own surface.
+  if (cal.view !== "presence") {
     const toggleIn = (arrKey, val) => {
       const set = new Set(Array.isArray(cal[arrKey]) ? cal[arrKey] : []);
       set.has(val) ? set.delete(val) : set.add(val);
       cal[arrKey] = [...set];
       refreshCalendarView();
     };
-    for (const b of state.canvas.querySelectorAll("[data-tl-cat]")) {   // legend → category show/hide
-      b.addEventListener("click", () => toggleIn("tlCatHidden", b.getAttribute("data-tl-cat")));
+    for (const b of state.canvas.querySelectorAll("[data-c2-cat]")) {   // legend → category show/hide
+      b.addEventListener("click", () => toggleIn("catHidden", b.getAttribute("data-c2-cat")));
     }
-    for (const b of state.canvas.querySelectorAll("[data-tl-row]")) {   // signal-row show/hide
-      b.addEventListener("click", () => toggleIn("tlRowsHidden", b.getAttribute("data-tl-row")));
+    for (const b of state.canvas.querySelectorAll("[data-c2-row]")) {   // signal-row show/hide
+      b.addEventListener("click", () => toggleIn("rowsHidden", b.getAttribute("data-c2-row")));
     }
-    const pastBtn = state.canvas.querySelector("[data-tl-past]");
-    if (pastBtn) pastBtn.addEventListener("click", () => { cal.tlHidePast = !cal.tlHidePast; refreshCalendarView(); });
-    // scope dropdown — focuses the signal rows on a workstream
-    const scopeBtn = state.canvas.querySelector("[data-tl-scope-toggle]");
-    const scopeMenu = state.canvas.querySelector(".cw-scope-menu");
+    // scope dropdown — focuses the daily signals on one workstream. Keyboard:
+    // the trigger opens on Enter/↓; once open ↑/↓ roam the options, Enter selects,
+    // Escape closes and returns focus to the trigger (listbox a11y pattern).
+    const scopeBtn = state.canvas.querySelector("[data-c2-scope-toggle]");
+    const scopeMenu = state.canvas.querySelector(".c2-scope-menu");
     if (scopeBtn && scopeMenu) {
-      scopeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const willOpen = scopeMenu.hasAttribute("hidden");
-        scopeMenu.toggleAttribute("hidden", !willOpen);
-        scopeBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      const opts = [...scopeMenu.querySelectorAll("[data-c2-scope]")];
+      const setOpen = (open) => {
+        scopeMenu.toggleAttribute("hidden", !open);
+        scopeBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) (opts.find(o => o.getAttribute("aria-selected") === "true") || opts[0])?.focus();
+      };
+      scopeBtn.addEventListener("click", (e) => { e.stopPropagation(); setOpen(scopeMenu.hasAttribute("hidden")); });
+      scopeBtn.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); setOpen(true); }
       });
-      for (const opt of scopeMenu.querySelectorAll("[data-tl-scope]")) {
-        opt.addEventListener("click", () => { cal.tlScope = opt.getAttribute("data-tl-scope") || null; refreshCalendarView(); });
+      for (const opt of opts) {
+        opt.addEventListener("click", () => { cal.scope = opt.getAttribute("data-c2-scope") || null; refreshCalendarView(); });
       }
+      scopeMenu.addEventListener("keydown", (e) => {
+        const i = opts.indexOf(document.activeElement);
+        if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)]?.focus(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)]?.focus(); }
+        else if (e.key === "Home") { e.preventDefault(); opts[0]?.focus(); }
+        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1]?.focus(); }
+        else if (e.key === "Escape") { e.preventDefault(); setOpen(false); scopeBtn.focus(); }
+      });
     }
-    if (!state.tlScopeOutsideBound) {
-      state.tlScopeOutsideBound = true;
+    // in-town signal cells: hover/focus reveals WHO is in town + the week-by-week
+    // occupancy arc (openCalendarInTown); click/Enter commits to the presence gantt.
+    const showInTown = (cell) => calendarLazy.peek()?.openCalendarInTown?.(cell.getAttribute("data-c2-intown"), { anchor: cell });
+    const hideInTown = () => calendarLazy.peek()?.closeCalendarInTown?.();
+    const goPresence = () => { hideInTown(); cal.view = "presence"; refreshCalendarView(); };
+    for (const cell of state.canvas.querySelectorAll("[data-c2-intown]")) {
+      cell.addEventListener("mouseenter", () => showInTown(cell));
+      cell.addEventListener("mouseleave", hideInTown);
+      cell.addEventListener("focus", () => showInTown(cell));
+      cell.addEventListener("blur", hideInTown);
+      cell.addEventListener("click", goPresence);
+      cell.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); goPresence(); }
+        else if (e.key === "Escape") hideInTown();
+      });
+    }
+    if (!state.c2ScopeOutsideBound) {
+      state.c2ScopeOutsideBound = true;
       document.addEventListener("click", (e) => {
         if (state.mode !== "calendar") return;
-        const m = state.canvas?.querySelector(".cw-scope-menu");
-        if (m && !m.hasAttribute("hidden") && !e.target.closest("[data-tl-scope-ctl]")) {
+        const m = state.canvas?.querySelector(".c2-scope-menu");
+        if (m && !m.hasAttribute("hidden") && !e.target.closest("[data-c2-scope-ctl]")) {
           m.setAttribute("hidden", "");
-          state.canvas.querySelector("[data-tl-scope-toggle]")?.setAttribute("aria-expanded", "false");
+          state.canvas.querySelector("[data-c2-scope-toggle]")?.setAttribute("aria-expanded", "false");
         }
       });
     }
@@ -10080,12 +9941,15 @@ function wireCalendar() {
     });
   }
 
-  // Cohort-activity blocks (releases / commits) drill to the team dossier;
-  // "back" returns to the calendar (detailReturnMode = "calendar").
+  // Shipped chips reveal what shipped in place (same as an event); the drill to
+  // the team dossier is a deliberate, secondary button inside that reveal —
+  // onOpenTeam returns to the calendar on "back" (detailReturnMode = "calendar").
   for (const chip of state.canvas.querySelectorAll("[data-c2-act]")) {
-    chip.addEventListener("click", () => {
-      const rid = chip.dataset.c2Act;
-      if (rid) openDetail(rid, "calendar");
+    chip.addEventListener("click", (event) => {
+      calendarLazy.peek()?.openCalendarActivity?.(chip.dataset.c2Act, {
+        anchor: event.currentTarget,
+        onOpenTeam: (rid) => openDetail(rid, "calendar"),
+      });
     });
   }
 
