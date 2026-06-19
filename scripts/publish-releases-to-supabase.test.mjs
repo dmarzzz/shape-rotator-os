@@ -8,31 +8,50 @@ import {
   publishReleasesFeed,
 } from "./publish-releases-to-supabase.mjs";
 
-const TEAMS = [{ record_id: "shape-rotator-os", name: "Shape Rotator OS" }];
-
-function artifact(releases) {
-  return {
-    artifact_kind: "github_release_list",
-    record_type: "team",
-    record_id: "shape-rotator-os",
-    releases,
-  };
-}
-
-const RELEASES = [
-  { tag_name: "v0.3.9", name: "0.3.9", published_at: "2026-06-18T20:43:45Z" },
-  { tag_name: "v0.2.0", name: "0.2.0", published_at: "2026-05-21T10:00:00Z" },
-  { tag_name: "v0.1.11", name: "0.1.11", published_at: "2026-05-18T09:00:00Z" },
-  // pre-program — must be clipped by the window
-  { tag_name: "v0.0.1", name: "0.0.1", published_at: "2026-04-01T09:00:00Z" },
+const TEAMS = [
+  { record_id: "shape-rotator-os", name: "Shape Rotator OS" },
+  { record_id: "elizaos", name: "elizaOS" },
 ];
 
-test("buildReleaseItems: full in-window history, newest-first, project name resolved", () => {
-  const items = buildReleaseItems([artifact(RELEASES)], TEAMS, { since: "2026-05-18" });
-  assert.deepEqual(items.map((i) => i.label), ["0.3.9", "0.2.0", "0.1.11"]); // 0.0.1 clipped
+function artifact(record_id, releases) {
+  return { artifact_kind: "github_release_list", record_type: "team", record_id, releases };
+}
+
+// shape-rotator-os: a pre-window release (v0.1.1, May 9 — before the May 18
+// cohort window) plus in-window ones. It's a FULL_HISTORY repo, so the pre-
+// window release must survive.
+const OS_RELEASES = [
+  { tag_name: "v0.3.9", name: "0.3.9", published_at: "2026-06-18T20:43:45Z" },
+  { tag_name: "v0.1.11", name: "0.1.11", published_at: "2026-05-18T09:00:00Z" },
+  { tag_name: "v0.1.1", name: "0.1.1", published_at: "2026-05-09T09:00:00Z" },
+];
+// elizaos: a clipped (non-full-history) repo with a pre-window release that must
+// be dropped so its pre-cohort tail never floods the feed.
+const DEP_RELEASES = [
+  { tag_name: "v1.0.0", name: "1.0.0", published_at: "2026-06-01T09:00:00Z" },
+  { tag_name: "v0.9.0", name: "0.9.0", published_at: "2025-10-21T09:00:00Z" },
+];
+const osArtifact = artifact("shape-rotator-os", OS_RELEASES);
+const depArtifact = artifact("elizaos", DEP_RELEASES);
+
+test("buildReleaseItems: clips a normal repo to the program window", () => {
+  const items = buildReleaseItems([depArtifact], TEAMS, { since: "2026-05-18" });
+  assert.deepEqual(items.map((i) => i.label), ["1.0.0"]); // 0.9.0 (Oct 2025) clipped
+  assert.equal(items[0].meta, "elizaOS");
+});
+
+test("buildReleaseItems: shape-rotator-os keeps its full history (no gap)", () => {
+  const items = buildReleaseItems([osArtifact], TEAMS, { since: "2026-05-18" });
+  assert.deepEqual(items.map((i) => i.label), ["0.3.9", "0.1.11", "0.1.1"]); // 0.1.1 NOT clipped
   assert.ok(items.every((i) => i.kind === "release"));
   assert.equal(items[0].meta, "Shape Rotator OS");
   assert.deepEqual(items[0].nav, { mode: "shapes", recordId: "shape-rotator-os" });
+});
+
+test("buildReleaseItems: the full-history override is configurable", () => {
+  // With an empty override set, the OS repo clips like any other repo.
+  const items = buildReleaseItems([osArtifact], TEAMS, { since: "2026-05-18", fullHistoryIds: new Set() });
+  assert.deepEqual(items.map((i) => i.label), ["0.3.9", "0.1.11"]); // 0.1.1 now clipped
 });
 
 test("buildReleaseItems: backfills past the committed 12-cap (no per-project trim)", () => {
@@ -42,17 +61,17 @@ test("buildReleaseItems: backfills past the committed 12-cap (no per-project tri
     // all in-window (June 1–28, >= program start) so none are clipped
     published_at: `2026-06-${String(1 + (i % 28)).padStart(2, "0")}T09:00:00Z`,
   }));
-  const items = buildReleaseItems([artifact(many)], TEAMS, { since: "2026-05-18" });
+  const items = buildReleaseItems([artifact("shape-rotator-os", many)], TEAMS, { since: "2026-05-18" });
   assert.equal(items.length, 40); // all kept — not sliced to 12
 });
 
 test("buildReleaseItems: skips non-release artifacts", () => {
-  const other = { artifact_kind: "github_progress", record_id: "x", releases: RELEASES };
+  const other = { artifact_kind: "github_progress", record_id: "x", releases: OS_RELEASES };
   assert.equal(buildReleaseItems([other], TEAMS, { since: "2026-05-18" }).length, 0);
 });
 
 test("buildWhatsNew: merges releases with non-release items, drops stale releases, sorts desc", () => {
-  const releaseItems = buildReleaseItems([artifact(RELEASES)], TEAMS, { since: "2026-05-18" });
+  const releaseItems = buildReleaseItems([osArtifact], TEAMS, { since: "2026-05-18" });
   const base = [
     { date: "2026-06-01", kind: "ask", label: "an ask", meta: "ask" },
     { date: "2026-05-30", kind: "commit", label: "12 commits", meta: "Shape Rotator OS" },
@@ -61,23 +80,22 @@ test("buildWhatsNew: merges releases with non-release items, drops stale release
   const feed = buildWhatsNew(releaseItems, base);
   // The stale committed release item is dropped; only freshly-built releases remain.
   assert.equal(feed.filter((i) => i.kind === "release" && /stale/.test(i.label)).length, 0);
-  // Non-release items survive.
   assert.ok(feed.some((i) => i.kind === "ask"));
   assert.ok(feed.some((i) => i.kind === "commit"));
-  // Newest-first.
   const dates = feed.map((i) => i.date);
   assert.deepEqual(dates, [...dates].sort((a, b) => b.localeCompare(a)));
 });
 
 test("buildReleasesPayload: shapes { whats_new[], github_releases[] }", () => {
   const payload = buildReleasesPayload({
-    artifacts: [artifact(RELEASES)],
+    artifacts: [osArtifact, depArtifact],
     surface: { teams: TEAMS, whats_new: [{ date: "2026-06-02", kind: "event", label: "demo" }] },
     since: "2026-05-18",
   });
   assert.ok(Array.isArray(payload.whats_new) && Array.isArray(payload.github_releases));
-  assert.equal(payload.github_releases.length, 3);
+  assert.equal(payload.github_releases.length, 4); // 3 OS (incl. pre-window 0.1.1) + 1 elizaOS in-window
   assert.ok(payload.whats_new.some((i) => i.kind === "event"));
+  assert.ok(payload.github_releases.some((i) => i.label === "0.1.1")); // gap filled
 });
 
 test("buildUpsertRequest: on_conflict=id, stamped now, validates payload shape", () => {
@@ -104,14 +122,14 @@ test("publishReleasesFeed: POSTs upsert with service-role headers", async () => 
   const r = await publishReleasesFeed({
     url: "https://proj.supabase.co",
     key: "service-key",
-    artifacts: [artifact(RELEASES)],
+    artifacts: [osArtifact],
     surface: { teams: TEAMS, whats_new: [] },
     since: "2026-05-18",
     fetchImpl,
     now: "2026-06-19T00:00:00.000Z",
   });
   assert.equal(r.skipped, false);
-  assert.equal(r.releases, 3);
+  assert.equal(r.releases, 3); // full OS history incl. pre-window 0.1.1
   assert.equal(captured.opts.method, "POST");
   assert.equal(captured.opts.headers.apikey, "service-key");
   assert.match(captured.opts.headers.prefer, /merge-duplicates/);
@@ -123,7 +141,7 @@ test("publishReleasesFeed: throws on a non-ok HTTP response", async () => {
   await assert.rejects(
     publishReleasesFeed({
       url: "https://proj.supabase.co", key: "k",
-      artifacts: [artifact(RELEASES)], surface: { teams: TEAMS, whats_new: [] },
+      artifacts: [osArtifact], surface: { teams: TEAMS, whats_new: [] },
       since: "2026-05-18", fetchImpl,
     }),
     /Supabase upsert failed: 401/,

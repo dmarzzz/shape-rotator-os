@@ -401,6 +401,12 @@ The feed now follows the SAME live-source / offline-bundle split as the calendar
   project (cap 100), not the committed bundle's `PER_PROJECT_RELEASE_LIMIT = 12`.
   This restores ~60 previously-missing shape-rotator-os releases (the whole
   0.1.x/0.2.x May history) so the feed reads as the complete program log.
+- **No-gap for shape-rotator-os**: the membrane host app is in
+  `FULL_HISTORY_RECORD_IDS`, so its feed is NOT clipped to the cohort program
+  window (2026-05-18) — it reads continuously from its first release `v0.1.1`
+  (2026-05-09), 82 releases with no gap. Every OTHER cohort repo stays clipped to
+  the program window so a dependency's long pre-cohort tail (e.g. elizaOS's ~year
+  of pre-cohort releases) never floods the feed.
 - The `public_releases_feed` migration must be hand-applied in Supabase before
   the publish step writes (else the upsert 404s), same as the other OS tables.
 

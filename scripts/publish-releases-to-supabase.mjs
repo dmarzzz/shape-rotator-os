@@ -30,6 +30,15 @@ const ROW_ID = "current";
 // artifact (gh release list --limit 100), so this effectively means "every
 // in-window release" while still guarding a pathological repo.
 const PER_PROJECT_RELEASE_LIMIT = 100;
+
+// Repos that get their COMPLETE release history in the feed, not clipped to the
+// cohort program window. shape-rotator-os is the app the membrane runs in — its
+// own history (first release v0.1.1, 2026-05-09) IS the program log, so the feed
+// must read continuously from the start with no gap. The window still clips
+// every OTHER cohort repo so a dependency's long pre-cohort tail (e.g. elizaOS's
+// ~year of pre-cohort releases) never floods the feed. Keyed by artifact
+// record_id (the team id).
+const FULL_HISTORY_RECORD_IDS = new Set(["shape-rotator-os"]);
 // Generous global backstop — the live feed is the complete program log, so this
 // only guards against pathological growth, not a "top N" display limit. The
 // renderer further caps at its own FEED_MAX (200).
@@ -54,12 +63,14 @@ export function readProgramStart() {
   }
 }
 
-// Pure: flatten github_release_list artifacts into newest-first feed items,
-// FULL history per project clipped to the program window. Mirrors
-// releaseFeedItems() in build-bundles.js but without the low per-project cap.
-// Each item is { date, kind:"release", label, meta, nav } — the exact shape the
-// renderer's membrane feed already consumes from `github_releases`/`whats_new`.
-export function buildReleaseItems(artifacts, teams, { since, perProjectLimit = PER_PROJECT_RELEASE_LIMIT } = {}) {
+// Pure: flatten github_release_list artifacts into newest-first feed items.
+// Each repo's history is clipped to the program window EXCEPT the repos in
+// FULL_HISTORY_RECORD_IDS, which read from their first release so the feed has
+// no gap. Mirrors releaseFeedItems() in build-bundles.js but without the low
+// per-project cap. Each item is { date, kind:"release", label, meta, nav } — the
+// exact shape the renderer's membrane feed consumes from
+// `github_releases`/`whats_new`.
+export function buildReleaseItems(artifacts, teams, { since, perProjectLimit = PER_PROJECT_RELEASE_LIMIT, fullHistoryIds = FULL_HISTORY_RECORD_IDS } = {}) {
   const nameById = new Map((teams || []).map((t) => [String(t.record_id || ""), t.name || t.record_id]));
   const out = [];
   for (const artifact of (Array.isArray(artifacts) ? artifacts : [])) {
@@ -67,8 +78,11 @@ export function buildReleaseItems(artifacts, teams, { since, perProjectLimit = P
     const teamId = String(artifact.record_id || "").trim();
     const project = nameById.get(teamId) || teamId;
     const nav = { mode: "shapes", recordId: teamId };
+    // Full-history repos ignore the program-window clip so their feed starts at
+    // their very first release.
+    const repoSince = fullHistoryIds && fullHistoryIds.has(teamId) ? null : since;
     const recent = (Array.isArray(artifact.releases) ? artifact.releases : [])
-      .filter((r) => !since || isoDate(r.published_at) >= since)
+      .filter((r) => !repoSince || isoDate(r.published_at) >= repoSince)
       .sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")))
       .slice(0, perProjectLimit);
     for (const release of recent) {
