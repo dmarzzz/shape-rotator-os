@@ -9827,6 +9827,33 @@ html.jweek-vt::view-transition-new(root) {
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
+
+/* ── Dossier · workstream "events over time" (evidence on the program axis) ── */
+.ac-evt { display: flex; flex-direction: column; gap: 13px; }
+/* lane palette — THE design knob; each lane's accent flows from --evt-c. */
+.ac-evt [data-lane="did"]   { --evt-c: oklch(0.66 0.13 150); }
+.ac-evt [data-lane="pmf"]   { --evt-c: oklch(0.72 0.13 72); }
+.ac-evt [data-lane="edge"]  { --evt-c: oklch(0.64 0.12 300); }
+.ac-evt [data-lane="ask"]   { --evt-c: oklch(0.66 0.10 245); }
+.ac-evt [data-lane="risk"]  { --evt-c: oklch(0.62 0.17 25); }
+.ac-evt [data-lane="other"] { --evt-c: rgba(var(--ink-rgb), 0.45); }
+.ac-evt-axis { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+.ac-evt-wk { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 5px 0 4px; border-radius: 6px; background: rgba(var(--ink-rgb), 0.03); }
+.ac-evt-wk.is-on { background: rgba(var(--ink-rgb), 0.06); }
+.ac-evt-wkn { font-family: var(--font-mono); font-size: 9px; color: rgba(var(--ink-rgb), 0.38); }
+.ac-evt-wk.is-on .ac-evt-wkn { color: rgba(var(--ink-rgb), 0.72); }
+.ac-evt-dots { display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; min-height: 6px; }
+.ac-evt-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--evt-c, rgba(var(--ink-rgb), 0.4)); flex: 0 0 auto; }
+.ac-evt-legend { display: flex; flex-wrap: wrap; gap: 4px 13px; }
+.ac-evt-leg { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 10px; color: rgba(var(--ink-rgb), 0.6); }
+.ac-evt-list { display: flex; flex-direction: column; gap: 11px; }
+.ac-evt-grp { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 11px; }
+.ac-evt-when { font-family: var(--font-mono); font-size: 10px; color: rgba(var(--ink-rgb), 0.72); display: flex; flex-direction: column; gap: 1px; }
+.ac-evt-date { color: rgba(var(--ink-rgb), 0.4); text-transform: uppercase; letter-spacing: 0.1em; }
+.ac-evt-claims { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.ac-evt-claim { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 9px; align-items: baseline; border-left: 2px solid var(--evt-c, rgba(var(--ink-rgb), 0.3)); padding-left: 9px; }
+.ac-evt-tag { font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--evt-c, rgba(var(--ink-rgb), 0.6)); }
+.ac-evt-text { font-size: 12.5px; line-height: 1.45; color: rgba(var(--ink-rgb), 0.86); overflow-wrap: anywhere; }
 .alch-detail-chips {
   display: flex;
   flex-wrap: wrap;

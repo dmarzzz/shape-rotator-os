@@ -53,7 +53,7 @@ import {
 } from "./context-submit.mjs";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
-import { indexCohortEvidence, teamEvidence, recentClaims } from "./cohort-evidence-index.mjs";
+import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane } from "./cohort-evidence-index.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { buildActivityLane, isPresent, buildStandingLane } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
@@ -15586,6 +15586,82 @@ function renderRecordTimeline(recordKind, recordId) {
   );
 }
 
+// ── Workstream "events over time" — the dossier's longitudinal EVIDENCE
+// timeline. Reads teamTimeline() (gated evidence claims, grouped ascending by
+// week) and lays them on the 10-week program axis, lane-coloured. This is the
+// surface evidence cards + transcripts "lead to": opening a team from any
+// evidence context lands you on its whole arc. Returns "" when there's no gated
+// evidence for the team (the common case without the cohort key) ⇒ the dossier
+// is unchanged, never a dead/empty section.
+//
+// WK_LANE_META/ORDER is the one design knob — the lane label + ordering; the
+// colour for each lane lives in CSS (`.ac-evt [data-lane="…"]`). Tune freely.
+const WK_LANE_META = {
+  did: { label: "shipped" },
+  pmf: { label: "signal" },
+  edge: { label: "collab" },
+  ask: { label: "ask" },
+  risk: { label: "risk" },
+  other: { label: "note" },
+};
+const WK_LANE_ORDER = ["did", "pmf", "edge", "ask", "risk", "other"];
+function wkLaneLabel(lane) { return (WK_LANE_META[lane] || WK_LANE_META.other).label; }
+
+function renderWorkstreamTimeline(recordId) {
+  const tl = teamTimeline(cohortEvidenceIndex(), recordId);
+  if (!tl.length) return "";
+  const WK = 7 * 86400000;
+  const progWeek = (iso) => {
+    const d = isoToDate(iso);
+    if (!d) return null;
+    return Math.max(0, Math.min(WEEKS_TOTAL - 1, Math.floor((d.getTime() - PROGRAM_START_MS) / WK)));
+  };
+
+  // Lane totals (summary + legend) and the per-program-week marks (the axis).
+  const laneTotals = new Map();
+  const marked = new Map();
+  let total = 0;
+  for (const wk of tl) {
+    const wi = progWeek(wk.week);
+    const lanes = (wi != null && marked.get(wi)) || [];
+    for (const c of wk.claims) {
+      laneTotals.set(c.lane, (laneTotals.get(c.lane) || 0) + 1);
+      if (wi != null) lanes.push(c.lane);
+      total += 1;
+    }
+    if (wi != null) marked.set(wi, lanes);
+  }
+
+  // Axis: one cell per program week; lane dots where evidence landed.
+  const axis = Array.from({ length: WEEKS_TOTAL }, (_, i) => {
+    const lanes = marked.get(i) || [];
+    const dots = WK_LANE_ORDER.filter((l) => lanes.includes(l))
+      .map((l) => `<i class="ac-evt-dot" data-lane="${escAttr(l)}"></i>`).join("");
+    const n = lanes.length;
+    return `<div class="ac-evt-wk${n ? " is-on" : ""}" title="week ${i + 1}${n ? ` · ${n} event${n === 1 ? "" : "s"}` : ""}"><span class="ac-evt-wkn">${i + 1}</span><span class="ac-evt-dots">${dots}</span></div>`;
+  }).join("");
+
+  // Grouped list, newest week first (recency at the top), claims ordered by lane.
+  const groups = tl.slice().reverse().map((wk) => {
+    const wi = progWeek(wk.week);
+    const claims = WK_LANE_ORDER.flatMap((lane) => wk.claims.filter((c) => c.lane === lane))
+      .map((c) => `<li class="ac-evt-claim" data-lane="${escAttr(c.lane)}"><span class="ac-evt-tag">${escHtml(wkLaneLabel(c.lane))}</span><span class="ac-evt-text">${escHtml(constShortText(c.text || c.title, 160))}</span></li>`).join("");
+    return `<div class="ac-evt-grp"><div class="ac-evt-when">${wi != null ? `week ${wi + 1}` : ""}<span class="ac-evt-date">${escHtml(detailTimelineDate(wk.week))}</span></div><ul class="ac-evt-claims">${claims}</ul></div>`;
+  }).join("");
+
+  const legend = WK_LANE_ORDER.filter((l) => laneTotals.get(l))
+    .map((l) => `<span class="ac-evt-leg" data-lane="${escAttr(l)}"><i class="ac-evt-dot" data-lane="${escAttr(l)}"></i>${escHtml(wkLaneLabel(l))} ${laneTotals.get(l)}</span>`).join("");
+
+  const body = `
+    <div class="ac-evt">
+      <div class="ac-evt-axis" role="img" aria-label="evidence across the ${WEEKS_TOTAL} program weeks">${axis}</div>
+      <div class="ac-evt-legend">${legend}</div>
+      <div class="ac-evt-list">${groups}</div>
+    </div>`;
+  const preview = `${total} event${total === 1 ? "" : "s"} · ${tl.length} week${tl.length === 1 ? "" : "s"}`;
+  return renderDisclosureSection("events over time", body, true, preview, "alch-detail-evtime");
+}
+
 function detailJourneySummary(rec) {
   const j = journeyFor(rec);
   return {
@@ -15811,6 +15887,7 @@ function renderTeamDetail(team) {
         <div class="alch-section-stack">
           ${renderDisclosureSection("assessment / plan", detailRows(assessmentRows), false, assessmentPreview)}
           ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, evidencePreview)}
+          ${renderWorkstreamTimeline(recordId)}
           ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, coordinationPreview)}
           ${renderRecordTimeline("team", recordId)}
         </div>
