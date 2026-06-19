@@ -51,7 +51,8 @@ import {
   CONTEXT_SUBMISSION_KINDS,
   submitContext,
 } from "./context-submit.mjs";
-import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
+import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable, refreshCohortFromGithub } from "./cohort-source.js";
+import { readSupabaseConfig, persistCohortKeyOverride } from "./supabase-evidence.mjs";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane } from "./cohort-evidence-index.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
@@ -14435,6 +14436,42 @@ function setContextTranscriptsSource(src) {
   if (state.mode === "context") { renderContextVault(); wireContextVault(); }
 }
 
+// Persist the entered cohort key, then re-read the gated cohort surface IN PLACE
+// (no page reload): refreshCohortFromGithub re-runs applyDistillationOverlay — which
+// now sees the key — and notifies the subscriber that repaints the view. We pin the
+// transcripts source to "distilled" so the user lands on the now-populated side, and
+// surface a result count (or a "check the key" hint) when the refresh settles.
+async function submitCohortKeyForm(form) {
+  const input = form && form.querySelector('input[name="cohortKey"]');
+  const raw = input ? input.value : "";
+  const cv = state.contextVault;
+  if (!persistCohortKeyOverride(raw)) {
+    cv.error = "Could not save the cohort key to local storage.";
+    renderContextVault(); wireContextVault();
+    return;
+  }
+  const hasKey = !!String(raw || "").trim();
+  cv.error = "";
+  if (!hasKey) {
+    cv.message = "Cohort key cleared — showing your local raw vault.";
+    try { localStorage.setItem(TRANSCRIPTS_SOURCE_LS_KEY, "raw"); } catch {}
+    renderContextVault(); wireContextVault();
+    return;
+  }
+  try { localStorage.setItem(TRANSCRIPTS_SOURCE_LS_KEY, "distilled"); } catch {}
+  cv.message = "Reading the cohort's distilled readouts live…";
+  renderContextVault(); wireContextVault();
+  try {
+    await refreshCohortFromGithub();
+    await loadCohort();
+  } catch { /* leave the surface as-is; the message below reflects the result */ }
+  const n = contextDistilledList().length;
+  cv.message = n
+    ? `Loaded ${n} distilled readout${n === 1 ? "" : "s"} from the cohort.`
+    : "Key saved, but no distilled readouts came back — double-check it's a current role=cohort_app key.";
+  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
+}
+
 function transcriptsSourceToggleHtml(source, rawCount, distilledCount) {
   const opt = (s, label, count, hint) =>
     `<button class="alch-ev-tier-btn${source === s ? " is-on" : ""}" data-cv-tsource="${s}" type="button" aria-pressed="${source === s}" title="${escAttr(hint)}">${label}${Number.isFinite(count) ? ` ${count}` : ""}</button>`;
@@ -14459,12 +14496,42 @@ function distilledTranscriptMeta(s) {
   return bits.filter(Boolean).join(" · ");
 }
 
+// Whether the gated cohort reads have a key to use — the localStorage override OR
+// a build-baked key. Mirrors the reader exactly (readSupabaseConfig), so the empty
+// state can tell "no key provisioned" apart from "key set but nothing published."
+function cohortKeyConfigured() {
+  try { return !!readSupabaseConfig().cohortKey; } catch { return false; }
+}
+
+// The inline cohort-key affordance shown in the distilled empty state. Lets a
+// provisioned run drop in a role=cohort_app JWT on this machine without an env var
+// or a packaged build — it persists via persistCohortKeyOverride, then refreshes
+// the cohort surface in place (wireContextVault handles the submit). type=password
+// so the soft secret isn't shoulder-surfed; never pre-filled with the live value.
+function cohortKeyFormHtml(configured) {
+  return `
+    <form class="alch-cv-keyform" data-cv-cohort-key-form autocomplete="off">
+      <label class="alch-cv-keyform-label" for="alch-cv-cohort-key">${configured ? "replace cohort key" : "cohort key"} <span class="alch-cv-keyform-tag">role=cohort_app JWT</span></label>
+      <div class="alch-cv-keyform-row">
+        <input id="alch-cv-cohort-key" class="alch-cv-keyform-input" name="cohortKey" type="password" inputmode="text" autocomplete="off" spellcheck="false" placeholder="eyJhbGciOi…" aria-label="cohort key JWT" />
+        <button type="submit" class="alch-cv-keyform-save">use key</button>
+      </div>
+      <p class="alch-cv-keyform-note">Stored only in this app's local storage, on this machine — never committed or sent anywhere but Supabase. Save an empty value to clear it.</p>
+    </form>
+  `;
+}
+
 function renderDistilledTranscriptDetail(selected) {
   if (!selected) {
+    const configured = cohortKeyConfigured();
+    const lede = configured
+      ? `A cohort key is set, but no distilled readouts came back — the key may be wrong/expired, or no sessions are distilled, reviewed &amp; published yet. Re-enter a key below, or switch to <em>raw</em> above for your local vault.`
+      : `The cohort's distilled readouts load live from Supabase once a cohort key is provisioned. Paste one below to read them on this machine, or switch to <em>raw</em> above for your local vault.`;
     return `
       <article class="alch-cv-detail alch-cv-empty-detail">
         <h3>no distilled transcripts yet</h3>
-        <p>The cohort's distilled readouts load live from Supabase once a cohort key is provisioned. Without one the app shows your local raw vault — switch to <em>raw</em> above.</p>
+        <p>${lede}</p>
+        ${cohortKeyFormHtml(configured)}
       </article>
     `;
   }
@@ -14764,6 +14831,13 @@ function wireContextVault() {
       if (!d) return;
       const ok = await copyTextToClipboard(d.body_md || "");
       flashCopyButton(btn, ok);
+    });
+  }
+  const keyForm = state.canvas.querySelector("[data-cv-cohort-key-form]");
+  if (keyForm) {
+    keyForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitCohortKeyForm(keyForm);
     });
   }
   // Embedded intel (signals/data views) wires its own internals; the page
