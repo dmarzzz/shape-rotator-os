@@ -126,7 +126,7 @@ function uidForGoogleRecord(record = {}, blockIndex = 1) {
   return blockIndex === 1 ? baseUid : baseUid.replace("@", `-block-${blockIndex}@`);
 }
 
-function addGoogleOnlyManagedEvents(days = [], calendarGoogleEvents = {}, seenShapeKeys = new Set()) {
+function addGoogleOnlyManagedEvents(days = [], calendarGoogleEvents = {}, seenShapeKeys = new Set(), catHide = new Set()) {
   const dayByIso = new Map(days.map((day) => [isoDay(day.dayMs), day]));
   const records = Object.values(calendarGoogleEvents?.by_shape_key || {});
   for (const record of records) {
@@ -135,13 +135,17 @@ function addGoogleOnlyManagedEvents(days = [], calendarGoogleEvents = {}, seenSh
     const day = dayByIso.get(googleRecordStartIso(record));
     if (!day) continue;
     const block = googleRecordBlockText(record);
+    const cat = c2Category(block);
+    // Category filter (shared with the grid's own events) — a hidden type
+    // simply isn't added, so the board reflows around it.
+    if (catHide.has(cat.key)) { seenShapeKeys.add(shapeKey); continue; }
     const timing = googleRecordTiming(record);
     const blockIndex = Number(record.shape_calendar_block_index) || 1;
     const item = {
       kind: "event",
       block,
       content: c2ParseBlock(block),
-      cat: c2Category(block),
+      cat,
       timing,
       calendar: {
         baseUid: record.shape_calendar_base_uid || "",
@@ -367,12 +371,33 @@ export function flattenScheduleEvents(data) {
 // view: "cal" (the timeline grid) | "presence" (caller-supplied availability
 // gantt — the same renderer the legacy calendar page uses, passed in as
 // presenceHtml so this module stays presentation-only).
-export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", timelineHtml = "", activity = [] } = {}) {
+//
+// catHidden: category keys the legend-filter has switched off (events of those
+// types are dropped and the board reflows around them).
+// signals: caller-computed daily context that rides under the day headers —
+//   { rowsHidden:[], scope:{id,name,teams:[{id,name}]}, perDay:[{inTown,inTownNames[]}], standing:{stage,label}|null }
+// People presence + per-week PMF live outside this module's data, so the host
+// (alchemy.js) computes them and passes the shaped result in; this module stays
+// presentation-only.
+export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", activity = [], catHidden = [], signals = null } = {}) {
   const tab = data?.tabs?.[PRIMARY_TAB] || [];
   const safeWeekIdx = Math.max(0, Math.min(WEEK_COUNT - 1, weekIdx | 0));
   const week = parseWeekRow(tab[2 + safeWeekIdx] || [], safeWeekIdx);
   const phase = phaseFor(safeWeekIdx + 1);
   const recurring = parseRecurring(tab);
+  const catHide = new Set(Array.isArray(catHidden) ? catHidden : []);
+
+  // ── daily-signal state (computed by the host; see signals contract above) ──
+  // Hoisted to the top because the activity ("shipped") lane below reads scopeId.
+  // The agenda's two genuinely-loved signals fold onto the grid: who's in town
+  // (real presence) and what shipped (real activity). Standing is NOT ported —
+  // it's seed data, and the calendar shouldn't headline a placeholder number; it
+  // stays in the standing views where its provenance is explained.
+  const rowHide = new Set(Array.isArray(signals?.rowsHidden) ? signals.rowsHidden : []);
+  const scopeTeams = Array.isArray(signals?.scope?.teams) ? signals.scope.teams : [];
+  const scopeId = signals?.scope?.id && scopeTeams.some(t => t.id === signals.scope.id) ? signals.scope.id : null;
+  const scopeName = scopeId ? (scopeTeams.find(t => t.id === scopeId)?.name || scopeId) : "all cohort";
+  const perDaySig = Array.isArray(signals?.perDay) ? signals.perDay : [];
 
   // ── per-day model: split timed vs all-day, classify, layout overlaps ─
   const seenShapeKeys = new Set();
@@ -384,15 +409,17 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       allday.push({ kind: "anchor", title: a.title, subtitle: a.subtitle, cat: { key: "default", label: "", tbc: false } });
     }
     d.blocks.forEach((block, blockIndex) => {
-      const timing = c2BlockTiming(block);
       const blockNumber = blockIndex + 1;
       const shapeKey = calendarShapeKey(baseUid, blockNumber);
-      seenShapeKeys.add(shapeKey);
+      seenShapeKeys.add(shapeKey);  // still claim the key so its google twin stays hidden too
+      const cat = c2Category(block);
+      if (catHide.has(cat.key)) return;  // legend-filter dropped this type
+      const timing = c2BlockTiming(block);
       const item = {
         kind: "event",
         block,
         content: c2ParseBlock(block),
-        cat: c2Category(block),
+        cat,
         timing,
         calendar: {
           baseUid,
@@ -441,23 +468,28 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     }
   }
 
-  addGoogleOnlyManagedEvents(days, calendarGoogleEvents, seenShapeKeys);
+  addGoogleOnlyManagedEvents(days, calendarGoogleEvents, seenShapeKeys, catHide);
 
-  // ── cohort activity lane ─────────────────────────────────────────────
+  // ── cohort activity lane ("shipped") ─────────────────────────────────
   // Releases + commits land on their day as clickable blocks — the calendar
-  // becomes "what the cohort shipped this week", not just the schedule. Each
-  // block drills to its team (data-c2-act = record id) via wireCalendar.
+  // becomes "what the cohort shipped this week", not just the schedule. A click
+  // now REVEALS the ship in place (with a secondary "open team →"), instead of
+  // teleporting straight to the team dossier. Scoped to one workstream when the
+  // scope chip picks one.
   const ACT_KINDS = new Set(["release", "commit"]);
   const activityList = Array.isArray(activity) ? activity : [];
   for (const day of days) {
     const iso = isoDay(day.dayMs);
     day.activity = activityList
-      .filter(a => a && a.date === iso && ACT_KINDS.has(a.kind) && a.nav && a.nav.recordId)
-      .map(a => ({ kind: a.kind, label: a.label || "", team: a.meta || "", recordId: a.nav.recordId }));
+      .filter(a => a && a.date === iso && ACT_KINDS.has(a.kind) && a.nav && a.nav.recordId
+        && (!scopeId || a.nav.recordId === scopeId))
+      .map(a => ({ kind: a.kind, label: a.label || "", team: a.meta || "", recordId: a.nav.recordId, date: iso }));
   }
 
   for (const day of days) layoutTimed(day.timed);
 
+  // The reveal popovers (events + activity chips) read from the last-rendered
+  // model rather than re-parsing the DOM — render + wire share this slot.
   _model = { days, weekIdx: safeWeekIdx, calendarGoogleEvents };
 
   // ── hour window hugs the week's actual content ──────────────────────
@@ -550,19 +582,17 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
             aria-selected="${i === safeWeekIdx}" aria-label="week ${i + 1}" type="button">${i + 1}</button>`).join("");
 
   const isPresence = view === "presence";
-  const isTimeline = view === "timeline";
   // Same shared view-nav component as the cohort / context / program pages
-  // (.alch-page-views) — one visual language for in-page tabs everywhere.
+  // (.alch-page-views) — one visual language for in-page tabs everywhere. The
+  // agenda tab is gone: the grid below now carries its filter + signals, so the
+  // two views are one.
   const viewTabs = `
     <nav class="alch-page-views" role="tablist" aria-label="calendar view">
-      <button class="alch-page-view-btn" data-c2-view="cal" role="tab" aria-selected="${!isPresence && !isTimeline}" type="button">
+      <button class="alch-page-view-btn" data-c2-view="cal" role="tab" aria-selected="${!isPresence}" type="button">
         <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span><span class="apv-label">calendar</span>
       </button>
       <button class="alch-page-view-btn" data-c2-view="presence" role="tab" aria-selected="${isPresence}" type="button">
         <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span><span class="apv-label">presence</span>
-      </button>
-      <button class="alch-page-view-btn" data-c2-view="timeline" role="tab" aria-selected="${isTimeline}" type="button">
-        <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16"/><path d="M8 7h11"/><path d="M6 12h9"/><path d="M10 17h8"/></svg></span><span class="apv-label">agenda</span>
       </button>
     </nav>`;
   const subscribeAction = `
@@ -578,7 +608,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       ${viewTabs}
       ${subscribeAction}
     </div>
-    ${(isPresence || isTimeline) ? "" : `
+    ${isPresence ? "" : `
     <header class="c2-masthead">
       <div class="c2-scrub" role="tablist" aria-label="program week">
         <button class="c2-scrub-arrow" data-c2-nav="prev" aria-label="previous week" ${safeWeekIdx === 0 ? "disabled" : ""} type="button">←</button>
@@ -597,15 +627,42 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </section>`;
   }
 
-  if (isTimeline) {
-    return `
-      <section class="c2 c2--timeline" data-phase="${escAttr(phase)}">
-        ${masthead}
-        <div class="c2-timeline">
-          ${timelineHtml || `<div class="c2-loading">timeline view not available.</div>`}
-        </div>
-      </section>`;
-  }
+  // ── controls — the filter + signal row that used to be the agenda's job ──
+  // Left: the legend, now a live category FILTER (click a type to drop it from
+  // the board). Right: the workstream scope (focuses the daily signals) and the
+  // signal-row toggles. One row, sitting between the week strip and the board so
+  // the controls are next to the evidence they change.
+  const filterBar = `
+    <div class="c2-filter" role="group" aria-label="filter by event type">
+      ${C2_LEGEND.map(c => `
+        <button class="c2-filter-item${catHide.has(c.key) ? " is-off" : ""}" data-c2-cat="${escAttr(c.key)}" data-cat="${escAttr(c.key)}"
+                type="button" aria-pressed="${catHide.has(c.key) ? "false" : "true"}">
+          <i class="c2-chip-dot" aria-hidden="true"></i>${escHtml(c.label)}
+        </button>`).join("")}
+    </div>`;
+  const scopeChip = scopeTeams.length ? `
+    <div class="c2-scope" data-c2-scope-ctl>
+      <button class="c2-scope-btn${scopeId ? " is-on" : ""}" data-c2-scope-toggle aria-haspopup="listbox" aria-expanded="false"
+              aria-label="focus the daily signals on one workstream" type="button">
+        <span class="c2-scope-k">scope</span><span class="c2-scope-v">${escHtml(scopeName)}</span><i class="c2-chev" aria-hidden="true"></i>
+      </button>
+      <div class="c2-scope-menu" role="listbox" aria-label="workstream" hidden>
+        ${[{ id: "", name: "all cohort" }, ...scopeTeams].map(o => `
+          <button class="c2-scope-opt" role="option" data-c2-scope="${escAttr(o.id)}"
+                  aria-selected="${(o.id || null) === scopeId ? "true" : "false"}" type="button">${escHtml(o.name)}</button>`).join("")}
+      </div>
+    </div>` : "";
+  const rowTogs = [["intown", "in town"], ["shipped", "shipped"]]
+    .map(([k, l]) => `<button class="c2-rowtog${rowHide.has(k) ? "" : " is-on"}" data-c2-row="${k}" aria-pressed="${rowHide.has(k) ? "false" : "true"}" type="button">${l}</button>`)
+    .join("");
+  const controls = `
+    <div class="c2-controls">
+      ${filterBar}
+      <div class="c2-sigctl">
+        ${scopeChip}
+        <span class="c2-rowgrp"><span class="c2-rowgrp-k">signals</span>${rowTogs}</span>
+      </div>
+    </div>`;
 
   // ── stale banner (same contract as the calendar page) ───────────────
   const staleBanner = source === "bundled" ? `
@@ -629,17 +686,45 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         <span class="c2-dh-num">${escHtml(d.date.replace(/^[a-z]+\s+/, ""))}</span>
       </div>`).join("");
 
-  // ── cohort-activity lane (releases + commits, clickable → team) ──────
+  // ── in-town signal (real presence: who's around each day) ────────────
+  // The agenda's most-valued signal, brought onto the grid as a thin bar+count
+  // row that aligns to the day columns. Hover carries WHO is in town. Follows
+  // the scope chip (one workstream's roster) when one is picked.
+  // Bar is an OCCUPANCY gauge — fraction of the roster present that day — not a
+  // week-relative max (which read flat when the whole cohort is in town). Full
+  // bar honestly means "full house"; it dips on arrival/departure weeks. The
+  // count beside it is the exact value; names ride the hover.
+  const rosterTotal = Math.max(1, Number(signals?.rosterTotal) || perDaySig.reduce((m, s) => Math.max(m, Number(s?.inTown) || 0), 1));
+  const hasInTown = !rowHide.has("intown") && perDaySig.some(s => (Number(s?.inTown) || 0) > 0);
+  const inTownRow = hasInTown ? `
+    <div class="c2-row c2-signal c2-intown${scopeId ? " is-scoped" : ""}">
+      <div class="c2-gutter-cell">in town</div>
+      ${days.map((d, di) => {
+        const s = perDaySig[di] || {};
+        const n = Number(s.inTown) || 0;
+        const names = Array.isArray(s.inTownNames) ? s.inTownNames : [];
+        const tip = n
+          ? `${d.name} · ${n} of ${rosterTotal} in town${scopeId ? " · " + scopeName : ""}: ${names.slice(0, 16).join(", ")}${names.length > 16 ? `, +${names.length - 16} more` : ""}`
+          : `${d.name} · nobody in town`;
+        return `
+        <div class="c2-sig-cell ${d.isToday ? "is-today" : ""}" title="${escAttr(tip)}" aria-label="${escAttr(tip)}">
+          <span class="c2-sig-bar" aria-hidden="true"><i style="width:${Math.round(Math.min(1, n / rosterTotal) * 100)}%"></i></span>
+          <span class="c2-sig-v">${n || `<span class="c2-sig-mut">·</span>`}</span>
+        </div>`;
+      }).join("")}
+    </div>` : "";
+
+  // ── cohort-activity lane ("shipped") — reveal-on-click, scope-aware ──
   const ACT_VERB = { release: "shipped", commit: "committed" };
   const hasActivity = days.some(d => (d.activity || []).length);
-  const activityRow = hasActivity ? `
+  const activityRow = (!rowHide.has("shipped") && hasActivity) ? `
     <div class="c2-row c2-activity">
       <div class="c2-gutter-cell">shipped</div>
-      ${days.map((d) => `
+      ${days.map((d, di) => `
         <div class="c2-activity-cell ${d.isToday ? "is-today" : ""}">
-          ${(d.activity || []).map((a) => `
-            <button class="c2-act-chip" data-act-kind="${escAttr(a.kind)}" data-c2-act="${escAttr(a.recordId)}" type="button"
-                    title="${escAttr(`${a.team} ${ACT_VERB[a.kind] || a.kind} ${a.label} — open ${a.team}`)}">
+          ${(d.activity || []).map((a, ai) => `
+            <button class="c2-act-chip" data-act-kind="${escAttr(a.kind)}" data-c2-act="${di}:${ai}" type="button"
+                    title="${escAttr(`${a.team} ${ACT_VERB[a.kind] || a.kind} ${a.label}`)}">
               <span class="c2-act-dot" aria-hidden="true"></span>
               <span class="c2-act-team">${escHtml(a.team)}</span>
               <span class="c2-act-label">${escHtml(a.label)}</span>
@@ -755,11 +840,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </div>`;
   }).join("");
 
-  // ── recurring footer + legend ────────────────────────────────────────
-  const legend = `
-    <div class="c2-key" role="list" aria-label="event categories">
-      ${C2_LEGEND.map(c => `<span class="c2-key-item" data-cat="${escAttr(c.key)}"><i class="c2-chip-dot" aria-hidden="true"></i>${escHtml(c.label)}</span>`).join("")}
-    </div>`;
+  // ── recurring footer (the legend is now the live filter up top) ──────
   const recurringHtml = recurring.length ? `
     <div class="c2-recur">
       <span class="c2-recur-h">recurring</span>
@@ -770,11 +851,13 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     <section class="c2" data-phase="${escAttr(phase)}">
       ${masthead}
       ${staleBanner}
+      ${controls}
       <div class="c2-board" role="grid" aria-label="week timeline">
         <div class="c2-row c2-daysbar">
           <div class="c2-gutter-cell"></div>
           ${headCells}
         </div>
+        ${inTownRow}
         ${activityRow}
         ${alldayRow}
         <div class="c2-scroll">
@@ -787,7 +870,6 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         </div>
       </div>
       <footer class="c2-foot">
-        ${legend}
         ${recurringHtml}
         <div class="c2-source">
           <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
@@ -1009,6 +1091,88 @@ export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}
       if (url && url !== "#") {
         try { window.api?.openExternal?.(url); } catch {}
       }
+      return;
+    }
+    if (e.target === overlay) close();
+  });
+  overlay.querySelector(".c2-modal-close")?.addEventListener("click", close);
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+  positionEventPanel(overlay, eventAnchorRect);
+  overlay.querySelector(".c2-modal-close")?.focus?.({ preventScroll: true });
+}
+
+// ── shipped-chip reveal ──────────────────────────────────────────────
+// ref = "<dayIdx>:<activityIdx>" from a shipped chip's data-c2-act. Shows WHAT
+// shipped, in place (same overlay as an event) — a single click no longer
+// teleports off the calendar. The drill to the team dossier is now an explicit,
+// secondary button (onOpenTeam callback), so the team page is one deliberate
+// click away rather than the unavoidable consequence of touching the chip.
+export function openCalendarActivity(ref, { anchor = null, anchorRect = null, onOpenTeam = null } = {}) {
+  if (!_model || typeof document === "undefined") return;
+  const m = String(ref || "").match(/^(\d+):(\d+)$/);
+  if (!m) return;
+  const day = _model.days[+m[1]];
+  if (!day) return;
+  const item = (day.activity || [])[+m[2]];
+  if (!item) return;
+
+  const weekday = DAY_NAMES_FULL[day.name] || day.name;
+  const VERB = { release: "shipped", commit: "committed" };
+  const verb = VERB[item.kind] || item.kind;
+  const eventAnchor = anchor || null;
+  const eventAnchorRect = anchorRect || rectFromAnchor(eventAnchor);
+
+  document.querySelector(".c2-modal")?.remove();
+  clearCalendarEventSelection();
+  eventAnchor?.classList?.add?.("is-selected");
+  const overlay = document.createElement("div");
+  overlay.className = "c2-modal";
+  overlay.innerHTML = `
+    <div class="c2-modal-panel c2-modal-panel--act" data-act-kind="${escAttr(item.kind)}" role="dialog" aria-modal="true" aria-label="activity details">
+      <button class="c2-modal-close" type="button" aria-label="close">×</button>
+      <div class="c2-modal-meta">
+        <div class="c2-modal-when">${escHtml(weekday)} · ${escHtml(day.date)}</div>
+        <div class="c2-modal-cat"><i class="c2-act-dot" aria-hidden="true"></i>${escHtml(verb)}</div>
+      </div>
+      <h3 class="c2-modal-title"><em>${escHtml(item.team || "a team")}</em></h3>
+      ${item.label ? `<p class="c2-modal-actlabel">${escHtml(item.label)}</p>` : ""}
+      ${item.recordId && typeof onOpenTeam === "function" ? `
+        <div class="c2-modal-actions">
+          <button class="c2-modal-team" type="button" data-open-team="${escAttr(item.recordId)}">
+            <span class="c2-action-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+              </svg>
+            </span>
+            <span class="c2-action-copy"><strong>open ${escHtml(item.team || "team")}</strong><small>team dossier</small></span>
+          </button>
+        </div>` : ""}
+    </div>`;
+  const close = () => {
+    clearCalendarEventSelection();
+    document.removeEventListener("keydown", onKey);
+    if (overlay.dataset.closing === "1") return;
+    overlay.dataset.closing = "1";
+    let reduce = false;
+    try {
+      reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        || document.documentElement.getAttribute("data-reduce-motion") === "1";
+    } catch {}
+    if (reduce) { overlay.remove(); return; }
+    overlay.classList.add("is-closing");
+    const done = () => { try { overlay.remove(); } catch {} };
+    overlay.addEventListener("animationend", done, { once: true });
+    setTimeout(done, 180);
+  };
+  function onKey(e) { if (e.key === "Escape") close(); }
+  overlay.addEventListener("click", (e) => {
+    const openTeam = e.target?.closest?.("[data-open-team]");
+    if (openTeam) {
+      e.preventDefault();
+      const rid = openTeam.getAttribute("data-open-team");
+      close();
+      if (rid) { try { onOpenTeam(rid); } catch {} }
       return;
     }
     if (e.target === overlay) close();
