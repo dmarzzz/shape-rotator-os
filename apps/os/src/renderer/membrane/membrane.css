@@ -790,6 +790,67 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   letter-spacing: 0.06em;
   color: rgba(var(--mem-ink-rgb), 0.32);
 }
+/* Stacked card — iOS-style grouped-notification pile. When same-day items from
+   one source collapse into a card, the most-recent one is OPAQUE (so the deck
+   never bleeds through — translucent show-through looked cheap) and sits on two
+   cards offset down + scaled narrower, peeking at the bottom like a tidy pile.
+   The front card carries NO transform/backdrop at rest, hover, OR active: any of
+   those spawns a stacking context and pops the negative-z deck in front of its
+   own background. Offsets stay within the row gap so the deck never reaches the
+   card below. */
+.mfeed-stacked {
+  position: relative;
+  background: color-mix(in srgb, var(--membrane-void-warm) 92%, var(--membrane-mist) 8%);
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.20);
+}
+.mfeed-item.mfeed-stacked:hover,
+.mfeed-item.mfeed-stacked:active { transform: none; }
+.mfeed-item.mfeed-stacked:hover {
+  background: color-mix(in srgb, var(--membrane-void-warm) 88%, var(--membrane-mist) 12%);
+}
+.mfeed-stacked::before,
+.mfeed-stacked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.07);
+  z-index: -1;
+  pointer-events: none;
+  transition: transform 220ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+/* ::before is the DEEPER card (further down + narrower); ::after the nearer. */
+.mfeed-stacked::before {
+  background: color-mix(in srgb, var(--membrane-void-warm) 96%, var(--membrane-mist) 4%);
+  transform: translateY(6px) scaleX(0.87);
+}
+.mfeed-stacked::after {
+  background: color-mix(in srgb, var(--membrane-void-warm) 94%, var(--membrane-mist) 6%);
+  transform: translateY(3px) scaleX(0.93);
+}
+.mfeed-item.mfeed-stacked:hover::before { transform: translateY(7px) scaleX(0.88); }
+.mfeed-item.mfeed-stacked:hover::after  { transform: translateY(4px) scaleX(0.94); }
+/* Count sits ABSOLUTELY in the card's bottom-right corner — out of the top flex
+   row entirely — so adding it never shifts the age/date indicator (which stays
+   pinned top-right whether or not a card is a stack). */
+.mfeed-count {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  min-width: 16px;
+  height: 15px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  border-radius: 8px;
+  color: rgba(var(--mem-ink-rgb), 0.5);
+  background: rgba(var(--mem-ink-rgb), 0.08);
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.1);
+}
 
 /* ── hover layer ─────────────────────────────────────────────────────────
    The third interaction layer. At rest a card is a one-line glance; on
