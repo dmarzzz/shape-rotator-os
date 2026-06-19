@@ -6717,33 +6717,52 @@ function timelineInnerHtml() {
   const inWin = (ms) => ms >= winStart && ms < winEnd;
   const nowIn = inWin(nowMs);
 
-  // ── Events (live calendar — the same source the grid renders) ───────────
-  // Falls back to the build-baked whats_new event items until cal.data loads.
+  // ── Events (live calendar — same source the grid renders) ───────────────
   const calModule = calendarLazy.peek();
-  const eventItems = (cal.data && typeof calModule?.flattenScheduleEvents === "function")
-    ? calModule.flattenScheduleEvents(cal.data)
-        .filter((e) => inWin(e.ms))
+  const allEvents = (cal.data && typeof calModule?.flattenScheduleEvents === "function")
+    ? calModule.flattenScheduleEvents(cal.data).filter((e) => inWin(e.ms))
         .map((e) => ({ ms: e.ms, title: e.title, time: e.time || "", cat: e.cat || "default", allDay: !!e.allDay, isFuture: e.ms > nowMs }))
     : buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
         .filter((i) => i.category === "event" && inWin(i.startMs))
         .map((i) => ({ ms: i.startMs, title: i.title, time: i.detail || "", cat: "default", allDay: !i.detail, isFuture: i.isFuture }));
 
+  // ── Filter state (persisted on state.calendar; toggled in wireCalendar) ──
+  const catHidden = new Set(Array.isArray(cal.tlCatHidden) ? cal.tlCatHidden : []);
+  const whenMode = (cal.tlWhen === "allday" || cal.tlWhen === "timed") ? cal.tlWhen : "all";
+  const hidePast = !!cal.tlHidePast;
+  const rowOff = new Set(Array.isArray(cal.tlRowsHidden) ? cal.tlRowsHidden : []);
+  const teams = (cohort.teams || []).filter((t) => t && t.record_id && teamKind(t) !== "person")
+    .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)));
+  const scopeId = teams.some((t) => t.record_id === cal.tlScope) ? cal.tlScope : null;
+  const scopeName = scopeId ? (teams.find((t) => t.record_id === scopeId).name || scopeId) : "all cohort";
+
+  // Category + "when" filters narrow the schedule.
+  const eventItems = allEvents
+    .filter((e) => !catHidden.has(e.cat))
+    .filter((e) => whenMode === "all" || (whenMode === "allday" ? e.allDay : !e.allDay));
+
   const startMin = (t) => { const m = /(\d{1,2}):(\d{2})/.exec(t || ""); return m ? (+m[1]) * 60 + (+m[2]) : -1; };
   const dayNames = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
-  // ── Signals that pair with the schedule on the SAME seven columns ───────
-  // in-town: REAL — cohort present each day (people windows + absences).
-  // shipped: STALE — daily ship/commit/ask count (build-baked whats_new feed).
-  // standing: SEED — cohort-mean PMF for the week (one value; not yet live).
-  const roster = people.filter((p) => p && (p.dates_start || p.dates_end));
+  // ── Signals (scoped to the workstream when one is picked) ───────────────
+  // in-town: REAL presence · shipped: STALE activity · standing: SEED PMF.
+  const roster = people.filter((p) => p && (p.dates_start || p.dates_end)
+    && (!scopeId || p.team === scopeId || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(scopeId))));
   const updateItems = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
-    .filter((i) => i.category !== "event" && inWin(i.startMs));
-  const stPts = (calModule && standingWeekly)
-    ? buildStandingLane(standingWeekly, { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS }).points
-    : [];
-  const weekStanding = stPts.find((p) => p.programWeek === wi) || null;
+    .filter((i) => i.category !== "event" && inWin(i.startMs) && (!scopeId || i.team === scopeId));
+  let weekStanding = null;
+  if (calModule && standingWeekly) {
+    const teamCell = scopeId && standingWeekly.byTeam ? standingWeekly.byTeam[scopeId] : null;
+    if (teamCell) {
+      const cell = teamCell.weeks?.[wi] ?? teamCell.weeks?.[String(wi)];
+      weekStanding = cell && Number.isFinite(Number(cell.stage)) ? { stage: Number(cell.stage) } : null;
+    } else if (!scopeId) {
+      weekStanding = buildStandingLane(standingWeekly, { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS }).points.find((p) => p.programWeek === wi) || null;
+    }
+  }
 
-  const cols = [];
+  // ── Day columns (+ per-day signal values); hide-past drops past columns ──
+  const allCols = [];
   let maxInTown = 1;
   for (let k = 0; k < 7; k++) {
     const dayMs = winStart + k * DAY, dayEnd = dayMs + DAY, noon = dayMs + DAY / 2;
@@ -6751,7 +6770,7 @@ function timelineInnerHtml() {
     const inTown = roster.length ? roster.filter((p) => isPresent(p, noon)).length : 0;
     const shipped = updateItems.filter((i) => i.startMs >= dayMs && i.startMs < dayEnd).length;
     maxInTown = Math.max(maxInTown, inTown);
-    cols.push({
+    allCols.push({
       day: dayNames[k], date: String(new Date(dayMs).getUTCDate()),
       allDay: dayEv.filter((e) => e.allDay),
       timed: dayEv.filter((e) => !e.allDay).sort((a, b) => startMin(a.time) - startMin(b.time)),
@@ -6759,11 +6778,13 @@ function timelineInnerHtml() {
       isToday: nowMs >= dayMs && nowMs < dayEnd, isPast: dayEnd <= nowMs, isWeekend: k >= 5,
     });
   }
+  const cols = allCols.filter((c) => !(hidePast && c.isPast));
+  const nDays = cols.length || 1;
   const tcls = (c) => [c.isToday && "is-today", c.isPast && "is-past", c.isWeekend && "is-weekend"].filter(Boolean).join(" ");
 
-  // ── Cell renderers. The calendar cells (header / all-day / schedule) carry
-  // data-tl-week so a click anywhere on a day opens that week's grid; the
-  // schedule cell is the keyboard target. Signal cells are display-only. ──
+  // ── Cell renderers. Calendar cells (header / all-day / schedule) carry
+  // data-tl-week so a click opens that week's grid; the schedule cell is the
+  // keyboard target. Signal cells are display-only. ──
   const chip = (e) => `<div class="cw-ev${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.time ? `${e.time} · ${e.title}` : e.title)}">${e.time ? `<span class="cw-et">${escHtml(e.time)}</span>` : ""}<span class="cw-ex">${escHtml(e.title)}</span></div>`;
   const adPill = (e) => `<div class="cw-ad${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.title)}">${escHtml(e.title)}</div>`;
   const CAP = 6;
@@ -6779,7 +6800,7 @@ function timelineInnerHtml() {
   const inTownRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-bar"><i style="width:${Math.round((c.inTown / maxInTown) * 100)}%"></i></span><span class="cw-v">${c.inTown || "·"}</span></div>`).join("");
   const shippedRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-v">${c.shipped || `<span class="cw-mut">·</span>`}</span></div>`).join("");
   const standingCell = (weekStanding && weekStanding.stage != null)
-    ? `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-v">${weekStanding.stage.toFixed(1)}</span><span class="cw-mut">/ 8 · cohort mean PMF</span></div>`
+    ? `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-v">${weekStanding.stage.toFixed(1)}</span><span class="cw-mut">/ 8 · ${escHtml(scopeId ? scopeName + " PMF" : "cohort mean PMF")}</span></div>`
     : `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-mut">no standing read</span></div>`;
 
   // Week navigation: ‹ prev · label · next › + a "today" jump (live only off
@@ -6792,6 +6813,30 @@ function timelineInnerHtml() {
     </div>
     <button type="button" class="ac-tl-today" data-tl-nav="today" data-tl-nav-to="${PROGRAM_START_MS + nowWeekIdx * WK}"${onCurrentWeek ? " disabled" : ""} aria-label="jump to the current week">today</button>`;
 
+  // Scope chip — focuses the SIGNAL rows on one workstream (the shared schedule
+  // stays cohort-wide). Label = current scope = trigger.
+  const scopeMenu = [{ id: "", name: "all cohort" }, ...teams.map((t) => ({ id: t.record_id, name: t.name || t.record_id }))]
+    .map((o) => `<button type="button" class="cw-scope-opt" role="option" data-tl-scope="${escAttr(o.id)}" aria-selected="${(o.id || null) === scopeId ? "true" : "false"}">${escHtml(o.name)}</button>`).join("");
+  const scopeChip = `
+    <div class="cw-scope" data-tl-scope-ctl>
+      <button type="button" class="cw-scope-btn${scopeId ? " is-on" : ""}" data-tl-scope-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="focus signals on a workstream"><span class="cw-k">scope</span><span class="cw-scope-v">${escHtml(scopeName)}</span><i class="cw-chev" aria-hidden="true"></i></button>
+      <div class="cw-scope-menu" role="listbox" aria-label="workstream" hidden>${scopeMenu}</div>
+    </div>`;
+
+  // Filter bar (consolidated): "when" (all / all-day / timed) + hide-past, and
+  // which signal rows show.
+  const whenSeg = [["all", "all"], ["allday", "all-day"], ["timed", "timed"]]
+    .map(([k, l]) => `<button type="button" class="cw-seg-b" data-tl-when="${k}" aria-pressed="${whenMode === k ? "true" : "false"}">${l}</button>`).join("");
+  const rowTogs = [["inTown", "in town"], ["shipped", "shipped"], ["standing", "standing"]]
+    .map(([k, l]) => `<button type="button" class="cw-tog${rowOff.has(k) ? "" : " is-on"}" data-tl-row="${k}" aria-pressed="${rowOff.has(k) ? "false" : "true"}">${l}</button>`).join("");
+  const filterBar = `
+    <div class="cw-filt">
+      <span class="cw-filt-k">when</span><div class="cw-seg" role="group" aria-label="show events">${whenSeg}</div>
+      <button type="button" class="cw-tog${hidePast ? " is-on" : ""}" data-tl-past aria-pressed="${hidePast ? "true" : "false"}">hide past</button>
+      <span class="cw-filt-sep" aria-hidden="true"></span>
+      <span class="cw-filt-k">signals</span>${rowTogs}
+    </div>`;
+
   const total = eventItems.length;
   const summary = `
     <div class="ac-tl-summary" role="group" aria-label="week summary">
@@ -6800,25 +6845,32 @@ function timelineInnerHtml() {
       <span class="ac-tl-sum-sep">·</span><span class="ac-tl-sum-hint">tap a day to open its hour grid</span>
     </div>`;
 
-  // Category legend — colour-codes the chips by event type, using the SAME
-  // palette as the grid (shared --c2-acc) so the colours decode at a glance.
+  // The legend doubles as the category FILTER — click a type to show/hide it
+  // (label = trigger); shares --c2-acc with the grid for the dot colour.
   const legend = (calModule?.C2_LEGEND || [])
-    .map((c) => `<span class="cal-legend-item" data-cat="${escAttr(c.key)}" role="listitem"><i class="cal-legend-dot" aria-hidden="true"></i>${escHtml(c.label)}</span>`).join("");
+    .map((c) => `<button type="button" class="cal-legend-item${catHidden.has(c.key) ? " is-off" : ""}" data-tl-cat="${escAttr(c.key)}" data-cat="${escAttr(c.key)}" aria-pressed="${catHidden.has(c.key) ? "false" : "true"}"><i class="cal-legend-dot" aria-hidden="true"></i>${escHtml(c.label)}</button>`).join("");
+
+  // Rows actually rendered: "when" hides the all-day or schedule row; the signal
+  // toggles drop their rows. The main calendar row grows to fill.
+  const showAllDay = whenMode !== "timed";
+  const showSched = whenMode !== "allday";
+  const rows = [{ rail: "", cells: headRow, h: "auto" }];
+  if (showAllDay) rows.push({ rail: "all-day", cells: allDayRow, h: showSched ? "auto" : "minmax(118px,1fr)" });
+  if (showSched) rows.push({ rail: "schedule", cells: schedRow, h: "minmax(118px,1fr)" });
+  if (!rowOff.has("inTown")) rows.push({ rail: "in town", cells: inTownRow, h: "auto" });
+  if (!rowOff.has("shipped")) rows.push({ rail: `shipped<span class="cw-tag">stale</span>`, cells: shippedRow, h: "auto" });
+  if (!rowOff.has("standing")) rows.push({ rail: `standing<span class="cw-tag">seed</span>`, cells: standingCell, h: "auto" });
 
   return `
     <div class="ac-tl-stage" data-view="timeline" aria-label="${escAttr(`cohort calendar — ${winLabel}`)}">
       <div class="ac-tl-controls">
-        <div class="ac-tl-bar">${nav}</div>
+        <div class="ac-tl-bar">${nav}${scopeChip}</div>
         ${summary}
-        ${legend ? `<div class="cal-legend" role="list" aria-label="event categories">${legend}</div>` : ""}
+        ${filterBar}
+        <div class="cal-legend" role="group" aria-label="filter by event category">${legend}</div>
       </div>
-      <div class="cal-week">
-        <div class="cw-rail"></div>${headRow}
-        <div class="cw-rail">all-day</div>${allDayRow}
-        <div class="cw-rail">schedule</div>${schedRow}
-        <div class="cw-rail">in town</div>${inTownRow}
-        <div class="cw-rail">shipped<span class="cw-tag">stale</span></div>${shippedRow}
-        <div class="cw-rail">standing<span class="cw-tag">seed</span></div>${standingCell}
+      <div class="cal-week" style="grid-template-columns:78px repeat(${nDays}, minmax(0, 1fr)); grid-template-rows:${rows.map((r) => r.h).join(" ")};">
+        ${rows.map((r) => `<div class="cw-rail">${r.rail}</div>${r.cells}`).join("")}
       </div>
     </div>`;
 }
@@ -9396,6 +9448,49 @@ function wireCalendar() {
         if (!Number.isFinite(to)) return;
         cal.tlAnchorMs = to;
         refreshCalendarView();
+      });
+    }
+    // ── Filters ──────────────────────────────────────────────────────────
+    const toggleIn = (arrKey, val) => {
+      const set = new Set(Array.isArray(cal[arrKey]) ? cal[arrKey] : []);
+      set.has(val) ? set.delete(val) : set.add(val);
+      cal[arrKey] = [...set];
+      refreshCalendarView();
+    };
+    for (const b of state.canvas.querySelectorAll("[data-tl-cat]")) {   // legend → category show/hide
+      b.addEventListener("click", () => toggleIn("tlCatHidden", b.getAttribute("data-tl-cat")));
+    }
+    for (const b of state.canvas.querySelectorAll("[data-tl-row]")) {   // signal-row show/hide
+      b.addEventListener("click", () => toggleIn("tlRowsHidden", b.getAttribute("data-tl-row")));
+    }
+    for (const b of state.canvas.querySelectorAll("[data-tl-when]")) {  // all / all-day / timed
+      b.addEventListener("click", () => { cal.tlWhen = b.getAttribute("data-tl-when"); refreshCalendarView(); });
+    }
+    const pastBtn = state.canvas.querySelector("[data-tl-past]");
+    if (pastBtn) pastBtn.addEventListener("click", () => { cal.tlHidePast = !cal.tlHidePast; refreshCalendarView(); });
+    // scope dropdown — focuses the signal rows on a workstream
+    const scopeBtn = state.canvas.querySelector("[data-tl-scope-toggle]");
+    const scopeMenu = state.canvas.querySelector(".cw-scope-menu");
+    if (scopeBtn && scopeMenu) {
+      scopeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const willOpen = scopeMenu.hasAttribute("hidden");
+        scopeMenu.toggleAttribute("hidden", !willOpen);
+        scopeBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      });
+      for (const opt of scopeMenu.querySelectorAll("[data-tl-scope]")) {
+        opt.addEventListener("click", () => { cal.tlScope = opt.getAttribute("data-tl-scope") || null; refreshCalendarView(); });
+      }
+    }
+    if (!state.tlScopeOutsideBound) {
+      state.tlScopeOutsideBound = true;
+      document.addEventListener("click", (e) => {
+        if (state.mode !== "calendar") return;
+        const m = state.canvas?.querySelector(".cw-scope-menu");
+        if (m && !m.hasAttribute("hidden") && !e.target.closest("[data-tl-scope-ctl]")) {
+          m.setAttribute("hidden", "");
+          state.canvas.querySelector("[data-tl-scope-toggle]")?.setAttribute("aria-expanded", "false");
+        }
       });
     }
   }
