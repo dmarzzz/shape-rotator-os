@@ -1,65 +1,39 @@
 name: github-releases-sync
 
-# Refreshes the cohort GitHub *release* feed. Like calendar-sync, two outputs:
-#   1. LIVE source (the one that matters for freshness): publish the feed to
-#      Supabase (public_releases_feed). The OS + web apps read that row
-#      anonymously, so a new release reaches the membrane within the hour — no
-#      PR, no merge, no Vercel deploy.
-#   2. OFFLINE bundle (fallback only): regenerate the committed
-#      apps/os/src/cohort-surface.json + artifacts the apps use for first-paint /
-#      offline, and on drift open a PR for a human to merge.
+# Publishes the cohort GitHub *release* feed LIVE to Supabase
+# (public_releases_feed). The OS + web apps read that row anonymously, so a new
+# release reaches the membrane within the hour — no PR, no merge into protected
+# main, no Vercel deploy. Supabase is the sole freshness path; the committed
+# apps/os/src/cohort-surface.json is only the offline / first-paint fallback and
+# is intentionally NOT refreshed here.
 #
 # What it does:
 #   1. scripts/check-github-releases.mjs queries the GitHub Releases API (via
 #      gh, authed with the default GITHUB_TOKEN) for every cohort repo and
-#      rewrites cohort-data/artifacts/github-releases/generated/*.json.
-#      Artifacts carry no generated_at, so they only change when a release
-#      actually changes — a no-op run produces byte-identical files.
-#   2. npm run build:cohort regenerates apps/os/src/cohort-surface.json, whose
-#      whats_new feed + github_releases array are built from those artifacts.
+#      rewrites cohort-data/artifacts/github-releases/generated/*.json (in the
+#      runner's checkout only — nothing is committed back).
+#   2. npm run build:cohort regenerates apps/os/src/cohort-surface.json in the
+#      runner so the publisher can read project names + the commit/ask/event
+#      feed items it merges with releases (again, runner-local, not committed).
 #   3. scripts/publish-releases-to-supabase.mjs upserts the LIVE feed row from
 #      the same artifacts — carrying the FULL in-window release history (the
 #      committed surface caps releases per project for byte-stability).
-#   4. On drift, pushes an automation branch + opens/updates a PR to main so the
-#      committed offline bundle stays current.
 #
-# Why a PR for the bundle (not direct push):
-#   main is branch-protected (required check "cohort + intel + renderer checks",
-#   which runs on pull_request only). Direct `git push origin HEAD:main` is
-#   rejected (GH006), so the offline-bundle refresh rides an automation branch +
-#   PR like calendar-sync. It is NOT on the freshness critical path (Supabase is
-#   the live source), so there is no auto-merge — a human merges it when
-#   convenient. A stale bundle just means a brief committed-then-live flash on a
-#   cold load, corrected the moment Supabase responds.
-#
-# History: this workflow USED to be the only path (no Supabase publish), and the
-# PR-create step silently fails without the repo's "Allow GitHub Actions to
-# create pull requests" setting — so the branch piled up unmerged and the feed
-# froze at v0.3.5. The LIVE Supabase publish above does not depend on that
-# setting or on any merge; it just upserts the row.
-#
-# Why it doesn't loop:
-#   The automation-branch push does not match this workflow's main push-trigger
-#   paths (it touches cohort-data/artifacts + cohort-surface.json), and a
-#   squash-merge discards the bot's branch commit — so the merged main commit is
-#   an ordinary surface change the path filter ignores. We deliberately do NOT
-#   tag the commit `[skip ci]`: that would suppress the required PR status check,
-#   leaving every sync PR stuck "expected — waiting for status".
-#
-# Auth model:
-#   The default GITHUB_TOKEN can read releases for public repos. Private or
-#   missing repos are skipped gracefully by the generator (logged, not fatal).
-#   Opening the PR needs pull-requests:write + the repo's "Allow GitHub Actions
-#   to create pull requests" setting; without it the automation branch still
-#   pushes and a human opens the PR.
+# History: this workflow USED to commit the refreshed surface back to main — first
+# via a direct push (rejected by branch protection, GH006), then via an
+# automation-branch PR whose `gh pr create` silently fails without the repo's
+# "Allow GitHub Actions to create pull requests" setting. Either way the branch
+# piled up unmerged and the feed froze at v0.3.5. That whole path is gone: the
+# Supabase publish needs no push, no PR, no merge, and no repo setting — it just
+# upserts the row. The committed bundle drifting stale is fine; the live overlay
+# always overrides it. (To re-freshen the committed bundle on demand, run
+# `npm run build:cohort` in a normal PR.)
 #
 # Cadence:
-#   Hourly. Releases are low-frequency, but the byte-stable artifacts mean a
-#   no-op hour stops at the drift check — no commit, no PR, no rebuild churn. So
-#   hourly only shortens "new release → feed" to ~an hour; the sole added cost
-#   is cheap runner minutes (~1 min/run). Run at :23, off the top of the hour,
-#   where GitHub's scheduler is least congested (on-the-hour crons are routinely
-#   delayed or dropped under load).
+#   Hourly. Releases are low-frequency, but the upsert is idempotent (same row
+#   when nothing changed), so a no-op hour costs only ~1 min of runner time. Run
+#   at :23, off the top of the hour, where GitHub's scheduler is least congested
+#   (on-the-hour crons are routinely delayed or dropped under load).
 
 on:
   schedule:
@@ -74,8 +48,7 @@ on:
       - ".github/workflows/github-releases-sync.yml"
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 # Serialize against main; queue rather than cancel so we never drop a refresh.
 concurrency:
@@ -122,77 +95,3 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node scripts/publish-releases-to-supabase.mjs
-
-      - name: detect drift
-        id: drift
-        run: |
-          changed=$(git status --porcelain cohort-data/artifacts/github-releases apps/os/src/cohort-surface.json)
-          if [[ -z "$changed" ]]; then
-            echo "drift=false" >> "$GITHUB_OUTPUT"
-            echo "no release change — exiting"
-          else
-            echo "drift=true" >> "$GITHUB_OUTPUT"
-            git --no-pager diff --stat cohort-data/artifacts/github-releases apps/os/src/cohort-surface.json
-          fi
-
-      - name: open/update release-sync PR (on drift)
-        if: steps.drift.outputs.drift == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SYNC_BRANCH: automation/github-releases-sync
-        run: |
-          set -euo pipefail
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B "$SYNC_BRANCH"
-          # Stage the cohort-insights artifacts too: build:cohort regenerates
-          # them and the required PR check (check:cohort → build-cohort-insights
-          # --check) verifies they match a fresh build. The "shipped" / release-
-          # count insight cards are derived from these same releases, so a new
-          # release changes that manifest; committing only the surface would
-          # leave it stale and fail the check.
-          git add cohort-data/artifacts/github-releases cohort-data/artifacts/cohort-insights apps/os/src/cohort-surface.json
-          git commit -m "chore(releases): sync cohort GitHub releases" \
-                     -m "Automated refresh. scripts/check-github-releases.mjs re-lists releases per cohort repo; apps/os/src/cohort-surface.json is regenerated by scripts/build-bundles.js so the membrane feed matches. Triggered by .github/workflows/github-releases-sync.yml."
-          # actions/checkout only fetched main, so there is no remote-tracking
-          # ref for $SYNC_BRANCH and --force-with-lease rejects with "stale info".
-          # Fetch it first so the lease is valid (|| true for the first-ever run
-          # when the branch does not exist remotely yet).
-          git fetch origin "$SYNC_BRANCH" 2>/dev/null || true
-          git push --force-with-lease origin "$SYNC_BRANCH"
-
-          title="chore(releases): sync cohort GitHub releases"
-          body="$(cat <<'BODY'
-          Automated refresh of the OFFLINE membrane "what's new" feed bundle
-          (first-paint / offline fallback).
-
-          The LIVE feed is published to Supabase (`public_releases_feed`) in the
-          same workflow run, so this PR is **not** on the freshness critical path
-          — merge it when convenient to keep the committed snapshot current.
-          Regenerated from the live GitHub Releases API:
-
-          - `cohort-data/artifacts/github-releases/generated/*.json`
-          - `cohort-data/artifacts/cohort-insights/generated/manifest.json` (release-derived "shipped" cards)
-          - `apps/os/src/cohort-surface.json` (`whats_new` + `github_releases`)
-
-          Branch protection blocks direct pushes to `main`, which is why this
-          rides a PR. Triggered by `.github/workflows/github-releases-sync.yml`.
-          BODY
-          )"
-
-          pr_number="$(gh pr list --state open --head "$SYNC_BRANCH" --json number --jq '.[0].number // empty')"
-          if [[ -z "$pr_number" ]]; then
-            if ! pr_url="$(gh pr create --base main --head "$SYNC_BRANCH" --title "$title" --body "$body" 2>pr-error.log)"; then
-              echo "::warning::Could not create release sync PR. The automation branch was pushed; check whether GitHub Actions may create pull requests."
-              sed 's/^/gh: /' pr-error.log
-              exit 0
-            fi
-            pr_number="${pr_url##*/}"
-          else
-            if ! gh pr edit "$pr_number" --title "$title" --body "$body"; then
-              echo "::warning::Could not update release sync PR #$pr_number. The automation branch was still pushed."
-              exit 0
-            fi
-          fi
-
-          echo "offline-bundle PR #$pr_number — merge when convenient (Supabase is the live source; no auto-merge)"
