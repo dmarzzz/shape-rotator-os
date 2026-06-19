@@ -6,6 +6,7 @@ import { OutputPass } from '../../vendor/three-jsm/postprocessing/OutputPass.js'
 import { createPsyCube, BLOB_IDS, ALLOWED_FACES } from './cube.js';
 import { createStarField } from './starfield.js';
 import { getTheme } from '../theme.js';
+import { frameBudgetMs } from '../power.js';
 
 // The cube is the centerpiece — it sits at the world origin (the camera's
 // look-at point), dead center of the stage at every aspect ratio.
@@ -236,6 +237,7 @@ export function createMembraneScene(canvas, opts = {}) {
 
   const startMs = performance.now();
   let lastTickSeconds = 0;
+  let lastDrawMs = 0;
   let running = true;
   let rafId = null;
 
@@ -288,7 +290,17 @@ export function createMembraneScene(canvas, opts = {}) {
 
   function tick() {
     if (!running) return;
+    // Re-arm first so an early throttle/pause return still keeps the loop
+    // alive to wake back up on the next focus/visibility change.
+    rafId = requestAnimationFrame(tick);
     const nowMs = performance.now();
+    // Battery governor: skip rendering entirely when the window is hidden and
+    // throttle to a low rate when it's merely blurred (visible but unfocused).
+    // Renders at the full refresh rate while focused.
+    const budget = frameBudgetMs();
+    if (budget === Infinity) { lastDrawMs = nowMs; return; }
+    if (nowMs - lastDrawMs < budget - 1) return;
+    lastDrawMs = nowMs;
     const time = (nowMs - startMs) / 1000;
     // Clamp dt so a throttled/backgrounded frame can't blow up the physics
     // (a huge dt would rotate wildly and instantly decay the spin momentum).
@@ -347,7 +359,6 @@ export function createMembraneScene(canvas, opts = {}) {
     // Stars flow toward camera — forward drift through space.
     starField.tick(dt);
     composer.render();
-    rafId = requestAnimationFrame(tick);
   }
 
   const resizeObserver = new ResizeObserver(resize);
