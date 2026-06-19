@@ -8081,6 +8081,9 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
   font-family: var(--font-mono);
 }
 .cw-rail { display: flex; align-items: center; gap: 5px; padding: 6px 9px; background: #100e0e; font-size: 9.5px; letter-spacing: 0.07em; text-transform: uppercase; color: rgba(var(--ink-rgb), 0.5); }
+/* signal rails follow the scope chip's oxide accent when a workstream is scoped
+   (the shared schedule rails stay neutral — only signals are team-scoped) */
+.cw-rail.is-scoped { border-left: 2px solid color-mix(in oklch, var(--alchemy-oxide) 55%, transparent); padding-left: 7px; color: var(--alchemy-paper-warm); }
 .cw-tag { font-size: 8px; letter-spacing: 0.05em; color: var(--alchemy-oxide-bright); border: 1px solid color-mix(in oklch, var(--alchemy-oxide) 45%, transparent); border-radius: 3px; padding: 0 3px; }
 .cw-c { background: rgba(var(--ink-rgb), 0.02); min-width: 0; min-height: 0; }
 .cw-c.is-past { opacity: 0.6; }

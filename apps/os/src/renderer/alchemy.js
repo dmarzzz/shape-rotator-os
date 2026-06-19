@@ -6834,13 +6834,17 @@ function timelineInnerHtml() {
     .map((c) => `<button type="button" class="cal-legend-item${catHidden.has(c.key) ? " is-off" : ""}" data-tl-cat="${escAttr(c.key)}" data-cat="${escAttr(c.key)}" aria-pressed="${catHidden.has(c.key) ? "false" : "true"}"><i class="cal-legend-dot" aria-hidden="true"></i>${escHtml(c.label)}</button>`).join("");
 
   // Rows rendered: all-day + schedule always show (the calendar core); the signal
-  // toggles drop their lanes. The schedule row grows to fill the height.
+  // toggles drop their lanes. The schedule row grows to fill the height. When a
+  // workstream is scoped, the signal rails carry an oxide accent (matching the
+  // scope chip) so it's visible that THOSE rows follow the scope while the shared
+  // schedule stays cohort-wide.
+  const sig = !!scopeId;
   const rows = [{ rail: "", cells: headRow, h: "auto" }];
   rows.push({ rail: "all-day", cells: allDayRow, h: "auto" });
   rows.push({ rail: "schedule", cells: schedRow, h: "minmax(118px,1fr)" });
-  if (!rowOff.has("inTown")) rows.push({ rail: "in town", cells: inTownRow, h: "auto" });
-  if (!rowOff.has("shipped")) rows.push({ rail: `shipped<span class="cw-tag">stale</span>`, cells: shippedRow, h: "auto" });
-  if (!rowOff.has("standing")) rows.push({ rail: `standing<span class="cw-tag">seed</span>`, cells: standingCell, h: "auto" });
+  if (!rowOff.has("inTown")) rows.push({ rail: "in town", cells: inTownRow, h: "auto", scoped: sig });
+  if (!rowOff.has("shipped")) rows.push({ rail: `shipped<span class="cw-tag">stale</span>`, cells: shippedRow, h: "auto", scoped: sig });
+  if (!rowOff.has("standing")) rows.push({ rail: `standing<span class="cw-tag">seed</span>`, cells: standingCell, h: "auto", scoped: sig });
 
   // One control row: window nav + event count (left), scope · row toggles ·
   // hide-past (right). The legend (category filter) sits on the row beneath.
@@ -6854,7 +6858,7 @@ function timelineInnerHtml() {
         <div class="cal-legend" role="group" aria-label="filter by event category">${legend}</div>
       </div>
       <div class="cal-week" style="grid-template-columns:78px repeat(${nDays}, minmax(0, 1fr)); grid-template-rows:${rows.map((r) => r.h).join(" ")};">
-        ${rows.map((r) => `<div class="cw-rail">${r.rail}</div>${r.cells}`).join("")}
+        ${rows.map((r) => `<div class="cw-rail${r.scoped ? " is-scoped" : ""}">${r.rail}</div>${r.cells}`).join("")}
       </div>
     </div>`;
 }
