@@ -488,9 +488,18 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
 
   for (const day of days) layoutTimed(day.timed);
 
-  // The reveal popovers (events + activity chips) read from the last-rendered
-  // model rather than re-parsing the DOM — render + wire share this slot.
-  _model = { days, weekIdx: safeWeekIdx, calendarGoogleEvents };
+  // The reveal popovers (events, activity chips, in-town signal) read from the
+  // last-rendered model rather than re-parsing the DOM — render + wire share it.
+  _model = {
+    days, weekIdx: safeWeekIdx, calendarGoogleEvents,
+    inTown: {
+      perDay: perDaySig,
+      weekly: Array.isArray(signals?.weeklyOccupancy) ? signals.weeklyOccupancy : [],
+      rosterTotal: Math.max(1, Number(signals?.rosterTotal) || 0),
+      scopeName,
+      days: days.map(d => ({ name: d.name, date: d.date })),
+    },
+  };
 
   // ── hour window hugs the week's actual content ──────────────────────
   // No fixed 8–22 frame: the grid starts at the first event's hour and
@@ -703,11 +712,14 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         const s = perDaySig[di] || {};
         const n = Number(s.inTown) || 0;
         const names = Array.isArray(s.inTownNames) ? s.inTownNames : [];
-        const tip = n
-          ? `${d.name} · ${n} of ${rosterTotal} in town${scopeId ? " · " + scopeName : ""}: ${names.slice(0, 16).join(", ")}${names.length > 16 ? `, +${names.length - 16} more` : ""}`
-          : `${d.name} · nobody in town`;
+        const lbl = n
+          ? `${d.name} ${d.date.replace(/^[a-z]+\s+/, "")} · ${n} of ${rosterTotal} in town${scopeId ? " · " + scopeName : ""}: ${names.slice(0, 16).join(", ")}${names.length > 16 ? `, +${names.length - 16} more` : ""} — open presence`
+          : `${d.name} · nobody in town — open presence`;
+        // Cell is a button: hover/focus reveals the roster + occupancy arc
+        // (wired to openCalendarInTown), click commits to the presence gantt.
         return `
-        <div class="c2-sig-cell ${d.isToday ? "is-today" : ""}" title="${escAttr(tip)}" aria-label="${escAttr(tip)}">
+        <div class="c2-sig-cell c2-intown-cell ${d.isToday ? "is-today" : ""}" data-c2-intown="${di}"
+             role="button" tabindex="0" aria-label="${escAttr(lbl)}">
           <span class="c2-sig-bar" aria-hidden="true"><i style="width:${Math.round(Math.min(1, n / rosterTotal) * 100)}%"></i></span>
           <span class="c2-sig-v">${n || `<span class="c2-sig-mut">·</span>`}</span>
         </div>`;
@@ -1182,4 +1194,74 @@ export function openCalendarActivity(ref, { anchor = null, anchorRect = null, on
   document.body.appendChild(overlay);
   positionEventPanel(overlay, eventAnchorRect);
   overlay.querySelector(".c2-modal-close")?.focus?.({ preventScroll: true });
+}
+
+// ── in-town hover/focus reveal ────────────────────────────────────────
+// The third layer for the presence signal: glance reads the bar + count, this
+// reveal names WHO is in town that day and places the week in the residency's
+// occupancy arc (a week-by-week sparkline). Display-only (pointer-events:none),
+// so it never traps the pointer; click on the cell commits to the presence view.
+let _inTownPop = null;
+export function closeCalendarInTown() {
+  if (_inTownPop) { try { _inTownPop.remove(); } catch {} _inTownPop = null; }
+}
+export function openCalendarInTown(ref, { anchor = null } = {}) {
+  if (!_model || !_model.inTown || typeof document === "undefined") return;
+  const di = Number(ref);
+  const it = _model.inTown;
+  const day = it.days[di];
+  if (!day) return;
+  const s = (it.perDay || [])[di] || {};
+  const n = Number(s.inTown) || 0;
+  const names = Array.isArray(s.inTownNames) ? s.inTownNames : [];
+  const total = it.rosterTotal || Math.max(1, n);
+  const weekday = DAY_NAMES_FULL[day.name] || day.name;
+  const dateNum = String(day.date).replace(/^[a-z]+\s+/, "");
+
+  // sparkline — weekly occupancy across the residency, current week accented.
+  const weekly = Array.isArray(it.weekly) ? it.weekly : [];
+  let spark = "";
+  if (weekly.length) {
+    const W = 132, H = 26, gap = 2;
+    const bw = (W - gap * (weekly.length - 1)) / weekly.length;
+    const maxFrac = Math.max(0.001, ...weekly.map(w => w.frac || 0));
+    const bars = weekly.map((w, i) => {
+      const h = Math.max(1.5, (Math.max(0, w.frac || 0) / maxFrac) * (H - 2));
+      const x = i * (bw + gap);
+      return `<rect class="c2-spark-bar${w.isCurrent ? " is-current" : ""}" x="${x.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1"></rect>`;
+    }).join("");
+    spark = `<div class="c2-pop-spark"><svg class="c2-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">${bars}</svg><span class="c2-pop-sparklabel">in town · weeks 1–${weekly.length}</span></div>`;
+  }
+
+  const CAP = 24;
+  const shown = names.slice(0, CAP);
+  const moreCount = names.length - shown.length;
+  const nameCloud = names.length
+    ? `<div class="c2-pop-names">${shown.map(x => `<span>${escHtml(x)}</span>`).join("")}${moreCount > 0 ? `<span class="c2-pop-more">+${moreCount} more</span>` : ""}</div>`
+    : `<div class="c2-pop-empty">nobody in town this day</div>`;
+
+  closeCalendarInTown();
+  const pop = document.createElement("div");
+  pop.className = "c2-sig-pop";
+  pop.innerHTML = `
+    <div class="c2-pop-head"><em>${escHtml(weekday)} ${escHtml(dateNum)}</em> · <strong>${n}</strong> of ${total} in town${it.scopeName && it.scopeName !== "all cohort" ? ` · ${escHtml(it.scopeName)}` : ""}</div>
+    ${spark}
+    ${nameCloud}`;
+  document.body.appendChild(pop);
+  _inTownPop = pop;
+
+  // Position below the anchor, clamped to the viewport; flip above if it'd clip.
+  try {
+    const r = anchor?.getBoundingClientRect?.();
+    if (r) {
+      const vw = window.innerWidth || 1024, vh = window.innerHeight || 768, margin = 10;
+      const pr = pop.getBoundingClientRect();
+      let x = r.left + r.width / 2 - pr.width / 2;
+      x = Math.max(margin, Math.min(x, vw - pr.width - margin));
+      let y = r.bottom + 8;
+      if (y + pr.height > vh - margin) y = r.top - pr.height - 8;
+      pop.style.left = `${Math.round(x)}px`;
+      pop.style.top = `${Math.round(Math.max(margin, y))}px`;
+    }
+  } catch {}
 }

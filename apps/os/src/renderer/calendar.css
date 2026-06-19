@@ -10,6 +10,12 @@
   --c2-hour-h: 52px;     /* vertical height of one hour */
   --c2-gutter-w: 64px;   /* hour-label column width */
   --c2-col-min: 124px;   /* day-column scroll floor on narrow widths */
+  /* Semantic signal colours, defined in oklch (not derived from the oxide accent,
+     not random hex): presence = a calm residency green; shipped = a positive
+     green; committed = a warm neutral. Equal-weight perceptual lightness. */
+  --c2-presence:     oklch(0.70 0.055 155);
+  --c2-ship-release: oklch(0.72 0.10 150);
+  --c2-ship-commit:  oklch(0.71 0.014 70);
   /* No page-local horizontal padding — .alchemy-canvas owns the side
    * gutters (24px 56px 64px), same as every other page. Unified. */
   width: 100%;
@@ -370,8 +376,8 @@
     box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1),
     transform 110ms cubic-bezier(0.19, 1, 0.22, 1);
 }
-.c2-act-chip[data-act-kind="release"] { --c2-acc: #6bb585; }  /* shipped = green */
-.c2-act-chip[data-act-kind="commit"]  { --c2-acc: #a89a90; }  /* did = neutral oxide */
+.c2-act-chip[data-act-kind="release"] { --c2-acc: var(--c2-ship-release); }  /* shipped = positive green */
+.c2-act-chip[data-act-kind="commit"]  { --c2-acc: var(--c2-ship-commit); }   /* committed = warm neutral */
 .c2-act-chip:hover {
   background: color-mix(in srgb, var(--c2-acc) 24%, var(--ed-bg-2));
   border-color: color-mix(in srgb, var(--c2-acc) 54%, transparent);
@@ -543,12 +549,74 @@
 }
 .c2-sig-v { flex: 0 0 auto; font-size: 11px; color: var(--ed-ink-1); font-weight: 600; }
 .c2-sig-mut { color: var(--ed-ink-4); font-weight: 400; }
-.c2-intown { --c2-sig-acc: #7d9b86; }
+.c2-intown { --c2-sig-acc: var(--c2-presence); }
 /* scoped: the signal follows one workstream — an oxide rail flags the filter */
 .c2-signal.is-scoped { --c2-sig-acc: var(--alchemy-oxide-bright, #B43A19); }
 .c2-signal.is-scoped .c2-gutter-cell {
   color: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 65%, var(--ed-ink-2));
 }
+/* the in-town cells are buttons: glance (bar+count) → hover/focus (popover) →
+   click (presence gantt). Quiet at rest; the affordance shows on hover/focus. */
+.c2-intown-cell {
+  cursor: pointer; appearance: none; text-align: left;
+  background: transparent; border: 0; border-left: 1px solid var(--ed-rule);
+  transition: background 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.c2-intown-cell:hover { background: color-mix(in srgb, var(--c2-presence) 9%, transparent); }
+.c2-signal.is-scoped .c2-intown-cell:hover { background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 9%, transparent); }
+.c2-intown-cell:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c2-sig-acc) 60%, var(--ed-ink-1));
+}
+
+/* in-town reveal popover — display-only (pointer-events:none), names the day's
+   roster and places the week in the residency's occupancy arc. */
+.c2-sig-pop {
+  position: fixed; z-index: 60; pointer-events: none;
+  max-width: 290px;
+  padding: 10px 12px 11px;
+  background: var(--ed-bg-2);
+  border: 1px solid var(--ed-rule-3);
+  border-radius: 9px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  font-family: var(--ed-mono);
+  animation: c2-pop-in 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes c2-pop-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.c2-pop-head {
+  font-size: 11px; color: var(--ed-ink-2); line-height: 1.4;
+  margin-bottom: 8px;
+}
+.c2-pop-head em { font-style: italic; color: var(--ed-ink-1); }
+.c2-pop-head strong { color: var(--ed-ink-1); font-variant-numeric: tabular-nums; }
+.c2-pop-spark {
+  display: flex; flex-direction: column; gap: 3px;
+  margin-bottom: 9px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--ed-rule);
+}
+.c2-spark { display: block; width: 100%; height: auto; overflow: visible; }
+.c2-spark-bar { fill: color-mix(in srgb, var(--ed-ink-2) 40%, transparent); }
+.c2-spark-bar.is-current { fill: var(--c2-presence); }
+.c2-pop-sparklabel {
+  font-size: 8.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ed-ink-4);
+}
+.c2-pop-names {
+  display: flex; flex-wrap: wrap; gap: 3px 5px;
+  font-size: 10.5px; color: var(--ed-ink-2); line-height: 1.3;
+}
+.c2-pop-names span {
+  white-space: nowrap;
+  color: var(--ed-ink-2);
+}
+.c2-pop-names span::after { content: "·"; margin-left: 5px; color: var(--ed-ink-4); }
+.c2-pop-names span:last-child::after { content: ""; margin: 0; }
+.c2-pop-more { color: var(--ed-ink-3); }
+.c2-pop-empty { font-size: 10.5px; color: var(--ed-ink-3); }
 
 /* ── time grid ──────────────────────────────────────────────────────── */
 .c2-scroll {
@@ -950,8 +1018,8 @@
 /* ── shipped-chip reveal ──────────────────────────────────────────────── */
 /* The reveal that replaced the one-click teleport: what shipped, in place,
    with the team drill as one deliberate secondary button (full-width). */
-.c2-modal-panel[data-act-kind="release"] { --c2-acc: #6bb585; }
-.c2-modal-panel[data-act-kind="commit"]  { --c2-acc: #a89a90; }
+.c2-modal-panel[data-act-kind="release"] { --c2-acc: var(--c2-ship-release); }
+.c2-modal-panel[data-act-kind="commit"]  { --c2-acc: var(--c2-ship-commit); }
 .c2-modal-panel--act .c2-modal-actions { grid-template-columns: 1fr; }
 .c2-modal-actlabel {
   margin: 0 0 2px;
@@ -1066,5 +1134,7 @@
   .c2-subscribe:focus-visible .c2-subscribe-hook { transform: none; }
   .c2-modal.is-closing,
   .c2-modal.is-closing .c2-modal-panel { animation: none; }
+  .c2-sig-pop { animation: none; }
+  .c2-intown-cell { transition: none; }
   .c2-now.is-tracking { transition: none; }
 }

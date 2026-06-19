@@ -9724,17 +9724,30 @@ function computeCalendarSignals() {
   const winStart = PROGRAM_START_MS + wi * WK;
   const roster = people.filter(p => p && (p.dates_start || p.dates_end)
     && (!scopeId || p.team === scopeId || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(scopeId))));
+  const rosterTotal = roster.length;
+  const occAt = (ms) => roster.reduce((n, p) => n + (isPresent(p, ms) ? 1 : 0), 0);
   const perDay = [];
   for (let k = 0; k < 7; k++) {
     const noon = winStart + k * DAY + DAY / 2;
     const present = roster.filter(p => isPresent(p, noon));
     perDay.push({ inTown: present.length, inTownNames: present.map(p => p.name || p.record_id) });
   }
+  // Week-over-week occupancy (each week's mean of its 7 days), so the in-town
+  // hover can place "this week" in the arc of the whole residency.
+  const weeklyOccupancy = [];
+  for (let w = 0; w < WEEKS_TOTAL; w++) {
+    const wStart = PROGRAM_START_MS + w * WK;
+    let sum = 0;
+    for (let k = 0; k < 7; k++) sum += occAt(wStart + k * DAY + DAY / 2);
+    const present = Math.round(sum / 7);
+    weeklyOccupancy.push({ week: w, present, frac: rosterTotal ? present / rosterTotal : 0, isCurrent: w === wi });
+  }
   return {
     rowsHidden: Array.isArray(cal.rowsHidden) ? cal.rowsHidden : [],
     scope: { id: scopeId, name: scopeId ? (teams.find(t => t.id === scopeId)?.name || scopeId) : "all cohort", teams },
     perDay,
-    rosterTotal: roster.length,
+    rosterTotal,
+    weeklyOccupancy,
   };
 }
 
@@ -9748,8 +9761,10 @@ function paintCalendarView({ wire = false } = {}) {
   const cal = state.calendar;
   if (cal.weekIdx == null) cal.weekIdx = calendarCurrentWeekIdx();
   // Tear down the previous now-line ticker before swapping markup so
-  // intervals don't stack across repaints.
+  // intervals don't stack across repaints; drop any open in-town popover (it
+  // lives on <body>, outside the canvas being replaced).
   if (cal.detach) { cal.detach(); cal.detach = null; }
+  calendarModule.closeCalendarInTown?.();
   // Agenda folded into the grid; only "cal" and "presence" remain. A view value
   // left over from the retired agenda tab degrades to the calendar grid.
   if (cal.view !== "presence" && cal.view !== "cal") cal.view = "cal";
@@ -9826,19 +9841,49 @@ function wireCalendar() {
     for (const b of state.canvas.querySelectorAll("[data-c2-row]")) {   // signal-row show/hide
       b.addEventListener("click", () => toggleIn("rowsHidden", b.getAttribute("data-c2-row")));
     }
-    // scope dropdown — focuses the daily signals on one workstream
+    // scope dropdown — focuses the daily signals on one workstream. Keyboard:
+    // the trigger opens on Enter/↓; once open ↑/↓ roam the options, Enter selects,
+    // Escape closes and returns focus to the trigger (listbox a11y pattern).
     const scopeBtn = state.canvas.querySelector("[data-c2-scope-toggle]");
     const scopeMenu = state.canvas.querySelector(".c2-scope-menu");
     if (scopeBtn && scopeMenu) {
-      scopeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const willOpen = scopeMenu.hasAttribute("hidden");
-        scopeMenu.toggleAttribute("hidden", !willOpen);
-        scopeBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      const opts = [...scopeMenu.querySelectorAll("[data-c2-scope]")];
+      const setOpen = (open) => {
+        scopeMenu.toggleAttribute("hidden", !open);
+        scopeBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) (opts.find(o => o.getAttribute("aria-selected") === "true") || opts[0])?.focus();
+      };
+      scopeBtn.addEventListener("click", (e) => { e.stopPropagation(); setOpen(scopeMenu.hasAttribute("hidden")); });
+      scopeBtn.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); setOpen(true); }
       });
-      for (const opt of scopeMenu.querySelectorAll("[data-c2-scope]")) {
+      for (const opt of opts) {
         opt.addEventListener("click", () => { cal.scope = opt.getAttribute("data-c2-scope") || null; refreshCalendarView(); });
       }
+      scopeMenu.addEventListener("keydown", (e) => {
+        const i = opts.indexOf(document.activeElement);
+        if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)]?.focus(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)]?.focus(); }
+        else if (e.key === "Home") { e.preventDefault(); opts[0]?.focus(); }
+        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1]?.focus(); }
+        else if (e.key === "Escape") { e.preventDefault(); setOpen(false); scopeBtn.focus(); }
+      });
+    }
+    // in-town signal cells: hover/focus reveals WHO is in town + the week-by-week
+    // occupancy arc (openCalendarInTown); click/Enter commits to the presence gantt.
+    const showInTown = (cell) => calendarLazy.peek()?.openCalendarInTown?.(cell.getAttribute("data-c2-intown"), { anchor: cell });
+    const hideInTown = () => calendarLazy.peek()?.closeCalendarInTown?.();
+    const goPresence = () => { hideInTown(); cal.view = "presence"; refreshCalendarView(); };
+    for (const cell of state.canvas.querySelectorAll("[data-c2-intown]")) {
+      cell.addEventListener("mouseenter", () => showInTown(cell));
+      cell.addEventListener("mouseleave", hideInTown);
+      cell.addEventListener("focus", () => showInTown(cell));
+      cell.addEventListener("blur", hideInTown);
+      cell.addEventListener("click", goPresence);
+      cell.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); goPresence(); }
+        else if (e.key === "Escape") hideInTown();
+      });
     }
     if (!state.c2ScopeOutsideBound) {
       state.c2ScopeOutsideBound = true;
