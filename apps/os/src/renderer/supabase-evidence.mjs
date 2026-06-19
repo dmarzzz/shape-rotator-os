@@ -34,16 +34,25 @@ import {
 export const DEFAULT_PUBLIC_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4am50endrc2lsdXZxY3BjY3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzA1NzEsImV4cCI6MjA5Njk0NjU3MX0.XjXEUnw3jq1E7PwIOvhr7a3OpO2lyZv6S_Hn3JqogBA";
 
-// The COHORT key is a JWT bearing role=cohort_app (see the engine migration
-// 20260618000000_cohort_app_evidence_reader.sql). It reads the GATED T2 cohort
-// evidence view (cohort_app_transcript_evidence_cards) — content NOT exposed to
-// anon / the public web. Unlike the anon key, this is NOT baked into the public
-// source: it is empty here and supplied per-build (injected into the distributed
-// app) or via the calendar-ingress config (supabaseCohortKey). When empty — i.e.
-// the public web bundle or an un-provisioned build — the cohort reader no-ops and
-// the app falls back to the anon T3 read. SOFT gate: a key in a distributed binary
-// is extractable, so this is "off the public web", not a hard boundary; revoke by
-// dropping the cohort_app grant/role server-side.
+// DORMANT — the gated T2 cohort reader is OFF until its backing migration ships.
+// The cohort_app role + view (cohort_app_transcript_evidence_cards) and migration
+// 20260618000000_cohort_app_evidence_reader.sql do NOT exist yet, so attempting
+// the read would 404. COHORT_APP_READER_ENABLED gates every cohort fetch off at
+// the call sites (cohort-source.js); the app serves T2 from the committed bundle
+// and reads the anon T3 view live. To re-enable: deploy the migration, then flip
+// COHORT_APP_READER_ENABLED to true. The plumbing below stays intact so re-enable
+// is a one-line change. Behavior today is identical to the public-web fallback.
+export const COHORT_APP_READER_ENABLED = false;
+
+// The COHORT key is a JWT bearing role=cohort_app. When the reader is enabled it
+// reads the GATED T2 cohort evidence view — content NOT exposed to anon / the
+// public web. Unlike the anon key, this is NOT baked into the public source: it is
+// empty here and supplied per-build (injected into the distributed app) or via the
+// calendar-ingress config (supabaseCohortKey). When empty — the public web bundle
+// or an un-provisioned build — the cohort reader no-ops and the app falls back to
+// the anon T3 read. SOFT gate: a key in a distributed binary is extractable, so
+// this is "off the public web", not a hard boundary; revoke by dropping the
+// cohort_app grant/role server-side.
 // Resolve the build-baked cohort key. In the packaged renderer it arrives over
 // the preload bridge (window.api.cohortKey, baked from SRFG_COHORT_KEY at build
 // time); in Node (build scripts / tests) it comes from the env. Empty => the

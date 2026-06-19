@@ -4,14 +4,17 @@
 // "transcripts" tab can show the cleaned, paraphrased distillations alongside the
 // user's local raw vault — without a repo rebuild or a committed bundle.
 //
-// Privacy posture (see the engine migration 20260618170000_cohort_app_distillation_
-// reader.sql): the readouts live in public.derived_artifacts and are exposed to the
-// distributed app via the GATED cohort_app_transcript_distillations view, read with
-// the same role=cohort_app JWT that reads the T2 evidence cards. That view keeps the
-// distillation safety filters (paraphrased source_transform, publishable artifact_
-// kind, reviewed/published T2 only), so raw transcripts can never flow through it.
-// Like the cohort evidence reader, this NEVER reads with anon — no cohort key means
-// the reader no-ops (the public web / un-provisioned build shows local raw only).
+// DORMANT — like the cohort evidence reader, this is gated OFF by
+// COHORT_APP_READER_ENABLED (supabase-evidence.mjs) until its backing migration
+// ships: the cohort_app_transcript_distillations view and migration
+// 20260618170000_cohort_app_distillation_reader.sql do NOT exist yet. The
+// transcripts tab serves local raw only; re-enable by deploying the migration and
+// flipping the flag. Intended privacy posture when live: the readouts live in
+// public.derived_artifacts, exposed to the distributed app via the GATED
+// cohort_app_transcript_distillations view read with the same role=cohort_app JWT
+// that reads T2 evidence cards. That view keeps the distillation safety filters
+// (paraphrased source_transform, publishable artifact_kind, reviewed/published T2
+// only), so raw transcripts can never flow through it, and it NEVER reads with anon.
 
 import { readSupabaseConfig } from "./supabase-evidence.mjs";
 

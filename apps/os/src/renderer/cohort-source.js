@@ -25,7 +25,7 @@
 
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
-import { fetchPublicEvidenceCards, fetchCohortEvidenceCards } from "./supabase-evidence.mjs";
+import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, COHORT_APP_READER_ENABLED } from "./supabase-evidence.mjs";
 import { evidenceDependencyRecords } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
@@ -731,7 +731,13 @@ async function mergeSyncOverBaseline(baseline, overlay) {
 // surface keeps whatever cards it already carries, so the app degrades gracefully.
 async function applyEvidenceOverlay(surface) {
   try {
-    const [cohort, pub] = await Promise.all([fetchCohortEvidenceCards(), fetchPublicEvidenceCards()]);
+    // The gated T2 cohort read is dormant (see COHORT_APP_READER_ENABLED); until
+    // its migration ships we read only the anon T3 public set live and serve T2
+    // from the committed bundle. Re-enabling is a one-line flag flip.
+    const [cohort, pub] = await Promise.all([
+      COHORT_APP_READER_ENABLED ? fetchCohortEvidenceCards() : Promise.resolve({ cards: [], source: "disabled" }),
+      fetchPublicEvidenceCards(),
+    ]);
     const gotCohort = cohort.source === "supabase-cohort";
     const gotPublic = pub.source === "supabase";
     if (!gotCohort && !gotPublic) return surface; // no live read succeeded — keep existing
@@ -781,6 +787,10 @@ async function applyArticleOverlay(surface) {
 // the bundle ships only distillation counts (artifacts stripped), so the tab stays
 // raw-only until a cohort key is provisioned.
 async function applyDistillationOverlay(surface) {
+  // Dormant until the cohort_app distillation view ships (see
+  // COHORT_APP_READER_ENABLED). The bundle ships distillation counts only; the
+  // tab stays raw-only until the reader is re-enabled and a cohort key provisioned.
+  if (!COHORT_APP_READER_ENABLED) return surface;
   try {
     const { artifacts, source } = await fetchCohortDistillations();
     if (source === "supabase-cohort") {
