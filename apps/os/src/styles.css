@@ -7223,6 +7223,19 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   font-size: 10px;
   opacity: 0.84;
 }
+/* Colour isolate (the "coloured by [domain]" token): teams not in the picked
+   domain recede so the chosen colour reads alone. A deliberate filter dim, so it
+   sits below hover/selection — hovering a dimmed bubble still lifts + previews it. */
+.alch-constellation-stage[data-view="bubble"] svg .ac-node-group.is-domain-dim {
+  opacity: 0.14;
+  transition: opacity 220ms var(--ease);
+}
+.alch-constellation-stage[data-view="bubble"] svg .ac-node-group.is-domain-dim:hover,
+.alch-constellation-stage[data-view="bubble"] svg .ac-node-group.is-domain-dim:focus-visible,
+.alch-constellation-stage[data-view="bubble"] svg .ac-node-group.is-domain-dim.is-selected,
+.alch-constellation-stage[data-view="bubble"] svg .ac-node-group.is-domain-dim.is-selection-core {
+  opacity: 0.62;
+}
 
 /* Bubble-map sentence legend: quiet key for the visual channels. */
 .ac-sentence .ac-sent-legend {
@@ -7377,6 +7390,51 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
   border: 0.5px solid var(--well-accent-soft, rgba(193,168,114,0.3));
   color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.82));
 }
+/* Succinct hover read: one "sector — heading" line, then a faint meta tail. */
+.ac-preview-line {
+  margin: 7px 0 0; font-size: 12.5px; line-height: 1.42;
+  color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.86)); text-wrap: pretty;
+}
+.ac-preview-sector {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--alchemy-oxide-bright);
+}
+.ac-preview-tail {
+  margin: 3px 0 0; font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: 0.02em; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.52));
+}
+/* Two-team compare panel (click A, then B). */
+.ac-inspector-hero.is-compare .ac-cmp-h3 {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  margin: 2px 0 0; font-size: 15px; line-height: 1.2;
+}
+.ac-cmp-h3 .ac-inspector-title-link { font: inherit; }
+.ac-cmp-x { color: var(--alchemy-oxide-bright); font-style: normal; opacity: 0.85; }
+.ac-cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 4px; }
+.ac-cmp-col {
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+  padding: 8px 10px; border-radius: 8px;
+  background: var(--well-accent-faint, rgba(193,168,114,0.05));
+  border: 0.5px solid var(--well-accent-soft, rgba(193,168,114,0.22));
+}
+.ac-cmp-name {
+  font-size: 12px; font-weight: 700; color: var(--alchemy-paper-warm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ac-cmp-sector { font-size: 10.5px; line-height: 1.32; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.55)); }
+.ac-cmp-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.ac-cmp-chip {
+  font-size: 10.5px; padding: 2px 8px; border-radius: 999px;
+  background: rgba(var(--ink-rgb), 0.05);
+  border: 0.5px solid rgba(var(--ink-rgb), 0.12);
+  color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.82));
+}
+.ac-cmp-dep-k {
+  margin: 4px 0 4px; font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.5));
+}
+.ac-cmp-dep-k + .ac-cmp-chips { margin-bottom: 8px; }
 /* Overlap (Venn) leads the inspector on click. */
 .ac-inspector-section.ac-overlap-lead { margin-top: 6px; padding-top: 4px; }
 /* Titled lead for the where-it-sits image (replaces the cut-looking flush start). */
@@ -10631,90 +10689,71 @@ textarea.cb-intake-input {
   padding: 10px 0 0;
   overflow: auto;
 }
+/* Rows, not cards: a scannable register (like the relationship directory) so
+   more teams read at once. No left domain rail — domain is a small dot by the
+   name; hierarchy comes from type weight + hairline dividers, not a coloured
+   bar per row. */
 .ac-sds-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 12px;
-  min-width: 0;
-  padding: 4px 0 2px;
-}
-.ac-sds-card {
-  appearance: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  min-width: 0;
+  margin-top: 2px;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.10);
+}
+.ac-sds-row {
+  appearance: none;
+  display: grid;
+  grid-template-columns: minmax(168px, 1.05fr) minmax(0, 2.5fr) minmax(82px, auto);
+  align-items: center;
+  gap: 20px;
   width: 100%;
-  padding: 14px 15px;
+  padding: 10px 10px;
   text-align: left;
   color: inherit;
   cursor: pointer;
-  border: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-left: 3px solid rgba(var(--ink-rgb), 0.16);
-  border-radius: 12px;
-  background:
-    linear-gradient(180deg, rgba(var(--ink-rgb), 0.044), rgba(var(--ink-rgb), 0.018)),
-    rgba(var(--ink-rgb), 0.012);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.045),
-    0 10px 26px rgba(0,0,0,0.10);
-  transition:
-    border-color 200ms var(--ease),
-    background 200ms var(--ease),
-    box-shadow 200ms var(--ease),
-    transform 200ms var(--ease);
+  border: 0;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.07);
+  background: transparent;
+  transition: background 150ms var(--ease), box-shadow 150ms var(--ease);
 }
-.ac-sds-card:hover,
-.ac-sds-card:focus-visible {
-  border-color: rgba(214,189,134,0.30);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    0 16px 36px rgba(0,0,0,0.15);
-  transform: translateY(-1px);
+.ac-sds-row:hover { background: rgba(var(--ink-rgb), 0.035); }
+.ac-sds-row:focus-visible {
   outline: none;
+  background: rgba(var(--ink-rgb), 0.05);
+  box-shadow: inset 0 0 0 1px rgba(214,189,134,0.45);
 }
-.ac-sds-card:active { transform: scale(0.985); transition-duration: 110ms; }
-/* Observed teams take the domain accent on the left rail; declared-only stay neutral + muted. */
-.ac-sds-card.is-observed[data-domain="tee"]    { border-left-color: #C0492E; }
-.ac-sds-card.is-observed[data-domain="ai"]     { border-left-color: #D9913D; }
-.ac-sds-card.is-observed[data-domain="crypto"] { border-left-color: #9A5BA6; }
-.ac-sds-card.is-observed[data-domain="app-ux"] { border-left-color: #3F9B8E; }
-.ac-sds-card.is-observed[data-domain="other"]  { border-left-color: #8a7d75; }
-.ac-sds-card.is-declared { opacity: 0.82; }
+.ac-sds-row:active { background: rgba(var(--ink-rgb), 0.07); }
+.ac-sds-row.is-declared { opacity: 0.64; }
+.ac-sds-row.is-declared:hover { opacity: 0.86; }
 
-.ac-sds-identity { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.ac-sds-name { color: var(--alchemy-paper-warm); font-size: 14px; font-weight: 720; line-height: 1.14; }
+.ac-sds-lead { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ac-sds-lead-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.ac-sds-name { color: var(--alchemy-paper-warm); font-size: 13px; font-weight: 700; line-height: 1.15; }
 .ac-sds-domain {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
   letter-spacing: 0.10em; text-transform: uppercase; color: var(--alchemy-ink-mute);
+  white-space: nowrap;
 }
 .ac-sds-domain i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex: none; }
 .ac-sds-whatis {
-  color: rgba(var(--ink-rgb), 0.76); font-size: 11.5px; line-height: 1.36;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.ac-sds-icp {
-  color: var(--alchemy-ink-mute); font-size: 10.5px; line-height: 1.3;
+  color: rgba(var(--ink-rgb), 0.66); font-size: 11px; line-height: 1.3;
   display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
 }
 
-.ac-sds-proof-strip {
-  display: flex; gap: 12px; padding-top: 9px;
-  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
-}
-.ac-sds-proof-strip > * { flex: 1; min-width: 0; }
-.ac-sds-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ac-sds-proof-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; min-width: 0; }
+.ac-sds-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ac-sds-cell b {
   font-family: var(--font-mono); font-size: 8px; font-weight: 800;
-  letter-spacing: 0.12em; text-transform: uppercase; color: rgba(214,189,134,0.66);
+  letter-spacing: 0.12em; text-transform: uppercase; color: rgba(214,189,134,0.6);
 }
 .ac-sds-cell > span {
-  color: rgba(var(--ink-rgb), 0.72); font-size: 11.5px; line-height: 1.38;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  color: rgba(var(--ink-rgb), 0.62); font-size: 11px; line-height: 1.34;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .ac-sds-cell.is-observed > span { color: var(--alchemy-paper-warm); }
 .ac-sds-cell.is-declared > span { opacity: 0.7; }
-.ac-sds-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.ac-sds-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
 .ac-sds-chip {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 1px 6px; border-radius: 4px; background: rgba(var(--ink-rgb), 0.06);
@@ -10723,16 +10762,19 @@ textarea.cb-intake-input {
 }
 .ac-sds-chip strong { color: var(--alchemy-paper-warm); font-weight: 700; }
 .ac-sds-foot {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.07em;
-  text-transform: uppercase; color: var(--alchemy-ink-mute);
+  text-transform: uppercase; color: var(--alchemy-ink-mute); text-align: right;
 }
 .ac-sds-state { color: rgba(214,189,134,0.6); }
-.ac-sds-card.is-declared .ac-sds-state { color: rgba(var(--ink-rgb), 0.42); }
+.ac-sds-row.is-declared .ac-sds-state { color: rgba(var(--ink-rgb), 0.42); }
 /* Review state (confidence · approval) is secondary to the status pill and
    orthogonal to observed signal — keep it the most-muted element in the foot. */
 .ac-sds-review { color: rgba(var(--ink-rgb), 0.40); }
-@media (max-width: 640px) { .ac-sds-grid { grid-template-columns: 1fr; } }
+@media (max-width: 720px) {
+  .ac-sds-row { grid-template-columns: 1fr; gap: 8px; }
+  .ac-sds-foot { flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; }
+}
 
 /* Latent-overlap cards — visually related to intro cards, but clearly prompts. */
 .cb-latent-overlap {
@@ -11034,34 +11076,38 @@ button.cb-cell:disabled { cursor: default; }
   background: rgba(var(--ink-rgb), 0.42);
 }
 
-.cb-cell.has-so    { background: rgba(193,168,114,0.10); }
+/* Warm seek/offer fill — stepped by match strength. Pulled back from the old
+   0.10–0.40 ramp (which glowed neon-gold on the near-black board) to a calmer
+   ink-weight ramp that still reads its four strengths apart. */
+.cb-cell.has-so    { background: rgba(193,168,114,0.07); }
 
-.cb-cell.has-so.s2 { background: rgba(193,168,114,0.18); }
+.cb-cell.has-so.s2 { background: rgba(193,168,114,0.12); }
 
-.cb-cell.has-so.s3 { background: rgba(193,168,114,0.28); }
+.cb-cell.has-so.s3 { background: rgba(193,168,114,0.19); }
 
-.cb-cell.has-so.s4 { background: rgba(193,168,114,0.40); }
+.cb-cell.has-so.s4 { background: rgba(193,168,114,0.28); }
 
 .cb-cell.has-so .cb-mark {
   width: 9px;
   height: 3px;
   border: 0;
   border-radius: 999px;
-  background: rgba(214,189,134,0.95);
+  background: rgba(204,180,128,0.78);
 }
 
-.cb-cell.has-dep { background: rgba(143,34,14,0.22); }
+.cb-cell.has-dep { background: rgba(143,34,14,0.18); }
 
 .cb-cell.has-dep .cb-mark {
   /* Categorical mark (▲ = dependency). Direction is carried by the cell's
      POSITION — row = needy team, column = provider — not by the glyph; an
-     arrow inside a matrix cell points at nothing meaningful. */
+     arrow inside a matrix cell points at nothing meaningful. Calmer brick than
+     --alchemy-oxide-bright so it signals without the neon glow. */
   width: 0;
   height: 0;
   border-top: 0;
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
-  border-bottom: 7px solid var(--alchemy-oxide-bright);
+  border-bottom: 7px solid #A8472E;
   border-radius: 0;
   background: transparent;
 }

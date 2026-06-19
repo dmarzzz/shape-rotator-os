@@ -897,7 +897,11 @@ export function bubbleHierarchy(model, granularity, stageOf) {
   return { id: "_root", label: "cohort", level: "root", children: clusterNodes };
 }
 
-const BM_GAP = { root: 6, theme: 6, cluster: 5 };
+// Inter-ring separation. root/theme gaps are generous so adjacent ecosystem
+// rings (and their titles) don't crowd each other — the map reads as distinct
+// spaces with air between them rather than one dense pile. cluster gap stays
+// tight so teams inside a space still cohere.
+const BM_GAP = { root: 14, theme: 12, cluster: 5 };
 const BM_PAD = { root: 4, theme: 9, cluster: 6 };
 
 function bmLayout(node) {
