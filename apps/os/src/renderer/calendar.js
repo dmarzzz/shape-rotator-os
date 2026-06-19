@@ -612,19 +612,14 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       <span class="c2-subscribe-label">subscribe</span>
       <svg class="c2-subscribe-hook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>
     </a>`;
+  // The 10-week ARC below is the week navigator now (it carries presence +
+  // shipping per week), so the masthead is just the view tabs + subscribe.
+  void scrubDots;
   const masthead = `
     <div class="c2-toolbar">
       ${viewTabs}
       ${subscribeAction}
-    </div>
-    ${isPresence ? "" : `
-    <header class="c2-masthead">
-      <div class="c2-scrub" role="tablist" aria-label="program week">
-        <button class="c2-scrub-arrow" data-c2-nav="prev" aria-label="previous week" ${safeWeekIdx === 0 ? "disabled" : ""} type="button">←</button>
-        ${scrubDots}
-        <button class="c2-scrub-arrow" data-c2-nav="next" aria-label="next week" ${safeWeekIdx === WEEK_COUNT - 1 ? "disabled" : ""} type="button">→</button>
-      </div>
-    </header>`}`;
+    </div>`;
 
   if (isPresence) {
     return `
@@ -636,60 +631,10 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </section>`;
   }
 
-  // ── controls — the filter + signal row that used to be the agenda's job ──
-  // Left: the legend, now a live category FILTER (click a type to drop it from
-  // the board). Right: the workstream scope (focuses the daily signals) and the
-  // signal-row toggles. One row, sitting between the week strip and the board so
-  // the controls are next to the evidence they change.
-  const filterBar = `
-    <div class="c2-filter" role="group" aria-label="filter by event type">
-      ${C2_LEGEND.map(c => `
-        <button class="c2-filter-item${catHide.has(c.key) ? " is-off" : ""}" data-c2-cat="${escAttr(c.key)}" data-cat="${escAttr(c.key)}"
-                type="button" aria-pressed="${catHide.has(c.key) ? "false" : "true"}">
-          <i class="c2-chip-dot" aria-hidden="true"></i>${escHtml(c.label)}
-        </button>`).join("")}
-    </div>`;
-  const scopeChip = scopeTeams.length ? `
-    <div class="c2-scope" data-c2-scope-ctl>
-      <button class="c2-scope-btn${scopeId ? " is-on" : ""}" data-c2-scope-toggle aria-haspopup="listbox" aria-expanded="false"
-              aria-label="focus the daily signals on one workstream" type="button">
-        <span class="c2-scope-k">scope</span><span class="c2-scope-v">${escHtml(scopeName)}</span><i class="c2-chev" aria-hidden="true"></i>
-      </button>
-      <div class="c2-scope-menu" role="listbox" aria-label="workstream" hidden>
-        ${[{ id: "", name: "all cohort" }, ...scopeTeams].map(o => `
-          <button class="c2-scope-opt" role="option" data-c2-scope="${escAttr(o.id)}"
-                  aria-selected="${(o.id || null) === scopeId ? "true" : "false"}" type="button">${escHtml(o.name)}</button>`).join("")}
-      </div>
-    </div>` : "";
-  // The optional signal rows (in town / shipped) are chosen from the board's
-  // corner cell (rowsControl, below) — where the rows actually live — instead of
-  // a top toolbar group. That keeps the controls row to just filter + scope, and
-  // makes the rows feel like things you add to the calendar, not app chrome.
-  // The chooser persists its open state across the re-render a toggle triggers
-  // (the host stamps signals.rowsMenuOpen), so you can check both rows without
-  // reopening it; the host also restores focus into the menu after the toggle.
-  const rowsMenuOpen = !!signals?.rowsMenuOpen;
-  const ROW_DEFS = [["intown", "in town"], ["shipped", "shipped"]];
-  const rowsControl = `
-    <div class="c2-rowsctl" data-c2-rows-ctl>
-      <button class="c2-rowsctl-btn" data-c2-rows-toggle aria-haspopup="true" aria-expanded="${rowsMenuOpen}"
-              aria-label="choose which signal rows to show" type="button">rows<i class="c2-chev" aria-hidden="true"></i></button>
-      <div class="c2-rowsctl-menu" role="menu" aria-label="signal rows"${rowsMenuOpen ? "" : " hidden"}>
-        ${ROW_DEFS.map(([k, l]) => `
-          <button class="c2-rowsctl-opt" role="menuitemcheckbox" data-c2-row="${escAttr(k)}" aria-checked="${!rowHide.has(k)}" type="button">
-            <i class="c2-rowsctl-check" aria-hidden="true">✓</i><span>${escHtml(l)}</span>
-          </button>`).join("")}
-      </div>
-    </div>`;
-  // A shown row carries a quiet ✕ on its gutter label (revealed on row hover) —
-  // the fast way to drop a row; re-add it from the corner chooser above.
-  const rowLabel = (key, text) =>
-    `<div class="c2-gutter-cell c2-rowlabel"><span class="c2-rowlabel-t">${escHtml(text)}</span><button class="c2-rowhide" data-c2-row="${escAttr(key)}" aria-label="${escAttr("hide " + text + " row")}" type="button">×</button></div>`;
-  const controls = `
-    <div class="c2-controls">
-      ${filterBar}
-      ${scopeChip ? `<div class="c2-sigctl">${scopeChip}</div>` : ""}
-    </div>`;
+  // NOTE: the category-filter, scope chip and signal-row chooser are folded away
+  // for the residency-rhythm composition below; they'll be re-introduced inside
+  // its frame. (scopeId/scopeName/catHide still flow through the data model.)
+  void scopeName; void catHide;
 
   // ── stale banner (same contract as the calendar page) ───────────────
   const staleBanner = source === "bundled" ? `
@@ -706,206 +651,196 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </section>`;
   }
 
-  // ── day headers ──────────────────────────────────────────────────────
-  const headCells = days.map((d) => `
-      <div class="c2-dayhead ${d.isToday ? "is-today" : ""}" role="columnheader" ${d.isToday ? 'aria-current="date"' : ""}>
-        <span class="c2-dh-name">${escHtml(d.name)}</span>
-        <span class="c2-dh-num">${escHtml(d.date.replace(/^[a-z]+\s+/, ""))}</span>
-      </div>`).join("");
-
-  // ── in-town signal (real presence: who's around each day) ────────────
-  // The agenda's most-valued signal, brought onto the grid as a thin bar+count
-  // row that aligns to the day columns. Hover carries WHO is in town. Follows
-  // the scope chip (one workstream's roster) when one is picked.
-  // Bar is an OCCUPANCY gauge — fraction of the roster present that day — not a
-  // week-relative max (which read flat when the whole cohort is in town). Full
-  // bar honestly means "full house"; it dips on arrival/departure weeks. The
-  // count beside it is the exact value; names ride the hover.
-  const rosterTotal = Math.max(1, Number(signals?.rosterTotal) || perDaySig.reduce((m, s) => Math.max(m, Number(s?.inTown) || 0), 1));
-  const hasInTown = !rowHide.has("intown") && perDaySig.some(s => (Number(s?.inTown) || 0) > 0);
-  const inTownRow = hasInTown ? `
-    <div class="c2-row c2-signal c2-intown${scopeId ? " is-scoped" : ""}">
-      ${rowLabel("intown", "in town")}
-      ${days.map((d, di) => {
-        const s = perDaySig[di] || {};
-        const n = Number(s.inTown) || 0;
-        const names = Array.isArray(s.inTownNames) ? s.inTownNames : [];
-        const lbl = n
-          ? `${d.name} ${d.date.replace(/^[a-z]+\s+/, "")} · ${n} of ${rosterTotal} in town${scopeId ? " · " + scopeName : ""}: ${names.slice(0, 16).join(", ")}${names.length > 16 ? `, +${names.length - 16} more` : ""} — open presence`
-          : `${d.name} · nobody in town — open presence`;
-        // Cell is a button: hover/focus reveals the roster + occupancy arc
-        // (wired to openCalendarInTown), click commits to the presence gantt.
-        return `
-        <div class="c2-sig-cell c2-intown-cell ${d.isToday ? "is-today" : ""}" data-c2-intown="${di}"
-             role="button" tabindex="0" aria-label="${escAttr(lbl)}">
-          <span class="c2-sig-bar" aria-hidden="true"><i style="width:${Math.round(Math.min(1, n / rosterTotal) * 100)}%"></i></span>
-          <span class="c2-sig-v">${n || `<span class="c2-sig-mut">·</span>`}</span>
-        </div>`;
-      }).join("")}
-    </div>` : "";
-
-  // ── cohort-activity lane ("shipped") — reveal-on-click, scope-aware ──
-  const ACT_VERB = { release: "shipped", commit: "committed" };
-  const hasActivity = days.some(d => (d.activity || []).length);
-  const activityRow = (!rowHide.has("shipped") && hasActivity) ? `
-    <div class="c2-row c2-activity">
-      ${rowLabel("shipped", "shipped")}
-      ${days.map((d, di) => `
-        <div class="c2-activity-cell ${d.isToday ? "is-today" : ""}">
-          ${(d.activity || []).map((a, ai) => `
-            <button class="c2-act-chip" data-act-kind="${escAttr(a.kind)}" data-c2-act="${di}:${ai}" type="button"
-                    title="${escAttr(`${a.team} ${ACT_VERB[a.kind] || a.kind} ${a.label}`)}">
-              <span class="c2-act-dot" aria-hidden="true"></span>
-              <span class="c2-act-team">${escHtml(a.team)}</span>
-              <span class="c2-act-label">${escHtml(a.label)}</span>
-            </button>`).join("")}
-        </div>`).join("")}
-    </div>` : "";
-
-  // ── all-day lane (only when something is in it) ──────────────────────
-  const hasAllday = days.some(d => d.allday.length);
-  const alldayRow = hasAllday ? `
-    <div class="c2-row c2-allday">
-      <div class="c2-gutter-cell">all-day</div>
-      ${days.map((d, di) => `
-        <div class="c2-allday-cell ${d.isToday ? "is-today" : ""}">
-          ${d.allday.map((item, ai) => {
-            const googleLink = calendarGoogleEventLinkForItem(item, calendarGoogleEvents);
-            return `
-            <button class="c2-chip${googleLink ? " has-google-link" : ""}" data-cat="${escAttr(item.cat.key)}" data-c2-ev="a:${di}:${ai}" type="button"
-                    title="${escAttr(item.kind === "anchor" ? item.title : item.content.title)}">
-              <span class="c2-chip-dot" aria-hidden="true"></span>
-              <span class="c2-chip-label">${escHtml(item.kind === "anchor" ? item.title : item.content.title)}</span>
-            </button>`;
-          }).join("")}
-        </div>`).join("")}
-    </div>` : "";
-
-  // ── hour gutter + hairlines + collapsed-gap bands ────────────────────
-  // Hour boundaries only exist inside active segments now, so lines and
-  // labels are emitted per-boundary instead of via a repeating background.
-  const boundaries = [];
-  for (const s of segs) {
-    if (!s.act) continue;
-    for (let m = s.s; m <= s.e; m += 60) {
-      if (!boundaries.includes(m)) boundaries.push(m);
-    }
-  }
-  const hourLabels = boundaries.map((m) => {
-    const y = yPct(m);
-    const edge = y < 0.5 ? " is-first" : y > 99.5 ? " is-last" : "";
-    return `<span class="c2-hour${edge}" style="top:${y.toFixed(3)}%">${fmtMin(m)}</span>`;
-  }).join("");
-  const hourLines = boundaries.map((m) =>
-    `<i class="c2-line" style="top:${pct(m)}%"></i>`).join("");
-  const skipBands = segs.filter(s => !s.act).map(s => `
-    <div class="c2-skip" style="top:${s.y0.toFixed(3)}%;height:${(s.y1 - s.y0).toFixed(3)}%">
-      <span class="c2-skip-label">${fmtMin(s.s)} – ${fmtMin(s.e)} · open</span>
-    </div>`).join("");
-
-  // ── day columns with positioned events ──────────────────────────────
-  // Whatever a day doesn't schedule gets tiled with quiet "open" blocks —
-  // the board is always a full mosaic, never bare grid. Unscheduled time
-  // in the residency is build time, so the tiles say so.
+  // ── residency-rhythm composition (Direction B) ───────────────────────
+  // Designed from the residency's truth: the 10-week ARC is the navigator AND a
+  // sparkline (presence height · ship marks); the focused week is a panel where
+  // build-time is the GROUND and the few gatherings are punctuation at their
+  // real time; presence is one honest near-full ribbon; shipping is a row of
+  // pulses. Reuses the data attributes (data-c2-ev / -intown / -act / -week /
+  // -nav) so the modal, reveals and week-nav wiring carry over unchanged.
+  const cap = (x) => String(x || "").charAt(0).toUpperCase() + String(x || "").slice(1);
   const isWeekend = (name) => name === "sat" || name === "sun";
-  const cols = days.map((d, di) => {
-    const busy = d.timed
-      .map(ev => [ev.timing.startMin, Math.min(ev.timing.endMin, winEnd)])
-      .sort((a, b) => a[0] - b[0]);
-    const merged = [];
-    for (const [s, e] of busy) {
-      if (merged.length && s <= merged[merged.length - 1][1]) {
-        merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], e);
-      } else merged.push([s, e]);
-    }
-    const freePieces = [];
-    for (const seg of segs) {
-      if (!seg.act) continue;
-      let cur = seg.s;
-      for (const [s, e] of merged) {
-        if (e <= seg.s || s >= seg.e) continue;
-        if (s > cur) freePieces.push([cur, Math.min(s, seg.e)]);
-        cur = Math.max(cur, e);
-      }
-      if (cur < seg.e) freePieces.push([cur, seg.e]);
-    }
-    const freeBlocks = freePieces.map(([s, e]) => {
-      const top = yPct(s);
-      const h = yPct(e) - yPct(s);
-      if (h < 2.5) return "";
-      const label = h >= 7 ? `<span class="c2-free-label">open</span>` : "";
-      return `<div class="c2-free" aria-hidden="true" style="top:${top.toFixed(3)}%;height:${h.toFixed(3)}%">${label}</div>`;
-    }).join("");
-    const evs = d.timed.map((ev, ti) => {
-      const top = pct(ev.timing.startMin);
-      const bottom = Math.min(ev.timing.endMin, winEnd);
-      const height = (yPct(bottom) - yPct(ev.timing.startMin)).toFixed(3);
-      const left = ((ev.col / ev.cols) * 100).toFixed(2);
-      const width = (100 / ev.cols).toFixed(2);
-      const timeLabel = `${fmtMin(ev.timing.startMin)} – ${fmtMin(ev.timing.endMin)}`;
-      // Details ride along in the card and reveal when the rendered card
-      // is tall enough (container query in CSS) — no click needed.
-      const shownDetails = ev.content.details.slice(0, 6);
-      const moreCount = ev.content.details.length - shownDetails.length;
-      const googleLink = calendarGoogleEventLinkForItem(ev, calendarGoogleEvents);
-      const body = shownDetails.length
-        ? `<span class="c2-ev-body">${shownDetails.map(t => `<i>${escHtml(t)}</i>`).join("")}${moreCount > 0 ? `<i class="c2-ev-more">+${moreCount} more</i>` : ""}</span>`
-        : "";
-      return `
-        <button class="c2-ev${ev.cat.tbc ? " is-tbc" : ""}${googleLink ? " has-google-link" : ""}" data-cat="${escAttr(ev.cat.key)}"
-                data-c2-ev="t:${di}:${ti}" type="button"
-                style="top:${top}%;height:${height}%;left:${left}%;width:calc(${width}% - 2px)"
-                aria-label="${escAttr(`${timeLabel} ${ev.content.title}`)}">
-          <span class="c2-ev-in">
-            <span class="c2-ev-time">${escHtml(timeLabel)}${ev.cat.tbc ? `<i class="c2-ev-tbc">tbc</i>` : ""}</span>
-            <span class="c2-ev-title">${escHtml(ev.content.title)}</span>
-            ${body}
-          </span>
-        </button>`;
-    }).join("");
-    const nowLine = d.isToday ? `<div class="c2-now" aria-hidden="true"><i class="c2-now-dot"></i></div>` : "";
-    return `
-      <div class="c2-col ${d.isToday ? "is-today" : ""} ${isWeekend(d.name) ? "is-weekend" : ""}" data-day="${di}">
-        ${freeBlocks}${evs}${nowLine}
-      </div>`;
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const DAY_MS = 86400000;
+  const shortDate = (ms) => { const d = new Date(ms); return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`; };
+  const fmtHour = (m) => String(Math.floor(m / 60) % 24).padStart(2, "0");
+  const presColor = "oklch(0.70 0.055 155)";
+
+  const weekStartMs = Number.isFinite(days[0]?.dayMs) ? days[0].dayMs : null;
+  const weekEndMs = Number.isFinite(days[6]?.dayMs) ? days[6].dayMs : null;
+  const rangeLabel = (weekStartMs != null && weekEndMs != null) ? `${shortDate(weekStartMs)} – ${shortDate(weekEndMs)}` : "";
+  const WEEK_TITLES = ["First light", "Settling in", "Finding the shape", "Into the work", "The middle weeks", "Past the midpoint", "Pushing to fit", "Sharpening the pitch", "The final stretch", "Toward demo night"];
+  const NAV_MID = ["the opening days", "still arriving", "finding the rhythm", "into the work", "halfway up the residency", "past the midpoint", "the push begins", "sharpening the pitch", "the final stretch", "demo week"];
+  const weekTitle = WEEK_TITLES[safeWeekIdx] || `Week ${safeWeekIdx + 1}`;
+
+  const rosterTotal = Math.max(1, Number(signals?.rosterTotal) || perDaySig.reduce((m, s) => Math.max(m, Number(s?.inTown) || 0), 1));
+  const weekly = Array.isArray(signals?.weeklyOccupancy) ? signals.weeklyOccupancy : [];
+  const weeklyShips = Array.isArray(signals?.weeklyShips) ? signals.weeklyShips : [];
+
+  // stats — who's here, what shipped, how much we gathered
+  const todayIdx = days.findIndex(d => d.isToday);
+  const refIdx = todayIdx >= 0 ? todayIdx : 6;
+  const inTownToday = Number(perDaySig[refIdx]?.inTown) || perDaySig.reduce((m, s) => Math.max(m, Number(s?.inTown) || 0), 0);
+  const satPct = rosterTotal ? Math.round((inTownToday / rosterTotal) * 100) : 0;
+  const gatherCount = days.reduce((n, d) => n + d.timed.length, 0);
+  const gatherHrs = Math.round(days.reduce((n, d) => n + d.timed.reduce((s, ev) => s + (ev.timing.endMin - ev.timing.startMin), 0), 0) / 60);
+  const shipCount = days.reduce((n, d) => n + (d.activity || []).filter(a => a.kind === "release").length, 0);
+  const descriptor = gatherCount === 0 ? "a pure build week" : gatherCount <= 6 ? "mostly building, lightly gathered" : "a gathering-heavy week";
+
+  const headHtml = `
+    <header class="rr-head">
+      <div class="rr-head-l">
+        <div class="rr-eyebrow">residency · may 18 → jul 26 · week ${String(safeWeekIdx + 1).padStart(2, "0")} / ${WEEK_COUNT}</div>
+        <h2 class="rr-title">${escHtml(weekTitle)}</h2>
+        <div class="rr-sub">${escHtml(rangeLabel)} — ${escHtml(descriptor)}.</div>
+      </div>
+      <div class="rr-stats">
+        <div class="rr-stat"><div class="rr-stat-lab">in town</div><div class="rr-stat-big">${inTownToday}<small> /${rosterTotal}</small></div><div class="rr-stat-note rr-tone-pres">${satPct}% of the house</div></div>
+        <div class="rr-stat"><div class="rr-stat-lab">shipped</div><div class="rr-stat-big">${shipCount}</div><div class="rr-stat-note rr-tone-ship">release${shipCount === 1 ? "" : "s"} this wk</div></div>
+        <div class="rr-stat"><div class="rr-stat-lab">gathered</div><div class="rr-stat-big">${gatherCount}</div><div class="rr-stat-note">${gatherHrs}h together</div></div>
+      </div>
+    </header>`;
+
+  // ── the arc — ten weeks, presence height over ship marks; the navigator ──
+  const arcHtml = `
+    <section class="rr-arc" aria-label="program weeks">
+      <div class="rr-arc-head">
+        <div class="rr-section-lab">the arc <em>— ten weeks, presence over shipping</em></div>
+        <div class="rr-legend"><span><i class="rr-sw rr-sw-pres"></i>presence</span><span><i class="rr-sw rr-sw-ship"></i>ship</span></div>
+      </div>
+      <div class="rr-arc-bar" role="tablist" aria-label="select week">
+        ${Array.from({ length: WEEK_COUNT }, (_, w) => {
+          const frac = Number(weekly[w]?.frac);
+          const h = Number.isFinite(frac) && frac > 0 ? Math.max(10, Math.round(frac * 100)) : 36;
+          const ships = Number(weeklyShips[w]) || 0;
+          const isActive = w === safeWeekIdx;
+          const isFuture = w > nowWeekIdx;
+          const isDemo = w === WEEK_COUNT - 1;
+          const cls = ["rr-wk", isActive ? "active" : "", isFuture ? "future" : "", isDemo ? "demo" : ""].filter(Boolean).join(" ");
+          const dots = isDemo
+            ? `<span class="rr-shipdot"></span>`
+            : Array.from({ length: Math.min(3, ships) }, () => `<span class="rr-shipdot"></span>`).join("");
+          return `
+          <button class="${cls}" data-c2-week="${w}" role="tab" aria-selected="${isActive}" aria-label="week ${w + 1}${isDemo ? " · demo" : ""}${isActive ? " (current view)" : ""}" type="button">
+            ${isActive ? `<span class="rr-ring" aria-hidden="true"></span>` : ""}
+            <span class="rr-ticks" aria-hidden="true">${dots}</span>
+            <span class="rr-pcol"><span class="rr-pbar" style="height:${h}%"></span></span>
+            <span class="rr-num">${String(w + 1).padStart(2, "0")}${isDemo ? `<b> demo</b>` : ""}</span>
+          </button>`;
+        }).join("")}
+      </div>
+    </section>`;
+
+  // ── this week — linear time field floored to a residency day so build reads
+  // as continuous ground; gatherings drop at their real time. ──
+  let bWinStart = 9 * 60, bWinEnd = 21 * 60;
+  if (Number.isFinite(minStart)) { bWinStart = Math.min(bWinStart, Math.floor(minStart / 60) * 60); bWinEnd = Math.max(bWinEnd, Math.ceil(maxEnd / 60) * 60); }
+  const bSpan = Math.max(120, bWinEnd - bWinStart);
+  const bPct = (m) => ((Math.max(bWinStart, Math.min(bWinEnd, m)) - bWinStart) / bSpan) * 100;
+  const nowD = new Date();
+  const nowMin = nowD.getHours() * 60 + nowD.getMinutes();
+
+  const dhHtml = days.map((d) => {
+    const num = d.date.replace(/^[a-z]+\s+/, "");
+    const cls = ["rr-dh", d.isToday ? "today" : "", isWeekend(d.name) ? "dim" : ""].filter(Boolean).join(" ");
+    return `<div class="${cls}"><span class="rr-dh-d">${escHtml(cap(d.name))}</span><span class="rr-dh-n">${escHtml(num)}${d.isToday ? " · today" : ""}</span></div>`;
   }).join("");
 
-  // ── recurring footer (the legend is now the live filter up top) ──────
-  const recurringHtml = recurring.length ? `
-    <div class="c2-recur">
-      <span class="c2-recur-h">recurring</span>
-      ${recurring.map(r => `<span class="c2-recur-item">${escHtml(r.what)}</span>`).join("")}
-    </div>` : "";
+  const spineMarks = [];
+  for (let m = bWinStart; m <= bWinEnd; m += 4 * 60) spineMarks.push({ m, label: fmtHour(m), acc: false });
+  for (const m of [...new Set(days.flatMap(d => d.timed.map(ev => ev.timing.startMin)))].sort((a, b) => a - b)) spineMarks.push({ m, label: fmtMin(m), acc: true });
+  const spineHtml = `<div class="rr-spine" aria-hidden="true">${spineMarks.map(s => `<span class="rr-t${s.acc ? " acc" : ""}" style="top:${bPct(s.m).toFixed(1)}%">${escHtml(s.label)}</span>`).join("")}</div>`;
 
-  return `
-    <section class="c2" data-phase="${escAttr(phase)}">
-      ${masthead}
-      ${staleBanner}
-      ${controls}
-      <div class="c2-board" role="grid" aria-label="week timeline">
-        <div class="c2-row c2-daysbar">
-          <div class="c2-gutter-cell c2-rowsctl-cell">${rowsControl}</div>
-          ${headCells}
-        </div>
-        ${inTownRow}
-        ${activityRow}
-        ${alldayRow}
-        <div class="c2-scroll">
-          <div class="c2-grid" style="--c2-units:${totalUnits.toFixed(2)}" data-c2-segs="${escAttr(segsJson)}">
-            <div class="c2-hours">${hourLabels}</div>
-            ${cols}
-            <div class="c2-rules" aria-hidden="true">${hourLines}</div>
-            <div class="c2-skips" aria-hidden="true">${skipBands}</div>
-          </div>
+  const fieldsHtml = days.map((d, di) => {
+    const banners = d.allday.map((item, ai) => {
+      const title = item.kind === "anchor" ? item.title : item.content.title;
+      return `<button class="rr-allday" data-cat="${escAttr(item.cat.key)}" data-c2-ev="a:${di}:${ai}" type="button" title="${escAttr(title)}"><span>${escHtml(title)}</span></button>`;
+    }).join("");
+    const ticks = d.timed.map((ev, ti) => {
+      const time = `${fmtMin(ev.timing.startMin)}–${fmtMin(ev.timing.endMin)}`;
+      return `<button class="rr-tick" data-cat="${escAttr(ev.cat.key)}" data-c2-ev="t:${di}:${ti}" type="button" style="top:${bPct(ev.timing.startMin).toFixed(1)}%" aria-label="${escAttr(time + " " + ev.content.title)}"><span class="rr-tick-nm">${escHtml(ev.content.title)}</span><span class="rr-tick-tm">${escHtml(time)}${ev.cat.tbc ? " · tbc" : ""}</span></button>`;
+    }).join("");
+    const empty = !d.timed.length && !d.allday.length;
+    const ground = empty ? `<span class="rr-ghost">${isWeekend(d.name) ? "rest" : "open build"}</span>` : `<span class="rr-buildlab">build</span>`;
+    const nowEls = d.isToday && nowMin >= bWinStart && nowMin <= bWinEnd
+      ? `<span class="rr-now" style="top:${bPct(nowMin).toFixed(1)}%"></span><span class="rr-now-dot" style="top:${bPct(nowMin).toFixed(1)}%"></span>` : "";
+    const cls = ["rr-field", d.isToday ? "today" : "", isWeekend(d.name) ? "weekend" : ""].filter(Boolean).join(" ");
+    return `<div class="${cls}">${ground}${banners}${ticks}${nowEls}</div>`;
+  }).join("");
+
+  // ── presence ribbon — one honest near-full line, windowed to the top of roster ──
+  const RW = 700, RH = 52, rPad = 9;
+  const rLo = Math.max(0, rosterTotal - 8), rHi = rosterTotal;
+  const yFor = (n) => { const f = Math.max(0, Math.min(1, (n - rLo) / Math.max(1, rHi - rLo))); return rPad + (1 - f) * (RH - rPad - 13); };
+  const rpts = days.map((d, i) => ({ x: (i + 0.5) / 7 * RW, y: yFor(Number(perDaySig[i]?.inTown) || 0) }));
+  let rLine = `M0 ${rpts[0].y.toFixed(1)} L${rpts[0].x.toFixed(1)} ${rpts[0].y.toFixed(1)}`;
+  for (let i = 1; i < rpts.length; i++) rLine += ` L${rpts[i].x.toFixed(1)} ${rpts[i].y.toFixed(1)}`;
+  rLine += ` L${RW} ${rpts[rpts.length - 1].y.toFixed(1)}`;
+  const rArea = `${rLine} L${RW} ${RH} L0 ${RH} Z`;
+  const rCircles = rpts.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.3"></circle>`).join("");
+  const ribbonRow = `
+    <div class="rr-row">
+      <div class="rr-rowlab"><span>in town</span></div>
+      <div class="rr-ribbon">
+        <svg viewBox="0 0 ${RW} ${RH}" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="rrPres" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${presColor}" stop-opacity="0.4"></stop><stop offset="1" stop-color="${presColor}" stop-opacity="0.04"></stop></linearGradient></defs>
+          <path d="${rArea}" fill="url(#rrPres)"></path>
+          <path d="${rLine}" fill="none" stroke="${presColor}" stroke-width="1.5"></path>
+          <g fill="${presColor}">${rCircles}</g>
+        </svg>
+        <div class="rr-pcells">
+          ${days.map((d, di) => {
+            const n = Number(perDaySig[di]?.inTown) || 0;
+            const lbl = n ? `${d.name} ${d.date.replace(/^[a-z]+\s+/, "")} · ${n} of ${rosterTotal} in town — open presence` : `${d.name} · nobody in town — open presence`;
+            return `<div class="rr-pcell${n >= rosterTotal - 2 ? " hi" : ""}${d.isToday ? " today" : ""}" data-c2-intown="${di}" role="button" tabindex="0" aria-label="${escAttr(lbl)}"><span>${n || "·"}</span></div>`;
+          }).join("")}
         </div>
       </div>
-      <footer class="c2-foot">
-        ${recurringHtml}
-        <div class="c2-source">
-          <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
-          <span aria-hidden="true">·</span>
-          <span>cohort may 18 → jul 26 2026</span>
+    </div>`;
+
+  const shipRow = `
+    <div class="rr-row">
+      <div class="rr-rowlab"><span>shipped</span></div>
+      ${days.map((d, di) => {
+        const acts = d.activity || [];
+        if (!acts.length) return `<div class="rr-ship${d.isToday ? " today" : ""}"></div>`;
+        const pulses = `<div class="rr-pulses">${acts.slice(0, 5).map(() => `<span class="rr-pulse"></span>`).join("")}</div>`;
+        const lines = acts.map((a, ai) => `<button class="rr-rel" data-c2-act="${di}:${ai}" type="button" title="${escAttr(`${a.team} ${a.label}`)}"><span class="rr-rel-team">${escHtml(a.team)}</span> ${escHtml(a.label)}</button>`).join("");
+        return `<div class="rr-ship has${d.isToday ? " today" : ""}">${pulses}<div class="rr-rels">${lines}</div></div>`;
+      }).join("")}
+    </div>`;
+
+  const navHtml = `
+    <div class="rr-nav">
+      <button class="rr-navbtn rr-prev" data-c2-nav="prev"${safeWeekIdx === 0 ? " disabled" : ""} type="button">${safeWeekIdx === 0 ? "start of residency" : `← wk ${String(safeWeekIdx).padStart(2, "0")} · ${escHtml(weekStartMs != null ? shortDate(weekStartMs - 7 * DAY_MS) : "")}`}</button>
+      <span class="rr-nav-mid">${escHtml(NAV_MID[safeWeekIdx] || "")}</span>
+      <button class="rr-navbtn rr-next" data-c2-nav="next"${safeWeekIdx === WEEK_COUNT - 1 ? " disabled" : ""} type="button">${safeWeekIdx === WEEK_COUNT - 1 ? "demo week" : `wk ${String(safeWeekIdx + 2).padStart(2, "0")} · ${escHtml(weekStartMs != null ? shortDate(weekStartMs + 7 * DAY_MS) : "")} →`}</button>
+    </div>`;
+
+  return `
+    <section class="c2 rr-cal" data-phase="${escAttr(phase)}">
+      ${masthead}
+      ${staleBanner}
+      ${headHtml}
+      ${arcHtml}
+      <section class="rr-panel">
+        <div class="rr-panel-head">
+          <div class="rr-section-lab">this week <em>— build-time is the ground; gatherings are punctuation</em></div>
         </div>
+        <div class="rr-grid" role="grid" aria-label="week schedule">
+          <div class="rr-corner"></div>
+          ${dhHtml}
+          ${spineHtml}
+          ${fieldsHtml}
+        </div>
+        ${ribbonRow}
+        ${shipRow}
+        ${navHtml}
+      </section>
+      <footer class="rr-foot">
+        <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
+        <span aria-hidden="true">·</span>
+        <span>cohort may 18 → jul 26 2026</span>
       </footer>
     </section>`;
 }

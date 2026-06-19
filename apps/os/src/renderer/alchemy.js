@@ -9713,6 +9713,17 @@ function computeCalendarSignals() {
     const present = Math.round(sum / 7);
     weeklyOccupancy.push({ week: w, present, frac: rosterTotal ? present / rosterTotal : 0, isCurrent: w === wi });
   }
+  // Per-week shipping counts (releases) so the residency arc carries ship marks
+  // across all ten weeks, not just the viewed one.
+  const whatsNew = Array.isArray(live?.whats_new) ? live.whats_new : [];
+  const weeklyShips = new Array(WEEKS_TOTAL).fill(0);
+  for (const a of whatsNew) {
+    if (!a || a.kind !== "release" || !a.date) continue;
+    const t = Date.parse(`${a.date}T12:00:00Z`);
+    if (!Number.isFinite(t)) continue;
+    const wIdx = Math.floor((t - PROGRAM_START_MS) / WK);
+    if (wIdx >= 0 && wIdx < WEEKS_TOTAL) weeklyShips[wIdx] += 1;
+  }
   return {
     rowsHidden: Array.isArray(cal.rowsHidden) ? cal.rowsHidden : [],
     rowsMenuOpen: !!cal.rowsMenuOpen,
@@ -9720,6 +9731,7 @@ function computeCalendarSignals() {
     perDay,
     rosterTotal,
     weeklyOccupancy,
+    weeklyShips,
   };
 }
 
@@ -9946,7 +9958,7 @@ function wireCalendar() {
     });
   }
 
-  for (const dot of state.canvas.querySelectorAll(".c2-scrub-dot[data-c2-week]")) {
+  for (const dot of state.canvas.querySelectorAll("[data-c2-week]")) {
     dot.addEventListener("click", () => {
       const i = Number(dot.dataset.c2Week);
       if (Number.isFinite(i) && i !== cal.weekIdx) {
