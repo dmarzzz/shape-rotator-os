@@ -7034,14 +7034,15 @@ function timelineInnerHtml() {
   for (let k = 0; k < 7; k++) {
     const dayMs = winStart + k * DAY, dayEnd = dayMs + DAY, noon = dayMs + DAY / 2;
     const dayEv = eventItems.filter((e) => e.ms >= dayMs && e.ms < dayEnd);
-    const inTown = roster.length ? roster.filter((p) => isPresent(p, noon)).length : 0;
+    const present = roster.length ? roster.filter((p) => isPresent(p, noon)) : [];
+    const inTown = present.length;
     const shipped = updateItems.filter((i) => i.startMs >= dayMs && i.startMs < dayEnd).length;
     maxInTown = Math.max(maxInTown, inTown);
     allCols.push({
       day: dayNames[k], date: String(new Date(dayMs).getUTCDate()),
       allDay: dayEv.filter((e) => e.allDay),
       timed: dayEv.filter((e) => !e.allDay).sort((a, b) => startMin(a.time) - startMin(b.time)),
-      inTown, shipped,
+      inTown, inTownNames: present.map((p) => p.name || p.record_id), shipped,
       isToday: nowMs >= dayMs && nowMs < dayEnd, isPast: dayEnd <= nowMs, isWeekend: k >= 5,
     });
   }
@@ -7064,7 +7065,16 @@ function timelineInnerHtml() {
       : (c.allDay.length ? "" : `<span class="cw-open">open</span>`);
     return `<div class="cw-c cw-sched ${tcls(c)}" data-tl-week="${wi}" role="button" tabindex="0" aria-label="${escAttr(`${c.day} ${c.date}${c.isToday ? " (today)" : ""} — open week ${wi + 1} in the calendar grid`)}">${body}</div>`;
   }).join("");
-  const inTownRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-bar"><i style="width:${Math.round((c.inTown / maxInTown) * 100)}%"></i></span><span class="cw-v">${c.inTown || "·"}</span></div>`).join("");
+  // In-town headcount carries WHO on hover (the day's present roster), so the
+  // signal the user values most reads its detail without leaving the agenda.
+  const inTownTitle = (c) => {
+    const head = `${c.day} ${c.date} · ${c.inTown} in town${scopeId ? " · " + scopeName : ""}`;
+    const names = c.inTownNames || [];
+    if (!names.length) return c.inTown ? head : `${c.day} ${c.date} · nobody in town`;
+    const shown = names.slice(0, 16).join(", ");
+    return `${head}: ${shown}${names.length > 16 ? `, +${names.length - 16} more` : ""}`;
+  };
+  const inTownRow = cols.map((c) => `<div class="cw-c cw-sig cw-intown ${tcls(c)}" title="${escAttr(inTownTitle(c))}" aria-label="${escAttr(inTownTitle(c))}"><span class="cw-bar"><i style="width:${Math.round((c.inTown / maxInTown) * 100)}%"></i></span><span class="cw-v">${c.inTown || "·"}</span></div>`).join("");
   const shippedRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-v">${c.shipped || `<span class="cw-mut">·</span>`}</span></div>`).join("");
   const standingCell = (weekStanding && weekStanding.stage != null)
     ? `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-v">${weekStanding.stage.toFixed(1)}</span><span class="cw-mut">/ 8 · ${escHtml(scopeId ? scopeName + " PMF" : "cohort mean PMF")}</span></div>`

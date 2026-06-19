@@ -568,13 +568,10 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const subscribeAction = `
     <a class="c2-subscribe" href="${escAttr(managedGoogleCalendarUrl(GUEST_GOOGLE_CALENDAR_ID))}" data-external
        aria-label="Subscribe to the read-only Shape Rotator Google Calendar"
-       title="Subscribe to the read-only Shape Rotator Google Calendar">
-      <span class="c2-subscribe-glyph" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v5"/><path d="M9.5 16.5h5"/>
-        </svg>
-      </span>
-      <span class="c2-subscribe-copy"><strong>subscribe</strong><small>read-only Google</small></span>
+       title="Subscribe — opens the read-only Shape Rotator Google Calendar">
+      <svg class="c2-subscribe-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v5"/><path d="M9.5 16.5h5"/></svg>
+      <span class="c2-subscribe-label">subscribe</span>
+      <svg class="c2-subscribe-hook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>
     </a>`;
   const masthead = `
     <div class="c2-toolbar">

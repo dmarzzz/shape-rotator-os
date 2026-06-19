@@ -34,84 +34,47 @@
   padding: 18px 2px 20px;
   margin: 0;
 }
+/* A quiet hook, not a rust slab: transparent at rest in muted ink, oxide only on
+   hover, the NE "hook" arrow nudging out like a pulled thread. The "read-only
+   Google" detail moves to the title attribute so the control just says it. */
 .c2-subscribe {
   display: inline-flex;
   align-items: center;
   justify-self: end;
-  gap: 9px;
-  min-height: 36px;
-  min-width: 156px;
-  padding: 4px 12px 4px 7px;
-  border: 1px solid color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 38%, var(--ed-rule-2));
-  border-left: 2px solid var(--alchemy-oxide-bright, #B43A19);
-  border-radius: 5px;
-  background:
-    linear-gradient(180deg,
-      color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 12%, transparent),
-      rgba(var(--ink-rgb), 0.018)),
-    var(--ed-bg-1);
-  color: var(--ed-ink-1);
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ed-ink-3);
+  font-family: var(--ed-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
   text-decoration: none;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 10px 26px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
   transition:
+    color 180ms cubic-bezier(0.16, 1, 0.3, 1),
     background 180ms cubic-bezier(0.16, 1, 0.3, 1),
     border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 120ms ease,
-    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    transform 120ms ease;
 }
 .c2-subscribe:hover,
 .c2-subscribe:focus-visible {
   outline: none;
-  border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 68%, var(--ed-ink-1));
-  background:
-    linear-gradient(180deg,
-      color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 20%, transparent),
-      rgba(var(--ink-rgb), 0.032)),
-    var(--ed-bg-1);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 12px 32px rgba(0, 0, 0, 0.18);
+  color: var(--alchemy-oxide-bright, #B43A19);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 32%, transparent);
+  background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 8%, transparent);
 }
 .c2-subscribe:active { transform: scale(0.98); }
-.c2-subscribe-glyph {
-  width: 26px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--alchemy-oxide-bright, #B43A19);
-  border: 1px solid color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 34%, transparent);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 10%, transparent);
-  flex: 0 0 auto;
+.c2-subscribe-ico { width: 14px; height: 14px; flex: 0 0 auto; opacity: 0.85; }
+.c2-subscribe-label { font-weight: 600; text-transform: lowercase; }
+.c2-subscribe-hook {
+  width: 11px; height: 11px; flex: 0 0 auto; opacity: 0.55;
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 180ms ease;
 }
-.c2-subscribe-glyph svg {
-  width: 16px;
-  height: 16px;
-}
-.c2-subscribe-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.c2-subscribe-copy strong {
-  font-family: var(--ed-mono);
-  font-size: 10px;
-  line-height: 1.1;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-.c2-subscribe-copy small {
-  font-family: var(--ed-mono);
-  font-size: 9.5px;
-  line-height: 1.2;
-  color: var(--ed-ink-3);
-  white-space: nowrap;
-}
+.c2-subscribe:hover .c2-subscribe-hook,
+.c2-subscribe:focus-visible .c2-subscribe-hook { opacity: 1; transform: translate(1.5px, -1.5px); }
 
 /* presence view — the availability gantt (styled by the legacy .cal-*
  * rules in cohort-calendar-week.css / styles.css; just give it room) */
@@ -189,24 +152,33 @@
   .cal-focus-row { animation: none; }
 }
 
-.c2-scrub { display: flex; align-items: center; gap: 5px; }
+/* Same dot-rail family as the cohort period scrubber (.cps): a hairline rail
+   threads the week beads (inset past the arrows), and the viewed week is the
+   oxide bead that echoes the scrubber's gliding indicator. Numbers stay — this
+   one NAVIGATES weeks (separate role from the constellation's "as of" filter). */
+.c2-scrub { position: relative; display: flex; align-items: center; gap: 5px; }
+.c2-scrub::before {
+  content: ""; position: absolute; top: 50%; left: 38px; right: 38px;
+  height: 2px; border-radius: 2px; transform: translateY(-50%);
+  background: var(--ed-rule-2); z-index: 0;
+}
 .c2-scrub-dot {
   appearance: none; cursor: pointer;
-  position: relative;
+  position: relative; z-index: 1;
   width: 22px; height: 22px;
   border: 1px solid var(--ed-rule-2); border-radius: 50%;
-  background: transparent;
+  background: var(--ed-bg-1);
   color: var(--ed-ink-3);
-  font-family: var(--ed-mono); font-size: 9px;
+  font-family: var(--ed-mono); font-size: 9px; font-variant-numeric: tabular-nums;
   display: inline-flex; align-items: center; justify-content: center;
-  transition: color 140ms ease, border-color 140ms ease, background 140ms ease,
-              transform 110ms cubic-bezier(0.19, 1, 0.22, 1);
+  transition: color 160ms cubic-bezier(0.19, 1, 0.22, 1), border-color 160ms cubic-bezier(0.19, 1, 0.22, 1),
+              background 160ms cubic-bezier(0.19, 1, 0.22, 1), transform 110ms cubic-bezier(0.19, 1, 0.22, 1),
+              box-shadow 160ms ease;
 }
-.c2-scrub-dot:hover { color: var(--ed-ink-1); border-color: var(--ed-rule-3); }
-/* Press feedback — match the press grammar the events/buttons already have, so
-   the week navigation feels as physical as everything else on the surface. */
+.c2-scrub-dot:hover { color: var(--ed-ink-1); border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 50%, var(--ed-rule-3)); }
 .c2-scrub-dot:active { transform: scale(0.92); }
-/* the week containing today — small dot under the circle, always visible */
+.c2-scrub-dot:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 55%, transparent); }
+/* the week containing today — small dot under the bead, always visible */
 .c2-scrub-dot.is-now { color: var(--ed-ink-1); }
 .c2-scrub-dot.is-now::after {
   content: "";
@@ -216,10 +188,12 @@
   border-radius: 50%;
   background: var(--ed-ink-1);
 }
-/* the week being viewed — white outline */
+/* the week being viewed — the oxide bead (the scrubber's glide, applied here) */
 .c2-scrub-dot[aria-selected="true"] {
-  border-color: var(--ed-ink-1);
-  color: var(--ed-ink-1);
+  border-color: transparent;
+  color: #fff;
+  background: radial-gradient(circle at 35% 30%, #f0b49f, var(--alchemy-oxide-bright, #B43A19) 60%, #8a2a14);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 0 4px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 12%, transparent);
 }
 
 .c2-scrub-arrow {
@@ -856,14 +830,8 @@
 }
 
 @media (max-width: 520px) {
-  .c2-subscribe {
-    width: 30px;
-    min-width: 30px;
-    min-height: 30px;
-    padding: 1px;
-    gap: 0;
-  }
-  .c2-subscribe-copy {
+  .c2-subscribe { padding: 4px 7px; gap: 5px; }
+  .c2-subscribe-label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -887,10 +855,13 @@
     transition: background 160ms ease, border-color 160ms ease;
   }
   .c2-modal-panel { animation: none; }
-  /* Drop the added presses, modal exit, and now-line tracking. */
+  /* Drop the added presses, modal exit, now-line tracking, and hook nudge. */
   .c2-scrub-dot:active,
   .c2-scrub-arrow:active:not(:disabled),
   .c2-chip:active { transform: none; }
+  .c2-subscribe-hook { transition: opacity 160ms ease; }
+  .c2-subscribe:hover .c2-subscribe-hook,
+  .c2-subscribe:focus-visible .c2-subscribe-hook { transform: none; }
   .c2-modal.is-closing,
   .c2-modal.is-closing .c2-modal-panel { animation: none; }
   .c2-now.is-tracking { transition: none; }
