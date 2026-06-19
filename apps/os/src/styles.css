@@ -9013,6 +9013,75 @@ html.jweek-vt::view-transition-new(root) {
   font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
   color: var(--alchemy-paper-warm); min-width: 3.4ch; font-variant-numeric: tabular-nums;
 }
+
+/* ── Shared period scrubber (.cps) ───────────────────────────────────────────
+   One "as of …" dot-rail reused across the constellation views (pmf, standing,
+   say/did/shipped, collab, map) and echoed as the calendar's week navigator
+   (cohort-period-scrubber.mjs). The dots and the gliding indicator share ONE
+   position formula (--cps-f → left), so they cannot drift apart — the alignment
+   fix. The indicator (.cps-glide) and the trailing fill (.cps-fill) carry
+   view-transition-names, so a commit that re-renders inside html.jweek-vt makes
+   them SWEEP from the old stop to the new one (same morph the dots ride). The
+   native range is the whole interaction surface (drag + click-to-jump + keys);
+   its thumb is hidden so there is one clear indicator, not a competing knob. */
+.cps { --cps-pad: 7px; margin-left: auto; display: inline-flex; align-items: center; gap: 9px; }
+.cps-cap {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em;
+  text-transform: lowercase; color: var(--journey-muted, rgba(var(--ink-rgb), 0.5)); white-space: nowrap;
+}
+.cps-rail { position: relative; width: 148px; height: 16px; flex: 0 0 auto; }
+.cps-rail::before {
+  content: ""; position: absolute; left: var(--cps-pad); right: var(--cps-pad); top: 50%;
+  height: 2px; border-radius: 2px; transform: translateY(-50%);
+  background: var(--journey-rule-strong, rgba(var(--ink-rgb), 0.16));
+}
+/* the X shared by dots + indicator (single source of truth) */
+.cps-stop, .cps-glide {
+  position: absolute; top: 50%;
+  left: calc(var(--cps-pad) + var(--cps-f, 0) * (100% - 2 * var(--cps-pad)));
+}
+/* progress fill: start → active fraction */
+.cps-fill {
+  position: absolute; top: 50%; left: var(--cps-pad); height: 2px; border-radius: 2px;
+  width: calc(var(--cps-f, 0) * (100% - 2 * var(--cps-pad))); transform: translateY(-50%);
+  background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 68%, transparent);
+  view-transition-name: cps-fill; pointer-events: none; z-index: 1;
+}
+.cps-stop {
+  width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.13); border: 1px solid rgba(var(--ink-rgb), 0.30);
+  pointer-events: none; z-index: 2;
+  transition: background 150ms var(--ease, ease), border-color 150ms var(--ease, ease);
+}
+.cps-rail:hover .cps-stop { border-color: rgba(var(--ink-rgb), 0.42); }
+.cps-stop.is-active { background: transparent; border-color: transparent; } /* the glide owns the active spot */
+/* the single clear indicator that sweeps */
+.cps-glide {
+  width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f0b49f, var(--alchemy-oxide-bright, #B43A19) 58%, #8a2a14);
+  border: 1px solid rgba(8, 6, 6, 0.5);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 4px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 13%, transparent);
+  view-transition-name: cps-glide; pointer-events: none; z-index: 4;
+}
+/* native range = the whole interaction surface; thumb invisible */
+.cps-range {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; z-index: 5;
+  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+}
+.cps-range::-webkit-slider-runnable-track { height: 100%; background: transparent; }
+.cps-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px; background: transparent; border: 0; cursor: grab;
+}
+.cps-range:active::-webkit-slider-thumb { cursor: grabbing; }
+.cps-range:focus-visible { outline: none; }
+.cps-rail:has(.cps-range:focus-visible) .cps-glide {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 3px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 48%, transparent);
+}
+.cps-now {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
+  color: var(--alchemy-paper-warm, var(--alchemy-oxide-bright, #B43A19));
+  min-width: 3.4ch; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
 /* Bottleneck token = the colour legend AND the filter. At rest it shows the four
    family swatches (.ac-jbn-legend); isolated, it shows one swatch + name and
    brass-tints, mirroring the rewound-timeline token. */
